@@ -1,0 +1,216 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== 基础数据 ====================
+
+model Product {
+  id          String   @id @default(cuid())
+  sku         String   @unique
+  name        String
+  category    String
+  unit        String   @default("件")
+  description String?
+  bom         BOM?
+  processRoutes ProcessRoute[]
+  stock       Stock?
+  productionOrders ProductionOrder[]
+  stockIns    StockIn[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Material {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  spec        String?
+  unit        String
+  stock       Stock?
+  bomItems    BOMItem[]
+  pickItems   PickItem[]
+  createdAt   DateTime @default(now())
+}
+
+// ==================== 物料清单 BOM ====================
+
+model BOM {
+  id          String   @id @default(cuid())
+  productId   String   @unique
+  product     Product  @relation(fields: [productId], references: [id])
+  items       BOMItem[]
+  version     String   @default("v1")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model BOMItem {
+  id          String   @id @default(cuid())
+  bomId       String
+  bom         BOM      @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  materialId  String
+  material    Material @relation(fields: [materialId], references: [id])
+  quantity    Float    @default(0)
+  unit        String
+  wastageRate Float    @default(0)
+}
+
+// ==================== 工艺路线 ====================
+
+model ProcessRoute {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  name        String
+  steps       ProcessStep[]
+  isDefault   Boolean  @default(false)
+}
+
+model ProcessStep {
+  id            String   @id @default(cuid())
+  routeId       String
+  route         ProcessRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  stepNo        Int
+  name          String
+  defaultTime   Int?
+  workstation   String?
+  description   String?
+  reports       WorkReport[]
+}
+
+// ==================== 生产工单 ====================
+
+model ProductionOrder {
+  id            String   @id @default(cuid())
+  orderNo       String   @unique
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  planQty       Int
+  completeQty   Int      @default(0)
+  scrapQty      Int      @default(0)
+  status        String   @default("DRAFT")
+  
+  planId        String?
+  picks         PickItem[]
+  reports       WorkReport[]
+  qcRecords     QCRecord[]
+  stockIns      StockIn[]
+  
+  startTime     DateTime?
+  completeTime  DateTime?
+  cancelTime    DateTime?
+  cancelReason  String?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ==================== 物料领用 ====================
+
+model PickItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       ProductionOrder @relation(fields: [orderId], references: [id])
+  materialId  String
+  material    Material @relation(fields: [materialId], references: [id])
+  requiredQty Float    @default(0)
+  actualQty   Float    @default(0)
+  returnedQty Float    @default(0)
+  status      String   @default("PENDING")
+  pickedAt    DateTime?
+  pickedBy    String?
+  createdAt   DateTime @default(now())
+}
+
+// ==================== 工序报工 ====================
+
+model WorkReport {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       ProductionOrder @relation(fields: [orderId], references: [id])
+  stepId      String
+  step        ProcessStep @relation(fields: [stepId], references: [id])
+  
+  workerName  String
+  workerId    String?
+  
+  startTime   DateTime
+  endTime     DateTime?
+  
+  goodQty     Int      @default(0)
+  badQty      Int      @default(0)
+  badReason   String?
+  remark      String?
+  photoUrls   String?
+  
+  createdAt   DateTime @default(now())
+}
+
+// ==================== 质检记录 ====================
+
+model QCRecord {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       ProductionOrder @relation(fields: [orderId], references: [id])
+  checkType   String
+  sampleQty   Int
+  goodQty     Int
+  badQty      Int
+  result      String
+  badReason   String?
+  inspector   String
+  checkedAt   DateTime @default(now())
+  photos      String?
+}
+
+// ==================== 库存与入库 ====================
+
+model Stock {
+  id          String   @id @default(cuid())
+  materialId  String?  @unique
+  material    Material? @relation(fields: [materialId], references: [id])
+  productId   String?  @unique
+  product     Product?  @relation(fields: [productId], references: [id])
+  
+  qty         Float    @default(0)
+  reservedQty Float    @default(0)
+  availableQty Float   @default(0)
+  
+  logs        StockLog[]
+}
+
+model StockLog {
+  id          String   @id @default(cuid())
+  stockId     String
+  stock       Stock    @relation(fields: [stockId], references: [id])
+  
+  type        String
+  qty         Float
+  beforeQty   Float
+  afterQty    Float
+  
+  refType     String?
+  refId       String?
+  note        String?
+  
+  createdAt   DateTime @default(now())
+  createdBy   String?
+}
+
+model StockIn {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       ProductionOrder @relation(fields: [orderId], references: [id])
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  qty         Int
+  batchNo     String?
+  inDate      DateTime @default(now())
+  inBy        String?
+  note        String?
+}
