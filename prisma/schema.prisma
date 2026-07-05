@@ -21,6 +21,8 @@ model Product {
   stock       Stock?
   productionOrders ProductionOrder[]
   stockIns    StockIn[]
+  shipments   Shipment[]
+  returnOrders ReturnOrder[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -34,6 +36,7 @@ model Material {
   stock       Stock?
   bomItems    BOMItem[]
   pickItems   PickItem[]
+  materialIns MaterialIn[]
   createdAt   DateTime @default(now())
 }
 
@@ -81,6 +84,7 @@ model ProcessStep {
   workstation   String?
   description   String?
   reports       WorkReport[]
+  dispatches    Dispatch[]
 }
 
 // ==================== 生产工单 ====================
@@ -100,6 +104,8 @@ model ProductionOrder {
   reports       WorkReport[]
   qcRecords     QCRecord[]
   stockIns      StockIn[]
+  dispatches    Dispatch[]
+  costRecords   CostRecord[]
   
   startTime     DateTime?
   completeTime  DateTime?
@@ -213,4 +219,114 @@ model StockIn {
   inDate      DateTime @default(now())
   inBy        String?
   note        String?
+}
+
+// ==================== 供应商 ====================
+
+model Supplier {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  contact     String?
+  phone       String?
+  address     String?
+  materialIns MaterialIn[]
+  createdAt   DateTime @default(now())
+}
+
+// ==================== 来料入库 ====================
+
+model MaterialIn {
+  id          String   @id @default(cuid())
+  inboundNo   String   @unique
+  supplierId  String
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  materialId  String
+  material    Material @relation(fields: [materialId], references: [id])
+  qty         Float
+  unit        String
+  unitPrice   Float    @default(0)
+  totalAmount Float    @default(0)
+  batchNo     String?
+  status      String   @default("PENDING")
+  inboundDate DateTime @default(now())
+  receivedBy  String?
+  note        String?
+  createdAt   DateTime @default(now())
+}
+
+// ==================== 派工管理 ====================
+
+model Dispatch {
+  id            String   @id @default(cuid())
+  dispatchNo    String   @unique
+  orderId       String
+  order         ProductionOrder @relation(fields: [orderId], references: [id])
+  stepId        String
+  step          ProcessStep @relation(fields: [stepId], references: [id])
+  workerName    String
+  workerId      String?
+  planQty       Int
+  priority      String   @default("NORMAL")
+  status        String   @default("PENDING")
+  dispatchedAt  DateTime?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  note          String?
+  createdAt     DateTime @default(now())
+}
+
+// ==================== 发货管理 ====================
+
+model Shipment {
+  id            String   @id @default(cuid())
+  shipmentNo    String   @unique
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  qty           Int
+  unitPrice     Float    @default(0)
+  totalAmount   Float    @default(0)
+  customer      String
+  customerPhone String?
+  address       String?
+  status        String   @default("PENDING")
+  shippedAt     DateTime?
+  shippedBy     String?
+  trackingNo    String?
+  note          String?
+  returnOrders  ReturnOrder[]
+  createdAt     DateTime @default(now())
+}
+
+// ==================== 退货管理 ====================
+
+model ReturnOrder {
+  id            String   @id @default(cuid())
+  returnNo      String   @unique
+  shipmentId    String?
+  shipment      Shipment? @relation(fields: [shipmentId], references: [id])
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  qty           Int
+  reason        String
+  status        String   @default("PENDING")
+  processedAt   DateTime?
+  processedBy   String?
+  note          String?
+  createdAt     DateTime @default(now())
+}
+
+// ==================== 成本统计 ====================
+
+model CostRecord {
+  id            String   @id @default(cuid())
+  orderId       String?
+  order         ProductionOrder? @relation(fields: [orderId], references: [id])
+  costType      String
+  category      String
+  amount        Float
+  description   String?
+  date          DateTime
+  createdBy     String?
+  createdAt     DateTime @default(now())
 }
