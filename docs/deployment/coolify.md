@@ -67,7 +67,7 @@ sudo chmod -R 750 /opt/mes-lite
 
 容器启动时会先创建 SQLite 文件，再自动执行 `prisma migrate deploy`，然后启动 Next.js。全新数据库首次注册的用户会自动成为管理员；已有数据库则继续使用原账号。
 
-镜像内置了 Docker `HEALTHCHECK`，会请求 `/api/health` 并检查数据库连接。如果健康检查失败，优先检查：
+镜像内置了 Docker `HEALTHCHECK`，使用 `curl` 请求 `/api/health` 并检查数据库连接。首次启动会先执行 SQLite 迁移，健康检查有 60 秒启动宽限期。如果健康检查失败，优先检查：
 
 - `/app/data` 是否可写。
 - `DATABASE_URL` 是否为 `file:/app/data/mes_lite.db`。
