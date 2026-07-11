@@ -7,6 +7,11 @@ import ShipmentPage from './components/ShipmentPage'
 import ReturnPage from './components/ReturnPage'
 import StatsPage from './components/StatsPage'
 import MaterialPage from './components/MaterialPage'
+import AttachmentPanel from './components/AttachmentPanel'
+import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
+import OperatorPage from './components/OperatorPage'
+import SystemPage from './components/SystemPage'
+import PermissionPage from './components/PermissionPage'
 
 // ==================== 类型定义 ====================
 
@@ -54,7 +59,7 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'orders' | 'materials' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'create' | 'detail'
+type TabType = 'dashboard' | 'orders' | 'materials' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'operators' | 'system' | 'permissions' | 'create' | 'detail'
 
 // ==================== 菜单图标组件 ====================
 
@@ -69,6 +74,9 @@ function MenuIcon({ icon }: { icon: string }) {
     shipment: '📤',
     return: '📧',
     stats: '📈',
+    operators: '👤',
+    system: '⚙️',
+    permissions: '🔐',
   }
   return <span className="text-lg">{icons[icon] || '📄'}</span>
 }
@@ -100,6 +108,33 @@ const statusLabels: Record<string, string> = {
 // ==================== 主组件 ====================
 
 export default function Home() {
+  return (
+    <AuthGate>
+      {(operator, onLogout) => <HomeApp operator={operator} onLogout={onLogout} />}
+    </AuthGate>
+  )
+}
+
+function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: () => void }) {
+  const canRead = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canRead)
+  const canCreate = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canCreate)
+  const baseNavItems: { key: TabType; label: string; resource: string }[] = [
+    { key: 'dashboard', label: '仪表盘', resource: 'dashboard' },
+    { key: 'orders', label: '工单管理', resource: 'orders' },
+    { key: 'materials', label: '物料管理', resource: 'materials' },
+    { key: 'materialIn', label: '来料管理', resource: 'materialIn' },
+    { key: 'dispatch', label: '派工管理', resource: 'dispatch' },
+    { key: 'stocks', label: '库存管理', resource: 'stocks' },
+    { key: 'shipment', label: '发货管理', resource: 'shipment' },
+    { key: 'return', label: '退货管理', resource: 'return' },
+    { key: 'stats', label: '统计分析', resource: 'stats' },
+    { key: 'operators', label: '人员管理', resource: 'operators' },
+    { key: 'system', label: '系统管理', resource: 'system' },
+    { key: 'permissions', label: '权限管理', resource: 'permissions' },
+  ]
+  const systemResources = new Set(['operators', 'system', 'permissions'])
+  const readableBusinessNavItems = baseNavItems.filter((item) => canRead(item.resource) && !systemResources.has(item.resource))
+  const readableSystemNavItems = baseNavItems.filter((item) => canRead(item.resource) && systemResources.has(item.resource))
   const [tab, setTab] = useState<TabType>('dashboard')
   const [orders, setOrders] = useState<Order[]>([])
   const [stocks, setStocks] = useState<Stock[]>([])
@@ -115,17 +150,7 @@ export default function Home() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
 
-  const [navItems, setNavItems] = useState<{ key: TabType; label: string }[]>([
-    { key: 'dashboard', label: '仪表盘' },
-    { key: 'orders', label: '工单管理' },
-    { key: 'materials', label: '物料管理' },
-    { key: 'materialIn', label: '来料管理' },
-    { key: 'dispatch', label: '派工管理' },
-    { key: 'stocks', label: '库存管理' },
-    { key: 'shipment', label: '发货管理' },
-    { key: 'return', label: '退货管理' },
-    { key: 'stats', label: '统计分析' },
-  ])
+  const [navItems, setNavItems] = useState<{ key: TabType; label: string }[]>(readableBusinessNavItems)
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index)
@@ -254,10 +279,22 @@ export default function Home() {
     setTab('detail')
   }
 
+  const dashboardView = {
+    todayOrderCount: dashboard?.todayOrderCount ?? dashboard?.todayOrders ?? 0,
+    monthOrderCount: dashboard?.monthOrderCount ?? dashboard?.monthOrders ?? 0,
+    todayProduction: dashboard?.todayProduction ?? 0,
+    monthProduction: dashboard?.monthProduction ?? 0,
+    pendingMaterialInCount: dashboard?.pendingMaterialInCount ?? dashboard?.pendingMaterialIns ?? 0,
+    pendingShipmentCount: dashboard?.pendingShipmentCount ?? dashboard?.pendingShipments ?? 0,
+    pendingReturnCount: dashboard?.pendingReturnCount ?? dashboard?.pendingReturns ?? 0,
+    lowStocks: dashboard?.lowStocks ?? dashboard?.alertStocks ?? [],
+    statusDistribution: dashboard?.statusDistribution ?? dashboard?.orderStatusDist ?? [],
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      <aside className="w-56 bg-white shadow-sm fixed left-0 top-0 h-screen z-20">
-        <div className="p-4 border-b">
+      <aside className="w-56 bg-white shadow-sm fixed left-0 top-0 h-screen z-20 flex flex-col">
+        <div className="p-4 border-b shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-xl">M</span>
@@ -268,7 +305,7 @@ export default function Home() {
             </div>
           </div>
         </div>
-        <nav className="p-3 space-y-1">
+        <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
           {navItems.map((item, index) => (
             <button
               key={item.key}
@@ -292,17 +329,50 @@ export default function Home() {
             </button>
           ))}
         </nav>
-        <div className="absolute bottom-4 left-4 right-4">
-          <button
-            onClick={() => setTab('create')}
-            className="w-full px-4 py-3 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition flex items-center justify-center gap-2"
-          >
-            <span>+</span> 创建工单
-          </button>
+        <div className="shrink-0 p-4 border-t bg-white space-y-3">
+          <div className="mb-3 px-3 py-2 border border-gray-200 rounded-lg">
+            <OperatorBadge operator={operator} />
+          </div>
+          {canCreate('orders') && (
+            <button
+              onClick={() => setTab('create')}
+              className="w-full px-4 py-3 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition flex items-center justify-center gap-2"
+            >
+              <span>+</span> 创建工单
+            </button>
+          )}
         </div>
       </aside>
 
       <main className="flex-1 ml-56 p-6">
+        <div className="mb-4 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
+              {readableSystemNavItems.map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => setTab(item.key)}
+                  className={`shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
+                    tab === item.key ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <MenuIcon icon={item.key} />
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <div className="shrink-0 flex items-center gap-3 pl-3 border-l border-gray-200">
+              <OperatorBadge operator={operator} />
+              <button
+                onClick={onLogout}
+                className="px-3 py-2 rounded-lg border border-red-200 text-sm font-medium text-red-600 hover:bg-red-50 transition"
+              >
+                退出登录
+              </button>
+            </div>
+          </div>
+        </div>
+
         {message && (
           <div className={`mb-4 p-4 rounded-lg text-sm ${
             message.includes('成功') || message.includes('完成') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
@@ -315,45 +385,30 @@ export default function Home() {
         {tab === 'dashboard' && dashboard && (
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard label="今日新增工单" value={dashboard.todayOrders} color="blue" />
-              <StatCard label="本月工单" value={dashboard.monthOrders} color="indigo" />
-              <StatCard label="今日产量" value={dashboard.todayProduction} color="green" />
-              <StatCard label="本月产量" value={dashboard.monthProduction} color="emerald" />
+              <StatCard label="今日新增工单" value={dashboardView.todayOrderCount} color="blue" />
+              <StatCard label="本月工单" value={dashboardView.monthOrderCount} color="indigo" />
+              <StatCard label="今日产量" value={dashboardView.todayProduction} color="green" />
+              <StatCard label="本月产量" value={dashboardView.monthProduction} color="emerald" />
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard label="待收货" value={dashboard.pendingMaterialIns} color="yellow" />
-              <StatCard label="待发货" value={dashboard.pendingShipments} color="orange" />
-              <StatCard label="待处理退货" value={dashboard.pendingReturns} color="red" />
-              <StatCard label="库存预警" value={dashboard.stockAlerts} color="pink" />
+              <StatCard label="待收货" value={dashboardView.pendingMaterialInCount} color="yellow" />
+              <StatCard label="待发货" value={dashboardView.pendingShipmentCount} color="orange" />
+              <StatCard label="待处理退货" value={dashboardView.pendingReturnCount} color="red" />
+              <StatCard label="库存预警" value={dashboardView.lowStocks.length} color="pink" />
             </div>
-            {dashboard.orderStatusDist && (
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="font-semibold mb-4">工单状态分布</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {dashboard.orderStatusDist.map((item: any) => (
-                    <div key={item.status} className="border border-gray-200 rounded-lg p-3 text-center">
-                      <span className={`inline-block px-2 py-1 rounded text-xs font-medium mb-2 ${statusColors[item.status] || 'bg-gray-100'}`}>
-                        {statusLabels[item.status] || item.status}
-                      </span>
-                      <div className="text-2xl font-bold">{item.count}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {dashboard.alertStocks && dashboard.alertStocks.length > 0 && (
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="font-semibold mb-4 text-red-600">库存预警</h3>
-                <div className="space-y-2">
-                  {dashboard.alertStocks.map((stock: any) => (
-                    <div key={stock.id} className="flex items-center justify-between border border-red-200 bg-red-50 rounded-lg p-3">
-                      <span className="font-medium">{stock.material?.name || stock.product?.name}</span>
-                      <span className="text-red-600">可用：{stock.availableQty}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <DashboardSignalGrid
+                title="待处理事项"
+                items={[
+                  { label: '待收货', value: dashboardView.pendingMaterialInCount, tone: 'yellow', hint: '原材料入库' },
+                  { label: '待发货', value: dashboardView.pendingShipmentCount, tone: 'orange', hint: '成品出库' },
+                  { label: '待处理退货', value: dashboardView.pendingReturnCount, tone: 'red', hint: '售后返库' },
+                  { label: '库存预警', value: dashboardView.lowStocks.length, tone: 'pink', hint: '低于阈值' },
+                ]}
+              />
+              <OrderStatusDonut items={dashboardView.statusDistribution} />
+            </div>
+            <StockAlertList stocks={dashboardView.lowStocks} />
           </div>
         )}
 
@@ -500,6 +555,14 @@ export default function Home() {
                 </div>
               </div>
             </div>
+            <div className="mt-6">
+              <AttachmentPanel
+                ownerType="PRODUCTION_ORDER"
+                ownerId={orderDetail.id}
+                title="工单原始单据"
+                onMessage={showMessage}
+              />
+            </div>
           </div>
         )}
 
@@ -599,6 +662,15 @@ export default function Home() {
 
         {/* 统计分析 */}
         {tab === 'stats' && <StatsPage onMessage={showMessage} />}
+
+        {/* 人员管理 */}
+        {tab === 'operators' && <OperatorPage currentOperator={operator} onMessage={showMessage} />}
+
+        {/* 系统管理 */}
+        {tab === 'system' && <SystemPage onMessage={showMessage} />}
+
+        {/* 权限管理 */}
+        {tab === 'permissions' && <PermissionPage onMessage={showMessage} />}
       </main>
     </div>
   )
@@ -619,6 +691,177 @@ function StatCard({ label, value, color }: { label: string; value: number; color
     <div className={`border rounded-lg p-4 ${colorMap[color] || 'border-gray-200 bg-gray-50'}`}>
       <div className="text-sm mb-1 opacity-80">{label}</div>
       <div className="text-2xl font-bold">{value ?? 0}</div>
+    </div>
+  )
+}
+
+function DashboardSignalGrid({
+  title,
+  items,
+}: {
+  title: string
+  items: { label: string; value: number; tone: string; hint: string }[]
+}) {
+  const toneMap: Record<string, string> = {
+    blue: 'bg-blue-50 text-blue-700 border-blue-100',
+    indigo: 'bg-indigo-50 text-indigo-700 border-indigo-100',
+    green: 'bg-green-50 text-green-700 border-green-100',
+    emerald: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    yellow: 'bg-yellow-50 text-yellow-700 border-yellow-100',
+    orange: 'bg-orange-50 text-orange-700 border-orange-100',
+    red: 'bg-red-50 text-red-700 border-red-100',
+    pink: 'bg-pink-50 text-pink-700 border-pink-100',
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="font-semibold text-gray-800">{title}</h3>
+        <span className="text-xs text-gray-400">实时状态</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {items.map((item) => (
+          <div key={item.label} className={`rounded-xl border p-4 ${toneMap[item.tone] || 'bg-gray-50 text-gray-700 border-gray-100'}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium">{item.label}</div>
+                <div className="mt-1 text-xs opacity-70">{item.hint}</div>
+              </div>
+              <div className="text-3xl font-semibold leading-none">{item.value ?? 0}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function OrderStatusDonut({ items }: { items: { status: string; count: number }[] }) {
+  const palette: Record<string, string> = {
+    DRAFT: '#94a3b8',
+    CONFIRMED: '#3b82f6',
+    PICKED: '#eab308',
+    RUNNING: '#f97316',
+    QC_WAITING: '#a855f7',
+    QC_DONE: '#6366f1',
+    COMPLETED: '#22c55e',
+    CANCELLED: '#ef4444',
+  }
+  const normalizedItems = [...items].sort((a, b) => (b.count || 0) - (a.count || 0))
+  const total = normalizedItems.reduce((sum, item) => sum + (Number(item.count) || 0), 0)
+
+  let cursor = 0
+  const segments = normalizedItems.map((item) => {
+    const share = total > 0 ? (Number(item.count) / total) * 100 : 0
+    const start = cursor
+    const end = cursor + share
+    cursor = end
+    return {
+      ...item,
+      start,
+      end,
+      color: palette[item.status] || '#64748b',
+    }
+  })
+  const gradient = segments.length
+    ? `conic-gradient(${segments.map((segment) => `${segment.color} ${segment.start}% ${segment.end}%`).join(', ')})`
+    : 'conic-gradient(#e5e7eb 0% 100%)'
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="font-semibold text-gray-800">工单状态分布</h3>
+        <span className="text-xs text-gray-400">合计 {total}</span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-[180px_minmax(0,1fr)] gap-6 items-center">
+        <div className="flex justify-center">
+          <div
+            className="relative h-40 w-40 rounded-full"
+            style={{ background: gradient }}
+          >
+            <div className="absolute inset-6 rounded-full bg-white shadow-inner flex flex-col items-center justify-center">
+              <div className="text-3xl font-semibold text-gray-900">{total}</div>
+              <div className="text-xs text-gray-500">工单总量</div>
+            </div>
+          </div>
+        </div>
+        {segments.length === 0 ? (
+          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-400">
+            暂无工单状态数据
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {segments.map((item) => (
+              <div key={item.status} className="rounded-lg border border-gray-200 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className={`shrink-0 px-2 py-1 rounded text-xs font-medium ${statusColors[item.status] || 'bg-gray-100 text-gray-700'}`}>
+                    {statusLabels[item.status] || item.status}
+                  </span>
+                  <span className="text-sm font-semibold text-gray-900">{item.count}</span>
+                </div>
+                <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                  <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+                  <span>{total > 0 ? `${((Number(item.count) / total) * 100).toFixed(1)}%` : '0%'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function StockAlertList({ stocks }: { stocks: any[] }) {
+  const sortedStocks = [...stocks].sort((a, b) => Number(a.availableQty ?? 0) - Number(b.availableQty ?? 0)).slice(0, 8)
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="font-semibold text-gray-800">库存预警</h3>
+        <span className="text-xs text-gray-400">低于 10</span>
+      </div>
+      {sortedStocks.length === 0 ? (
+        <div className="flex h-44 items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-400">
+          暂无库存预警
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {sortedStocks.map((stock, index) => {
+            const name = stock.material?.name || stock.product?.name || '未命名库存'
+            const code = stock.material?.code || stock.product?.sku || '-'
+            const available = Number(stock.availableQty ?? 0)
+            const level = available <= 2 ? '严重' : available <= 5 ? '紧急' : '关注'
+            const levelClass =
+              available <= 2 ? 'bg-red-100 text-red-700 border-red-200' :
+              available <= 5 ? 'bg-orange-100 text-orange-700 border-orange-200' :
+              'bg-yellow-100 text-yellow-700 border-yellow-200'
+
+            return (
+              <div key={stock.id} className="rounded-lg border border-gray-200 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600">
+                        {index + 1}
+                      </span>
+                      <div className="truncate text-sm font-medium text-gray-900">{name}</div>
+                    </div>
+                    <div className="mt-1 truncate text-xs text-gray-500">{code}</div>
+                  </div>
+                  <div className={`shrink-0 rounded-full border px-2 py-1 text-xs font-medium ${levelClass}`}>
+                    {level}
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center justify-between text-sm">
+                  <span className="text-gray-500">可用库存</span>
+                  <span className="font-semibold text-gray-900">{available}</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

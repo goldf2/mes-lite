@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireResourcePermission } from '@/lib/permissions'
 
 export async function POST(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('orders', 'read')
+    if (denied) return denied
+
     const { openai } = await import('@ai-sdk/openai')
     const { streamText } = await import('ai')
 
@@ -51,8 +55,8 @@ ${totalBad > 0 ? badRates.map(b => `- ${b.step}: ${b.badQty} 件, 原因 ${b.rea
 
 请给出：1. 整体质量评价；2. 主要问题（如有）；3. 改进建议。`
 
-    const result = streamText({
-      model: openai('gpt-4o-mini'),
+    const result = await streamText({
+      model: openai.chat('gpt-4o-mini') as any,
       prompt,
     })
 

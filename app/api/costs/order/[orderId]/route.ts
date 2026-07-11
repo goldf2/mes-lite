@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireResourcePermission } from '@/lib/permissions'
 
 // GET: 指定工单的所有成本记录
 export async function GET(
@@ -7,6 +8,9 @@ export async function GET(
   { params }: { params: { orderId: string } }
 ) {
   try {
+    const denied = await requireResourcePermission('stats', 'read')
+    if (denied) return denied
+
     const { orderId } = params
 
     const records = await prisma.costRecord.findMany({

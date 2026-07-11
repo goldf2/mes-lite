@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { requireResourcePermission } from '@/lib/permissions'
 
 const createCostSchema = z.object({
   orderId: z.string().optional().nullable(),
@@ -15,6 +16,9 @@ const createCostSchema = z.object({
 // GET: 成本记录列表
 export async function GET(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('stats', 'read')
+    if (denied) return denied
+
     const { searchParams } = new URL(req.url)
     const costType = searchParams.get('costType')
     const startDate = searchParams.get('startDate')
@@ -62,6 +66,9 @@ export async function GET(req: NextRequest) {
 // POST: 新增成本记录
 export async function POST(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('stats', 'create')
+    if (denied) return denied
+
     const body = await req.json()
     const data = createCostSchema.parse(body)
 

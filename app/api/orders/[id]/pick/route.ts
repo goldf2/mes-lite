@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { requireResourcePermission } from '@/lib/permissions'
 
 const pickSchema = z.object({
   items: z.array(
@@ -17,6 +18,9 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireResourcePermission('orders', 'update')
+    if (denied) return denied
+
     const body = await req.json()
     const { items } = pickSchema.parse(body)
 
@@ -44,21 +48,26 @@ export async function POST(
       for (const item of items) {
         const pick = order.picks.find(p => p.id === item.pickItemId)
         if (!pick) throw new Error('领料项不存在')
+        if (pick.status === 'COMPLETED') throw new Error(`物料 ${pick.material.name} 已完成领料，不可重复领料`)
 
         const stock = pick.material.stock
         if (!stock) throw new Error(`物料 ${pick.material.name} 无库存记录`)
 
-        if (Number(stock.availableQty) < item.actualQty) {
+        const requiredQty = Number(pick.requiredQty)
+        const availableWithReserve = Number(stock.availableQty) + requiredQty
+        if (availableWithReserve < item.actualQty) {
           throw new Error(`物料 ${pick.material.name} 库存不足`)
         }
 
-        // 更新库存
+        const availableDelta = requiredQty - item.actualQty
+
+        // 领料时从预留转为实际出库，释放对应预留，避免二次扣减可用库存。
         await tx.stock.update({
           where: { id: stock.id },
           data: {
             qty: { decrement: item.actualQty },
-            availableQty: { decrement: item.actualQty },
-            // reservedQty 已经在创建工单时预留，实际出库时不再扣 reserved
+            reservedQty: { decrement: requiredQty },
+            availableQty: { increment: availableDelta },
           },
         })
 

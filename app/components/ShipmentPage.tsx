@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import AttachmentPanel from './AttachmentPanel'
 
 interface Product {
   id: string
@@ -204,6 +205,7 @@ export default function ShipmentPage({ onMessage }: { onMessage: (msg: string) =
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">客户</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">发货日期</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">原始单据</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr>
               </thead>
@@ -233,27 +235,40 @@ export default function ShipmentPage({ onMessage }: { onMessage: (msg: string) =
                       {item.shippedAt ? new Date(item.shippedAt).toLocaleString('zh-CN') : '-'}
                     </td>
                     <td className="px-4 py-3">
-                      {item.status === 'PENDING' && (
-                        <button
-                          onClick={() => handleAction(item.id, 'ship')}
-                          disabled={loading}
-                          className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition disabled:opacity-50"
-                        >
-                          发货
-                        </button>
-                      )}
-                      {item.status === 'SHIPPED' && (
-                        <button
-                          onClick={() => handleAction(item.id, 'deliver')}
-                          disabled={loading}
-                          className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition disabled:opacity-50"
-                        >
-                          签收
-                        </button>
-                      )}
-                      {(item.status === 'DELIVERED' || item.status === 'CANCELLED') && (
-                        <span className="text-xs text-gray-400">无操作</span>
-                      )}
+                      <AttachmentPanel ownerType="SHIPMENT" ownerId={item.id} compact onMessage={onMessage} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        {item.status === 'PENDING' && (
+                          <button
+                            onClick={() => handleAction(item.id, 'ship')}
+                            disabled={loading}
+                            className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition disabled:opacity-50"
+                          >
+                            发货
+                          </button>
+                        )}
+                        {item.status === 'SHIPPED' && (
+                          <button
+                            onClick={() => handleAction(item.id, 'deliver')}
+                            disabled={loading}
+                            className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition disabled:opacity-50"
+                          >
+                            签收
+                          </button>
+                        )}
+                        {(item.status === 'SHIPPED' || item.status === 'DELIVERED') && (
+                          <a
+                            href={`/api/shipments/${item.id}/delivery-note`}
+                            className="px-3 py-1 border border-blue-300 text-blue-700 rounded text-xs hover:bg-blue-50"
+                          >
+                            下载送货单
+                          </a>
+                        )}
+                        {item.status === 'CANCELLED' && (
+                          <span className="text-xs text-gray-400">无操作</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

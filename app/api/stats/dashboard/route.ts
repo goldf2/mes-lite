@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireResourcePermission } from '@/lib/permissions'
+
+export const dynamic = 'force-dynamic'
 
 // GET: 仪表盘汇总
 export async function GET(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('dashboard', 'read')
+    if (denied) return denied
+
     const now = new Date()
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)

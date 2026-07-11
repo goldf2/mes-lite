@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { requireResourcePermission } from '@/lib/permissions'
 
 const createDispatchSchema = z.object({
   orderId: z.string().min(1),
@@ -14,6 +15,9 @@ const createDispatchSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('dispatch', 'read')
+    if (denied) return denied
+
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
     const workerName = searchParams.get('workerName')
@@ -54,6 +58,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('dispatch', 'create')
+    if (denied) return denied
+
     const body = await req.json()
     const data = createDispatchSchema.parse(body)
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { requireResourcePermission } from '@/lib/permissions'
 
 const processSchema = z.object({
   processedBy: z.string().min(1, '处理人必填'),
@@ -11,6 +12,9 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireResourcePermission('return', 'update')
+    if (denied) return denied
+
     const body = await req.json()
     const { processedBy } = processSchema.parse(body)
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { requireResourcePermission } from '@/lib/permissions'
 
 const createMaterialInSchema = z.object({
   supplierId: z.string().min(1, '供应商必填'),
@@ -16,6 +17,9 @@ const createMaterialInSchema = z.object({
 // GET: 来料单列表，支持 status 筛选和分页
 export async function GET(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('materialIn', 'read')
+    if (denied) return denied
+
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
     const page = Number(searchParams.get('page') ?? '1')
@@ -50,20 +54,27 @@ export async function GET(req: NextRequest) {
 // POST: 创建来料单
 export async function POST(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('materialIn', 'create')
+    if (denied) return denied
+
     const body = await req.json()
     const { supplierId, materialId, qty, unit, unitPrice, batchNo, receivedBy, note } =
       createMaterialInSchema.parse(body)
 
-    // 校验供应商存在
-    const supplier = await prisma.supplier.findUnique({ where: { id: supplierId } })
+    // 校验供应商存在且未删除
+    const supplier = await prisma.supplier.findFirst({
+      where: { id: supplierId, deletedAt: null },
+    })
     if (!supplier) {
-      return NextResponse.json({ error: '供应商不存在' }, { status: 404 })
+      return NextResponse.json({ error: '供应商不存在或已删除' }, { status: 404 })
     }
 
-    // 校验物料存在
-    const material = await prisma.material.findUnique({ where: { id: materialId } })
+    // 校验物料存在且未删除
+    const material = await prisma.material.findFirst({
+      where: { id: materialId, deletedAt: null },
+    })
     if (!material) {
-      return NextResponse.json({ error: '物料不存在' }, { status: 404 })
+      return NextResponse.json({ error: '物料不存在或已删除' }, { status: 404 })
     }
 
     // 生成 inboundNo: IN-YYYYMMDD-XXX

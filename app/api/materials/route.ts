@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { requireResourcePermission } from '@/lib/permissions'
 
 const materialSchema = z.object({
   code: z.string().min(1, '物料编码不能为空'),
@@ -11,19 +12,21 @@ const materialSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('materials', 'read')
+    if (denied) return denied
+
     const { searchParams } = new URL(req.url)
     const keyword = searchParams.get('keyword')
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '20')
 
-    const where = keyword
-      ? {
-          OR: [
-            { name: { contains: keyword } },
-            { code: { contains: keyword } },
-          ],
-        }
-      : {}
+    const where: any = { deletedAt: null }
+    if (keyword) {
+      where.OR = [
+        { name: { contains: keyword } },
+        { code: { contains: keyword } },
+      ]
+    }
 
     const [materials, total] = await Promise.all([
       prisma.material.findMany({
@@ -38,8 +41,41 @@ export async function GET(req: NextRequest) {
       prisma.material.count({ where }),
     ])
 
+    const materialIds = materials.map((material) => material.id)
+    const images = materialIds.length === 0 ? [] : await prisma.documentAttachment.findMany({
+      where: {
+        ownerType: 'MATERIAL',
+        ownerId: { in: materialIds },
+        documentType: 'MATERIAL_IMAGE',
+        mimeType: { startsWith: 'image/' },
+        deletedAt: null,
+      },
+      orderBy: [{ isCover: 'desc' }, { createdAt: 'desc' }],
+      select: { id: true, ownerId: true, note: true, mimeType: true, isCover: true },
+    })
+    const primaryImageByMaterial = new Map<string, (typeof images)[number]>()
+    for (const image of images) {
+      if (!primaryImageByMaterial.has(image.ownerId)) {
+        primaryImageByMaterial.set(image.ownerId, image)
+      }
+    }
+
+    const data = materials.map((material) => {
+      const image = primaryImageByMaterial.get(material.id)
+      return {
+        ...material,
+        primaryImage: image ? {
+          id: image.id,
+          url: `/api/attachments/${image.id}/file`,
+          note: image.note,
+          mimeType: image.mimeType,
+          isCover: image.isCover,
+        } : null,
+      }
+    })
+
     return NextResponse.json({
-      data: materials,
+      data,
       pagination: {
         page,
         pageSize,
@@ -55,6 +91,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('materials', 'create')
+    if (denied) return denied
+
     const body = await req.json()
     const result = materialSchema.safeParse(body)
 
@@ -70,7 +109,7 @@ export async function POST(req: NextRequest) {
     })
 
     if (existing) {
-      return NextResponse.json({ error: '物料编码已存在' }, { status: 400 })
+      return NextResponse.json({ error: existing.deletedAt ? '物料编码已被已删除记录占用' : '物料编码已存在' }, { status: 400 })
     }
 
     const material = await prisma.material.create({
@@ -91,6 +130,9 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('materials', 'update')
+    if (denied) return denied
+
     const body = await req.json()
     const result = z
       .object({
@@ -114,7 +156,7 @@ export async function PUT(req: NextRequest) {
     })
 
     if (existing && existing.id !== body.id) {
-      return NextResponse.json({ error: '物料编码已存在' }, { status: 400 })
+      return NextResponse.json({ error: existing.deletedAt ? '物料编码已被已删除记录占用' : '物料编码已存在' }, { status: 400 })
     }
 
     const material = await prisma.material.update({
@@ -136,6 +178,9 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('materials', 'delete')
+    if (denied) return denied
+
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
 
@@ -143,24 +188,19 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: '物料ID不能为空' }, { status: 400 })
     }
 
-    const hasBOMItems = await prisma.bOMItem.count({ where: { materialId: id } })
-    if (hasBOMItems > 0) {
-      return NextResponse.json({ error: '该物料已被BOM使用，无法删除' }, { status: 400 })
+    const material = await prisma.material.findUnique({ where: { id } })
+    if (!material || material.deletedAt) {
+      return NextResponse.json({ error: '物料不存在或已删除' }, { status: 404 })
     }
 
-    const hasPickItems = await prisma.pickItem.count({ where: { materialId: id } })
-    if (hasPickItems > 0) {
-      return NextResponse.json({ error: '该物料已被领料单使用，无法删除' }, { status: 400 })
-    }
+    await prisma.material.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
+    })
 
-    const hasMaterialIns = await prisma.materialIn.count({ where: { materialId: id } })
-    if (hasMaterialIns > 0) {
-      return NextResponse.json({ error: '该物料已有来料记录，无法删除' }, { status: 400 })
-    }
-
-    await prisma.material.delete({ where: { id } })
-
-    return NextResponse.json({ success: true, message: '删除成功' })
+    return NextResponse.json({ success: true, message: '物料已删除' })
   } catch (error) {
     console.error('Delete material error:', error)
     return NextResponse.json({ error: '删除物料失败' }, { status: 500 })

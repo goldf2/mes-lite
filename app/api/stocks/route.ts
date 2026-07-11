@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireResourcePermission } from '@/lib/permissions'
 
 // GET: 库存查询
 export async function GET(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('stocks', 'read')
+    if (denied) return denied
+
     const { searchParams } = new URL(req.url)
     const type = searchParams.get('type') // 'material' | 'product'
     const keyword = searchParams.get('keyword') // 搜索关键词
@@ -50,6 +54,9 @@ const adjustSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('stocks', 'update')
+    if (denied) return denied
+
     const body = await req.json()
     const { stockId, newQty, reason, adjustedBy } = adjustSchema.parse(body)
 

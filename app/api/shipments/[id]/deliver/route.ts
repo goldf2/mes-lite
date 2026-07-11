@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireResourcePermission } from '@/lib/permissions'
 
 // PATCH: 确认签收
 export async function PATCH(
@@ -7,6 +8,9 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireResourcePermission('shipment', 'update')
+    if (denied) return denied
+
     const shipment = await prisma.shipment.findUnique({
       where: { id: params.id },
     })

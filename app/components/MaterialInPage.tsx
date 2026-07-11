@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import AttachmentPanel from './AttachmentPanel'
 
 interface Supplier {
   id: string
@@ -239,6 +240,7 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">批次</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">入库日期</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">原始单据</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr>
               </thead>
@@ -265,6 +267,9 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500">
                       {new Date(item.inboundDate).toLocaleString('zh-CN')}
+                    </td>
+                    <td className="px-4 py-3">
+                      <AttachmentPanel ownerType="MATERIAL_IN" ownerId={item.id} compact onMessage={onMessage} />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">

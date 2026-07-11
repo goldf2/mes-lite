@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { requireResourcePermission } from '@/lib/permissions'
 
 const reportSchema = z.object({
   stepId: z.string().min(1),
@@ -18,11 +19,15 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireResourcePermission('orders', 'create')
+    if (denied) return denied
+
     const body = await req.json()
     const { stepId, workerName, workerId, goodQty, badQty, badReason, remark, photoUrls } =
       reportSchema.parse(body)
 
     const orderId = params.id
+    const photoUrlsJson = photoUrls ? JSON.stringify(photoUrls) : undefined
 
     const order = await prisma.productionOrder.findUnique({
       where: { id: orderId },
@@ -80,7 +85,7 @@ export async function POST(
           badQty,
           badReason,
           remark,
-          photoUrls: photoUrls ?? [],
+          photoUrls: photoUrlsJson,
         },
       })
     } else {
@@ -97,7 +102,7 @@ export async function POST(
           badQty,
           badReason,
           remark,
-          photoUrls: photoUrls ?? [],
+          photoUrls: photoUrlsJson,
         },
       })
     }
@@ -143,6 +148,9 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireResourcePermission('orders', 'read')
+    if (denied) return denied
+
     const reports = await prisma.workReport.findMany({
       where: { orderId: params.id },
       include: { step: true },

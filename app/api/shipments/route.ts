@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { requireResourcePermission } from '@/lib/permissions'
 
 const createShipmentSchema = z.object({
   productId: z.string().min(1),
@@ -17,6 +18,9 @@ const createShipmentSchema = z.object({
 // GET: 发货单列表
 export async function GET(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('shipment', 'read')
+    if (denied) return denied
+
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
     const customer = searchParams.get('customer')
@@ -53,6 +57,9 @@ export async function GET(req: NextRequest) {
 // POST: 创建发货单
 export async function POST(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('shipment', 'create')
+    if (denied) return denied
+
     const body = await req.json()
     const data = createShipmentSchema.parse(body)
 

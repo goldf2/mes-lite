@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import AttachmentPanel from './AttachmentPanel'
 
 interface Order {
   id: string
@@ -242,6 +243,7 @@ export default function DispatchPage({ onMessage }: { onMessage: (msg: string) =
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">计划数量</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">优先级</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">原始单据</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr>
               </thead>
@@ -272,6 +274,9 @@ export default function DispatchPage({ onMessage }: { onMessage: (msg: string) =
                       <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[item.status]}`}>
                         {statusLabels[item.status] || item.status}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <AttachmentPanel ownerType="DISPATCH" ownerId={item.id} compact onMessage={onMessage} />
                     </td>
                     <td className="px-4 py-3">
                       {item.status === 'PENDING' && (

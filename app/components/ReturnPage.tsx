@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import AttachmentPanel from './AttachmentPanel'
 
 interface Product {
   id: string
@@ -184,6 +185,7 @@ export default function ReturnPage({ onMessage }: { onMessage: (msg: string) => 
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">退货原因</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">创建时间</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">原始单据</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr>
               </thead>
@@ -207,6 +209,9 @@ export default function ReturnPage({ onMessage }: { onMessage: (msg: string) => 
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500">
                       {new Date(item.createdAt).toLocaleString('zh-CN')}
+                    </td>
+                    <td className="px-4 py-3">
+                      <AttachmentPanel ownerType="RETURN_ORDER" ownerId={item.id} compact onMessage={onMessage} />
                     </td>
                     <td className="px-4 py-3">
                       {item.status === 'PENDING' && (

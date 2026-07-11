@@ -33,6 +33,8 @@ model Material {
   name        String
   spec        String?
   unit        String
+  deletedAt   DateTime?
+  deletedBy   String?
   stock       Stock?
   bomItems    BOMItem[]
   pickItems   PickItem[]
@@ -100,6 +102,7 @@ model ProductionOrder {
   status        String   @default("DRAFT")
   
   planId        String?
+  note          String?
   picks         PickItem[]
   reports       WorkReport[]
   qcRecords     QCRecord[]
@@ -230,6 +233,8 @@ model Supplier {
   contact     String?
   phone       String?
   address     String?
+  deletedAt   DateTime?
+  deletedBy   String?
   materialIns MaterialIn[]
   createdAt   DateTime @default(now())
 }
@@ -329,4 +334,70 @@ model CostRecord {
   date          DateTime
   createdBy     String?
   createdAt     DateTime @default(now())
+}
+
+// ==================== 原始单据附件 ====================
+
+model DocumentAttachment {
+  id            String   @id @default(cuid())
+  ownerType     String
+  ownerId       String
+  documentType  String   @default("ORIGINAL")
+  originalName  String
+  fileName      String
+  mimeType      String
+  size          Int
+  url           String
+  storagePath   String
+  note          String?
+  uploadedBy    String?
+  isCover       Boolean  @default(false)
+  deletedAt     DateTime?
+  deletedBy     String?
+  createdAt     DateTime @default(now())
+
+  @@index([ownerType, ownerId])
+}
+
+// ==================== 操作人员与注册审核 ====================
+
+model Operator {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  name         String
+  phone        String?
+  role         String   @default("OPERATOR")
+  status       String   @default("PENDING")
+  approvedAt   DateTime?
+  approvedBy   String?
+  lastLoginAt  DateTime?
+  sessions     OperatorSession[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model PermissionSetting {
+  id        String   @id @default(cuid())
+  role      String
+  resource  String
+  canRead   Boolean  @default(false)
+  canCreate Boolean  @default(false)
+  canUpdate Boolean  @default(false)
+  canDelete Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@unique([role, resource])
+  @@index([role])
+}
+
+model OperatorSession {
+  id          String   @id @default(cuid())
+  tokenHash   String   @unique
+  operatorId  String
+  operator    Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([operatorId])
 }

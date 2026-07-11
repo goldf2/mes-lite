@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { requireResourcePermission } from '@/lib/permissions'
 
 const createOrderSchema = z.object({
   productId: z.string().min(1),
@@ -10,6 +11,9 @@ const createOrderSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('orders', 'create')
+    if (denied) return denied
+
     const body = await req.json()
     const { productId, planQty, note } = createOrderSchema.parse(body)
 
@@ -94,6 +98,9 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('orders', 'read')
+    if (denied) return denied
+
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
     const page = Number(searchParams.get('page') ?? '1')

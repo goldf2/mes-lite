@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireResourcePermission } from '@/lib/permissions'
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireResourcePermission('return', 'read')
+    if (denied) return denied
+
     const returnOrder = await prisma.returnOrder.findUnique({
       where: { id: params.id },
       include: {

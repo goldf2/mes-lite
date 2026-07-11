@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireResourcePermission } from '@/lib/permissions'
+
+export const dynamic = 'force-dynamic'
 
 // GET: 质量统计
 export async function GET(req: NextRequest) {
   try {
+    const denied = await requireResourcePermission('stats', 'read')
+    if (denied) return denied
+
     const { searchParams } = new URL(req.url)
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')

@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireResourcePermission } from '@/lib/permissions'
 
 // PATCH: 确认收货入库
 export async function PATCH(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const denied = await requireResourcePermission('materialIn', 'update')
+    if (denied) return denied
+
     const { id } = params
 
     const materialIn = await prisma.materialIn.findUnique({
@@ -13,6 +17,10 @@ export async function PATCH(_req: NextRequest, { params }: { params: { id: strin
 
     if (!materialIn) {
       return NextResponse.json({ error: '来料单不存在' }, { status: 404 })
+    }
+
+    if (materialIn.material.deletedAt) {
+      return NextResponse.json({ error: '物料已删除，无法确认收货' }, { status: 400 })
     }
 
     if (materialIn.status !== 'PENDING') {

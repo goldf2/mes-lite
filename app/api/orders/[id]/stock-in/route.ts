@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { requireResourcePermission } from '@/lib/permissions'
 
 const stockInSchema = z.object({
   qty: z.number().int().positive(),
@@ -14,6 +15,9 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireResourcePermission('orders', 'update')
+    if (denied) return denied
+
     const body = await req.json()
     const { qty, batchNo, inBy, note } = stockInSchema.parse(body)
 
