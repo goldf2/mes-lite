@@ -37,7 +37,7 @@ npm install
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填入 DATABASE_URL 和 OPENAI_API_KEY（可选）
+# 编辑 .env，填入 DATABASE_URL
 ```
 
 ### 4. 初始化数据库
@@ -118,7 +118,7 @@ DEV_ADMIN_USERNAME=admin DEV_ADMIN_PASSWORD=admin123 DEV_ADMIN_NAME=开发管理
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `POST` | `/api/ai/analyze` | 流式 AI 分析工单质量（需 OPENAI_API_KEY） |
+| `POST` | `/api/ai/analyze` | AI 分析占位接口，当前未启用 |
 
 ---
 
