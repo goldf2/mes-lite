@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
+import { writeAuditLog } from '@/lib/audit'
 
 const createOrderSchema = z.object({
   productId: z.string().min(1),
@@ -62,25 +63,37 @@ export async function POST(req: NextRequest) {
         const requiredQty = Number(bomItem.quantity) * planQty * (1 + Number(bomItem.wastageRate) / 100)
         const stockQty = Number(bomItem.material.stock?.availableQty ?? 0)
 
+        let valuationReserveQty = 0
+        if (bomItem.material.stock) {
+          const stock = bomItem.material.stock
+          const stockQty = Number(stock.qty)
+          const stockValuationQty = Number(stock.valuationQty)
+          const materialConversionRate = Number(bomItem.material.conversionRate || 1)
+          valuationReserveQty = Number((
+            requiredQty * (stockQty > 0 ? stockValuationQty / stockQty : materialConversionRate)
+          ).toFixed(6))
+
+          await tx.stock.update({
+            where: { id: stock.id },
+            data: {
+              reservedQty: { increment: requiredQty },
+              availableQty: { decrement: requiredQty },
+              reservedValuationQty: { increment: valuationReserveQty },
+              availableValuationQty: { decrement: valuationReserveQty },
+            },
+          })
+        }
+
         await tx.pickItem.create({
           data: {
             orderId: newOrder.id,
             materialId: bomItem.materialId,
             requiredQty: requiredQty,
+            reservedValuationQty: valuationReserveQty,
             actualQty: 0,
             status: stockQty >= requiredQty ? 'PENDING' : 'PENDING',
           },
         })
-
-        if (bomItem.material.stock) {
-          await tx.stock.update({
-            where: { id: bomItem.material.stock.id },
-            data: {
-              reservedQty: { increment: requiredQty },
-              availableQty: { decrement: requiredQty },
-            },
-          })
-        }
       }
 
       return newOrder
@@ -106,7 +119,8 @@ export async function GET(req: NextRequest) {
     const page = Number(searchParams.get('page') ?? '1')
     const pageSize = Number(searchParams.get('pageSize') ?? '20')
 
-    const where = status ? { status: status as any } : {}
+    const where: any = { deletedAt: null }
+    if (status) where.status = status
 
     const [orders, total] = await Promise.all([
       prisma.productionOrder.findMany({
@@ -129,5 +143,40 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('Get orders error:', error)
     return NextResponse.json({ error: '获取工单列表失败' }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const denied = await requireResourcePermission('orders', 'delete')
+    if (denied) return denied
+
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: '缺少工单 ID' }, { status: 400 })
+
+    const order = await prisma.productionOrder.findUnique({ where: { id } })
+    if (!order || order.deletedAt) {
+      return NextResponse.json({ error: '工单不存在或已删除' }, { status: 404 })
+    }
+
+    const updated = await prisma.productionOrder.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    })
+
+    await writeAuditLog(req, {
+      action: 'SOFT_DELETE',
+      entityType: 'ORDER',
+      entityId: updated.id,
+      entityLabel: updated.orderNo,
+      beforeData: order,
+      afterData: updated,
+    })
+
+    return NextResponse.json({ success: true, message: '工单已删除，可在回收站恢复' })
+  } catch (error) {
+    console.error('Delete order error:', error)
+    return NextResponse.json({ error: '删除工单失败' }, { status: 500 })
   }
 }

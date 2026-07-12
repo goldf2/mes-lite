@@ -2,12 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
+import { writeAuditLog } from '@/lib/audit'
+import { resolveMaterialUnits, toValuationQty } from '@/lib/units'
 
 const createMaterialInSchema = z.object({
   supplierId: z.string().min(1, '供应商必填'),
   materialId: z.string().min(1, '物料必填'),
   qty: z.number().positive('数量必须大于 0'),
-  unit: z.string().min(1, '单位必填'),
+  unit: z.string().optional(),
+  valuationQty: z.number().positive().optional(),
+  valuationUnit: z.string().optional(),
+  conversionRate: z.number().positive().optional(),
   unitPrice: z.number().nonnegative('单价不能为负'),
   batchNo: z.string().optional(),
   receivedBy: z.string().optional(),
@@ -25,7 +30,8 @@ export async function GET(req: NextRequest) {
     const page = Number(searchParams.get('page') ?? '1')
     const pageSize = Number(searchParams.get('pageSize') ?? '20')
 
-    const where = status ? { status: status as any } : {}
+    const where: any = { deletedAt: null }
+    if (status) where.status = status
 
     const [items, total] = await Promise.all([
       prisma.materialIn.findMany({
@@ -58,7 +64,7 @@ export async function POST(req: NextRequest) {
     if (denied) return denied
 
     const body = await req.json()
-    const { supplierId, materialId, qty, unit, unitPrice, batchNo, receivedBy, note } =
+    const { supplierId, materialId, qty, unitPrice, batchNo, receivedBy, note } =
       createMaterialInSchema.parse(body)
 
     // 校验供应商存在且未删除
@@ -76,6 +82,11 @@ export async function POST(req: NextRequest) {
     if (!material) {
       return NextResponse.json({ error: '物料不存在或已删除' }, { status: 404 })
     }
+    const units = resolveMaterialUnits(material)
+    const conversionRate = body.conversionRate ?? units.conversionRate
+    const valuationQty = body.valuationQty ?? toValuationQty(qty, conversionRate)
+    const stockUnit = body.unit || units.stockUnit
+    const valuationUnit = body.valuationUnit || units.valuationUnit
 
     // 生成 inboundNo: IN-YYYYMMDD-XXX
     const today = new Date()
@@ -85,7 +96,8 @@ export async function POST(req: NextRequest) {
     })
     const inboundNo = `IN-${dateStr}-${String(count + 1).padStart(3, '0')}`
 
-    const totalAmount = qty * unitPrice
+    const totalAmount = valuationQty * unitPrice
+    const stockUnitCost = qty > 0 ? totalAmount / qty : 0
 
     const materialIn = await prisma.materialIn.create({
       data: {
@@ -93,8 +105,12 @@ export async function POST(req: NextRequest) {
         supplierId,
         materialId,
         qty,
-        unit,
+        unit: stockUnit,
+        valuationQty,
+        valuationUnit,
+        conversionRate,
         unitPrice,
+        stockUnitCost,
         totalAmount,
         batchNo,
         receivedBy,
@@ -107,6 +123,14 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    await writeAuditLog(req, {
+      action: 'CREATE',
+      entityType: 'MATERIAL_IN',
+      entityId: materialIn.id,
+      entityLabel: materialIn.inboundNo,
+      afterData: materialIn,
+    })
+
     return NextResponse.json({ data: materialIn }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -114,5 +138,40 @@ export async function POST(req: NextRequest) {
     }
     console.error('Create material-in error:', error)
     return NextResponse.json({ error: '创建来料单失败' }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const denied = await requireResourcePermission('materialIn', 'delete')
+    if (denied) return denied
+
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: '缺少来料单 ID' }, { status: 400 })
+
+    const materialIn = await prisma.materialIn.findUnique({ where: { id } })
+    if (!materialIn || materialIn.deletedAt) {
+      return NextResponse.json({ error: '来料单不存在或已删除' }, { status: 404 })
+    }
+
+    const updated = await prisma.materialIn.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    })
+
+    await writeAuditLog(req, {
+      action: 'SOFT_DELETE',
+      entityType: 'MATERIAL_IN',
+      entityId: updated.id,
+      entityLabel: updated.inboundNo,
+      beforeData: materialIn,
+      afterData: updated,
+    })
+
+    return NextResponse.json({ success: true, message: '来料单已删除，可在回收站恢复' })
+  } catch (error) {
+    console.error('Delete material-in error:', error)
+    return NextResponse.json({ error: '删除来料单失败' }, { status: 500 })
   }
 }

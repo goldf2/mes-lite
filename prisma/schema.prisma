@@ -34,9 +34,15 @@ model Material {
   name        String
   spec        String?
   unit        String
+  stockUnit   String   @default("件")
+  valuationUnit String @default("kg")
+  conversionRate Float @default(1)
+  conversionNote String?
+  costingMethod String @default("WEIGHTED_AVERAGE")
   deletedAt   DateTime?
   deletedBy   String?
   stock       Stock?
+  costLayers  InventoryCostLayer[]
   bomItems    BOMItem[]
   pickItems   PickItem[]
   materialIns MaterialIn[]
@@ -115,6 +121,8 @@ model ProductionOrder {
   completeTime  DateTime?
   cancelTime    DateTime?
   cancelReason  String?
+  deletedAt     DateTime?
+  deletedBy     String?
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -129,7 +137,14 @@ model PickItem {
   materialId  String
   material    Material @relation(fields: [materialId], references: [id])
   requiredQty Float    @default(0)
+  reservedValuationQty Float @default(0)
   actualQty   Float    @default(0)
+  actualValuationQty Float @default(0)
+  conversionRateUsed Float?
+  conversionSource String?
+  costAmount Float @default(0)
+  costingMethod String?
+  costLayerConsumptions CostLayerConsumption[]
   returnedQty Float    @default(0)
   status      String   @default("PENDING")
   pickedAt    DateTime?
@@ -190,6 +205,12 @@ model Stock {
   qty         Float    @default(0)
   reservedQty Float    @default(0)
   availableQty Float   @default(0)
+  valuationQty Float   @default(0)
+  reservedValuationQty Float @default(0)
+  availableValuationQty Float @default(0)
+  totalCost    Float    @default(0)
+  valuationUnitCost Float @default(0)
+  stockUnitCost Float @default(0)
   
   logs        StockLog[]
 }
@@ -203,6 +224,12 @@ model StockLog {
   qty         Float
   beforeQty   Float
   afterQty    Float
+  valuationQty Float?
+  beforeValuationQty Float?
+  afterValuationQty Float?
+  costAmount   Float?
+  beforeCostAmount Float?
+  afterCostAmount Float?
   
   refType     String?
   refId       String?
@@ -251,14 +278,65 @@ model MaterialIn {
   material    Material @relation(fields: [materialId], references: [id])
   qty         Float
   unit        String
+  valuationQty Float   @default(0)
+  valuationUnit String  @default("kg")
+  conversionRate Float  @default(1)
   unitPrice   Float    @default(0)
+  stockUnitCost Float   @default(0)
   totalAmount Float    @default(0)
   batchNo     String?
   status      String   @default("PENDING")
   inboundDate DateTime @default(now())
   receivedBy  String?
   note        String?
+  deletedAt   DateTime?
+  deletedBy   String?
   createdAt   DateTime @default(now())
+}
+
+model InventoryCostLayer {
+  id                    String   @id @default(cuid())
+  materialId            String
+  material              Material @relation(fields: [materialId], references: [id])
+  materialInId          String?
+  stockQty              Float
+  remainingStockQty     Float
+  valuationQty          Float
+  remainingValuationQty Float
+  stockUnit             String
+  valuationUnit         String
+  valuationUnitCost     Float
+  stockUnitCost         Float
+  totalAmount           Float
+  remainingAmount       Float    @default(0)
+  status                String   @default("OPEN")
+  createdAt             DateTime @default(now())
+  consumptions          CostLayerConsumption[]
+
+  @@index([materialId])
+  @@index([materialInId])
+  @@index([status])
+}
+
+model CostLayerConsumption {
+  id                String   @id @default(cuid())
+  pickItemId        String
+  pickItem          PickItem @relation(fields: [pickItemId], references: [id], onDelete: Cascade)
+  costLayerId       String
+  costLayer         InventoryCostLayer @relation(fields: [costLayerId], references: [id])
+  materialId        String
+  stockQty          Float
+  valuationQty      Float
+  costAmount        Float
+  stockUnitCost     Float
+  valuationUnitCost Float
+  restoredAt        DateTime?
+  createdAt         DateTime @default(now())
+
+  @@index([pickItemId])
+  @@index([costLayerId])
+  @@index([materialId])
+  @@index([restoredAt])
 }
 
 // ==================== 派工管理 ====================
@@ -279,6 +357,8 @@ model Dispatch {
   startedAt     DateTime?
   completedAt   DateTime?
   note          String?
+  deletedAt     DateTime?
+  deletedBy     String?
   createdAt     DateTime @default(now())
 }
 
@@ -300,6 +380,8 @@ model Shipment {
   shippedBy     String?
   trackingNo    String?
   note          String?
+  deletedAt     DateTime?
+  deletedBy     String?
   returnOrders  ReturnOrder[]
   createdAt     DateTime @default(now())
 }
@@ -319,7 +401,29 @@ model ReturnOrder {
   processedAt   DateTime?
   processedBy   String?
   note          String?
+  deletedAt     DateTime?
+  deletedBy     String?
   createdAt     DateTime @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  operatorId  String?
+  operatorName String?
+  action      String
+  entityType  String
+  entityId    String?
+  entityLabel String?
+  beforeData  String?
+  afterData   String?
+  note        String?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([operatorId])
+  @@index([createdAt])
 }
 
 // ==================== 成本统计 ====================

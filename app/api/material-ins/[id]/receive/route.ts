@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
+import { writeAuditLog } from '@/lib/audit'
 
 // PATCH: 确认收货入库
 export async function PATCH(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -28,15 +29,19 @@ export async function PATCH(_req: NextRequest, { params }: { params: { id: strin
     }
 
     const qty = Number(materialIn.qty)
+    const valuationQty = Number(materialIn.valuationQty)
+    const costAmount = Number(materialIn.totalAmount)
     const materialId = materialIn.materialId
 
-    await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       // a. 查找或创建该物料的 Stock 记录
       let stock = await tx.stock.findUnique({
         where: { materialId },
       })
 
       let beforeQty: number
+      let beforeValuationQty: number
+      let beforeCostAmount: number
       if (!stock) {
         stock = await tx.stock.create({
           data: {
@@ -44,14 +49,28 @@ export async function PATCH(_req: NextRequest, { params }: { params: { id: strin
             qty: 0,
             reservedQty: 0,
             availableQty: 0,
+            valuationQty: 0,
+            reservedValuationQty: 0,
+            availableValuationQty: 0,
+            totalCost: 0,
+            valuationUnitCost: 0,
+            stockUnitCost: 0,
           },
         })
         beforeQty = 0
+        beforeValuationQty = 0
+        beforeCostAmount = 0
       } else {
         beforeQty = Number(stock.qty)
+        beforeValuationQty = Number(stock.valuationQty)
+        beforeCostAmount = Number(stock.totalCost)
       }
 
       const afterQty = beforeQty + qty
+      const afterValuationQty = beforeValuationQty + valuationQty
+      const afterCostAmount = beforeCostAmount + costAmount
+      const valuationUnitCost = afterValuationQty > 0 ? afterCostAmount / afterValuationQty : 0
+      const stockUnitCost = afterQty > 0 ? afterCostAmount / afterQty : 0
 
       // b. 增加 stock.qty 和 stock.availableQty
       await tx.stock.update({
@@ -59,6 +78,28 @@ export async function PATCH(_req: NextRequest, { params }: { params: { id: strin
         data: {
           qty: { increment: qty },
           availableQty: { increment: qty },
+          valuationQty: { increment: valuationQty },
+          availableValuationQty: { increment: valuationQty },
+          totalCost: { increment: costAmount },
+          valuationUnitCost,
+          stockUnitCost,
+        },
+      })
+
+      await tx.inventoryCostLayer.create({
+        data: {
+          materialId,
+          materialInId: id,
+          stockQty: qty,
+          remainingStockQty: qty,
+          valuationQty,
+          remainingValuationQty: valuationQty,
+          stockUnit: materialIn.unit,
+          valuationUnit: materialIn.valuationUnit,
+          valuationUnitCost: Number(materialIn.unitPrice),
+          stockUnitCost: Number(materialIn.stockUnitCost),
+          totalAmount: costAmount,
+          remainingAmount: costAmount,
         },
       })
 
@@ -70,6 +111,12 @@ export async function PATCH(_req: NextRequest, { params }: { params: { id: strin
           qty: qty,
           beforeQty: beforeQty,
           afterQty: afterQty,
+          valuationQty,
+          beforeValuationQty,
+          afterValuationQty,
+          costAmount,
+          beforeCostAmount,
+          afterCostAmount,
           refType: 'MATERIAL_IN',
           refId: id,
           note: `来料入库: ${materialIn.inboundNo}`,
@@ -77,13 +124,22 @@ export async function PATCH(_req: NextRequest, { params }: { params: { id: strin
       })
 
       // d. 更新来料单 status='RECEIVED', inboundDate=now
-      await tx.materialIn.update({
+      return tx.materialIn.update({
         where: { id },
         data: {
           status: 'RECEIVED',
           inboundDate: new Date(),
         },
       })
+    })
+
+    await writeAuditLog(_req, {
+      action: 'RECEIVE',
+      entityType: 'MATERIAL_IN',
+      entityId: result.id,
+      entityLabel: result.inboundNo,
+      beforeData: materialIn,
+      afterData: result,
     })
 
     return NextResponse.json({ success: true, message: '收货成功' })

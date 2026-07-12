@@ -12,7 +12,26 @@ interface Supplier {
   createdAt: string
 }
 
-type SystemTab = 'suppliers' | 'products' | 'process'
+interface AuditLog {
+  id: string
+  operatorName?: string | null
+  action: string
+  entityType: string
+  entityId?: string | null
+  entityLabel?: string | null
+  note?: string | null
+  createdAt: string
+}
+
+interface DeletedRecord {
+  id: string
+  label: string
+  type: string
+  model: 'materialIn' | 'order' | 'dispatch' | 'shipment' | 'return'
+  deletedAt?: string | null
+}
+
+type SystemTab = 'suppliers' | 'products' | 'process' | 'recycle' | 'audit'
 
 export default function SystemPage({ onMessage }: { onMessage: (msg: string) => void }) {
   const [tab, setTab] = useState<SystemTab>('suppliers')
@@ -30,6 +49,8 @@ export default function SystemPage({ onMessage }: { onMessage: (msg: string) => 
               ['suppliers', '供应商'],
               ['products', '产品资料'],
               ['process', 'BOM/工艺'],
+              ['recycle', '回收站'],
+              ['audit', '操作记录'],
             ] as const).map(([key, label]) => (
               <button
                 key={key}
@@ -52,6 +73,8 @@ export default function SystemPage({ onMessage }: { onMessage: (msg: string) => 
       {tab === 'process' && (
         <Placeholder title="BOM/工艺" text="后续可在这里维护 BOM 版本、工艺路线、工序和默认路线。" />
       )}
+      {tab === 'recycle' && <RecycleBin onMessage={onMessage} />}
+      {tab === 'audit' && <AuditLogViewer onMessage={onMessage} />}
     </div>
   )
 }
@@ -262,6 +285,153 @@ function Placeholder({ title, text }: { title: string; text: string }) {
     <div className="bg-white rounded-lg shadow p-8">
       <h3 className="text-lg font-semibold mb-2">{title}</h3>
       <p className="text-sm text-gray-500">{text}</p>
+    </div>
+  )
+}
+
+function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
+  const [records, setRecords] = useState<DeletedRecord[]>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    fetchDeletedRecords()
+  }, [])
+
+  const flattenRecords = (data: any): DeletedRecord[] => {
+    const rows: DeletedRecord[] = []
+    ;(data.materialIn || []).forEach((item: any) => rows.push({ id: item.id, label: item.inboundNo, type: '来料单', model: 'materialIn', deletedAt: item.deletedAt }))
+    ;(data.orders || []).forEach((item: any) => rows.push({ id: item.id, label: item.orderNo, type: '工单', model: 'order', deletedAt: item.deletedAt }))
+    ;(data.dispatches || []).forEach((item: any) => rows.push({ id: item.id, label: item.dispatchNo, type: '派工单', model: 'dispatch', deletedAt: item.deletedAt }))
+    ;(data.shipments || []).forEach((item: any) => rows.push({ id: item.id, label: item.shipmentNo, type: '发货单', model: 'shipment', deletedAt: item.deletedAt }))
+    ;(data.returns || []).forEach((item: any) => rows.push({ id: item.id, label: item.returnNo, type: '退货单', model: 'return', deletedAt: item.deletedAt }))
+    return rows.sort((a, b) => String(b.deletedAt || '').localeCompare(String(a.deletedAt || '')))
+  }
+
+  const fetchDeletedRecords = async () => {
+    setLoading(true)
+    const res = await fetch('/api/deleted-records')
+    const data = await res.json()
+    if (res.ok) {
+      setRecords(flattenRecords(data.data || {}))
+    } else {
+      onMessage(data.error || '获取回收站失败')
+    }
+    setLoading(false)
+  }
+
+  const restore = async (record: DeletedRecord) => {
+    const res = await fetch('/api/restore', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: record.model, id: record.id }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      onMessage('记录已恢复')
+      await fetchDeletedRecords()
+    } else {
+      onMessage(data.error || '恢复失败')
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-lg font-semibold">回收站</h3>
+          <p className="text-sm text-gray-500 mt-1">单据删除后不会物理删除，可在这里恢复。</p>
+        </div>
+        <button onClick={fetchDeletedRecords} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
+          刷新
+        </button>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">类型</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">编号</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">删除时间</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {records.map((record) => (
+              <tr key={`${record.model}-${record.id}`} className="hover:bg-gray-50">
+                <td className="px-4 py-3 text-sm">{record.type}</td>
+                <td className="px-4 py-3 font-mono text-sm text-blue-700">{record.label}</td>
+                <td className="px-4 py-3 text-xs text-gray-500">{record.deletedAt ? new Date(record.deletedAt).toLocaleString('zh-CN') : '-'}</td>
+                <td className="px-4 py-3">
+                  <button onClick={() => restore(record)} className="px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">
+                    恢复
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {!loading && records.length === 0 && <div className="text-center py-12 text-gray-500">暂无已删除单据</div>}
+    </div>
+  )
+}
+
+function AuditLogViewer({ onMessage }: { onMessage: (msg: string) => void }) {
+  const [logs, setLogs] = useState<AuditLog[]>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    fetchLogs()
+  }, [])
+
+  const fetchLogs = async () => {
+    setLoading(true)
+    const res = await fetch('/api/audit-logs?pageSize=100')
+    const data = await res.json()
+    if (res.ok) {
+      setLogs(data.data || [])
+    } else {
+      onMessage(data.error || '获取操作记录失败')
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-lg font-semibold">操作记录</h3>
+          <p className="text-sm text-gray-500 mt-1">记录新增、修改、删除、恢复、收货、盘点等关键操作。</p>
+        </div>
+        <button onClick={fetchLogs} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
+          刷新
+        </button>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">时间</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">人员</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">动作</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">对象</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">备注</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {logs.map((log) => (
+              <tr key={log.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3 text-xs text-gray-500">{new Date(log.createdAt).toLocaleString('zh-CN')}</td>
+                <td className="px-4 py-3 text-sm">{log.operatorName || '-'}</td>
+                <td className="px-4 py-3 text-sm font-medium">{log.action}</td>
+                <td className="px-4 py-3 text-sm">{log.entityType} {log.entityLabel || log.entityId || ''}</td>
+                <td className="px-4 py-3 text-sm text-gray-500">{log.note || '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {!loading && logs.length === 0 && <div className="text-center py-12 text-gray-500">暂无操作记录</div>}
     </div>
   )
 }

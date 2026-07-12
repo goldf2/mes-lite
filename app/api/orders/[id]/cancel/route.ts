@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
+import { restoreMaterialCost } from '@/lib/costing'
 
 const cancelSchema = z.object({
   reason: z.string().min(1, '取消原因必填'),
@@ -54,20 +55,41 @@ export async function PATCH(
 
     // 事务回退
     await prisma.$transaction(async (tx) => {
-      // 3.1 已领物料全部回退
+      // 3.1 已领物料退库；未领物料释放预留。
       for (const pick of order.picks) {
-        if (pick.actualQty > 0 && pick.material.stock) {
+        if (pick.material.stock) {
           const stock = await tx.stock.findUnique({
             where: { id: pick.material.stock.id },
           })
 
-          if (stock) {
+          if (stock && pick.actualQty > 0) {
+            await restoreMaterialCost(tx, {
+              pickItemId: pick.id,
+              costingMethod: pick.costingMethod,
+            })
+
+            const beforeQty = Number(stock.qty)
+            const beforeValuationQty = Number(stock.valuationQty)
+            const beforeCostAmount = Number(stock.totalCost)
+            const returnQty = Number(pick.actualQty)
+            const returnValuationQty = Number(pick.actualValuationQty)
+            const returnCostAmount = Number(pick.costAmount)
+            const afterQty = Number((beforeQty + returnQty).toFixed(6))
+            const afterValuationQty = Number((beforeValuationQty + returnValuationQty).toFixed(6))
+            const afterCostAmount = Number((beforeCostAmount + returnCostAmount).toFixed(6))
+            const nextValuationUnitCost = afterValuationQty > 0 ? afterCostAmount / afterValuationQty : 0
+            const nextStockUnitCost = afterQty > 0 ? afterCostAmount / afterQty : 0
+
             await tx.stock.update({
               where: { id: stock.id },
               data: {
-                qty: { increment: pick.actualQty },
-                availableQty: { increment: pick.actualQty },
-                reservedQty: { decrement: pick.requiredQty },
+                qty: { increment: returnQty },
+                availableQty: { increment: returnQty },
+                valuationQty: { increment: returnValuationQty },
+                availableValuationQty: { increment: returnValuationQty },
+                totalCost: { increment: returnCostAmount },
+                valuationUnitCost: Math.max(0, nextValuationUnitCost),
+                stockUnitCost: Math.max(0, nextStockUnitCost),
               },
             })
 
@@ -75,12 +97,37 @@ export async function PATCH(
               data: {
                 stockId: stock.id,
                 type: 'RETURN',
-                qty: pick.actualQty,
-                beforeQty: stock.qty,
-                afterQty: stock.qty + Number(pick.actualQty),
+                qty: returnQty,
+                beforeQty,
+                afterQty,
+                valuationQty: returnValuationQty,
+                beforeValuationQty,
+                afterValuationQty,
+                costAmount: returnCostAmount,
+                beforeCostAmount,
+                afterCostAmount,
                 refType: 'RETURN',
                 refId: pick.id,
                 note: `工单 ${order.orderNo} 取消退料`,
+              },
+            })
+          } else if (stock) {
+            const requiredQty = Number(pick.requiredQty)
+            const stockQty = Number(stock.qty)
+            const conversionRate = Number(pick.conversionRateUsed || pick.material.conversionRate || 1)
+            const valuationReserveQty = Number(pick.reservedValuationQty) > 0
+              ? Number(pick.reservedValuationQty)
+              : stockQty > 0
+              ? Number((requiredQty * (Number(stock.valuationQty) / stockQty)).toFixed(6))
+              : Number((requiredQty * conversionRate).toFixed(6))
+
+            await tx.stock.update({
+              where: { id: stock.id },
+              data: {
+                reservedQty: { decrement: requiredQty },
+                availableQty: { increment: requiredQty },
+                reservedValuationQty: { decrement: valuationReserveQty },
+                availableValuationQty: { increment: valuationReserveQty },
               },
             })
           }
@@ -89,7 +136,7 @@ export async function PATCH(
         // 标记退料
         await tx.pickItem.update({
           where: { id: pick.id },
-          data: { status: 'RETURNED' },
+          data: { status: pick.actualQty > 0 ? 'RETURNED' : 'CANCELLED' },
         })
       }
 

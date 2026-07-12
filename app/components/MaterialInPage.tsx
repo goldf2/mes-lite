@@ -17,6 +17,9 @@ interface Material {
   name: string
   spec?: string
   unit: string
+  stockUnit: string
+  valuationUnit: string
+  conversionRate: number
 }
 
 interface MaterialIn {
@@ -26,6 +29,10 @@ interface MaterialIn {
   materialId: string
   qty: number
   unit: string
+  valuationQty: number
+  valuationUnit: string
+  conversionRate: number
+  stockUnitCost: number
   unitPrice: number
   totalAmount: number
   batchNo?: string
@@ -34,7 +41,7 @@ interface MaterialIn {
   receivedBy?: string
   note?: string
   supplier: { id: string; code: string; name: string }
-  material: { id: string; code: string; name: string; spec?: string; unit: string }
+  material: { id: string; code: string; name: string; spec?: string; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number }
 }
 
 const statusColors: Record<string, string> = {
@@ -61,6 +68,7 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
     supplierId: '',
     materialId: '',
     qty: 0,
+    valuationQty: 0,
     unitPrice: 0,
     batchNo: '',
     receivedBy: '',
@@ -115,6 +123,7 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
       supplierId: '',
       materialId: '',
       qty: 0,
+      valuationQty: 0,
       unitPrice: 0,
       batchNo: '',
       receivedBy: '',
@@ -137,7 +146,10 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
           supplierId: form.supplierId,
           materialId: form.materialId,
           qty: form.qty,
-          unit: selectedMaterial?.unit || '个',
+          unit: selectedMaterial?.stockUnit || selectedMaterial?.unit || '个',
+          valuationQty: form.valuationQty || (selectedMaterial ? Number((form.qty * (selectedMaterial.conversionRate || 1)).toFixed(6)) : undefined),
+          valuationUnit: selectedMaterial?.valuationUnit,
+          conversionRate: selectedMaterial?.conversionRate,
           unitPrice: form.unitPrice,
           batchNo: form.batchNo || undefined,
           receivedBy: form.receivedBy || undefined,
@@ -158,6 +170,12 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
     }
     setLoading(false)
   }
+
+  const selectedMaterial = materials.find((material) => material.id === form.materialId)
+  const estimatedValuationQty = selectedMaterial ? Number((form.qty * (selectedMaterial.conversionRate || 1)).toFixed(6)) : 0
+  const actualValuationQty = form.valuationQty || estimatedValuationQty
+  const totalAmountPreview = Number((actualValuationQty * form.unitPrice).toFixed(4))
+  const stockUnitCostPreview = form.qty > 0 ? Number((totalAmountPreview / form.qty).toFixed(6)) : 0
 
   const handleReceive = async (id: string) => {
     setLoading(true)
@@ -234,8 +252,10 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">入库单号</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">供应商</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">数量</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">单价</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存数量</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">核算数量</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">每kg成本</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">每库存单位成本</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">总金额</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">批次</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
@@ -257,7 +277,12 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
                       <div className="text-xs text-gray-500">{item.material?.code}</div>
                     </td>
                     <td className="px-4 py-3">{item.qty} {item.unit}</td>
-                    <td className="px-4 py-3">¥{item.unitPrice.toFixed(2)}</td>
+                    <td className="px-4 py-3">
+                      <div>{item.valuationQty} {item.valuationUnit}</div>
+                      <div className="text-xs text-gray-500">1 {item.unit} = {item.conversionRate} {item.valuationUnit}</div>
+                    </td>
+                    <td className="px-4 py-3">¥{item.unitPrice.toFixed(4)} / {item.valuationUnit}</td>
+                    <td className="px-4 py-3">¥{item.stockUnitCost.toFixed(4)} / {item.unit}</td>
                     <td className="px-4 py-3 font-medium">¥{item.totalAmount.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm">{item.batchNo || '-'}</td>
                     <td className="px-4 py-3">
@@ -336,7 +361,14 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
                 <label className="block text-sm font-medium text-gray-700 mb-2">物料</label>
                 <select
                   value={form.materialId}
-                  onChange={(e) => setForm({ ...form, materialId: e.target.value })}
+                  onChange={(e) => {
+                    const material = materials.find((item) => item.id === e.target.value)
+                    setForm({
+                      ...form,
+                      materialId: e.target.value,
+                      valuationQty: material ? Number((form.qty * (material.conversionRate || 1)).toFixed(6)) : 0,
+                    })
+                  }}
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">请选择物料</option>
@@ -349,17 +381,39 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">数量</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">长度/件数 {selectedMaterial ? `(${selectedMaterial.stockUnit || selectedMaterial.unit})` : ''}</label>
                   <input
                     type="number"
                     value={form.qty || ''}
-                    onChange={(e) => setForm({ ...form, qty: Number(e.target.value) })}
+                    onChange={(e) => {
+                      const qty = Number(e.target.value)
+                      setForm({
+                        ...form,
+                        qty,
+                        valuationQty: selectedMaterial ? Number((qty * (selectedMaterial.conversionRate || 1)).toFixed(6)) : form.valuationQty,
+                      })
+                    }}
                     min={0}
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">单价</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">重量 {selectedMaterial ? `(${selectedMaterial.valuationUnit})` : ''}</label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={form.valuationQty || ''}
+                    onChange={(e) => setForm({ ...form, valuationQty: Number(e.target.value) })}
+                    min={0}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  {selectedMaterial && (
+                    <p className="mt-1 text-xs text-gray-500">自动估算：{estimatedValuationQty} {selectedMaterial.valuationUnit}</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">价格单价 {selectedMaterial ? `(元 / ${selectedMaterial.valuationUnit})` : ''}</label>
                   <input
                     type="number"
                     step="0.01"
@@ -368,7 +422,11 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
                     min={0}
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
-                </div>
+              </div>
+              <div className="rounded-lg bg-blue-50 p-4 text-sm text-blue-900">
+                <div>每 {selectedMaterial?.valuationUnit || 'kg'} 成本：¥{(form.unitPrice || 0).toFixed(4)}</div>
+                <div className="mt-1">每 {selectedMaterial?.stockUnit || '件/米/根'} 成本：¥{stockUnitCostPreview.toFixed(4)}</div>
+                <div className="mt-1">总金额：¥{totalAmountPreview.toFixed(2)}</div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

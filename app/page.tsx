@@ -28,7 +28,10 @@ interface Stock {
   qty: number
   reservedQty: number
   availableQty: number
-  material?: { id: string; code: string; name: string; spec: string; unit: string }
+  valuationQty: number
+  reservedValuationQty: number
+  availableValuationQty: number
+  material?: { id: string; code: string; name: string; spec: string; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number }
   product?: { id: string; sku: string; name: string; category: string; unit: string }
 }
 
@@ -632,16 +635,25 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     <div>
                       <div className="text-xs text-gray-500 mb-1">库存</div>
                       <div className="text-lg font-semibold">{stock.qty}</div>
+                      <div className="text-[11px] text-gray-500">{stock.material?.stockUnit || stock.product?.unit}</div>
                     </div>
                     <div>
                       <div className="text-xs text-gray-500 mb-1">已预留</div>
                       <div className="text-lg font-semibold text-orange-600">{stock.reservedQty}</div>
+                      <div className="text-[11px] text-gray-500">{stock.material?.stockUnit || stock.product?.unit}</div>
                     </div>
                     <div>
                       <div className="text-xs text-gray-500 mb-1">可用</div>
                       <div className={`text-lg font-semibold ${stock.availableQty < 10 ? 'text-red-600' : 'text-green-600'}`}>{stock.availableQty}</div>
+                      <div className="text-[11px] text-gray-500">{stock.material?.stockUnit || stock.product?.unit}</div>
                     </div>
                   </div>
+                  {stock.material && (
+                    <div className="mt-3 rounded bg-gray-50 p-3 text-xs text-gray-600">
+                      <div>核算库存：<span className="font-semibold text-gray-900">{stock.valuationQty}</span> {stock.material.valuationUnit}</div>
+                      <div className="mt-1">换算：1 {stock.material.stockUnit || stock.material.unit} = {stock.material.conversionRate || 1} {stock.material.valuationUnit}</div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -9,7 +9,22 @@ interface Material {
   name: string
   spec: string
   unit: string
-  stock?: { qty: number; reservedQty: number; availableQty: number }
+  stockUnit: string
+  valuationUnit: string
+  conversionRate: number
+  conversionNote?: string
+  costingMethod: string
+  stock?: {
+    qty: number
+    reservedQty: number
+    availableQty: number
+    valuationQty: number
+    reservedValuationQty: number
+    availableValuationQty: number
+    totalCost: number
+    valuationUnitCost: number
+    stockUnitCost: number
+  }
   primaryImage?: { id: string; url: string; note?: string; mimeType: string; isCover: boolean } | null
   createdAt: string
 }
@@ -20,7 +35,17 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
   const [showModal, setShowModal] = useState(false)
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null)
   const [detailMaterial, setDetailMaterial] = useState<Material | null>(null)
-  const [form, setForm] = useState({ code: '', name: '', spec: '', unit: '' })
+  const [form, setForm] = useState({
+    code: '',
+    name: '',
+    spec: '',
+    unit: '',
+    stockUnit: '',
+    valuationUnit: 'kg',
+    conversionRate: 1,
+    conversionNote: '',
+    costingMethod: 'WEIGHTED_AVERAGE',
+  })
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -37,7 +62,7 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
   }
 
   const handleSubmit = async () => {
-    if (!form.code || !form.name || !form.unit) {
+    if (!form.code || !form.name || !form.stockUnit || !form.valuationUnit || form.conversionRate <= 0) {
       onMessage('请填写完整信息')
       return
     }
@@ -69,7 +94,7 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
         }
       }
       setShowModal(false)
-      setForm({ code: '', name: '', spec: '', unit: '' })
+      setForm({ code: '', name: '', spec: '', unit: '', stockUnit: '', valuationUnit: 'kg', conversionRate: 1, conversionNote: '', costingMethod: 'WEIGHTED_AVERAGE' })
       setEditingMaterial(null)
       fetchMaterials()
     } catch (err) {
@@ -96,13 +121,23 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
 
   const handleEdit = (material: Material) => {
     setEditingMaterial(material)
-    setForm({ code: material.code, name: material.name, spec: material.spec, unit: material.unit })
+    setForm({
+      code: material.code,
+      name: material.name,
+      spec: material.spec,
+      unit: material.stockUnit || material.unit,
+      stockUnit: material.stockUnit || material.unit,
+      valuationUnit: material.valuationUnit || material.unit,
+      conversionRate: material.conversionRate || 1,
+      conversionNote: material.conversionNote || '',
+      costingMethod: material.costingMethod || 'WEIGHTED_AVERAGE',
+    })
     setShowModal(true)
   }
 
   const handleAdd = () => {
     setEditingMaterial(null)
-    setForm({ code: '', name: '', spec: '', unit: '' })
+    setForm({ code: '', name: '', spec: '', unit: '', stockUnit: '', valuationUnit: 'kg', conversionRate: 1, conversionNote: '', costingMethod: 'WEIGHTED_AVERAGE' })
     setShowModal(true)
   }
 
@@ -158,9 +193,10 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料编码</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料名称</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">规格</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">单位</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存单位</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">核算单位</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">可用</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">核算库存</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">创建时间</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
             </tr>
@@ -184,9 +220,14 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
                 <td className="px-4 py-3 font-mono text-sm text-blue-600">{material.code}</td>
                 <td className="px-4 py-3 font-medium text-sm">{material.name}</td>
                 <td className="px-4 py-3 text-sm text-gray-500">{material.spec || '-'}</td>
-                <td className="px-4 py-3 text-sm">{material.unit}</td>
-                <td className="px-4 py-3 text-sm">{material.stock?.qty || 0}</td>
-                <td className="px-4 py-3 text-sm text-green-600">{material.stock?.availableQty || 0}</td>
+                <td className="px-4 py-3 text-sm">{material.stockUnit || material.unit}</td>
+                <td className="px-4 py-3 text-sm">
+                  <div>{material.valuationUnit || material.unit}</div>
+                  <div className="text-xs text-gray-500">1 {material.stockUnit || material.unit} = {material.conversionRate || 1} {material.valuationUnit || material.unit}</div>
+                  <div className="text-xs text-gray-500">成本法：{material.costingMethod === 'FIFO' ? '先入先出' : '移动加权平均'}</div>
+                </td>
+                <td className="px-4 py-3 text-sm">{material.stock?.qty || 0} {material.stockUnit || material.unit}</td>
+                <td className="px-4 py-3 text-sm text-green-600">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</td>
                 <td className="px-4 py-3 text-xs text-gray-500">{new Date(material.createdAt).toLocaleString('zh-CN')}</td>
                 <td className="px-4 py-3">
                   <button
@@ -258,22 +299,62 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
                   placeholder="如：Φ30mm 圆钢"
                 />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">库存/领料单位 *</label>
+                  <input
+                    type="text"
+                    value={form.stockUnit}
+                    onChange={(e) => setForm({ ...form, stockUnit: e.target.value, unit: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    placeholder="如：根、米、件"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">计价/核算单位 *</label>
+                  <input
+                    type="text"
+                    value={form.valuationUnit}
+                    onChange={(e) => setForm({ ...form, valuationUnit: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    placeholder="如：kg"
+                  />
+                </div>
+              </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">单位 *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">换算系数 *</label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  min={0}
+                  value={form.conversionRate || ''}
+                  onChange={(e) => setForm({ ...form, conversionRate: Number(e.target.value) })}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                  placeholder="例如：1 根 = 2.35 kg，则填 2.35"
+                />
+                <p className="mt-1 text-xs text-gray-500">含义：1 {form.stockUnit || '库存单位'} = {form.conversionRate || 0} {form.valuationUnit || '核算单位'}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">换算说明</label>
+                <input
+                  type="text"
+                  value={form.conversionNote}
+                  onChange={(e) => setForm({ ...form, conversionNote: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                  placeholder="如：按理论重量，实际称重可在来料单修正"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">成本核算方法</label>
                 <select
-                  value={form.unit}
-                  onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                  value={form.costingMethod}
+                  onChange={(e) => setForm({ ...form, costingMethod: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg"
                 >
-                  <option value="">请选择单位</option>
-                  <option value="kg">kg</option>
-                  <option value="件">件</option>
-                  <option value="个">个</option>
-                  <option value="米">米</option>
-                  <option value="卷">卷</option>
-                  <option value="盒">盒</option>
-                  <option value="套">套</option>
+                  <option value="WEIGHTED_AVERAGE">移动加权平均</option>
+                  <option value="FIFO">先入先出 FIFO</option>
                 </select>
+                <p className="mt-1 text-xs text-gray-500">当前已记录入库成本层，FIFO 后续按成本层扣减。</p>
               </div>
             </div>
             <div className="flex gap-3 p-4 border-t">
@@ -338,22 +419,41 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
                   <dl className="grid grid-cols-3 border-b border-gray-200 py-5">
                     <div>
                       <dt className="text-xs text-gray-500">当前库存</dt>
-                      <dd className="mt-2 text-xl font-semibold text-gray-900">{detailMaterial.stock?.qty || 0}</dd>
+                      <dd className="mt-2 text-xl font-semibold text-gray-900">{detailMaterial.stock?.qty || 0} {detailMaterial.stockUnit || detailMaterial.unit}</dd>
                     </div>
                     <div className="border-l border-gray-200 pl-5">
                       <dt className="text-xs text-gray-500">已占用</dt>
-                      <dd className="mt-2 text-xl font-semibold text-gray-900">{detailMaterial.stock?.reservedQty || 0}</dd>
+                      <dd className="mt-2 text-xl font-semibold text-gray-900">{detailMaterial.stock?.reservedQty || 0} {detailMaterial.stockUnit || detailMaterial.unit}</dd>
                     </div>
                     <div className="border-l border-gray-200 pl-5">
                       <dt className="text-xs text-gray-500">可用库存</dt>
-                      <dd className="mt-2 text-xl font-semibold text-green-700">{detailMaterial.stock?.availableQty || 0}</dd>
+                      <dd className="mt-2 text-xl font-semibold text-green-700">{detailMaterial.stock?.availableQty || 0} {detailMaterial.stockUnit || detailMaterial.unit}</dd>
                     </div>
                   </dl>
 
                   <dl className="grid grid-cols-2 gap-5 pt-5">
                     <div>
-                      <dt className="text-xs text-gray-500">计量单位</dt>
-                      <dd className="mt-1 text-sm font-medium text-gray-900">{detailMaterial.unit}</dd>
+                      <dt className="text-xs text-gray-500">计价/核算单位</dt>
+                      <dd className="mt-1 text-sm font-medium text-gray-900">{detailMaterial.valuationUnit}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-gray-500">核算库存</dt>
+                      <dd className="mt-1 text-sm font-medium text-gray-900">{detailMaterial.stock?.valuationQty || 0} {detailMaterial.valuationUnit}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-gray-500">换算关系</dt>
+                      <dd className="mt-1 text-sm font-medium text-gray-900">1 {detailMaterial.stockUnit || detailMaterial.unit} = {detailMaterial.conversionRate || 1} {detailMaterial.valuationUnit}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-gray-500">成本方法</dt>
+                      <dd className="mt-1 text-sm font-medium text-gray-900">{detailMaterial.costingMethod === 'FIFO' ? '先入先出 FIFO' : '移动加权平均'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-gray-500">当前平均成本</dt>
+                      <dd className="mt-1 text-sm font-medium text-gray-900">
+                        ¥{(detailMaterial.stock?.valuationUnitCost || 0).toFixed(4)} / {detailMaterial.valuationUnit}
+                        <span className="ml-2 text-gray-500">¥{(detailMaterial.stock?.stockUnitCost || 0).toFixed(4)} / {detailMaterial.stockUnit || detailMaterial.unit}</span>
+                      </dd>
                     </div>
                     <div>
                       <dt className="text-xs text-gray-500">创建时间</dt>

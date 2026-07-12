@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
+import { writeAuditLog } from '@/lib/audit'
 
 // PATCH: 拒收
 export async function PATCH(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -20,9 +21,18 @@ export async function PATCH(_req: NextRequest, { params }: { params: { id: strin
       return NextResponse.json({ error: '来料单状态不是待收货，无法拒收' }, { status: 400 })
     }
 
-    await prisma.materialIn.update({
+    const updated = await prisma.materialIn.update({
       where: { id },
       data: { status: 'REJECTED' },
+    })
+
+    await writeAuditLog(_req, {
+      action: 'REJECT',
+      entityType: 'MATERIAL_IN',
+      entityId: updated.id,
+      entityLabel: updated.inboundNo,
+      beforeData: materialIn,
+      afterData: updated,
     })
 
     return NextResponse.json({ success: true, message: '拒收成功' })

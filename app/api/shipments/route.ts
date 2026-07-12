@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
+import { writeAuditLog } from '@/lib/audit'
 
 const createShipmentSchema = z.object({
   productId: z.string().min(1),
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
     const page = Number(searchParams.get('page') ?? '1')
     const pageSize = Number(searchParams.get('pageSize') ?? '20')
 
-    const where: any = {}
+    const where: any = { deletedAt: null }
     if (status) where.status = status
     if (customer) where.customer = { contains: customer }
 
@@ -101,6 +102,14 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    await writeAuditLog(req, {
+      action: 'CREATE',
+      entityType: 'SHIPMENT',
+      entityId: shipment.id,
+      entityLabel: shipment.shipmentNo,
+      afterData: shipment,
+    })
+
     return NextResponse.json({ data: shipment }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -108,5 +117,42 @@ export async function POST(req: NextRequest) {
     }
     console.error('Create shipment error:', error)
     return NextResponse.json({ error: '创建发货单失败' }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const denied = await requireResourcePermission('shipment', 'delete')
+    if (denied) return denied
+
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+    if (!id) {
+      return NextResponse.json({ error: '缺少发货单 ID' }, { status: 400 })
+    }
+
+    const shipment = await prisma.shipment.findUnique({ where: { id } })
+    if (!shipment || shipment.deletedAt) {
+      return NextResponse.json({ error: '发货单不存在或已删除' }, { status: 404 })
+    }
+
+    const updated = await prisma.shipment.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    })
+
+    await writeAuditLog(req, {
+      action: 'SOFT_DELETE',
+      entityType: 'SHIPMENT',
+      entityId: updated.id,
+      entityLabel: updated.shipmentNo,
+      beforeData: shipment,
+      afterData: updated,
+    })
+
+    return NextResponse.json({ success: true, message: '发货单已删除，可在回收站恢复' })
+  } catch (error) {
+    console.error('Delete shipment error:', error)
+    return NextResponse.json({ error: '删除发货单失败' }, { status: 500 })
   }
 }

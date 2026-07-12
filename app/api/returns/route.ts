@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
+import { writeAuditLog } from '@/lib/audit'
 
 const createReturnSchema = z.object({
   shipmentId: z.string().min(1).optional(),
@@ -60,6 +61,14 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    await writeAuditLog(req, {
+      action: 'CREATE',
+      entityType: 'RETURN',
+      entityId: returnOrder.id,
+      entityLabel: returnOrder.returnNo,
+      afterData: returnOrder,
+    })
+
     return NextResponse.json({ data: returnOrder }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -81,7 +90,8 @@ export async function GET(req: NextRequest) {
     const page = Number(searchParams.get('page') ?? '1')
     const pageSize = Number(searchParams.get('pageSize') ?? '20')
 
-    const where = status ? { status: status as any } : {}
+    const where: any = { deletedAt: null }
+    if (status) where.status = status
 
     const [returns, total] = await Promise.all([
       prisma.returnOrder.findMany({
@@ -104,5 +114,40 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('Get returns error:', error)
     return NextResponse.json({ error: '获取退货单列表失败' }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const denied = await requireResourcePermission('return', 'delete')
+    if (denied) return denied
+
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: '缺少退货单 ID' }, { status: 400 })
+
+    const returnOrder = await prisma.returnOrder.findUnique({ where: { id } })
+    if (!returnOrder || returnOrder.deletedAt) {
+      return NextResponse.json({ error: '退货单不存在或已删除' }, { status: 404 })
+    }
+
+    const updated = await prisma.returnOrder.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    })
+
+    await writeAuditLog(req, {
+      action: 'SOFT_DELETE',
+      entityType: 'RETURN',
+      entityId: updated.id,
+      entityLabel: updated.returnNo,
+      beforeData: returnOrder,
+      afterData: updated,
+    })
+
+    return NextResponse.json({ success: true, message: '退货单已删除，可在回收站恢复' })
+  } catch (error) {
+    console.error('Delete return error:', error)
+    return NextResponse.json({ error: '删除退货单失败' }, { status: 500 })
   }
 }

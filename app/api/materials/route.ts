@@ -2,12 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
+import { writeAuditLog } from '@/lib/audit'
+import { normalizeConversionRate } from '@/lib/units'
 
 const materialSchema = z.object({
   code: z.string().min(1, '物料编码不能为空'),
   name: z.string().min(1, '物料名称不能为空'),
   spec: z.string().optional(),
   unit: z.string().min(1, '单位不能为空'),
+  stockUnit: z.string().optional(),
+  valuationUnit: z.string().optional(),
+  conversionRate: z.number().positive().optional(),
+  conversionNote: z.string().optional(),
+  costingMethod: z.enum(['WEIGHTED_AVERAGE', 'FIFO']).optional(),
 })
 
 export async function GET(req: NextRequest) {
@@ -32,7 +39,19 @@ export async function GET(req: NextRequest) {
       prisma.material.findMany({
         where,
         include: {
-          stock: { select: { qty: true, reservedQty: true, availableQty: true } },
+          stock: {
+            select: {
+              qty: true,
+              reservedQty: true,
+              availableQty: true,
+              valuationQty: true,
+              reservedValuationQty: true,
+              availableValuationQty: true,
+              totalCost: true,
+              valuationUnitCost: true,
+              stockUnitCost: true,
+            },
+          },
         },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -117,8 +136,21 @@ export async function POST(req: NextRequest) {
         code: body.code,
         name: body.name,
         spec: body.spec || '',
-        unit: body.unit,
+        unit: body.stockUnit || body.unit,
+        stockUnit: body.stockUnit || body.unit,
+        valuationUnit: body.valuationUnit || body.unit,
+        conversionRate: normalizeConversionRate(body.conversionRate),
+        conversionNote: body.conversionNote || null,
+        costingMethod: body.costingMethod || 'WEIGHTED_AVERAGE',
       },
+    })
+
+    await writeAuditLog(req, {
+      action: 'CREATE',
+      entityType: 'MATERIAL',
+      entityId: material.id,
+      entityLabel: material.code,
+      afterData: material,
     })
 
     return NextResponse.json({ data: material }, { status: 201 })
@@ -141,6 +173,11 @@ export async function PUT(req: NextRequest) {
         name: z.string().min(1),
         spec: z.string().optional(),
         unit: z.string().min(1),
+        stockUnit: z.string().optional(),
+        valuationUnit: z.string().optional(),
+        conversionRate: z.number().positive().optional(),
+        conversionNote: z.string().optional(),
+        costingMethod: z.enum(['WEIGHTED_AVERAGE', 'FIFO']).optional(),
       })
       .safeParse(body)
 
@@ -159,14 +196,29 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: existing.deletedAt ? '物料编码已被已删除记录占用' : '物料编码已存在' }, { status: 400 })
     }
 
+    const before = await prisma.material.findUnique({ where: { id: body.id } })
     const material = await prisma.material.update({
       where: { id: body.id },
       data: {
         code: body.code,
         name: body.name,
         spec: body.spec || '',
-        unit: body.unit,
+        unit: body.stockUnit || body.unit,
+        stockUnit: body.stockUnit || body.unit,
+        valuationUnit: body.valuationUnit || body.unit,
+        conversionRate: normalizeConversionRate(body.conversionRate),
+        conversionNote: body.conversionNote || null,
+        costingMethod: body.costingMethod || 'WEIGHTED_AVERAGE',
       },
+    })
+
+    await writeAuditLog(req, {
+      action: 'UPDATE',
+      entityType: 'MATERIAL',
+      entityId: material.id,
+      entityLabel: material.code,
+      beforeData: before,
+      afterData: material,
     })
 
     return NextResponse.json({ data: material })
@@ -193,11 +245,20 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: '物料不存在或已删除' }, { status: 404 })
     }
 
-    await prisma.material.update({
+    const updated = await prisma.material.update({
       where: { id },
       data: {
         deletedAt: new Date(),
       },
+    })
+
+    await writeAuditLog(req, {
+      action: 'SOFT_DELETE',
+      entityType: 'MATERIAL',
+      entityId: updated.id,
+      entityLabel: updated.code,
+      beforeData: material,
+      afterData: updated,
     })
 
     return NextResponse.json({ success: true, message: '物料已删除' })
