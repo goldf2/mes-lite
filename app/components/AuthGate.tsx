@@ -159,18 +159,22 @@ function RegisterForm({ onRegistered, onMessage }: { onRegistered: () => void; o
 
   const submit = async () => {
     setLoading(true)
-    const res = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    })
-    const data = await res.json()
-    if (res.ok) {
-      onMessage(data.message || '注册已提交')
-      setForm({ username: '', password: '', name: '', phone: '' })
-      onRegistered()
-    } else {
-      onMessage(data.error || '注册失败')
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        onMessage(data.message || '注册已提交')
+        setForm({ username: '', password: '', name: '', phone: '' })
+        onRegistered()
+      } else {
+        onMessage(data.error || `注册失败（${res.status}）`)
+      }
+    } catch (error) {
+      onMessage('注册请求失败，请检查网络或服务器状态')
     }
     setLoading(false)
   }

@@ -1,14 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { hashPassword } from '@/lib/auth'
 
 const registerSchema = z.object({
-  username: z.string().min(2).max(32).regex(/^[\u4e00-\u9fa5a-zA-Z0-9_-]+$/, '账号只能包含中文、字母、数字、下划线和短横线'),
+  username: z.string().trim().min(2).max(32).regex(/^[\u4e00-\u9fa5a-zA-Z0-9_-]+$/, '账号只能包含中文、字母、数字、下划线和短横线'),
   password: z.string().min(6, '密码至少 6 位'),
-  name: z.string().min(1, '姓名必填').max(50),
-  phone: z.string().max(30).optional(),
+  name: z.string().trim().min(1, '姓名必填').max(50),
+  phone: z.string().trim().max(30).optional(),
 })
+
+function getRegisterErrorMessage(error: unknown) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P2002') return '账号已存在'
+    if (error.code === 'P2021' || error.code === 'P2022') return '数据库结构未初始化，请先执行迁移'
+  }
+
+  const message = error instanceof Error ? error.message : String(error)
+  if (/readonly|permission denied|unable to open database file/i.test(message)) {
+    return '数据库不可写，请检查服务器持久化目录权限'
+  }
+  if (/no such table|no such column/i.test(message)) {
+    return '数据库结构未初始化，请先执行迁移'
+  }
+
+  return '注册失败，请查看服务器日志'
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -53,6 +71,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: message, details: error.errors }, { status: 400 })
     }
     console.error('Register operator error:', error)
-    return NextResponse.json({ error: '注册失败' }, { status: 500 })
+    return NextResponse.json({ error: getRegisterErrorMessage(error) }, { status: 500 })
   }
 }
