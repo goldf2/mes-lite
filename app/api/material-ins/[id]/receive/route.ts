@@ -96,7 +96,7 @@ export async function PATCH(_req: NextRequest, { params }: { params: { id: strin
           remainingValuationQty: valuationQty,
           stockUnit: materialIn.unit,
           valuationUnit: materialIn.valuationUnit,
-          valuationUnitCost: Number(materialIn.unitPrice),
+          valuationUnitCost: Number(materialIn.valuationUnitCost || (valuationQty > 0 ? costAmount / valuationQty : 0)),
           stockUnitCost: Number(materialIn.stockUnitCost),
           totalAmount: costAmount,
           remainingAmount: costAmount,

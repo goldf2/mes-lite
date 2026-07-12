@@ -13,6 +13,7 @@ const createMaterialInSchema = z.object({
   valuationQty: z.number().positive('实际重量必须大于 0'),
   valuationUnit: z.string().optional(),
   unitPrice: z.number().nonnegative('单价不能为负'),
+  priceBasis: z.enum(['VALUATION', 'STOCK']).optional(),
   batchNo: z.string().optional(),
   receivedBy: z.string().optional(),
   note: z.string().optional(),
@@ -85,6 +86,8 @@ export async function POST(req: NextRequest) {
     const conversionRate = Number((valuationQty / qty).toFixed(6))
     const stockUnit = body.unit || units.stockUnit
     const valuationUnit = body.valuationUnit || units.valuationUnit
+    const priceBasis = body.priceBasis || 'VALUATION'
+    const priceUnit = priceBasis === 'STOCK' ? stockUnit : valuationUnit
 
     // 生成 inboundNo: IN-YYYYMMDD-XXX
     const today = new Date()
@@ -94,8 +97,11 @@ export async function POST(req: NextRequest) {
     })
     const inboundNo = `IN-${dateStr}-${String(count + 1).padStart(3, '0')}`
 
-    const totalAmount = valuationQty * unitPrice
-    const stockUnitCost = qty > 0 ? totalAmount / qty : 0
+    const totalAmount = priceBasis === 'STOCK'
+      ? Number((qty * unitPrice).toFixed(6))
+      : Number((valuationQty * unitPrice).toFixed(6))
+    const valuationUnitCost = valuationQty > 0 ? Number((totalAmount / valuationQty).toFixed(6)) : 0
+    const stockUnitCost = qty > 0 ? Number((totalAmount / qty).toFixed(6)) : 0
 
     const materialIn = await prisma.materialIn.create({
       data: {
@@ -108,6 +114,9 @@ export async function POST(req: NextRequest) {
         valuationUnit,
         conversionRate,
         unitPrice,
+        priceBasis,
+        priceUnit,
+        valuationUnitCost,
         stockUnitCost,
         totalAmount,
         batchNo,
