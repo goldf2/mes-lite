@@ -82,6 +82,8 @@ export default function PermissionPage({ onMessage }: { onMessage: (msg: string)
   const [groups, setGroups] = useState<PermissionGroup[]>([])
   const [operatorGroups, setOperatorGroups] = useState<OperatorPermissionGroup[]>([])
   const [activeGroupId, setActiveGroupId] = useState('')
+  const [activeOperatorId, setActiveOperatorId] = useState('')
+  const [searchKeyword, setSearchKeyword] = useState('')
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -100,6 +102,7 @@ export default function PermissionPage({ onMessage }: { onMessage: (msg: string)
       setGroups(fetchedGroups)
       setOperatorGroups(data.data.operatorGroups || [])
       setActiveGroupId((current) => current || fetchedGroups[0]?.id || '')
+      setActiveOperatorId((current) => current || data.data.operators?.[0]?.id || '')
     } else {
       onMessage(data.error || '获取权限失败')
     }
@@ -107,6 +110,7 @@ export default function PermissionPage({ onMessage }: { onMessage: (msg: string)
   }
 
   const activeGroup = groups.find((group) => group.id === activeGroupId)
+  const activeOperator = operators.find((operator) => operator.id === activeOperatorId)
   const groupMemberCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     operatorGroups.forEach((item) => {
@@ -114,20 +118,30 @@ export default function PermissionPage({ onMessage }: { onMessage: (msg: string)
     })
     return counts
   }, [operatorGroups])
+  const filteredOperators = useMemo(() => {
+    const keyword = searchKeyword.trim().toLowerCase()
+    if (!keyword) return operators
+
+    return operators.filter((operator) => {
+      return operator.name.toLowerCase().includes(keyword) ||
+        operator.username.toLowerCase().includes(keyword) ||
+        (roleLabels[operator.role] || operator.role).toLowerCase().includes(keyword)
+    })
+  }, [operators, searchKeyword])
 
   const isAssigned = (operatorId: string, groupId: string) => {
     return operatorGroups.some((item) => item.operatorId === operatorId && item.groupId === groupId)
   }
 
-  const toggleOperatorGroup = (operatorId: string, groupId: string) => {
-    const operator = operators.find((item) => item.id === operatorId)
-    if (operator?.role === 'ADMIN') return
+  const toggleOperatorGroup = (groupId: string) => {
+    if (!activeOperator || activeOperator.role === 'ADMIN') return
+    setActiveGroupId(groupId)
 
     setOperatorGroups((prev) => {
-      if (prev.some((item) => item.operatorId === operatorId && item.groupId === groupId)) {
-        return prev.filter((item) => !(item.operatorId === operatorId && item.groupId === groupId))
+      if (prev.some((item) => item.operatorId === activeOperator.id && item.groupId === groupId)) {
+        return prev.filter((item) => !(item.operatorId === activeOperator.id && item.groupId === groupId))
       }
-      return [...prev, { operatorId, groupId }]
+      return [...prev, { operatorId: activeOperator.id, groupId }]
     })
   }
 
@@ -176,19 +190,21 @@ export default function PermissionPage({ onMessage }: { onMessage: (msg: string)
     }))
   }
 
-  const saveAssignments = async () => {
+  const saveAssignment = async () => {
+    if (!activeOperator) return
+
     setLoading(true)
-    const groupedByOperator = operators.map((operator) => ({
-      operatorId: operator.id,
+    const selectedAssignment = {
+      operatorId: activeOperator.id,
       groupIds: operatorGroups
-        .filter((item) => item.operatorId === operator.id)
+        .filter((item) => item.operatorId === activeOperator.id)
         .map((item) => item.groupId),
-    }))
+    }
 
     const res = await fetch('/api/permissions', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ operatorGroups: groupedByOperator }),
+      body: JSON.stringify({ operatorGroups: [selectedAssignment] }),
     })
     const data = await res.json()
     if (res.ok) {
@@ -231,58 +247,110 @@ export default function PermissionPage({ onMessage }: { onMessage: (msg: string)
             <p className="text-sm text-gray-500 mt-1">权限由人员和权限组构成。人员可加入多个权限组，最终权限按权限组合并。</p>
           </div>
           <button
-            onClick={saveAssignments}
-            disabled={loading}
+            onClick={saveAssignment}
+            disabled={loading || !activeOperator || activeOperator.role === 'ADMIN'}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
           >
-            {loading ? '保存中...' : '保存人员分组'}
+            {loading ? '保存中...' : '保存当前人员'}
           </button>
         </div>
 
-        <div className="mt-6 overflow-x-auto">
-          <table className="w-full min-w-[760px]">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">人员</th>
-                {groups.map((group) => (
-                  <th key={group.id} className="px-4 py-3 text-center text-sm font-semibold text-gray-600">
-                    <button
-                      onClick={() => setActiveGroupId(group.id)}
-                      className={`px-3 py-1 rounded text-sm ${
-                        activeGroupId === group.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {group.name}
-                    </button>
-                    <div className="mt-1 text-xs font-normal text-gray-400">{groupMemberCounts[group.id] || 0} 人</div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {operators.map((operator) => (
-                <tr key={operator.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-sm">{operator.name}</div>
-                    <div className="text-xs text-gray-500">
-                      {operator.username} · {roleLabels[operator.role] || operator.role} · {statusLabels[operator.status] || operator.status}
+        <div className="mt-6 grid gap-4 lg:grid-cols-[280px_1fr]">
+          <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+            <div className="px-4 py-3 bg-gray-900 text-white text-sm font-medium">人员列表 ({operators.length})</div>
+            <div className="p-3 border-b border-gray-100">
+              <input
+                value={searchKeyword}
+                onChange={(event) => setSearchKeyword(event.target.value)}
+                placeholder="搜索账号、姓名或角色"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+              />
+            </div>
+            <div className="max-h-[480px] overflow-y-auto">
+              {filteredOperators.map((operator) => (
+                <button
+                  key={operator.id}
+                  onClick={() => setActiveOperatorId(operator.id)}
+                  className={`w-full text-left px-4 py-3 border-l-4 transition ${
+                    activeOperatorId === operator.id
+                      ? 'bg-blue-50 border-blue-600'
+                      : 'border-transparent hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-gray-600 text-white flex items-center justify-center text-sm font-semibold">
+                      {(operator.name || operator.username || '?').slice(0, 1).toUpperCase()}
                     </div>
-                  </td>
-                  {groups.map((group) => (
-                    <td key={group.id} className="px-4 py-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={operator.role === 'ADMIN' || isAssigned(operator.id, group.id)}
-                        disabled={loading || operator.role === 'ADMIN'}
-                        onChange={() => toggleOperatorGroup(operator.id, group.id)}
-                        className="h-4 w-4 rounded border-gray-300"
-                      />
-                    </td>
-                  ))}
-                </tr>
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm truncate">{operator.name}</div>
+                      <div className="text-xs text-gray-500 truncate">
+                        {operator.username} · {roleLabels[operator.role] || operator.role}
+                      </div>
+                    </div>
+                  </div>
+                </button>
               ))}
-            </tbody>
-          </table>
+              {filteredOperators.length === 0 && (
+                <div className="px-4 py-8 text-sm text-gray-500 text-center">没有匹配人员</div>
+              )}
+            </div>
+          </div>
+
+          <div className="border border-gray-200 rounded-lg overflow-hidden bg-white min-h-[480px] flex flex-col">
+            <div className="px-5 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between gap-3">
+              <div>
+                <div className="font-semibold">
+                  {activeOperator ? activeOperator.name : '选择一个人员'}
+                  {activeOperator && <span className="ml-2 text-sm font-normal text-blue-700">{activeOperator.username}</span>}
+                </div>
+                {activeOperator && (
+                  <div className="mt-1 text-xs text-gray-500">
+                    {roleLabels[activeOperator.role] || activeOperator.role} · {statusLabels[activeOperator.status] || activeOperator.status}
+                  </div>
+                )}
+              </div>
+              {activeOperator?.role === 'ADMIN' && (
+                <span className="px-2 py-1 rounded bg-yellow-50 text-yellow-700 text-xs">管理账号固定全权限</span>
+              )}
+            </div>
+
+            <div className="p-5 flex-1">
+              {activeOperator ? (
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {groups.map((group) => {
+                    const checked = activeOperator.role === 'ADMIN' || isAssigned(activeOperator.id, group.id)
+                    return (
+                      <label
+                        key={group.id}
+                        className={`border rounded-lg p-4 cursor-pointer transition ${
+                          checked ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+                        } ${activeGroupId === group.id ? 'ring-2 ring-blue-200' : ''}`}
+                        onClick={() => setActiveGroupId(group.id)}
+                      >
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={loading || activeOperator.role === 'ADMIN'}
+                            onChange={() => toggleOperatorGroup(group.id)}
+                            onClick={(event) => event.stopPropagation()}
+                            className="mt-1 h-4 w-4 rounded border-gray-300"
+                          />
+                          <div className="min-w-0">
+                            <div className="font-medium text-sm">{group.name}</div>
+                            <div className="mt-1 text-xs text-gray-500 line-clamp-2">{group.description || group.code}</div>
+                            <div className="mt-2 text-xs text-gray-400">{groupMemberCounts[group.id] || 0} 人使用</div>
+                          </div>
+                        </div>
+                      </label>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="h-full flex items-center justify-center text-gray-500 text-sm">请从左侧选择一个人员</div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
