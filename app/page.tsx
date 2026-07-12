@@ -34,7 +34,7 @@ interface Stock {
   totalCost: number
   valuationUnitCost: number
   stockUnitCost: number
-  material?: { id: string; code: string; name: string; spec: string; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number }
+  material?: { id: string; code: string; name: string; spec: string; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number; deletedAt?: string | null }
   product?: { id: string; sku: string; name: string; category: string; unit: string }
 }
 
@@ -690,8 +690,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                       <div className="text-sm text-gray-500">{stock.material?.code || stock.product?.sku}</div>
                       {stock.material?.spec && <div className="text-xs text-gray-400">{stock.material.spec}</div>}
                     </div>
-                    <div className={`px-2 py-1 rounded text-xs font-medium ${stock.material ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                      {stock.material ? '原材料' : '成品'}
+                    <div className="flex flex-col items-end gap-1">
+                      <div className={`px-2 py-1 rounded text-xs font-medium ${stock.material ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                        {stock.material ? '原材料' : '成品'}
+                      </div>
+                      {stock.material?.deletedAt && (
+                        <div className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                          已归档
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center">

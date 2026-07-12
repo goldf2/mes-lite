@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
       prisma.stock.findMany({
         where: { availableQty: { lt: 10 } },
         include: {
-          material: { select: { id: true, code: true, name: true, spec: true, unit: true } },
+          material: { select: { id: true, code: true, name: true, spec: true, unit: true, deletedAt: true } },
           product: { select: { id: true, sku: true, name: true, category: true, unit: true } },
         },
       }),

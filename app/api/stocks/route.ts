@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     const stocks = await prisma.stock.findMany({
       where,
       include: {
-        material: { select: { id: true, code: true, name: true, spec: true, unit: true, stockUnit: true, valuationUnit: true, conversionRate: true } },
+        material: { select: { id: true, code: true, name: true, spec: true, unit: true, stockUnit: true, valuationUnit: true, conversionRate: true, deletedAt: true } },
         product: { select: { id: true, sku: true, name: true, category: true, unit: true } },
       },
       orderBy: { id: 'asc' },
