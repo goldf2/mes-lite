@@ -31,6 +31,40 @@ interface DeletedRecord {
   deletedAt?: string | null
 }
 
+interface Product {
+  id: string
+  sku: string
+  name: string
+  category: string
+  unit: string
+  description?: string | null
+  createdAt?: string
+}
+
+interface ProcessStepForm {
+  stepNo: number
+  name: string
+  defaultTime: number
+  workstation: string
+  description: string
+}
+
+interface ProcessRoute {
+  id: string
+  productId: string
+  name: string
+  isDefault: boolean
+  product: { id: string; sku: string; name: string }
+  steps: Array<{
+    id: string
+    stepNo: number
+    name: string
+    defaultTime?: number | null
+    workstation?: string | null
+    description?: string | null
+  }>
+}
+
 type SystemTab = 'suppliers' | 'products' | 'process' | 'recycle' | 'audit'
 
 export default function SystemPage({ onMessage }: { onMessage: (msg: string) => void }) {
@@ -67,12 +101,8 @@ export default function SystemPage({ onMessage }: { onMessage: (msg: string) => 
       </div>
 
       {tab === 'suppliers' && <SupplierManager onMessage={onMessage} />}
-      {tab === 'products' && (
-        <Placeholder title="产品资料" text="当前产品资料已有只读接口，后续可在这里加入产品新增、编辑、停用和成品基础库存维护。" />
-      )}
-      {tab === 'process' && (
-        <Placeholder title="BOM/工艺" text="后续可在这里维护 BOM 版本、工艺路线、工序和默认路线。" />
-      )}
+      {tab === 'products' && <ProductManager onMessage={onMessage} />}
+      {tab === 'process' && <ProcessManager onMessage={onMessage} />}
       {tab === 'recycle' && <RecycleBin onMessage={onMessage} />}
       {tab === 'audit' && <AuditLogViewer onMessage={onMessage} />}
     </div>
@@ -276,6 +306,478 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
       <input value={value} onChange={(e) => onChange(e.target.value)} className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+    </div>
+  )
+}
+
+function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
+  const [products, setProducts] = useState<Product[]>([])
+  const [keyword, setKeyword] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState({
+    sku: '',
+    name: '',
+    category: '',
+    unit: '件',
+    description: '',
+  })
+
+  useEffect(() => {
+    fetchProducts()
+  }, [])
+
+  const fetchProducts = async () => {
+    const res = await fetch('/api/products')
+    const data = await res.json()
+    if (res.ok) {
+      setProducts(data.data || [])
+    } else {
+      onMessage(data.error || '获取产品失败')
+    }
+  }
+
+  const resetForm = () => {
+    setEditingProduct(null)
+    setForm({ sku: '', name: '', category: '', unit: '件', description: '' })
+  }
+
+  const openAdd = () => {
+    resetForm()
+    setShowModal(true)
+  }
+
+  const openEdit = (product: Product) => {
+    setEditingProduct(product)
+    setForm({
+      sku: product.sku,
+      name: product.name,
+      category: product.category,
+      unit: product.unit,
+      description: product.description || '',
+    })
+    setShowModal(true)
+  }
+
+  const submit = async () => {
+    if (!form.sku || !form.name || !form.category || !form.unit) {
+      onMessage('产品编码、名称、类别和单位必填')
+      return
+    }
+
+    setLoading(true)
+    const res = await fetch('/api/products', {
+      method: editingProduct ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...form,
+        id: editingProduct?.id,
+        description: form.description || undefined,
+      }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      onMessage(editingProduct ? '产品已更新' : '产品已创建')
+      setShowModal(false)
+      resetForm()
+      await fetchProducts()
+    } else {
+      onMessage(data.error || '保存产品失败')
+    }
+    setLoading(false)
+  }
+
+  const filtered = keyword
+    ? products.filter((product) =>
+        [product.sku, product.name, product.category, product.unit, product.description || ''].some((value) => value.includes(keyword))
+      )
+    : products
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-lg font-semibold">产品资料</h3>
+          <p className="text-sm text-gray-500 mt-1">维护成品编码、名称、类别和单位，供工单、发货和退货选择。</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <input
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="搜索编码、名称、类别"
+            className="px-4 py-2 border border-gray-200 rounded-lg text-sm w-64"
+          />
+          <button onClick={openAdd} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
+            新增产品
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品编码</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品名称</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">类别</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">单位</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">说明</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {filtered.map((product) => (
+              <tr key={product.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3 font-mono text-blue-700 text-sm">{product.sku}</td>
+                <td className="px-4 py-3 font-medium text-sm">{product.name}</td>
+                <td className="px-4 py-3 text-sm">{product.category}</td>
+                <td className="px-4 py-3 text-sm">{product.unit}</td>
+                <td className="px-4 py-3 text-sm max-w-md truncate">{product.description || '-'}</td>
+                <td className="px-4 py-3">
+                  <button onClick={() => openEdit(product)} className="px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">
+                    编辑
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {filtered.length === 0 && <div className="text-center py-12 text-gray-500">暂无产品资料</div>}
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold">{editingProduct ? '编辑产品' : '新增产品'}</h3>
+              <button onClick={() => { setShowModal(false); resetForm() }} className="text-gray-500 hover:text-gray-700">&times;</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="产品编码 *" value={form.sku} onChange={(value) => setForm({ ...form, sku: value })} />
+                <Field label="产品名称 *" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="产品类别 *" value={form.category} onChange={(value) => setForm({ ...form, category: value })} />
+                <Field label="单位 *" value={form.unit} onChange={(value) => setForm({ ...form, unit: value })} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">说明</label>
+                <textarea
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={submit} disabled={loading} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {loading ? '保存中...' : '保存'}
+                </button>
+                <button onClick={() => { setShowModal(false); resetForm() }} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                  取消
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
+  const emptyStep = (): ProcessStepForm => ({ stepNo: 1, name: '', defaultTime: 0, workstation: '', description: '' })
+  const [routes, setRoutes] = useState<ProcessRoute[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [showModal, setShowModal] = useState(false)
+  const [editingRoute, setEditingRoute] = useState<ProcessRoute | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState({
+    productId: '',
+    name: '',
+    isDefault: true,
+    steps: [emptyStep()],
+  })
+
+  useEffect(() => {
+    fetchProducts()
+    fetchRoutes()
+  }, [])
+
+  const fetchProducts = async () => {
+    const res = await fetch('/api/products')
+    const data = await res.json()
+    if (res.ok) {
+      setProducts(data.data || [])
+    } else {
+      onMessage(data.error || '获取产品失败')
+    }
+  }
+
+  const fetchRoutes = async () => {
+    const res = await fetch('/api/process-routes')
+    const data = await res.json()
+    if (res.ok) {
+      setRoutes(data.data || [])
+    } else {
+      onMessage(data.error || '获取工艺路线失败')
+    }
+  }
+
+  const resetForm = () => {
+    setEditingRoute(null)
+    setForm({ productId: '', name: '', isDefault: true, steps: [emptyStep()] })
+  }
+
+  const openAdd = () => {
+    resetForm()
+    setShowModal(true)
+  }
+
+  const openEdit = (route: ProcessRoute) => {
+    setEditingRoute(route)
+    setForm({
+      productId: route.productId,
+      name: route.name,
+      isDefault: route.isDefault,
+      steps: route.steps.length > 0
+        ? route.steps.map((step) => ({
+            stepNo: step.stepNo,
+            name: step.name,
+            defaultTime: step.defaultTime || 0,
+            workstation: step.workstation || '',
+            description: step.description || '',
+          }))
+        : [emptyStep()],
+    })
+    setShowModal(true)
+  }
+
+  const updateStep = (index: number, patch: Partial<ProcessStepForm>) => {
+    setForm({
+      ...form,
+      steps: form.steps.map((step, currentIndex) => currentIndex === index ? { ...step, ...patch } : step),
+    })
+  }
+
+  const addStep = () => {
+    const nextNo = form.steps.length > 0 ? Math.max(...form.steps.map((step) => step.stepNo)) + 1 : 1
+    setForm({ ...form, steps: [...form.steps, { ...emptyStep(), stepNo: nextNo }] })
+  }
+
+  const removeStep = (index: number) => {
+    if (form.steps.length <= 1) {
+      onMessage('至少需要一个工序')
+      return
+    }
+    setForm({ ...form, steps: form.steps.filter((_, currentIndex) => currentIndex !== index) })
+  }
+
+  const submit = async () => {
+    if (!form.productId || !form.name || form.steps.some((step) => !step.name || step.stepNo <= 0)) {
+      onMessage('产品、路线名称、工序号和工序名称必填')
+      return
+    }
+
+    setLoading(true)
+    const res = await fetch('/api/process-routes', {
+      method: editingRoute ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: editingRoute?.id,
+        productId: form.productId,
+        name: form.name,
+        isDefault: form.isDefault,
+        steps: form.steps.map((step) => ({
+          stepNo: Number(step.stepNo),
+          name: step.name,
+          defaultTime: Number(step.defaultTime || 0),
+          workstation: step.workstation || undefined,
+          description: step.description || undefined,
+        })),
+      }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      onMessage(editingRoute ? '工艺路线已更新' : '工艺路线已创建')
+      setShowModal(false)
+      resetForm()
+      await fetchRoutes()
+    } else {
+      onMessage(data.error || '保存工艺路线失败')
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-lg font-semibold">BOM/工艺</h3>
+          <p className="text-sm text-gray-500 mt-1">维护产品工艺路线和工序。已产生派工或报工的工序不建议直接修改。</p>
+        </div>
+        <button onClick={openAdd} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
+          新增工艺路线
+        </button>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">路线名称</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">默认</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">工序</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {routes.map((route) => (
+              <tr key={route.id} className="hover:bg-gray-50 align-top">
+                <td className="px-4 py-3">
+                  <div className="font-medium text-sm">{route.product?.name}</div>
+                  <div className="text-xs text-gray-500">{route.product?.sku}</div>
+                </td>
+                <td className="px-4 py-3 text-sm">{route.name}</td>
+                <td className="px-4 py-3 text-sm">{route.isDefault ? '是' : '-'}</td>
+                <td className="px-4 py-3 text-sm">
+                  <div className="space-y-1">
+                    {route.steps.map((step) => (
+                      <div key={step.id}>
+                        {step.stepNo}. {step.name}
+                        {step.workstation ? <span className="text-gray-500"> / {step.workstation}</span> : null}
+                        {step.defaultTime ? <span className="text-gray-500"> / {step.defaultTime} 分钟</span> : null}
+                      </div>
+                    ))}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <button onClick={() => openEdit(route)} className="px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">
+                    编辑
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {routes.length === 0 && <div className="text-center py-12 text-gray-500">暂无工艺路线</div>}
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold">{editingRoute ? '编辑工艺路线' : '新增工艺路线'}</h3>
+              <button onClick={() => { setShowModal(false); resetForm() }} className="text-gray-500 hover:text-gray-700">&times;</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">产品 *</label>
+                  <select
+                    value={form.productId}
+                    onChange={(e) => setForm({ ...form, productId: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                  >
+                    <option value="">请选择产品</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>{product.name} ({product.sku})</option>
+                    ))}
+                  </select>
+                </div>
+                <Field label="路线名称 *" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={form.isDefault}
+                  onChange={(e) => setForm({ ...form, isDefault: e.target.checked })}
+                  className="h-4 w-4"
+                />
+                设为该产品默认工艺路线
+              </label>
+
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium">工序列表</h4>
+                  <button onClick={addStep} className="px-3 py-1 text-sm text-green-700 border border-green-300 rounded hover:bg-green-50">
+                    新增工序
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {form.steps.map((step, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-3">
+                      <div className="grid grid-cols-4 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">工序号 *</label>
+                          <input
+                            type="number"
+                            value={step.stepNo || ''}
+                            onChange={(e) => updateStep(index, { stepNo: Number(e.target.value) })}
+                            className="w-full px-3 py-2 border border-gray-200 rounded"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">工序名称 *</label>
+                          <input
+                            value={step.name}
+                            onChange={(e) => updateStep(index, { name: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-200 rounded"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">工位</label>
+                          <input
+                            value={step.workstation}
+                            onChange={(e) => updateStep(index, { workstation: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-200 rounded"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">默认工时(分钟)</label>
+                          <input
+                            type="number"
+                            value={step.defaultTime || ''}
+                            onChange={(e) => updateStep(index, { defaultTime: Number(e.target.value) })}
+                            className="w-full px-3 py-2 border border-gray-200 rounded"
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <label className="block text-xs text-gray-500 mb-1">说明</label>
+                        <input
+                          value={step.description}
+                          onChange={(e) => updateStep(index, { description: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-200 rounded"
+                        />
+                      </div>
+                      <div className="mt-3 flex justify-end">
+                        <button onClick={() => removeStep(index)} className="px-3 py-1 text-xs text-red-600 border border-red-300 rounded hover:bg-red-50">
+                          删除本工序
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button onClick={submit} disabled={loading} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {loading ? '保存中...' : '保存'}
+                </button>
+                <button onClick={() => { setShowModal(false); resetForm() }} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                  取消
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
