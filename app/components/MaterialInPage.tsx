@@ -179,12 +179,13 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
   const selectedMaterial = materials.find((material) => material.id === form.materialId)
   const referenceValuationQty = selectedMaterial && form.qty > 0 ? Number((form.qty * (selectedMaterial.conversionRate || 1)).toFixed(6)) : 0
   const actualConversionRate = form.qty > 0 && form.valuationQty > 0 ? Number((form.valuationQty / form.qty).toFixed(6)) : 0
-  const priceUnitLabel = form.priceBasis === 'STOCK'
-    ? selectedMaterial?.stockUnit || selectedMaterial?.unit || '库存单位'
-    : selectedMaterial?.valuationUnit || 'kg'
+  const stockUnitLabel = selectedMaterial?.stockUnit || selectedMaterial?.unit || '库存单位'
+  const valuationUnitLabel = selectedMaterial?.valuationUnit || 'kg'
   const totalAmountPreview = Number(((form.priceBasis === 'STOCK' ? form.qty : form.valuationQty) * form.unitPrice).toFixed(4))
   const valuationUnitCostPreview = form.valuationQty > 0 ? Number((totalAmountPreview / form.valuationQty).toFixed(6)) : 0
   const stockUnitCostPreview = form.qty > 0 ? Number((totalAmountPreview / form.qty).toFixed(6)) : 0
+  const valuationPriceDisplay = form.priceBasis === 'VALUATION' ? form.unitPrice : valuationUnitCostPreview
+  const stockPriceDisplay = form.priceBasis === 'STOCK' ? form.unitPrice : stockUnitCostPreview
 
   const handleReceive = async (id: string) => {
     setLoading(true)
@@ -291,7 +292,10 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
                       <div>{item.valuationQty} {item.valuationUnit}</div>
                       <div className="text-xs text-gray-500">1 {item.unit} = {item.conversionRate} {item.valuationUnit}</div>
                     </td>
-                    <td className="px-4 py-3">¥{item.unitPrice.toFixed(4)} / {item.priceUnit || item.valuationUnit}</td>
+                    <td className="px-4 py-3">
+                      <div>¥{item.unitPrice.toFixed(4)} / {item.priceUnit || item.valuationUnit}</div>
+                      <div className="text-xs text-gray-500">{item.priceBasis === 'STOCK' ? '按数量/长度报价' : '按重量报价'}</div>
+                    </td>
                     <td className="px-4 py-3">¥{(item.valuationUnitCost || item.unitPrice).toFixed(4)} / {item.valuationUnit}</td>
                     <td className="px-4 py-3">¥{item.stockUnitCost.toFixed(4)} / {item.unit}</td>
                     <td className="px-4 py-3 font-medium">¥{item.totalAmount.toFixed(2)}</td>
@@ -422,36 +426,49 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
                   )}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">计价方式</label>
-                  <select
-                    value={form.priceBasis}
-                    onChange={(e) => setForm({ ...form, priceBasis: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="VALUATION">按重量计价</option>
-                    <option value="STOCK">按长度/件数计价</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">报价单价（元 / {priceUnitLabel}）</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={form.unitPrice || ''}
-                    onChange={(e) => setForm({ ...form, unitPrice: Number(e.target.value) })}
-                    min={0}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
+              <div>
+                <div className="mb-2 text-sm font-medium text-gray-700">材料单价</div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">重量单价（元 / {valuationUnitLabel}）</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={valuationPriceDisplay || ''}
+                      onChange={(e) => setForm({ ...form, priceBasis: 'VALUATION', unitPrice: Number(e.target.value) })}
+                      min={0}
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        form.priceBasis === 'VALUATION' ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-gray-50'
+                      }`}
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      按重量报价时填写这里，例如供应商按 kg 结算；右侧数量单价由系统换算。
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">数量/长度单价（元 / {stockUnitLabel}）</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={stockPriceDisplay || ''}
+                      onChange={(e) => setForm({ ...form, priceBasis: 'STOCK', unitPrice: Number(e.target.value) })}
+                      min={0}
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        form.priceBasis === 'STOCK' ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-gray-50'
+                      }`}
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      按数量或长度报价时填写这里，例如供应商按根、件、米结算；左侧重量单价由系统换算。
+                    </p>
+                  </div>
                 </div>
               </div>
               <div className="rounded-lg bg-blue-50 p-4 text-sm text-blue-900">
-                <div>报价单价：¥{(form.unitPrice || 0).toFixed(4)} / {priceUnitLabel}</div>
-                <div className="mt-1">每 {selectedMaterial?.valuationUnit || 'kg'} 成本：¥{valuationUnitCostPreview.toFixed(4)}</div>
-                <div className="mt-1">每 {selectedMaterial?.stockUnit || '件/米/根'} 成本：¥{stockUnitCostPreview.toFixed(4)}</div>
+                <div>本次报价依据：{form.priceBasis === 'STOCK' ? `数量/长度单价，¥${(form.unitPrice || 0).toFixed(4)} / ${stockUnitLabel}` : `重量单价，¥${(form.unitPrice || 0).toFixed(4)} / ${valuationUnitLabel}`}</div>
+                <div className="mt-1">换算后重量单价：¥{valuationUnitCostPreview.toFixed(4)} / {valuationUnitLabel}</div>
+                <div className="mt-1">换算后数量/长度单价：¥{stockUnitCostPreview.toFixed(4)} / {stockUnitLabel}</div>
                 <div className="mt-1">总金额：¥{totalAmountPreview.toFixed(2)}</div>
-                <div className="mt-1">本批实际换算：{actualConversionRate || 0} {selectedMaterial?.valuationUnit || 'kg'} / {selectedMaterial?.stockUnit || '库存单位'}</div>
+                <div className="mt-1">本批实际换算：{actualConversionRate || 0} {valuationUnitLabel} / {stockUnitLabel}</div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
