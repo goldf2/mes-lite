@@ -9,6 +9,7 @@ const materialSchema = z.object({
   code: z.string().min(1, '物料编码不能为空'),
   name: z.string().min(1, '物料名称不能为空'),
   spec: z.string().optional(),
+  category: z.enum(['RAW', 'FINISHED', 'AUXILIARY', 'SCRAP', 'DEFECTIVE', 'PACKAGING', 'OTHER']).optional(),
   unit: z.string().min(1, '单位不能为空'),
   stockUnit: z.string().optional(),
   valuationUnit: z.string().optional(),
@@ -24,10 +25,12 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const keyword = searchParams.get('keyword')
+    const category = searchParams.get('category')
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '20')
 
     const where: any = { deletedAt: null }
+    if (category) where.category = category
     if (keyword) {
       where.OR = [
         { name: { contains: keyword } },
@@ -136,6 +139,7 @@ export async function POST(req: NextRequest) {
         code: body.code,
         name: body.name,
         spec: body.spec || '',
+        category: body.category || 'RAW',
         unit: body.stockUnit || body.unit,
         stockUnit: body.stockUnit || body.unit,
         valuationUnit: body.valuationUnit || body.unit,
@@ -172,6 +176,7 @@ export async function PUT(req: NextRequest) {
         code: z.string().min(1),
         name: z.string().min(1),
         spec: z.string().optional(),
+        category: z.enum(['RAW', 'FINISHED', 'AUXILIARY', 'SCRAP', 'DEFECTIVE', 'PACKAGING', 'OTHER']).optional(),
         unit: z.string().min(1),
         stockUnit: z.string().optional(),
         valuationUnit: z.string().optional(),
@@ -203,6 +208,7 @@ export async function PUT(req: NextRequest) {
         code: body.code,
         name: body.name,
         spec: body.spec || '',
+        category: body.category || 'RAW',
         unit: body.stockUnit || body.unit,
         stockUnit: body.stockUnit || body.unit,
         valuationUnit: body.valuationUnit || body.unit,

@@ -34,9 +34,29 @@ interface Stock {
   totalCost: number
   valuationUnitCost: number
   stockUnitCost: number
-  material?: { id: string; code: string; name: string; spec: string; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number; deletedAt?: string | null }
+  material?: { id: string; code: string; name: string; spec: string; category?: string; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number; deletedAt?: string | null }
   product?: { id: string; sku: string; name: string; category: string; unit: string }
 }
+
+const materialCategoryLabels: Record<string, string> = {
+  RAW: '原材料',
+  FINISHED: '成品',
+  AUXILIARY: '辅材',
+  SCRAP: '废料',
+  DEFECTIVE: '废品',
+  PACKAGING: '包装物',
+  OTHER: '其他',
+}
+
+const materialCategoryOptions = [
+  ['RAW', '原材料'],
+  ['FINISHED', '成品'],
+  ['AUXILIARY', '辅材'],
+  ['SCRAP', '废料'],
+  ['DEFECTIVE', '废品'],
+  ['PACKAGING', '包装物'],
+  ['OTHER', '其他'],
+] as const
 
 interface Order {
   id: string
@@ -161,6 +181,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [selectedProductId, setSelectedProductId] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [stockFilter, setStockFilter] = useState<'all' | 'material' | 'product'>('all')
+  const [stockCategoryFilter, setStockCategoryFilter] = useState('')
+  const [showInvalidStocks, setShowInvalidStocks] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -215,7 +237,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     if (tab === 'orders') fetchOrders()
     if (tab === 'stocks') fetchStocks()
     if (tab === 'create') fetchProducts()
-  }, [tab, statusFilter])
+  }, [tab, statusFilter, stockCategoryFilter, showInvalidStocks])
 
   const fetchOrders = async () => {
     const url = statusFilter ? `/api/orders?status=${statusFilter}` : '/api/orders'
@@ -225,7 +247,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   }
 
   const fetchStocks = async () => {
-    const res = await fetch('/api/stocks')
+    const params = new URLSearchParams()
+    if (stockCategoryFilter) params.set('category', stockCategoryFilter)
+    if (showInvalidStocks) params.set('includeInvalid', '1')
+    const res = await fetch(`/api/stocks${params.toString() ? `?${params.toString()}` : ''}`)
     const data = await res.json()
     setStocks(data.data || [])
   }
@@ -665,8 +690,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold">库存查询</h2>
-              <div className="flex gap-1">
-                {([['all', '全部'], ['material', '原材料'], ['product', '成品']] as const).map(([key, label]) => (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {([['all', '全部'], ['material', '物料'], ['product', '成品']] as const).map(([key, label]) => (
                   <button
                     key={key}
                     onClick={() => setStockFilter(key)}
@@ -677,6 +702,27 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     {label}
                   </button>
                 ))}
+                <select
+                  value={stockCategoryFilter}
+                  onChange={(e) => {
+                    setStockCategoryFilter(e.target.value)
+                    if (e.target.value) setStockFilter('material')
+                  }}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                >
+                  <option value="">全部物料分类</option>
+                  {materialCategoryOptions.map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+                <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={showInvalidStocks}
+                    onChange={(e) => setShowInvalidStocks(e.target.checked)}
+                  />
+                  显示归档无库存
+                </label>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -692,7 +738,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <div className={`px-2 py-1 rounded text-xs font-medium ${stock.material ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                        {stock.material ? '原材料' : '成品'}
+                        {stock.material ? materialCategoryLabels[stock.material.category || 'RAW'] || '物料' : '成品'}
                       </div>
                       {stock.material?.deletedAt && (
                         <div className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">

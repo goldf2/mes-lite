@@ -27,22 +27,27 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const type = searchParams.get('type') // 'material' | 'product'
     const keyword = searchParams.get('keyword') // 搜索关键词
+    const category = searchParams.get('category')
+    const includeInvalid = searchParams.get('includeInvalid') === '1'
 
     const where: any = {}
     if (type === 'material') where.materialId = { not: null }
     if (type === 'product') where.productId = { not: null }
+    if (category) {
+      where.material = { is: { category } }
+    }
 
     const stocks = await prisma.stock.findMany({
       where,
       include: {
-        material: { select: { id: true, code: true, name: true, spec: true, unit: true, stockUnit: true, valuationUnit: true, conversionRate: true, deletedAt: true } },
+        material: { select: { id: true, code: true, name: true, spec: true, category: true, unit: true, stockUnit: true, valuationUnit: true, conversionRate: true, deletedAt: true } },
         product: { select: { id: true, sku: true, name: true, category: true, unit: true } },
       },
       orderBy: { id: 'asc' },
     })
 
     // 过滤关键词
-    const visibleStocks = stocks.filter((stock) => !stock.material?.deletedAt || hasStockBalance(stock))
+    const visibleStocks = includeInvalid ? stocks : stocks.filter((stock) => !stock.material?.deletedAt || hasStockBalance(stock))
 
     const filtered = keyword
       ? visibleStocks.filter(s =>

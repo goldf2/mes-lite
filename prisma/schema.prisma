@@ -33,6 +33,7 @@ model Material {
   code        String   @unique
   name        String
   spec        String?
+  category    String   @default("RAW")
   unit        String
   stockUnit   String   @default("件")
   valuationUnit String @default("kg")

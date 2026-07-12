@@ -8,6 +8,7 @@ interface Material {
   code: string
   name: string
   spec: string
+  category: string
   unit: string
   stockUnit: string
   valuationUnit: string
@@ -29,6 +30,26 @@ interface Material {
   createdAt: string
 }
 
+const materialCategoryLabels: Record<string, string> = {
+  RAW: '原材料',
+  FINISHED: '成品',
+  AUXILIARY: '辅材',
+  SCRAP: '废料',
+  DEFECTIVE: '废品',
+  PACKAGING: '包装物',
+  OTHER: '其他',
+}
+
+const materialCategoryOptions = [
+  ['RAW', '原材料'],
+  ['FINISHED', '成品'],
+  ['AUXILIARY', '辅材'],
+  ['SCRAP', '废料'],
+  ['DEFECTIVE', '废品'],
+  ['PACKAGING', '包装物'],
+  ['OTHER', '其他'],
+] as const
+
 export default function MaterialPage({ onMessage }: { onMessage: (msg: string) => void }) {
   const [materials, setMaterials] = useState<Material[]>([])
   const [keyword, setKeyword] = useState('')
@@ -39,6 +60,7 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
     code: '',
     name: '',
     spec: '',
+    category: 'RAW',
     unit: '',
     stockUnit: '',
     valuationUnit: 'kg',
@@ -94,7 +116,7 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
         }
       }
       setShowModal(false)
-      setForm({ code: '', name: '', spec: '', unit: '', stockUnit: '', valuationUnit: 'kg', conversionRate: 1, conversionNote: '', costingMethod: 'WEIGHTED_AVERAGE' })
+      setForm({ code: '', name: '', spec: '', category: 'RAW', unit: '', stockUnit: '', valuationUnit: 'kg', conversionRate: 1, conversionNote: '', costingMethod: 'WEIGHTED_AVERAGE' })
       setEditingMaterial(null)
       fetchMaterials()
     } catch (err) {
@@ -125,6 +147,7 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
       code: material.code,
       name: material.name,
       spec: material.spec,
+      category: material.category || 'RAW',
       unit: material.stockUnit || material.unit,
       stockUnit: material.stockUnit || material.unit,
       valuationUnit: material.valuationUnit || material.unit,
@@ -137,7 +160,7 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
 
   const handleAdd = () => {
     setEditingMaterial(null)
-    setForm({ code: '', name: '', spec: '', unit: '', stockUnit: '', valuationUnit: 'kg', conversionRate: 1, conversionNote: '', costingMethod: 'WEIGHTED_AVERAGE' })
+    setForm({ code: '', name: '', spec: '', category: 'RAW', unit: '', stockUnit: '', valuationUnit: 'kg', conversionRate: 1, conversionNote: '', costingMethod: 'WEIGHTED_AVERAGE' })
     setShowModal(true)
   }
 
@@ -192,6 +215,7 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">图片</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料编码</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料名称</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">分类</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">规格</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存单位</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">核算单位</th>
@@ -219,6 +243,7 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
                 </td>
                 <td className="px-4 py-3 font-mono text-sm text-blue-600">{material.code}</td>
                 <td className="px-4 py-3 font-medium text-sm">{material.name}</td>
+                <td className="px-4 py-3 text-sm">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</td>
                 <td className="px-4 py-3 text-sm text-gray-500">{material.spec || '-'}</td>
                 <td className="px-4 py-3 text-sm">{material.stockUnit || material.unit}</td>
                 <td className="px-4 py-3 text-sm">
@@ -298,6 +323,18 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg"
                   placeholder="如：Φ30mm 圆钢"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">物料分类</label>
+                <select
+                  value={form.category}
+                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                >
+                  {materialCategoryOptions.map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -414,6 +451,7 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
                     <div className="font-mono text-sm text-blue-700">{detailMaterial.code}</div>
                     <h2 className="mt-2 text-2xl font-semibold text-gray-900">{detailMaterial.name}</h2>
                     <p className="mt-2 text-sm text-gray-600">规格：{detailMaterial.spec || '-'}</p>
+                    <p className="mt-1 text-sm text-gray-600">分类：{materialCategoryLabels[detailMaterial.category || 'RAW'] || '其他'}</p>
                   </div>
 
                   <dl className="grid grid-cols-3 border-b border-gray-200 py-5">
