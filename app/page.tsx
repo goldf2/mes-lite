@@ -31,6 +31,9 @@ interface Stock {
   valuationQty: number
   reservedValuationQty: number
   availableValuationQty: number
+  totalCost: number
+  valuationUnitCost: number
+  stockUnitCost: number
   material?: { id: string; code: string; name: string; spec: string; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number }
   product?: { id: string; sku: string; name: string; category: string; unit: string }
 }
@@ -658,6 +661,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   {stock.material && (
                     <div className="mt-3 rounded bg-gray-50 p-3 text-xs text-gray-600">
                       <div>核算库存：<span className="font-semibold text-gray-900">{stock.valuationQty}</span> {stock.material.valuationUnit}</div>
+                      <div className="mt-1">库存金额：<span className="font-semibold text-gray-900">¥{Number(stock.totalCost || 0).toFixed(2)}</span></div>
+                      <div className="mt-1">
+                        成本：¥{Number(stock.valuationUnitCost || 0).toFixed(4)} / {stock.material.valuationUnit}
+                        <span className="ml-2">¥{Number(stock.stockUnitCost || 0).toFixed(4)} / {stock.material.stockUnit || stock.material.unit}</span>
+                      </div>
                       <div className="mt-1">换算：1 {stock.material.stockUnit || stock.material.unit} = {stock.material.conversionRate || 1} {stock.material.valuationUnit}</div>
                     </div>
                   )}
