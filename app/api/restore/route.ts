@@ -15,7 +15,7 @@ const restoreSchema = z.object({
 export async function PATCH(req: NextRequest) {
   try {
     const current = await getCurrentOperator()
-    if (!current || !(await hasResourcePermission(current.role, 'system', 'update'))) {
+    if (!current || !(await hasResourcePermission(current, 'system', 'update'))) {
       return NextResponse.json({ error: '无权限' }, { status: 403 })
     }
 

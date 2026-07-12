@@ -36,7 +36,7 @@ export async function GET() {
 
 export async function PATCH(req: NextRequest) {
   const current = await getCurrentOperator()
-  if (!current || !(await hasResourcePermission(current.role, 'operators', 'update'))) {
+  if (!current || !(await hasResourcePermission(current, 'operators', 'update'))) {
     return NextResponse.json({ error: '无权限' }, { status: 403 })
   }
 

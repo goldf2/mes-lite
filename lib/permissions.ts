@@ -34,6 +34,7 @@ export const permissionResources = [
 export type PermissionRole = (typeof permissionRoles)[number]['key']
 export type PermissionResource = (typeof permissionResources)[number]['key']
 export type PermissionAction = 'read' | 'create' | 'update' | 'delete'
+export type PermissionSubject = { id?: string; role: string }
 
 export type PermissionFlags = {
   canRead: boolean
@@ -141,17 +142,41 @@ export async function getRolePermissionMap(role: string): Promise<PermissionMap>
   return map
 }
 
-export async function hasResourcePermission(role: string, resource: PermissionResource, action: PermissionAction) {
-  if (role === 'ADMIN') return true
-  const permissions = await getRolePermissionMap(role)
+export async function getEffectivePermissionMap(subject: PermissionSubject | string): Promise<PermissionMap> {
+  const current = typeof subject === 'string' ? { role: subject } : subject
+  const map = await getRolePermissionMap(current.role)
+
+  if (!current.id || current.role === 'ADMIN') return map
+
+  const validResources = new Set<string>(permissionResources.map((resource) => resource.key))
+  const overrides = await prisma.operatorPermissionOverride.findMany({
+    where: { operatorId: current.id },
+  })
+
+  for (const override of overrides) {
+    if (!validResources.has(override.resource)) continue
+    map[override.resource] = {
+      canRead: override.canRead,
+      canCreate: override.canCreate,
+      canUpdate: override.canUpdate,
+      canDelete: override.canDelete,
+    }
+  }
+
+  return map
+}
+
+export async function hasResourcePermission(subject: PermissionSubject | string, resource: PermissionResource, action: PermissionAction) {
+  const current = typeof subject === 'string' ? { role: subject } : subject
+  if (current.role === 'ADMIN') return true
+  const permissions = await getEffectivePermissionMap(current)
   return Boolean(permissions[resource]?.[actionField[action]])
 }
 
 export async function requireResourcePermission(resource: PermissionResource, action: PermissionAction) {
   const current = await getCurrentOperator()
-  if (!current || !(await hasResourcePermission(current.role, resource, action))) {
+  if (!current || !(await hasResourcePermission(current, resource, action))) {
     return NextResponse.json({ error: '无权限' }, { status: 403 })
   }
   return null
 }
-

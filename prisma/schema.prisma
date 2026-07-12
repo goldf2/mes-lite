@@ -481,6 +481,7 @@ model Operator {
   approvedBy   String?
   lastLoginAt  DateTime?
   sessions     OperatorSession[]
+  permissionOverrides OperatorPermissionOverride[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -497,6 +498,22 @@ model PermissionSetting {
 
   @@unique([role, resource])
   @@index([role])
+}
+
+model OperatorPermissionOverride {
+  id        String   @id @default(cuid())
+  operatorId String
+  operator  Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  resource  String
+  canRead   Boolean  @default(false)
+  canCreate Boolean  @default(false)
+  canUpdate Boolean  @default(false)
+  canDelete Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([operatorId, resource])
+  @@index([operatorId])
 }
 
 model OperatorSession {
