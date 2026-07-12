@@ -29,6 +29,8 @@ const roleLabels: Record<string, string> = {
   ADMIN: '管理',
 }
 
+const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0'
+
 export default function AuthGate({ children }: AuthGateProps) {
   const [operator, setOperator] = useState<CurrentOperator | null>(null)
   const [checked, setChecked] = useState(false)
@@ -70,6 +72,7 @@ export default function AuthGate({ children }: AuthGateProps) {
             <span className="text-white font-bold text-xl">M</span>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">MES-lite</h1>
+          <div className="mt-1 text-xs font-medium text-gray-400">v{appVersion}</div>
           <p className="text-sm text-gray-500 mt-1">操作人员需要注册并审核通过后使用</p>
         </div>
 

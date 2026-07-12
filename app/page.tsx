@@ -105,6 +105,8 @@ const statusLabels: Record<string, string> = {
   CANCELLED: '已取消',
 }
 
+const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0'
+
 // ==================== 主组件 ====================
 
 export default function Home() {
@@ -301,7 +303,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             </div>
             <div>
               <h1 className="text-lg font-bold text-gray-800">MES-lite</h1>
-              <p className="text-xs text-gray-500">生产系统</p>
+              <p className="text-xs text-gray-500">生产系统 · v{appVersion}</p>
             </div>
           </div>
         </div>
@@ -362,6 +364,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               ))}
             </div>
             <div className="shrink-0 flex items-center gap-3 pl-3 border-l border-gray-200">
+              <span className="text-xs font-medium text-gray-400">v{appVersion}</span>
               <OperatorBadge operator={operator} />
               <button
                 onClick={onLogout}
