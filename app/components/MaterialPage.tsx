@@ -103,19 +103,19 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
     setLoading(false)
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('确定要删除该物料吗？')) return
+  const handleArchive = async (id: string) => {
+    if (!confirm('确定要归档该物料吗？归档后不会在物料列表中显示，可在回收站恢复。')) return
     try {
-      const res = await fetch(`/api/materials?id=${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/materials/${id}/archive`, { method: 'PATCH' })
       const data = await res.json()
       if (res.ok) {
-        onMessage('删除成功')
+        onMessage(data.message || '归档成功')
         fetchMaterials()
       } else {
-        onMessage(data.error || '删除失败')
+        onMessage(data.error || '归档失败')
       }
     } catch (err) {
-      onMessage('删除失败')
+      onMessage('归档失败')
     }
   }
 
@@ -237,10 +237,10 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
                     查看详情
                   </button>
                   <button
-                    onClick={() => handleDelete(material.id)}
-                    className="ml-2 px-3 py-1 text-red-600 border border-red-300 rounded text-xs hover:bg-red-50 transition"
+                    onClick={() => handleArchive(material.id)}
+                    className="ml-2 px-3 py-1 text-amber-700 border border-amber-300 rounded text-xs hover:bg-amber-50 transition"
                   >
-                    删除
+                    归档
                   </button>
                 </td>
               </tr>

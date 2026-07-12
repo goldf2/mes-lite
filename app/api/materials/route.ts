@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
     })
 
     if (existing) {
-      return NextResponse.json({ error: existing.deletedAt ? '物料编码已被已删除记录占用' : '物料编码已存在' }, { status: 400 })
+      return NextResponse.json({ error: existing.deletedAt ? '物料编码已被已归档记录占用' : '物料编码已存在' }, { status: 400 })
     }
 
     const material = await prisma.material.create({
@@ -193,7 +193,7 @@ export async function PUT(req: NextRequest) {
     })
 
     if (existing && existing.id !== body.id) {
-      return NextResponse.json({ error: existing.deletedAt ? '物料编码已被已删除记录占用' : '物料编码已存在' }, { status: 400 })
+      return NextResponse.json({ error: existing.deletedAt ? '物料编码已被已归档记录占用' : '物料编码已存在' }, { status: 400 })
     }
 
     const before = await prisma.material.findUnique({ where: { id: body.id } })
@@ -229,41 +229,5 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const denied = await requireResourcePermission('materials', 'delete')
-    if (denied) return denied
-
-    const { searchParams } = new URL(req.url)
-    const id = searchParams.get('id')
-
-    if (!id) {
-      return NextResponse.json({ error: '物料ID不能为空' }, { status: 400 })
-    }
-
-    const material = await prisma.material.findUnique({ where: { id } })
-    if (!material || material.deletedAt) {
-      return NextResponse.json({ error: '物料不存在或已删除' }, { status: 404 })
-    }
-
-    const updated = await prisma.material.update({
-      where: { id },
-      data: {
-        deletedAt: new Date(),
-      },
-    })
-
-    await writeAuditLog(req, {
-      action: 'SOFT_DELETE',
-      entityType: 'MATERIAL',
-      entityId: updated.id,
-      entityLabel: updated.code,
-      beforeData: material,
-      afterData: updated,
-    })
-
-    return NextResponse.json({ success: true, message: '物料已删除' })
-  } catch (error) {
-    console.error('Delete material error:', error)
-    return NextResponse.json({ error: '删除物料失败' }, { status: 500 })
-  }
+  return NextResponse.json({ error: '物料不允许删除，请使用归档' }, { status: 405 })
 }
