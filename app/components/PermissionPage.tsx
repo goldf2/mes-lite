@@ -84,6 +84,8 @@ export default function PermissionPage({ onMessage }: { onMessage: (msg: string)
   const [activeGroupId, setActiveGroupId] = useState('')
   const [activeOperatorId, setActiveOperatorId] = useState('')
   const [searchKeyword, setSearchKeyword] = useState('')
+  const [newGroup, setNewGroup] = useState({ name: '', code: '', description: '' })
+  const [showNewGroupForm, setShowNewGroupForm] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -238,13 +240,35 @@ export default function PermissionPage({ onMessage }: { onMessage: (msg: string)
     setLoading(false)
   }
 
+  const createGroup = async () => {
+    if (!newGroup.name.trim()) return
+
+    setLoading(true)
+    const res = await fetch('/api/permissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newGroup),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      onMessage(data.message || '权限组已创建')
+      setNewGroup({ name: '', code: '', description: '' })
+      setShowNewGroupForm(false)
+      await fetchPermissions()
+      if (data.data?.id) setActiveGroupId(data.data.id)
+    } else {
+      onMessage(data.error || '创建权限组失败')
+    }
+    setLoading(false)
+  }
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-xl font-semibold">权限管理</h2>
-            <p className="text-sm text-gray-500 mt-1">权限由人员和权限组构成。人员可加入多个权限组，最终权限按权限组合并。</p>
+            <h2 className="text-xl font-semibold">人员赋权</h2>
+            <p className="text-sm text-gray-500 mt-1">选择人员后勾选权限组。人员可加入多个权限组，最终权限按权限组合并。</p>
           </div>
           <button
             onClick={saveAssignment}
@@ -357,17 +381,56 @@ export default function PermissionPage({ onMessage }: { onMessage: (msg: string)
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h3 className="text-lg font-semibold">{activeGroup?.name || '权限组'}明细</h3>
-            <p className="text-sm text-gray-500 mt-1">{activeGroup?.description || '配置这个权限组可访问的功能和操作。'}</p>
+            <h3 className="text-lg font-semibold">权限组赋权</h3>
+            <p className="text-sm text-gray-500 mt-1">{activeGroup ? `${activeGroup.name}：${activeGroup.description || '配置这个权限组可访问的功能和操作。'}` : '新建或选择权限组后配置功能权限。'}</p>
           </div>
-          <button
-            onClick={saveGroupSettings}
-            disabled={loading || !activeGroup}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
-          >
-            保存权限组明细
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowNewGroupForm((value) => !value)}
+              disabled={loading}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
+            >
+              新建权限组
+            </button>
+            <button
+              onClick={saveGroupSettings}
+              disabled={loading || !activeGroup}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
+            >
+              保存权限组赋权
+            </button>
+          </div>
         </div>
+
+        {showNewGroupForm && (
+          <div className="mt-5 grid gap-3 md:grid-cols-[1fr_1fr_2fr_auto] border border-gray-200 rounded-lg p-4 bg-gray-50">
+            <input
+              value={newGroup.name}
+              onChange={(event) => setNewGroup({ ...newGroup, name: event.target.value })}
+              placeholder="权限组名称"
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+            />
+            <input
+              value={newGroup.code}
+              onChange={(event) => setNewGroup({ ...newGroup, code: event.target.value })}
+              placeholder="编码，可留空"
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+            />
+            <input
+              value={newGroup.description}
+              onChange={(event) => setNewGroup({ ...newGroup, description: event.target.value })}
+              placeholder="说明"
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+            />
+            <button
+              onClick={createGroup}
+              disabled={loading || !newGroup.name.trim()}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 disabled:opacity-50"
+            >
+              创建
+            </button>
+          </div>
+        )}
 
         <div className="mt-5 flex flex-wrap gap-2">
           {groups.map((group) => (

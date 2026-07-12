@@ -29,6 +29,12 @@ const updateSchema = z.object({
   operatorGroups: z.array(operatorGroupSchema).optional(),
 })
 
+const createGroupSchema = z.object({
+  name: z.string().min(1, '权限组名称必填'),
+  code: z.string().optional(),
+  description: z.string().optional(),
+})
+
 function assertAdmin(role: string) {
   return role === 'ADMIN'
 }
@@ -202,5 +208,67 @@ export async function PUT(req: NextRequest) {
     }
     console.error('Update permissions error:', error)
     return NextResponse.json({ error: '保存权限失败' }, { status: 500 })
+  }
+}
+
+export async function POST(req: NextRequest) {
+  const current = await getCurrentOperator()
+  if (!current || !canManage(current.role)) {
+    return NextResponse.json({ error: '无权限' }, { status: 403 })
+  }
+
+  try {
+    await ensureDefaultPermissions()
+    const body = await req.json()
+    const data = createGroupSchema.parse(body)
+    const code = (data.code || data.name)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+
+    if (!code) {
+      return NextResponse.json({ error: '权限组编码无效' }, { status: 400 })
+    }
+
+    const exists = await prisma.permissionGroup.findUnique({ where: { code } })
+    if (exists) {
+      return NextResponse.json({ error: '权限组编码已存在' }, { status: 400 })
+    }
+
+    const group = await prisma.permissionGroup.create({
+      data: {
+        code,
+        name: data.name.trim(),
+        description: data.description?.trim() || null,
+        isSystem: false,
+        settings: {
+          create: permissionResources.map((resource) => ({
+            resource: resource.key,
+            canRead: false,
+            canCreate: false,
+            canUpdate: false,
+            canDelete: false,
+          })),
+        },
+      },
+      include: { settings: true },
+    })
+
+    await writeAuditLog(req, {
+      action: 'CREATE_PERMISSION_GROUP',
+      entityType: 'PERMISSION_GROUP',
+      entityId: group.id,
+      entityLabel: group.name,
+      afterData: group,
+    })
+
+    return NextResponse.json({ data: group, message: '权限组已创建' }, { status: 201 })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
+    }
+    console.error('Create permission group error:', error)
+    return NextResponse.json({ error: '创建权限组失败' }, { status: 500 })
   }
 }
