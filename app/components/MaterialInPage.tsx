@@ -66,6 +66,7 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
   const [statusFilter, setStatusFilter] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  const [editingItem, setEditingItem] = useState<MaterialIn | null>(null)
 
   const [form, setForm] = useState({
     supplierId: '',
@@ -123,6 +124,7 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
   }
 
   const resetForm = () => {
+    setEditingItem(null)
     setForm({
       supplierId: '',
       materialId: '',
@@ -144,8 +146,8 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
     setLoading(true)
     try {
       const selectedMaterial = materials.find((m) => m.id === form.materialId)
-      const res = await fetch('/api/material-ins', {
-        method: 'POST',
+      const res = await fetch(editingItem ? `/api/material-ins/${editingItem.id}` : '/api/material-ins', {
+        method: editingItem ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           supplierId: form.supplierId,
@@ -163,7 +165,7 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
       })
       const data = await res.json()
       if (res.ok) {
-        onMessage(`来料单创建成功：${data.data.inboundNo}`)
+        onMessage(editingItem ? `来料单已修改：${data.data.inboundNo}` : `来料单创建成功：${data.data.inboundNo}`)
         setShowModal(false)
         resetForm()
         await fetchMaterialIns()
@@ -202,6 +204,27 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
       onMessage('收货失败')
     }
     setLoading(false)
+  }
+
+  const handleEdit = (item: MaterialIn) => {
+    if (item.status !== 'PENDING') {
+      onMessage('只有待收货来料单可以修改')
+      return
+    }
+
+    setEditingItem(item)
+    setForm({
+      supplierId: item.supplierId,
+      materialId: item.materialId,
+      qty: Number(item.qty),
+      valuationQty: Number(item.valuationQty),
+      unitPrice: Number(item.unitPrice),
+      priceBasis: item.priceBasis || 'VALUATION',
+      batchNo: item.batchNo || '',
+      receivedBy: item.receivedBy || '',
+      note: item.note || '',
+    })
+    setShowModal(true)
   }
 
   const handleReject = async (id: string) => {
@@ -316,6 +339,13 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
                         {item.status === 'PENDING' && (
                           <>
                             <button
+                              onClick={() => handleEdit(item)}
+                              disabled={loading}
+                              className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition disabled:opacity-50"
+                            >
+                              编辑
+                            </button>
+                            <button
                               onClick={() => handleReceive(item.id)}
                               disabled={loading}
                               className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition disabled:opacity-50"
@@ -348,9 +378,12 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">新增来料单</h3>
+              <h3 className="text-lg font-semibold">{editingItem ? `编辑来料单 ${editingItem.inboundNo}` : '新增来料单'}</h3>
               <button
-                onClick={() => setShowModal(false)}
+                onClick={() => {
+                  setShowModal(false)
+                  resetForm()
+                }}
                 className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
               >
                 ×
@@ -505,10 +538,13 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
                   disabled={loading}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
                 >
-                  {loading ? '提交中...' : '提交'}
+                  {loading ? '提交中...' : editingItem ? '保存修改' : '提交'}
                 </button>
                 <button
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false)
+                    resetForm()
+                  }}
                   className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
                 >
                   取消
