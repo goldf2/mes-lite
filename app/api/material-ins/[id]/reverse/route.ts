@@ -45,19 +45,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       const layer = await tx.inventoryCostLayer.findFirst({
         where: { materialInId: materialIn.id },
       })
-      if (!layer) throw new Error('来料成本层不存在，无法红冲')
 
-      const consumedCount = await tx.costLayerConsumption.count({
-        where: { costLayerId: layer.id, restoredAt: null },
-      })
-      const layerUntouched =
-        closeEnough(Number(layer.remainingStockQty), Number(layer.stockQty)) &&
-        closeEnough(Number(layer.remainingValuationQty), Number(layer.valuationQty)) &&
-        closeEnough(Number(layer.remainingAmount || layer.totalAmount), Number(layer.totalAmount)) &&
-        consumedCount === 0
+      if (layer) {
+        const consumedCount = await tx.costLayerConsumption.count({
+          where: { costLayerId: layer.id, restoredAt: null },
+        })
+        const layerUntouched =
+          closeEnough(Number(layer.remainingStockQty), Number(layer.stockQty)) &&
+          closeEnough(Number(layer.remainingValuationQty), Number(layer.valuationQty)) &&
+          closeEnough(Number(layer.remainingAmount ?? layer.totalAmount), Number(layer.totalAmount)) &&
+          consumedCount === 0
 
-      if (!layerUntouched) {
-        throw new Error('该来料批次已被领料或成本层已变动，不能直接红冲，请先退料或做库存调整')
+        if (!layerUntouched) {
+          throw new Error('该来料批次已被领料或成本层已变动，不能直接红冲，请先退料或做库存调整')
+        }
       }
 
       const beforeQty = Number(stock.qty)
@@ -92,15 +93,35 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         },
       })
 
-      await tx.inventoryCostLayer.update({
-        where: { id: layer.id },
-        data: {
-          remainingStockQty: 0,
-          remainingValuationQty: 0,
-          remainingAmount: 0,
-          status: 'REVERSED',
-        },
-      })
+      if (layer) {
+        await tx.inventoryCostLayer.update({
+          where: { id: layer.id },
+          data: {
+            remainingStockQty: 0,
+            remainingValuationQty: 0,
+            remainingAmount: 0,
+            status: 'REVERSED',
+          },
+        })
+      } else {
+        await tx.inventoryCostLayer.create({
+          data: {
+            materialId: materialIn.materialId,
+            materialInId: materialIn.id,
+            stockQty: qty,
+            remainingStockQty: 0,
+            valuationQty,
+            remainingValuationQty: 0,
+            stockUnit: materialIn.unit,
+            valuationUnit: materialIn.valuationUnit,
+            valuationUnitCost: Number(materialIn.valuationUnitCost || (valuationQty > 0 ? costAmount / valuationQty : 0)),
+            stockUnitCost: Number(materialIn.stockUnitCost || (qty > 0 ? costAmount / qty : 0)),
+            totalAmount: costAmount,
+            remainingAmount: 0,
+            status: 'REVERSED',
+          },
+        })
+      }
 
       await tx.stockLog.create({
         data: {
