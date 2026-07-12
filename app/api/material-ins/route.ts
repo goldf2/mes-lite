@@ -3,16 +3,15 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
-import { resolveMaterialUnits, toValuationQty } from '@/lib/units'
+import { resolveMaterialUnits } from '@/lib/units'
 
 const createMaterialInSchema = z.object({
   supplierId: z.string().min(1, '供应商必填'),
   materialId: z.string().min(1, '物料必填'),
   qty: z.number().positive('数量必须大于 0'),
   unit: z.string().optional(),
-  valuationQty: z.number().positive().optional(),
+  valuationQty: z.number().positive('实际重量必须大于 0'),
   valuationUnit: z.string().optional(),
-  conversionRate: z.number().positive().optional(),
   unitPrice: z.number().nonnegative('单价不能为负'),
   batchNo: z.string().optional(),
   receivedBy: z.string().optional(),
@@ -64,7 +63,7 @@ export async function POST(req: NextRequest) {
     if (denied) return denied
 
     const body = await req.json()
-    const { supplierId, materialId, qty, unitPrice, batchNo, receivedBy, note } =
+    const { supplierId, materialId, qty, valuationQty, unitPrice, batchNo, receivedBy, note } =
       createMaterialInSchema.parse(body)
 
     // 校验供应商存在且未删除
@@ -83,8 +82,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '物料不存在或已删除' }, { status: 404 })
     }
     const units = resolveMaterialUnits(material)
-    const conversionRate = body.conversionRate ?? units.conversionRate
-    const valuationQty = body.valuationQty ?? toValuationQty(qty, conversionRate)
+    const conversionRate = Number((valuationQty / qty).toFixed(6))
     const stockUnit = body.unit || units.stockUnit
     const valuationUnit = body.valuationUnit || units.valuationUnit
 

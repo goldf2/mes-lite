@@ -132,8 +132,8 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
   }
 
   const handleSubmit = async () => {
-    if (!form.supplierId || !form.materialId || form.qty <= 0) {
-      onMessage('请选择供应商和物料，并输入有效数量')
+    if (!form.supplierId || !form.materialId || form.qty <= 0 || form.valuationQty <= 0) {
+      onMessage('请选择供应商和物料，并输入有效长度/件数和实际重量')
       return
     }
     setLoading(true)
@@ -147,9 +147,8 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
           materialId: form.materialId,
           qty: form.qty,
           unit: selectedMaterial?.stockUnit || selectedMaterial?.unit || '个',
-          valuationQty: form.valuationQty || (selectedMaterial ? Number((form.qty * (selectedMaterial.conversionRate || 1)).toFixed(6)) : undefined),
+          valuationQty: form.valuationQty,
           valuationUnit: selectedMaterial?.valuationUnit,
-          conversionRate: selectedMaterial?.conversionRate,
           unitPrice: form.unitPrice,
           batchNo: form.batchNo || undefined,
           receivedBy: form.receivedBy || undefined,
@@ -172,9 +171,9 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
   }
 
   const selectedMaterial = materials.find((material) => material.id === form.materialId)
-  const estimatedValuationQty = selectedMaterial ? Number((form.qty * (selectedMaterial.conversionRate || 1)).toFixed(6)) : 0
-  const actualValuationQty = form.valuationQty || estimatedValuationQty
-  const totalAmountPreview = Number((actualValuationQty * form.unitPrice).toFixed(4))
+  const referenceValuationQty = selectedMaterial && form.qty > 0 ? Number((form.qty * (selectedMaterial.conversionRate || 1)).toFixed(6)) : 0
+  const actualConversionRate = form.qty > 0 && form.valuationQty > 0 ? Number((form.valuationQty / form.qty).toFixed(6)) : 0
+  const totalAmountPreview = Number((form.valuationQty * form.unitPrice).toFixed(4))
   const stockUnitCostPreview = form.qty > 0 ? Number((totalAmountPreview / form.qty).toFixed(6)) : 0
 
   const handleReceive = async (id: string) => {
@@ -362,11 +361,9 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
                 <select
                   value={form.materialId}
                   onChange={(e) => {
-                    const material = materials.find((item) => item.id === e.target.value)
                     setForm({
                       ...form,
                       materialId: e.target.value,
-                      valuationQty: material ? Number((form.qty * (material.conversionRate || 1)).toFixed(6)) : 0,
                     })
                   }}
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -390,7 +387,6 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
                       setForm({
                         ...form,
                         qty,
-                        valuationQty: selectedMaterial ? Number((qty * (selectedMaterial.conversionRate || 1)).toFixed(6)) : form.valuationQty,
                       })
                     }}
                     min={0}
@@ -408,7 +404,9 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                   {selectedMaterial && (
-                    <p className="mt-1 text-xs text-gray-500">自动估算：{estimatedValuationQty} {selectedMaterial.valuationUnit}</p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      参考：按物料默认换算约 {referenceValuationQty} {selectedMaterial.valuationUnit}，实际重量以录入为准
+                    </p>
                   )}
                 </div>
               </div>
@@ -427,6 +425,7 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
                 <div>每 {selectedMaterial?.valuationUnit || 'kg'} 成本：¥{(form.unitPrice || 0).toFixed(4)}</div>
                 <div className="mt-1">每 {selectedMaterial?.stockUnit || '件/米/根'} 成本：¥{stockUnitCostPreview.toFixed(4)}</div>
                 <div className="mt-1">总金额：¥{totalAmountPreview.toFixed(2)}</div>
+                <div className="mt-1">本批实际换算：{actualConversionRate || 0} {selectedMaterial?.valuationUnit || 'kg'} / {selectedMaterial?.stockUnit || '库存单位'}</div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
