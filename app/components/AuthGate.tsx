@@ -176,7 +176,7 @@ function RegisterForm({ onRegistered, onMessage }: { onRegistered: () => void; o
     <div className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">账号</label>
-        <input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" placeholder="如 zhangsan" />
+        <input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" placeholder="如 lufeng 或 陆峰" />
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">姓名</label>
