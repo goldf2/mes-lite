@@ -70,13 +70,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (beforeAvailableQty < qty || beforeAvailableValuationQty < valuationQty) {
         throw new Error('可用库存不足，不能红冲该来料单')
       }
-      if (beforeCostAmount < costAmount) {
+      if (layer && beforeCostAmount < costAmount) {
         throw new Error('库存金额不足，不能红冲该来料单')
       }
 
+      const reverseCostAmount = layer ? costAmount : Math.min(costAmount, Math.max(0, beforeCostAmount))
       const afterQty = Number((beforeQty - qty).toFixed(6))
       const afterValuationQty = Number((beforeValuationQty - valuationQty).toFixed(6))
-      const afterCostAmount = Number((beforeCostAmount - costAmount).toFixed(6))
+      const afterCostAmount = Number(Math.max(0, beforeCostAmount - reverseCostAmount).toFixed(6))
       const valuationUnitCost = afterValuationQty > 0 ? afterCostAmount / afterValuationQty : 0
       const stockUnitCost = afterQty > 0 ? afterCostAmount / afterQty : 0
 
@@ -87,7 +88,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           availableQty: { decrement: qty },
           valuationQty: { decrement: valuationQty },
           availableValuationQty: { decrement: valuationQty },
-          totalCost: { decrement: costAmount },
+          totalCost: { decrement: reverseCostAmount },
           valuationUnitCost: Math.max(0, valuationUnitCost),
           stockUnitCost: Math.max(0, stockUnitCost),
         },
@@ -133,7 +134,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           valuationQty: -valuationQty,
           beforeValuationQty,
           afterValuationQty,
-          costAmount: -costAmount,
+          costAmount: -reverseCostAmount,
           beforeCostAmount,
           afterCostAmount,
           refType: 'MATERIAL_IN_REVERSE',
