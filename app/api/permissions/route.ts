@@ -4,9 +4,12 @@ import { canManage, getCurrentOperator } from '@/lib/auth'
 import { writeAuditLog } from '@/lib/audit'
 import {
   ensureDefaultPermissions,
+  getEffectivePermissionMap,
+  hasResourcePermission,
   permissionActions,
   permissionResources,
   permissionRoles,
+  PermissionFlags,
 } from '@/lib/permissions'
 import { prisma } from '@/lib/prisma'
 
@@ -16,6 +19,7 @@ const groupSettingSchema = z.object({
   canCreate: z.boolean(),
   canUpdate: z.boolean(),
   canDelete: z.boolean(),
+  canGrant: z.boolean().optional(),
 })
 
 const operatorGroupSchema = z.object({
@@ -39,9 +43,60 @@ function assertAdmin(role: string) {
   return role === 'ADMIN'
 }
 
+function hasAnyGrant(permissions: Record<string, PermissionFlags>) {
+  return Object.values(permissions).some((flags) => flags.canGrant)
+}
+
+async function canOpenPermissions(current: Awaited<ReturnType<typeof getCurrentOperator>>) {
+  if (!current) return false
+  if (assertAdmin(current.role)) return true
+  const permissions = await getEffectivePermissionMap(current)
+  return Boolean(
+    permissions.permissionUsers?.canRead ||
+    permissions.permissionGroups?.canRead ||
+    hasAnyGrant(permissions)
+  )
+}
+
+async function canManageOperatorAssignments(current: Awaited<ReturnType<typeof getCurrentOperator>>) {
+  if (!current) return false
+  if (assertAdmin(current.role)) return true
+  const permissions = await getEffectivePermissionMap(current)
+  return Boolean(permissions.permissionUsers?.canUpdate || hasAnyGrant(permissions))
+}
+
+async function canManageGroups(current: Awaited<ReturnType<typeof getCurrentOperator>>) {
+  if (!current) return false
+  if (assertAdmin(current.role)) return true
+  const permissions = await getEffectivePermissionMap(current)
+  return Boolean(permissions.permissionGroups?.canUpdate || hasAnyGrant(permissions))
+}
+
+async function assertGroupAssignable(groupIds: string[], current: Awaited<ReturnType<typeof getCurrentOperator>>) {
+  if (!current || assertAdmin(current.role)) return null
+
+  const permissions = await getEffectivePermissionMap(current)
+  const groups = await prisma.permissionGroup.findMany({
+    where: { id: { in: groupIds } },
+    include: { settings: true },
+  })
+
+  for (const group of groups) {
+    for (const setting of group.settings) {
+      const hasAnyPermission = setting.canRead || setting.canCreate || setting.canUpdate || setting.canDelete || setting.canGrant
+      if (!hasAnyPermission) continue
+      if (!permissions[setting.resource]?.canGrant) {
+        return `无权分配权限组「${group.name}」中的「${setting.resource}」权限`
+      }
+    }
+  }
+
+  return null
+}
+
 export async function GET() {
   const current = await getCurrentOperator()
-  if (!current || !assertAdmin(current.role)) {
+  if (!(await canOpenPermissions(current))) {
     return NextResponse.json({ error: '无权限' }, { status: 403 })
   }
 
@@ -84,7 +139,7 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   const current = await getCurrentOperator()
-  if (!current || !canManage(current.role)) {
+  if (!current || (!(await canManageOperatorAssignments(current)) && !(await canManageGroups(current)))) {
     return NextResponse.json({ error: '无权限' }, { status: 403 })
   }
 
@@ -97,6 +152,12 @@ export async function PUT(req: NextRequest) {
       if (!validResources.has(setting.resource)) {
         return NextResponse.json({ error: `未知功能页：${setting.resource}` }, { status: 400 })
       }
+      if (!assertAdmin(current.role) && !(await hasResourcePermission(current, setting.resource as any, 'grant'))) {
+        return NextResponse.json({ error: `无权维护「${setting.resource}」的授权` }, { status: 403 })
+      }
+      if (!assertAdmin(current.role) && setting.canGrant) {
+        return NextResponse.json({ error: '授权权限只能由超级管理员维护' }, { status: 403 })
+      }
     }
 
     await ensureDefaultPermissions()
@@ -108,6 +169,9 @@ export async function PUT(req: NextRequest) {
     }
 
     for (const item of operatorGroups || []) {
+      if (!(await canManageOperatorAssignments(current))) {
+        return NextResponse.json({ error: '无权维护人员权限' }, { status: 403 })
+      }
       if (!validOperators.has(item.operatorId)) {
         return NextResponse.json({ error: '操作人员不存在' }, { status: 404 })
       }
@@ -116,6 +180,14 @@ export async function PUT(req: NextRequest) {
           return NextResponse.json({ error: '权限组不存在' }, { status: 404 })
         }
       }
+      const assignError = await assertGroupAssignable(item.groupIds, current)
+      if (assignError) {
+        return NextResponse.json({ error: assignError }, { status: 403 })
+      }
+    }
+
+    if (groupId && groupSettings && !(await canManageGroups(current))) {
+      return NextResponse.json({ error: '无权维护权限组' }, { status: 403 })
     }
 
     const beforeGroupSettings = groupId
@@ -152,12 +224,14 @@ export async function PUT(req: NextRequest) {
               canCreate: setting.canCreate,
               canUpdate: setting.canUpdate,
               canDelete: setting.canDelete,
+              canGrant: assertAdmin(current.role) ? Boolean(setting.canGrant) : false,
             },
             update: {
               canRead: setting.canRead,
               canCreate: setting.canCreate,
               canUpdate: setting.canUpdate,
               canDelete: setting.canDelete,
+              canGrant: assertAdmin(current.role) ? Boolean(setting.canGrant) : false,
             },
           })
         }
@@ -213,7 +287,8 @@ export async function PUT(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const current = await getCurrentOperator()
-  if (!current || !canManage(current.role)) {
+  const canCreateGroup = current && (canManage(current.role) || (await hasResourcePermission(current, 'permissionGroups', 'create')) || hasAnyGrant(await getEffectivePermissionMap(current)))
+  if (!canCreateGroup) {
     return NextResponse.json({ error: '无权限' }, { status: 403 })
   }
 
@@ -249,6 +324,7 @@ export async function POST(req: NextRequest) {
             canCreate: false,
             canUpdate: false,
             canDelete: false,
+            canGrant: false,
           })),
         },
       },

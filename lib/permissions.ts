@@ -19,6 +19,7 @@ export const permissionActions = [
   { key: 'canCreate', label: '增' },
   { key: 'canUpdate', label: '改' },
   { key: 'canDelete', label: '删' },
+  { key: 'canGrant', label: '授权' },
 ] as const
 
 export const permissionResources = [
@@ -33,13 +34,15 @@ export const permissionResources = [
   { key: 'stats', label: '统计分析' },
   { key: 'operators', label: '人员管理' },
   { key: 'system', label: '系统管理' },
+  { key: 'permissionUsers', label: '人员权限控制' },
+  { key: 'permissionGroups', label: '组权限控制' },
   { key: 'permissions', label: '权限管理' },
   { key: 'attachments', label: '原始单据附件' },
 ] as const
 
 export type PermissionRole = (typeof permissionRoles)[number]['key']
 export type PermissionResource = (typeof permissionResources)[number]['key']
-export type PermissionAction = 'read' | 'create' | 'update' | 'delete'
+export type PermissionAction = 'read' | 'create' | 'update' | 'delete' | 'grant'
 export type PermissionSubject = { id?: string; role: string }
 
 export type PermissionFlags = {
@@ -47,15 +50,16 @@ export type PermissionFlags = {
   canCreate: boolean
   canUpdate: boolean
   canDelete: boolean
+  canGrant: boolean
 }
 
 export type PermissionMap = Record<string, PermissionFlags>
 
-const allOn: PermissionFlags = { canRead: true, canCreate: true, canUpdate: true, canDelete: true }
-const readOnly: PermissionFlags = { canRead: true, canCreate: false, canUpdate: false, canDelete: false }
-const readCreate: PermissionFlags = { canRead: true, canCreate: true, canUpdate: false, canDelete: false }
-const readCreateUpdate: PermissionFlags = { canRead: true, canCreate: true, canUpdate: true, canDelete: false }
-const none: PermissionFlags = { canRead: false, canCreate: false, canUpdate: false, canDelete: false }
+const allOn: PermissionFlags = { canRead: true, canCreate: true, canUpdate: true, canDelete: true, canGrant: true }
+const readOnly: PermissionFlags = { canRead: true, canCreate: false, canUpdate: false, canDelete: false, canGrant: false }
+const readCreate: PermissionFlags = { canRead: true, canCreate: true, canUpdate: false, canDelete: false, canGrant: false }
+const readCreateUpdate: PermissionFlags = { canRead: true, canCreate: true, canUpdate: true, canDelete: false, canGrant: false }
+const none: PermissionFlags = { canRead: false, canCreate: false, canUpdate: false, canDelete: false, canGrant: false }
 
 const operatorDefaults: PermissionMap = {
   dashboard: readOnly,
@@ -69,6 +73,8 @@ const operatorDefaults: PermissionMap = {
   stats: readOnly,
   operators: none,
   system: none,
+  permissionUsers: none,
+  permissionGroups: none,
   permissions: none,
   attachments: readCreate,
 }
@@ -79,12 +85,14 @@ const auditorDefaults: PermissionMap = {
   materials: readOnly,
   materialIn: readCreateUpdate,
   dispatch: readCreateUpdate,
-  stocks: { canRead: true, canCreate: false, canUpdate: true, canDelete: false },
+  stocks: { canRead: true, canCreate: false, canUpdate: true, canDelete: false, canGrant: false },
   shipment: readCreateUpdate,
   return: readCreateUpdate,
   stats: readOnly,
-  operators: { canRead: true, canCreate: false, canUpdate: true, canDelete: false },
+  operators: { canRead: true, canCreate: false, canUpdate: true, canDelete: false, canGrant: false },
   system: none,
+  permissionUsers: none,
+  permissionGroups: none,
   permissions: none,
   attachments: readCreate,
 }
@@ -100,6 +108,7 @@ const actionField: Record<PermissionAction, keyof PermissionFlags> = {
   create: 'canCreate',
   update: 'canUpdate',
   delete: 'canDelete',
+  grant: 'canGrant',
 }
 
 function cloneFlags(flags: PermissionFlags): PermissionFlags {
@@ -171,6 +180,7 @@ export async function getRolePermissionMap(role: string): Promise<PermissionMap>
       canCreate: setting.canCreate,
       canUpdate: setting.canUpdate,
       canDelete: setting.canDelete,
+      canGrant: setting.canGrant,
     }
   }
 
@@ -210,6 +220,7 @@ export async function getEffectivePermissionMap(subject: PermissionSubject | str
         canCreate: currentFlags.canCreate || setting.canCreate,
         canUpdate: currentFlags.canUpdate || setting.canUpdate,
         canDelete: currentFlags.canDelete || setting.canDelete,
+        canGrant: currentFlags.canGrant || setting.canGrant,
       }
     }
   }
@@ -225,6 +236,7 @@ export async function getEffectivePermissionMap(subject: PermissionSubject | str
       canCreate: override.canCreate,
       canUpdate: override.canUpdate,
       canDelete: override.canDelete,
+      canGrant: override.canGrant,
     }
   }
 

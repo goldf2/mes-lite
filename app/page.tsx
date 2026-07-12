@@ -62,7 +62,7 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'orders' | 'materials' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'operators' | 'system' | 'permissions' | 'create' | 'detail'
+type TabType = 'dashboard' | 'orders' | 'materials' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'operators' | 'system' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
 
 // ==================== 菜单图标组件 ====================
 
@@ -79,6 +79,8 @@ function MenuIcon({ icon }: { icon: string }) {
     stats: '📈',
     operators: '👤',
     system: '⚙️',
+    permissionUsers: '👥',
+    permissionGroups: '🧩',
     permissions: '🔐',
   }
   return <span className="text-lg">{icons[icon] || '📄'}</span>
@@ -121,7 +123,11 @@ export default function Home() {
 }
 
 function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: () => void }) {
-  const canRead = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canRead)
+  const hasAnyGrant = Object.values(operator.permissions || {}).some((permission) => permission.canGrant)
+  const canRead = (resource: string) =>
+    operator.role === 'ADMIN' ||
+    Boolean(operator.permissions?.[resource]?.canRead) ||
+    ((resource === 'permissionUsers' || resource === 'permissionGroups') && hasAnyGrant)
   const canCreate = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canCreate)
   const baseNavItems: { key: TabType; label: string; resource: string }[] = [
     { key: 'dashboard', label: '仪表盘', resource: 'dashboard' },
@@ -135,9 +141,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'stats', label: '统计分析', resource: 'stats' },
     { key: 'operators', label: '人员管理', resource: 'operators' },
     { key: 'system', label: '系统管理', resource: 'system' },
-    { key: 'permissions', label: '权限管理', resource: 'permissions' },
+    { key: 'permissionUsers', label: '人员权限', resource: 'permissionUsers' },
+    { key: 'permissionGroups', label: '组权限', resource: 'permissionGroups' },
   ]
-  const systemResources = new Set(['operators', 'system', 'permissions'])
+  const systemResources = new Set(['operators', 'system', 'permissionUsers', 'permissionGroups', 'permissions'])
   const readableBusinessNavItems = baseNavItems.filter((item) => canRead(item.resource) && !systemResources.has(item.resource))
   const readableSystemNavItems = baseNavItems.filter((item) => canRead(item.resource) && systemResources.has(item.resource))
   const [tab, setTab] = useState<TabType>('dashboard')
@@ -684,8 +691,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {/* 系统管理 */}
         {tab === 'system' && <SystemPage onMessage={showMessage} />}
 
-        {/* 权限管理 */}
-        {tab === 'permissions' && <PermissionPage onMessage={showMessage} />}
+        {/* 人员权限控制 */}
+        {tab === 'permissionUsers' && <PermissionPage mode="users" onMessage={showMessage} />}
+
+        {/* 组权限控制 */}
+        {tab === 'permissionGroups' && <PermissionPage mode="groups" onMessage={showMessage} />}
       </main>
     </div>
   )

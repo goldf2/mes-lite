@@ -17,6 +17,7 @@ interface PermissionFlags {
   canCreate: boolean
   canUpdate: boolean
   canDelete: boolean
+  canGrant: boolean
 }
 
 interface PermissionGroupSetting extends PermissionFlags {
@@ -53,6 +54,7 @@ const actionHelp: Record<string, string> = {
   canCreate: '新增单据或资料',
   canUpdate: '编辑、确认、审核、状态流转',
   canDelete: '删除或移除记录',
+  canGrant: '授权本模块权限',
 }
 
 const roleLabels: Record<string, string> = {
@@ -73,9 +75,16 @@ const blankFlags: PermissionFlags = {
   canCreate: false,
   canUpdate: false,
   canDelete: false,
+  canGrant: false,
 }
 
-export default function PermissionPage({ onMessage }: { onMessage: (msg: string) => void }) {
+export default function PermissionPage({
+  mode = 'users',
+  onMessage,
+}: {
+  mode?: 'users' | 'groups'
+  onMessage: (msg: string) => void
+}) {
   const [resources, setResources] = useState<ResourceItem[]>([])
   const [actions, setActions] = useState<ActionItem[]>([])
   const [operators, setOperators] = useState<OperatorItem[]>([])
@@ -264,7 +273,7 @@ export default function PermissionPage({ onMessage }: { onMessage: (msg: string)
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-lg shadow p-6">
+      {mode === 'users' && <div className="bg-white rounded-lg shadow p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-xl font-semibold">人员赋权</h2>
@@ -376,9 +385,9 @@ export default function PermissionPage({ onMessage }: { onMessage: (msg: string)
             </div>
           </div>
         </div>
-      </div>
+      </div>}
 
-      <div className="bg-white rounded-lg shadow p-6">
+      {mode === 'groups' && <div className="bg-white rounded-lg shadow p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h3 className="text-lg font-semibold">权限组赋权</h3>
@@ -485,7 +494,7 @@ export default function PermissionPage({ onMessage }: { onMessage: (msg: string)
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
     </div>
   )
 }

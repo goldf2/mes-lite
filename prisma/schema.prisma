@@ -495,6 +495,7 @@ model PermissionSetting {
   canCreate Boolean  @default(false)
   canUpdate Boolean  @default(false)
   canDelete Boolean  @default(false)
+  canGrant  Boolean  @default(false)
   updatedAt DateTime @updatedAt
 
   @@unique([role, resource])
@@ -510,6 +511,7 @@ model OperatorPermissionOverride {
   canCreate Boolean  @default(false)
   canUpdate Boolean  @default(false)
   canDelete Boolean  @default(false)
+  canGrant  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -538,6 +540,7 @@ model PermissionGroupSetting {
   canCreate Boolean  @default(false)
   canUpdate Boolean  @default(false)
   canDelete Boolean  @default(false)
+  canGrant  Boolean  @default(false)
   updatedAt DateTime @updatedAt
 
   @@unique([groupId, resource])

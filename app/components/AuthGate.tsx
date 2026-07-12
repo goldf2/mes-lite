@@ -16,6 +16,7 @@ export interface CurrentOperator {
     canCreate: boolean
     canUpdate: boolean
     canDelete: boolean
+    canGrant?: boolean
   }>
 }
 
