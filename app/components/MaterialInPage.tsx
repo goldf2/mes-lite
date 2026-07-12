@@ -51,12 +51,14 @@ const statusColors: Record<string, string> = {
   PENDING: 'bg-gray-100 text-gray-700',
   RECEIVED: 'bg-green-100 text-green-700',
   REJECTED: 'bg-red-100 text-red-700',
+  REVERSED: 'bg-orange-100 text-orange-700',
 }
 
 const statusLabels: Record<string, string> = {
   PENDING: '待收货',
   RECEIVED: '已收货',
   REJECTED: '已拒收',
+  REVERSED: '已红冲',
 }
 
 export default function MaterialInPage({ onMessage }: { onMessage: (msg: string) => void }) {
@@ -244,6 +246,30 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
     setLoading(false)
   }
 
+  const handleReverse = async (item: MaterialIn) => {
+    const reason = window.prompt(`请输入红冲来料单 ${item.inboundNo} 的原因`)
+    if (!reason) return
+
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/material-ins/${item.id}/reverse`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        onMessage(data.message || '红冲成功')
+        await fetchMaterialIns()
+      } else {
+        onMessage(data.error || '红冲失败')
+      }
+    } catch (err) {
+      onMessage('红冲失败')
+    }
+    setLoading(false)
+  }
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-lg shadow p-6">
@@ -259,6 +285,7 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
               <option value="PENDING">待收货</option>
               <option value="RECEIVED">已收货</option>
               <option value="REJECTED">已拒收</option>
+              <option value="REVERSED">已红冲</option>
             </select>
             <button
               onClick={() => {
@@ -361,7 +388,16 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
                             </button>
                           </>
                         )}
-                        {item.status !== 'PENDING' && (
+                        {item.status === 'RECEIVED' && (
+                          <button
+                            onClick={() => handleReverse(item)}
+                            disabled={loading}
+                            className="px-3 py-1 bg-orange-600 text-white rounded text-xs hover:bg-orange-700 transition disabled:opacity-50"
+                          >
+                            红冲
+                          </button>
+                        )}
+                        {item.status !== 'PENDING' && item.status !== 'RECEIVED' && (
                           <span className="text-xs text-gray-400">无操作</span>
                         )}
                       </div>

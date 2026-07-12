@@ -285,11 +285,102 @@ async function main() {
       })
       assertEqual(openConsumptions, 0, '恢复后未关闭消耗明细')
 
+      const reverseIn = await tx.materialIn.create({
+        data: {
+          inboundNo: `${marker}-IN-REVERSE`,
+          supplierId: supplier.id,
+          materialId: material.id,
+          qty: 5,
+          unit: '根',
+          valuationQty: 10,
+          valuationUnit: 'kg',
+          conversionRate: 2,
+          unitPrice: 6,
+          priceBasis: 'VALUATION',
+          priceUnit: 'kg',
+          valuationUnitCost: 6,
+          stockUnitCost: 12,
+          totalAmount: 60,
+          status: 'RECEIVED',
+        },
+      })
+
+      const reverseLayer = await tx.inventoryCostLayer.create({
+        data: {
+          materialId: material.id,
+          materialInId: reverseIn.id,
+          stockQty: 5,
+          remainingStockQty: 5,
+          valuationQty: 10,
+          remainingValuationQty: 10,
+          stockUnit: '根',
+          valuationUnit: 'kg',
+          valuationUnitCost: 6,
+          stockUnitCost: 12,
+          totalAmount: 60,
+          remainingAmount: 60,
+        },
+      })
+
+      await tx.stock.update({
+        where: { id: stock.id },
+        data: {
+          qty: { increment: 5 },
+          availableQty: { increment: 5 },
+          valuationQty: { increment: 10 },
+          availableValuationQty: { increment: 10 },
+          totalCost: { increment: 60 },
+          valuationUnitCost: 340 / 60,
+          stockUnitCost: 340 / 25,
+        },
+      })
+
+      const beforeReverseStock = await tx.stock.findUniqueOrThrow({ where: { id: stock.id } })
+      assertClose(Number(beforeReverseStock.qty), 25, '红冲前库存数量')
+      assertClose(Number(beforeReverseStock.valuationQty), 60, '红冲前库存重量')
+      assertClose(Number(beforeReverseStock.totalCost), 340, '红冲前库存金额')
+
+      await tx.stock.update({
+        where: { id: stock.id },
+        data: {
+          qty: { decrement: 5 },
+          availableQty: { decrement: 5 },
+          valuationQty: { decrement: 10 },
+          availableValuationQty: { decrement: 10 },
+          totalCost: { decrement: 60 },
+          valuationUnitCost: 280 / 50,
+          stockUnitCost: 280 / 20,
+        },
+      })
+      await tx.inventoryCostLayer.update({
+        where: { id: reverseLayer.id },
+        data: {
+          remainingStockQty: 0,
+          remainingValuationQty: 0,
+          remainingAmount: 0,
+          status: 'REVERSED',
+        },
+      })
+      await tx.materialIn.update({
+        where: { id: reverseIn.id },
+        data: { status: 'REVERSED' },
+      })
+
+      const afterReverseStock = await tx.stock.findUniqueOrThrow({ where: { id: stock.id } })
+      const reversedLayer = await tx.inventoryCostLayer.findUniqueOrThrow({ where: { id: reverseLayer.id } })
+      assertClose(Number(afterReverseStock.qty), 20, '红冲后库存数量')
+      assertClose(Number(afterReverseStock.valuationQty), 50, '红冲后库存重量')
+      assertClose(Number(afterReverseStock.totalCost), 280, '红冲后库存金额')
+      assertClose(Number(reversedLayer.remainingStockQty), 0, '红冲后成本层数量')
+      assertClose(Number(reversedLayer.remainingValuationQty), 0, '红冲后成本层重量')
+      assertClose(Number(reversedLayer.remainingAmount), 0, '红冲后成本层金额')
+      assertEqual(reversedLayer.status, 'REVERSED', '红冲后成本层状态')
+
       throw new Error('ROLLBACK_FIFO_VERIFY')
     })
   } catch (error) {
     if (error instanceof Error && error.message === 'ROLLBACK_FIFO_VERIFY') {
-      console.log('FIFO 验证通过：跨批次领料、成本层消耗、库存成本扣减、取消退料和成本层恢复均符合预期。')
+      console.log('FIFO 验证通过：跨批次领料、成本层消耗、库存成本扣减、取消退料、成本层恢复和来料红冲均符合预期。')
       return
     }
     throw error
