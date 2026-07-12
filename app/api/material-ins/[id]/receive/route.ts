@@ -21,7 +21,7 @@ export async function PATCH(_req: NextRequest, { params }: { params: { id: strin
     }
 
     if (materialIn.material.deletedAt) {
-      return NextResponse.json({ error: '物料已删除，无法确认收货' }, { status: 400 })
+      return NextResponse.json({ error: '物料已归档，无法确认收货' }, { status: 400 })
     }
 
     if (materialIn.status !== 'PENDING') {

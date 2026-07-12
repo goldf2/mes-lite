@@ -18,7 +18,7 @@ export const permissionActions = [
   { key: 'canRead', label: '查' },
   { key: 'canCreate', label: '增' },
   { key: 'canUpdate', label: '改' },
-  { key: 'canDelete', label: '删' },
+  { key: 'canDelete', label: '归档' },
   { key: 'canGrant', label: '授权' },
 ] as const
 

@@ -157,7 +157,7 @@ export async function DELETE(req: NextRequest) {
 
     const order = await prisma.productionOrder.findUnique({ where: { id } })
     if (!order || order.deletedAt) {
-      return NextResponse.json({ error: '工单不存在或已删除' }, { status: 404 })
+      return NextResponse.json({ error: '工单不存在或已归档' }, { status: 404 })
     }
 
     const updated = await prisma.productionOrder.update({
@@ -166,7 +166,7 @@ export async function DELETE(req: NextRequest) {
     })
 
     await writeAuditLog(req, {
-      action: 'SOFT_DELETE',
+      action: 'ARCHIVE',
       entityType: 'ORDER',
       entityId: updated.id,
       entityLabel: updated.orderNo,
@@ -174,9 +174,9 @@ export async function DELETE(req: NextRequest) {
       afterData: updated,
     })
 
-    return NextResponse.json({ success: true, message: '工单已删除，可在回收站恢复' })
+    return NextResponse.json({ success: true, message: '工单已归档，可在归档记录中恢复' })
   } catch (error) {
-    console.error('Delete order error:', error)
-    return NextResponse.json({ error: '删除工单失败' }, { status: 500 })
+    console.error('Archive order error:', error)
+    return NextResponse.json({ error: '归档工单失败' }, { status: 500 })
   }
 }

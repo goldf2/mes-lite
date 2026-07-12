@@ -67,20 +67,20 @@ export async function POST(req: NextRequest) {
     const { supplierId, materialId, qty, valuationQty, unitPrice, batchNo, receivedBy, note } =
       createMaterialInSchema.parse(body)
 
-    // 校验供应商存在且未删除
+    // 校验供应商存在且未归档
     const supplier = await prisma.supplier.findFirst({
       where: { id: supplierId, deletedAt: null },
     })
     if (!supplier) {
-      return NextResponse.json({ error: '供应商不存在或已删除' }, { status: 404 })
+      return NextResponse.json({ error: '供应商不存在或已归档' }, { status: 404 })
     }
 
-    // 校验物料存在且未删除
+    // 校验物料存在且未归档
     const material = await prisma.material.findFirst({
       where: { id: materialId, deletedAt: null },
     })
     if (!material) {
-      return NextResponse.json({ error: '物料不存在或已删除' }, { status: 404 })
+      return NextResponse.json({ error: '物料不存在或已归档' }, { status: 404 })
     }
     const units = resolveMaterialUnits(material)
     const conversionRate = Number((valuationQty / qty).toFixed(6))
@@ -159,7 +159,7 @@ export async function DELETE(req: NextRequest) {
 
     const materialIn = await prisma.materialIn.findUnique({ where: { id } })
     if (!materialIn || materialIn.deletedAt) {
-      return NextResponse.json({ error: '来料单不存在或已删除' }, { status: 404 })
+      return NextResponse.json({ error: '来料单不存在或已归档' }, { status: 404 })
     }
 
     const updated = await prisma.materialIn.update({
@@ -168,7 +168,7 @@ export async function DELETE(req: NextRequest) {
     })
 
     await writeAuditLog(req, {
-      action: 'SOFT_DELETE',
+      action: 'ARCHIVE',
       entityType: 'MATERIAL_IN',
       entityId: updated.id,
       entityLabel: updated.inboundNo,
@@ -176,9 +176,9 @@ export async function DELETE(req: NextRequest) {
       afterData: updated,
     })
 
-    return NextResponse.json({ success: true, message: '来料单已删除，可在回收站恢复' })
+    return NextResponse.json({ success: true, message: '来料单已归档，可在归档记录中恢复' })
   } catch (error) {
-    console.error('Delete material-in error:', error)
-    return NextResponse.json({ error: '删除来料单失败' }, { status: 500 })
+    console.error('Archive material-in error:', error)
+    return NextResponse.json({ error: '归档来料单失败' }, { status: 500 })
   }
 }

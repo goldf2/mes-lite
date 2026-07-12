@@ -92,14 +92,14 @@ export default function AttachmentPanel({
   }
 
   const deleteAttachment = async (id: string) => {
-    if (!confirm(`确定删除这张${itemLabel}吗？`)) return
+    if (!confirm(`确定归档这张${itemLabel}吗？归档后文件仍会保留。`)) return
     const res = await fetch(`/api/attachments?id=${id}`, { method: 'DELETE' })
     const data = await res.json()
     if (res.ok) {
-      onMessage(`${itemLabel}已删除`)
+      onMessage(`${itemLabel}已归档`)
       await fetchAttachments()
     } else {
-      onMessage(data.error || '删除失败')
+      onMessage(data.error || '归档失败')
     }
   }
 
@@ -231,7 +231,7 @@ export default function AttachmentPanel({
                       {allowCover && !attachment.isCover && (
                         <button onClick={() => setCover(attachment.id)} className="text-blue-700 hover:text-blue-800">设为封面</button>
                       )}
-                      <button onClick={() => deleteAttachment(attachment.id)} className="text-red-600 hover:text-red-700">删除</button>
+                      <button onClick={() => deleteAttachment(attachment.id)} className="text-red-600 hover:text-red-700">归档</button>
                     </div>
                   </div>
                 </div>
@@ -298,7 +298,7 @@ export default function AttachmentPanel({
                   onClick={() => deleteAttachment(attachment.id)}
                   className="mt-1 text-xs text-red-600 hover:text-red-700"
                 >
-                  删除
+                  归档
                 </button>
               </div>
             </div>

@@ -1,6 +1,16 @@
 import { prisma } from './prisma'
 
 export const SOFT_DELETE_MODELS = {
+  material: {
+    entityType: 'MATERIAL',
+    labelField: 'code',
+    delegate: prisma.material,
+  },
+  supplier: {
+    entityType: 'SUPPLIER',
+    labelField: 'code',
+    delegate: prisma.supplier,
+  },
   materialIn: {
     entityType: 'MATERIAL_IN',
     labelField: 'inboundNo',

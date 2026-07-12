@@ -53,7 +53,7 @@ const actionHelp: Record<string, string> = {
   canRead: '查看页面和列表',
   canCreate: '新增单据或资料',
   canUpdate: '编辑、确认、审核、状态流转',
-  canDelete: '删除或移除记录',
+  canDelete: '归档或移除记录',
   canGrant: '授权本模块权限',
 }
 

@@ -14,6 +14,18 @@ export async function GET(req: NextRequest) {
 
     const result: Record<string, unknown[]> = {}
 
+    if (model === 'all' || model === 'material') {
+      result.materials = await prisma.material.findMany({
+        where: { deletedAt: { not: null } },
+        orderBy: { deletedAt: 'desc' },
+      })
+    }
+    if (model === 'all' || model === 'supplier') {
+      result.suppliers = await prisma.supplier.findMany({
+        where: { deletedAt: { not: null } },
+        orderBy: { deletedAt: 'desc' },
+      })
+    }
     if (model === 'all' || model === 'materialIn') {
       result.materialIn = await prisma.materialIn.findMany({
         where: { deletedAt: { not: null } },
@@ -52,7 +64,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ data: result })
   } catch (error) {
-    console.error('Get deleted records error:', error)
-    return NextResponse.json({ error: '获取已删除记录失败' }, { status: 500 })
+    console.error('Get archived records error:', error)
+    return NextResponse.json({ error: '获取归档记录失败' }, { status: 500 })
   }
 }

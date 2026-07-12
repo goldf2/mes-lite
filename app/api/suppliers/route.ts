@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
+import { writeAuditLog } from '@/lib/audit'
 
 const createSupplierSchema = z.object({
   code: z.string().min(1, '供应商编码必填'),
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     const existing = await prisma.supplier.findUnique({ where: { code } })
     if (existing) {
-      return NextResponse.json({ error: existing.deletedAt ? '供应商编码已被已删除记录占用' : '供应商编码已存在' }, { status: 400 })
+      return NextResponse.json({ error: existing.deletedAt ? '供应商编码已被已归档记录占用' : '供应商编码已存在' }, { status: 400 })
     }
 
     const supplier = await prisma.supplier.create({
@@ -90,7 +91,7 @@ export async function PUT(req: NextRequest) {
 
     const existing = await prisma.supplier.findUnique({ where: { code } })
     if (existing && existing.id !== id) {
-      return NextResponse.json({ error: existing.deletedAt ? '供应商编码已被已删除记录占用' : '供应商编码已存在' }, { status: 400 })
+      return NextResponse.json({ error: existing.deletedAt ? '供应商编码已被已归档记录占用' : '供应商编码已存在' }, { status: 400 })
     }
 
     const updated = await prisma.supplier.update({
@@ -114,7 +115,7 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-// DELETE: 软删除供应商，历史来料记录继续保留引用。
+// DELETE: 归档供应商，历史来料记录继续保留引用。
 export async function DELETE(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('system', 'delete')
@@ -129,19 +130,28 @@ export async function DELETE(req: NextRequest) {
 
     const supplier = await prisma.supplier.findUnique({ where: { id } })
     if (!supplier || supplier.deletedAt) {
-      return NextResponse.json({ error: '供应商不存在或已删除' }, { status: 404 })
+      return NextResponse.json({ error: '供应商不存在或已归档' }, { status: 404 })
     }
 
-    await prisma.supplier.update({
+    const archived = await prisma.supplier.update({
       where: { id },
       data: {
         deletedAt: new Date(),
       },
     })
 
-    return NextResponse.json({ success: true, message: '供应商已删除' })
+    await writeAuditLog(req, {
+      action: 'ARCHIVE',
+      entityType: 'SUPPLIER',
+      entityId: archived.id,
+      entityLabel: archived.code,
+      beforeData: supplier,
+      afterData: archived,
+    })
+
+    return NextResponse.json({ success: true, message: '供应商已归档，可在归档记录中恢复' })
   } catch (error) {
-    console.error('Delete supplier error:', error)
-    return NextResponse.json({ error: '删除供应商失败' }, { status: 500 })
+    console.error('Archive supplier error:', error)
+    return NextResponse.json({ error: '归档供应商失败' }, { status: 500 })
   }
 }

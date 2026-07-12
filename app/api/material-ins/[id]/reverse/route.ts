@@ -27,7 +27,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     })
 
     if (!materialIn || materialIn.deletedAt) {
-      return NextResponse.json({ error: '来料单不存在或已删除' }, { status: 404 })
+      return NextResponse.json({ error: '来料单不存在或已归档' }, { status: 404 })
     }
 
     if (materialIn.status !== 'RECEIVED') {

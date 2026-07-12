@@ -133,7 +133,7 @@ export async function DELETE(req: NextRequest) {
 
     const shipment = await prisma.shipment.findUnique({ where: { id } })
     if (!shipment || shipment.deletedAt) {
-      return NextResponse.json({ error: '发货单不存在或已删除' }, { status: 404 })
+      return NextResponse.json({ error: '发货单不存在或已归档' }, { status: 404 })
     }
 
     const updated = await prisma.shipment.update({
@@ -142,7 +142,7 @@ export async function DELETE(req: NextRequest) {
     })
 
     await writeAuditLog(req, {
-      action: 'SOFT_DELETE',
+      action: 'ARCHIVE',
       entityType: 'SHIPMENT',
       entityId: updated.id,
       entityLabel: updated.shipmentNo,
@@ -150,9 +150,9 @@ export async function DELETE(req: NextRequest) {
       afterData: updated,
     })
 
-    return NextResponse.json({ success: true, message: '发货单已删除，可在回收站恢复' })
+    return NextResponse.json({ success: true, message: '发货单已归档，可在归档记录中恢复' })
   } catch (error) {
-    console.error('Delete shipment error:', error)
-    return NextResponse.json({ error: '删除发货单失败' }, { status: 500 })
+    console.error('Archive shipment error:', error)
+    return NextResponse.json({ error: '归档发货单失败' }, { status: 500 })
   }
 }

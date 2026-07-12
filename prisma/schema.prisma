@@ -92,6 +92,8 @@ model ProcessStep {
   defaultTime   Int?
   workstation   String?
   description   String?
+  deletedAt     DateTime?
+  deletedBy     String?
   reports       WorkReport[]
   dispatches    Dispatch[]
 }

@@ -27,7 +27,7 @@ interface DeletedRecord {
   id: string
   label: string
   type: string
-  model: 'materialIn' | 'order' | 'dispatch' | 'shipment' | 'return'
+  model: 'material' | 'supplier' | 'materialIn' | 'order' | 'dispatch' | 'shipment' | 'return'
   deletedAt?: string | null
 }
 
@@ -83,7 +83,7 @@ export default function SystemPage({ onMessage }: { onMessage: (msg: string) => 
               ['suppliers', '供应商'],
               ['products', '产品资料'],
               ['process', 'BOM/工艺'],
-              ['recycle', '回收站'],
+              ['recycle', '归档记录'],
               ['audit', '操作记录'],
             ] as const).map(([key, label]) => (
               <button
@@ -191,14 +191,14 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
   }
 
   const remove = async (supplier: Supplier) => {
-    if (!confirm(`确定删除供应商「${supplier.name}」吗？`)) return
+    if (!confirm(`确定归档供应商「${supplier.name}」吗？归档后可在归档记录中恢复。`)) return
     const res = await fetch(`/api/suppliers?id=${supplier.id}`, { method: 'DELETE' })
     const data = await res.json()
     if (res.ok) {
-      onMessage('供应商已删除')
+      onMessage('供应商已归档')
       await fetchSuppliers()
     } else {
-      onMessage(data.error || '删除失败')
+      onMessage(data.error || '归档失败')
     }
   }
 
@@ -207,7 +207,7 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-lg font-semibold">供应商管理</h3>
-          <p className="text-sm text-gray-500 mt-1">用于来料单选择供应商，已有来料记录的供应商不能删除。</p>
+          <p className="text-sm text-gray-500 mt-1">用于来料单选择供应商，不再使用的供应商只能归档。</p>
         </div>
         <div className="flex items-center gap-3">
           <input
@@ -249,7 +249,7 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
                     编辑
                   </button>
                   <button onClick={() => remove(supplier)} className="ml-2 px-3 py-1 text-red-600 border border-red-300 rounded text-xs hover:bg-red-50">
-                    删除
+                    归档
                   </button>
                 </td>
               </tr>
@@ -758,7 +758,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
                       </div>
                       <div className="mt-3 flex justify-end">
                         <button onClick={() => removeStep(index)} className="px-3 py-1 text-xs text-red-600 border border-red-300 rounded hover:bg-red-50">
-                          删除本工序
+                          移除本工序
                         </button>
                       </div>
                     </div>
@@ -801,6 +801,8 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
 
   const flattenRecords = (data: any): DeletedRecord[] => {
     const rows: DeletedRecord[] = []
+    ;(data.materials || []).forEach((item: any) => rows.push({ id: item.id, label: item.code, type: '物料', model: 'material', deletedAt: item.deletedAt }))
+    ;(data.suppliers || []).forEach((item: any) => rows.push({ id: item.id, label: item.code, type: '供应商', model: 'supplier', deletedAt: item.deletedAt }))
     ;(data.materialIn || []).forEach((item: any) => rows.push({ id: item.id, label: item.inboundNo, type: '来料单', model: 'materialIn', deletedAt: item.deletedAt }))
     ;(data.orders || []).forEach((item: any) => rows.push({ id: item.id, label: item.orderNo, type: '工单', model: 'order', deletedAt: item.deletedAt }))
     ;(data.dispatches || []).forEach((item: any) => rows.push({ id: item.id, label: item.dispatchNo, type: '派工单', model: 'dispatch', deletedAt: item.deletedAt }))
@@ -816,7 +818,7 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
     if (res.ok) {
       setRecords(flattenRecords(data.data || {}))
     } else {
-      onMessage(data.error || '获取回收站失败')
+      onMessage(data.error || '获取归档记录失败')
     }
     setLoading(false)
   }
@@ -829,10 +831,10 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
     })
     const data = await res.json()
     if (res.ok) {
-      onMessage('记录已恢复')
+      onMessage('记录已恢复归档')
       await fetchDeletedRecords()
     } else {
-      onMessage(data.error || '恢复失败')
+      onMessage(data.error || '恢复归档失败')
     }
   }
 
@@ -840,8 +842,8 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold">回收站</h3>
-          <p className="text-sm text-gray-500 mt-1">单据删除后不会物理删除，可在这里恢复。</p>
+          <h3 className="text-lg font-semibold">归档记录</h3>
+          <p className="text-sm text-gray-500 mt-1">业务数据归档后不会物理删除，可在这里恢复。</p>
         </div>
         <button onClick={fetchDeletedRecords} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
           刷新
@@ -853,7 +855,7 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
             <tr>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">类型</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">编号</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">删除时间</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">归档时间</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
             </tr>
           </thead>
@@ -865,7 +867,7 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
                 <td className="px-4 py-3 text-xs text-gray-500">{record.deletedAt ? new Date(record.deletedAt).toLocaleString('zh-CN') : '-'}</td>
                 <td className="px-4 py-3">
                   <button onClick={() => restore(record)} className="px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">
-                    恢复
+                    恢复归档
                   </button>
                 </td>
               </tr>
@@ -873,7 +875,7 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
           </tbody>
         </table>
       </div>
-      {!loading && records.length === 0 && <div className="text-center py-12 text-gray-500">暂无已删除单据</div>}
+      {!loading && records.length === 0 && <div className="text-center py-12 text-gray-500">暂无归档记录</div>}
     </div>
   )
 }
@@ -903,7 +905,7 @@ function AuditLogViewer({ onMessage }: { onMessage: (msg: string) => void }) {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-lg font-semibold">操作记录</h3>
-          <p className="text-sm text-gray-500 mt-1">记录新增、修改、删除、恢复、收货、盘点等关键操作。</p>
+          <p className="text-sm text-gray-500 mt-1">记录新增、修改、归档、恢复、收货、盘点等关键操作。</p>
         </div>
         <button onClick={fetchLogs} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
           刷新

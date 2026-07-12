@@ -196,7 +196,7 @@ export async function DELETE(req: NextRequest) {
 
     const attachment = await prisma.documentAttachment.findUnique({ where: { id } })
     if (!attachment || attachment.deletedAt) {
-      return NextResponse.json({ error: '附件不存在' }, { status: 404 })
+      return NextResponse.json({ error: '附件不存在或已归档' }, { status: 404 })
     }
 
     const nextCover = attachment.isCover ? await prisma.documentAttachment.findFirst({
@@ -223,9 +223,9 @@ export async function DELETE(req: NextRequest) {
       })] : []),
     ])
 
-    return NextResponse.json({ success: true, message: '附件已删除' })
+    return NextResponse.json({ success: true, message: '附件已归档' })
   } catch (error) {
-    console.error('Delete attachment error:', error)
-    return NextResponse.json({ error: '删除附件失败' }, { status: 500 })
+    console.error('Archive attachment error:', error)
+    return NextResponse.json({ error: '归档附件失败' }, { status: 500 })
   }
 }

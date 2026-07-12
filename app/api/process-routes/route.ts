@@ -30,7 +30,7 @@ export async function GET() {
     const routes = await prisma.processRoute.findMany({
       include: {
         product: { select: { id: true, sku: true, name: true } },
-        steps: { orderBy: { stepNo: 'asc' } },
+        steps: { where: { deletedAt: null }, orderBy: { stepNo: 'asc' } },
       },
       orderBy: { product: { sku: 'asc' } },
     })
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
         },
         include: {
           product: { select: { id: true, sku: true, name: true } },
-          steps: { orderBy: { stepNo: 'asc' } },
+          steps: { where: { deletedAt: null }, orderBy: { stepNo: 'asc' } },
         },
       })
     })
@@ -113,7 +113,7 @@ export async function PUT(req: NextRequest) {
 
     const current = await prisma.processRoute.findUnique({
       where: { id: data.id },
-      include: { product: true, steps: true },
+      include: { product: true, steps: { orderBy: { stepNo: 'asc' } } },
     })
     if (!current) {
       return NextResponse.json({ error: '工艺路线不存在' }, { status: 404 })
@@ -132,7 +132,10 @@ export async function PUT(req: NextRequest) {
         })
       }
 
-      await tx.processStep.deleteMany({ where: { routeId: data.id } })
+      await tx.processStep.updateMany({
+        where: { routeId: data.id, deletedAt: null },
+        data: { deletedAt: new Date() },
+      })
 
       return tx.processRoute.update({
         where: { id: data.id },
@@ -152,7 +155,7 @@ export async function PUT(req: NextRequest) {
         },
         include: {
           product: { select: { id: true, sku: true, name: true } },
-          steps: { orderBy: { stepNo: 'asc' } },
+          steps: { where: { deletedAt: null }, orderBy: { stepNo: 'asc' } },
         },
       })
     })

@@ -62,7 +62,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     })
 
     if (!current || current.deletedAt) {
-      return NextResponse.json({ error: '来料单不存在或已删除' }, { status: 404 })
+      return NextResponse.json({ error: '来料单不存在或已归档' }, { status: 404 })
     }
 
     if (current.status !== 'PENDING') {
@@ -73,14 +73,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       where: { id: supplierId, deletedAt: null },
     })
     if (!supplier) {
-      return NextResponse.json({ error: '供应商不存在或已删除' }, { status: 404 })
+      return NextResponse.json({ error: '供应商不存在或已归档' }, { status: 404 })
     }
 
     const material = await prisma.material.findFirst({
       where: { id: materialId, deletedAt: null },
     })
     if (!material) {
-      return NextResponse.json({ error: '物料不存在或已删除' }, { status: 404 })
+      return NextResponse.json({ error: '物料不存在或已归档' }, { status: 404 })
     }
 
     const units = resolveMaterialUnits(material)

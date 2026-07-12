@@ -8,7 +8,7 @@ import { SOFT_DELETE_MODELS, SoftDeleteModelKey } from '@/lib/soft-delete'
 export const dynamic = 'force-dynamic'
 
 const restoreSchema = z.object({
-  model: z.enum(['materialIn', 'order', 'dispatch', 'shipment', 'return']),
+  model: z.enum(['material', 'supplier', 'materialIn', 'order', 'dispatch', 'shipment', 'return']),
   id: z.string().min(1),
 })
 
@@ -43,12 +43,12 @@ export async function PATCH(req: NextRequest) {
       afterData: restored,
     })
 
-    return NextResponse.json({ data: restored, message: '记录已恢复' })
+    return NextResponse.json({ data: restored, message: '记录已恢复归档' })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
     }
-    console.error('Restore record error:', error)
-    return NextResponse.json({ error: '恢复失败' }, { status: 500 })
+    console.error('Restore archived record error:', error)
+    return NextResponse.json({ error: '恢复归档失败' }, { status: 500 })
   }
 }

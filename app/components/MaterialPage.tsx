@@ -104,7 +104,7 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
   }
 
   const handleArchive = async (id: string) => {
-    if (!confirm('确定要归档该物料吗？归档后不会在物料列表中显示，可在回收站恢复。')) return
+    if (!confirm('确定要归档该物料吗？归档后不会在物料列表中显示，可在归档记录中恢复。')) return
     try {
       const res = await fetch(`/api/materials/${id}/archive`, { method: 'PATCH' })
       const data = await res.json()
