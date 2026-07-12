@@ -42,6 +42,7 @@ export default function PermissionPage({ onMessage }: { onMessage: (msg: string)
   const [resources, setResources] = useState<ResourceItem[]>([])
   const [actions, setActions] = useState<ActionItem[]>([])
   const [settings, setSettings] = useState<PermissionSetting[]>([])
+  const [roleCounts, setRoleCounts] = useState<Record<string, number>>({})
   const [activeRole, setActiveRole] = useState<RoleItem['key']>('OPERATOR')
   const [loading, setLoading] = useState(false)
 
@@ -58,10 +59,24 @@ export default function PermissionPage({ onMessage }: { onMessage: (msg: string)
       setResources(data.data.resources || [])
       setActions(data.data.actions || [])
       setSettings(data.data.settings || [])
+      fetchRoleCounts()
     } else {
       onMessage(data.error || '获取权限失败')
     }
     setLoading(false)
+  }
+
+  const fetchRoleCounts = async () => {
+    const res = await fetch('/api/operators')
+    if (!res.ok) return
+
+    const data = await res.json()
+    const counts: Record<string, number> = {}
+    ;(data.data || []).forEach((operator: { role?: string }) => {
+      if (!operator.role) return
+      counts[operator.role] = (counts[operator.role] || 0) + 1
+    })
+    setRoleCounts(counts)
   }
 
   const settingMap = useMemo(() => {
@@ -153,9 +168,16 @@ export default function PermissionPage({ onMessage }: { onMessage: (msg: string)
                 activeRole === role.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              {role.label}
+              <span>{role.label}</span>
+              <span className={`ml-2 text-xs ${activeRole === role.key ? 'text-blue-100' : 'text-gray-400'}`}>
+                {roleCounts[role.key] || 0} 人
+              </span>
             </button>
           ))}
+        </div>
+
+        <div className="mt-4 p-3 rounded-lg bg-blue-50 text-blue-800 text-sm">
+          这里配置的是角色权限模板。给人员赋权时，先到人员管理调整人员角色；同一角色的人员共享这一套权限。
         </div>
 
         {activeRole === 'ADMIN' && (
@@ -167,7 +189,10 @@ export default function PermissionPage({ onMessage }: { onMessage: (msg: string)
 
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">{roleLabel}权限矩阵</h3>
+          <h3 className="text-lg font-semibold">
+            {roleLabel}权限矩阵
+            <span className="ml-2 text-sm font-normal text-gray-500">当前 {roleCounts[activeRole] || 0} 人使用</span>
+          </h3>
           <button onClick={fetchPermissions} disabled={loading} className="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50">
             刷新
           </button>
@@ -216,4 +241,3 @@ export default function PermissionPage({ onMessage }: { onMessage: (msg: string)
     </div>
   )
 }
-

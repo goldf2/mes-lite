@@ -47,6 +47,10 @@ export default function OperatorPage({
   const [loading, setLoading] = useState(false)
 
   const canManage = currentOperator.role === 'ADMIN'
+  const totalCount = operators.length
+  const activeCount = operators.filter((operator) => operator.status === 'ACTIVE').length
+  const pendingCount = operators.filter((operator) => operator.status === 'PENDING').length
+  const disabledCount = operators.filter((operator) => operator.status === 'DISABLED').length
 
   useEffect(() => {
     fetchOperators()
@@ -93,10 +97,11 @@ export default function OperatorPage({
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <SummaryCard label="提交角色" value="录入/提交" />
-        <SummaryCard label="审核角色" value="审核注册" />
-        <SummaryCard label="管理角色" value="权限管理" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <SummaryCard label="总人员" value={`${totalCount} 人`} />
+        <SummaryCard label="已启用" value={`${activeCount} 人`} />
+        <SummaryCard label="待审核" value={`${pendingCount} 人`} />
+        <SummaryCard label="已停用" value={`${disabledCount} 人`} />
       </div>
 
       <div className="overflow-x-auto">
