@@ -482,6 +482,7 @@ model Operator {
   lastLoginAt  DateTime?
   sessions     OperatorSession[]
   permissionOverrides OperatorPermissionOverride[]
+  permissionGroups OperatorPermissionGroup[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -514,6 +515,46 @@ model OperatorPermissionOverride {
 
   @@unique([operatorId, resource])
   @@index([operatorId])
+}
+
+model PermissionGroup {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+  settings    PermissionGroupSetting[]
+  operators   OperatorPermissionGroup[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PermissionGroupSetting {
+  id        String   @id @default(cuid())
+  groupId   String
+  group     PermissionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  resource  String
+  canRead   Boolean  @default(false)
+  canCreate Boolean  @default(false)
+  canUpdate Boolean  @default(false)
+  canDelete Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@unique([groupId, resource])
+  @@index([groupId])
+}
+
+model OperatorPermissionGroup {
+  id         String   @id @default(cuid())
+  operatorId String
+  operator   Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  groupId    String
+  group      PermissionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([operatorId, groupId])
+  @@index([operatorId])
+  @@index([groupId])
 }
 
 model OperatorSession {

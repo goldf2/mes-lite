@@ -8,6 +8,12 @@ export const permissionRoles = [
   { key: 'ADMIN', label: '管理' },
 ] as const
 
+export const defaultPermissionGroups = [
+  { code: 'basic_entry', name: '基础录入组', role: 'OPERATOR', description: '适合普通录入人员，允许录入常用业务单据。' },
+  { code: 'business_audit', name: '业务审核组', role: 'AUDITOR', description: '适合审核人员，允许处理业务状态流转和库存调整。' },
+  { code: 'system_admin', name: '系统管理组', role: 'ADMIN', description: '系统内置管理权限组，默认拥有全部功能权限。' },
+] as const
+
 export const permissionActions = [
   { key: 'canRead', label: '查' },
   { key: 'canCreate', label: '增' },
@@ -119,6 +125,35 @@ export async function ensureDefaultPermissions() {
       })
     }
   }
+
+  for (const group of defaultPermissionGroups) {
+    const savedGroup = await prisma.permissionGroup.upsert({
+      where: { code: group.code },
+      create: {
+        code: group.code,
+        name: group.name,
+        description: group.description,
+        isSystem: true,
+      },
+      update: {
+        name: group.name,
+        description: group.description,
+        isSystem: true,
+      },
+    })
+
+    for (const resource of permissionResources) {
+      await prisma.permissionGroupSetting.upsert({
+        where: { groupId_resource: { groupId: savedGroup.id, resource: resource.key } },
+        create: {
+          groupId: savedGroup.id,
+          resource: resource.key,
+          ...defaultFlagsFor(group.role, resource.key),
+        },
+        update: {},
+      })
+    }
+  }
 }
 
 export async function getRolePermissionMap(role: string): Promise<PermissionMap> {
@@ -144,11 +179,41 @@ export async function getRolePermissionMap(role: string): Promise<PermissionMap>
 
 export async function getEffectivePermissionMap(subject: PermissionSubject | string): Promise<PermissionMap> {
   const current = typeof subject === 'string' ? { role: subject } : subject
-  const map = await getRolePermissionMap(current.role)
+  const map: PermissionMap = {}
 
-  if (!current.id || current.role === 'ADMIN') return map
+  for (const resource of permissionResources) {
+    map[resource.key] = cloneFlags(none)
+  }
+
+  if (current.role === 'ADMIN') {
+    return getRolePermissionMap('ADMIN')
+  }
+
+  if (!current.id) return getRolePermissionMap(current.role)
 
   const validResources = new Set<string>(permissionResources.map((resource) => resource.key))
+  const groupLinks = await prisma.operatorPermissionGroup.findMany({
+    where: { operatorId: current.id },
+    include: { group: { include: { settings: true } } },
+  })
+
+  if (groupLinks.length === 0) {
+    Object.assign(map, await getRolePermissionMap(current.role))
+  }
+
+  for (const link of groupLinks) {
+    for (const setting of link.group.settings) {
+      if (!validResources.has(setting.resource)) continue
+      const currentFlags = map[setting.resource] || cloneFlags(none)
+      map[setting.resource] = {
+        canRead: currentFlags.canRead || setting.canRead,
+        canCreate: currentFlags.canCreate || setting.canCreate,
+        canUpdate: currentFlags.canUpdate || setting.canUpdate,
+        canDelete: currentFlags.canDelete || setting.canDelete,
+      }
+    }
+  }
+
   const overrides = await prisma.operatorPermissionOverride.findMany({
     where: { operatorId: current.id },
   })

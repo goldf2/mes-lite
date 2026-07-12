@@ -3,17 +3,14 @@ import { z } from 'zod'
 import { canManage, getCurrentOperator } from '@/lib/auth'
 import { writeAuditLog } from '@/lib/audit'
 import {
-  defaultFlagsFor,
   ensureDefaultPermissions,
-  getRolePermissionMap,
   permissionActions,
   permissionResources,
   permissionRoles,
 } from '@/lib/permissions'
 import { prisma } from '@/lib/prisma'
 
-const settingSchema = z.object({
-  role: z.enum(['OPERATOR', 'AUDITOR', 'ADMIN']),
+const groupSettingSchema = z.object({
   resource: z.string().min(1),
   canRead: z.boolean(),
   canCreate: z.boolean(),
@@ -21,32 +18,19 @@ const settingSchema = z.object({
   canDelete: z.boolean(),
 })
 
-const operatorOverrideSchema = z.object({
-  resource: z.string().min(1),
-  canRead: z.boolean(),
-  canCreate: z.boolean(),
-  canUpdate: z.boolean(),
-  canDelete: z.boolean(),
+const operatorGroupSchema = z.object({
+  operatorId: z.string().min(1),
+  groupIds: z.array(z.string()),
 })
 
 const updateSchema = z.object({
-  settings: z.array(settingSchema).optional(),
-  operatorId: z.string().optional(),
-  operatorOverrides: z.array(operatorOverrideSchema).optional(),
+  groupId: z.string().optional(),
+  groupSettings: z.array(groupSettingSchema).optional(),
+  operatorGroups: z.array(operatorGroupSchema).optional(),
 })
 
 function assertAdmin(role: string) {
   return role === 'ADMIN'
-}
-
-function flagsEqual(
-  a: { canRead: boolean; canCreate: boolean; canUpdate: boolean; canDelete: boolean },
-  b: { canRead: boolean; canCreate: boolean; canUpdate: boolean; canDelete: boolean }
-) {
-  return a.canRead === b.canRead &&
-    a.canCreate === b.canCreate &&
-    a.canUpdate === b.canUpdate &&
-    a.canDelete === b.canDelete
 }
 
 export async function GET() {
@@ -56,22 +40,28 @@ export async function GET() {
   }
 
   await ensureDefaultPermissions()
-  const settings = await prisma.permissionSetting.findMany({
-    orderBy: [{ role: 'asc' }, { resource: 'asc' }],
-  })
-  const operators = await prisma.operator.findMany({
-    select: {
-      id: true,
-      username: true,
-      name: true,
-      role: true,
-      status: true,
-    },
-    orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-  })
-  const operatorOverrides = await prisma.operatorPermissionOverride.findMany({
-    orderBy: [{ operatorId: 'asc' }, { resource: 'asc' }],
-  })
+  const [settings, operators, groups, operatorGroups] = await Promise.all([
+    prisma.permissionSetting.findMany({
+      orderBy: [{ role: 'asc' }, { resource: 'asc' }],
+    }),
+    prisma.operator.findMany({
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        role: true,
+        status: true,
+      },
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+    }),
+    prisma.permissionGroup.findMany({
+      include: { settings: true },
+      orderBy: [{ isSystem: 'desc' }, { createdAt: 'asc' }],
+    }),
+    prisma.operatorPermissionGroup.findMany({
+      orderBy: [{ operatorId: 'asc' }, { createdAt: 'asc' }],
+    }),
+  ])
 
   return NextResponse.json({
     data: {
@@ -80,7 +70,8 @@ export async function GET() {
       actions: permissionActions,
       settings,
       operators,
-      operatorOverrides,
+      groups,
+      operatorGroups,
     },
   })
 }
@@ -93,129 +84,114 @@ export async function PUT(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { settings = [], operatorId, operatorOverrides } = updateSchema.parse(body)
+    const { groupId, groupSettings, operatorGroups } = updateSchema.parse(body)
     const validResources = new Set<string>(permissionResources.map((item) => item.key))
 
-    for (const setting of settings) {
+    for (const setting of groupSettings || []) {
       if (!validResources.has(setting.resource)) {
         return NextResponse.json({ error: `未知功能页：${setting.resource}` }, { status: 400 })
       }
     }
-    for (const override of operatorOverrides || []) {
-      if (!validResources.has(override.resource)) {
-        return NextResponse.json({ error: `未知功能页：${override.resource}` }, { status: 400 })
-      }
-    }
 
     await ensureDefaultPermissions()
-    const beforeRoleSettings = settings.length > 0
-      ? await prisma.permissionSetting.findMany({
-          where: {
-            OR: settings.map((setting) => ({ role: setting.role, resource: setting.resource })),
-          },
-        })
-      : []
-    const operator = operatorId
-      ? await prisma.operator.findUnique({
-          where: { id: operatorId },
-          select: { id: true, username: true, name: true, role: true },
-        })
-      : null
+    const validGroups = new Set((await prisma.permissionGroup.findMany({ select: { id: true } })).map((group) => group.id))
+    const validOperators = new Set((await prisma.operator.findMany({ select: { id: true } })).map((operator) => operator.id))
 
-    if (operatorId && !operator) {
-      return NextResponse.json({ error: '操作人员不存在' }, { status: 404 })
+    if (groupId && !validGroups.has(groupId)) {
+      return NextResponse.json({ error: '权限组不存在' }, { status: 404 })
     }
 
-    const beforeOperatorOverrides = operatorId
-      ? await prisma.operatorPermissionOverride.findMany({ where: { operatorId } })
+    for (const item of operatorGroups || []) {
+      if (!validOperators.has(item.operatorId)) {
+        return NextResponse.json({ error: '操作人员不存在' }, { status: 404 })
+      }
+      for (const id of item.groupIds) {
+        if (!validGroups.has(id)) {
+          return NextResponse.json({ error: '权限组不存在' }, { status: 404 })
+        }
+      }
+    }
+
+    const beforeGroupSettings = groupId
+      ? await prisma.permissionGroupSetting.findMany({ where: { groupId } })
       : []
-    const operatorRolePermissions = operator ? await getRolePermissionMap(operator.role) : null
+    const beforeOperatorGroups = operatorGroups?.length
+      ? await prisma.operatorPermissionGroup.findMany({
+          where: { operatorId: { in: operatorGroups.map((item) => item.operatorId) } },
+        })
+      : []
 
     await prisma.$transaction(async (tx) => {
-      for (const setting of settings) {
-        const flags = setting.role === 'ADMIN' ? defaultFlagsFor('ADMIN', setting.resource) : {
-          canRead: setting.canRead,
-          canCreate: setting.canCreate,
-          canUpdate: setting.canUpdate,
-          canDelete: setting.canDelete,
-        }
-
-        await tx.permissionSetting.upsert({
-          where: { role_resource: { role: setting.role, resource: setting.resource } },
-          create: {
-            role: setting.role,
-            resource: setting.resource,
-            ...flags,
-          },
-          update: flags,
-        })
-      }
-
-      if (operatorId && operator) {
-        const requestedOverrides = operatorOverrides || []
-        const requestedResources = new Set(requestedOverrides.map((override) => override.resource))
+      if (groupId && groupSettings) {
+        const requestedResources = new Set(groupSettings.map((setting) => setting.resource))
 
         if (requestedResources.size === 0) {
-          await tx.operatorPermissionOverride.deleteMany({ where: { operatorId } })
+          await tx.permissionGroupSetting.deleteMany({ where: { groupId } })
         } else {
-          await tx.operatorPermissionOverride.deleteMany({
+          await tx.permissionGroupSetting.deleteMany({
             where: {
-              operatorId,
+              groupId,
               resource: { notIn: Array.from(requestedResources) },
             },
           })
         }
 
-        for (const override of requestedOverrides) {
-          const roleFlags = operatorRolePermissions?.[override.resource] || defaultFlagsFor(operator.role, override.resource)
-          if (flagsEqual(roleFlags, override)) {
-            await tx.operatorPermissionOverride.deleteMany({
-              where: {
-                operatorId,
-                resource: override.resource,
-              },
-            })
-            continue
-          }
-
-          await tx.operatorPermissionOverride.upsert({
-            where: { operatorId_resource: { operatorId, resource: override.resource } },
+        for (const setting of groupSettings) {
+          await tx.permissionGroupSetting.upsert({
+            where: { groupId_resource: { groupId, resource: setting.resource } },
             create: {
-              operatorId,
-              resource: override.resource,
-              canRead: override.canRead,
-              canCreate: override.canCreate,
-              canUpdate: override.canUpdate,
-              canDelete: override.canDelete,
+              groupId,
+              resource: setting.resource,
+              canRead: setting.canRead,
+              canCreate: setting.canCreate,
+              canUpdate: setting.canUpdate,
+              canDelete: setting.canDelete,
             },
             update: {
-              canRead: override.canRead,
-              canCreate: override.canCreate,
-              canUpdate: override.canUpdate,
-              canDelete: override.canDelete,
+              canRead: setting.canRead,
+              canCreate: setting.canCreate,
+              canUpdate: setting.canUpdate,
+              canDelete: setting.canDelete,
+            },
+          })
+        }
+      }
+
+      for (const item of operatorGroups || []) {
+        await tx.operatorPermissionGroup.deleteMany({ where: { operatorId: item.operatorId } })
+        for (const assignedGroupId of item.groupIds) {
+          await tx.operatorPermissionGroup.create({
+            data: {
+              operatorId: item.operatorId,
+              groupId: assignedGroupId,
             },
           })
         }
       }
     })
 
-    if (settings.length > 0) {
+    if (groupId && groupSettings) {
+      const group = await prisma.permissionGroup.findUnique({ where: { id: groupId } })
+      const afterGroupSettings = await prisma.permissionGroupSetting.findMany({ where: { groupId } })
       await writeAuditLog(req, {
-        action: 'UPDATE_ROLE_PERMISSION',
-        entityType: 'PERMISSION_SETTING',
-        beforeData: beforeRoleSettings,
-        afterData: settings,
+        action: 'UPDATE_PERMISSION_GROUP',
+        entityType: 'PERMISSION_GROUP',
+        entityId: groupId,
+        entityLabel: group?.name,
+        beforeData: beforeGroupSettings,
+        afterData: afterGroupSettings,
       })
     }
-    if (operatorId && operator) {
-      const afterOperatorOverrides = await prisma.operatorPermissionOverride.findMany({ where: { operatorId } })
+
+    if (operatorGroups?.length) {
+      const afterOperatorGroups = await prisma.operatorPermissionGroup.findMany({
+        where: { operatorId: { in: operatorGroups.map((item) => item.operatorId) } },
+      })
       await writeAuditLog(req, {
-        action: 'UPDATE_OPERATOR_PERMISSION',
-        entityType: 'OPERATOR_PERMISSION_OVERRIDE',
-        entityId: operatorId,
-        entityLabel: `${operator.name} (${operator.username})`,
-        beforeData: beforeOperatorOverrides,
-        afterData: afterOperatorOverrides,
+        action: 'UPDATE_OPERATOR_PERMISSION_GROUP',
+        entityType: 'OPERATOR_PERMISSION_GROUP',
+        beforeData: beforeOperatorGroups,
+        afterData: afterOperatorGroups,
       })
     }
 
