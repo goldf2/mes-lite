@@ -132,6 +132,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     Boolean(operator.permissions?.[resource]?.canRead) ||
     ((resource === 'permissionUsers' || resource === 'permissionGroups') && hasAnyGrant)
   const canCreate = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canCreate)
+  const canUpdate = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canUpdate)
   const baseNavItems: { key: TabType; label: string; resource: string }[] = [
     { key: 'dashboard', label: '仪表盘', resource: 'dashboard' },
     { key: 'orders', label: '工单管理', resource: 'orders' },
@@ -164,6 +165,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [message, setMessage] = useState('')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [adjustingStock, setAdjustingStock] = useState<Stock | null>(null)
+  const [stockAdjustForm, setStockAdjustForm] = useState({
+    newQty: 0,
+    newValuationQty: 0,
+    newTotalCost: 0,
+    reason: '',
+  })
 
   const [navItems, setNavItems] = useState<{ key: TabType; label: string }[]>(readableBusinessNavItems)
 
@@ -220,6 +228,51 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     const res = await fetch('/api/stocks')
     const data = await res.json()
     setStocks(data.data || [])
+  }
+
+  const openStockAdjust = (stock: Stock) => {
+    setAdjustingStock(stock)
+    setStockAdjustForm({
+      newQty: Number(stock.qty || 0),
+      newValuationQty: Number(stock.valuationQty || 0),
+      newTotalCost: Number(stock.totalCost || 0),
+      reason: '',
+    })
+  }
+
+  const submitStockAdjust = async () => {
+    if (!adjustingStock) return
+    if (!stockAdjustForm.reason.trim()) {
+      showMessage('请输入库存调整原因')
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await fetch('/api/stocks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stockId: adjustingStock.id,
+          newQty: Number(stockAdjustForm.newQty),
+          newValuationQty: Number(stockAdjustForm.newValuationQty),
+          newTotalCost: Number(stockAdjustForm.newTotalCost),
+          reason: stockAdjustForm.reason.trim(),
+          adjustedBy: operator.name || operator.username,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        showMessage(data.message || '库存调整完成')
+        setAdjustingStock(null)
+        await fetchStocks()
+        await fetchDashboard()
+      } else {
+        showMessage(data.error || '库存调整失败')
+      }
+    } catch (err) {
+      showMessage('库存调整失败')
+    }
+    setLoading(false)
   }
 
   const fetchProducts = async () => {
@@ -669,8 +722,103 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                       <div className="mt-1">换算：1 {stock.material.stockUnit || stock.material.unit} = {stock.material.conversionRate || 1} {stock.material.valuationUnit}</div>
                     </div>
                   )}
+                  {canUpdate('stocks') && (
+                    <button
+                      onClick={() => openStockAdjust(stock)}
+                      className="mt-3 w-full px-3 py-2 border border-blue-300 text-blue-700 rounded-lg text-sm hover:bg-blue-50"
+                    >
+                      库存调整
+                    </button>
+                  )}
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {adjustingStock && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg mx-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold">库存调整</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {adjustingStock.material?.name || adjustingStock.product?.name} · {adjustingStock.material?.code || adjustingStock.product?.sku}
+                  </p>
+                </div>
+                <button onClick={() => setAdjustingStock(null)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">
+                  ×
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+                  用于盘点、损耗、早期数据尾差修正。来料单整单冲销仍使用“红冲”。
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      调整后库存 {adjustingStock.material ? `(${adjustingStock.material.stockUnit || adjustingStock.material.unit})` : `(${adjustingStock.product?.unit || ''})`}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.0001"
+                      min={0}
+                      value={stockAdjustForm.newQty || ''}
+                      onChange={(e) => setStockAdjustForm({ ...stockAdjustForm, newQty: Number(e.target.value) })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      调整后核算库存 {adjustingStock.material ? `(${adjustingStock.material.valuationUnit})` : ''}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.0001"
+                      min={0}
+                      value={stockAdjustForm.newValuationQty || ''}
+                      onChange={(e) => setStockAdjustForm({ ...stockAdjustForm, newValuationQty: Number(e.target.value) })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">调整后库存金额</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={stockAdjustForm.newTotalCost || ''}
+                    onChange={(e) => setStockAdjustForm({ ...stockAdjustForm, newTotalCost: Number(e.target.value) })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">调整原因</label>
+                  <textarea
+                    rows={3}
+                    value={stockAdjustForm.reason}
+                    onChange={(e) => setStockAdjustForm({ ...stockAdjustForm, reason: e.target.value })}
+                    placeholder="例如：早期数据成本尾差调整、盘点损耗、称重误差"
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={submitStockAdjust}
+                    disabled={loading}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {loading ? '提交中...' : '确认调整'}
+                  </button>
+                  <button
+                    onClick={() => setAdjustingStock(null)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

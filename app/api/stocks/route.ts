@@ -51,6 +51,7 @@ const adjustSchema = z.object({
   stockId: z.string().min(1),
   newQty: z.number().nonnegative(),
   newValuationQty: z.number().nonnegative().optional(),
+  newTotalCost: z.number().nonnegative().optional(),
   reason: z.string().min(1, '调整原因必填'),
   adjustedBy: z.string().min(1),
 })
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
     if (denied) return denied
 
     const body = await req.json()
-    const { stockId, newQty, reason, adjustedBy } = adjustSchema.parse(body)
+    const { stockId, newQty, newValuationQty, newTotalCost, reason, adjustedBy } = adjustSchema.parse(body)
 
     const stock = await prisma.stock.findUnique({
       where: { id: stockId },
@@ -70,19 +71,26 @@ export async function POST(req: NextRequest) {
     if (!stock) {
       return NextResponse.json({ error: '库存记录不存在' }, { status: 404 })
     }
-    if (stock.material?.costingMethod === 'FIFO') {
-      return NextResponse.json(
-        { error: 'FIFO 物料暂不允许直接盘点调整，请通过来料入库或后续期初/盘亏单调整成本层' },
-        { status: 400 }
-      )
-    }
 
     const oldQty = Number(stock.qty)
     const diff = newQty - oldQty
     const oldValuationQty = Number(stock.valuationQty)
     const conversionRate = stock.material ? resolveMaterialUnits(stock.material).conversionRate : 1
-    const newValuationQty = body.newValuationQty ?? toValuationQty(newQty, conversionRate)
-    const valuationDiff = newValuationQty - oldValuationQty
+    const targetValuationQty = newValuationQty ?? toValuationQty(newQty, conversionRate)
+    const valuationDiff = targetValuationQty - oldValuationQty
+    const oldTotalCost = Number(stock.totalCost)
+    const targetTotalCost = newTotalCost ?? oldTotalCost
+    const costDiff = Number((targetTotalCost - oldTotalCost).toFixed(6))
+
+    if (newQty < Number(stock.reservedQty)) {
+      return NextResponse.json({ error: '调整后库存不能小于已预留数量' }, { status: 400 })
+    }
+    if (targetValuationQty < Number(stock.reservedValuationQty)) {
+      return NextResponse.json({ error: '调整后核算库存不能小于已预留核算数量' }, { status: 400 })
+    }
+
+    const valuationUnitCost = targetValuationQty > 0 ? Number((targetTotalCost / targetValuationQty).toFixed(6)) : 0
+    const stockUnitCost = newQty > 0 ? Number((targetTotalCost / newQty).toFixed(6)) : 0
 
     await prisma.$transaction(async (tx) => {
       await tx.stock.update({
@@ -90,8 +98,11 @@ export async function POST(req: NextRequest) {
         data: {
           qty: newQty,
           availableQty: newQty - Number(stock.reservedQty),
-          valuationQty: newValuationQty,
-          availableValuationQty: newValuationQty - Number(stock.reservedValuationQty),
+          valuationQty: targetValuationQty,
+          availableValuationQty: targetValuationQty - Number(stock.reservedValuationQty),
+          totalCost: targetTotalCost,
+          valuationUnitCost,
+          stockUnitCost,
         },
       })
 
@@ -104,7 +115,10 @@ export async function POST(req: NextRequest) {
           afterQty: newQty,
           valuationQty: valuationDiff,
           beforeValuationQty: oldValuationQty,
-          afterValuationQty: newValuationQty,
+          afterValuationQty: targetValuationQty,
+          costAmount: costDiff,
+          beforeCostAmount: oldTotalCost,
+          afterCostAmount: targetTotalCost,
           refType: 'ADJUST',
           note: `盘点调整: ${reason}`,
           createdBy: adjustedBy,
@@ -118,7 +132,7 @@ export async function POST(req: NextRequest) {
       entityId: stock.id,
       entityLabel: stock.material?.code || stock.productId || stock.id,
       beforeData: stock,
-      afterData: { newQty, newValuationQty, reason, adjustedBy },
+      afterData: { newQty, newValuationQty: targetValuationQty, newTotalCost: targetTotalCost, reason, adjustedBy },
     })
 
     return NextResponse.json({ success: true, message: '库存调整完成' })
