@@ -15,17 +15,23 @@ function getRegisterErrorMessage(error: unknown) {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === 'P2002') return '账号已存在'
     if (error.code === 'P2021' || error.code === 'P2022') return '数据库结构未初始化，请先执行迁移'
+    return `数据库操作失败（${error.code}）`
   }
 
   const message = error instanceof Error ? error.message : String(error)
-  if (/readonly|permission denied|unable to open database file/i.test(message)) {
+  if (/readonly|read-only|permission denied|unable to open database file|attempt to write a readonly database/i.test(message)) {
     return '数据库不可写，请检查服务器持久化目录权限'
   }
-  if (/no such table|no such column/i.test(message)) {
+  if (/no such table|no such column|table .* does not exist|column .* does not exist/i.test(message)) {
     return '数据库结构未初始化，请先执行迁移'
   }
+  if (/database is locked|busy|timeout/i.test(message)) return '数据库正被占用，请稍后重试'
+  if (/disk I\/O|no space left|database disk image is malformed/i.test(message)) {
+    return '数据库文件或磁盘异常，请检查服务器存储'
+  }
 
-  return '注册失败，请查看服务器日志'
+  const errorName = error instanceof Error ? error.name : 'UnknownError'
+  return `注册失败：${errorName}，请查看服务器日志`
 }
 
 export async function POST(req: NextRequest) {
