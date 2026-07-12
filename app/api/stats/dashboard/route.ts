@@ -4,6 +4,20 @@ import { requireResourcePermission } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
+const STOCK_BALANCE_FIELDS = [
+  'qty',
+  'reservedQty',
+  'availableQty',
+  'valuationQty',
+  'reservedValuationQty',
+  'availableValuationQty',
+  'totalCost',
+] as const
+
+function hasStockBalance(stock: Record<string, unknown>) {
+  return STOCK_BALANCE_FIELDS.some((field) => Math.abs(Number(stock[field] || 0)) > 0.000001)
+}
+
 // GET: 仪表盘汇总
 export async function GET(req: NextRequest) {
   try {
@@ -74,7 +88,7 @@ export async function GET(req: NextRequest) {
         pendingMaterialInCount,
         pendingShipmentCount,
         pendingReturnCount,
-        lowStocks,
+        lowStocks: lowStocks.filter((stock) => !stock.material?.deletedAt || hasStockBalance(stock)),
       },
     })
   } catch (error) {

@@ -4,6 +4,20 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { resolveMaterialUnits, toValuationQty } from '@/lib/units'
 
+const STOCK_BALANCE_FIELDS = [
+  'qty',
+  'reservedQty',
+  'availableQty',
+  'valuationQty',
+  'reservedValuationQty',
+  'availableValuationQty',
+  'totalCost',
+] as const
+
+function hasStockBalance(stock: Record<string, unknown>) {
+  return STOCK_BALANCE_FIELDS.some((field) => Math.abs(Number(stock[field] || 0)) > 0.000001)
+}
+
 // GET: 库存查询
 export async function GET(req: NextRequest) {
   try {
@@ -28,14 +42,16 @@ export async function GET(req: NextRequest) {
     })
 
     // 过滤关键词
+    const visibleStocks = stocks.filter((stock) => !stock.material?.deletedAt || hasStockBalance(stock))
+
     const filtered = keyword
-      ? stocks.filter(s =>
+      ? visibleStocks.filter(s =>
           s.material?.name?.includes(keyword) ||
           s.material?.code?.includes(keyword) ||
           s.product?.name?.includes(keyword) ||
           s.product?.sku?.includes(keyword)
         )
-      : stocks
+      : visibleStocks
 
     return NextResponse.json({ data: filtered })
   } catch (error) {
