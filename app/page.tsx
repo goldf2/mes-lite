@@ -561,139 +561,141 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
       <main className="min-w-0 p-3 pb-28 sm:p-4 lg:ml-56 lg:p-6">
         <div className="mb-4 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
               <div className="text-xs font-medium text-gray-400">{activeSystemTab ? '系统功能' : '业务功能'}</div>
               <div className="truncate text-lg font-semibold text-gray-900">{activeTabLabel}</div>
             </div>
-            <div id="topbar-actions" className="flex min-w-0 flex-1 items-center justify-end gap-2">
-              {tab === 'dashboard' ? (
-                <ResponsiveToolbarActions
-                  actions={<ViewModeToggle value={dashboardViewMode} onChange={setDashboardViewMode} />}
-                />
-              ) : tab === 'orders' ? (
-                <ResponsiveToolbarActions
-                  filters={(
-                    <StatusCheckboxFilter
-                      options={orderStatusOptions}
-                      value={selectedOrderStatuses}
-                      onChange={setSelectedOrderStatuses}
-                    />
-                  )}
-                  actions={(
-                    <>
-                      <ViewModeToggle value={orderViewMode} onChange={setOrderViewMode} />
-                      {canCreate('orders') && (
-                        <button
-                          onClick={() => setTab('create')}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+            <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:flex-1 lg:justify-end">
+              <div id="topbar-actions" className="flex w-full min-w-0 items-center justify-start gap-2 lg:flex-1 lg:justify-end">
+                {tab === 'dashboard' ? (
+                  <ResponsiveToolbarActions
+                    actions={<ViewModeToggle value={dashboardViewMode} onChange={setDashboardViewMode} />}
+                  />
+                ) : tab === 'orders' ? (
+                  <ResponsiveToolbarActions
+                    filters={(
+                      <StatusCheckboxFilter
+                        options={orderStatusOptions}
+                        value={selectedOrderStatuses}
+                        onChange={setSelectedOrderStatuses}
+                      />
+                    )}
+                    actions={(
+                      <>
+                        <ViewModeToggle value={orderViewMode} onChange={setOrderViewMode} />
+                        {canCreate('orders') && (
+                          <button
+                            onClick={() => setTab('create')}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+                          >
+                            新增工单
+                          </button>
+                        )}
+                      </>
+                    )}
+                  />
+                ) : tab === 'stocks' ? (
+                  <ResponsiveToolbarActions
+                    filters={(
+                      <>
+                        <select
+                          value={stockCustomerFilter}
+                          onChange={(e) => setStockCustomerFilter(e.target.value)}
+                          className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
                         >
-                          新增工单
-                        </button>
-                      )}
-                    </>
-                  )}
-                />
-              ) : tab === 'stocks' ? (
-                <ResponsiveToolbarActions
-                  filters={(
-                    <>
-                      <select
-                        value={stockCustomerFilter}
-                        onChange={(e) => setStockCustomerFilter(e.target.value)}
-                        className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-                      >
-                        <option value="">全部客户</option>
-                        <option value="__UNASSIGNED__">通用/未绑定</option>
-                        {customers.map((customer) => (
-                          <option key={customer.id} value={customer.id}>{customer.name}</option>
+                          <option value="">全部客户</option>
+                          <option value="__UNASSIGNED__">通用/未绑定</option>
+                          {customers.map((customer) => (
+                            <option key={customer.id} value={customer.id}>{customer.name}</option>
+                          ))}
+                        </select>
+                        {([['all', '全部库存'], ['material', '物料库存'], ['product', '成品库存']] as const).map(([key, label]) => (
+                          <button
+                            key={key}
+                            onClick={() => setStockFilter(key)}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                              stockFilter === key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            {label}
+                          </button>
                         ))}
-                      </select>
-                      {([['all', '全部库存'], ['material', '物料库存'], ['product', '成品库存']] as const).map(([key, label]) => (
+                        <StatusCheckboxFilter
+                          options={materialCategoryFilterOptions}
+                          value={selectedStockCategories}
+                          onChange={handleStockCategoryChange}
+                          allLabel="全部物料分类"
+                        />
+                        <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">
+                          <input
+                            type="checkbox"
+                            checked={showInvalidStocks}
+                            onChange={(e) => setShowInvalidStocks(e.target.checked)}
+                          />
+                          显示归档无库存
+                        </label>
+                      </>
+                    )}
+                    actions={(
+                      <>
+                        <ViewModeToggle value={stockViewMode} onChange={setStockViewMode} />
                         <button
-                          key={key}
-                          onClick={() => setStockFilter(key)}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                            stockFilter === key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          onClick={() => setShowStockHelp(true)}
+                          className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg text-sm hover:bg-blue-50"
+                        >
+                          存货调整
+                        </button>
+                      </>
+                    )}
+                  />
+                ) : null}
+              </div>
+              <div ref={systemMenuRef} className="relative shrink-0 self-start sm:self-auto">
+                <button
+                  onClick={() => setSystemMenuOpen((open) => !open)}
+                  className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  <span className="max-w-32 truncate">{operator.name}</span>
+                  <span className="text-gray-400">▾</span>
+                </button>
+                {systemMenuOpen && (
+                  <div className="absolute right-auto top-full z-30 mt-2 w-64 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg sm:right-0 sm:left-auto">
+                    <div className="border-b border-gray-100 px-4 py-3">
+                      <OperatorBadge operator={operator} />
+                      <div className="mt-1 text-xs font-medium text-gray-400">MES-lite v{appVersion}</div>
+                    </div>
+                    <div className="p-2">
+                      {readableSystemNavItems.map((item) => (
+                        <button
+                          key={item.key}
+                          onClick={() => {
+                            setTab(item.key)
+                            setSystemMenuOpen(false)
+                          }}
+                          className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition ${
+                            tab === item.key ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
                           }`}
                         >
-                          {label}
+                          <MenuIcon icon={item.key} />
+                          {item.label}
                         </button>
                       ))}
-                      <StatusCheckboxFilter
-                        options={materialCategoryFilterOptions}
-                        value={selectedStockCategories}
-                        onChange={handleStockCategoryChange}
-                        allLabel="全部物料分类"
-                      />
-                      <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={showInvalidStocks}
-                          onChange={(e) => setShowInvalidStocks(e.target.checked)}
-                        />
-                        显示归档无库存
-                      </label>
-                    </>
-                  )}
-                  actions={(
-                    <>
-                      <ViewModeToggle value={stockViewMode} onChange={setStockViewMode} />
+                    </div>
+                    <div className="border-t border-gray-100 p-2">
                       <button
-                        onClick={() => setShowStockHelp(true)}
-                        className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg text-sm hover:bg-blue-50"
-                      >
-                        存货调整
-                      </button>
-                    </>
-                  )}
-                />
-              ) : null}
-            </div>
-            <div ref={systemMenuRef} className="relative shrink-0">
-              <button
-                onClick={() => setSystemMenuOpen((open) => !open)}
-                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                <span className="max-w-32 truncate">{operator.name}</span>
-                <span className="text-gray-400">▾</span>
-              </button>
-              {systemMenuOpen && (
-                <div className="absolute right-0 top-full z-30 mt-2 w-64 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
-                  <div className="border-b border-gray-100 px-4 py-3">
-                    <OperatorBadge operator={operator} />
-                    <div className="mt-1 text-xs font-medium text-gray-400">MES-lite v{appVersion}</div>
-                  </div>
-                  <div className="p-2">
-                    {readableSystemNavItems.map((item) => (
-                      <button
-                        key={item.key}
                         onClick={() => {
-                          setTab(item.key)
                           setSystemMenuOpen(false)
+                          onLogout()
                         }}
-                        className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition ${
-                          tab === item.key ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                        className="flex w-full items-center justify-center rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
                       >
-                        <MenuIcon icon={item.key} />
-                        {item.label}
+                        退出登录
                       </button>
-                    ))}
+                    </div>
                   </div>
-                  <div className="border-t border-gray-100 p-2">
-                    <button
-                      onClick={() => {
-                        setSystemMenuOpen(false)
-                        onLogout()
-                      }}
-                      className="flex w-full items-center justify-center rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-                    >
-                      退出登录
-                    </button>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </div>

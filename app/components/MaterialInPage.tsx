@@ -532,7 +532,7 @@ export default function MaterialInPage({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[1120px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">入库单号</th>
