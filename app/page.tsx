@@ -258,8 +258,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     if (tab === 'orders') fetchOrders()
     if (tab === 'stocks') fetchStocks()
     if (tab === 'create') fetchProducts()
-    setTopBarActions(null)
   }, [tab, selectedOrderStatuses, stockCategoryFilter, showInvalidStocks])
+
+  useEffect(() => {
+    const childToolbarTabs: TabType[] = ['materials', 'materialIn', 'dispatch', 'shipment', 'return', 'operators']
+    if (!childToolbarTabs.includes(tab)) setTopBarActions(null)
+  }, [tab])
 
   const fetchOrders = async () => {
     const query = getStatusQuery(selectedOrderStatuses, orderStatusOptions)
