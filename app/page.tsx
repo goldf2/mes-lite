@@ -199,6 +199,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [message, setMessage] = useState('')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [systemMenuOpen, setSystemMenuOpen] = useState(false)
   const [adjustingStock, setAdjustingStock] = useState<Stock | null>(null)
   const [stockAdjustForm, setStockAdjustForm] = useState({
     newQty: 0,
@@ -208,6 +209,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   })
 
   const [navItems, setNavItems] = useState<{ key: TabType; label: string }[]>(readableBusinessNavItems)
+  const tabLabels: Record<string, string> = Object.fromEntries(baseNavItems.map((item) => [item.key, item.label]))
+  tabLabels.create = '创建工单'
+  tabLabels.detail = '工单详情'
+  const activeTabLabel = tabLabels[tab] || 'MES-lite'
+  const activeSystemTab = readableSystemNavItems.some((item) => item.key === tab)
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index)
@@ -420,7 +426,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               onDragOver={(e) => handleDragOver(e, index)}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, index)}
-              onClick={() => setTab(item.key)}
+              onClick={() => {
+                setTab(item.key)
+                setSystemMenuOpen(false)
+              }}
               className={`w-full px-4 py-3 rounded-lg text-sm font-medium transition flex items-center justify-between cursor-grab ${
                 draggedIndex === index ? 'opacity-50 bg-gray-200' :
                 dragOverIndex === index ? 'ring-2 ring-blue-400 bg-blue-50' :
@@ -441,7 +450,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           </div>
           {canCreate('orders') && (
             <button
-              onClick={() => setTab('create')}
+              onClick={() => {
+                setTab('create')
+                setSystemMenuOpen(false)
+              }}
               className="w-full px-4 py-3 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition flex items-center justify-center gap-2"
             >
               <span>+</span> 创建工单
@@ -451,31 +463,69 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       </aside>
 
       <main className="flex-1 ml-56 p-6">
-        <div className="mb-4 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
-              {readableSystemNavItems.map((item) => (
-                <button
-                  key={item.key}
-                  onClick={() => setTab(item.key)}
-                  className={`shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
-                    tab === item.key ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <MenuIcon icon={item.key} />
-                  {item.label}
-                </button>
-              ))}
+        <div className="mb-4 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-xs font-medium text-gray-400">{activeSystemTab ? '系统功能' : '业务功能'}</div>
+              <div className="truncate text-lg font-semibold text-gray-900">{activeTabLabel}</div>
             </div>
-            <div className="shrink-0 flex items-center gap-3 pl-3 border-l border-gray-200">
-              <span className="text-xs font-medium text-gray-400">v{appVersion}</span>
-              <OperatorBadge operator={operator} />
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+              {canCreate('orders') && tab !== 'create' && (
+                <button
+                  onClick={() => {
+                    setTab('create')
+                    setSystemMenuOpen(false)
+                  }}
+                  className="rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
+                >
+                  + 创建工单
+                </button>
+              )}
+            </div>
+            <div className="relative shrink-0">
               <button
-                onClick={onLogout}
-                className="px-3 py-2 rounded-lg border border-red-200 text-sm font-medium text-red-600 hover:bg-red-50 transition"
+                onClick={() => setSystemMenuOpen((open) => !open)}
+                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
-                退出登录
+                <span className="max-w-32 truncate">{operator.name}</span>
+                <span className="text-gray-400">▾</span>
               </button>
+              {systemMenuOpen && (
+                <div className="absolute right-0 top-full z-30 mt-2 w-64 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+                  <div className="border-b border-gray-100 px-4 py-3">
+                    <OperatorBadge operator={operator} />
+                    <div className="mt-1 text-xs font-medium text-gray-400">MES-lite v{appVersion}</div>
+                  </div>
+                  <div className="p-2">
+                    {readableSystemNavItems.map((item) => (
+                      <button
+                        key={item.key}
+                        onClick={() => {
+                          setTab(item.key)
+                          setSystemMenuOpen(false)
+                        }}
+                        className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition ${
+                          tab === item.key ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <MenuIcon icon={item.key} />
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="border-t border-gray-100 p-2">
+                    <button
+                      onClick={() => {
+                        setSystemMenuOpen(false)
+                        onLogout()
+                      }}
+                      className="flex w-full items-center justify-center rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                    >
+                      退出登录
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
