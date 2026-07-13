@@ -508,10 +508,29 @@ model Operator {
   approvedBy   String?
   lastLoginAt  DateTime?
   sessions     OperatorSession[]
+  authAccounts OperatorAuthAccount[]
   permissionOverrides OperatorPermissionOverride[]
   permissionGroups OperatorPermissionGroup[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model OperatorAuthAccount {
+  id             String   @id @default(cuid())
+  operatorId     String
+  operator       Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  provider       String
+  providerUserId String
+  unionId        String?
+  nickname       String?
+  avatarUrl      String?
+  rawData        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([provider, providerUserId])
+  @@index([operatorId])
+  @@index([unionId])
 }
 
 model PermissionSetting {

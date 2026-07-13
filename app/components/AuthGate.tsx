@@ -32,6 +32,16 @@ const roleLabels: Record<string, string> = {
 
 const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0'
 
+const wechatLoginMessages: Record<string, string> = {
+  not_configured: '微信登录未配置，请先在服务器环境变量中配置 AppID 和 AppSecret',
+  missing_code: '微信授权返回缺少 code，请重试',
+  state_invalid: '微信登录状态已失效，请重新扫码',
+  pending: '微信登录已提交，请等待管理员审核',
+  rejected: '该微信账号审核未通过',
+  disabled: '该微信账号已停用',
+  failed: '微信登录失败，请稍后重试',
+}
+
 export default function AuthGate({ children }: AuthGateProps) {
   const [operator, setOperator] = useState<CurrentOperator | null>(null)
   const [checked, setChecked] = useState(false)
@@ -40,6 +50,15 @@ export default function AuthGate({ children }: AuthGateProps) {
 
   useEffect(() => {
     fetchMe()
+    const params = new URLSearchParams(window.location.search)
+    const wechatStatus = params.get('wechat_login')
+    if (wechatStatus) {
+      setMessage(wechatLoginMessages[wechatStatus] || '微信登录失败，请重试')
+      params.delete('wechat_login')
+      const nextQuery = params.toString()
+      const nextUrl = nextQuery ? `${window.location.pathname}?${nextQuery}` : window.location.pathname
+      window.history.replaceState(null, '', nextUrl)
+    }
   }, [])
 
   const fetchMe = async () => {
@@ -119,6 +138,16 @@ function LoginForm({ onSuccess, onMessage }: { onSuccess: () => void; onMessage:
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [wechatEnabled, setWechatEnabled] = useState(false)
+  const [wechatChecked, setWechatChecked] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/auth/wechat/status')
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => setWechatEnabled(Boolean(data?.data?.enabled)))
+      .catch(() => setWechatEnabled(false))
+      .finally(() => setWechatChecked(true))
+  }, [])
 
   const submit = async () => {
     setLoading(true)
@@ -149,6 +178,32 @@ function LoginForm({ onSuccess, onMessage }: { onSuccess: () => void; onMessage:
       </div>
       <button onClick={submit} disabled={loading || !username || !password} className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
         {loading ? '登录中...' : '登录'}
+      </button>
+      <div className="relative py-1">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-gray-200" />
+        </div>
+        <div className="relative flex justify-center">
+          <span className="bg-white px-3 text-xs text-gray-400">或</span>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => {
+          if (!wechatEnabled) {
+            onMessage('微信登录未配置，请先在服务器环境变量中配置 AppID 和 AppSecret')
+            return
+          }
+          window.location.href = '/api/auth/wechat/login'
+        }}
+        disabled={!wechatChecked}
+        className={`w-full px-4 py-3 rounded-lg font-medium transition ${
+          wechatEnabled
+            ? 'bg-green-600 text-white hover:bg-green-700'
+            : 'bg-gray-100 text-gray-400'
+        } disabled:opacity-50`}
+      >
+        {wechatChecked ? (wechatEnabled ? '微信扫码登录' : '微信登录未配置') : '检查微信登录配置...'}
       </button>
     </div>
   )

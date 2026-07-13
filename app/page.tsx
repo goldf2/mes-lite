@@ -512,8 +512,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   ))
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <aside className="w-56 bg-white shadow-sm fixed left-0 top-0 h-screen z-20 flex flex-col">
+    <div className="min-h-screen bg-gray-50">
+      <aside className="fixed left-0 top-0 z-20 hidden h-screen w-56 flex-col bg-white shadow-sm lg:flex">
         <div className="p-4 border-b shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -559,7 +559,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </div>
       </aside>
 
-      <main className="ml-56 min-w-0 flex-1 p-4 lg:p-6">
+      <main className="min-w-0 p-3 pb-28 sm:p-4 lg:ml-56 lg:p-6">
         <div className="mb-4 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0">
@@ -1371,6 +1371,27 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {/* 组权限控制 */}
         {tab === 'permissionGroups' && <PermissionPage mode="groups" onMessage={showMessage} />}
       </main>
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
+        <div className="flex gap-2 overflow-x-auto overscroll-x-contain pb-1">
+          {navItems.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => {
+                setTab(item.key)
+                setSystemMenuOpen(false)
+              }}
+              className={`flex min-w-[4.75rem] flex-col items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-medium transition ${
+                tab === item.key ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <span className="text-lg leading-none"><MenuIcon icon={item.key} /></span>
+              <span className="whitespace-nowrap">{item.label.replace('管理', '')}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
     </div>
   )
 }
