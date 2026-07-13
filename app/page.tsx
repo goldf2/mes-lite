@@ -197,6 +197,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [showInvalidStocks, setShowInvalidStocks] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [topBarActions, setTopBarActions] = useState<React.ReactNode>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [systemMenuOpen, setSystemMenuOpen] = useState(false)
@@ -255,6 +256,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     if (tab === 'orders') fetchOrders()
     if (tab === 'stocks') fetchStocks()
     if (tab === 'create') fetchProducts()
+    setTopBarActions(null)
   }, [tab, selectedOrderStatuses, stockCategoryFilter, showInvalidStocks])
 
   const fetchOrders = async () => {
@@ -464,13 +466,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
       <main className="flex-1 ml-56 p-6">
         <div className="mb-4 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0">
               <div className="text-xs font-medium text-gray-400">{activeSystemTab ? '系统功能' : '业务功能'}</div>
               <div className="truncate text-lg font-semibold text-gray-900">{activeTabLabel}</div>
             </div>
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-              {canCreate('orders') && tab !== 'create' && (
+            <div className="flex min-w-[320px] flex-1 items-center justify-end gap-2">
+              {topBarActions || (canCreate('orders') && tab !== 'create' && (
                 <button
                   onClick={() => {
                     setTab('create')
@@ -480,7 +482,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 >
                   + 创建工单
                 </button>
-              )}
+              ))}
             </div>
             <div className="relative shrink-0">
               <button
@@ -935,7 +937,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         )}
 
         {/* 物料管理 */}
-        {tab === 'materials' && <MaterialPage onMessage={showMessage} />}
+        {tab === 'materials' && <MaterialPage onMessage={showMessage} onToolbarChange={setTopBarActions} />}
 
         {/* 来料管理 */}
         {tab === 'materialIn' && <MaterialInPage onMessage={showMessage} />}

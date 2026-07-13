@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { ReactNode, useState, useEffect } from 'react'
 import AttachmentPanel from './AttachmentPanel'
 import StatusCheckboxFilter, { getMultiSelectQuery } from './StatusCheckboxFilter'
 
@@ -53,7 +53,13 @@ const materialCategoryOptions = [
 
 const materialCategoryFilterOptions = materialCategoryOptions.map(([value, label]) => ({ value, label }))
 
-export default function MaterialPage({ onMessage }: { onMessage: (msg: string) => void }) {
+export default function MaterialPage({
+  onMessage,
+  onToolbarChange,
+}: {
+  onMessage: (msg: string) => void
+  onToolbarChange?: (actions: ReactNode | null) => void
+}) {
   const [materials, setMaterials] = useState<Material[]>([])
   const [keyword, setKeyword] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<string[]>(materialCategoryFilterOptions.map((option) => option.value))
@@ -198,33 +204,38 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
     fetchMaterials()
   }
 
+  useEffect(() => {
+    if (!onToolbarChange) return
+
+    onToolbarChange(
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <StatusCheckboxFilter
+          options={materialCategoryFilterOptions}
+          value={selectedCategories}
+          onChange={setSelectedCategories}
+          allLabel="全部分类"
+        />
+        <input
+          type="text"
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          placeholder="搜索物料名称或编码"
+          className="w-56 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+        />
+        <button
+          onClick={handleAdd}
+          className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
+        >
+          + 新增物料
+        </button>
+      </div>
+    )
+
+    return () => onToolbarChange(null)
+  }, [onToolbarChange, selectedCategories, keyword])
+
   return (
     <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex flex-col gap-4 mb-6 lg:flex-row lg:items-start lg:justify-between">
-        <h2 className="text-xl font-semibold">物料管理</h2>
-        <div className="flex flex-wrap items-center gap-3 lg:justify-end">
-          <StatusCheckboxFilter
-            options={materialCategoryFilterOptions}
-            value={selectedCategories}
-            onChange={setSelectedCategories}
-            allLabel="全部分类"
-          />
-          <input
-            type="text"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索物料名称或编码"
-            className="px-4 py-2 border border-gray-200 rounded-lg text-sm"
-          />
-          <button
-            onClick={handleAdd}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
-          >
-            + 新增物料
-          </button>
-        </div>
-      </div>
-
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-gray-50">
