@@ -168,22 +168,22 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const canUpdate = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canUpdate)
   const baseNavItems: { key: TabType; label: string; resource: string }[] = [
     { key: 'dashboard', label: '仪表盘', resource: 'dashboard' },
-    { key: 'orders', label: '工单管理', resource: 'orders' },
-    { key: 'materials', label: '物料管理', resource: 'materials' },
     { key: 'materialIn', label: '来料管理', resource: 'materialIn' },
     { key: 'dispatch', label: '派工管理', resource: 'dispatch' },
-    { key: 'stocks', label: '库存管理', resource: 'stocks' },
     { key: 'shipment', label: '发货管理', resource: 'shipment' },
     { key: 'return', label: '退货管理', resource: 'return' },
+    { key: 'stocks', label: '库存管理', resource: 'stocks' },
     { key: 'stats', label: '统计分析', resource: 'stats' },
+    { key: 'materials', label: '物料管理', resource: 'materials' },
     { key: 'operators', label: '人员管理', resource: 'operators' },
     { key: 'system', label: '系统管理', resource: 'system' },
     { key: 'permissionUsers', label: '人员权限', resource: 'permissionUsers' },
     { key: 'permissionGroups', label: '组权限', resource: 'permissionGroups' },
   ]
-  const systemResources = new Set(['operators', 'system', 'permissionUsers', 'permissionGroups', 'permissions'])
-  const readableBusinessNavItems = baseNavItems.filter((item) => canRead(item.resource) && !systemResources.has(item.resource))
-  const readableSystemNavItems = baseNavItems.filter((item) => canRead(item.resource) && systemResources.has(item.resource))
+  const hiddenResources = new Set(['orders'])
+  const systemResources = new Set(['materials', 'operators', 'system', 'permissionUsers', 'permissionGroups', 'permissions'])
+  const readableBusinessNavItems = baseNavItems.filter((item) => canRead(item.resource) && !systemResources.has(item.resource) && !hiddenResources.has(item.resource))
+  const readableSystemNavItems = baseNavItems.filter((item) => canRead(item.resource) && systemResources.has(item.resource) && !hiddenResources.has(item.resource))
   const [tab, setTab] = useState<TabType>('dashboard')
   const [orders, setOrders] = useState<Order[]>([])
   const [stocks, setStocks] = useState<Stock[]>([])
@@ -452,17 +452,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           <div className="mb-3 px-3 py-2 border border-gray-200 rounded-lg">
             <OperatorBadge operator={operator} />
           </div>
-          {canCreate('orders') && (
-            <button
-              onClick={() => {
-                setTab('create')
-                setSystemMenuOpen(false)
-              }}
-              className="w-full px-4 py-3 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition flex items-center justify-center gap-2"
-            >
-              <span>+</span> 创建工单
-            </button>
-          )}
         </div>
       </aside>
 
@@ -962,7 +951,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {tab === 'materialIn' && <MaterialInPage onMessage={showMessage} onToolbarChange={setTopBarActions} />}
 
         {/* 派工管理 */}
-        {tab === 'dispatch' && <DispatchPage onMessage={showMessage} onToolbarChange={setTopBarActions} />}
+        {tab === 'dispatch' && (
+          <DispatchPage
+            onMessage={showMessage}
+            onToolbarChange={setTopBarActions}
+            onCreateOrder={canCreate('orders') ? () => setTab('create') : undefined}
+          />
+        )}
 
         {/* 发货管理 */}
         {tab === 'shipment' && <ShipmentPage onMessage={showMessage} onToolbarChange={setTopBarActions} />}

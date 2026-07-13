@@ -77,9 +77,11 @@ const priorityLabels: Record<string, string> = {
 export default function DispatchPage({
   onMessage,
   onToolbarChange,
+  onCreateOrder,
 }: {
   onMessage: (msg: string) => void
   onToolbarChange?: (actions: ReactNode | null) => void
+  onCreateOrder?: () => void
 }) {
   const [dispatches, setDispatches] = useState<Dispatch[]>([])
   const [orders, setOrders] = useState<Order[]>([])
@@ -218,6 +220,14 @@ export default function DispatchPage({
     onToolbarChange(
       <ResponsiveToolbarActions>
         <StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />
+        {onCreateOrder && (
+          <button
+            onClick={onCreateOrder}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition"
+          >
+            创建工单
+          </button>
+        )}
         <button
           onClick={() => {
             resetForm()
@@ -231,7 +241,7 @@ export default function DispatchPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedStatuses])
+  }, [onToolbarChange, selectedStatuses, onCreateOrder])
 
   return (
     <div className="space-y-4">
