@@ -14,6 +14,7 @@ export async function GET(
       where: { id: params.id },
       include: {
         product: true,
+        targetMaterial: true,
         picks: {
           include: { material: true },
           orderBy: { createdAt: 'asc' },

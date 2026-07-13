@@ -25,7 +25,7 @@ export async function POST(
 
     const order = await prisma.productionOrder.findUnique({
       where: { id: orderId },
-      include: { product: true },
+      include: { product: true, targetMaterial: true },
     })
 
     if (!order) {
@@ -52,10 +52,14 @@ export async function POST(
         },
       })
 
-      // 2. 更新成品库存
-      const stock = await tx.stock.findUnique({
-        where: { productId: order.productId },
-      })
+      // 2. 更新目标库存：标准工单入成品库存，简易物料工单入物料库存。
+      const targetMaterial = order.targetMaterial
+      const valuationQty = targetMaterial
+        ? Number((qty * Number(targetMaterial.conversionRate || 1)).toFixed(6))
+        : 0
+      const stock = targetMaterial
+        ? await tx.stock.findUnique({ where: { materialId: targetMaterial.id } })
+        : await tx.stock.findUnique({ where: { productId: order.productId } })
 
       if (stock) {
         await tx.stock.update({
@@ -63,6 +67,10 @@ export async function POST(
           data: {
             qty: { increment: qty },
             availableQty: { increment: qty },
+            ...(targetMaterial ? {
+              valuationQty: { increment: valuationQty },
+              availableValuationQty: { increment: valuationQty },
+            } : {}),
           },
         })
 
@@ -73,9 +81,14 @@ export async function POST(
             qty,
             beforeQty: stock.qty,
             afterQty: stock.qty + qty,
+            ...(targetMaterial ? {
+              valuationQty,
+              beforeValuationQty: stock.valuationQty,
+              afterValuationQty: Number(stock.valuationQty) + valuationQty,
+            } : {}),
             refType: 'STOCK_IN',
             refId: orderId,
-            note: `工单 ${order.orderNo} 成品入库`,
+            note: targetMaterial ? `工单 ${order.orderNo} 物料入库` : `工单 ${order.orderNo} 成品入库`,
             createdBy: inBy,
           },
         })
@@ -83,9 +96,11 @@ export async function POST(
         // 新建库存记录
         await tx.stock.create({
           data: {
-            productId: order.productId,
+            ...(targetMaterial ? { materialId: targetMaterial.id } : { productId: order.productId }),
             qty,
             availableQty: qty,
+            valuationQty,
+            availableValuationQty: valuationQty,
             reservedQty: 0,
           },
         })

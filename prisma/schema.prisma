@@ -47,6 +47,7 @@ model Material {
   bomItems    BOMItem[]
   pickItems   PickItem[]
   materialIns MaterialIn[]
+  productionOrders ProductionOrder[] @relation("ProductionOrderTargetMaterial")
   createdAt   DateTime @default(now())
 }
 
@@ -106,6 +107,8 @@ model ProductionOrder {
   orderNo       String   @unique
   productId     String
   product       Product  @relation(fields: [productId], references: [id])
+  materialId     String?
+  targetMaterial Material? @relation("ProductionOrderTargetMaterial", fields: [materialId], references: [id])
   planQty       Int
   completeQty   Int      @default(0)
   scrapQty      Int      @default(0)

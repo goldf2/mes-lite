@@ -12,6 +12,7 @@ interface Order {
   status: string
   planQty: number
   product: { id: string; name: string; sku: string }
+  targetMaterial?: { id: string; name: string; code: string } | null
 }
 
 interface ProcessStep {
@@ -33,7 +34,7 @@ interface Dispatch {
   status: string
   note?: string
   createdAt: string
-  order: { id: string; orderNo: string; product: { id: string; name: string; sku: string } }
+  order: { id: string; orderNo: string; product: { id: string; name: string; sku: string }; targetMaterial?: { id: string; name: string; code: string } | null }
   step: { id: string; stepNo: number; name: string; workstation?: string | null }
 }
 
@@ -298,8 +299,10 @@ export default function DispatchPage({
                     <td className="px-4 py-3 font-mono text-blue-600">{item.dispatchNo}</td>
                     <td className="px-4 py-3 font-mono text-sm">{item.order?.orderNo}</td>
                     <td className="px-4 py-3">
-                      <div className="font-medium">{item.order?.product?.name}</div>
-                      <div className="text-xs text-gray-500">{item.order?.product?.sku}</div>
+                      <div className="font-medium">{item.order?.targetMaterial?.name || item.order?.product?.name}</div>
+                      <div className="text-xs text-gray-500">
+                        {item.order?.targetMaterial ? `物料 ${item.order.targetMaterial.code}` : item.order?.product?.sku}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="font-medium">{item.step?.name}</div>
@@ -390,7 +393,7 @@ export default function DispatchPage({
                   <option value="">请选择工单</option>
                   {orders.map((o) => (
                     <option key={o.id} value={o.id}>
-                      {o.orderNo} - {o.product.name} (计划 {o.planQty})
+                      {o.orderNo} - {o.targetMaterial?.name || o.product.name} (计划 {o.planQty})
                     </option>
                   ))}
                 </select>

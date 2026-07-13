@@ -25,6 +25,16 @@ interface Product {
   unit: string
 }
 
+interface MaterialOption {
+  id: string
+  code: string
+  name: string
+  spec?: string
+  category: string
+  stockUnit: string
+  valuationUnit: string
+}
+
 interface Stock {
   id: string
   qty: number
@@ -69,6 +79,7 @@ interface Order {
   scrapQty: number
   createdAt: string
   product: { id: string; name: string; sku: string }
+  targetMaterial?: { id: string; name: string; code: string; category?: string; stockUnit?: string; unit?: string } | null
   _count: { reports: number; picks: number }
 }
 
@@ -188,10 +199,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [orders, setOrders] = useState<Order[]>([])
   const [stocks, setStocks] = useState<Stock[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [materialOptions, setMaterialOptions] = useState<MaterialOption[]>([])
   const [dashboard, setDashboard] = useState<any>(null)
   const [orderDetail, setOrderDetail] = useState<any>(null)
+  const [orderTargetType, setOrderTargetType] = useState<'PRODUCT' | 'MATERIAL'>('PRODUCT')
   const [planQty, setPlanQty] = useState(100)
   const [selectedProductId, setSelectedProductId] = useState('')
+  const [selectedMaterialId, setSelectedMaterialId] = useState('')
   const [selectedOrderStatuses, setSelectedOrderStatuses] = useState(orderStatusOptions.map((option) => option.value))
   const [stockFilter, setStockFilter] = useState<'all' | 'material' | 'product'>('all')
   const [stockCategoryFilter, setStockCategoryFilter] = useState('')
@@ -256,7 +270,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     if (tab === 'dashboard') fetchDashboard()
     if (tab === 'orders') fetchOrders()
     if (tab === 'stocks') fetchStocks()
-    if (tab === 'create') fetchProducts()
+    if (tab === 'create') {
+      fetchProducts()
+      fetchMaterialOptions()
+    }
   }, [tab, selectedOrderStatuses, stockCategoryFilter, showInvalidStocks])
 
   const fetchOrders = async () => {
@@ -329,6 +346,14 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }
   }
 
+  const fetchMaterialOptions = async () => {
+    const res = await fetch('/api/materials?pageSize=200')
+    if (res.ok) {
+      const data = await res.json()
+      setMaterialOptions(data.data || [])
+    }
+  }
+
   const fetchDashboard = async () => {
     const res = await fetch('/api/stats/dashboard')
     if (res.ok) {
@@ -344,8 +369,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   }
 
   const createOrder = async () => {
-    if (!selectedProductId || planQty <= 0) {
-      showMessage('请选择产品并输入有效数量')
+    const targetId = orderTargetType === 'PRODUCT' ? selectedProductId : selectedMaterialId
+    if (!targetId || planQty <= 0) {
+      showMessage(`请选择${orderTargetType === 'PRODUCT' ? '产品' : '物料'}并输入有效数量`)
       return
     }
     setLoading(true)
@@ -353,13 +379,14 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId: selectedProductId, planQty }),
+        body: JSON.stringify({ targetType: orderTargetType, targetId, planQty }),
       })
       const data = await res.json()
       if (res.ok) {
         showMessage(`工单创建成功：${data.data.orderNo}`)
         setPlanQty(100)
         setSelectedProductId('')
+        setSelectedMaterialId('')
         await fetchOrders()
         await fetchStocks()
       } else {
@@ -453,14 +480,14 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </div>
       </aside>
 
-      <main className="flex-1 ml-56 p-6">
+      <main className="ml-56 min-w-0 flex-1 p-4 lg:p-6">
         <div className="mb-4 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0">
               <div className="text-xs font-medium text-gray-400">{activeSystemTab ? '系统功能' : '业务功能'}</div>
               <div className="truncate text-lg font-semibold text-gray-900">{activeTabLabel}</div>
             </div>
-            <div id="topbar-actions" className="flex min-w-[320px] flex-1 items-center justify-end gap-2">
+            <div id="topbar-actions" className="flex min-w-0 flex-1 items-center justify-end gap-2">
               {tab === 'orders' ? (
                 <ResponsiveToolbarActions>
                   <StatusCheckboxFilter
@@ -614,7 +641,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">工单号</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">目标</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">计划</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">完成/报废</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
@@ -627,8 +654,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                       <tr key={order.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => handleSelectOrder(order)}>
                         <td className="px-4 py-3 font-mono text-blue-600 text-sm">{order.orderNo}</td>
                         <td className="px-4 py-3">
-                          <div className="font-medium text-sm">{order.product.name}</div>
-                          <div className="text-xs text-gray-500">{order.product.sku}</div>
+                          <div className="font-medium text-sm">{order.targetMaterial?.name || order.product.name}</div>
+                          <div className="text-xs text-gray-500">
+                            {order.targetMaterial ? `物料 ${order.targetMaterial.code}` : `产品 ${order.product.sku}`}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-sm">{order.planQty}</td>
                         <td className="px-4 py-3 text-sm">
@@ -671,9 +700,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div className="border border-gray-200 rounded-lg p-4">
-                <div className="text-sm text-gray-500 mb-1">产品</div>
-                <div className="font-medium">{orderDetail.product.name}</div>
-                <div className="text-xs text-gray-400">{orderDetail.product.sku}</div>
+                <div className="text-sm text-gray-500 mb-1">目标</div>
+                <div className="font-medium">{orderDetail.targetMaterial?.name || orderDetail.product.name}</div>
+                <div className="text-xs text-gray-400">
+                  {orderDetail.targetMaterial ? `物料 ${orderDetail.targetMaterial.code}` : `产品 ${orderDetail.product.sku}`}
+                </div>
               </div>
               <div className="border border-gray-200 rounded-lg p-4">
                 <div className="text-sm text-gray-500 mb-1">状态</div>
@@ -692,6 +723,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <div>
                 <h3 className="font-semibold mb-4">领料项</h3>
                 <div className="space-y-2">
+                  {orderDetail.picks?.length === 0 && (
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-500">无领料项</div>
+                  )}
                   {orderDetail.picks?.map((pick: PickItem) => (
                     <div key={pick.id} className="border border-gray-200 rounded-lg p-3">
                       <div className="flex items-center justify-between mb-2">
@@ -712,6 +746,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <div>
                 <h3 className="font-semibold mb-4">工艺路线</h3>
                 <div className="space-y-2">
+                  {orderDetail.routeSteps?.length === 0 && (
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-500">无工艺路线</div>
+                  )}
                   {orderDetail.routeSteps?.map((step: ProcessStep) => (
                     <div key={step.id} className={`border rounded-lg p-3 ${step.id === orderDetail.currentStepId ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
                       <div className="flex items-center gap-3">
@@ -744,14 +781,51 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             <h2 className="text-xl font-semibold mb-6">创建工单</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">选择产品</label>
-                <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-lg">
-                  <option value="">请选择产品</option>
-                  {products.map((product) => (
-                    <option key={product.id} value={product.id}>{product.name} ({product.sku})</option>
-                  ))}
-                </select>
+                <label className="block text-sm font-medium text-gray-700 mb-2">工单模式</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOrderTargetType('PRODUCT')}
+                    className={`px-4 py-3 rounded-lg border text-sm font-medium transition ${
+                      orderTargetType === 'PRODUCT' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    标准产品工单
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOrderTargetType('MATERIAL')}
+                    className={`px-4 py-3 rounded-lg border text-sm font-medium transition ${
+                      orderTargetType === 'MATERIAL' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    简易物料工单
+                  </button>
+                </div>
               </div>
+              {orderTargetType === 'PRODUCT' ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">选择产品</label>
+                  <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-lg">
+                    <option value="">请选择产品</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>{product.name} ({product.sku})</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">选择物料</label>
+                  <select value={selectedMaterialId} onChange={(e) => setSelectedMaterialId(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-lg">
+                    <option value="">请选择物料</option>
+                    {materialOptions.map((material) => (
+                      <option key={material.id} value={material.id}>
+                        {material.name} ({material.code}) · {materialCategoryLabels[material.category] || material.category}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">计划产量</label>
                 <input type="number" value={planQty} onChange={(e) => setPlanQty(Number(e.target.value))} min={1} className="w-full px-4 py-3 border border-gray-200 rounded-lg" />

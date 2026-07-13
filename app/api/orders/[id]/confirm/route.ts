@@ -9,6 +9,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     const order = await prisma.productionOrder.findUnique({
       where: { id: params.id },
+      include: { _count: { select: { picks: true } } },
     })
 
     if (!order) {
@@ -22,14 +23,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const updatedOrder = await prisma.productionOrder.update({
       where: { id: params.id },
       data: {
-        status: 'CONFIRMED',
+        status: order._count.picks === 0 ? 'PICKED' : 'CONFIRMED',
         startTime: new Date(),
       },
     })
 
     return NextResponse.json({
       success: true,
-      message: `工单 ${updatedOrder.orderNo} 已确认`,
+      message: order._count.picks === 0 ? `工单 ${updatedOrder.orderNo} 已确认，可直接派工` : `工单 ${updatedOrder.orderNo} 已确认`,
       data: updatedOrder,
     })
   } catch (error) {

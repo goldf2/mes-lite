@@ -37,7 +37,10 @@ export async function GET(req: NextRequest) {
         where,
         include: {
           order: {
-            include: { product: { select: { id: true, name: true, sku: true } } },
+            include: {
+              product: { select: { id: true, name: true, sku: true } },
+              targetMaterial: { select: { id: true, name: true, code: true, category: true, unit: true, stockUnit: true } },
+            },
           },
           step: true,
         },
@@ -74,6 +77,7 @@ export async function POST(req: NextRequest) {
             processRoutes: { include: { steps: true } },
           },
         },
+        targetMaterial: true,
       },
     })
 
@@ -120,7 +124,7 @@ export async function POST(req: NextRequest) {
         note: data.note,
       },
       include: {
-        order: { include: { product: true } },
+        order: { include: { product: true, targetMaterial: true } },
         step: true,
       },
     })

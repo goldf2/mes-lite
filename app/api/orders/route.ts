@@ -6,10 +6,70 @@ import { writeAuditLog } from '@/lib/audit'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 
 const createOrderSchema = z.object({
-  productId: z.string().min(1),
+  targetType: z.enum(['PRODUCT', 'MATERIAL']).optional(),
+  targetId: z.string().min(1).optional(),
+  productId: z.string().min(1).optional(),
+  materialId: z.string().min(1).optional(),
   planQty: z.number().int().positive(),
   note: z.string().optional(),
 })
+
+const simpleProductSku = (materialCode: string) => `MAT-${materialCode}`
+
+async function ensureSimpleProductForMaterial(material: { code: string; name: string; category: string; stockUnit: string; unit: string }) {
+  const sku = simpleProductSku(material.code)
+  const existing = await prisma.product.findUnique({
+    where: { sku },
+    include: { processRoutes: { where: { isDefault: true }, include: { steps: true } } },
+  })
+
+  if (existing) {
+    const defaultRoute = existing.processRoutes[0]
+    if (!defaultRoute) {
+      await prisma.processRoute.create({
+        data: {
+          productId: existing.id,
+          name: '简易生产路线',
+          isDefault: true,
+          steps: {
+            create: [{ stepNo: 1, name: '简易作业', workstation: '现场' }],
+          },
+        },
+      })
+    } else if (defaultRoute.steps.length === 0) {
+      await prisma.processStep.create({
+        data: {
+          routeId: defaultRoute.id,
+          stepNo: 1,
+          name: '简易作业',
+          workstation: '现场',
+        },
+      })
+    }
+    return existing.id
+  }
+
+  const created = await prisma.product.create({
+    data: {
+      sku,
+      name: material.name,
+      category: material.category,
+      unit: material.stockUnit || material.unit,
+      description: `由物料 ${material.code} 自动映射，用于简易生产工单。`,
+      processRoutes: {
+        create: {
+          name: '简易生产路线',
+          isDefault: true,
+          steps: {
+            create: [{ stepNo: 1, name: '简易作业', workstation: '现场' }],
+          },
+        },
+      },
+    },
+  })
+
+  return created.id
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,25 +77,54 @@ export async function POST(req: NextRequest) {
     if (denied) return denied
 
     const body = await req.json()
-    const { productId, planQty, note } = createOrderSchema.parse(body)
+    const parsed = createOrderSchema.parse(body)
+    const targetType = parsed.targetType ?? (parsed.materialId ? 'MATERIAL' : 'PRODUCT')
+    const targetId = parsed.targetId ?? (targetType === 'MATERIAL' ? parsed.materialId : parsed.productId)
+    const { planQty, note } = parsed
 
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
-      include: {
-        bom: true,
-        processRoutes: { where: { isDefault: true }, include: { steps: true } },
-      },
-    })
-
-    if (!product) {
-      return NextResponse.json({ error: '产品不存在' }, { status: 404 })
+    if (!targetId) {
+      return NextResponse.json({ error: targetType === 'MATERIAL' ? '请选择物料' : '请选择产品' }, { status: 400 })
     }
 
-    if (!product.bom || product.processRoutes.length === 0) {
-      return NextResponse.json({ error: '产品缺少 BOM 或工艺路线' }, { status: 400 })
-    }
+    let productId = ''
+    let materialId: string | null = null
+    let bomWithItems: { items: any[] } | null = null
 
-    const route = product.processRoutes[0]
+    if (targetType === 'MATERIAL') {
+      const material = await prisma.material.findUnique({
+        where: { id: targetId },
+        select: { id: true, code: true, name: true, category: true, stockUnit: true, unit: true, deletedAt: true },
+      })
+
+      if (!material || material.deletedAt) {
+        return NextResponse.json({ error: '物料不存在或已归档' }, { status: 404 })
+      }
+
+      materialId = material.id
+      productId = await ensureSimpleProductForMaterial(material)
+    } else {
+      const product = await prisma.product.findUnique({
+        where: { id: targetId },
+        include: {
+          bom: true,
+          processRoutes: { where: { isDefault: true }, include: { steps: true } },
+        },
+      })
+
+      if (!product) {
+        return NextResponse.json({ error: '产品不存在' }, { status: 404 })
+      }
+
+      if (!product.bom || product.processRoutes.length === 0 || product.processRoutes[0].steps.length === 0) {
+        return NextResponse.json({ error: '产品缺少 BOM 或工艺路线' }, { status: 400 })
+      }
+
+      productId = product.id
+      bomWithItems = await prisma.bOM.findUnique({
+        where: { id: product.bom.id },
+        include: { items: { include: { material: { include: { stock: true } } } } },
+      })
+    }
 
     const today = new Date()
     const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')
@@ -44,23 +133,19 @@ export async function POST(req: NextRequest) {
     })
     const orderNo = `WO-${dateStr}-${String(count + 1).padStart(3, '0')}`
 
-    const bomWithItems = await prisma.bOM.findUnique({
-      where: { id: product.bom.id },
-      include: { items: { include: { material: { include: { stock: true } } } } },
-    })
-
     const order = await prisma.$transaction(async (tx) => {
       const newOrder = await tx.productionOrder.create({
         data: {
           orderNo,
           productId,
+          materialId,
           planQty,
           status: 'DRAFT',
           note,
         },
       })
 
-      for (const bomItem of bomWithItems!.items) {
+      for (const bomItem of bomWithItems?.items ?? []) {
         const requiredQty = Number(bomItem.quantity) * planQty * (1 + Number(bomItem.wastageRate) / 100)
         const stockQty = Number(bomItem.material.stock?.availableQty ?? 0)
 
@@ -128,6 +213,7 @@ export async function GET(req: NextRequest) {
         where,
         include: {
           product: { select: { id: true, name: true, sku: true } },
+          targetMaterial: { select: { id: true, name: true, code: true, category: true, unit: true, stockUnit: true, valuationUnit: true } },
           _count: { select: { reports: true, picks: true } },
         },
         orderBy: { createdAt: 'desc' },
