@@ -196,6 +196,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [stockFilter, setStockFilter] = useState<'all' | 'material' | 'product'>('all')
   const [stockCategoryFilter, setStockCategoryFilter] = useState('')
   const [showInvalidStocks, setShowInvalidStocks] = useState(false)
+  const [showStockHelp, setShowStockHelp] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [topBarActions, setTopBarActions] = useState<React.ReactNode>(null)
@@ -481,17 +482,48 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     onChange={setSelectedOrderStatuses}
                   />
                 </ResponsiveToolbarActions>
-              ) : canCreate('orders') && tab !== 'create' && (
-                <button
-                  onClick={() => {
-                    setTab('create')
-                    setSystemMenuOpen(false)
-                  }}
-                  className="rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
-                >
-                  + 创建工单
-                </button>
-              ))}
+              ) : tab === 'stocks' ? (
+                <ResponsiveToolbarActions>
+                  {([['all', '全部'], ['material', '物料'], ['product', '成品']] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setStockFilter(key)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                        stockFilter === key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <select
+                    value={stockCategoryFilter}
+                    onChange={(e) => {
+                      setStockCategoryFilter(e.target.value)
+                      if (e.target.value) setStockFilter('material')
+                    }}
+                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  >
+                    <option value="">全部物料分类</option>
+                    {materialCategoryOptions.map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                  <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={showInvalidStocks}
+                      onChange={(e) => setShowInvalidStocks(e.target.checked)}
+                    />
+                    显示归档无库存
+                  </label>
+                  <button
+                    onClick={() => setShowStockHelp(true)}
+                    className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg text-sm hover:bg-blue-50"
+                  >
+                    设定期初库存
+                  </button>
+                </ResponsiveToolbarActions>
+              ) : null)}
             </div>
             <div className="relative shrink-0">
               <button
@@ -747,43 +779,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {/* 库存管理 */}
         {tab === 'stocks' && (
           <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold">库存查询</h2>
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {([['all', '全部'], ['material', '物料'], ['product', '成品']] as const).map(([key, label]) => (
-                  <button
-                    key={key}
-                    onClick={() => setStockFilter(key)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                      stockFilter === key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-                <select
-                  value={stockCategoryFilter}
-                  onChange={(e) => {
-                    setStockCategoryFilter(e.target.value)
-                    if (e.target.value) setStockFilter('material')
-                  }}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                >
-                  <option value="">全部物料分类</option>
-                  {materialCategoryOptions.map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </select>
-                <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">
-                  <input
-                    type="checkbox"
-                    checked={showInvalidStocks}
-                    onChange={(e) => setShowInvalidStocks(e.target.checked)}
-                  />
-                  显示归档无库存
-                </label>
-              </div>
-            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {stocks
                 .filter((s) => stockFilter === 'all' ? true : stockFilter === 'material' ? !!s.material : !!s.product)
@@ -930,6 +925,31 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     取消
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showStockHelp && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg mx-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">设定期初库存</h3>
+                <button onClick={() => setShowStockHelp(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">
+                  ×
+                </button>
+              </div>
+              <div className="space-y-3 text-sm text-gray-600">
+                <div className="rounded-lg bg-blue-50 p-3 text-blue-900">
+                  先建立物料，系统会自动生成 0 库存记录；再回到库存页，在对应库存卡片中点击“库存调整”，填写期初数量、核算重量、库存金额和原因。
+                </div>
+                <p>库存调整用于盘点差异、损耗、早期数据尾差和初始化库存。所有调整都会写入操作日志，不做物理删除。</p>
+                <p>已经有来料单、领料、红冲等业务单据时，优先使用对应业务单据；库存调整只处理非单据型差异。</p>
+              </div>
+              <div className="mt-5 flex justify-end">
+                <button onClick={() => setShowStockHelp(false)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+                  知道了
+                </button>
               </div>
             </div>
           </div>

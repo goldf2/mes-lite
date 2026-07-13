@@ -138,19 +138,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: existing.deletedAt ? '物料编码已被已归档记录占用' : '物料编码已存在' }, { status: 400 })
     }
 
-    const material = await prisma.material.create({
-      data: {
-        code: body.code,
-        name: body.name,
-        spec: body.spec || '',
-        category: body.category || 'RAW',
-        unit: body.stockUnit || body.unit,
-        stockUnit: body.stockUnit || body.unit,
-        valuationUnit: body.valuationUnit || body.unit,
-        conversionRate: normalizeConversionRate(body.conversionRate),
-        conversionNote: body.conversionNote || null,
-        costingMethod: body.costingMethod || 'WEIGHTED_AVERAGE',
-      },
+    const material = await prisma.$transaction(async (tx) => {
+      const created = await tx.material.create({
+        data: {
+          code: body.code,
+          name: body.name,
+          spec: body.spec || '',
+          category: body.category || 'RAW',
+          unit: body.stockUnit || body.unit,
+          stockUnit: body.stockUnit || body.unit,
+          valuationUnit: body.valuationUnit || body.unit,
+          conversionRate: normalizeConversionRate(body.conversionRate),
+          conversionNote: body.conversionNote || null,
+          costingMethod: body.costingMethod || 'WEIGHTED_AVERAGE',
+        },
+      })
+
+      await tx.stock.create({
+        data: { materialId: created.id },
+      })
+
+      return created
     })
 
     await writeAuditLog(req, {
