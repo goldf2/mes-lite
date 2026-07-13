@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { ReactNode, useState, useEffect } from 'react'
 import AttachmentPanel from './AttachmentPanel'
 import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
+import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 
 interface Order {
   id: string
@@ -73,7 +74,13 @@ const priorityLabels: Record<string, string> = {
   URGENT: '紧急',
 }
 
-export default function DispatchPage({ onMessage }: { onMessage: (msg: string) => void }) {
+export default function DispatchPage({
+  onMessage,
+  onToolbarChange,
+}: {
+  onMessage: (msg: string) => void
+  onToolbarChange?: (actions: ReactNode | null) => void
+}) {
   const [dispatches, setDispatches] = useState<Dispatch[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [steps, setSteps] = useState<ProcessStep[]>([])
@@ -205,29 +212,30 @@ export default function DispatchPage({ onMessage }: { onMessage: (msg: string) =
     setLoading(false)
   }
 
+  useEffect(() => {
+    if (!onToolbarChange) return
+
+    onToolbarChange(
+      <ResponsiveToolbarActions>
+        <StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />
+        <button
+          onClick={() => {
+            resetForm()
+            setShowModal(true)
+          }}
+          className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+        >
+          新增派工单
+        </button>
+      </ResponsiveToolbarActions>
+    )
+
+    return () => onToolbarChange(null)
+  }, [onToolbarChange, selectedStatuses])
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="text-xl font-semibold">派工管理</h2>
-          <div className="flex flex-wrap items-center gap-3">
-            <StatusCheckboxFilter
-              options={statusOptions}
-              value={selectedStatuses}
-              onChange={setSelectedStatuses}
-            />
-            <button
-              onClick={() => {
-                resetForm()
-                setShowModal(true)
-              }}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
-            >
-              新增派工单
-            </button>
-          </div>
-        </div>
-
         {dispatches.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <p className="text-4xl mb-4">📋</p>

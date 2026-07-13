@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { ReactNode, useState, useEffect } from 'react'
 import AttachmentPanel from './AttachmentPanel'
 import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
+import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 
 interface Product {
   id: string
@@ -45,7 +46,13 @@ const statusOptions = [
   { value: 'REJECTED', label: '已拒绝' },
 ]
 
-export default function ReturnPage({ onMessage }: { onMessage: (msg: string) => void }) {
+export default function ReturnPage({
+  onMessage,
+  onToolbarChange,
+}: {
+  onMessage: (msg: string) => void
+  onToolbarChange?: (actions: ReactNode | null) => void
+}) {
   const [returns, setReturns] = useState<ReturnOrder[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
@@ -148,29 +155,31 @@ export default function ReturnPage({ onMessage }: { onMessage: (msg: string) => 
     setLoading(false)
   }
 
+
+  useEffect(() => {
+    if (!onToolbarChange) return
+
+    onToolbarChange(
+      <ResponsiveToolbarActions>
+        <StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />
+        <button
+          onClick={() => {
+            resetForm()
+            setShowModal(true)
+          }}
+          className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+        >
+          新增退货单
+        </button>
+      </ResponsiveToolbarActions>
+    )
+
+    return () => onToolbarChange(null)
+  }, [onToolbarChange, selectedStatuses])
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="text-xl font-semibold">退货管理</h2>
-          <div className="flex flex-wrap items-center gap-3">
-            <StatusCheckboxFilter
-              options={statusOptions}
-              value={selectedStatuses}
-              onChange={setSelectedStatuses}
-            />
-            <button
-              onClick={() => {
-                resetForm()
-                setShowModal(true)
-              }}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
-            >
-              新增退货单
-            </button>
-          </div>
-        </div>
-
         {returns.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <p className="text-4xl mb-4">↩️</p>

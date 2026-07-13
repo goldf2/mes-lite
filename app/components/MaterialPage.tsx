@@ -3,6 +3,7 @@
 import { ReactNode, useState, useEffect } from 'react'
 import AttachmentPanel from './AttachmentPanel'
 import StatusCheckboxFilter, { getMultiSelectQuery } from './StatusCheckboxFilter'
+import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 
 interface Material {
   id: string
@@ -208,7 +209,7 @@ export default function MaterialPage({
     if (!onToolbarChange) return
 
     onToolbarChange(
-      <div className="flex flex-wrap items-center justify-end gap-3">
+      <ResponsiveToolbarActions>
         <StatusCheckboxFilter
           options={materialCategoryFilterOptions}
           value={selectedCategories}
@@ -228,7 +229,7 @@ export default function MaterialPage({
         >
           + 新增物料
         </button>
-      </div>
+      </ResponsiveToolbarActions>
     )
 
     return () => onToolbarChange(null)

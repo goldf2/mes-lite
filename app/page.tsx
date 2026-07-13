@@ -13,6 +13,7 @@ import OperatorPage from './components/OperatorPage'
 import SystemPage from './components/SystemPage'
 import PermissionPage from './components/PermissionPage'
 import StatusCheckboxFilter, { getStatusQuery } from './components/StatusCheckboxFilter'
+import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
 
 // ==================== 类型定义 ====================
 
@@ -472,7 +473,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <div className="truncate text-lg font-semibold text-gray-900">{activeTabLabel}</div>
             </div>
             <div className="flex min-w-[320px] flex-1 items-center justify-end gap-2">
-              {topBarActions || (canCreate('orders') && tab !== 'create' && (
+              {topBarActions || (tab === 'orders' ? (
+                <ResponsiveToolbarActions>
+                  <StatusCheckboxFilter
+                    options={orderStatusOptions}
+                    value={selectedOrderStatuses}
+                    onChange={setSelectedOrderStatuses}
+                  />
+                </ResponsiveToolbarActions>
+              ) : canCreate('orders') && tab !== 'create' && (
                 <button
                   onClick={() => {
                     setTab('create')
@@ -578,16 +587,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {/* 工单管理 */}
         {tab === 'orders' && (
           <div className="bg-white rounded-lg shadow p-6">
-            <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <h2 className="text-xl font-semibold">工单列表</h2>
-              <div className="flex flex-wrap items-center gap-3">
-                <StatusCheckboxFilter
-                  options={orderStatusOptions}
-                  value={selectedOrderStatuses}
-                  onChange={setSelectedOrderStatuses}
-                />
-              </div>
-            </div>
             {orders.length === 0 ? (
               <div className="text-center py-12 text-gray-500">暂无工单</div>
             ) : (
@@ -940,22 +939,22 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {tab === 'materials' && <MaterialPage onMessage={showMessage} onToolbarChange={setTopBarActions} />}
 
         {/* 来料管理 */}
-        {tab === 'materialIn' && <MaterialInPage onMessage={showMessage} />}
+        {tab === 'materialIn' && <MaterialInPage onMessage={showMessage} onToolbarChange={setTopBarActions} />}
 
         {/* 派工管理 */}
-        {tab === 'dispatch' && <DispatchPage onMessage={showMessage} />}
+        {tab === 'dispatch' && <DispatchPage onMessage={showMessage} onToolbarChange={setTopBarActions} />}
 
         {/* 发货管理 */}
-        {tab === 'shipment' && <ShipmentPage onMessage={showMessage} />}
+        {tab === 'shipment' && <ShipmentPage onMessage={showMessage} onToolbarChange={setTopBarActions} />}
 
         {/* 退货管理 */}
-        {tab === 'return' && <ReturnPage onMessage={showMessage} />}
+        {tab === 'return' && <ReturnPage onMessage={showMessage} onToolbarChange={setTopBarActions} />}
 
         {/* 统计分析 */}
         {tab === 'stats' && <StatsPage onMessage={showMessage} />}
 
         {/* 人员管理 */}
-        {tab === 'operators' && <OperatorPage currentOperator={operator} onMessage={showMessage} />}
+        {tab === 'operators' && <OperatorPage currentOperator={operator} onMessage={showMessage} onToolbarChange={setTopBarActions} />}
 
         {/* 系统管理 */}
         {tab === 'system' && <SystemPage onMessage={showMessage} />}

@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import { CurrentOperator } from './AuthGate'
 import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
+import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 
 interface Operator {
   id: string
@@ -47,9 +48,11 @@ const statusOptions = [
 export default function OperatorPage({
   currentOperator,
   onMessage,
+  onToolbarChange,
 }: {
   currentOperator: CurrentOperator
   onMessage: (msg: string) => void
+  onToolbarChange?: (actions: ReactNode | null) => void
 }) {
   const [operators, setOperators] = useState<Operator[]>([])
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
@@ -95,22 +98,27 @@ export default function OperatorPage({
     setLoading(false)
   }
 
+  useEffect(() => {
+    if (!onToolbarChange) return
+
+    onToolbarChange(
+      <ResponsiveToolbarActions>
+        <StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />
+        <button onClick={fetchOperators} disabled={loading} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50">
+          刷新
+        </button>
+      </ResponsiveToolbarActions>
+    )
+
+    return () => onToolbarChange(null)
+  }, [onToolbarChange, selectedStatuses, loading])
+
   return (
     <div className="bg-white rounded-lg shadow p-6">
-      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="mb-6">
         <div>
           <h2 className="text-xl font-semibold">人员管理</h2>
           <p className="text-sm text-gray-500 mt-1">注册人员先进入待审核，通过后才能进入系统。</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <StatusCheckboxFilter
-            options={statusOptions}
-            value={selectedStatuses}
-            onChange={setSelectedStatuses}
-          />
-          <button onClick={fetchOperators} disabled={loading} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50">
-            刷新
-          </button>
         </div>
       </div>
 
