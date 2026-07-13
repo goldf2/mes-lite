@@ -4,6 +4,7 @@ import { ReactNode, useState, useEffect } from 'react'
 import AttachmentPanel from './AttachmentPanel'
 import StatusCheckboxFilter, { getMultiSelectQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
+import TopBarPortal from './TopBarPortal'
 
 interface Material {
   id: string
@@ -236,7 +237,31 @@ export default function MaterialPage({
   }, [onToolbarChange, selectedCategories, keyword])
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <>
+      <TopBarPortal>
+        <ResponsiveToolbarActions>
+          <StatusCheckboxFilter
+            options={materialCategoryFilterOptions}
+            value={selectedCategories}
+            onChange={setSelectedCategories}
+            allLabel="全部分类"
+          />
+          <input
+            type="text"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="搜索物料名称或编码"
+            className="w-56 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+          />
+          <button
+            onClick={handleAdd}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
+          >
+            + 新增物料
+          </button>
+        </ResponsiveToolbarActions>
+      </TopBarPortal>
+      <div className="bg-white rounded-lg shadow p-6">
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-gray-50">
@@ -544,6 +569,7 @@ export default function MaterialPage({
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   )
 }

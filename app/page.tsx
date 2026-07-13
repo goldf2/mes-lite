@@ -199,7 +199,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [showStockHelp, setShowStockHelp] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
-  const [topBarActions, setTopBarActions] = useState<React.ReactNode>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [systemMenuOpen, setSystemMenuOpen] = useState(false)
@@ -259,11 +258,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     if (tab === 'stocks') fetchStocks()
     if (tab === 'create') fetchProducts()
   }, [tab, selectedOrderStatuses, stockCategoryFilter, showInvalidStocks])
-
-  useEffect(() => {
-    const childToolbarTabs: TabType[] = ['materials', 'materialIn', 'dispatch', 'shipment', 'return', 'operators']
-    if (!childToolbarTabs.includes(tab)) setTopBarActions(null)
-  }, [tab])
 
   const fetchOrders = async () => {
     const query = getStatusQuery(selectedOrderStatuses, orderStatusOptions)
@@ -466,8 +460,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <div className="text-xs font-medium text-gray-400">{activeSystemTab ? '系统功能' : '业务功能'}</div>
               <div className="truncate text-lg font-semibold text-gray-900">{activeTabLabel}</div>
             </div>
-            <div className="flex min-w-[320px] flex-1 items-center justify-end gap-2">
-              {topBarActions || (tab === 'orders' ? (
+            <div id="topbar-actions" className="flex min-w-[320px] flex-1 items-center justify-end gap-2">
+              {tab === 'orders' ? (
                 <ResponsiveToolbarActions>
                   <StatusCheckboxFilter
                     options={orderStatusOptions}
@@ -516,7 +510,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     设定期初库存
                   </button>
                 </ResponsiveToolbarActions>
-              ) : null)}
+              ) : null}
             </div>
             <div className="relative shrink-0">
               <button
@@ -949,31 +943,30 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         )}
 
         {/* 物料管理 */}
-        {tab === 'materials' && <MaterialPage onMessage={showMessage} onToolbarChange={setTopBarActions} />}
+        {tab === 'materials' && <MaterialPage onMessage={showMessage} />}
 
         {/* 来料管理 */}
-        {tab === 'materialIn' && <MaterialInPage onMessage={showMessage} onToolbarChange={setTopBarActions} />}
+        {tab === 'materialIn' && <MaterialInPage onMessage={showMessage} />}
 
         {/* 派工管理 */}
         {tab === 'dispatch' && (
           <DispatchPage
             onMessage={showMessage}
-            onToolbarChange={setTopBarActions}
             onCreateOrder={canCreate('orders') ? () => setTab('create') : undefined}
           />
         )}
 
         {/* 发货管理 */}
-        {tab === 'shipment' && <ShipmentPage onMessage={showMessage} onToolbarChange={setTopBarActions} />}
+        {tab === 'shipment' && <ShipmentPage onMessage={showMessage} />}
 
         {/* 退货管理 */}
-        {tab === 'return' && <ReturnPage onMessage={showMessage} onToolbarChange={setTopBarActions} />}
+        {tab === 'return' && <ReturnPage onMessage={showMessage} />}
 
         {/* 统计分析 */}
         {tab === 'stats' && <StatsPage onMessage={showMessage} />}
 
         {/* 人员管理 */}
-        {tab === 'operators' && <OperatorPage currentOperator={operator} onMessage={showMessage} onToolbarChange={setTopBarActions} />}
+        {tab === 'operators' && <OperatorPage currentOperator={operator} onMessage={showMessage} />}
 
         {/* 系统管理 */}
         {tab === 'system' && <SystemPage onMessage={showMessage} />}

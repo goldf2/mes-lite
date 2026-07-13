@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useState } from 'react'
 import { CurrentOperator } from './AuthGate'
 import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
+import TopBarPortal from './TopBarPortal'
 
 interface Operator {
   id: string
@@ -114,7 +115,16 @@ export default function OperatorPage({
   }, [onToolbarChange, selectedStatuses, loading])
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <>
+      <TopBarPortal>
+        <ResponsiveToolbarActions>
+          <StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />
+          <button onClick={fetchOperators} disabled={loading} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50">
+            刷新
+          </button>
+        </ResponsiveToolbarActions>
+      </TopBarPortal>
+      <div className="bg-white rounded-lg shadow p-6">
       <div className="mb-6">
         <div>
           <h2 className="text-xl font-semibold">人员管理</h2>
@@ -208,7 +218,8 @@ export default function OperatorPage({
       </div>
 
       {operators.length === 0 && <div className="text-center py-12 text-gray-500">暂无操作人员</div>}
-    </div>
+      </div>
+    </>
   )
 }
 
