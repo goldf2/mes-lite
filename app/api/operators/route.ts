@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { canManage, getCurrentOperator } from '@/lib/auth'
 import { hasResourcePermission, requireResourcePermission } from '@/lib/permissions'
 import { prisma } from '@/lib/prisma'
+import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 
 const updateSchema = z.object({
   id: z.string().min(1),
@@ -10,11 +11,17 @@ const updateSchema = z.object({
   role: z.enum(['OPERATOR', 'AUDITOR', 'ADMIN']).optional(),
 })
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const denied = await requireResourcePermission('operators', 'read')
   if (denied) return denied
 
+  const { searchParams } = new URL(req.url)
+  const statuses = parseStatusFilter(searchParams)
+  const where: any = {}
+  applyStatusFilter(where, statuses)
+
   const operators = await prisma.operator.findMany({
+    where,
     select: {
       id: true,
       username: true,

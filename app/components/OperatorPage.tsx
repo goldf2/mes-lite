@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { CurrentOperator } from './AuthGate'
+import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
 
 interface Operator {
   id: string
@@ -36,6 +37,13 @@ const statusClasses: Record<string, string> = {
   DISABLED: 'bg-gray-100 text-gray-700',
 }
 
+const statusOptions = [
+  { value: 'PENDING', label: '待审核' },
+  { value: 'ACTIVE', label: '已启用' },
+  { value: 'REJECTED', label: '已拒绝' },
+  { value: 'DISABLED', label: '已停用' },
+]
+
 export default function OperatorPage({
   currentOperator,
   onMessage,
@@ -44,6 +52,7 @@ export default function OperatorPage({
   onMessage: (msg: string) => void
 }) {
   const [operators, setOperators] = useState<Operator[]>([])
+  const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [loading, setLoading] = useState(false)
 
   const canManage = currentOperator.role === 'ADMIN'
@@ -54,11 +63,12 @@ export default function OperatorPage({
 
   useEffect(() => {
     fetchOperators()
-  }, [])
+  }, [selectedStatuses])
 
   const fetchOperators = async () => {
     setLoading(true)
-    const res = await fetch('/api/operators')
+    const query = getStatusQuery(selectedStatuses, statusOptions)
+    const res = await fetch(query ? `/api/operators?${query}` : '/api/operators')
     const data = await res.json()
     if (res.ok) {
       setOperators(data.data || [])
@@ -87,14 +97,21 @@ export default function OperatorPage({
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-xl font-semibold">人员管理</h2>
           <p className="text-sm text-gray-500 mt-1">注册人员先进入待审核，通过后才能进入系统。</p>
         </div>
-        <button onClick={fetchOperators} disabled={loading} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50">
-          刷新
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <StatusCheckboxFilter
+            options={statusOptions}
+            value={selectedStatuses}
+            onChange={setSelectedStatuses}
+          />
+          <button onClick={fetchOperators} disabled={loading} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50">
+            刷新
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
