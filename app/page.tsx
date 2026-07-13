@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import MaterialInPage from './components/MaterialInPage'
 import DispatchPage from './components/DispatchPage'
 import ShipmentPage from './components/ShipmentPage'
@@ -231,6 +231,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [systemMenuOpen, setSystemMenuOpen] = useState(false)
+  const systemMenuRef = useRef<HTMLDivElement | null>(null)
   const [adjustingStock, setAdjustingStock] = useState<Stock | null>(null)
   const [stockAdjustForm, setStockAdjustForm] = useState({
     newQty: 0,
@@ -245,6 +246,28 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   tabLabels.detail = '工单详情'
   const activeTabLabel = tabLabels[tab] || 'MES-lite'
   const activeSystemTab = readableSystemNavItems.some((item) => item.key === tab)
+
+  useEffect(() => {
+    if (!systemMenuOpen) return
+
+    const closeOnOutsidePointerDown = (event: PointerEvent) => {
+      const menu = systemMenuRef.current
+      if (!menu || menu.contains(event.target as Node)) return
+      setSystemMenuOpen(false)
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSystemMenuOpen(false)
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsidePointerDown, true)
+    document.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointerDown, true)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [systemMenuOpen])
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index)
@@ -627,7 +650,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 />
               ) : null}
             </div>
-            <div className="relative shrink-0">
+            <div ref={systemMenuRef} className="relative shrink-0">
               <button
                 onClick={() => setSystemMenuOpen((open) => !open)}
                 className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
