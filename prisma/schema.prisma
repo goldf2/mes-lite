@@ -15,6 +15,8 @@ model Product {
   sku         String   @unique
   name        String
   category    String
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id])
   unit        String   @default("件")
   description String?
   bom         BOM?
@@ -34,6 +36,8 @@ model Material {
   name        String
   spec        String?
   category    String   @default("RAW")
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id])
   unit        String
   stockUnit   String   @default("件")
   valuationUnit String @default("kg")
@@ -258,7 +262,22 @@ model StockIn {
   note        String?
 }
 
-// ==================== 供应商 ====================
+// ==================== 客户与供应商 ====================
+
+model Customer {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  contact     String?
+  phone       String?
+  address     String?
+  deletedAt   DateTime?
+  deletedBy   String?
+  products    Product[]
+  materials   Material[]
+  shipments   Shipment[]
+  createdAt   DateTime @default(now())
+}
 
 model Supplier {
   id          String   @id @default(cuid())
@@ -378,6 +397,8 @@ model Shipment {
   shipmentNo    String   @unique
   productId     String
   product       Product  @relation(fields: [productId], references: [id])
+  customerId    String?
+  customerRef   Customer? @relation(fields: [customerId], references: [id])
   qty           Int
   unitPrice     Float    @default(0)
   totalAmount   Float    @default(0)

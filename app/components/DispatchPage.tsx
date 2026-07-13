@@ -11,8 +11,14 @@ interface Order {
   orderNo: string
   status: string
   planQty: number
-  product: { id: string; name: string; sku: string }
-  targetMaterial?: { id: string; name: string; code: string } | null
+  product: { id: string; name: string; sku: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null }
+  targetMaterial?: { id: string; name: string; code: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null } | null
+}
+
+interface Customer {
+  id: string
+  code: string
+  name: string
 }
 
 interface ProcessStep {
@@ -34,7 +40,7 @@ interface Dispatch {
   status: string
   note?: string
   createdAt: string
-  order: { id: string; orderNo: string; product: { id: string; name: string; sku: string }; targetMaterial?: { id: string; name: string; code: string } | null }
+  order: { id: string; orderNo: string; product: { id: string; name: string; sku: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null }; targetMaterial?: { id: string; name: string; code: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null } | null }
   step: { id: string; stepNo: number; name: string; workstation?: string | null }
 }
 
@@ -87,8 +93,10 @@ export default function DispatchPage({
 }) {
   const [dispatches, setDispatches] = useState<Dispatch[]>([])
   const [orders, setOrders] = useState<Order[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [steps, setSteps] = useState<ProcessStep[]>([])
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
+  const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
 
@@ -105,13 +113,16 @@ export default function DispatchPage({
   useEffect(() => {
     fetchDispatches()
     fetchOrders()
-  }, [selectedStatuses])
+    fetchCustomers()
+  }, [selectedStatuses, selectedCustomerId])
 
   const fetchDispatches = async () => {
     setLoading(true)
     try {
       const query = getStatusQuery(selectedStatuses, statusOptions)
-      const url = query ? `/api/dispatches?${query}` : '/api/dispatches'
+      const params = new URLSearchParams(query)
+      if (selectedCustomerId) params.set('customerId', selectedCustomerId)
+      const url = params.toString() ? `/api/dispatches?${params.toString()}` : '/api/dispatches'
       const res = await fetch(url)
       const data = await res.json()
       setDispatches(data.data || [])
@@ -123,10 +134,24 @@ export default function DispatchPage({
 
   const fetchOrders = async () => {
     try {
-      const res = await fetch('/api/orders?status=PICKED')
+      const params = new URLSearchParams({ status: 'PICKED' })
+      if (selectedCustomerId) params.set('customerId', selectedCustomerId)
+      const res = await fetch(`/api/orders?${params.toString()}`)
       if (res.ok) {
         const data = await res.json()
         setOrders(data.data || [])
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
+
+  const fetchCustomers = async () => {
+    try {
+      const res = await fetch('/api/customers')
+      if (res.ok) {
+        const data = await res.json()
+        setCustomers(data.data || [])
       }
     } catch (err) {
       // ignore
@@ -222,6 +247,17 @@ export default function DispatchPage({
     onToolbarChange(
       <ResponsiveToolbarActions>
         <StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />
+        <select
+          value={selectedCustomerId}
+          onChange={(e) => setSelectedCustomerId(e.target.value)}
+          className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+        >
+          <option value="">全部客户</option>
+          <option value="__UNASSIGNED__">通用/未绑定</option>
+          {customers.map((customer) => (
+            <option key={customer.id} value={customer.id}>{customer.name}</option>
+          ))}
+        </select>
         {onCreateOrder && (
           <button
             onClick={onCreateOrder}
@@ -243,13 +279,24 @@ export default function DispatchPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedStatuses, onCreateOrder])
+  }, [onToolbarChange, selectedStatuses, selectedCustomerId, customers, onCreateOrder])
 
   return (
     <>
       <TopBarPortal>
         <ResponsiveToolbarActions>
           <StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />
+          <select
+            value={selectedCustomerId}
+            onChange={(e) => setSelectedCustomerId(e.target.value)}
+            className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+          >
+            <option value="">全部客户</option>
+            <option value="__UNASSIGNED__">通用/未绑定</option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>{customer.name}</option>
+            ))}
+          </select>
           {onCreateOrder && (
             <button
               onClick={onCreateOrder}
@@ -302,6 +349,9 @@ export default function DispatchPage({
                       <div className="font-medium">{item.order?.targetMaterial?.name || item.order?.product?.name}</div>
                       <div className="text-xs text-gray-500">
                         {item.order?.targetMaterial ? `物料 ${item.order.targetMaterial.code}` : item.order?.product?.sku}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        客户：{item.order?.targetMaterial?.customer?.name || item.order?.product?.customer?.name || '通用/未绑定'}
                       </div>
                     </td>
                     <td className="px-4 py-3">

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { resolveMaterialUnits, toValuationQty } from '@/lib/units'
+import { parseCsvFilter } from '@/lib/status-filter'
 
 const STOCK_BALANCE_FIELDS = [
   'qty',
@@ -28,20 +29,52 @@ export async function GET(req: NextRequest) {
     const type = searchParams.get('type') // 'material' | 'product'
     const keyword = searchParams.get('keyword') // 搜索关键词
     const category = searchParams.get('category')
+    const categories = parseCsvFilter(searchParams.get('categories'))
+    const customerId = searchParams.get('customerId')
     const includeInvalid = searchParams.get('includeInvalid') === '1'
 
     const where: any = {}
+    const materialWhere: any = {}
+    const productWhere: any = {}
     if (type === 'material') where.materialId = { not: null }
     if (type === 'product') where.productId = { not: null }
-    if (category) {
-      where.material = { is: { category } }
+    if (categories.length === 1) {
+      materialWhere.category = categories[0]
+    } else if (categories.length > 1) {
+      materialWhere.category = { in: categories }
+    } else if (category) {
+      materialWhere.category = category
+    }
+    if (customerId === '__UNASSIGNED__') {
+      materialWhere.customerId = null
+      productWhere.customerId = null
+    } else if (customerId) {
+      materialWhere.customerId = customerId
+      productWhere.customerId = customerId
+    }
+
+    const hasMaterialFilter = Object.keys(materialWhere).length > 0
+    const hasProductFilter = Object.keys(productWhere).length > 0
+    if (type === 'material' && hasMaterialFilter) {
+      where.material = { is: materialWhere }
+    } else if (type === 'product' && hasProductFilter) {
+      where.product = { is: productWhere }
+    } else if (hasMaterialFilter && hasProductFilter && !category && categories.length === 0) {
+      where.OR = [
+        { material: { is: materialWhere } },
+        { product: { is: productWhere } },
+      ]
+    } else if (hasMaterialFilter) {
+      where.material = { is: materialWhere }
+    } else if (hasProductFilter) {
+      where.product = { is: productWhere }
     }
 
     const stocks = await prisma.stock.findMany({
       where,
       include: {
-        material: { select: { id: true, code: true, name: true, spec: true, category: true, unit: true, stockUnit: true, valuationUnit: true, conversionRate: true, deletedAt: true } },
-        product: { select: { id: true, sku: true, name: true, category: true, unit: true } },
+        material: { select: { id: true, code: true, name: true, spec: true, category: true, customerId: true, customer: { select: { id: true, code: true, name: true } }, unit: true, stockUnit: true, valuationUnit: true, conversionRate: true, deletedAt: true } },
+        product: { select: { id: true, sku: true, name: true, category: true, customerId: true, customer: { select: { id: true, code: true, name: true } }, unit: true } },
       },
       orderBy: { id: 'asc' },
     })
@@ -65,7 +98,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST: 盘点调整（需要备注原因）
+// POST: 存货调整（需要备注原因）
 import { z } from 'zod'
 
 const adjustSchema = z.object({
@@ -141,7 +174,7 @@ export async function POST(req: NextRequest) {
           beforeCostAmount: oldTotalCost,
           afterCostAmount: targetTotalCost,
           refType: 'ADJUST',
-          note: `盘点调整: ${reason}`,
+          note: `存货调整: ${reason}`,
           createdBy: adjustedBy,
         },
       })
@@ -156,12 +189,12 @@ export async function POST(req: NextRequest) {
       afterData: { newQty, newValuationQty: targetValuationQty, newTotalCost: targetTotalCost, reason, adjustedBy },
     })
 
-    return NextResponse.json({ success: true, message: '库存调整完成' })
+    return NextResponse.json({ success: true, message: '存货调整完成' })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
     }
     console.error('Adjust stock error:', error)
-    return NextResponse.json({ error: '库存调整失败' }, { status: 500 })
+    return NextResponse.json({ error: '存货调整失败' }, { status: 500 })
   }
 }

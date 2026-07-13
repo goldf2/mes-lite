@@ -11,21 +11,31 @@ const productSchema = z.object({
   sku: z.string().min(1, '产品编码必填'),
   name: z.string().min(1, '产品名称必填'),
   category: z.string().min(1, '产品类别必填'),
+  customerId: z.string().optional(),
   unit: z.string().min(1, '单位必填'),
   description: z.string().optional(),
 })
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('materials', 'read')
     if (denied) return denied
 
+    const { searchParams } = new URL(req.url)
+    const customerId = searchParams.get('customerId')
+    const where: any = {}
+    if (customerId === '__UNASSIGNED__') where.customerId = null
+    else if (customerId) where.customerId = customerId
+
     const products = await prisma.product.findMany({
+      where,
       select: {
         id: true,
         sku: true,
         name: true,
         category: true,
+        customerId: true,
+        customer: { select: { id: true, code: true, name: true } },
         unit: true,
         description: true,
         createdAt: true,
@@ -57,6 +67,7 @@ export async function POST(req: NextRequest) {
         sku: data.sku,
         name: data.name,
         category: data.category,
+        customerId: data.customerId || null,
         unit: data.unit,
         description: data.description || null,
       },
@@ -104,6 +115,7 @@ export async function PUT(req: NextRequest) {
         sku: data.sku,
         name: data.name,
         category: data.category,
+        customerId: data.customerId || null,
         unit: data.unit,
         description: data.description || null,
       },

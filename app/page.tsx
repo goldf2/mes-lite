@@ -12,7 +12,7 @@ import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
 import OperatorPage from './components/OperatorPage'
 import SystemPage from './components/SystemPage'
 import PermissionPage from './components/PermissionPage'
-import StatusCheckboxFilter, { getStatusQuery } from './components/StatusCheckboxFilter'
+import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
 
 // ==================== 类型定义 ====================
@@ -35,6 +35,12 @@ interface MaterialOption {
   valuationUnit: string
 }
 
+interface Customer {
+  id: string
+  code: string
+  name: string
+}
+
 interface Stock {
   id: string
   qty: number
@@ -46,8 +52,8 @@ interface Stock {
   totalCost: number
   valuationUnitCost: number
   stockUnitCost: number
-  material?: { id: string; code: string; name: string; spec: string; category?: string; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number; deletedAt?: string | null }
-  product?: { id: string; sku: string; name: string; category: string; unit: string }
+  material?: { id: string; code: string; name: string; spec: string; category?: string; customerId?: string | null; customer?: Customer | null; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number; deletedAt?: string | null }
+  product?: { id: string; sku: string; name: string; category: string; customerId?: string | null; customer?: Customer | null; unit: string }
 }
 
 const materialCategoryLabels: Record<string, string> = {
@@ -69,6 +75,8 @@ const materialCategoryOptions = [
   ['PACKAGING', '包装物'],
   ['OTHER', '其他'],
 ] as const
+
+const materialCategoryFilterOptions = materialCategoryOptions.map(([value, label]) => ({ value, label }))
 
 interface Order {
   id: string
@@ -179,26 +187,28 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const canUpdate = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canUpdate)
   const baseNavItems: { key: TabType; label: string; resource: string }[] = [
     { key: 'dashboard', label: '仪表盘', resource: 'dashboard' },
+    { key: 'materials', label: '物料管理', resource: 'materials' },
     { key: 'materialIn', label: '来料管理', resource: 'materialIn' },
+    { key: 'orders', label: '工单管理', resource: 'orders' },
     { key: 'dispatch', label: '派工管理', resource: 'dispatch' },
     { key: 'shipment', label: '发货管理', resource: 'shipment' },
     { key: 'return', label: '退货管理', resource: 'return' },
     { key: 'stocks', label: '库存管理', resource: 'stocks' },
     { key: 'stats', label: '统计分析', resource: 'stats' },
-    { key: 'materials', label: '物料管理', resource: 'materials' },
     { key: 'operators', label: '人员管理', resource: 'operators' },
     { key: 'system', label: '系统管理', resource: 'system' },
     { key: 'permissionUsers', label: '人员权限', resource: 'permissionUsers' },
     { key: 'permissionGroups', label: '组权限', resource: 'permissionGroups' },
   ]
-  const hiddenResources = new Set(['orders'])
-  const systemResources = new Set(['materials', 'operators', 'system', 'permissionUsers', 'permissionGroups', 'permissions'])
+  const hiddenResources = new Set<string>()
+  const systemResources = new Set(['operators', 'system', 'permissionUsers', 'permissionGroups', 'permissions'])
   const readableBusinessNavItems = baseNavItems.filter((item) => canRead(item.resource) && !systemResources.has(item.resource) && !hiddenResources.has(item.resource))
   const readableSystemNavItems = baseNavItems.filter((item) => canRead(item.resource) && systemResources.has(item.resource) && !hiddenResources.has(item.resource))
   const [tab, setTab] = useState<TabType>('dashboard')
   const [orders, setOrders] = useState<Order[]>([])
   const [stocks, setStocks] = useState<Stock[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [materialOptions, setMaterialOptions] = useState<MaterialOption[]>([])
   const [dashboard, setDashboard] = useState<any>(null)
   const [orderDetail, setOrderDetail] = useState<any>(null)
@@ -208,7 +218,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [selectedMaterialId, setSelectedMaterialId] = useState('')
   const [selectedOrderStatuses, setSelectedOrderStatuses] = useState(orderStatusOptions.map((option) => option.value))
   const [stockFilter, setStockFilter] = useState<'all' | 'material' | 'product'>('all')
-  const [stockCategoryFilter, setStockCategoryFilter] = useState('')
+  const [stockCustomerFilter, setStockCustomerFilter] = useState('')
+  const [selectedStockCategories, setSelectedStockCategories] = useState<string[]>(materialCategoryFilterOptions.map((option) => option.value))
   const [showInvalidStocks, setShowInvalidStocks] = useState(false)
   const [showStockHelp, setShowStockHelp] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -269,12 +280,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   useEffect(() => {
     if (tab === 'dashboard') fetchDashboard()
     if (tab === 'orders') fetchOrders()
-    if (tab === 'stocks') fetchStocks()
+    if (tab === 'stocks') {
+      fetchStocks()
+      fetchCustomers()
+    }
     if (tab === 'create') {
       fetchProducts()
       fetchMaterialOptions()
     }
-  }, [tab, selectedOrderStatuses, stockCategoryFilter, showInvalidStocks])
+  }, [tab, selectedOrderStatuses, selectedStockCategories, stockCustomerFilter, showInvalidStocks])
 
   const fetchOrders = async () => {
     const query = getStatusQuery(selectedOrderStatuses, orderStatusOptions)
@@ -286,11 +300,35 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
   const fetchStocks = async () => {
     const params = new URLSearchParams()
-    if (stockCategoryFilter) params.set('category', stockCategoryFilter)
+    if (stockCustomerFilter) params.set('customerId', stockCustomerFilter)
+    const categoryQuery = getMultiSelectQuery('categories', selectedStockCategories, materialCategoryFilterOptions)
+    if (categoryQuery) {
+      const categoryParams = new URLSearchParams(categoryQuery)
+      categoryParams.forEach((value, key) => params.set(key, value))
+    }
     if (showInvalidStocks) params.set('includeInvalid', '1')
     const res = await fetch(`/api/stocks${params.toString() ? `?${params.toString()}` : ''}`)
     const data = await res.json()
     setStocks(data.data || [])
+  }
+
+  const fetchCustomers = async () => {
+    try {
+      const res = await fetch('/api/customers')
+      if (res.ok) {
+        const data = await res.json()
+        setCustomers(data.data || [])
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
+
+  const handleStockCategoryChange = (next: string[]) => {
+    setSelectedStockCategories(next)
+    if (next.length !== materialCategoryFilterOptions.length) {
+      setStockFilter('material')
+    }
   }
 
   const openStockAdjust = (stock: Stock) => {
@@ -306,7 +344,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const submitStockAdjust = async () => {
     if (!adjustingStock) return
     if (!stockAdjustForm.reason.trim()) {
-      showMessage('请输入库存调整原因')
+      showMessage('请输入存货调整原因')
       return
     }
     setLoading(true)
@@ -325,15 +363,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       })
       const data = await res.json()
       if (res.ok) {
-        showMessage(data.message || '库存调整完成')
+        showMessage(data.message || '存货调整完成')
         setAdjustingStock(null)
         await fetchStocks()
         await fetchDashboard()
       } else {
-        showMessage(data.error || '库存调整失败')
+        showMessage(data.error || '存货调整失败')
       }
     } catch (err) {
-      showMessage('库存调整失败')
+      showMessage('存货调整失败')
     }
     setLoading(false)
   }
@@ -389,6 +427,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         setSelectedMaterialId('')
         await fetchOrders()
         await fetchStocks()
+        setTab('orders')
       } else {
         showMessage(data.error || '创建失败')
       }
@@ -495,10 +534,29 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     value={selectedOrderStatuses}
                     onChange={setSelectedOrderStatuses}
                   />
+                  {canCreate('orders') && (
+                    <button
+                      onClick={() => setTab('create')}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+                    >
+                      新增工单
+                    </button>
+                  )}
                 </ResponsiveToolbarActions>
               ) : tab === 'stocks' ? (
                 <ResponsiveToolbarActions>
-                  {([['all', '全部'], ['material', '物料'], ['product', '成品']] as const).map(([key, label]) => (
+                  <select
+                    value={stockCustomerFilter}
+                    onChange={(e) => setStockCustomerFilter(e.target.value)}
+                    className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+                  >
+                    <option value="">全部客户</option>
+                    <option value="__UNASSIGNED__">通用/未绑定</option>
+                    {customers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>{customer.name}</option>
+                    ))}
+                  </select>
+                  {([['all', '全部库存'], ['material', '物料库存'], ['product', '成品库存']] as const).map(([key, label]) => (
                     <button
                       key={key}
                       onClick={() => setStockFilter(key)}
@@ -509,19 +567,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                       {label}
                     </button>
                   ))}
-                  <select
-                    value={stockCategoryFilter}
-                    onChange={(e) => {
-                      setStockCategoryFilter(e.target.value)
-                      if (e.target.value) setStockFilter('material')
-                    }}
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                  >
-                    <option value="">全部物料分类</option>
-                    {materialCategoryOptions.map(([key, label]) => (
-                      <option key={key} value={key}>{label}</option>
-                    ))}
-                  </select>
+                  <StatusCheckboxFilter
+                    options={materialCategoryFilterOptions}
+                    value={selectedStockCategories}
+                    onChange={handleStockCategoryChange}
+                    allLabel="全部物料分类"
+                  />
                   <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">
                     <input
                       type="checkbox"
@@ -534,7 +585,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     onClick={() => setShowStockHelp(true)}
                     className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg text-sm hover:bg-blue-50"
                   >
-                    设定期初库存
+                    存货调整
                   </button>
                 </ResponsiveToolbarActions>
               ) : null}
@@ -634,7 +685,17 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {tab === 'orders' && (
           <div className="bg-white rounded-lg shadow p-6">
             {orders.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">暂无工单</div>
+              <div className="text-center py-12 text-gray-500">
+                <p className="mb-4">暂无工单</p>
+                {canCreate('orders') && (
+                  <button
+                    onClick={() => setTab('create')}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+                  >
+                    新增工单
+                  </button>
+                )}
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -845,12 +906,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 .filter((s) => stockFilter === 'all' ? true : stockFilter === 'material' ? !!s.material : !!s.product)
                 .map((stock) => (
                 <div key={stock.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <div className="font-medium text-gray-800">{stock.material?.name || stock.product?.name}</div>
-                      <div className="text-sm text-gray-500">{stock.material?.code || stock.product?.sku}</div>
-                      {stock.material?.spec && <div className="text-xs text-gray-400">{stock.material.spec}</div>}
-                    </div>
+	                  <div className="flex items-start justify-between mb-3">
+	                    <div>
+	                      <div className="font-medium text-gray-800">{stock.material?.name || stock.product?.name}</div>
+	                      <div className="text-sm text-gray-500">{stock.material?.code || stock.product?.sku}</div>
+	                      <div className="text-xs text-gray-400">
+	                        客户：{stock.material?.customer?.name || stock.product?.customer?.name || '通用/未绑定'}
+	                      </div>
+	                      {stock.material?.spec && <div className="text-xs text-gray-400">{stock.material.spec}</div>}
+	                    </div>
                     <div className="flex flex-col items-end gap-1">
                       <div className={`px-2 py-1 rounded text-xs font-medium ${stock.material ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
                         {stock.material ? materialCategoryLabels[stock.material.category || 'RAW'] || '物料' : '成品'}
@@ -895,7 +959,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                       onClick={() => openStockAdjust(stock)}
                       className="mt-3 w-full px-3 py-2 border border-blue-300 text-blue-700 rounded-lg text-sm hover:bg-blue-50"
                     >
-                      库存调整
+                      存货调整
                     </button>
                   )}
                 </div>
@@ -909,7 +973,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg mx-4">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold">库存调整</h3>
+                  <h3 className="text-lg font-semibold">存货调整</h3>
                   <p className="mt-1 text-sm text-gray-500">
                     {adjustingStock.material?.name || adjustingStock.product?.name} · {adjustingStock.material?.code || adjustingStock.product?.sku}
                   </p>
@@ -920,7 +984,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               </div>
               <div className="space-y-4">
                 <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-                  用于盘点、损耗、早期数据尾差修正。来料单整单冲销仍使用“红冲”。
+                  用于期初录入、盘点差异、损耗和早期数据尾差修正。来料单整单冲销仍使用“红冲”。
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -967,7 +1031,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     rows={3}
                     value={stockAdjustForm.reason}
                     onChange={(e) => setStockAdjustForm({ ...stockAdjustForm, reason: e.target.value })}
-                    placeholder="例如：早期数据成本尾差调整、盘点损耗、称重误差"
+                    placeholder="例如：期初录入、早期数据成本尾差调整、盘点损耗、称重误差"
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -995,17 +1059,17 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg mx-4">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">设定期初库存</h3>
+                <h3 className="text-lg font-semibold">存货调整</h3>
                 <button onClick={() => setShowStockHelp(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">
                   ×
                 </button>
               </div>
               <div className="space-y-3 text-sm text-gray-600">
                 <div className="rounded-lg bg-blue-50 p-3 text-blue-900">
-                  先建立物料，系统会自动生成 0 库存记录；再回到库存页，在对应库存卡片中点击“库存调整”，填写期初数量、核算重量、库存金额和原因。
+                  先建立物料，系统会自动生成 0 库存记录；再回到库存页，在对应库存卡片中点击“存货调整”，填写调整后数量、核算重量、库存金额和原因。
                 </div>
-                <p>库存调整用于盘点差异、损耗、早期数据尾差和初始化库存。所有调整都会写入操作日志，不做物理删除。</p>
-                <p>已经有来料单、领料、红冲等业务单据时，优先使用对应业务单据；库存调整只处理非单据型差异。</p>
+                <p>存货调整统一覆盖期初录入、盘点差异、损耗、早期数据尾差和初始化库存。所有调整都会写入操作日志，不做物理删除。</p>
+                <p>已经有来料单、领料、红冲等业务单据时，优先使用对应业务单据；存货调整只处理非单据型差异。</p>
               </div>
               <div className="mt-5 flex justify-end">
                 <button onClick={() => setShowStockHelp(false)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
@@ -1026,7 +1090,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {tab === 'dispatch' && (
           <DispatchPage
             onMessage={showMessage}
-            onCreateOrder={canCreate('orders') ? () => setTab('create') : undefined}
           />
         )}
 

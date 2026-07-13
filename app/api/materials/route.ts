@@ -11,6 +11,7 @@ const materialSchema = z.object({
   name: z.string().min(1, '物料名称不能为空'),
   spec: z.string().optional(),
   category: z.enum(['RAW', 'FINISHED', 'AUXILIARY', 'SCRAP', 'DEFECTIVE', 'PACKAGING', 'OTHER']).optional(),
+  customerId: z.string().optional(),
   unit: z.string().min(1, '单位不能为空'),
   stockUnit: z.string().optional(),
   valuationUnit: z.string().optional(),
@@ -28,6 +29,7 @@ export async function GET(req: NextRequest) {
     const keyword = searchParams.get('keyword')
     const category = searchParams.get('category')
     const categories = parseCsvFilter(searchParams.get('categories'))
+    const customerId = searchParams.get('customerId')
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '20')
 
@@ -35,6 +37,8 @@ export async function GET(req: NextRequest) {
     if (categories.length === 1) where.category = categories[0]
     else if (categories.length > 1) where.category = { in: categories }
     else if (category) where.category = category
+    if (customerId === '__UNASSIGNED__') where.customerId = null
+    else if (customerId) where.customerId = customerId
     if (keyword) {
       where.OR = [
         { name: { contains: keyword } },
@@ -59,6 +63,7 @@ export async function GET(req: NextRequest) {
               stockUnitCost: true,
             },
           },
+          customer: { select: { id: true, code: true, name: true } },
         },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -145,6 +150,7 @@ export async function POST(req: NextRequest) {
           name: body.name,
           spec: body.spec || '',
           category: body.category || 'RAW',
+          customerId: body.customerId || null,
           unit: body.stockUnit || body.unit,
           stockUnit: body.stockUnit || body.unit,
           valuationUnit: body.valuationUnit || body.unit,
@@ -189,6 +195,7 @@ export async function PUT(req: NextRequest) {
         name: z.string().min(1),
         spec: z.string().optional(),
         category: z.enum(['RAW', 'FINISHED', 'AUXILIARY', 'SCRAP', 'DEFECTIVE', 'PACKAGING', 'OTHER']).optional(),
+        customerId: z.string().optional(),
         unit: z.string().min(1),
         stockUnit: z.string().optional(),
         valuationUnit: z.string().optional(),
@@ -221,6 +228,7 @@ export async function PUT(req: NextRequest) {
         name: body.name,
         spec: body.spec || '',
         category: body.category || 'RAW',
+        customerId: body.customerId || null,
         unit: body.stockUnit || body.unit,
         stockUnit: body.stockUnit || body.unit,
         valuationUnit: body.valuationUnit || body.unit,

@@ -12,6 +12,8 @@ interface Material {
   name: string
   spec: string
   category: string
+  customerId?: string | null
+  customer?: { id: string; code: string; name: string } | null
   unit: string
   stockUnit: string
   valuationUnit: string
@@ -31,6 +33,12 @@ interface Material {
   }
   primaryImage?: { id: string; url: string; note?: string; mimeType: string; isCover: boolean } | null
   createdAt: string
+}
+
+interface Customer {
+  id: string
+  code: string
+  name: string
 }
 
 const materialCategoryLabels: Record<string, string> = {
@@ -63,7 +71,9 @@ export default function MaterialPage({
   onToolbarChange?: (actions: ReactNode | null) => void
 }) {
   const [materials, setMaterials] = useState<Material[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [keyword, setKeyword] = useState('')
+  const [customerFilter, setCustomerFilter] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<string[]>(materialCategoryFilterOptions.map((option) => option.value))
   const [showModal, setShowModal] = useState(false)
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null)
@@ -73,9 +83,11 @@ export default function MaterialPage({
     name: '',
     spec: '',
     category: 'RAW',
+    customerId: '',
     unit: '',
     stockUnit: '',
-    valuationUnit: 'kg',
+    useDualUnit: false,
+    valuationUnit: '',
     conversionRate: 1,
     conversionNote: '',
     costingMethod: 'WEIGHTED_AVERAGE',
@@ -84,11 +96,16 @@ export default function MaterialPage({
 
   useEffect(() => {
     fetchMaterials()
-  }, [keyword, selectedCategories])
+  }, [keyword, selectedCategories, customerFilter])
+
+  useEffect(() => {
+    fetchCustomers()
+  }, [])
 
   const fetchMaterials = async () => {
     const params = new URLSearchParams()
     if (keyword) params.set('keyword', keyword)
+    if (customerFilter) params.set('customerId', customerFilter)
     const categoryQuery = getMultiSelectQuery('categories', selectedCategories, materialCategoryFilterOptions)
     if (categoryQuery) {
       const categoryParams = new URLSearchParams(categoryQuery)
@@ -102,18 +119,43 @@ export default function MaterialPage({
     setDetailMaterial((current) => current ? nextMaterials.find((item) => item.id === current.id) || current : null)
   }
 
+  const fetchCustomers = async () => {
+    try {
+      const res = await fetch('/api/customers')
+      if (res.ok) {
+        const data = await res.json()
+        setCustomers(data.data || [])
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
+
   const handleSubmit = async () => {
-    if (!form.code || !form.name || !form.stockUnit || !form.valuationUnit || form.conversionRate <= 0) {
+    if (!form.code || !form.name || !form.stockUnit || (form.useDualUnit && (!form.valuationUnit || form.conversionRate <= 0))) {
       onMessage('请填写完整信息')
       return
     }
     setLoading(true)
     try {
+      const payload = {
+        code: form.code,
+        name: form.name,
+        spec: form.spec,
+        category: form.category,
+        customerId: form.customerId || undefined,
+        unit: form.stockUnit,
+        stockUnit: form.stockUnit,
+        valuationUnit: form.useDualUnit ? form.valuationUnit : form.stockUnit,
+        conversionRate: form.useDualUnit ? form.conversionRate : 1,
+        conversionNote: form.conversionNote || undefined,
+        costingMethod: form.costingMethod,
+      }
       if (editingMaterial) {
         const res = await fetch('/api/materials', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...form, id: editingMaterial.id }),
+          body: JSON.stringify({ ...payload, id: editingMaterial.id }),
         })
         const data = await res.json()
         if (res.ok) {
@@ -125,7 +167,7 @@ export default function MaterialPage({
         const res = await fetch('/api/materials', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(form),
+          body: JSON.stringify(payload),
         })
         const data = await res.json()
         if (res.ok) {
@@ -135,7 +177,7 @@ export default function MaterialPage({
         }
       }
       setShowModal(false)
-      setForm({ code: '', name: '', spec: '', category: 'RAW', unit: '', stockUnit: '', valuationUnit: 'kg', conversionRate: 1, conversionNote: '', costingMethod: 'WEIGHTED_AVERAGE' })
+      setForm({ code: '', name: '', spec: '', category: 'RAW', customerId: '', unit: '', stockUnit: '', useDualUnit: false, valuationUnit: '', conversionRate: 1, conversionNote: '', costingMethod: 'WEIGHTED_AVERAGE' })
       setEditingMaterial(null)
       fetchMaterials()
     } catch (err) {
@@ -161,15 +203,20 @@ export default function MaterialPage({
   }
 
   const handleEdit = (material: Material) => {
+    const stockUnit = material.stockUnit || material.unit
+    const valuationUnit = material.valuationUnit || material.unit
+    const useDualUnit = valuationUnit !== stockUnit || Number(material.conversionRate || 1) !== 1
     setEditingMaterial(material)
     setForm({
       code: material.code,
       name: material.name,
       spec: material.spec,
       category: material.category || 'RAW',
-      unit: material.stockUnit || material.unit,
-      stockUnit: material.stockUnit || material.unit,
-      valuationUnit: material.valuationUnit || material.unit,
+      customerId: material.customerId || '',
+      unit: stockUnit,
+      stockUnit,
+      useDualUnit,
+      valuationUnit: useDualUnit ? valuationUnit : '',
       conversionRate: material.conversionRate || 1,
       conversionNote: material.conversionNote || '',
       costingMethod: material.costingMethod || 'WEIGHTED_AVERAGE',
@@ -179,7 +226,7 @@ export default function MaterialPage({
 
   const handleAdd = () => {
     setEditingMaterial(null)
-    setForm({ code: '', name: '', spec: '', category: 'RAW', unit: '', stockUnit: '', valuationUnit: 'kg', conversionRate: 1, conversionNote: '', costingMethod: 'WEIGHTED_AVERAGE' })
+    setForm({ code: '', name: '', spec: '', category: 'RAW', customerId: '', unit: '', stockUnit: '', useDualUnit: false, valuationUnit: '', conversionRate: 1, conversionNote: '', costingMethod: 'WEIGHTED_AVERAGE' })
     setShowModal(true)
   }
 
@@ -224,6 +271,17 @@ export default function MaterialPage({
           placeholder="搜索物料名称或编码"
           className="w-56 px-4 py-2 border border-gray-200 rounded-lg text-sm"
         />
+        <select
+          value={customerFilter}
+          onChange={(e) => setCustomerFilter(e.target.value)}
+          className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+        >
+          <option value="">全部客户</option>
+          <option value="__UNASSIGNED__">通用/未绑定</option>
+          {customers.map((customer) => (
+            <option key={customer.id} value={customer.id}>{customer.name}</option>
+          ))}
+        </select>
         <button
           onClick={handleAdd}
           className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
@@ -234,7 +292,7 @@ export default function MaterialPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedCategories, keyword])
+  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers])
 
   return (
     <>
@@ -253,6 +311,17 @@ export default function MaterialPage({
             placeholder="搜索物料名称或编码"
             className="w-56 px-4 py-2 border border-gray-200 rounded-lg text-sm"
           />
+          <select
+            value={customerFilter}
+            onChange={(e) => setCustomerFilter(e.target.value)}
+            className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+          >
+            <option value="">全部客户</option>
+            <option value="__UNASSIGNED__">通用/未绑定</option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>{customer.name}</option>
+            ))}
+          </select>
           <button
             onClick={handleAdd}
             className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
@@ -270,6 +339,7 @@ export default function MaterialPage({
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料编码</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料名称</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">分类</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">归属客户</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">规格</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存单位</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">核算单位</th>
@@ -298,6 +368,7 @@ export default function MaterialPage({
                 <td className="px-4 py-3 font-mono text-sm text-blue-600">{material.code}</td>
                 <td className="px-4 py-3 font-medium text-sm">{material.name}</td>
                 <td className="px-4 py-3 text-sm">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</td>
+                <td className="px-4 py-3 text-sm">{material.customer ? `${material.customer.name} (${material.customer.code})` : '通用/未绑定'}</td>
                 <td className="px-4 py-3 text-sm text-gray-500">{material.spec || '-'}</td>
                 <td className="px-4 py-3 text-sm">{material.stockUnit || material.unit}</td>
                 <td className="px-4 py-3 text-sm">
@@ -390,51 +461,82 @@ export default function MaterialPage({
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">库存/领料单位 *</label>
-                  <input
-                    type="text"
-                    value={form.stockUnit}
-                    onChange={(e) => setForm({ ...form, stockUnit: e.target.value, unit: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                    placeholder="如：根、米、件"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">计价/核算单位 *</label>
-                  <input
-                    type="text"
-                    value={form.valuationUnit}
-                    onChange={(e) => setForm({ ...form, valuationUnit: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                    placeholder="如：kg"
-                  />
-                </div>
-              </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">换算系数 *</label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  min={0}
-                  value={form.conversionRate || ''}
-                  onChange={(e) => setForm({ ...form, conversionRate: Number(e.target.value) })}
+                <label className="block text-sm font-medium text-gray-700 mb-2">归属客户</label>
+                <select
+                  value={form.customerId}
+                  onChange={(e) => setForm({ ...form, customerId: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                  placeholder="例如：1 根 = 2.35 kg，则填 2.35"
-                />
-                <p className="mt-1 text-xs text-gray-500">含义：1 {form.stockUnit || '库存单位'} = {form.conversionRate || 0} {form.valuationUnit || '核算单位'}</p>
+                >
+                  <option value="">通用/未绑定客户</option>
+                  {customers.map((customer) => (
+                    <option key={customer.id} value={customer.id}>{customer.name} ({customer.code})</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">客户筛选只匹配直接绑定的客户专用物料，不展开 BOM 关联辅料。</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">换算说明</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">库存/领料单位 *</label>
                 <input
                   type="text"
-                  value={form.conversionNote}
-                  onChange={(e) => setForm({ ...form, conversionNote: e.target.value })}
+                  value={form.stockUnit}
+                  onChange={(e) => setForm({ ...form, stockUnit: e.target.value, unit: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                  placeholder="如：按理论重量，实际称重可在来料单修正"
+                  placeholder="如：根、米、件、kg"
                 />
               </div>
+              <label className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={form.useDualUnit}
+                  onChange={(e) => setForm({
+                    ...form,
+                    useDualUnit: e.target.checked,
+                    valuationUnit: e.target.checked ? form.valuationUnit : '',
+                    conversionRate: e.target.checked ? form.conversionRate : 1,
+                    conversionNote: e.target.checked ? form.conversionNote : '',
+                  })}
+                  className="h-4 w-4"
+                />
+                启用双单位制
+              </label>
+              {form.useDualUnit && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">计价/核算单位 *</label>
+                    <input
+                      type="text"
+                      value={form.valuationUnit}
+                      onChange={(e) => setForm({ ...form, valuationUnit: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                      placeholder="如：kg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">换算系数 *</label>
+                    <input
+                      type="number"
+                      step="0.0001"
+                      min={0}
+                      value={form.conversionRate || ''}
+                      onChange={(e) => setForm({ ...form, conversionRate: Number(e.target.value) })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                      placeholder="例如：1 根 = 2.35 kg，则填 2.35"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">含义：1 {form.stockUnit || '库存单位'} = {form.conversionRate || 0} {form.valuationUnit || '核算单位'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">换算说明</label>
+                    <input
+                      type="text"
+                      value={form.conversionNote}
+                      onChange={(e) => setForm({ ...form, conversionNote: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                      placeholder="如：按理论重量，实际称重可在来料单修正"
+                    />
+                  </div>
+                </>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">成本核算方法</label>
                 <select
@@ -506,6 +608,7 @@ export default function MaterialPage({
                     <h2 className="mt-2 text-2xl font-semibold text-gray-900">{detailMaterial.name}</h2>
                     <p className="mt-2 text-sm text-gray-600">规格：{detailMaterial.spec || '-'}</p>
                     <p className="mt-1 text-sm text-gray-600">分类：{materialCategoryLabels[detailMaterial.category || 'RAW'] || '其他'}</p>
+                    <p className="mt-1 text-sm text-gray-600">归属客户：{detailMaterial.customer ? `${detailMaterial.customer.name} (${detailMaterial.customer.code})` : '通用/未绑定'}</p>
                   </div>
 
                   <dl className="grid grid-cols-3 border-b border-gray-200 py-5">

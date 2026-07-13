@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
     const statuses = parseStatusFilter(searchParams)
     const workerName = searchParams.get('workerName')
     const orderId = searchParams.get('orderId')
+    const customerId = searchParams.get('customerId')
     const page = Number(searchParams.get('page') ?? '1')
     const pageSize = Number(searchParams.get('pageSize') ?? '20')
 
@@ -31,6 +32,25 @@ export async function GET(req: NextRequest) {
     applyStatusFilter(where, statuses)
     if (workerName) where.workerName = { contains: workerName }
     if (orderId) where.orderId = orderId
+    if (customerId === '__UNASSIGNED__') {
+      where.order = {
+        is: {
+          OR: [
+            { product: { is: { customerId: null } } },
+            { targetMaterial: { is: { customerId: null } } },
+          ],
+        },
+      }
+    } else if (customerId) {
+      where.order = {
+        is: {
+          OR: [
+            { product: { is: { customerId } } },
+            { targetMaterial: { is: { customerId } } },
+          ],
+        },
+      }
+    }
 
     const [dispatches, total] = await Promise.all([
       prisma.dispatch.findMany({
@@ -38,8 +58,8 @@ export async function GET(req: NextRequest) {
         include: {
           order: {
             include: {
-              product: { select: { id: true, name: true, sku: true } },
-              targetMaterial: { select: { id: true, name: true, code: true, category: true, unit: true, stockUnit: true } },
+              product: { select: { id: true, name: true, sku: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
+              targetMaterial: { select: { id: true, name: true, code: true, category: true, customerId: true, customer: { select: { id: true, code: true, name: true } }, unit: true, stockUnit: true } },
             },
           },
           step: true,

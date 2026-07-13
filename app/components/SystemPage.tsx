@@ -12,6 +12,16 @@ interface Supplier {
   createdAt: string
 }
 
+interface Customer {
+  id: string
+  code: string
+  name: string
+  contact?: string | null
+  phone?: string | null
+  address?: string | null
+  createdAt: string
+}
+
 interface AuditLog {
   id: string
   operatorName?: string | null
@@ -27,7 +37,7 @@ interface DeletedRecord {
   id: string
   label: string
   type: string
-  model: 'material' | 'supplier' | 'materialIn' | 'order' | 'dispatch' | 'shipment' | 'return'
+  model: 'material' | 'supplier' | 'customer' | 'materialIn' | 'order' | 'dispatch' | 'shipment' | 'return'
   deletedAt?: string | null
 }
 
@@ -36,6 +46,8 @@ interface Product {
   sku: string
   name: string
   category: string
+  customerId?: string | null
+  customer?: { id: string; code: string; name: string } | null
   unit: string
   description?: string | null
   createdAt?: string
@@ -65,7 +77,7 @@ interface ProcessRoute {
   }>
 }
 
-type SystemTab = 'suppliers' | 'products' | 'process' | 'recycle' | 'audit'
+type SystemTab = 'suppliers' | 'customers' | 'products' | 'process' | 'recycle' | 'audit'
 
 export default function SystemPage({ onMessage }: { onMessage: (msg: string) => void }) {
   const [tab, setTab] = useState<SystemTab>('suppliers')
@@ -73,14 +85,15 @@ export default function SystemPage({ onMessage }: { onMessage: (msg: string) => 
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold">系统管理</h2>
-            <p className="text-sm text-gray-500 mt-1">维护供应商、产品、工艺等基础数据。</p>
+            <p className="text-sm text-gray-500 mt-1">维护客户、供应商、产品、工艺等基础数据。</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             {([
               ['suppliers', '供应商'],
+              ['customers', '客户'],
               ['products', '产品资料'],
               ['process', 'BOM/工艺'],
               ['recycle', '归档记录'],
@@ -101,6 +114,7 @@ export default function SystemPage({ onMessage }: { onMessage: (msg: string) => 
       </div>
 
       {tab === 'suppliers' && <SupplierManager onMessage={onMessage} />}
+      {tab === 'customers' && <CustomerManager onMessage={onMessage} />}
       {tab === 'products' && <ProductManager onMessage={onMessage} />}
       {tab === 'process' && <ProcessManager onMessage={onMessage} />}
       {tab === 'recycle' && <RecycleBin onMessage={onMessage} />}
@@ -301,6 +315,198 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
   )
 }
 
+function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [keyword, setKeyword] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState({
+    code: '',
+    name: '',
+    contact: '',
+    phone: '',
+    address: '',
+  })
+
+  useEffect(() => {
+    fetchCustomers()
+  }, [keyword])
+
+  const fetchCustomers = async () => {
+    const url = keyword ? `/api/customers?keyword=${encodeURIComponent(keyword)}` : '/api/customers'
+    const res = await fetch(url)
+    const data = await res.json()
+    if (res.ok) {
+      setCustomers(data.data || [])
+    } else {
+      onMessage(data.error || '获取客户失败')
+    }
+  }
+
+  const resetForm = () => {
+    setForm({ code: '', name: '', contact: '', phone: '', address: '' })
+    setEditingCustomer(null)
+  }
+
+  const openAdd = () => {
+    resetForm()
+    setShowModal(true)
+  }
+
+  const openEdit = (customer: Customer) => {
+    setEditingCustomer(customer)
+    setForm({
+      code: customer.code,
+      name: customer.name,
+      contact: customer.contact || '',
+      phone: customer.phone || '',
+      address: customer.address || '',
+    })
+    setShowModal(true)
+  }
+
+  const submit = async () => {
+    if (!form.code || !form.name) {
+      onMessage('客户编码和名称必填')
+      return
+    }
+
+    setLoading(true)
+    const res = await fetch('/api/customers', {
+      method: editingCustomer ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...form,
+        id: editingCustomer?.id,
+        contact: form.contact || undefined,
+        phone: form.phone || undefined,
+        address: form.address || undefined,
+      }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      onMessage(editingCustomer ? '客户已更新' : '客户已创建')
+      setShowModal(false)
+      resetForm()
+      await fetchCustomers()
+    } else {
+      onMessage(data.error || '操作失败')
+    }
+    setLoading(false)
+  }
+
+  const remove = async (customer: Customer) => {
+    if (!confirm(`确定归档客户「${customer.name}」吗？归档后可在归档记录中恢复。`)) return
+    const res = await fetch(`/api/customers?id=${customer.id}`, { method: 'DELETE' })
+    const data = await res.json()
+    if (res.ok) {
+      onMessage('客户已归档')
+      await fetchCustomers()
+    } else {
+      onMessage(data.error || '归档失败')
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-lg font-semibold">客户管理</h3>
+          <p className="text-sm text-gray-500 mt-1">用于按最终客户筛选产品、物料、库存和发货记录。</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <input
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="搜索编码、名称、联系人、电话"
+            className="px-4 py-2 border border-gray-200 rounded-lg text-sm w-64"
+          />
+          <button onClick={openAdd} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
+            新增客户
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">编码</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">名称</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">联系人</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">电话</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">地址</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">创建时间</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {customers.map((customer) => (
+              <tr key={customer.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3 font-mono text-blue-700 text-sm">{customer.code}</td>
+                <td className="px-4 py-3 font-medium text-sm">{customer.name}</td>
+                <td className="px-4 py-3 text-sm">{customer.contact || '-'}</td>
+                <td className="px-4 py-3 text-sm">{customer.phone || '-'}</td>
+                <td className="px-4 py-3 text-sm max-w-xs truncate">{customer.address || '-'}</td>
+                <td className="px-4 py-3 text-xs text-gray-500">{new Date(customer.createdAt).toLocaleString('zh-CN')}</td>
+                <td className="px-4 py-3">
+                  <button onClick={() => openEdit(customer)} className="px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">
+                    编辑
+                  </button>
+                  <button onClick={() => remove(customer)} className="ml-2 px-3 py-1 text-red-600 border border-red-300 rounded text-xs hover:bg-red-50">
+                    归档
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {customers.length === 0 && <div className="text-center py-12 text-gray-500">暂无客户</div>}
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold">{editingCustomer ? '编辑客户' : '新增客户'}</h3>
+              <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">&times;</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="客户编码 *" value={form.code} onChange={(value) => setForm({ ...form, code: value })} />
+                <Field label="客户名称 *" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="联系人" value={form.contact} onChange={(value) => setForm({ ...form, contact: value })} />
+                <Field label="电话" value={form.phone} onChange={(value) => setForm({ ...form, phone: value })} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">地址</label>
+                <textarea
+                  value={form.address}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={submit} disabled={loading} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {loading ? '保存中...' : '保存'}
+                </button>
+                <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                  取消
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
     <div>
@@ -312,6 +518,7 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
 
 function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [products, setProducts] = useState<Product[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [keyword, setKeyword] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
@@ -320,12 +527,14 @@ function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
     sku: '',
     name: '',
     category: '',
+    customerId: '',
     unit: '件',
     description: '',
   })
 
   useEffect(() => {
     fetchProducts()
+    fetchCustomers()
   }, [])
 
   const fetchProducts = async () => {
@@ -338,9 +547,19 @@ function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
     }
   }
 
+  const fetchCustomers = async () => {
+    const res = await fetch('/api/customers')
+    const data = await res.json()
+    if (res.ok) {
+      setCustomers(data.data || [])
+    } else {
+      onMessage(data.error || '获取客户失败')
+    }
+  }
+
   const resetForm = () => {
     setEditingProduct(null)
-    setForm({ sku: '', name: '', category: '', unit: '件', description: '' })
+    setForm({ sku: '', name: '', category: '', customerId: '', unit: '件', description: '' })
   }
 
   const openAdd = () => {
@@ -354,6 +573,7 @@ function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
       sku: product.sku,
       name: product.name,
       category: product.category,
+      customerId: product.customerId || '',
       unit: product.unit,
       description: product.description || '',
     })
@@ -391,6 +611,8 @@ function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const filtered = keyword
     ? products.filter((product) =>
         [product.sku, product.name, product.category, product.unit, product.description || ''].some((value) => value.includes(keyword))
+        || (product.customer?.name || '').includes(keyword)
+        || (product.customer?.code || '').includes(keyword)
       )
     : products
 
@@ -421,6 +643,7 @@ function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品编码</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品名称</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">类别</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">归属客户</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">单位</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">说明</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
@@ -432,6 +655,7 @@ function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
                 <td className="px-4 py-3 font-mono text-blue-700 text-sm">{product.sku}</td>
                 <td className="px-4 py-3 font-medium text-sm">{product.name}</td>
                 <td className="px-4 py-3 text-sm">{product.category}</td>
+                <td className="px-4 py-3 text-sm">{product.customer ? `${product.customer.name} (${product.customer.code})` : '通用/未绑定'}</td>
                 <td className="px-4 py-3 text-sm">{product.unit}</td>
                 <td className="px-4 py-3 text-sm max-w-md truncate">{product.description || '-'}</td>
                 <td className="px-4 py-3">
@@ -462,6 +686,20 @@ function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
               <div className="grid grid-cols-2 gap-4">
                 <Field label="产品类别 *" value={form.category} onChange={(value) => setForm({ ...form, category: value })} />
                 <Field label="单位 *" value={form.unit} onChange={(value) => setForm({ ...form, unit: value })} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">归属客户</label>
+                <select
+                  value={form.customerId}
+                  onChange={(e) => setForm({ ...form, customerId: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                >
+                  <option value="">通用/未绑定客户</option>
+                  {customers.map((customer) => (
+                    <option key={customer.id} value={customer.id}>{customer.name} ({customer.code})</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">客户筛选只匹配直接绑定的产品，不追溯 BOM 或辅料。</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">说明</label>
@@ -803,6 +1041,7 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
     const rows: DeletedRecord[] = []
     ;(data.materials || []).forEach((item: any) => rows.push({ id: item.id, label: item.code, type: '物料', model: 'material', deletedAt: item.deletedAt }))
     ;(data.suppliers || []).forEach((item: any) => rows.push({ id: item.id, label: item.code, type: '供应商', model: 'supplier', deletedAt: item.deletedAt }))
+    ;(data.customers || []).forEach((item: any) => rows.push({ id: item.id, label: item.code, type: '客户', model: 'customer', deletedAt: item.deletedAt }))
     ;(data.materialIn || []).forEach((item: any) => rows.push({ id: item.id, label: item.inboundNo, type: '来料单', model: 'materialIn', deletedAt: item.deletedAt }))
     ;(data.orders || []).forEach((item: any) => rows.push({ id: item.id, label: item.orderNo, type: '工单', model: 'order', deletedAt: item.deletedAt }))
     ;(data.dispatches || []).forEach((item: any) => rows.push({ id: item.id, label: item.dispatchNo, type: '派工单', model: 'dispatch', deletedAt: item.deletedAt }))

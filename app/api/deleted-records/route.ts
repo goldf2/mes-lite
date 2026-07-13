@@ -26,6 +26,12 @@ export async function GET(req: NextRequest) {
         orderBy: { deletedAt: 'desc' },
       })
     }
+    if (model === 'all' || model === 'customer') {
+      result.customers = await prisma.customer.findMany({
+        where: { deletedAt: { not: null } },
+        orderBy: { deletedAt: 'desc' },
+      })
+    }
     if (model === 'all' || model === 'materialIn') {
       result.materialIn = await prisma.materialIn.findMany({
         where: { deletedAt: { not: null } },

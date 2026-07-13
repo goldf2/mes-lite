@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
-import { resolveMaterialUnits } from '@/lib/units'
+import { resolveMaterialUnits, toValuationQty } from '@/lib/units'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 
 const createMaterialInSchema = z.object({
@@ -11,7 +11,7 @@ const createMaterialInSchema = z.object({
   materialId: z.string().min(1, '物料必填'),
   qty: z.number().positive('数量必须大于 0'),
   unit: z.string().optional(),
-  valuationQty: z.number().positive('实际重量必须大于 0'),
+  valuationQty: z.number().nonnegative('核算数量不能为负').optional(),
   valuationUnit: z.string().optional(),
   unitPrice: z.number().nonnegative('单价不能为负'),
   priceBasis: z.enum(['VALUATION', 'STOCK']).optional(),
@@ -28,18 +28,23 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const statuses = parseStatusFilter(searchParams)
+    const supplierId = searchParams.get('supplierId')
+    const customerId = searchParams.get('customerId')
     const page = Number(searchParams.get('page') ?? '1')
     const pageSize = Number(searchParams.get('pageSize') ?? '20')
 
     const where: any = { deletedAt: null }
     applyStatusFilter(where, statuses)
+    if (supplierId) where.supplierId = supplierId
+    if (customerId === '__UNASSIGNED__') where.material = { is: { customerId: null } }
+    else if (customerId) where.material = { is: { customerId } }
 
     const [items, total] = await Promise.all([
       prisma.materialIn.findMany({
         where,
         include: {
           supplier: true,
-          material: true,
+          material: { include: { customer: { select: { id: true, code: true, name: true } } } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
@@ -84,10 +89,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '物料不存在或已归档' }, { status: 404 })
     }
     const units = resolveMaterialUnits(material)
-    const conversionRate = Number((valuationQty / qty).toFixed(6))
     const stockUnit = body.unit || units.stockUnit
-    const valuationUnit = body.valuationUnit || units.valuationUnit
-    const priceBasis = body.priceBasis || 'VALUATION'
+    const materialUsesDualUnit = units.stockUnit !== units.valuationUnit || units.conversionRate !== 1
+    const effectiveValuationQty = materialUsesDualUnit && valuationQty && valuationQty > 0
+      ? valuationQty
+      : toValuationQty(qty, units.conversionRate)
+    const conversionRate = Number((effectiveValuationQty / qty).toFixed(6))
+    const valuationUnit = materialUsesDualUnit ? body.valuationUnit || units.valuationUnit : stockUnit
+    const requestedPriceBasis = body.priceBasis || 'VALUATION'
+    const priceBasis = materialUsesDualUnit ? requestedPriceBasis : 'STOCK'
     const priceUnit = priceBasis === 'STOCK' ? stockUnit : valuationUnit
 
     // 生成 inboundNo: IN-YYYYMMDD-XXX
@@ -100,8 +110,8 @@ export async function POST(req: NextRequest) {
 
     const totalAmount = priceBasis === 'STOCK'
       ? Number((qty * unitPrice).toFixed(6))
-      : Number((valuationQty * unitPrice).toFixed(6))
-    const valuationUnitCost = valuationQty > 0 ? Number((totalAmount / valuationQty).toFixed(6)) : 0
+      : Number((effectiveValuationQty * unitPrice).toFixed(6))
+    const valuationUnitCost = effectiveValuationQty > 0 ? Number((totalAmount / effectiveValuationQty).toFixed(6)) : 0
     const stockUnitCost = qty > 0 ? Number((totalAmount / qty).toFixed(6)) : 0
 
     const materialIn = await prisma.materialIn.create({
@@ -111,7 +121,7 @@ export async function POST(req: NextRequest) {
         materialId,
         qty,
         unit: stockUnit,
-        valuationQty,
+        valuationQty: effectiveValuationQty,
         valuationUnit,
         conversionRate,
         unitPrice,

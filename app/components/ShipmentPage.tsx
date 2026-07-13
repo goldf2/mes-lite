@@ -11,13 +11,25 @@ interface Product {
   sku: string
   name: string
   category: string
+  customerId?: string | null
+  customer?: { id: string; code: string; name: string } | null
   unit: string
+}
+
+interface Customer {
+  id: string
+  code: string
+  name: string
+  contact?: string | null
+  phone?: string | null
+  address?: string | null
 }
 
 interface Shipment {
   id: string
   shipmentNo: string
   productId: string
+  customerId?: string | null
   qty: number
   unitPrice: number
   totalAmount: number
@@ -30,7 +42,8 @@ interface Shipment {
   trackingNo?: string
   note?: string
   createdAt: string
-  product: { id: string; name: string; sku: string }
+  product: { id: string; name: string; sku: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null }
+  customerRef?: { id: string; code: string; name: string } | null
 }
 
 const statusColors: Record<string, string> = {
@@ -63,12 +76,15 @@ export default function ShipmentPage({
 }) {
   const [shipments, setShipments] = useState<Shipment[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
+  const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
 
   const [form, setForm] = useState({
     productId: '',
+    customerId: '',
     qty: 0,
     unitPrice: 0,
     customer: '',
@@ -81,13 +97,16 @@ export default function ShipmentPage({
   useEffect(() => {
     fetchShipments()
     fetchProducts()
-  }, [selectedStatuses])
+    fetchCustomers()
+  }, [selectedStatuses, selectedCustomerId])
 
   const fetchShipments = async () => {
     setLoading(true)
     try {
       const query = getStatusQuery(selectedStatuses, statusOptions)
-      const url = query ? `/api/shipments?${query}` : '/api/shipments'
+      const params = new URLSearchParams(query)
+      if (selectedCustomerId) params.set('customerId', selectedCustomerId)
+      const url = params.toString() ? `/api/shipments?${params.toString()}` : '/api/shipments'
       const res = await fetch(url)
       const data = await res.json()
       setShipments(data.data || [])
@@ -109,9 +128,22 @@ export default function ShipmentPage({
     }
   }
 
+  const fetchCustomers = async () => {
+    try {
+      const res = await fetch('/api/customers')
+      if (res.ok) {
+        const data = await res.json()
+        setCustomers(data.data || [])
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
+
   const resetForm = () => {
     setForm({
       productId: '',
+      customerId: '',
       qty: 0,
       unitPrice: 0,
       customer: '',
@@ -134,6 +166,7 @@ export default function ShipmentPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId: form.productId,
+          customerId: form.customerId || undefined,
           qty: form.qty,
           unitPrice: form.unitPrice,
           customer: form.customer,
@@ -156,6 +189,30 @@ export default function ShipmentPage({
       onMessage('创建发货单失败')
     }
     setLoading(false)
+  }
+
+  const handleProductChange = (productId: string) => {
+    const product = products.find((item) => item.id === productId)
+    const customer = product?.customerId ? customers.find((item) => item.id === product.customerId) : null
+    setForm({
+      ...form,
+      productId,
+      customerId: product?.customerId || form.customerId,
+      customer: customer?.name || form.customer,
+      customerPhone: customer?.phone || form.customerPhone,
+      address: customer?.address || form.address,
+    })
+  }
+
+  const handleCustomerChange = (customerId: string) => {
+    const customer = customers.find((item) => item.id === customerId)
+    setForm({
+      ...form,
+      customerId,
+      customer: customer?.name || '',
+      customerPhone: customer?.phone || '',
+      address: customer?.address || '',
+    })
   }
 
   const handleAction = async (id: string, action: 'ship' | 'deliver') => {
@@ -182,6 +239,17 @@ export default function ShipmentPage({
     onToolbarChange(
       <ResponsiveToolbarActions>
         <StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />
+        <select
+          value={selectedCustomerId}
+          onChange={(e) => setSelectedCustomerId(e.target.value)}
+          className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+        >
+          <option value="">全部客户</option>
+          <option value="__UNASSIGNED__">通用/未绑定</option>
+          {customers.map((customer) => (
+            <option key={customer.id} value={customer.id}>{customer.name}</option>
+          ))}
+        </select>
         <button
           onClick={() => {
             resetForm()
@@ -195,13 +263,24 @@ export default function ShipmentPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedStatuses])
+  }, [onToolbarChange, selectedStatuses, selectedCustomerId, customers])
 
   return (
     <>
       <TopBarPortal>
         <ResponsiveToolbarActions>
           <StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />
+          <select
+            value={selectedCustomerId}
+            onChange={(e) => setSelectedCustomerId(e.target.value)}
+            className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+          >
+            <option value="">全部客户</option>
+            <option value="__UNASSIGNED__">通用/未绑定</option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>{customer.name}</option>
+            ))}
+          </select>
           <button
             onClick={() => {
               resetForm()
@@ -248,11 +327,12 @@ export default function ShipmentPage({
                     <td className="px-4 py-3">{item.qty}</td>
                     <td className="px-4 py-3">¥{item.unitPrice.toFixed(2)}</td>
                     <td className="px-4 py-3 font-medium">¥{item.totalAmount.toFixed(2)}</td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium">{item.customer}</div>
-                      {item.customerPhone && (
-                        <div className="text-xs text-gray-500">{item.customerPhone}</div>
-                      )}
+	                    <td className="px-4 py-3">
+	                      <div className="font-medium">{item.customer}</div>
+	                      <div className="text-xs text-gray-500">{item.customerRef ? `客户档案：${item.customerRef.name}` : '未绑定客户档案'}</div>
+	                      {item.customerPhone && (
+	                        <div className="text-xs text-gray-500">{item.customerPhone}</div>
+	                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[item.status]}`}>
@@ -323,7 +403,7 @@ export default function ShipmentPage({
                 <label className="block text-sm font-medium text-gray-700 mb-2">产品</label>
                 <select
                   value={form.productId}
-                  onChange={(e) => setForm({ ...form, productId: e.target.value })}
+                  onChange={(e) => handleProductChange(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">请选择产品</option>
@@ -360,12 +440,16 @@ export default function ShipmentPage({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">客户</label>
-                  <input
-                    type="text"
-                    value={form.customer}
-                    onChange={(e) => setForm({ ...form, customer: e.target.value })}
+                  <select
+                    value={form.customerId}
+                    onChange={(e) => handleCustomerChange(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
+                  >
+                    <option value="">手工填写/未绑定</option>
+                    {customers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>{customer.name} ({customer.code})</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">电话</label>
@@ -376,6 +460,15 @@ export default function ShipmentPage({
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">送货单客户名称</label>
+                <input
+                  type="text"
+                  value={form.customer}
+                  onChange={(e) => setForm({ ...form, customer: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">地址</label>

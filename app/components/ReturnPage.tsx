@@ -11,7 +11,15 @@ interface Product {
   sku: string
   name: string
   category: string
+  customerId?: string | null
+  customer?: { id: string; code: string; name: string } | null
   unit: string
+}
+
+interface Customer {
+  id: string
+  code: string
+  name: string
 }
 
 interface ReturnOrder {
@@ -25,8 +33,8 @@ interface ReturnOrder {
   note?: string
   createdAt: string
   processedAt?: string
-  product: { id: string; name: string; sku: string }
-  shipment?: { id: string; shipmentNo: string } | null
+  product: { id: string; name: string; sku: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null }
+  shipment?: { id: string; shipmentNo: string; customerId?: string | null; customerRef?: { id: string; code: string; name: string } | null } | null
 }
 
 const statusColors: Record<string, string> = {
@@ -56,7 +64,9 @@ export default function ReturnPage({
 }) {
   const [returns, setReturns] = useState<ReturnOrder[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
+  const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
 
@@ -70,13 +80,16 @@ export default function ReturnPage({
   useEffect(() => {
     fetchReturns()
     fetchProducts()
-  }, [selectedStatuses])
+    fetchCustomers()
+  }, [selectedStatuses, selectedCustomerId])
 
   const fetchReturns = async () => {
     setLoading(true)
     try {
       const query = getStatusQuery(selectedStatuses, statusOptions)
-      const url = query ? `/api/returns?${query}` : '/api/returns'
+      const params = new URLSearchParams(query)
+      if (selectedCustomerId) params.set('customerId', selectedCustomerId)
+      const url = params.toString() ? `/api/returns?${params.toString()}` : '/api/returns'
       const res = await fetch(url)
       const data = await res.json()
       setReturns(data.data || [])
@@ -84,6 +97,18 @@ export default function ReturnPage({
       onMessage('获取退货单列表失败')
     }
     setLoading(false)
+  }
+
+  const fetchCustomers = async () => {
+    try {
+      const res = await fetch('/api/customers')
+      if (res.ok) {
+        const data = await res.json()
+        setCustomers(data.data || [])
+      }
+    } catch (err) {
+      // ignore
+    }
   }
 
   const fetchProducts = async () => {
@@ -163,6 +188,17 @@ export default function ReturnPage({
     onToolbarChange(
       <ResponsiveToolbarActions>
         <StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />
+        <select
+          value={selectedCustomerId}
+          onChange={(e) => setSelectedCustomerId(e.target.value)}
+          className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+        >
+          <option value="">全部客户</option>
+          <option value="__UNASSIGNED__">通用/未绑定</option>
+          {customers.map((customer) => (
+            <option key={customer.id} value={customer.id}>{customer.name}</option>
+          ))}
+        </select>
         <button
           onClick={() => {
             resetForm()
@@ -176,13 +212,24 @@ export default function ReturnPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedStatuses])
+  }, [onToolbarChange, selectedStatuses, selectedCustomerId, customers])
 
   return (
     <>
       <TopBarPortal>
         <ResponsiveToolbarActions>
           <StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />
+          <select
+            value={selectedCustomerId}
+            onChange={(e) => setSelectedCustomerId(e.target.value)}
+            className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+          >
+            <option value="">全部客户</option>
+            <option value="__UNASSIGNED__">通用/未绑定</option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>{customer.name}</option>
+            ))}
+          </select>
           <button
             onClick={() => {
               resetForm()
@@ -224,10 +271,13 @@ export default function ReturnPage({
                     <td className="px-4 py-3 font-mono text-sm">
                       {item.shipment?.shipmentNo || '-'}
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium">{item.product?.name}</div>
-                      <div className="text-xs text-gray-500">{item.product?.sku}</div>
-                    </td>
+	                    <td className="px-4 py-3">
+	                      <div className="font-medium">{item.product?.name}</div>
+	                      <div className="text-xs text-gray-500">{item.product?.sku}</div>
+	                      <div className="text-xs text-gray-500">
+	                        客户：{item.shipment?.customerRef?.name || item.product?.customer?.name || '通用/未绑定'}
+	                      </div>
+	                    </td>
                     <td className="px-4 py-3">{item.qty}</td>
                     <td className="px-4 py-3 text-sm">{item.reason}</td>
                     <td className="px-4 py-3">

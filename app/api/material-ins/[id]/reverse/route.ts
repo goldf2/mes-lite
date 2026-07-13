@@ -57,7 +57,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           consumedCount === 0
 
         if (!layerUntouched) {
-          throw new Error('该来料批次已被领料或成本层已变动，不能直接红冲，请先退料或做库存调整')
+          throw new Error('该来料批次已被领料或成本层已变动，不能直接红冲，请先退料或做存货调整')
         }
       }
 

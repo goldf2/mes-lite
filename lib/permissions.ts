@@ -10,7 +10,7 @@ export const permissionRoles = [
 
 export const defaultPermissionGroups = [
   { code: 'basic_entry', name: '基础录入组', role: 'OPERATOR', description: '适合普通录入人员，允许录入常用业务单据。' },
-  { code: 'business_audit', name: '业务审核组', role: 'AUDITOR', description: '适合审核人员，允许处理业务状态流转和库存调整。' },
+  { code: 'business_audit', name: '业务审核组', role: 'AUDITOR', description: '适合审核人员，允许处理业务状态流转和存货调整。' },
   { code: 'system_admin', name: '系统管理组', role: 'ADMIN', description: '系统内置管理权限组，默认拥有全部功能权限。' },
 ] as const
 

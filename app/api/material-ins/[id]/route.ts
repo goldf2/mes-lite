@@ -3,14 +3,14 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
-import { resolveMaterialUnits } from '@/lib/units'
+import { resolveMaterialUnits, toValuationQty } from '@/lib/units'
 
 const updateMaterialInSchema = z.object({
   supplierId: z.string().min(1, '供应商必填'),
   materialId: z.string().min(1, '物料必填'),
   qty: z.number().positive('数量必须大于 0'),
   unit: z.string().optional(),
-  valuationQty: z.number().positive('实际重量必须大于 0'),
+  valuationQty: z.number().nonnegative('核算数量不能为负').optional(),
   valuationUnit: z.string().optional(),
   unitPrice: z.number().nonnegative('单价不能为负'),
   priceBasis: z.enum(['VALUATION', 'STOCK']).optional(),
@@ -85,14 +85,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const units = resolveMaterialUnits(material)
     const stockUnit = body.unit || units.stockUnit
-    const valuationUnit = body.valuationUnit || units.valuationUnit
-    const conversionRate = Number((valuationQty / qty).toFixed(6))
-    const priceBasis = body.priceBasis || 'VALUATION'
+    const materialUsesDualUnit = units.stockUnit !== units.valuationUnit || units.conversionRate !== 1
+    const valuationUnit = materialUsesDualUnit ? body.valuationUnit || units.valuationUnit : stockUnit
+    const effectiveValuationQty = materialUsesDualUnit && valuationQty && valuationQty > 0
+      ? valuationQty
+      : toValuationQty(qty, units.conversionRate)
+    const conversionRate = Number((effectiveValuationQty / qty).toFixed(6))
+    const requestedPriceBasis = body.priceBasis || 'VALUATION'
+    const priceBasis = materialUsesDualUnit ? requestedPriceBasis : 'STOCK'
     const priceUnit = priceBasis === 'STOCK' ? stockUnit : valuationUnit
     const totalAmount = priceBasis === 'STOCK'
       ? Number((qty * unitPrice).toFixed(6))
-      : Number((valuationQty * unitPrice).toFixed(6))
-    const valuationUnitCost = Number((totalAmount / valuationQty).toFixed(6))
+      : Number((effectiveValuationQty * unitPrice).toFixed(6))
+    const valuationUnitCost = Number((totalAmount / effectiveValuationQty).toFixed(6))
     const stockUnitCost = Number((totalAmount / qty).toFixed(6))
 
     const updated = await prisma.materialIn.update({
@@ -102,7 +107,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         materialId,
         qty,
         unit: stockUnit,
-        valuationQty,
+        valuationQty: effectiveValuationQty,
         valuationUnit,
         conversionRate,
         unitPrice,

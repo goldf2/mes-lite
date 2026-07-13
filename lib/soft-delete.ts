@@ -11,6 +11,11 @@ export const SOFT_DELETE_MODELS = {
     labelField: 'code',
     delegate: prisma.supplier,
   },
+  customer: {
+    entityType: 'CUSTOMER',
+    labelField: 'code',
+    delegate: prisma.customer,
+  },
   materialIn: {
     entityType: 'MATERIAL_IN',
     labelField: 'inboundNo',

@@ -16,7 +16,7 @@ const createOrderSchema = z.object({
 
 const simpleProductSku = (materialCode: string) => `MAT-${materialCode}`
 
-async function ensureSimpleProductForMaterial(material: { code: string; name: string; category: string; stockUnit: string; unit: string }) {
+async function ensureSimpleProductForMaterial(material: { code: string; name: string; category: string; customerId?: string | null; stockUnit: string; unit: string }) {
   const sku = simpleProductSku(material.code)
   const existing = await prisma.product.findUnique({
     where: { sku },
@@ -54,6 +54,7 @@ async function ensureSimpleProductForMaterial(material: { code: string; name: st
       sku,
       name: material.name,
       category: material.category,
+      customerId: material.customerId || null,
       unit: material.stockUnit || material.unit,
       description: `由物料 ${material.code} 自动映射，用于简易生产工单。`,
       processRoutes: {
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
     if (targetType === 'MATERIAL') {
       const material = await prisma.material.findUnique({
         where: { id: targetId },
-        select: { id: true, code: true, name: true, category: true, stockUnit: true, unit: true, deletedAt: true },
+        select: { id: true, code: true, name: true, category: true, customerId: true, stockUnit: true, unit: true, deletedAt: true },
       })
 
       if (!material || material.deletedAt) {
@@ -202,18 +203,30 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const statuses = parseStatusFilter(searchParams)
+    const customerId = searchParams.get('customerId')
     const page = Number(searchParams.get('page') ?? '1')
     const pageSize = Number(searchParams.get('pageSize') ?? '20')
 
     const where: any = { deletedAt: null }
     applyStatusFilter(where, statuses)
+    if (customerId === '__UNASSIGNED__') {
+      where.OR = [
+        { product: { is: { customerId: null } } },
+        { targetMaterial: { is: { customerId: null } } },
+      ]
+    } else if (customerId) {
+      where.OR = [
+        { product: { is: { customerId } } },
+        { targetMaterial: { is: { customerId } } },
+      ]
+    }
 
     const [orders, total] = await Promise.all([
       prisma.productionOrder.findMany({
         where,
         include: {
-          product: { select: { id: true, name: true, sku: true } },
-          targetMaterial: { select: { id: true, name: true, code: true, category: true, unit: true, stockUnit: true, valuationUnit: true } },
+          product: { select: { id: true, name: true, sku: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
+          targetMaterial: { select: { id: true, name: true, code: true, category: true, customerId: true, customer: { select: { id: true, code: true, name: true } }, unit: true, stockUnit: true, valuationUnit: true } },
           _count: { select: { reports: true, picks: true } },
         },
         orderBy: { createdAt: 'desc' },

@@ -88,18 +88,30 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const statuses = parseStatusFilter(searchParams)
+    const customerId = searchParams.get('customerId')
     const page = Number(searchParams.get('page') ?? '1')
     const pageSize = Number(searchParams.get('pageSize') ?? '20')
 
     const where: any = { deletedAt: null }
     applyStatusFilter(where, statuses)
+    if (customerId === '__UNASSIGNED__') {
+      where.OR = [
+        { shipment: { is: { customerId: null } } },
+        { shipmentId: null, product: { is: { customerId: null } } },
+      ]
+    } else if (customerId) {
+      where.OR = [
+        { shipment: { is: { customerId } } },
+        { shipmentId: null, product: { is: { customerId } } },
+      ]
+    }
 
     const [returns, total] = await Promise.all([
       prisma.returnOrder.findMany({
         where,
         include: {
-          product: true,
-          shipment: true,
+          product: { include: { customer: { select: { id: true, code: true, name: true } } } },
+          shipment: { include: { customerRef: { select: { id: true, code: true, name: true } } } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,

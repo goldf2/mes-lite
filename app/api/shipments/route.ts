@@ -9,6 +9,7 @@ const createShipmentSchema = z.object({
   productId: z.string().min(1),
   qty: z.number().int().positive(),
   unitPrice: z.number().nonnegative(),
+  customerId: z.string().optional(),
   customer: z.string().min(1),
   customerPhone: z.string().optional(),
   address: z.string().optional(),
@@ -26,18 +27,22 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const statuses = parseStatusFilter(searchParams)
     const customer = searchParams.get('customer')
+    const customerId = searchParams.get('customerId')
     const page = Number(searchParams.get('page') ?? '1')
     const pageSize = Number(searchParams.get('pageSize') ?? '20')
 
     const where: any = { deletedAt: null }
     applyStatusFilter(where, statuses)
+    if (customerId === '__UNASSIGNED__') where.customerId = null
+    else if (customerId) where.customerId = customerId
     if (customer) where.customer = { contains: customer }
 
     const [shipments, total] = await Promise.all([
       prisma.shipment.findMany({
         where,
         include: {
-          product: { select: { id: true, name: true, sku: true } },
+          product: { select: { id: true, name: true, sku: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
+          customerRef: { select: { id: true, code: true, name: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
@@ -87,6 +92,7 @@ export async function POST(req: NextRequest) {
       data: {
         shipmentNo,
         productId: data.productId,
+        customerId: data.customerId || null,
         qty: data.qty,
         unitPrice: data.unitPrice,
         totalAmount,
@@ -99,7 +105,8 @@ export async function POST(req: NextRequest) {
         status: 'PENDING',
       },
       include: {
-        product: { select: { id: true, name: true, sku: true } },
+        product: { select: { id: true, name: true, sku: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
+        customerRef: { select: { id: true, code: true, name: true } },
       },
     })
 
