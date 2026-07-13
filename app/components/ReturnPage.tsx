@@ -5,6 +5,7 @@ import AttachmentPanel from './AttachmentPanel'
 import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
+import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 
 interface Product {
   id: string
@@ -69,6 +70,7 @@ export default function ReturnPage({
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.return.viewMode', 'list')
 
   const [form, setForm] = useState({
     productId: '',
@@ -204,21 +206,24 @@ export default function ReturnPage({
           </>
         )}
         actions={(
-          <button
-            onClick={() => {
-              resetForm()
-              setShowModal(true)
-            }}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
-          >
-            新增退货单
-          </button>
+          <>
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
+            <button
+              onClick={() => {
+                resetForm()
+                setShowModal(true)
+              }}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+            >
+              新增退货单
+            </button>
+          </>
         )}
       />
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedStatuses, selectedCustomerId, customers])
+  }, [onToolbarChange, selectedStatuses, selectedCustomerId, customers, viewMode, setViewMode])
 
   return (
     <>
@@ -241,15 +246,18 @@ export default function ReturnPage({
             </>
           )}
           actions={(
-            <button
-              onClick={() => {
-                resetForm()
-                setShowModal(true)
-              }}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
-            >
-              新增退货单
-            </button>
+            <>
+              <ViewModeToggle value={viewMode} onChange={setViewMode} />
+              <button
+                onClick={() => {
+                  resetForm()
+                  setShowModal(true)
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+              >
+                新增退货单
+              </button>
+            </>
           )}
         />
       </TopBarPortal>
@@ -259,6 +267,67 @@ export default function ReturnPage({
           <div className="text-center py-12 text-gray-500">
             <p className="text-4xl mb-4">↩️</p>
             <p>暂无退货单</p>
+          </div>
+        ) : viewMode === 'card' ? (
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {returns.map((item) => (
+              <div key={item.id} className="rounded-lg border border-gray-200 bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="font-mono text-sm font-semibold text-blue-700">{item.returnNo}</div>
+                    <div className="mt-1 text-xs text-gray-500">关联发货单：{item.shipment?.shipmentNo || '-'}</div>
+                  </div>
+                  <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[item.status]}`}>
+                    {statusLabels[item.status] || item.status}
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div>
+                    <div className="text-xs text-gray-500">产品</div>
+                    <div className="mt-1 font-medium text-gray-900">{item.product?.name}</div>
+                    <div className="text-xs text-gray-500">{item.product?.sku}</div>
+                    <div className="text-xs text-gray-500">客户：{item.shipment?.customerRef?.name || item.product?.customer?.name || '通用/未绑定'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">退货信息</div>
+                    <div className="mt-1 font-medium text-gray-900">数量：{item.qty}</div>
+                    <div className="text-xs text-gray-500">创建：{new Date(item.createdAt).toLocaleString('zh-CN')}</div>
+                    {item.processedAt && <div className="text-xs text-gray-500">处理：{new Date(item.processedAt).toLocaleString('zh-CN')}</div>}
+                  </div>
+                </div>
+                <div className="mt-4 rounded bg-gray-50 p-3 text-sm text-gray-700">
+                  <div className="text-xs text-gray-500">退货原因</div>
+                  <div className="mt-1">{item.reason}</div>
+                  {item.note && <div className="mt-2 text-xs text-gray-500">备注：{item.note}</div>}
+                </div>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <AttachmentPanel ownerType="RETURN_ORDER" ownerId={item.id} compact onMessage={onMessage} />
+                  <div className="flex flex-wrap gap-2">
+                    {item.status === 'PENDING' && (
+                      <>
+                        <button
+                          onClick={() => handleAction(item.id, 'process')}
+                          disabled={loading}
+                          className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition disabled:opacity-50"
+                        >
+                          处理
+                        </button>
+                        <button
+                          onClick={() => handleAction(item.id, 'reject')}
+                          disabled={loading}
+                          className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition disabled:opacity-50"
+                        >
+                          拒绝
+                        </button>
+                      </>
+                    )}
+                    {item.status !== 'PENDING' && (
+                      <span className="text-xs text-gray-400">无操作</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="overflow-x-auto">

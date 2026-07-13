@@ -5,6 +5,7 @@ import AttachmentPanel from './AttachmentPanel'
 import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
+import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 
 interface Product {
   id: string
@@ -81,6 +82,7 @@ export default function ShipmentPage({
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.shipment.viewMode', 'list')
 
   const [form, setForm] = useState({
     productId: '',
@@ -255,21 +257,24 @@ export default function ShipmentPage({
           </>
         )}
         actions={(
-          <button
-            onClick={() => {
-              resetForm()
-              setShowModal(true)
-            }}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
-          >
-            新增发货单
-          </button>
+          <>
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
+            <button
+              onClick={() => {
+                resetForm()
+                setShowModal(true)
+              }}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+            >
+              新增发货单
+            </button>
+          </>
         )}
       />
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedStatuses, selectedCustomerId, customers])
+  }, [onToolbarChange, selectedStatuses, selectedCustomerId, customers, viewMode, setViewMode])
 
   return (
     <>
@@ -292,15 +297,18 @@ export default function ShipmentPage({
             </>
           )}
           actions={(
-            <button
-              onClick={() => {
-                resetForm()
-                setShowModal(true)
-              }}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
-            >
-              新增发货单
-            </button>
+            <>
+              <ViewModeToggle value={viewMode} onChange={setViewMode} />
+              <button
+                onClick={() => {
+                  resetForm()
+                  setShowModal(true)
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+              >
+                新增发货单
+              </button>
+            </>
           )}
         />
       </TopBarPortal>
@@ -310,6 +318,90 @@ export default function ShipmentPage({
           <div className="text-center py-12 text-gray-500">
             <p className="text-4xl mb-4">🚚</p>
             <p>暂无发货单</p>
+          </div>
+        ) : viewMode === 'card' ? (
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {shipments.map((item) => (
+              <div key={item.id} className="rounded-lg border border-gray-200 bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="font-mono text-sm font-semibold text-blue-700">{item.shipmentNo}</div>
+                    <div className="mt-1 text-xs text-gray-500">{item.shippedAt ? new Date(item.shippedAt).toLocaleString('zh-CN') : '未发货'}</div>
+                  </div>
+                  <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[item.status]}`}>
+                    {statusLabels[item.status] || item.status}
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div>
+                    <div className="text-xs text-gray-500">产品</div>
+                    <div className="mt-1 font-medium text-gray-900">{item.product?.name}</div>
+                    <div className="text-xs text-gray-500">{item.product?.sku}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">客户</div>
+                    <div className="mt-1 font-medium text-gray-900">{item.customer}</div>
+                    <div className="text-xs text-gray-500">{item.customerRef ? `客户档案：${item.customerRef.name}` : '未绑定客户档案'}</div>
+                    {item.customerPhone && <div className="text-xs text-gray-500">{item.customerPhone}</div>}
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  <div className="rounded bg-gray-50 p-3">
+                    <div className="text-xs text-gray-500">数量</div>
+                    <div className="mt-1 font-semibold">{item.qty}</div>
+                  </div>
+                  <div className="rounded bg-gray-50 p-3">
+                    <div className="text-xs text-gray-500">单价</div>
+                    <div className="mt-1 font-semibold">¥{item.unitPrice.toFixed(2)}</div>
+                  </div>
+                  <div className="rounded bg-gray-50 p-3">
+                    <div className="text-xs text-gray-500">金额</div>
+                    <div className="mt-1 font-semibold">¥{item.totalAmount.toFixed(2)}</div>
+                  </div>
+                </div>
+                {(item.address || item.trackingNo || item.note) && (
+                  <div className="mt-3 rounded bg-gray-50 p-3 text-xs text-gray-600">
+                    {item.address && <div>地址：{item.address}</div>}
+                    {item.trackingNo && <div className="mt-1">物流：{item.trackingNo}</div>}
+                    {item.note && <div className="mt-1">备注：{item.note}</div>}
+                  </div>
+                )}
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <AttachmentPanel ownerType="SHIPMENT" ownerId={item.id} compact onMessage={onMessage} />
+                  <div className="flex flex-wrap gap-2">
+                    {item.status === 'PENDING' && (
+                      <button
+                        onClick={() => handleAction(item.id, 'ship')}
+                        disabled={loading}
+                        className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition disabled:opacity-50"
+                      >
+                        发货
+                      </button>
+                    )}
+                    {item.status === 'SHIPPED' && (
+                      <button
+                        onClick={() => handleAction(item.id, 'deliver')}
+                        disabled={loading}
+                        className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition disabled:opacity-50"
+                      >
+                        签收
+                      </button>
+                    )}
+                    {(item.status === 'SHIPPED' || item.status === 'DELIVERED') && (
+                      <a
+                        href={`/api/shipments/${item.id}/delivery-note`}
+                        className="px-3 py-1 border border-blue-300 text-blue-700 rounded text-xs hover:bg-blue-50"
+                      >
+                        下载送货单
+                      </a>
+                    )}
+                    {item.status === 'CANCELLED' && (
+                      <span className="text-xs text-gray-400">无操作</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="overflow-x-auto">

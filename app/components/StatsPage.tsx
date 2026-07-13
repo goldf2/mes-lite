@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 
 interface ProductionStat {
   productId: string
@@ -94,6 +95,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
   const [cost, setCost] = useState<CostData | null>(null)
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(false)
+  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.stats.viewMode', 'card')
 
   useEffect(() => {
     if (tab === 'production') fetchProduction()
@@ -156,22 +158,35 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
     { key: 'quality', label: '质量统计' },
     { key: 'cost', label: '成本统计' },
   ]
+  const dashboardMetrics = dashboard ? [
+    { key: 'todayOrderCount', title: '今日工单数', value: dashboard.todayOrderCount, icon: '📋', color: 'blue' },
+    { key: 'monthOrderCount', title: '本月工单数', value: dashboard.monthOrderCount, icon: '📅', color: 'indigo' },
+    { key: 'todayProduction', title: '今日产量', value: dashboard.todayProduction, icon: '✅', color: 'green' },
+    { key: 'monthProduction', title: '本月产量', value: dashboard.monthProduction, icon: '📊', color: 'emerald' },
+    { key: 'pendingMaterialInCount', title: '待收货数', value: dashboard.pendingMaterialInCount, icon: '📦', color: 'yellow' },
+    { key: 'pendingShipmentCount', title: '待发货数', value: dashboard.pendingShipmentCount, icon: '🚚', color: 'orange' },
+    { key: 'pendingReturnCount', title: '待退货数', value: dashboard.pendingReturnCount, icon: '↩️', color: 'purple' },
+    { key: 'lowStocks', title: '库存预警数', value: dashboard.lowStocks.length, icon: '⚠️', color: 'red' },
+  ] : []
 
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center gap-2 mb-6 flex-wrap">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                tab === t.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+        <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-2 flex-wrap">
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                  tab === t.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <ViewModeToggle value={viewMode} onChange={setViewMode} />
         </div>
 
         {loading && <div className="text-center py-8 text-gray-500">加载中...</div>}
@@ -179,53 +194,123 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
         {!loading && tab === 'dashboard' && dashboard && (
           <div>
             <h2 className="text-xl font-semibold mb-6">仪表盘</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <DashboardCard title="今日工单数" value={dashboard.todayOrderCount} icon="📋" color="blue" />
-              <DashboardCard title="本月工单数" value={dashboard.monthOrderCount} icon="📅" color="indigo" />
-              <DashboardCard title="今日产量" value={dashboard.todayProduction} icon="✅" color="green" />
-              <DashboardCard title="本月产量" value={dashboard.monthProduction} icon="📊" color="emerald" />
-              <DashboardCard title="待收货数" value={dashboard.pendingMaterialInCount} icon="📦" color="yellow" />
-              <DashboardCard title="待发货数" value={dashboard.pendingShipmentCount} icon="🚚" color="orange" />
-              <DashboardCard title="待退货数" value={dashboard.pendingReturnCount} icon="↩️" color="purple" />
-              <DashboardCard title="库存预警数" value={dashboard.lowStocks.length} icon="⚠️" color="red" />
-            </div>
+            {viewMode === 'card' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                {dashboardMetrics.map((item) => (
+                  <DashboardCard
+                    key={item.key}
+                    title={item.title}
+                    value={item.value}
+                    icon={item.icon}
+                    color={item.color}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="mb-6 overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">指标</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">数值</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {dashboardMetrics.map((item) => (
+                      <tr key={item.key} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm font-medium">{item.title}</td>
+                        <td className="px-4 py-3 text-sm font-semibold text-blue-700">{item.value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {dashboard.statusDistribution.length > 0 && (
               <div className="mt-6">
                 <h3 className="font-semibold mb-3">工单状态分布</h3>
-                <div className="flex flex-wrap gap-2">
-                  {dashboard.statusDistribution.map((s) => (
-                    <div key={s.status} className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2">
-                      <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${orderStatusColors[s.status] || 'bg-gray-100 text-gray-700'}`}>
-                        {orderStatusLabels[s.status] || s.status}
-                      </span>
-                      <span className="font-semibold">{s.count}</span>
-                    </div>
-                  ))}
-                </div>
+                {viewMode === 'card' ? (
+                  <div className="flex flex-wrap gap-2">
+                    {dashboard.statusDistribution.map((s) => (
+                      <div key={s.status} className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2">
+                        <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${orderStatusColors[s.status] || 'bg-gray-100 text-gray-700'}`}>
+                          {orderStatusLabels[s.status] || s.status}
+                        </span>
+                        <span className="font-semibold">{s.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">数量</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {dashboard.statusDistribution.map((s) => (
+                          <tr key={s.status} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${orderStatusColors[s.status] || 'bg-gray-100 text-gray-700'}`}>
+                                {orderStatusLabels[s.status] || s.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm font-semibold">{s.count}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
 
             {dashboard.lowStocks.length > 0 && (
               <div className="mt-6">
                 <h3 className="font-semibold mb-3">⚠️ 库存预警</h3>
-                <div className="space-y-2">
-                  {dashboard.lowStocks.map((stock) => (
-                    <div key={stock.id} className="border border-red-200 bg-red-50 rounded-lg p-3 flex items-center justify-between">
-                      <div>
-                        <div className="font-medium text-gray-800">
-                          {stock.material?.name || stock.product?.name}
+                {viewMode === 'card' ? (
+                  <div className="space-y-2">
+                    {dashboard.lowStocks.map((stock) => (
+                      <div key={stock.id} className="border border-red-200 bg-red-50 rounded-lg p-3 flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-gray-800">
+                            {stock.material?.name || stock.product?.name}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {stock.material?.code || stock.product?.sku}
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {stock.material?.code || stock.product?.sku}
+                        <div className="text-red-600 font-semibold">
+                          可用：{stock.availableQty}
                         </div>
                       </div>
-                      <div className="text-red-600 font-semibold">
-                        可用：{stock.availableQty}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存对象</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">编码</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">可用库存</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {dashboard.lowStocks.map((stock) => (
+                          <tr key={stock.id} className="hover:bg-red-50">
+                            <td className="px-4 py-3 font-medium text-gray-800">{stock.material?.name || stock.product?.name}</td>
+                            <td className="px-4 py-3 text-xs text-gray-500">{stock.material?.code || stock.product?.sku}</td>
+                            <td className="px-4 py-3 font-semibold text-red-600">{stock.availableQty}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -236,6 +321,41 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
             <h2 className="text-xl font-semibold mb-6">产量统计</h2>
             {production.length === 0 ? (
               <div className="text-center py-12 text-gray-500">暂无数据</div>
+            ) : viewMode === 'card' ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {production.map((item) => {
+                  const completeRate = item.planQty > 0 ? ((item.completeQty / item.planQty) * 100).toFixed(1) : '0'
+                  return (
+                    <div key={item.productId} className="rounded-lg border border-gray-200 bg-white p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold text-gray-900">{item.productName}</div>
+                          <div className="mt-1 font-mono text-xs text-gray-500">{item.productSku}</div>
+                        </div>
+                        <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{completeRate}%</span>
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                        <div className="rounded bg-gray-50 p-3">
+                          <div className="text-xs text-gray-500">计划产量</div>
+                          <div className="mt-1 font-semibold">{item.planQty}</div>
+                        </div>
+                        <div className="rounded bg-gray-50 p-3">
+                          <div className="text-xs text-gray-500">完成产量</div>
+                          <div className="mt-1 font-semibold text-green-700">{item.completeQty}</div>
+                        </div>
+                        <div className="rounded bg-gray-50 p-3">
+                          <div className="text-xs text-gray-500">报废产量</div>
+                          <div className="mt-1 font-semibold text-red-600">{item.scrapQty}</div>
+                        </div>
+                        <div className="rounded bg-gray-50 p-3">
+                          <div className="text-xs text-gray-500">工单数</div>
+                          <div className="mt-1 font-semibold">{item.orderCount}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -296,6 +416,41 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
             <h3 className="font-semibold mb-3">按工单明细</h3>
             {quality.byOrder.length === 0 ? (
               <div className="text-center py-12 text-gray-500">暂无数据</div>
+            ) : viewMode === 'card' ? (
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                {quality.byOrder.map((item) => (
+                  <div key={item.orderId} className="rounded-lg border border-gray-200 bg-white p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="font-mono text-sm font-semibold text-blue-700">{item.orderNo}</div>
+                        <div className="mt-1 text-sm font-medium text-gray-900">{item.product?.name || '-'}</div>
+                        <div className="text-xs text-gray-500">{item.product?.sku || '-'}</div>
+                      </div>
+                      <span className="rounded bg-green-50 px-2 py-1 text-xs font-medium text-green-700">
+                        合格率 {item.passRate.toFixed(2)}%
+                      </span>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+                      <div className="rounded bg-gray-50 p-3">
+                        <div className="text-xs text-gray-500">合格数</div>
+                        <div className="mt-1 font-semibold text-green-700">{item.goodQty}</div>
+                      </div>
+                      <div className="rounded bg-gray-50 p-3">
+                        <div className="text-xs text-gray-500">不良数</div>
+                        <div className="mt-1 font-semibold text-red-600">{item.badQty}</div>
+                      </div>
+                      <div className="rounded bg-gray-50 p-3">
+                        <div className="text-xs text-gray-500">报工数</div>
+                        <div className="mt-1 font-semibold">{item.reportCount}</div>
+                      </div>
+                      <div className="rounded bg-gray-50 p-3">
+                        <div className="text-xs text-gray-500">不良率</div>
+                        <div className="mt-1 font-semibold text-red-600">{item.badRate.toFixed(2)}%</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -343,6 +498,39 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
             <h3 className="font-semibold mb-3">按成本类型分组</h3>
             {cost.byType.length === 0 ? (
               <div className="text-center py-12 text-gray-500">暂无数据</div>
+            ) : viewMode === 'card' ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {cost.byType.map((item) => {
+                  const percent = cost.totalCost > 0 ? ((item.totalAmount / cost.totalCost) * 100).toFixed(1) : '0'
+                  return (
+                    <div key={item.costType} className="rounded-lg border border-gray-200 bg-white p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                          item.costType === 'MATERIAL' ? 'bg-blue-100 text-blue-700'
+                          : item.costType === 'LABOR' ? 'bg-green-100 text-green-700'
+                          : item.costType === 'EQUIPMENT' ? 'bg-orange-100 text-orange-700'
+                          : item.costType === 'OVERHEAD' ? 'bg-purple-100 text-purple-700'
+                          : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {costTypeLabels[item.costType] || item.costType}
+                        </span>
+                        <span className="text-xs font-medium text-gray-500">{percent}%</span>
+                      </div>
+                      <div className="mt-4 text-2xl font-semibold text-blue-700">¥{item.totalAmount.toFixed(2)}</div>
+                      <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                        <div className="rounded bg-gray-50 p-3">
+                          <div className="text-xs text-gray-500">记录数</div>
+                          <div className="mt-1 font-semibold">{item.count}</div>
+                        </div>
+                        <div className="rounded bg-gray-50 p-3">
+                          <div className="text-xs text-gray-500">占比</div>
+                          <div className="mt-1 font-semibold">{percent}%</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">

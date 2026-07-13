@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 
 interface ResourceItem {
   key: string
@@ -96,6 +97,8 @@ export default function PermissionPage({
   const [newGroup, setNewGroup] = useState({ name: '', code: '', description: '' })
   const [showNewGroupForm, setShowNewGroupForm] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [userViewMode, setUserViewMode] = usePersistedViewMode('mes-lite.permissions.users.viewMode', 'card')
+  const [groupViewMode, setGroupViewMode] = usePersistedViewMode('mes-lite.permissions.groups.viewMode', 'list')
 
   useEffect(() => {
     fetchPermissions()
@@ -279,13 +282,16 @@ export default function PermissionPage({
             <h2 className="text-xl font-semibold">人员赋权</h2>
             <p className="text-sm text-gray-500 mt-1">选择人员后勾选权限组。人员可加入多个权限组，最终权限按权限组合并。</p>
           </div>
-          <button
-            onClick={saveAssignment}
-            disabled={loading || !activeOperator || activeOperator.role === 'ADMIN'}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? '保存中...' : '保存当前人员'}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <ViewModeToggle value={userViewMode} onChange={setUserViewMode} />
+            <button
+              onClick={saveAssignment}
+              disabled={loading || !activeOperator || activeOperator.role === 'ADMIN'}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? '保存中...' : '保存当前人员'}
+            </button>
+          </div>
         </div>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-[280px_1fr]">
@@ -349,36 +355,79 @@ export default function PermissionPage({
 
             <div className="p-5 flex-1">
               {activeOperator ? (
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                  {groups.map((group) => {
-                    const checked = activeOperator.role === 'ADMIN' || isAssigned(activeOperator.id, group.id)
-                    return (
-                      <label
-                        key={group.id}
-                        className={`border rounded-lg p-4 cursor-pointer transition ${
-                          checked ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
-                        } ${activeGroupId === group.id ? 'ring-2 ring-blue-200' : ''}`}
-                        onClick={() => setActiveGroupId(group.id)}
-                      >
-                        <div className="flex items-start gap-3">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={loading || activeOperator.role === 'ADMIN'}
-                            onChange={() => toggleOperatorGroup(group.id)}
-                            onClick={(event) => event.stopPropagation()}
-                            className="mt-1 h-4 w-4 rounded border-gray-300"
-                          />
-                          <div className="min-w-0">
-                            <div className="font-medium text-sm">{group.name}</div>
-                            <div className="mt-1 text-xs text-gray-500 line-clamp-2">{group.description || group.code}</div>
-                            <div className="mt-2 text-xs text-gray-400">{groupMemberCounts[group.id] || 0} 人使用</div>
+                userViewMode === 'card' ? (
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {groups.map((group) => {
+                      const checked = activeOperator.role === 'ADMIN' || isAssigned(activeOperator.id, group.id)
+                      return (
+                        <label
+                          key={group.id}
+                          className={`border rounded-lg p-4 cursor-pointer transition ${
+                            checked ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+                          } ${activeGroupId === group.id ? 'ring-2 ring-blue-200' : ''}`}
+                          onClick={() => setActiveGroupId(group.id)}
+                        >
+                          <div className="flex items-start gap-3">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={loading || activeOperator.role === 'ADMIN'}
+                              onChange={() => toggleOperatorGroup(group.id)}
+                              onClick={(event) => event.stopPropagation()}
+                              className="mt-1 h-4 w-4 rounded border-gray-300"
+                            />
+                            <div className="min-w-0">
+                              <div className="font-medium text-sm">{group.name}</div>
+                              <div className="mt-1 text-xs text-gray-500 line-clamp-2">{group.description || group.code}</div>
+                              <div className="mt-2 text-xs text-gray-400">{groupMemberCounts[group.id] || 0} 人使用</div>
+                            </div>
                           </div>
-                        </div>
-                      </label>
-                    )
-                  })}
-                </div>
+                        </label>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">权限组</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">编码</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">说明</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">成员数</th>
+                          <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">授权</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {groups.map((group) => {
+                          const checked = activeOperator.role === 'ADMIN' || isAssigned(activeOperator.id, group.id)
+                          return (
+                            <tr
+                              key={group.id}
+                              onClick={() => setActiveGroupId(group.id)}
+                              className={`cursor-pointer hover:bg-gray-50 ${activeGroupId === group.id ? 'bg-blue-50' : ''}`}
+                            >
+                              <td className="px-4 py-3 font-medium text-sm">{group.name}</td>
+                              <td className="px-4 py-3 font-mono text-xs text-gray-500">{group.code}</td>
+                              <td className="px-4 py-3 text-sm text-gray-500">{group.description || '-'}</td>
+                              <td className="px-4 py-3 text-sm text-gray-500">{groupMemberCounts[group.id] || 0}</td>
+                              <td className="px-4 py-3 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  disabled={loading || activeOperator.role === 'ADMIN'}
+                                  onChange={() => toggleOperatorGroup(group.id)}
+                                  onClick={(event) => event.stopPropagation()}
+                                  className="h-4 w-4 rounded border-gray-300"
+                                />
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )
               ) : (
                 <div className="h-full flex items-center justify-center text-gray-500 text-sm">请从左侧选择一个人员</div>
               )}
@@ -393,7 +442,8 @@ export default function PermissionPage({
             <h3 className="text-lg font-semibold">权限组赋权</h3>
             <p className="text-sm text-gray-500 mt-1">{activeGroup ? `${activeGroup.name}：${activeGroup.description || '配置这个权限组可访问的功能和操作。'}` : '新建或选择权限组后配置功能权限。'}</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <ViewModeToggle value={groupViewMode} onChange={setGroupViewMode} />
             <button
               onClick={() => setShowNewGroupForm((value) => !value)}
               disabled={loading}
@@ -455,45 +505,76 @@ export default function PermissionPage({
           ))}
         </div>
 
-        <div className="mt-5 overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">功能页</th>
-                {actions.map((action) => (
-                  <th key={action.key} className="px-4 py-3 text-center text-sm font-semibold text-gray-600">
-                    <div>{action.label}</div>
-                    <div className="text-xs font-normal text-gray-400 mt-1">{actionHelp[action.key]}</div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {currentGroupSettings.map((setting) => {
-                const resource = resources.find((item) => item.key === setting.resource)
-                return (
-                  <tr key={setting.resource} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-sm">{resource?.label || setting.resource}</div>
-                      <div className="text-xs text-gray-400 font-mono">{setting.resource}</div>
-                    </td>
+        {groupViewMode === 'card' ? (
+          <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {currentGroupSettings.map((setting) => {
+              const resource = resources.find((item) => item.key === setting.resource)
+              return (
+                <div key={setting.resource} className="rounded-lg border border-gray-200 bg-white p-4">
+                  <div className="font-medium text-sm">{resource?.label || setting.resource}</div>
+                  <div className="mt-1 text-xs text-gray-400 font-mono">{setting.resource}</div>
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                     {actions.map((action) => (
-                      <td key={action.key} className="px-4 py-3 text-center">
+                      <label key={action.key} className="flex items-start gap-2 rounded border border-gray-100 bg-gray-50 p-3 text-sm">
                         <input
                           type="checkbox"
                           checked={Boolean(setting[action.key])}
                           disabled={loading || !activeGroup}
                           onChange={() => toggleGroupSetting(setting.resource, action.key)}
-                          className="h-4 w-4 rounded border-gray-300"
+                          className="mt-0.5 h-4 w-4 rounded border-gray-300"
                         />
-                      </td>
+                        <span>
+                          <span className="block font-medium text-gray-700">{action.label}</span>
+                          <span className="mt-1 block text-xs text-gray-400">{actionHelp[action.key]}</span>
+                        </span>
+                      </label>
                     ))}
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="mt-5 overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">功能页</th>
+                  {actions.map((action) => (
+                    <th key={action.key} className="px-4 py-3 text-center text-sm font-semibold text-gray-600">
+                      <div>{action.label}</div>
+                      <div className="text-xs font-normal text-gray-400 mt-1">{actionHelp[action.key]}</div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {currentGroupSettings.map((setting) => {
+                  const resource = resources.find((item) => item.key === setting.resource)
+                  return (
+                    <tr key={setting.resource} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-sm">{resource?.label || setting.resource}</div>
+                        <div className="text-xs text-gray-400 font-mono">{setting.resource}</div>
+                      </td>
+                      {actions.map((action) => (
+                        <td key={action.key} className="px-4 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(setting[action.key])}
+                            disabled={loading || !activeGroup}
+                            onChange={() => toggleGroupSetting(setting.resource, action.key)}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>}
     </div>
   )

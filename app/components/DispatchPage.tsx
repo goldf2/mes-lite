@@ -5,6 +5,7 @@ import AttachmentPanel from './AttachmentPanel'
 import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
+import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 
 interface Order {
   id: string
@@ -99,6 +100,7 @@ export default function DispatchPage({
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.dispatch.viewMode', 'list')
 
   const [form, setForm] = useState({
     orderId: '',
@@ -264,6 +266,7 @@ export default function DispatchPage({
         )}
         actions={(
           <>
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
             {onCreateOrder && (
               <button
                 onClick={onCreateOrder}
@@ -287,7 +290,7 @@ export default function DispatchPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedStatuses, selectedCustomerId, customers, onCreateOrder])
+  }, [onToolbarChange, selectedStatuses, selectedCustomerId, customers, onCreateOrder, viewMode, setViewMode])
 
   return (
     <>
@@ -311,6 +314,7 @@ export default function DispatchPage({
           )}
           actions={(
             <>
+              <ViewModeToggle value={viewMode} onChange={setViewMode} />
               {onCreateOrder && (
                 <button
                   onClick={onCreateOrder}
@@ -338,6 +342,81 @@ export default function DispatchPage({
           <div className="text-center py-12 text-gray-500">
             <p className="text-4xl mb-4">📋</p>
             <p>暂无派工单</p>
+          </div>
+        ) : viewMode === 'card' ? (
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {dispatches.map((item) => (
+              <div key={item.id} className="rounded-lg border border-gray-200 bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="font-mono text-sm font-semibold text-blue-700">{item.dispatchNo}</div>
+                    <div className="mt-1 text-xs text-gray-500">工单：{item.order?.orderNo}</div>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${priorityColors[item.priority]}`}>
+                      {priorityLabels[item.priority] || item.priority}
+                    </span>
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[item.status]}`}>
+                      {statusLabels[item.status] || item.status}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div>
+                    <div className="text-xs text-gray-500">生产目标</div>
+                    <div className="mt-1 font-medium text-gray-900">{item.order?.targetMaterial?.name || item.order?.product?.name}</div>
+                    <div className="text-xs text-gray-500">
+                      {item.order?.targetMaterial ? `物料 ${item.order.targetMaterial.code}` : item.order?.product?.sku}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      客户：{item.order?.targetMaterial?.customer?.name || item.order?.product?.customer?.name || '通用/未绑定'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">工序与人员</div>
+                    <div className="mt-1 font-medium text-gray-900">{item.step?.name} · 工序 {item.step?.stepNo}</div>
+                    <div className="text-xs text-gray-500">工人：{item.workerName}{item.workerId ? ` (${item.workerId})` : ''}</div>
+                    <div className="text-xs text-gray-500">计划数量：{item.planQty}</div>
+                  </div>
+                </div>
+                {item.note && <div className="mt-3 rounded bg-gray-50 p-3 text-sm text-gray-600">{item.note}</div>}
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <AttachmentPanel ownerType="DISPATCH" ownerId={item.id} compact onMessage={onMessage} />
+                  <div className="flex flex-wrap gap-2">
+                    {item.status === 'PENDING' && (
+                      <button
+                        onClick={() => handleAction(item.id, 'dispatch')}
+                        disabled={loading}
+                        className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition disabled:opacity-50"
+                      >
+                        派工
+                      </button>
+                    )}
+                    {item.status === 'DISPATCHED' && (
+                      <button
+                        onClick={() => handleAction(item.id, 'start')}
+                        disabled={loading}
+                        className="px-3 py-1 bg-orange-600 text-white rounded text-xs hover:bg-orange-700 transition disabled:opacity-50"
+                      >
+                        开始
+                      </button>
+                    )}
+                    {item.status === 'IN_PROGRESS' && (
+                      <button
+                        onClick={() => handleAction(item.id, 'complete')}
+                        disabled={loading}
+                        className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition disabled:opacity-50"
+                      >
+                        完成
+                      </button>
+                    )}
+                    {(item.status === 'COMPLETED' || item.status === 'CANCELLED') && (
+                      <span className="text-xs text-gray-400">无操作</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="overflow-x-auto">

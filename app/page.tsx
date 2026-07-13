@@ -14,6 +14,7 @@ import SystemPage from './components/SystemPage'
 import PermissionPage from './components/PermissionPage'
 import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
+import ViewModeToggle, { usePersistedViewMode } from './components/ViewModeToggle'
 
 // ==================== 类型定义 ====================
 
@@ -217,7 +218,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [selectedProductId, setSelectedProductId] = useState('')
   const [selectedMaterialId, setSelectedMaterialId] = useState('')
   const [selectedOrderStatuses, setSelectedOrderStatuses] = useState(orderStatusOptions.map((option) => option.value))
+  const [dashboardViewMode, setDashboardViewMode] = usePersistedViewMode('mes-lite.dashboard.viewMode', 'card')
+  const [orderViewMode, setOrderViewMode] = usePersistedViewMode('mes-lite.orders.viewMode', 'list')
   const [stockFilter, setStockFilter] = useState<'all' | 'material' | 'product'>('all')
+  const [stockViewMode, setStockViewMode] = usePersistedViewMode('mes-lite.stocks.viewMode', 'card')
   const [stockCustomerFilter, setStockCustomerFilter] = useState('')
   const [selectedStockCategories, setSelectedStockCategories] = useState<string[]>(materialCategoryFilterOptions.map((option) => option.value))
   const [showInvalidStocks, setShowInvalidStocks] = useState(false)
@@ -470,6 +474,19 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     lowStocks: dashboard?.lowStocks ?? dashboard?.alertStocks ?? [],
     statusDistribution: dashboard?.statusDistribution ?? dashboard?.orderStatusDist ?? [],
   }
+  const dashboardMetricItems = [
+    { label: '今日新增工单', value: dashboardView.todayOrderCount },
+    { label: '本月工单', value: dashboardView.monthOrderCount },
+    { label: '今日产量', value: dashboardView.todayProduction },
+    { label: '本月产量', value: dashboardView.monthProduction },
+    { label: '待收货', value: dashboardView.pendingMaterialInCount },
+    { label: '待发货', value: dashboardView.pendingShipmentCount },
+    { label: '待处理退货', value: dashboardView.pendingReturnCount },
+    { label: '库存预警', value: dashboardView.lowStocks.length },
+  ]
+  const visibleStocks = stocks.filter((stock) => (
+    stockFilter === 'all' ? true : stockFilter === 'material' ? !!stock.material : !!stock.product
+  ))
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -527,7 +544,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <div className="truncate text-lg font-semibold text-gray-900">{activeTabLabel}</div>
             </div>
             <div id="topbar-actions" className="flex min-w-0 flex-1 items-center justify-end gap-2">
-              {tab === 'orders' ? (
+              {tab === 'dashboard' ? (
+                <ResponsiveToolbarActions
+                  actions={<ViewModeToggle value={dashboardViewMode} onChange={setDashboardViewMode} />}
+                />
+              ) : tab === 'orders' ? (
                 <ResponsiveToolbarActions
                   filters={(
                     <StatusCheckboxFilter
@@ -536,14 +557,19 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                       onChange={setSelectedOrderStatuses}
                     />
                   )}
-                  actions={canCreate('orders') ? (
-                    <button
-                      onClick={() => setTab('create')}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
-                    >
-                      新增工单
-                    </button>
-                  ) : null}
+                  actions={(
+                    <>
+                      <ViewModeToggle value={orderViewMode} onChange={setOrderViewMode} />
+                      {canCreate('orders') && (
+                        <button
+                          onClick={() => setTab('create')}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+                        >
+                          新增工单
+                        </button>
+                      )}
+                    </>
+                  )}
                 />
               ) : tab === 'stocks' ? (
                 <ResponsiveToolbarActions
@@ -588,12 +614,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     </>
                   )}
                   actions={(
-                    <button
-                      onClick={() => setShowStockHelp(true)}
-                      className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg text-sm hover:bg-blue-50"
-                    >
-                      存货调整
-                    </button>
+                    <>
+                      <ViewModeToggle value={stockViewMode} onChange={setStockViewMode} />
+                      <button
+                        onClick={() => setShowStockHelp(true)}
+                        className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg text-sm hover:bg-blue-50"
+                      >
+                        存货调整
+                      </button>
+                    </>
                   )}
                 />
               ) : null}
@@ -657,31 +686,117 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {/* 仪表盘 */}
         {tab === 'dashboard' && dashboard && (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard label="今日新增工单" value={dashboardView.todayOrderCount} color="blue" />
-              <StatCard label="本月工单" value={dashboardView.monthOrderCount} color="indigo" />
-              <StatCard label="今日产量" value={dashboardView.todayProduction} color="green" />
-              <StatCard label="本月产量" value={dashboardView.monthProduction} color="emerald" />
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard label="待收货" value={dashboardView.pendingMaterialInCount} color="yellow" />
-              <StatCard label="待发货" value={dashboardView.pendingShipmentCount} color="orange" />
-              <StatCard label="待处理退货" value={dashboardView.pendingReturnCount} color="red" />
-              <StatCard label="库存预警" value={dashboardView.lowStocks.length} color="pink" />
-            </div>
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <DashboardSignalGrid
-                title="待处理事项"
-                items={[
-                  { label: '待收货', value: dashboardView.pendingMaterialInCount, tone: 'yellow', hint: '原材料入库' },
-                  { label: '待发货', value: dashboardView.pendingShipmentCount, tone: 'orange', hint: '成品出库' },
-                  { label: '待处理退货', value: dashboardView.pendingReturnCount, tone: 'red', hint: '售后返库' },
-                  { label: '库存预警', value: dashboardView.lowStocks.length, tone: 'pink', hint: '低于阈值' },
-                ]}
-              />
-              <OrderStatusDonut items={dashboardView.statusDistribution} />
-            </div>
-            <StockAlertList stocks={dashboardView.lowStocks} />
+            {dashboardViewMode === 'card' ? (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <StatCard label="今日新增工单" value={dashboardView.todayOrderCount} color="blue" />
+                  <StatCard label="本月工单" value={dashboardView.monthOrderCount} color="indigo" />
+                  <StatCard label="今日产量" value={dashboardView.todayProduction} color="green" />
+                  <StatCard label="本月产量" value={dashboardView.monthProduction} color="emerald" />
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <StatCard label="待收货" value={dashboardView.pendingMaterialInCount} color="yellow" />
+                  <StatCard label="待发货" value={dashboardView.pendingShipmentCount} color="orange" />
+                  <StatCard label="待处理退货" value={dashboardView.pendingReturnCount} color="red" />
+                  <StatCard label="库存预警" value={dashboardView.lowStocks.length} color="pink" />
+                </div>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  <DashboardSignalGrid
+                    title="待处理事项"
+                    items={[
+                      { label: '待收货', value: dashboardView.pendingMaterialInCount, tone: 'yellow', hint: '原材料入库' },
+                      { label: '待发货', value: dashboardView.pendingShipmentCount, tone: 'orange', hint: '成品出库' },
+                      { label: '待处理退货', value: dashboardView.pendingReturnCount, tone: 'red', hint: '售后返库' },
+                      { label: '库存预警', value: dashboardView.lowStocks.length, tone: 'pink', hint: '低于阈值' },
+                    ]}
+                  />
+                  <OrderStatusDonut items={dashboardView.statusDistribution} />
+                </div>
+                <StockAlertList stocks={dashboardView.lowStocks} />
+              </>
+            ) : (
+              <>
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h2 className="mb-4 text-lg font-semibold">关键指标</h2>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">指标</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">数值</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {dashboardMetricItems.map((item) => (
+                          <tr key={item.label} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.label}</td>
+                            <td className="px-4 py-3 text-sm font-semibold text-blue-700">{item.value}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <h2 className="mb-4 text-lg font-semibold">工单状态分布</h2>
+                    {dashboardView.statusDistribution.length === 0 ? (
+                      <div className="py-8 text-center text-sm text-gray-500">暂无状态数据</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">数量</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {dashboardView.statusDistribution.map((item: { status: string; count: number }) => (
+                              <tr key={item.status} className="hover:bg-gray-50">
+                                <td className="px-4 py-3">
+                                  <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[item.status] || 'bg-gray-100 text-gray-700'}`}>
+                                    {statusLabels[item.status] || item.status}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-sm font-semibold">{item.count}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <h2 className="mb-4 text-lg font-semibold">库存预警</h2>
+                    {dashboardView.lowStocks.length === 0 ? (
+                      <div className="py-8 text-center text-sm text-gray-500">暂无库存预警</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存对象</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">编码</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">可用库存</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {dashboardView.lowStocks.map((stock: any) => (
+                              <tr key={stock.id} className="hover:bg-red-50">
+                                <td className="px-4 py-3 text-sm font-medium text-gray-900">{stock.material?.name || stock.product?.name}</td>
+                                <td className="px-4 py-3 text-xs text-gray-500">{stock.material?.code || stock.product?.sku}</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-red-600">{stock.availableQty}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -703,6 +818,55 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     新增工单
                   </button>
                 )}
+              </div>
+            ) : orderViewMode === 'card' ? (
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                {orders.map((order) => (
+                  <div
+                    key={order.id}
+                    onClick={() => handleSelectOrder(order)}
+                    className="cursor-pointer rounded-lg border border-gray-200 bg-white p-4 transition hover:border-blue-200 hover:shadow-sm"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="font-mono text-sm font-semibold text-blue-700">{order.orderNo}</div>
+                        <div className="mt-1 text-xs text-gray-500">{new Date(order.createdAt).toLocaleString('zh-CN')}</div>
+                      </div>
+                      <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[order.status]}`}>
+                        {statusLabels[order.status]}
+                      </span>
+                    </div>
+                    <div className="mt-4">
+                      <div className="text-xs text-gray-500">目标</div>
+                      <div className="mt-1 font-semibold text-gray-900">{order.targetMaterial?.name || order.product.name}</div>
+                      <div className="text-xs text-gray-500">
+                        {order.targetMaterial ? `物料 ${order.targetMaterial.code}` : `产品 ${order.product.sku}`}
+                      </div>
+                    </div>
+                    <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+                      <div className="rounded bg-gray-50 p-3">
+                        <div className="text-xs text-gray-500">计划</div>
+                        <div className="mt-1 font-semibold">{order.planQty}</div>
+                      </div>
+                      <div className="rounded bg-gray-50 p-3">
+                        <div className="text-xs text-gray-500">完成</div>
+                        <div className="mt-1 font-semibold text-green-700">{order.completeQty}</div>
+                      </div>
+                      <div className="rounded bg-gray-50 p-3">
+                        <div className="text-xs text-gray-500">报废</div>
+                        <div className="mt-1 font-semibold text-red-600">{order.scrapQty}</div>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between gap-3 text-xs text-gray-500">
+                      <span>报工 {order._count.reports} · 领料 {order._count.picks}</span>
+                      {order.status === 'DRAFT' ? (
+                        <button onClick={(e) => { e.stopPropagation(); confirmOrder(order.id) }} className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">确认</button>
+                      ) : (
+                        <button onClick={(e) => { e.stopPropagation(); handleSelectOrder(order) }} className="px-3 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">详情</button>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -745,7 +909,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                             <button onClick={(e) => { e.stopPropagation(); confirmOrder(order.id) }} className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">确认</button>
                           )}
                           {order.status !== 'DRAFT' && (
-                            <button onClick={(e) => e.stopPropagation()} className="px-3 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">详情</button>
+                            <button onClick={(e) => { e.stopPropagation(); handleSelectOrder(order) }} className="px-3 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">详情</button>
                           )}
                         </td>
                       </tr>
@@ -909,11 +1073,69 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {/* 库存管理 */}
         {tab === 'stocks' && (
           <div className="bg-white rounded-lg shadow p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {stocks
-                .filter((s) => stockFilter === 'all' ? true : stockFilter === 'material' ? !!s.material : !!s.product)
-                .map((stock) => (
-                <div key={stock.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+            {stockViewMode === 'list' ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存对象</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">客户</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">类型</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">已预留</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">可用</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">核算库存</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存金额</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {visibleStocks.map((stock) => (
+                      <tr key={stock.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-gray-900">{stock.material?.name || stock.product?.name}</div>
+                          <div className="text-xs text-gray-500">{stock.material?.code || stock.product?.sku}</div>
+                          {stock.material?.spec && <div className="text-xs text-gray-400">{stock.material.spec}</div>}
+                        </td>
+                        <td className="px-4 py-3 text-sm">{stock.material?.customer?.name || stock.product?.customer?.name || '通用/未绑定'}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col items-start gap-1">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${stock.material ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                              {stock.material ? materialCategoryLabels[stock.material.category || 'RAW'] || '物料' : '成品'}
+                            </span>
+                            {stock.material?.deletedAt && (
+                              <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">已归档</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm">{stock.qty} {stock.material?.stockUnit || stock.product?.unit}</td>
+                        <td className="px-4 py-3 text-sm text-orange-600">{stock.reservedQty} {stock.material?.stockUnit || stock.product?.unit}</td>
+                        <td className={`px-4 py-3 text-sm font-medium ${stock.availableQty < 10 ? 'text-red-600' : 'text-green-600'}`}>{stock.availableQty} {stock.material?.stockUnit || stock.product?.unit}</td>
+                        <td className="px-4 py-3 text-sm">
+                          {stock.material ? `${stock.valuationQty} ${stock.material.valuationUnit}` : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          {stock.material ? `¥${Number(stock.totalCost || 0).toFixed(2)}` : '-'}
+                        </td>
+                        <td className="px-4 py-3">
+                          {canUpdate('stocks') && (
+                            <button
+                              onClick={() => openStockAdjust(stock)}
+                              className="px-3 py-1 border border-blue-300 text-blue-700 rounded text-xs hover:bg-blue-50"
+                            >
+                              存货调整
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {visibleStocks.map((stock) => (
+                  <div key={stock.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
 	                  <div className="flex items-start justify-between mb-3">
 	                    <div>
 	                      <div className="font-medium text-gray-800">{stock.material?.name || stock.product?.name}</div>
@@ -972,7 +1194,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   )}
                 </div>
               ))}
-            </div>
+              </div>
+            )}
+            {visibleStocks.length === 0 && (
+              <div className="py-12 text-center text-gray-500">暂无库存记录</div>
+            )}
           </div>
         )}
 

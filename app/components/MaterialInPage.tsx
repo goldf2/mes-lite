@@ -5,6 +5,7 @@ import AttachmentPanel from './AttachmentPanel'
 import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
+import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 
 interface Supplier {
   id: string
@@ -96,6 +97,7 @@ export default function MaterialInPage({
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [editingItem, setEditingItem] = useState<MaterialIn | null>(null)
+  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.materialIn.viewMode', 'list')
 
   const [form, setForm] = useState({
     supplierId: '',
@@ -360,21 +362,24 @@ export default function MaterialInPage({
           </>
         )}
         actions={(
-          <button
-            onClick={() => {
-              resetForm()
-              setShowModal(true)
-            }}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
-          >
-            新增来料单
-          </button>
+          <>
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
+            <button
+              onClick={() => {
+                resetForm()
+                setShowModal(true)
+              }}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+            >
+              新增来料单
+            </button>
+          </>
         )}
       />
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedStatuses, selectedCustomerId, selectedSupplierId, customers, suppliers])
+  }, [onToolbarChange, selectedStatuses, selectedCustomerId, selectedSupplierId, customers, suppliers, viewMode, setViewMode])
 
   return (
     <>
@@ -411,15 +416,18 @@ export default function MaterialInPage({
             </>
           )}
           actions={(
-            <button
-              onClick={() => {
-                resetForm()
-                setShowModal(true)
-              }}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
-            >
-              新增来料单
-            </button>
+            <>
+              <ViewModeToggle value={viewMode} onChange={setViewMode} />
+              <button
+                onClick={() => {
+                  resetForm()
+                  setShowModal(true)
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+              >
+                新增来料单
+              </button>
+            </>
           )}
         />
       </TopBarPortal>
@@ -429,6 +437,98 @@ export default function MaterialInPage({
           <div className="text-center py-12 text-gray-500">
             <p className="text-4xl mb-4">📦</p>
             <p>暂无来料单</p>
+          </div>
+        ) : viewMode === 'card' ? (
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {materialIns.map((item) => (
+              <div key={item.id} className="rounded-lg border border-gray-200 bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="font-mono text-sm font-semibold text-blue-700">{item.inboundNo}</div>
+                    <div className="mt-1 text-xs text-gray-500">{new Date(item.inboundDate).toLocaleString('zh-CN')}</div>
+                  </div>
+                  <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[item.status]}`}>
+                    {statusLabels[item.status] || item.status}
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div>
+                    <div className="text-xs text-gray-500">供应商</div>
+                    <div className="mt-1 font-medium text-gray-900">{item.supplier?.name}</div>
+                    <div className="text-xs text-gray-500">{item.supplier?.code}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">物料</div>
+                    <div className="mt-1 font-medium text-gray-900">{item.material?.name}</div>
+                    <div className="text-xs text-gray-500">{item.material?.code} · 客户：{item.material?.customer?.name || '通用/未绑定'}</div>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  <div className="rounded bg-gray-50 p-3">
+                    <div className="text-xs text-gray-500">库存数量</div>
+                    <div className="mt-1 font-semibold">{item.qty} {item.unit}</div>
+                  </div>
+                  <div className="rounded bg-gray-50 p-3">
+                    <div className="text-xs text-gray-500">核算数量</div>
+                    <div className="mt-1 font-semibold text-green-700">{item.valuationQty} {item.valuationUnit}</div>
+                  </div>
+                  <div className="rounded bg-gray-50 p-3">
+                    <div className="text-xs text-gray-500">单价</div>
+                    <div className="mt-1 font-semibold">¥{item.unitPrice.toFixed(4)}</div>
+                    <div className="text-[11px] text-gray-500">/{item.priceUnit || item.valuationUnit}</div>
+                  </div>
+                  <div className="rounded bg-gray-50 p-3">
+                    <div className="text-xs text-gray-500">金额</div>
+                    <div className="mt-1 font-semibold">¥{item.totalAmount.toFixed(2)}</div>
+                  </div>
+                </div>
+                <div className="mt-3 text-xs text-gray-500">
+                  批次：{item.batchNo || '-'} · 1 {item.unit} = {item.conversionRate} {item.valuationUnit} · {item.priceBasis === 'STOCK' ? '按数量/长度报价' : '按重量报价'}
+                </div>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <AttachmentPanel ownerType="MATERIAL_IN" ownerId={item.id} compact onMessage={onMessage} />
+                  <div className="flex flex-wrap gap-2">
+                    {item.status === 'PENDING' && (
+                      <>
+                        <button
+                          onClick={() => handleEdit(item)}
+                          disabled={loading}
+                          className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition disabled:opacity-50"
+                        >
+                          编辑
+                        </button>
+                        <button
+                          onClick={() => handleReceive(item.id)}
+                          disabled={loading}
+                          className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition disabled:opacity-50"
+                        >
+                          收货
+                        </button>
+                        <button
+                          onClick={() => handleReject(item.id)}
+                          disabled={loading}
+                          className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition disabled:opacity-50"
+                        >
+                          拒收
+                        </button>
+                      </>
+                    )}
+                    {item.status === 'RECEIVED' && (
+                      <button
+                        onClick={() => handleReverse(item)}
+                        disabled={loading}
+                        className="px-3 py-1 bg-orange-600 text-white rounded text-xs hover:bg-orange-700 transition disabled:opacity-50"
+                      >
+                        红冲
+                      </button>
+                    )}
+                    {item.status !== 'PENDING' && item.status !== 'RECEIVED' && (
+                      <span className="text-xs text-gray-400">无操作</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="overflow-x-auto">

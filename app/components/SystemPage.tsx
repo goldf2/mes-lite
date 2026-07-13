@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 
 interface Supplier {
   id: string
@@ -129,6 +130,7 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [showModal, setShowModal] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
   const [loading, setLoading] = useState(false)
+  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.suppliers.viewMode', 'list')
   const [form, setForm] = useState({
     code: '',
     name: '',
@@ -224,6 +226,7 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
           <p className="text-sm text-gray-500 mt-1">用于来料单选择供应商，不再使用的供应商只能归档。</p>
         </div>
         <div className="flex items-center gap-3">
+          <ViewModeToggle value={viewMode} onChange={setViewMode} />
           <input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
@@ -236,6 +239,40 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
         </div>
       </div>
 
+      {viewMode === 'card' && suppliers.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {suppliers.map((supplier) => (
+            <div key={supplier.id} className="rounded-lg border border-gray-200 bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate font-semibold text-gray-900">{supplier.name}</div>
+                  <div className="mt-1 font-mono text-sm text-blue-700">{supplier.code}</div>
+                </div>
+                <button onClick={() => openEdit(supplier)} className="shrink-0 px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">
+                  编辑
+                </button>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <div className="text-xs text-gray-500">联系人</div>
+                  <div className="mt-1">{supplier.contact || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">电话</div>
+                  <div className="mt-1">{supplier.phone || '-'}</div>
+                </div>
+              </div>
+              <div className="mt-3 text-sm text-gray-600">地址：{supplier.address || '-'}</div>
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <div className="text-xs text-gray-500">{new Date(supplier.createdAt).toLocaleString('zh-CN')}</div>
+                <button onClick={() => remove(supplier)} className="px-3 py-1 text-red-600 border border-red-300 rounded text-xs hover:bg-red-50">
+                  归档
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-gray-50">
@@ -271,6 +308,7 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
           </tbody>
         </table>
       </div>
+      )}
 
       {suppliers.length === 0 && <div className="text-center py-12 text-gray-500">暂无供应商</div>}
 
@@ -321,6 +359,7 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [showModal, setShowModal] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(false)
+  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.customers.viewMode', 'list')
   const [form, setForm] = useState({
     code: '',
     name: '',
@@ -416,6 +455,7 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
           <p className="text-sm text-gray-500 mt-1">用于按最终客户筛选产品、物料、库存和发货记录。</p>
         </div>
         <div className="flex items-center gap-3">
+          <ViewModeToggle value={viewMode} onChange={setViewMode} />
           <input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
@@ -428,6 +468,40 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
         </div>
       </div>
 
+      {viewMode === 'card' && customers.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {customers.map((customer) => (
+            <div key={customer.id} className="rounded-lg border border-gray-200 bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate font-semibold text-gray-900">{customer.name}</div>
+                  <div className="mt-1 font-mono text-sm text-blue-700">{customer.code}</div>
+                </div>
+                <button onClick={() => openEdit(customer)} className="shrink-0 px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">
+                  编辑
+                </button>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <div className="text-xs text-gray-500">联系人</div>
+                  <div className="mt-1">{customer.contact || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">电话</div>
+                  <div className="mt-1">{customer.phone || '-'}</div>
+                </div>
+              </div>
+              <div className="mt-3 text-sm text-gray-600">地址：{customer.address || '-'}</div>
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <div className="text-xs text-gray-500">{new Date(customer.createdAt).toLocaleString('zh-CN')}</div>
+                <button onClick={() => remove(customer)} className="px-3 py-1 text-red-600 border border-red-300 rounded text-xs hover:bg-red-50">
+                  归档
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-gray-50">
@@ -463,6 +537,7 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
           </tbody>
         </table>
       </div>
+      )}
 
       {customers.length === 0 && <div className="text-center py-12 text-gray-500">暂无客户</div>}
 
@@ -523,6 +598,7 @@ function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [showModal, setShowModal] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(false)
+  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.products.viewMode', 'list')
   const [form, setForm] = useState({
     sku: '',
     name: '',
@@ -624,6 +700,7 @@ function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
           <p className="text-sm text-gray-500 mt-1">维护成品编码、名称、类别和单位，供工单、发货和退货选择。</p>
         </div>
         <div className="flex items-center gap-3">
+          <ViewModeToggle value={viewMode} onChange={setViewMode} />
           <input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
@@ -636,6 +713,35 @@ function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
         </div>
       </div>
 
+      {viewMode === 'card' && filtered.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((product) => (
+            <div key={product.id} className="rounded-lg border border-gray-200 bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate font-semibold text-gray-900">{product.name}</div>
+                  <div className="mt-1 font-mono text-sm text-blue-700">{product.sku}</div>
+                </div>
+                <button onClick={() => openEdit(product)} className="shrink-0 px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">
+                  编辑
+                </button>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <div className="text-xs text-gray-500">类别</div>
+                  <div className="mt-1">{product.category}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">单位</div>
+                  <div className="mt-1">{product.unit}</div>
+                </div>
+              </div>
+              <div className="mt-3 text-sm text-gray-600">客户：{product.customer ? `${product.customer.name} (${product.customer.code})` : '通用/未绑定'}</div>
+              <div className="mt-3 rounded bg-gray-50 p-3 text-sm text-gray-600">{product.description || '无说明'}</div>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-gray-50">
@@ -668,6 +774,7 @@ function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
           </tbody>
         </table>
       </div>
+      )}
 
       {filtered.length === 0 && <div className="text-center py-12 text-gray-500">暂无产品资料</div>}
 
@@ -733,6 +840,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [showModal, setShowModal] = useState(false)
   const [editingRoute, setEditingRoute] = useState<ProcessRoute | null>(null)
   const [loading, setLoading] = useState(false)
+  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.process.viewMode', 'list')
   const [form, setForm] = useState({
     productId: '',
     name: '',
@@ -857,11 +965,46 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
           <h3 className="text-lg font-semibold">BOM/工艺</h3>
           <p className="text-sm text-gray-500 mt-1">维护产品工艺路线和工序。已产生派工或报工的工序不建议直接修改。</p>
         </div>
-        <button onClick={openAdd} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
-          新增工艺路线
-        </button>
+        <div className="flex items-center gap-3">
+          <ViewModeToggle value={viewMode} onChange={setViewMode} />
+          <button onClick={openAdd} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
+            新增工艺路线
+          </button>
+        </div>
       </div>
 
+      {viewMode === 'card' && routes.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {routes.map((route) => (
+            <div key={route.id} className="rounded-lg border border-gray-200 bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-semibold text-gray-900">{route.name}</div>
+                  <div className="mt-1 text-sm text-gray-500">{route.product?.name} ({route.product?.sku})</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {route.isDefault && <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">默认</span>}
+                  <button onClick={() => openEdit(route)} className="px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">
+                    编辑
+                  </button>
+                </div>
+              </div>
+              <div className="mt-4 space-y-2">
+                {route.steps.map((step) => (
+                  <div key={step.id} className="rounded bg-gray-50 p-3 text-sm">
+                    <div className="font-medium text-gray-900">{step.stepNo}. {step.name}</div>
+                    <div className="mt-1 text-xs text-gray-500">
+                      {step.workstation ? `工位：${step.workstation}` : '未设工位'}
+                      {step.defaultTime ? ` · ${step.defaultTime} 分钟` : ''}
+                    </div>
+                    {step.description && <div className="mt-1 text-xs text-gray-500">{step.description}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-gray-50">
@@ -903,6 +1046,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
           </tbody>
         </table>
       </div>
+      )}
 
       {routes.length === 0 && <div className="text-center py-12 text-gray-500">暂无工艺路线</div>}
 
@@ -1032,6 +1176,7 @@ function Placeholder({ title, text }: { title: string; text: string }) {
 function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
   const [records, setRecords] = useState<DeletedRecord[]>([])
   const [loading, setLoading] = useState(false)
+  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.recycle.viewMode', 'list')
 
   useEffect(() => {
     fetchDeletedRecords()
@@ -1084,10 +1229,31 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
           <h3 className="text-lg font-semibold">归档记录</h3>
           <p className="text-sm text-gray-500 mt-1">业务数据归档后不会物理删除，可在这里恢复。</p>
         </div>
-        <button onClick={fetchDeletedRecords} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
-          刷新
-        </button>
+        <div className="flex items-center gap-3">
+          <ViewModeToggle value={viewMode} onChange={setViewMode} />
+          <button onClick={fetchDeletedRecords} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
+            刷新
+          </button>
+        </div>
       </div>
+      {viewMode === 'card' && records.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {records.map((record) => (
+            <div key={`${record.model}-${record.id}`} className="rounded-lg border border-gray-200 bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-mono text-sm font-semibold text-blue-700">{record.label}</div>
+                  <div className="mt-1 text-sm text-gray-500">{record.type}</div>
+                </div>
+                <button onClick={() => restore(record)} className="px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">
+                  恢复归档
+                </button>
+              </div>
+              <div className="mt-4 text-xs text-gray-500">归档时间：{record.deletedAt ? new Date(record.deletedAt).toLocaleString('zh-CN') : '-'}</div>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-gray-50">
@@ -1114,6 +1280,7 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
           </tbody>
         </table>
       </div>
+      )}
       {!loading && records.length === 0 && <div className="text-center py-12 text-gray-500">暂无归档记录</div>}
     </div>
   )
@@ -1122,6 +1289,7 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
 function AuditLogViewer({ onMessage }: { onMessage: (msg: string) => void }) {
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(false)
+  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.audit.viewMode', 'list')
 
   useEffect(() => {
     fetchLogs()
@@ -1146,10 +1314,36 @@ function AuditLogViewer({ onMessage }: { onMessage: (msg: string) => void }) {
           <h3 className="text-lg font-semibold">操作记录</h3>
           <p className="text-sm text-gray-500 mt-1">记录新增、修改、归档、恢复、收货、盘点等关键操作。</p>
         </div>
-        <button onClick={fetchLogs} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
-          刷新
-        </button>
+        <div className="flex items-center gap-3">
+          <ViewModeToggle value={viewMode} onChange={setViewMode} />
+          <button onClick={fetchLogs} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
+            刷新
+          </button>
+        </div>
       </div>
+      {viewMode === 'card' && logs.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {logs.map((log) => (
+            <div key={log.id} className="rounded-lg border border-gray-200 bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="font-semibold text-gray-900">{log.action}</div>
+                <div className="text-xs text-gray-500">{new Date(log.createdAt).toLocaleString('zh-CN')}</div>
+              </div>
+              <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+                <div>
+                  <div className="text-xs text-gray-500">人员</div>
+                  <div className="mt-1">{log.operatorName || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">对象</div>
+                  <div className="mt-1">{log.entityType} {log.entityLabel || log.entityId || ''}</div>
+                </div>
+              </div>
+              <div className="mt-3 rounded bg-gray-50 p-3 text-sm text-gray-600">{log.note || '-'}</div>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-gray-50">
@@ -1174,6 +1368,7 @@ function AuditLogViewer({ onMessage }: { onMessage: (msg: string) => void }) {
           </tbody>
         </table>
       </div>
+      )}
       {!loading && logs.length === 0 && <div className="text-center py-12 text-gray-500">暂无操作记录</div>}
     </div>
   )
