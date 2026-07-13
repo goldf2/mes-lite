@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import AttachmentPanel from './AttachmentPanel'
+import StatusCheckboxFilter, { getMultiSelectQuery } from './StatusCheckboxFilter'
 
 interface Material {
   id: string
@@ -50,9 +51,12 @@ const materialCategoryOptions = [
   ['OTHER', '其他'],
 ] as const
 
+const materialCategoryFilterOptions = materialCategoryOptions.map(([value, label]) => ({ value, label }))
+
 export default function MaterialPage({ onMessage }: { onMessage: (msg: string) => void }) {
   const [materials, setMaterials] = useState<Material[]>([])
   const [keyword, setKeyword] = useState('')
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(materialCategoryFilterOptions.map((option) => option.value))
   const [showModal, setShowModal] = useState(false)
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null)
   const [detailMaterial, setDetailMaterial] = useState<Material | null>(null)
@@ -72,10 +76,17 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
 
   useEffect(() => {
     fetchMaterials()
-  }, [keyword])
+  }, [keyword, selectedCategories])
 
   const fetchMaterials = async () => {
-    const url = keyword ? `/api/materials?keyword=${encodeURIComponent(keyword)}` : '/api/materials'
+    const params = new URLSearchParams()
+    if (keyword) params.set('keyword', keyword)
+    const categoryQuery = getMultiSelectQuery('categories', selectedCategories, materialCategoryFilterOptions)
+    if (categoryQuery) {
+      const categoryParams = new URLSearchParams(categoryQuery)
+      categoryParams.forEach((value, key) => params.set(key, value))
+    }
+    const url = params.toString() ? `/api/materials?${params.toString()}` : '/api/materials'
     const res = await fetch(url)
     const data = await res.json()
     const nextMaterials: Material[] = data.data || []
@@ -189,9 +200,15 @@ export default function MaterialPage({ onMessage }: { onMessage: (msg: string) =
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-4 mb-6 lg:flex-row lg:items-start lg:justify-between">
         <h2 className="text-xl font-semibold">物料管理</h2>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+          <StatusCheckboxFilter
+            options={materialCategoryFilterOptions}
+            value={selectedCategories}
+            onChange={setSelectedCategories}
+            allLabel="全部分类"
+          />
           <input
             type="text"
             value={keyword}

@@ -1,10 +1,16 @@
+export function parseCsvFilter(value: string | null) {
+  if (value === null) return []
+
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
 export function parseStatusFilter(searchParams: URLSearchParams) {
   const statuses = searchParams.get('statuses')
   if (statuses !== null) {
-    return statuses
-      .split(',')
-      .map((status) => status.trim())
-      .filter(Boolean)
+    return parseCsvFilter(statuses)
   }
 
   const status = searchParams.get('status')

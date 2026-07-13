@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { normalizeConversionRate } from '@/lib/units'
+import { parseCsvFilter } from '@/lib/status-filter'
 
 const materialSchema = z.object({
   code: z.string().min(1, '物料编码不能为空'),
@@ -26,11 +27,14 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const keyword = searchParams.get('keyword')
     const category = searchParams.get('category')
+    const categories = parseCsvFilter(searchParams.get('categories'))
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '20')
 
     const where: any = { deletedAt: null }
-    if (category) where.category = category
+    if (categories.length === 1) where.category = categories[0]
+    else if (categories.length > 1) where.category = { in: categories }
+    else if (category) where.category = category
     if (keyword) {
       where.OR = [
         { name: { contains: keyword } },

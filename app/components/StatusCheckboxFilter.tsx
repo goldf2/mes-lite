@@ -6,9 +6,13 @@ export type StatusFilterOption = {
 }
 
 export function getStatusQuery(selected: string[], options: StatusFilterOption[]) {
+  return getMultiSelectQuery('statuses', selected, options)
+}
+
+export function getMultiSelectQuery(paramName: string, selected: string[], options: StatusFilterOption[]) {
   if (selected.length === options.length) return ''
   const params = new URLSearchParams()
-  params.set('statuses', selected.length > 0 ? selected.join(',') : '__NONE__')
+  params.set(paramName, selected.length > 0 ? selected.join(',') : '__NONE__')
   return params.toString()
 }
 
@@ -16,10 +20,12 @@ export default function StatusCheckboxFilter({
   options,
   value,
   onChange,
+  allLabel = '全部状态',
 }: {
   options: StatusFilterOption[]
   value: string[]
   onChange: (next: string[]) => void
+  allLabel?: string
 }) {
   const allSelected = value.length === options.length
 
@@ -44,7 +50,7 @@ export default function StatusCheckboxFilter({
           onChange={toggleAll}
           className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
         />
-        全部状态
+        {allLabel}
       </label>
       {options.map((option) => (
         <label key={option.value} className="flex h-8 items-center gap-1.5 rounded-md bg-white px-2.5 text-sm text-gray-700 ring-1 ring-gray-200">
