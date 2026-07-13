@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import AttachmentPanel from './AttachmentPanel'
+import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
 
 interface Order {
   id: string
@@ -50,6 +51,14 @@ const statusLabels: Record<string, string> = {
   CANCELLED: '已取消',
 }
 
+const statusOptions = [
+  { value: 'PENDING', label: '待派工' },
+  { value: 'DISPATCHED', label: '已派工' },
+  { value: 'IN_PROGRESS', label: '进行中' },
+  { value: 'COMPLETED', label: '已完成' },
+  { value: 'CANCELLED', label: '已取消' },
+]
+
 const priorityColors: Record<string, string> = {
   LOW: 'bg-gray-100 text-gray-700',
   NORMAL: 'bg-blue-100 text-blue-700',
@@ -68,7 +77,7 @@ export default function DispatchPage({ onMessage }: { onMessage: (msg: string) =
   const [dispatches, setDispatches] = useState<Dispatch[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [steps, setSteps] = useState<ProcessStep[]>([])
-  const [statusFilter, setStatusFilter] = useState('')
+  const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
 
@@ -85,12 +94,13 @@ export default function DispatchPage({ onMessage }: { onMessage: (msg: string) =
   useEffect(() => {
     fetchDispatches()
     fetchOrders()
-  }, [statusFilter])
+  }, [selectedStatuses])
 
   const fetchDispatches = async () => {
     setLoading(true)
     try {
-      const url = statusFilter ? `/api/dispatches?status=${statusFilter}` : '/api/dispatches'
+      const query = getStatusQuery(selectedStatuses, statusOptions)
+      const url = query ? `/api/dispatches?${query}` : '/api/dispatches'
       const res = await fetch(url)
       const data = await res.json()
       setDispatches(data.data || [])
@@ -198,21 +208,14 @@ export default function DispatchPage({ onMessage }: { onMessage: (msg: string) =
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <h2 className="text-xl font-semibold">派工管理</h2>
-          <div className="flex items-center gap-3">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-            >
-              <option value="">全部状态</option>
-              <option value="PENDING">待派工</option>
-              <option value="DISPATCHED">已派工</option>
-              <option value="IN_PROGRESS">进行中</option>
-              <option value="COMPLETED">已完成</option>
-              <option value="CANCELLED">已取消</option>
-            </select>
+          <div className="flex flex-wrap items-center gap-3">
+            <StatusCheckboxFilter
+              options={statusOptions}
+              value={selectedStatuses}
+              onChange={setSelectedStatuses}
+            />
             <button
               onClick={() => {
                 resetForm()

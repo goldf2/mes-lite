@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import AttachmentPanel from './AttachmentPanel'
+import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
 
 interface Supplier {
   id: string
@@ -61,11 +62,18 @@ const statusLabels: Record<string, string> = {
   REVERSED: '已红冲',
 }
 
+const statusOptions = [
+  { value: 'PENDING', label: '待收货' },
+  { value: 'RECEIVED', label: '已收货' },
+  { value: 'REJECTED', label: '已拒收' },
+  { value: 'REVERSED', label: '已红冲' },
+]
+
 export default function MaterialInPage({ onMessage }: { onMessage: (msg: string) => void }) {
   const [materialIns, setMaterialIns] = useState<MaterialIn[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [materials, setMaterials] = useState<Material[]>([])
-  const [statusFilter, setStatusFilter] = useState('')
+  const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [editingItem, setEditingItem] = useState<MaterialIn | null>(null)
@@ -86,12 +94,13 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
     fetchMaterialIns()
     fetchSuppliers()
     fetchMaterials()
-  }, [statusFilter])
+  }, [selectedStatuses])
 
   const fetchMaterialIns = async () => {
     setLoading(true)
     try {
-      const url = statusFilter ? `/api/material-ins?status=${statusFilter}` : '/api/material-ins'
+      const query = getStatusQuery(selectedStatuses, statusOptions)
+      const url = query ? `/api/material-ins?${query}` : '/api/material-ins'
       const res = await fetch(url)
       const data = await res.json()
       setMaterialIns(data.data || [])
@@ -273,20 +282,14 @@ export default function MaterialInPage({ onMessage }: { onMessage: (msg: string)
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <h2 className="text-xl font-semibold">来料管理</h2>
-          <div className="flex items-center gap-3">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-            >
-              <option value="">全部状态</option>
-              <option value="PENDING">待收货</option>
-              <option value="RECEIVED">已收货</option>
-              <option value="REJECTED">已拒收</option>
-              <option value="REVERSED">已红冲</option>
-            </select>
+          <div className="flex flex-wrap items-center gap-3">
+            <StatusCheckboxFilter
+              options={statusOptions}
+              value={selectedStatuses}
+              onChange={setSelectedStatuses}
+            />
             <button
               onClick={() => {
                 resetForm()

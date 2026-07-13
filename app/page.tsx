@@ -12,6 +12,7 @@ import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
 import OperatorPage from './components/OperatorPage'
 import SystemPage from './components/SystemPage'
 import PermissionPage from './components/PermissionPage'
+import StatusCheckboxFilter, { getStatusQuery } from './components/StatusCheckboxFilter'
 
 // ==================== 类型定义 ====================
 
@@ -133,6 +134,17 @@ const statusLabels: Record<string, string> = {
   CANCELLED: '已取消',
 }
 
+const orderStatusOptions = [
+  { value: 'DRAFT', label: '草稿' },
+  { value: 'CONFIRMED', label: '已确认' },
+  { value: 'PICKED', label: '已领料' },
+  { value: 'RUNNING', label: '生产中' },
+  { value: 'QC_WAITING', label: '待质检' },
+  { value: 'QC_DONE', label: '质检完成' },
+  { value: 'COMPLETED', label: '已完成' },
+  { value: 'CANCELLED', label: '已取消' },
+]
+
 const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0'
 
 // ==================== 主组件 ====================
@@ -179,7 +191,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [orderDetail, setOrderDetail] = useState<any>(null)
   const [planQty, setPlanQty] = useState(100)
   const [selectedProductId, setSelectedProductId] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [selectedOrderStatuses, setSelectedOrderStatuses] = useState(orderStatusOptions.map((option) => option.value))
   const [stockFilter, setStockFilter] = useState<'all' | 'material' | 'product'>('all')
   const [stockCategoryFilter, setStockCategoryFilter] = useState('')
   const [showInvalidStocks, setShowInvalidStocks] = useState(false)
@@ -237,10 +249,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     if (tab === 'orders') fetchOrders()
     if (tab === 'stocks') fetchStocks()
     if (tab === 'create') fetchProducts()
-  }, [tab, statusFilter, stockCategoryFilter, showInvalidStocks])
+  }, [tab, selectedOrderStatuses, stockCategoryFilter, showInvalidStocks])
 
   const fetchOrders = async () => {
-    const url = statusFilter ? `/api/orders?status=${statusFilter}` : '/api/orders'
+    const query = getStatusQuery(selectedOrderStatuses, orderStatusOptions)
+    const url = query ? `/api/orders?${query}` : '/api/orders'
     const res = await fetch(url)
     const data = await res.json()
     setOrders(data.data || [])
@@ -513,19 +526,14 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {/* 工单管理 */}
         {tab === 'orders' && (
           <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between mb-6">
+            <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <h2 className="text-xl font-semibold">工单列表</h2>
-              <div className="flex items-center gap-3">
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm">
-                  <option value="">全部状态</option>
-                  <option value="DRAFT">草稿</option>
-                  <option value="CONFIRMED">已确认</option>
-                  <option value="PICKED">已领料</option>
-                  <option value="RUNNING">生产中</option>
-                  <option value="QC_WAITING">待质检</option>
-                  <option value="QC_DONE">质检完成</option>
-                  <option value="COMPLETED">已完成</option>
-                </select>
+              <div className="flex flex-wrap items-center gap-3">
+                <StatusCheckboxFilter
+                  options={orderStatusOptions}
+                  value={selectedOrderStatuses}
+                  onChange={setSelectedOrderStatuses}
+                />
               </div>
             </div>
             {orders.length === 0 ? (

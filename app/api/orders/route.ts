@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
+import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 
 const createOrderSchema = z.object({
   productId: z.string().min(1),
@@ -115,12 +116,12 @@ export async function GET(req: NextRequest) {
     if (denied) return denied
 
     const { searchParams } = new URL(req.url)
-    const status = searchParams.get('status')
+    const statuses = parseStatusFilter(searchParams)
     const page = Number(searchParams.get('page') ?? '1')
     const pageSize = Number(searchParams.get('pageSize') ?? '20')
 
     const where: any = { deletedAt: null }
-    if (status) where.status = status
+    applyStatusFilter(where, statuses)
 
     const [orders, total] = await Promise.all([
       prisma.productionOrder.findMany({

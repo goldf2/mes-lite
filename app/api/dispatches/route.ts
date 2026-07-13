@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
+import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 
 const createDispatchSchema = z.object({
   orderId: z.string().min(1),
@@ -20,14 +21,14 @@ export async function GET(req: NextRequest) {
     if (denied) return denied
 
     const { searchParams } = new URL(req.url)
-    const status = searchParams.get('status')
+    const statuses = parseStatusFilter(searchParams)
     const workerName = searchParams.get('workerName')
     const orderId = searchParams.get('orderId')
     const page = Number(searchParams.get('page') ?? '1')
     const pageSize = Number(searchParams.get('pageSize') ?? '20')
 
     const where: any = { deletedAt: null }
-    if (status) where.status = status
+    applyStatusFilter(where, statuses)
     if (workerName) where.workerName = { contains: workerName }
     if (orderId) where.orderId = orderId
 

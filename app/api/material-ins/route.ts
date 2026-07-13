@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { resolveMaterialUnits } from '@/lib/units'
+import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 
 const createMaterialInSchema = z.object({
   supplierId: z.string().min(1, '供应商必填'),
@@ -26,12 +27,12 @@ export async function GET(req: NextRequest) {
     if (denied) return denied
 
     const { searchParams } = new URL(req.url)
-    const status = searchParams.get('status')
+    const statuses = parseStatusFilter(searchParams)
     const page = Number(searchParams.get('page') ?? '1')
     const pageSize = Number(searchParams.get('pageSize') ?? '20')
 
     const where: any = { deletedAt: null }
-    if (status) where.status = status
+    applyStatusFilter(where, statuses)
 
     const [items, total] = await Promise.all([
       prisma.materialIn.findMany({

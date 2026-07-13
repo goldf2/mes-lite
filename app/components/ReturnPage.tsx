@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import AttachmentPanel from './AttachmentPanel'
+import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
 
 interface Product {
   id: string
@@ -38,10 +39,16 @@ const statusLabels: Record<string, string> = {
   REJECTED: '已拒绝',
 }
 
+const statusOptions = [
+  { value: 'PENDING', label: '待处理' },
+  { value: 'PROCESSED', label: '已处理' },
+  { value: 'REJECTED', label: '已拒绝' },
+]
+
 export default function ReturnPage({ onMessage }: { onMessage: (msg: string) => void }) {
   const [returns, setReturns] = useState<ReturnOrder[]>([])
   const [products, setProducts] = useState<Product[]>([])
-  const [statusFilter, setStatusFilter] = useState('')
+  const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
 
@@ -55,12 +62,13 @@ export default function ReturnPage({ onMessage }: { onMessage: (msg: string) => 
   useEffect(() => {
     fetchReturns()
     fetchProducts()
-  }, [statusFilter])
+  }, [selectedStatuses])
 
   const fetchReturns = async () => {
     setLoading(true)
     try {
-      const url = statusFilter ? `/api/returns?status=${statusFilter}` : '/api/returns'
+      const query = getStatusQuery(selectedStatuses, statusOptions)
+      const url = query ? `/api/returns?${query}` : '/api/returns'
       const res = await fetch(url)
       const data = await res.json()
       setReturns(data.data || [])
@@ -143,19 +151,14 @@ export default function ReturnPage({ onMessage }: { onMessage: (msg: string) => 
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <h2 className="text-xl font-semibold">退货管理</h2>
-          <div className="flex items-center gap-3">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-            >
-              <option value="">全部状态</option>
-              <option value="PENDING">待处理</option>
-              <option value="PROCESSED">已处理</option>
-              <option value="REJECTED">已拒绝</option>
-            </select>
+          <div className="flex flex-wrap items-center gap-3">
+            <StatusCheckboxFilter
+              options={statusOptions}
+              value={selectedStatuses}
+              onChange={setSelectedStatuses}
+            />
             <button
               onClick={() => {
                 resetForm()
