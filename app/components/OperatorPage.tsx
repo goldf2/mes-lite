@@ -103,12 +103,14 @@ export default function OperatorPage({
     if (!onToolbarChange) return
 
     onToolbarChange(
-      <ResponsiveToolbarActions>
-        <StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />
-        <button onClick={fetchOperators} disabled={loading} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50">
-          刷新
-        </button>
-      </ResponsiveToolbarActions>
+      <ResponsiveToolbarActions
+        filters={<StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />}
+        actions={(
+          <button onClick={fetchOperators} disabled={loading} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50">
+            刷新
+          </button>
+        )}
+      />
     )
 
     return () => onToolbarChange(null)
@@ -117,12 +119,14 @@ export default function OperatorPage({
   return (
     <>
       <TopBarPortal>
-        <ResponsiveToolbarActions>
-          <StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />
-          <button onClick={fetchOperators} disabled={loading} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50">
-            刷新
-          </button>
-        </ResponsiveToolbarActions>
+        <ResponsiveToolbarActions
+          filters={<StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />}
+          actions={(
+            <button onClick={fetchOperators} disabled={loading} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50">
+              刷新
+            </button>
+          )}
+        />
       </TopBarPortal>
       <div className="bg-white rounded-lg shadow p-6">
       <div className="mb-6">

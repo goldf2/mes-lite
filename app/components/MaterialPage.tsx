@@ -257,38 +257,44 @@ export default function MaterialPage({
     if (!onToolbarChange) return
 
     onToolbarChange(
-      <ResponsiveToolbarActions>
-        <StatusCheckboxFilter
-          options={materialCategoryFilterOptions}
-          value={selectedCategories}
-          onChange={setSelectedCategories}
-          allLabel="全部分类"
-        />
-        <input
-          type="text"
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          placeholder="搜索物料名称或编码"
-          className="w-56 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-        />
-        <select
-          value={customerFilter}
-          onChange={(e) => setCustomerFilter(e.target.value)}
-          className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-        >
-          <option value="">全部客户</option>
-          <option value="__UNASSIGNED__">通用/未绑定</option>
-          {customers.map((customer) => (
-            <option key={customer.id} value={customer.id}>{customer.name}</option>
-          ))}
-        </select>
-        <button
-          onClick={handleAdd}
-          className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
-        >
-          + 新增物料
-        </button>
-      </ResponsiveToolbarActions>
+      <ResponsiveToolbarActions
+        filters={(
+          <>
+            <StatusCheckboxFilter
+              options={materialCategoryFilterOptions}
+              value={selectedCategories}
+              onChange={setSelectedCategories}
+              allLabel="全部分类"
+            />
+            <input
+              type="text"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="搜索物料名称或编码"
+              className="w-56 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+            />
+            <select
+              value={customerFilter}
+              onChange={(e) => setCustomerFilter(e.target.value)}
+              className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+            >
+              <option value="">全部客户</option>
+              <option value="__UNASSIGNED__">通用/未绑定</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>{customer.name}</option>
+              ))}
+            </select>
+          </>
+        )}
+        actions={(
+          <button
+            onClick={handleAdd}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
+          >
+            + 新增物料
+          </button>
+        )}
+      />
     )
 
     return () => onToolbarChange(null)
@@ -297,38 +303,44 @@ export default function MaterialPage({
   return (
     <>
       <TopBarPortal>
-        <ResponsiveToolbarActions>
-          <StatusCheckboxFilter
-            options={materialCategoryFilterOptions}
-            value={selectedCategories}
-            onChange={setSelectedCategories}
-            allLabel="全部分类"
-          />
-          <input
-            type="text"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索物料名称或编码"
-            className="w-56 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-          />
-          <select
-            value={customerFilter}
-            onChange={(e) => setCustomerFilter(e.target.value)}
-            className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-          >
-            <option value="">全部客户</option>
-            <option value="__UNASSIGNED__">通用/未绑定</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>{customer.name}</option>
-            ))}
-          </select>
-          <button
-            onClick={handleAdd}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
-          >
-            + 新增物料
-          </button>
-        </ResponsiveToolbarActions>
+        <ResponsiveToolbarActions
+          filters={(
+            <>
+              <StatusCheckboxFilter
+                options={materialCategoryFilterOptions}
+                value={selectedCategories}
+                onChange={setSelectedCategories}
+                allLabel="全部分类"
+              />
+              <input
+                type="text"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="搜索物料名称或编码"
+                className="w-56 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+              />
+              <select
+                value={customerFilter}
+                onChange={(e) => setCustomerFilter(e.target.value)}
+                className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+              >
+                <option value="">全部客户</option>
+                <option value="__UNASSIGNED__">通用/未绑定</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>{customer.name}</option>
+                ))}
+              </select>
+            </>
+          )}
+          actions={(
+            <button
+              onClick={handleAdd}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
+            >
+              + 新增物料
+            </button>
+          )}
+        />
       </TopBarPortal>
       <div className="bg-white rounded-lg shadow p-6">
       <div className="overflow-x-auto">
@@ -412,145 +424,158 @@ export default function MaterialPage({
       )}
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold">{editingMaterial ? '编辑物料' : '新增物料'}</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-6xl flex-col rounded-lg bg-white shadow-xl">
+            <div className="flex shrink-0 items-center justify-between border-b px-6 py-3">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">{editingMaterial ? '编辑物料' : '新增物料'}</h3>
+              </div>
               <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">&times;</button>
             </div>
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">物料编码 *</label>
-                <input
-                  type="text"
-                  value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                  placeholder="如：MAT-001"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">物料名称 *</label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                  placeholder="如：GCr15 轴承钢"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">规格</label>
-                <input
-                  type="text"
-                  value={form.spec}
-                  onChange={(e) => setForm({ ...form, spec: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                  placeholder="如：Φ30mm 圆钢"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">物料分类</label>
-                <select
-                  value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                >
-                  {materialCategoryOptions.map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">归属客户</label>
-                <select
-                  value={form.customerId}
-                  onChange={(e) => setForm({ ...form, customerId: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                >
-                  <option value="">通用/未绑定客户</option>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>{customer.name} ({customer.code})</option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-gray-500">客户筛选只匹配直接绑定的客户专用物料，不展开 BOM 关联辅料。</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">库存/领料单位 *</label>
-                <input
-                  type="text"
-                  value={form.stockUnit}
-                  onChange={(e) => setForm({ ...form, stockUnit: e.target.value, unit: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                  placeholder="如：根、米、件、kg"
-                />
-              </div>
-              <label className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={form.useDualUnit}
-                  onChange={(e) => setForm({
-                    ...form,
-                    useDualUnit: e.target.checked,
-                    valuationUnit: e.target.checked ? form.valuationUnit : '',
-                    conversionRate: e.target.checked ? form.conversionRate : 1,
-                    conversionNote: e.target.checked ? form.conversionNote : '',
-                  })}
-                  className="h-4 w-4"
-                />
-                启用双单位制
-              </label>
-              {form.useDualUnit && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">计价/核算单位 *</label>
-                    <input
-                      type="text"
-                      value={form.valuationUnit}
-                      onChange={(e) => setForm({ ...form, valuationUnit: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                      placeholder="如：kg"
-                    />
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+              <div className="space-y-5">
+                <section className="space-y-3">
+                  <h4 className="border-b border-gray-100 pb-2 text-sm font-semibold text-gray-900">基础信息</h4>
+                  <div className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">物料编码 *</label>
+                      <input
+                        type="text"
+                        value={form.code}
+                        onChange={(e) => setForm({ ...form, code: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                        placeholder="如：MAT-001"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">物料名称 *</label>
+                      <input
+                        type="text"
+                        value={form.name}
+                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                        placeholder="如：GCr15 轴承钢"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">规格</label>
+                      <input
+                        type="text"
+                        value={form.spec}
+                        onChange={(e) => setForm({ ...form, spec: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                        placeholder="如：Φ30mm 圆钢"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">物料分类</label>
+                      <select
+                        value={form.category}
+                        onChange={(e) => setForm({ ...form, category: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                      >
+                        {materialCategoryOptions.map(([key, label]) => (
+                          <option key={key} value={key}>{label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">归属客户</label>
+                      <select
+                        value={form.customerId}
+                        onChange={(e) => setForm({ ...form, customerId: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                      >
+                        <option value="">通用/未绑定客户</option>
+                        {customers.map((customer) => (
+                          <option key={customer.id} value={customer.id}>{customer.name} ({customer.code})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">成本核算方法</label>
+                      <select
+                        value={form.costingMethod}
+                        onChange={(e) => setForm({ ...form, costingMethod: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                      >
+                        <option value="WEIGHTED_AVERAGE">移动加权平均</option>
+                        <option value="FIFO">先入先出 FIFO</option>
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">换算系数 *</label>
-                    <input
-                      type="number"
-                      step="0.0001"
-                      min={0}
-                      value={form.conversionRate || ''}
-                      onChange={(e) => setForm({ ...form, conversionRate: Number(e.target.value) })}
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                      placeholder="例如：1 根 = 2.35 kg，则填 2.35"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">含义：1 {form.stockUnit || '库存单位'} = {form.conversionRate || 0} {form.valuationUnit || '核算单位'}</p>
+                </section>
+
+                <section className="space-y-3">
+                  <h4 className="border-b border-gray-100 pb-2 text-sm font-semibold text-gray-900">单位与换算</h4>
+                  <div className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">库存/领料单位 *</label>
+                      <input
+                        type="text"
+                        value={form.stockUnit}
+                        onChange={(e) => setForm({ ...form, stockUnit: e.target.value, unit: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                        placeholder="如：根、米、件、kg"
+                      />
+                    </div>
+                    <label className="flex min-h-[42px] items-center gap-2 self-end rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 xl:col-span-2">
+                      <input
+                        type="checkbox"
+                        checked={form.useDualUnit}
+                        onChange={(e) => setForm({
+                          ...form,
+                          useDualUnit: e.target.checked,
+                          valuationUnit: e.target.checked ? form.valuationUnit : '',
+                          conversionRate: e.target.checked ? form.conversionRate : 1,
+                          conversionNote: e.target.checked ? form.conversionNote : '',
+                        })}
+                        className="h-4 w-4"
+                      />
+                      启用双单位制（库存单位与成本单位不同）
+                    </label>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">换算说明</label>
-                    <input
-                      type="text"
-                      value={form.conversionNote}
-                      onChange={(e) => setForm({ ...form, conversionNote: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                      placeholder="如：按理论重量，实际称重可在来料单修正"
-                    />
-                  </div>
-                </>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">成本核算方法</label>
-                <select
-                  value={form.costingMethod}
-                  onChange={(e) => setForm({ ...form, costingMethod: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                >
-                  <option value="WEIGHTED_AVERAGE">移动加权平均</option>
-                  <option value="FIFO">先入先出 FIFO</option>
-                </select>
-                <p className="mt-1 text-xs text-gray-500">当前已记录入库成本层，FIFO 后续按成本层扣减。</p>
+                  {form.useDualUnit && (
+                    <div className="grid grid-cols-1 gap-x-4 gap-y-3 rounded-lg border border-blue-100 bg-blue-50/40 p-4 md:grid-cols-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">计价/核算单位 *</label>
+                        <input
+                          type="text"
+                          value={form.valuationUnit}
+                          onChange={(e) => setForm({ ...form, valuationUnit: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-white"
+                          placeholder="如：kg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">换算系数 *</label>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          min={0}
+                          value={form.conversionRate || ''}
+                          onChange={(e) => setForm({ ...form, conversionRate: Number(e.target.value) })}
+                          className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-white"
+                          placeholder="例如：2.35"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">1 {form.stockUnit || '库存单位'} = {form.conversionRate || 0} {form.valuationUnit || '核算单位'}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">换算说明</label>
+                        <input
+                          type="text"
+                          value={form.conversionNote}
+                          onChange={(e) => setForm({ ...form, conversionNote: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-white"
+                          placeholder="如：按理论重量，实际称重可在来料单修正"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </section>
               </div>
             </div>
-            <div className="flex gap-3 p-4 border-t">
+            <div className="flex shrink-0 gap-3 border-t bg-white px-6 py-4">
               <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
                 取消
               </button>

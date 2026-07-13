@@ -328,78 +328,38 @@ export default function MaterialInPage({
     if (!onToolbarChange) return
 
     onToolbarChange(
-      <ResponsiveToolbarActions>
-        <StatusCheckboxFilter
-          options={statusOptions}
-          value={selectedStatuses}
-          onChange={setSelectedStatuses}
-        />
-        <select
-          value={selectedCustomerId}
-          onChange={(e) => setSelectedCustomerId(e.target.value)}
-          className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-        >
-          <option value="">全部客户</option>
-          <option value="__UNASSIGNED__">通用/未绑定</option>
-          {customers.map((customer) => (
-            <option key={customer.id} value={customer.id}>{customer.name}</option>
-          ))}
-        </select>
-        <select
-          value={selectedSupplierId}
-          onChange={(e) => setSelectedSupplierId(e.target.value)}
-          className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-        >
-          <option value="">全部供应商</option>
-          {suppliers.map((supplier) => (
-            <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-          ))}
-        </select>
-        <button
-          onClick={() => {
-            resetForm()
-            setShowModal(true)
-          }}
-          className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
-        >
-          新增来料单
-        </button>
-      </ResponsiveToolbarActions>
-    )
-
-    return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedStatuses, selectedCustomerId, selectedSupplierId, customers, suppliers])
-
-  return (
-    <>
-      <TopBarPortal>
-        <ResponsiveToolbarActions>
-          <StatusCheckboxFilter
-            options={statusOptions}
-            value={selectedStatuses}
-            onChange={setSelectedStatuses}
-          />
-          <select
-            value={selectedCustomerId}
-            onChange={(e) => setSelectedCustomerId(e.target.value)}
-            className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-          >
-            <option value="">全部客户</option>
-            <option value="__UNASSIGNED__">通用/未绑定</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>{customer.name}</option>
-            ))}
-          </select>
-          <select
-            value={selectedSupplierId}
-            onChange={(e) => setSelectedSupplierId(e.target.value)}
-            className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-          >
-            <option value="">全部供应商</option>
-            {suppliers.map((supplier) => (
-              <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-            ))}
-          </select>
+      <ResponsiveToolbarActions
+        filters={(
+          <>
+            <StatusCheckboxFilter
+              options={statusOptions}
+              value={selectedStatuses}
+              onChange={setSelectedStatuses}
+            />
+            <select
+              value={selectedCustomerId}
+              onChange={(e) => setSelectedCustomerId(e.target.value)}
+              className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+            >
+              <option value="">全部客户</option>
+              <option value="__UNASSIGNED__">通用/未绑定</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>{customer.name}</option>
+              ))}
+            </select>
+            <select
+              value={selectedSupplierId}
+              onChange={(e) => setSelectedSupplierId(e.target.value)}
+              className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+            >
+              <option value="">全部供应商</option>
+              {suppliers.map((supplier) => (
+                <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+              ))}
+            </select>
+          </>
+        )}
+        actions={(
           <button
             onClick={() => {
               resetForm()
@@ -409,7 +369,59 @@ export default function MaterialInPage({
           >
             新增来料单
           </button>
-        </ResponsiveToolbarActions>
+        )}
+      />
+    )
+
+    return () => onToolbarChange(null)
+  }, [onToolbarChange, selectedStatuses, selectedCustomerId, selectedSupplierId, customers, suppliers])
+
+  return (
+    <>
+      <TopBarPortal>
+        <ResponsiveToolbarActions
+          filters={(
+            <>
+              <StatusCheckboxFilter
+                options={statusOptions}
+                value={selectedStatuses}
+                onChange={setSelectedStatuses}
+              />
+              <select
+                value={selectedCustomerId}
+                onChange={(e) => setSelectedCustomerId(e.target.value)}
+                className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+              >
+                <option value="">全部客户</option>
+                <option value="__UNASSIGNED__">通用/未绑定</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>{customer.name}</option>
+                ))}
+              </select>
+              <select
+                value={selectedSupplierId}
+                onChange={(e) => setSelectedSupplierId(e.target.value)}
+                className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+              >
+                <option value="">全部供应商</option>
+                {suppliers.map((supplier) => (
+                  <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                ))}
+              </select>
+            </>
+          )}
+          actions={(
+            <button
+              onClick={() => {
+                resetForm()
+                setShowModal(true)
+              }}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+            >
+              新增来料单
+            </button>
+          )}
+        />
       </TopBarPortal>
       <div className="space-y-4">
       <div className="bg-white rounded-lg shadow p-6">

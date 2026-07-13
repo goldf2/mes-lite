@@ -528,66 +528,74 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             </div>
             <div id="topbar-actions" className="flex min-w-0 flex-1 items-center justify-end gap-2">
               {tab === 'orders' ? (
-                <ResponsiveToolbarActions>
-                  <StatusCheckboxFilter
-                    options={orderStatusOptions}
-                    value={selectedOrderStatuses}
-                    onChange={setSelectedOrderStatuses}
-                  />
-                  {canCreate('orders') && (
+                <ResponsiveToolbarActions
+                  filters={(
+                    <StatusCheckboxFilter
+                      options={orderStatusOptions}
+                      value={selectedOrderStatuses}
+                      onChange={setSelectedOrderStatuses}
+                    />
+                  )}
+                  actions={canCreate('orders') ? (
                     <button
                       onClick={() => setTab('create')}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
                     >
                       新增工单
                     </button>
-                  )}
-                </ResponsiveToolbarActions>
+                  ) : null}
+                />
               ) : tab === 'stocks' ? (
-                <ResponsiveToolbarActions>
-                  <select
-                    value={stockCustomerFilter}
-                    onChange={(e) => setStockCustomerFilter(e.target.value)}
-                    className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-                  >
-                    <option value="">全部客户</option>
-                    <option value="__UNASSIGNED__">通用/未绑定</option>
-                    {customers.map((customer) => (
-                      <option key={customer.id} value={customer.id}>{customer.name}</option>
-                    ))}
-                  </select>
-                  {([['all', '全部库存'], ['material', '物料库存'], ['product', '成品库存']] as const).map(([key, label]) => (
+                <ResponsiveToolbarActions
+                  filters={(
+                    <>
+                      <select
+                        value={stockCustomerFilter}
+                        onChange={(e) => setStockCustomerFilter(e.target.value)}
+                        className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+                      >
+                        <option value="">全部客户</option>
+                        <option value="__UNASSIGNED__">通用/未绑定</option>
+                        {customers.map((customer) => (
+                          <option key={customer.id} value={customer.id}>{customer.name}</option>
+                        ))}
+                      </select>
+                      {([['all', '全部库存'], ['material', '物料库存'], ['product', '成品库存']] as const).map(([key, label]) => (
+                        <button
+                          key={key}
+                          onClick={() => setStockFilter(key)}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                            stockFilter === key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                      <StatusCheckboxFilter
+                        options={materialCategoryFilterOptions}
+                        value={selectedStockCategories}
+                        onChange={handleStockCategoryChange}
+                        allLabel="全部物料分类"
+                      />
+                      <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={showInvalidStocks}
+                          onChange={(e) => setShowInvalidStocks(e.target.checked)}
+                        />
+                        显示归档无库存
+                      </label>
+                    </>
+                  )}
+                  actions={(
                     <button
-                      key={key}
-                      onClick={() => setStockFilter(key)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                        stockFilter === key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
+                      onClick={() => setShowStockHelp(true)}
+                      className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg text-sm hover:bg-blue-50"
                     >
-                      {label}
+                      存货调整
                     </button>
-                  ))}
-                  <StatusCheckboxFilter
-                    options={materialCategoryFilterOptions}
-                    value={selectedStockCategories}
-                    onChange={handleStockCategoryChange}
-                    allLabel="全部物料分类"
-                  />
-                  <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">
-                    <input
-                      type="checkbox"
-                      checked={showInvalidStocks}
-                      onChange={(e) => setShowInvalidStocks(e.target.checked)}
-                    />
-                    显示归档无库存
-                  </label>
-                  <button
-                    onClick={() => setShowStockHelp(true)}
-                    className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg text-sm hover:bg-blue-50"
-                  >
-                    存货调整
-                  </button>
-                </ResponsiveToolbarActions>
+                  )}
+                />
               ) : null}
             </div>
             <div className="relative shrink-0">
