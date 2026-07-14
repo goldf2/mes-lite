@@ -13,6 +13,7 @@ interface Material {
   code: string
   name: string
   spec: string
+  note?: string | null
   category: string
   customerId?: string | null
   customer?: { id: string; code: string; name: string } | null
@@ -65,6 +66,101 @@ const materialCategoryOptions = [
 
 const materialCategoryFilterOptions = materialCategoryOptions.map(([value, label]) => ({ value, label }))
 
+const materialVisibleFieldOptions = [
+  { key: 'image', label: '图片' },
+  { key: 'code', label: '编码' },
+  { key: 'category', label: '分类' },
+  { key: 'customer', label: '客户' },
+  { key: 'spec', label: '规格' },
+  { key: 'note', label: '备注' },
+  { key: 'stockUnit', label: '库存单位' },
+  { key: 'valuationUnit', label: '核算单位' },
+  { key: 'stock', label: '库存' },
+  { key: 'valuationStock', label: '核算库存' },
+  { key: 'createdAt', label: '创建时间' },
+] as const
+
+type MaterialVisibleField = (typeof materialVisibleFieldOptions)[number]['key']
+
+const defaultMaterialVisibleFields: MaterialVisibleField[] = [
+  'image',
+  'code',
+  'category',
+  'customer',
+  'spec',
+  'stockUnit',
+  'valuationUnit',
+  'stock',
+  'valuationStock',
+  'createdAt',
+]
+
+function createEmptyMaterialForm() {
+  return {
+    code: '',
+    name: '',
+    spec: '',
+    note: '',
+    category: 'RAW',
+    customerId: '',
+    unit: '',
+    stockUnit: '',
+    useDualUnit: false,
+    valuationUnit: '',
+    conversionRate: 1,
+    conversionNote: '',
+    costingMethod: 'WEIGHTED_AVERAGE',
+  }
+}
+
+function MaterialFieldVisibilityControl({
+  value,
+  onChange,
+}: {
+  value: MaterialVisibleField[]
+  onChange: (next: MaterialVisibleField[]) => void
+}) {
+  const selected = new Set(value)
+  const allSelected = value.length === materialVisibleFieldOptions.length
+
+  const toggleAll = () => {
+    onChange(allSelected ? [] : materialVisibleFieldOptions.map((option) => option.key))
+  }
+
+  const toggleField = (field: MaterialVisibleField) => {
+    if (selected.has(field)) {
+      onChange(value.filter((item) => item !== field))
+      return
+    }
+    onChange([...value, field])
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 sm:flex-nowrap sm:gap-2 sm:px-3 sm:py-2">
+      <label className="flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md bg-white px-2 text-xs text-gray-700 ring-1 ring-gray-200 sm:h-8 sm:px-2.5 sm:text-sm">
+        <input
+          type="checkbox"
+          checked={allSelected}
+          onChange={toggleAll}
+          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+        />
+        显示全部
+      </label>
+      {materialVisibleFieldOptions.map((option) => (
+        <label key={option.key} className="flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md bg-white px-2 text-xs text-gray-700 ring-1 ring-gray-200 sm:h-8 sm:px-2.5 sm:text-sm">
+          <input
+            type="checkbox"
+            checked={selected.has(option.key)}
+            onChange={() => toggleField(option.key)}
+            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          {option.label}
+        </label>
+      ))}
+    </div>
+  )
+}
+
 export default function MaterialPage({
   onMessage,
   onToolbarChange,
@@ -82,22 +178,11 @@ export default function MaterialPage({
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null)
   const [detailMaterial, setDetailMaterial] = useState<Material | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.materials.viewMode', 'list')
+  const [visibleFields, setVisibleFields] = useState<MaterialVisibleField[]>(defaultMaterialVisibleFields)
   const isCompactViewport = useCompactViewport()
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
-  const [form, setForm] = useState({
-    code: '',
-    name: '',
-    spec: '',
-    category: 'RAW',
-    customerId: '',
-    unit: '',
-    stockUnit: '',
-    useDualUnit: false,
-    valuationUnit: '',
-    conversionRate: 1,
-    conversionNote: '',
-    costingMethod: 'WEIGHTED_AVERAGE',
-  })
+  const [form, setForm] = useState(createEmptyMaterialForm())
+  const showField = (field: MaterialVisibleField) => visibleFields.includes(field)
   const [loading, setLoading] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importMode, setImportMode] = useState<'skip' | 'update'>('skip')
@@ -111,6 +196,26 @@ export default function MaterialPage({
   useEffect(() => {
     fetchCustomers()
   }, [])
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem('mes-lite.materials.visibleFields')
+    if (!saved) return
+    try {
+      const parsed = JSON.parse(saved)
+      const allowed = new Set(materialVisibleFieldOptions.map((option) => option.key))
+      if (Array.isArray(parsed)) {
+        const next = parsed.filter((item): item is MaterialVisibleField => allowed.has(item))
+        setVisibleFields(next)
+      }
+    } catch (err) {
+      // ignore invalid local preference
+    }
+  }, [])
+
+  const updateVisibleFields = (next: MaterialVisibleField[]) => {
+    setVisibleFields(next)
+    window.localStorage.setItem('mes-lite.materials.visibleFields', JSON.stringify(next))
+  }
 
   const buildMaterialParams = () => {
     const params = new URLSearchParams()
@@ -231,6 +336,7 @@ export default function MaterialPage({
         code: form.code,
         name: form.name,
         spec: form.spec,
+        note: form.note,
         category: form.category,
         customerId: form.customerId || undefined,
         unit: form.stockUnit,
@@ -266,7 +372,7 @@ export default function MaterialPage({
         }
       }
       setShowModal(false)
-      setForm({ code: '', name: '', spec: '', category: 'RAW', customerId: '', unit: '', stockUnit: '', useDualUnit: false, valuationUnit: '', conversionRate: 1, conversionNote: '', costingMethod: 'WEIGHTED_AVERAGE' })
+      setForm(createEmptyMaterialForm())
       setEditingMaterial(null)
       fetchMaterials()
     } catch (err) {
@@ -300,6 +406,7 @@ export default function MaterialPage({
       code: material.code,
       name: material.name,
       spec: material.spec,
+      note: material.note || '',
       category: material.category || 'RAW',
       customerId: material.customerId || '',
       unit: stockUnit,
@@ -315,7 +422,7 @@ export default function MaterialPage({
 
   const handleAdd = () => {
     setEditingMaterial(null)
-    setForm({ code: '', name: '', spec: '', category: 'RAW', customerId: '', unit: '', stockUnit: '', useDualUnit: false, valuationUnit: '', conversionRate: 1, conversionNote: '', costingMethod: 'WEIGHTED_AVERAGE' })
+    setForm(createEmptyMaterialForm())
     setShowModal(true)
   }
 
@@ -373,6 +480,10 @@ export default function MaterialPage({
                 <option key={customer.id} value={customer.id}>{customer.name}</option>
               ))}
             </select>
+            <MaterialFieldVisibilityControl
+              value={visibleFields}
+              onChange={updateVisibleFields}
+            />
           </>
         )}
         actions={(
@@ -404,7 +515,7 @@ export default function MaterialPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, viewMode, setViewMode])
+  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, viewMode, setViewMode, visibleFields])
 
   return (
     <>
@@ -436,6 +547,10 @@ export default function MaterialPage({
                   <option key={customer.id} value={customer.id}>{customer.name}</option>
                 ))}
               </select>
+              <MaterialFieldVisibilityControl
+                value={visibleFields}
+                onChange={updateVisibleFields}
+              />
             </>
           )}
           actions={(
@@ -481,42 +596,53 @@ export default function MaterialPage({
             {materials.map((material) => (
               <div key={material.id} className="flex flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:shadow-none">
                 <div className="flex gap-3">
-                  <button
-                    onClick={() => handleViewDetail(material)}
-                    className="h-14 w-14 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50"
-                    title={material.primaryImage?.note || '查看物料详情'}
-                  >
-                    {material.primaryImage ? (
-                      <img src={material.primaryImage.url} alt={material.primaryImage.note || material.name} className="h-full w-full object-cover" />
-                    ) : (
-                      <span className="flex h-full w-full items-center justify-center text-xs text-gray-400">暂无</span>
-                    )}
-                  </button>
+                  {showField('image') && (
+                    <button
+                      onClick={() => handleViewDetail(material)}
+                      className="h-14 w-14 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50"
+                      title={material.primaryImage?.note || '查看物料详情'}
+                    >
+                      {material.primaryImage ? (
+                        <img src={material.primaryImage.url} alt={material.primaryImage.note || material.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="flex h-full w-full items-center justify-center text-xs text-gray-400">暂无</span>
+                      )}
+                    </button>
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded bg-blue-50 px-2 py-1 font-mono text-xs text-blue-700">{material.code}</span>
-                      <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</span>
+                      {showField('code') && <span className="rounded bg-blue-50 px-2 py-1 font-mono text-xs text-blue-700">{material.code}</span>}
+                      {showField('category') && <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</span>}
                     </div>
                     <div className="mt-1 truncate text-sm font-semibold text-gray-900 sm:text-base">{material.name}</div>
-                    <div className="mt-0.5 truncate text-sm text-gray-500">{material.spec || '无规格'}</div>
-                    <div className="mt-0.5 truncate text-xs text-gray-500">客户：{material.customer ? `${material.customer.name} (${material.customer.code})` : '通用/未绑定'}</div>
+                    {showField('spec') && <div className="mt-0.5 truncate text-sm text-gray-500">{material.spec || '无规格'}</div>}
+                    {showField('note') && material.note && <div className="mt-0.5 line-clamp-2 text-xs text-gray-500">备注：{material.note}</div>}
+                    {showField('customer') && <div className="mt-0.5 truncate text-xs text-gray-500">客户：{material.customer ? `${material.customer.name} (${material.customer.code})` : '通用/未绑定'}</div>}
                   </div>
                 </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                  <div className="rounded bg-gray-50 px-2 py-1.5">
-                    <div className="text-xs text-gray-500">库存</div>
-                    <div className="mt-1 font-semibold text-gray-900">{material.stock?.qty || 0} {material.stockUnit || material.unit}</div>
+                {(showField('stock') || showField('valuationStock')) && (
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                    {showField('stock') && (
+                      <div className="rounded bg-gray-50 px-2 py-1.5">
+                        <div className="text-xs text-gray-500">库存</div>
+                        <div className="mt-1 font-semibold text-gray-900">{material.stock?.qty || 0} {material.stockUnit || material.unit}</div>
+                      </div>
+                    )}
+                    {showField('valuationStock') && (
+                      <div className="rounded bg-gray-50 px-2 py-1.5">
+                        <div className="text-xs text-gray-500">核算库存</div>
+                        <div className="mt-1 font-semibold text-green-700">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</div>
+                      </div>
+                    )}
                   </div>
-                  <div className="rounded bg-gray-50 px-2 py-1.5">
-                    <div className="text-xs text-gray-500">核算库存</div>
-                    <div className="mt-1 font-semibold text-green-700">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</div>
+                )}
+                {(showField('valuationUnit') || showField('createdAt')) && (
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+                    {showField('valuationUnit') && <span className="whitespace-nowrap">1 {material.stockUnit || material.unit} = {material.conversionRate || 1} {material.valuationUnit || material.unit}</span>}
+                    {showField('valuationUnit') && <span className="whitespace-nowrap">{material.costingMethod === 'FIFO' ? 'FIFO' : '移动加权'}</span>}
+                    {showField('createdAt') && <span className="whitespace-nowrap">{new Date(material.createdAt).toLocaleDateString('zh-CN')}</span>}
                   </div>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
-                  <span className="whitespace-nowrap">1 {material.stockUnit || material.unit} = {material.conversionRate || 1} {material.valuationUnit || material.unit}</span>
-                  <span className="whitespace-nowrap">{material.costingMethod === 'FIFO' ? 'FIFO' : '移动加权'}</span>
-                  <span className="whitespace-nowrap">{new Date(material.createdAt).toLocaleDateString('zh-CN')}</span>
-                </div>
+                )}
                 <div className="mt-auto flex justify-end gap-2 pt-3">
                   <button
                     onClick={() => handleViewDetail(material)}
@@ -536,53 +662,59 @@ export default function MaterialPage({
           </div>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-gray-100">
-            <table className="w-full min-w-[1280px]">
+            <table className="w-full min-w-max">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="w-20 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">图片</th>
-                  <th className="w-36 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">物料编码</th>
+                  {showField('image') && <th className="w-20 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">图片</th>}
+                  {showField('code') && <th className="w-36 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">物料编码</th>}
                   <th className="w-36 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">物料名称</th>
-                  <th className="w-24 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">分类</th>
-                  <th className="w-44 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">归属客户</th>
-                  <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">规格</th>
-                  <th className="w-24 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">库存单位</th>
-                  <th className="w-48 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">核算单位</th>
-                  <th className="w-28 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">库存</th>
-                  <th className="w-28 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">核算库存</th>
-                  <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">创建时间</th>
+                  {showField('category') && <th className="w-24 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">分类</th>}
+                  {showField('customer') && <th className="w-44 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">归属客户</th>}
+                  {showField('spec') && <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">规格</th>}
+                  {showField('note') && <th className="w-56 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">备注</th>}
+                  {showField('stockUnit') && <th className="w-24 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">库存单位</th>}
+                  {showField('valuationUnit') && <th className="w-48 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">核算单位</th>}
+                  {showField('stock') && <th className="w-28 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">库存</th>}
+                  {showField('valuationStock') && <th className="w-28 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">核算库存</th>}
+                  {showField('createdAt') && <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">创建时间</th>}
                   <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {materials.map((material) => (
                   <tr key={material.id} className="align-top hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleViewDetail(material)}
-                        className="h-12 w-12 overflow-hidden rounded border border-gray-200 bg-gray-50"
-                        title={material.primaryImage?.note || '查看物料详情'}
-                      >
-                        {material.primaryImage ? (
-                          <img src={material.primaryImage.url} alt={material.primaryImage.note || material.name} className="h-full w-full object-cover" />
-                        ) : (
-                          <span className="text-xs text-gray-400">暂无</span>
-                        )}
-                      </button>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 font-mono text-sm text-blue-600">{material.code}</td>
+                    {showField('image') && (
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleViewDetail(material)}
+                          className="h-12 w-12 overflow-hidden rounded border border-gray-200 bg-gray-50"
+                          title={material.primaryImage?.note || '查看物料详情'}
+                        >
+                          {material.primaryImage ? (
+                            <img src={material.primaryImage.url} alt={material.primaryImage.note || material.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="text-xs text-gray-400">暂无</span>
+                          )}
+                        </button>
+                      </td>
+                    )}
+                    {showField('code') && <td className="whitespace-nowrap px-4 py-3 font-mono text-sm text-blue-600">{material.code}</td>}
                     <td className="whitespace-nowrap px-4 py-3 text-sm font-medium">{material.name}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</td>
-                    <td className="px-4 py-3 text-sm">{material.customer ? `${material.customer.name} (${material.customer.code})` : '通用/未绑定'}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">{material.spec || '-'}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm">{material.stockUnit || material.unit}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <div className="whitespace-nowrap">{material.valuationUnit || material.unit}</div>
-                      <div className="whitespace-nowrap text-xs text-gray-500">1 {material.stockUnit || material.unit} = {material.conversionRate || 1} {material.valuationUnit || material.unit}</div>
-                      <div className="whitespace-nowrap text-xs text-gray-500">成本法：{material.costingMethod === 'FIFO' ? '先入先出' : '移动加权平均'}</div>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm">{material.stock?.qty || 0} {material.stockUnit || material.unit}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-green-600">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-500">{new Date(material.createdAt).toLocaleString('zh-CN')}</td>
+                    {showField('category') && <td className="whitespace-nowrap px-4 py-3 text-sm">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</td>}
+                    {showField('customer') && <td className="px-4 py-3 text-sm">{material.customer ? `${material.customer.name} (${material.customer.code})` : '通用/未绑定'}</td>}
+                    {showField('spec') && <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">{material.spec || '-'}</td>}
+                    {showField('note') && <td className="max-w-xs px-4 py-3 text-sm text-gray-500">{material.note || '-'}</td>}
+                    {showField('stockUnit') && <td className="whitespace-nowrap px-4 py-3 text-sm">{material.stockUnit || material.unit}</td>}
+                    {showField('valuationUnit') && (
+                      <td className="px-4 py-3 text-sm">
+                        <div className="whitespace-nowrap">{material.valuationUnit || material.unit}</div>
+                        <div className="whitespace-nowrap text-xs text-gray-500">1 {material.stockUnit || material.unit} = {material.conversionRate || 1} {material.valuationUnit || material.unit}</div>
+                        <div className="whitespace-nowrap text-xs text-gray-500">成本法：{material.costingMethod === 'FIFO' ? '先入先出' : '移动加权平均'}</div>
+                      </td>
+                    )}
+                    {showField('stock') && <td className="whitespace-nowrap px-4 py-3 text-sm">{material.stock?.qty || 0} {material.stockUnit || material.unit}</td>}
+                    {showField('valuationStock') && <td className="whitespace-nowrap px-4 py-3 text-sm text-green-600">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</td>}
+                    {showField('createdAt') && <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-500">{new Date(material.createdAt).toLocaleString('zh-CN')}</td>}
                     <td className="whitespace-nowrap px-4 py-3">
                       <button
                         onClick={() => handleViewDetail(material)}
@@ -647,6 +779,15 @@ export default function MaterialPage({
                         onChange={(e) => setForm({ ...form, spec: e.target.value })}
                         className="w-full px-4 py-2 border border-gray-200 rounded-lg"
                         placeholder="如：Φ30mm 圆钢"
+                      />
+                    </div>
+                    <div className="md:col-span-2 xl:col-span-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">备注</label>
+                      <textarea
+                        value={form.note}
+                        onChange={(e) => setForm({ ...form, note: e.target.value })}
+                        className="min-h-20 w-full resize-y px-4 py-2 border border-gray-200 rounded-lg"
+                        placeholder="可记录客户零件号说明、图纸版本、特殊检验要求等"
                       />
                     </div>
                     <div>
@@ -881,6 +1022,7 @@ export default function MaterialPage({
                     <div className="font-mono text-sm text-blue-700">{detailMaterial.code}</div>
                     <h2 className="mt-2 text-2xl font-semibold text-gray-900">{detailMaterial.name}</h2>
                     <p className="mt-2 text-sm text-gray-600">规格：{detailMaterial.spec || '-'}</p>
+                    {detailMaterial.note && <p className="mt-1 whitespace-pre-wrap text-sm text-gray-600">备注：{detailMaterial.note}</p>}
                     <p className="mt-1 text-sm text-gray-600">分类：{materialCategoryLabels[detailMaterial.category || 'RAW'] || '其他'}</p>
                     <p className="mt-1 text-sm text-gray-600">归属客户：{detailMaterial.customer ? `${detailMaterial.customer.name} (${detailMaterial.customer.code})` : '通用/未绑定'}</p>
                   </div>

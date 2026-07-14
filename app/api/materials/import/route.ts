@@ -38,6 +38,7 @@ type ImportMaterial = {
   code: string
   name: string
   spec: string
+  note: string
   category: string
   customerCode: string
   customerId: string | null
@@ -128,6 +129,7 @@ export async function POST(req: NextRequest) {
       const code = cell(row, headerMap, ['物料编码', '编码'])
       const name = cell(row, headerMap, ['物料名称', '名称'])
       const spec = cell(row, headerMap, ['规格'])
+      const note = cell(row, headerMap, ['备注', '备注栏', '说明'])
       const category = normalizeCategory(cell(row, headerMap, ['分类', '物料分类']))
       const customerCode = cell(row, headerMap, ['客户编码', '归属客户编码'])
       const stockUnit = cell(row, headerMap, ['库存单位', '领料单位', '单位'])
@@ -162,6 +164,7 @@ export async function POST(req: NextRequest) {
         code,
         name,
         spec,
+        note,
         category,
         customerCode,
         customerId: customerCode ? customerByCode.get(customerCode) || null : null,
@@ -199,6 +202,7 @@ export async function POST(req: NextRequest) {
           code: item.code,
           name: item.name,
           spec: item.spec,
+          note: item.note || null,
           category: item.category,
           customerId: item.customerId,
           unit: item.stockUnit,
