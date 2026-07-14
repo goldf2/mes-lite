@@ -1,61 +1,23 @@
 'use client'
 
-import { ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { ReactNode, useEffect, useRef, useState } from 'react'
 
 interface ResponsiveToolbarActionsProps {
   children?: ReactNode
   primaryFilters?: ReactNode
   filters?: ReactNode
+  filterCount?: number
+  filterSummary?: ReactNode
   actions?: ReactNode
 }
 
-export default function ResponsiveToolbarActions({ children, primaryFilters, filters, actions }: ResponsiveToolbarActionsProps) {
-  const [filtersCollapsed, setFiltersCollapsed] = useState(false)
+export default function ResponsiveToolbarActions({ children, primaryFilters, filters, filterCount = 0, filterSummary, actions }: ResponsiveToolbarActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
-  const filterSlotRef = useRef<HTMLDivElement | null>(null)
-  const measureRef = useRef<HTMLDivElement | null>(null)
   const filterContent = filters ?? children
   const hasPrimaryFilters = primaryFilters !== null && primaryFilters !== undefined && primaryFilters !== false
   const hasFilters = filterContent !== null && filterContent !== undefined && filterContent !== false
   const hasActions = actions !== null && actions !== undefined && actions !== false
-
-  const updateLayout = useCallback(() => {
-    if (!hasFilters) {
-      setFiltersCollapsed(false)
-      return
-    }
-
-    const slot = filterSlotRef.current
-    const measure = measureRef.current
-    if (!slot || !measure) return
-
-    const availableWidth = slot.getBoundingClientRect().width
-    const requiredWidth = measure.scrollWidth
-    const nextCollapsed = requiredWidth > availableWidth + 2
-    setFiltersCollapsed((current) => current === nextCollapsed ? current : nextCollapsed)
-  }, [hasFilters])
-
-  useLayoutEffect(() => {
-    updateLayout()
-  }, [updateLayout, filterContent, actions])
-
-  useEffect(() => {
-    const observer = new ResizeObserver(updateLayout)
-    if (rootRef.current) observer.observe(rootRef.current)
-    if (filterSlotRef.current) observer.observe(filterSlotRef.current)
-    if (measureRef.current) observer.observe(measureRef.current)
-    window.addEventListener('resize', updateLayout)
-
-    return () => {
-      observer.disconnect()
-      window.removeEventListener('resize', updateLayout)
-    }
-  }, [updateLayout])
-
-  useEffect(() => {
-    if (!filtersCollapsed) setMenuOpen(false)
-  }, [filtersCollapsed])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -80,44 +42,40 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, fil
   }, [menuOpen])
 
   return (
-    <div ref={rootRef} className={`relative flex w-full min-w-0 items-center justify-start gap-2 xl:gap-3 ${hasPrimaryFilters ? 'flex-wrap' : 'flex-nowrap'}`}>
+    <div ref={rootRef} className="relative flex w-full min-w-0 flex-wrap items-center justify-start gap-2 xl:gap-3">
       {hasPrimaryFilters && (
-        <div className="flex min-w-0 flex-[1_1_420px] flex-wrap items-center justify-start gap-2 overflow-visible xl:gap-3">
+        <div className="flex min-w-0 flex-[1_1_260px] flex-wrap items-center justify-start gap-2 overflow-visible xl:gap-3">
           {primaryFilters}
         </div>
       )}
       {hasFilters && (
-        <div ref={filterSlotRef} className={`relative min-w-0 ${hasPrimaryFilters ? 'flex-[1_1_180px]' : 'flex-1'}`}>
-          <div
-            ref={measureRef}
-            aria-hidden="true"
-            className="pointer-events-none invisible fixed left-0 top-0 h-0 w-0 overflow-hidden"
+        <div className="relative flex min-w-0 shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 sm:px-3 sm:py-2 sm:text-sm"
           >
-            <div className="flex min-w-max flex-nowrap items-center gap-2 whitespace-nowrap xl:gap-3">
-              {filterContent}
+            <span className="flex h-5 w-5 items-center justify-center rounded bg-gray-100 text-[11px] text-gray-600">筛</span>
+            <span>{filterCount > 0 ? `筛选 ${filterCount}` : '筛选'}</span>
+          </button>
+          {filterSummary && (
+            <div className="hidden min-w-0 flex-wrap items-center gap-1 md:flex">
+              {filterSummary}
             </div>
-          </div>
-          {filtersCollapsed ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setMenuOpen((open) => !open)}
-                className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 sm:px-3 sm:py-2 sm:text-sm"
-              >
-                <span className="flex h-5 w-5 items-center justify-center rounded bg-gray-100 text-[11px] text-gray-600">筛</span>
-                <span>{hasPrimaryFilters ? '更多筛选' : '筛选'}</span>
-              </button>
-              {menuOpen && (
-                <div className="absolute left-0 top-full z-50 mt-2 w-[min(92vw,520px)] max-w-[calc(100vw-24px)] rounded-lg border border-gray-200 bg-white p-2 shadow-lg sm:p-3">
-                  <div className="flex max-h-[70vh] w-full flex-col items-stretch gap-2 overflow-y-auto overflow-x-hidden [&>*]:!max-w-full [&>*]:!flex-wrap [&>*]:!whitespace-normal">
-                    {filterContent}
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="min-w-0 overflow-hidden">
-              <div className="flex min-w-max flex-nowrap items-center justify-start gap-2 whitespace-nowrap xl:gap-3">
+          )}
+          {menuOpen && (
+            <div className="absolute left-0 top-full z-50 mt-2 w-[min(92vw,560px)] max-w-[calc(100vw-24px)] rounded-lg border border-gray-200 bg-white p-3 shadow-lg">
+              <div className="mb-3 flex items-center justify-between gap-3 border-b border-gray-100 pb-2">
+                <div className="text-sm font-semibold text-gray-900">筛选条件</div>
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen(false)}
+                  className="rounded px-2 py-1 text-sm text-gray-500 hover:bg-gray-100"
+                >
+                  关闭
+                </button>
+              </div>
+              <div className="flex max-h-[70vh] w-full flex-col items-stretch gap-3 overflow-y-auto overflow-x-hidden [&>*]:!max-w-full [&>*]:!flex-wrap [&>*]:!whitespace-normal">
                 {filterContent}
               </div>
             </div>
@@ -129,7 +87,7 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, fil
           {actions}
         </div>
       )}
-      {!hasActions && !hasFilters && (
+      {!hasActions && !hasFilters && !hasPrimaryFilters && (
         <div className="sr-only">无工具栏操作</div>
       )}
     </div>

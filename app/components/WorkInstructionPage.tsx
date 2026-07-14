@@ -691,36 +691,53 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     () => materials.find((material) => material.id === materialFilter),
     [materials, materialFilter]
   )
+  const activeFilterLabels = useMemo(() => {
+    const labels: string[] = []
+    if (selectedCategories.length !== instructionCategoryOptions.length) {
+      labels.push(selectedCategories.length === 0 ? '无类型' : `${selectedCategories.length} 类`)
+    }
+    if (selectedStatuses.length !== instructionStatusOptions.length) {
+      labels.push(selectedStatuses.length === 0 ? '无状态' : `${selectedStatuses.length} 状态`)
+    }
+    if (fileType !== 'all') labels.push(fileTypeOptions.find((option) => option.value === fileType)?.label || fileType)
+    if (customerFilter) {
+      labels.push(customerFilter === '__UNASSIGNED__' ? '通用/未绑定' : customers.find((customer) => customer.id === customerFilter)?.name || '指定客户')
+    }
+    if (materialFilter) {
+      labels.push(materialFilter === '__UNASSIGNED__' ? '未绑定物料' : selectedFilterMaterial ? selectedFilterMaterial.name : '指定物料')
+    }
+    return labels
+  }, [selectedCategories, selectedStatuses, fileType, customerFilter, materialFilter, customers, selectedFilterMaterial])
 
   const toolbar = (
     <ResponsiveToolbarActions
       primaryFilters={(
+        <input
+          type="text"
+          value={keyword}
+          onChange={(event) => setKeyword(event.target.value)}
+          placeholder="搜索编码、标题、物料或工序"
+          className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] rounded-lg border border-gray-200 px-4 py-2 text-sm"
+        />
+      )}
+      filterCount={activeFilterLabels.length}
+      filterSummary={activeFilterLabels.slice(0, 3).map((label) => (
+        <span key={label} className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">{label}</span>
+      ))}
+      filters={(
         <>
-          <input
-            type="text"
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            placeholder="搜索编码、标题、物料或工序"
-            className="w-full min-w-[180px] max-w-[280px] flex-[1_1_220px] rounded-lg border border-gray-200 px-4 py-2 text-sm"
-          />
           <StatusCheckboxFilter
             options={instructionCategoryOptions}
             value={selectedCategories}
             onChange={setSelectedCategories}
             allLabel="全部类型"
-            storageKey="mes-lite.filters.workInstructions.category.order"
           />
           <StatusCheckboxFilter
             options={instructionStatusOptions}
             value={selectedStatuses}
             onChange={setSelectedStatuses}
             allLabel="全部状态"
-            storageKey="mes-lite.filters.workInstructions.status.order"
           />
-        </>
-      )}
-      filters={(
-        <>
           <select
             value={fileType}
             onChange={(event) => setFileType(event.target.value as 'all' | 'image' | 'pdf')}

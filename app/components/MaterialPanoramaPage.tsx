@@ -133,6 +133,10 @@ interface WorkInstructionSummary {
   note?: string | null
   customer?: { id: string; code: string; name: string } | null
   material?: { id: string; code: string; name: string; spec?: string | null } | null
+  attachments: AttachmentItem[]
+  attachmentCount: number
+  imageCount: number
+  pdfCount: number
   createdAt: string
 }
 
@@ -272,6 +276,12 @@ function formatMoney(value: number | null | undefined) {
   })}`
 }
 
+function formatSize(size: number) {
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / 1024 / 1024).toFixed(1)} MB`
+}
+
 function formatDate(value: string | null | undefined) {
   if (!value) return '-'
   const date = new Date(value)
@@ -398,6 +408,9 @@ export default function MaterialPanoramaPage({
   const [data, setData] = useState<PanoramaData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [viewer, setViewer] = useState<{ instruction: WorkInstructionSummary; attachments: AttachmentItem[]; index: number } | null>(null)
+  const [viewerZoom, setViewerZoom] = useState(1)
+  const [viewerRotation, setViewerRotation] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -446,6 +459,17 @@ export default function MaterialPanoramaPage({
   const coverImage = data?.attachments.images.find((item) => item.isCover) || data?.attachments.images[0]
   const material = data?.material
   const stock = data?.stock
+  const selectedViewerAttachment = viewer?.attachments[viewer.index]
+
+  const openWorkInstructionViewer = (instruction: WorkInstructionSummary) => {
+    if (!instruction.attachments || instruction.attachments.length === 0) {
+      onMessage('这份作业指导书还没有上传图片或 PDF')
+      return
+    }
+    setViewer({ instruction, attachments: instruction.attachments, index: 0 })
+    setViewerZoom(1)
+    setViewerRotation(0)
+  }
 
   return (
     <div className="fixed inset-0 z-[60] bg-slate-950/50 p-2 sm:p-4">
@@ -581,9 +605,21 @@ export default function MaterialPanoramaPage({
                                   <div className="truncate text-sm font-medium text-gray-900">{instruction.title}</div>
                                   <div className="mt-0.5 font-mono text-xs text-blue-700">{instruction.code} · {instruction.version}</div>
                                 </div>
-                                <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{statusText(instruction.status)}</span>
+                                <div className="flex shrink-0 items-center gap-2">
+                                  <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{statusText(instruction.status)}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => openWorkInstructionViewer(instruction)}
+                                    disabled={!instruction.attachments || instruction.attachments.length === 0}
+                                    className="rounded bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
+                                  >
+                                    全屏打开
+                                  </button>
+                                </div>
                               </div>
-                              <div className="mt-1 text-xs text-gray-500">工序：{instruction.processName || '-'} · 客户：{instruction.customer?.name || '通用/未绑定'}</div>
+                              <div className="mt-1 text-xs text-gray-500">
+                                工序：{instruction.processName || '-'} · 客户：{instruction.customer?.name || '通用/未绑定'} · 文件：{instruction.imageCount} 图 / {instruction.pdfCount} PDF
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -786,6 +822,59 @@ export default function MaterialPanoramaPage({
           )}
         </div>
       </div>
+      {viewer && selectedViewerAttachment && (
+        <div className="fixed inset-0 z-[80] flex flex-col bg-slate-950 text-white">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-white/10 px-3 py-2 sm:px-4">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold">{viewer.instruction.title}</div>
+              <div className="truncate text-xs text-white/60">
+                {selectedViewerAttachment.originalName} · {formatSize(selectedViewerAttachment.size)} · {viewer.index + 1}/{viewer.attachments.length}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button onClick={() => setViewer({ ...viewer, index: Math.max(0, viewer.index - 1) })} disabled={viewer.index <= 0} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">上一份</button>
+              <button onClick={() => setViewer({ ...viewer, index: Math.min(viewer.attachments.length - 1, viewer.index + 1) })} disabled={viewer.index >= viewer.attachments.length - 1} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">下一份</button>
+              {selectedViewerAttachment.mimeType.startsWith('image/') && (
+                <>
+                  <button onClick={() => setViewerZoom((value) => Math.max(0.25, Number((value - 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">缩小</button>
+                  <button onClick={() => setViewerZoom((value) => Math.min(4, Number((value + 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">放大</button>
+                  <button onClick={() => setViewerRotation((value) => value - 90)} className="rounded border border-white/20 px-3 py-1.5 text-sm">左转</button>
+                  <button onClick={() => setViewerRotation((value) => value + 90)} className="rounded border border-white/20 px-3 py-1.5 text-sm">右转</button>
+                  <button onClick={() => { setViewerZoom(1); setViewerRotation(0) }} className="rounded border border-white/20 px-3 py-1.5 text-sm">复位</button>
+                </>
+              )}
+              <a href={selectedViewerAttachment.url} target="_blank" rel="noreferrer" className="rounded border border-white/20 px-3 py-1.5 text-sm">新窗口</a>
+              <button onClick={() => setViewer(null)} className="rounded bg-white px-3 py-1.5 text-sm text-slate-900">关闭</button>
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {selectedViewerAttachment.mimeType.startsWith('image/') ? (
+              <div className="flex h-full w-full items-center justify-center overflow-auto p-4">
+                <img
+                  src={selectedViewerAttachment.url}
+                  alt={selectedViewerAttachment.originalName}
+                  className="max-h-full max-w-full object-contain"
+                  style={{
+                    transform: `rotate(${viewerRotation}deg) scale(${viewerZoom})`,
+                    transformOrigin: 'center center',
+                  }}
+                />
+              </div>
+            ) : (
+              <iframe
+                src={selectedViewerAttachment.url}
+                title={selectedViewerAttachment.originalName}
+                className="h-full w-full border-0 bg-white"
+              />
+            )}
+          </div>
+          {selectedViewerAttachment.mimeType === 'application/pdf' && (
+            <div className="shrink-0 border-t border-white/10 px-4 py-2 text-xs text-white/60">
+              PDF 多页由浏览器内置阅读器滚动显示。
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

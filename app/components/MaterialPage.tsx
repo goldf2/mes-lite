@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode, useState, useEffect } from 'react'
+import { ReactNode, useState, useEffect, useMemo } from 'react'
 import AttachmentPanel from './AttachmentPanel'
 import StatusCheckboxFilter, { getMultiSelectQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
@@ -565,11 +565,41 @@ export default function MaterialPage({
     fetchMaterials()
   }
 
+  const activeFilterLabels = useMemo(() => {
+    const labels: string[] = []
+    if (selectedCategories.length !== materialCategoryFilterOptions.length) {
+      labels.push(selectedCategories.length === 0 ? '无分类' : `${selectedCategories.length} 类`)
+    }
+    if (customerFilter) {
+      labels.push(customerFilter === '__UNASSIGNED__' ? '通用/未绑定' : customers.find((customer) => customer.id === customerFilter)?.name || '指定客户')
+    }
+    if (sortBy !== 'createdAt' || sortDir !== 'desc') {
+      labels.push(`排序 ${materialSortOptions.find((option) => option.value === sortBy)?.label || sortBy}/${sortDir === 'asc' ? '升序' : '降序'}`)
+    }
+    if (visibleFields.length !== defaultMaterialVisibleFields.length || visibleFields.some((field, index) => field !== defaultMaterialVisibleFields[index])) {
+      labels.push('字段显示')
+    }
+    return labels
+  }, [selectedCategories, customerFilter, customers, sortBy, sortDir, visibleFields])
+
   useEffect(() => {
     if (!onToolbarChange) return
 
     onToolbarChange(
       <ResponsiveToolbarActions
+        primaryFilters={(
+          <input
+            type="text"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="搜索物料名称或编码"
+            className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
+          />
+        )}
+        filterCount={activeFilterLabels.length}
+        filterSummary={activeFilterLabels.slice(0, 3).map((label) => (
+          <span key={label} className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">{label}</span>
+        ))}
         filters={(
           <>
             <StatusCheckboxFilter
@@ -577,14 +607,6 @@ export default function MaterialPage({
               value={selectedCategories}
               onChange={setSelectedCategories}
               allLabel="全部分类"
-              storageKey="mes-lite.filters.materials.category.order"
-            />
-            <input
-              type="text"
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              placeholder="搜索物料名称或编码"
-              className="w-56 px-4 py-2 border border-gray-200 rounded-lg text-sm"
             />
             <select
               value={customerFilter}
@@ -650,12 +672,25 @@ export default function MaterialPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, sortBy, sortDir, viewMode, setViewMode, visibleFields])
+  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, sortBy, sortDir, viewMode, setViewMode, visibleFields, activeFilterLabels])
 
   return (
     <>
       <TopBarPortal>
         <ResponsiveToolbarActions
+          primaryFilters={(
+            <input
+              type="text"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="搜索物料名称或编码"
+              className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
+            />
+          )}
+          filterCount={activeFilterLabels.length}
+          filterSummary={activeFilterLabels.slice(0, 3).map((label) => (
+            <span key={label} className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">{label}</span>
+          ))}
           filters={(
             <>
               <StatusCheckboxFilter
@@ -663,14 +698,6 @@ export default function MaterialPage({
                 value={selectedCategories}
                 onChange={setSelectedCategories}
                 allLabel="全部分类"
-                storageKey="mes-lite.filters.materials.category.order"
-              />
-              <input
-                type="text"
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                placeholder="搜索物料名称或编码"
-                className="w-56 px-4 py-2 border border-gray-200 rounded-lg text-sm"
               />
               <select
                 value={customerFilter}

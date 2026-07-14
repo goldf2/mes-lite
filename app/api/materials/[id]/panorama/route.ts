@@ -222,6 +222,42 @@ export async function GET(
     const documents = attachments
       .filter((attachment) => !attachment.mimeType.startsWith('image/') || attachment.documentType !== 'MATERIAL_IMAGE')
       .map(withFileUrl)
+    const formalWorkInstructionIds = formalWorkInstructions.map((instruction) => instruction.id)
+    const formalWorkInstructionAttachments = formalWorkInstructionIds.length === 0 ? [] : await prisma.documentAttachment.findMany({
+      where: {
+        ownerType: 'WORK_INSTRUCTION',
+        ownerId: { in: formalWorkInstructionIds },
+        deletedAt: null,
+      },
+      orderBy: [{ isCover: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        id: true,
+        ownerId: true,
+        originalName: true,
+        mimeType: true,
+        size: true,
+        note: true,
+        documentType: true,
+        isCover: true,
+        createdAt: true,
+      },
+    })
+    const formalAttachmentsByOwner = new Map<string, typeof formalWorkInstructionAttachments>()
+    for (const attachment of formalWorkInstructionAttachments) {
+      const list = formalAttachmentsByOwner.get(attachment.ownerId) || []
+      list.push(attachment)
+      formalAttachmentsByOwner.set(attachment.ownerId, list)
+    }
+    const formalWorkInstructionsWithAttachments = formalWorkInstructions.map((instruction) => {
+      const itemAttachments = formalAttachmentsByOwner.get(instruction.id) || []
+      return {
+        ...instruction,
+        attachments: itemAttachments.map(withFileUrl),
+        attachmentCount: itemAttachments.length,
+        imageCount: itemAttachments.filter((attachment) => attachment.mimeType.startsWith('image/')).length,
+        pdfCount: itemAttachments.filter((attachment) => attachment.mimeType === 'application/pdf').length,
+      }
+    })
 
     const locationBalances = material.stock
       ? [{
@@ -279,7 +315,7 @@ export async function GET(
           bom: item.bom,
         })),
         productBoms,
-        workInstructions: formalWorkInstructions,
+        workInstructions: formalWorkInstructionsWithAttachments,
         targetOrders,
         consumingPicks,
         recentMaterialIns,
@@ -288,7 +324,7 @@ export async function GET(
         integrityWarnings,
         modelNotes: [
           '库位明细尚未建模，本页先用默认库位展示库存余额。',
-          '作业指导书尚未建专表，本页先从物料附件和工艺路线说明中汇总。',
+          '作业指导书优先读取正式指导书模块，旧附件文档保留为历史资料。',
         ],
       },
     })
