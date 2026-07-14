@@ -64,6 +64,20 @@ const materialCategoryOptions = [
 
 const materialCategoryFilterOptions = materialCategoryOptions.map(([value, label]) => ({ value, label }))
 
+function useCompactViewport() {
+  const [isCompact, setIsCompact] = useState(false)
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 639px)')
+    const update = () => setIsCompact(query.matches)
+    update()
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+
+  return isCompact
+}
+
 export default function MaterialPage({
   onMessage,
   onToolbarChange,
@@ -80,6 +94,8 @@ export default function MaterialPage({
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null)
   const [detailMaterial, setDetailMaterial] = useState<Material | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.materials.viewMode', 'list')
+  const isCompactViewport = useCompactViewport()
+  const effectiveViewMode = isCompactViewport ? 'card' : viewMode
   const [form, setForm] = useState({
     code: '',
     name: '',
@@ -290,7 +306,9 @@ export default function MaterialPage({
         )}
         actions={(
           <>
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
+            <div className="hidden sm:block">
+              <ViewModeToggle value={viewMode} onChange={setViewMode} />
+            </div>
             <button
               onClick={handleAdd}
               className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
@@ -339,7 +357,9 @@ export default function MaterialPage({
           )}
           actions={(
             <>
-              <ViewModeToggle value={viewMode} onChange={setViewMode} />
+              <div className="hidden sm:block">
+                <ViewModeToggle value={viewMode} onChange={setViewMode} />
+              </div>
               <button
                 onClick={handleAdd}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
@@ -350,9 +370,9 @@ export default function MaterialPage({
           )}
         />
       </TopBarPortal>
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="rounded-lg bg-transparent p-0 shadow-none sm:bg-white sm:p-6 sm:shadow">
         {materials.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
+          <div className="rounded-lg bg-white py-10 text-center text-gray-500 shadow sm:bg-transparent sm:py-12 sm:shadow-none">
             <p>暂无物料</p>
             <button
               onClick={handleAdd}
@@ -361,14 +381,14 @@ export default function MaterialPage({
               创建第一个物料
             </button>
           </div>
-        ) : viewMode === 'card' ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        ) : effectiveViewMode === 'card' ? (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {materials.map((material) => (
-              <div key={material.id} className="flex min-h-[260px] flex-col rounded-lg border border-gray-200 bg-white p-4">
-                <div className="flex gap-4">
+              <div key={material.id} className="flex flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:min-h-[260px] sm:p-4 sm:shadow-none">
+                <div className="flex gap-3 sm:gap-4">
                   <button
                     onClick={() => handleViewDetail(material)}
-                    className="h-20 w-20 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50"
+                    className="h-14 w-14 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50 sm:h-20 sm:w-20"
                     title={material.primaryImage?.note || '查看物料详情'}
                   >
                     {material.primaryImage ? (
@@ -382,27 +402,27 @@ export default function MaterialPage({
                       <span className="rounded bg-blue-50 px-2 py-1 font-mono text-xs text-blue-700">{material.code}</span>
                       <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</span>
                     </div>
-                    <div className="mt-2 truncate font-semibold text-gray-900">{material.name}</div>
-                    <div className="mt-1 text-sm text-gray-500">{material.spec || '无规格'}</div>
-                    <div className="mt-1 text-xs text-gray-500">客户：{material.customer ? `${material.customer.name} (${material.customer.code})` : '通用/未绑定'}</div>
+                    <div className="mt-1 truncate font-semibold text-gray-900 sm:mt-2">{material.name}</div>
+                    <div className="mt-0.5 truncate text-sm text-gray-500">{material.spec || '无规格'}</div>
+                    <div className="mt-0.5 truncate text-xs text-gray-500">客户：{material.customer ? `${material.customer.name} (${material.customer.code})` : '通用/未绑定'}</div>
                   </div>
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded bg-gray-50 p-3">
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:mt-4 sm:gap-3">
+                  <div className="rounded bg-gray-50 p-2 sm:p-3">
                     <div className="text-xs text-gray-500">库存</div>
                     <div className="mt-1 font-semibold text-gray-900">{material.stock?.qty || 0} {material.stockUnit || material.unit}</div>
                   </div>
-                  <div className="rounded bg-gray-50 p-3">
+                  <div className="rounded bg-gray-50 p-2 sm:p-3">
                     <div className="text-xs text-gray-500">核算库存</div>
                     <div className="mt-1 font-semibold text-green-700">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</div>
                   </div>
                 </div>
-                <div className="mt-3 rounded bg-blue-50/50 p-3 text-xs text-gray-600">
+                <div className="mt-3 hidden rounded bg-blue-50/50 p-3 text-xs text-gray-600 sm:block">
                   <div>1 {material.stockUnit || material.unit} = {material.conversionRate || 1} {material.valuationUnit || material.unit}</div>
                   <div className="mt-1">成本法：{material.costingMethod === 'FIFO' ? '先入先出' : '移动加权平均'}</div>
                   <div className="mt-1">创建：{new Date(material.createdAt).toLocaleString('zh-CN')}</div>
                 </div>
-                <div className="mt-auto flex justify-end gap-2 pt-4">
+                <div className="mt-auto flex justify-end gap-2 pt-3 sm:pt-4">
                   <button
                     onClick={() => handleViewDetail(material)}
                     className="px-3 py-1.5 text-gray-700 border border-gray-300 rounded text-xs hover:bg-gray-50 transition"
