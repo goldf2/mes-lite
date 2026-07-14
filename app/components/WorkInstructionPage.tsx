@@ -220,6 +220,10 @@ function materialIncludesKeyword(material: MaterialOption, keyword: string) {
     .includes(normalizedKeyword)
 }
 
+function getInstructionCustomerName(instruction: WorkInstruction) {
+  return instruction.material?.customer?.name || instruction.customer?.name || '通用/未绑定'
+}
+
 function MaterialSearchSelect({
   value,
   options,
@@ -856,7 +860,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                     <div className="mt-1 space-y-0.5 text-xs text-gray-500">
                       <div className="truncate">版本：{instruction.version || '-'}</div>
                       <div className="truncate">物料：{instruction.material ? `${instruction.material.code} · ${instruction.material.name}` : '未绑定'}</div>
-                      <div className="truncate">客户：{instruction.customer?.name || instruction.material?.customer?.name || '通用/未绑定'}</div>
+                      <div className="truncate">客户：{getInstructionCustomerName(instruction)}</div>
                       <div className="truncate">工序：{instruction.processName || '-'}</div>
                       <div>文件：{instruction.imageCount} 图 / {instruction.pdfCount} PDF</div>
                     </div>
@@ -923,7 +927,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       <td className="whitespace-nowrap px-4 py-3 text-sm">{categoryLabels[instruction.category] || instruction.category}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm">{statusLabels[instruction.status] || instruction.status}</td>
                       <td className="px-4 py-3 text-sm">{instruction.material ? `${instruction.material.code} · ${instruction.material.name}` : '-'}</td>
-                      <td className="px-4 py-3 text-sm">{instruction.customer?.name || instruction.material?.customer?.name || '通用/未绑定'}</td>
+                      <td className="px-4 py-3 text-sm">{getInstructionCustomerName(instruction)}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm">{instruction.imageCount} 图 / {instruction.pdfCount} PDF</td>
                       <td className="whitespace-nowrap px-4 py-3">
                         <div className="flex flex-wrap gap-2">
@@ -999,7 +1003,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       setForm({
                         ...form,
                         materialId: nextValue,
-                        customerId: form.customerId || material?.customerId || '',
+                        customerId: material?.customerId || form.customerId,
                       })
                     }}
                     placeholder="输入物料编码、名称或规格搜索"
@@ -1110,7 +1114,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                               setForm({
                                 ...form,
                                 materialId: nextValue,
-                                customerId: form.customerId || material?.customerId || '',
+                                customerId: material?.customerId || form.customerId,
                               })
                             }}
                             placeholder="输入物料编码、名称或规格搜索"
@@ -1141,7 +1145,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                         <InstructionBadge tone="blue">{detail.version}</InstructionBadge>
                       </div>
                       <div className="mt-4 space-y-2 text-sm text-gray-600">
-                        <div>客户：{detail.customer?.name || detail.material?.customer?.name || '通用/未绑定'}</div>
+                        <div>客户：{getInstructionCustomerName(detail)}</div>
                         <div>物料：{detail.material ? `${detail.material.code} · ${detail.material.name}` : '未绑定'}</div>
                         {detail.material?.spec && <div>规格：{detail.material.spec}</div>}
                         <div>工序：{detail.processName || '-'}</div>

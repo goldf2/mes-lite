@@ -66,12 +66,27 @@ export async function GET(req: NextRequest) {
     const fileOwnerIds = await ownerIdsByFileType(fileType)
 
     const where: any = { deletedAt: null }
+    const andFilters: any[] = []
     if (categories.length === 1) where.category = categories[0]
     else if (categories.length > 1) where.category = { in: categories }
     if (statuses.length === 1) where.status = statuses[0]
     else if (statuses.length > 1) where.status = { in: statuses }
-    if (customerId === '__UNASSIGNED__') where.customerId = null
-    else if (customerId) where.customerId = customerId
+    if (customerId === '__UNASSIGNED__') {
+      andFilters.push({
+        OR: [
+          { material: { is: null }, customerId: null },
+          { material: { is: { customerId: null } }, customerId: null },
+        ],
+      })
+    } else if (customerId) {
+      andFilters.push({
+        OR: [
+          { material: { is: { customerId } } },
+          { material: { is: null }, customerId },
+          { material: { is: { customerId: null } }, customerId },
+        ],
+      })
+    }
     if (materialId === '__UNASSIGNED__') where.materialId = null
     else if (materialId) where.materialId = materialId
     if (fileOwnerIds) {
@@ -89,6 +104,7 @@ export async function GET(req: NextRequest) {
         { customer: { is: { name: { contains: keyword } } } },
       ]
     }
+    if (andFilters.length > 0) where.AND = andFilters
 
     const [items, total] = await Promise.all([
       prisma.workInstruction.findMany({
