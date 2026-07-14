@@ -6,6 +6,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 
 const createReturnSchema = z.object({
+  voucherNo: z.string().optional(),
   shipmentId: z.string().min(1).optional(),
   productId: z.string().min(1),
   qty: z.number().int().positive(),
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
     if (denied) return denied
 
     const body = await req.json()
-    const { shipmentId, productId, qty, reason, note } = createReturnSchema.parse(body)
+    const { shipmentId, productId, qty, reason, note, voucherNo } = createReturnSchema.parse(body)
 
     const product = await prisma.product.findUnique({
       where: { id: productId },
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest) {
     const returnOrder = await prisma.returnOrder.create({
       data: {
         returnNo,
+        voucherNo: voucherNo?.trim() || null,
         shipmentId: shipmentId ?? null,
         productId,
         qty,

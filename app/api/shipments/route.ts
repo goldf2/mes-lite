@@ -6,6 +6,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 
 const createShipmentSchema = z.object({
+  voucherNo: z.string().optional(),
   productId: z.string().min(1),
   qty: z.number().int().positive(),
   unitPrice: z.number().nonnegative(),
@@ -91,6 +92,7 @@ export async function POST(req: NextRequest) {
     const shipment = await prisma.shipment.create({
       data: {
         shipmentNo,
+        voucherNo: data.voucherNo?.trim() || null,
         productId: data.productId,
         customerId: data.customerId || null,
         qty: data.qty,

@@ -83,6 +83,7 @@ const materialCategoryFilterOptions = materialCategoryOptions.map(([value, label
 interface Order {
   id: string
   orderNo: string
+  voucherNo?: string | null
   status: string
   planQty: number
   completeQty: number
@@ -216,6 +217,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [orderDetail, setOrderDetail] = useState<any>(null)
   const [orderTargetType, setOrderTargetType] = useState<'PRODUCT' | 'MATERIAL'>('PRODUCT')
   const [planQty, setPlanQty] = useState(100)
+  const [orderVoucherNo, setOrderVoucherNo] = useState('')
   const [selectedProductId, setSelectedProductId] = useState('')
   const [selectedMaterialId, setSelectedMaterialId] = useState('')
   const [selectedOrderStatuses, setSelectedOrderStatuses] = useState(orderStatusOptions.map((option) => option.value))
@@ -457,12 +459,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetType: orderTargetType, targetId, planQty }),
+        body: JSON.stringify({ targetType: orderTargetType, targetId, planQty, voucherNo: orderVoucherNo || undefined }),
       })
       const data = await res.json()
       if (res.ok) {
         showMessage(`工单创建成功：${data.data.orderNo}`)
         setPlanQty(100)
+        setOrderVoucherNo('')
         setSelectedProductId('')
         setSelectedMaterialId('')
         await fetchOrders()
@@ -873,6 +876,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <div className="font-mono text-sm font-semibold text-blue-700">{order.orderNo}</div>
+                        <div className="mt-1 text-xs text-gray-500">凭据号：{order.voucherNo || '-'}</div>
                         <div className="mt-1 text-xs text-gray-500">{new Date(order.createdAt).toLocaleString('zh-CN')}</div>
                       </div>
                       <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[order.status]}`}>
@@ -902,6 +906,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-3 text-xs text-gray-500 sm:mt-4">
                       <span>报工 {order._count.reports} · 领料 {order._count.picks}</span>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={order.id} compact onMessage={showMessage} />
+                      </div>
+                    </div>
+                    <div className="mt-3 flex justify-end">
                       {order.status === 'DRAFT' ? (
                         <button onClick={(e) => { e.stopPropagation(); confirmOrder(order.id) }} className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">确认</button>
                       ) : (
@@ -913,15 +922,17 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">
+                <table className="w-full min-w-[1080px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">工单号</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">凭据号</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">目标</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">计划</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">完成/报废</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">时间</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">原始单据</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                     </tr>
                   </thead>
@@ -929,6 +940,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     {orders.map((order) => (
                       <tr key={order.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => handleSelectOrder(order)}>
                         <td className="px-4 py-3 font-mono text-blue-600 text-sm">{order.orderNo}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{order.voucherNo || '-'}</td>
                         <td className="px-4 py-3">
                           <div className="font-medium text-sm">{order.targetMaterial?.name || order.product.name}</div>
                           <div className="text-xs text-gray-500">
@@ -947,6 +959,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                           </span>
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-500">{new Date(order.createdAt).toLocaleString('zh-CN')}</td>
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={order.id} compact onMessage={showMessage} />
+                        </td>
                         <td className="px-4 py-3">
                           {order.status === 'DRAFT' && (
                             <button onClick={(e) => { e.stopPropagation(); confirmOrder(order.id) }} className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">确认</button>
@@ -971,6 +986,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <div>
                 <h2 className="text-xl font-semibold">工单详情</h2>
                 <p className="text-sm text-gray-500">{orderDetail.orderNo}</p>
+                <p className="text-sm text-gray-500">凭据号：{orderDetail.voucherNo || '-'}</p>
               </div>
               <button onClick={() => setTab('orders')} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">返回列表</button>
             </div>
@@ -1105,6 +1121,16 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">计划产量</label>
                 <input type="number" value={planQty} onChange={(e) => setPlanQty(Number(e.target.value))} min={1} className="w-full px-4 py-3 border border-gray-200 rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">凭据号</label>
+                <input
+                  type="text"
+                  value={orderVoucherNo}
+                  onChange={(e) => setOrderVoucherNo(e.target.value)}
+                  placeholder="客户订单号、生产指令号或纸质单号"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg"
+                />
               </div>
               <button onClick={createOrder} disabled={loading} className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
                 {loading ? '创建中...' : '创建工单'}

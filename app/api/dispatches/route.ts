@@ -6,6 +6,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 
 const createDispatchSchema = z.object({
+  voucherNo: z.string().optional(),
   orderId: z.string().min(1),
   stepId: z.string().min(1),
   workerName: z.string().min(1),
@@ -134,6 +135,7 @@ export async function POST(req: NextRequest) {
     const dispatch = await prisma.dispatch.create({
       data: {
         dispatchNo,
+        voucherNo: data.voucherNo?.trim() || null,
         orderId: data.orderId,
         stepId: data.stepId,
         workerName: data.workerName,

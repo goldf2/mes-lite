@@ -38,6 +38,7 @@ interface Material {
 interface MaterialIn {
   id: string
   inboundNo: string
+  voucherNo?: string | null
   supplierId: string
   materialId: string
   qty: number
@@ -103,6 +104,7 @@ export default function MaterialInPage({
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
 
   const [form, setForm] = useState({
+    voucherNo: '',
     supplierId: '',
     materialId: '',
     qty: 0,
@@ -177,6 +179,7 @@ export default function MaterialInPage({
   const resetForm = () => {
     setEditingItem(null)
     setForm({
+      voucherNo: '',
       supplierId: '',
       materialId: '',
       qty: 0,
@@ -207,6 +210,7 @@ export default function MaterialInPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           supplierId: form.supplierId,
+          voucherNo: form.voucherNo || undefined,
           materialId: form.materialId,
           qty: form.qty,
           unit: submitStockUnit,
@@ -275,6 +279,7 @@ export default function MaterialInPage({
 
     setEditingItem(item)
     setForm({
+      voucherNo: item.voucherNo || '',
       supplierId: item.supplierId,
       materialId: item.materialId,
       qty: Number(item.qty),
@@ -452,6 +457,7 @@ export default function MaterialInPage({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="font-mono text-sm font-semibold text-blue-700">{item.inboundNo}</div>
+                    <div className="mt-1 text-xs text-gray-500">凭据号：{item.voucherNo || '-'}</div>
                     <div className="mt-1 text-xs text-gray-500">{new Date(item.inboundDate).toLocaleString('zh-CN')}</div>
                   </div>
                   <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[item.status]}`}>
@@ -539,10 +545,11 @@ export default function MaterialInPage({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1120px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">
+            <table className="w-full min-w-[1240px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">入库单号</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">凭据号</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">供应商</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存数量</th>
@@ -562,6 +569,7 @@ export default function MaterialInPage({
                 {materialIns.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono text-blue-600">{item.inboundNo}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{item.voucherNo || '-'}</td>
                     <td className="px-4 py-3">
                       <div className="font-medium">{item.supplier?.name}</div>
                       <div className="text-xs text-gray-500">{item.supplier?.code}</div>
@@ -660,6 +668,16 @@ export default function MaterialInPage({
               </button>
             </div>
             <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">凭据号</label>
+                <input
+                  type="text"
+                  value={form.voucherNo}
+                  onChange={(e) => setForm({ ...form, voucherNo: e.target.value })}
+                  placeholder="外部单号、纸质单号或客户/供应商单号"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">供应商</label>
                 <select

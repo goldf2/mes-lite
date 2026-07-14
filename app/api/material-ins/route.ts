@@ -7,6 +7,7 @@ import { resolveMaterialUnits, toValuationQty } from '@/lib/units'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 
 const createMaterialInSchema = z.object({
+  voucherNo: z.string().optional(),
   supplierId: z.string().min(1, '供应商必填'),
   materialId: z.string().min(1, '物料必填'),
   qty: z.number().positive('数量必须大于 0'),
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
     if (denied) return denied
 
     const body = await req.json()
-    const { supplierId, materialId, qty, valuationQty, unitPrice, batchNo, receivedBy, note } =
+    const { supplierId, materialId, qty, valuationQty, unitPrice, batchNo, receivedBy, note, voucherNo } =
       createMaterialInSchema.parse(body)
 
     // 校验供应商存在且未归档
@@ -117,6 +118,7 @@ export async function POST(req: NextRequest) {
     const materialIn = await prisma.materialIn.create({
       data: {
         inboundNo,
+        voucherNo: voucherNo?.trim() || null,
         supplierId,
         materialId,
         qty,

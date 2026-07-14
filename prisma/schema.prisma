@@ -109,6 +109,7 @@ model ProcessStep {
 model ProductionOrder {
   id            String   @id @default(cuid())
   orderNo       String   @unique
+  voucherNo     String?
   productId     String
   product       Product  @relation(fields: [productId], references: [id])
   materialId     String?
@@ -297,6 +298,7 @@ model Supplier {
 model MaterialIn {
   id          String   @id @default(cuid())
   inboundNo   String   @unique
+  voucherNo   String?
   supplierId  String
   supplier    Supplier @relation(fields: [supplierId], references: [id])
   materialId  String
@@ -372,6 +374,7 @@ model CostLayerConsumption {
 model Dispatch {
   id            String   @id @default(cuid())
   dispatchNo    String   @unique
+  voucherNo     String?
   orderId       String
   order         ProductionOrder @relation(fields: [orderId], references: [id])
   stepId        String
@@ -395,6 +398,7 @@ model Dispatch {
 model Shipment {
   id            String   @id @default(cuid())
   shipmentNo    String   @unique
+  voucherNo     String?
   productId     String
   product       Product  @relation(fields: [productId], references: [id])
   customerId    String?
@@ -421,6 +425,7 @@ model Shipment {
 model ReturnOrder {
   id            String   @id @default(cuid())
   returnNo      String   @unique
+  voucherNo     String?
   shipmentId    String?
   shipment      Shipment? @relation(fields: [shipmentId], references: [id])
   productId     String

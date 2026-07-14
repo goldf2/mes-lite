@@ -6,6 +6,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 
 const createOrderSchema = z.object({
+  voucherNo: z.string().optional(),
   targetType: z.enum(['PRODUCT', 'MATERIAL']).optional(),
   targetId: z.string().min(1).optional(),
   productId: z.string().min(1).optional(),
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
     const parsed = createOrderSchema.parse(body)
     const targetType = parsed.targetType ?? (parsed.materialId ? 'MATERIAL' : 'PRODUCT')
     const targetId = parsed.targetId ?? (targetType === 'MATERIAL' ? parsed.materialId : parsed.productId)
-    const { planQty, note } = parsed
+    const { planQty, note, voucherNo } = parsed
 
     if (!targetId) {
       return NextResponse.json({ error: targetType === 'MATERIAL' ? '请选择物料' : '请选择产品' }, { status: 400 })
@@ -138,6 +139,7 @@ export async function POST(req: NextRequest) {
       const newOrder = await tx.productionOrder.create({
         data: {
           orderNo,
+          voucherNo: voucherNo?.trim() || null,
           productId,
           materialId,
           planQty,

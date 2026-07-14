@@ -33,6 +33,7 @@ interface ProcessStep {
 interface Dispatch {
   id: string
   dispatchNo: string
+  voucherNo?: string | null
   orderId: string
   stepId: string
   workerName: string
@@ -106,6 +107,7 @@ export default function DispatchPage({
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
 
   const [form, setForm] = useState({
+    voucherNo: '',
     orderId: '',
     stepId: '',
     workerName: '',
@@ -183,6 +185,7 @@ export default function DispatchPage({
 
   const resetForm = () => {
     setForm({
+      voucherNo: '',
       orderId: '',
       stepId: '',
       workerName: '',
@@ -206,6 +209,7 @@ export default function DispatchPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId: form.orderId,
+          voucherNo: form.voucherNo || undefined,
           stepId: form.stepId,
           workerName: form.workerName,
           workerId: form.workerId || undefined,
@@ -357,6 +361,7 @@ export default function DispatchPage({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="font-mono text-sm font-semibold text-blue-700">{item.dispatchNo}</div>
+                    <div className="mt-1 text-xs text-gray-500">凭据号：{item.voucherNo || '-'}</div>
                     <div className="mt-1 text-xs text-gray-500">工单：{item.order?.orderNo}</div>
                   </div>
                   <div className="flex flex-wrap justify-end gap-2">
@@ -427,10 +432,11 @@ export default function DispatchPage({
           </div>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-gray-100">
-            <table className="w-full min-w-[1180px]">
+            <table className="w-full min-w-[1280px]">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="w-40 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">派工单号</th>
+                  <th className="w-36 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">凭据号</th>
                   <th className="w-40 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">工单号</th>
                   <th className="min-w-64 px-4 py-3 text-left text-sm font-semibold text-gray-600">产品</th>
                   <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">工序</th>
@@ -446,6 +452,7 @@ export default function DispatchPage({
                 {dispatches.map((item) => (
                   <tr key={item.id} className="align-top hover:bg-gray-50">
                     <td className="whitespace-nowrap px-4 py-3 font-mono text-sm text-blue-600">{item.dispatchNo}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-700">{item.voucherNo || '-'}</td>
                     <td className="whitespace-nowrap px-4 py-3 font-mono text-sm">{item.order?.orderNo}</td>
                     <td className="px-4 py-3 text-sm">
                       <div className="font-medium">{item.order?.targetMaterial?.name || item.order?.product?.name}</div>
@@ -531,6 +538,16 @@ export default function DispatchPage({
               </button>
             </div>
             <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">凭据号</label>
+                <input
+                  type="text"
+                  value={form.voucherNo}
+                  onChange={(e) => setForm({ ...form, voucherNo: e.target.value })}
+                  placeholder="外部任务单号、纸质派工单号"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">工单</label>
                 <select

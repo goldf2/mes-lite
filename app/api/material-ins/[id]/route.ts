@@ -6,6 +6,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { resolveMaterialUnits, toValuationQty } from '@/lib/units'
 
 const updateMaterialInSchema = z.object({
+  voucherNo: z.string().optional(),
   supplierId: z.string().min(1, '供应商必填'),
   materialId: z.string().min(1, '物料必填'),
   qty: z.number().positive('数量必须大于 0'),
@@ -53,7 +54,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (denied) return denied
 
     const body = await req.json()
-    const { supplierId, materialId, qty, valuationQty, unitPrice, batchNo, receivedBy, note } =
+    const { supplierId, materialId, qty, valuationQty, unitPrice, batchNo, receivedBy, note, voucherNo } =
       updateMaterialInSchema.parse(body)
 
     const current = await prisma.materialIn.findUnique({
@@ -104,6 +105,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       where: { id: params.id },
       data: {
         supplierId,
+        voucherNo: voucherNo?.trim() || null,
         materialId,
         qty,
         unit: stockUnit,

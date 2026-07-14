@@ -27,6 +27,7 @@ interface Customer {
 interface ReturnOrder {
   id: string
   returnNo: string
+  voucherNo?: string | null
   shipmentId?: string
   productId: string
   qty: number
@@ -76,6 +77,7 @@ export default function ReturnPage({
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
 
   const [form, setForm] = useState({
+    voucherNo: '',
     productId: '',
     qty: 0,
     reason: '',
@@ -130,6 +132,7 @@ export default function ReturnPage({
 
   const resetForm = () => {
     setForm({
+      voucherNo: '',
       productId: '',
       qty: 0,
       reason: '',
@@ -149,6 +152,7 @@ export default function ReturnPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId: form.productId,
+          voucherNo: form.voucherNo || undefined,
           qty: form.qty,
           reason: form.reason,
           note: form.note || undefined,
@@ -282,6 +286,7 @@ export default function ReturnPage({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="font-mono text-sm font-semibold text-blue-700">{item.returnNo}</div>
+                    <div className="mt-1 text-xs text-gray-500">凭据号：{item.voucherNo || '-'}</div>
                     <div className="mt-1 text-xs text-gray-500">关联发货单：{item.shipment?.shipmentNo || '-'}</div>
                   </div>
                   <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[item.status]}`}>
@@ -338,10 +343,11 @@ export default function ReturnPage({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[1120px]">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">退货单号</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">凭据号</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">关联发货单</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">数量</th>
@@ -356,6 +362,7 @@ export default function ReturnPage({
                 {returns.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono text-blue-600">{item.returnNo}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{item.voucherNo || '-'}</td>
                     <td className="px-4 py-3 font-mono text-sm">
                       {item.shipment?.shipmentNo || '-'}
                     </td>
@@ -423,6 +430,16 @@ export default function ReturnPage({
               </button>
             </div>
             <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">凭据号</label>
+                <input
+                  type="text"
+                  value={form.voucherNo}
+                  onChange={(e) => setForm({ ...form, voucherNo: e.target.value })}
+                  placeholder="客户退货单号、外部凭据号或纸质单号"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">产品</label>
                 <select

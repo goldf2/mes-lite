@@ -30,6 +30,7 @@ interface Customer {
 interface Shipment {
   id: string
   shipmentNo: string
+  voucherNo?: string | null
   productId: string
   customerId?: string | null
   qty: number
@@ -88,6 +89,7 @@ export default function ShipmentPage({
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
 
   const [form, setForm] = useState({
+    voucherNo: '',
     productId: '',
     customerId: '',
     qty: 0,
@@ -147,6 +149,7 @@ export default function ShipmentPage({
 
   const resetForm = () => {
     setForm({
+      voucherNo: '',
       productId: '',
       customerId: '',
       qty: 0,
@@ -171,6 +174,7 @@ export default function ShipmentPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId: form.productId,
+          voucherNo: form.voucherNo || undefined,
           customerId: form.customerId || undefined,
           qty: form.qty,
           unitPrice: form.unitPrice,
@@ -333,6 +337,7 @@ export default function ShipmentPage({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="font-mono text-sm font-semibold text-blue-700">{item.shipmentNo}</div>
+                    <div className="mt-1 text-xs text-gray-500">凭据号：{item.voucherNo || '-'}</div>
                     <div className="mt-1 text-xs text-gray-500">{item.shippedAt ? new Date(item.shippedAt).toLocaleString('zh-CN') : '未发货'}</div>
                   </div>
                   <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[item.status]}`}>
@@ -412,10 +417,11 @@ export default function ShipmentPage({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[1120px]">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">发货单号</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">凭据号</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">数量</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">单价</th>
@@ -431,6 +437,7 @@ export default function ShipmentPage({
                 {shipments.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono text-blue-600">{item.shipmentNo}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{item.voucherNo || '-'}</td>
                     <td className="px-4 py-3">
                       <div className="font-medium">{item.product?.name}</div>
                       <div className="text-xs text-gray-500">{item.product?.sku}</div>
@@ -510,6 +517,16 @@ export default function ShipmentPage({
               </button>
             </div>
             <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">凭据号</label>
+                <input
+                  type="text"
+                  value={form.voucherNo}
+                  onChange={(e) => setForm({ ...form, voucherNo: e.target.value })}
+                  placeholder="客户订单号、送货凭据号或纸质单号"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">产品</label>
                 <select
