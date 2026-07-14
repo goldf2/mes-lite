@@ -168,6 +168,20 @@ const orderStatusOptions = [
 
 const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0'
 
+function useCompactViewport() {
+  const [isCompact, setIsCompact] = useState(false)
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 639px)')
+    const update = () => setIsCompact(query.matches)
+    update()
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+
+  return isCompact
+}
+
 // ==================== 主组件 ====================
 
 export default function Home() {
@@ -219,7 +233,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [selectedMaterialId, setSelectedMaterialId] = useState('')
   const [selectedOrderStatuses, setSelectedOrderStatuses] = useState(orderStatusOptions.map((option) => option.value))
   const [dashboardViewMode, setDashboardViewMode] = usePersistedViewMode('mes-lite.dashboard.viewMode', 'card')
-  const [orderViewMode, setOrderViewMode] = usePersistedViewMode('mes-lite.orders.viewMode', 'list')
+  const [orderViewMode, setOrderViewMode] = usePersistedViewMode('mes-lite.orders.viewMode', 'card')
   const [stockFilter, setStockFilter] = useState<'all' | 'material' | 'product'>('all')
   const [stockViewMode, setStockViewMode] = usePersistedViewMode('mes-lite.stocks.viewMode', 'card')
   const [stockCustomerFilter, setStockCustomerFilter] = useState('')
@@ -239,6 +253,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     newTotalCost: 0,
     reason: '',
   })
+  const isCompactViewport = useCompactViewport()
+  const effectiveDashboardViewMode = isCompactViewport ? 'card' : dashboardViewMode
+  const effectiveOrderViewMode = isCompactViewport ? 'card' : orderViewMode
+  const effectiveStockViewMode = isCompactViewport ? 'card' : stockViewMode
 
   const [navItems, setNavItems] = useState<{ key: TabType; label: string }[]>(readableBusinessNavItems)
   const tabLabels: Record<string, string> = Object.fromEntries(baseNavItems.map((item) => [item.key, item.label]))
@@ -512,7 +530,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   ))
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen overflow-x-hidden bg-gray-50">
       <aside className="fixed left-0 top-0 z-20 hidden h-screen w-56 flex-col bg-white shadow-sm lg:flex">
         <div className="p-4 border-b shrink-0">
           <div className="flex items-center gap-3">
@@ -560,17 +578,17 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       </aside>
 
       <main className="min-w-0 p-3 pb-28 sm:p-4 lg:ml-56 lg:p-6">
-        <div className="mb-4 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mb-3 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm sm:mb-4 sm:px-4 sm:py-3">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
               <div className="text-xs font-medium text-gray-400">{activeSystemTab ? '系统功能' : '业务功能'}</div>
-              <div className="truncate text-lg font-semibold text-gray-900">{activeTabLabel}</div>
+              <div className="truncate text-base font-semibold text-gray-900 sm:text-lg">{activeTabLabel}</div>
             </div>
-            <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:flex-1 lg:justify-end">
-              <div id="topbar-actions" className="flex w-full min-w-0 items-center justify-start gap-2 lg:flex-1 lg:justify-end">
+            <div className="flex w-full min-w-0 items-center justify-between gap-2 lg:w-auto lg:flex-1 lg:justify-end">
+              <div id="topbar-actions" className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-x-auto [scrollbar-width:none] lg:justify-end lg:overflow-visible [&::-webkit-scrollbar]:hidden">
                 {tab === 'dashboard' ? (
                   <ResponsiveToolbarActions
-                    actions={<ViewModeToggle value={dashboardViewMode} onChange={setDashboardViewMode} />}
+                    actions={<div className="hidden sm:block"><ViewModeToggle value={dashboardViewMode} onChange={setDashboardViewMode} /></div>}
                   />
                 ) : tab === 'orders' ? (
                   <ResponsiveToolbarActions
@@ -583,7 +601,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     )}
                     actions={(
                       <>
-                        <ViewModeToggle value={orderViewMode} onChange={setOrderViewMode} />
+                        <div className="hidden sm:block">
+                          <ViewModeToggle value={orderViewMode} onChange={setOrderViewMode} />
+                        </div>
                         {canCreate('orders') && (
                           <button
                             onClick={() => setTab('create')}
@@ -639,7 +659,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     )}
                     actions={(
                       <>
-                        <ViewModeToggle value={stockViewMode} onChange={setStockViewMode} />
+                        <div className="hidden sm:block">
+                          <ViewModeToggle value={stockViewMode} onChange={setStockViewMode} />
+                        </div>
                         <button
                           onClick={() => setShowStockHelp(true)}
                           className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg text-sm hover:bg-blue-50"
@@ -651,16 +673,17 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   />
                 ) : null}
               </div>
-              <div ref={systemMenuRef} className="relative shrink-0 self-start sm:self-auto">
+              <div ref={systemMenuRef} className="relative shrink-0">
                 <button
                   onClick={() => setSystemMenuOpen((open) => !open)}
-                  className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
                 >
-                  <span className="max-w-32 truncate">{operator.name}</span>
+                  <span className="hidden max-w-32 truncate sm:inline">{operator.name}</span>
+                  <span className="sm:hidden">账号</span>
                   <span className="text-gray-400">▾</span>
                 </button>
                 {systemMenuOpen && (
-                  <div className="absolute right-auto top-full z-30 mt-2 w-64 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg sm:right-0 sm:left-auto">
+                  <div className="absolute right-0 top-full z-30 mt-2 w-64 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
                     <div className="border-b border-gray-100 px-4 py-3">
                       <OperatorBadge operator={operator} />
                       <div className="mt-1 text-xs font-medium text-gray-400">MES-lite v{appVersion}</div>
@@ -711,7 +734,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {/* 仪表盘 */}
         {tab === 'dashboard' && dashboard && (
           <div className="space-y-6">
-            {dashboardViewMode === 'card' ? (
+            {effectiveDashboardViewMode === 'card' ? (
               <>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <StatCard label="今日新增工单" value={dashboardView.todayOrderCount} color="blue" />
@@ -831,26 +854,26 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
         {/* 工单管理 */}
         {tab === 'orders' && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-lg shadow p-3 sm:p-6">
             {orders.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
+              <div className="text-center py-8 text-gray-500 sm:py-12">
                 <p className="mb-4">暂无工单</p>
                 {canCreate('orders') && (
                   <button
                     onClick={() => setTab('create')}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+                    className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition sm:px-4 sm:py-2"
                   >
                     新增工单
                   </button>
                 )}
               </div>
-            ) : orderViewMode === 'card' ? (
+            ) : effectiveOrderViewMode === 'card' ? (
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                 {orders.map((order) => (
                   <div
                     key={order.id}
                     onClick={() => handleSelectOrder(order)}
-                    className="cursor-pointer rounded-lg border border-gray-200 bg-white p-4 transition hover:border-blue-200 hover:shadow-sm"
+                    className="cursor-pointer rounded-lg border border-gray-200 bg-white p-3 transition hover:border-blue-200 hover:shadow-sm sm:p-4"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
@@ -861,28 +884,28 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                         {statusLabels[order.status]}
                       </span>
                     </div>
-                    <div className="mt-4">
+                    <div className="mt-3 sm:mt-4">
                       <div className="text-xs text-gray-500">目标</div>
                       <div className="mt-1 font-semibold text-gray-900">{order.targetMaterial?.name || order.product.name}</div>
                       <div className="text-xs text-gray-500">
                         {order.targetMaterial ? `物料 ${order.targetMaterial.code}` : `产品 ${order.product.sku}`}
                       </div>
                     </div>
-                    <div className="mt-4 grid grid-cols-3 gap-3 text-center">
-                      <div className="rounded bg-gray-50 p-3">
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-center sm:mt-4 sm:gap-3">
+                      <div className="rounded bg-gray-50 p-2 sm:p-3">
                         <div className="text-xs text-gray-500">计划</div>
                         <div className="mt-1 font-semibold">{order.planQty}</div>
                       </div>
-                      <div className="rounded bg-gray-50 p-3">
+                      <div className="rounded bg-gray-50 p-2 sm:p-3">
                         <div className="text-xs text-gray-500">完成</div>
                         <div className="mt-1 font-semibold text-green-700">{order.completeQty}</div>
                       </div>
-                      <div className="rounded bg-gray-50 p-3">
+                      <div className="rounded bg-gray-50 p-2 sm:p-3">
                         <div className="text-xs text-gray-500">报废</div>
                         <div className="mt-1 font-semibold text-red-600">{order.scrapQty}</div>
                       </div>
                     </div>
-                    <div className="mt-4 flex items-center justify-between gap-3 text-xs text-gray-500">
+                    <div className="mt-3 flex items-center justify-between gap-3 text-xs text-gray-500 sm:mt-4">
                       <span>报工 {order._count.reports} · 领料 {order._count.picks}</span>
                       {order.status === 'DRAFT' ? (
                         <button onClick={(e) => { e.stopPropagation(); confirmOrder(order.id) }} className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">确认</button>
@@ -895,7 +918,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full min-w-[900px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">工单号</th>
@@ -1097,10 +1120,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
         {/* 库存管理 */}
         {tab === 'stocks' && (
-          <div className="bg-white rounded-lg shadow p-6">
-            {stockViewMode === 'list' ? (
+          <div className="bg-white rounded-lg shadow p-3 sm:p-6">
+            {effectiveStockViewMode === 'list' ? (
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full min-w-[1080px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存对象</th>
@@ -1375,7 +1398,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
-        <div className="flex gap-2 overflow-x-auto overscroll-x-contain pb-1">
+        <div className="flex gap-2 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {navItems.map((item) => (
             <button
               key={item.key}

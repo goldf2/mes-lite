@@ -77,19 +77,19 @@ export default function ResponsiveToolbarActions({ children, filters, actions }:
   }, [open])
 
   return (
-    <div ref={rootRef} className="relative flex min-w-0 flex-1 flex-wrap items-center justify-end gap-3">
+    <div ref={rootRef} className="relative flex min-w-0 flex-1 flex-nowrap items-center justify-end gap-2 sm:gap-3">
       {hasFilters && (
-        <div ref={filterContainerRef} className="relative flex min-w-0 flex-1 justify-end">
+        <div ref={filterContainerRef} className="relative flex min-w-0 flex-1 justify-start sm:justify-end">
           <div
             ref={measureRef}
             aria-hidden="true"
             inert={'true' as unknown as boolean}
-            className="pointer-events-none invisible absolute right-0 top-0 -z-10 flex w-full flex-nowrap items-center justify-end gap-3 overflow-visible whitespace-nowrap"
+            className="pointer-events-none invisible absolute right-0 top-0 -z-10 flex w-full flex-nowrap items-center justify-end gap-2 overflow-visible whitespace-nowrap sm:gap-3"
           >
             {filterContent}
           </div>
           {canInline === true && (
-            <div className="flex min-w-0 flex-nowrap items-center justify-end gap-3">
+            <div className="flex min-w-0 max-w-full flex-nowrap items-center justify-start gap-2 overflow-x-auto [scrollbar-width:none] sm:justify-end sm:gap-3 sm:overflow-visible [&::-webkit-scrollbar]:hidden">
               {filterContent}
             </div>
           )}
@@ -98,13 +98,13 @@ export default function ResponsiveToolbarActions({ children, filters, actions }:
               <button
                 type="button"
                 onClick={() => setOpen((next) => !next)}
-                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:px-3 sm:py-2 sm:text-sm"
               >
                 筛选/操作
               </button>
               {open && (
-                <div className="absolute right-0 top-full z-20 mt-2 w-[min(88vw,420px)] rounded-lg border border-gray-200 bg-white p-3 shadow-lg">
-                  <div className="flex flex-wrap items-center justify-end gap-3">
+                <div className="absolute right-0 top-full z-20 mt-2 w-[min(88vw,420px)] rounded-lg border border-gray-200 bg-white p-2 shadow-lg sm:p-3">
+                  <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
                     {filterContent}
                   </div>
                 </div>
@@ -114,7 +114,7 @@ export default function ResponsiveToolbarActions({ children, filters, actions }:
         </div>
       )}
       {hasActions && (
-        <div className="flex shrink-0 flex-nowrap items-center justify-end gap-3">
+        <div className="flex min-w-0 shrink-0 flex-nowrap items-center justify-end gap-2 overflow-x-auto whitespace-nowrap [scrollbar-width:none] sm:gap-3 sm:overflow-visible [&::-webkit-scrollbar]:hidden">
           {actions}
         </div>
       )}

@@ -29,7 +29,7 @@ export function usePersistedViewMode(storageKey: string, defaultValue: ViewMode 
 
 export default function ViewModeToggle({ value, onChange }: ViewModeToggleProps) {
   return (
-    <div className="flex shrink-0 items-center rounded-lg border border-gray-200 bg-gray-100 p-1">
+    <div className="flex shrink-0 items-center rounded-lg border border-gray-200 bg-gray-100 p-0.5 sm:p-1">
       {([
         ['card', '卡片'],
         ['list', '列表'],
@@ -38,7 +38,7 @@ export default function ViewModeToggle({ value, onChange }: ViewModeToggleProps)
           key={mode}
           type="button"
           onClick={() => onChange(mode)}
-          className={`px-3 py-1.5 text-sm font-medium transition ${
+          className={`px-2 py-1 text-xs font-medium transition sm:px-3 sm:py-1.5 sm:text-sm ${
             value === mode
               ? 'rounded-md bg-white text-blue-700 shadow-sm'
               : 'text-gray-600 hover:text-gray-900'
