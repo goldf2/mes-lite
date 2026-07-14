@@ -87,6 +87,7 @@ export async function GET(
       recentStockLogs,
       costLayers,
       linkedProducts,
+      formalWorkInstructions,
     ] = await Promise.all([
       prisma.documentAttachment.findMany({
         where: {
@@ -195,6 +196,21 @@ export async function GET(
           },
         },
       }),
+      prisma.workInstruction.findMany({
+        where: {
+          deletedAt: null,
+          OR: [
+            { materialId: material.id },
+            ...(material.customerId ? [{ customerId: material.customerId }] : []),
+          ],
+        },
+        include: {
+          customer: { select: { id: true, code: true, name: true } },
+          material: { select: { id: true, code: true, name: true, spec: true } },
+        },
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+        take: 10,
+      }),
     ])
 
     const images = attachments
@@ -263,6 +279,7 @@ export async function GET(
           bom: item.bom,
         })),
         productBoms,
+        workInstructions: formalWorkInstructions,
         targetOrders,
         consumingPicks,
         recentMaterialIns,

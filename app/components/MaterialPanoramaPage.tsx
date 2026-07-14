@@ -122,6 +122,20 @@ interface ProductionOrderSummary {
   }
 }
 
+interface WorkInstructionSummary {
+  id: string
+  code: string
+  title: string
+  category: string
+  version: string
+  status: string
+  processName?: string | null
+  note?: string | null
+  customer?: { id: string; code: string; name: string } | null
+  material?: { id: string; code: string; name: string; spec?: string | null } | null
+  createdAt: string
+}
+
 interface PickSummary {
   id: string
   requiredQty: number
@@ -208,6 +222,7 @@ interface PanoramaData {
   }
   componentBoms: ComponentBomItem[]
   productBoms: ProductBom[]
+  workInstructions: WorkInstructionSummary[]
   targetOrders: ProductionOrderSummary[]
   consumingPicks: PickSummary[]
   recentMaterialIns: MaterialInSummary[]
@@ -228,6 +243,8 @@ const materialCategoryLabels: Record<string, string> = {
 }
 
 const statusLabels: Record<string, string> = {
+  ACTIVE: '启用',
+  ARCHIVED: '停用',
   DRAFT: '草稿',
   CONFIRMED: '已确认',
   PICKED: '已领料',
@@ -549,14 +566,31 @@ export default function MaterialPanoramaPage({
                   )}
                 </Panel>
 
-                <Panel title="作业指导书与相关文档" action={`${data.attachments.workInstructions.length + data.attachments.documents.length} 份`}>
+                <Panel title="作业指导书与相关文档" action={`${data.workInstructions.length} 份指导书`}>
                   <div className="space-y-3">
                     <div>
-                      <div className="mb-2 text-xs font-medium text-gray-500">作业指导书</div>
-                      <AttachmentList items={data.attachments.workInstructions} />
+                      <div className="mb-2 text-xs font-medium text-gray-500">正式作业指导书</div>
+                      {data.workInstructions.length === 0 ? (
+                        <EmptyText>暂无绑定到该物料或客户的作业指导书</EmptyText>
+                      ) : (
+                        <div className="space-y-2">
+                          {data.workInstructions.map((instruction) => (
+                            <div key={instruction.id} className="rounded-md border border-gray-100 px-3 py-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="truncate text-sm font-medium text-gray-900">{instruction.title}</div>
+                                  <div className="mt-0.5 font-mono text-xs text-blue-700">{instruction.code} · {instruction.version}</div>
+                                </div>
+                                <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{statusText(instruction.status)}</span>
+                              </div>
+                              <div className="mt-1 text-xs text-gray-500">工序：{instruction.processName || '-'} · 客户：{instruction.customer?.name || '通用/未绑定'}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div>
-                      <div className="mb-2 text-xs font-medium text-gray-500">物料相关文档</div>
+                      <div className="mb-2 text-xs font-medium text-gray-500">物料旧附件文档</div>
                       <AttachmentList items={data.attachments.documents.filter((item) => !data.attachments.workInstructions.some((doc) => doc.id === item.id))} />
                     </div>
                   </div>

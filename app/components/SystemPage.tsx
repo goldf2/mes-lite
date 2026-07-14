@@ -38,7 +38,7 @@ interface DeletedRecord {
   id: string
   label: string
   type: string
-  model: 'material' | 'supplier' | 'customer' | 'materialIn' | 'order' | 'dispatch' | 'shipment' | 'return'
+  model: 'material' | 'supplier' | 'customer' | 'materialIn' | 'workInstruction' | 'order' | 'dispatch' | 'shipment' | 'return'
   deletedAt?: string | null
 }
 
@@ -1188,6 +1188,7 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
     ;(data.suppliers || []).forEach((item: any) => rows.push({ id: item.id, label: item.code, type: '供应商', model: 'supplier', deletedAt: item.deletedAt }))
     ;(data.customers || []).forEach((item: any) => rows.push({ id: item.id, label: item.code, type: '客户', model: 'customer', deletedAt: item.deletedAt }))
     ;(data.materialIn || []).forEach((item: any) => rows.push({ id: item.id, label: item.inboundNo, type: '来料单', model: 'materialIn', deletedAt: item.deletedAt }))
+    ;(data.workInstructions || []).forEach((item: any) => rows.push({ id: item.id, label: item.code, type: '作业指导书', model: 'workInstruction', deletedAt: item.deletedAt }))
     ;(data.orders || []).forEach((item: any) => rows.push({ id: item.id, label: item.orderNo, type: '工单', model: 'order', deletedAt: item.deletedAt }))
     ;(data.dispatches || []).forEach((item: any) => rows.push({ id: item.id, label: item.dispatchNo, type: '派工单', model: 'dispatch', deletedAt: item.deletedAt }))
     ;(data.shipments || []).forEach((item: any) => rows.push({ id: item.id, label: item.shipmentNo, type: '发货单', model: 'shipment', deletedAt: item.deletedAt }))

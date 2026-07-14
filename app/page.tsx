@@ -7,6 +7,7 @@ import ShipmentPage from './components/ShipmentPage'
 import ReturnPage from './components/ReturnPage'
 import StatsPage from './components/StatsPage'
 import MaterialPage from './components/MaterialPage'
+import WorkInstructionPage from './components/WorkInstructionPage'
 import AttachmentPanel from './components/AttachmentPanel'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
 import OperatorPage from './components/OperatorPage'
@@ -109,7 +110,7 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'orders' | 'materials' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'operators' | 'system' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
+type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'operators' | 'system' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
 
 // ==================== 菜单图标组件 ====================
 
@@ -118,6 +119,7 @@ function MenuIcon({ icon }: { icon: string }) {
     dashboard: '仪',
     orders: '工',
     materials: '料',
+    workInstructions: '书',
     materialIn: '入',
     dispatch: '派',
     stocks: '库',
@@ -202,6 +204,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const baseNavItems: { key: TabType; label: string; resource: string }[] = [
     { key: 'dashboard', label: '仪表盘', resource: 'dashboard' },
     { key: 'materials', label: '物料管理', resource: 'materials' },
+    { key: 'workInstructions', label: '作业指导书', resource: 'workInstructions' },
     { key: 'materialIn', label: '来料管理', resource: 'materialIn' },
     { key: 'orders', label: '工单管理', resource: 'orders' },
     { key: 'dispatch', label: '派工管理', resource: 'dispatch' },
@@ -1460,6 +1463,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
         {/* 物料管理 */}
         {tab === 'materials' && <MaterialPage onMessage={showMessage} />}
+
+        {/* 作业指导书 */}
+        {tab === 'workInstructions' && <WorkInstructionPage onMessage={showMessage} />}
 
         {/* 来料管理 */}
         {tab === 'materialIn' && <MaterialInPage onMessage={showMessage} />}

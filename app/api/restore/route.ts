@@ -8,7 +8,7 @@ import { SOFT_DELETE_MODELS, SoftDeleteModelKey } from '@/lib/soft-delete'
 export const dynamic = 'force-dynamic'
 
 const restoreSchema = z.object({
-  model: z.enum(['material', 'supplier', 'customer', 'materialIn', 'order', 'dispatch', 'shipment', 'return']),
+  model: z.enum(['material', 'supplier', 'customer', 'materialIn', 'workInstruction', 'order', 'dispatch', 'shipment', 'return']),
   id: z.string().min(1),
 })
 

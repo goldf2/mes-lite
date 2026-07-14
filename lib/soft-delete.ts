@@ -21,6 +21,11 @@ export const SOFT_DELETE_MODELS = {
     labelField: 'inboundNo',
     delegate: prisma.materialIn,
   },
+  workInstruction: {
+    entityType: 'WORK_INSTRUCTION',
+    labelField: 'code',
+    delegate: prisma.workInstruction,
+  },
   order: {
     entityType: 'ORDER',
     labelField: 'orderNo',

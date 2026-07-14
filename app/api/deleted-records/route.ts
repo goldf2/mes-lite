@@ -39,6 +39,13 @@ export async function GET(req: NextRequest) {
         orderBy: { deletedAt: 'desc' },
       })
     }
+    if (model === 'all' || model === 'workInstruction') {
+      result.workInstructions = await prisma.workInstruction.findMany({
+        where: { deletedAt: { not: null } },
+        include: { material: true, customer: true },
+        orderBy: { deletedAt: 'desc' },
+      })
+    }
     if (model === 'all' || model === 'order') {
       result.orders = await prisma.productionOrder.findMany({
         where: { deletedAt: { not: null } },

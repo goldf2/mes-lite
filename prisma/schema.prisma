@@ -53,6 +53,7 @@ model Material {
   pickItems   PickItem[]
   materialIns MaterialIn[]
   productionOrders ProductionOrder[] @relation("ProductionOrderTargetMaterial")
+  workInstructions WorkInstruction[]
   createdAt   DateTime @default(now())
 }
 
@@ -277,6 +278,7 @@ model Customer {
   deletedBy   String?
   products    Product[]
   materials   Material[]
+  workInstructions WorkInstruction[]
   shipments   Shipment[]
   createdAt   DateTime @default(now())
 }
@@ -498,6 +500,32 @@ model DocumentAttachment {
   createdAt     DateTime @default(now())
 
   @@index([ownerType, ownerId])
+}
+
+// ==================== 作业指导书 ====================
+
+model WorkInstruction {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  title       String
+  category    String   @default("PROCESS")
+  version     String   @default("v1")
+  status      String   @default("ACTIVE")
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  materialId  String?
+  material    Material? @relation(fields: [materialId], references: [id])
+  processName String?
+  note        String?
+  deletedAt   DateTime?
+  deletedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([status])
+  @@index([customerId])
+  @@index([materialId])
 }
 
 // ==================== 操作人员与注册审核 ====================
