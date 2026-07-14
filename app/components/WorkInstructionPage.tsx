@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import TopBarPortal from './TopBarPortal'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
@@ -207,6 +207,145 @@ function FilePreviewThumb({ attachment, title }: { attachment?: AttachmentItem |
   )
 }
 
+function formatMaterialLabel(material: MaterialOption) {
+  return `${material.code} · ${material.name}${material.spec ? ` · ${material.spec}` : ''}`
+}
+
+function materialIncludesKeyword(material: MaterialOption, keyword: string) {
+  const normalizedKeyword = keyword.trim().toLowerCase()
+  if (!normalizedKeyword) return true
+  return [material.code, material.name, material.spec || '', material.customer?.name || '']
+    .join(' ')
+    .toLowerCase()
+    .includes(normalizedKeyword)
+}
+
+function MaterialSearchSelect({
+  value,
+  options,
+  selectedOption,
+  onChange,
+  onSearch,
+  placeholder = '输入物料编码或名称搜索',
+  emptyLabel = '不绑定物料',
+  unassignedLabel,
+}: {
+  value: string
+  options: MaterialOption[]
+  selectedOption?: MaterialOption | null
+  onChange: (value: string, material?: MaterialOption | null) => void
+  onSearch: (keyword: string) => void | Promise<void>
+  placeholder?: string
+  emptyLabel?: string
+  unassignedLabel?: string
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const selected = selectedOption || options.find((material) => material.id === value) || null
+  const specialLabel = value === '__UNASSIGNED__' && unassignedLabel ? unassignedLabel : ''
+  const visibleOptions = useMemo(() => {
+    return options.filter((material) => materialIncludesKeyword(material, query)).slice(0, 50)
+  }, [options, query])
+
+  useEffect(() => {
+    if (!open) return
+    const timer = setTimeout(() => {
+      void onSearch(query.trim())
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [open, query, onSearch])
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!rootRef.current || rootRef.current.contains(event.target as Node)) return
+      setOpen(false)
+      setQuery('')
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [])
+
+  const selectMaterial = (material: MaterialOption | null, nextValue?: string) => {
+    onChange(nextValue ?? material?.id ?? '', material)
+    setOpen(false)
+    setQuery('')
+  }
+
+  return (
+    <div ref={rootRef} className="relative">
+      <input
+        type="text"
+        value={open ? query : selected ? formatMaterialLabel(selected) : specialLabel}
+        onFocus={() => {
+          setOpen(true)
+          setQuery('')
+        }}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setOpen(true)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            setOpen(false)
+            setQuery('')
+          }
+        }}
+        placeholder={selected ? formatMaterialLabel(selected) : specialLabel || placeholder}
+        className="w-full rounded-lg border border-gray-200 px-4 py-2 pr-12 text-sm"
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => selectMaterial(null)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100"
+        >
+          清除
+        </button>
+      )}
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-[80] mt-1 max-h-72 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+          <button
+            type="button"
+            onClick={() => selectMaterial(null)}
+            className="block w-full px-3 py-2 text-left text-sm text-gray-600 hover:bg-gray-50"
+          >
+            {emptyLabel}
+          </button>
+          {unassignedLabel && (
+            <button
+              type="button"
+              onClick={() => selectMaterial(null, '__UNASSIGNED__')}
+              className="block w-full px-3 py-2 text-left text-sm text-gray-600 hover:bg-gray-50"
+            >
+              {unassignedLabel}
+            </button>
+          )}
+          {visibleOptions.length === 0 ? (
+            <div className="px-3 py-3 text-sm text-gray-400">没有匹配物料</div>
+          ) : (
+            visibleOptions.map((material) => (
+              <button
+                key={material.id}
+                type="button"
+                onClick={() => selectMaterial(material)}
+                className="block w-full px-3 py-2 text-left hover:bg-blue-50"
+              >
+                <div className="truncate text-sm font-medium text-gray-900">{material.code} · {material.name}</div>
+                <div className="mt-0.5 truncate text-xs text-gray-500">
+                  {[material.spec, material.customer?.name].filter(Boolean).join(' · ') || '无规格/客户信息'}
+                </div>
+              </button>
+            ))
+          )}
+          <div className="border-t border-gray-100 px-3 py-2 text-xs text-gray-400">输入编码、名称、规格或客户继续搜索</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: string) => void }) {
   const [items, setItems] = useState<WorkInstruction[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -234,7 +373,9 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const [viewer, setViewer] = useState<{ instruction: WorkInstruction; attachments: AttachmentItem[]; index: number } | null>(null)
   const [viewerZoom, setViewerZoom] = useState(1)
   const [viewerRotation, setViewerRotation] = useState(0)
+  const [focusUploadOnOpen, setFocusUploadOnOpen] = useState(false)
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
+  const detailUploadRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     fetchInstructions()
@@ -252,6 +393,31 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   useEffect(() => {
     if (detail) fetchAttachments(detail.id)
   }, [detail?.id])
+
+  useEffect(() => {
+    if (!detail || !focusUploadOnOpen) return
+    const timer = setTimeout(() => {
+      detailUploadRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      setFocusUploadOnOpen(false)
+    }, 80)
+    return () => clearTimeout(timer)
+  }, [detail, focusUploadOnOpen])
+
+  const mergeMaterialOptions = useCallback((nextMaterials: MaterialOption[]) => {
+    setMaterials((current) => {
+      const merged = new Map<string, MaterialOption>()
+      nextMaterials.forEach((material) => merged.set(material.id, material))
+      current.forEach((material) => {
+        if (!merged.has(material.id)) merged.set(material.id, material)
+      })
+      return Array.from(merged.values()).slice(0, 300)
+    })
+  }, [])
+
+  const ensureMaterialOption = useCallback((material?: MaterialOption | null) => {
+    if (!material) return
+    mergeMaterialOptions([material])
+  }, [mergeMaterialOptions])
 
   const buildParams = () => {
     const params = new URLSearchParams()
@@ -310,17 +476,21 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     }
   }
 
-  const fetchMaterials = async () => {
+  const fetchMaterials = useCallback(async (searchKeyword = '') => {
     try {
-      const res = await fetch('/api/materials?pageSize=200')
+      const params = new URLSearchParams()
+      params.set('pageSize', '50')
+      const keyword = searchKeyword.trim()
+      if (keyword) params.set('keyword', keyword)
+      const res = await fetch(`/api/materials?${params.toString()}`)
       if (res.ok) {
         const data = await res.json()
-        setMaterials(data.data || [])
+        mergeMaterialOptions(data.data || [])
       }
     } catch (err) {
       // ignore
     }
-  }
+  }, [mergeMaterialOptions])
 
   const fetchAttachments = async (instructionId: string) => {
     try {
@@ -340,7 +510,14 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     setShowModal(true)
   }
 
+  const openDetail = (instruction: WorkInstruction, focusUpload = false) => {
+    ensureMaterialOption(instruction.material)
+    setFocusUploadOnOpen(focusUpload)
+    setDetail(instruction)
+  }
+
   const openEditModal = (instruction: WorkInstruction) => {
+    ensureMaterialOption(instruction.material)
     setEditing(instruction)
     setForm({
       code: instruction.code,
@@ -382,9 +559,22 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       })
       const data = await res.json()
       if (res.ok) {
-        onMessage(editing ? '作业指导书已更新' : '作业指导书已创建')
+        onMessage(editing ? '作业指导书已更新' : '作业指导书已创建，请上传图片或 PDF')
         setShowModal(false)
         setEditing(null)
+        if (!editing && data.data) {
+          const createdInstruction: WorkInstruction = {
+            ...data.data,
+            attachmentCount: 0,
+            imageCount: 0,
+            pdfCount: 0,
+            primaryAttachment: null,
+          }
+          ensureMaterialOption(createdInstruction.material)
+          setDetail(createdInstruction)
+          setDetailAttachments([])
+          setFocusUploadOnOpen(true)
+        }
         await fetchInstructions()
       } else {
         onMessage(data.error || '保存失败')
@@ -474,6 +664,10 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     () => materials.find((material) => material.id === form.materialId),
     [materials, form.materialId]
   )
+  const selectedFilterMaterial = useMemo(
+    () => materials.find((material) => material.id === materialFilter),
+    [materials, materialFilter]
+  )
 
   const toolbar = (
     <ResponsiveToolbarActions
@@ -520,17 +714,18 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
               <option key={customer.id} value={customer.id}>{customer.name}</option>
             ))}
           </select>
-          <select
-            value={materialFilter}
-            onChange={(event) => setMaterialFilter(event.target.value)}
-            className="w-56 rounded-lg border border-gray-200 px-4 py-2 text-sm"
-          >
-            <option value="">全部物料</option>
-            <option value="__UNASSIGNED__">未绑定物料</option>
-            {materials.map((material) => (
-              <option key={material.id} value={material.id}>{material.code} · {material.name}</option>
-            ))}
-          </select>
+          <div className="w-64">
+            <MaterialSearchSelect
+              value={materialFilter}
+              options={materials}
+              selectedOption={selectedFilterMaterial}
+              onChange={(nextValue) => setMaterialFilter(nextValue)}
+              onSearch={fetchMaterials}
+              placeholder="筛选关联物料"
+              emptyLabel="全部物料"
+              unassignedLabel="未绑定物料"
+            />
+          </div>
         </>
       )}
       actions={(
@@ -573,7 +768,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                 <article key={instruction.id} className="flex flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:shadow-none">
                   <button
                     type="button"
-                    onClick={() => setDetail(instruction)}
+                    onClick={() => openDetail(instruction)}
                     className="text-left"
                   >
                     <FilePreviewThumb attachment={instruction.primaryAttachment} title={instruction.title} />
@@ -598,10 +793,17 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   <div className="mt-3 flex flex-wrap justify-end gap-2">
                     <button
                       type="button"
-                      onClick={() => setDetail(instruction)}
+                      onClick={() => openDetail(instruction)}
                       className="rounded border border-blue-300 px-2.5 py-1 text-xs text-blue-700 transition hover:bg-blue-50"
                     >
                       查看
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openDetail(instruction, true)}
+                      className="rounded border border-green-300 px-2.5 py-1 text-xs text-green-700 transition hover:bg-green-50"
+                    >
+                      上传
                     </button>
                     <button
                       type="button"
@@ -626,7 +828,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         ) : (
           <>
             <div className="overflow-x-auto rounded-lg border border-gray-100">
-              <table className="w-full min-w-[1040px]">
+              <table className="w-full min-w-[1120px]">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="w-24 px-4 py-3 text-left text-sm font-semibold text-gray-600">预览</th>
@@ -637,14 +839,14 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                     <th className="w-44 px-4 py-3 text-left text-sm font-semibold text-gray-600">关联物料</th>
                     <th className="w-36 px-4 py-3 text-left text-sm font-semibold text-gray-600">客户</th>
                     <th className="w-28 px-4 py-3 text-left text-sm font-semibold text-gray-600">文件</th>
-                    <th className="w-44 px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
+                    <th className="w-56 px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {items.map((instruction) => (
                     <tr key={instruction.id} className="align-top hover:bg-gray-50">
                       <td className="px-4 py-3">
-                        <button type="button" onClick={() => setDetail(instruction)} className="block h-14 w-20 overflow-hidden rounded">
+                        <button type="button" onClick={() => openDetail(instruction)} className="block h-14 w-20 overflow-hidden rounded">
                           <FilePreviewThumb attachment={instruction.primaryAttachment} title={instruction.title} />
                         </button>
                       </td>
@@ -659,7 +861,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       <td className="px-4 py-3 text-sm">{instruction.customer?.name || instruction.material?.customer?.name || '通用/未绑定'}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm">{instruction.imageCount} 图 / {instruction.pdfCount} PDF</td>
                       <td className="whitespace-nowrap px-4 py-3">
-                        <button onClick={() => setDetail(instruction)} className="rounded border border-blue-300 px-3 py-1 text-xs text-blue-700 hover:bg-blue-50">查看</button>
+                        <button onClick={() => openDetail(instruction)} className="rounded border border-blue-300 px-3 py-1 text-xs text-blue-700 hover:bg-blue-50">查看</button>
+                        <button onClick={() => openDetail(instruction, true)} className="ml-2 rounded border border-green-300 px-3 py-1 text-xs text-green-700 hover:bg-green-50">上传</button>
                         <button onClick={() => openEditModal(instruction)} className="ml-2 rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50">编辑</button>
                         <button onClick={() => archiveInstruction(instruction)} className="ml-2 rounded border border-amber-300 px-3 py-1 text-xs text-amber-700 hover:bg-amber-50">归档</button>
                       </td>
@@ -715,21 +918,21 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">关联物料</label>
-                  <select
+                  <MaterialSearchSelect
                     value={form.materialId}
-                    onChange={(event) => {
-                      const material = materials.find((item) => item.id === event.target.value)
+                    options={materials}
+                    selectedOption={selectedMaterial}
+                    onSearch={fetchMaterials}
+                    onChange={(nextValue, material) => {
                       setForm({
                         ...form,
-                        materialId: event.target.value,
+                        materialId: nextValue,
                         customerId: form.customerId || material?.customerId || '',
                       })
                     }}
-                    className="w-full rounded-lg border border-gray-200 px-4 py-2"
-                  >
-                    <option value="">不绑定物料</option>
-                    {materials.map((material) => <option key={material.id} value={material.id}>{material.code} · {material.name}</option>)}
-                  </select>
+                    placeholder="输入物料编码、名称或规格搜索"
+                    emptyLabel="不绑定物料"
+                  />
                   {selectedMaterial?.spec && <div className="mt-1 text-xs text-gray-500">规格：{selectedMaterial.spec}</div>}
                 </div>
                 <div>
@@ -741,11 +944,30 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   <textarea rows={4} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2" placeholder="记录适用范围、注意事项或变更说明" />
                 </div>
               </div>
+              <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                {editing ? (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <span>图片和 PDF 文件在详情页上传和预览。</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowModal(false)
+                        openDetail(editing, true)
+                      }}
+                      className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
+                    >
+                      去上传文件
+                    </button>
+                  </div>
+                ) : (
+                  '新建指导书先保存基础信息，保存成功后会自动打开上传区域。'
+                )}
+              </div>
             </div>
             <div className="flex shrink-0 gap-3 border-t bg-white px-6 py-4">
               <button onClick={() => setShowModal(false)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50">取消</button>
               <button onClick={submitForm} disabled={loading} className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50">
-                {loading ? '保存中...' : '保存'}
+                {loading ? '保存中...' : editing ? '保存' : '保存并上传文件'}
               </button>
             </div>
           </div>
@@ -761,6 +983,16 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                 <h3 className="truncate text-lg font-semibold text-gray-900">{detail.title}</h3>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    detailUploadRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+                    uploadInputRef.current?.click()
+                  }}
+                  disabled={uploading}
+                  className="rounded-md bg-green-600 px-3 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  上传文件
+                </button>
                 <button onClick={() => openEditModal(detail)} className="rounded-md border border-blue-300 px-3 py-2 text-sm text-blue-700 hover:bg-blue-50">编辑</button>
                 <button onClick={() => setDetail(null)} className="h-9 w-9 text-2xl text-gray-400 hover:text-gray-700" aria-label="关闭详情">&times;</button>
               </div>
@@ -784,9 +1016,12 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                     {detail.note && <div className="mt-4 whitespace-pre-wrap rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600">{detail.note}</div>}
                   </div>
 
-                  <div className="rounded-lg border border-gray-200 p-4">
+                  <div ref={detailUploadRef} className="rounded-lg border-2 border-dashed border-green-300 bg-green-50/40 p-4">
                     <div className="mb-3 flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-gray-900">上传文件</h4>
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-900">上传指导书文件</h4>
+                        <p className="mt-1 text-xs text-gray-500">支持图片和 PDF，可一次选择多个文件。</p>
+                      </div>
                       <label className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700">
                         {uploading ? '上传中...' : '选择文件'}
                         <input
