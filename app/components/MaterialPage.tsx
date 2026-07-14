@@ -7,6 +7,7 @@ import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import useCompactViewport from './useCompactViewport'
+import MaterialPanoramaPage from './MaterialPanoramaPage'
 
 interface Material {
   id: string
@@ -272,6 +273,7 @@ export default function MaterialPage({
   const [showImportModal, setShowImportModal] = useState(false)
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null)
   const [detailMaterial, setDetailMaterial] = useState<Material | null>(null)
+  const [panoramaMaterialId, setPanoramaMaterialId] = useState<string | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.materials.viewMode', 'list')
   const [visibleFields, setVisibleFields] = useState<MaterialVisibleField[]>(defaultMaterialVisibleFields)
   const isCompactViewport = useCompactViewport()
@@ -547,6 +549,10 @@ export default function MaterialPage({
     }
   }
 
+  const handleOpenPanorama = (material: Material) => {
+    setPanoramaMaterialId(material.id)
+  }
+
   const handleEditFromDetail = () => {
     if (!detailMaterial) return
     const material = detailMaterial
@@ -794,6 +800,12 @@ export default function MaterialPage({
                 )}
                 <div className="mt-auto flex justify-end gap-2 pt-3">
                   <button
+                    onClick={() => handleOpenPanorama(material)}
+                    className="px-2.5 py-1 text-blue-700 border border-blue-300 rounded text-xs hover:bg-blue-50 transition"
+                  >
+                    全景
+                  </button>
+                  <button
                     onClick={() => handleViewDetail(material)}
                     className="px-2.5 py-1 text-gray-700 border border-gray-300 rounded text-xs hover:bg-gray-50 transition"
                   >
@@ -874,8 +886,14 @@ export default function MaterialPage({
                     {showField('createdAt') && <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-500">{new Date(material.createdAt).toLocaleString('zh-CN')}</td>}
                     <td className="whitespace-nowrap px-4 py-3">
                       <button
+                        onClick={() => handleOpenPanorama(material)}
+                        className="px-3 py-1 text-blue-700 border border-blue-300 rounded text-xs hover:bg-blue-50 transition"
+                      >
+                        全景
+                      </button>
+                      <button
                         onClick={() => handleViewDetail(material)}
-                        className="px-3 py-1 text-gray-700 border border-gray-300 rounded text-xs hover:bg-gray-50 transition"
+                        className="ml-2 px-3 py-1 text-gray-700 border border-gray-300 rounded text-xs hover:bg-gray-50 transition"
                       >
                         查看详情
                       </button>
@@ -1148,6 +1166,12 @@ export default function MaterialPage({
               <h3 className="text-base font-semibold text-gray-900">物料详情</h3>
               <div className="flex items-center gap-3">
                 <button
+                  onClick={() => handleOpenPanorama(detailMaterial)}
+                  className="px-3 py-2 text-sm text-green-700 border border-green-300 rounded-md hover:bg-green-50"
+                >
+                  全景
+                </button>
+                <button
                   onClick={handleEditFromDetail}
                   className="px-3 py-2 text-sm text-blue-700 border border-blue-300 rounded-md hover:bg-blue-50"
                 >
@@ -1251,6 +1275,14 @@ export default function MaterialPage({
             </div>
           </div>
         </div>
+      )}
+
+      {panoramaMaterialId && (
+        <MaterialPanoramaPage
+          materialId={panoramaMaterialId}
+          onClose={() => setPanoramaMaterialId(null)}
+          onMessage={onMessage}
+        />
       )}
     </>
   )
