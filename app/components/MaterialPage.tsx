@@ -369,13 +369,13 @@ export default function MaterialPage({
             </button>
           </div>
         ) : effectiveViewMode === 'card' ? (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {materials.map((material) => (
-              <div key={material.id} className="flex flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:min-h-[260px] sm:p-4 sm:shadow-none">
-                <div className="flex gap-3 sm:gap-4">
+              <div key={material.id} className="flex flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:shadow-none">
+                <div className="flex gap-3">
                   <button
                     onClick={() => handleViewDetail(material)}
-                    className="h-14 w-14 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50 sm:h-20 sm:w-20"
+                    className="h-14 w-14 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50"
                     title={material.primaryImage?.note || '查看物料详情'}
                   >
                     {material.primaryImage ? (
@@ -389,36 +389,36 @@ export default function MaterialPage({
                       <span className="rounded bg-blue-50 px-2 py-1 font-mono text-xs text-blue-700">{material.code}</span>
                       <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</span>
                     </div>
-                    <div className="mt-1 truncate font-semibold text-gray-900 sm:mt-2">{material.name}</div>
+                    <div className="mt-1 truncate text-sm font-semibold text-gray-900 sm:text-base">{material.name}</div>
                     <div className="mt-0.5 truncate text-sm text-gray-500">{material.spec || '无规格'}</div>
                     <div className="mt-0.5 truncate text-xs text-gray-500">客户：{material.customer ? `${material.customer.name} (${material.customer.code})` : '通用/未绑定'}</div>
                   </div>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:mt-4 sm:gap-3">
-                  <div className="rounded bg-gray-50 p-2 sm:p-3">
+                <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                  <div className="rounded bg-gray-50 px-2 py-1.5">
                     <div className="text-xs text-gray-500">库存</div>
                     <div className="mt-1 font-semibold text-gray-900">{material.stock?.qty || 0} {material.stockUnit || material.unit}</div>
                   </div>
-                  <div className="rounded bg-gray-50 p-2 sm:p-3">
+                  <div className="rounded bg-gray-50 px-2 py-1.5">
                     <div className="text-xs text-gray-500">核算库存</div>
                     <div className="mt-1 font-semibold text-green-700">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</div>
                   </div>
                 </div>
-                <div className="mt-3 hidden rounded bg-blue-50/50 p-3 text-xs text-gray-600 sm:block">
-                  <div>1 {material.stockUnit || material.unit} = {material.conversionRate || 1} {material.valuationUnit || material.unit}</div>
-                  <div className="mt-1">成本法：{material.costingMethod === 'FIFO' ? '先入先出' : '移动加权平均'}</div>
-                  <div className="mt-1">创建：{new Date(material.createdAt).toLocaleString('zh-CN')}</div>
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+                  <span className="whitespace-nowrap">1 {material.stockUnit || material.unit} = {material.conversionRate || 1} {material.valuationUnit || material.unit}</span>
+                  <span className="whitespace-nowrap">{material.costingMethod === 'FIFO' ? 'FIFO' : '移动加权'}</span>
+                  <span className="whitespace-nowrap">{new Date(material.createdAt).toLocaleDateString('zh-CN')}</span>
                 </div>
-                <div className="mt-auto flex justify-end gap-2 pt-3 sm:pt-4">
+                <div className="mt-auto flex justify-end gap-2 pt-3">
                   <button
                     onClick={() => handleViewDetail(material)}
-                    className="px-3 py-1.5 text-gray-700 border border-gray-300 rounded text-xs hover:bg-gray-50 transition"
+                    className="px-2.5 py-1 text-gray-700 border border-gray-300 rounded text-xs hover:bg-gray-50 transition"
                   >
                     查看详情
                   </button>
                   <button
                     onClick={() => handleArchive(material.id)}
-                    className="px-3 py-1.5 text-amber-700 border border-amber-300 rounded text-xs hover:bg-amber-50 transition"
+                    className="px-2.5 py-1 text-amber-700 border border-amber-300 rounded text-xs hover:bg-amber-50 transition"
                   >
                     归档
                   </button>
@@ -427,27 +427,27 @@ export default function MaterialPage({
             ))}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto rounded-lg border border-gray-100">
+            <table className="w-full min-w-[1280px]">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">图片</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料编码</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料名称</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">分类</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">归属客户</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">规格</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存单位</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">核算单位</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">核算库存</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">创建时间</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
+                  <th className="w-20 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">图片</th>
+                  <th className="w-36 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">物料编码</th>
+                  <th className="w-36 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">物料名称</th>
+                  <th className="w-24 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">分类</th>
+                  <th className="w-44 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">归属客户</th>
+                  <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">规格</th>
+                  <th className="w-24 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">库存单位</th>
+                  <th className="w-48 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">核算单位</th>
+                  <th className="w-28 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">库存</th>
+                  <th className="w-28 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">核算库存</th>
+                  <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">创建时间</th>
+                  <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {materials.map((material) => (
-                  <tr key={material.id} className="hover:bg-gray-50">
+                  <tr key={material.id} className="align-top hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <button
                         onClick={() => handleViewDetail(material)}
@@ -461,21 +461,21 @@ export default function MaterialPage({
                         )}
                       </button>
                     </td>
-                    <td className="px-4 py-3 font-mono text-sm text-blue-600">{material.code}</td>
-                    <td className="px-4 py-3 font-medium text-sm">{material.name}</td>
-                    <td className="px-4 py-3 text-sm">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</td>
+                    <td className="whitespace-nowrap px-4 py-3 font-mono text-sm text-blue-600">{material.code}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-sm font-medium">{material.name}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-sm">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</td>
                     <td className="px-4 py-3 text-sm">{material.customer ? `${material.customer.name} (${material.customer.code})` : '通用/未绑定'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">{material.spec || '-'}</td>
-                    <td className="px-4 py-3 text-sm">{material.stockUnit || material.unit}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">{material.spec || '-'}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-sm">{material.stockUnit || material.unit}</td>
                     <td className="px-4 py-3 text-sm">
-                      <div>{material.valuationUnit || material.unit}</div>
-                      <div className="text-xs text-gray-500">1 {material.stockUnit || material.unit} = {material.conversionRate || 1} {material.valuationUnit || material.unit}</div>
-                      <div className="text-xs text-gray-500">成本法：{material.costingMethod === 'FIFO' ? '先入先出' : '移动加权平均'}</div>
+                      <div className="whitespace-nowrap">{material.valuationUnit || material.unit}</div>
+                      <div className="whitespace-nowrap text-xs text-gray-500">1 {material.stockUnit || material.unit} = {material.conversionRate || 1} {material.valuationUnit || material.unit}</div>
+                      <div className="whitespace-nowrap text-xs text-gray-500">成本法：{material.costingMethod === 'FIFO' ? '先入先出' : '移动加权平均'}</div>
                     </td>
-                    <td className="px-4 py-3 text-sm">{material.stock?.qty || 0} {material.stockUnit || material.unit}</td>
-                    <td className="px-4 py-3 text-sm text-green-600">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{new Date(material.createdAt).toLocaleString('zh-CN')}</td>
-                    <td className="px-4 py-3">
+                    <td className="whitespace-nowrap px-4 py-3 text-sm">{material.stock?.qty || 0} {material.stockUnit || material.unit}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-sm text-green-600">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-500">{new Date(material.createdAt).toLocaleString('zh-CN')}</td>
+                    <td className="whitespace-nowrap px-4 py-3">
                       <button
                         onClick={() => handleViewDetail(material)}
                         className="px-3 py-1 text-gray-700 border border-gray-300 rounded text-xs hover:bg-gray-50 transition"
