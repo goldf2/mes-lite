@@ -21,6 +21,8 @@ const costingMethodLabels: Record<string, string> = {
   FIFO: '先入先出 FIFO',
 }
 
+const materialSortFields = new Set(['createdAt', 'code', 'name', 'category', 'spec', 'stockUnit', 'valuationUnit', 'costingMethod'])
+
 export async function GET(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('materials', 'read')
@@ -31,6 +33,9 @@ export async function GET(req: NextRequest) {
     const category = searchParams.get('category')
     const categories = parseCsvFilter(searchParams.get('categories'))
     const customerId = searchParams.get('customerId')
+    const requestedSortBy = searchParams.get('sortBy') || 'createdAt'
+    const sortBy = materialSortFields.has(requestedSortBy) ? requestedSortBy : 'createdAt'
+    const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc'
 
     const where: any = { deletedAt: null }
     if (categories.length === 1) where.category = categories[0]
@@ -59,7 +64,7 @@ export async function GET(req: NextRequest) {
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { [sortBy]: sortDir },
     })
 
     const rows: unknown[][] = [

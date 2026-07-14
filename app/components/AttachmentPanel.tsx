@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import type { DragEvent } from 'react'
 
 interface Attachment {
   id: string
@@ -45,6 +46,7 @@ export default function AttachmentPanel({
 }: AttachmentPanelProps) {
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [uploading, setUploading] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
   const [note, setNote] = useState('')
   const inputRef = useRef<HTMLInputElement | null>(null)
   const imageOnly = variant === 'image'
@@ -89,6 +91,48 @@ export default function AttachmentPanel({
     }
     setUploading(false)
     if (inputRef.current) inputRef.current.value = ''
+  }
+
+  const openFilePicker = () => {
+    if (!uploading) inputRef.current?.click()
+  }
+
+  const handleFiles = async (files: FileList | File[]) => {
+    const selectedFiles = Array.from(files)
+    const acceptedFiles = selectedFiles.filter((file) => {
+      if (imageOnly) return file.type.startsWith('image/')
+      return file.type.startsWith('image/') || file.type === 'application/pdf'
+    })
+
+    if (acceptedFiles.length === 0) {
+      onMessage(imageOnly ? '请拖放图片文件' : '请拖放图片或 PDF 文件')
+      return
+    }
+
+    for (const file of acceptedFiles) {
+      await uploadFile(file)
+    }
+  }
+
+  const handleDrop = async (event: DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setDragActive(false)
+    if (uploading) return
+    await handleFiles(event.dataTransfer.files)
+  }
+
+  const handleDragOver = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!uploading) setDragActive(true)
+  }
+
+  const handleDragLeave = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+    setDragActive(false)
   }
 
   const deleteAttachment = async (id: string) => {
@@ -187,19 +231,44 @@ export default function AttachmentPanel({
                 ref={inputRef}
                 type="file"
                 accept={imageOnly ? 'image/*' : 'image/*,application/pdf'}
+                multiple
                 className="hidden"
                 disabled={uploading}
                 onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) uploadFile(file)
+                  const files = e.target.files
+                  if (files) handleFiles(files)
                 }}
               />
             </label>
           </div>
         </div>
 
+        <div
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragEnter={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onClick={openFilePicker}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              openFilePicker()
+            }
+          }}
+          role="button"
+          tabIndex={uploading ? -1 : 0}
+          aria-disabled={uploading}
+          className={`mt-4 flex min-h-20 items-center justify-center rounded-md border border-dashed px-4 py-4 text-center text-sm transition ${
+            dragActive
+              ? 'border-blue-500 bg-blue-50 text-blue-700'
+              : 'border-gray-300 bg-gray-50 text-gray-500 hover:border-blue-300 hover:bg-blue-50/50'
+          } ${uploading ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+        >
+          {uploading ? '上传中...' : imageOnly ? '拖放图片到这里，或点击添加图片' : '拖放图片或 PDF 到这里，或点击添加附件'}
+        </div>
+
         {attachments.length === 0 ? (
-          <div className="mt-4 flex min-h-32 items-center justify-center border border-dashed border-gray-300 rounded-md bg-gray-50 text-sm text-gray-500">
+          <div className="mt-4 flex min-h-32 items-center justify-center border border-dashed border-gray-300 rounded-md bg-white text-sm text-gray-500">
             {imageOnly ? '暂无物料图片' : '暂无附件'}
           </div>
         ) : (
@@ -264,15 +333,39 @@ export default function AttachmentPanel({
               ref={inputRef}
               type="file"
               accept={imageOnly ? 'image/*' : 'image/*,application/pdf'}
+              multiple
               className="hidden"
               disabled={uploading}
               onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) uploadFile(file)
+                const files = e.target.files
+                if (files) handleFiles(files)
               }}
             />
           </label>
         </div>
+      </div>
+      <div
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragEnter={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onClick={openFilePicker}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            openFilePicker()
+          }
+        }}
+        role="button"
+        tabIndex={uploading ? -1 : 0}
+        aria-disabled={uploading}
+        className={`mb-3 flex min-h-20 items-center justify-center rounded-lg border border-dashed px-4 py-4 text-center text-sm transition ${
+          dragActive
+            ? 'border-blue-500 bg-blue-50 text-blue-700'
+            : 'border-gray-300 bg-gray-50 text-gray-500 hover:border-blue-300 hover:bg-blue-50/50'
+        } ${uploading ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+      >
+        {uploading ? '上传中...' : imageOnly ? '拖放图片到这里，或点击选择图片' : '拖放图片或 PDF 到这里，或点击上传'}
       </div>
       {attachments.length === 0 ? (
         <div className="text-sm text-gray-500">{imageOnly ? '暂无物料图片' : '暂无原始单据照片'}</div>

@@ -643,14 +643,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       </aside>
 
       <main className="min-w-0 p-3 pb-28 sm:p-4 lg:ml-56 lg:p-6">
-        <div className="mb-3 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm sm:mb-4 sm:px-4 sm:py-3">
-          <div className="flex min-w-0 items-center gap-2 lg:justify-between">
-            <div className="min-w-0 shrink-0">
+        <div className="sticky top-0 z-30 -mx-3 mb-3 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:-mx-6 lg:px-6">
+          <div className="flex min-w-0 flex-nowrap items-center gap-2">
+            <div className="hidden min-w-0 shrink-0 pt-1 sm:block">
               <div className="hidden text-xs font-medium text-gray-400 sm:block">{activeSystemTab ? '系统功能' : '业务功能'}</div>
-              <div className="truncate text-sm font-semibold text-gray-900 sm:text-lg">{activeTabLabel}</div>
+              <div className="max-w-[7rem] truncate text-sm font-semibold text-gray-900 sm:max-w-[10rem] sm:text-lg lg:max-w-[12rem]">{activeTabLabel}</div>
             </div>
-            <div className="flex w-full min-w-0 items-center justify-between gap-2 lg:w-auto lg:flex-1 lg:justify-end">
-              <div id="topbar-actions" className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible lg:justify-end">
+            <div id="topbar-actions" className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible">
                 {tab === 'dashboard' ? (
                   <ResponsiveToolbarActions
                     actions={<div className="hidden sm:block"><ViewModeToggle value={dashboardViewMode} onChange={setDashboardViewMode} /></div>}
@@ -737,53 +736,52 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     )}
                   />
                 ) : null}
-              </div>
-              <div ref={systemMenuRef} className="relative shrink-0">
-                <button
-                  onClick={() => setSystemMenuOpen((open) => !open)}
-                  className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
-                >
-                  <span className="hidden max-w-32 truncate sm:inline">{operator.name}</span>
-                  <span className="sm:hidden">我</span>
-                  <span className="text-gray-400">▾</span>
-                </button>
-                {systemMenuOpen && (
-                  <div className="absolute right-0 top-full z-30 mt-2 w-64 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
-                    <div className="border-b border-gray-100 px-4 py-3">
-                      <OperatorBadge operator={operator} />
-                      <div className="mt-1 text-xs font-medium text-gray-400">MES-lite v{appVersion}</div>
-                    </div>
-                    <div className="p-2">
-                      {readableSystemNavItems.map((item) => (
-                        <button
-                          key={item.key}
-                          onClick={() => {
-                            setTab(item.key)
-                            setSystemMenuOpen(false)
-                          }}
-                          className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition ${
-                            tab === item.key ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
-                          }`}
-                        >
-                          <MenuIcon icon={item.key} />
-                          {item.label}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="border-t border-gray-100 p-2">
-                      <button
-                        onClick={() => {
-                          setSystemMenuOpen(false)
-                          onLogout()
-                        }}
-                        className="flex w-full items-center justify-center rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-                      >
-                        退出登录
-                      </button>
-                    </div>
+            </div>
+            <div ref={systemMenuRef} className="relative shrink-0">
+              <button
+                onClick={() => setSystemMenuOpen((open) => !open)}
+                className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
+              >
+                <span className="hidden max-w-32 truncate sm:inline">{operator.name}</span>
+                <span className="sm:hidden">我</span>
+                <span className="text-gray-400">▾</span>
+              </button>
+              {systemMenuOpen && (
+                <div className="absolute right-0 top-full z-30 mt-2 w-64 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+                  <div className="border-b border-gray-100 px-4 py-3">
+                    <OperatorBadge operator={operator} />
+                    <div className="mt-1 text-xs font-medium text-gray-400">MES-lite v{appVersion}</div>
                   </div>
-                )}
-              </div>
+                  <div className="p-2">
+                    {readableSystemNavItems.map((item) => (
+                      <button
+                        key={item.key}
+                        onClick={() => {
+                          setTab(item.key)
+                          setSystemMenuOpen(false)
+                        }}
+                        className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition ${
+                          tab === item.key ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <MenuIcon icon={item.key} />
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="border-t border-gray-100 p-2">
+                    <button
+                      onClick={() => {
+                        setSystemMenuOpen(false)
+                        onLogout()
+                      }}
+                      className="flex w-full items-center justify-center rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                    >
+                      退出登录
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

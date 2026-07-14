@@ -73,6 +73,20 @@ const materialCategoryOptions = [
 
 const materialCategoryFilterOptions = materialCategoryOptions.map(([value, label]) => ({ value, label }))
 
+const materialSortOptions = [
+  { value: 'createdAt', label: '创建时间' },
+  { value: 'code', label: '物料编码' },
+  { value: 'name', label: '物料名称' },
+  { value: 'category', label: '物料分类' },
+  { value: 'spec', label: '规格' },
+  { value: 'stockUnit', label: '库存单位' },
+  { value: 'valuationUnit', label: '核算单位' },
+  { value: 'costingMethod', label: '成本方法' },
+] as const
+
+type MaterialSortBy = (typeof materialSortOptions)[number]['value']
+type SortDirection = 'asc' | 'desc'
+
 const materialVisibleFieldOptions = [
   { key: 'image', label: '图片' },
   { key: 'code', label: '编码' },
@@ -143,7 +157,7 @@ function MaterialFieldVisibilityControl({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 sm:flex-nowrap sm:gap-2 sm:px-3 sm:py-2">
+    <div className="inline-flex max-w-none flex-nowrap items-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 sm:gap-2 sm:px-3 sm:py-2">
       <label className="flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md bg-white px-2 text-xs text-gray-700 ring-1 ring-gray-200 sm:h-8 sm:px-2.5 sm:text-sm">
         <input
           type="checkbox"
@@ -249,6 +263,8 @@ export default function MaterialPage({
   const [keyword, setKeyword] = useState('')
   const [customerFilter, setCustomerFilter] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<string[]>(materialCategoryFilterOptions.map((option) => option.value))
+  const [sortBy, setSortBy] = useState<MaterialSortBy>('createdAt')
+  const [sortDir, setSortDir] = useState<SortDirection>('desc')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [pagination, setPagination] = useState<PaginationState>({ page: 1, pageSize: 20, total: 0, totalPages: 1 })
@@ -270,11 +286,11 @@ export default function MaterialPage({
 
   useEffect(() => {
     fetchMaterials()
-  }, [keyword, selectedCategories, customerFilter, page, pageSize])
+  }, [keyword, selectedCategories, customerFilter, sortBy, sortDir, page, pageSize])
 
   useEffect(() => {
     setPage(1)
-  }, [keyword, selectedCategories, customerFilter, pageSize])
+  }, [keyword, selectedCategories, customerFilter, sortBy, sortDir, pageSize])
 
   useEffect(() => {
     fetchCustomers()
@@ -304,6 +320,8 @@ export default function MaterialPage({
     const params = new URLSearchParams()
     params.set('page', String(page))
     params.set('pageSize', String(pageSize))
+    params.set('sortBy', sortBy)
+    params.set('sortDir', sortDir)
     if (keyword) params.set('keyword', keyword)
     if (customerFilter) params.set('customerId', customerFilter)
     const categoryQuery = getMultiSelectQuery('categories', selectedCategories, materialCategoryFilterOptions)
@@ -572,6 +590,24 @@ export default function MaterialPage({
                 <option key={customer.id} value={customer.id}>{customer.name}</option>
               ))}
             </select>
+            <div className="flex flex-nowrap items-center gap-2 whitespace-nowrap">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as MaterialSortBy)}
+                className="w-40 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+              >
+                {materialSortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>按{option.label}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setSortDir((current) => current === 'asc' ? 'desc' : 'asc')}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+              >
+                {sortDir === 'asc' ? '升序' : '降序'}
+              </button>
+            </div>
             <MaterialFieldVisibilityControl
               value={visibleFields}
               onChange={updateVisibleFields}
@@ -607,7 +643,7 @@ export default function MaterialPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, viewMode, setViewMode, visibleFields])
+  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, sortBy, sortDir, viewMode, setViewMode, visibleFields])
 
   return (
     <>
@@ -639,6 +675,24 @@ export default function MaterialPage({
                   <option key={customer.id} value={customer.id}>{customer.name}</option>
                 ))}
               </select>
+              <div className="flex flex-nowrap items-center gap-2 whitespace-nowrap">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as MaterialSortBy)}
+                  className="w-40 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+                >
+                  {materialSortOptions.map((option) => (
+                    <option key={option.value} value={option.value}>按{option.label}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setSortDir((current) => current === 'asc' ? 'desc' : 'asc')}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  {sortDir === 'asc' ? '升序' : '降序'}
+                </button>
+              </div>
               <MaterialFieldVisibilityControl
                 value={visibleFields}
                 onChange={updateVisibleFields}
