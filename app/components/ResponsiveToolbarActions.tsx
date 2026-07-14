@@ -89,7 +89,7 @@ export default function ResponsiveToolbarActions({ children, filters, actions }:
             {filterContent}
           </div>
           {canInline === true && (
-            <div className="flex min-w-0 max-w-full flex-nowrap items-center justify-start gap-2 overflow-x-auto [scrollbar-width:none] sm:justify-end sm:gap-3 sm:overflow-visible [&::-webkit-scrollbar]:hidden">
+            <div className="flex min-w-0 max-w-full flex-nowrap items-center justify-start gap-2 [scrollbar-width:none] sm:justify-end sm:gap-3 sm:overflow-visible [&::-webkit-scrollbar]:hidden">
               {filterContent}
             </div>
           )}
@@ -98,9 +98,10 @@ export default function ResponsiveToolbarActions({ children, filters, actions }:
               <button
                 type="button"
                 onClick={() => setOpen((next) => !next)}
-                className="whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:px-3 sm:py-2 sm:text-sm"
+                className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 sm:px-3 sm:py-2 sm:text-sm"
               >
-                筛选
+                <span className="flex h-5 w-5 items-center justify-center rounded bg-gray-100 text-[11px] text-gray-600">筛</span>
+                <span>筛选</span>
               </button>
               {open && (
                 <div className="absolute left-0 right-auto top-full z-50 mt-2 w-[min(88vw,420px)] rounded-lg border border-gray-200 bg-white p-2 shadow-lg sm:left-auto sm:right-0 sm:p-3">
@@ -114,7 +115,7 @@ export default function ResponsiveToolbarActions({ children, filters, actions }:
         </div>
       )}
       {hasActions && (
-        <div className="flex min-w-0 shrink-0 flex-nowrap items-center justify-end gap-2 overflow-x-auto whitespace-nowrap [scrollbar-width:none] sm:gap-3 sm:overflow-visible [&::-webkit-scrollbar]:hidden">
+        <div className="flex min-w-0 shrink-0 flex-nowrap items-center justify-end gap-2 whitespace-nowrap [scrollbar-width:none] sm:gap-3 sm:overflow-visible [&::-webkit-scrollbar]:hidden">
           {actions}
         </div>
       )}

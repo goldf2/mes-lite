@@ -29,22 +29,25 @@ export function usePersistedViewMode(storageKey: string, defaultValue: ViewMode 
 
 export default function ViewModeToggle({ value, onChange }: ViewModeToggleProps) {
   return (
-    <div className="flex shrink-0 items-center rounded-lg border border-gray-200 bg-gray-100 p-0.5 sm:p-1">
+    <div className="flex shrink-0 items-center rounded-lg border border-gray-200 bg-white p-0.5 shadow-sm sm:p-1">
       {([
-        ['card', '卡片'],
-        ['list', '列表'],
-      ] as const).map(([mode, label]) => (
+        ['card', '▦', '卡片'],
+        ['list', '☰', '列表'],
+      ] as const).map(([mode, icon, label]) => (
         <button
           key={mode}
           type="button"
           onClick={() => onChange(mode)}
-          className={`px-2 py-1 text-xs font-medium transition sm:px-3 sm:py-1.5 sm:text-sm ${
+          title={label}
+          aria-label={label}
+          className={`inline-flex min-w-9 items-center justify-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition sm:px-3 sm:py-1.5 sm:text-sm ${
             value === mode
-              ? 'rounded-md bg-white text-blue-700 shadow-sm'
+              ? 'bg-blue-600 text-white shadow-sm'
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          {label}
+          <span className="text-sm leading-none">{icon}</span>
+          <span className="hidden sm:inline">{label}</span>
         </button>
       ))}
     </div>

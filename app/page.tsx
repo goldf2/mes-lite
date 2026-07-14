@@ -115,22 +115,33 @@ type TabType = 'dashboard' | 'orders' | 'materials' | 'materialIn' | 'dispatch' 
 
 function MenuIcon({ icon }: { icon: string }) {
   const icons: Record<string, string> = {
-    dashboard: '📊',
-    orders: '📋',
-    materials: '📦',
-    materialIn: '📥',
-    dispatch: '🔄',
-    stocks: '🏭',
-    shipment: '📤',
-    return: '📧',
-    stats: '📈',
-    operators: '👤',
-    system: '⚙️',
-    permissionUsers: '👥',
-    permissionGroups: '🧩',
-    permissions: '🔐',
+    dashboard: '仪',
+    orders: '工',
+    materials: '料',
+    materialIn: '入',
+    dispatch: '派',
+    stocks: '库',
+    shipment: '发',
+    return: '退',
+    stats: '析',
+    operators: '人',
+    system: '设',
+    permissionUsers: '权',
+    permissionGroups: '组',
+    permissions: '限',
   }
-  return <span className="text-lg">{icons[icon] || '📄'}</span>
+  return (
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-[13px] font-semibold text-slate-700">
+      {icons[icon] || '单'}
+    </span>
+  )
+}
+
+function compactNavLabel(label: string) {
+  return label
+    .replace('管理', '')
+    .replace('统计分析', '统计')
+    .replace('仪表盘', '仪表')
 }
 
 // ==================== 状态映射 ====================
@@ -235,7 +246,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [systemMenuOpen, setSystemMenuOpen] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const systemMenuRef = useRef<HTMLDivElement | null>(null)
+  const navOrderLoadedRef = useRef(false)
   const [adjustingStock, setAdjustingStock] = useState<Stock | null>(null)
   const [stockAdjustForm, setStockAdjustForm] = useState({
     newQty: 0,
@@ -254,6 +267,36 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   tabLabels.detail = '工单详情'
   const activeTabLabel = tabLabels[tab] || 'MES-lite'
   const activeSystemTab = readableSystemNavItems.some((item) => item.key === tab)
+  const baseMobileNavItems = navItems.slice(0, 4)
+  const activeBusinessNavItem = navItems.find((item) => item.key === tab)
+  const mobilePrimaryItems = activeBusinessNavItem && !baseMobileNavItems.some((item) => item.key === activeBusinessNavItem.key)
+    ? [...baseMobileNavItems.slice(0, 3), activeBusinessNavItem]
+    : baseMobileNavItems
+
+  useEffect(() => {
+    const savedOrder = window.localStorage.getItem('mes-lite.nav.order')
+    if (savedOrder) {
+      try {
+        const savedKeys = JSON.parse(savedOrder) as TabType[]
+        const itemByKey = new Map(readableBusinessNavItems.map((item) => [item.key, item]))
+        const ordered = savedKeys
+          .map((key) => itemByKey.get(key))
+          .filter(Boolean) as { key: TabType; label: string }[]
+        const missing = readableBusinessNavItems.filter((item) => !savedKeys.includes(item.key))
+        setNavItems([...ordered, ...missing])
+      } catch (error) {
+        setNavItems(readableBusinessNavItems)
+      }
+    } else {
+      setNavItems(readableBusinessNavItems)
+    }
+    navOrderLoadedRef.current = true
+  }, [])
+
+  useEffect(() => {
+    if (!navOrderLoadedRef.current) return
+    window.localStorage.setItem('mes-lite.nav.order', JSON.stringify(navItems.map((item) => item.key)))
+  }, [navItems])
 
   useEffect(() => {
     if (!systemMenuOpen) return
@@ -305,6 +348,18 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setNavItems(newItems)
     setDragOverIndex(null)
     setDraggedIndex(null)
+  }
+
+  const moveNavItem = (key: TabType, direction: -1 | 1) => {
+    setNavItems((current) => {
+      const index = current.findIndex((item) => item.key === key)
+      const nextIndex = index + direction
+      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current
+      const next = [...current]
+      const [item] = next.splice(index, 1)
+      next.splice(nextIndex, 0, item)
+      return next
+    })
   }
 
   const showMessage = (msg: string) => {
@@ -514,14 +569,26 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     statusDistribution: dashboard?.statusDistribution ?? dashboard?.orderStatusDist ?? [],
   }
   const dashboardMetricItems = [
-    { label: '今日新增工单', value: dashboardView.todayOrderCount },
-    { label: '本月工单', value: dashboardView.monthOrderCount },
-    { label: '今日产量', value: dashboardView.todayProduction },
-    { label: '本月产量', value: dashboardView.monthProduction },
-    { label: '待收货', value: dashboardView.pendingMaterialInCount },
-    { label: '待发货', value: dashboardView.pendingShipmentCount },
-    { label: '待处理退货', value: dashboardView.pendingReturnCount },
-    { label: '库存预警', value: dashboardView.lowStocks.length },
+    { label: '今日工单', value: dashboardView.todayOrderCount, tone: 'blue', hint: '新建' },
+    { label: '本月工单', value: dashboardView.monthOrderCount, tone: 'indigo', hint: '累计' },
+    { label: '今日产量', value: dashboardView.todayProduction, tone: 'green', hint: '完工' },
+    { label: '本月产量', value: dashboardView.monthProduction, tone: 'emerald', hint: '累计' },
+    { label: '待收货', value: dashboardView.pendingMaterialInCount, tone: 'yellow', hint: '来料' },
+    { label: '待发货', value: dashboardView.pendingShipmentCount, tone: 'orange', hint: '出库' },
+    { label: '退货待处理', value: dashboardView.pendingReturnCount, tone: 'red', hint: '售后' },
+    { label: '库存预警', value: dashboardView.lowStocks.length, tone: 'pink', hint: '低库存' },
+  ]
+  const dashboardWorkloadItems = [
+    { label: '今日工单', value: dashboardView.todayOrderCount, tone: 'blue' },
+    { label: '本月工单', value: dashboardView.monthOrderCount, tone: 'indigo' },
+    { label: '今日产量', value: dashboardView.todayProduction, tone: 'green' },
+    { label: '本月产量', value: dashboardView.monthProduction, tone: 'emerald' },
+  ]
+  const dashboardPendingItems = [
+    { label: '待收货', value: dashboardView.pendingMaterialInCount, tone: 'yellow', hint: '原材料入库' },
+    { label: '待发货', value: dashboardView.pendingShipmentCount, tone: 'orange', hint: '成品出库' },
+    { label: '退货待处理', value: dashboardView.pendingReturnCount, tone: 'red', hint: '售后返库' },
+    { label: '库存预警', value: dashboardView.lowStocks.length, tone: 'pink', hint: '低于阈值' },
   ]
   const visibleStocks = stocks.filter((stock) => (
     stockFilter === 'all' ? true : stockFilter === 'material' ? !!stock.material : !!stock.product
@@ -734,31 +801,18 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           <div className="space-y-6">
             {effectiveDashboardViewMode === 'card' ? (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <StatCard label="今日新增工单" value={dashboardView.todayOrderCount} color="blue" />
-                  <StatCard label="本月工单" value={dashboardView.monthOrderCount} color="indigo" />
-                  <StatCard label="今日产量" value={dashboardView.todayProduction} color="green" />
-                  <StatCard label="本月产量" value={dashboardView.monthProduction} color="emerald" />
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <StatCard label="待收货" value={dashboardView.pendingMaterialInCount} color="yellow" />
-                  <StatCard label="待发货" value={dashboardView.pendingShipmentCount} color="orange" />
-                  <StatCard label="待处理退货" value={dashboardView.pendingReturnCount} color="red" />
-                  <StatCard label="库存预警" value={dashboardView.lowStocks.length} color="pink" />
-                </div>
+                <DashboardKpiGrid items={dashboardMetricItems} />
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  <DashboardBarPanel title="生产负荷" items={dashboardWorkloadItems} />
                   <DashboardSignalGrid
                     title="待处理事项"
-                    items={[
-                      { label: '待收货', value: dashboardView.pendingMaterialInCount, tone: 'yellow', hint: '原材料入库' },
-                      { label: '待发货', value: dashboardView.pendingShipmentCount, tone: 'orange', hint: '成品出库' },
-                      { label: '待处理退货', value: dashboardView.pendingReturnCount, tone: 'red', hint: '售后返库' },
-                      { label: '库存预警', value: dashboardView.lowStocks.length, tone: 'pink', hint: '低于阈值' },
-                    ]}
+                    items={dashboardPendingItems}
                   />
-                  <OrderStatusDonut items={dashboardView.statusDistribution} />
                 </div>
-                <StockAlertList stocks={dashboardView.lowStocks} />
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  <OrderStatusDonut items={dashboardView.statusDistribution} />
+                  <StockAlertList stocks={dashboardView.lowStocks} />
+                </div>
               </>
             ) : (
               <>
@@ -1439,45 +1493,191 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {tab === 'permissionGroups' && <PermissionPage mode="groups" onMessage={showMessage} />}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
-        <div className="flex gap-2 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {navItems.map((item) => (
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={() => setMobileNavOpen(false)}>
+          <div
+            className="absolute inset-x-3 bottom-[5.25rem] max-h-[68vh] overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold text-gray-900">全部功能</div>
+                <div className="text-xs text-gray-500">上下移动可调整底部常用入口</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen(false)}
+                className="rounded-md border border-gray-200 px-2.5 py-1 text-sm text-gray-600"
+              >
+                关闭
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              {navItems.map((item, index) => (
+                <div key={item.key} className="flex items-center gap-2 rounded-lg border border-gray-100 p-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTab(item.key)
+                      setMobileNavOpen(false)
+                      setSystemMenuOpen(false)
+                    }}
+                    className={`flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-2 text-left text-sm font-medium ${
+                      tab === item.key ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                    }`}
+                  >
+                    <MenuIcon icon={item.key} />
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                  <div className="flex shrink-0 gap-1">
+                    <button
+                      type="button"
+                      aria-label={`${item.label} 上移`}
+                      disabled={index === 0}
+                      onClick={() => moveNavItem(item.key, -1)}
+                      className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-sm text-gray-600 disabled:opacity-30"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`${item.label} 下移`}
+                      disabled={index === navItems.length - 1}
+                      onClick={() => moveNavItem(item.key, 1)}
+                      className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-sm text-gray-600 disabled:opacity-30"
+                    >
+                      ↓
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
+        <div className="grid grid-cols-5 gap-1">
+          {mobilePrimaryItems.map((item) => (
             <button
               key={item.key}
               type="button"
               onClick={() => {
                 setTab(item.key)
+                setMobileNavOpen(false)
                 setSystemMenuOpen(false)
               }}
-              className={`flex min-w-[4.75rem] flex-col items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-medium transition ${
-                tab === item.key ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'
+              className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-medium transition ${
+                tab === item.key ? 'bg-blue-600 text-white shadow-sm [&_span:first-child]:bg-white/15 [&_span:first-child]:text-white' : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
-              <span className="text-lg leading-none"><MenuIcon icon={item.key} /></span>
-              <span className="whitespace-nowrap">{item.label.replace('管理', '')}</span>
+              <MenuIcon icon={item.key} />
+              <span className="max-w-full truncate">{compactNavLabel(item.label)}</span>
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen((open) => !open)}
+            className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-medium transition ${
+              mobileNavOpen ? 'bg-gray-900 text-white [&_span:first-child]:bg-white/15 [&_span:first-child]:text-white' : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-[13px] font-semibold text-slate-700">多</span>
+            <span>更多</span>
+          </button>
         </div>
       </nav>
     </div>
   )
 }
 
-function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
-  const colorMap: Record<string, string> = {
-    blue: 'border-blue-200 bg-blue-50 text-blue-700',
-    indigo: 'border-indigo-200 bg-indigo-50 text-indigo-700',
-    green: 'border-green-200 bg-green-50 text-green-700',
-    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    yellow: 'border-yellow-200 bg-yellow-50 text-yellow-700',
-    orange: 'border-orange-200 bg-orange-50 text-orange-700',
-    red: 'border-red-200 bg-red-50 text-red-700',
-    pink: 'border-pink-200 bg-pink-50 text-pink-700',
+const dashboardToneMap: Record<string, { border: string; bg: string; text: string; fill: string; soft: string }> = {
+  blue: { border: 'border-blue-200', bg: 'bg-blue-50', text: 'text-blue-700', fill: 'bg-blue-500', soft: 'bg-blue-100' },
+  indigo: { border: 'border-indigo-200', bg: 'bg-indigo-50', text: 'text-indigo-700', fill: 'bg-indigo-500', soft: 'bg-indigo-100' },
+  green: { border: 'border-green-200', bg: 'bg-green-50', text: 'text-green-700', fill: 'bg-green-500', soft: 'bg-green-100' },
+  emerald: { border: 'border-emerald-200', bg: 'bg-emerald-50', text: 'text-emerald-700', fill: 'bg-emerald-500', soft: 'bg-emerald-100' },
+  yellow: { border: 'border-yellow-200', bg: 'bg-yellow-50', text: 'text-yellow-700', fill: 'bg-yellow-500', soft: 'bg-yellow-100' },
+  orange: { border: 'border-orange-200', bg: 'bg-orange-50', text: 'text-orange-700', fill: 'bg-orange-500', soft: 'bg-orange-100' },
+  red: { border: 'border-red-200', bg: 'bg-red-50', text: 'text-red-700', fill: 'bg-red-500', soft: 'bg-red-100' },
+  pink: { border: 'border-pink-200', bg: 'bg-pink-50', text: 'text-pink-700', fill: 'bg-pink-500', soft: 'bg-pink-100' },
+}
+
+function getDashboardTone(tone: string) {
+  return dashboardToneMap[tone] || {
+    border: 'border-gray-200',
+    bg: 'bg-gray-50',
+    text: 'text-gray-700',
+    fill: 'bg-gray-500',
+    soft: 'bg-gray-100',
   }
+}
+
+function DashboardKpiGrid({ items }: { items: { label: string; value: number; tone: string; hint: string }[] }) {
+  const maxValue = Math.max(1, ...items.map((item) => Number(item.value) || 0))
+
   return (
-    <div className={`border rounded-lg p-4 ${colorMap[color] || 'border-gray-200 bg-gray-50'}`}>
-      <div className="text-sm mb-1 opacity-80">{label}</div>
-      <div className="text-2xl font-bold">{value ?? 0}</div>
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {items.map((item) => {
+        const tone = getDashboardTone(item.tone)
+        const percent = Math.max(6, Math.min(100, ((Number(item.value) || 0) / maxValue) * 100))
+
+        return (
+          <div key={item.label} className={`rounded-lg border bg-white p-4 shadow-sm ${tone.border}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-gray-500">{item.hint}</div>
+                <div className="mt-1 truncate text-sm font-semibold text-gray-800">{item.label}</div>
+              </div>
+              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${tone.fill}`} />
+            </div>
+            <div className="mt-4 flex items-end justify-between gap-3">
+              <div className="text-3xl font-semibold leading-none text-gray-950">{item.value ?? 0}</div>
+              <div className={`h-10 w-16 rounded ${tone.soft} p-1`}>
+                <div className="flex h-full items-end gap-1">
+                  {[0.42, 0.72, 0.55, 1].map((ratio, index) => (
+                    <span
+                      key={index}
+                      className={`flex-1 rounded-sm ${tone.fill}`}
+                      style={{ height: `${Math.max(18, percent * ratio)}%`, opacity: 0.5 + index * 0.12 }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function DashboardBarPanel({ title, items }: { title: string; items: { label: string; value: number; tone: string }[] }) {
+  const maxValue = Math.max(1, ...items.map((item) => Number(item.value) || 0))
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="mb-5 flex items-center justify-between">
+        <h3 className="font-semibold text-gray-900">{title}</h3>
+        <span className="text-xs text-gray-500">今日 / 本月</span>
+      </div>
+      <div className="space-y-4">
+        {items.map((item) => {
+          const tone = getDashboardTone(item.tone)
+          const width = Math.max(5, Math.min(100, ((Number(item.value) || 0) / maxValue) * 100))
+
+          return (
+            <div key={item.label}>
+              <div className="mb-1.5 flex items-center justify-between text-sm">
+                <span className="font-medium text-gray-700">{item.label}</span>
+                <span className="font-semibold text-gray-950">{item.value ?? 0}</span>
+              </div>
+              <div className={`h-3 overflow-hidden rounded-full ${tone.soft}`}>
+                <div className={`h-full rounded-full ${tone.fill}`} style={{ width: `${width}%` }} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -1489,35 +1689,34 @@ function DashboardSignalGrid({
   title: string
   items: { label: string; value: number; tone: string; hint: string }[]
 }) {
-  const toneMap: Record<string, string> = {
-    blue: 'bg-blue-50 text-blue-700 border-blue-100',
-    indigo: 'bg-indigo-50 text-indigo-700 border-indigo-100',
-    green: 'bg-green-50 text-green-700 border-green-100',
-    emerald: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    yellow: 'bg-yellow-50 text-yellow-700 border-yellow-100',
-    orange: 'bg-orange-50 text-orange-700 border-orange-100',
-    red: 'bg-red-50 text-red-700 border-red-100',
-    pink: 'bg-pink-50 text-pink-700 border-pink-100',
-  }
+  const maxValue = Math.max(1, ...items.map((item) => Number(item.value) || 0))
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between mb-5">
-        <h3 className="font-semibold text-gray-800">{title}</h3>
-        <span className="text-xs text-gray-400">实时状态</span>
+        <h3 className="font-semibold text-gray-900">{title}</h3>
+        <span className="text-xs text-gray-500">实时状态</span>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {items.map((item) => (
-          <div key={item.label} className={`rounded-xl border p-4 ${toneMap[item.tone] || 'bg-gray-50 text-gray-700 border-gray-100'}`}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-medium">{item.label}</div>
-                <div className="mt-1 text-xs opacity-70">{item.hint}</div>
+      <div className="space-y-4">
+        {items.map((item) => {
+          const tone = getDashboardTone(item.tone)
+          const width = Math.max(6, Math.min(100, ((Number(item.value) || 0) / maxValue) * 100))
+
+          return (
+            <div key={item.label} className="rounded-lg border border-gray-100 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium text-gray-800">{item.label}</div>
+                  <div className="mt-0.5 text-xs text-gray-500">{item.hint}</div>
+                </div>
+                <div className={`text-2xl font-semibold leading-none ${tone.text}`}>{item.value ?? 0}</div>
               </div>
-              <div className="text-3xl font-semibold leading-none">{item.value ?? 0}</div>
+              <div className={`mt-3 h-2.5 overflow-hidden rounded-full ${tone.soft}`}>
+                <div className={`h-full rounded-full ${tone.fill}`} style={{ width: `${width}%` }} />
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -1555,40 +1754,51 @@ function OrderStatusDonut({ items }: { items: { status: string; count: number }[
     : 'conic-gradient(#e5e7eb 0% 100%)'
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between mb-5">
-        <h3 className="font-semibold text-gray-800">工单状态分布</h3>
-        <span className="text-xs text-gray-400">合计 {total}</span>
+        <h3 className="font-semibold text-gray-900">工单状态分布</h3>
+        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">合计 {total}</span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-[180px_minmax(0,1fr)] gap-6 items-center">
         <div className="flex justify-center">
           <div
-            className="relative h-40 w-40 rounded-full"
+            className="relative h-40 w-40 rounded-full shadow-inner"
             style={{ background: gradient }}
           >
-            <div className="absolute inset-6 rounded-full bg-white shadow-inner flex flex-col items-center justify-center">
+            <div className="absolute inset-5 rounded-full bg-white shadow-sm flex flex-col items-center justify-center">
               <div className="text-3xl font-semibold text-gray-900">{total}</div>
-              <div className="text-xs text-gray-500">工单总量</div>
+              <div className="text-xs text-gray-500">总工单</div>
             </div>
           </div>
         </div>
         {segments.length === 0 ? (
-          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-400">
+          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-500">
             暂无工单状态数据
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-3">
             {segments.map((item) => (
-              <div key={item.status} className="rounded-lg border border-gray-200 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className={`shrink-0 px-2 py-1 rounded text-xs font-medium ${statusColors[item.status] || 'bg-gray-100 text-gray-700'}`}>
-                    {statusLabels[item.status] || item.status}
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900">{item.count}</span>
+              <div key={item.status}>
+                <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="truncate font-medium text-gray-700">{statusLabels[item.status] || item.status}</span>
+                  </div>
+                  <div className="shrink-0 font-semibold text-gray-950">{item.count}</div>
                 </div>
-                <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
-                  <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span>{total > 0 ? `${((Number(item.count) / total) * 100).toFixed(1)}%` : '0%'}</span>
+                <div className="flex items-center gap-2">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${total > 0 ? Math.max(4, (Number(item.count) / total) * 100) : 0}%`,
+                        backgroundColor: item.color,
+                      }}
+                    />
+                  </div>
+                  <span className="w-12 text-right text-xs text-gray-500">
+                    {total > 0 ? `${((Number(item.count) / total) * 100).toFixed(0)}%` : '0%'}
+                  </span>
                 </div>
               </div>
             ))}
@@ -1603,13 +1813,13 @@ function StockAlertList({ stocks }: { stocks: any[] }) {
   const sortedStocks = [...stocks].sort((a, b) => Number(a.availableQty ?? 0) - Number(b.availableQty ?? 0)).slice(0, 8)
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between mb-5">
-        <h3 className="font-semibold text-gray-800">库存预警</h3>
-        <span className="text-xs text-gray-400">低于 10</span>
+        <h3 className="font-semibold text-gray-900">库存预警</h3>
+        <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">低于 10</span>
       </div>
       {sortedStocks.length === 0 ? (
-        <div className="flex h-44 items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-400">
+        <div className="flex h-44 items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-500">
           暂无库存预警
         </div>
       ) : (
@@ -1620,16 +1830,18 @@ function StockAlertList({ stocks }: { stocks: any[] }) {
             const available = Number(stock.availableQty ?? 0)
             const level = available <= 2 ? '严重' : available <= 5 ? '紧急' : '关注'
             const levelClass =
-              available <= 2 ? 'bg-red-100 text-red-700 border-red-200' :
-              available <= 5 ? 'bg-orange-100 text-orange-700 border-orange-200' :
-              'bg-yellow-100 text-yellow-700 border-yellow-200'
+              available <= 2 ? 'bg-red-50 text-red-700 border-red-200' :
+              available <= 5 ? 'bg-orange-50 text-orange-700 border-orange-200' :
+              'bg-yellow-50 text-yellow-700 border-yellow-200'
+            const barClass = available <= 2 ? 'bg-red-500' : available <= 5 ? 'bg-orange-500' : 'bg-yellow-500'
+            const width = Math.max(4, Math.min(100, (available / 10) * 100))
 
             return (
-              <div key={stock.id} className="rounded-lg border border-gray-200 p-4">
+              <div key={stock.id} className="rounded-lg border border-gray-100 p-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-md bg-gray-100 text-xs font-semibold text-gray-600">
                         {index + 1}
                       </span>
                       <div className="truncate text-sm font-medium text-gray-900">{name}</div>
@@ -1643,6 +1855,9 @@ function StockAlertList({ stocks }: { stocks: any[] }) {
                 <div className="mt-3 flex items-center justify-between text-sm">
                   <span className="text-gray-500">可用库存</span>
                   <span className="font-semibold text-gray-900">{available}</span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
+                  <div className={`h-full rounded-full ${barClass}`} style={{ width: `${width}%` }} />
                 </div>
               </div>
             )
