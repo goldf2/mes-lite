@@ -4,17 +4,19 @@ import { ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } 
 
 interface ResponsiveToolbarActionsProps {
   children?: ReactNode
+  primaryFilters?: ReactNode
   filters?: ReactNode
   actions?: ReactNode
 }
 
-export default function ResponsiveToolbarActions({ children, filters, actions }: ResponsiveToolbarActionsProps) {
+export default function ResponsiveToolbarActions({ children, primaryFilters, filters, actions }: ResponsiveToolbarActionsProps) {
   const [filtersCollapsed, setFiltersCollapsed] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const filterSlotRef = useRef<HTMLDivElement | null>(null)
   const measureRef = useRef<HTMLDivElement | null>(null)
   const filterContent = filters ?? children
+  const hasPrimaryFilters = primaryFilters !== null && primaryFilters !== undefined && primaryFilters !== false
   const hasFilters = filterContent !== null && filterContent !== undefined && filterContent !== false
   const hasActions = actions !== null && actions !== undefined && actions !== false
 
@@ -78,9 +80,14 @@ export default function ResponsiveToolbarActions({ children, filters, actions }:
   }, [menuOpen])
 
   return (
-    <div ref={rootRef} className="relative flex w-full min-w-0 flex-nowrap items-center justify-start gap-2 xl:gap-3">
+    <div ref={rootRef} className={`relative flex w-full min-w-0 items-center justify-start gap-2 xl:gap-3 ${hasPrimaryFilters ? 'flex-wrap' : 'flex-nowrap'}`}>
+      {hasPrimaryFilters && (
+        <div className="flex min-w-0 flex-[1_1_420px] flex-wrap items-center justify-start gap-2 overflow-visible xl:gap-3">
+          {primaryFilters}
+        </div>
+      )}
       {hasFilters && (
-        <div ref={filterSlotRef} className="relative min-w-0 flex-1">
+        <div ref={filterSlotRef} className={`relative min-w-0 ${hasPrimaryFilters ? 'flex-[1_1_180px]' : 'flex-1'}`}>
           <div
             ref={measureRef}
             aria-hidden="true"
@@ -98,7 +105,7 @@ export default function ResponsiveToolbarActions({ children, filters, actions }:
                 className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 sm:px-3 sm:py-2 sm:text-sm"
               >
                 <span className="flex h-5 w-5 items-center justify-center rounded bg-gray-100 text-[11px] text-gray-600">筛</span>
-                <span>筛选</span>
+                <span>{hasPrimaryFilters ? '更多筛选' : '筛选'}</span>
               </button>
               {menuOpen && (
                 <div className="absolute left-0 top-full z-50 mt-2 w-[min(92vw,520px)] max-w-[calc(100vw-24px)] rounded-lg border border-gray-200 bg-white p-2 shadow-lg sm:p-3">

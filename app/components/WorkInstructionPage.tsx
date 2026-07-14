@@ -671,14 +671,14 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
   const toolbar = (
     <ResponsiveToolbarActions
-      filters={(
+      primaryFilters={(
         <>
           <input
             type="text"
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
             placeholder="搜索编码、标题、物料或工序"
-            className="w-64 rounded-lg border border-gray-200 px-4 py-2 text-sm"
+            className="w-full min-w-[180px] max-w-[280px] flex-[1_1_220px] rounded-lg border border-gray-200 px-4 py-2 text-sm"
           />
           <StatusCheckboxFilter
             options={instructionCategoryOptions}
@@ -694,6 +694,10 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
             allLabel="全部状态"
             storageKey="mes-lite.filters.workInstructions.status.order"
           />
+        </>
+      )}
+      filters={(
+        <>
           <select
             value={fileType}
             onChange={(event) => setFileType(event.target.value as 'all' | 'image' | 'pdf')}
