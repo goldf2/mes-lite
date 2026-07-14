@@ -78,6 +78,7 @@ export default function MaterialPage({
   const [customerFilter, setCustomerFilter] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<string[]>(materialCategoryFilterOptions.map((option) => option.value))
   const [showModal, setShowModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null)
   const [detailMaterial, setDetailMaterial] = useState<Material | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.materials.viewMode', 'list')
@@ -98,6 +99,10 @@ export default function MaterialPage({
     costingMethod: 'WEIGHTED_AVERAGE',
   })
   const [loading, setLoading] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importMode, setImportMode] = useState<'skip' | 'update'>('skip')
+  const [importLoading, setImportLoading] = useState(false)
+  const [importErrors, setImportErrors] = useState<string[]>([])
 
   useEffect(() => {
     fetchMaterials()
@@ -107,7 +112,7 @@ export default function MaterialPage({
     fetchCustomers()
   }, [])
 
-  const fetchMaterials = async () => {
+  const buildMaterialParams = () => {
     const params = new URLSearchParams()
     if (keyword) params.set('keyword', keyword)
     if (customerFilter) params.set('customerId', customerFilter)
@@ -116,12 +121,91 @@ export default function MaterialPage({
       const categoryParams = new URLSearchParams(categoryQuery)
       categoryParams.forEach((value, key) => params.set(key, value))
     }
+    return params
+  }
+
+  const fetchMaterials = async () => {
+    const params = buildMaterialParams()
     const url = params.toString() ? `/api/materials?${params.toString()}` : '/api/materials'
     const res = await fetch(url)
     const data = await res.json()
     const nextMaterials: Material[] = data.data || []
     setMaterials(nextMaterials)
     setDetailMaterial((current) => current ? nextMaterials.find((item) => item.id === current.id) || current : null)
+  }
+
+  const downloadFile = async (url: string) => {
+    try {
+      const res = await fetch(url)
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        onMessage(data.error || '下载失败')
+        return
+      }
+
+      const blob = await res.blob()
+      const href = URL.createObjectURL(blob)
+      const disposition = res.headers.get('Content-Disposition') || ''
+      const filename = disposition.match(/filename="([^"]+)"/)?.[1] || 'materials.csv'
+      const link = document.createElement('a')
+      link.href = href
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(href)
+    } catch (err) {
+      onMessage('下载失败')
+    }
+  }
+
+  const handleExport = () => {
+    const params = buildMaterialParams()
+    const url = params.toString() ? `/api/materials/export?${params.toString()}` : '/api/materials/export'
+    downloadFile(url)
+  }
+
+  const handleDownloadTemplate = () => {
+    downloadFile('/api/materials/import-template')
+  }
+
+  const openImportModal = () => {
+    setImportFile(null)
+    setImportMode('skip')
+    setImportErrors([])
+    setShowImportModal(true)
+  }
+
+  const handleImportSubmit = async () => {
+    if (!importFile) {
+      onMessage('请先选择 CSV 文件')
+      return
+    }
+
+    setImportLoading(true)
+    setImportErrors([])
+    try {
+      const formData = new FormData()
+      formData.append('file', importFile)
+      const res = await fetch(`/api/materials/import?mode=${importMode}`, {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json()
+
+      if (res.ok) {
+        const summary = data.data || {}
+        onMessage(`导入完成：共 ${summary.total || 0} 行，新增 ${summary.created || 0}，更新 ${summary.updated || 0}，跳过 ${summary.skipped || 0}`)
+        setShowImportModal(false)
+        setImportFile(null)
+        fetchMaterials()
+      } else {
+        setImportErrors(data.details || [data.error || '导入失败'])
+      }
+    } catch (err) {
+      setImportErrors(['导入失败'])
+    }
+    setImportLoading(false)
   }
 
   const fetchCustomers = async () => {
@@ -302,6 +386,18 @@ export default function MaterialPage({
             >
               新增
             </button>
+            <button
+              onClick={openImportModal}
+              className="shrink-0 whitespace-nowrap px-3 py-1.5 border border-blue-300 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-50 transition sm:px-4 sm:py-2 sm:text-sm"
+            >
+              导入
+            </button>
+            <button
+              onClick={handleExport}
+              className="shrink-0 whitespace-nowrap px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 transition sm:px-4 sm:py-2 sm:text-sm"
+            >
+              导出
+            </button>
           </>
         )}
       />
@@ -352,6 +448,18 @@ export default function MaterialPage({
                 className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
               >
                 新增
+              </button>
+              <button
+                onClick={openImportModal}
+                className="shrink-0 whitespace-nowrap px-3 py-1.5 border border-blue-300 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-50 transition sm:px-4 sm:py-2 sm:text-sm"
+              >
+                导入
+              </button>
+              <button
+                onClick={handleExport}
+                className="shrink-0 whitespace-nowrap px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 transition sm:px-4 sm:py-2 sm:text-sm"
+              >
+                导出
               </button>
             </>
           )}
@@ -655,6 +763,73 @@ export default function MaterialPage({
               </button>
               <button onClick={handleSubmit} disabled={loading} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {loading ? '保存中...' : '保存'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl">
+            <div className="flex shrink-0 items-center justify-between border-b px-6 py-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">批量导入物料</h3>
+                <p className="mt-1 text-sm text-gray-500">仅导入物料主数据，不导入库存数量和成本。</p>
+              </div>
+              <button onClick={() => setShowImportModal(false)} className="text-gray-500 hover:text-gray-700">&times;</button>
+            </div>
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                物料编码是业务可视化编码，必须唯一；规格用于记录尺寸、材质、版本等描述。库存初始化请到库存管理做存货调整。
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">CSV 文件</label>
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    onChange={(event) => setImportFile(event.target.files?.[0] || null)}
+                    className="w-full rounded-lg border border-gray-200 px-4 py-2 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleDownloadTemplate}
+                    className="mt-2 text-sm font-medium text-blue-700 hover:text-blue-800"
+                  >
+                    下载导入模板
+                  </button>
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">遇到已有物料编码</label>
+                  <select
+                    value={importMode}
+                    onChange={(event) => setImportMode(event.target.value as 'skip' | 'update')}
+                    className="w-full rounded-lg border border-gray-200 px-4 py-2 text-sm"
+                  >
+                    <option value="skip">跳过已有物料</option>
+                    <option value="update">更新已有物料资料</option>
+                  </select>
+                  <p className="mt-2 text-xs text-gray-500">更新模式只覆盖名称、规格、分类、客户、单位和成本方法，不修改库存余额。</p>
+                </div>
+              </div>
+              {importErrors.length > 0 && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+                  <div className="text-sm font-semibold text-red-700">导入失败</div>
+                  <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-sm text-red-700">
+                    {importErrors.map((error, index) => (
+                      <li key={`${error}-${index}`}>{error}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <div className="flex shrink-0 gap-3 border-t bg-white px-6 py-4">
+              <button onClick={() => setShowImportModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                取消
+              </button>
+              <button onClick={handleImportSubmit} disabled={importLoading} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {importLoading ? '导入中...' : '开始导入'}
               </button>
             </div>
           </div>
