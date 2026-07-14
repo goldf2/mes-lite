@@ -103,7 +103,7 @@ export default function ResponsiveToolbarActions({ children, filters, actions }:
                 筛选/操作
               </button>
               {open && (
-                <div className="absolute right-0 top-full z-20 mt-2 w-[min(88vw,420px)] rounded-lg border border-gray-200 bg-white p-2 shadow-lg sm:p-3">
+                <div className="absolute left-0 right-auto top-full z-50 mt-2 w-[min(88vw,420px)] rounded-lg border border-gray-200 bg-white p-2 shadow-lg sm:left-auto sm:right-0 sm:p-3">
                   <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
                     {filterContent}
                   </div>

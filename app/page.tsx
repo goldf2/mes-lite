@@ -585,7 +585,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <div className="truncate text-base font-semibold text-gray-900 sm:text-lg">{activeTabLabel}</div>
             </div>
             <div className="flex w-full min-w-0 items-center justify-between gap-2 lg:w-auto lg:flex-1 lg:justify-end">
-              <div id="topbar-actions" className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-x-auto [scrollbar-width:none] lg:justify-end lg:overflow-visible [&::-webkit-scrollbar]:hidden">
+              <div id="topbar-actions" className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible lg:justify-end">
                 {tab === 'dashboard' ? (
                   <ResponsiveToolbarActions
                     actions={<div className="hidden sm:block"><ViewModeToggle value={dashboardViewMode} onChange={setDashboardViewMode} /></div>}
