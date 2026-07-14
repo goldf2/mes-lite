@@ -101,7 +101,7 @@ export default function DispatchPage({
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
-  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.dispatch.viewMode', 'list')
+  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.dispatch.viewMode.v2', 'card')
   const isCompactViewport = useCompactViewport()
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
 
@@ -426,28 +426,28 @@ export default function DispatchPage({
             ))}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto rounded-lg border border-gray-100">
+            <table className="w-full min-w-[1180px]">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">派工单号</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">工单号</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">工序</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">工人</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">计划数量</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">优先级</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">原始单据</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
+                  <th className="w-40 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">派工单号</th>
+                  <th className="w-40 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">工单号</th>
+                  <th className="min-w-64 px-4 py-3 text-left text-sm font-semibold text-gray-600">产品</th>
+                  <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">工序</th>
+                  <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">工人</th>
+                  <th className="w-24 whitespace-nowrap px-4 py-3 text-center text-sm font-semibold text-gray-600">计划数量</th>
+                  <th className="w-24 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">优先级</th>
+                  <th className="w-24 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
+                  <th className="w-44 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">原始单据</th>
+                  <th className="w-24 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {dispatches.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-blue-600">{item.dispatchNo}</td>
-                    <td className="px-4 py-3 font-mono text-sm">{item.order?.orderNo}</td>
-                    <td className="px-4 py-3">
+                  <tr key={item.id} className="align-top hover:bg-gray-50">
+                    <td className="whitespace-nowrap px-4 py-3 font-mono text-sm text-blue-600">{item.dispatchNo}</td>
+                    <td className="whitespace-nowrap px-4 py-3 font-mono text-sm">{item.order?.orderNo}</td>
+                    <td className="px-4 py-3 text-sm">
                       <div className="font-medium">{item.order?.targetMaterial?.name || item.order?.product?.name}</div>
                       <div className="text-xs text-gray-500">
                         {item.order?.targetMaterial ? `物料 ${item.order.targetMaterial.code}` : item.order?.product?.sku}
@@ -456,21 +456,21 @@ export default function DispatchPage({
                         客户：{item.order?.targetMaterial?.customer?.name || item.order?.product?.customer?.name || '通用/未绑定'}
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="whitespace-nowrap px-4 py-3 text-sm">
                       <div className="font-medium">{item.step?.name}</div>
                       <div className="text-xs text-gray-500">工序 {item.step?.stepNo}</div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="whitespace-nowrap px-4 py-3 text-sm">
                       <div className="font-medium">{item.workerName}</div>
                       {item.workerId && <div className="text-xs text-gray-500">{item.workerId}</div>}
                     </td>
-                    <td className="px-4 py-3">{item.planQty}</td>
-                    <td className="px-4 py-3">
+                    <td className="whitespace-nowrap px-4 py-3 text-center text-sm font-semibold">{item.planQty}</td>
+                    <td className="whitespace-nowrap px-4 py-3">
                       <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${priorityColors[item.priority]}`}>
                         {priorityLabels[item.priority] || item.priority}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="whitespace-nowrap px-4 py-3">
                       <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[item.status]}`}>
                         {statusLabels[item.status] || item.status}
                       </span>
@@ -478,7 +478,7 @@ export default function DispatchPage({
                     <td className="px-4 py-3">
                       <AttachmentPanel ownerType="DISPATCH" ownerId={item.id} compact onMessage={onMessage} />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="whitespace-nowrap px-4 py-3">
                       {item.status === 'PENDING' && (
                         <button
                           onClick={() => handleAction(item.id, 'dispatch')}

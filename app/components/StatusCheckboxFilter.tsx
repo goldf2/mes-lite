@@ -42,8 +42,8 @@ export default function StatusCheckboxFilter({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
-      <label className="flex h-8 items-center gap-1.5 rounded-md bg-white px-2.5 text-sm text-gray-700 ring-1 ring-gray-200">
+    <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 sm:flex-nowrap sm:gap-2 sm:px-3 sm:py-2">
+      <label className="flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md bg-white px-2 text-xs text-gray-700 ring-1 ring-gray-200 sm:h-8 sm:px-2.5 sm:text-sm">
         <input
           type="checkbox"
           checked={allSelected}
@@ -53,7 +53,7 @@ export default function StatusCheckboxFilter({
         {allLabel}
       </label>
       {options.map((option) => (
-        <label key={option.value} className="flex h-8 items-center gap-1.5 rounded-md bg-white px-2.5 text-sm text-gray-700 ring-1 ring-gray-200">
+        <label key={option.value} className="flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md bg-white px-2 text-xs text-gray-700 ring-1 ring-gray-200 sm:h-8 sm:px-2.5 sm:text-sm">
           <input
             type="checkbox"
             checked={value.includes(option.value)}
