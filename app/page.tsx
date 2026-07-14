@@ -235,7 +235,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [selectedProductId, setSelectedProductId] = useState('')
   const [selectedMaterialId, setSelectedMaterialId] = useState('')
   const [selectedOrderStatuses, setSelectedOrderStatuses] = useState(orderStatusOptions.map((option) => option.value))
-  const [dashboardViewMode, setDashboardViewMode] = usePersistedViewMode('mes-lite.dashboard.viewMode', 'card')
   const [orderViewMode, setOrderViewMode] = usePersistedViewMode('mes-lite.orders.viewMode', 'card')
   const [stockFilter, setStockFilter] = useState<'all' | 'material' | 'product'>('all')
   const [stockViewMode, setStockViewMode] = usePersistedViewMode('mes-lite.stocks.viewMode', 'card')
@@ -260,7 +259,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     reason: '',
   })
   const isCompactViewport = useCompactViewport()
-  const effectiveDashboardViewMode = isCompactViewport ? 'card' : dashboardViewMode
   const effectiveOrderViewMode = isCompactViewport ? 'card' : orderViewMode
   const effectiveStockViewMode = isCompactViewport ? 'card' : stockViewMode
 
@@ -653,11 +651,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <div className="max-w-[7rem] truncate text-sm font-semibold text-gray-900 sm:max-w-[10rem] sm:text-lg lg:max-w-[12rem]">{activeTabLabel}</div>
             </div>
             <div id="topbar-actions" className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible">
-                {tab === 'dashboard' ? (
-                  <ResponsiveToolbarActions
-                    actions={<div className="hidden sm:block"><ViewModeToggle value={dashboardViewMode} onChange={setDashboardViewMode} /></div>}
-                  />
-                ) : tab === 'orders' ? (
+                {tab === 'orders' ? (
                   <ResponsiveToolbarActions
                     filters={(
                       <StatusCheckboxFilter
@@ -802,104 +796,18 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {/* 仪表盘 */}
         {tab === 'dashboard' && dashboard && (
           <div className="space-y-6">
-            {effectiveDashboardViewMode === 'card' ? (
-              <>
-                <DashboardKpiGrid items={dashboardMetricItems} />
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                  <DashboardBarPanel title="生产负荷" items={dashboardWorkloadItems} />
-                  <DashboardSignalGrid
-                    title="待处理事项"
-                    items={dashboardPendingItems}
-                  />
-                </div>
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                  <OrderStatusDonut items={dashboardView.statusDistribution} />
-                  <StockAlertList stocks={dashboardView.lowStocks} />
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h2 className="mb-4 text-lg font-semibold">关键指标</h2>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">指标</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">数值</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {dashboardMetricItems.map((item) => (
-                          <tr key={item.label} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.label}</td>
-                            <td className="px-4 py-3 text-sm font-semibold text-blue-700">{item.value}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                  <div className="bg-white rounded-lg shadow p-6">
-                    <h2 className="mb-4 text-lg font-semibold">工单状态分布</h2>
-                    {dashboardView.statusDistribution.length === 0 ? (
-                      <div className="py-8 text-center text-sm text-gray-500">暂无状态数据</div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
-                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">数量</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {dashboardView.statusDistribution.map((item: { status: string; count: number }) => (
-                              <tr key={item.status} className="hover:bg-gray-50">
-                                <td className="px-4 py-3">
-                                  <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[item.status] || 'bg-gray-100 text-gray-700'}`}>
-                                    {statusLabels[item.status] || item.status}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-sm font-semibold">{item.count}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                  <div className="bg-white rounded-lg shadow p-6">
-                    <h2 className="mb-4 text-lg font-semibold">库存预警</h2>
-                    {dashboardView.lowStocks.length === 0 ? (
-                      <div className="py-8 text-center text-sm text-gray-500">暂无库存预警</div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存对象</th>
-                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">编码</th>
-                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">可用库存</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {dashboardView.lowStocks.map((stock: any) => (
-                              <tr key={stock.id} className="hover:bg-red-50">
-                                <td className="px-4 py-3 text-sm font-medium text-gray-900">{stock.material?.name || stock.product?.name}</td>
-                                <td className="px-4 py-3 text-xs text-gray-500">{stock.material?.code || stock.product?.sku}</td>
-                                <td className="px-4 py-3 text-sm font-semibold text-red-600">{stock.availableQty}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
+            <DashboardKpiGrid items={dashboardMetricItems} />
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <DashboardBarPanel title="生产负荷" items={dashboardWorkloadItems} />
+              <DashboardSignalGrid
+                title="待处理事项"
+                items={dashboardPendingItems}
+              />
+            </div>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <OrderStatusDonut items={dashboardView.statusDistribution} />
+              <StockAlertList stocks={dashboardView.lowStocks} />
+            </div>
           </div>
         )}
 

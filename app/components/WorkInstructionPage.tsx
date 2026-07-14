@@ -682,6 +682,33 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     setViewerRotation(0)
   }
 
+  const openInstructionViewer = async (instruction: WorkInstruction) => {
+    if (instruction.attachmentCount === 0) {
+      onMessage('这份作业指导书还没有上传图片或 PDF')
+      return
+    }
+    try {
+      const res = await fetch(`/api/attachments?ownerType=WORK_INSTRUCTION&ownerId=${encodeURIComponent(instruction.id)}`)
+      const data = await res.json()
+      if (!res.ok) {
+        onMessage(data.error || '获取指导书文件失败')
+        return
+      }
+      const attachments = (data.data || []) as AttachmentItem[]
+      if (attachments.length === 0) {
+        if (instruction.primaryAttachment) {
+          openViewer(instruction, [instruction.primaryAttachment])
+          return
+        }
+        onMessage('这份作业指导书还没有上传图片或 PDF')
+        return
+      }
+      openViewer(instruction, attachments)
+    } catch (err) {
+      onMessage('获取指导书文件失败')
+    }
+  }
+
   const selectedViewerAttachment = viewer?.attachments[viewer.index]
   const selectedMaterial = useMemo(
     () => materials.find((material) => material.id === form.materialId),
@@ -837,15 +864,23 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   <div className="mt-3 flex flex-wrap justify-end gap-2">
                     <button
                       type="button"
-                      onClick={() => openDetail(instruction)}
-                      className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-700"
+                      onClick={() => openInstructionViewer(instruction)}
+                      disabled={instruction.attachmentCount === 0}
+                      className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
                     >
-                      打开
+                      全屏打开
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openDetail(instruction)}
+                      className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+                    >
+                      详情
                     </button>
                     <button
                       type="button"
                       onClick={() => archiveInstruction(instruction)}
-                      className="rounded border border-amber-300 px-2.5 py-1 text-xs text-amber-700 transition hover:bg-amber-50"
+                      className="rounded border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-50"
                     >
                       归档
                     </button>
@@ -858,7 +893,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         ) : (
           <>
             <div className="overflow-x-auto rounded-lg border border-gray-100">
-              <table className="w-full min-w-[1040px]">
+              <table className="w-full min-w-[1120px]">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="w-24 px-4 py-3 text-left text-sm font-semibold text-gray-600">预览</th>
@@ -869,7 +904,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                     <th className="w-44 px-4 py-3 text-left text-sm font-semibold text-gray-600">关联物料</th>
                     <th className="w-36 px-4 py-3 text-left text-sm font-semibold text-gray-600">客户</th>
                     <th className="w-28 px-4 py-3 text-left text-sm font-semibold text-gray-600">文件</th>
-                    <th className="w-36 px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
+                    <th className="w-56 px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -891,8 +926,17 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       <td className="px-4 py-3 text-sm">{instruction.customer?.name || instruction.material?.customer?.name || '通用/未绑定'}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm">{instruction.imageCount} 图 / {instruction.pdfCount} PDF</td>
                       <td className="whitespace-nowrap px-4 py-3">
-                        <button onClick={() => openDetail(instruction)} className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700">打开</button>
-                        <button onClick={() => archiveInstruction(instruction)} className="ml-2 rounded border border-amber-300 px-3 py-1 text-xs text-amber-700 hover:bg-amber-50">归档</button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => openInstructionViewer(instruction)}
+                            disabled={instruction.attachmentCount === 0}
+                            className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
+                          >
+                            全屏打开
+                          </button>
+                          <button onClick={() => openDetail(instruction)} className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50">详情</button>
+                          <button onClick={() => archiveInstruction(instruction)} className="rounded border border-amber-300 px-3 py-1 text-xs text-amber-700 hover:bg-amber-50">归档</button>
+                        </div>
                       </td>
                     </tr>
                   ))}
