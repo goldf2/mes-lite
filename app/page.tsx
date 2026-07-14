@@ -579,10 +579,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
       <main className="min-w-0 p-3 pb-28 sm:p-4 lg:ml-56 lg:p-6">
         <div className="mb-3 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm sm:mb-4 sm:px-4 sm:py-3">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0">
-              <div className="text-xs font-medium text-gray-400">{activeSystemTab ? '系统功能' : '业务功能'}</div>
-              <div className="truncate text-base font-semibold text-gray-900 sm:text-lg">{activeTabLabel}</div>
+          <div className="flex min-w-0 items-center gap-2 lg:justify-between">
+            <div className="min-w-0 shrink-0">
+              <div className="hidden text-xs font-medium text-gray-400 sm:block">{activeSystemTab ? '系统功能' : '业务功能'}</div>
+              <div className="truncate text-sm font-semibold text-gray-900 sm:text-lg">{activeTabLabel}</div>
             </div>
             <div className="flex w-full min-w-0 items-center justify-between gap-2 lg:w-auto lg:flex-1 lg:justify-end">
               <div id="topbar-actions" className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible lg:justify-end">
@@ -607,7 +607,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                         {canCreate('orders') && (
                           <button
                             onClick={() => setTab('create')}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+                            className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition sm:px-4 sm:py-2 sm:text-sm"
                           >
                             新增工单
                           </button>
@@ -664,7 +664,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                         </div>
                         <button
                           onClick={() => setShowStockHelp(true)}
-                          className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg text-sm hover:bg-blue-50"
+                          className="px-3 py-1.5 border border-blue-300 text-blue-700 rounded-lg text-xs hover:bg-blue-50 sm:px-4 sm:py-2 sm:text-sm"
                         >
                           存货调整
                         </button>
