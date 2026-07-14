@@ -227,6 +227,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [selectedStockCategories, setSelectedStockCategories] = useState<string[]>(materialCategoryFilterOptions.map((option) => option.value))
   const [showInvalidStocks, setShowInvalidStocks] = useState(false)
   const [showStockHelp, setShowStockHelp] = useState(false)
+  const [stockDataError, setStockDataError] = useState<{ message: string; issues: any[] } | null>(null)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -341,6 +342,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     if (showInvalidStocks) params.set('includeInvalid', '1')
     const res = await fetch(`/api/stocks${params.toString() ? `?${params.toString()}` : ''}`)
     const data = await res.json()
+    if (!res.ok) {
+      setStocks([])
+      setStockDataError({ message: data.error || '库存数据异常', issues: data.issues || [] })
+      showMessage(data.error || '库存数据异常')
+      return
+    }
+    setStockDataError(null)
     setStocks(data.data || [])
   }
 
@@ -1108,6 +1116,27 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {/* 库存管理 */}
         {tab === 'stocks' && (
           <div className="bg-white rounded-lg shadow p-3 sm:p-6">
+            {stockDataError && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                <div className="font-semibold">{stockDataError.message}</div>
+                <div className="mt-1 text-xs text-red-700">库存页已停止展示可能不完整的数据，请先处理以下一致性问题。</div>
+                <div className="mt-3 space-y-2">
+                  {stockDataError.issues.map((issue, index) => (
+                    <div key={`${issue.type || index}-${index}`} className="rounded border border-red-100 bg-white/70 p-2">
+                      <div className="font-medium">{issue.message || issue.type}</div>
+                      <div className="mt-1 space-y-1 text-xs text-red-700">
+                        {(issue.records || []).length > 0 ? (issue.records || []).map((record: any) => (
+                          <div key={record.id || record.code}>
+                            <span className="font-medium">{record.code || record.id}</span>
+                            {record.reasons?.length ? `：${record.reasons.join('；')}` : ''}
+                          </div>
+                        )) : '无明细'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {effectiveStockViewMode === 'list' ? (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1080px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">

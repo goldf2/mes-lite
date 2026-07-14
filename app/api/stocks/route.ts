@@ -15,8 +15,97 @@ const STOCK_BALANCE_FIELDS = [
   'totalCost',
 ] as const
 
+const BALANCE_TOLERANCE = 0.000001
+
 function hasStockBalance(stock: Record<string, unknown>) {
-  return STOCK_BALANCE_FIELDS.some((field) => Math.abs(Number(stock[field] || 0)) > 0.000001)
+  return STOCK_BALANCE_FIELDS.some((field) => Math.abs(Number(stock[field] || 0)) > BALANCE_TOLERANCE)
+}
+
+function closeEnough(left: number, right: number) {
+  return Math.abs(left - right) <= BALANCE_TOLERANCE
+}
+
+async function findStockIntegrityIssues() {
+  const [materialsWithoutStock, productsWithoutStock, allStocks] = await Promise.all([
+    prisma.material.findMany({
+      where: { deletedAt: null, stock: null },
+      select: { id: true, code: true, name: true },
+      take: 20,
+    }),
+    prisma.product.findMany({
+      where: { stock: null },
+      select: { id: true, sku: true, name: true },
+      take: 20,
+    }),
+    prisma.stock.findMany({
+      include: {
+        material: { select: { id: true, code: true, name: true } },
+        product: { select: { id: true, sku: true, name: true } },
+      },
+    }),
+  ])
+
+  const issues: Array<{ type: string; message: string; records: Array<Record<string, unknown>> }> = []
+
+  if (materialsWithoutStock.length > 0) {
+    issues.push({
+      type: 'MATERIAL_WITHOUT_STOCK',
+      message: '存在物料档案没有对应库存余额记录',
+      records: materialsWithoutStock.map((item) => ({ id: item.id, code: item.code, name: item.name })),
+    })
+  }
+
+  if (productsWithoutStock.length > 0) {
+    issues.push({
+      type: 'PRODUCT_WITHOUT_STOCK',
+      message: '存在产品资料没有对应库存余额记录',
+      records: productsWithoutStock.map((item) => ({ id: item.id, code: item.sku, name: item.name })),
+    })
+  }
+
+  const invalidStocks: Array<Record<string, unknown>> = []
+  for (const stock of allStocks) {
+    const qty = Number(stock.qty)
+    const reservedQty = Number(stock.reservedQty)
+    const availableQty = Number(stock.availableQty)
+    const valuationQty = Number(stock.valuationQty)
+    const reservedValuationQty = Number(stock.reservedValuationQty)
+    const availableValuationQty = Number(stock.availableValuationQty)
+    const totalCost = Number(stock.totalCost)
+    const hasMaterial = Boolean(stock.materialId)
+    const hasProduct = Boolean(stock.productId)
+    const reasons: string[] = []
+
+    if (hasMaterial === hasProduct) reasons.push('库存记录必须且只能关联一个物料或产品')
+    if (hasMaterial && !stock.material) reasons.push('库存关联的物料档案不存在')
+    if (hasProduct && !stock.product) reasons.push('库存关联的产品资料不存在')
+    if (qty < -BALANCE_TOLERANCE || reservedQty < -BALANCE_TOLERANCE || availableQty < -BALANCE_TOLERANCE) reasons.push('库存数量不能为负数')
+    if (valuationQty < -BALANCE_TOLERANCE || reservedValuationQty < -BALANCE_TOLERANCE || availableValuationQty < -BALANCE_TOLERANCE) reasons.push('核算库存不能为负数')
+    if (totalCost < -BALANCE_TOLERANCE) reasons.push('库存金额不能为负数')
+    if (reservedQty - qty > BALANCE_TOLERANCE) reasons.push('预留库存不能大于库存')
+    if (reservedValuationQty - valuationQty > BALANCE_TOLERANCE) reasons.push('预留核算库存不能大于核算库存')
+    if (!closeEnough(availableQty, qty - reservedQty)) reasons.push('可用库存必须等于库存减预留')
+    if (!closeEnough(availableValuationQty, valuationQty - reservedValuationQty)) reasons.push('可用核算库存必须等于核算库存减预留核算库存')
+
+    if (reasons.length > 0) {
+      invalidStocks.push({
+        id: stock.id,
+        code: stock.material?.code || stock.product?.sku || stock.materialId || stock.productId || stock.id,
+        name: stock.material?.name || stock.product?.name || '',
+        reasons,
+      })
+    }
+  }
+
+  if (invalidStocks.length > 0) {
+    issues.push({
+      type: 'INVALID_STOCK_BALANCE',
+      message: '存在库存余额数量或关联关系异常',
+      records: invalidStocks.slice(0, 20),
+    })
+  }
+
+  return issues
 }
 
 // GET: 库存查询
@@ -32,6 +121,16 @@ export async function GET(req: NextRequest) {
     const categories = parseCsvFilter(searchParams.get('categories'))
     const customerId = searchParams.get('customerId')
     const includeInvalid = searchParams.get('includeInvalid') === '1'
+    const integrityIssues = await findStockIntegrityIssues()
+    if (integrityIssues.length > 0) {
+      return NextResponse.json(
+        {
+          error: '库存数据一致性异常，请先修复主数据与库存余额',
+          issues: integrityIssues,
+        },
+        { status: 409 }
+      )
+    }
 
     const where: any = {}
     const materialWhere: any = {}
