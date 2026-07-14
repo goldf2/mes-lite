@@ -345,6 +345,7 @@ export default function MaterialInPage({
               options={statusOptions}
               value={selectedStatuses}
               onChange={setSelectedStatuses}
+              storageKey="mes-lite.filters.materialIn.status.order"
             />
             <select
               value={selectedCustomerId}
@@ -401,6 +402,7 @@ export default function MaterialInPage({
                 options={statusOptions}
                 value={selectedStatuses}
                 onChange={setSelectedStatuses}
+                storageKey="mes-lite.filters.materialIn.status.order"
               />
               <select
                 value={selectedCustomerId}

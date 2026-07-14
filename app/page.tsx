@@ -661,6 +661,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                         options={orderStatusOptions}
                         value={selectedOrderStatuses}
                         onChange={setSelectedOrderStatuses}
+                        storageKey="mes-lite.filters.orders.status.order"
                       />
                     )}
                     actions={(
@@ -710,6 +711,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                           value={selectedStockCategories}
                           onChange={handleStockCategoryChange}
                           allLabel="全部物料分类"
+                          storageKey="mes-lite.filters.stocks.category.order"
                         />
                         <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">
                           <input

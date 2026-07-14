@@ -106,7 +106,14 @@ export default function OperatorPage({
 
     onToolbarChange(
       <ResponsiveToolbarActions
-        filters={<StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />}
+        filters={(
+          <StatusCheckboxFilter
+            options={statusOptions}
+            value={selectedStatuses}
+            onChange={setSelectedStatuses}
+            storageKey="mes-lite.filters.operators.status.order"
+          />
+        )}
         actions={(
           <>
             <ViewModeToggle value={viewMode} onChange={setViewMode} />
@@ -125,7 +132,14 @@ export default function OperatorPage({
     <>
       <TopBarPortal>
         <ResponsiveToolbarActions
-          filters={<StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />}
+          filters={(
+            <StatusCheckboxFilter
+              options={statusOptions}
+              value={selectedStatuses}
+              onChange={setSelectedStatuses}
+              storageKey="mes-lite.filters.operators.status.order"
+            />
+          )}
           actions={(
             <>
               <ViewModeToggle value={viewMode} onChange={setViewMode} />

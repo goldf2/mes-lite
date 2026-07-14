@@ -198,7 +198,12 @@ export default function ReturnPage({
       <ResponsiveToolbarActions
         filters={(
           <>
-            <StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />
+            <StatusCheckboxFilter
+              options={statusOptions}
+              value={selectedStatuses}
+              onChange={setSelectedStatuses}
+              storageKey="mes-lite.filters.return.status.order"
+            />
             <select
               value={selectedCustomerId}
               onChange={(e) => setSelectedCustomerId(e.target.value)}
@@ -240,7 +245,12 @@ export default function ReturnPage({
         <ResponsiveToolbarActions
           filters={(
             <>
-              <StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />
+              <StatusCheckboxFilter
+                options={statusOptions}
+                value={selectedStatuses}
+                onChange={setSelectedStatuses}
+                storageKey="mes-lite.filters.return.status.order"
+              />
               <select
                 value={selectedCustomerId}
                 onChange={(e) => setSelectedCustomerId(e.target.value)}

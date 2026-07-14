@@ -249,7 +249,12 @@ export default function ShipmentPage({
       <ResponsiveToolbarActions
         filters={(
           <>
-            <StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />
+            <StatusCheckboxFilter
+              options={statusOptions}
+              value={selectedStatuses}
+              onChange={setSelectedStatuses}
+              storageKey="mes-lite.filters.shipment.status.order"
+            />
             <select
               value={selectedCustomerId}
               onChange={(e) => setSelectedCustomerId(e.target.value)}
@@ -291,7 +296,12 @@ export default function ShipmentPage({
         <ResponsiveToolbarActions
           filters={(
             <>
-              <StatusCheckboxFilter options={statusOptions} value={selectedStatuses} onChange={setSelectedStatuses} />
+              <StatusCheckboxFilter
+                options={statusOptions}
+                value={selectedStatuses}
+                onChange={setSelectedStatuses}
+                storageKey="mes-lite.filters.shipment.status.order"
+              />
               <select
                 value={selectedCustomerId}
                 onChange={(e) => setSelectedCustomerId(e.target.value)}

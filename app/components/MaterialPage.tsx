@@ -571,6 +571,7 @@ export default function MaterialPage({
               value={selectedCategories}
               onChange={setSelectedCategories}
               allLabel="全部分类"
+              storageKey="mes-lite.filters.materials.category.order"
             />
             <input
               type="text"
@@ -656,6 +657,7 @@ export default function MaterialPage({
                 value={selectedCategories}
                 onChange={setSelectedCategories}
                 allLabel="全部分类"
+                storageKey="mes-lite.filters.materials.category.order"
               />
               <input
                 type="text"
