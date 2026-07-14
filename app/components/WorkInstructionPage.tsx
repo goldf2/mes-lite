@@ -364,6 +364,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const [pagination, setPagination] = useState<PaginationState>({ page: 1, pageSize: 20, total: 0, totalPages: 1 })
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<WorkInstruction | null>(null)
+  const [detailEditing, setDetailEditing] = useState(false)
+  const [detailFullscreen, setDetailFullscreen] = useState(false)
   const [form, setForm] = useState<WorkInstructionForm>(createEmptyForm())
   const [loading, setLoading] = useState(false)
   const [detail, setDetail] = useState<WorkInstruction | null>(null)
@@ -506,6 +508,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
   const openAddModal = () => {
     setEditing(null)
+    setDetailEditing(false)
     setForm(createEmptyForm())
     setShowModal(true)
   }
@@ -513,10 +516,12 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const openDetail = (instruction: WorkInstruction, focusUpload = false) => {
     ensureMaterialOption(instruction.material)
     setFocusUploadOnOpen(focusUpload)
+    setDetailEditing(false)
+    setDetailFullscreen(false)
     setDetail(instruction)
   }
 
-  const openEditModal = (instruction: WorkInstruction) => {
+  const startDetailEdit = (instruction: WorkInstruction) => {
     ensureMaterialOption(instruction.material)
     setEditing(instruction)
     setForm({
@@ -530,7 +535,19 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       processName: instruction.processName || '',
       note: instruction.note || '',
     })
-    setShowModal(true)
+    setDetailEditing(true)
+  }
+
+  const cancelDetailEdit = () => {
+    setDetailEditing(false)
+    setEditing(null)
+  }
+
+  const closeDetail = () => {
+    setDetail(null)
+    setDetailFullscreen(false)
+    setDetailEditing(false)
+    setEditing(null)
   }
 
   const submitForm = async () => {
@@ -559,9 +576,15 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       })
       const data = await res.json()
       if (res.ok) {
+        const savedInstruction = data.data
+        const wasEditing = Boolean(editing)
         onMessage(editing ? '作业指导书已更新' : '作业指导书已创建，请上传图片或 PDF')
         setShowModal(false)
         setEditing(null)
+        setDetailEditing(false)
+        if (wasEditing && savedInstruction && detail?.id === savedInstruction.id) {
+          setDetail({ ...detail, ...savedInstruction })
+        }
         if (!editing && data.data) {
           const createdInstruction: WorkInstruction = {
             ...data.data,
@@ -592,7 +615,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       const data = await res.json()
       if (res.ok) {
         onMessage(data.message || '作业指导书已归档')
-        if (detail?.id === instruction.id) setDetail(null)
+        if (detail?.id === instruction.id) closeDetail()
         await fetchInstructions()
       } else {
         onMessage(data.error || '归档失败')
@@ -798,23 +821,9 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                     <button
                       type="button"
                       onClick={() => openDetail(instruction)}
-                      className="rounded border border-blue-300 px-2.5 py-1 text-xs text-blue-700 transition hover:bg-blue-50"
+                      className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-700"
                     >
-                      查看
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openDetail(instruction, true)}
-                      className="rounded border border-green-300 px-2.5 py-1 text-xs text-green-700 transition hover:bg-green-50"
-                    >
-                      上传
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(instruction)}
-                      className="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-700 transition hover:bg-gray-50"
-                    >
-                      编辑
+                      打开
                     </button>
                     <button
                       type="button"
@@ -832,7 +841,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         ) : (
           <>
             <div className="overflow-x-auto rounded-lg border border-gray-100">
-              <table className="w-full min-w-[1120px]">
+              <table className="w-full min-w-[1040px]">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="w-24 px-4 py-3 text-left text-sm font-semibold text-gray-600">预览</th>
@@ -843,7 +852,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                     <th className="w-44 px-4 py-3 text-left text-sm font-semibold text-gray-600">关联物料</th>
                     <th className="w-36 px-4 py-3 text-left text-sm font-semibold text-gray-600">客户</th>
                     <th className="w-28 px-4 py-3 text-left text-sm font-semibold text-gray-600">文件</th>
-                    <th className="w-56 px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
+                    <th className="w-36 px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -865,9 +874,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       <td className="px-4 py-3 text-sm">{instruction.customer?.name || instruction.material?.customer?.name || '通用/未绑定'}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm">{instruction.imageCount} 图 / {instruction.pdfCount} PDF</td>
                       <td className="whitespace-nowrap px-4 py-3">
-                        <button onClick={() => openDetail(instruction)} className="rounded border border-blue-300 px-3 py-1 text-xs text-blue-700 hover:bg-blue-50">查看</button>
-                        <button onClick={() => openDetail(instruction, true)} className="ml-2 rounded border border-green-300 px-3 py-1 text-xs text-green-700 hover:bg-green-50">上传</button>
-                        <button onClick={() => openEditModal(instruction)} className="ml-2 rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50">编辑</button>
+                        <button onClick={() => openDetail(instruction)} className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700">打开</button>
                         <button onClick={() => archiveInstruction(instruction)} className="ml-2 rounded border border-amber-300 px-3 py-1 text-xs text-amber-700 hover:bg-amber-50">归档</button>
                       </td>
                     </tr>
@@ -884,7 +891,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl">
             <div className="flex shrink-0 items-center justify-between border-b px-6 py-4">
-              <h3 className="text-lg font-semibold text-gray-900">{editing ? '编辑作业指导书' : '新增作业指导书'}</h3>
+              <h3 className="text-lg font-semibold text-gray-900">新增作业指导书</h3>
               <button onClick={() => setShowModal(false)} className="text-2xl text-gray-400 hover:text-gray-700">&times;</button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
@@ -949,29 +956,13 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                 </div>
               </div>
               <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                {editing ? (
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <span>图片和 PDF 文件在详情页上传和预览。</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowModal(false)
-                        openDetail(editing, true)
-                      }}
-                      className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
-                    >
-                      去上传文件
-                    </button>
-                  </div>
-                ) : (
-                  '新建指导书先保存基础信息，保存成功后会自动打开上传区域。'
-                )}
+                新建指导书先保存基础信息，保存成功后会自动打开上传区域。
               </div>
             </div>
             <div className="flex shrink-0 gap-3 border-t bg-white px-6 py-4">
               <button onClick={() => setShowModal(false)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50">取消</button>
               <button onClick={submitForm} disabled={loading} className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50">
-                {loading ? '保存中...' : editing ? '保存' : '保存并上传文件'}
+                {loading ? '保存中...' : '保存并上传文件'}
               </button>
             </div>
           </div>
@@ -979,46 +970,125 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       )}
 
       {detail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4">
-          <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
+        <div className={`fixed inset-0 z-50 flex items-center justify-center ${detailFullscreen ? 'bg-white p-0' : 'bg-black/50 p-3 sm:p-4'}`}>
+          <div className={`flex flex-col overflow-hidden bg-white shadow-xl ${detailFullscreen ? 'h-screen w-screen' : 'max-h-[92vh] w-full max-w-6xl rounded-lg'}`}>
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-6">
               <div className="min-w-0">
                 <div className="font-mono text-sm text-blue-700">{detail.code}</div>
                 <h3 className="truncate text-lg font-semibold text-gray-900">{detail.title}</h3>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <label className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={detailFullscreen}
+                    onChange={(event) => setDetailFullscreen(event.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                  />
+                  全屏显示
+                </label>
                 <button
-                  onClick={() => {
-                    detailUploadRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-                    uploadInputRef.current?.click()
-                  }}
-                  disabled={uploading}
-                  className="rounded-md bg-green-600 px-3 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50"
+                  onClick={() => detailEditing ? cancelDetailEdit() : startDetailEdit(detail)}
+                  className={`rounded-md px-3 py-2 text-sm ${
+                    detailEditing ? 'border border-gray-300 text-gray-700 hover:bg-gray-50' : 'border border-blue-300 text-blue-700 hover:bg-blue-50'
+                  }`}
                 >
-                  上传文件
+                  {detailEditing ? '退出编辑' : '编辑信息'}
                 </button>
-                <button onClick={() => openEditModal(detail)} className="rounded-md border border-blue-300 px-3 py-2 text-sm text-blue-700 hover:bg-blue-50">编辑</button>
-                <button onClick={() => setDetail(null)} className="h-9 w-9 text-2xl text-gray-400 hover:text-gray-700" aria-label="关闭详情">&times;</button>
+                <button onClick={closeDetail} className="h-9 w-9 text-2xl text-gray-400 hover:text-gray-700" aria-label="关闭详情">&times;</button>
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-              <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]">
+              <div className={`grid grid-cols-1 gap-5 ${detailFullscreen ? 'xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]' : 'lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]'}`}>
                 <section className="space-y-3">
-                  <div className="rounded-lg border border-gray-200 p-4">
-                    <div className="flex flex-wrap gap-2">
-                      <InstructionBadge>{categoryLabels[detail.category] || detail.category}</InstructionBadge>
-                      <InstructionBadge tone={detail.status === 'ACTIVE' ? 'green' : detail.status === 'DRAFT' ? 'amber' : 'gray'}>{statusLabels[detail.status] || detail.status}</InstructionBadge>
-                      <InstructionBadge tone="blue">{detail.version}</InstructionBadge>
+                  {detailEditing ? (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-4">
+                      <div className="mb-3 text-sm font-semibold text-gray-900">基础信息</div>
+                      <div className="grid grid-cols-1 gap-3">
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-gray-600">指导书编码 *</label>
+                          <input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-gray-600">标题 *</label>
+                          <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-gray-600">类型</label>
+                            <select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                              {instructionCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-gray-600">状态</label>
+                            <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                              {instructionStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-gray-600">版本</label>
+                            <input value={form.version} onChange={(event) => setForm({ ...form, version: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-gray-600">客户</label>
+                          <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                            <option value="">通用/未绑定客户</option>
+                            {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} ({customer.code})</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-gray-600">关联物料</label>
+                          <MaterialSearchSelect
+                            value={form.materialId}
+                            options={materials}
+                            selectedOption={selectedMaterial}
+                            onSearch={fetchMaterials}
+                            onChange={(nextValue, material) => {
+                              setForm({
+                                ...form,
+                                materialId: nextValue,
+                                customerId: form.customerId || material?.customerId || '',
+                              })
+                            }}
+                            placeholder="输入物料编码、名称或规格搜索"
+                            emptyLabel="不绑定物料"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-gray-600">适用工序</label>
+                          <input value={form.processName} onChange={(event) => setForm({ ...form, processName: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-gray-600">备注</label>
+                          <textarea rows={3} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                        </div>
+                      </div>
+                      <div className="mt-4 flex justify-end gap-2">
+                        <button onClick={cancelDetailEdit} className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+                        <button onClick={submitForm} disabled={loading} className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
+                          {loading ? '保存中...' : '保存信息'}
+                        </button>
+                      </div>
                     </div>
-                    <div className="mt-4 space-y-2 text-sm text-gray-600">
-                      <div>客户：{detail.customer?.name || detail.material?.customer?.name || '通用/未绑定'}</div>
-                      <div>物料：{detail.material ? `${detail.material.code} · ${detail.material.name}` : '未绑定'}</div>
-                      {detail.material?.spec && <div>规格：{detail.material.spec}</div>}
-                      <div>工序：{detail.processName || '-'}</div>
-                      <div>创建时间：{formatDate(detail.createdAt)}</div>
+                  ) : (
+                    <div className="rounded-lg border border-gray-200 p-4">
+                      <div className="flex flex-wrap gap-2">
+                        <InstructionBadge>{categoryLabels[detail.category] || detail.category}</InstructionBadge>
+                        <InstructionBadge tone={detail.status === 'ACTIVE' ? 'green' : detail.status === 'DRAFT' ? 'amber' : 'gray'}>{statusLabels[detail.status] || detail.status}</InstructionBadge>
+                        <InstructionBadge tone="blue">{detail.version}</InstructionBadge>
+                      </div>
+                      <div className="mt-4 space-y-2 text-sm text-gray-600">
+                        <div>客户：{detail.customer?.name || detail.material?.customer?.name || '通用/未绑定'}</div>
+                        <div>物料：{detail.material ? `${detail.material.code} · ${detail.material.name}` : '未绑定'}</div>
+                        {detail.material?.spec && <div>规格：{detail.material.spec}</div>}
+                        <div>工序：{detail.processName || '-'}</div>
+                        <div>创建时间：{formatDate(detail.createdAt)}</div>
+                      </div>
+                      {detail.note && <div className="mt-4 whitespace-pre-wrap rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600">{detail.note}</div>}
                     </div>
-                    {detail.note && <div className="mt-4 whitespace-pre-wrap rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600">{detail.note}</div>}
-                  </div>
+                  )}
 
                   <div ref={detailUploadRef} className="rounded-lg border-2 border-dashed border-green-300 bg-green-50/40 p-4">
                     <div className="mb-3 flex items-center justify-between">
@@ -1083,7 +1153,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   {detailAttachments.length === 0 ? (
                     <div className="flex min-h-72 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500">暂无图片或 PDF</div>
                   ) : (
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${detailFullscreen ? 'xl:grid-cols-3 2xl:grid-cols-4' : 'xl:grid-cols-3'}`}>
                       {detailAttachments.map((attachment, index) => (
                         <article key={attachment.id} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
                           <button
@@ -1100,7 +1170,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                               <span>{formatDate(attachment.createdAt)}</span>
                             </div>
                             <div className="mt-3 flex justify-end gap-2">
-                              <button onClick={() => openViewer(detail, detailAttachments, index)} className="rounded border border-blue-300 px-2.5 py-1 text-xs text-blue-700 hover:bg-blue-50">全屏</button>
+                              <button onClick={() => openViewer(detail, detailAttachments, index)} className="rounded border border-blue-300 px-2.5 py-1 text-xs text-blue-700 hover:bg-blue-50">打开</button>
                               <button onClick={() => archiveAttachment(attachment)} className="rounded border border-amber-300 px-2.5 py-1 text-xs text-amber-700 hover:bg-amber-50">归档</button>
                             </div>
                           </div>
