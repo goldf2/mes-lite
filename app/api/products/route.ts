@@ -62,15 +62,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '产品编码已存在' }, { status: 400 })
     }
 
-    const product = await prisma.product.create({
-      data: {
-        sku: data.sku,
-        name: data.name,
-        category: data.category,
-        customerId: data.customerId || null,
-        unit: data.unit,
-        description: data.description || null,
-      },
+    const product = await prisma.$transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: {
+          sku: data.sku,
+          name: data.name,
+          category: data.category,
+          customerId: data.customerId || null,
+          unit: data.unit,
+          description: data.description || null,
+        },
+      })
+
+      await tx.stock.create({
+        data: { productId: created.id },
+      })
+
+      return created
     })
 
     await writeAuditLog(req, {
