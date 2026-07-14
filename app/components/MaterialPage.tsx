@@ -44,6 +44,13 @@ interface Customer {
   name: string
 }
 
+interface PaginationState {
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
+}
+
 const materialCategoryLabels: Record<string, string> = {
   RAW: '原材料',
   FINISHED: '成品',
@@ -161,6 +168,75 @@ function MaterialFieldVisibilityControl({
   )
 }
 
+function MaterialPagination({
+  pagination,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  pagination: PaginationState
+  pageSize: number
+  onPageChange: (page: number) => void
+  onPageSizeChange: (pageSize: number) => void
+}) {
+  const totalPages = Math.max(1, pagination.totalPages || 1)
+  const currentPage = Math.min(Math.max(1, pagination.page || 1), totalPages)
+  const start = pagination.total === 0 ? 0 : (currentPage - 1) * pageSize + 1
+  const end = Math.min(pagination.total, currentPage * pageSize)
+
+  return (
+    <div className="mt-4 flex flex-col gap-3 rounded-lg border border-gray-100 bg-white px-3 py-3 text-sm text-gray-600 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+      <div className="whitespace-nowrap">
+        共 {pagination.total} 条，当前 {start}-{end} 条，第 {currentPage}/{totalPages} 页
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={pageSize}
+          onChange={(event) => onPageSizeChange(Number(event.target.value))}
+          className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm"
+        >
+          <option value={20}>20 条/页</option>
+          <option value={50}>50 条/页</option>
+          <option value={100}>100 条/页</option>
+          <option value={200}>200 条/页</option>
+        </select>
+        <button
+          type="button"
+          onClick={() => onPageChange(1)}
+          disabled={currentPage <= 1}
+          className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          首页
+        </button>
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage <= 1}
+          className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          上一页
+        </button>
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage >= totalPages}
+          className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          下一页
+        </button>
+        <button
+          type="button"
+          onClick={() => onPageChange(totalPages)}
+          disabled={currentPage >= totalPages}
+          className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          末页
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function MaterialPage({
   onMessage,
   onToolbarChange,
@@ -173,6 +249,9 @@ export default function MaterialPage({
   const [keyword, setKeyword] = useState('')
   const [customerFilter, setCustomerFilter] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<string[]>(materialCategoryFilterOptions.map((option) => option.value))
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const [pagination, setPagination] = useState<PaginationState>({ page: 1, pageSize: 20, total: 0, totalPages: 1 })
   const [showModal, setShowModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null)
@@ -191,7 +270,11 @@ export default function MaterialPage({
 
   useEffect(() => {
     fetchMaterials()
-  }, [keyword, selectedCategories, customerFilter])
+  }, [keyword, selectedCategories, customerFilter, page, pageSize])
+
+  useEffect(() => {
+    setPage(1)
+  }, [keyword, selectedCategories, customerFilter, pageSize])
 
   useEffect(() => {
     fetchCustomers()
@@ -219,6 +302,8 @@ export default function MaterialPage({
 
   const buildMaterialParams = () => {
     const params = new URLSearchParams()
+    params.set('page', String(page))
+    params.set('pageSize', String(pageSize))
     if (keyword) params.set('keyword', keyword)
     if (customerFilter) params.set('customerId', customerFilter)
     const categoryQuery = getMultiSelectQuery('categories', selectedCategories, materialCategoryFilterOptions)
@@ -235,7 +320,12 @@ export default function MaterialPage({
     const res = await fetch(url)
     const data = await res.json()
     const nextMaterials: Material[] = data.data || []
+    const nextPagination = data.pagination || { page, pageSize, total: nextMaterials.length, totalPages: 1 }
     setMaterials(nextMaterials)
+    setPagination(nextPagination)
+    if (nextPagination.total > 0 && nextPagination.page > nextPagination.totalPages) {
+      setPage(nextPagination.totalPages)
+    }
     setDetailMaterial((current) => current ? nextMaterials.find((item) => item.id === current.id) || current : null)
   }
 
@@ -303,6 +393,7 @@ export default function MaterialPage({
         onMessage(`导入完成：共 ${summary.total || 0} 行，新增 ${summary.created || 0}，更新 ${summary.updated || 0}，跳过 ${summary.skipped || 0}`)
         setShowImportModal(false)
         setImportFile(null)
+        setPage(1)
         fetchMaterials()
       } else {
         setImportErrors(data.details || [data.error || '导入失败'])
@@ -374,6 +465,7 @@ export default function MaterialPage({
       setShowModal(false)
       setForm(createEmptyMaterialForm())
       setEditingMaterial(null)
+      setPage(1)
       fetchMaterials()
     } catch (err) {
       onMessage('操作失败')
@@ -592,9 +684,10 @@ export default function MaterialPage({
             </button>
           </div>
         ) : effectiveViewMode === 'card' ? (
-          <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {materials.map((material) => (
-              <div key={material.id} className="flex flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:shadow-none">
+          <>
+            <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {materials.map((material) => (
+                <div key={material.id} className="flex flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:shadow-none">
                 <div className="flex gap-3">
                   {showField('image') && (
                     <button
@@ -657,12 +750,20 @@ export default function MaterialPage({
                     归档
                   </button>
                 </div>
-              </div>
-            ))}
-          </div>
+                </div>
+              ))}
+            </div>
+            <MaterialPagination
+              pagination={pagination}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          </>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-gray-100">
-            <table className="w-full min-w-max">
+          <>
+            <div className="overflow-x-auto rounded-lg border border-gray-100">
+              <table className="w-full min-w-max">
               <thead className="bg-gray-50">
                 <tr>
                   {showField('image') && <th className="w-20 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">图片</th>}
@@ -732,8 +833,15 @@ export default function MaterialPage({
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
+            <MaterialPagination
+              pagination={pagination}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          </>
         )}
       </div>
 

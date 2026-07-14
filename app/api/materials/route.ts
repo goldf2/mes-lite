@@ -31,8 +31,10 @@ export async function GET(req: NextRequest) {
     const category = searchParams.get('category')
     const categories = parseCsvFilter(searchParams.get('categories'))
     const customerId = searchParams.get('customerId')
-    const page = parseInt(searchParams.get('page') || '1')
-    const pageSize = parseInt(searchParams.get('pageSize') || '20')
+    const rawPage = parseInt(searchParams.get('page') || '1')
+    const rawPageSize = parseInt(searchParams.get('pageSize') || '20')
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
+    const pageSize = Number.isFinite(rawPageSize) && rawPageSize > 0 ? Math.min(rawPageSize, 200) : 20
 
     const where: any = { deletedAt: null }
     if (categories.length === 1) where.category = categories[0]
