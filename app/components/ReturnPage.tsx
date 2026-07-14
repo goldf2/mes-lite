@@ -6,6 +6,7 @@ import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
+import useCompactViewport from './useCompactViewport'
 
 interface Product {
   id: string
@@ -71,6 +72,8 @@ export default function ReturnPage({
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.return.viewMode', 'list')
+  const isCompactViewport = useCompactViewport()
+  const effectiveViewMode = isCompactViewport ? 'card' : viewMode
 
   const [form, setForm] = useState({
     productId: '',
@@ -207,15 +210,17 @@ export default function ReturnPage({
         )}
         actions={(
           <>
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
+            <div className="hidden sm:block">
+              <ViewModeToggle value={viewMode} onChange={setViewMode} />
+            </div>
             <button
               onClick={() => {
                 resetForm()
                 setShowModal(true)
               }}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+              className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
             >
-              新增退货单
+              新增
             </button>
           </>
         )}
@@ -247,31 +252,33 @@ export default function ReturnPage({
           )}
           actions={(
             <>
-              <ViewModeToggle value={viewMode} onChange={setViewMode} />
+              <div className="hidden sm:block">
+                <ViewModeToggle value={viewMode} onChange={setViewMode} />
+              </div>
               <button
                 onClick={() => {
                   resetForm()
                   setShowModal(true)
                 }}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+                className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
               >
-                新增退货单
+                新增
               </button>
             </>
           )}
         />
       </TopBarPortal>
       <div className="space-y-4">
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow p-3 sm:p-6">
         {returns.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-8 text-gray-500 sm:py-12">
             <p className="text-4xl mb-4">↩️</p>
             <p>暂无退货单</p>
           </div>
-        ) : viewMode === 'card' ? (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        ) : effectiveViewMode === 'card' ? (
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {returns.map((item) => (
-              <div key={item.id} className="rounded-lg border border-gray-200 bg-white p-4">
+              <div key={item.id} className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="font-mono text-sm font-semibold text-blue-700">{item.returnNo}</div>
@@ -281,7 +288,7 @@ export default function ReturnPage({
                     {statusLabels[item.status] || item.status}
                   </span>
                 </div>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="mt-3 grid gap-3 md:grid-cols-2 sm:mt-4">
                   <div>
                     <div className="text-xs text-gray-500">产品</div>
                     <div className="mt-1 font-medium text-gray-900">{item.product?.name}</div>

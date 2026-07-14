@@ -6,6 +6,7 @@ import StatusCheckboxFilter, { getMultiSelectQuery } from './StatusCheckboxFilte
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
+import useCompactViewport from './useCompactViewport'
 
 interface Material {
   id: string
@@ -63,20 +64,6 @@ const materialCategoryOptions = [
 ] as const
 
 const materialCategoryFilterOptions = materialCategoryOptions.map(([value, label]) => ({ value, label }))
-
-function useCompactViewport() {
-  const [isCompact, setIsCompact] = useState(false)
-
-  useEffect(() => {
-    const query = window.matchMedia('(max-width: 639px)')
-    const update = () => setIsCompact(query.matches)
-    update()
-    query.addEventListener('change', update)
-    return () => query.removeEventListener('change', update)
-  }, [])
-
-  return isCompact
-}
 
 export default function MaterialPage({
   onMessage,
@@ -311,9 +298,9 @@ export default function MaterialPage({
             </div>
             <button
               onClick={handleAdd}
-              className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
+              className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
             >
-              + 新增物料
+              新增
             </button>
           </>
         )}
@@ -362,9 +349,9 @@ export default function MaterialPage({
               </div>
               <button
                 onClick={handleAdd}
-                className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
+                className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
               >
-                + 新增物料
+                新增
               </button>
             </>
           )}

@@ -100,7 +100,7 @@ export default function ResponsiveToolbarActions({ children, filters, actions }:
                 onClick={() => setOpen((next) => !next)}
                 className="whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:px-3 sm:py-2 sm:text-sm"
               >
-                筛选/操作
+                筛选
               </button>
               {open && (
                 <div className="absolute left-0 right-auto top-full z-50 mt-2 w-[min(88vw,420px)] rounded-lg border border-gray-200 bg-white p-2 shadow-lg sm:left-auto sm:right-0 sm:p-3">

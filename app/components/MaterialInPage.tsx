@@ -6,6 +6,7 @@ import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
+import useCompactViewport from './useCompactViewport'
 
 interface Supplier {
   id: string
@@ -98,6 +99,8 @@ export default function MaterialInPage({
   const [showModal, setShowModal] = useState(false)
   const [editingItem, setEditingItem] = useState<MaterialIn | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.materialIn.viewMode', 'list')
+  const isCompactViewport = useCompactViewport()
+  const effectiveViewMode = isCompactViewport ? 'card' : viewMode
 
   const [form, setForm] = useState({
     supplierId: '',
@@ -363,15 +366,17 @@ export default function MaterialInPage({
         )}
         actions={(
           <>
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
+            <div className="hidden sm:block">
+              <ViewModeToggle value={viewMode} onChange={setViewMode} />
+            </div>
             <button
               onClick={() => {
                 resetForm()
                 setShowModal(true)
               }}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+              className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
             >
-              新增来料单
+              新增
             </button>
           </>
         )}
@@ -417,31 +422,33 @@ export default function MaterialInPage({
           )}
           actions={(
             <>
-              <ViewModeToggle value={viewMode} onChange={setViewMode} />
+              <div className="hidden sm:block">
+                <ViewModeToggle value={viewMode} onChange={setViewMode} />
+              </div>
               <button
                 onClick={() => {
                   resetForm()
                   setShowModal(true)
                 }}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+                className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
               >
-                新增来料单
+                新增
               </button>
             </>
           )}
         />
       </TopBarPortal>
       <div className="space-y-4">
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow p-3 sm:p-6">
         {materialIns.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-8 text-gray-500 sm:py-12">
             <p className="text-4xl mb-4">📦</p>
             <p>暂无来料单</p>
           </div>
-        ) : viewMode === 'card' ? (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        ) : effectiveViewMode === 'card' ? (
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {materialIns.map((item) => (
-              <div key={item.id} className="rounded-lg border border-gray-200 bg-white p-4">
+              <div key={item.id} className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="font-mono text-sm font-semibold text-blue-700">{item.inboundNo}</div>
@@ -451,7 +458,7 @@ export default function MaterialInPage({
                     {statusLabels[item.status] || item.status}
                   </span>
                 </div>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="mt-3 grid gap-3 md:grid-cols-2 sm:mt-4">
                   <div>
                     <div className="text-xs text-gray-500">供应商</div>
                     <div className="mt-1 font-medium text-gray-900">{item.supplier?.name}</div>
@@ -463,21 +470,21 @@ export default function MaterialInPage({
                     <div className="text-xs text-gray-500">{item.material?.code} · 客户：{item.material?.customer?.name || '通用/未绑定'}</div>
                   </div>
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  <div className="rounded bg-gray-50 p-3">
+                <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4 sm:mt-4 sm:gap-3">
+                  <div className="rounded bg-gray-50 p-2 sm:p-3">
                     <div className="text-xs text-gray-500">库存数量</div>
                     <div className="mt-1 font-semibold">{item.qty} {item.unit}</div>
                   </div>
-                  <div className="rounded bg-gray-50 p-3">
+                  <div className="rounded bg-gray-50 p-2 sm:p-3">
                     <div className="text-xs text-gray-500">核算数量</div>
                     <div className="mt-1 font-semibold text-green-700">{item.valuationQty} {item.valuationUnit}</div>
                   </div>
-                  <div className="rounded bg-gray-50 p-3">
+                  <div className="rounded bg-gray-50 p-2 sm:p-3">
                     <div className="text-xs text-gray-500">单价</div>
                     <div className="mt-1 font-semibold">¥{item.unitPrice.toFixed(4)}</div>
                     <div className="text-[11px] text-gray-500">/{item.priceUnit || item.valuationUnit}</div>
                   </div>
-                  <div className="rounded bg-gray-50 p-3">
+                  <div className="rounded bg-gray-50 p-2 sm:p-3">
                     <div className="text-xs text-gray-500">金额</div>
                     <div className="mt-1 font-semibold">¥{item.totalAmount.toFixed(2)}</div>
                   </div>

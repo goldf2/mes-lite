@@ -15,6 +15,7 @@ import PermissionPage from './components/PermissionPage'
 import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
 import ViewModeToggle, { usePersistedViewMode } from './components/ViewModeToggle'
+import useCompactViewport from './components/useCompactViewport'
 
 // ==================== 类型定义 ====================
 
@@ -167,20 +168,6 @@ const orderStatusOptions = [
 ]
 
 const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0'
-
-function useCompactViewport() {
-  const [isCompact, setIsCompact] = useState(false)
-
-  useEffect(() => {
-    const query = window.matchMedia('(max-width: 639px)')
-    const update = () => setIsCompact(query.matches)
-    update()
-    query.addEventListener('change', update)
-    return () => query.removeEventListener('change', update)
-  }, [])
-
-  return isCompact
-}
 
 // ==================== 主组件 ====================
 
@@ -607,9 +594,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                         {canCreate('orders') && (
                           <button
                             onClick={() => setTab('create')}
-                            className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition sm:px-4 sm:py-2 sm:text-sm"
+                            className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition sm:px-4 sm:py-2 sm:text-sm"
                           >
-                            新增工单
+                            新增
                           </button>
                         )}
                       </>
@@ -664,9 +651,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                         </div>
                         <button
                           onClick={() => setShowStockHelp(true)}
-                          className="px-3 py-1.5 border border-blue-300 text-blue-700 rounded-lg text-xs hover:bg-blue-50 sm:px-4 sm:py-2 sm:text-sm"
+                          className="shrink-0 whitespace-nowrap px-3 py-1.5 border border-blue-300 text-blue-700 rounded-lg text-xs hover:bg-blue-50 sm:px-4 sm:py-2 sm:text-sm"
                         >
-                          存货调整
+                          调整
                         </button>
                       </>
                     )}
@@ -679,7 +666,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
                 >
                   <span className="hidden max-w-32 truncate sm:inline">{operator.name}</span>
-                  <span className="sm:hidden">账号</span>
+                  <span className="sm:hidden">我</span>
                   <span className="text-gray-400">▾</span>
                 </button>
                 {systemMenuOpen && (
