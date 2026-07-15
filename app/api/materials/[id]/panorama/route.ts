@@ -199,10 +199,7 @@ export async function GET(
       prisma.workInstruction.findMany({
         where: {
           deletedAt: null,
-          OR: [
-            { materialId: material.id },
-            ...(material.customerId ? [{ customerId: material.customerId }] : []),
-          ],
+          materialId: material.id,
         },
         include: {
           customer: { select: { id: true, code: true, name: true } },
