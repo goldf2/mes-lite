@@ -214,7 +214,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'return', label: '退货管理', resource: 'return' },
     { key: 'stocks', label: '库存管理', resource: 'stocks' },
     { key: 'stats', label: '统计分析', resource: 'stats' },
-    { key: 'sawingCost', label: '锯切成本', resource: 'stats' },
+    { key: 'sawingCost', label: '锯切成本', resource: 'sawingCost' },
     { key: 'operators', label: '人员管理', resource: 'operators' },
     { key: 'system', label: '系统管理', resource: 'system' },
     { key: 'permissionUsers', label: '人员权限', resource: 'permissionUsers' },

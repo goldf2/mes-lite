@@ -117,8 +117,69 @@ model ProcessTemplate {
   description   String?
   isPreset      Boolean  @default(false)
   materials     Material[]
+  sawingScenarios SawingCostScenario[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model SawingCostScenario {
+  id                   String   @id @default(cuid())
+  name                 String
+  materialLength       Float
+  materialWeight       Float
+  workpieceLength      Float
+  bladeThickness       Float
+  rawMaterialPrice     Float
+  sawdustPrice         Float
+  scrapPrice           Float
+  finishedPrice        Float
+  quantity             Int
+  utilization          Float
+  productWeight        Float
+  sawdustWeight        Float
+  scrapWeight          Float
+  netMaterialCost      Float
+  materialCostPerPiece Float
+  profitPerPiece       Float
+  totalRevenue         Float
+  totalProfit          Float
+  grossMargin          Float
+  additionalDirectCost Float   @default(0)
+  laborCost             Float   @default(0)
+  fixedCost             Float   @default(0)
+  directStageCost       Float   @default(0)
+  manufacturingCost    Float   @default(0)
+  fullCost              Float   @default(0)
+  directProfit          Float   @default(0)
+  manufacturingProfit  Float   @default(0)
+  fullProfit            Float   @default(0)
+  directMargin          Float   @default(0)
+  manufacturingMargin  Float   @default(0)
+  fullMargin            Float   @default(0)
+  processTemplates     ProcessTemplate[]
+  costItems            ProductionCostItem[]
+  createdBy            String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model ProductionCostItem {
+  id          String   @id @default(cuid())
+  scenarioId  String
+  scenario    SawingCostScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  stage       String
+  name        String
+  method      String
+  inputA      Float    @default(0)
+  inputB      Float    @default(0)
+  inputC      Float    @default(0)
+  amount      Float
+  isDeduction Boolean  @default(false)
+  note        String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([scenarioId, stage])
 }
 
 // ==================== 生产工单 ====================

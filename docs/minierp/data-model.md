@@ -479,6 +479,37 @@ SKU，实际库存单位。
 
 - `owner_type + owner_id`
 
+### sawing_cost_scenarios（当前 Prisma 已实现）
+
+锯切成本计算方案。保存当次输入、材料口径计算结果和加工工艺组合，用于多方案对比。
+
+| 字段 | 含义 |
+| --- | --- |
+| id | 方案 ID |
+| name | 方案名称 |
+| material_length / material_weight | 材料长度与总重量 |
+| workpiece_length / blade_thickness | 工件长度与锯缝 |
+| raw_material_price / sawdust_price / scrap_price | 原料及回收单价 |
+| finished_price | 成品单价 |
+| quantity / utilization | 可加工数量与材料利用率 |
+| net_material_cost / material_cost_per_piece | 净材料成本与单件材料成本 |
+| profit_per_piece / total_profit / gross_margin | 材料口径毛利结果 |
+| process_templates | 多对多关联的加工工艺模板 |
+
+### production_cost_items（当前 Prisma 已实现）
+
+保存成本方案中用户自行录入的费用明细。
+
+| 字段 | 含义 |
+| --- | --- |
+| scenario_id | 所属锯切/生产成本方案 |
+| stage | `DIRECT`、`LABOR`、`FIXED` |
+| name | 用户自定义费用名称 |
+| method | 直接金额、数量单价、人数工时、计件或周转分摊 |
+| input_a / input_b / input_c | 计算方法所需的数值快照 |
+| amount | 当时计算结果 |
+| is_deduction | 是否为回收价值或其他抵扣 |
+
 ## 核心关系
 
 ```mermaid
