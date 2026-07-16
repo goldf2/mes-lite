@@ -6,6 +6,7 @@ import DispatchPage from './components/DispatchPage'
 import ShipmentPage from './components/ShipmentPage'
 import ReturnPage from './components/ReturnPage'
 import StatsPage from './components/StatsPage'
+import SawingCostCalculatorPage from './components/SawingCostCalculatorPage'
 import MaterialPage from './components/MaterialPage'
 import WorkInstructionPage from './components/WorkInstructionPage'
 import AttachmentPanel from './components/AttachmentPanel'
@@ -110,7 +111,7 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'operators' | 'system' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
+type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'operators' | 'system' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
 
 // ==================== 菜单图标组件 ====================
 
@@ -126,6 +127,7 @@ function MenuIcon({ icon }: { icon: string }) {
     shipment: '发',
     return: '退',
     stats: '析',
+    sawingCost: '锯',
     operators: '人',
     system: '设',
     permissionUsers: '权',
@@ -212,6 +214,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'return', label: '退货管理', resource: 'return' },
     { key: 'stocks', label: '库存管理', resource: 'stocks' },
     { key: 'stats', label: '统计分析', resource: 'stats' },
+    { key: 'sawingCost', label: '锯切成本', resource: 'stats' },
     { key: 'operators', label: '人员管理', resource: 'operators' },
     { key: 'system', label: '系统管理', resource: 'system' },
     { key: 'permissionUsers', label: '人员权限', resource: 'permissionUsers' },
@@ -1393,6 +1396,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
         {/* 统计分析 */}
         {tab === 'stats' && <StatsPage onMessage={showMessage} />}
+
+        {/* 锯切加工成本计算 */}
+        {tab === 'sawingCost' && <SawingCostCalculatorPage />}
 
         {/* 人员管理 */}
         {tab === 'operators' && <OperatorPage currentOperator={operator} onMessage={showMessage} />}

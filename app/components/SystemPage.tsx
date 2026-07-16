@@ -78,7 +78,26 @@ interface ProcessRoute {
   }>
 }
 
-type SystemTab = 'suppliers' | 'customers' | 'products' | 'process' | 'recycle' | 'audit'
+interface ProcessTemplate {
+  id: string
+  code: string
+  name: string
+  category: string
+  defaultTime?: number | null
+  workstation?: string | null
+  description?: string | null
+  isPreset: boolean
+  materials: Array<{ id: string; code: string; name: string }>
+}
+
+const processCategoryOptions = [
+  ['SAWING', '锯切'], ['DRILLING', '钻孔'], ['TURNING', '车削'], ['MILLING', '铣削'], ['GRINDING', '磨削'],
+  ['HEAT_TREATMENT', '热处理'], ['SURFACE_TREATMENT', '表面处理'], ['ASSEMBLY', '装配'], ['INSPECTION', '检验'], ['OTHER', '其他'],
+] as const
+
+const processCategoryLabel = Object.fromEntries(processCategoryOptions)
+
+type SystemTab = 'suppliers' | 'customers' | 'products' | 'processTemplates' | 'process' | 'recycle' | 'audit'
 
 export default function SystemPage({ onMessage }: { onMessage: (msg: string) => void }) {
   const [tab, setTab] = useState<SystemTab>('suppliers')
@@ -96,7 +115,8 @@ export default function SystemPage({ onMessage }: { onMessage: (msg: string) => 
               ['suppliers', '供应商'],
               ['customers', '客户'],
               ['products', '产品资料'],
-              ['process', 'BOM/工艺'],
+              ['processTemplates', '加工工艺'],
+              ['process', '产品路线'],
               ['recycle', '归档记录'],
               ['audit', '操作记录'],
             ] as const).map(([key, label]) => (
@@ -117,6 +137,7 @@ export default function SystemPage({ onMessage }: { onMessage: (msg: string) => 
       {tab === 'suppliers' && <SupplierManager onMessage={onMessage} />}
       {tab === 'customers' && <CustomerManager onMessage={onMessage} />}
       {tab === 'products' && <ProductManager onMessage={onMessage} />}
+      {tab === 'processTemplates' && <ProcessTemplateManager onMessage={onMessage} />}
       {tab === 'process' && <ProcessManager onMessage={onMessage} />}
       {tab === 'recycle' && <RecycleBin onMessage={onMessage} />}
       {tab === 'audit' && <AuditLogViewer onMessage={onMessage} />}
@@ -829,6 +850,77 @@ function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function ProcessTemplateManager({ onMessage }: { onMessage: (msg: string) => void }) {
+  const [templates, setTemplates] = useState<ProcessTemplate[]>([])
+  const [materials, setMaterials] = useState<Array<{ id: string; code: string; name: string }>>([])
+  const [showModal, setShowModal] = useState(false)
+  const [editing, setEditing] = useState<ProcessTemplate | null>(null)
+  const [form, setForm] = useState({ code: '', name: '', category: 'SAWING', defaultTime: 0, workstation: '', description: '', materialIds: [] as string[] })
+
+  const load = async () => {
+    const [templateRes, materialRes] = await Promise.all([fetch('/api/process-templates'), fetch('/api/materials?pageSize=200&sortBy=code&sortDir=asc')])
+    const [templateData, materialData] = await Promise.all([templateRes.json(), materialRes.json()])
+    if (templateRes.ok) setTemplates(templateData.data || []); else onMessage(templateData.error || '获取加工工艺失败')
+    if (materialRes.ok) setMaterials(materialData.data || [])
+  }
+
+  useEffect(() => { load() }, [])
+
+  const openAdd = () => {
+    setEditing(null)
+    setForm({ code: '', name: '', category: 'SAWING', defaultTime: 0, workstation: '', description: '', materialIds: [] })
+    setShowModal(true)
+  }
+
+  const openEdit = (template: ProcessTemplate) => {
+    setEditing(template)
+    setForm({ code: template.code, name: template.name, category: template.category, defaultTime: template.defaultTime || 0, workstation: template.workstation || '', description: template.description || '', materialIds: template.materials.map((item) => item.id) })
+    setShowModal(true)
+  }
+
+  const submit = async () => {
+    if (!form.code.trim() || !form.name.trim()) return onMessage('模板编码和工艺名称必填')
+    const res = await fetch('/api/process-templates', { method: editing ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, id: editing?.id, defaultTime: Number(form.defaultTime || 0) }) })
+    const data = await res.json()
+    if (!res.ok) return onMessage(data.error || '保存加工工艺失败')
+    setShowModal(false)
+    onMessage(editing ? '加工工艺已更新' : '加工工艺已新增')
+    await load()
+  }
+
+  return (
+    <div className="rounded-lg bg-white p-6 shadow">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div><h3 className="text-lg font-semibold">加工工艺</h3><p className="mt-1 text-sm text-gray-500">按类别维护可复用工艺，并关联到物料全景。</p></div>
+        <button onClick={openAdd} className="rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700">新增</button>
+      </div>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        {templates.map((template) => (
+          <div key={template.id} className="rounded-lg border border-gray-200 p-4">
+            <div className="flex items-start justify-between gap-3"><div><div className="font-semibold">{template.name}</div><div className="mt-1 text-xs text-gray-500">{processCategoryLabel[template.category] || template.category} · {template.code}{template.isPreset ? ' · 预置' : ''}</div></div><button onClick={() => openEdit(template)} className="rounded border border-blue-300 px-3 py-1 text-xs text-blue-600">编辑</button></div>
+            <div className="mt-2 text-sm text-gray-600">{template.workstation || '未设工位'}{template.defaultTime ? ` · ${template.defaultTime} 分钟` : ''}</div>
+            {template.description && <div className="mt-2 text-xs text-gray-500">{template.description}</div>}
+            <div className="mt-2 text-xs text-gray-500">关联物料：{template.materials.length ? template.materials.map((item) => item.code).join('、') : '暂无'}</div>
+          </div>
+        ))}
+      </div>
+      {showModal && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
+        <div className="mb-4 flex justify-between"><h3 className="text-lg font-semibold">{editing ? '编辑加工工艺' : '新增加工工艺'}</h3><button onClick={() => setShowModal(false)} className="text-xl text-gray-400">×</button></div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="模板编码 *" value={form.code} onChange={(value) => setForm({ ...form, code: value })} />
+          <Field label="工艺名称 *" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
+          <label className="text-sm">类别<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2">{processCategoryOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label className="text-sm">默认工时（分钟）<input type="number" min="0" value={form.defaultTime || ''} onChange={(event) => setForm({ ...form, defaultTime: Number(event.target.value) })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2" /></label>
+          <Field label="默认工位" value={form.workstation} onChange={(value) => setForm({ ...form, workstation: value })} />
+          <Field label="说明" value={form.description} onChange={(value) => setForm({ ...form, description: value })} />
+        </div>
+        <div className="mt-4"><div className="mb-2 text-sm font-medium">关联物料（可多选）</div><div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-gray-200 p-3">{materials.map((material) => <label key={material.id} className="flex gap-2 text-sm"><input type="checkbox" checked={form.materialIds.includes(material.id)} onChange={(event) => setForm({ ...form, materialIds: event.target.checked ? [...form.materialIds, material.id] : form.materialIds.filter((id) => id !== material.id) })} />{material.code} · {material.name}</label>)}</div></div>
+        <div className="mt-5 flex justify-end gap-2"><button onClick={() => setShowModal(false)} className="rounded-lg border px-4 py-2 text-sm">取消</button><button onClick={submit} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white">保存</button></div>
+      </div></div>}
     </div>
   )
 }

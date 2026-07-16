@@ -59,6 +59,7 @@ export async function GET(
       include: {
         customer: { select: { id: true, code: true, name: true } },
         stock: true,
+        processTemplates: { orderBy: [{ category: 'asc' }, { code: 'asc' }] },
         bomItems: {
           orderBy: { id: 'asc' },
           include: {
@@ -312,6 +313,7 @@ export async function GET(
           bom: item.bom,
         })),
         productBoms,
+        processTemplates: material.processTemplates,
         workInstructions: formalWorkInstructionsWithAttachments,
         targetOrders,
         consumingPicks,

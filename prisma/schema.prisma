@@ -54,6 +54,7 @@ model Material {
   materialIns MaterialIn[]
   productionOrders ProductionOrder[] @relation("ProductionOrderTargetMaterial")
   workInstructions WorkInstruction[]
+  processTemplates ProcessTemplate[]
   createdAt   DateTime @default(now())
 }
 
@@ -104,6 +105,20 @@ model ProcessStep {
   deletedBy     String?
   reports       WorkReport[]
   dispatches    Dispatch[]
+}
+
+model ProcessTemplate {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  name          String
+  category      String
+  defaultTime   Int?
+  workstation   String?
+  description   String?
+  isPreset      Boolean  @default(false)
+  materials     Material[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 // ==================== 生产工单 ====================

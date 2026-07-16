@@ -57,6 +57,17 @@ interface ProcessRouteSummary {
   steps: ProcessStepSummary[]
 }
 
+interface ProcessTemplateSummary {
+  id: string
+  code: string
+  name: string
+  category: string
+  defaultTime?: number | null
+  workstation?: string | null
+  description?: string | null
+  isPreset: boolean
+}
+
 interface ProductSummary {
   id: string
   sku: string
@@ -226,6 +237,7 @@ interface PanoramaData {
   }
   componentBoms: ComponentBomItem[]
   productBoms: ProductBom[]
+  processTemplates: ProcessTemplateSummary[]
   workInstructions: WorkInstructionSummary[]
   targetOrders: ProductionOrderSummary[]
   consumingPicks: PickSummary[]
@@ -243,6 +255,19 @@ const materialCategoryLabels: Record<string, string> = {
   SCRAP: '废料',
   DEFECTIVE: '废品',
   PACKAGING: '包装物',
+  OTHER: '其他',
+}
+
+const processCategoryLabels: Record<string, string> = {
+  SAWING: '锯切',
+  DRILLING: '钻孔',
+  TURNING: '车削',
+  MILLING: '铣削',
+  GRINDING: '磨削',
+  HEAT_TREATMENT: '热处理',
+  SURFACE_TREATMENT: '表面处理',
+  ASSEMBLY: '装配',
+  INSPECTION: '检验',
   OTHER: '其他',
 }
 
@@ -390,6 +415,27 @@ function ProcessRouteList({ routes }: { routes: ProcessRouteSummary[] }) {
             <span className="text-xs text-gray-500">{step.workstation || '未设工位'}</span>
           </div>
           {step.description && <div className="mt-1 whitespace-pre-wrap text-xs text-gray-500">{step.description}</div>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ProcessTemplateList({ templates }: { templates: ProcessTemplateSummary[] }) {
+  if (templates.length === 0) return <EmptyText>暂未给该物料关联加工工艺</EmptyText>
+  return (
+    <div className="space-y-2">
+      {templates.map((template) => (
+        <div key={template.id} className="rounded-md border border-gray-100 px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-700">{processCategoryLabels[template.category] || template.category}</span>
+            <span className="font-medium text-gray-900">{template.name}</span>
+            <span className="font-mono text-xs text-gray-400">{template.code}</span>
+          </div>
+          <div className="mt-1 text-xs text-gray-500">
+            {template.workstation || '未设工位'}{template.defaultTime ? ` · ${template.defaultTime} 分钟` : ''}
+          </div>
+          {template.description && <div className="mt-1 whitespace-pre-wrap text-xs text-gray-500">{template.description}</div>}
         </div>
       ))}
     </div>
@@ -689,8 +735,11 @@ export default function MaterialPanoramaPage({
                   </div>
                 </Panel>
 
-                <Panel title="相关工艺/作业步骤" action={`${relatedRoutes.length} 条路线`}>
-                  <ProcessRouteList routes={relatedRoutes} />
+                <Panel title="加工工艺/作业步骤" action={`${data.processTemplates.length} 个工艺 · ${relatedRoutes.length} 条路线`}>
+                  <div className="space-y-4">
+                    <div><div className="mb-2 text-xs font-medium text-gray-500">物料直接关联的加工工艺</div><ProcessTemplateList templates={data.processTemplates} /></div>
+                    <div><div className="mb-2 text-xs font-medium text-gray-500">产品/BOM 推导的工艺路线</div><ProcessRouteList routes={relatedRoutes} /></div>
+                  </div>
                 </Panel>
               </div>
 
