@@ -86,6 +86,16 @@ interface ProcessTemplate {
   defaultTime?: number | null
   workstation?: string | null
   description?: string | null
+  standardBatchQty: number
+  setupTimeMinutes: number
+  cycleTimeSeconds: number
+  peopleCount: number
+  laborRatePerHour: number
+  machineCount: number
+  machineRatePerHour: number
+  energyCostPerHour: number
+  consumableCostPerBatch: number
+  yieldRate: number
   isPreset: boolean
   materials: Array<{ id: string; code: string; name: string }>
 }
@@ -96,6 +106,16 @@ const processCategoryOptions = [
 ] as const
 
 const processCategoryLabel = Object.fromEntries(processCategoryOptions)
+
+function processCostPerThousand(template: ProcessTemplate) {
+  const batches = 1000 / Math.max(1, template.standardBatchQty)
+  const runHours = (1000 / Math.max(0.000001, template.yieldRate)) * template.cycleTimeSeconds / 3600
+  const setupHours = template.setupTimeMinutes / 60 * batches
+  const laborHours = (runHours + setupHours) * template.peopleCount
+  const machineHours = (runHours + setupHours) * template.machineCount
+  const cost = laborHours * template.laborRatePerHour + machineHours * template.machineRatePerHour + runHours * template.energyCostPerHour + batches * template.consumableCostPerBatch
+  return { laborHours, machineHours, cost }
+}
 
 type SystemTab = 'suppliers' | 'customers' | 'products' | 'processTemplates' | 'process' | 'recycle' | 'audit'
 
@@ -859,7 +879,8 @@ function ProcessTemplateManager({ onMessage }: { onMessage: (msg: string) => voi
   const [materials, setMaterials] = useState<Array<{ id: string; code: string; name: string }>>([])
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<ProcessTemplate | null>(null)
-  const [form, setForm] = useState({ code: '', name: '', category: 'SAWING', defaultTime: 0, workstation: '', description: '', materialIds: [] as string[] })
+  const emptyForm = () => ({ code: '', name: '', category: 'SAWING', defaultTime: 0, workstation: '', description: '', materialIds: [] as string[], standardBatchQty: 1000, setupTimeMinutes: 0, cycleTimeSeconds: 0, peopleCount: 1, laborRatePerHour: 0, machineCount: 1, machineRatePerHour: 0, energyCostPerHour: 0, consumableCostPerBatch: 0, yieldRate: 100 })
+  const [form, setForm] = useState(emptyForm())
 
   const load = async () => {
     const [templateRes, materialRes] = await Promise.all([fetch('/api/process-templates'), fetch('/api/materials?pageSize=200&sortBy=code&sortDir=asc')])
@@ -872,19 +893,19 @@ function ProcessTemplateManager({ onMessage }: { onMessage: (msg: string) => voi
 
   const openAdd = () => {
     setEditing(null)
-    setForm({ code: '', name: '', category: 'SAWING', defaultTime: 0, workstation: '', description: '', materialIds: [] })
+    setForm(emptyForm())
     setShowModal(true)
   }
 
   const openEdit = (template: ProcessTemplate) => {
     setEditing(template)
-    setForm({ code: template.code, name: template.name, category: template.category, defaultTime: template.defaultTime || 0, workstation: template.workstation || '', description: template.description || '', materialIds: template.materials.map((item) => item.id) })
+    setForm({ code: template.code, name: template.name, category: template.category, defaultTime: template.defaultTime || 0, workstation: template.workstation || '', description: template.description || '', materialIds: template.materials.map((item) => item.id), standardBatchQty: template.standardBatchQty, setupTimeMinutes: template.setupTimeMinutes, cycleTimeSeconds: template.cycleTimeSeconds, peopleCount: template.peopleCount, laborRatePerHour: template.laborRatePerHour, machineCount: template.machineCount, machineRatePerHour: template.machineRatePerHour, energyCostPerHour: template.energyCostPerHour, consumableCostPerBatch: template.consumableCostPerBatch, yieldRate: template.yieldRate * 100 })
     setShowModal(true)
   }
 
   const submit = async () => {
     if (!form.code.trim() || !form.name.trim()) return onMessage('模板编码和工艺名称必填')
-    const res = await fetch('/api/process-templates', { method: editing ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, id: editing?.id, defaultTime: Number(form.defaultTime || 0) }) })
+    const res = await fetch('/api/process-templates', { method: editing ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, id: editing?.id, defaultTime: Number(form.defaultTime || 0), yieldRate: form.yieldRate / 100 }) })
     const data = await res.json()
     if (!res.ok) return onMessage(data.error || '保存加工工艺失败')
     setShowModal(false)
@@ -899,14 +920,17 @@ function ProcessTemplateManager({ onMessage }: { onMessage: (msg: string) => voi
         <button onClick={openAdd} className="rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700">新增</button>
       </div>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        {templates.map((template) => (
+        {templates.map((template) => {
+          const thousand = processCostPerThousand(template)
+          return (
           <div key={template.id} className="rounded-lg border border-gray-200 p-4">
             <div className="flex items-start justify-between gap-3"><div><div className="font-semibold">{template.name}</div><div className="mt-1 text-xs text-gray-500">{processCategoryLabel[template.category] || template.category} · {template.code}{template.isPreset ? ' · 预置' : ''}</div></div><button onClick={() => openEdit(template)} className="rounded border border-blue-300 px-3 py-1 text-xs text-blue-600">编辑</button></div>
             <div className="mt-2 text-sm text-gray-600">{template.workstation || '未设工位'}{template.defaultTime ? ` · ${template.defaultTime} 分钟` : ''}</div>
             {template.description && <div className="mt-2 text-xs text-gray-500">{template.description}</div>}
             <div className="mt-2 text-xs text-gray-500">关联物料：{template.materials.length ? template.materials.map((item) => item.code).join('、') : '暂无'}</div>
+            <div className="mt-3 grid grid-cols-3 gap-2 rounded bg-blue-50 p-2 text-xs text-blue-800"><span>千件人工<br/><b>{thousand.laborHours.toFixed(2)} h</b></span><span>千件机时<br/><b>{thousand.machineHours.toFixed(2)} h</b></span><span>千件工艺成本<br/><b>¥{thousand.cost.toFixed(2)}</b></span></div>
           </div>
-        ))}
+        )})}
       </div>
       {showModal && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
         <div className="mb-4 flex justify-between"><h3 className="text-lg font-semibold">{editing ? '编辑加工工艺' : '新增加工工艺'}</h3><button onClick={() => setShowModal(false)} className="text-xl text-gray-400">×</button></div>
@@ -918,6 +942,13 @@ function ProcessTemplateManager({ onMessage }: { onMessage: (msg: string) => voi
           <Field label="默认工位" value={form.workstation} onChange={(value) => setForm({ ...form, workstation: value })} />
           <Field label="说明" value={form.description} onChange={(value) => setForm({ ...form, description: value })} />
         </div>
+        <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-4"><div className="mb-3 font-medium text-blue-900">千件工时、机时与成本参数</div><div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {([
+            ['standardBatchQty', '标准批量', '件'], ['setupTimeMinutes', '每批准备时间', '分钟'], ['cycleTimeSeconds', '单件节拍', '秒/件'],
+            ['peopleCount', '操作人数', '人'], ['laborRatePerHour', '人工小时费率', '元/h'], ['machineCount', '设备数量', '台'],
+            ['machineRatePerHour', '设备机时费率', '元/h'], ['energyCostPerHour', '每小时能源费', '元/h'], ['consumableCostPerBatch', '每批耗材费', '元/批'], ['yieldRate', '标准合格率', '%'],
+          ] as const).map(([key, label, unit]) => <label key={key} className="text-xs text-gray-600">{label}<div className="mt-1 flex overflow-hidden rounded border border-gray-200 bg-white"><input type="number" min="0" step="any" value={form[key] || ''} onChange={(event) => setForm({ ...form, [key]: Number(event.target.value) })} className="min-w-0 flex-1 px-2 py-2 text-sm outline-none"/><span className="border-l bg-gray-50 px-2 py-2">{unit}</span></div></label>)}
+        </div></div>
         <div className="mt-4"><div className="mb-2 text-sm font-medium">关联物料（可多选）</div><div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-gray-200 p-3">{materials.map((material) => <label key={material.id} className="flex gap-2 text-sm"><input type="checkbox" checked={form.materialIds.includes(material.id)} onChange={(event) => setForm({ ...form, materialIds: event.target.checked ? [...form.materialIds, material.id] : form.materialIds.filter((id) => id !== material.id) })} />{material.code} · {material.name}</label>)}</div></div>
         <div className="mt-5 flex justify-end gap-2"><button onClick={() => setShowModal(false)} className="rounded-lg border px-4 py-2 text-sm">取消</button><button onClick={submit} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white">保存</button></div>
       </div></div>}

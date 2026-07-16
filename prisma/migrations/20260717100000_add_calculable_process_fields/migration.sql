@@ -1,0 +1,10 @@
+ALTER TABLE "ProcessTemplate" ADD COLUMN "standardBatchQty" INTEGER NOT NULL DEFAULT 1000;
+ALTER TABLE "ProcessTemplate" ADD COLUMN "setupTimeMinutes" REAL NOT NULL DEFAULT 0;
+ALTER TABLE "ProcessTemplate" ADD COLUMN "cycleTimeSeconds" REAL NOT NULL DEFAULT 0;
+ALTER TABLE "ProcessTemplate" ADD COLUMN "peopleCount" REAL NOT NULL DEFAULT 1;
+ALTER TABLE "ProcessTemplate" ADD COLUMN "laborRatePerHour" REAL NOT NULL DEFAULT 0;
+ALTER TABLE "ProcessTemplate" ADD COLUMN "machineCount" REAL NOT NULL DEFAULT 1;
+ALTER TABLE "ProcessTemplate" ADD COLUMN "machineRatePerHour" REAL NOT NULL DEFAULT 0;
+ALTER TABLE "ProcessTemplate" ADD COLUMN "energyCostPerHour" REAL NOT NULL DEFAULT 0;
+ALTER TABLE "ProcessTemplate" ADD COLUMN "consumableCostPerBatch" REAL NOT NULL DEFAULT 0;
+ALTER TABLE "ProcessTemplate" ADD COLUMN "yieldRate" REAL NOT NULL DEFAULT 1;
