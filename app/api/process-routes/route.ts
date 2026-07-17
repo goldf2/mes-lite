@@ -12,7 +12,28 @@ const stepSchema = z.object({
   defaultTime: z.number().int().nonnegative().optional(),
   workstation: z.string().optional(),
   description: z.string().optional(),
+  templateId: z.string().optional(),
+  templateCode: z.string().optional(),
+  standardBatchQty: z.number().int().positive().default(1000),
+  setupTimeMinutes: z.number().nonnegative().default(0),
+  cycleTimeSeconds: z.number().nonnegative().default(0),
+  peopleCount: z.number().nonnegative().default(1),
+  laborRatePerHour: z.number().nonnegative().default(0),
+  machineCount: z.number().nonnegative().default(1),
+  machineRatePerHour: z.number().nonnegative().default(0),
+  energyCostPerHour: z.number().nonnegative().default(0),
+  consumableCostPerBatch: z.number().nonnegative().default(0),
+  yieldRate: z.number().positive().max(1).default(1),
 })
+
+function stepData(step: z.infer<typeof stepSchema>) {
+  return {
+    stepNo: step.stepNo, name: step.name, defaultTime: step.defaultTime ?? null, workstation: step.workstation || null, description: step.description || null,
+    templateId: step.templateId || null, templateCode: step.templateCode || null, standardBatchQty: step.standardBatchQty, setupTimeMinutes: step.setupTimeMinutes,
+    cycleTimeSeconds: step.cycleTimeSeconds, peopleCount: step.peopleCount, laborRatePerHour: step.laborRatePerHour, machineCount: step.machineCount,
+    machineRatePerHour: step.machineRatePerHour, energyCostPerHour: step.energyCostPerHour, consumableCostPerBatch: step.consumableCostPerBatch, yieldRate: step.yieldRate,
+  }
+}
 
 const routeSchema = z.object({
   id: z.string().optional(),
@@ -69,13 +90,7 @@ export async function POST(req: NextRequest) {
           name: data.name,
           isDefault: Boolean(data.isDefault),
           steps: {
-            create: data.steps.map((step) => ({
-              stepNo: step.stepNo,
-              name: step.name,
-              defaultTime: step.defaultTime ?? null,
-              workstation: step.workstation || null,
-              description: step.description || null,
-            })),
+            create: data.steps.map(stepData),
           },
         },
         include: {
@@ -144,13 +159,7 @@ export async function PUT(req: NextRequest) {
           name: data.name,
           isDefault: Boolean(data.isDefault),
           steps: {
-            create: data.steps.map((step) => ({
-              stepNo: step.stepNo,
-              name: step.name,
-              defaultTime: step.defaultTime ?? null,
-              workstation: step.workstation || null,
-              description: step.description || null,
-            })),
+            create: data.steps.map(stepData),
           },
         },
         include: {

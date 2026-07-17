@@ -101,6 +101,18 @@ model ProcessStep {
   defaultTime   Int?
   workstation   String?
   description   String?
+  templateId    String?
+  templateCode  String?
+  standardBatchQty Int @default(1000)
+  setupTimeMinutes Float @default(0)
+  cycleTimeSeconds Float @default(0)
+  peopleCount Float @default(1)
+  laborRatePerHour Float @default(0)
+  machineCount Float @default(1)
+  machineRatePerHour Float @default(0)
+  energyCostPerHour Float @default(0)
+  consumableCostPerBatch Float @default(0)
+  yieldRate Float @default(1)
   deletedAt     DateTime?
   deletedBy     String?
   reports       WorkReport[]

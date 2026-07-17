@@ -60,6 +60,18 @@ interface ProcessStepForm {
   defaultTime: number
   workstation: string
   description: string
+  templateId: string
+  templateCode: string
+  standardBatchQty: number
+  setupTimeMinutes: number
+  cycleTimeSeconds: number
+  peopleCount: number
+  laborRatePerHour: number
+  machineCount: number
+  machineRatePerHour: number
+  energyCostPerHour: number
+  consumableCostPerBatch: number
+  yieldRate: number
 }
 
 interface ProcessRoute {
@@ -75,6 +87,18 @@ interface ProcessRoute {
     defaultTime?: number | null
     workstation?: string | null
     description?: string | null
+    templateId?: string | null
+    templateCode?: string | null
+    standardBatchQty: number
+    setupTimeMinutes: number
+    cycleTimeSeconds: number
+    peopleCount: number
+    laborRatePerHour: number
+    machineCount: number
+    machineRatePerHour: number
+    energyCostPerHour: number
+    consumableCostPerBatch: number
+    yieldRate: number
   }>
 }
 
@@ -114,6 +138,16 @@ function processCostPerThousand(template: ProcessTemplate) {
   const laborHours = (runHours + setupHours) * template.peopleCount
   const machineHours = (runHours + setupHours) * template.machineCount
   const cost = laborHours * template.laborRatePerHour + machineHours * template.machineRatePerHour + runHours * template.energyCostPerHour + batches * template.consumableCostPerBatch
+  return { laborHours, machineHours, cost }
+}
+
+function routeStepCostPerThousand(step: ProcessRoute['steps'][number] | ProcessStepForm) {
+  const batches = 1000 / Math.max(1, step.standardBatchQty)
+  const runHours = (1000 / Math.max(0.000001, step.yieldRate)) * step.cycleTimeSeconds / 3600
+  const setupHours = step.setupTimeMinutes / 60 * batches
+  const laborHours = (runHours + setupHours) * step.peopleCount
+  const machineHours = (runHours + setupHours) * step.machineCount
+  const cost = laborHours * step.laborRatePerHour + machineHours * step.machineRatePerHour + runHours * step.energyCostPerHour + batches * step.consumableCostPerBatch
   return { laborHours, machineHours, cost }
 }
 
@@ -957,9 +991,10 @@ function ProcessTemplateManager({ onMessage }: { onMessage: (msg: string) => voi
 }
 
 function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
-  const emptyStep = (): ProcessStepForm => ({ stepNo: 1, name: '', defaultTime: 0, workstation: '', description: '' })
+  const emptyStep = (): ProcessStepForm => ({ stepNo: 1, name: '', defaultTime: 0, workstation: '', description: '', templateId: '', templateCode: '', standardBatchQty: 1000, setupTimeMinutes: 0, cycleTimeSeconds: 0, peopleCount: 1, laborRatePerHour: 0, machineCount: 1, machineRatePerHour: 0, energyCostPerHour: 0, consumableCostPerBatch: 0, yieldRate: 1 })
   const [routes, setRoutes] = useState<ProcessRoute[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [templates, setTemplates] = useState<ProcessTemplate[]>([])
   const [showModal, setShowModal] = useState(false)
   const [editingRoute, setEditingRoute] = useState<ProcessRoute | null>(null)
   const [loading, setLoading] = useState(false)
@@ -974,6 +1009,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
   useEffect(() => {
     fetchProducts()
     fetchRoutes()
+    fetchTemplates()
   }, [])
 
   const fetchProducts = async () => {
@@ -994,6 +1030,12 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
     } else {
       onMessage(data.error || '获取工艺路线失败')
     }
+  }
+
+  const fetchTemplates = async () => {
+    const res = await fetch('/api/process-templates')
+    const data = await res.json()
+    if (res.ok) setTemplates(data.data || [])
   }
 
   const resetForm = () => {
@@ -1019,6 +1061,9 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
             defaultTime: step.defaultTime || 0,
             workstation: step.workstation || '',
             description: step.description || '',
+            templateId: step.templateId || '', templateCode: step.templateCode || '', standardBatchQty: step.standardBatchQty, setupTimeMinutes: step.setupTimeMinutes,
+            cycleTimeSeconds: step.cycleTimeSeconds, peopleCount: step.peopleCount, laborRatePerHour: step.laborRatePerHour, machineCount: step.machineCount,
+            machineRatePerHour: step.machineRatePerHour, energyCostPerHour: step.energyCostPerHour, consumableCostPerBatch: step.consumableCostPerBatch, yieldRate: step.yieldRate,
           }))
         : [emptyStep()],
     })
@@ -1029,6 +1074,17 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
     setForm({
       ...form,
       steps: form.steps.map((step, currentIndex) => currentIndex === index ? { ...step, ...patch } : step),
+    })
+  }
+
+  const applyTemplate = (index: number, templateId: string) => {
+    const template = templates.find((item) => item.id === templateId)
+    if (!template) return updateStep(index, { templateId: '', templateCode: '' })
+    updateStep(index, {
+      templateId: template.id, templateCode: template.code, name: template.name, workstation: template.workstation || '', description: template.description || '',
+      defaultTime: template.defaultTime || 0, standardBatchQty: template.standardBatchQty, setupTimeMinutes: template.setupTimeMinutes, cycleTimeSeconds: template.cycleTimeSeconds,
+      peopleCount: template.peopleCount, laborRatePerHour: template.laborRatePerHour, machineCount: template.machineCount, machineRatePerHour: template.machineRatePerHour,
+      energyCostPerHour: template.energyCostPerHour, consumableCostPerBatch: template.consumableCostPerBatch, yieldRate: template.yieldRate,
     })
   }
 
@@ -1066,6 +1122,9 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
           defaultTime: Number(step.defaultTime || 0),
           workstation: step.workstation || undefined,
           description: step.description || undefined,
+          templateId: step.templateId || undefined, templateCode: step.templateCode || undefined, standardBatchQty: step.standardBatchQty, setupTimeMinutes: step.setupTimeMinutes,
+          cycleTimeSeconds: step.cycleTimeSeconds, peopleCount: step.peopleCount, laborRatePerHour: step.laborRatePerHour, machineCount: step.machineCount,
+          machineRatePerHour: step.machineRatePerHour, energyCostPerHour: step.energyCostPerHour, consumableCostPerBatch: step.consumableCostPerBatch, yieldRate: step.yieldRate,
         })),
       }),
     })
@@ -1112,6 +1171,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
                   </button>
                 </div>
               </div>
+              {(() => { const totals = route.steps.reduce((sum, step) => { const value = routeStepCostPerThousand(step); return { labor: sum.labor + value.laborHours, machine: sum.machine + value.machineHours, cost: sum.cost + value.cost } }, { labor: 0, machine: 0, cost: 0 }); return <div className="mt-3 grid grid-cols-3 gap-2 rounded bg-blue-50 p-2 text-xs text-blue-800"><span>千件人工<br/><b>{totals.labor.toFixed(2)} h</b></span><span>千件机时<br/><b>{totals.machine.toFixed(2)} h</b></span><span>千件路线成本<br/><b>¥{totals.cost.toFixed(2)}</b></span></div> })()}
               <div className="mt-4 space-y-2">
                 {route.steps.map((step) => (
                   <div key={step.id} className="rounded bg-gray-50 p-3 text-sm">
@@ -1217,6 +1277,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
                 <div className="space-y-3">
                   {form.steps.map((step, index) => (
                     <div key={index} className="border border-gray-200 rounded-lg p-3">
+                      <div className="mb-3"><label className="block text-xs text-gray-500 mb-1">从可计算工艺模板加入</label><select value={step.templateId} onChange={(event) => applyTemplate(index, event.target.value)} className="w-full rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm"><option value="">手工工序</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.code} · {template.name}</option>)}</select></div>
                       <div className="grid grid-cols-4 gap-3">
                         <div>
                           <label className="block text-xs text-gray-500 mb-1">工序号 *</label>
@@ -1261,6 +1322,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
                           className="w-full px-3 py-2 border border-gray-200 rounded"
                         />
                       </div>
+                      {step.templateId && (() => { const value = routeStepCostPerThousand(step); return <div className="mt-3 grid grid-cols-3 gap-2 rounded bg-gray-50 p-2 text-xs text-gray-600"><span>千件人工 <b>{value.laborHours.toFixed(2)}h</b></span><span>千件机时 <b>{value.machineHours.toFixed(2)}h</b></span><span>千件成本 <b>¥{value.cost.toFixed(2)}</b></span></div> })()}
                       <div className="mt-3 flex justify-end">
                         <button onClick={() => removeStep(index)} className="px-3 py-1 text-xs text-red-600 border border-red-300 rounded hover:bg-red-50">
                           移除本工序
