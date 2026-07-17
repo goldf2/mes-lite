@@ -8,6 +8,39 @@ import { writeAuditLog } from '@/lib/audit'
 export const dynamic = 'force-dynamic'
 
 const number = z.number().finite().nonnegative()
+const materialProductPrefix = 'material:'
+const simpleProductSku = (materialCode: string) => `MAT-${materialCode}`
+
+type ProductResolver = Pick<typeof prisma, 'material' | 'product'>
+
+async function resolveProductId(tx: ProductResolver, targetId?: string | null) {
+  if (!targetId) return null
+  if (!targetId.startsWith(materialProductPrefix)) return targetId
+
+  const materialId = targetId.slice(materialProductPrefix.length)
+  const material = await tx.material.findUnique({
+    where: { id: materialId },
+    select: { code: true, name: true, category: true, customerId: true, stockUnit: true, unit: true },
+  })
+  if (!material) throw new Error('物料不存在，无法映射为产品')
+
+  const sku = simpleProductSku(material.code)
+  const existing = await tx.product.findUnique({ where: { sku } })
+  if (existing) return existing.id
+
+  const created = await tx.product.create({
+    data: {
+      sku,
+      name: material.name,
+      category: material.category,
+      customerId: material.customerId || null,
+      unit: material.stockUnit || material.unit,
+      description: `由物料 ${material.code} 自动映射，用于锯切成本/BOM 组成。`,
+    },
+  })
+  return created.id
+}
+
 const schema = z.object({
   name: z.string().trim().min(1, '方案名称必填').max(100),
   materialLength: number.positive(), materialWeight: number.positive(), workpieceLength: number.positive(), bladeThickness: number,
@@ -38,12 +71,17 @@ const include = {
 export async function GET() {
   const denied = await requireResourcePermission('sawingCost', 'read')
   if (denied) return denied
-  const [data, processTemplates, products] = await Promise.all([
+  const [data, processTemplates, products, materials] = await Promise.all([
     prisma.sawingCostScenario.findMany({ include, orderBy: { createdAt: 'desc' }, take: 100 }),
     prisma.processTemplate.findMany({ select: { id: true, code: true, name: true, category: true }, orderBy: [{ category: 'asc' }, { code: 'asc' }] }),
     prisma.product.findMany({ select: { id: true, sku: true, name: true, unit: true }, orderBy: { createdAt: 'desc' } }),
+    prisma.material.findMany({ where: { deletedAt: null }, select: { id: true, code: true, name: true, stockUnit: true, unit: true }, orderBy: { createdAt: 'desc' } }),
   ])
-  return NextResponse.json({ data, processTemplates, products })
+  const productOptions = [
+    ...products,
+    ...materials.map((material) => ({ id: `${materialProductPrefix}${material.id}`, sku: simpleProductSku(material.code), name: material.name, unit: material.stockUnit || material.unit })),
+  ]
+  return NextResponse.json({ data, processTemplates, products: productOptions })
 }
 
 export async function POST(req: NextRequest) {
@@ -57,21 +95,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '保存为已有产品时必须选择产品' }, { status: 400 })
     }
     const scenario = await prisma.$transaction(async (tx) => {
+      const resolvedProductId = values.productKind === 'EXISTING' ? await resolveProductId(tx, values.productId) : null
+      const resolvedBomProductId = await resolveProductId(tx, bomProductId)
       const created = await tx.sawingCostScenario.create({
         data: {
           ...values,
-          productId: values.productKind === 'EXISTING' ? values.productId : null,
+          productId: resolvedProductId,
           createdBy: operator?.name || operator?.username || null,
           processTemplates: { connect: processTemplateIds.map((id) => ({ id })) },
           costItems: { create: costItems },
         },
       })
 
-      if (bomProductId) {
+      if (resolvedBomProductId) {
         const bom = await tx.bOM.upsert({
-          where: { productId: bomProductId },
+          where: { productId: resolvedBomProductId },
           update: {},
-          create: { productId: bomProductId },
+          create: { productId: resolvedBomProductId },
         })
         await tx.bOMItem.create({
           data: {

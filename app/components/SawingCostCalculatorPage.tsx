@@ -214,6 +214,11 @@ export default function SawingCostCalculatorPage() {
   const update = (key: keyof typeof form, value: number) => setForm((current) => ({ ...current, [key]: Math.max(0, value) }))
   const updateShift = (key: keyof typeof shiftForm, value: number) => setShiftForm((current) => ({ ...current, [key]: Math.max(0, value) }))
   const updateScale = (key: keyof typeof scaleForm, value: number) => setScaleForm((current) => ({ ...current, [key]: Math.max(0, value) }))
+  const mergeProductOptions = (items: ProductOption[]) => setProductOptions((current) => {
+    const map = new Map<string, ProductOption>()
+    ;[...current, ...items].forEach((item) => map.set(item.id, item))
+    return Array.from(map.values())
+  })
 
   const loadScenarios = async () => {
     const res = await fetch('/api/sawing-cost-scenarios')
@@ -221,14 +226,14 @@ export default function SawingCostCalculatorPage() {
     if (res.ok) {
       setSavedScenarios(data.data || [])
       setProcessOptions(data.processTemplates || [])
-      if (data.products?.length) setProductOptions(data.products)
+      if (data.products?.length) mergeProductOptions(data.products)
     } else setMessage(data.error || '获取已保存方案失败')
   }
 
   const loadProducts = async () => {
     const res = await fetch('/api/products')
     const data = await res.json()
-    if (res.ok) setProductOptions(data.data || [])
+    if (res.ok && data.data?.length) mergeProductOptions(data.data)
   }
 
   useEffect(() => {
