@@ -481,7 +481,7 @@ SKU，实际库存单位。
 
 ### sawing_cost_scenarios（当前 Prisma 已实现）
 
-锯切成本计算方案。保存当次输入、材料口径计算结果和加工工艺组合，用于多方案对比。
+锯切成本计算方案。保存当次材料输入、材料口径计算结果、规模经营测算结果和加工工艺组合，用于多方案对比。
 
 | 字段 | 含义 |
 | --- | --- |
@@ -494,11 +494,14 @@ SKU，实际库存单位。
 | quantity / utilization | 可加工数量与材料利用率 |
 | net_material_cost / material_cost_per_piece | 净材料成本与单件材料成本 |
 | profit_per_piece / total_profit / gross_margin | 材料口径毛利结果 |
+| labor_cost | 新版锯切计算中保存规模测算人工成本 |
+| fixed_cost | 新版锯切计算中保存规模机时费用和其他期间费用 |
+| full_cost / full_profit / full_margin | 新版锯切计算中保存规模总成本、经营利润和经营利润率 |
 | process_templates | 多对多关联的加工工艺模板 |
 
 ### production_cost_items（当前 Prisma 已实现）
 
-保存成本方案中用户自行录入的费用明细。
+保存成本方案中用户自行录入或页面生成的费用明细。新版锯切计算会生成规模测算人工工时、机时费用和其他期间费用快照。
 
 | 字段 | 含义 |
 | --- | --- |

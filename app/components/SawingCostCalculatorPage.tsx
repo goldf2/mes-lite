@@ -4,53 +4,31 @@ import { useEffect, useMemo, useState } from 'react'
 
 interface ProcessOption { id: string; code: string; name: string; category: string }
 interface SavedScenario {
-  id: string; name: string; quantity: number; utilization: number; materialCostPerPiece: number; profitPerPiece: number; totalProfit: number; grossMargin: number; bladeThickness: number; finishedPrice: number; createdAt: string
-  additionalDirectCost: number; laborCost: number; fixedCost: number; directStageCost: number; manufacturingCost: number; fullCost: number; directProfit: number; manufacturingProfit: number; fullProfit: number; directMargin: number; manufacturingMargin: number; fullMargin: number
+  id: string
+  name: string
+  quantity: number
+  utilization: number
+  materialCostPerPiece: number
+  totalRevenue: number
+  totalProfit: number
+  grossMargin: number
+  bladeThickness: number
+  finishedPrice: number
+  laborCost: number
+  fullCost: number
+  fullProfit: number
+  fullMargin: number
   processTemplates: ProcessOption[]
 }
 
-type CostStage = 'DIRECT' | 'LABOR' | 'FIXED'
-type CostMethod = 'MANUAL' | 'QUANTITY' | 'LABOR_HOURS' | 'LABOR_PIECE' | 'TURNOVER'
-interface CostItem { id: string; stage: CostStage; name: string; method: CostMethod; inputA: number; inputB: number; inputC: number; isDeduction: boolean; note: string }
-
-const stageMeta: Record<CostStage, { title: string; description: string }> = {
-  DIRECT: { title: '第一阶段：基础费用', description: '直接材料、耗材、能源、外协与回收抵扣' },
-  LABOR: { title: '第二阶段：人员费用', description: '按人数、工时、费率或合格产量计算' },
-  FIXED: { title: '第三阶段：固定费用', description: '厂房租金、设备折旧和管理费用按周转量分摊' },
-}
-
-function itemAmount(item: CostItem) {
-  if (item.method === 'LABOR_HOURS') return item.inputA * item.inputB * item.inputC
-  if (item.method === 'QUANTITY' || item.method === 'LABOR_PIECE') return item.inputA * item.inputB
-  if (item.method === 'TURNOVER') return item.inputB > 0 ? item.inputA / item.inputB * item.inputC : 0
-  return item.inputA
-}
-
-function CostStageEditor({ stage, items, onChange }: { stage: CostStage; items: CostItem[]; onChange: (items: CostItem[]) => void }) {
-  const methods: Array<[CostMethod, string]> = stage === 'DIRECT'
-    ? [['MANUAL', '直接金额'], ['QUANTITY', '数量 × 单价']]
-    : stage === 'LABOR'
-      ? [['LABOR_HOURS', '人数 × 工时 × 费率'], ['LABOR_PIECE', '产量 × 计件单价'], ['MANUAL', '直接金额']]
-      : [['TURNOVER', '周期费用 ÷ 周期周转量 × 本方案占用量'], ['MANUAL', '直接金额']]
-  const add = () => onChange([...items, { id: `cost-${Date.now()}-${items.length}`, stage, name: '', method: methods[0][0], inputA: 0, inputB: 0, inputC: 0, isDeduction: false, note: '' }])
-  const patch = (id: string, values: Partial<CostItem>) => onChange(items.map((item) => item.id === id ? { ...item, ...values } : item))
-  return <div className="rounded-lg bg-white p-5 shadow-sm">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-gray-900">{stageMeta[stage].title}</h3><p className="mt-1 text-xs text-gray-500">{stageMeta[stage].description}</p></div><button onClick={add} className="rounded-lg border border-blue-300 px-3 py-1.5 text-sm text-blue-700">新增费用项</button></div>
-    {items.length === 0 ? <div className="mt-4 rounded-lg border border-dashed p-4 text-center text-sm text-gray-400">暂无自定义费用</div> : <div className="mt-4 space-y-3">{items.map((item) => <div key={item.id} className="rounded-lg border border-gray-200 p-3">
-      <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(140px,1fr)_minmax(180px,1.2fr)_auto]">
-        <input value={item.name} onChange={(event) => patch(item.id, { name: event.target.value })} placeholder="费用名称" className="rounded border border-gray-200 px-3 py-2 text-sm" />
-        <select value={item.method} onChange={(event) => patch(item.id, { method: event.target.value as CostMethod, inputA: 0, inputB: 0, inputC: 0 })} className="rounded border border-gray-200 px-3 py-2 text-sm">{methods.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-        <button onClick={() => onChange(items.filter((row) => row.id !== item.id))} className="rounded border border-red-200 px-3 py-2 text-xs text-red-600">移除</button>
-      </div>
-      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-        {(item.method === 'MANUAL') && <NumberField label="金额" value={item.inputA} unit="元" onChange={(value) => patch(item.id, { inputA: value })} />}
-        {(item.method === 'QUANTITY' || item.method === 'LABOR_PIECE') && <><NumberField label={item.method === 'LABOR_PIECE' ? '计件数量' : '数量'} value={item.inputA} unit="份" onChange={(value) => patch(item.id, { inputA: value })} /><NumberField label="单价" value={item.inputB} unit="元/份" onChange={(value) => patch(item.id, { inputB: value })} /></>}
-        {item.method === 'LABOR_HOURS' && <><NumberField label="人数" value={item.inputA} unit="人" onChange={(value) => patch(item.id, { inputA: value })} /><NumberField label="每人工时" value={item.inputB} unit="小时" onChange={(value) => patch(item.id, { inputB: value })} /><NumberField label="小时费率" value={item.inputC} unit="元/小时" onChange={(value) => patch(item.id, { inputC: value })} /></>}
-        {item.method === 'TURNOVER' && <><NumberField label="周期费用" value={item.inputA} unit="元" onChange={(value) => patch(item.id, { inputA: value })} /><NumberField label="周期周转量" value={item.inputB} unit="单位" onChange={(value) => patch(item.id, { inputB: value })} /><NumberField label="本方案占用量" value={item.inputC} unit="单位" onChange={(value) => patch(item.id, { inputC: value })} /></>}
-      </div>
-      <div className="mt-2 flex items-center justify-between"><label className={`text-xs ${stage === 'DIRECT' ? 'text-gray-600' : 'invisible'}`}><input type="checkbox" checked={item.isDeduction} onChange={(event) => patch(item.id, { isDeduction: event.target.checked })} className="mr-1" />作为回收/抵扣</label><div className="font-semibold text-gray-900">{item.isDeduction ? '-' : ''}¥{itemAmount(item).toFixed(2)}</div></div>
-    </div>)}</div>}
-  </div>
+interface MixRow {
+  id: string
+  name: string
+  quantity: number
+  sellingPrice: number
+  materialCostPerPiece: number
+  laborHoursPerPiece: number
+  machineHoursPerPiece: number
 }
 
 function NumberField({ label, value, unit, onChange }: { label: string; value: number; unit: string; onChange: (value: number) => void }) {
@@ -86,6 +64,20 @@ export default function SawingCostCalculatorPage() {
     scrapPrice: 3.2,
     finishedPrice: 18,
   })
+  const [shiftForm, setShiftForm] = useState({
+    workerCount: 2,
+    shiftHours: 8,
+    laborRatePerHour: 28,
+    piecesPerLaborHour: 10,
+    machineCount: 1,
+    machineRatePerHour: 35,
+  })
+  const [scaleForm, setScaleForm] = useState({
+    plannedShifts: 20,
+    machineHoursPerShift: 8,
+    otherCost: 0,
+  })
+  const [mixRows, setMixRows] = useState<MixRow[]>([])
   const [scenarioName, setScenarioName] = useState('')
   const [processOptions, setProcessOptions] = useState<ProcessOption[]>([])
   const [selectedProcessIds, setSelectedProcessIds] = useState<string[]>([])
@@ -93,8 +85,13 @@ export default function SawingCostCalculatorPage() {
   const [comparisonIds, setComparisonIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
-  const [costItems, setCostItems] = useState<CostItem[]>([])
   const [activeStep, setActiveStep] = useState(1)
+
+  const money = (value: number) => `¥${value.toFixed(2)}`
+  const weight = (value: number) => `${value.toFixed(3)} kg`
+  const update = (key: keyof typeof form, value: number) => setForm((current) => ({ ...current, [key]: Math.max(0, value) }))
+  const updateShift = (key: keyof typeof shiftForm, value: number) => setShiftForm((current) => ({ ...current, [key]: Math.max(0, value) }))
+  const updateScale = (key: keyof typeof scaleForm, value: number) => setScaleForm((current) => ({ ...current, [key]: Math.max(0, value) }))
 
   const loadScenarios = async () => {
     const res = await fetch('/api/sawing-cost-scenarios')
@@ -107,7 +104,7 @@ export default function SawingCostCalculatorPage() {
 
   useEffect(() => { loadScenarios() }, [])
 
-  const result = useMemo(() => {
+  const materialResult = useMemo(() => {
     const { materialLength, materialWeight, workpieceLength, bladeThickness, rawMaterialPrice, sawdustPrice, scrapPrice, finishedPrice } = form
     const valid = materialLength > 0 && materialWeight > 0 && workpieceLength > 0 && workpieceLength + bladeThickness > 0
     const quantity = valid ? Math.floor((materialLength + bladeThickness) / (workpieceLength + bladeThickness)) : 0
@@ -123,41 +120,111 @@ export default function SawingCostCalculatorPage() {
     const scrapRecovery = scrapWeight * scrapPrice
     const netMaterialCost = Math.max(0, rawCost - sawdustRecovery - scrapRecovery)
     const materialCostPerPiece = quantity > 0 ? netMaterialCost / quantity : 0
-    const profitPerPiece = finishedPrice - materialCostPerPiece
     const totalRevenue = quantity * finishedPrice
     const totalProfit = totalRevenue - netMaterialCost
     const grossMargin = totalRevenue > 0 ? totalProfit / totalRevenue * 100 : 0
     const utilization = materialWeight > 0 ? productWeight / materialWeight * 100 : 0
+    const profitPerPiece = finishedPrice - materialCostPerPiece
     return { quantity, productLength, kerfLength, remainderLength, productWeight, sawdustWeight, scrapWeight, rawCost, sawdustRecovery, scrapRecovery, netMaterialCost, materialCostPerPiece, profitPerPiece, totalRevenue, totalProfit, grossMargin, utilization }
   }, [form])
 
-  const update = (key: keyof typeof form, value: number) => setForm((current) => ({ ...current, [key]: Math.max(0, value) }))
-  const money = (value: number) => `¥${value.toFixed(2)}`
-  const weight = (value: number) => `${value.toFixed(3)} kg`
+  const shiftResult = useMemo(() => {
+    const laborHours = shiftForm.workerCount * shiftForm.shiftHours
+    const quantity = laborHours * shiftForm.piecesPerLaborHour
+    const revenue = quantity * form.finishedPrice
+    const materialCost = quantity * materialResult.materialCostPerPiece
+    const laborCost = laborHours * shiftForm.laborRatePerHour
+    const machineHours = shiftForm.machineCount * shiftForm.shiftHours
+    const machineCost = machineHours * shiftForm.machineRatePerHour
+    const totalCost = materialCost + laborCost + machineCost
+    const profit = revenue - totalCost
+    const margin = revenue > 0 ? profit / revenue * 100 : 0
+    return { laborHours, quantity, revenue, materialCost, laborCost, machineHours, machineCost, totalCost, profit, margin }
+  }, [form.finishedPrice, materialResult.materialCostPerPiece, shiftForm])
+
+  useEffect(() => {
+    setMixRows((current) => {
+      if (current.length > 0) return current
+      return [{
+        id: `mix-${Date.now()}`,
+        name: '当前锯切产品',
+        quantity: Math.max(0, Math.round(shiftResult.quantity * 20)),
+        sellingPrice: form.finishedPrice,
+        materialCostPerPiece: materialResult.materialCostPerPiece,
+        laborHoursPerPiece: shiftForm.piecesPerLaborHour > 0 ? 1 / shiftForm.piecesPerLaborHour : 0,
+        machineHoursPerPiece: shiftResult.quantity > 0 ? shiftResult.machineHours / shiftResult.quantity : 0,
+      }]
+    })
+  }, [form.finishedPrice, materialResult.materialCostPerPiece, shiftForm.piecesPerLaborHour, shiftResult.machineHours, shiftResult.quantity])
+
+  const scaleResult = useMemo(() => {
+    const totalRevenue = mixRows.reduce((sum, row) => sum + row.quantity * row.sellingPrice, 0)
+    const materialCost = mixRows.reduce((sum, row) => sum + row.quantity * row.materialCostPerPiece, 0)
+    const laborHours = mixRows.reduce((sum, row) => sum + row.quantity * row.laborHoursPerPiece, 0)
+    const machineHours = mixRows.reduce((sum, row) => sum + row.quantity * row.machineHoursPerPiece, 0)
+    const laborCost = laborHours * shiftForm.laborRatePerHour
+    const machineCost = machineHours * shiftForm.machineRatePerHour
+    const totalCost = materialCost + laborCost + machineCost + scaleForm.otherCost
+    const profit = totalRevenue - totalCost
+    const margin = totalRevenue > 0 ? profit / totalRevenue * 100 : 0
+    const laborCapacity = shiftForm.workerCount * shiftForm.shiftHours * scaleForm.plannedShifts
+    const machineCapacity = shiftForm.machineCount * scaleForm.machineHoursPerShift * scaleForm.plannedShifts
+    const laborLoad = laborCapacity > 0 ? laborHours / laborCapacity * 100 : 0
+    const machineLoad = machineCapacity > 0 ? machineHours / machineCapacity * 100 : 0
+    const requiredShifts = Math.max(
+      laborCapacity > 0 ? laborHours / (shiftForm.workerCount * shiftForm.shiftHours || 1) : 0,
+      machineCapacity > 0 ? machineHours / (shiftForm.machineCount * scaleForm.machineHoursPerShift || 1) : 0,
+    )
+    return { totalRevenue, materialCost, laborHours, machineHours, laborCost, machineCost, totalCost, profit, margin, laborCapacity, machineCapacity, laborLoad, machineLoad, requiredShifts }
+  }, [mixRows, scaleForm, shiftForm])
+
+  const patchMixRow = (id: string, values: Partial<MixRow>) => setMixRows((rows) => rows.map((row) => row.id === id ? { ...row, ...values } : row))
+  const addMixRow = () => setMixRows((rows) => [...rows, { id: `mix-${Date.now()}-${rows.length}`, name: `产品 ${rows.length + 1}`, quantity: 0, sellingPrice: 0, materialCostPerPiece: 0, laborHoursPerPiece: 0, machineHoursPerPiece: 0 }])
+  const currentProductMixRow = (): MixRow => ({
+    id: `mix-${Date.now()}`,
+    name: '当前锯切产品',
+    quantity: Math.max(0, Math.round(shiftResult.quantity * scaleForm.plannedShifts)),
+    sellingPrice: form.finishedPrice,
+    materialCostPerPiece: materialResult.materialCostPerPiece,
+    laborHoursPerPiece: shiftForm.piecesPerLaborHour > 0 ? 1 / shiftForm.piecesPerLaborHour : 0,
+    machineHoursPerPiece: shiftResult.quantity > 0 ? shiftResult.machineHours / shiftResult.quantity : 0,
+  })
+  const syncCurrentProduct = () => setMixRows((rows) => {
+    const next = currentProductMixRow()
+    const index = rows.findIndex((row) => row.name === '当前锯切产品')
+    if (index < 0) return [next, ...rows]
+    return rows.map((row, rowIndex) => rowIndex === index ? { ...next, id: row.id } : row)
+  })
   const comparedScenarios = savedScenarios.filter((scenario) => comparisonIds.includes(scenario.id))
-  const stageResult = useMemo(() => {
-    const stageTotal = (stage: CostStage) => costItems.filter((item) => item.stage === stage).reduce((sum, item) => sum + itemAmount(item) * (item.isDeduction ? -1 : 1), 0)
-    const additionalDirectCost = stageTotal('DIRECT')
-    const laborCost = stageTotal('LABOR')
-    const fixedCost = stageTotal('FIXED')
-    const directStageCost = Math.max(0, result.netMaterialCost + additionalDirectCost)
-    const manufacturingCost = directStageCost + laborCost
-    const fullCost = manufacturingCost + fixedCost
-    const directProfit = result.totalRevenue - directStageCost
-    const manufacturingProfit = result.totalRevenue - manufacturingCost
-    const fullProfit = result.totalRevenue - fullCost
-    const margin = (profit: number) => result.totalRevenue > 0 ? profit / result.totalRevenue * 100 : 0
-    return { additionalDirectCost, laborCost, fixedCost, directStageCost, manufacturingCost, fullCost, directProfit, manufacturingProfit, fullProfit, directMargin: margin(directProfit), manufacturingMargin: margin(manufacturingProfit), fullMargin: margin(fullProfit) }
-  }, [costItems, result.netMaterialCost, result.totalRevenue])
 
   const saveScenario = async () => {
     if (!scenarioName.trim()) return setMessage('请先填写方案名称')
-    if (result.quantity <= 0) return setMessage('当前参数无法加工出成品')
+    if (materialResult.quantity <= 0) return setMessage('当前参数无法加工出成品')
     setSaving(true)
-    const res = await fetch('/api/sawing-cost-scenarios', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, ...result, ...stageResult, name: scenarioName.trim(), processTemplateIds: selectedProcessIds, costItems: costItems.filter((item) => item.name.trim()).map((item, index) => ({ stage: item.stage, name: item.name.trim(), method: item.method, inputA: item.inputA, inputB: item.inputB, inputC: item.inputC, amount: itemAmount(item) * (item.isDeduction ? -1 : 1), isDeduction: item.isDeduction, note: item.note || undefined, sortOrder: index })) }),
-    })
+    const payload = {
+      ...form,
+      ...materialResult,
+      name: scenarioName.trim(),
+      processTemplateIds: selectedProcessIds,
+      additionalDirectCost: 0,
+      laborCost: scaleResult.laborCost,
+      fixedCost: scaleResult.machineCost + scaleForm.otherCost,
+      directStageCost: scaleResult.materialCost,
+      manufacturingCost: scaleResult.materialCost + scaleResult.laborCost,
+      fullCost: scaleResult.totalCost,
+      directProfit: scaleResult.totalRevenue - scaleResult.materialCost,
+      manufacturingProfit: scaleResult.totalRevenue - scaleResult.materialCost - scaleResult.laborCost,
+      fullProfit: scaleResult.profit,
+      directMargin: scaleResult.totalRevenue > 0 ? (scaleResult.totalRevenue - scaleResult.materialCost) / scaleResult.totalRevenue * 100 : 0,
+      manufacturingMargin: scaleResult.totalRevenue > 0 ? (scaleResult.totalRevenue - scaleResult.materialCost - scaleResult.laborCost) / scaleResult.totalRevenue * 100 : 0,
+      fullMargin: scaleResult.margin,
+      costItems: [
+        { stage: 'LABOR', name: '规模测算人工工时', method: 'LABOR_HOURS', inputA: 1, inputB: scaleResult.laborHours, inputC: shiftForm.laborRatePerHour, amount: scaleResult.laborCost, isDeduction: false, sortOrder: 0 },
+        { stage: 'FIXED', name: '规模测算机时费用', method: 'LABOR_HOURS', inputA: 1, inputB: scaleResult.machineHours, inputC: shiftForm.machineRatePerHour, amount: scaleResult.machineCost, isDeduction: false, sortOrder: 1 },
+        { stage: 'FIXED', name: '其他期间费用', method: 'MANUAL', inputA: scaleForm.otherCost, inputB: 0, inputC: 0, amount: scaleForm.otherCost, isDeduction: false, sortOrder: 2 },
+      ],
+    }
+    const res = await fetch('/api/sawing-cost-scenarios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     const data = await res.json()
     setSaving(false)
     if (!res.ok) return setMessage(data.error || '保存方案失败')
@@ -169,30 +236,24 @@ export default function SawingCostCalculatorPage() {
   return (
     <div className="space-y-4">
       <div className="rounded-lg bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold text-gray-900">生产成本试算</h2><span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">分步填写</span></div>
-        <p className="mt-1 text-sm text-gray-500">按顺序填写，不需要一次看完所有费用。</p>
-        <div className="mt-4 grid grid-cols-5 gap-1 rounded-lg bg-gray-100 p-1">
-          {['材料与售价', '直接费用', '人员费用', '固定费用', '结果'].map((label, index) => <button key={label} onClick={() => setActiveStep(index + 1)} className={`min-w-0 rounded-md px-2 py-2 text-xs font-medium sm:text-sm ${activeStep === index + 1 ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}><span className="hidden sm:inline">{index + 1}. </span>{label}</button>)}
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-xl font-semibold text-gray-900">锯切费用计算</h2>
+          <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">三步经营测算</span>
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1">
+          {['材料成本', '班次收入', '混合规模'].map((label, index) => (
+            <button key={label} onClick={() => setActiveStep(index + 1)} className={`min-w-0 rounded-md px-2 py-2 text-xs font-medium sm:text-sm ${activeStep === index + 1 ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>
+              <span className="hidden sm:inline">{index + 1}. </span>{label}
+            </button>
+          ))}
         </div>
       </div>
-
-      {activeStep >= 2 && activeStep <= 4 && (() => { const stage = (['DIRECT', 'LABOR', 'FIXED'] as CostStage[])[activeStep - 2]; return <CostStageEditor stage={stage} items={costItems.filter((item) => item.stage === stage)} onChange={(items) => setCostItems((current) => [...current.filter((item) => item.stage !== stage), ...items])} /> })()}
-
-      {activeStep === 5 && <div className="rounded-lg bg-white p-5 shadow-sm">
-        <h3 className="font-semibold text-gray-900">三阶段成本与利润</h3>
-        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
-          <ResultCard label="基础直接成本" value={money(stageResult.directStageCost)} hint={`直接利润 ${money(stageResult.directProfit)} · ${stageResult.directMargin.toFixed(2)}%`} primary />
-          <ResultCard label="加人人员后制造成本" value={money(stageResult.manufacturingCost)} hint={`制造利润 ${money(stageResult.manufacturingProfit)} · ${stageResult.manufacturingMargin.toFixed(2)}%`} primary />
-          <ResultCard label="合并完整生产成本" value={money(stageResult.fullCost)} hint={`完整利润 ${money(stageResult.fullProfit)} · ${stageResult.fullMargin.toFixed(2)}%`} primary />
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4"><div className="rounded bg-gray-50 p-3">净材料 {money(result.netMaterialCost)}</div><div className="rounded bg-gray-50 p-3">其他直接 {money(stageResult.additionalDirectCost)}</div><div className="rounded bg-gray-50 p-3">人员 {money(stageResult.laborCost)}</div><div className="rounded bg-gray-50 p-3">固定分摊 {money(stageResult.fixedCost)}</div></div>
-      </div>}
 
       {message && <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">{message}</div>}
 
       {activeStep === 1 && <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         <div className="rounded-lg bg-white p-5 shadow-sm">
-          <h3 className="mb-4 font-semibold text-gray-900">计算参数</h3>
+          <h3 className="mb-4 font-semibold text-gray-900">材料与售价</h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1">
             <NumberField label="材料长度" value={form.materialLength} unit="mm" onChange={(value) => update('materialLength', value)} />
             <NumberField label="材料总重量" value={form.materialWeight} unit="kg" onChange={(value) => update('materialWeight', value)} />
@@ -201,71 +262,162 @@ export default function SawingCostCalculatorPage() {
             <NumberField label="原材料单价" value={form.rawMaterialPrice} unit="元/kg" onChange={(value) => update('rawMaterialPrice', value)} />
             <NumberField label="废屑回收单价" value={form.sawdustPrice} unit="元/kg" onChange={(value) => update('sawdustPrice', value)} />
             <NumberField label="剩余废料单价" value={form.scrapPrice} unit="元/kg" onChange={(value) => update('scrapPrice', value)} />
-            <NumberField label="成品价格" value={form.finishedPrice} unit="元/件" onChange={(value) => update('finishedPrice', value)} />
+            <NumberField label="销售单价" value={form.finishedPrice} unit="元/件" onChange={(value) => update('finishedPrice', value)} />
+          </div>
+        </div>
+        <div className="space-y-4">
+          {materialResult.quantity === 0 ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">当前材料长度不足以切出一件成品，请检查材料、工件长度和锯片厚度。</div> : <>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <ResultCard label="可加工数量" value={`${materialResult.quantity} 件`} hint={`每件占用 ${(form.workpieceLength + form.bladeThickness).toFixed(2)} mm`} primary />
+              <ResultCard label="材料利用率" value={`${materialResult.utilization.toFixed(2)}%`} hint="成品重量 ÷ 材料总重量" primary />
+              <ResultCard label="单件材料成本" value={money(materialResult.materialCostPerPiece)} hint="扣除废屑和边料回收" />
+              <ResultCard label="单件材料毛利" value={money(materialResult.profitPerPiece)} hint={`销售单价 ${money(form.finishedPrice)}`} primary />
+            </div>
+            <div className="rounded-lg bg-white p-5 shadow-sm">
+              <h3 className="mb-3 font-semibold text-gray-900">材料成本拆解</h3>
+              <div className="grid grid-cols-2 gap-3 text-sm lg:grid-cols-4">
+                <ResultCard label="成品用料" value={weight(materialResult.productWeight)} hint={`${materialResult.productLength.toFixed(2)} mm`} />
+                <ResultCard label="锯缝废屑" value={weight(materialResult.sawdustWeight)} hint={`${materialResult.kerfLength.toFixed(2)} mm`} />
+                <ResultCard label="剩余边料" value={weight(materialResult.scrapWeight)} hint={`${materialResult.remainderLength.toFixed(2)} mm`} />
+                <ResultCard label="整根材料毛利" value={money(materialResult.totalProfit)} hint={`毛利率 ${materialResult.grossMargin.toFixed(2)}%`} />
+              </div>
+              <div className="mt-4 space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-gray-600">原材料总成本</span><span>{money(materialResult.rawCost)}</span></div>
+                <div className="flex justify-between text-emerald-700"><span>减：废屑回收价值</span><span>-{money(materialResult.sawdustRecovery)}</span></div>
+                <div className="flex justify-between text-emerald-700"><span>减：剩余边料回收价值</span><span>-{money(materialResult.scrapRecovery)}</span></div>
+                <div className="flex justify-between border-t pt-2 font-semibold"><span>净材料成本</span><span>{money(materialResult.netMaterialCost)}</span></div>
+              </div>
+            </div>
+          </>}
+        </div>
+      </div>}
+
+      {activeStep === 2 && <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+        <div className="rounded-lg bg-white p-5 shadow-sm">
+          <h3 className="mb-4 font-semibold text-gray-900">班次产能参数</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1">
+            <NumberField label="班次人数" value={shiftForm.workerCount} unit="人" onChange={(value) => updateShift('workerCount', value)} />
+            <NumberField label="每班时长" value={shiftForm.shiftHours} unit="小时" onChange={(value) => updateShift('shiftHours', value)} />
+            <NumberField label="人工小时成本" value={shiftForm.laborRatePerHour} unit="元/小时" onChange={(value) => updateShift('laborRatePerHour', value)} />
+            <NumberField label="生产效率" value={shiftForm.piecesPerLaborHour} unit="件/人工时" onChange={(value) => updateShift('piecesPerLaborHour', value)} />
+            <NumberField label="设备数量" value={shiftForm.machineCount} unit="台" onChange={(value) => updateShift('machineCount', value)} />
+            <NumberField label="机时成本" value={shiftForm.machineRatePerHour} unit="元/小时" onChange={(value) => updateShift('machineRatePerHour', value)} />
+          </div>
+        </div>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <ResultCard label="每班产量" value={`${shiftResult.quantity.toFixed(0)} 件`} hint={`${shiftResult.laborHours.toFixed(2)} 人工时`} primary />
+            <ResultCard label="每班营业收入" value={money(shiftResult.revenue)} hint={`${money(form.finishedPrice)} / 件`} primary />
+            <ResultCard label="每班总成本" value={money(shiftResult.totalCost)} hint={`材料 ${money(shiftResult.materialCost)}`} />
+            <ResultCard label="每班经营利润" value={money(shiftResult.profit)} hint={`利润率 ${shiftResult.margin.toFixed(2)}%`} primary />
+          </div>
+          <div className="rounded-lg bg-white p-5 shadow-sm">
+            <h3 className="mb-3 font-semibold text-gray-900">班次收入拆解</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-gray-600">销售收入</span><span>{money(shiftResult.revenue)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600">材料成本</span><span>-{money(shiftResult.materialCost)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600">人工成本</span><span>-{money(shiftResult.laborCost)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600">机时费用</span><span>-{money(shiftResult.machineCost)}</span></div>
+              <div className="flex justify-between border-t pt-2 font-semibold text-blue-700"><span>单班经营利润</span><span>{money(shiftResult.profit)}</span></div>
+            </div>
+          </div>
+        </div>
+      </div>}
+
+      {activeStep === 3 && <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+          <div className="rounded-lg bg-white p-5 shadow-sm">
+            <h3 className="mb-4 font-semibold text-gray-900">规模跨度</h3>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1">
+              <NumberField label="计划班次数" value={scaleForm.plannedShifts} unit="班" onChange={(value) => updateScale('plannedShifts', value)} />
+              <NumberField label="每台每班机时" value={scaleForm.machineHoursPerShift} unit="小时" onChange={(value) => updateScale('machineHoursPerShift', value)} />
+              <NumberField label="其他期间费用" value={scaleForm.otherCost} unit="元" onChange={(value) => updateScale('otherCost', value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <ResultCard label="规模营业收入" value={money(scaleResult.totalRevenue)} hint={`${mixRows.length} 个产品组合`} primary />
+            <ResultCard label="规模总成本" value={money(scaleResult.totalCost)} hint={`材料 ${money(scaleResult.materialCost)}`} />
+            <ResultCard label="规模经营利润" value={money(scaleResult.profit)} hint={`利润率 ${scaleResult.margin.toFixed(2)}%`} primary />
+            <ResultCard label="所需班次" value={`${scaleResult.requiredShifts.toFixed(1)} 班`} hint={`人工负荷 ${scaleResult.laborLoad.toFixed(1)}% · 机时负荷 ${scaleResult.machineLoad.toFixed(1)}%`} />
           </div>
         </div>
 
-        <div className="space-y-4">
-          {result.quantity === 0 ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">当前材料长度不足以切出一件成品，请检查材料、工件长度和锯片厚度。</div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <ResultCard label="可加工数量" value={`${result.quantity} 件`} hint={`每件占用 ${(form.workpieceLength + form.bladeThickness).toFixed(2)} mm`} primary />
-                <ResultCard label="材料利用率" value={`${result.utilization.toFixed(2)}%`} hint="成品重量 ÷ 材料总重量" primary />
-                <ResultCard label="单件净材料成本" value={money(result.materialCostPerPiece)} hint="已扣除废屑和边料回收价值" />
-                <ResultCard label="单件材料毛利" value={money(result.profitPerPiece)} hint={`成品价格 ${money(form.finishedPrice)}`} primary />
-              </div>
-
-              {false && <div className="rounded-lg bg-white p-5 shadow-sm">
-                <h3 className="mb-4 font-semibold text-gray-900">材料分配</h3>
-                <div className="grid grid-cols-2 gap-3 text-sm lg:grid-cols-4">
-                  <ResultCard label="成品用料" value={weight(result.productWeight)} hint={`${result.productLength.toFixed(2)} mm`} />
-                  <ResultCard label="锯缝废屑" value={weight(result.sawdustWeight)} hint={`${result.kerfLength.toFixed(2)} mm`} />
-                  <ResultCard label="剩余边料" value={weight(result.scrapWeight)} hint={`${result.remainderLength.toFixed(2)} mm`} />
-                  <ResultCard label="整根材料总毛利" value={money(result.totalProfit)} hint={`毛利率 ${result.grossMargin.toFixed(2)}%`} />
-                </div>
-              </div>}
-
-              <div className="rounded-lg bg-white p-5 shadow-sm">
-                <h3 className="mb-3 font-semibold text-gray-900">成本拆解</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-gray-600">原材料总成本</span><span>{money(result.rawCost)}</span></div>
-                  <div className="flex justify-between text-emerald-700"><span>减：废屑回收价值</span><span>-{money(result.sawdustRecovery)}</span></div>
-                  <div className="flex justify-between text-emerald-700"><span>减：剩余边料回收价值</span><span>-{money(result.scrapRecovery)}</span></div>
-                  <div className="flex justify-between border-t pt-2 font-semibold"><span>净材料成本</span><span>{money(result.netMaterialCost)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-600">成品销售收入</span><span>{money(result.totalRevenue)}</span></div>
-                  <div className="flex justify-between border-t pt-2 font-semibold text-blue-700"><span>材料毛利</span><span>{money(result.totalProfit)}</span></div>
-                </div>
-                <p className="mt-3 rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-800">这里只显示材料试算。点击“下一步”继续填写其他直接费用、人员费用和固定费用。</p>
-              </div>
-            </>
-          )}
+        <div className="rounded-lg bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="font-semibold text-gray-900">混合产品工时机时</h3>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={syncCurrentProduct} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700">同步当前产品</button>
+              <button onClick={addMixRow} className="rounded-lg border border-blue-300 px-3 py-1.5 text-sm text-blue-700">新增产品</button>
+            </div>
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[940px] text-sm">
+              <thead className="bg-gray-50 text-left text-gray-600">
+                <tr>
+                  <th className="px-3 py-2">产品</th>
+                  <th className="px-3 py-2 text-right">数量</th>
+                  <th className="px-3 py-2 text-right">售价</th>
+                  <th className="px-3 py-2 text-right">材料成本/件</th>
+                  <th className="px-3 py-2 text-right">人工时/件</th>
+                  <th className="px-3 py-2 text-right">机时/件</th>
+                  <th className="px-3 py-2 text-right">收入</th>
+                  <th className="px-3 py-2"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {mixRows.map((row) => <tr key={row.id}>
+                  <td className="px-3 py-2"><input value={row.name} onChange={(event) => patchMixRow(row.id, { name: event.target.value })} className="w-full rounded border border-gray-200 px-2 py-1" /></td>
+                  <td className="px-3 py-2"><input type="number" min="0" value={row.quantity || ''} onChange={(event) => patchMixRow(row.id, { quantity: Math.max(0, Number(event.target.value)) })} className="w-full rounded border border-gray-200 px-2 py-1 text-right" /></td>
+                  <td className="px-3 py-2"><input type="number" min="0" value={row.sellingPrice || ''} onChange={(event) => patchMixRow(row.id, { sellingPrice: Math.max(0, Number(event.target.value)) })} className="w-full rounded border border-gray-200 px-2 py-1 text-right" /></td>
+                  <td className="px-3 py-2"><input type="number" min="0" value={row.materialCostPerPiece || ''} onChange={(event) => patchMixRow(row.id, { materialCostPerPiece: Math.max(0, Number(event.target.value)) })} className="w-full rounded border border-gray-200 px-2 py-1 text-right" /></td>
+                  <td className="px-3 py-2"><input type="number" min="0" step="any" value={row.laborHoursPerPiece || ''} onChange={(event) => patchMixRow(row.id, { laborHoursPerPiece: Math.max(0, Number(event.target.value)) })} className="w-full rounded border border-gray-200 px-2 py-1 text-right" /></td>
+                  <td className="px-3 py-2"><input type="number" min="0" step="any" value={row.machineHoursPerPiece || ''} onChange={(event) => patchMixRow(row.id, { machineHoursPerPiece: Math.max(0, Number(event.target.value)) })} className="w-full rounded border border-gray-200 px-2 py-1 text-right" /></td>
+                  <td className="px-3 py-2 text-right font-medium text-gray-900">{money(row.quantity * row.sellingPrice)}</td>
+                  <td className="px-3 py-2 text-right"><button onClick={() => setMixRows((rows) => rows.filter((item) => item.id !== row.id))} className="rounded border border-red-200 px-2 py-1 text-xs text-red-600">移除</button></td>
+                </tr>)}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+            <div className="rounded bg-gray-50 p-3">人工需求 <b>{scaleResult.laborHours.toFixed(2)} h</b></div>
+            <div className="rounded bg-gray-50 p-3">人工产能 <b>{scaleResult.laborCapacity.toFixed(2)} h</b></div>
+            <div className="rounded bg-gray-50 p-3">机时需求 <b>{scaleResult.machineHours.toFixed(2)} h</b></div>
+            <div className="rounded bg-gray-50 p-3">机时产能 <b>{scaleResult.machineCapacity.toFixed(2)} h</b></div>
+          </div>
         </div>
-      </div>}
 
-      {activeStep === 5 && <div className="rounded-lg bg-white p-5 shadow-sm">
-        <h3 className="font-semibold text-gray-900">保存这次试算</h3>
-        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]"><input value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} placeholder="方案名称" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" /><button onClick={saveScenario} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{saving ? '保存中...' : '保存方案'}</button></div>
-        <div className="mt-3 flex flex-wrap gap-2">{processOptions.map((process) => <label key={process.id} className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs ${selectedProcessIds.includes(process.id) ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}><input type="checkbox" className="mr-1.5" checked={selectedProcessIds.includes(process.id)} onChange={(event) => setSelectedProcessIds(event.target.checked ? [...selectedProcessIds, process.id] : selectedProcessIds.filter((id) => id !== process.id))} />{process.name}</label>)}</div>
-      </div>}
+        <div className="rounded-lg bg-white p-5 shadow-sm">
+          <h3 className="font-semibold text-gray-900">保存这次测算</h3>
+          <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+            <input value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} placeholder="方案名称" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+            <button onClick={saveScenario} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{saving ? '保存中...' : '保存方案'}</button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">{processOptions.map((process) => <label key={process.id} className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs ${selectedProcessIds.includes(process.id) ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}><input type="checkbox" className="mr-1.5" checked={selectedProcessIds.includes(process.id)} onChange={(event) => setSelectedProcessIds(event.target.checked ? [...selectedProcessIds, process.id] : selectedProcessIds.filter((id) => id !== process.id))} />{process.name}</label>)}</div>
+        </div>
 
-      {activeStep === 5 && <div className="rounded-lg bg-white p-5 shadow-sm">
-        <div><h3 className="font-semibold text-gray-900">已保存方案与组合对比</h3><p className="mt-1 text-xs text-gray-500">勾选 2 个以上方案，对比不同锯缝和生产工艺组合。</p></div>
-        {savedScenarios.length === 0 ? <div className="mt-4 rounded-lg border border-dashed p-6 text-center text-sm text-gray-500">暂无已保存方案</div> : <>
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">{savedScenarios.map((scenario) => <label key={scenario.id} className={`cursor-pointer rounded-lg border p-4 ${comparisonIds.includes(scenario.id) ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}><div className="flex items-start gap-2"><input type="checkbox" checked={comparisonIds.includes(scenario.id)} onChange={(event) => setComparisonIds(event.target.checked ? [...comparisonIds, scenario.id] : comparisonIds.filter((id) => id !== scenario.id))} /><div><div className="font-medium text-gray-900">{scenario.name}</div><div className="mt-1 text-xs text-gray-500">{scenario.processTemplates.map((item) => item.name).join(' + ') || '仅锯切'}</div><div className="mt-2 text-xs text-gray-600">{scenario.quantity} 件 · 利用率 {scenario.utilization.toFixed(2)}% · 完整成本 {money(scenario.fullCost)}</div><div className="mt-1 text-xs font-medium text-blue-700">完整利润 {money(scenario.fullProfit)} · {scenario.fullMargin.toFixed(2)}%</div></div></div></label>)}</div>
-          {comparedScenarios.length >= 2 && <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead className="bg-gray-50"><tr><th className="px-3 py-2 text-left">指标</th>{comparedScenarios.map((item) => <th key={item.id} className="px-3 py-2 text-right">{item.name}</th>)}</tr></thead><tbody className="divide-y">{[
-            ['工艺组合', (item: SavedScenario) => item.processTemplates.map((p) => p.name).join(' + ') || '仅锯切'],
-            ['锯片厚度', (item: SavedScenario) => `${item.bladeThickness.toFixed(2)} mm`], ['可加工数量', (item: SavedScenario) => `${item.quantity} 件`], ['材料利用率', (item: SavedScenario) => `${item.utilization.toFixed(2)}%`],
-            ['基础直接成本', (item: SavedScenario) => money(item.directStageCost)], ['人员费用', (item: SavedScenario) => money(item.laborCost)], ['固定费用分摊', (item: SavedScenario) => money(item.fixedCost)], ['合并完整成本', (item: SavedScenario) => money(item.fullCost)], ['直接利润率', (item: SavedScenario) => `${item.directMargin.toFixed(2)}%`], ['制造利润率', (item: SavedScenario) => `${item.manufacturingMargin.toFixed(2)}%`], ['完整利润', (item: SavedScenario) => money(item.fullProfit)], ['完整利润率', (item: SavedScenario) => `${item.fullMargin.toFixed(2)}%`],
-          ].map(([label, formatter]) => <tr key={label as string}><td className="px-3 py-2 font-medium text-gray-600">{label as string}</td>{comparedScenarios.map((item) => <td key={item.id} className="px-3 py-2 text-right">{(formatter as (value: SavedScenario) => string)(item)}</td>)}</tr>)}</tbody></table></div>}
-        </>}
+        <div className="rounded-lg bg-white p-5 shadow-sm">
+          <h3 className="font-semibold text-gray-900">已保存方案对比</h3>
+          {savedScenarios.length === 0 ? <div className="mt-4 rounded-lg border border-dashed p-6 text-center text-sm text-gray-500">暂无已保存方案</div> : <>
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">{savedScenarios.map((scenario) => <label key={scenario.id} className={`cursor-pointer rounded-lg border p-4 ${comparisonIds.includes(scenario.id) ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}><div className="flex items-start gap-2"><input type="checkbox" checked={comparisonIds.includes(scenario.id)} onChange={(event) => setComparisonIds(event.target.checked ? [...comparisonIds, scenario.id] : comparisonIds.filter((id) => id !== scenario.id))} /><div><div className="font-medium text-gray-900">{scenario.name}</div><div className="mt-1 text-xs text-gray-500">{scenario.processTemplates.map((item) => item.name).join(' + ') || '仅锯切'}</div><div className="mt-2 text-xs text-gray-600">{scenario.quantity} 件 · 利用率 {scenario.utilization.toFixed(2)}% · 总收入 {money(scenario.totalRevenue)}</div><div className="mt-1 text-xs font-medium text-blue-700">经营利润 {money(scenario.fullProfit)} · {scenario.fullMargin.toFixed(2)}%</div></div></div></label>)}</div>
+            {comparedScenarios.length >= 2 && <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead className="bg-gray-50"><tr><th className="px-3 py-2 text-left">指标</th>{comparedScenarios.map((item) => <th key={item.id} className="px-3 py-2 text-right">{item.name}</th>)}</tr></thead><tbody className="divide-y">{[
+              ['锯片厚度', (item: SavedScenario) => `${item.bladeThickness.toFixed(2)} mm`],
+              ['可加工数量', (item: SavedScenario) => `${item.quantity} 件`],
+              ['材料利用率', (item: SavedScenario) => `${item.utilization.toFixed(2)}%`],
+              ['单件材料成本', (item: SavedScenario) => money(item.materialCostPerPiece)],
+              ['营业收入', (item: SavedScenario) => money(item.totalRevenue)],
+              ['人工费用', (item: SavedScenario) => money(item.laborCost)],
+              ['总成本', (item: SavedScenario) => money(item.fullCost)],
+              ['经营利润', (item: SavedScenario) => money(item.fullProfit)],
+              ['经营利润率', (item: SavedScenario) => `${item.fullMargin.toFixed(2)}%`],
+            ].map(([label, formatter]) => <tr key={label as string}><td className="px-3 py-2 font-medium text-gray-600">{label as string}</td>{comparedScenarios.map((item) => <td key={item.id} className="px-3 py-2 text-right">{(formatter as (value: SavedScenario) => string)(item)}</td>)}</tr>)}</tbody></table></div>}
+          </>}
+        </div>
       </div>}
 
       <div className="sticky bottom-20 z-10 flex items-center justify-between rounded-lg border border-gray-200 bg-white/95 p-3 shadow-lg backdrop-blur lg:bottom-3">
         <button onClick={() => setActiveStep((step) => Math.max(1, step - 1))} disabled={activeStep === 1} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 disabled:opacity-30">上一步</button>
-        <div className="text-center text-xs text-gray-500"><span className="font-semibold text-gray-900">{activeStep} / 5</span><span className="hidden sm:inline"> · 当前完整成本 {money(stageResult.fullCost)}</span></div>
-        <button onClick={() => setActiveStep((step) => Math.min(5, step + 1))} disabled={activeStep === 5} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-30">下一步</button>
+        <div className="text-center text-xs text-gray-500"><span className="font-semibold text-gray-900">{activeStep} / 3</span><span className="hidden sm:inline"> · 当前规模收入 {money(scaleResult.totalRevenue)}</span></div>
+        <button onClick={() => setActiveStep((step) => Math.min(3, step + 1))} disabled={activeStep === 3} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-30">下一步</button>
       </div>
     </div>
   )
