@@ -22,6 +22,7 @@ model Product {
   bom         BOM?
   processRoutes ProcessRoute[]
   stock       Stock?
+  sawingScenarios SawingCostScenario[]
   productionOrders ProductionOrder[]
   stockIns    StockIn[]
   shipments   Shipment[]
@@ -74,11 +75,16 @@ model BOMItem {
   id          String   @id @default(cuid())
   bomId       String
   bom         BOM      @relation(fields: [bomId], references: [id], onDelete: Cascade)
-  materialId  String
-  material    Material @relation(fields: [materialId], references: [id])
+  itemType    String   @default("MATERIAL")
+  materialId  String?
+  material    Material? @relation(fields: [materialId], references: [id])
+  sawingScenarioId String?
+  sawingScenario   SawingCostScenario? @relation(fields: [sawingScenarioId], references: [id])
   quantity    Float    @default(0)
   unit        String
   wastageRate Float    @default(0)
+
+  @@index([sawingScenarioId])
 }
 
 // ==================== 工艺路线 ====================
@@ -178,11 +184,19 @@ model SawingCostScenario {
   directMargin          Float   @default(0)
   manufacturingMargin  Float   @default(0)
   fullMargin            Float   @default(0)
+  productKind           String  @default("TEMPORARY")
+  productId             String?
+  product               Product? @relation(fields: [productId], references: [id])
+  laborHoursPerPiece    Float   @default(0)
+  machineHoursPerPiece  Float   @default(0)
+  bomItems              BOMItem[]
   processTemplates     ProcessTemplate[]
   costItems            ProductionCostItem[]
   createdBy            String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
+
+  @@index([productId])
 }
 
 model ProductionCostItem {

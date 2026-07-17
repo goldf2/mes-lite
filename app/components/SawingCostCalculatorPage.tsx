@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 interface ProcessOption { id: string; code: string; name: string; category: string }
+interface ProductOption { id: string; sku: string; name: string; unit: string }
 interface SavedScenario {
   id: string
   name: string
@@ -18,6 +19,11 @@ interface SavedScenario {
   fullCost: number
   fullProfit: number
   fullMargin: number
+  productKind: 'EXISTING' | 'TEMPORARY'
+  laborHoursPerPiece: number
+  machineHoursPerPiece: number
+  product?: ProductOption | null
+  bomItems?: Array<{ bom: { product: { id: string; sku: string; name: string } } }>
   processTemplates: ProcessOption[]
 }
 
@@ -79,7 +85,11 @@ export default function SawingCostCalculatorPage() {
   })
   const [mixRows, setMixRows] = useState<MixRow[]>([])
   const [scenarioName, setScenarioName] = useState('')
+  const [productKind, setProductKind] = useState<'TEMPORARY' | 'EXISTING'>('TEMPORARY')
+  const [selectedProductId, setSelectedProductId] = useState('')
+  const [bomProductId, setBomProductId] = useState('')
   const [processOptions, setProcessOptions] = useState<ProcessOption[]>([])
+  const [productOptions, setProductOptions] = useState<ProductOption[]>([])
   const [selectedProcessIds, setSelectedProcessIds] = useState<string[]>([])
   const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>([])
   const [comparisonIds, setComparisonIds] = useState<string[]>([])
@@ -99,6 +109,7 @@ export default function SawingCostCalculatorPage() {
     if (res.ok) {
       setSavedScenarios(data.data || [])
       setProcessOptions(data.processTemplates || [])
+      setProductOptions(data.products || [])
     } else setMessage(data.error || '获取已保存方案失败')
   }
 
@@ -180,6 +191,15 @@ export default function SawingCostCalculatorPage() {
 
   const patchMixRow = (id: string, values: Partial<MixRow>) => setMixRows((rows) => rows.map((row) => row.id === id ? { ...row, ...values } : row))
   const addMixRow = () => setMixRows((rows) => [...rows, { id: `mix-${Date.now()}-${rows.length}`, name: `产品 ${rows.length + 1}`, quantity: 0, sellingPrice: 0, materialCostPerPiece: 0, laborHoursPerPiece: 0, machineHoursPerPiece: 0 }])
+  const addScenarioToMix = (scenario: SavedScenario) => setMixRows((rows) => [...rows, {
+    id: `mix-scenario-${scenario.id}-${Date.now()}`,
+    name: scenario.product ? `${scenario.product.sku} ${scenario.product.name}` : scenario.name,
+    quantity: Math.max(0, scenario.quantity),
+    sellingPrice: scenario.finishedPrice,
+    materialCostPerPiece: scenario.materialCostPerPiece,
+    laborHoursPerPiece: scenario.laborHoursPerPiece,
+    machineHoursPerPiece: scenario.machineHoursPerPiece,
+  }])
   const currentProductMixRow = (): MixRow => ({
     id: `mix-${Date.now()}`,
     name: '当前锯切产品',
@@ -199,12 +219,18 @@ export default function SawingCostCalculatorPage() {
 
   const saveScenario = async () => {
     if (!scenarioName.trim()) return setMessage('请先填写方案名称')
+    if (productKind === 'EXISTING' && !selectedProductId) return setMessage('请选择要绑定的产品')
     if (materialResult.quantity <= 0) return setMessage('当前参数无法加工出成品')
     setSaving(true)
     const payload = {
       ...form,
       ...materialResult,
       name: scenarioName.trim(),
+      productKind,
+      productId: productKind === 'EXISTING' ? selectedProductId : undefined,
+      bomProductId: bomProductId || undefined,
+      laborHoursPerPiece: shiftForm.piecesPerLaborHour > 0 ? 1 / shiftForm.piecesPerLaborHour : 0,
+      machineHoursPerPiece: shiftResult.quantity > 0 ? shiftResult.machineHours / shiftResult.quantity : 0,
       processTemplateIds: selectedProcessIds,
       additionalDirectCost: 0,
       laborCost: scaleResult.laborCost,
@@ -392,7 +418,51 @@ export default function SawingCostCalculatorPage() {
             <input value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} placeholder="方案名称" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" />
             <button onClick={saveScenario} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{saving ? '保存中...' : '保存方案'}</button>
           </div>
+          <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[180px_minmax(0,1fr)]">
+            <select value={productKind} onChange={(event) => setProductKind(event.target.value as 'TEMPORARY' | 'EXISTING')} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
+              <option value="TEMPORARY">保存为临时产品</option>
+              <option value="EXISTING">绑定已有产品</option>
+            </select>
+            {productKind === 'EXISTING' ? (
+              <select value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                <option value="">选择产品</option>
+                {productOptions.map((product) => <option key={product.id} value={product.id}>{product.sku} · {product.name}</option>)}
+              </select>
+            ) : (
+              <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-500">临时产品会保留单件材料成本、人工时和机时，后续可直接加入混合测算。</div>
+            )}
+          </div>
+          <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[180px_minmax(0,1fr)]">
+            <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-600">BOM 组成</div>
+            <select value={bomProductId} onChange={(event) => setBomProductId(event.target.value)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
+              <option value="">不加入产品 BOM</option>
+              {productOptions.map((product) => <option key={product.id} value={product.id}>加入 {product.sku} · {product.name} 的 BOM</option>)}
+            </select>
+          </div>
           <div className="mt-3 flex flex-wrap gap-2">{processOptions.map((process) => <label key={process.id} className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs ${selectedProcessIds.includes(process.id) ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}><input type="checkbox" className="mr-1.5" checked={selectedProcessIds.includes(process.id)} onChange={(event) => setSelectedProcessIds(event.target.checked ? [...selectedProcessIds, process.id] : selectedProcessIds.filter((id) => id !== process.id))} />{process.name}</label>)}</div>
+        </div>
+
+        <div className="rounded-lg bg-white p-5 shadow-sm">
+          <h3 className="font-semibold text-gray-900">调用已保存产品成本</h3>
+          {savedScenarios.length === 0 ? <div className="mt-4 rounded-lg border border-dashed p-6 text-center text-sm text-gray-500">暂无可调用的产品成本</div> : (
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {savedScenarios.map((scenario) => <div key={scenario.id} className="rounded-lg border border-gray-200 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-medium text-gray-900">{scenario.product ? `${scenario.product.sku} ${scenario.product.name}` : scenario.name}</div>
+                    <div className="mt-1 text-xs text-gray-500">{scenario.productKind === 'EXISTING' ? '已有产品' : '临时产品'} · {scenario.quantity} 件/根</div>
+                    {scenario.bomItems && scenario.bomItems.length > 0 && <div className="mt-1 text-xs text-blue-700">BOM：{scenario.bomItems.map((item) => item.bom.product.name).join('、')}</div>}
+                  </div>
+                  <button onClick={() => addScenarioToMix(scenario)} className="rounded-lg border border-blue-300 px-3 py-1.5 text-xs text-blue-700">加入</button>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-xs text-gray-600">
+                  <span>材料<br /><b>{money(scenario.materialCostPerPiece)}</b></span>
+                  <span>人工时<br /><b>{scenario.laborHoursPerPiece.toFixed(4)}</b></span>
+                  <span>机时<br /><b>{scenario.machineHoursPerPiece.toFixed(4)}</b></span>
+                </div>
+              </div>)}
+            </div>
+          )}
         </div>
 
         <div className="rounded-lg bg-white p-5 shadow-sm">

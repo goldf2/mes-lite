@@ -497,7 +497,18 @@ SKU，实际库存单位。
 | labor_cost | 新版锯切计算中保存规模测算人工成本 |
 | fixed_cost | 新版锯切计算中保存规模机时费用和其他期间费用 |
 | full_cost / full_profit / full_margin | 新版锯切计算中保存规模总成本、经营利润和经营利润率 |
+| product_kind / product_id | 保存为临时产品或绑定已有产品；临时产品不进入正式产品档案 |
+| labor_hours_per_piece / machine_hours_per_piece | 后续混合测算调用时使用的单件人工时和单件机时快照 |
 | process_templates | 多对多关联的加工工艺模板 |
+
+### BOMItem 锯切成本组成
+
+`BOMItem` 支持两类组成：
+
+- `MATERIAL`：原有物料组成，参与工单创建时的领料需求、库存预留和成本扣减。
+- `SAWING_COST`：锯切成本组成，关联 `SawingCostScenario`，用于表达某个产品 BOM 包含一段锯切测算成本，不参与领料和库存扣减。
+
+锯切费用计算器保存方案时，可将当前锯切测算作为 `SAWING_COST` 项追加到指定产品 BOM。该项保存数量、单位和锯切方案引用，具体单件材料成本、人工时和机时从关联的锯切方案读取。
 
 ### production_cost_items（当前 Prisma 已实现）
 

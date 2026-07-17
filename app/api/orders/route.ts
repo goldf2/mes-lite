@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
       productId = product.id
       bomWithItems = await prisma.bOM.findUnique({
         where: { id: product.bom.id },
-        include: { items: { include: { material: { include: { stock: true } } } } },
+        include: { items: { where: { itemType: 'MATERIAL' }, include: { material: { include: { stock: true } } } } },
       })
     }
 
@@ -149,6 +149,7 @@ export async function POST(req: NextRequest) {
       })
 
       for (const bomItem of bomWithItems?.items ?? []) {
+        if (!bomItem.material || !bomItem.materialId) continue
         const requiredQty = Number(bomItem.quantity) * planQty * (1 + Number(bomItem.wastageRate) / 100)
         const stockQty = Number(bomItem.material.stock?.availableQty ?? 0)
 
