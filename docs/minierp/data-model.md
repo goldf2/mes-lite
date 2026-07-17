@@ -506,9 +506,85 @@ SKU，实际库存单位。
 `BOMItem` 支持两类组成：
 
 - `MATERIAL`：原有物料组成，参与工单创建时的领料需求、库存预留和成本扣减。
-- `SAWING_COST`：锯切成本组成，关联 `SawingCostScenario`，用于表达某个产品 BOM 包含一段锯切测算成本，不参与领料和库存扣减。
+- `SAWING_COST`：锯切成本组成，关联 `CostObject`，兼容关联 `SawingCostScenario`，用于表达某个产品 BOM 包含一段锯切测算成本，不参与领料和库存扣减。
 
-锯切费用计算器保存方案时，可将当前锯切测算作为 `SAWING_COST` 项追加到指定产品 BOM。该项保存数量、单位和锯切方案引用，具体单件材料成本、人工时和机时从关联的锯切方案读取。
+锯切费用计算器保存方案时，会自动生成一个 `CostObject` 和一条生效的 `CostObjectCost`，并可将该成本对象作为 `SAWING_COST` 项追加到指定产品 BOM。该项保存数量、单位、成本对象引用和锯切方案引用；BOM 成本计算优先读取成本对象成本，旧数据可回退读取锯切方案中的单件材料成本、人工时和机时。
+
+工单创建仍只读取 `MATERIAL` 类型 BOM 项生成领料和库存预留；成本对象类型的 BOM 项只参与成本结构表达和 BOM 成本计算。
+
+### cost_objects / cost_object_costs（当前 Prisma 已实现）
+
+成本对象主数据与成本版本表。成本对象用于把非库存物料的加工、外协、锯切或人工机时成本纳入 BOM，但不把这些项目当成库存物料处理。
+
+`/api/cost-objects` 提供成本数据工作台读取和手工成本对象创建能力。手工成本对象保存后生成一条 active `CostObjectCost`，后续可作为 BOM 成本组成引用。
+
+`CostObject` 字段：
+
+| 字段 | 含义 |
+| --- | --- |
+| code | 成本对象编码，锯切方案自动生成为 `SAW-xxxxxxxx` |
+| name | 成本对象名称 |
+| objectType | 成本对象类型，如 `SAWING_COST`、`MANUAL` |
+| sourceType / sourceId | 来源类型和来源 ID，锯切来源为 `SAWING_COST_SCENARIO` |
+| unit | 成本对象默认单位 |
+| status | `ACTIVE` 等状态 |
+
+`CostObjectCost` 字段：
+
+| 字段 | 含义 |
+| --- | --- |
+| costObjectId | 所属成本对象 |
+| version | 成本版本 |
+| materialCostPerUnit | 单位材料成本 |
+| laborHoursPerUnit | 单位人工工时 |
+| machineHoursPerUnit | 单位机时 |
+| directCostPerUnit | 其他单位直接费用 |
+| active / effectiveFrom | 生效标记和生效时间 |
+
+### bom_cost_runs / bom_cost_run_lines（当前 Prisma 已实现）
+
+BOM 成本计算快照。它是独立于派工、领料和库存的成本测算记录，用于保存某次按数量基准、人工费率、机时费率和固定费用分摊计算出来的结果。
+
+`BomCostRun` 字段：
+
+| 字段 | 含义 |
+| --- | --- |
+| productId / bomId / bomVersion | 被计算产品、BOM 与版本快照 |
+| quantityBasis | 计算数量基准，如 1 件或 1000 件 |
+| laborRatePerHour / machineRatePerHour | 本次人工、机时费率 |
+| overheadCost | 本次固定费用分摊，不写回 BOM |
+| totalMaterialCost / totalLaborCost / totalMachineCost / totalDirectCost | 成本分类汇总 |
+| totalCost / unitCost | 总成本与单位成本 |
+| createdBy / createdAt | 计算人和计算时间 |
+
+`BomCostRunLine` 字段：
+
+| 字段 | 含义 |
+| --- | --- |
+| lineType | `BOM_MATERIAL`、`BOM_COST_OBJECT`、`OVERHEAD` |
+| sourceId / code / name | 来源对象和显示名称 |
+| quantity / unit / unitCost | 数量、单位和本行单位成本 |
+| materialCost / laborHours / machineHours | 材料成本、人工工时、机时 |
+| laborCost / machineCost / directCost / totalCost | 分类金额与行合计 |
+| note | 说明，如损耗率或固定费用分摊 |
+
+BOM 成本计算会展开产品 BOM：
+
+- `MATERIAL` 项读取物料库存成本单价，按数量和损耗率计算材料成本。
+- `SAWING_COST` 或其他成本对象项读取生效成本版本，按数量计算材料成本、人工工时、机时和直接费用。
+- 固定费用作为本次 `OVERHEAD` 快照行保存，不写入 BOM 本体。
+
+### 库存余额一致性补齐
+
+`Stock` 是物料或产品的总库存余额。系统要求每个未归档 `Material` 和每个 `Product` 都有一条对应的 0 或正数库存余额记录。
+
+库存页读取 `/api/stocks` 时会检查：
+
+- 未归档物料是否缺少 `Stock.materialId` 余额。
+- 产品是否缺少 `Stock.productId` 余额。
+- 库存数量、预留数量、可用数量和核算数量之间是否一致。
+
+`PATCH /api/stocks` 用于补齐缺失的物料/产品 0 库存余额记录，不修改已有库存数量、核算数量和金额。自动由物料生成 `MAT-*` 产品的接口也会同步创建产品 0 库存余额，避免库存页被主数据缺失阻断。
 
 ### production_cost_items（当前 Prisma 已实现）
 

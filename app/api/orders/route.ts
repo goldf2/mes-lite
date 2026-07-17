@@ -58,6 +58,9 @@ async function ensureSimpleProductForMaterial(material: { code: string; name: st
       customerId: material.customerId || null,
       unit: material.stockUnit || material.unit,
       description: `由物料 ${material.code} 自动映射，用于简易生产工单。`,
+      stock: {
+        create: {},
+      },
       processRoutes: {
         create: {
           name: '简易生产路线',

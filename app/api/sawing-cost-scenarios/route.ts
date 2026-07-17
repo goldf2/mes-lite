@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic'
 const number = z.number().finite().nonnegative()
 const materialProductPrefix = 'material:'
 const simpleProductSku = (materialCode: string) => `MAT-${materialCode}`
+const sawingCostObjectCode = (scenarioId: string) => `SAW-${scenarioId.slice(-8).toUpperCase()}`
 
 type ProductResolver = Pick<typeof prisma, 'material' | 'product'>
 
@@ -36,6 +37,9 @@ async function resolveProductId(tx: ProductResolver, targetId?: string | null) {
       customerId: material.customerId || null,
       unit: material.stockUnit || material.unit,
       description: `由物料 ${material.code} 自动映射，用于锯切成本/BOM 组成。`,
+      stock: {
+        create: {},
+      },
     },
   })
   return created.id
@@ -110,6 +114,25 @@ export async function POST(req: NextRequest) {
           costItems: { create: costItems },
         },
       })
+      const costObject = await tx.costObject.create({
+        data: {
+          code: sawingCostObjectCode(created.id),
+          name: scenarioName,
+          objectType: 'SAWING_COST',
+          sourceType: 'SAWING_COST_SCENARIO',
+          sourceId: created.id,
+          unit: '件',
+          costs: {
+            create: {
+              version: 'v1',
+              materialCostPerUnit: values.materialCostPerPiece,
+              laborHoursPerUnit: values.laborHoursPerPiece,
+              machineHoursPerUnit: values.machineHoursPerPiece,
+              directCostPerUnit: values.additionalDirectCost || 0,
+            },
+          },
+        },
+      })
 
       if (resolvedBomProductId) {
         const bom = await tx.bOM.upsert({
@@ -121,6 +144,7 @@ export async function POST(req: NextRequest) {
           data: {
             bomId: bom.id,
             itemType: 'SAWING_COST',
+            costObjectId: costObject.id,
             sawingScenarioId: created.id,
             quantity: 1,
             unit: '件',

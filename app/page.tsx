@@ -7,6 +7,7 @@ import ShipmentPage from './components/ShipmentPage'
 import ReturnPage from './components/ReturnPage'
 import StatsPage from './components/StatsPage'
 import SawingCostCalculatorPage from './components/SawingCostCalculatorPage'
+import BomCostPage from './components/BomCostPage'
 import MaterialPage from './components/MaterialPage'
 import WorkInstructionPage from './components/WorkInstructionPage'
 import AttachmentPanel from './components/AttachmentPanel'
@@ -111,7 +112,7 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'operators' | 'system' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
+type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'bomCost' | 'operators' | 'system' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
 
 // ==================== 菜单图标组件 ====================
 
@@ -128,6 +129,7 @@ function MenuIcon({ icon }: { icon: string }) {
     return: '退',
     stats: '析',
     sawingCost: '锯',
+    bomCost: '本',
     operators: '人',
     system: '设',
     permissionUsers: '权',
@@ -215,6 +217,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'stocks', label: '库存管理', resource: 'stocks' },
     { key: 'stats', label: '统计分析', resource: 'stats' },
     { key: 'sawingCost', label: '锯切成本', resource: 'sawingCost' },
+    { key: 'bomCost', label: 'BOM成本', resource: 'bomCost' },
     { key: 'operators', label: '人员管理', resource: 'operators' },
     { key: 'system', label: '系统管理', resource: 'system' },
     { key: 'permissionUsers', label: '人员权限', resource: 'permissionUsers' },
@@ -411,6 +414,24 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }
     setStockDataError(null)
     setStocks(data.data || [])
+  }
+
+  const repairStockRecords = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/stocks', { method: 'PATCH' })
+      const data = await res.json()
+      if (res.ok) {
+        showMessage(data.message || '库存余额已补齐')
+        await fetchStocks()
+        await fetchDashboard()
+      } else {
+        showMessage(data.error || '补齐库存余额失败')
+      }
+    } catch (err) {
+      showMessage('补齐库存余额失败')
+    }
+    setLoading(false)
   }
 
   const fetchCustomers = async () => {
@@ -1112,8 +1133,22 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           <div className="bg-white rounded-lg shadow p-3 sm:p-6">
             {stockDataError && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-                <div className="font-semibold">{stockDataError.message}</div>
-                <div className="mt-1 text-xs text-red-700">库存页已停止展示可能不完整的数据，请先处理以下一致性问题。</div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="font-semibold">{stockDataError.message}</div>
+                    <div className="mt-1 text-xs text-red-700">库存页已停止展示可能不完整的数据，请先处理以下一致性问题。</div>
+                  </div>
+                  {canUpdate('stocks') && (
+                    <button
+                      type="button"
+                      onClick={repairStockRecords}
+                      disabled={loading}
+                      className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {loading ? '修复中...' : '补齐库存余额'}
+                    </button>
+                  )}
+                </div>
                 <div className="mt-3 space-y-2">
                   {stockDataError.issues.map((issue, index) => (
                     <div key={`${issue.type || index}-${index}`} className="rounded border border-red-100 bg-white/70 p-2">
@@ -1399,6 +1434,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
         {/* 锯切加工成本计算 */}
         {tab === 'sawingCost' && <SawingCostCalculatorPage />}
+
+        {/* BOM 成本计算 */}
+        {tab === 'bomCost' && <BomCostPage onMessage={showMessage} />}
 
         {/* 人员管理 */}
         {tab === 'operators' && <OperatorPage currentOperator={operator} onMessage={showMessage} />}

@@ -108,6 +108,34 @@ async function findStockIntegrityIssues() {
   return issues
 }
 
+async function backfillMissingStockRecords() {
+  return prisma.$transaction(async (tx) => {
+    const [materialsWithoutStock, productsWithoutStock] = await Promise.all([
+      tx.material.findMany({
+        where: { deletedAt: null, stock: null },
+        select: { id: true, code: true, name: true },
+      }),
+      tx.product.findMany({
+        where: { stock: null },
+        select: { id: true, sku: true, name: true },
+      }),
+    ])
+
+    for (const material of materialsWithoutStock) {
+      await tx.stock.create({ data: { materialId: material.id } })
+    }
+
+    for (const product of productsWithoutStock) {
+      await tx.stock.create({ data: { productId: product.id } })
+    }
+
+    return {
+      materials: materialsWithoutStock.map((item) => ({ id: item.id, code: item.code, name: item.name })),
+      products: productsWithoutStock.map((item) => ({ id: item.id, code: item.sku, name: item.name })),
+    }
+  })
+}
+
 // GET: 库存查询
 export async function GET(req: NextRequest) {
   try {
@@ -194,6 +222,30 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('Get stocks error:', error)
     return NextResponse.json({ error: '获取库存失败' }, { status: 500 })
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const denied = await requireResourcePermission('stocks', 'update')
+    if (denied) return denied
+
+    const result = await backfillMissingStockRecords()
+    await writeAuditLog(req, {
+      action: 'REPAIR',
+      entityType: 'STOCK',
+      entityLabel: '库存余额补齐',
+      afterData: result,
+      note: '补齐缺失的物料/产品 0 库存余额记录',
+    })
+
+    return NextResponse.json({
+      message: `库存余额已补齐：物料 ${result.materials.length} 条，产品 ${result.products.length} 条`,
+      data: result,
+    })
+  } catch (error) {
+    console.error('Repair stock records error:', error)
+    return NextResponse.json({ error: '补齐库存余额失败' }, { status: 500 })
   }
 }
 

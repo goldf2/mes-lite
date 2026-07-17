@@ -89,6 +89,7 @@ export async function GET(
       costLayers,
       linkedProducts,
       formalWorkInstructions,
+      linkedCostObjects,
     ] = await Promise.all([
       prisma.documentAttachment.findMany({
         where: {
@@ -191,6 +192,16 @@ export async function GET(
                       valuationUnit: true,
                     },
                   },
+                  costObject: {
+                    select: {
+                      id: true,
+                      code: true,
+                      name: true,
+                      objectType: true,
+                      unit: true,
+                    },
+                  },
+                  sawingScenario: { select: { id: true, name: true } },
                 },
               },
             },
@@ -208,6 +219,35 @@ export async function GET(
         },
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
         take: 10,
+      }),
+      prisma.costObject.findMany({
+        where: {
+          OR: [
+            { sourceType: 'MATERIAL', sourceId: material.id },
+            { bomItems: { some: { bom: { product: { sku: { in: linkedProductSkus } } } } } },
+          ],
+        },
+        include: {
+          costs: {
+            where: { active: true },
+            orderBy: { effectiveFrom: 'desc' },
+            take: 1,
+          },
+          bomItems: {
+            select: {
+              id: true,
+              quantity: true,
+              unit: true,
+              bom: {
+                select: {
+                  product: { select: { id: true, sku: true, name: true, unit: true } },
+                },
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
       }),
     ])
 
@@ -289,7 +329,21 @@ export async function GET(
           processRoutes: product.processRoutes,
         },
         items: product.bom!.items,
+        latestCostRun: null as null | { id: string; unitCost: number; totalCost: number; quantityBasis: number; createdAt: Date },
       }))
+    const productIds = productBoms.map((bom) => bom.product.id)
+    const latestCostRuns = productIds.length === 0 ? [] : await prisma.bomCostRun.findMany({
+      where: { productId: { in: productIds } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, productId: true, unitCost: true, totalCost: true, quantityBasis: true, createdAt: true },
+    })
+    const latestCostRunByProduct = new Map<string, typeof latestCostRuns[number]>()
+    for (const run of latestCostRuns) {
+      if (!latestCostRunByProduct.has(run.productId)) latestCostRunByProduct.set(run.productId, run)
+    }
+    for (const bom of productBoms) {
+      bom.latestCostRun = latestCostRunByProduct.get(bom.product.id) || null
+    }
 
     const integrityWarnings = [
       ...(!material.stock ? ['物料档案没有对应库存余额记录，库存管理不会显示该物料。'] : []),
@@ -313,6 +367,7 @@ export async function GET(
           bom: item.bom,
         })),
         productBoms,
+        costObjects: linkedCostObjects,
         processTemplates: material.processTemplates,
         workInstructions: formalWorkInstructionsWithAttachments,
         targetOrders,

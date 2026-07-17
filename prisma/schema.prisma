@@ -20,6 +20,7 @@ model Product {
   unit        String   @default("件")
   description String?
   bom         BOM?
+  bomCostRuns BomCostRun[]
   processRoutes ProcessRoute[]
   stock       Stock?
   sawingScenarios SawingCostScenario[]
@@ -66,6 +67,7 @@ model BOM {
   productId   String   @unique
   product     Product  @relation(fields: [productId], references: [id])
   items       BOMItem[]
+  costRuns    BomCostRun[]
   version     String   @default("v1")
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
@@ -78,13 +80,99 @@ model BOMItem {
   itemType    String   @default("MATERIAL")
   materialId  String?
   material    Material? @relation(fields: [materialId], references: [id])
+  costObjectId String?
+  costObject   CostObject? @relation(fields: [costObjectId], references: [id])
   sawingScenarioId String?
   sawingScenario   SawingCostScenario? @relation(fields: [sawingScenarioId], references: [id])
   quantity    Float    @default(0)
   unit        String
   wastageRate Float    @default(0)
 
+  @@index([costObjectId])
   @@index([sawingScenarioId])
+}
+
+model CostObject {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  objectType  String   @default("MANUAL")
+  sourceType  String?
+  sourceId    String?
+  unit        String   @default("件")
+  status      String   @default("ACTIVE")
+  costs       CostObjectCost[]
+  bomItems    BOMItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([sourceType, sourceId])
+}
+
+model CostObjectCost {
+  id                    String   @id @default(cuid())
+  costObjectId           String
+  costObject             CostObject @relation(fields: [costObjectId], references: [id], onDelete: Cascade)
+  version                String   @default("v1")
+  materialCostPerUnit    Float    @default(0)
+  laborHoursPerUnit      Float    @default(0)
+  machineHoursPerUnit    Float    @default(0)
+  directCostPerUnit      Float    @default(0)
+  active                 Boolean  @default(true)
+  effectiveFrom          DateTime @default(now())
+  createdAt              DateTime @default(now())
+
+  @@index([costObjectId, active])
+}
+
+model BomCostRun {
+  id                String   @id @default(cuid())
+  productId         String
+  product           Product  @relation(fields: [productId], references: [id])
+  bomId             String?
+  bom               BOM?     @relation(fields: [bomId], references: [id])
+  bomVersion        String?
+  quantityBasis     Float    @default(1)
+  laborRatePerHour  Float    @default(0)
+  machineRatePerHour Float   @default(0)
+  overheadCost      Float    @default(0)
+  totalMaterialCost Float    @default(0)
+  totalLaborCost    Float    @default(0)
+  totalMachineCost  Float    @default(0)
+  totalDirectCost   Float    @default(0)
+  totalCost         Float    @default(0)
+  unitCost          Float    @default(0)
+  createdBy         String?
+  createdAt         DateTime @default(now())
+  lines             BomCostRunLine[]
+
+  @@index([productId, createdAt])
+  @@index([bomId])
+}
+
+model BomCostRunLine {
+  id             String   @id @default(cuid())
+  runId          String
+  run            BomCostRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  lineType       String
+  sourceId       String?
+  code           String?
+  name           String
+  quantity       Float    @default(0)
+  unit           String
+  unitCost       Float    @default(0)
+  materialCost   Float    @default(0)
+  laborHours     Float    @default(0)
+  machineHours   Float    @default(0)
+  laborCost      Float    @default(0)
+  machineCost    Float    @default(0)
+  directCost     Float    @default(0)
+  totalCost      Float    @default(0)
+  note           String?
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([runId])
 }
 
 // ==================== 工艺路线 ====================

@@ -48,6 +48,16 @@ interface ProcessStepSummary {
   name: string
   workstation?: string | null
   description?: string | null
+  standardBatchQty?: number
+  setupTimeMinutes?: number
+  cycleTimeSeconds?: number
+  peopleCount?: number
+  laborRatePerHour?: number
+  machineCount?: number
+  machineRatePerHour?: number
+  energyCostPerHour?: number
+  consumableCostPerBatch?: number
+  yieldRate?: number
 }
 
 interface ProcessRouteSummary {
@@ -66,6 +76,16 @@ interface ProcessTemplateSummary {
   workstation?: string | null
   description?: string | null
   isPreset: boolean
+  standardBatchQty: number
+  setupTimeMinutes: number
+  cycleTimeSeconds: number
+  peopleCount: number
+  laborRatePerHour: number
+  machineCount: number
+  machineRatePerHour: number
+  energyCostPerHour: number
+  consumableCostPerBatch: number
+  yieldRate: number
 }
 
 interface ProductSummary {
@@ -97,12 +117,14 @@ interface ProductBom {
   isActive: boolean
   createdAt: string
   product: ProductSummary
+  latestCostRun?: { id: string; unitCost: number; totalCost: number; quantityBasis: number; createdAt: string } | null
   items: Array<{
     id: string
+    itemType?: string
     quantity: number
     unit: string
     wastageRate: number
-    material: {
+    material?: {
       id: string
       code: string
       name: string
@@ -110,7 +132,9 @@ interface ProductBom {
       category: string
       stockUnit: string
       valuationUnit: string
-    }
+    } | null
+    costObject?: { id: string; code: string; name: string; objectType: string; unit: string } | null
+    sawingScenario?: { id: string; name: string } | null
   }>
 }
 
@@ -213,6 +237,29 @@ interface CostLayerSummary {
   createdAt: string
 }
 
+interface CostObjectSummary {
+  id: string
+  code: string
+  name: string
+  objectType: string
+  unit: string
+  status: string
+  costs: Array<{
+    id: string
+    materialCostPerUnit: number
+    laborHoursPerUnit: number
+    machineHoursPerUnit: number
+    directCostPerUnit: number
+    effectiveFrom: string
+  }>
+  bomItems: Array<{
+    id: string
+    quantity: number
+    unit: string
+    bom: { product: { id: string; sku: string; name: string; unit: string } }
+  }>
+}
+
 interface LocationBalance {
   id: string
   locationCode: string
@@ -237,6 +284,7 @@ interface PanoramaData {
   }
   componentBoms: ComponentBomItem[]
   productBoms: ProductBom[]
+  costObjects: CostObjectSummary[]
   processTemplates: ProcessTemplateSummary[]
   workInstructions: WorkInstructionSummary[]
   targetOrders: ProductionOrderSummary[]
@@ -319,6 +367,31 @@ function compactDate(value: string | null | undefined) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '-'
   return date.toLocaleDateString('zh-CN')
+}
+
+function processCostPerThousand(item: {
+  standardBatchQty?: number
+  setupTimeMinutes?: number
+  cycleTimeSeconds?: number
+  peopleCount?: number
+  laborRatePerHour?: number
+  machineCount?: number
+  machineRatePerHour?: number
+  energyCostPerHour?: number
+  consumableCostPerBatch?: number
+  yieldRate?: number
+}) {
+  const yieldRate = Math.max(0.0001, Number(item.yieldRate || 1))
+  const batchQty = Math.max(1, Number(item.standardBatchQty || 1000))
+  const runtimeHours = (1000 / yieldRate) * Number(item.cycleTimeSeconds || 0) / 3600
+  const setupHours = Number(item.setupTimeMinutes || 0) / 60 * (1000 / batchQty)
+  const baseHours = runtimeHours + setupHours
+  const laborHours = baseHours * Number(item.peopleCount || 0)
+  const machineHours = baseHours * Number(item.machineCount || 0)
+  const cost = laborHours * Number(item.laborRatePerHour || 0)
+    + machineHours * (Number(item.machineRatePerHour || 0) + Number(item.energyCostPerHour || 0))
+    + Number(item.consumableCostPerBatch || 0) * (1000 / batchQty)
+  return { laborHours, machineHours, cost }
 }
 
 function statusText(status: string) {
@@ -435,6 +508,16 @@ function ProcessTemplateList({ templates }: { templates: ProcessTemplateSummary[
           <div className="mt-1 text-xs text-gray-500">
             {template.workstation || '未设工位'}{template.defaultTime ? ` · ${template.defaultTime} 分钟` : ''}
           </div>
+          {(() => {
+            const totals = processCostPerThousand(template)
+            return (
+              <div className="mt-2 grid grid-cols-3 gap-2 rounded bg-blue-50 p-2 text-xs text-blue-800">
+                <span>千件人工<br /><b>{formatNumber(totals.laborHours, 2)} h</b></span>
+                <span>千件机时<br /><b>{formatNumber(totals.machineHours, 2)} h</b></span>
+                <span>千件成本<br /><b>{formatMoney(totals.cost)}</b></span>
+              </div>
+            )
+          })()}
           {template.description && <div className="mt-1 whitespace-pre-wrap text-xs text-gray-500">{template.description}</div>}
         </div>
       ))}
@@ -501,6 +584,17 @@ export default function MaterialPanoramaPage({
     }
     return Array.from(map.values())
   }, [data])
+  const relatedRouteCost = useMemo(() => {
+    const steps = relatedRoutes.flatMap((route) => route.steps)
+    return steps.reduce((sum, step) => {
+      const totals = processCostPerThousand(step)
+      return {
+        laborHours: sum.laborHours + totals.laborHours,
+        machineHours: sum.machineHours + totals.machineHours,
+        cost: sum.cost + totals.cost,
+      }
+    }, { laborHours: 0, machineHours: 0, cost: 0 })
+  }, [relatedRoutes])
 
   const coverImage = data?.attachments.images.find((item) => item.isCover) || data?.attachments.images[0]
   const material = data?.material
@@ -700,11 +794,14 @@ export default function MaterialPanoramaPage({
                               <div className="mt-2 space-y-1 text-xs text-gray-600">
                                 {bom.items.slice(0, 6).map((item) => (
                                   <div key={item.id} className="flex min-w-0 justify-between gap-2">
-                                    <span className="truncate">{item.material.code} · {item.material.name}</span>
+                                    <span className="truncate">
+                                      {item.material ? `${item.material.code} · ${item.material.name}` : item.costObject ? `${item.costObject.code} · ${item.costObject.name}` : item.sawingScenario?.name || item.itemType || 'BOM项'}
+                                    </span>
                                     <span className="shrink-0">{formatNumber(item.quantity, 6)} {item.unit}</span>
                                   </div>
                                 ))}
                               </div>
+                              {bom.latestCostRun && <div className="mt-2 rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">最新 BOM 单位成本 {formatMoney(bom.latestCostRun.unitCost)} / {bom.product.unit}</div>}
                             </div>
                           ))}
                         </div>
@@ -740,6 +837,68 @@ export default function MaterialPanoramaPage({
                     <div><div className="mb-2 text-xs font-medium text-gray-500">物料直接关联的加工工艺</div><ProcessTemplateList templates={data.processTemplates} /></div>
                     <div><div className="mb-2 text-xs font-medium text-gray-500">产品/BOM 推导的工艺路线</div><ProcessRouteList routes={relatedRoutes} /></div>
                   </div>
+                </Panel>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <Panel title="加工参数与成本对象" action={`${data.costObjects.length} 个成本对象`}>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Metric label="千件人工" value={`${formatNumber(relatedRouteCost.laborHours, 2)} h`} tone="blue" />
+                    <Metric label="千件机时" value={`${formatNumber(relatedRouteCost.machineHours, 2)} h`} tone="amber" />
+                    <Metric label="路线成本" value={formatMoney(relatedRouteCost.cost)} tone="green" />
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {data.costObjects.length === 0 ? (
+                      <EmptyText>暂无直接或 BOM 推导的成本对象</EmptyText>
+                    ) : data.costObjects.map((costObject) => {
+                      const activeCost = costObject.costs[0]
+                      return (
+                        <div key={costObject.id} className="rounded-md border border-gray-100 px-3 py-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <div className="font-medium text-gray-900">{costObject.name}</div>
+                              <div className="mt-0.5 font-mono text-xs text-blue-700">{costObject.code} · {costObject.objectType}</div>
+                            </div>
+                            <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{costObject.unit}</span>
+                          </div>
+                          <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-600 sm:grid-cols-4">
+                            <span>材料 {formatMoney(activeCost?.materialCostPerUnit)}</span>
+                            <span>人工 {formatNumber(activeCost?.laborHoursPerUnit, 4)}h</span>
+                            <span>机时 {formatNumber(activeCost?.machineHoursPerUnit, 4)}h</span>
+                            <span>直接费 {formatMoney(activeCost?.directCostPerUnit)}</span>
+                          </div>
+                          <div className="mt-1 text-xs text-gray-500">BOM 使用：{costObject.bomItems.length ? costObject.bomItems.map((item) => item.bom.product.sku).join('、') : '暂无'}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </Panel>
+
+                <Panel title="产品成本快照" action={`${data.productBoms.filter((bom) => bom.latestCostRun).length} 个产品有成本`}>
+                  {data.productBoms.length === 0 ? (
+                    <EmptyText>暂无与该物料对应的产品 BOM</EmptyText>
+                  ) : (
+                    <div className="space-y-2">
+                      {data.productBoms.map((bom) => (
+                        <div key={bom.id} className="rounded-md border border-gray-100 px-3 py-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <div className="font-medium text-gray-900">{bom.product.name}</div>
+                              <div className="mt-0.5 font-mono text-xs text-blue-700">{bom.product.sku} · {bom.version}</div>
+                            </div>
+                            <div className="text-right text-xs">
+                              {bom.latestCostRun ? (
+                                <>
+                                  <div className="font-semibold text-blue-700">{formatMoney(bom.latestCostRun.unitCost)} / {bom.product.unit}</div>
+                                  <div className="mt-0.5 text-gray-500">{compactDate(bom.latestCostRun.createdAt)}</div>
+                                </>
+                              ) : <span className="text-gray-500">暂无成本快照</span>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </Panel>
               </div>
 
