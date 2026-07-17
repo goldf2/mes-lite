@@ -59,6 +59,70 @@ function ResultCard({ label, value, hint, primary = false }: { label: string; va
   )
 }
 
+function SaveProductCostPanel({
+  scenarioName,
+  setScenarioName,
+  productKind,
+  setProductKind,
+  selectedProductId,
+  setSelectedProductId,
+  bomProductId,
+  setBomProductId,
+  productOptions,
+  processOptions,
+  selectedProcessIds,
+  setSelectedProcessIds,
+  saving,
+  onSave,
+}: {
+  scenarioName: string
+  setScenarioName: (value: string) => void
+  productKind: 'TEMPORARY' | 'EXISTING'
+  setProductKind: (value: 'TEMPORARY' | 'EXISTING') => void
+  selectedProductId: string
+  setSelectedProductId: (value: string) => void
+  bomProductId: string
+  setBomProductId: (value: string) => void
+  productOptions: ProductOption[]
+  processOptions: ProcessOption[]
+  selectedProcessIds: string[]
+  setSelectedProcessIds: (value: string[]) => void
+  saving: boolean
+  onSave: () => void
+}) {
+  return (
+    <div className="rounded-lg bg-white p-5 shadow-sm">
+      <h3 className="font-semibold text-gray-900">保存为产品成本对象</h3>
+      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <input value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} placeholder="产品成本名称" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+        <button onClick={onSave} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{saving ? '保存中...' : '保存成本对象'}</button>
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[180px_minmax(0,1fr)]">
+        <select value={productKind} onChange={(event) => setProductKind(event.target.value as 'TEMPORARY' | 'EXISTING')} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
+          <option value="TEMPORARY">保存为临时产品</option>
+          <option value="EXISTING">绑定已有产品</option>
+        </select>
+        {productKind === 'EXISTING' ? (
+          <select value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
+            <option value="">选择产品</option>
+            {productOptions.map((product) => <option key={product.id} value={product.id}>{product.sku} · {product.name}</option>)}
+          </select>
+        ) : (
+          <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-500">临时产品会保留单件材料成本、人工时和机时，后续可直接加入混合测算。</div>
+        )}
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[180px_minmax(0,1fr)]">
+        <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-600">BOM 组成</div>
+        <select value={bomProductId} onChange={(event) => setBomProductId(event.target.value)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
+          <option value="">不加入产品 BOM</option>
+          {productOptions.map((product) => <option key={product.id} value={product.id}>加入 {product.sku} · {product.name} 的 BOM</option>)}
+        </select>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">{processOptions.map((process) => <label key={process.id} className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs ${selectedProcessIds.includes(process.id) ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}><input type="checkbox" className="mr-1.5" checked={selectedProcessIds.includes(process.id)} onChange={(event) => setSelectedProcessIds(event.target.checked ? [...selectedProcessIds, process.id] : selectedProcessIds.filter((id) => id !== process.id))} />{process.name}</label>)}</div>
+    </div>
+  )
+}
+
 export default function SawingCostCalculatorPage() {
   const [form, setForm] = useState({
     materialLength: 6000,
@@ -314,6 +378,22 @@ export default function SawingCostCalculatorPage() {
                 <div className="flex justify-between border-t pt-2 font-semibold"><span>净材料成本</span><span>{money(materialResult.netMaterialCost)}</span></div>
               </div>
             </div>
+            <SaveProductCostPanel
+              scenarioName={scenarioName}
+              setScenarioName={setScenarioName}
+              productKind={productKind}
+              setProductKind={setProductKind}
+              selectedProductId={selectedProductId}
+              setSelectedProductId={setSelectedProductId}
+              bomProductId={bomProductId}
+              setBomProductId={setBomProductId}
+              productOptions={productOptions}
+              processOptions={processOptions}
+              selectedProcessIds={selectedProcessIds}
+              setSelectedProcessIds={setSelectedProcessIds}
+              saving={saving}
+              onSave={saveScenario}
+            />
           </>}
         </div>
       </div>}
@@ -412,35 +492,22 @@ export default function SawingCostCalculatorPage() {
           </div>
         </div>
 
-        <div className="rounded-lg bg-white p-5 shadow-sm">
-          <h3 className="font-semibold text-gray-900">保存这次测算</h3>
-          <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-            <input value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} placeholder="方案名称" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" />
-            <button onClick={saveScenario} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{saving ? '保存中...' : '保存方案'}</button>
-          </div>
-          <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[180px_minmax(0,1fr)]">
-            <select value={productKind} onChange={(event) => setProductKind(event.target.value as 'TEMPORARY' | 'EXISTING')} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
-              <option value="TEMPORARY">保存为临时产品</option>
-              <option value="EXISTING">绑定已有产品</option>
-            </select>
-            {productKind === 'EXISTING' ? (
-              <select value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
-                <option value="">选择产品</option>
-                {productOptions.map((product) => <option key={product.id} value={product.id}>{product.sku} · {product.name}</option>)}
-              </select>
-            ) : (
-              <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-500">临时产品会保留单件材料成本、人工时和机时，后续可直接加入混合测算。</div>
-            )}
-          </div>
-          <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[180px_minmax(0,1fr)]">
-            <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-600">BOM 组成</div>
-            <select value={bomProductId} onChange={(event) => setBomProductId(event.target.value)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
-              <option value="">不加入产品 BOM</option>
-              {productOptions.map((product) => <option key={product.id} value={product.id}>加入 {product.sku} · {product.name} 的 BOM</option>)}
-            </select>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">{processOptions.map((process) => <label key={process.id} className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs ${selectedProcessIds.includes(process.id) ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}><input type="checkbox" className="mr-1.5" checked={selectedProcessIds.includes(process.id)} onChange={(event) => setSelectedProcessIds(event.target.checked ? [...selectedProcessIds, process.id] : selectedProcessIds.filter((id) => id !== process.id))} />{process.name}</label>)}</div>
-        </div>
+        <SaveProductCostPanel
+          scenarioName={scenarioName}
+          setScenarioName={setScenarioName}
+          productKind={productKind}
+          setProductKind={setProductKind}
+          selectedProductId={selectedProductId}
+          setSelectedProductId={setSelectedProductId}
+          bomProductId={bomProductId}
+          setBomProductId={setBomProductId}
+          productOptions={productOptions}
+          processOptions={processOptions}
+          selectedProcessIds={selectedProcessIds}
+          setSelectedProcessIds={setSelectedProcessIds}
+          saving={saving}
+          onSave={saveScenario}
+        />
 
         <div className="rounded-lg bg-white p-5 shadow-sm">
           <h3 className="font-semibold text-gray-900">调用已保存产品成本</h3>
