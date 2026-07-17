@@ -73,7 +73,9 @@ function ProductSearchSelect({
   emptyText?: string
 }) {
   const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
   const selected = products.find((product) => product.id === value)
+  const displayValue = open ? query : (selected ? `${selected.sku} · ${selected.name}` : query)
   const filtered = products.filter((product) => {
     const text = `${product.sku} ${product.name}`.toLowerCase()
     return text.includes(query.trim().toLowerCase())
@@ -82,12 +84,13 @@ function ProductSearchSelect({
   return (
     <div className="space-y-2">
       <input
-        value={query || (selected ? `${selected.sku} · ${selected.name}` : '')}
-        onChange={(event) => { setQuery(event.target.value); if (value) onChange('') }}
+        value={displayValue}
+        onFocus={() => setOpen(true)}
+        onChange={(event) => { setQuery(event.target.value); setOpen(true); if (value) onChange('') }}
         placeholder={placeholder}
         className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
       />
-      <div className="max-h-44 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 p-1">
+      {open && <div className="max-h-44 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 p-1">
         {products.length === 0 ? (
           <div className="px-3 py-2 text-sm text-gray-500">{emptyText}</div>
         ) : filtered.length === 0 ? (
@@ -97,7 +100,7 @@ function ProductSearchSelect({
             <button
               key={product.id}
               type="button"
-              onClick={() => { onChange(product.id); setQuery(`${product.sku} · ${product.name}`) }}
+              onClick={() => { onChange(product.id); setQuery(''); setOpen(false) }}
               className={`block w-full rounded px-3 py-2 text-left text-sm hover:bg-white ${value === product.id ? 'bg-white text-blue-700' : 'text-gray-700'}`}
             >
               <span className="font-mono text-xs text-gray-500">{product.sku}</span>
@@ -105,7 +108,7 @@ function ProductSearchSelect({
             </button>
           ))
         )}
-      </div>
+      </div>}
     </div>
   )
 }
@@ -145,7 +148,7 @@ function SaveProductCostPanel({
     <div className="rounded-lg bg-white p-5 shadow-sm">
       <h3 className="font-semibold text-gray-900">保存为产品成本对象</h3>
       <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-        <input value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} placeholder="产品成本名称" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+        <input value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} placeholder="自定义名称（可选，默认自动命名）" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" />
         <button onClick={onSave} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{saving ? '保存中...' : '保存成本对象'}</button>
       </div>
       <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[180px_minmax(0,1fr)]">
@@ -342,16 +345,21 @@ export default function SawingCostCalculatorPage() {
     return rows.map((row, rowIndex) => rowIndex === index ? { ...next, id: row.id } : row)
   })
   const comparedScenarios = savedScenarios.filter((scenario) => comparisonIds.includes(scenario.id))
+  const defaultScenarioName = () => {
+    const selectedProduct = productOptions.find((product) => product.id === selectedProductId)
+    if (productKind === 'EXISTING' && selectedProduct) return `${selectedProduct.sku} ${selectedProduct.name} 锯切成本`
+    return `临时锯切 ${form.workpieceLength}mm ${form.bladeThickness}mm缝 ${materialResult.materialCostPerPiece.toFixed(2)}元/件`
+  }
 
   const saveScenario = async () => {
-    if (!scenarioName.trim()) return setMessage('请先填写方案名称')
     if (productKind === 'EXISTING' && !selectedProductId) return setMessage('请选择要绑定的产品')
     if (materialResult.quantity <= 0) return setMessage('当前参数无法加工出成品')
+    const resolvedScenarioName = scenarioName.trim() || defaultScenarioName()
     setSaving(true)
     const payload = {
       ...form,
       ...materialResult,
-      name: scenarioName.trim(),
+      name: resolvedScenarioName,
       productKind,
       productId: productKind === 'EXISTING' ? selectedProductId : undefined,
       bomProductId: bomProductId || undefined,

@@ -42,7 +42,7 @@ async function resolveProductId(tx: ProductResolver, targetId?: string | null) {
 }
 
 const schema = z.object({
-  name: z.string().trim().min(1, '方案名称必填').max(100),
+  name: z.string().trim().max(100).optional(),
   materialLength: number.positive(), materialWeight: number.positive(), workpieceLength: number.positive(), bladeThickness: number,
   rawMaterialPrice: number, sawdustPrice: number, scrapPrice: number, finishedPrice: number,
   quantity: z.number().int().positive(), utilization: number, productWeight: number, sawdustWeight: number, scrapWeight: number,
@@ -97,9 +97,13 @@ export async function POST(req: NextRequest) {
     const scenario = await prisma.$transaction(async (tx) => {
       const resolvedProductId = values.productKind === 'EXISTING' ? await resolveProductId(tx, values.productId) : null
       const resolvedBomProductId = await resolveProductId(tx, bomProductId)
+      const linkedProduct = resolvedProductId ? await tx.product.findUnique({ where: { id: resolvedProductId }, select: { sku: true, name: true } }) : null
+      const scenarioName = values.name?.trim()
+        || (linkedProduct ? `${linkedProduct.sku} ${linkedProduct.name} 锯切成本` : `临时锯切 ${values.workpieceLength}mm ${values.bladeThickness}mm缝 ${values.materialCostPerPiece.toFixed(2)}元/件`)
       const created = await tx.sawingCostScenario.create({
         data: {
           ...values,
+          name: scenarioName,
           productId: resolvedProductId,
           createdBy: operator?.name || operator?.username || null,
           processTemplates: { connect: processTemplateIds.map((id) => ({ id })) },
