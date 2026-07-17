@@ -59,6 +59,57 @@ function ResultCard({ label, value, hint, primary = false }: { label: string; va
   )
 }
 
+function ProductSearchSelect({
+  value,
+  onChange,
+  products,
+  placeholder,
+  emptyText = '暂无产品',
+}: {
+  value: string
+  onChange: (value: string) => void
+  products: ProductOption[]
+  placeholder: string
+  emptyText?: string
+}) {
+  const [query, setQuery] = useState('')
+  const selected = products.find((product) => product.id === value)
+  const filtered = products.filter((product) => {
+    const text = `${product.sku} ${product.name}`.toLowerCase()
+    return text.includes(query.trim().toLowerCase())
+  }).slice(0, 20)
+
+  return (
+    <div className="space-y-2">
+      <input
+        value={query || (selected ? `${selected.sku} · ${selected.name}` : '')}
+        onChange={(event) => { setQuery(event.target.value); if (value) onChange('') }}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+      />
+      <div className="max-h-44 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 p-1">
+        {products.length === 0 ? (
+          <div className="px-3 py-2 text-sm text-gray-500">{emptyText}</div>
+        ) : filtered.length === 0 ? (
+          <div className="px-3 py-2 text-sm text-gray-500">没有匹配产品</div>
+        ) : (
+          filtered.map((product) => (
+            <button
+              key={product.id}
+              type="button"
+              onClick={() => { onChange(product.id); setQuery(`${product.sku} · ${product.name}`) }}
+              className={`block w-full rounded px-3 py-2 text-left text-sm hover:bg-white ${value === product.id ? 'bg-white text-blue-700' : 'text-gray-700'}`}
+            >
+              <span className="font-mono text-xs text-gray-500">{product.sku}</span>
+              <span className="ml-2">{product.name}</span>
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
 function SaveProductCostPanel({
   scenarioName,
   setScenarioName,
@@ -103,20 +154,17 @@ function SaveProductCostPanel({
           <option value="EXISTING">绑定已有产品</option>
         </select>
         {productKind === 'EXISTING' ? (
-          <select value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
-            <option value="">选择产品</option>
-            {productOptions.map((product) => <option key={product.id} value={product.id}>{product.sku} · {product.name}</option>)}
-          </select>
+          <ProductSearchSelect value={selectedProductId} onChange={setSelectedProductId} products={productOptions} placeholder="输入产品编码或名称筛选" />
         ) : (
           <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-500">临时产品会保留单件材料成本、人工时和机时，后续可直接加入混合测算。</div>
         )}
       </div>
       <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[180px_minmax(0,1fr)]">
         <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-600">BOM 组成</div>
-        <select value={bomProductId} onChange={(event) => setBomProductId(event.target.value)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
-          <option value="">不加入产品 BOM</option>
-          {productOptions.map((product) => <option key={product.id} value={product.id}>加入 {product.sku} · {product.name} 的 BOM</option>)}
-        </select>
+        <div className="space-y-2">
+          <button type="button" onClick={() => setBomProductId('')} className={`rounded-lg border px-3 py-2 text-sm ${bomProductId ? 'border-gray-200 text-gray-600' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>不加入产品 BOM</button>
+          <ProductSearchSelect value={bomProductId} onChange={setBomProductId} products={productOptions} placeholder="输入产品编码或名称，选择要加入的 BOM" />
+        </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">{processOptions.map((process) => <label key={process.id} className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs ${selectedProcessIds.includes(process.id) ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}><input type="checkbox" className="mr-1.5" checked={selectedProcessIds.includes(process.id)} onChange={(event) => setSelectedProcessIds(event.target.checked ? [...selectedProcessIds, process.id] : selectedProcessIds.filter((id) => id !== process.id))} />{process.name}</label>)}</div>
     </div>
@@ -173,11 +221,20 @@ export default function SawingCostCalculatorPage() {
     if (res.ok) {
       setSavedScenarios(data.data || [])
       setProcessOptions(data.processTemplates || [])
-      setProductOptions(data.products || [])
+      if (data.products?.length) setProductOptions(data.products)
     } else setMessage(data.error || '获取已保存方案失败')
   }
 
-  useEffect(() => { loadScenarios() }, [])
+  const loadProducts = async () => {
+    const res = await fetch('/api/products')
+    const data = await res.json()
+    if (res.ok) setProductOptions(data.data || [])
+  }
+
+  useEffect(() => {
+    loadScenarios()
+    loadProducts()
+  }, [])
 
   const materialResult = useMemo(() => {
     const { materialLength, materialWeight, workpieceLength, bladeThickness, rawMaterialPrice, sawdustPrice, scrapPrice, finishedPrice } = form
