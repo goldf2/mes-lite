@@ -117,16 +117,26 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: '产品编码已存在' }, { status: 400 })
     }
 
-    const product = await prisma.product.update({
-      where: { id: data.id },
-      data: {
-        sku: data.sku,
-        name: data.name,
-        category: data.category,
-        customerId: data.customerId || null,
-        unit: data.unit,
-        description: data.description || null,
-      },
+    const product = await prisma.$transaction(async (tx) => {
+      const updated = await tx.product.update({
+        where: { id: data.id },
+        data: {
+          sku: data.sku,
+          name: data.name,
+          category: data.category,
+          customerId: data.customerId || null,
+          unit: data.unit,
+          description: data.description || null,
+        },
+      })
+
+      await tx.stock.upsert({
+        where: { productId: updated.id },
+        update: {},
+        create: { productId: updated.id },
+      })
+
+      return updated
     })
 
     await writeAuditLog(req, {

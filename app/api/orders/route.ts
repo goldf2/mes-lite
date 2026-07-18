@@ -21,10 +21,17 @@ async function ensureSimpleProductForMaterial(material: { code: string; name: st
   const sku = simpleProductSku(material.code)
   const existing = await prisma.product.findUnique({
     where: { sku },
-    include: { processRoutes: { where: { isDefault: true }, include: { steps: true } } },
+    include: { stock: true, processRoutes: { where: { isDefault: true }, include: { steps: true } } },
   })
 
   if (existing) {
+    if (!existing.stock) {
+      await prisma.stock.upsert({
+        where: { productId: existing.id },
+        update: {},
+        create: { productId: existing.id },
+      })
+    }
     const defaultRoute = existing.processRoutes[0]
     if (!defaultRoute) {
       await prisma.processRoute.create({

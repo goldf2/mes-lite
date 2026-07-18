@@ -12,7 +12,7 @@ const materialProductPrefix = 'material:'
 const simpleProductSku = (materialCode: string) => `MAT-${materialCode}`
 const sawingCostObjectCode = (scenarioId: string) => `SAW-${scenarioId.slice(-8).toUpperCase()}`
 
-type ProductResolver = Pick<typeof prisma, 'material' | 'product'>
+type ProductResolver = Pick<typeof prisma, 'material' | 'product' | 'stock'>
 
 async function resolveProductId(tx: ProductResolver, targetId?: string | null) {
   if (!targetId) return null
@@ -26,8 +26,17 @@ async function resolveProductId(tx: ProductResolver, targetId?: string | null) {
   if (!material) throw new Error('物料不存在，无法映射为产品')
 
   const sku = simpleProductSku(material.code)
-  const existing = await tx.product.findUnique({ where: { sku } })
-  if (existing) return existing.id
+  const existing = await tx.product.findUnique({ where: { sku }, include: { stock: true } })
+  if (existing) {
+    if (!existing.stock) {
+      await tx.stock.upsert({
+        where: { productId: existing.id },
+        update: {},
+        create: { productId: existing.id },
+      })
+    }
+    return existing.id
+  }
 
   const created = await tx.product.create({
     data: {

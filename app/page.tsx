@@ -61,6 +61,18 @@ interface Stock {
   product?: { id: string; sku: string; name: string; category: string; customerId?: string | null; customer?: Customer | null; unit: string }
 }
 
+interface StockIntegrityIssue {
+  type?: string
+  message?: string
+  records?: Array<{ id?: string; code?: string; reasons?: string[] }>
+}
+
+const repairableStockIssueTypes = new Set(['MATERIAL_WITHOUT_STOCK', 'PRODUCT_WITHOUT_STOCK'])
+
+function canBackfillStockIssues(issues: StockIntegrityIssue[]) {
+  return issues.length > 0 && issues.every((issue) => Boolean(issue.type && repairableStockIssueTypes.has(issue.type)))
+}
+
 const materialCategoryLabels: Record<string, string> = {
   RAW: '原材料',
   FINISHED: '成品',
@@ -248,7 +260,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [selectedStockCategories, setSelectedStockCategories] = useState<string[]>(materialCategoryFilterOptions.map((option) => option.value))
   const [showInvalidStocks, setShowInvalidStocks] = useState(false)
   const [showStockHelp, setShowStockHelp] = useState(false)
-  const [stockDataError, setStockDataError] = useState<{ message: string; issues: any[] } | null>(null)
+  const [stockDataError, setStockDataError] = useState<{ message: string; issues: StockIntegrityIssue[] } | null>(null)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -395,7 +407,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setOrders(data.data || [])
   }
 
-  const fetchStocks = async () => {
+  const fetchStocks = async (options: { skipAutoBackfill?: boolean } = {}) => {
     const params = new URLSearchParams()
     if (stockCustomerFilter) params.set('customerId', stockCustomerFilter)
     const categoryQuery = getMultiSelectQuery('categories', selectedStockCategories, materialCategoryFilterOptions)
@@ -407,8 +419,18 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     const res = await fetch(`/api/stocks${params.toString() ? `?${params.toString()}` : ''}`)
     const data = await res.json()
     if (!res.ok) {
+      const issues = Array.isArray(data.issues) ? data.issues : []
+      if (res.status === 409 && !options.skipAutoBackfill && canUpdate('stocks') && canBackfillStockIssues(issues)) {
+        const repaired = await repairStockRecords({ refetch: false, silent: true })
+        if (repaired) {
+          showMessage('库存余额已自动补齐')
+          await fetchDashboard()
+          await fetchStocks({ skipAutoBackfill: true })
+          return
+        }
+      }
       setStocks([])
-      setStockDataError({ message: data.error || '库存数据异常', issues: data.issues || [] })
+      setStockDataError({ message: data.error || '库存数据异常', issues })
       showMessage(data.error || '库存数据异常')
       return
     }
@@ -416,22 +438,27 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setStocks(data.data || [])
   }
 
-  const repairStockRecords = async () => {
+  const repairStockRecords = async (options: { refetch?: boolean; silent?: boolean } = {}) => {
     setLoading(true)
     try {
       const res = await fetch('/api/stocks', { method: 'PATCH' })
       const data = await res.json()
       if (res.ok) {
-        showMessage(data.message || '库存余额已补齐')
-        await fetchStocks()
-        await fetchDashboard()
+        if (!options.silent) showMessage(data.message || '库存余额已补齐')
+        if (options.refetch ?? true) {
+          await fetchStocks({ skipAutoBackfill: true })
+          await fetchDashboard()
+        }
+        setLoading(false)
+        return true
       } else {
-        showMessage(data.error || '补齐库存余额失败')
+        if (!options.silent) showMessage(data.error || '补齐库存余额失败')
       }
     } catch (err) {
-      showMessage('补齐库存余额失败')
+      if (!options.silent) showMessage('补齐库存余额失败')
     }
     setLoading(false)
+    return false
   }
 
   const fetchCustomers = async () => {
@@ -811,7 +838,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
         {message && (
           <div className={`mb-4 p-4 rounded-lg text-sm ${
-            message.includes('成功') || message.includes('完成') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+            message.includes('成功') || message.includes('完成') || message.includes('补齐') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
           }`}>
             {message}
           </div>
@@ -1133,17 +1160,17 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           <div className="bg-white rounded-lg shadow p-3 sm:p-6">
             {stockDataError && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex flex-col gap-3">
                   <div>
                     <div className="font-semibold">{stockDataError.message}</div>
                     <div className="mt-1 text-xs text-red-700">库存页已停止展示可能不完整的数据，请先处理以下一致性问题。</div>
                   </div>
-                  {canUpdate('stocks') && (
+                  {canUpdate('stocks') && canBackfillStockIssues(stockDataError.issues) && (
                     <button
                       type="button"
-                      onClick={repairStockRecords}
+                      onClick={() => repairStockRecords()}
                       disabled={loading}
-                      className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                      className="w-full rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 sm:w-fit"
                     >
                       {loading ? '修复中...' : '补齐库存余额'}
                     </button>

@@ -122,11 +122,19 @@ async function backfillMissingStockRecords() {
     ])
 
     for (const material of materialsWithoutStock) {
-      await tx.stock.create({ data: { materialId: material.id } })
+      await tx.stock.upsert({
+        where: { materialId: material.id },
+        update: {},
+        create: { materialId: material.id },
+      })
     }
 
     for (const product of productsWithoutStock) {
-      await tx.stock.create({ data: { productId: product.id } })
+      await tx.stock.upsert({
+        where: { productId: product.id },
+        update: {},
+        create: { productId: product.id },
+      })
     }
 
     return {

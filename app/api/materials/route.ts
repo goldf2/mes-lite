@@ -231,22 +231,32 @@ export async function PUT(req: NextRequest) {
     }
 
     const before = await prisma.material.findUnique({ where: { id: body.id } })
-    const material = await prisma.material.update({
-      where: { id: body.id },
-      data: {
-        code: body.code,
-        name: body.name,
-        spec: body.spec || '',
-        note: body.note || null,
-        category: body.category || 'RAW',
-        customerId: body.customerId || null,
-        unit: body.stockUnit || body.unit,
-        stockUnit: body.stockUnit || body.unit,
-        valuationUnit: body.valuationUnit || body.unit,
-        conversionRate: normalizeConversionRate(body.conversionRate),
-        conversionNote: body.conversionNote || null,
-        costingMethod: body.costingMethod || 'WEIGHTED_AVERAGE',
-      },
+    const material = await prisma.$transaction(async (tx) => {
+      const updated = await tx.material.update({
+        where: { id: body.id },
+        data: {
+          code: body.code,
+          name: body.name,
+          spec: body.spec || '',
+          note: body.note || null,
+          category: body.category || 'RAW',
+          customerId: body.customerId || null,
+          unit: body.stockUnit || body.unit,
+          stockUnit: body.stockUnit || body.unit,
+          valuationUnit: body.valuationUnit || body.unit,
+          conversionRate: normalizeConversionRate(body.conversionRate),
+          conversionNote: body.conversionNote || null,
+          costingMethod: body.costingMethod || 'WEIGHTED_AVERAGE',
+        },
+      })
+
+      await tx.stock.upsert({
+        where: { materialId: updated.id },
+        update: {},
+        create: { materialId: updated.id },
+      })
+
+      return updated
     })
 
     await writeAuditLog(req, {
