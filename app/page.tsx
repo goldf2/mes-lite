@@ -63,7 +63,7 @@ interface Stock {
   totalCost: number
   valuationUnitCost: number
   stockUnitCost: number
-  material?: { id: string; code: string; name: string; spec: string; category?: string; customerId?: string | null; customer?: Customer | null; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number; deletedAt?: string | null }
+  material?: { id: string; code: string; name: string; spec: string; category?: string; customerId?: string | null; customer?: Customer | null; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number; deletedAt?: string | null; primaryImage?: { id: string; url: string; note?: string | null; mimeType: string; isCover: boolean } | null }
   product?: { id: string; sku: string; name: string; category: string; customerId?: string | null; customer?: Customer | null; unit: string }
 }
 
@@ -132,6 +132,11 @@ interface ProcessStep {
 
 type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'bomCost' | 'operators' | 'system' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
 
+const lightweightHiddenResources = new Set<string>([
+  'dispatch',
+  'bomCost',
+])
+
 // ==================== 菜单图标组件 ====================
 
 function MenuIcon({ icon }: { icon: string }) {
@@ -145,7 +150,7 @@ function MenuIcon({ icon }: { icon: string }) {
     stocks: '库',
     shipment: '发',
     return: '退',
-    stats: '析',
+    stats: '报',
     sawingCost: '锯',
     bomCost: '本',
     operators: '人',
@@ -233,7 +238,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'shipment', label: '发货管理', resource: 'shipment' },
     { key: 'return', label: '退货管理', resource: 'return' },
     { key: 'stocks', label: '库存管理', resource: 'stocks' },
-    { key: 'stats', label: '统计分析', resource: 'stats' },
+    { key: 'stats', label: '生产日报', resource: 'stats' },
     { key: 'sawingCost', label: '锯切成本', resource: 'sawingCost' },
     { key: 'bomCost', label: 'BOM成本', resource: 'bomCost' },
     { key: 'operators', label: '人员管理', resource: 'operators' },
@@ -241,11 +246,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'permissionUsers', label: '人员权限', resource: 'permissionUsers' },
     { key: 'permissionGroups', label: '组权限', resource: 'permissionGroups' },
   ]
-  const hiddenResources = new Set<string>()
+  const hiddenResources = lightweightHiddenResources
   const systemResources = new Set(['operators', 'system', 'permissionUsers', 'permissionGroups', 'permissions'])
   const readableBusinessNavItems = baseNavItems.filter((item) => canRead(item.resource) && !systemResources.has(item.resource) && !hiddenResources.has(item.resource))
   const readableSystemNavItems = baseNavItems.filter((item) => canRead(item.resource) && systemResources.has(item.resource) && !hiddenResources.has(item.resource))
-  const [tab, setTab] = useState<TabType>('dashboard')
+  const [tab, setTab] = useState<TabType>('stats')
   const [orders, setOrders] = useState<Order[]>([])
   const [stocks, setStocks] = useState<Stock[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -1204,6 +1209,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 <table className="w-full min-w-[1080px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">
                   <thead className="bg-gray-50">
                     <tr>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">图片</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存对象</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">客户</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">类型</th>
@@ -1218,6 +1224,24 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   <tbody className="divide-y divide-gray-100">
                     {visibleStocks.map((stock) => (
                       <tr key={stock.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          {stock.material?.primaryImage ? (
+                            <a
+                              href={stock.material.primaryImage.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={stock.material.primaryImage.note || '查看物料图片'}
+                              className="block h-14 w-14 overflow-hidden rounded-md border border-gray-200 bg-gray-50"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={stock.material.primaryImage.url} alt={stock.material.primaryImage.note || stock.material.name} className="h-full w-full object-cover" />
+                            </a>
+                          ) : (
+                            <div className="flex h-14 w-14 items-center justify-center rounded-md border border-dashed border-gray-200 bg-gray-50 text-xs text-gray-400">
+                              无图
+                            </div>
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           <div className="font-medium text-gray-900">{stock.material?.name || stock.product?.name}</div>
                           <div className="text-xs text-gray-500">{stock.material?.code || stock.product?.sku}</div>
@@ -1263,13 +1287,31 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 {visibleStocks.map((stock) => (
                   <div key={stock.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
 	                  <div className="flex items-start justify-between mb-3">
-	                    <div>
-	                      <div className="font-medium text-gray-800">{stock.material?.name || stock.product?.name}</div>
-	                      <div className="text-sm text-gray-500">{stock.material?.code || stock.product?.sku}</div>
-	                      <div className="text-xs text-gray-400">
-	                        客户：{stock.material?.customer?.name || stock.product?.customer?.name || '通用/未绑定'}
-	                      </div>
-	                      {stock.material?.spec && <div className="text-xs text-gray-400">{stock.material.spec}</div>}
+	                    <div className="flex min-w-0 items-start gap-3">
+                        {stock.material?.primaryImage ? (
+                          <a
+                            href={stock.material.primaryImage.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={stock.material.primaryImage.note || '查看物料图片'}
+                            className="block h-16 w-16 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-gray-50"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={stock.material.primaryImage.url} alt={stock.material.primaryImage.note || stock.material.name} className="h-full w-full object-cover" />
+                          </a>
+                        ) : (
+                          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-dashed border-gray-200 bg-gray-50 text-xs text-gray-400">
+                            无图
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="truncate font-medium text-gray-800">{stock.material?.name || stock.product?.name}</div>
+                          <div className="text-sm text-gray-500">{stock.material?.code || stock.product?.sku}</div>
+                          <div className="text-xs text-gray-400">
+                            客户：{stock.material?.customer?.name || stock.product?.customer?.name || '通用/未绑定'}
+                          </div>
+                          {stock.material?.spec && <div className="text-xs text-gray-400">{stock.material.spec}</div>}
+                        </div>
 	                    </div>
                     <div className="flex flex-col items-end gap-1">
                       <div className={`px-2 py-1 rounded text-xs font-medium ${stock.material ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>

@@ -89,7 +89,7 @@ const orderStatusColors: Record<string, string> = {
 }
 
 export default function StatsPage({ onMessage }: { onMessage: (msg: string) => void }) {
-  const [tab, setTab] = useState<StatsTab>('dashboard')
+  const [tab, setTab] = useState<StatsTab>('production')
   const [production, setProduction] = useState<ProductionStat[]>([])
   const [quality, setQuality] = useState<QualityData | null>(null)
   const [cost, setCost] = useState<CostData | null>(null)
@@ -153,10 +153,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
   }
 
   const tabs: { key: StatsTab; label: string }[] = [
-    { key: 'dashboard', label: '仪表盘' },
-    { key: 'production', label: '产量统计' },
-    { key: 'quality', label: '质量统计' },
-    { key: 'cost', label: '成本统计' },
+    { key: 'production', label: '生产日报' },
   ]
   const dashboardMetrics = dashboard ? [
     { key: 'todayOrderCount', title: '今日工单数', value: dashboard.todayOrderCount, icon: '📋', color: 'blue' },
@@ -318,7 +315,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
 
         {!loading && tab === 'production' && (
           <div>
-            <h2 className="text-xl font-semibold mb-6">产量统计</h2>
+            <h2 className="text-xl font-semibold mb-6">生产日报</h2>
             {production.length === 0 ? (
               <div className="text-center py-12 text-gray-500">暂无数据</div>
             ) : viewMode === 'card' ? (
@@ -348,7 +345,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                           <div className="mt-1 font-semibold text-red-600">{item.scrapQty}</div>
                         </div>
                         <div className="rounded bg-gray-50 p-3">
-                          <div className="text-xs text-gray-500">工单数</div>
+                          <div className="text-xs text-gray-500">生产批次</div>
                           <div className="mt-1 font-semibold">{item.orderCount}</div>
                         </div>
                       </div>
@@ -366,7 +363,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">计划产量</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">完成产量</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">报废产量</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">工单数</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">生产批次</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">完成率</th>
                     </tr>
                   </thead>

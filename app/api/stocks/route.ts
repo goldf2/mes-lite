@@ -214,8 +214,45 @@ export async function GET(req: NextRequest) {
       orderBy: { id: 'asc' },
     })
 
+    const materialIds = stocks
+      .map((stock) => stock.materialId)
+      .filter(Boolean) as string[]
+    const images = materialIds.length === 0 ? [] : await prisma.documentAttachment.findMany({
+      where: {
+        ownerType: 'MATERIAL',
+        ownerId: { in: materialIds },
+        documentType: 'MATERIAL_IMAGE',
+        mimeType: { startsWith: 'image/' },
+        deletedAt: null,
+      },
+      orderBy: [{ isCover: 'desc' }, { createdAt: 'desc' }],
+      select: { id: true, ownerId: true, note: true, mimeType: true, isCover: true },
+    })
+    const primaryImageByMaterial = new Map<string, (typeof images)[number]>()
+    for (const image of images) {
+      if (!primaryImageByMaterial.has(image.ownerId)) {
+        primaryImageByMaterial.set(image.ownerId, image)
+      }
+    }
+    const stocksWithImages = stocks.map((stock) => {
+      const image = stock.materialId ? primaryImageByMaterial.get(stock.materialId) : null
+      return {
+        ...stock,
+        material: stock.material ? {
+          ...stock.material,
+          primaryImage: image ? {
+            id: image.id,
+            url: `/api/attachments/${image.id}/file`,
+            note: image.note,
+            mimeType: image.mimeType,
+            isCover: image.isCover,
+          } : null,
+        } : null,
+      }
+    })
+
     // 过滤关键词
-    const visibleStocks = includeInvalid ? stocks : stocks.filter((stock) => !stock.material?.deletedAt || hasStockBalance(stock))
+    const visibleStocks = includeInvalid ? stocksWithImages : stocksWithImages.filter((stock) => !stock.material?.deletedAt || hasStockBalance(stock))
 
     const filtered = keyword
       ? visibleStocks.filter(s =>

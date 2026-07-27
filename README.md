@@ -1,6 +1,6 @@
-# MES-lite 工厂生产全流程记录系统
+# MES-lite 轻量生产业务与物料库存系统
 
-可直接运行的 Next.js + Prisma + SQLite 轻量生产管理系统。
+可直接运行的 Next.js + Prisma + SQLite 轻量生产管理系统。当前主线收敛为“小微企业先把日常生产和库存流转记准”：仪表盘、生产日报、物料档案、来料、工单、库存、发货、退货是默认核心；派工和 BOM 成本保留为隐藏高级模块，待流程稳定后再打开。
 
 > 当前仓库是实际工程目录。MiniERP 作为后续产品方向和管理端模型，建模文档已放在 `docs/minierp/`。
 
@@ -95,24 +95,23 @@ DEV_ADMIN_USERNAME=admin DEV_ADMIN_PASSWORD=admin123 DEV_ADMIN_NAME=开发管理
 
 ## API 接口清单
 
-### 生产工单
+### 当前核心
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `POST` | `/api/orders` | 创建工单（自动按 BOM 生成领料需求） |
-| `GET` | `/api/orders?status=xxx` | 工单列表 |
-| `GET` | `/api/orders/:id` | 工单详情（含当前应报工工序） |
-| `PATCH` | `/api/orders/:id/cancel` | 取消工单（事务回退物料 + 作废报工） |
-| `POST` | `/api/orders/:id/pick` | 领料（校验库存、扣库存、更新状态） |
-| `POST` | `/api/orders/:id/reports` | 工序报工（防呆：上一工序未完成不可报） |
-| `POST` | `/api/orders/:id/stock-in` | 成品入库（仅 QC_DONE 状态可入） |
-
-### 库存
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/api/stocks?type=material\|product` | 库存查询 |
+| `GET` | `/api/stats/production` | 生产日报/产量统计 |
+| `GET` | `/api/materials` | 物料档案查询 |
+| `POST` | `/api/materials` | 创建物料档案 |
+| `GET` | `/api/stocks?type=material\|product` | 库存查询，物料库存会返回物料封面图片 |
 | `POST` | `/api/stocks` | 盘点调整（必须备注原因） |
+| `GET` | `/api/material-ins` | 来料记录查询 |
+| `GET` | `/api/orders` | 工单记录查询 |
+| `GET` | `/api/shipments` | 发货记录查询 |
+| `GET` | `/api/returns` | 退货记录查询 |
+
+### 隐藏高级模块
+
+派工和 BOM 成本 API 仍保留在代码中，用于后续恢复完整派工追踪和产品结构成本计算；当前轻量模式默认不在业务菜单中展示。
 
 ### AI 分析
 
@@ -124,14 +123,14 @@ DEV_ADMIN_USERNAME=admin DEV_ADMIN_PASSWORD=admin123 DEV_ADMIN_NAME=开发管理
 
 ## 核心设计原则
 
-1. **状态机强制锁定**：工单状态必须按顺序流转，非法跳转直接 400
-2. **取消必须回退**：取消工单时，Prisma 事务自动回退物料、作废报工、记录日志
-3. **库存强关联**：所有库存变动必须有 `refType` + `refId` 指向源单据
-4. **工序防呆**：报工必须上一工序已完成，否则拒绝
+1. **日报优先**：默认入口是生产日报，用于看每日产量、报废和生产批次。
+2. **库存准确**：物料档案、来料、发货、退货和库存余额是第一核心，库存调整必须备注原因并写入记录。
+3. **派工可隐藏**：工单可以记录生产计划和结果，但派工不作为轻量模式必走流程。
+4. **逐步扩展**：当日常流转稳定后，再打开派工、BOM 成本等更细的制造管理能力。
 
 ---
 
-## 测试流程
+## 工单流程测试
 
 ```bash
 # 1. 创建工单
@@ -167,7 +166,7 @@ curl -X PATCH http://localhost:3000/api/orders/<工单ID>/cancel \
 
 ## 下一步（Week 2）
 
-- 小程序工人端：扫码、报工、拍照
-- 管理后台：Dashboard、工单列表、库存看板
+- 生产日报：补充按日期、产品、人员维度的日报录入和查询。
+- 物料库存：补齐库存流水查看、盘点和低库存预警。
 
 详见 `/开发文档/生产全流程ERP系统开发文档.md`。
