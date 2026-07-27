@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 
 export interface CurrentOperator {
   id: string
@@ -62,12 +62,17 @@ export default function AuthGate({ children }: AuthGateProps) {
   }, [])
 
   const fetchMe = async () => {
-    const res = await fetch('/api/auth/me')
-    if (res.ok) {
-      const data = await res.json()
-      setOperator(data.data)
+    try {
+      const res = await fetch('/api/auth/me')
+      if (res.ok) {
+        const data = await res.json()
+        setOperator(data.data)
+      }
+    } catch (error) {
+      setOperator(null)
+    } finally {
+      setChecked(true)
     }
-    setChecked(true)
   }
 
   const handleLogout = async () => {
@@ -98,12 +103,14 @@ export default function AuthGate({ children }: AuthGateProps) {
 
         <div className="grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-lg mb-5">
           <button
+            type="button"
             onClick={() => { setMode('login'); setMessage('') }}
             className={`py-2 rounded-md text-sm font-medium ${mode === 'login' ? 'bg-white shadow text-blue-700' : 'text-gray-600'}`}
           >
             登录
           </button>
           <button
+            type="button"
             onClick={() => { setMode('register'); setMessage('') }}
             className={`py-2 rounded-md text-sm font-medium ${mode === 'register' ? 'bg-white shadow text-blue-700' : 'text-gray-600'}`}
           >
@@ -112,7 +119,7 @@ export default function AuthGate({ children }: AuthGateProps) {
         </div>
 
         {message && (
-          <div className={`mb-4 p-3 rounded-lg text-sm ${message.includes('成功') || message.includes('提交') || message.includes('自动') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+          <div role="status" aria-live="polite" className={`mb-4 p-3 rounded-lg text-sm ${message.includes('成功') || message.includes('提交') || message.includes('自动') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
             {message}
           </div>
         )}
@@ -149,34 +156,40 @@ function LoginForm({ onSuccess, onMessage }: { onSuccess: () => void; onMessage:
       .finally(() => setWechatChecked(true))
   }, [])
 
-  const submit = async () => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
     setLoading(true)
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    })
-    const data = await res.json()
-    if (res.ok) {
-      onMessage('登录成功')
-      onSuccess()
-    } else {
-      onMessage(data.error || '登录失败')
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        onMessage('登录成功')
+        onSuccess()
+      } else {
+        onMessage(data.error || '登录失败')
+      }
+    } catch (error) {
+      onMessage('登录请求失败，请检查网络或服务器状态')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
-    <div className="space-y-4">
+    <form className="space-y-4" onSubmit={submit}>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">账号</label>
-        <input value={username} onChange={(e) => setUsername(e.target.value)} className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+        <label htmlFor="login-username" className="block text-sm font-medium text-gray-700 mb-2">账号</label>
+        <input id="login-username" name="username" autoComplete="username" required value={username} onChange={(e) => setUsername(e.target.value)} className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">密码</label>
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+        <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-2">密码</label>
+        <input id="login-password" name="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
       </div>
-      <button onClick={submit} disabled={loading || !username || !password} className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
+      <button type="submit" disabled={loading || !username || !password} className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
         {loading ? '登录中...' : '登录'}
       </button>
       <div className="relative py-1">
@@ -205,7 +218,7 @@ function LoginForm({ onSuccess, onMessage }: { onSuccess: () => void; onMessage:
       >
         {wechatChecked ? (wechatEnabled ? '微信扫码登录' : '微信登录未配置') : '检查微信登录配置...'}
       </button>
-    </div>
+    </form>
   )
 }
 
@@ -213,7 +226,8 @@ function RegisterForm({ onRegistered, onMessage }: { onRegistered: () => void; o
   const [form, setForm] = useState({ username: '', password: '', name: '', phone: '' })
   const [loading, setLoading] = useState(false)
 
-  const submit = async () => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
     setLoading(true)
     try {
       const res = await fetch('/api/auth/register', {
@@ -231,32 +245,33 @@ function RegisterForm({ onRegistered, onMessage }: { onRegistered: () => void; o
       }
     } catch (error) {
       onMessage('注册请求失败，请检查网络或服务器状态')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
-    <div className="space-y-4">
+    <form className="space-y-4" onSubmit={submit}>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">账号</label>
-        <input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" placeholder="如 lufeng 或 陆峰" />
+        <label htmlFor="register-username" className="block text-sm font-medium text-gray-700 mb-2">账号</label>
+        <input id="register-username" name="username" autoComplete="username" required value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" placeholder="如 lufeng 或 陆峰" />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">姓名</label>
-        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+        <label htmlFor="register-name" className="block text-sm font-medium text-gray-700 mb-2">姓名</label>
+        <input id="register-name" name="name" autoComplete="name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">手机号</label>
-        <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+        <label htmlFor="register-phone" className="block text-sm font-medium text-gray-700 mb-2">手机号</label>
+        <input id="register-phone" name="phone" type="tel" autoComplete="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">密码</label>
-        <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+        <label htmlFor="register-password" className="block text-sm font-medium text-gray-700 mb-2">密码</label>
+        <input id="register-password" name="password" type="password" autoComplete="new-password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
       </div>
-      <button onClick={submit} disabled={loading || !form.username || !form.password || !form.name} className="w-full px-4 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50">
+      <button type="submit" disabled={loading || !form.username || !form.password || !form.name} className="w-full px-4 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50">
         {loading ? '提交中...' : '提交注册'}
       </button>
-    </div>
+    </form>
   )
 }
 

@@ -1,24 +1,30 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useState, useEffect, useRef } from 'react'
-import MaterialInPage from './components/MaterialInPage'
-import DispatchPage from './components/DispatchPage'
-import ShipmentPage from './components/ShipmentPage'
-import ReturnPage from './components/ReturnPage'
-import StatsPage from './components/StatsPage'
-import SawingCostCalculatorPage from './components/SawingCostCalculatorPage'
-import BomCostPage from './components/BomCostPage'
-import MaterialPage from './components/MaterialPage'
-import WorkInstructionPage from './components/WorkInstructionPage'
-import AttachmentPanel from './components/AttachmentPanel'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
-import OperatorPage from './components/OperatorPage'
-import SystemPage from './components/SystemPage'
-import PermissionPage from './components/PermissionPage'
 import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
 import ViewModeToggle, { usePersistedViewMode } from './components/ViewModeToggle'
 import useCompactViewport from './components/useCompactViewport'
+
+function FeaturePageLoading() {
+  return <div className="py-12 text-center text-sm text-gray-500" role="status">加载中...</div>
+}
+
+const MaterialInPage = dynamic(() => import('./components/MaterialInPage'), { loading: FeaturePageLoading })
+const DispatchPage = dynamic(() => import('./components/DispatchPage'), { loading: FeaturePageLoading })
+const ShipmentPage = dynamic(() => import('./components/ShipmentPage'), { loading: FeaturePageLoading })
+const ReturnPage = dynamic(() => import('./components/ReturnPage'), { loading: FeaturePageLoading })
+const StatsPage = dynamic(() => import('./components/StatsPage'), { loading: FeaturePageLoading })
+const SawingCostCalculatorPage = dynamic(() => import('./components/SawingCostCalculatorPage'), { loading: FeaturePageLoading })
+const BomCostPage = dynamic(() => import('./components/BomCostPage'), { loading: FeaturePageLoading })
+const MaterialPage = dynamic(() => import('./components/MaterialPage'), { loading: FeaturePageLoading })
+const WorkInstructionPage = dynamic(() => import('./components/WorkInstructionPage'), { loading: FeaturePageLoading })
+const AttachmentPanel = dynamic(() => import('./components/AttachmentPanel'), { loading: FeaturePageLoading })
+const OperatorPage = dynamic(() => import('./components/OperatorPage'), { loading: FeaturePageLoading })
+const SystemPage = dynamic(() => import('./components/SystemPage'), { loading: FeaturePageLoading })
+const PermissionPage = dynamic(() => import('./components/PermissionPage'), { loading: FeaturePageLoading })
 
 // ==================== 类型定义 ====================
 
@@ -697,9 +703,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       <main className="min-w-0 p-3 pb-28 sm:p-4 lg:ml-56 lg:p-6">
         <div className="sticky top-0 z-30 -mx-3 mb-3 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:-mx-6 lg:px-6">
           <div className="flex min-w-0 flex-nowrap items-center gap-2">
-            <div className="hidden min-w-0 shrink-0 pt-1 sm:block">
+            <div className="min-w-0 shrink-0 pt-1">
               <div className="hidden text-xs font-medium text-gray-400 sm:block">{activeSystemTab ? '系统功能' : '业务功能'}</div>
-              <div className="max-w-[7rem] truncate text-sm font-semibold text-gray-900 sm:max-w-[10rem] sm:text-lg lg:max-w-[12rem]">{activeTabLabel}</div>
+              <div className="max-w-[5.5rem] truncate text-sm font-semibold text-gray-900 sm:max-w-[10rem] sm:text-lg lg:max-w-[12rem]">{activeTabLabel}</div>
             </div>
             <div id="topbar-actions" className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible">
                 {tab === 'orders' ? (
@@ -837,7 +843,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </div>
 
         {message && (
-          <div className={`mb-4 p-4 rounded-lg text-sm ${
+          <div role="status" aria-live="polite" className={`mb-4 p-4 rounded-lg text-sm ${
             message.includes('成功') || message.includes('完成') || message.includes('补齐') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
           }`}>
             {message}
