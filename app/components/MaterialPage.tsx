@@ -417,7 +417,7 @@ function BomProductSearch({
         onKeyDown={(event) => {
           if (event.key === 'Escape') closePopup()
         }}
-        placeholder="输入产出物料编码或名称筛选"
+        placeholder="输入产品物料编码或名称筛选"
         className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
       />
       {open && (
@@ -921,12 +921,12 @@ export default function MaterialPage({
 
   const applyInputBasisBom = async () => {
     if (!selectedMaterial) return onMessage('请选择物料')
-    if (!inputBasisOutputProduct) return onMessage('请选择产出物料')
+    if (!inputBasisOutputProduct) return onMessage('请选择产品物料')
     if (inputBasisOutputProduct.sourceMaterialId === selectedMaterial.id || inputBasisOutputProduct.id === `${materialProductPrefix}${selectedMaterial.id}`) {
-      return onMessage('产出物料不能和当前投入物料相同')
+      return onMessage('产品物料不能和当前用料相同')
     }
-    if (Number(inputBasisInputQty || 0) <= 0) return onMessage('投入数量必须大于 0')
-    if (Number(inputBasisOutputQty || 0) <= 0) return onMessage('产出数量必须大于 0')
+    if (Number(inputBasisInputQty || 0) <= 0) return onMessage('用料数量必须大于 0')
+    if (Number(inputBasisOutputQty || 0) <= 0) return onMessage('产品数量必须大于 0')
 
     const nextQuantity = Number((Number(inputBasisInputQty) / Number(inputBasisOutputQty)).toFixed(8))
     const currentItems = (inputBasisOutputProduct.bom?.items || [])
@@ -956,7 +956,13 @@ export default function MaterialPage({
           },
         ]
 
-    await saveBomForProduct(inputBasisOutputProduct.id, nextItems, '已按投入基准写入产出物料 BOM')
+    await saveBomForProduct(inputBasisOutputProduct.id, nextItems, '已按用料基准写入产品 BOM')
+  }
+
+  const editInputBasisUsage = (product: MaterialBom, item: BomItem) => {
+    setInputBasisOutputProductId(product.id)
+    setInputBasisInputQty(Number(item.quantity || 0))
+    setInputBasisOutputQty(1)
   }
 
   const activeFilterLabels = useMemo(() => {
@@ -1396,21 +1402,22 @@ export default function MaterialPage({
 
           {selectedMaterial ? (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 bg-gray-50 p-1">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-stretch gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2">
+                <div className={`rounded-md border px-3 py-2 ${bomBasisMode === 'OUTPUT' ? 'border-blue-200 bg-white text-blue-800 shadow-sm' : 'border-gray-100 bg-white text-gray-700'}`}>
+                  <div className="text-xs text-gray-500">产品</div>
+                  <div className="mt-1 truncate text-sm font-medium">{bomBasisMode === 'OUTPUT' ? selectedMaterial.name : inputBasisOutputProduct?.name || '选择产品'}</div>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setBomBasisMode('OUTPUT')}
-                  className={`rounded-md px-3 py-2 text-sm font-medium ${bomBasisMode === 'OUTPUT' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:bg-white/70'}`}
+                  onClick={() => setBomBasisMode((current) => current === 'OUTPUT' ? 'INPUT' : 'OUTPUT')}
+                  className="self-center rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-50"
                 >
-                  作为成品/产出
+                  ⇄ 交换基准
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setBomBasisMode('INPUT')}
-                  className={`rounded-md px-3 py-2 text-sm font-medium ${bomBasisMode === 'INPUT' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:bg-white/70'}`}
-                >
-                  作为原材料/投入
-                </button>
+                <div className={`rounded-md border px-3 py-2 ${bomBasisMode === 'INPUT' ? 'border-blue-200 bg-white text-blue-800 shadow-sm' : 'border-gray-100 bg-white text-gray-700'}`}>
+                  <div className="text-xs text-gray-500">用料</div>
+                  <div className="mt-1 truncate text-sm font-medium">{bomBasisMode === 'INPUT' ? selectedMaterial.name : `${draftBomItems.length} 项 BOM 用料`}</div>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
@@ -1419,7 +1426,7 @@ export default function MaterialPage({
                   <div className="mt-1 truncate text-sm font-medium text-gray-900">{materialCategoryLabels[selectedMaterial.category || 'RAW'] || '其他'}</div>
                 </div>
                 <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
-                  <div className="text-xs text-blue-700">{bomBasisMode === 'OUTPUT' ? 'BOM 项' : '被使用'}</div>
+                  <div className="text-xs text-blue-700">{bomBasisMode === 'OUTPUT' ? 'BOM 项' : '关联产品'}</div>
                   <div className="mt-1 text-sm font-semibold text-blue-900">{bomBasisMode === 'OUTPUT' ? draftBomItems.length : selectedMaterialUsageRows.length}</div>
                 </div>
                 <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-3">
@@ -1432,7 +1439,7 @@ export default function MaterialPage({
                 <>
                   <div>
                     <div className="mb-2 flex items-center justify-between gap-3">
-                      <h4 className="text-sm font-semibold text-gray-900">添加投入物料</h4>
+                      <h4 className="text-sm font-semibold text-gray-900">添加 BOM 用料</h4>
                       {bomLoading && <span className="text-xs text-gray-500">加载中...</span>}
                     </div>
                     <BomMaterialSearch
@@ -1443,13 +1450,13 @@ export default function MaterialPage({
                   </div>
 
                   {draftBomItems.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500">当前产出物料暂无 BOM 投入项</div>
+                    <div className="rounded-lg border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500">当前产品暂无 BOM 用料</div>
                   ) : (
                     <div className="overflow-x-auto rounded-lg border border-gray-100">
                       <table className="w-full min-w-[720px] text-sm">
                         <thead className="bg-gray-50 text-left text-gray-600">
                           <tr>
-                            <th className="px-3 py-2">投入物料</th>
+                            <th className="px-3 py-2">BOM 用料</th>
                             <th className="px-3 py-2 text-right">用量</th>
                             <th className="px-3 py-2">单位</th>
                             <th className="px-3 py-2 text-right">损耗率</th>
@@ -1520,16 +1527,16 @@ export default function MaterialPage({
                 <div className="space-y-4">
                   <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
-                      <h4 className="text-sm font-semibold text-gray-900">设定当前物料产出关系</h4>
+                      <h4 className="text-sm font-semibold text-gray-900">按用料基准维护产品 BOM</h4>
                       {inputBasisUnitQty > 0 && (
                         <span className="rounded bg-white px-2 py-1 text-xs text-blue-700">
-                          1 个产出 = {qty(inputBasisUnitQty, 6)} {selectedMaterial.stockUnit || selectedMaterial.unit}
+                          1 个产品 = {qty(inputBasisUnitQty, 6)} {selectedMaterial.stockUnit || selectedMaterial.unit}
                         </span>
                       )}
                     </div>
                     <div className="space-y-3">
                       <div>
-                        <label className="mb-1 block text-xs font-medium text-gray-600">产出物料</label>
+                        <label className="mb-1 block text-xs font-medium text-gray-600">产品物料</label>
                         <BomProductSearch
                           value={inputBasisOutputProductId}
                           products={bomProducts}
@@ -1539,7 +1546,7 @@ export default function MaterialPage({
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="mb-1 block text-xs font-medium text-gray-600">当前投入数量</label>
+                          <label className="mb-1 block text-xs font-medium text-gray-600">用料数量</label>
                           <input
                             type="number"
                             min="0"
@@ -1550,7 +1557,7 @@ export default function MaterialPage({
                           />
                         </div>
                         <div>
-                          <label className="mb-1 block text-xs font-medium text-gray-600">产出数量</label>
+                          <label className="mb-1 block text-xs font-medium text-gray-600">产品数量</label>
                           <input
                             type="number"
                             min="0"
@@ -1567,28 +1574,47 @@ export default function MaterialPage({
                         disabled={bomSaving || !inputBasisOutputProductId}
                         className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {bomSaving ? '写入中...' : '写入产出 BOM'}
+                        {bomSaving ? '写入中...' : '写入产品 BOM'}
                       </button>
                     </div>
                   </div>
 
                   <div>
-                    <h4 className="mb-2 text-sm font-semibold text-gray-900">当前物料被哪些 BOM 使用</h4>
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <h4 className="text-sm font-semibold text-gray-900">关联产品 BOM</h4>
+                      <span className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">{selectedMaterialUsageRows.length} 个产品</span>
+                    </div>
                     {selectedMaterialUsageRows.length === 0 ? (
-                      <div className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">暂无使用当前物料的 BOM</div>
+                      <div className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">暂无关联产品 BOM</div>
                     ) : (
                       <div className="space-y-2">
                         {selectedMaterialUsageRows.map(({ product, item }) => (
-                          <div key={`${product.id}-${item.id}`} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
-                            <div className="flex items-start justify-between gap-3">
+                          <div key={`${product.id}-${item.id}`} className="rounded-lg border border-gray-200 bg-white p-3 text-sm">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                               <div className="min-w-0">
                                 <div className="truncate font-medium text-gray-900">{product.name}</div>
                                 <div className="mt-1 truncate font-mono text-xs text-blue-700">{product.sku}</div>
                               </div>
-                              <div className="shrink-0 text-right text-gray-700">
-                                <div>{qty(item.quantity, 4)} {item.unit}</div>
-                                <div className="mt-1 text-xs text-gray-500">每 1 个产出</div>
+                              <div className="grid shrink-0 grid-cols-2 gap-2 text-right sm:min-w-64">
+                                <div className="rounded bg-gray-50 px-3 py-2">
+                                  <div className="text-xs text-gray-500">每件产品用量</div>
+                                  <div className="mt-1 font-semibold text-gray-900">{qty(item.quantity, 6)} {item.unit}</div>
+                                </div>
+                                <div className="rounded bg-gray-50 px-3 py-2">
+                                  <div className="text-xs text-gray-500">含损耗</div>
+                                  <div className="mt-1 font-semibold text-gray-900">{qty(Number(item.quantity || 0) * (1 + Number(item.wastageRate || 0) / 100), 6)} {item.unit}</div>
+                                </div>
                               </div>
+                            </div>
+                            <div className="mt-3 flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
+                              <span className="text-xs text-gray-500">损耗率 {qty(item.wastageRate, 3)}%</span>
+                              <button
+                                type="button"
+                                onClick={() => editInputBasisUsage(product, item)}
+                                className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                              >
+                                编辑关系
+                              </button>
                             </div>
                           </div>
                         ))}
