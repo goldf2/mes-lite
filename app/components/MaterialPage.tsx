@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode, useCallback, useState, useEffect, useMemo } from 'react'
+import { CSSProperties, ReactNode, useCallback, useState, useEffect, useMemo, useRef } from 'react'
 import AttachmentPanel from './AttachmentPanel'
 import StatusCheckboxFilter, { getMultiSelectQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
@@ -118,6 +118,7 @@ const materialCategoryOptions = [
 
 const materialCategoryFilterOptions = materialCategoryOptions.map(([value, label]) => ({ value, label }))
 const materialProductPrefix = 'material:'
+const materialSplitStorageKey = 'mes-lite.materials.splitPercent'
 
 const materialSortOptions = [
   { value: 'createdAt', label: '创建时间' },
@@ -497,6 +498,10 @@ export default function MaterialPage({
   const [panoramaMaterialId, setPanoramaMaterialId] = useState<string | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.materials.viewMode', 'list')
   const [visibleFields, setVisibleFields] = useState<MaterialVisibleField[]>(defaultMaterialVisibleFields)
+  const [splitPercent, setSplitPercent] = useState(46)
+  const [isResizingSplit, setIsResizingSplit] = useState(false)
+  const [bomAuxiliaryView, setBomAuxiliaryView] = useState<'components' | 'usage'>('components')
+  const splitContainerRef = useRef<HTMLDivElement>(null)
   const isCompactViewport = useCompactViewport()
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
   const [form, setForm] = useState(createEmptyMaterialForm())
@@ -600,6 +605,54 @@ export default function MaterialPage({
       // ignore invalid local preference
     }
   }, [])
+
+  useEffect(() => {
+    const saved = Number(window.localStorage.getItem(materialSplitStorageKey))
+    if (Number.isFinite(saved) && saved >= 28 && saved <= 70) {
+      setSplitPercent(saved)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isResizingSplit) return
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const container = splitContainerRef.current
+      if (!container) return
+      const bounds = container.getBoundingClientRect()
+      const dividerWidth = 12
+      const usableWidth = Math.max(1, bounds.width - dividerWidth)
+      const minLeft = Math.min(420, usableWidth * 0.45)
+      const minRight = Math.min(500, usableWidth * 0.45)
+      const leftWidth = Math.min(
+        usableWidth - minRight,
+        Math.max(minLeft, event.clientX - bounds.left),
+      )
+      setSplitPercent(Number(((leftWidth / usableWidth) * 100).toFixed(2)))
+    }
+
+    const handlePointerUp = () => {
+      setIsResizingSplit(false)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isResizingSplit])
+
+  useEffect(() => {
+    if (isResizingSplit) return
+    window.localStorage.setItem(materialSplitStorageKey, String(splitPercent))
+  }, [isResizingSplit, splitPercent])
 
   const updateVisibleFields = (next: MaterialVisibleField[]) => {
     setVisibleFields(next)
@@ -1166,8 +1219,15 @@ export default function MaterialPage({
           )}
         />
       </TopBarPortal>
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(460px,1.05fr)]">
-        <div className="rounded-lg bg-transparent p-0 shadow-none sm:bg-white sm:p-6 sm:shadow">
+      <div
+        ref={splitContainerRef}
+        style={{
+          '--material-left': `${splitPercent}fr`,
+          '--material-right': `${100 - splitPercent}fr`,
+        } as CSSProperties}
+        className="grid grid-cols-1 items-start gap-4 xl:gap-0 xl:[grid-template-columns:minmax(0,var(--material-left))_12px_minmax(0,var(--material-right))]"
+      >
+        <div className="min-w-0 rounded-lg bg-transparent p-0 shadow-none sm:bg-white sm:p-4 sm:shadow">
           {materials.length === 0 ? (
           <div className="rounded-lg bg-white py-10 text-center text-gray-500 shadow sm:bg-transparent sm:py-12 sm:shadow-none">
             <p>暂无物料</p>
@@ -1180,7 +1240,7 @@ export default function MaterialPage({
           </div>
         ) : effectiveViewMode === 'card' ? (
           <>
-            <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] items-start gap-3">
               {materials.map((material) => {
                 const bomSummary = getBomSummary(material)
                 const isSelected = material.id === selectedMaterialId
@@ -1188,13 +1248,13 @@ export default function MaterialPage({
                 <div
                   key={material.id}
                   onClick={() => selectMaterialForBom(material)}
-                  className={`flex cursor-pointer flex-col rounded-lg border bg-white p-3 shadow-sm transition sm:shadow-none ${isSelected ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-200 hover:border-blue-200 hover:bg-blue-50/30'}`}
+                  className={`group flex min-h-[218px] cursor-pointer flex-col rounded-lg border bg-white p-3 shadow-sm transition sm:shadow-none ${isSelected ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200 hover:border-blue-300 hover:shadow-sm'}`}
                 >
-                <div className="flex gap-3">
+                <div className="flex min-w-0 gap-3">
                   {showField('image') && (
                     <button
                       onClick={() => handleViewDetail(material)}
-                      className="h-14 w-14 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50"
+                      className="h-12 w-12 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50"
                       title={material.primaryImage?.note || '查看物料详情'}
                     >
                       {material.primaryImage ? (
@@ -1205,62 +1265,62 @@ export default function MaterialPage({
                     </button>
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {showField('code') && <span className="rounded bg-blue-50 px-2 py-1 font-mono text-xs text-blue-700">{material.code}</span>}
-                      {showField('category') && <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</span>}
+                    <div className="flex min-w-0 items-center gap-2">
+                      {showField('code') && <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium text-blue-700" title={material.code}>{material.code}</span>}
+                      {showField('category') && <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</span>}
                     </div>
-                    <div className="mt-1 truncate text-sm font-semibold text-gray-900 sm:text-base">{material.name}</div>
+                    <div className="mt-1 line-clamp-1 text-sm font-semibold text-gray-900" title={material.name}>{material.name}</div>
                     {showField('spec') && <div className="mt-0.5 truncate text-sm text-gray-500">{material.spec || '无规格'}</div>}
                     {showField('note') && material.note && <div className="mt-0.5 line-clamp-2 text-xs text-gray-500">备注：{material.note}</div>}
                     {showField('customer') && <div className="mt-0.5 truncate text-xs text-gray-500">客户：{material.customer?.name || '通用/未绑定'}</div>}
                   </div>
                 </div>
                 {(showField('stock') || showField('valuationStock')) && (
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                  <div className="mt-3 grid grid-cols-2 gap-x-3 border-t border-gray-100 pt-2 text-sm">
                     {showField('stock') && (
-                      <div className="rounded bg-gray-50 px-2 py-1.5">
+                      <div className="min-w-0">
                         <div className="text-xs text-gray-500">库存</div>
-                        <div className="mt-1 font-semibold text-gray-900">{material.stock?.qty || 0} {material.stockUnit || material.unit}</div>
+                        <div className="mt-0.5 truncate font-semibold text-gray-900">{material.stock?.qty || 0} {material.stockUnit || material.unit}</div>
                       </div>
                     )}
                     {showField('valuationStock') && (
-                      <div className="rounded bg-gray-50 px-2 py-1.5">
+                      <div className="min-w-0">
                         <div className="text-xs text-gray-500">核算库存</div>
-                        <div className="mt-1 font-semibold text-green-700">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</div>
+                        <div className="mt-0.5 truncate font-semibold text-emerald-700">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</div>
                       </div>
                     )}
                   </div>
                 )}
                 {(showField('valuationUnit') || showField('createdAt')) && (
-                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
-                    {showField('valuationUnit') && <span className="whitespace-nowrap">1 {material.stockUnit || material.unit} = {material.conversionRate || 1} {material.valuationUnit || material.unit}</span>}
+                  <div className="mt-2 flex min-w-0 items-center gap-2 text-xs text-gray-500">
+                    {showField('valuationUnit') && <span className="min-w-0 flex-1 truncate">1 {material.stockUnit || material.unit} = {material.conversionRate || 1} {material.valuationUnit || material.unit}</span>}
                     {showField('valuationUnit') && <span className="whitespace-nowrap">{material.costingMethod === 'FIFO' ? 'FIFO' : '移动加权'}</span>}
                     {showField('createdAt') && <span className="whitespace-nowrap">{new Date(material.createdAt).toLocaleDateString('zh-CN')}</span>}
                   </div>
                 )}
-                <div className={`mt-2 rounded-lg border px-2 py-1.5 text-xs ${bomSummary.count > 0 ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : 'border-gray-100 bg-gray-50 text-gray-500'}`}>
+                <div className={`mt-2 rounded border-l-2 px-2 py-1.5 text-xs ${bomSummary.count > 0 ? 'border-emerald-400 bg-emerald-50 text-emerald-800' : 'border-gray-300 bg-gray-50 text-gray-500'}`}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium">BOM</span>
                     <span>{bomSummary.count} 项</span>
                   </div>
-                  <div className="mt-1 line-clamp-2">{bomSummary.text}</div>
+                  <div className="mt-0.5 truncate" title={bomSummary.text}>{bomSummary.text}</div>
                 </div>
-                <div className="mt-auto flex justify-end gap-2 pt-3">
+                <div className="mt-auto flex items-center justify-end gap-1.5 pt-3">
                   <button
                     onClick={() => handleOpenPanorama(material)}
-                    className="px-2.5 py-1 text-blue-700 border border-blue-300 rounded text-xs hover:bg-blue-50 transition"
+                    className="rounded border border-blue-200 px-2 py-1 text-xs text-blue-700 transition hover:bg-blue-50"
                   >
                     全景
                   </button>
                   <button
                     onClick={() => handleViewDetail(material)}
-                    className="px-2.5 py-1 text-gray-700 border border-gray-300 rounded text-xs hover:bg-gray-50 transition"
+                    className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 transition hover:bg-gray-50"
                   >
-                    查看详情
+                    详情
                   </button>
                   <button
                     onClick={() => handleArchive(material.id)}
-                    className="px-2.5 py-1 text-amber-700 border border-amber-300 rounded text-xs hover:bg-amber-50 transition"
+                    className="rounded border border-amber-200 px-2 py-1 text-xs text-amber-700 transition hover:bg-amber-50"
                   >
                     归档
                   </button>
@@ -1385,10 +1445,39 @@ export default function MaterialPage({
           )}
         </div>
 
-        <div className="sticky top-24 rounded-lg bg-white p-5 shadow">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div
+          role="separator"
+          aria-label="调整物料列表与 BOM 明细宽度"
+          aria-orientation="vertical"
+          aria-valuemin={28}
+          aria-valuemax={70}
+          aria-valuenow={Math.round(splitPercent)}
+          tabIndex={0}
+          onPointerDown={(event) => {
+            event.preventDefault()
+            setIsResizingSplit(true)
+          }}
+          onDoubleClick={() => setSplitPercent(46)}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+            event.preventDefault()
+            setSplitPercent((current) => Math.min(70, Math.max(28, current + (event.key === 'ArrowRight' ? 2 : -2))))
+          }}
+          className={`group hidden h-full min-h-[520px] cursor-col-resize touch-none items-start justify-center xl:flex ${isResizingSplit ? 'bg-blue-50' : ''}`}
+          title="拖动调整宽度，双击恢复默认"
+        >
+          <div className={`sticky top-28 mt-4 flex h-24 w-1 items-center justify-center rounded-full transition ${isResizingSplit ? 'bg-blue-500' : 'bg-gray-300 group-hover:bg-blue-400'}`}>
+            <span className="h-4 w-px bg-white/80" />
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-lg bg-white p-4 shadow xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <h3 className="text-base font-semibold text-gray-900">BOM 明细</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-semibold text-gray-900">BOM 工作区</h3>
+                {bomLoading && <span className="text-xs text-gray-500">同步中...</span>}
+              </div>
               <div className="mt-1 truncate text-sm text-gray-500">
                 {selectedMaterial ? `${selectedMaterial.code} · ${selectedMaterial.name}` : '请选择左侧物料'}
               </div>
@@ -1397,20 +1486,20 @@ export default function MaterialPage({
               type="button"
               onClick={saveSelectedBom}
               disabled={!selectedMaterial || bomSaving}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="shrink-0 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {bomSaving ? '保存中...' : '保存当前明细'}
+              {bomSaving ? '保存中...' : '保存明细'}
             </button>
           </div>
 
           {selectedMaterial ? (
-            <div className="space-y-4">
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+            <div className="space-y-3">
+              <div className="rounded-lg border border-gray-200 bg-gray-50/70 p-3">
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-3">
+                  <div className="min-w-0">
                     <div className="mb-2 flex items-center justify-between gap-3">
                       <label className="text-xs font-medium text-gray-600">成品</label>
-                      {bomLoading && <span className="text-xs text-gray-500">加载中...</span>}
+                      <span className="text-xs text-gray-400">产出</span>
                     </div>
                     <BomProductSearch
                       value={relationProductId}
@@ -1431,7 +1520,7 @@ export default function MaterialPage({
                     </label>
                   </div>
 
-                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+                  <div className="min-w-0">
                     <div className="mb-2 flex items-center justify-between gap-3">
                       <label className="text-xs font-medium text-gray-600">原料</label>
                       {relationMaterial && <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{relationMaterial.stockUnit || relationMaterial.unit}</span>}
@@ -1472,8 +1561,8 @@ export default function MaterialPage({
                   </div>
                 </div>
 
-                <div className="mt-3 flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="text-xs text-gray-500">
+                <div className="mt-3 flex flex-col gap-3 border-t border-gray-200 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 text-xs text-gray-600">
                     {relationUnitQty > 0
                       ? <>{qty(relationProductQty, 6)} {relationProduct?.unit || '成品'} = {qty(relationMaterialQty, 6)} {relationMaterial?.stockUnit || relationMaterial?.unit || '原料'}，每件用量 {qty(relationUnitQty, 6)}</>
                       : '填写成品数量和原料数量后自动折算每件用量'}
@@ -1489,152 +1578,122 @@ export default function MaterialPage({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-                  <div className="text-xs text-gray-500">分类</div>
-                  <div className="mt-1 truncate text-sm font-medium text-gray-900">{materialCategoryLabels[selectedMaterial.category || 'RAW'] || '其他'}</div>
-                </div>
-                <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
-                  <div className="text-xs text-blue-700">BOM 项</div>
-                  <div className="mt-1 text-sm font-semibold text-blue-900">{draftBomItems.length}</div>
-                </div>
-                <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-3">
-                  <div className="text-xs text-emerald-700">库存</div>
-                  <div className="mt-1 truncate text-sm font-semibold text-emerald-900">{selectedMaterial.stock?.qty || 0} {selectedMaterial.stockUnit || selectedMaterial.unit}</div>
-                </div>
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs">
+                <span className="text-gray-500">分类 <strong className="ml-1 font-medium text-gray-900">{materialCategoryLabels[selectedMaterial.category || 'RAW'] || '其他'}</strong></span>
+                <span className="text-gray-500">BOM <strong className="ml-1 font-semibold text-blue-700">{draftBomItems.length} 项</strong></span>
+                <span className="text-gray-500">被引用 <strong className="ml-1 font-semibold text-blue-700">{selectedMaterialUsageRows.length} 个产品</strong></span>
+                <span className="text-gray-500">库存 <strong className="ml-1 font-semibold text-emerald-700">{selectedMaterial.stock?.qty || 0} {selectedMaterial.stockUnit || selectedMaterial.unit}</strong></span>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <h4 className="text-sm font-semibold text-gray-900">作为成品的 BOM 明细</h4>
-                    <span className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">{draftBomItems.length} 项</span>
+              <div>
+                <div className="mb-3 flex items-center justify-between gap-3 border-b border-gray-200">
+                  <div className="flex min-w-0 items-center">
+                    <button
+                      type="button"
+                      onClick={() => setBomAuxiliaryView('components')}
+                      className={`border-b-2 px-3 py-2 text-sm font-medium transition ${bomAuxiliaryView === 'components' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
+                    >
+                      组成明细 {draftBomItems.length}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBomAuxiliaryView('usage')}
+                      className={`border-b-2 px-3 py-2 text-sm font-medium transition ${bomAuxiliaryView === 'usage' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
+                    >
+                      被引用 {selectedMaterialUsageRows.length}
+                    </button>
                   </div>
-                  {draftBomItems.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500">当前产品暂无 BOM 用料</div>
-                  ) : (
-                    <div className="overflow-x-auto rounded-lg border border-gray-100">
-                      <table className="w-full min-w-[720px] text-sm">
-                        <thead className="bg-gray-50 text-left text-gray-600">
-                          <tr>
-                            <th className="px-3 py-2">BOM 用料</th>
-                            <th className="px-3 py-2 text-right">用量</th>
-                            <th className="px-3 py-2">单位</th>
-                            <th className="px-3 py-2 text-right">损耗率</th>
-                            <th className="px-3 py-2 text-right">含损耗</th>
-                            <th className="px-3 py-2 text-right">操作</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {draftBomItems.map((item) => {
-                            const material = bomMaterialById.get(item.materialId)
-                            const quantityWithWastage = Number(item.quantity || 0) * (1 + Number(item.wastageRate || 0) / 100)
-                            return (
-                              <tr key={item.clientId} className="align-top hover:bg-gray-50">
-                                <td className="px-3 py-2">
-                                  <div className="font-medium text-gray-900">{material?.name || '未知物料'}</div>
-                                  <div className="mt-1 font-mono text-xs text-blue-700">{material?.code || item.materialId}</div>
-                                  {material?.spec && <div className="mt-1 text-xs text-gray-500">{material.spec}</div>}
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                    value={item.quantity || ''}
-                                    onChange={(event) => updateDraftBomItem(item.clientId, { quantity: Math.max(0, Number(event.target.value)) })}
-                                    className="w-24 rounded-lg border border-gray-200 px-3 py-2 text-right text-sm"
-                                  />
-                                </td>
-                                <td className="px-3 py-2">
-                                  <input
-                                    value={item.unit}
-                                    onChange={(event) => updateDraftBomItem(item.clientId, { unit: event.target.value })}
-                                    className="w-20 rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                                  />
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  <div className="inline-flex overflow-hidden rounded-lg border border-gray-200">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="any"
-                                      value={item.wastageRate || ''}
-                                      onChange={(event) => updateDraftBomItem(item.clientId, { wastageRate: Math.max(0, Number(event.target.value)) })}
-                                      className="w-20 px-3 py-2 text-right text-sm outline-none"
-                                    />
-                                    <span className="flex items-center border-l border-gray-200 bg-gray-50 px-2 text-xs text-gray-500">%</span>
-                                  </div>
-                                </td>
-                                <td className="px-3 py-2 text-right text-gray-700">{qty(quantityWithWastage, 4)} {item.unit || material?.stockUnit || material?.unit}</td>
-                                <td className="px-3 py-2 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => editOutputBasisUsage(item)}
-                                    className="mr-2 rounded-lg border border-blue-200 px-3 py-2 text-sm text-blue-700 hover:bg-blue-50"
-                                  >
-                                    编辑
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setDraftBomItems((current) => current.filter((draft) => draft.clientId !== item.clientId))}
-                                    className="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-                                  >
-                                    移除
-                                  </button>
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                  <span className="hidden text-xs text-gray-400 sm:inline">点击条目可载入上方比例编辑器</span>
                 </div>
 
-                  <div>
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <h4 className="text-sm font-semibold text-gray-900">关联产品 BOM</h4>
-                      <span className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">{selectedMaterialUsageRows.length} 个产品</span>
-                    </div>
-                    {selectedMaterialUsageRows.length === 0 ? (
-                      <div className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">暂无关联产品 BOM</div>
-                    ) : (
-                      <div className="space-y-2">
-                        {selectedMaterialUsageRows.map(({ product, item }) => (
-                          <div key={`${product.id}-${item.id}`} className="rounded-lg border border-gray-200 bg-white p-3 text-sm">
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                              <div className="min-w-0">
-                                <div className="truncate font-medium text-gray-900">{product.name}</div>
-                                <div className="mt-1 truncate font-mono text-xs text-blue-700">{product.sku}</div>
-                              </div>
-                              <div className="grid shrink-0 grid-cols-2 gap-2 text-right sm:min-w-64">
-                                <div className="rounded bg-gray-50 px-3 py-2">
-                                  <div className="text-xs text-gray-500">每件产品用量</div>
-                                  <div className="mt-1 font-semibold text-gray-900">{qty(item.quantity, 6)} {item.unit}</div>
-                                </div>
-                                <div className="rounded bg-gray-50 px-3 py-2">
-                                  <div className="text-xs text-gray-500">含损耗</div>
-                                  <div className="mt-1 font-semibold text-gray-900">{qty(Number(item.quantity || 0) * (1 + Number(item.wastageRate || 0) / 100), 6)} {item.unit}</div>
-                                </div>
+                {bomAuxiliaryView === 'components' ? (
+                  draftBomItems.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">当前产品暂无 BOM 用料</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {draftBomItems.map((item) => {
+                        const material = bomMaterialById.get(item.materialId)
+                        const quantityWithWastage = Number(item.quantity || 0) * (1 + Number(item.wastageRate || 0) / 100)
+                        return (
+                          <div key={item.clientId} className="rounded-lg border border-gray-200 p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <button type="button" onClick={() => editOutputBasisUsage(item)} className="min-w-0 text-left">
+                                <div className="truncate text-sm font-medium text-gray-900">{material?.name || '未知物料'}</div>
+                                <div className="mt-0.5 truncate font-mono text-xs text-blue-700">{material?.code || item.materialId}</div>
+                              </button>
+                              <div className="flex shrink-0 items-center gap-2">
+                                <span className="text-xs text-gray-500">含损耗 {qty(quantityWithWastage, 4)} {item.unit || material?.stockUnit || material?.unit}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setDraftBomItems((current) => current.filter((draft) => draft.clientId !== item.clientId))}
+                                  className="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                                >
+                                  移除
+                                </button>
                               </div>
                             </div>
-                            <div className="mt-3 flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
-                              <span className="text-xs text-gray-500">损耗率 {qty(item.wastageRate, 3)}%</span>
-                              <button
-                                type="button"
-                                onClick={() => editInputBasisUsage(product, item)}
-                                className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
-                              >
-                                编辑关系
-                              </button>
+                            <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-2">
+                              <label className="min-w-0">
+                                <span className="text-xs text-gray-500">每件用量</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="any"
+                                  value={item.quantity || ''}
+                                  onChange={(event) => updateDraftBomItem(item.clientId, { quantity: Math.max(0, Number(event.target.value)) })}
+                                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-right text-sm"
+                                />
+                              </label>
+                              <label className="min-w-0">
+                                <span className="text-xs text-gray-500">单位</span>
+                                <input
+                                  value={item.unit}
+                                  onChange={(event) => updateDraftBomItem(item.clientId, { unit: event.target.value })}
+                                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+                                />
+                              </label>
+                              <label className="min-w-0">
+                                <span className="text-xs text-gray-500">损耗率 %</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="any"
+                                  value={item.wastageRate || ''}
+                                  onChange={(event) => updateDraftBomItem(item.clientId, { wastageRate: Math.max(0, Number(event.target.value)) })}
+                                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-right text-sm"
+                                />
+                              </label>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        )
+                      })}
+                    </div>
+                  )
+                ) : selectedMaterialUsageRows.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">暂无关联产品 BOM</div>
+                ) : (
+                  <div className="space-y-2">
+                    {selectedMaterialUsageRows.map(({ product, item }) => (
+                      <button
+                        type="button"
+                        key={`${product.id}-${item.id}`}
+                        onClick={() => editInputBasisUsage(product, item)}
+                        className="grid w-full grid-cols-1 gap-3 rounded-lg border border-gray-200 p-3 text-left transition hover:border-blue-300 hover:bg-blue-50/30 sm:grid-cols-[minmax(0,1fr)_auto]"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium text-gray-900">{product.name}</span>
+                          <span className="mt-0.5 block truncate font-mono text-xs text-blue-700">{product.sku}</span>
+                        </span>
+                        <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 sm:justify-end">
+                          <span>每件 <strong className="font-semibold text-gray-900">{qty(item.quantity, 6)} {item.unit}</strong></span>
+                          <span>损耗 <strong className="font-semibold text-gray-900">{qty(item.wastageRate, 3)}%</strong></span>
+                          <span>含损耗 <strong className="font-semibold text-gray-900">{qty(Number(item.quantity || 0) * (1 + Number(item.wastageRate || 0) / 100), 6)} {item.unit}</strong></span>
+                        </span>
+                      </button>
+                    ))}
                   </div>
-                </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="rounded-lg border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500">左侧选择一个物料后查看 BOM</div>
