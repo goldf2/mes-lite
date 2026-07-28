@@ -605,7 +605,7 @@ export default function ShipmentPage({
                   >
                     <option value="">手工填写/未绑定</option>
                     {customers.map((customer) => (
-                      <option key={customer.id} value={customer.id}>{customer.name} ({customer.code})</option>
+                      <option key={customer.id} value={customer.id}>{customer.name}</option>
                     ))}
                   </select>
                 </div>

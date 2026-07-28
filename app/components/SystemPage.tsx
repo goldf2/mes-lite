@@ -472,7 +472,6 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [loading, setLoading] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.customers.viewMode', 'list')
   const [form, setForm] = useState({
-    code: '',
     name: '',
     contact: '',
     phone: '',
@@ -495,7 +494,7 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
   }
 
   const resetForm = () => {
-    setForm({ code: '', name: '', contact: '', phone: '', address: '' })
+    setForm({ name: '', contact: '', phone: '', address: '' })
     setEditingCustomer(null)
   }
 
@@ -507,7 +506,6 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const openEdit = (customer: Customer) => {
     setEditingCustomer(customer)
     setForm({
-      code: customer.code,
       name: customer.name,
       contact: customer.contact || '',
       phone: customer.phone || '',
@@ -517,8 +515,8 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
   }
 
   const submit = async () => {
-    if (!form.code || !form.name) {
-      onMessage('客户编码和名称必填')
+    if (!form.name) {
+      onMessage('客户名称必填')
       return
     }
 
@@ -570,7 +568,7 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
           <input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索编码、名称、联系人、电话"
+            placeholder="搜索名称、联系人、电话"
             className="px-4 py-2 border border-gray-200 rounded-lg text-sm w-64"
           />
           <button onClick={openAdd} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
@@ -586,7 +584,6 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="truncate font-semibold text-gray-900">{customer.name}</div>
-                  <div className="mt-1 font-mono text-sm text-blue-700">{customer.code}</div>
                 </div>
                 <button onClick={() => openEdit(customer)} className="shrink-0 px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">
                   编辑
@@ -617,7 +614,6 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">编码</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">名称</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">联系人</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">电话</th>
@@ -629,7 +625,6 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
           <tbody className="divide-y divide-gray-100">
             {customers.map((customer) => (
               <tr key={customer.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-mono text-blue-700 text-sm">{customer.code}</td>
                 <td className="px-4 py-3 font-medium text-sm">{customer.name}</td>
                 <td className="px-4 py-3 text-sm">{customer.contact || '-'}</td>
                 <td className="px-4 py-3 text-sm">{customer.phone || '-'}</td>
@@ -660,8 +655,7 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
               <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">&times;</button>
             </div>
             <div className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="客户编码 *" value={form.code} onChange={(value) => setForm({ ...form, code: value })} />
+              <div>
                 <Field label="客户名称 *" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -796,10 +790,9 @@ function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
   }
 
   const filtered = keyword
-    ? products.filter((product) =>
+      ? products.filter((product) =>
         [product.sku, product.name, product.category, product.unit, product.description || ''].some((value) => value.includes(keyword))
         || (product.customer?.name || '').includes(keyword)
-        || (product.customer?.code || '').includes(keyword)
       )
     : products
 
@@ -847,7 +840,7 @@ function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
                   <div className="mt-1">{product.unit}</div>
                 </div>
               </div>
-              <div className="mt-3 text-sm text-gray-600">客户：{product.customer ? `${product.customer.name} (${product.customer.code})` : '通用/未绑定'}</div>
+              <div className="mt-3 text-sm text-gray-600">客户：{product.customer?.name || '通用/未绑定'}</div>
               <div className="mt-3 rounded bg-gray-50 p-3 text-sm text-gray-600">{product.description || '无说明'}</div>
             </div>
           ))}
@@ -872,7 +865,7 @@ function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
                 <td className="px-4 py-3 font-mono text-blue-700 text-sm">{product.sku}</td>
                 <td className="px-4 py-3 font-medium text-sm">{product.name}</td>
                 <td className="px-4 py-3 text-sm">{product.category}</td>
-                <td className="px-4 py-3 text-sm">{product.customer ? `${product.customer.name} (${product.customer.code})` : '通用/未绑定'}</td>
+                <td className="px-4 py-3 text-sm">{product.customer?.name || '通用/未绑定'}</td>
                 <td className="px-4 py-3 text-sm">{product.unit}</td>
                 <td className="px-4 py-3 text-sm max-w-md truncate">{product.description || '-'}</td>
                 <td className="px-4 py-3">
@@ -914,7 +907,7 @@ function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
                 >
                   <option value="">通用/未绑定客户</option>
                   {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>{customer.name} ({customer.code})</option>
+                    <option key={customer.id} value={customer.id}>{customer.name}</option>
                   ))}
                 </select>
                 <p className="mt-1 text-xs text-gray-500">客户筛选只匹配直接绑定的产品，不追溯 BOM 或辅料。</p>
@@ -1407,7 +1400,7 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
     const rows: DeletedRecord[] = []
     ;(data.materials || []).forEach((item: any) => rows.push({ id: item.id, label: item.code, type: '物料', model: 'material', deletedAt: item.deletedAt }))
     ;(data.suppliers || []).forEach((item: any) => rows.push({ id: item.id, label: item.code, type: '供应商', model: 'supplier', deletedAt: item.deletedAt }))
-    ;(data.customers || []).forEach((item: any) => rows.push({ id: item.id, label: item.code, type: '客户', model: 'customer', deletedAt: item.deletedAt }))
+    ;(data.customers || []).forEach((item: any) => rows.push({ id: item.id, label: item.name, type: '客户', model: 'customer', deletedAt: item.deletedAt }))
     ;(data.materialIn || []).forEach((item: any) => rows.push({ id: item.id, label: item.inboundNo, type: '来料单', model: 'materialIn', deletedAt: item.deletedAt }))
     ;(data.workInstructions || []).forEach((item: any) => rows.push({ id: item.id, label: item.code, type: '作业指导书', model: 'workInstruction', deletedAt: item.deletedAt }))
     ;(data.orders || []).forEach((item: any) => rows.push({ id: item.id, label: item.orderNo, type: '工单', model: 'order', deletedAt: item.deletedAt }))

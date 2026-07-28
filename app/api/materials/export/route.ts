@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
     const materials = await prisma.material.findMany({
       where,
       include: {
-        customer: { select: { code: true, name: true } },
+        customer: { select: { name: true } },
         stock: {
           select: {
             qty: true,
@@ -75,8 +75,7 @@ export async function GET(req: NextRequest) {
         '备注',
         '分类',
         '分类名称',
-        '客户编码',
-        '客户名称',
+        '归属客户',
         '库存单位',
         '核算单位',
         '换算系数',
@@ -100,7 +99,6 @@ export async function GET(req: NextRequest) {
         material.note || '',
         material.category,
         materialCategoryLabels[material.category] || material.category,
-        material.customer?.code || '',
         material.customer?.name || '',
         material.stockUnit || material.unit,
         material.valuationUnit || material.unit,

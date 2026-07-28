@@ -410,7 +410,8 @@ export default function MaterialPage({
 
       if (res.ok) {
         const summary = data.data || {}
-        onMessage(`导入完成：共 ${summary.total || 0} 行，新增 ${summary.created || 0}，更新 ${summary.updated || 0}，跳过 ${summary.skipped || 0}`)
+        const customerText = summary.customersCreated ? `，新建客户 ${summary.customersCreated}` : ''
+        onMessage(`导入完成：共 ${summary.total || 0} 行，新增 ${summary.created || 0}，更新 ${summary.updated || 0}，跳过 ${summary.skipped || 0}${customerText}`)
         setShowImportModal(false)
         setImportFile(null)
         setPage(1)
@@ -799,7 +800,7 @@ export default function MaterialPage({
                     <div className="mt-1 truncate text-sm font-semibold text-gray-900 sm:text-base">{material.name}</div>
                     {showField('spec') && <div className="mt-0.5 truncate text-sm text-gray-500">{material.spec || '无规格'}</div>}
                     {showField('note') && material.note && <div className="mt-0.5 line-clamp-2 text-xs text-gray-500">备注：{material.note}</div>}
-                    {showField('customer') && <div className="mt-0.5 truncate text-xs text-gray-500">客户：{material.customer ? `${material.customer.name} (${material.customer.code})` : '通用/未绑定'}</div>}
+                    {showField('customer') && <div className="mt-0.5 truncate text-xs text-gray-500">客户：{material.customer?.name || '通用/未绑定'}</div>}
                   </div>
                 </div>
                 {(showField('stock') || showField('valuationStock')) && (
@@ -897,7 +898,7 @@ export default function MaterialPage({
                     {showField('code') && <td className="whitespace-nowrap px-4 py-3 font-mono text-sm text-blue-600">{material.code}</td>}
                     <td className="whitespace-nowrap px-4 py-3 text-sm font-medium">{material.name}</td>
                     {showField('category') && <td className="whitespace-nowrap px-4 py-3 text-sm">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</td>}
-                    {showField('customer') && <td className="px-4 py-3 text-sm">{material.customer ? `${material.customer.name} (${material.customer.code})` : '通用/未绑定'}</td>}
+                    {showField('customer') && <td className="px-4 py-3 text-sm">{material.customer?.name || '通用/未绑定'}</td>}
                     {showField('spec') && <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">{material.spec || '-'}</td>}
                     {showField('note') && <td className="max-w-xs px-4 py-3 text-sm text-gray-500">{material.note || '-'}</td>}
                     {showField('stockUnit') && <td className="whitespace-nowrap px-4 py-3 text-sm">{material.stockUnit || material.unit}</td>}
@@ -1020,7 +1021,7 @@ export default function MaterialPage({
                       >
                         <option value="">通用/未绑定客户</option>
                         {customers.map((customer) => (
-                          <option key={customer.id} value={customer.id}>{customer.name} ({customer.code})</option>
+                          <option key={customer.id} value={customer.id}>{customer.name}</option>
                         ))}
                       </select>
                     </div>
@@ -1239,7 +1240,7 @@ export default function MaterialPage({
                     <p className="mt-2 text-sm text-gray-600">规格：{detailMaterial.spec || '-'}</p>
                     {detailMaterial.note && <p className="mt-1 whitespace-pre-wrap text-sm text-gray-600">备注：{detailMaterial.note}</p>}
                     <p className="mt-1 text-sm text-gray-600">分类：{materialCategoryLabels[detailMaterial.category || 'RAW'] || '其他'}</p>
-                    <p className="mt-1 text-sm text-gray-600">归属客户：{detailMaterial.customer ? `${detailMaterial.customer.name} (${detailMaterial.customer.code})` : '通用/未绑定'}</p>
+                    <p className="mt-1 text-sm text-gray-600">归属客户：{detailMaterial.customer?.name || '通用/未绑定'}</p>
                   </div>
 
                   <dl className="grid grid-cols-3 border-b border-gray-200 py-5">

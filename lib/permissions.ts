@@ -34,7 +34,7 @@ export const permissionResources = [
   { key: 'return', label: '退货管理' },
   { key: 'stats', label: '统计分析' },
   { key: 'sawingCost', label: '锯切成本' },
-  { key: 'bomCost', label: 'BOM成本计算' },
+  { key: 'bomCost', label: 'BOM关系' },
   { key: 'operators', label: '人员管理' },
   { key: 'system', label: '系统管理' },
   { key: 'permissionUsers', label: '人员权限控制' },

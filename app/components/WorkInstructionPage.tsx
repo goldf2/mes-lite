@@ -989,7 +989,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   <label className="mb-2 block text-sm font-medium text-gray-700">客户</label>
                   <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2">
                     <option value="">通用/未绑定客户</option>
-                    {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} ({customer.code})</option>)}
+                    {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
                   </select>
                 </div>
                 <div>
@@ -1100,7 +1100,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                           <label className="mb-1 block text-xs font-medium text-gray-600">客户</label>
                           <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
                             <option value="">通用/未绑定客户</option>
-                            {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} ({customer.code})</option>)}
+                            {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
                           </select>
                         </div>
                         <div>

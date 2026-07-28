@@ -19,7 +19,7 @@ const ShipmentPage = dynamic(() => import('./components/ShipmentPage'), { loadin
 const ReturnPage = dynamic(() => import('./components/ReturnPage'), { loading: FeaturePageLoading })
 const StatsPage = dynamic(() => import('./components/StatsPage'), { loading: FeaturePageLoading })
 const SawingCostCalculatorPage = dynamic(() => import('./components/SawingCostCalculatorPage'), { loading: FeaturePageLoading })
-const BomCostPage = dynamic(() => import('./components/BomCostPage'), { loading: FeaturePageLoading })
+const BomRelationPage = dynamic(() => import('./components/BomRelationPage'), { loading: FeaturePageLoading })
 const MaterialPage = dynamic(() => import('./components/MaterialPage'), { loading: FeaturePageLoading })
 const WorkInstructionPage = dynamic(() => import('./components/WorkInstructionPage'), { loading: FeaturePageLoading })
 const AttachmentPanel = dynamic(() => import('./components/AttachmentPanel'), { loading: FeaturePageLoading })
@@ -135,7 +135,6 @@ type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'mate
 
 const lightweightHiddenResources = new Set<string>([
   'dispatch',
-  'bomCost',
 ])
 
 // ==================== 菜单图标组件 ====================
@@ -241,7 +240,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'stocks', label: '库存管理', resource: 'stocks' },
     { key: 'stats', label: '生产日报', resource: 'stats' },
     { key: 'sawingCost', label: '锯切成本', resource: 'sawingCost' },
-    { key: 'bomCost', label: 'BOM成本', resource: 'bomCost' },
+    { key: 'bomCost', label: 'BOM关系', resource: 'bomCost' },
     { key: 'operators', label: '人员管理', resource: 'operators' },
     { key: 'system', label: '系统管理', resource: 'system' },
     { key: 'permissionUsers', label: '人员权限', resource: 'permissionUsers' },
@@ -1534,8 +1533,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {/* 锯切加工成本计算 */}
         {tab === 'sawingCost' && <SawingCostCalculatorPage />}
 
-        {/* BOM 成本计算 */}
-        {tab === 'bomCost' && <BomCostPage onMessage={showMessage} />}
+        {/* BOM 关系 */}
+        {tab === 'bomCost' && <BomRelationPage onMessage={showMessage} />}
 
         {/* 人员管理 */}
         {tab === 'operators' && <OperatorPage currentOperator={operator} onMessage={showMessage} />}

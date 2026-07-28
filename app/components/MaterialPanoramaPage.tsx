@@ -883,7 +883,7 @@ export default function MaterialPanoramaPage({
                       <h2 className="mt-2 text-xl font-semibold text-gray-900">{material.name}</h2>
                       <div className="mt-2 grid gap-x-4 gap-y-1.5 text-sm text-gray-600 sm:grid-cols-2">
                         <div>规格：{material.spec || '-'}</div>
-                        <div>客户：{material.customer ? `${material.customer.name} (${material.customer.code})` : '通用/未绑定'}</div>
+                        <div>客户：{material.customer?.name || '通用/未绑定'}</div>
                         <div>库存单位：{material.stockUnit || material.unit}</div>
                         <div>核算单位：{material.valuationUnit}</div>
                         <div className="sm:col-span-2">换算：1 {material.stockUnit || material.unit} = {formatNumber(material.conversionRate, 6)} {material.valuationUnit}</div>

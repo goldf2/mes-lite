@@ -4,6 +4,7 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { parseCsv } from '@/lib/csv'
 import { normalizeConversionRate } from '@/lib/units'
+import { createInternalCode } from '@/lib/internal-codes'
 
 const allowedCategories = new Set(['RAW', 'FINISHED', 'AUXILIARY', 'SCRAP', 'DEFECTIVE', 'PACKAGING', 'OTHER'])
 const allowedCostingMethods = new Set(['WEIGHTED_AVERAGE', 'FIFO'])
@@ -40,7 +41,7 @@ type ImportMaterial = {
   spec: string
   note: string
   category: string
-  customerCode: string
+  customerName: string
   customerId: string | null
   stockUnit: string
   valuationUnit: string
@@ -111,14 +112,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `缺少表头：${missingHeaders.join('、')}` }, { status: 400 })
     }
 
+    const customerNames = Array.from(new Set(rows.slice(1)
+      .map((row) => cell(row, headerMap, ['归属客户', '客户', '客户名称', '归属客户名称']))
+      .filter(Boolean)))
     const customerCodes = Array.from(new Set(rows.slice(1)
       .map((row) => cell(row, headerMap, ['客户编码', '归属客户编码']))
       .filter(Boolean)))
-    const customers = customerCodes.length === 0 ? [] : await prisma.customer.findMany({
-      where: { code: { in: customerCodes }, deletedAt: null },
-      select: { id: true, code: true },
+    const customerConditions = [
+      customerNames.length > 0 ? { name: { in: customerNames } } : null,
+      customerCodes.length > 0 ? { code: { in: customerCodes } } : null,
+    ].filter(Boolean) as Array<{ name: { in: string[] } } | { code: { in: string[] } }>
+    const customers = customerConditions.length === 0 ? [] : await prisma.customer.findMany({
+      where: { deletedAt: null, OR: customerConditions },
+      select: { id: true, code: true, name: true },
     })
     const customerByCode = new Map(customers.map((customer) => [customer.code, customer.id]))
+    const customersByName = new Map<string, typeof customers>()
+    for (const customer of customers) {
+      const items = customersByName.get(customer.name) || []
+      items.push(customer)
+      customersByName.set(customer.name, items)
+    }
 
     const errors: string[] = []
     const parsed: ImportMaterial[] = []
@@ -131,6 +145,7 @@ export async function POST(req: NextRequest) {
       const spec = cell(row, headerMap, ['规格'])
       const note = cell(row, headerMap, ['备注', '备注栏', '说明'])
       const category = normalizeCategory(cell(row, headerMap, ['分类', '物料分类']))
+      const customerName = cell(row, headerMap, ['归属客户', '客户', '客户名称', '归属客户名称'])
       const customerCode = cell(row, headerMap, ['客户编码', '归属客户编码'])
       const stockUnit = cell(row, headerMap, ['库存单位', '领料单位', '单位'])
       const useDualUnit = normalizeYes(cell(row, headerMap, ['启用双单位', '双单位']))
@@ -155,8 +170,29 @@ export async function POST(req: NextRequest) {
         errors.push(`第 ${rowNumber} 行：启用双单位时换算系数必须大于 0`)
       }
 
-      if (customerCode && !customerByCode.has(customerCode)) {
-        errors.push(`第 ${rowNumber} 行：客户编码 ${customerCode} 不存在或已归档`)
+      let customerId: string | null = null
+      if (customerName) {
+        const matchedCustomers = customersByName.get(customerName) || []
+        if (matchedCustomers.length === 1) {
+          customerId = matchedCustomers[0].id
+        } else if (matchedCustomers.length > 1) {
+          const matchedByCode = customerCode ? matchedCustomers.find((customer) => customer.code === customerCode) : null
+          if (matchedByCode) {
+            customerId = matchedByCode.id
+          } else {
+            errors.push(`第 ${rowNumber} 行：归属客户 ${customerName} 存在重名，请在客户基础资料中调整名称或使用旧版客户编码列区分`)
+          }
+        } else if (customerCode && customerByCode.has(customerCode)) {
+          customerId = customerByCode.get(customerCode) || null
+        } else {
+          customerId = null
+        }
+      } else if (customerCode) {
+        if (customerByCode.has(customerCode)) {
+          customerId = customerByCode.get(customerCode) || null
+        } else {
+          errors.push(`第 ${rowNumber} 行：客户编码 ${customerCode} 不存在或已归档；新模板请使用归属客户名称，系统会自动创建新客户`)
+        }
       }
 
       parsed.push({
@@ -166,8 +202,8 @@ export async function POST(req: NextRequest) {
         spec,
         note,
         category,
-        customerCode,
-        customerId: customerCode ? customerByCode.get(customerCode) || null : null,
+        customerName,
+        customerId,
         stockUnit,
         valuationUnit: valuationUnit || stockUnit,
         conversionRate: normalizeConversionRate(conversionRate),
@@ -195,6 +231,28 @@ export async function POST(req: NextRequest) {
       let created = 0
       let updated = 0
       let skipped = 0
+      let customersCreated = 0
+      const createdCustomerByName = new Map<string, string>()
+
+      const missingCustomerNames = Array.from(new Set(parsed
+        .filter((item) => {
+          if (!item.customerName || item.customerId) return false
+          const existing = existingByCode.get(item.code)
+          return !existing || mode === 'update'
+        })
+        .map((item) => item.customerName)))
+
+      for (const customerName of missingCustomerNames) {
+        const customer = await tx.customer.create({
+          data: {
+            code: createInternalCode('cus'),
+            name: customerName,
+          },
+          select: { id: true, name: true },
+        })
+        createdCustomerByName.set(customer.name, customer.id)
+        customersCreated += 1
+      }
 
       for (const item of parsed) {
         const existing = existingByCode.get(item.code)
@@ -204,7 +262,7 @@ export async function POST(req: NextRequest) {
           spec: item.spec,
           note: item.note || null,
           category: item.category,
-          customerId: item.customerId,
+          customerId: item.customerId || (item.customerName ? createdCustomerByName.get(item.customerName) || null : null),
           unit: item.stockUnit,
           stockUnit: item.stockUnit,
           valuationUnit: item.valuationUnit,
@@ -237,7 +295,7 @@ export async function POST(req: NextRequest) {
         created += 1
       }
 
-      return { total: parsed.length, created, updated, skipped }
+      return { total: parsed.length, created, updated, skipped, customersCreated }
     })
 
     await writeAuditLog(req, {

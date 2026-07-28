@@ -3,9 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
+import { createInternalCode } from '@/lib/internal-codes'
 
 const customerSchema = z.object({
-  code: z.string().min(1, '客户编码必填'),
   name: z.string().min(1, '客户名称必填'),
   contact: z.string().optional(),
   phone: z.string().optional(),
@@ -28,7 +28,6 @@ export async function GET(req: NextRequest) {
     if (keyword) {
       where.OR = [
         { name: { contains: keyword } },
-        { code: { contains: keyword } },
         { contact: { contains: keyword } },
         { phone: { contains: keyword } },
       ]
@@ -52,16 +51,16 @@ export async function POST(req: NextRequest) {
     if (denied) return denied
 
     const body = await req.json()
-    const { code, name, contact, phone, address } = customerSchema.parse(body)
+    const { name, contact, phone, address } = customerSchema.parse(body)
 
-    const existing = await prisma.customer.findUnique({ where: { code } })
+    const existing = await prisma.customer.findFirst({ where: { name, deletedAt: null } })
     if (existing) {
-      return NextResponse.json({ error: existing.deletedAt ? '客户编码已被已归档记录占用' : '客户编码已存在' }, { status: 400 })
+      return NextResponse.json({ error: '客户名称已存在' }, { status: 400 })
     }
 
     const customer = await prisma.customer.create({
       data: {
-        code,
+        code: createInternalCode('cus'),
         name,
         contact: contact || null,
         phone: phone || null,
@@ -93,22 +92,21 @@ export async function PUT(req: NextRequest) {
     if (denied) return denied
 
     const body = await req.json()
-    const { id, code, name, contact, phone, address } = updateCustomerSchema.parse(body)
+    const { id, name, contact, phone, address } = updateCustomerSchema.parse(body)
 
     const customer = await prisma.customer.findUnique({ where: { id } })
     if (!customer || customer.deletedAt) {
       return NextResponse.json({ error: '客户不存在' }, { status: 404 })
     }
 
-    const existing = await prisma.customer.findUnique({ where: { code } })
-    if (existing && existing.id !== id) {
-      return NextResponse.json({ error: existing.deletedAt ? '客户编码已被已归档记录占用' : '客户编码已存在' }, { status: 400 })
+    const existing = await prisma.customer.findFirst({ where: { name, deletedAt: null, id: { not: id } } })
+    if (existing) {
+      return NextResponse.json({ error: '客户名称已存在' }, { status: 400 })
     }
 
     const updated = await prisma.customer.update({
       where: { id },
       data: {
-        code,
         name,
         contact: contact || null,
         phone: phone || null,
