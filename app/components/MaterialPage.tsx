@@ -1225,9 +1225,9 @@ export default function MaterialPage({
           '--material-left': `${splitPercent}fr`,
           '--material-right': `${100 - splitPercent}fr`,
         } as CSSProperties}
-        className="grid grid-cols-1 items-start gap-4 xl:gap-0 xl:[grid-template-columns:minmax(0,var(--material-left))_12px_minmax(0,var(--material-right))]"
+        className="grid grid-cols-1 items-start gap-4 xl:min-h-0 xl:flex-1 xl:items-stretch xl:gap-0 xl:overflow-hidden xl:[grid-template-columns:minmax(0,var(--material-left))_12px_minmax(0,var(--material-right))]"
       >
-        <div className="min-w-0 rounded-lg bg-transparent p-0 shadow-none sm:bg-white sm:p-4 sm:shadow">
+        <div className="min-w-0 rounded-lg bg-transparent p-0 shadow-none sm:bg-white sm:p-4 sm:shadow xl:h-full xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain">
           {materials.length === 0 ? (
           <div className="rounded-lg bg-white py-10 text-center text-gray-500 shadow sm:bg-transparent sm:py-12 sm:shadow-none">
             <p>暂无物料</p>
@@ -1463,7 +1463,7 @@ export default function MaterialPage({
             event.preventDefault()
             setSplitPercent((current) => Math.min(70, Math.max(28, current + (event.key === 'ArrowRight' ? 2 : -2))))
           }}
-          className={`group hidden h-full min-h-[520px] cursor-col-resize touch-none items-start justify-center xl:flex ${isResizingSplit ? 'bg-blue-50' : ''}`}
+          className={`group hidden h-full min-h-0 cursor-col-resize touch-none items-start justify-center xl:flex ${isResizingSplit ? 'bg-blue-50' : ''}`}
           title="拖动调整宽度，双击恢复默认"
         >
           <div className={`sticky top-28 mt-4 flex h-24 w-1 items-center justify-center rounded-full transition ${isResizingSplit ? 'bg-blue-500' : 'bg-gray-300 group-hover:bg-blue-400'}`}>
@@ -1471,7 +1471,7 @@ export default function MaterialPage({
           </div>
         </div>
 
-        <div className="min-w-0 rounded-lg bg-white p-4 shadow xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
+        <div className="min-w-0 rounded-lg bg-white p-4 shadow xl:h-full xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain">
           <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="flex items-center gap-2">

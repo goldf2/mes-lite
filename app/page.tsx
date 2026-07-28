@@ -694,8 +694,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </div>
       </aside>
 
-      <main className="min-w-0 p-3 pb-28 sm:p-4 lg:ml-56 lg:p-6">
-        <div className="sticky top-0 z-30 -mx-3 mb-3 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:-mx-6 lg:px-6">
+      <main className={`min-w-0 p-3 pb-28 sm:p-4 lg:ml-56 lg:p-6 ${tab === 'materials' ? 'xl:flex xl:h-screen xl:flex-col xl:overflow-hidden' : ''}`}>
+        <div className="sticky top-0 z-30 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:-mx-6 lg:px-6">
           <div className="flex min-w-0 flex-nowrap items-center gap-2">
             <div className="min-w-0 shrink-0 pt-1">
               <div className="hidden text-xs font-medium text-gray-400 sm:block">{activeSystemTab ? '系统功能' : '业务功能'}</div>
