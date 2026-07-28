@@ -1,6 +1,7 @@
 'use client'
 
-import { ReactNode, useEffect, useMemo, useState } from 'react'
+import { ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react'
+import ModalOverlay from './ModalOverlay'
 
 interface AttachmentItem {
   id: string
@@ -237,6 +238,119 @@ interface CostLayerSummary {
   createdAt: string
 }
 
+type PanoramaModuleId = 'summary' | 'documents' | 'bomProcess' | 'costing' | 'orders' | 'records' | 'notes'
+type PanoramaDisplayDensity = 'comfortable' | 'compact'
+type PanoramaModuleWidth = 'full' | 'wide' | 'half'
+
+interface PanoramaModuleConfig {
+  id: PanoramaModuleId
+  visible: boolean
+  width: PanoramaModuleWidth
+}
+
+interface PanoramaLayoutConfig {
+  version: 1
+  density: PanoramaDisplayDensity
+  modules: PanoramaModuleConfig[]
+}
+
+const panoramaLayoutStorageKey = 'mes-lite.materialPanorama.layout.v1'
+
+const defaultPanoramaModules: PanoramaModuleConfig[] = [
+  { id: 'summary', visible: true, width: 'full' },
+  { id: 'documents', visible: true, width: 'full' },
+  { id: 'bomProcess', visible: true, width: 'full' },
+  { id: 'costing', visible: true, width: 'full' },
+  { id: 'orders', visible: true, width: 'full' },
+  { id: 'records', visible: true, width: 'full' },
+  { id: 'notes', visible: true, width: 'full' },
+]
+
+const defaultPanoramaLayout: PanoramaLayoutConfig = {
+  version: 1,
+  density: 'comfortable',
+  modules: defaultPanoramaModules,
+}
+
+const panoramaModuleLabels: Record<PanoramaModuleId, { name: string; description: string }> = {
+  summary: { name: '档案与库存', description: '物料档案、库存总览' },
+  documents: { name: '库位与文档', description: '库位分布、作业指导书、附件' },
+  bomProcess: { name: 'BOM 与工艺', description: '相关 BOM、加工工艺和作业步骤' },
+  costing: { name: '成本与快照', description: '加工参数、成本对象、产品成本快照' },
+  orders: { name: '工单与领料', description: '相关工单、作为用料的领料记录' },
+  records: { name: '来料与库存记录', description: '最近来料、库存流水、成本层' },
+  notes: { name: '建模说明', description: '当前全景页的数据建模提示' },
+}
+
+const panoramaModuleWidthLabels: Record<PanoramaModuleWidth, string> = {
+  full: '整行',
+  wide: '宽栏',
+  half: '半行',
+}
+
+const panoramaModuleWidthClasses: Record<PanoramaModuleWidth, string> = {
+  full: 'xl:col-span-12',
+  wide: 'xl:col-span-8',
+  half: 'xl:col-span-6',
+}
+
+const PanoramaDensityContext = createContext<PanoramaDisplayDensity>('comfortable')
+const PanoramaDensityProvider = PanoramaDensityContext.Provider
+
+function normalizeModuleWidth(value: unknown, fallback: PanoramaModuleWidth): PanoramaModuleWidth {
+  return value === 'full' || value === 'wide' || value === 'half' ? value : fallback
+}
+
+function normalizePanoramaModules(saved: unknown): PanoramaModuleConfig[] {
+  const savedItems = Array.isArray(saved) ? saved : []
+  const savedMap = new Map<string, { visible: boolean; width?: unknown }>()
+
+  for (const item of savedItems) {
+    if (!item || typeof item !== 'object') continue
+    const value = item as { id?: unknown; visible?: unknown; width?: unknown }
+    if (typeof value.id === 'string') savedMap.set(value.id, { visible: value.visible !== false, width: value.width })
+  }
+
+  const ordered: PanoramaModuleConfig[] = []
+  for (const item of savedItems) {
+    if (!item || typeof item !== 'object') continue
+    const value = item as { id?: unknown; visible?: unknown; width?: unknown }
+    const found = defaultPanoramaModules.find((module) => module.id === value.id)
+    if (found && !ordered.some((module) => module.id === found.id)) {
+      ordered.push({
+        id: found.id,
+        visible: value.visible !== false,
+        width: normalizeModuleWidth(value.width, found.width),
+      })
+    }
+  }
+
+  for (const item of defaultPanoramaModules) {
+    if (!ordered.some((module) => module.id === item.id)) {
+      const savedItem = savedMap.get(item.id)
+      ordered.push({
+        ...item,
+        visible: savedItem?.visible ?? item.visible,
+        width: normalizeModuleWidth(savedItem?.width, item.width),
+      })
+    }
+  }
+
+  return ordered
+}
+
+function normalizePanoramaLayout(saved: unknown): PanoramaLayoutConfig {
+  const value = saved && typeof saved === 'object' && !Array.isArray(saved)
+    ? saved as { density?: unknown; modules?: unknown }
+    : { modules: saved }
+
+  return {
+    version: 1,
+    density: value.density === 'compact' ? 'compact' : 'comfortable',
+    modules: normalizePanoramaModules(value.modules),
+  }
+}
+
 interface CostObjectSummary {
   id: string
   code: string
@@ -407,9 +521,13 @@ function Panel({
   action?: string
   children: ReactNode
 }) {
+  const density = useContext(PanoramaDensityContext)
+  const paddingClass = density === 'compact' ? 'p-2.5 sm:p-3' : 'p-3 sm:p-4'
+  const headerClass = density === 'compact' ? 'mb-2' : 'mb-2.5'
+
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <section className={`self-start rounded-lg border border-gray-200 bg-white shadow-sm ${paddingClass}`}>
+      <div className={`flex items-center justify-between gap-3 ${headerClass}`}>
         <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
         {action && <span className="text-xs text-gray-500">{action}</span>}
       </div>
@@ -429,35 +547,42 @@ function Metric({
   hint?: string
   tone?: 'default' | 'green' | 'blue' | 'amber'
 }) {
+  const density = useContext(PanoramaDensityContext)
   const toneClass = {
     default: 'text-gray-900',
     green: 'text-green-700',
     blue: 'text-blue-700',
     amber: 'text-amber-700',
   }[tone]
+  const boxClass = density === 'compact' ? 'px-2.5 py-1.5' : 'px-3 py-2'
+  const valueClass = density === 'compact' ? 'text-sm sm:text-base' : 'text-base sm:text-lg'
 
   return (
-    <div className="min-w-0 rounded-md bg-gray-50 px-3 py-2">
+    <div className={`min-w-0 rounded-md bg-gray-50 ${boxClass}`}>
       <div className="text-xs text-gray-500">{label}</div>
-      <div className={`mt-1 truncate text-lg font-semibold ${toneClass}`}>{value}</div>
+      <div className={`mt-0.5 truncate font-semibold ${valueClass} ${toneClass}`}>{value}</div>
       {hint && <div className="mt-1 truncate text-xs text-gray-500">{hint}</div>}
     </div>
   )
 }
 
 function EmptyText({ children }: { children: React.ReactNode }) {
+  const density = useContext(PanoramaDensityContext)
+  const paddingClass = density === 'compact' ? 'px-3 py-2' : 'px-3 py-3'
+
   return (
-    <div className="rounded-md border border-dashed border-gray-200 bg-gray-50 px-3 py-4 text-sm text-gray-500">
+    <div className={`rounded-md border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-500 ${paddingClass}`}>
       {children}
     </div>
   )
 }
 
 function AttachmentList({ items }: { items: AttachmentItem[] }) {
+  const density = useContext(PanoramaDensityContext)
   if (items.length === 0) return <EmptyText>暂无相关附件</EmptyText>
 
   return (
-    <div className="space-y-2">
+    <div className={density === 'compact' ? 'space-y-1.5' : 'space-y-2'}>
       {items.slice(0, 8).map((item) => (
         <a
           key={item.id}
@@ -475,13 +600,14 @@ function AttachmentList({ items }: { items: AttachmentItem[] }) {
 }
 
 function ProcessRouteList({ routes }: { routes: ProcessRouteSummary[] }) {
+  const density = useContext(PanoramaDensityContext)
   const steps = routes.flatMap((route) => route.steps.map((step) => ({ ...step, routeName: route.name })))
   if (steps.length === 0) return <EmptyText>暂无工艺步骤或作业说明</EmptyText>
 
   return (
-    <div className="space-y-2">
+    <div className={density === 'compact' ? 'space-y-1.5' : 'space-y-2'}>
       {steps.slice(0, 10).map((step) => (
-        <div key={`${step.routeName}-${step.id}`} className="rounded-md border border-gray-100 px-3 py-2">
+        <div key={`${step.routeName}-${step.id}`} className={`rounded-md border border-gray-100 px-3 ${density === 'compact' ? 'py-1.5' : 'py-2'}`}>
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="rounded bg-blue-50 px-2 py-0.5 font-mono text-xs text-blue-700">{step.stepNo}</span>
             <span className="font-medium text-gray-900">{step.name}</span>
@@ -495,11 +621,12 @@ function ProcessRouteList({ routes }: { routes: ProcessRouteSummary[] }) {
 }
 
 function ProcessTemplateList({ templates }: { templates: ProcessTemplateSummary[] }) {
+  const density = useContext(PanoramaDensityContext)
   if (templates.length === 0) return <EmptyText>暂未给该物料关联加工工艺</EmptyText>
   return (
-    <div className="space-y-2">
+    <div className={density === 'compact' ? 'space-y-1.5' : 'space-y-2'}>
       {templates.map((template) => (
-        <div key={template.id} className="rounded-md border border-gray-100 px-3 py-2">
+        <div key={template.id} className={`rounded-md border border-gray-100 px-3 ${density === 'compact' ? 'py-1.5' : 'py-2'}`}>
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-700">{processCategoryLabels[template.category] || template.category}</span>
             <span className="font-medium text-gray-900">{template.name}</span>
@@ -540,6 +667,55 @@ export default function MaterialPanoramaPage({
   const [viewer, setViewer] = useState<{ instruction: WorkInstructionSummary; attachments: AttachmentItem[]; index: number } | null>(null)
   const [viewerZoom, setViewerZoom] = useState(1)
   const [viewerRotation, setViewerRotation] = useState(0)
+  const [layoutOpen, setLayoutOpen] = useState(false)
+  const [layoutConfig, setLayoutConfig] = useState<PanoramaLayoutConfig>(defaultPanoramaLayout)
+  const moduleConfig = layoutConfig.modules
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(panoramaLayoutStorageKey)
+      if (saved) setLayoutConfig(normalizePanoramaLayout(JSON.parse(saved)))
+    } catch (err) {
+      setLayoutConfig(defaultPanoramaLayout)
+    }
+  }, [])
+
+  const updateLayoutConfig = (nextConfig: PanoramaLayoutConfig) => {
+    const normalized = normalizePanoramaLayout(nextConfig)
+    setLayoutConfig(normalized)
+    window.localStorage.setItem(panoramaLayoutStorageKey, JSON.stringify(normalized))
+  }
+
+  const updateModuleConfig = (nextConfig: PanoramaModuleConfig[]) => {
+    const normalized = normalizePanoramaModules(nextConfig)
+    updateLayoutConfig({ ...layoutConfig, modules: normalized })
+  }
+
+  const updateDensity = (density: PanoramaDisplayDensity) => {
+    updateLayoutConfig({ ...layoutConfig, density })
+  }
+
+  const updateModuleWidth = (id: PanoramaModuleId, width: PanoramaModuleWidth) => {
+    updateModuleConfig(moduleConfig.map((item) => item.id === id ? { ...item, width } : item))
+  }
+
+  const toggleModule = (id: PanoramaModuleId) => {
+    updateModuleConfig(moduleConfig.map((item) => item.id === id ? { ...item, visible: !item.visible } : item))
+  }
+
+  const moveModule = (id: PanoramaModuleId, direction: -1 | 1) => {
+    const index = moduleConfig.findIndex((item) => item.id === id)
+    const nextIndex = index + direction
+    if (index < 0 || nextIndex < 0 || nextIndex >= moduleConfig.length) return
+    const nextConfig = [...moduleConfig]
+    const [item] = nextConfig.splice(index, 1)
+    nextConfig.splice(nextIndex, 0, item)
+    updateModuleConfig(nextConfig)
+  }
+
+  const resetModuleLayout = () => {
+    updateLayoutConfig(defaultPanoramaLayout)
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -600,6 +776,10 @@ export default function MaterialPanoramaPage({
   const material = data?.material
   const stock = data?.stock
   const selectedViewerAttachment = viewer?.attachments[viewer.index]
+  const visibleModuleCount = moduleConfig.filter((item) => item.visible).length
+  const densityText = layoutConfig.density === 'compact' ? '紧凑' : '舒适'
+  const contentGapClass = layoutConfig.density === 'compact' ? 'gap-2' : 'gap-3'
+  const contentPaddingClass = layoutConfig.density === 'compact' ? 'p-2 sm:p-3' : 'p-3 sm:p-4'
 
   const openWorkInstructionViewer = (instruction: WorkInstructionSummary) => {
     if (!instruction.attachments || instruction.attachments.length === 0) {
@@ -611,26 +791,53 @@ export default function MaterialPanoramaPage({
     setViewerRotation(0)
   }
 
+  const renderLayoutModule = (id: PanoramaModuleId, children: ReactNode) => {
+    const index = moduleConfig.findIndex((item) => item.id === id)
+    const moduleItem = index >= 0 ? moduleConfig[index] : defaultPanoramaModules.find((item) => item.id === id)
+    if (!moduleItem?.visible) return null
+
+    return (
+      <div
+        key={id}
+        className={`min-w-0 ${panoramaModuleWidthClasses[moduleItem.width]}`}
+        style={{ order: index >= 0 ? index : 99 }}
+      >
+        {children}
+      </div>
+    )
+  }
+
   return (
+    <PanoramaDensityProvider value={layoutConfig.density}>
     <div className="fixed inset-0 z-[60] mes-modal-overlay-dark p-2 sm:p-4">
-      <div className="mx-auto flex h-full w-full max-w-7xl flex-col overflow-hidden rounded-lg bg-gray-50 shadow-xl">
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b bg-white px-4 py-3 sm:px-5">
+      <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col overflow-hidden rounded-lg bg-gray-50 shadow-xl">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b bg-white px-4 py-2.5 sm:px-5">
           <div className="min-w-0">
             <div className="text-xs text-gray-500">物料全景视图</div>
             <div className="mt-0.5 truncate text-lg font-semibold text-gray-900">
               {material ? `${material.code} · ${material.name}` : '加载中'}
             </div>
+            <div className="mt-1 text-xs text-gray-500">{densityText}布局 · 显示 {visibleModuleCount}/{defaultPanoramaModules.length} 个模块</div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-          >
-            关闭
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setLayoutOpen(true)}
+              className="rounded-md border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+            >
+              布局
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              关闭
+            </button>
+          </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5">
+        <div className={`min-h-0 flex-1 overflow-y-auto ${contentPaddingClass}`}>
           {loading && (
             <div className="rounded-lg bg-white px-4 py-12 text-center text-sm text-gray-500 shadow-sm">
               正在加载物料全景...
@@ -644,16 +851,17 @@ export default function MaterialPanoramaPage({
           )}
 
           {!loading && data && material && (
-            <div className="space-y-4">
+            <div className={`grid grid-cols-1 ${contentGapClass} xl:grid-cols-12`}>
               {data.integrityWarnings.length > 0 && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 xl:col-span-12">
                   {data.integrityWarnings.join('；')}
                 </div>
               )}
 
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+              {renderLayoutModule('summary', (
+              <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
                 <Panel title="物料档案">
-                  <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]">
+                  <div className="grid gap-4 md:grid-cols-[160px_minmax(0,1fr)]">
                     <a
                       href={coverImage?.url}
                       target={coverImage ? '_blank' : undefined}
@@ -672,8 +880,8 @@ export default function MaterialPanoramaPage({
                         <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">{materialCategoryLabels[material.category] || material.category}</span>
                         <span className="rounded bg-green-50 px-2 py-1 text-xs text-green-700">{material.costingMethod === 'FIFO' ? 'FIFO' : '移动加权'}</span>
                       </div>
-                      <h2 className="mt-3 text-xl font-semibold text-gray-900">{material.name}</h2>
-                      <div className="mt-3 grid gap-2 text-sm text-gray-600 sm:grid-cols-2">
+                      <h2 className="mt-2 text-xl font-semibold text-gray-900">{material.name}</h2>
+                      <div className="mt-2 grid gap-x-4 gap-y-1.5 text-sm text-gray-600 sm:grid-cols-2">
                         <div>规格：{material.spec || '-'}</div>
                         <div>客户：{material.customer ? `${material.customer.name} (${material.customer.code})` : '通用/未绑定'}</div>
                         <div>库存单位：{material.stockUnit || material.unit}</div>
@@ -687,7 +895,7 @@ export default function MaterialPanoramaPage({
                 </Panel>
 
                 <Panel title="库存总览" action={stock ? '实时余额' : '缺少库存记录'}>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
                     <Metric label="当前库存" value={`${formatNumber(stock?.qty)} ${material.stockUnit || material.unit}`} />
                     <Metric label="可用库存" value={`${formatNumber(stock?.availableQty)} ${material.stockUnit || material.unit}`} tone="green" />
                     <Metric label="已占用" value={`${formatNumber(stock?.reservedQty)} ${material.stockUnit || material.unit}`} tone="amber" />
@@ -701,8 +909,10 @@ export default function MaterialPanoramaPage({
                   </div>
                 </Panel>
               </div>
+              ))}
 
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {renderLayoutModule('documents', (
+              <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.15fr)]">
                 <Panel title="库位分布" action="当前为默认库位">
                   {data.locationBalances.length === 0 ? (
                     <EmptyText>暂无库存余额记录</EmptyText>
@@ -772,8 +982,10 @@ export default function MaterialPanoramaPage({
                   </div>
                 </Panel>
               </div>
+              ))}
 
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {renderLayoutModule('bomProcess', (
+              <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
                 <Panel title="相关 BOM" action={`作为成品 ${data.productBoms.length} 个，作为用料 ${data.componentBoms.length} 个`}>
                   <div className="space-y-4">
                     <div>
@@ -839,8 +1051,10 @@ export default function MaterialPanoramaPage({
                   </div>
                 </Panel>
               </div>
+              ))}
 
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {renderLayoutModule('costing', (
+              <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
                 <Panel title="加工参数与成本对象" action={`${data.costObjects.length} 个成本对象`}>
                   <div className="grid grid-cols-3 gap-2">
                     <Metric label="千件人工" value={`${formatNumber(relatedRouteCost.laborHours, 2)} h`} tone="blue" />
@@ -901,8 +1115,10 @@ export default function MaterialPanoramaPage({
                   )}
                 </Panel>
               </div>
+              ))}
 
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              {renderLayoutModule('orders', (
+              <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-2">
                 <Panel title="相关工单" action={`目标工单 ${data.targetOrders.length} 个`}>
                   {data.targetOrders.length === 0 ? (
                     <EmptyText>暂无以该物料为目标的工单</EmptyText>
@@ -959,8 +1175,10 @@ export default function MaterialPanoramaPage({
                   )}
                 </Panel>
               </div>
+              ))}
 
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+              {renderLayoutModule('records', (
+              <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-3">
                 <Panel title="最近来料" action={`${data.recentMaterialIns.length} 条`}>
                   {data.recentMaterialIns.length === 0 ? (
                     <EmptyText>暂无来料记录</EmptyText>
@@ -1022,14 +1240,126 @@ export default function MaterialPanoramaPage({
                   )}
                 </Panel>
               </div>
+              ))}
 
+              {renderLayoutModule('notes', (
               <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-xs text-gray-500">
                 {data.modelNotes.join('；')}
               </div>
+              ))}
             </div>
           )}
         </div>
       </div>
+      {layoutOpen && (
+        <ModalOverlay onClose={() => setLayoutOpen(false)} className="z-[75]">
+          <div className="flex max-h-[calc(100vh-32px)] w-[min(calc(100vw-24px),780px)] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b px-5 py-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">全景模块布局</h3>
+                <p className="mt-1 text-sm text-gray-500">调整模块显示、宽度和顺序，设置保存在当前浏览器。</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLayoutOpen(false)}
+                className="rounded px-2 py-1 text-xl leading-none text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+              >
+                ×
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-3">
+                <div className="mb-2 text-sm font-medium text-gray-900">显示密度</div>
+                <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
+                  <button
+                    type="button"
+                    onClick={() => updateDensity('comfortable')}
+                    className={`rounded-md px-3 py-1.5 text-sm ${layoutConfig.density === 'comfortable' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+                  >
+                    舒适
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateDensity('compact')}
+                    className={`rounded-md px-3 py-1.5 text-sm ${layoutConfig.density === 'compact' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+                  >
+                    紧凑
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {moduleConfig.map((module, index) => {
+                  const meta = panoramaModuleLabels[module.id]
+                  return (
+                    <div key={module.id} className="grid gap-3 rounded-lg border border-gray-200 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_128px_112px]">
+                      <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3">
+                        <input
+                          type="checkbox"
+                          aria-label={`${meta.name}模块显示`}
+                          checked={module.visible}
+                          onChange={() => toggleModule(module.id)}
+                          className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium text-gray-900">{meta.name}</span>
+                          <span className="mt-0.5 block text-xs text-gray-500">{meta.description}</span>
+                        </span>
+                      </label>
+                      <label className="min-w-0 text-xs text-gray-500">
+                        <span className="mb-1 block">宽度</span>
+                        <select
+                          aria-label={`${meta.name}模块宽度`}
+                          value={module.width}
+                          onChange={(event) => updateModuleWidth(module.id, event.target.value as PanoramaModuleWidth)}
+                          className="h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-700"
+                        >
+                          {(Object.keys(panoramaModuleWidthLabels) as PanoramaModuleWidth[]).map((width) => (
+                            <option key={width} value={width}>{panoramaModuleWidthLabels[width]}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="flex shrink-0 items-end gap-1">
+                        <button
+                          type="button"
+                          disabled={index === 0}
+                          onClick={() => moveModule(module.id, -1)}
+                          className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          上移
+                        </button>
+                        <button
+                          type="button"
+                          disabled={index === moduleConfig.length - 1}
+                          onClick={() => moveModule(module.id, 1)}
+                          className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          下移
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="flex shrink-0 justify-between gap-3 border-t bg-gray-50 px-5 py-4">
+              <button
+                type="button"
+                onClick={resetModuleLayout}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-white"
+              >
+                恢复默认
+              </button>
+              <button
+                type="button"
+                onClick={() => setLayoutOpen(false)}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                完成
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
       {viewer && selectedViewerAttachment && (
         <div className="fixed inset-0 z-[80] flex flex-col bg-slate-950 text-white">
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-white/10 px-3 py-2 sm:px-4">
@@ -1084,5 +1414,6 @@ export default function MaterialPanoramaPage({
         </div>
       )}
     </div>
+    </PanoramaDensityProvider>
   )
 }
