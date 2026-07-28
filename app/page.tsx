@@ -7,6 +7,7 @@ import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './com
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
 import ViewModeToggle, { usePersistedViewMode } from './components/ViewModeToggle'
 import useCompactViewport from './components/useCompactViewport'
+import { InterfacePreferenceSync } from './components/interfacePreferences'
 
 function FeaturePageLoading() {
   return <div className="py-12 text-center text-sm text-gray-500" role="status">加载中...</div>
@@ -663,6 +664,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-gray-50">
+      <InterfacePreferenceSync />
       <aside className="fixed left-0 top-0 z-20 hidden h-screen w-56 flex-col bg-white shadow-sm lg:flex">
         <div className="p-4 border-b shrink-0">
           <div className="flex items-center gap-3">
@@ -1393,7 +1395,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         )}
 
         {adjustingStock && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
             <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg mx-4">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -1480,7 +1482,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         )}
 
         {showStockHelp && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
             <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg mx-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold">存货调整</h3>
@@ -1549,7 +1551,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       </main>
 
       {mobileNavOpen && (
-        <div className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={() => setMobileNavOpen(false)}>
+        <div className="fixed inset-0 z-40 mes-modal-overlay lg:hidden" onClick={() => setMobileNavOpen(false)}>
           <div
             className="absolute inset-x-3 bottom-[5.25rem] max-h-[68vh] overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 shadow-xl"
             onClick={(event) => event.stopPropagation()}

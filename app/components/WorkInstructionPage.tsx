@@ -953,7 +953,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
           <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl">
             <div className="flex shrink-0 items-center justify-between border-b px-6 py-4">
               <h3 className="text-lg font-semibold text-gray-900">新增作业指导书</h3>
@@ -1035,7 +1035,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       )}
 
       {detail && (
-        <div className={`fixed inset-0 z-50 flex items-center justify-center ${detailFullscreen ? 'bg-white p-0' : 'bg-black/50 p-3 sm:p-4'}`}>
+        <div className={`fixed inset-0 z-50 flex items-center justify-center ${detailFullscreen ? 'bg-white p-0' : 'mes-modal-overlay p-3 sm:p-4'}`}>
           <div className={`flex flex-col overflow-hidden bg-white shadow-xl ${detailFullscreen ? 'h-screen w-screen' : 'max-h-[92vh] w-full max-w-6xl rounded-lg'}`}>
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-6">
               <div className="min-w-0">

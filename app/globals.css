@@ -5,3 +5,23 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
+
+.mes-modal-overlay {
+  background: rgb(15 23 42 / 30%);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  pointer-events: auto;
+}
+
+.mes-modal-overlay-dark {
+  background: rgb(2 6 23 / 40%);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  pointer-events: auto;
+}
+
+body[data-modal-glass='off'] .mes-modal-overlay,
+body[data-modal-glass='off'] .mes-modal-overlay-dark {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}

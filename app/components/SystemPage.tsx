@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
+import { useModalGlassPreference } from './interfacePreferences'
 
 interface Supplier {
   id: string
@@ -151,7 +152,7 @@ function routeStepCostPerThousand(step: ProcessRoute['steps'][number] | ProcessS
   return { laborHours, machineHours, cost }
 }
 
-type SystemTab = 'suppliers' | 'customers' | 'products' | 'processTemplates' | 'process' | 'recycle' | 'audit'
+type SystemTab = 'suppliers' | 'customers' | 'products' | 'processTemplates' | 'process' | 'recycle' | 'audit' | 'preferences'
 
 export default function SystemPage({ onMessage }: { onMessage: (msg: string) => void }) {
   const [tab, setTab] = useState<SystemTab>('suppliers')
@@ -173,6 +174,7 @@ export default function SystemPage({ onMessage }: { onMessage: (msg: string) => 
               ['process', '产品路线'],
               ['recycle', '归档记录'],
               ['audit', '操作记录'],
+              ['preferences', '界面设置'],
             ] as const).map(([key, label]) => (
               <button
                 key={key}
@@ -195,6 +197,40 @@ export default function SystemPage({ onMessage }: { onMessage: (msg: string) => 
       {tab === 'process' && <ProcessManager onMessage={onMessage} />}
       {tab === 'recycle' && <RecycleBin onMessage={onMessage} />}
       {tab === 'audit' && <AuditLogViewer onMessage={onMessage} />}
+      {tab === 'preferences' && <InterfacePreferenceManager />}
+    </div>
+  )
+}
+
+function InterfacePreferenceManager() {
+  const [modalGlassEnabled, setModalGlassEnabled] = useModalGlassPreference()
+
+  return (
+    <div className="rounded-lg bg-white p-6 shadow">
+      <div className="mb-5">
+        <h3 className="text-lg font-semibold">界面设置</h3>
+        <p className="mt-1 text-sm text-gray-500">这些偏好保存在当前浏览器，用来减少误操作并适配不同设备性能。</p>
+      </div>
+      <div className="rounded-lg border border-gray-200 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="font-medium text-gray-900">弹窗背景磨砂玻璃</div>
+            <div className="mt-1 text-sm text-gray-500">开启后弹窗出现时背景会模糊并遮罩；关闭后仅保留半透明遮罩，仍会屏蔽底层按钮响应。</div>
+          </div>
+          <label className="inline-flex cursor-pointer items-center gap-3">
+            <span className="text-sm text-gray-600">{modalGlassEnabled ? '已开启' : '已关闭'}</span>
+            <input
+              type="checkbox"
+              checked={modalGlassEnabled}
+              onChange={(event) => setModalGlassEnabled(event.target.checked)}
+              className="sr-only"
+            />
+            <span className={`relative h-7 w-12 rounded-full transition ${modalGlassEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}>
+              <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${modalGlassEnabled ? 'left-6' : 'left-1'}`} />
+            </span>
+          </label>
+        </div>
+      </div>
     </div>
   )
 }
@@ -388,7 +424,7 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
       {suppliers.length === 0 && <div className="text-center py-12 text-gray-500">暂无供应商</div>}
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-semibold">{editingSupplier ? '编辑供应商' : '新增供应商'}</h3>
@@ -617,7 +653,7 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
       {customers.length === 0 && <div className="text-center py-12 text-gray-500">暂无客户</div>}
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-semibold">{editingCustomer ? '编辑客户' : '新增客户'}</h3>
@@ -854,7 +890,7 @@ function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
       {filtered.length === 0 && <div className="text-center py-12 text-gray-500">暂无产品资料</div>}
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-semibold">{editingProduct ? '编辑产品' : '新增产品'}</h3>
@@ -966,7 +1002,7 @@ function ProcessTemplateManager({ onMessage }: { onMessage: (msg: string) => voi
           </div>
         )})}
       </div>
-      {showModal && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
+      {showModal && <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4"><div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
         <div className="mb-4 flex justify-between"><h3 className="text-lg font-semibold">{editing ? '编辑加工工艺' : '新增加工工艺'}</h3><button onClick={() => setShowModal(false)} className="text-xl text-gray-400">×</button></div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="模板编码 *" value={form.code} onChange={(value) => setForm({ ...form, code: value })} />
@@ -1234,7 +1270,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
       {routes.length === 0 && <div className="text-center py-12 text-gray-500">暂无工艺路线</div>}
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-semibold">{editingRoute ? '编辑工艺路线' : '新增工艺路线'}</h3>

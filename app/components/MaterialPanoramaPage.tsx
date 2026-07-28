@@ -612,7 +612,7 @@ export default function MaterialPanoramaPage({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] bg-slate-950/50 p-2 sm:p-4">
+    <div className="fixed inset-0 z-[60] mes-modal-overlay-dark p-2 sm:p-4">
       <div className="mx-auto flex h-full w-full max-w-7xl flex-col overflow-hidden rounded-lg bg-gray-50 shadow-xl">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b bg-white px-4 py-3 sm:px-5">
           <div className="min-w-0">
