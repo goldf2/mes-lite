@@ -6,6 +6,11 @@ import { writeAuditLog } from '@/lib/audit'
 
 export const dynamic = 'force-dynamic'
 
+const materialProductPrefix = 'material:'
+const simpleProductSku = (materialCode: string) => `MAT-${materialCode}`
+
+type ProductResolver = Pick<typeof prisma, 'material' | 'product' | 'stock'>
+
 const bomItemSchema = z.object({
   materialId: z.string().min(1, '请选择物料'),
   quantity: z.number().finite().nonnegative(),
@@ -17,6 +22,46 @@ const saveBomSchema = z.object({
   productId: z.string().min(1, '请选择产品'),
   items: z.array(bomItemSchema).max(200, 'BOM 明细过多'),
 })
+
+async function resolveProductId(tx: ProductResolver, targetId: string) {
+  if (!targetId.startsWith(materialProductPrefix)) return targetId
+
+  const materialId = targetId.slice(materialProductPrefix.length)
+  const material = await tx.material.findUnique({
+    where: { id: materialId },
+    select: { code: true, name: true, category: true, customerId: true, stockUnit: true, unit: true },
+  })
+  if (!material) throw new Error('成品物料不存在，无法创建 BOM')
+
+  const sku = simpleProductSku(material.code)
+  const existing = await tx.product.findFirst({
+    where: { OR: [{ sku: material.code }, { sku }] },
+    include: { stock: true },
+  })
+  if (existing) {
+    if (!existing.stock) {
+      await tx.stock.upsert({
+        where: { productId: existing.id },
+        update: {},
+        create: { productId: existing.id },
+      })
+    }
+    return existing.id
+  }
+
+  const created = await tx.product.create({
+    data: {
+      sku,
+      name: material.name,
+      category: material.category,
+      customerId: material.customerId || null,
+      unit: material.stockUnit || material.unit,
+      description: `由成品物料 ${material.code} 自动映射，用于 BOM 关系。`,
+      stock: { create: {} },
+    },
+  })
+  return created.id
+}
 
 const bomItemSelect = {
   id: true,
@@ -98,7 +143,39 @@ export async function GET() {
     }),
   ])
 
-  return NextResponse.json({ products, materialOptions })
+  const productBySku = new Map(products.flatMap((product) => [
+    [product.sku, product],
+    [product.sku.startsWith('MAT-') ? product.sku.slice(4) : product.sku, product],
+  ]))
+  const mappedProductIds = new Set<string>()
+  const materialProducts = materialOptions
+    .map((material) => {
+      const product = productBySku.get(material.code) || productBySku.get(simpleProductSku(material.code))
+      if (product) {
+        mappedProductIds.add(product.id)
+        return {
+          ...product,
+          sku: material.code,
+          name: material.name,
+          category: material.category,
+          unit: material.stockUnit || material.unit,
+          sourceMaterialId: material.id,
+        }
+      }
+      return {
+        id: `${materialProductPrefix}${material.id}`,
+        sku: material.code,
+        name: material.name,
+        category: material.category,
+        unit: material.stockUnit || material.unit,
+        customer: null,
+        bom: null,
+        sourceMaterialId: material.id,
+      }
+    })
+  const standaloneProducts = products.filter((product) => !mappedProductIds.has(product.id))
+
+  return NextResponse.json({ products: [...materialProducts, ...standaloneProducts], materialOptions })
 }
 
 export async function PUT(req: NextRequest) {
@@ -107,7 +184,8 @@ export async function PUT(req: NextRequest) {
     if (denied) return denied
 
     const input = saveBomSchema.parse(await req.json())
-    const product = await prisma.product.findUnique({ where: { id: input.productId } })
+    const resolvedProductId = await prisma.$transaction((tx) => resolveProductId(tx, input.productId))
+    const product = await prisma.product.findUnique({ where: { id: resolvedProductId } })
     if (!product) return NextResponse.json({ error: '产品不存在' }, { status: 404 })
 
     const materialIds = Array.from(new Set(input.items.map((item) => item.materialId)))

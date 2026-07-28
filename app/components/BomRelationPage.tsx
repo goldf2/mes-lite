@@ -31,6 +31,7 @@ interface ProductBom {
   category: string
   unit: string
   customer?: { id: string; name: string } | null
+  sourceMaterialId?: string
   bom?: {
     id: string
     version: string
@@ -365,7 +366,7 @@ export default function BomRelationPage({ onMessage }: { onMessage: (msg: string
 
           <div className="rounded-lg bg-white p-5 shadow-sm">
             <h3 className="mb-3 font-semibold text-gray-900">添加原材料</h3>
-            <MaterialSearch materials={materials} disabledIds={draftItems.map((item) => item.materialId)} onAdd={addMaterial} />
+            <MaterialSearch materials={materials} disabledIds={[...draftItems.map((item) => item.materialId), selectedProduct?.sourceMaterialId || ''].filter(Boolean)} onAdd={addMaterial} />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
