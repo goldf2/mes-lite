@@ -31,7 +31,7 @@ export async function PATCH(
     }
 
     await prisma.$transaction(async (tx) => {
-      // a. 查找或创建该产品的 Stock 记录
+      // a. 查找或创建该内部兼容物料的 Stock 记录
       let stock = await tx.stock.findUnique({
         where: { productId: returnOrder.productId },
       })

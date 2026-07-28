@@ -4,55 +4,12 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentOperator } from '@/lib/auth'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
+import { materialAsProductOption, resolveProductId } from '@/lib/material-product'
 
 export const dynamic = 'force-dynamic'
 
 const number = z.number().finite().nonnegative()
-const materialProductPrefix = 'material:'
-const simpleProductSku = (materialCode: string) => `MAT-${materialCode}`
 const sawingCostObjectCode = (scenarioId: string) => `SAW-${scenarioId.slice(-8).toUpperCase()}`
-
-type ProductResolver = Pick<typeof prisma, 'material' | 'product' | 'stock'>
-
-async function resolveProductId(tx: ProductResolver, targetId?: string | null) {
-  if (!targetId) return null
-  if (!targetId.startsWith(materialProductPrefix)) return targetId
-
-  const materialId = targetId.slice(materialProductPrefix.length)
-  const material = await tx.material.findUnique({
-    where: { id: materialId },
-    select: { code: true, name: true, category: true, customerId: true, stockUnit: true, unit: true },
-  })
-  if (!material) throw new Error('物料不存在，无法映射为产品')
-
-  const sku = simpleProductSku(material.code)
-  const existing = await tx.product.findUnique({ where: { sku }, include: { stock: true } })
-  if (existing) {
-    if (!existing.stock) {
-      await tx.stock.upsert({
-        where: { productId: existing.id },
-        update: {},
-        create: { productId: existing.id },
-      })
-    }
-    return existing.id
-  }
-
-  const created = await tx.product.create({
-    data: {
-      sku,
-      name: material.name,
-      category: material.category,
-      customerId: material.customerId || null,
-      unit: material.stockUnit || material.unit,
-      description: `由物料 ${material.code} 自动映射，用于锯切成本/BOM 组成。`,
-      stock: {
-        create: {},
-      },
-    },
-  })
-  return created.id
-}
 
 const schema = z.object({
   name: z.string().trim().max(100).optional(),
@@ -88,11 +45,15 @@ export async function GET() {
     prisma.sawingCostScenario.findMany({ include, orderBy: { createdAt: 'desc' }, take: 100 }),
     prisma.processTemplate.findMany({ select: { id: true, code: true, name: true, category: true }, orderBy: [{ category: 'asc' }, { code: 'asc' }] }),
     prisma.product.findMany({ select: { id: true, sku: true, name: true, unit: true }, orderBy: { createdAt: 'desc' } }),
-    prisma.material.findMany({ where: { deletedAt: null }, select: { id: true, code: true, name: true, stockUnit: true, unit: true }, orderBy: { createdAt: 'desc' } }),
+    prisma.material.findMany({
+      where: { deletedAt: null },
+      select: { id: true, code: true, name: true, spec: true, category: true, customerId: true, customer: { select: { id: true, code: true, name: true } }, stockUnit: true, unit: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    }),
   ])
   const productOptions = [
+    ...materials.map(materialAsProductOption),
     ...products,
-    ...materials.map((material) => ({ id: `${materialProductPrefix}${material.id}`, sku: simpleProductSku(material.code), name: material.name, unit: material.stockUnit || material.unit })),
   ]
   return NextResponse.json({ data, processTemplates, products: productOptions })
 }
@@ -105,11 +66,15 @@ export async function POST(req: NextRequest) {
     const input = schema.parse(await req.json())
     const { processTemplateIds, costItems, bomProductId, ...values } = input
     if (values.productKind === 'EXISTING' && !values.productId) {
-      return NextResponse.json({ error: '保存为已有产品时必须选择产品' }, { status: 400 })
+      return NextResponse.json({ error: '绑定已有物料时必须选择物料' }, { status: 400 })
     }
     const scenario = await prisma.$transaction(async (tx) => {
-      const resolvedProductId = values.productKind === 'EXISTING' ? await resolveProductId(tx, values.productId) : null
-      const resolvedBomProductId = await resolveProductId(tx, bomProductId)
+      const resolvedProductId = values.productKind === 'EXISTING' && values.productId
+        ? await resolveProductId(tx, values.productId, { description: '由物料自动映射，用于锯切成本方案。' })
+        : null
+      const resolvedBomProductId = bomProductId
+        ? await resolveProductId(tx, bomProductId, { description: '由物料自动映射，用于锯切成本/BOM 组成。' })
+        : null
       const linkedProduct = resolvedProductId ? await tx.product.findUnique({ where: { id: resolvedProductId }, select: { sku: true, name: true } }) : null
       const scenarioName = values.name?.trim()
         || (linkedProduct ? `${linkedProduct.sku} ${linkedProduct.name} 锯切成本` : `临时锯切 ${values.workpieceLength}mm ${values.bladeThickness}mm缝 ${values.materialCostPerPiece.toFixed(2)}元/件`)
@@ -169,6 +134,6 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
     console.error('Create sawing cost scenario error:', error)
-    return NextResponse.json({ error: '保存锯切成本方案失败' }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : '保存锯切成本方案失败' }, { status: 500 })
   }
 }

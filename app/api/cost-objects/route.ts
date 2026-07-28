@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
+import { materialAsProductOption, simpleProductSku } from '@/lib/material-product'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,7 +46,7 @@ export async function GET() {
   const denied = await requireResourcePermission('bomCost', 'read')
   if (denied) return denied
 
-  const [costObjects, processTemplates, products, recentRuns] = await Promise.all([
+  const [costObjects, processTemplates, products, materials, recentRuns] = await Promise.all([
     prisma.costObject.findMany({
       include: costObjectInclude,
       orderBy: { createdAt: 'desc' },
@@ -118,14 +119,44 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
       take: 100,
     }),
+    prisma.material.findMany({
+      where: { deletedAt: null },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        spec: true,
+        category: true,
+        customerId: true,
+        customer: { select: { id: true, code: true, name: true } },
+        unit: true,
+        stockUnit: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    }),
     prisma.bomCostRun.findMany({
       include: { product: { select: { id: true, sku: true, name: true, unit: true } } },
       orderBy: { createdAt: 'desc' },
       take: 20,
     }),
   ])
+  const productBySku = new Map(products.flatMap((product) => [
+    [product.sku, product],
+    [product.sku.startsWith('MAT-') ? product.sku.slice(4) : product.sku, product],
+  ]))
+  const materialProducts = materials.map((material) => {
+    const product = productBySku.get(material.code) || productBySku.get(simpleProductSku(material.code))
+    return {
+      ...materialAsProductOption(material),
+      bom: product?.bom || null,
+      processRoutes: product?.processRoutes || [],
+      bomCostRuns: product?.bomCostRuns || [],
+    }
+  })
 
-  return NextResponse.json({ costObjects, processTemplates, products, recentRuns })
+  return NextResponse.json({ costObjects, processTemplates, products: materialProducts, recentRuns })
 }
 
 export async function POST(req: NextRequest) {

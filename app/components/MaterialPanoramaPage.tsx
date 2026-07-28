@@ -276,7 +276,7 @@ const panoramaModuleLabels: Record<PanoramaModuleId, { name: string; description
   summary: { name: '档案与库存', description: '物料档案、库存总览' },
   documents: { name: '库位与文档', description: '库位分布、作业指导书、附件' },
   bomProcess: { name: 'BOM 与工艺', description: '相关 BOM、加工工艺和作业步骤' },
-  costing: { name: '成本与快照', description: '加工参数、成本对象、产品成本快照' },
+  costing: { name: '成本与快照', description: '加工参数、成本对象、物料成本快照' },
   orders: { name: '工单与领料', description: '相关工单、作为用料的领料记录' },
   records: { name: '来料与库存记录', description: '最近来料、库存流水、成本层' },
   notes: { name: '建模说明', description: '当前全景页的数据建模提示' },
@@ -986,12 +986,12 @@ export default function MaterialPanoramaPage({
 
               {renderLayoutModule('bomProcess', (
               <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
-                <Panel title="相关 BOM" action={`作为成品 ${data.productBoms.length} 个，作为用料 ${data.componentBoms.length} 个`}>
+                <Panel title="相关 BOM" action={`作为目标物料 ${data.productBoms.length} 个，作为用料 ${data.componentBoms.length} 个`}>
                   <div className="space-y-4">
                     <div>
-                      <div className="mb-2 text-xs font-medium text-gray-500">该物料对应产品 BOM</div>
+                      <div className="mb-2 text-xs font-medium text-gray-500">该物料对应 BOM</div>
                       {data.productBoms.length === 0 ? (
-                        <EmptyText>未找到与物料编码直接对应的产品 BOM</EmptyText>
+                        <EmptyText>未找到与物料编码直接对应的 BOM</EmptyText>
                       ) : (
                         <div className="space-y-2">
                           {data.productBoms.map((bom) => (
@@ -1021,9 +1021,9 @@ export default function MaterialPanoramaPage({
                     </div>
 
                     <div>
-                      <div className="mb-2 text-xs font-medium text-gray-500">哪些产品 BOM 使用了该物料</div>
+                      <div className="mb-2 text-xs font-medium text-gray-500">哪些 BOM 使用了该物料</div>
                       {data.componentBoms.length === 0 ? (
-                        <EmptyText>暂无产品 BOM 使用此物料</EmptyText>
+                        <EmptyText>暂无 BOM 使用此物料</EmptyText>
                       ) : (
                         <div className="space-y-2">
                           {data.componentBoms.map((item) => (
@@ -1047,7 +1047,7 @@ export default function MaterialPanoramaPage({
                 <Panel title="加工工艺/作业步骤" action={`${data.processTemplates.length} 个工艺 · ${relatedRoutes.length} 条路线`}>
                   <div className="space-y-4">
                     <div><div className="mb-2 text-xs font-medium text-gray-500">物料直接关联的加工工艺</div><ProcessTemplateList templates={data.processTemplates} /></div>
-                    <div><div className="mb-2 text-xs font-medium text-gray-500">产品/BOM 推导的工艺路线</div><ProcessRouteList routes={relatedRoutes} /></div>
+                    <div><div className="mb-2 text-xs font-medium text-gray-500">BOM 推导的工艺路线</div><ProcessRouteList routes={relatedRoutes} /></div>
                   </div>
                 </Panel>
               </div>
@@ -1088,9 +1088,9 @@ export default function MaterialPanoramaPage({
                   </div>
                 </Panel>
 
-                <Panel title="产品成本快照" action={`${data.productBoms.filter((bom) => bom.latestCostRun).length} 个产品有成本`}>
+                <Panel title="物料成本快照" action={`${data.productBoms.filter((bom) => bom.latestCostRun).length} 个物料有成本`}>
                   {data.productBoms.length === 0 ? (
-                    <EmptyText>暂无与该物料对应的产品 BOM</EmptyText>
+                    <EmptyText>暂无与该物料对应的 BOM</EmptyText>
                   ) : (
                     <div className="space-y-2">
                       {data.productBoms.map((bom) => (

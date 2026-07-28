@@ -12,8 +12,8 @@
 
 ## 直接归属字段
 
-- 产品资料：`Product.customerId`
 - 物料资料：`Material.customerId`
+- 内部兼容视图：`Product.customerId`，仅用于旧记录兜底
 - 发货单：`Shipment.customerId`
 
 ## 各模块口径
@@ -21,13 +21,13 @@
 | 模块 | 客户筛选规则 |
 | --- | --- |
 | 物料管理 | 只筛选 `Material.customerId` 直接匹配的客户专用物料。 |
-| 库存管理 | 成品库存按 `Product.customerId`；物料库存按 `Material.customerId`。 |
+| 库存管理 | 用户侧按 `Material.customerId`；旧兼容库存按 `Product.customerId` 兜底。 |
 | 来料管理 | 按来料物料的 `Material.customerId` 筛选；供应商筛选仍作为采购侧辅助维度。 |
-| 派工管理 | 标准产品工单按产品客户；简易物料工单按目标物料客户。 |
+| 派工管理 | 按目标物料客户筛选；旧工单缺少目标物料时按内部兼容 `Product.customerId` 兜底。 |
 | 作业指导书管理 | 可按指导书绑定物料的客户或指导书自身 `customerId` 筛选。 |
 | 物料全景图 | 只显示 `WorkInstruction.materialId` 精确等于当前物料的指导书，不自动混入同客户指导书。 |
 | 发货管理 | 按发货单绑定客户筛选，送货单客户名称保留为文本快照。 |
-| 退货管理 | 优先按关联发货单客户筛选；无发货单时按产品客户筛选。 |
+| 退货管理 | 优先按关联发货单客户筛选；无发货单时按内部兼容记录客户兜底。 |
 
 ## 不做的事情
 

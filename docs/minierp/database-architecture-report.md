@@ -49,7 +49,7 @@ flowchart TD
   Auth["操作人员 / 登录 / 微信账号"] --> Permission["角色权限 / 权限组 / 人员覆盖权限"]
   Auth --> Audit["操作审计"]
 
-  Customer["客户"] --> Product["产品资料"]
+  Customer["客户"] --> Product["内部兼容视图"]
   Customer --> Material["物料档案"]
   Supplier["供应商"] --> MaterialIn["来料单"]
   Material --> MaterialIn
@@ -87,7 +87,7 @@ flowchart TD
 主要表：
 
 - `Material`：物料档案。包含编码、名称、规格、分类、客户、库存单位、核算单位、换算率、成本方法、归档字段。
-- `Product`：产品资料。包含 SKU、名称、分类、客户、单位、描述。
+- `Product`：内部兼容视图。用于旧 BOM、工单、发货、退货和成本外键；用户侧不再维护产品资料，统一维护 `Material`。
 - `Customer`：客户主数据。
 - `Supplier`：供应商主数据。
 
@@ -131,7 +131,7 @@ flowchart TD
 | 不变量 | 含义 |
 | --- | --- |
 | 每个有效 `Material` 必须有 `Stock` | 物料档案不能在库存页静默丢失 |
-| 每个 `Product` 必须有 `Stock` | 产品资料不能在库存页静默丢失 |
+| 每个内部兼容 `Product` 必须有 `Stock` | 兼容记录不能在库存页静默丢失 |
 | `Stock` 必须且只能关联一个主数据 | 不允许同时关联物料和产品，也不允许都不关联 |
 | `availableQty = qty - reservedQty` | 可用库存必须由库存和预留库存推导 |
 | `availableValuationQty = valuationQty - reservedValuationQty` | 可用核算库存必须由核算库存和预留核算库存推导 |

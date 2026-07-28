@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 
 interface ProductOption {
   id: string
@@ -239,6 +240,11 @@ function ProductSearchSelect({
 }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
+  const closePopup = useCallback(() => {
+    setOpen(false)
+    setQuery('')
+  }, [])
+  const rootRef = useDismissibleSearchPopup<HTMLDivElement>(open, closePopup)
   const selected = products.find((product) => product.id === value)
   const filtered = products.filter((product) => {
     const keyword = query.trim().toLowerCase()
@@ -247,7 +253,7 @@ function ProductSearchSelect({
   }).slice(0, 30)
 
   return (
-    <div className="relative">
+    <div ref={rootRef} className="relative">
       <input
         value={open ? query : (selected ? `${selected.sku} · ${selected.name}` : query)}
         onFocus={() => {
@@ -259,13 +265,16 @@ function ProductSearchSelect({
           setOpen(true)
           if (value) onChange('')
         }}
-        placeholder="输入产品编码或名称"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') closePopup()
+        }}
+        placeholder="输入物料编码或名称"
         className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
       />
       {open && (
         <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
           {filtered.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-gray-500">没有匹配产品</div>
+            <div className="px-3 py-2 text-sm text-gray-500">没有匹配物料</div>
           ) : (
             filtered.map((product) => (
               <button
@@ -273,8 +282,7 @@ function ProductSearchSelect({
                 type="button"
                 onClick={() => {
                   onChange(product.id)
-                  setQuery('')
-                  setOpen(false)
+                  closePopup()
                 }}
                 className={`block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-gray-50 ${value === product.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700'}`}
               >
@@ -375,7 +383,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
   }
 
   const calculate = async () => {
-    if (!selectedProductId) return onMessage('请选择产品')
+    if (!selectedProductId) return onMessage('请选择物料')
     setCalculating(true)
     try {
       const res = await fetch('/api/bom-costs', {
@@ -492,7 +500,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
               <input
                 value={costKeyword}
                 onChange={(event) => setCostKeyword(event.target.value)}
-                placeholder="搜索编码、名称、物料或产品"
+                placeholder="搜索编码、名称或物料"
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm lg:w-80"
               />
             </div>
@@ -536,7 +544,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <SummaryCard label="成本对象" value={`${costData?.costObjects.length || 0}`} hint="可加入 BOM 的非库存成本" primary />
                 <SummaryCard label="加工工艺" value={`${costData?.processTemplates.length || 0}`} hint="可计算工时机时模板" />
-                <SummaryCard label="有 BOM 产品" value={`${(costData?.products || []).filter((item) => item.bom).length}`} hint="可进行 BOM 成本计算" />
+                <SummaryCard label="有 BOM 物料" value={`${(costData?.products || []).filter((item) => item.bom).length}`} hint="可进行 BOM 成本计算" />
               </div>
 
               <div className="rounded-lg bg-white p-5 shadow-sm">
@@ -581,7 +589,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
               </div>
 
               <div className="rounded-lg bg-white p-5 shadow-sm">
-                <h3 className="mb-4 font-semibold text-gray-900">产品 BOM 与工序</h3>
+                <h3 className="mb-4 font-semibold text-gray-900">物料 BOM 与工序</h3>
                 <div className="space-y-3">
                   {filteredCostProducts.slice(0, 30).map((product) => {
                     const latestCost = product.bomCostRuns[0]
@@ -616,7 +624,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         <div className="space-y-4">
           <div className="rounded-lg bg-white p-5 shadow-sm">
-            <h3 className="mb-4 font-semibold text-gray-900">产品</h3>
+            <h3 className="mb-4 font-semibold text-gray-900">物料</h3>
             <ProductSearchSelect value={selectedProductId} products={products} onChange={selectProduct} />
             {selectedProduct && (
               <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm">
@@ -671,7 +679,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
 
         <div className="space-y-4">
           {!displayedRun ? (
-            <div className="rounded-lg border border-dashed border-gray-200 bg-white p-10 text-center text-sm text-gray-500">选择产品后计算 BOM 成本</div>
+            <div className="rounded-lg border border-dashed border-gray-200 bg-white p-10 text-center text-sm text-gray-500">选择物料后计算 BOM 成本</div>
           ) : (
             <>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

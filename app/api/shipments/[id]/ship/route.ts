@@ -30,7 +30,7 @@ export async function PATCH(
     const stock = shipment.product.stock
 
     if (!stock) {
-      return NextResponse.json({ error: '产品库存记录不存在' }, { status: 400 })
+      return NextResponse.json({ error: '物料库存记录不存在' }, { status: 400 })
     }
 
     if (Number(stock.availableQty) < shipment.qty) {
@@ -41,7 +41,7 @@ export async function PATCH(
     }
 
     await prisma.$transaction(async (tx) => {
-      // a. 查找该产品的 Stock 记录
+      // a. 查找该内部兼容物料的 Stock 记录
       const currentStock = await tx.stock.findUnique({
         where: { id: stock.id },
       })

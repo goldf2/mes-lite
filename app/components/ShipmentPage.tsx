@@ -7,8 +7,9 @@ import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import useCompactViewport from './useCompactViewport'
+import MaterialChoiceSearch from './MaterialChoiceSearch'
 
-interface Product {
+interface MaterialChoice {
   id: string
   sku: string
   name: string
@@ -78,7 +79,7 @@ export default function ShipmentPage({
   onToolbarChange?: (actions: ReactNode | null) => void
 }) {
   const [shipments, setShipments] = useState<Shipment[]>([])
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState<MaterialChoice[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [keyword, setKeyword] = useState('')
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
@@ -166,7 +167,7 @@ export default function ShipmentPage({
 
   const handleSubmit = async () => {
     if (!form.productId || form.qty <= 0 || !form.customer) {
-      onMessage('请选择产品并填写数量和客户')
+      onMessage('请选择物料并填写数量和客户')
       return
     }
     setLoading(true)
@@ -254,7 +255,7 @@ export default function ShipmentPage({
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索发货单号、产品、客户或物流号"
+            placeholder="搜索发货单号、物料、客户或物流号"
             className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
           />
         )}
@@ -310,7 +311,7 @@ export default function ShipmentPage({
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="搜索发货单号、产品、客户或物流号"
+              placeholder="搜索发货单号、物料、客户或物流号"
               className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
             />
           )}
@@ -376,7 +377,7 @@ export default function ShipmentPage({
                 </div>
                 <div className="mt-3 grid gap-3 md:grid-cols-2 sm:mt-4">
                   <div>
-                    <div className="text-xs text-gray-500">产品</div>
+                    <div className="text-xs text-gray-500">物料</div>
                     <div className="mt-1 font-medium text-gray-900">{item.product?.name}</div>
                     <div className="text-xs text-gray-500">{item.product?.sku}</div>
                   </div>
@@ -452,7 +453,7 @@ export default function ShipmentPage({
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">发货单号</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">凭据号</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">数量</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">单价</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">总金额</th>
@@ -558,19 +559,13 @@ export default function ShipmentPage({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">产品</label>
-                <select
+                <label className="block text-sm font-medium text-gray-700 mb-2">物料</label>
+                <MaterialChoiceSearch
                   value={form.productId}
-                  onChange={(e) => handleProductChange(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">请选择产品</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.sku})
-                    </option>
-                  ))}
-                </select>
+                  options={products}
+                  onChange={handleProductChange}
+                  placeholder="输入物料编码、名称或客户筛选"
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

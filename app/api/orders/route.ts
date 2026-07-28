@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
+import { ensureProductForMaterial, isMaterialProductId, materialProductPrefix } from '@/lib/material-product'
 
 const createOrderSchema = z.object({
   voucherNo: z.string().optional(),
@@ -15,72 +16,8 @@ const createOrderSchema = z.object({
   note: z.string().optional(),
 })
 
-const simpleProductSku = (materialCode: string) => `MAT-${materialCode}`
-
 async function ensureSimpleProductForMaterial(material: { code: string; name: string; category: string; customerId?: string | null; stockUnit: string; unit: string }) {
-  const sku = simpleProductSku(material.code)
-  const existing = await prisma.product.findUnique({
-    where: { sku },
-    include: { stock: true, processRoutes: { where: { isDefault: true }, include: { steps: true } } },
-  })
-
-  if (existing) {
-    if (!existing.stock) {
-      await prisma.stock.upsert({
-        where: { productId: existing.id },
-        update: {},
-        create: { productId: existing.id },
-      })
-    }
-    const defaultRoute = existing.processRoutes[0]
-    if (!defaultRoute) {
-      await prisma.processRoute.create({
-        data: {
-          productId: existing.id,
-          name: '简易生产路线',
-          isDefault: true,
-          steps: {
-            create: [{ stepNo: 1, name: '简易作业', workstation: '现场' }],
-          },
-        },
-      })
-    } else if (defaultRoute.steps.length === 0) {
-      await prisma.processStep.create({
-        data: {
-          routeId: defaultRoute.id,
-          stepNo: 1,
-          name: '简易作业',
-          workstation: '现场',
-        },
-      })
-    }
-    return existing.id
-  }
-
-  const created = await prisma.product.create({
-    data: {
-      sku,
-      name: material.name,
-      category: material.category,
-      customerId: material.customerId || null,
-      unit: material.stockUnit || material.unit,
-      description: `由物料 ${material.code} 自动映射，用于简易生产工单。`,
-      stock: {
-        create: {},
-      },
-      processRoutes: {
-        create: {
-          name: '简易生产路线',
-          isDefault: true,
-          steps: {
-            create: [{ stepNo: 1, name: '简易作业', workstation: '现场' }],
-          },
-        },
-      },
-    },
-  })
-
-  return created.id
+  return ensureProductForMaterial(prisma, material, { defaultRoute: true, description: `由物料 ${material.code} 自动映射，用于简易生产工单。` })
 }
 
 export async function POST(req: NextRequest) {
@@ -90,53 +27,33 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const parsed = createOrderSchema.parse(body)
-    const targetType = parsed.targetType ?? (parsed.materialId ? 'MATERIAL' : 'PRODUCT')
-    const targetId = parsed.targetId ?? (targetType === 'MATERIAL' ? parsed.materialId : parsed.productId)
+    const rawTargetId = parsed.targetId ?? parsed.materialId ?? parsed.productId
+    const targetId = isMaterialProductId(rawTargetId) ? rawTargetId?.slice(materialProductPrefix.length) : rawTargetId
     const { planQty, note, voucherNo } = parsed
 
     if (!targetId) {
-      return NextResponse.json({ error: targetType === 'MATERIAL' ? '请选择物料' : '请选择产品' }, { status: 400 })
+      return NextResponse.json({ error: '请选择物料' }, { status: 400 })
     }
 
     let productId = ''
     let materialId: string | null = null
     let bomWithItems: { items: any[] } | null = null
 
-    if (targetType === 'MATERIAL') {
-      const material = await prisma.material.findUnique({
-        where: { id: targetId },
-        select: { id: true, code: true, name: true, category: true, customerId: true, stockUnit: true, unit: true, deletedAt: true },
-      })
+    const material = await prisma.material.findUnique({
+      where: { id: targetId },
+      select: { id: true, code: true, name: true, category: true, customerId: true, stockUnit: true, unit: true, deletedAt: true },
+    })
 
-      if (!material || material.deletedAt) {
-        return NextResponse.json({ error: '物料不存在或已归档' }, { status: 404 })
-      }
-
-      materialId = material.id
-      productId = await ensureSimpleProductForMaterial(material)
-    } else {
-      const product = await prisma.product.findUnique({
-        where: { id: targetId },
-        include: {
-          bom: true,
-          processRoutes: { where: { isDefault: true }, include: { steps: true } },
-        },
-      })
-
-      if (!product) {
-        return NextResponse.json({ error: '产品不存在' }, { status: 404 })
-      }
-
-      if (!product.bom || product.processRoutes.length === 0 || product.processRoutes[0].steps.length === 0) {
-        return NextResponse.json({ error: '产品缺少 BOM 或工艺路线' }, { status: 400 })
-      }
-
-      productId = product.id
-      bomWithItems = await prisma.bOM.findUnique({
-        where: { id: product.bom.id },
-        include: { items: { where: { itemType: 'MATERIAL' }, include: { material: { include: { stock: true } } } } },
-      })
+    if (!material || material.deletedAt) {
+      return NextResponse.json({ error: '物料不存在或已归档' }, { status: 404 })
     }
+
+    materialId = material.id
+    productId = await ensureSimpleProductForMaterial(material)
+    bomWithItems = await prisma.bOM.findUnique({
+      where: { productId },
+      include: { items: { where: { itemType: 'MATERIAL' }, include: { material: { include: { stock: true } } } } },
+    })
 
     const today = new Date()
     const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')

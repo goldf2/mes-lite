@@ -22,6 +22,10 @@ function money(value: number) {
   return `¥${value.toFixed(2)}`
 }
 
+function displayMaterialCode(code?: string | null) {
+  return code?.startsWith('MAT-') ? code.slice(4) : code || ''
+}
+
 function drawCell(
   doc: PDFKit.PDFDocument,
   text: string,
@@ -70,7 +74,7 @@ async function renderDeliveryNotePdf(shipment: any) {
     const headerHeight = 34
     const rowHeight = 44
     const widths = [48, 100, 150, 54, 66, 81]
-    const headers = ['序号', '产品编码', '产品名称', '数量', '单价', '金额']
+    const headers = ['序号', '物料编码', '物料名称', '数量', '单价', '金额']
     let x = left
     doc.fontSize(10)
     headers.forEach((header, index) => {
@@ -81,7 +85,7 @@ async function renderDeliveryNotePdf(shipment: any) {
     x = left
     const values = [
       '1',
-      shipment.product.sku,
+      displayMaterialCode(shipment.product.sku),
       shipment.product.name,
       `${shipment.qty} ${shipment.product.unit || ''}`.trim(),
       money(Number(shipment.unitPrice)),

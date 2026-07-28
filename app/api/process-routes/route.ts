@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { z } from 'zod'
+import { resolveProductId } from '@/lib/material-product'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,7 +38,7 @@ function stepData(step: z.infer<typeof stepSchema>) {
 
 const routeSchema = z.object({
   id: z.string().optional(),
-  productId: z.string().min(1, '产品必填'),
+  productId: z.string().min(1, '物料必填'),
   name: z.string().min(1, '工艺路线名称必填'),
   isDefault: z.boolean().optional(),
   steps: z.array(stepSchema).min(1, '至少需要一个工序'),
@@ -71,22 +72,23 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const data = routeSchema.parse(body)
 
-    const product = await prisma.product.findUnique({ where: { id: data.productId } })
+    const productId = await prisma.$transaction((tx) => resolveProductId(tx, data.productId, { description: '由物料自动映射，用于工艺路线兼容。' }))
+    const product = await prisma.product.findUnique({ where: { id: productId } })
     if (!product) {
-      return NextResponse.json({ error: '产品不存在' }, { status: 404 })
+      return NextResponse.json({ error: '物料不存在' }, { status: 404 })
     }
 
     const route = await prisma.$transaction(async (tx) => {
       if (data.isDefault) {
         await tx.processRoute.updateMany({
-          where: { productId: data.productId, isDefault: true },
+          where: { productId, isDefault: true },
           data: { isDefault: false },
         })
       }
 
       return tx.processRoute.create({
         data: {
-          productId: data.productId,
+          productId,
           name: data.name,
           isDefault: Boolean(data.isDefault),
           steps: {
@@ -134,15 +136,16 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: '工艺路线不存在' }, { status: 404 })
     }
 
-    const product = await prisma.product.findUnique({ where: { id: data.productId } })
+    const productId = await prisma.$transaction((tx) => resolveProductId(tx, data.productId, { description: '由物料自动映射，用于工艺路线兼容。' }))
+    const product = await prisma.product.findUnique({ where: { id: productId } })
     if (!product) {
-      return NextResponse.json({ error: '产品不存在' }, { status: 404 })
+      return NextResponse.json({ error: '物料不存在' }, { status: 404 })
     }
 
     const route = await prisma.$transaction(async (tx) => {
       if (data.isDefault) {
         await tx.processRoute.updateMany({
-          where: { productId: data.productId, isDefault: true, id: { not: data.id } },
+          where: { productId, isDefault: true, id: { not: data.id } },
           data: { isDefault: false },
         })
       }
@@ -155,7 +158,7 @@ export async function PUT(req: NextRequest) {
       return tx.processRoute.update({
         where: { id: data.id },
         data: {
-          productId: data.productId,
+          productId,
           name: data.name,
           isDefault: Boolean(data.isDefault),
           steps: {

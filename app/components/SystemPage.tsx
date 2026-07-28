@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import { useModalGlassPreference } from './interfacePreferences'
+import MaterialChoiceSearch from './MaterialChoiceSearch'
 
 interface Supplier {
   id: string
@@ -43,7 +44,7 @@ interface DeletedRecord {
   deletedAt?: string | null
 }
 
-interface Product {
+interface MaterialChoice {
   id: string
   sku: string
   name: string
@@ -51,7 +52,6 @@ interface Product {
   customerId?: string | null
   customer?: { id: string; code: string; name: string } | null
   unit: string
-  description?: string | null
   createdAt?: string
 }
 
@@ -152,7 +152,7 @@ function routeStepCostPerThousand(step: ProcessRoute['steps'][number] | ProcessS
   return { laborHours, machineHours, cost }
 }
 
-type SystemTab = 'suppliers' | 'customers' | 'products' | 'processTemplates' | 'process' | 'recycle' | 'audit' | 'preferences'
+type SystemTab = 'suppliers' | 'customers' | 'processTemplates' | 'process' | 'recycle' | 'audit' | 'preferences'
 
 export default function SystemPage({ onMessage }: { onMessage: (msg: string) => void }) {
   const [tab, setTab] = useState<SystemTab>('suppliers')
@@ -163,15 +163,14 @@ export default function SystemPage({ onMessage }: { onMessage: (msg: string) => 
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold">系统管理</h2>
-            <p className="text-sm text-gray-500 mt-1">维护客户、供应商、产品、工艺等基础数据。</p>
+            <p className="text-sm text-gray-500 mt-1">维护客户、供应商、物料工艺等基础数据。</p>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             {([
               ['suppliers', '供应商'],
               ['customers', '客户'],
-              ['products', '产品资料'],
               ['processTemplates', '加工工艺'],
-              ['process', '产品路线'],
+              ['process', '物料路线'],
               ['recycle', '归档记录'],
               ['audit', '操作记录'],
               ['preferences', '界面设置'],
@@ -192,7 +191,6 @@ export default function SystemPage({ onMessage }: { onMessage: (msg: string) => 
 
       {tab === 'suppliers' && <SupplierManager onMessage={onMessage} />}
       {tab === 'customers' && <CustomerManager onMessage={onMessage} />}
-      {tab === 'products' && <ProductManager onMessage={onMessage} />}
       {tab === 'processTemplates' && <ProcessTemplateManager onMessage={onMessage} />}
       {tab === 'process' && <ProcessManager onMessage={onMessage} />}
       {tab === 'recycle' && <RecycleBin onMessage={onMessage} />}
@@ -561,7 +559,7 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-lg font-semibold">客户管理</h3>
-          <p className="text-sm text-gray-500 mt-1">用于按最终客户筛选产品、物料、库存和发货记录。</p>
+          <p className="text-sm text-gray-500 mt-1">用于按最终客户筛选物料、库存和发货记录。</p>
         </div>
         <div className="flex items-center gap-3">
           <ViewModeToggle value={viewMode} onChange={setViewMode} />
@@ -696,247 +694,6 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
   )
 }
 
-function ProductManager({ onMessage }: { onMessage: (msg: string) => void }) {
-  const [products, setProducts] = useState<Product[]>([])
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [keyword, setKeyword] = useState('')
-  const [showModal, setShowModal] = useState(false)
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.products.viewMode', 'list')
-  const [form, setForm] = useState({
-    sku: '',
-    name: '',
-    category: '',
-    customerId: '',
-    unit: '件',
-    description: '',
-  })
-
-  useEffect(() => {
-    fetchProducts()
-    fetchCustomers()
-  }, [])
-
-  const fetchProducts = async () => {
-    const res = await fetch('/api/products')
-    const data = await res.json()
-    if (res.ok) {
-      setProducts(data.data || [])
-    } else {
-      onMessage(data.error || '获取产品失败')
-    }
-  }
-
-  const fetchCustomers = async () => {
-    const res = await fetch('/api/customers')
-    const data = await res.json()
-    if (res.ok) {
-      setCustomers(data.data || [])
-    } else {
-      onMessage(data.error || '获取客户失败')
-    }
-  }
-
-  const resetForm = () => {
-    setEditingProduct(null)
-    setForm({ sku: '', name: '', category: '', customerId: '', unit: '件', description: '' })
-  }
-
-  const openAdd = () => {
-    resetForm()
-    setShowModal(true)
-  }
-
-  const openEdit = (product: Product) => {
-    setEditingProduct(product)
-    setForm({
-      sku: product.sku,
-      name: product.name,
-      category: product.category,
-      customerId: product.customerId || '',
-      unit: product.unit,
-      description: product.description || '',
-    })
-    setShowModal(true)
-  }
-
-  const submit = async () => {
-    if (!form.sku || !form.name || !form.category || !form.unit) {
-      onMessage('产品编码、名称、类别和单位必填')
-      return
-    }
-
-    setLoading(true)
-    const res = await fetch('/api/products', {
-      method: editingProduct ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...form,
-        id: editingProduct?.id,
-        description: form.description || undefined,
-      }),
-    })
-    const data = await res.json()
-    if (res.ok) {
-      onMessage(editingProduct ? '产品已更新' : '产品已创建')
-      setShowModal(false)
-      resetForm()
-      await fetchProducts()
-    } else {
-      onMessage(data.error || '保存产品失败')
-    }
-    setLoading(false)
-  }
-
-  const filtered = keyword
-      ? products.filter((product) =>
-        [product.sku, product.name, product.category, product.unit, product.description || ''].some((value) => value.includes(keyword))
-        || (product.customer?.name || '').includes(keyword)
-      )
-    : products
-
-  return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h3 className="text-lg font-semibold">产品资料</h3>
-          <p className="text-sm text-gray-500 mt-1">维护成品编码、名称、类别和单位，供工单、发货和退货选择。</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <ViewModeToggle value={viewMode} onChange={setViewMode} />
-          <input
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索编码、名称、类别"
-            className="px-4 py-2 border border-gray-200 rounded-lg text-sm w-64"
-          />
-          <button onClick={openAdd} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
-            新增产品
-          </button>
-        </div>
-      </div>
-
-      {viewMode === 'card' && filtered.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((product) => (
-            <div key={product.id} className="rounded-lg border border-gray-200 bg-white p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="truncate font-semibold text-gray-900">{product.name}</div>
-                  <div className="mt-1 font-mono text-sm text-blue-700">{product.sku}</div>
-                </div>
-                <button onClick={() => openEdit(product)} className="shrink-0 px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">
-                  编辑
-                </button>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <div className="text-xs text-gray-500">类别</div>
-                  <div className="mt-1">{product.category}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500">单位</div>
-                  <div className="mt-1">{product.unit}</div>
-                </div>
-              </div>
-              <div className="mt-3 text-sm text-gray-600">客户：{product.customer?.name || '通用/未绑定'}</div>
-              <div className="mt-3 rounded bg-gray-50 p-3 text-sm text-gray-600">{product.description || '无说明'}</div>
-            </div>
-          ))}
-        </div>
-      ) : (
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品编码</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品名称</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">类别</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">归属客户</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">单位</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">说明</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {filtered.map((product) => (
-              <tr key={product.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-mono text-blue-700 text-sm">{product.sku}</td>
-                <td className="px-4 py-3 font-medium text-sm">{product.name}</td>
-                <td className="px-4 py-3 text-sm">{product.category}</td>
-                <td className="px-4 py-3 text-sm">{product.customer?.name || '通用/未绑定'}</td>
-                <td className="px-4 py-3 text-sm">{product.unit}</td>
-                <td className="px-4 py-3 text-sm max-w-md truncate">{product.description || '-'}</td>
-                <td className="px-4 py-3">
-                  <button onClick={() => openEdit(product)} className="px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">
-                    编辑
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      )}
-
-      {filtered.length === 0 && <div className="text-center py-12 text-gray-500">暂无产品资料</div>}
-
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold">{editingProduct ? '编辑产品' : '新增产品'}</h3>
-              <button onClick={() => { setShowModal(false); resetForm() }} className="text-gray-500 hover:text-gray-700">&times;</button>
-            </div>
-            <div className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="产品编码 *" value={form.sku} onChange={(value) => setForm({ ...form, sku: value })} />
-                <Field label="产品名称 *" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="产品类别 *" value={form.category} onChange={(value) => setForm({ ...form, category: value })} />
-                <Field label="单位 *" value={form.unit} onChange={(value) => setForm({ ...form, unit: value })} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">归属客户</label>
-                <select
-                  value={form.customerId}
-                  onChange={(e) => setForm({ ...form, customerId: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                >
-                  <option value="">通用/未绑定客户</option>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>{customer.name}</option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-gray-500">客户筛选只匹配直接绑定的产品，不追溯 BOM 或辅料。</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">说明</label>
-                <textarea
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button onClick={submit} disabled={loading} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                  {loading ? '保存中...' : '保存'}
-                </button>
-                <button onClick={() => { setShowModal(false); resetForm() }} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-                  取消
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 function ProcessTemplateManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [templates, setTemplates] = useState<ProcessTemplate[]>([])
   const [materials, setMaterials] = useState<Array<{ id: string; code: string; name: string }>>([])
@@ -1022,7 +779,7 @@ function ProcessTemplateManager({ onMessage }: { onMessage: (msg: string) => voi
 function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const emptyStep = (): ProcessStepForm => ({ stepNo: 1, name: '', defaultTime: 0, workstation: '', description: '', templateId: '', templateCode: '', standardBatchQty: 1000, setupTimeMinutes: 0, cycleTimeSeconds: 0, peopleCount: 1, laborRatePerHour: 0, machineCount: 1, machineRatePerHour: 0, energyCostPerHour: 0, consumableCostPerBatch: 0, yieldRate: 1 })
   const [routes, setRoutes] = useState<ProcessRoute[]>([])
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState<MaterialChoice[]>([])
   const [templates, setTemplates] = useState<ProcessTemplate[]>([])
   const [showModal, setShowModal] = useState(false)
   const [editingRoute, setEditingRoute] = useState<ProcessRoute | null>(null)
@@ -1034,6 +791,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
     isDefault: true,
     steps: [emptyStep()],
   })
+  const displayMaterialCode = (sku?: string | null) => sku?.startsWith('MAT-') ? sku.slice(4) : sku || ''
 
   useEffect(() => {
     fetchProducts()
@@ -1047,7 +805,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
     if (res.ok) {
       setProducts(data.data || [])
     } else {
-      onMessage(data.error || '获取产品失败')
+      onMessage(data.error || '获取物料失败')
     }
   }
 
@@ -1078,9 +836,10 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
   }
 
   const openEdit = (route: ProcessRoute) => {
+    const materialOption = products.find((product) => product.sku === route.product?.sku || `MAT-${product.sku}` === route.product?.sku)
     setEditingRoute(route)
     setForm({
-      productId: route.productId,
+      productId: materialOption?.id || route.productId,
       name: route.name,
       isDefault: route.isDefault,
       steps: route.steps.length > 0
@@ -1132,7 +891,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
 
   const submit = async () => {
     if (!form.productId || !form.name || form.steps.some((step) => !step.name || step.stepNo <= 0)) {
-      onMessage('产品、路线名称、工序号和工序名称必填')
+      onMessage('物料、路线名称、工序号和工序名称必填')
       return
     }
 
@@ -1174,7 +933,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-lg font-semibold">BOM/工艺</h3>
-          <p className="text-sm text-gray-500 mt-1">维护产品工艺路线和工序。已产生派工或报工的工序不建议直接修改。</p>
+          <p className="text-sm text-gray-500 mt-1">维护物料工艺路线和工序。已产生派工或报工的工序不建议直接修改。</p>
         </div>
         <div className="flex items-center gap-3">
           <ViewModeToggle value={viewMode} onChange={setViewMode} />
@@ -1191,7 +950,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="font-semibold text-gray-900">{route.name}</div>
-                  <div className="mt-1 text-sm text-gray-500">{route.product?.name} ({route.product?.sku})</div>
+                  <div className="mt-1 text-sm text-gray-500">{route.product?.name} ({displayMaterialCode(route.product?.sku)})</div>
                 </div>
                 <div className="flex items-center gap-2">
                   {route.isDefault && <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">默认</span>}
@@ -1221,7 +980,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">路线名称</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">默认</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">工序</th>
@@ -1233,7 +992,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
               <tr key={route.id} className="hover:bg-gray-50 align-top">
                 <td className="px-4 py-3">
                   <div className="font-medium text-sm">{route.product?.name}</div>
-                  <div className="text-xs text-gray-500">{route.product?.sku}</div>
+                  <div className="text-xs text-gray-500">{displayMaterialCode(route.product?.sku)}</div>
                 </td>
                 <td className="px-4 py-3 text-sm">{route.name}</td>
                 <td className="px-4 py-3 text-sm">{route.isDefault ? '是' : '-'}</td>
@@ -1272,17 +1031,13 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
             <div className="p-4 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">产品 *</label>
-                  <select
+                  <label className="block text-sm font-medium text-gray-700 mb-2">物料 *</label>
+                  <MaterialChoiceSearch
                     value={form.productId}
-                    onChange={(e) => setForm({ ...form, productId: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                  >
-                    <option value="">请选择产品</option>
-                    {products.map((product) => (
-                      <option key={product.id} value={product.id}>{product.name} ({product.sku})</option>
-                    ))}
-                  </select>
+                    options={products}
+                    onChange={(productId) => setForm({ ...form, productId })}
+                    placeholder="输入物料编码或名称筛选"
+                  />
                 </div>
                 <Field label="路线名称 *" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
               </div>
@@ -1293,7 +1048,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
                   onChange={(e) => setForm({ ...form, isDefault: e.target.checked })}
                   className="h-4 w-4"
                 />
-                设为该产品默认工艺路线
+                设为该物料默认工艺路线
               </label>
 
               <div>

@@ -58,7 +58,7 @@ async function findStockIntegrityIssues() {
   if (productsWithoutStock.length > 0) {
     issues.push({
       type: 'PRODUCT_WITHOUT_STOCK',
-      message: '存在产品资料没有对应库存余额记录',
+      message: '存在内部兼容物料没有对应库存余额记录',
       records: productsWithoutStock.map((item) => ({ id: item.id, code: item.sku, name: item.name })),
     })
   }
@@ -76,9 +76,9 @@ async function findStockIntegrityIssues() {
     const hasProduct = Boolean(stock.productId)
     const reasons: string[] = []
 
-    if (hasMaterial === hasProduct) reasons.push('库存记录必须且只能关联一个物料或产品')
+    if (hasMaterial === hasProduct) reasons.push('库存记录必须且只能关联一个物料或内部兼容物料')
     if (hasMaterial && !stock.material) reasons.push('库存关联的物料档案不存在')
-    if (hasProduct && !stock.product) reasons.push('库存关联的产品资料不存在')
+    if (hasProduct && !stock.product) reasons.push('库存关联的内部兼容物料不存在')
     if (qty < -BALANCE_TOLERANCE || reservedQty < -BALANCE_TOLERANCE || availableQty < -BALANCE_TOLERANCE) reasons.push('库存数量不能为负数')
     if (valuationQty < -BALANCE_TOLERANCE || reservedValuationQty < -BALANCE_TOLERANCE || availableValuationQty < -BALANCE_TOLERANCE) reasons.push('核算库存不能为负数')
     if (totalCost < -BALANCE_TOLERANCE) reasons.push('库存金额不能为负数')
@@ -281,11 +281,11 @@ export async function PATCH(req: NextRequest) {
       entityType: 'STOCK',
       entityLabel: '库存余额补齐',
       afterData: result,
-      note: '补齐缺失的物料/产品 0 库存余额记录',
+      note: '补齐缺失的物料和内部兼容物料 0 库存余额记录',
     })
 
     return NextResponse.json({
-      message: `库存余额已补齐：物料 ${result.materials.length} 条，产品 ${result.products.length} 条`,
+      message: `库存余额已补齐：物料 ${result.materials.length} 条，内部兼容物料 ${result.products.length} 条`,
       data: result,
     })
   } catch (error) {

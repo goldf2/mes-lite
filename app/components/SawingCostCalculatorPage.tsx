@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 
 interface ProcessOption { id: string; code: string; name: string; category: string }
 interface ProductOption { id: string; sku: string; name: string; unit: string }
@@ -64,7 +65,7 @@ function ProductSearchSelect({
   onChange,
   products,
   placeholder,
-  emptyText = '暂无产品',
+  emptyText = '暂无物料',
 }: {
   value: string
   onChange: (value: string) => void
@@ -74,6 +75,11 @@ function ProductSearchSelect({
 }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
+  const closePopup = useCallback(() => {
+    setOpen(false)
+    setQuery('')
+  }, [])
+  const rootRef = useDismissibleSearchPopup<HTMLDivElement>(open, closePopup)
   const selected = products.find((product) => product.id === value)
   const displayValue = open ? query : (selected ? `${selected.sku} · ${selected.name}` : query)
   const filtered = products.filter((product) => {
@@ -82,11 +88,14 @@ function ProductSearchSelect({
   }).slice(0, 20)
 
   return (
-    <div className="space-y-2">
+    <div ref={rootRef} className="space-y-2">
       <input
         value={displayValue}
         onFocus={() => setOpen(true)}
         onChange={(event) => { setQuery(event.target.value); setOpen(true); if (value) onChange('') }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') closePopup()
+        }}
         placeholder={placeholder}
         className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
       />
@@ -94,13 +103,14 @@ function ProductSearchSelect({
         {products.length === 0 ? (
           <div className="px-3 py-2 text-sm text-gray-500">{emptyText}</div>
         ) : filtered.length === 0 ? (
-          <div className="px-3 py-2 text-sm text-gray-500">没有匹配产品</div>
+          <div className="px-3 py-2 text-sm text-gray-500">没有匹配物料</div>
         ) : (
           filtered.map((product) => (
             <button
               key={product.id}
               type="button"
-              onClick={() => { onChange(product.id); setQuery(''); setOpen(false) }}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => { onChange(product.id); closePopup() }}
               className={`block w-full rounded px-3 py-2 text-left text-sm hover:bg-white ${value === product.id ? 'bg-white text-blue-700' : 'text-gray-700'}`}
             >
               <span className="font-mono text-xs text-gray-500">{product.sku}</span>
@@ -146,27 +156,27 @@ function SaveProductCostPanel({
 }) {
   return (
     <div className="rounded-lg bg-white p-5 shadow-sm">
-      <h3 className="font-semibold text-gray-900">保存为产品成本对象</h3>
+      <h3 className="font-semibold text-gray-900">保存为成本对象</h3>
       <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
         <input value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} placeholder="自定义名称（可选，默认自动命名）" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" />
         <button onClick={onSave} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{saving ? '保存中...' : '保存成本对象'}</button>
       </div>
       <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[180px_minmax(0,1fr)]">
         <select value={productKind} onChange={(event) => setProductKind(event.target.value as 'TEMPORARY' | 'EXISTING')} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
-          <option value="TEMPORARY">保存为临时产品</option>
-          <option value="EXISTING">绑定已有产品</option>
+          <option value="TEMPORARY">保存为临时成本对象</option>
+          <option value="EXISTING">绑定已有物料</option>
         </select>
         {productKind === 'EXISTING' ? (
-          <ProductSearchSelect value={selectedProductId} onChange={setSelectedProductId} products={productOptions} placeholder="输入产品编码或名称筛选" />
+          <ProductSearchSelect value={selectedProductId} onChange={setSelectedProductId} products={productOptions} placeholder="输入物料编码或名称筛选" />
         ) : (
-          <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-500">临时产品会保留单件材料成本、人工时和机时，后续可直接加入混合测算。</div>
+          <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-500">临时成本对象会保留单件材料成本、人工时和机时，后续可直接加入混合测算。</div>
         )}
       </div>
       <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[180px_minmax(0,1fr)]">
         <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-600">BOM 组成</div>
         <div className="space-y-2">
-          <button type="button" onClick={() => setBomProductId('')} className={`rounded-lg border px-3 py-2 text-sm ${bomProductId ? 'border-gray-200 text-gray-600' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>不加入产品 BOM</button>
-          <ProductSearchSelect value={bomProductId} onChange={setBomProductId} products={productOptions} placeholder="输入产品编码或名称，选择要加入的 BOM" />
+          <button type="button" onClick={() => setBomProductId('')} className={`rounded-lg border px-3 py-2 text-sm ${bomProductId ? 'border-gray-200 text-gray-600' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>不加入物料 BOM</button>
+          <ProductSearchSelect value={bomProductId} onChange={setBomProductId} products={productOptions} placeholder="输入物料编码或名称，选择要加入的 BOM" />
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">{processOptions.map((process) => <label key={process.id} className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs ${selectedProcessIds.includes(process.id) ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}><input type="checkbox" className="mr-1.5" checked={selectedProcessIds.includes(process.id)} onChange={(event) => setSelectedProcessIds(event.target.checked ? [...selectedProcessIds, process.id] : selectedProcessIds.filter((id) => id !== process.id))} />{process.name}</label>)}</div>
@@ -287,7 +297,7 @@ export default function SawingCostCalculatorPage() {
       if (current.length > 0) return current
       return [{
         id: `mix-${Date.now()}`,
-        name: '当前锯切产品',
+        name: '当前锯切物料',
         quantity: Math.max(0, Math.round(shiftResult.quantity * 20)),
         sellingPrice: form.finishedPrice,
         materialCostPerPiece: materialResult.materialCostPerPiece,
@@ -319,7 +329,7 @@ export default function SawingCostCalculatorPage() {
   }, [mixRows, scaleForm, shiftForm])
 
   const patchMixRow = (id: string, values: Partial<MixRow>) => setMixRows((rows) => rows.map((row) => row.id === id ? { ...row, ...values } : row))
-  const addMixRow = () => setMixRows((rows) => [...rows, { id: `mix-${Date.now()}-${rows.length}`, name: `产品 ${rows.length + 1}`, quantity: 0, sellingPrice: 0, materialCostPerPiece: 0, laborHoursPerPiece: 0, machineHoursPerPiece: 0 }])
+  const addMixRow = () => setMixRows((rows) => [...rows, { id: `mix-${Date.now()}-${rows.length}`, name: `物料 ${rows.length + 1}`, quantity: 0, sellingPrice: 0, materialCostPerPiece: 0, laborHoursPerPiece: 0, machineHoursPerPiece: 0 }])
   const addScenarioToMix = (scenario: SavedScenario) => setMixRows((rows) => [...rows, {
     id: `mix-scenario-${scenario.id}-${Date.now()}`,
     name: scenario.product ? `${scenario.product.sku} ${scenario.product.name}` : scenario.name,
@@ -331,7 +341,7 @@ export default function SawingCostCalculatorPage() {
   }])
   const currentProductMixRow = (): MixRow => ({
     id: `mix-${Date.now()}`,
-    name: '当前锯切产品',
+    name: '当前锯切物料',
     quantity: Math.max(0, Math.round(shiftResult.quantity * scaleForm.plannedShifts)),
     sellingPrice: form.finishedPrice,
     materialCostPerPiece: materialResult.materialCostPerPiece,
@@ -340,7 +350,7 @@ export default function SawingCostCalculatorPage() {
   })
   const syncCurrentProduct = () => setMixRows((rows) => {
     const next = currentProductMixRow()
-    const index = rows.findIndex((row) => row.name === '当前锯切产品')
+    const index = rows.findIndex((row) => row.name === '当前锯切物料')
     if (index < 0) return [next, ...rows]
     return rows.map((row, rowIndex) => rowIndex === index ? { ...next, id: row.id } : row)
   })
@@ -352,7 +362,7 @@ export default function SawingCostCalculatorPage() {
   }
 
   const saveScenario = async () => {
-    if (productKind === 'EXISTING' && !selectedProductId) return setMessage('请选择要绑定的产品')
+    if (productKind === 'EXISTING' && !selectedProductId) return setMessage('请选择要绑定的物料')
     if (materialResult.quantity <= 0) return setMessage('当前参数无法加工出成品')
     const resolvedScenarioName = scenarioName.trim() || defaultScenarioName()
     setSaving(true)
@@ -511,7 +521,7 @@ export default function SawingCostCalculatorPage() {
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <ResultCard label="规模营业收入" value={money(scaleResult.totalRevenue)} hint={`${mixRows.length} 个产品组合`} primary />
+            <ResultCard label="规模营业收入" value={money(scaleResult.totalRevenue)} hint={`${mixRows.length} 个物料组合`} primary />
             <ResultCard label="规模总成本" value={money(scaleResult.totalCost)} hint={`材料 ${money(scaleResult.materialCost)}`} />
             <ResultCard label="规模经营利润" value={money(scaleResult.profit)} hint={`利润率 ${scaleResult.margin.toFixed(2)}%`} primary />
             <ResultCard label="所需班次" value={`${scaleResult.requiredShifts.toFixed(1)} 班`} hint={`人工负荷 ${scaleResult.laborLoad.toFixed(1)}% · 机时负荷 ${scaleResult.machineLoad.toFixed(1)}%`} />
@@ -520,17 +530,17 @@ export default function SawingCostCalculatorPage() {
 
         <div className="rounded-lg bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="font-semibold text-gray-900">混合产品工时机时</h3>
+            <h3 className="font-semibold text-gray-900">混合物料工时机时</h3>
             <div className="flex flex-wrap gap-2">
-              <button onClick={syncCurrentProduct} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700">同步当前产品</button>
-              <button onClick={addMixRow} className="rounded-lg border border-blue-300 px-3 py-1.5 text-sm text-blue-700">新增产品</button>
+              <button onClick={syncCurrentProduct} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700">同步当前物料</button>
+              <button onClick={addMixRow} className="rounded-lg border border-blue-300 px-3 py-1.5 text-sm text-blue-700">新增物料</button>
             </div>
           </div>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[940px] text-sm">
               <thead className="bg-gray-50 text-left text-gray-600">
                 <tr>
-                  <th className="px-3 py-2">产品</th>
+                  <th className="px-3 py-2">物料</th>
                   <th className="px-3 py-2 text-right">数量</th>
                   <th className="px-3 py-2 text-right">售价</th>
                   <th className="px-3 py-2 text-right">材料成本/件</th>
@@ -580,14 +590,14 @@ export default function SawingCostCalculatorPage() {
         />
 
         <div className="rounded-lg bg-white p-5 shadow-sm">
-          <h3 className="font-semibold text-gray-900">调用已保存产品成本</h3>
-          {savedScenarios.length === 0 ? <div className="mt-4 rounded-lg border border-dashed p-6 text-center text-sm text-gray-500">暂无可调用的产品成本</div> : (
+          <h3 className="font-semibold text-gray-900">调用已保存成本</h3>
+          {savedScenarios.length === 0 ? <div className="mt-4 rounded-lg border border-dashed p-6 text-center text-sm text-gray-500">暂无可调用的成本对象</div> : (
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {savedScenarios.map((scenario) => <div key={scenario.id} className="rounded-lg border border-gray-200 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-medium text-gray-900">{scenario.product ? `${scenario.product.sku} ${scenario.product.name}` : scenario.name}</div>
-                    <div className="mt-1 text-xs text-gray-500">{scenario.productKind === 'EXISTING' ? '已有产品' : '临时产品'} · {scenario.quantity} 件/根</div>
+                    <div className="mt-1 text-xs text-gray-500">{scenario.productKind === 'EXISTING' ? '已有物料' : '临时成本对象'} · {scenario.quantity} 件/根</div>
                     {scenario.bomItems && scenario.bomItems.length > 0 && <div className="mt-1 text-xs text-blue-700">BOM：{scenario.bomItems.map((item) => item.bom.product.name).join('、')}</div>}
                   </div>
                   <button onClick={() => addScenarioToMix(scenario)} className="rounded-lg border border-blue-300 px-3 py-1.5 text-xs text-blue-700">加入</button>

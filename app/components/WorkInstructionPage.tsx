@@ -7,6 +7,7 @@ import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import StatusCheckboxFilter, { getMultiSelectQuery } from './StatusCheckboxFilter'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import useCompactViewport from './useCompactViewport'
+import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 
 interface Customer {
   id: string
@@ -245,7 +246,11 @@ function MaterialSearchSelect({
 }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement | null>(null)
+  const closePopup = useCallback(() => {
+    setOpen(false)
+    setQuery('')
+  }, [])
+  const rootRef = useDismissibleSearchPopup<HTMLDivElement>(open, closePopup)
   const selected = selectedOption || options.find((material) => material.id === value) || null
   const specialLabel = value === '__UNASSIGNED__' && unassignedLabel ? unassignedLabel : ''
   const visibleOptions = useMemo(() => {
@@ -260,21 +265,9 @@ function MaterialSearchSelect({
     return () => clearTimeout(timer)
   }, [open, query, onSearch])
 
-  useEffect(() => {
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!rootRef.current || rootRef.current.contains(event.target as Node)) return
-      setOpen(false)
-      setQuery('')
-    }
-
-    document.addEventListener('mousedown', handlePointerDown)
-    return () => document.removeEventListener('mousedown', handlePointerDown)
-  }, [])
-
   const selectMaterial = (material: MaterialOption | null, nextValue?: string) => {
     onChange(nextValue ?? material?.id ?? '', material)
-    setOpen(false)
-    setQuery('')
+    closePopup()
   }
 
   return (
@@ -292,8 +285,7 @@ function MaterialSearchSelect({
         }}
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
-            setOpen(false)
-            setQuery('')
+            closePopup()
           }
         }}
         placeholder={selected ? formatMaterialLabel(selected) : specialLabel || placeholder}

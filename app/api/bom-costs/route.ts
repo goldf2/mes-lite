@@ -4,12 +4,13 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentOperator } from '@/lib/auth'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
+import { materialAsProductOption, resolveProductId, simpleProductSku } from '@/lib/material-product'
 
 export const dynamic = 'force-dynamic'
 
 const number = z.number().finite().nonnegative()
 const schema = z.object({
-  productId: z.string().min(1, '请选择产品'),
+  productId: z.string().min(1, '请选择物料'),
   quantityBasis: number.positive().default(1),
   laborRatePerHour: number.default(0),
   machineRatePerHour: number.default(0),
@@ -58,10 +59,16 @@ export async function GET(req: NextRequest) {
   if (denied) return denied
 
   const { searchParams } = new URL(req.url)
-  const productId = searchParams.get('productId') || undefined
-  const [products, runs] = await Promise.all([
+  const inputProductId = searchParams.get('productId') || undefined
+  const productId = inputProductId ? await resolveProductId(prisma, inputProductId) : undefined
+  const [products, materials, runs] = await Promise.all([
     prisma.product.findMany({
       select: { id: true, sku: true, name: true, unit: true, bom: { select: { id: true, version: true, isActive: true } } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.material.findMany({
+      where: { deletedAt: null },
+      select: { id: true, code: true, name: true, spec: true, category: true, customerId: true, customer: { select: { id: true, code: true, name: true } }, unit: true, stockUnit: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     }),
     prisma.bomCostRun.findMany({
@@ -71,8 +78,19 @@ export async function GET(req: NextRequest) {
       take: 20,
     }),
   ])
+  const productBySku = new Map(products.flatMap((product) => [
+    [product.sku, product],
+    [product.sku.startsWith('MAT-') ? product.sku.slice(4) : product.sku, product],
+  ]))
+  const materialProducts = materials.map((material) => {
+    const product = productBySku.get(material.code) || productBySku.get(simpleProductSku(material.code))
+    if (product) {
+      return { ...materialAsProductOption(material), bom: product.bom }
+    }
+    return { ...materialAsProductOption(material), bom: null }
+  })
 
-  return NextResponse.json({ products, runs })
+  return NextResponse.json({ products: materialProducts, runs })
 }
 
 export async function POST(req: NextRequest) {
@@ -82,8 +100,9 @@ export async function POST(req: NextRequest) {
 
     const operator = await getCurrentOperator()
     const input = schema.parse(await req.json())
+    const productId = await prisma.$transaction((tx) => resolveProductId(tx, input.productId, { description: '由物料自动映射，用于 BOM 成本计算。' }))
     const product = await prisma.product.findUnique({
-      where: { id: input.productId },
+      where: { id: productId },
       include: {
         bom: {
           include: {
@@ -108,8 +127,8 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    if (!product) return NextResponse.json({ error: '产品不存在' }, { status: 404 })
-    if (!product.bom) return NextResponse.json({ error: '该产品暂无 BOM，无法计算成本' }, { status: 400 })
+    if (!product) return NextResponse.json({ error: '物料不存在' }, { status: 404 })
+    if (!product.bom) return NextResponse.json({ error: '该物料暂无 BOM，无法计算成本' }, { status: 400 })
 
     const lines: BomCostLineInput[] = []
     product.bom.items.forEach((item, index) => {

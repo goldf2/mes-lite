@@ -52,7 +52,7 @@ export async function POST(
     // 2. 获取工艺路线
     const route = order.product.processRoutes[0]
     if (!route) {
-      return NextResponse.json({ error: '产品无工艺路线' }, { status: 400 })
+      return NextResponse.json({ error: '物料无工艺路线' }, { status: 400 })
     }
 
     const steps = route.steps.sort((a, b) => a.stepNo - b.stepNo)

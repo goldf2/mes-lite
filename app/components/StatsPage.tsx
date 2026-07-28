@@ -358,8 +358,8 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品名称</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">SKU</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料名称</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">编码</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">计划产量</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">完成产量</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">报废产量</th>
@@ -454,7 +454,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">工单号</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">合格数</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">不良数</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">报工数</th>

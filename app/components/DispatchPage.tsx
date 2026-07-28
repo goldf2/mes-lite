@@ -448,7 +448,7 @@ export default function DispatchPage({
                   <th className="w-40 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">派工单号</th>
                   <th className="w-36 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">凭据号</th>
                   <th className="w-40 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">工单号</th>
-                  <th className="min-w-64 px-4 py-3 text-left text-sm font-semibold text-gray-600">产品</th>
+                  <th className="min-w-64 px-4 py-3 text-left text-sm font-semibold text-gray-600">物料</th>
                   <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">工序</th>
                   <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">工人</th>
                   <th className="w-24 whitespace-nowrap px-4 py-3 text-center text-sm font-semibold text-gray-600">计划数量</th>

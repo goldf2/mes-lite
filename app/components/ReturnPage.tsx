@@ -7,8 +7,9 @@ import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import useCompactViewport from './useCompactViewport'
+import MaterialChoiceSearch from './MaterialChoiceSearch'
 
-interface Product {
+interface MaterialChoice {
   id: string
   sku: string
   name: string
@@ -66,7 +67,7 @@ export default function ReturnPage({
   onToolbarChange?: (actions: ReactNode | null) => void
 }) {
   const [returns, setReturns] = useState<ReturnOrder[]>([])
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState<MaterialChoice[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [keyword, setKeyword] = useState('')
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
@@ -144,7 +145,7 @@ export default function ReturnPage({
 
   const handleSubmit = async () => {
     if (!form.productId || form.qty <= 0 || !form.reason) {
-      onMessage('请选择产品并填写数量和退货原因')
+      onMessage('请选择物料并填写数量和退货原因')
       return
     }
     setLoading(true)
@@ -203,7 +204,7 @@ export default function ReturnPage({
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索退货单号、产品、发货单或原因"
+            placeholder="搜索退货单号、物料、发货单或原因"
             className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
           />
         )}
@@ -259,7 +260,7 @@ export default function ReturnPage({
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="搜索退货单号、产品、发货单或原因"
+              placeholder="搜索退货单号、物料、发货单或原因"
               className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
             />
           )}
@@ -325,7 +326,7 @@ export default function ReturnPage({
                 </div>
                 <div className="mt-3 grid gap-3 md:grid-cols-2 sm:mt-4">
                   <div>
-                    <div className="text-xs text-gray-500">产品</div>
+                    <div className="text-xs text-gray-500">物料</div>
                     <div className="mt-1 font-medium text-gray-900">{item.product?.name}</div>
                     <div className="text-xs text-gray-500">{item.product?.sku}</div>
                     <div className="text-xs text-gray-500">客户：{item.shipment?.customerRef?.name || item.product?.customer?.name || '通用/未绑定'}</div>
@@ -379,7 +380,7 @@ export default function ReturnPage({
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">退货单号</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">凭据号</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">关联发货单</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">数量</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">退货原因</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
@@ -471,19 +472,13 @@ export default function ReturnPage({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">产品</label>
-                <select
+                <label className="block text-sm font-medium text-gray-700 mb-2">物料</label>
+                <MaterialChoiceSearch
                   value={form.productId}
-                  onChange={(e) => setForm({ ...form, productId: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">请选择产品</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.sku})
-                    </option>
-                  ))}
-                </select>
+                  options={products}
+                  onChange={(productId) => setForm({ ...form, productId })}
+                  placeholder="输入物料编码、名称或客户筛选"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">数量</label>

@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
         orderCount: g._count,
       }))
     } else {
-      // 默认按产品分组
+      // 默认按物料口径分组，旧工单通过内部兼容 Product 读取。
       const grouped = await prisma.productionOrder.groupBy({
         by: ['productId'],
         where: dateWhere,

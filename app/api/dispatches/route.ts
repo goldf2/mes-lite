@@ -113,13 +113,13 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 校验工序属于该工单产品的工艺路线
+    // 校验工序属于该工单物料的工艺路线
     const stepIds = order.product.processRoutes.flatMap((r) =>
       r.steps.map((s) => s.id)
     )
     if (!stepIds.includes(data.stepId)) {
       return NextResponse.json(
-        { error: '工序不属于该工单产品的工艺路线' },
+        { error: '工序不属于该工单物料的工艺路线' },
         { status: 400 }
       )
     }
