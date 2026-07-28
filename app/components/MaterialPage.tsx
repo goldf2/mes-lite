@@ -83,6 +83,8 @@ interface DraftBomItem {
   wastageRate: number
 }
 
+type BomBasisMode = 'OUTPUT' | 'INPUT'
+
 interface Customer {
   id: string
   code: string
@@ -301,10 +303,6 @@ function qty(value: number, digits = 3) {
   return Number(value || 0).toFixed(digits).replace(/\.?0+$/, '')
 }
 
-function materialChoiceLabel(material: BomMaterialOption) {
-  return `${material.code} · ${material.name}${material.spec ? ` · ${material.spec}` : ''}`
-}
-
 function BomMaterialSearch({
   materials,
   disabledIds,
@@ -380,6 +378,84 @@ function BomMaterialSearch({
   )
 }
 
+function BomProductSearch({
+  value,
+  products,
+  disabledIds,
+  onChange,
+}: {
+  value: string
+  products: MaterialBom[]
+  disabledIds: string[]
+  onChange: (value: string) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const closePopup = useCallback(() => {
+    setOpen(false)
+    setQuery('')
+  }, [])
+  const rootRef = useDismissibleSearchPopup<HTMLDivElement>(open, closePopup)
+  const disabled = new Set(disabledIds)
+  const selected = products.find((product) => product.id === value)
+  const keyword = query.trim().toLowerCase()
+  const filtered = products.filter((product) => {
+    if (!keyword) return true
+    return `${product.sku} ${product.name} ${materialCategoryLabels[product.category] || product.category}`.toLowerCase().includes(keyword)
+  }).slice(0, 60)
+
+  return (
+    <div ref={rootRef} className="relative">
+      <input
+        value={open ? query : (selected ? `${selected.sku} · ${selected.name}` : query)}
+        onFocus={() => setOpen(true)}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setOpen(true)
+          if (value) onChange('')
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') closePopup()
+        }}
+        placeholder="输入产出物料编码或名称筛选"
+        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      {open && (
+        <div className="absolute left-0 right-0 z-30 mt-1 max-h-72 overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-gray-500">没有匹配物料</div>
+          ) : (
+            filtered.map((product) => {
+              const disabledOption = disabled.has(product.id) || disabled.has(product.sourceMaterialId || '')
+              return (
+                <button
+                  key={product.id}
+                  type="button"
+                  disabled={disabledOption}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    onChange(product.id)
+                    closePopup()
+                  }}
+                  className="block w-full rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="min-w-0">
+                      <span className="font-mono text-xs text-gray-500">{product.sku}</span>
+                      <span className="ml-2">{product.name}</span>
+                    </span>
+                    <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{product.unit}</span>
+                  </div>
+                </button>
+              )
+            })
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function MaterialPage({
   onMessage,
   onToolbarChange,
@@ -393,6 +469,10 @@ export default function MaterialPage({
   const [bomMaterialOptions, setBomMaterialOptions] = useState<BomMaterialOption[]>([])
   const [selectedMaterialId, setSelectedMaterialId] = useState('')
   const [draftBomItems, setDraftBomItems] = useState<DraftBomItem[]>([])
+  const [bomBasisMode, setBomBasisMode] = useState<BomBasisMode>('OUTPUT')
+  const [inputBasisOutputProductId, setInputBasisOutputProductId] = useState('')
+  const [inputBasisInputQty, setInputBasisInputQty] = useState(1)
+  const [inputBasisOutputQty, setInputBasisOutputQty] = useState(1)
   const [bomLoading, setBomLoading] = useState(false)
   const [bomSaving, setBomSaving] = useState(false)
   const [keyword, setKeyword] = useState('')
@@ -422,10 +502,18 @@ export default function MaterialPage({
   const selectedMaterial = materials.find((material) => material.id === selectedMaterialId) || null
   const bomProductByMaterialId = useMemo(() => new Map(bomProducts.map((product) => [product.sourceMaterialId || product.id.replace(materialProductPrefix, ''), product])), [bomProducts])
   const selectedBomProduct = selectedMaterial ? bomProductByMaterialId.get(selectedMaterial.id) || null : null
+  const inputBasisOutputProduct = bomProducts.find((product) => product.id === inputBasisOutputProductId) || null
   const bomMaterialById = useMemo(() => new Map(bomMaterialOptions.map((material) => [material.id, material])), [bomMaterialOptions])
   const selectedBomMaterialItems = useMemo(() => (
     selectedBomProduct?.bom?.items.filter((item) => item.itemType === 'MATERIAL' && item.material) || []
   ), [selectedBomProduct])
+  const selectedMaterialUsageRows = useMemo(() => {
+    if (!selectedMaterial) return []
+    return bomProducts.flatMap((product) => (product.bom?.items || [])
+      .filter((item) => item.itemType === 'MATERIAL' && item.material?.id === selectedMaterial.id)
+      .map((item) => ({ product, item })))
+  }, [bomProducts, selectedMaterial])
+  const inputBasisUnitQty = Number(inputBasisOutputQty || 0) > 0 ? Number(inputBasisInputQty || 0) / Number(inputBasisOutputQty || 0) : 0
 
   const fetchBomData = useCallback(async () => {
     setBomLoading(true)
@@ -477,6 +565,13 @@ export default function MaterialPage({
       wastageRate: Number(item.wastageRate || 0),
     })))
   }, [selectedBomMaterialItems])
+
+  useEffect(() => {
+    if (!selectedMaterial) return
+    if (inputBasisOutputProduct?.sourceMaterialId === selectedMaterial.id || inputBasisOutputProduct?.id === `${materialProductPrefix}${selectedMaterial.id}`) {
+      setInputBasisOutputProductId('')
+    }
+  }, [inputBasisOutputProduct, selectedMaterial])
 
   useEffect(() => {
     const saved = window.localStorage.getItem('mes-lite.materials.visibleFields')
@@ -789,16 +884,15 @@ export default function MaterialPage({
     setDraftBomItems((current) => current.map((item) => item.clientId === clientId ? { ...item, ...patch } : item))
   }
 
-  const saveSelectedBom = async () => {
-    if (!selectedMaterial) return onMessage('请选择物料')
+  const saveBomForProduct = async (productId: string, items: DraftBomItem[], successMessage = 'BOM 关系已保存') => {
     setBomSaving(true)
     try {
       const res = await fetch('/api/boms', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          productId: selectedBomProduct?.id || `${materialProductPrefix}${selectedMaterial.id}`,
-          items: draftBomItems.map((item) => ({
+          productId,
+          items: items.map((item) => ({
             materialId: item.materialId,
             quantity: Number(item.quantity || 0),
             unit: item.unit,
@@ -811,13 +905,58 @@ export default function MaterialPage({
         onMessage(data.error || '保存 BOM 关系失败')
         return
       }
-      onMessage(data.message || 'BOM 关系已保存')
+      onMessage(data.message || successMessage)
       await fetchBomData()
     } catch (err) {
       onMessage('保存 BOM 关系失败')
     } finally {
       setBomSaving(false)
     }
+  }
+
+  const saveSelectedBom = async () => {
+    if (!selectedMaterial) return onMessage('请选择物料')
+    await saveBomForProduct(selectedBomProduct?.id || `${materialProductPrefix}${selectedMaterial.id}`, draftBomItems)
+  }
+
+  const applyInputBasisBom = async () => {
+    if (!selectedMaterial) return onMessage('请选择物料')
+    if (!inputBasisOutputProduct) return onMessage('请选择产出物料')
+    if (inputBasisOutputProduct.sourceMaterialId === selectedMaterial.id || inputBasisOutputProduct.id === `${materialProductPrefix}${selectedMaterial.id}`) {
+      return onMessage('产出物料不能和当前投入物料相同')
+    }
+    if (Number(inputBasisInputQty || 0) <= 0) return onMessage('投入数量必须大于 0')
+    if (Number(inputBasisOutputQty || 0) <= 0) return onMessage('产出数量必须大于 0')
+
+    const nextQuantity = Number((Number(inputBasisInputQty) / Number(inputBasisOutputQty)).toFixed(8))
+    const currentItems = (inputBasisOutputProduct.bom?.items || [])
+      .filter((item) => item.itemType === 'MATERIAL' && item.material)
+      .map((item) => ({
+        clientId: item.id,
+        materialId: item.material?.id || '',
+        quantity: Number(item.quantity || 0),
+        unit: item.unit || item.material?.stockUnit || item.material?.unit || '件',
+        wastageRate: Number(item.wastageRate || 0),
+      }))
+    const existing = currentItems.find((item) => item.materialId === selectedMaterial.id)
+    const nextItems = existing
+      ? currentItems.map((item) => item.materialId === selectedMaterial.id ? {
+          ...item,
+          quantity: nextQuantity,
+          unit: selectedMaterial.stockUnit || selectedMaterial.unit || item.unit || '件',
+        } : item)
+      : [
+          ...currentItems,
+          {
+            clientId: `input-basis-${selectedMaterial.id}-${Date.now()}`,
+            materialId: selectedMaterial.id,
+            quantity: nextQuantity,
+            unit: selectedMaterial.stockUnit || selectedMaterial.unit || '件',
+            wastageRate: 0,
+          },
+        ]
+
+    await saveBomForProduct(inputBasisOutputProduct.id, nextItems, '已按投入基准写入产出物料 BOM')
   }
 
   const activeFilterLabels = useMemo(() => {
@@ -1243,26 +1382,45 @@ export default function MaterialPage({
                 {selectedMaterial ? `${selectedMaterial.code} · ${selectedMaterial.name}` : '请选择左侧物料'}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={saveSelectedBom}
-              disabled={!selectedMaterial || bomSaving}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {bomSaving ? '保存中...' : '保存 BOM'}
-            </button>
+            {bomBasisMode === 'OUTPUT' && (
+              <button
+                type="button"
+                onClick={saveSelectedBom}
+                disabled={!selectedMaterial || bomSaving}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {bomSaving ? '保存中...' : '保存 BOM'}
+              </button>
+            )}
           </div>
 
           {selectedMaterial ? (
             <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 bg-gray-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setBomBasisMode('OUTPUT')}
+                  className={`rounded-md px-3 py-2 text-sm font-medium ${bomBasisMode === 'OUTPUT' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:bg-white/70'}`}
+                >
+                  作为成品/产出
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBomBasisMode('INPUT')}
+                  className={`rounded-md px-3 py-2 text-sm font-medium ${bomBasisMode === 'INPUT' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:bg-white/70'}`}
+                >
+                  作为原材料/投入
+                </button>
+              </div>
+
               <div className="grid grid-cols-3 gap-2">
                 <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
                   <div className="text-xs text-gray-500">分类</div>
                   <div className="mt-1 truncate text-sm font-medium text-gray-900">{materialCategoryLabels[selectedMaterial.category || 'RAW'] || '其他'}</div>
                 </div>
                 <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
-                  <div className="text-xs text-blue-700">BOM 项</div>
-                  <div className="mt-1 text-sm font-semibold text-blue-900">{draftBomItems.length}</div>
+                  <div className="text-xs text-blue-700">{bomBasisMode === 'OUTPUT' ? 'BOM 项' : '被使用'}</div>
+                  <div className="mt-1 text-sm font-semibold text-blue-900">{bomBasisMode === 'OUTPUT' ? draftBomItems.length : selectedMaterialUsageRows.length}</div>
                 </div>
                 <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-3">
                   <div className="text-xs text-emerald-700">库存</div>
@@ -1270,89 +1428,173 @@ export default function MaterialPage({
                 </div>
               </div>
 
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <h4 className="text-sm font-semibold text-gray-900">添加原材料</h4>
-                  {bomLoading && <span className="text-xs text-gray-500">加载中...</span>}
-                </div>
-                <BomMaterialSearch
-                  materials={bomMaterialOptions}
-                  disabledIds={[...draftBomItems.map((item) => item.materialId), selectedMaterial.id]}
-                  onAdd={addBomMaterial}
-                />
-              </div>
+              {bomBasisMode === 'OUTPUT' ? (
+                <>
+                  <div>
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <h4 className="text-sm font-semibold text-gray-900">添加投入物料</h4>
+                      {bomLoading && <span className="text-xs text-gray-500">加载中...</span>}
+                    </div>
+                    <BomMaterialSearch
+                      materials={bomMaterialOptions}
+                      disabledIds={[...draftBomItems.map((item) => item.materialId), selectedMaterial.id]}
+                      onAdd={addBomMaterial}
+                    />
+                  </div>
 
-              {draftBomItems.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500">当前物料暂无 BOM 原材料项</div>
-              ) : (
-                <div className="overflow-x-auto rounded-lg border border-gray-100">
-                  <table className="w-full min-w-[720px] text-sm">
-                    <thead className="bg-gray-50 text-left text-gray-600">
-                      <tr>
-                        <th className="px-3 py-2">原材料</th>
-                        <th className="px-3 py-2 text-right">用量</th>
-                        <th className="px-3 py-2">单位</th>
-                        <th className="px-3 py-2 text-right">损耗率</th>
-                        <th className="px-3 py-2 text-right">含损耗</th>
-                        <th className="px-3 py-2 text-right">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {draftBomItems.map((item) => {
-                        const material = bomMaterialById.get(item.materialId)
-                        const quantityWithWastage = Number(item.quantity || 0) * (1 + Number(item.wastageRate || 0) / 100)
-                        return (
-                          <tr key={item.clientId} className="align-top hover:bg-gray-50">
-                            <td className="px-3 py-2">
-                              <div className="font-medium text-gray-900">{material?.name || '未知物料'}</div>
-                              <div className="mt-1 font-mono text-xs text-blue-700">{material?.code || item.materialId}</div>
-                              {material?.spec && <div className="mt-1 text-xs text-gray-500">{material.spec}</div>}
-                            </td>
-                            <td className="px-3 py-2 text-right">
-                              <input
-                                type="number"
-                                min="0"
-                                step="any"
-                                value={item.quantity || ''}
-                                onChange={(event) => updateDraftBomItem(item.clientId, { quantity: Math.max(0, Number(event.target.value)) })}
-                                className="w-24 rounded-lg border border-gray-200 px-3 py-2 text-right text-sm"
-                              />
-                            </td>
-                            <td className="px-3 py-2">
-                              <input
-                                value={item.unit}
-                                onChange={(event) => updateDraftBomItem(item.clientId, { unit: event.target.value })}
-                                className="w-20 rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                              />
-                            </td>
-                            <td className="px-3 py-2 text-right">
-                              <div className="inline-flex overflow-hidden rounded-lg border border-gray-200">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="any"
-                                  value={item.wastageRate || ''}
-                                  onChange={(event) => updateDraftBomItem(item.clientId, { wastageRate: Math.max(0, Number(event.target.value)) })}
-                                  className="w-20 px-3 py-2 text-right text-sm outline-none"
-                                />
-                                <span className="flex items-center border-l border-gray-200 bg-gray-50 px-2 text-xs text-gray-500">%</span>
-                              </div>
-                            </td>
-                            <td className="px-3 py-2 text-right text-gray-700">{qty(quantityWithWastage, 4)} {item.unit || material?.stockUnit || material?.unit}</td>
-                            <td className="px-3 py-2 text-right">
-                              <button
-                                type="button"
-                                onClick={() => setDraftBomItems((current) => current.filter((draft) => draft.clientId !== item.clientId))}
-                                className="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-                              >
-                                移除
-                              </button>
-                            </td>
+                  {draftBomItems.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500">当前产出物料暂无 BOM 投入项</div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-lg border border-gray-100">
+                      <table className="w-full min-w-[720px] text-sm">
+                        <thead className="bg-gray-50 text-left text-gray-600">
+                          <tr>
+                            <th className="px-3 py-2">投入物料</th>
+                            <th className="px-3 py-2 text-right">用量</th>
+                            <th className="px-3 py-2">单位</th>
+                            <th className="px-3 py-2 text-right">损耗率</th>
+                            <th className="px-3 py-2 text-right">含损耗</th>
+                            <th className="px-3 py-2 text-right">操作</th>
                           </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {draftBomItems.map((item) => {
+                            const material = bomMaterialById.get(item.materialId)
+                            const quantityWithWastage = Number(item.quantity || 0) * (1 + Number(item.wastageRate || 0) / 100)
+                            return (
+                              <tr key={item.clientId} className="align-top hover:bg-gray-50">
+                                <td className="px-3 py-2">
+                                  <div className="font-medium text-gray-900">{material?.name || '未知物料'}</div>
+                                  <div className="mt-1 font-mono text-xs text-blue-700">{material?.code || item.materialId}</div>
+                                  {material?.spec && <div className="mt-1 text-xs text-gray-500">{material.spec}</div>}
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={item.quantity || ''}
+                                    onChange={(event) => updateDraftBomItem(item.clientId, { quantity: Math.max(0, Number(event.target.value)) })}
+                                    className="w-24 rounded-lg border border-gray-200 px-3 py-2 text-right text-sm"
+                                  />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <input
+                                    value={item.unit}
+                                    onChange={(event) => updateDraftBomItem(item.clientId, { unit: event.target.value })}
+                                    className="w-20 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                                  />
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <div className="inline-flex overflow-hidden rounded-lg border border-gray-200">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="any"
+                                      value={item.wastageRate || ''}
+                                      onChange={(event) => updateDraftBomItem(item.clientId, { wastageRate: Math.max(0, Number(event.target.value)) })}
+                                      className="w-20 px-3 py-2 text-right text-sm outline-none"
+                                    />
+                                    <span className="flex items-center border-l border-gray-200 bg-gray-50 px-2 text-xs text-gray-500">%</span>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2 text-right text-gray-700">{qty(quantityWithWastage, 4)} {item.unit || material?.stockUnit || material?.unit}</td>
+                                <td className="px-3 py-2 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => setDraftBomItems((current) => current.filter((draft) => draft.clientId !== item.clientId))}
+                                    className="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                                  >
+                                    移除
+                                  </button>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <h4 className="text-sm font-semibold text-gray-900">设定当前物料产出关系</h4>
+                      {inputBasisUnitQty > 0 && (
+                        <span className="rounded bg-white px-2 py-1 text-xs text-blue-700">
+                          1 个产出 = {qty(inputBasisUnitQty, 6)} {selectedMaterial.stockUnit || selectedMaterial.unit}
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-gray-600">产出物料</label>
+                        <BomProductSearch
+                          value={inputBasisOutputProductId}
+                          products={bomProducts}
+                          disabledIds={[selectedMaterial.id, `${materialProductPrefix}${selectedMaterial.id}`]}
+                          onChange={setInputBasisOutputProductId}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-gray-600">当前投入数量</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={inputBasisInputQty || ''}
+                            onChange={(event) => setInputBasisInputQty(Math.max(0, Number(event.target.value)))}
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-gray-600">产出数量</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={inputBasisOutputQty || ''}
+                            onChange={(event) => setInputBasisOutputQty(Math.max(0, Number(event.target.value)))}
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={applyInputBasisBom}
+                        disabled={bomSaving || !inputBasisOutputProductId}
+                        className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {bomSaving ? '写入中...' : '写入产出 BOM'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="mb-2 text-sm font-semibold text-gray-900">当前物料被哪些 BOM 使用</h4>
+                    {selectedMaterialUsageRows.length === 0 ? (
+                      <div className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">暂无使用当前物料的 BOM</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {selectedMaterialUsageRows.map(({ product, item }) => (
+                          <div key={`${product.id}-${item.id}`} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="truncate font-medium text-gray-900">{product.name}</div>
+                                <div className="mt-1 truncate font-mono text-xs text-blue-700">{product.sku}</div>
+                              </div>
+                              <div className="shrink-0 text-right text-gray-700">
+                                <div>{qty(item.quantity, 4)} {item.unit}</div>
+                                <div className="mt-1 text-xs text-gray-500">每 1 个产出</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
