@@ -90,23 +90,41 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const statuses = parseStatusFilter(searchParams)
+    const keyword = searchParams.get('keyword')?.trim()
     const customerId = searchParams.get('customerId')
     const page = Number(searchParams.get('page') ?? '1')
     const pageSize = Number(searchParams.get('pageSize') ?? '20')
 
     const where: any = { deletedAt: null }
+    const andConditions: any[] = []
     applyStatusFilter(where, statuses)
     if (customerId === '__UNASSIGNED__') {
-      where.OR = [
+      andConditions.push({ OR: [
         { shipment: { is: { customerId: null } } },
         { shipmentId: null, product: { is: { customerId: null } } },
-      ]
+      ] })
     } else if (customerId) {
-      where.OR = [
+      andConditions.push({ OR: [
         { shipment: { is: { customerId } } },
         { shipmentId: null, product: { is: { customerId } } },
-      ]
+      ] })
     }
+    if (keyword) {
+      andConditions.push({ OR: [
+        { returnNo: { contains: keyword } },
+        { voucherNo: { contains: keyword } },
+        { reason: { contains: keyword } },
+        { note: { contains: keyword } },
+        { product: { is: { sku: { contains: keyword } } } },
+        { product: { is: { name: { contains: keyword } } } },
+        { product: { is: { customer: { is: { code: { contains: keyword } } } } } },
+        { product: { is: { customer: { is: { name: { contains: keyword } } } } } },
+        { shipment: { is: { shipmentNo: { contains: keyword } } } },
+        { shipment: { is: { voucherNo: { contains: keyword } } } },
+        { shipment: { is: { customer: { contains: keyword } } } },
+      ] })
+    }
+    if (andConditions.length > 0) where.AND = andConditions
 
     const [returns, total] = await Promise.all([
       prisma.returnOrder.findMany({

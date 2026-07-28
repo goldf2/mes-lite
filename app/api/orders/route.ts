@@ -216,23 +216,37 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const statuses = parseStatusFilter(searchParams)
+    const keyword = searchParams.get('keyword')?.trim()
     const customerId = searchParams.get('customerId')
     const page = Number(searchParams.get('page') ?? '1')
     const pageSize = Number(searchParams.get('pageSize') ?? '20')
 
     const where: any = { deletedAt: null }
+    const andConditions: any[] = []
     applyStatusFilter(where, statuses)
     if (customerId === '__UNASSIGNED__') {
-      where.OR = [
+      andConditions.push({ OR: [
         { product: { is: { customerId: null } } },
         { targetMaterial: { is: { customerId: null } } },
-      ]
+      ] })
     } else if (customerId) {
-      where.OR = [
+      andConditions.push({ OR: [
         { product: { is: { customerId } } },
         { targetMaterial: { is: { customerId } } },
-      ]
+      ] })
     }
+    if (keyword) {
+      andConditions.push({ OR: [
+        { orderNo: { contains: keyword } },
+        { voucherNo: { contains: keyword } },
+        { product: { is: { sku: { contains: keyword } } } },
+        { product: { is: { name: { contains: keyword } } } },
+        { targetMaterial: { is: { code: { contains: keyword } } } },
+        { targetMaterial: { is: { name: { contains: keyword } } } },
+        { targetMaterial: { is: { spec: { contains: keyword } } } },
+      ] })
+    }
+    if (andConditions.length > 0) where.AND = andConditions
 
     const [orders, total] = await Promise.all([
       prisma.productionOrder.findMany({

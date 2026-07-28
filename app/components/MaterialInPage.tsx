@@ -93,6 +93,7 @@ export default function MaterialInPage({
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [materials, setMaterials] = useState<Material[]>([])
+  const [keyword, setKeyword] = useState('')
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [selectedSupplierId, setSelectedSupplierId] = useState('')
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
@@ -121,13 +122,14 @@ export default function MaterialInPage({
     fetchSuppliers()
     fetchCustomers()
     fetchMaterials()
-  }, [selectedStatuses, selectedSupplierId, selectedCustomerId])
+  }, [keyword, selectedStatuses, selectedSupplierId, selectedCustomerId])
 
   const fetchMaterialIns = async () => {
     setLoading(true)
     try {
       const query = getStatusQuery(selectedStatuses, statusOptions)
       const params = new URLSearchParams(query)
+      if (keyword.trim()) params.set('keyword', keyword.trim())
       if (selectedSupplierId) params.set('supplierId', selectedSupplierId)
       if (selectedCustomerId) params.set('customerId', selectedCustomerId)
       const url = params.toString() ? `/api/material-ins?${params.toString()}` : '/api/material-ins'
@@ -339,6 +341,15 @@ export default function MaterialInPage({
 
     onToolbarChange(
       <ResponsiveToolbarActions
+        primaryFilters={(
+          <input
+            type="text"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="搜索来料单号、物料、供应商或批次"
+            className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
+          />
+        )}
         filters={(
           <>
             <StatusCheckboxFilter
@@ -390,12 +401,21 @@ export default function MaterialInPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedStatuses, selectedCustomerId, selectedSupplierId, customers, suppliers, viewMode, setViewMode])
+  }, [onToolbarChange, keyword, selectedStatuses, selectedCustomerId, selectedSupplierId, customers, suppliers, viewMode, setViewMode])
 
   return (
     <>
       <TopBarPortal>
         <ResponsiveToolbarActions
+          primaryFilters={(
+            <input
+              type="text"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="搜索来料单号、物料、供应商或批次"
+              className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
+            />
+          )}
           filters={(
             <>
               <StatusCheckboxFilter

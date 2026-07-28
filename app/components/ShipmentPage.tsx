@@ -80,6 +80,7 @@ export default function ShipmentPage({
   const [shipments, setShipments] = useState<Shipment[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
+  const [keyword, setKeyword] = useState('')
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
@@ -105,13 +106,14 @@ export default function ShipmentPage({
     fetchShipments()
     fetchProducts()
     fetchCustomers()
-  }, [selectedStatuses, selectedCustomerId])
+  }, [keyword, selectedStatuses, selectedCustomerId])
 
   const fetchShipments = async () => {
     setLoading(true)
     try {
       const query = getStatusQuery(selectedStatuses, statusOptions)
       const params = new URLSearchParams(query)
+      if (keyword.trim()) params.set('keyword', keyword.trim())
       if (selectedCustomerId) params.set('customerId', selectedCustomerId)
       const url = params.toString() ? `/api/shipments?${params.toString()}` : '/api/shipments'
       const res = await fetch(url)
@@ -247,6 +249,15 @@ export default function ShipmentPage({
 
     onToolbarChange(
       <ResponsiveToolbarActions
+        primaryFilters={(
+          <input
+            type="text"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="搜索发货单号、产品、客户或物流号"
+            className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
+          />
+        )}
         filters={(
           <>
             <StatusCheckboxFilter
@@ -288,12 +299,21 @@ export default function ShipmentPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedStatuses, selectedCustomerId, customers, viewMode, setViewMode])
+  }, [onToolbarChange, keyword, selectedStatuses, selectedCustomerId, customers, viewMode, setViewMode])
 
   return (
     <>
       <TopBarPortal>
         <ResponsiveToolbarActions
+          primaryFilters={(
+            <input
+              type="text"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="搜索发货单号、产品、客户或物流号"
+              className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
+            />
+          )}
           filters={(
             <>
               <StatusCheckboxFilter

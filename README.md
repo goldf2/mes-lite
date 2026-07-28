@@ -100,14 +100,14 @@ DEV_ADMIN_USERNAME=admin DEV_ADMIN_PASSWORD=admin123 DEV_ADMIN_NAME=开发管理
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | `GET` | `/api/stats/production` | 生产日报/产量统计 |
-| `GET` | `/api/materials` | 物料档案查询 |
+| `GET` | `/api/materials?keyword=...` | 物料档案查询 |
 | `POST` | `/api/materials` | 创建物料档案 |
-| `GET` | `/api/stocks?type=material\|product` | 库存查询，物料库存会返回物料封面图片 |
+| `GET` | `/api/stocks?keyword=...&type=material\|product` | 库存查询，物料库存会返回物料封面图片 |
 | `POST` | `/api/stocks` | 盘点调整（必须备注原因） |
-| `GET` | `/api/material-ins` | 来料记录查询 |
-| `GET` | `/api/orders` | 工单记录查询 |
-| `GET` | `/api/shipments` | 发货记录查询 |
-| `GET` | `/api/returns` | 退货记录查询 |
+| `GET` | `/api/material-ins?keyword=...` | 来料记录查询 |
+| `GET` | `/api/orders?keyword=...` | 工单记录查询 |
+| `GET` | `/api/shipments?keyword=...` | 发货记录查询 |
+| `GET` | `/api/returns?keyword=...` | 退货记录查询 |
 
 ### 隐藏高级模块
 

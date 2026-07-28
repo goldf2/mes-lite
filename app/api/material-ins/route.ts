@@ -29,16 +29,33 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const statuses = parseStatusFilter(searchParams)
+    const keyword = searchParams.get('keyword')?.trim()
     const supplierId = searchParams.get('supplierId')
     const customerId = searchParams.get('customerId')
     const page = Number(searchParams.get('page') ?? '1')
     const pageSize = Number(searchParams.get('pageSize') ?? '20')
 
     const where: any = { deletedAt: null }
+    const andConditions: any[] = []
     applyStatusFilter(where, statuses)
     if (supplierId) where.supplierId = supplierId
-    if (customerId === '__UNASSIGNED__') where.material = { is: { customerId: null } }
-    else if (customerId) where.material = { is: { customerId } }
+    if (customerId === '__UNASSIGNED__') andConditions.push({ material: { is: { customerId: null } } })
+    else if (customerId) andConditions.push({ material: { is: { customerId } } })
+    if (keyword) {
+      andConditions.push({ OR: [
+        { inboundNo: { contains: keyword } },
+        { voucherNo: { contains: keyword } },
+        { batchNo: { contains: keyword } },
+        { receivedBy: { contains: keyword } },
+        { note: { contains: keyword } },
+        { supplier: { is: { code: { contains: keyword } } } },
+        { supplier: { is: { name: { contains: keyword } } } },
+        { material: { is: { code: { contains: keyword } } } },
+        { material: { is: { name: { contains: keyword } } } },
+        { material: { is: { spec: { contains: keyword } } } },
+      ] })
+    }
+    if (andConditions.length > 0) where.AND = andConditions
 
     const [items, total] = await Promise.all([
       prisma.materialIn.findMany({

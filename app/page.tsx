@@ -263,8 +263,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [orderVoucherNo, setOrderVoucherNo] = useState('')
   const [selectedProductId, setSelectedProductId] = useState('')
   const [selectedMaterialId, setSelectedMaterialId] = useState('')
+  const [orderKeyword, setOrderKeyword] = useState('')
   const [selectedOrderStatuses, setSelectedOrderStatuses] = useState(orderStatusOptions.map((option) => option.value))
   const [orderViewMode, setOrderViewMode] = usePersistedViewMode('mes-lite.orders.viewMode', 'card')
+  const [stockKeyword, setStockKeyword] = useState('')
   const [stockFilter, setStockFilter] = useState<'all' | 'material' | 'product'>('all')
   const [stockViewMode, setStockViewMode] = usePersistedViewMode('mes-lite.stocks.viewMode', 'card')
   const [stockCustomerFilter, setStockCustomerFilter] = useState('')
@@ -408,11 +410,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       fetchProducts()
       fetchMaterialOptions()
     }
-  }, [tab, selectedOrderStatuses, selectedStockCategories, stockCustomerFilter, showInvalidStocks])
+  }, [tab, orderKeyword, selectedOrderStatuses, stockKeyword, selectedStockCategories, stockCustomerFilter, showInvalidStocks])
 
   const fetchOrders = async () => {
-    const query = getStatusQuery(selectedOrderStatuses, orderStatusOptions)
-    const url = query ? `/api/orders?${query}` : '/api/orders'
+    const params = new URLSearchParams(getStatusQuery(selectedOrderStatuses, orderStatusOptions))
+    if (orderKeyword.trim()) params.set('keyword', orderKeyword.trim())
+    const url = params.toString() ? `/api/orders?${params.toString()}` : '/api/orders'
     const res = await fetch(url)
     const data = await res.json()
     setOrders(data.data || [])
@@ -420,6 +423,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
   const fetchStocks = async (options: { skipAutoBackfill?: boolean } = {}) => {
     const params = new URLSearchParams()
+    if (stockKeyword.trim()) params.set('keyword', stockKeyword.trim())
     if (stockCustomerFilter) params.set('customerId', stockCustomerFilter)
     const categoryQuery = getMultiSelectQuery('categories', selectedStockCategories, materialCategoryFilterOptions)
     if (categoryQuery) {
@@ -715,6 +719,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             <div id="topbar-actions" className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible">
                 {tab === 'orders' ? (
                   <ResponsiveToolbarActions
+                    primaryFilters={(
+                      <input
+                        type="text"
+                        value={orderKeyword}
+                        onChange={(e) => setOrderKeyword(e.target.value)}
+                        placeholder="搜索工单号、凭据号、产品或物料"
+                        className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
+                      />
+                    )}
                     filters={(
                       <StatusCheckboxFilter
                         options={orderStatusOptions}
@@ -741,6 +754,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   />
                 ) : tab === 'stocks' ? (
                   <ResponsiveToolbarActions
+                    primaryFilters={(
+                      <input
+                        type="text"
+                        value={stockKeyword}
+                        onChange={(e) => setStockKeyword(e.target.value)}
+                        placeholder="搜索物料、产品或编码"
+                        className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
+                      />
+                    )}
                     filters={(
                       <>
                         <select

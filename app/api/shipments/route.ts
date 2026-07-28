@@ -28,15 +28,34 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const statuses = parseStatusFilter(searchParams)
     const customer = searchParams.get('customer')
+    const keyword = searchParams.get('keyword')?.trim()
     const customerId = searchParams.get('customerId')
     const page = Number(searchParams.get('page') ?? '1')
     const pageSize = Number(searchParams.get('pageSize') ?? '20')
 
     const where: any = { deletedAt: null }
+    const andConditions: any[] = []
     applyStatusFilter(where, statuses)
     if (customerId === '__UNASSIGNED__') where.customerId = null
     else if (customerId) where.customerId = customerId
-    if (customer) where.customer = { contains: customer }
+    if (customer) andConditions.push({ customer: { contains: customer } })
+    if (keyword) {
+      andConditions.push({ OR: [
+        { shipmentNo: { contains: keyword } },
+        { voucherNo: { contains: keyword } },
+        { customer: { contains: keyword } },
+        { customerPhone: { contains: keyword } },
+        { address: { contains: keyword } },
+        { trackingNo: { contains: keyword } },
+        { shippedBy: { contains: keyword } },
+        { note: { contains: keyword } },
+        { product: { is: { sku: { contains: keyword } } } },
+        { product: { is: { name: { contains: keyword } } } },
+        { customerRef: { is: { code: { contains: keyword } } } },
+        { customerRef: { is: { name: { contains: keyword } } } },
+      ] })
+    }
+    if (andConditions.length > 0) where.AND = andConditions
 
     const [shipments, total] = await Promise.all([
       prisma.shipment.findMany({
