@@ -2,6 +2,8 @@
 
 import dynamic from 'next/dynamic'
 import { useState, useEffect, useRef } from 'react'
+import * as Collapsible from '@radix-ui/react-collapsible'
+import { Boxes, ChevronDown, ListTree, Search } from 'lucide-react'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
 import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
@@ -20,6 +22,7 @@ const ReturnPage = dynamic(() => import('./components/ReturnPage'), { loading: F
 const StatsPage = dynamic(() => import('./components/StatsPage'), { loading: FeaturePageLoading })
 const SawingCostCalculatorPage = dynamic(() => import('./components/SawingCostCalculatorPage'), { loading: FeaturePageLoading })
 const BomRelationPage = dynamic(() => import('./components/BomRelationPage'), { loading: FeaturePageLoading })
+const BomUsagePage = dynamic(() => import('./components/BomUsagePage'), { loading: FeaturePageLoading })
 const MaterialPage = dynamic(() => import('./components/MaterialPage'), { loading: FeaturePageLoading })
 const WorkInstructionPage = dynamic(() => import('./components/WorkInstructionPage'), { loading: FeaturePageLoading })
 const AttachmentPanel = dynamic(() => import('./components/AttachmentPanel'), { loading: FeaturePageLoading })
@@ -123,7 +126,8 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'bomCost' | 'operators' | 'system' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
+type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'operators' | 'system' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
+type MaterialSection = 'materials' | 'bomSetup' | 'bomUsage'
 
 const lightweightHiddenResources = new Set<string>([
   'dispatch',
@@ -144,7 +148,6 @@ function MenuIcon({ icon }: { icon: string }) {
     return: '退',
     stats: '报',
     sawingCost: '锯',
-    bomCost: '本',
     operators: '人',
     system: '设',
     permissionUsers: '权',
@@ -226,7 +229,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const canUpdate = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canUpdate)
   const baseNavItems: { key: TabType; label: string; resource: string }[] = [
     { key: 'dashboard', label: '仪表盘', resource: 'dashboard' },
-    { key: 'materials', label: '物料管理', resource: 'materials' },
+    { key: 'materials', label: '物料与 BOM', resource: 'materials' },
     { key: 'workInstructions', label: '作业指导书', resource: 'workInstructions' },
     { key: 'materialIn', label: '来料管理', resource: 'materialIn' },
     { key: 'orders', label: '工单管理', resource: 'orders' },
@@ -236,7 +239,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'stocks', label: '库存管理', resource: 'stocks' },
     { key: 'stats', label: '生产日报', resource: 'stats' },
     { key: 'sawingCost', label: '锯切成本', resource: 'sawingCost' },
-    { key: 'bomCost', label: 'BOM关系', resource: 'bomCost' },
     { key: 'operators', label: '人员管理', resource: 'operators' },
     { key: 'system', label: '系统管理', resource: 'system' },
     { key: 'permissionUsers', label: '人员权限', resource: 'permissionUsers' },
@@ -244,9 +246,17 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   ]
   const hiddenResources = lightweightHiddenResources
   const systemResources = new Set(['operators', 'system', 'permissionUsers', 'permissionGroups', 'permissions'])
-  const readableBusinessNavItems = baseNavItems.filter((item) => canRead(item.resource) && !systemResources.has(item.resource) && !hiddenResources.has(item.resource))
+  const canReadNavItem = (item: { key: TabType; resource: string }) => (
+    item.key === 'materials'
+      ? canRead('materials') || canRead('bomCost')
+      : canRead(item.resource)
+  )
+  const readableBusinessNavItems = baseNavItems.filter((item) => canReadNavItem(item) && !systemResources.has(item.resource) && !hiddenResources.has(item.resource))
   const readableSystemNavItems = baseNavItems.filter((item) => canRead(item.resource) && systemResources.has(item.resource) && !hiddenResources.has(item.resource))
   const [tab, setTab] = useState<TabType>('stats')
+  const [materialSection, setMaterialSection] = useState<MaterialSection>(canRead('materials') ? 'materials' : 'bomSetup')
+  const [materialMenuOpen, setMaterialMenuOpen] = useState(true)
+  const [bomSetupProductId, setBomSetupProductId] = useState('')
   const [orders, setOrders] = useState<Order[]>([])
   const [stocks, setStocks] = useState<Stock[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -288,10 +298,17 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const effectiveStockViewMode = isCompactViewport ? 'card' : stockViewMode
 
   const [navItems, setNavItems] = useState<{ key: TabType; label: string }[]>(readableBusinessNavItems)
+  const materialSectionItems = [
+    { key: 'materials' as const, label: '物料管理', visible: canRead('materials') },
+    { key: 'bomSetup' as const, label: 'BOM 设定', visible: canRead('bomCost') },
+    { key: 'bomUsage' as const, label: 'BOM 反查', visible: canRead('bomCost') },
+  ].filter((item) => item.visible)
   const tabLabels: Record<string, string> = Object.fromEntries(baseNavItems.map((item) => [item.key, item.label]))
   tabLabels.create = '创建工单'
   tabLabels.detail = '工单详情'
-  const activeTabLabel = tabLabels[tab] || 'MES-lite'
+  const activeTabLabel = tab === 'materials'
+    ? materialSectionItems.find((item) => item.key === materialSection)?.label || '物料与 BOM'
+    : tabLabels[tab] || 'MES-lite'
   const activeSystemTab = readableSystemNavItems.some((item) => item.key === tab)
   const baseMobileNavItems = navItems.slice(0, 4)
   const activeBusinessNavItem = navItems.find((item) => item.key === tab)
@@ -661,31 +678,102 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           </div>
         </div>
         <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
-          {navItems.map((item, index) => (
-            <button
-              key={item.key}
-              draggable
-              onDragStart={(e) => handleDragStart(e, index)}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, index)}
-              onClick={() => {
-                setTab(item.key)
-                setSystemMenuOpen(false)
-              }}
-              className={`w-full px-4 py-3 rounded-lg text-sm font-medium transition flex items-center justify-between cursor-grab ${
-                draggedIndex === index ? 'opacity-50 bg-gray-200' :
-                dragOverIndex === index ? 'ring-2 ring-blue-400 bg-blue-50' :
-                tab === item.key ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <MenuIcon icon={item.key} />
-                {item.label}
-              </div>
-              <span className="text-gray-400 text-sm opacity-0 hover:opacity-100 transition">⋮⋮</span>
-            </button>
-          ))}
+          {navItems.map((item, index) => {
+            const itemClassName = `w-full px-4 py-3 rounded-lg text-sm font-medium transition flex items-center justify-between cursor-grab ${
+              draggedIndex === index ? 'opacity-50 bg-gray-200' :
+              dragOverIndex === index ? 'ring-2 ring-blue-400 bg-blue-50' :
+              tab === item.key ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+            }`
+
+            if (item.key === 'materials') {
+              return (
+                <Collapsible.Root
+                  key={item.key}
+                  open={materialMenuOpen}
+                  onOpenChange={setMaterialMenuOpen}
+                  className="space-y-1"
+                >
+                  <Collapsible.Trigger asChild>
+                    <button
+                      draggable
+                      onDragStart={(event) => handleDragStart(event, index)}
+                      onDragOver={(event) => handleDragOver(event, index)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(event) => handleDrop(event, index)}
+                      onClick={() => {
+                        setTab('materials')
+                        setSystemMenuOpen(false)
+                      }}
+                      className={itemClassName}
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <MenuIcon icon={item.key} />
+                        <span className="truncate">{item.label}</span>
+                      </span>
+                      <ChevronDown
+                        aria-hidden="true"
+                        className={`h-4 w-4 shrink-0 transition-transform ${materialMenuOpen ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+                  </Collapsible.Trigger>
+                  <Collapsible.Content className="overflow-hidden">
+                    <div className="ml-5 space-y-1 border-l border-gray-200 py-1 pl-3">
+                      {materialSectionItems.map((section) => {
+                        const SectionIcon = section.key === 'materials'
+                          ? Boxes
+                          : section.key === 'bomSetup'
+                            ? ListTree
+                            : Search
+                        const selected = tab === 'materials' && materialSection === section.key
+                        return (
+                          <button
+                            key={section.key}
+                            type="button"
+                            aria-current={selected ? 'page' : undefined}
+                            onClick={() => {
+                              setTab('materials')
+                              setMaterialSection(section.key)
+                              setSystemMenuOpen(false)
+                            }}
+                            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition ${
+                              selected
+                                ? 'bg-blue-50 font-semibold text-blue-700'
+                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                            }`}
+                          >
+                            <SectionIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
+                            <span>{section.label}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </Collapsible.Content>
+                </Collapsible.Root>
+              )
+            }
+
+            return (
+              <button
+                key={item.key}
+                draggable
+                onDragStart={(event) => handleDragStart(event, index)}
+                onDragOver={(event) => handleDragOver(event, index)}
+                onDragLeave={handleDragLeave}
+                onDrop={(event) => handleDrop(event, index)}
+                onClick={() => {
+                  setTab(item.key)
+                  setSystemMenuOpen(false)
+                }}
+                className={itemClassName}
+              >
+                <span className="flex items-center gap-2">
+                  <MenuIcon icon={item.key} />
+                  {item.label}
+                </span>
+                <span aria-hidden="true" className="text-sm text-gray-400 opacity-0 transition hover:opacity-100">⋮⋮</span>
+              </button>
+            )
+          })}
         </nav>
         <div className="shrink-0 p-4 border-t bg-white space-y-3">
           <div className="mb-3 px-3 py-2 border border-gray-200 rounded-lg">
@@ -853,6 +941,29 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             </div>
           </div>
         </div>
+
+        {tab === 'materials' && materialSectionItems.length > 1 && (
+          <nav
+            aria-label="物料与 BOM 二级菜单"
+            className="mb-4 flex shrink-0 gap-1 overflow-x-auto border-b border-gray-200 lg:hidden"
+          >
+            {materialSectionItems.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                aria-current={materialSection === item.key ? 'page' : undefined}
+                onClick={() => setMaterialSection(item.key)}
+                className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-medium transition ${
+                  materialSection === item.key
+                    ? 'border-blue-600 text-blue-700'
+                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-800'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        )}
 
         {message && (
           <div role="status" aria-live="polite" className={`mb-4 p-4 rounded-lg text-sm ${
@@ -1457,8 +1568,26 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           </div>
         )}
 
-        {/* 物料管理 */}
-        {tab === 'materials' && <MaterialPage onMessage={showMessage} />}
+        {/* 物料与 BOM */}
+        {tab === 'materials' && materialSection === 'materials' && (
+          <MaterialPage onMessage={showMessage} showBomWorkspace={false} />
+        )}
+        {tab === 'materials' && materialSection === 'bomSetup' && (
+          <div className="min-h-0 flex-1 overflow-y-auto xl:overscroll-contain">
+            <BomRelationPage onMessage={showMessage} initialProductId={bomSetupProductId} />
+          </div>
+        )}
+        {tab === 'materials' && materialSection === 'bomUsage' && (
+          <div className="min-h-0 flex-1 overflow-y-auto xl:overscroll-contain">
+            <BomUsagePage
+              onMessage={showMessage}
+              onOpenBom={(productId) => {
+                setBomSetupProductId(productId)
+                setMaterialSection('bomSetup')
+              }}
+            />
+          </div>
+        )}
 
         {/* 作业指导书 */}
         {tab === 'workInstructions' && <WorkInstructionPage onMessage={showMessage} />}
@@ -1484,9 +1613,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
         {/* 锯切加工成本计算 */}
         {tab === 'sawingCost' && <SawingCostCalculatorPage />}
-
-        {/* BOM 关系 */}
-        {tab === 'bomCost' && <BomRelationPage onMessage={showMessage} />}
 
         {/* 人员管理 */}
         {tab === 'operators' && <OperatorPage currentOperator={operator} onMessage={showMessage} />}

@@ -291,7 +291,13 @@ function MaterialSelectSearch({
   )
 }
 
-export default function BomRelationPage({ onMessage }: { onMessage: (msg: string) => void }) {
+export default function BomRelationPage({
+  onMessage,
+  initialProductId = '',
+}: {
+  onMessage: (msg: string) => void
+  initialProductId?: string
+}) {
   const [products, setProducts] = useState<MaterialBom[]>([])
   const [materials, setMaterials] = useState<MaterialOption[]>([])
   const [selectedProductId, setSelectedProductId] = useState('')
@@ -301,7 +307,6 @@ export default function BomRelationPage({ onMessage }: { onMessage: (msg: string
   const [conversionOutputProductId, setConversionOutputProductId] = useState('')
   const [conversionInputQty, setConversionInputQty] = useState(1)
   const [conversionOutputQty, setConversionOutputQty] = useState(1)
-  const [keyword, setKeyword] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const detailPanelRef = useRef<HTMLDivElement | null>(null)
@@ -348,8 +353,8 @@ export default function BomRelationPage({ onMessage }: { onMessage: (msg: string
   }, [onMessage])
 
   useEffect(() => {
-    loadData('')
-  }, [loadData])
+    loadData(initialProductId)
+  }, [initialProductId, loadData])
 
   const selectProduct = (productId: string, options: { scrollToDetail?: boolean } = {}) => {
     const product = products.find((item) => item.id === productId)
@@ -468,26 +473,13 @@ export default function BomRelationPage({ onMessage }: { onMessage: (msg: string
     }
   }
 
-  const usageRows = useMemo(() => {
-    const rows: Array<{ material: MaterialOption; products: Array<{ product: MaterialBom; item: BomItem }> }> = []
-    for (const material of materials) {
-      const productsUsing = products.flatMap((product) => (product.bom?.items || [])
-        .filter((item) => item.itemType === 'MATERIAL' && item.material?.id === material.id)
-        .map((item) => ({ product, item })))
-      if (productsUsing.length > 0) rows.push({ material, products: productsUsing })
-    }
-    const search = keyword.trim().toLowerCase()
-    if (!search) return rows.slice(0, 80)
-    return rows.filter((row) => `${row.material.code} ${row.material.name} ${row.material.spec || ''} ${row.products.map(({ product }) => `${product.sku} ${product.name}`).join(' ')}`.toLowerCase().includes(search)).slice(0, 80)
-  }, [keyword, materials, products])
-
   return (
     <div className="space-y-4">
       <div className="rounded-lg bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">BOM 关系</h2>
-            <div className="mt-1 text-sm text-gray-500">物料和原材料用量关系 · 后续可继续接入成本计算</div>
+            <h2 className="text-xl font-semibold text-gray-900">BOM 设定</h2>
+            <div className="mt-1 text-sm text-gray-500">维护产品产出基准、原材料投入量和损耗率</div>
           </div>
           <button
             type="button"
@@ -691,68 +683,6 @@ export default function BomRelationPage({ onMessage }: { onMessage: (msg: string
             )}
           </div>
 
-          <div className="rounded-lg bg-white p-5 shadow-sm">
-            <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h3 className="font-semibold text-gray-900">原材料反查</h3>
-                <div className="mt-1 text-sm text-gray-500">查看某个物料被哪些 BOM 使用</div>
-              </div>
-              <input
-                value={keyword}
-                onChange={(event) => setKeyword(event.target.value)}
-                placeholder="搜索物料或 BOM"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm lg:w-80"
-              />
-            </div>
-            {usageRows.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500">暂无原材料使用关系</div>
-            ) : (
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                {usageRows.map((row) => (
-                  <div key={row.material.id} className="rounded-lg border border-gray-200 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="font-medium text-gray-900">{row.material.name}</div>
-                        <div className="mt-1 font-mono text-xs text-blue-700">{row.material.code}</div>
-                        {row.material.spec && <div className="mt-1 text-xs text-gray-500">{row.material.spec}</div>}
-                      </div>
-                      <span className="shrink-0 rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">{row.products.length} 个 BOM</span>
-                    </div>
-                    <div className="mt-3 space-y-2">
-                      {row.products.slice(0, 6).map(({ product, item }) => {
-                        const isSelected = product.id === selectedProductId
-                        const itemCount = product.bom?.items.filter((bomItem) => bomItem.itemType === 'MATERIAL').length || 0
-                        return (
-                        <button
-                          key={`${product.id}-${item.id}`}
-                          type="button"
-                          onClick={() => selectProduct(product.id, { scrollToDetail: true })}
-                          className={`block w-full rounded-lg border px-3 py-2 text-left text-xs transition ${isSelected ? 'border-blue-300 bg-blue-50 text-blue-800' : 'border-gray-100 bg-gray-50 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'}`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="truncate font-medium">{product.name}</div>
-                              <div className="mt-1 truncate font-mono text-[11px] text-blue-700">{product.sku}</div>
-                            </div>
-                            <div className="shrink-0 text-right">
-                              <div className="rounded bg-white px-2 py-0.5 text-[11px] text-gray-600">{isSelected ? '当前 BOM' : '查看 BOM'}</div>
-                              <div className="mt-1 text-gray-500">{itemCount} 项</div>
-                            </div>
-                          </div>
-                          <div className="mt-2 flex items-center justify-between gap-3 rounded bg-white/70 px-2 py-1">
-                            <span className="truncate text-gray-500">用量</span>
-                            <span className="shrink-0 font-medium">{qty(item.quantity, 4)} {item.unit}</span>
-                          </div>
-                        </button>
-                        )
-                      })}
-                      {row.products.length > 6 && <div className="px-3 text-xs text-gray-500">还有 {row.products.length - 6} 个 BOM</div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>

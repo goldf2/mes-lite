@@ -573,9 +573,11 @@ function BomProductSearch({
 export default function MaterialPage({
   onMessage,
   onToolbarChange,
+  showBomWorkspace = false,
 }: {
   onMessage: (msg: string) => void
   onToolbarChange?: (actions: ReactNode | null) => void
+  showBomWorkspace?: boolean
 }) {
   const [materials, setMaterials] = useState<Material[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -665,8 +667,8 @@ export default function MaterialPage({
 
   useEffect(() => {
     fetchCustomers()
-    fetchBomData()
-  }, [fetchBomData])
+    if (showBomWorkspace) fetchBomData()
+  }, [fetchBomData, showBomWorkspace])
 
   useEffect(() => {
     if (!selectedMaterialId && materials[0]) {
@@ -1260,10 +1262,12 @@ export default function MaterialPage({
               value={visibleFields}
               onChange={updateVisibleFields}
             />
-            <BomSummaryVisibilityControl
-              value={bomSummaryFields}
-              onChange={updateBomSummaryFields}
-            />
+            {showBomWorkspace && (
+              <BomSummaryVisibilityControl
+                value={bomSummaryFields}
+                onChange={updateBomSummaryFields}
+              />
+            )}
           </>
         )}
         actions={(
@@ -1295,7 +1299,7 @@ export default function MaterialPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, sortBy, sortDir, viewMode, setViewMode, visibleFields, bomSummaryFields, activeFilterLabels])
+  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, sortBy, sortDir, viewMode, setViewMode, visibleFields, bomSummaryFields, activeFilterLabels, showBomWorkspace])
 
   return (
     <>
@@ -1355,10 +1359,12 @@ export default function MaterialPage({
                 value={visibleFields}
                 onChange={updateVisibleFields}
               />
-              <BomSummaryVisibilityControl
-                value={bomSummaryFields}
-                onChange={updateBomSummaryFields}
-              />
+              {showBomWorkspace && (
+                <BomSummaryVisibilityControl
+                  value={bomSummaryFields}
+                  onChange={updateBomSummaryFields}
+                />
+              )}
             </>
           )}
           actions={(
@@ -1389,12 +1395,14 @@ export default function MaterialPage({
         />
       </TopBarPortal>
       <div
-        ref={splitContainerRef}
-        style={{
+        ref={showBomWorkspace ? splitContainerRef : undefined}
+        style={showBomWorkspace ? {
           '--material-left': `${splitPercent}fr`,
           '--material-right': `${100 - splitPercent}fr`,
-        } as CSSProperties}
-        className="grid grid-cols-1 items-start gap-4 xl:min-h-0 xl:flex-1 xl:items-stretch xl:gap-0 xl:overflow-hidden xl:[grid-template-columns:minmax(0,var(--material-left))_12px_minmax(0,var(--material-right))]"
+        } as CSSProperties : undefined}
+        className={showBomWorkspace
+          ? 'grid grid-cols-1 items-start gap-4 xl:min-h-0 xl:flex-1 xl:items-stretch xl:gap-0 xl:overflow-hidden xl:[grid-template-columns:minmax(0,var(--material-left))_12px_minmax(0,var(--material-right))]'
+          : 'min-h-0 flex-1 overflow-y-auto xl:overscroll-contain'}
       >
         <div className="min-w-0 rounded-lg bg-transparent p-0 shadow-none sm:bg-white sm:p-4 sm:shadow xl:h-full xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain">
           {materials.length === 0 ? (
@@ -1411,13 +1419,15 @@ export default function MaterialPage({
           <>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] items-start gap-3">
               {materials.map((material) => {
-                const bomSummary = getBomSummary(material)
-                const isSelected = material.id === selectedMaterialId
+                const bomSummary = showBomWorkspace ? getBomSummary(material) : null
+                const isSelected = showBomWorkspace && material.id === selectedMaterialId
                 return (
                 <div
                   key={material.id}
-                  onClick={() => selectMaterialForBom(material)}
-                  className={`group flex min-h-[218px] cursor-pointer flex-col rounded-lg border bg-white p-3 shadow-sm transition sm:shadow-none ${isSelected ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200 hover:border-blue-300 hover:shadow-sm'}`}
+                  onClick={() => {
+                    if (showBomWorkspace) selectMaterialForBom(material)
+                  }}
+                  className={`group flex min-h-[218px] flex-col rounded-lg border bg-white p-3 shadow-sm transition sm:shadow-none ${showBomWorkspace ? 'cursor-pointer' : ''} ${isSelected ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200 hover:border-blue-300 hover:shadow-sm'}`}
                 >
                 <div className="flex min-w-0 gap-3">
                   {showField('image') && (
@@ -1467,13 +1477,15 @@ export default function MaterialPage({
                     {showField('createdAt') && <span className="whitespace-nowrap">{new Date(material.createdAt).toLocaleDateString('zh-CN')}</span>}
                   </div>
                 )}
-                <div className={`mt-2 rounded border-l-2 px-2 py-1.5 text-xs ${bomSummary.count > 0 ? 'border-emerald-400 bg-emerald-50 text-emerald-800' : 'border-gray-300 bg-gray-50 text-gray-500'}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">BOM</span>
-                    <span>{bomSummary.count} 项</span>
+                {bomSummary && (
+                  <div className={`mt-2 rounded border-l-2 px-2 py-1.5 text-xs ${bomSummary.count > 0 ? 'border-emerald-400 bg-emerald-50 text-emerald-800' : 'border-gray-300 bg-gray-50 text-gray-500'}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">BOM</span>
+                      <span>{bomSummary.count} 项</span>
+                    </div>
+                    <div className="mt-0.5 truncate" title={bomSummary.text}>{bomSummary.text}</div>
                   </div>
-                  <div className="mt-0.5 truncate" title={bomSummary.text}>{bomSummary.text}</div>
-                </div>
+                )}
                 <div className="mt-auto flex items-center justify-end gap-1.5 pt-3">
                   <button
                     onClick={() => handleOpenPanorama(material)}
@@ -1523,19 +1535,21 @@ export default function MaterialPage({
                   {showField('stock') && <MaterialSortableHeader field="stock" label="库存" sortBy={sortBy} sortDir={sortDir} className="w-28" onSort={handleHeaderSort} />}
                   {showField('valuationStock') && <MaterialSortableHeader field="valuationStock" label="核算库存" sortBy={sortBy} sortDir={sortDir} className="w-28" onSort={handleHeaderSort} />}
                   {showField('createdAt') && <MaterialSortableHeader field="createdAt" label="创建时间" sortBy={sortBy} sortDir={sortDir} className="w-32" onSort={handleHeaderSort} />}
-                  <th className="w-56 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">BOM 简况</th>
+                  {showBomWorkspace && <th className="w-56 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">BOM 简况</th>}
                   <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {materials.map((material) => {
-                  const bomSummary = getBomSummary(material)
-                  const isSelected = material.id === selectedMaterialId
+                  const bomSummary = showBomWorkspace ? getBomSummary(material) : null
+                  const isSelected = showBomWorkspace && material.id === selectedMaterialId
                   return (
                   <tr
                     key={material.id}
-                    onClick={() => selectMaterialForBom(material)}
-                    className={`cursor-pointer align-top transition ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                    onClick={() => {
+                      if (showBomWorkspace) selectMaterialForBom(material)
+                    }}
+                    className={`align-top transition ${showBomWorkspace ? 'cursor-pointer' : ''} ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
                   >
                     {showField('image') && (
                       <td className="px-4 py-3">
@@ -1569,15 +1583,17 @@ export default function MaterialPage({
                     {showField('stock') && <td className="whitespace-nowrap px-4 py-3 text-sm">{material.stock?.qty || 0} {material.stockUnit || material.unit}</td>}
                     {showField('valuationStock') && <td className="whitespace-nowrap px-4 py-3 text-sm text-green-600">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</td>}
                     {showField('createdAt') && <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-500">{new Date(material.createdAt).toLocaleString('zh-CN')}</td>}
-                    <td className="px-4 py-3 text-sm">
-                      <div className={`rounded-lg border px-2 py-1.5 text-xs ${bomSummary.count > 0 ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : 'border-gray-100 bg-gray-50 text-gray-500'}`}>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium">BOM</span>
-                          <span>{bomSummary.count} 项</span>
+                    {bomSummary && (
+                      <td className="px-4 py-3 text-sm">
+                        <div className={`rounded-lg border px-2 py-1.5 text-xs ${bomSummary.count > 0 ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : 'border-gray-100 bg-gray-50 text-gray-500'}`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium">BOM</span>
+                            <span>{bomSummary.count} 项</span>
+                          </div>
+                          <div className="mt-1 line-clamp-2">{bomSummary.text}</div>
                         </div>
-                        <div className="mt-1 line-clamp-2">{bomSummary.text}</div>
-                      </div>
-                    </td>
+                      </td>
+                    )}
                     <td className="whitespace-nowrap px-4 py-3">
                       <button
                         onClick={() => handleOpenPanorama(material)}
@@ -1614,6 +1630,8 @@ export default function MaterialPage({
           )}
         </div>
 
+        {showBomWorkspace && (
+          <>
         <div
           role="separator"
           aria-label="调整物料列表与 BOM 明细宽度"
@@ -1866,6 +1884,8 @@ export default function MaterialPage({
             <div className="rounded-lg border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500">左侧选择一个物料后查看 BOM</div>
           )}
         </div>
+          </>
+        )}
       </div>
 
       {showModal && (
