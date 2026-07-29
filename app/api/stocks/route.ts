@@ -252,7 +252,8 @@ export async function GET(req: NextRequest) {
     })
 
     // 过滤关键词
-    const visibleStocks = includeInvalid ? stocksWithImages : stocksWithImages.filter((stock) => !stock.material?.deletedAt || hasStockBalance(stock))
+    const visibleStocks = (includeInvalid ? stocksWithImages : stocksWithImages.filter((stock) => !stock.material?.deletedAt || hasStockBalance(stock)))
+      .filter((stock) => stock.material || hasStockBalance(stock))
 
     const filtered = keyword
       ? visibleStocks.filter(s =>

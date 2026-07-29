@@ -132,3 +132,45 @@ export async function resolveProductId(
 
   return ensureProductForMaterial(tx, material, options)
 }
+
+export async function resolveMaterialIdForProduct(
+  tx: Pick<ProductResolver, 'material' | 'product'>,
+  productId: string,
+  preferredMaterialId?: string | null,
+) {
+  if (preferredMaterialId) {
+    const material = await tx.material.findUnique({
+      where: { id: preferredMaterialId },
+      select: { id: true, deletedAt: true },
+    })
+    if (material && !material.deletedAt) return material.id
+  }
+
+  if (isMaterialProductId(productId)) {
+    const materialId = productId.slice(materialProductPrefix.length)
+    const material = await tx.material.findUnique({
+      where: { id: materialId },
+      select: { id: true, deletedAt: true },
+    })
+    return material && !material.deletedAt ? material.id : null
+  }
+
+  const product = await tx.product.findUnique({
+    where: { id: productId },
+    select: { sku: true },
+  })
+  if (!product) return null
+
+  const materialCodes = product.sku.startsWith('MAT-')
+    ? [product.sku, product.sku.slice(4)]
+    : [product.sku]
+  const material = await tx.material.findFirst({
+    where: {
+      code: { in: materialCodes },
+      deletedAt: null,
+    },
+    orderBy: { code: 'asc' },
+    select: { id: true },
+  })
+  return material?.id || null
+}

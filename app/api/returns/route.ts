@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
-import { resolveProductId } from '@/lib/material-product'
+import { resolveMaterialIdForProduct, resolveProductId } from '@/lib/material-product'
 
 const createReturnSchema = z.object({
   voucherNo: z.string().optional(),
@@ -24,7 +24,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { shipmentId, productId, qty, reason, note, voucherNo } = createReturnSchema.parse(body)
 
-    const resolvedProductId = await prisma.$transaction((tx) => resolveProductId(tx, productId, { description: '由物料自动映射，用于退货兼容。' }))
+    const resolved = await prisma.$transaction(async (tx) => {
+      const materialId = await resolveMaterialIdForProduct(tx, productId)
+      const resolvedProductId = await resolveProductId(tx, productId, { description: '由物料自动映射，用于退货兼容。' })
+      return { resolvedProductId, materialId }
+    })
+    const { resolvedProductId, materialId } = resolved
     const product = await prisma.product.findUnique({ where: { id: resolvedProductId } })
 
     if (!product) {
@@ -53,6 +58,7 @@ export async function POST(req: NextRequest) {
         voucherNo: voucherNo?.trim() || null,
         shipmentId: shipmentId ?? null,
         productId: resolvedProductId,
+        materialId,
         qty,
         reason,
         note,

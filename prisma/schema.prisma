@@ -57,6 +57,10 @@ model Material {
   productionOrders ProductionOrder[] @relation("ProductionOrderTargetMaterial")
   workInstructions WorkInstruction[]
   processTemplates ProcessTemplate[]
+  dailyProductionReports DailyProductionReport[] @relation("DailyProductionFinishedMaterial")
+  dailyProductionConsumptions DailyProductionConsumption[] @relation("DailyProductionConsumedMaterial")
+  shipments   Shipment[]
+  returnOrders ReturnOrder[]
   createdAt   DateTime @default(now())
 }
 
@@ -389,6 +393,63 @@ model WorkReport {
   createdAt   DateTime @default(now())
 }
 
+// ==================== 独立生产日报 ====================
+
+model DailyProductionReport {
+  id                 String   @id @default(cuid())
+  reportNo           String   @unique
+  reportDate         DateTime
+  finishedMaterialId String
+  finishedMaterial   Material @relation("DailyProductionFinishedMaterial", fields: [finishedMaterialId], references: [id])
+  goodQty            Float    @default(0)
+  badQty             Float    @default(0)
+  scrapQty           Float    @default(0)
+  workers             String
+  note                String?
+  status              String   @default("DRAFT")
+  bomId               String?
+  bomVersion          String?
+  outputValuationQty  Float    @default(0)
+  outputCostAmount    Float    @default(0)
+  confirmedAt         DateTime?
+  confirmedBy         String?
+  reversedAt          DateTime?
+  reversedBy          String?
+  reverseReason       String?
+  consumptions        DailyProductionConsumption[]
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([reportDate])
+  @@index([finishedMaterialId])
+  @@index([status])
+}
+
+model DailyProductionConsumption {
+  id                    String   @id @default(cuid())
+  reportId              String
+  report                DailyProductionReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  materialId            String
+  material              Material @relation("DailyProductionConsumedMaterial", fields: [materialId], references: [id])
+  bomItemId             String?
+  materialCode          String
+  materialName          String
+  quantityPerUnit       Float
+  wastageRate           Float    @default(0)
+  plannedQty            Float
+  actualQty             Float
+  unit                  String
+  valuationQty          Float    @default(0)
+  costAmount            Float    @default(0)
+  conversionRateUsed    Float?
+  costingMethod         String?
+  costLayerSnapshot     String?
+  createdAt             DateTime @default(now())
+
+  @@index([reportId])
+  @@index([materialId])
+}
+
 // ==================== 质检记录 ====================
 
 model QCRecord {
@@ -604,6 +665,8 @@ model Shipment {
   voucherNo     String?
   productId     String
   product       Product  @relation(fields: [productId], references: [id])
+  materialId    String?
+  material      Material? @relation(fields: [materialId], references: [id])
   customerId    String?
   customerRef   Customer? @relation(fields: [customerId], references: [id])
   qty           Int
@@ -615,12 +678,16 @@ model Shipment {
   status        String   @default("PENDING")
   shippedAt     DateTime?
   shippedBy     String?
+  shippedValuationQty Float @default(0)
+  shippedCostAmount Float @default(0)
   trackingNo    String?
   note          String?
   deletedAt     DateTime?
   deletedBy     String?
   returnOrders  ReturnOrder[]
   createdAt     DateTime @default(now())
+
+  @@index([materialId])
 }
 
 // ==================== 退货管理 ====================
@@ -633,6 +700,8 @@ model ReturnOrder {
   shipment      Shipment? @relation(fields: [shipmentId], references: [id])
   productId     String
   product       Product  @relation(fields: [productId], references: [id])
+  materialId    String?
+  material      Material? @relation(fields: [materialId], references: [id])
   qty           Int
   reason        String
   status        String   @default("PENDING")
@@ -642,6 +711,8 @@ model ReturnOrder {
   deletedAt     DateTime?
   deletedBy     String?
   createdAt     DateTime @default(now())
+
+  @@index([materialId])
 }
 
 model AuditLog {

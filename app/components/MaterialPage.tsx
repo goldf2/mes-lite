@@ -119,6 +119,7 @@ const materialCategoryOptions = [
 const materialCategoryFilterOptions = materialCategoryOptions.map(([value, label]) => ({ value, label }))
 const materialProductPrefix = 'material:'
 const materialSplitStorageKey = 'mes-lite.materials.splitPercent'
+const bomSummaryFieldsStorageKey = 'mes-lite.materials.bomSummaryFields'
 
 const materialSortOptions = [
   { value: 'createdAt', label: '创建时间' },
@@ -153,6 +154,18 @@ const materialVisibleFieldOptions = [
 ] as const
 
 type MaterialVisibleField = (typeof materialVisibleFieldOptions)[number]['key']
+
+const bomSummaryFieldOptions = [
+  { key: 'name', label: '物料名称' },
+  { key: 'spec', label: '规格' },
+  { key: 'code', label: '编码' },
+  { key: 'quantity', label: '每件用量' },
+  { key: 'unit', label: '单位' },
+  { key: 'wastageRate', label: '损耗率' },
+] as const
+
+type BomSummaryField = (typeof bomSummaryFieldOptions)[number]['key']
+const defaultBomSummaryFields: BomSummaryField[] = ['name', 'spec']
 
 const defaultMaterialVisibleFields: MaterialVisibleField[] = [
   'image',
@@ -229,6 +242,56 @@ function MaterialFieldVisibilityControl({
           {option.label}
         </label>
       ))}
+    </div>
+  )
+}
+
+function BomSummaryVisibilityControl({
+  value,
+  onChange,
+}: {
+  value: BomSummaryField[]
+  onChange: (next: BomSummaryField[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const closePopup = useCallback(() => setOpen(false), [])
+  const rootRef = useDismissibleSearchPopup<HTMLDivElement>(open, closePopup)
+  const selected = new Set(value)
+
+  const toggleField = (field: BomSummaryField) => {
+    if (selected.has(field)) {
+      if (value.length === 1) return
+      onChange(value.filter((item) => item !== field))
+      return
+    }
+    onChange([...value, field])
+  }
+
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="h-9 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 hover:bg-gray-50"
+      >
+        BOM 简况配置
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-40 mt-1 w-52 rounded-lg border border-gray-200 bg-white p-2 shadow-xl">
+          <div className="px-2 pb-2 text-xs text-gray-500">选择简况中显示的内容</div>
+          {bomSummaryFieldOptions.map((option) => (
+            <label key={option.key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm text-gray-700 hover:bg-gray-50">
+              <input
+                type="checkbox"
+                checked={selected.has(option.key)}
+                onChange={() => toggleField(option.key)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              {option.label}
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -540,6 +603,7 @@ export default function MaterialPage({
   const [panoramaMaterialId, setPanoramaMaterialId] = useState<string | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.materials.viewMode', 'list')
   const [visibleFields, setVisibleFields] = useState<MaterialVisibleField[]>(defaultMaterialVisibleFields)
+  const [bomSummaryFields, setBomSummaryFields] = useState<BomSummaryField[]>(defaultBomSummaryFields)
   const [splitPercent, setSplitPercent] = useState(46)
   const [isResizingSplit, setIsResizingSplit] = useState(false)
   const [bomAuxiliaryView, setBomAuxiliaryView] = useState<'components' | 'usage'>('components')
@@ -649,6 +713,21 @@ export default function MaterialPage({
   }, [])
 
   useEffect(() => {
+    const saved = window.localStorage.getItem(bomSummaryFieldsStorageKey)
+    if (!saved) return
+    try {
+      const parsed = JSON.parse(saved)
+      const allowed = new Set<BomSummaryField>(bomSummaryFieldOptions.map((option) => option.key))
+      if (Array.isArray(parsed)) {
+        const next = parsed.filter((item): item is BomSummaryField => allowed.has(item))
+        if (next.length > 0) setBomSummaryFields(next)
+      }
+    } catch (err) {
+      // ignore invalid local preference
+    }
+  }, [])
+
+  useEffect(() => {
     const saved = Number(window.localStorage.getItem(materialSplitStorageKey))
     if (Number.isFinite(saved) && saved >= 28 && saved <= 70) {
       setSplitPercent(saved)
@@ -699,6 +778,11 @@ export default function MaterialPage({
   const updateVisibleFields = (next: MaterialVisibleField[]) => {
     setVisibleFields(next)
     window.localStorage.setItem('mes-lite.materials.visibleFields', JSON.stringify(next))
+  }
+
+  const updateBomSummaryFields = (next: BomSummaryField[]) => {
+    setBomSummaryFields(next)
+    window.localStorage.setItem(bomSummaryFieldsStorageKey, JSON.stringify(next))
   }
 
   const buildMaterialParams = () => {
@@ -954,11 +1038,22 @@ export default function MaterialPage({
   const getBomSummary = (material: Material) => {
     const product = getMaterialBomProduct(material)
     const items = product?.bom?.items.filter((item) => item.itemType === 'MATERIAL' && item.material) || []
+    const selected = new Set(bomSummaryFields)
+    const itemText = (item: BomItem) => {
+      const parts: string[] = []
+      if (selected.has('name')) parts.push(item.material?.name || '物料')
+      if (selected.has('spec') && item.material?.spec) parts.push(item.material.spec)
+      if (selected.has('code')) parts.push(item.material?.code || '')
+      if (selected.has('quantity')) parts.push(qty(item.quantity, 4))
+      if (selected.has('unit')) parts.push(item.unit || item.material?.stockUnit || item.material?.unit || '')
+      if (selected.has('wastageRate')) parts.push(`损耗 ${qty(item.wastageRate, 2)}%`)
+      return parts.filter(Boolean).join(' · ')
+    }
     return {
       count: items.length,
       text: items.length === 0
         ? '无 BOM'
-        : items.slice(0, 2).map((item) => `${item.material?.name || '物料'} ${qty(item.quantity, 4)}${item.unit || item.material?.stockUnit || item.material?.unit || ''}`).join('，'),
+        : items.slice(0, 2).map(itemText).join('，'),
     }
   }
 
@@ -1151,6 +1246,10 @@ export default function MaterialPage({
               value={visibleFields}
               onChange={updateVisibleFields}
             />
+            <BomSummaryVisibilityControl
+              value={bomSummaryFields}
+              onChange={updateBomSummaryFields}
+            />
           </>
         )}
         actions={(
@@ -1182,7 +1281,7 @@ export default function MaterialPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, sortBy, sortDir, viewMode, setViewMode, visibleFields, activeFilterLabels])
+  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, sortBy, sortDir, viewMode, setViewMode, visibleFields, bomSummaryFields, activeFilterLabels])
 
   return (
     <>
@@ -1241,6 +1340,10 @@ export default function MaterialPage({
               <MaterialFieldVisibilityControl
                 value={visibleFields}
                 onChange={updateVisibleFields}
+              />
+              <BomSummaryVisibilityControl
+                value={bomSummaryFields}
+                onChange={updateBomSummaryFields}
               />
             </>
           )}

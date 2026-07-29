@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
+import { resolveMaterialIdForProduct } from '@/lib/material-product'
 
 // PATCH: 确认发货（扣减库存）
 export async function PATCH(
@@ -27,7 +28,10 @@ export async function PATCH(
       )
     }
 
-    const stock = shipment.product.stock
+    const materialId = await resolveMaterialIdForProduct(prisma, shipment.productId, shipment.materialId)
+    const stock = materialId
+      ? await prisma.stock.findUnique({ where: { materialId } })
+      : shipment.product.stock
 
     if (!stock) {
       return NextResponse.json({ error: '物料库存记录不存在' }, { status: 400 })
@@ -41,7 +45,7 @@ export async function PATCH(
     }
 
     await prisma.$transaction(async (tx) => {
-      // a. 查找该内部兼容物料的 Stock 记录
+      // a. 统一从物料主数据库存扣减；无法映射的历史单据才回退旧库存。
       const currentStock = await tx.stock.findUnique({
         where: { id: stock.id },
       })
@@ -57,24 +61,40 @@ export async function PATCH(
 
       const beforeQty = Number(currentStock.qty)
       const afterQty = beforeQty - shipment.qty
+      const stockToValuationRate = beforeQty > 0 ? Number(currentStock.valuationQty) / beforeQty : 0
+      const shippedValuationQty = Number((shipment.qty * stockToValuationRate).toFixed(6))
+      const shippedCostAmount = Number((shipment.qty * Number(currentStock.stockUnitCost)).toFixed(6))
+      const beforeValuationQty = Number(currentStock.valuationQty)
+      const afterValuationQty = Math.max(0, Number((beforeValuationQty - shippedValuationQty).toFixed(6)))
+      const beforeCostAmount = Number(currentStock.totalCost)
+      const afterCostAmount = Math.max(0, Number((beforeCostAmount - shippedCostAmount).toFixed(6)))
 
-      // c. 扣减 stock.qty 和 stock.availableQty
       await tx.stock.update({
         where: { id: stock.id },
         data: {
           qty: { decrement: shipment.qty },
           availableQty: { decrement: shipment.qty },
+          valuationQty: afterValuationQty,
+          availableValuationQty: Math.max(0, Number((Number(currentStock.availableValuationQty) - shippedValuationQty).toFixed(6))),
+          totalCost: afterCostAmount,
+          valuationUnitCost: afterValuationQty > 0 ? afterCostAmount / afterValuationQty : 0,
+          stockUnitCost: afterQty > 0 ? afterCostAmount / afterQty : 0,
         },
       })
 
-      // d. 创建 StockLog 记录
       await tx.stockLog.create({
         data: {
           stockId: stock.id,
           type: 'OUT',
-          qty: shipment.qty,
+          qty: -shipment.qty,
           beforeQty,
           afterQty,
+          valuationQty: -shippedValuationQty,
+          beforeValuationQty,
+          afterValuationQty,
+          costAmount: -shippedCostAmount,
+          beforeCostAmount,
+          afterCostAmount,
           refType: 'SHIPMENT',
           refId: shipment.id,
           note: `发货单 ${shipment.shipmentNo} 出库`,
@@ -87,6 +107,9 @@ export async function PATCH(
         data: {
           status: 'SHIPPED',
           shippedAt: new Date(),
+          materialId,
+          shippedValuationQty,
+          shippedCostAmount,
         },
       })
     })

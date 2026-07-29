@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
-import { resolveProductId } from '@/lib/material-product'
+import { resolveMaterialIdForProduct, resolveProductId } from '@/lib/material-product'
 
 const createShipmentSchema = z.object({
   voucherNo: z.string().optional(),
@@ -91,7 +91,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const data = createShipmentSchema.parse(body)
 
-    const productId = await prisma.$transaction((tx) => resolveProductId(tx, data.productId, { description: '由物料自动映射，用于发货兼容。' }))
+    const resolved = await prisma.$transaction(async (tx) => {
+      const materialId = await resolveMaterialIdForProduct(tx, data.productId)
+      const productId = await resolveProductId(tx, data.productId, { description: '由物料自动映射，用于发货兼容。' })
+      return { productId, materialId }
+    })
+    const { productId, materialId } = resolved
     const product = await prisma.product.findUnique({ where: { id: productId } })
 
     if (!product) {
@@ -113,6 +118,7 @@ export async function POST(req: NextRequest) {
         shipmentNo,
         voucherNo: data.voucherNo?.trim() || null,
         productId,
+        materialId,
         customerId: data.customerId || null,
         qty: data.qty,
         unitPrice: data.unitPrice,
