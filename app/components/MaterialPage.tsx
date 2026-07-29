@@ -1401,10 +1401,10 @@ export default function MaterialPage({
           '--material-right': `${100 - splitPercent}fr`,
         } as CSSProperties : undefined}
         className={showBomWorkspace
-          ? 'grid grid-cols-1 items-start gap-4 xl:min-h-0 xl:flex-1 xl:items-stretch xl:gap-0 xl:overflow-hidden xl:[grid-template-columns:minmax(0,var(--material-left))_12px_minmax(0,var(--material-right))]'
-          : 'min-h-0 flex-1 overflow-y-auto xl:overscroll-contain'}
+          ? 'grid grid-cols-1 items-start gap-4 xl:items-stretch xl:gap-0 xl:[grid-template-columns:minmax(0,var(--material-left))_12px_minmax(0,var(--material-right))]'
+          : 'min-w-0'}
       >
-        <div className="min-w-0 rounded-lg bg-transparent p-0 shadow-none sm:bg-white sm:p-4 sm:shadow xl:h-full xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain">
+        <div className="min-w-0 rounded-lg bg-transparent p-0 shadow-none sm:bg-white sm:p-4 sm:shadow">
           {materials.length === 0 ? (
           <div className="rounded-lg bg-white py-10 text-center text-gray-500 shadow sm:bg-transparent sm:py-12 sm:shadow-none">
             <p>暂无物料</p>
@@ -1658,7 +1658,7 @@ export default function MaterialPage({
           </div>
         </div>
 
-        <div className="min-w-0 rounded-lg bg-white p-4 shadow xl:h-full xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain">
+        <div className="min-w-0 rounded-lg bg-white p-4 shadow">
           <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="flex items-center gap-2">

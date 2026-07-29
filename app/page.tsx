@@ -1760,12 +1760,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           <MaterialPage onMessage={showMessage} showBomWorkspace />
         )}
         {tab === 'materials' && materialSection === 'bomSetup' && (
-          <div className="min-h-0 flex-1 overflow-y-auto xl:overscroll-contain">
+          <div className="min-w-0">
             <BomRelationPage onMessage={showMessage} initialProductId={bomSetupProductId} />
           </div>
         )}
         {tab === 'materials' && materialSection === 'bomUsage' && (
-          <div className="min-h-0 flex-1 overflow-y-auto xl:overscroll-contain">
+          <div className="min-w-0">
             <BomUsagePage
               onMessage={showMessage}
               onOpenBom={(productId) => {
