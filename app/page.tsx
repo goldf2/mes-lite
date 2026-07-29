@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic'
 import { useState, useEffect, useRef, type RefObject } from 'react'
 import * as Collapsible from '@radix-ui/react-collapsible'
-import { Boxes, ChevronDown, ListTree, PencilLine, Ruler, Search } from 'lucide-react'
+import { Boxes, ChevronDown, ListTree, PencilLine, Search } from 'lucide-react'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
 import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
@@ -25,10 +25,6 @@ const ScanPrintPage = dynamic(() => import('./components/ScanPrintPage'), { load
 const BomRelationPage = dynamic(() => import('./components/BomRelationPage'), { loading: FeaturePageLoading })
 const BomUsagePage = dynamic(() => import('./components/BomUsagePage'), { loading: FeaturePageLoading })
 const MaterialPage = dynamic(() => import('./components/MaterialPage'), { loading: FeaturePageLoading })
-const ProfileStockPage = dynamic(() => import('./components/ProfileStockPage'), { loading: FeaturePageLoading })
-const CuttingPlanningPage = dynamic(() => import('./components/CuttingPlanningPage'), { loading: FeaturePageLoading })
-const CuttingExecutionPage = dynamic(() => import('./components/CuttingExecutionPage'), { loading: FeaturePageLoading })
-const ProductionLotPage = dynamic(() => import('./components/ProductionLotPage'), { loading: FeaturePageLoading })
 const WorkInstructionPage = dynamic(() => import('./components/WorkInstructionPage'), { loading: FeaturePageLoading })
 const AttachmentPanel = dynamic(() => import('./components/AttachmentPanel'), { loading: FeaturePageLoading })
 const OperatorPage = dynamic(() => import('./components/OperatorPage'), { loading: FeaturePageLoading })
@@ -110,7 +106,6 @@ interface Order {
   planQty: number
   completeQty: number
   scrapQty: number
-  dueDate?: string | null
   createdAt: string
   product: { id: string; name: string; sku: string }
   targetMaterial?: { id: string; name: string; code: string; category?: string; stockUnit?: string; unit?: string } | null
@@ -132,14 +127,14 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'orders' | 'cuttingPlans' | 'cuttingTasks' | 'productionLots' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'scanPrint' | 'operators' | 'system' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
-type MaterialSection = 'materials' | 'profileStock' | 'bomWorkspace' | 'bomSetup' | 'bomUsage'
+type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'scanPrint' | 'operators' | 'system' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
+type MaterialSection = 'materials' | 'bomWorkspace' | 'bomSetup' | 'bomUsage'
 type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'logistics' | 'inventory' | 'tools'
 
 const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: TabType[] }> = [
   { key: 'workspace', label: '工作台', tabs: ['dashboard'] },
   { key: 'materials', label: '物料', tabs: ['materials'] },
-  { key: 'production', label: '生产', tabs: ['orders', 'cuttingPlans', 'cuttingTasks', 'productionLots', 'stats', 'workInstructions', 'dispatch'] },
+  { key: 'production', label: '生产', tabs: ['orders', 'stats', 'workInstructions', 'dispatch'] },
   { key: 'logistics', label: '物流', tabs: ['materialIn', 'shipment', 'return'] },
   { key: 'inventory', label: '库存', tabs: ['stocks'] },
   { key: 'tools', label: '工具', tabs: ['sawingCost', 'scanPrint'] },
@@ -155,9 +150,6 @@ function MenuIcon({ icon }: { icon: string }) {
   const icons: Record<string, string> = {
     dashboard: '仪',
     orders: '工',
-    cuttingPlans: '切',
-    cuttingTasks: '锯',
-    productionLots: '检',
     materials: '料',
     workInstructions: '书',
     materialIn: '入',
@@ -330,9 +322,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'workInstructions', label: '作业指导书', resource: 'workInstructions' },
     { key: 'materialIn', label: '来料管理', resource: 'materialIn' },
     { key: 'orders', label: '工单管理', resource: 'orders' },
-    { key: 'cuttingPlans', label: '切割排样', resource: 'cuttingPlans' },
-    { key: 'cuttingTasks', label: '锯切执行', resource: 'cuttingTasks' },
-    { key: 'productionLots', label: '加工质检', resource: 'productionLots' },
     { key: 'dispatch', label: '派工管理', resource: 'dispatch' },
     { key: 'shipment', label: '发货管理', resource: 'shipment' },
     { key: 'return', label: '退货管理', resource: 'return' },
@@ -349,15 +338,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const systemResources = new Set(['operators', 'system', 'permissionUsers', 'permissionGroups', 'permissions'])
   const canReadNavItem = (item: { key: TabType; resource: string }) => (
     item.key === 'materials'
-      ? canRead('materials') || canRead('profileStock') || canRead('bomCost')
+      ? canRead('materials') || canRead('bomCost')
       : canRead(item.resource)
   )
   const readableBusinessNavItems = baseNavItems.filter((item) => canReadNavItem(item) && !systemResources.has(item.resource) && !hiddenResources.has(item.resource))
   const readableSystemNavItems = baseNavItems.filter((item) => canRead(item.resource) && systemResources.has(item.resource) && !hiddenResources.has(item.resource))
   const [tab, setTab] = useState<TabType>('stats')
-  const [materialSection, setMaterialSection] = useState<MaterialSection>(
-    canRead('materials') ? 'materials' : canRead('profileStock') ? 'profileStock' : 'bomSetup',
-  )
+  const [materialSection, setMaterialSection] = useState<MaterialSection>(canRead('materials') ? 'materials' : 'bomSetup')
   const [materialMenuOpen, setMaterialMenuOpen] = useState(true)
   const [bomSetupProductId, setBomSetupProductId] = useState('')
   const [orders, setOrders] = useState<Order[]>([])
@@ -369,7 +356,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [orderTargetType] = useState<'MATERIAL'>('MATERIAL')
   const [planQty, setPlanQty] = useState(100)
   const [orderVoucherNo, setOrderVoucherNo] = useState('')
-  const [orderDueDate, setOrderDueDate] = useState('')
   const [selectedMaterialId, setSelectedMaterialId] = useState('')
   const [orderKeyword, setOrderKeyword] = useState('')
   const [selectedOrderStatuses, setSelectedOrderStatuses] = useState(orderStatusOptions.map((option) => option.value))
@@ -405,7 +391,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [navItems, setNavItems] = useState<{ key: TabType; label: string }[]>(readableBusinessNavItems)
   const materialSectionItems = [
     { key: 'materials' as const, label: '物料管理', visible: canRead('materials') },
-    { key: 'profileStock' as const, label: '型材实体库存', visible: canRead('profileStock') },
     { key: 'bomWorkspace' as const, label: '物料 BOM 编辑', visible: canRead('materials') && canRead('bomCost') },
     { key: 'bomSetup' as const, label: 'BOM 关系设定', visible: canRead('bomCost') },
     { key: 'bomUsage' as const, label: 'BOM 反查', visible: canRead('bomCost') },
@@ -702,20 +687,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          targetType: orderTargetType,
-          targetId,
-          planQty,
-          voucherNo: orderVoucherNo || undefined,
-          dueDate: orderDueDate || undefined,
-        }),
+        body: JSON.stringify({ targetType: orderTargetType, targetId, planQty, voucherNo: orderVoucherNo || undefined }),
       })
       const data = await res.json()
       if (res.ok) {
         showMessage(`工单创建成功：${data.data.orderNo}`)
         setPlanQty(100)
         setOrderVoucherNo('')
-        setOrderDueDate('')
         setSelectedMaterialId('')
         await fetchOrders()
         await fetchStocks()
@@ -907,8 +885,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                       {materialSectionItems.map((section) => {
                         const SectionIcon = section.key === 'materials'
                           ? Boxes
-                          : section.key === 'profileStock'
-                            ? Ruler
                           : section.key === 'bomWorkspace'
                             ? PencilLine
                           : section.key === 'bomSetup'
@@ -1450,15 +1426,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   className="w-full px-4 py-3 border border-gray-200 rounded-lg"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">计划交期</label>
-                <input
-                  type="date"
-                  value={orderDueDate}
-                  onChange={(event) => setOrderDueDate(event.target.value)}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg"
-                />
-              </div>
               <button onClick={createOrder} disabled={loading} className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
                 {loading ? '创建中...' : '创建工单'}
               </button>
@@ -1789,9 +1756,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {tab === 'materials' && materialSection === 'materials' && (
           <MaterialPage onMessage={showMessage} showBomWorkspace={false} />
         )}
-        {tab === 'materials' && materialSection === 'profileStock' && (
-          <ProfileStockPage onMessage={showMessage} />
-        )}
         {tab === 'materials' && materialSection === 'bomWorkspace' && (
           <MaterialPage onMessage={showMessage} showBomWorkspace />
         )}
@@ -1814,25 +1778,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
         {/* 作业指导书 */}
         {tab === 'workInstructions' && <WorkInstructionPage onMessage={showMessage} />}
-
-        {/* 切割需求与人工排样 */}
-        {tab === 'cuttingPlans' && (
-          <CuttingPlanningPage onMessage={showMessage} canUpdate={canUpdate('cuttingPlans')} />
-        )}
-        {tab === 'cuttingTasks' && (
-          <CuttingExecutionPage
-            onMessage={showMessage}
-            canCreate={canCreate('cuttingTasks')}
-            canUpdate={canUpdate('cuttingTasks')}
-          />
-        )}
-        {tab === 'productionLots' && (
-          <ProductionLotPage
-            onMessage={showMessage}
-            canCreate={canCreate('productionLots')}
-            canUpdate={canUpdate('productionLots')}
-          />
-        )}
 
         {/* 来料管理 */}
         {tab === 'materialIn' && <MaterialInPage onMessage={showMessage} />}

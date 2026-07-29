@@ -3,8 +3,6 @@ import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { postInventoryReceipt } from '@/lib/inventory'
-import { getCurrentOperator } from '@/lib/auth'
-import { createProfileEntitiesForReceipt } from '@/lib/profile-stock'
 
 // PATCH: 确认收货入库
 export async function PATCH(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -16,7 +14,7 @@ export async function PATCH(_req: NextRequest, { params }: { params: { id: strin
 
     const materialIn = await prisma.materialIn.findUnique({
       where: { id },
-      include: { material: true, profileLines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] } },
+      include: { material: true },
     })
 
     if (!materialIn) {
@@ -31,7 +29,6 @@ export async function PATCH(_req: NextRequest, { params }: { params: { id: strin
       return NextResponse.json({ error: '来料单状态不是待收货，无法确认收货' }, { status: 400 })
     }
 
-    const operator = await getCurrentOperator()
     const result = await prisma.$transaction(async (tx) => {
       await postInventoryReceipt(tx, {
         materialId: materialIn.materialId,
@@ -45,10 +42,6 @@ export async function PATCH(_req: NextRequest, { params }: { params: { id: strin
         note: `来料入库: ${materialIn.inboundNo}`,
         idempotencyKey: `MATERIAL_IN:${id}:RECEIVE`,
         materialInId: id,
-      })
-      await createProfileEntitiesForReceipt(tx, materialIn, {
-        id: operator?.id,
-        name: operator?.name || operator?.username,
       })
       return tx.materialIn.update({
         where: { id },

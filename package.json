@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.90",
+  "version": "0.1.91",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -17,11 +17,7 @@
     "db:studio": "prisma studio",
     "verify:permissions": "tsx scripts/verify-permissions.ts",
     "verify:dual-units": "tsx scripts/verify-dual-unit-flow.ts",
-    "verify:scan-print": "tsx scripts/verify-scan-print.ts",
-    "verify:profile-stock": "tsx scripts/verify-profile-entity-flow.ts",
-    "verify:cutting-plans": "tsx scripts/verify-cutting-planning-flow.ts",
-    "verify:cutting-tasks": "tsx scripts/verify-cutting-execution-flow.ts",
-    "verify:production-lots": "tsx scripts/verify-production-lot-flow.ts"
+    "verify:scan-print": "tsx scripts/verify-scan-print.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.13.0",

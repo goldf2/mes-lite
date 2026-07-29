@@ -3,8 +3,6 @@ import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { z } from 'zod'
-import { getCurrentOperator } from '@/lib/auth'
-import { reverseProfileEntitiesForReceipt } from '@/lib/profile-stock'
 
 const reverseSchema = z.object({
   reason: z.string().min(1, '红冲原因必填'),
@@ -40,7 +38,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const valuationQty = Number(materialIn.valuationQty)
     const costAmount = Number(materialIn.totalAmount)
 
-    const operator = await getCurrentOperator()
     const result = await prisma.$transaction(async (tx) => {
       const stock = await tx.stock.findUnique({ where: { materialId: materialIn.materialId } })
       if (!stock) throw new Error('库存记录不存在，无法红冲')
@@ -163,16 +160,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           data: { reversalMovementId: reversalMovement.id },
         })
       }
-
-      await reverseProfileEntitiesForReceipt(tx, {
-        materialInId: materialIn.id,
-        inboundNo: materialIn.inboundNo,
-        reason,
-        actor: {
-          id: operator?.id,
-          name: reversedBy || operator?.name || operator?.username,
-        },
-      })
 
       return tx.materialIn.update({
         where: { id: materialIn.id },

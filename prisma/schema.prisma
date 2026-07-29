@@ -63,46 +63,7 @@ model Material {
   dailyProductionConsumptions DailyProductionConsumption[] @relation("DailyProductionConsumedMaterial")
   shipments   Shipment[]
   returnOrders ReturnOrder[]
-  profileSpec ProfileSpec?
-  profileStockEntities ProfileStockEntity[]
-  cuttingDemandsAsOutput CuttingDemand[] @relation("CuttingDemandOutputMaterial")
-  cuttingDemandsAsRaw CuttingDemand[] @relation("CuttingDemandRawMaterial")
-  cuttingPlans CuttingPlan[]
-  cuttingTasks CuttingTask[]
-  productionLots ProductionLot[]
-  productionStockIns StockIn[] @relation("ProductionStockInMaterial")
   createdAt   DateTime @default(now())
-}
-
-// ==================== 型材规格与实体库存 ====================
-
-model ProfileSpec {
-  id                 String   @id @default(cuid())
-  materialId         String   @unique
-  material           Material @relation(fields: [materialId], references: [id])
-  sectionDescription String?
-  alloyGrade         String?
-  temper             String?
-  surfaceTreatment   String?
-  drawingNo          String?
-  densityKgPerMeter  Float?
-  trackingMode       String   @default("BATCH")
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-}
-
-model ManufacturingConfig {
-  id                           String   @id @default("default")
-  requireIndividualMeasurement Boolean?
-  allowMixedOrders             Boolean?
-  kerfMm                       Float?
-  headTrimMm                   Float?
-  tailTrimMm                   Float?
-  clampDeadZoneMm              Float?
-  minReusableRemnantLengthMm   Float?
-  allowNegativeStock           Boolean  @default(false)
-  createdAt                    DateTime @default(now())
-  updatedAt                    DateTime @updatedAt
 }
 
 // ==================== 物料清单 BOM ====================
@@ -134,9 +95,6 @@ model BOMItem {
   quantity    Float    @default(0)
   unit        String
   wastageRate Float    @default(0)
-  cutLengthMm Float?
-  cutTolerancePlusMm Float?
-  cutToleranceMinusMm Float?
 
   @@index([costObjectId])
   @@index([sawingScenarioId])
@@ -372,20 +330,13 @@ model ProductionOrder {
   status        String   @default("DRAFT")
   
   planId        String?
-  dueDate       DateTime?
-  bomVersionSnapshot String?
-  bomSnapshot   String?
-  processSnapshot String?
-  snapshotCreatedAt DateTime?
   note          String?
   picks         PickItem[]
   reports       WorkReport[]
   qcRecords     QCRecord[]
   stockIns      StockIn[]
-  productionLots ProductionLot[]
   dispatches    Dispatch[]
   costRecords   CostRecord[]
-  cuttingDemands CuttingDemand[]
   
   startTime     DateTime?
   completeTime  DateTime?
@@ -396,351 +347,6 @@ model ProductionOrder {
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-}
-
-// ==================== 切割需求与人工排样 ====================
-
-model CuttingDemand {
-  id                       String   @id @default(cuid())
-  demandNo                 String   @unique
-  sourceKey                String   @unique
-  productionOrderId        String
-  productionOrder          ProductionOrder @relation(fields: [productionOrderId], references: [id])
-  outputMaterialId         String?
-  outputMaterial           Material? @relation("CuttingDemandOutputMaterial", fields: [outputMaterialId], references: [id])
-  rawMaterialId            String
-  rawMaterial              Material @relation("CuttingDemandRawMaterial", fields: [rawMaterialId], references: [id])
-  bomIdSnapshot            String?
-  bomItemIdSnapshot        String?
-  bomVersionSnapshot       String?
-  outputCodeSnapshot       String
-  outputNameSnapshot       String
-  rawMaterialCodeSnapshot  String
-  rawMaterialNameSnapshot  String
-  rawMaterialSpecSnapshot  String?
-  pieceLengthMm            Float
-  requiredQty              Int
-  plannedQty               Int      @default(0)
-  completedQty             Int      @default(0)
-  unit                     String   @default("件")
-  kerfMm                   Float    @default(0)
-  headTrimMm               Float    @default(0)
-  tailTrimMm               Float    @default(0)
-  clampDeadZoneMm          Float    @default(0)
-  tolerancePlusMm          Float    @default(0)
-  toleranceMinusMm         Float    @default(0)
-  dueDate                  DateTime?
-  configSnapshot           String?
-  ruleWarnings             String?
-  status                   String   @default("OPEN")
-  planLines                CuttingPlanDemand[]
-  taskOutputs              CuttingTaskOutput[]
-  productionLots           ProductionLot[]
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
-
-  @@index([productionOrderId])
-  @@index([rawMaterialId, status, dueDate])
-}
-
-model CuttingPlan {
-  id                       String   @id @default(cuid())
-  planNo                   String   @unique
-  clientRequestId          String   @unique
-  status                   String   @default("CONFIRMED")
-  rawMaterialId            String?
-  rawMaterial              Material? @relation(fields: [rawMaterialId], references: [id])
-  allowMixedOrdersSnapshot Boolean  @default(false)
-  kerfMm                   Float    @default(0)
-  headTrimMm               Float    @default(0)
-  tailTrimMm               Float    @default(0)
-  clampDeadZoneMm          Float    @default(0)
-  totalPlannedQty          Int      @default(0)
-  totalSourceQty           Int      @default(0)
-  totalSourceLengthMm      Float    @default(0)
-  totalProductLengthMm     Float    @default(0)
-  totalKerfLossMm          Float    @default(0)
-  totalFixedLossMm         Float    @default(0)
-  totalExpectedRemnantMm   Float    @default(0)
-  utilizationRate          Float    @default(0)
-  reservedStockQty         Float    @default(0)
-  reservedValuationQty     Float    @default(0)
-  reservationStockLogId    String?
-  releaseStockLogId        String?
-  calculationSnapshot      String
-  confirmedAt              DateTime @default(now())
-  confirmedBy              String?
-  confirmedById            String?
-  cancelledAt              DateTime?
-  cancelledBy              String?
-  cancelReason             String?
-  demandLines              CuttingPlanDemand[]
-  sources                  CuttingPlanSource[]
-  tasks                    CuttingTask[]
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
-
-  @@index([status, confirmedAt])
-  @@index([rawMaterialId])
-}
-
-model CuttingPlanDemand {
-  id            String   @id @default(cuid())
-  planId        String
-  plan          CuttingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  demandId      String
-  demand        CuttingDemand @relation(fields: [demandId], references: [id])
-  requestedQty  Int
-  plannedQty    Int
-  sourceCuts    CuttingPlanSourceCut[]
-
-  @@unique([planId, demandId])
-  @@index([demandId])
-}
-
-model CuttingPlanSource {
-  id                       String   @id @default(cuid())
-  planId                   String
-  plan                     CuttingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  entityId                 String
-  entity                   ProfileStockEntity @relation(fields: [entityId], references: [id])
-  sourceUnitIndex          Int
-  sourceLengthMm           Float
-  plannedCutQty            Int
-  productLengthMm          Float
-  kerfLossMm               Float
-  fixedLossMm              Float
-  expectedRemnantLengthMm  Float
-  utilizationRate          Float
-  cuts                     CuttingPlanSourceCut[]
-  taskSources              CuttingTaskSource[]
-
-  @@unique([planId, entityId, sourceUnitIndex])
-  @@index([entityId])
-}
-
-model CuttingPlanSourceCut {
-  id                 String   @id @default(cuid())
-  sourceId           String
-  source             CuttingPlanSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  planDemandId       String
-  planDemand         CuttingPlanDemand @relation(fields: [planDemandId], references: [id], onDelete: Cascade)
-  sequence           Int
-  pieceLengthMm      Float
-  plannedQty         Int
-  productLengthMm    Float
-  kerfLossMm         Float
-
-  @@unique([sourceId, sequence])
-  @@index([planDemandId])
-}
-
-model CuttingTask {
-  id                       String   @id @default(cuid())
-  taskNo                   String   @unique
-  clientRequestId          String   @unique
-  cuttingPlanId            String
-  cuttingPlan              CuttingPlan @relation(fields: [cuttingPlanId], references: [id])
-  rawMaterialId            String
-  rawMaterial              Material @relation(fields: [rawMaterialId], references: [id])
-  status                   String   @default("READY")
-  device                   String?
-  shift                    String?
-  note                     String?
-  startedAt                DateTime?
-  startedBy                String?
-  startedById              String?
-  completeRequestId        String?  @unique
-  completedAt              DateTime?
-  completedBy              String?
-  completedById            String?
-  issueStockQty            Float    @default(0)
-  issueValuationQty        Float    @default(0)
-  issueCostAmount          Float    @default(0)
-  issueConversionRate      Float?
-  issueConversionSource    String?
-  issueCostingMethod       String?
-  stockIssueLogId          String?
-  remnantStockQty          Float    @default(0)
-  remnantValuationQty      Float    @default(0)
-  remnantCostAmount        Float    @default(0)
-  reversalStockLogId       String?
-  reversedAt               DateTime?
-  reversedBy               String?
-  reversedById             String?
-  reverseReason            String?
-  sources                  CuttingTaskSource[]
-  costLayerConsumptions    CuttingTaskCostLayerConsumption[]
-  productionLots           ProductionLot[]
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
-
-  @@index([cuttingPlanId, status])
-  @@index([rawMaterialId])
-}
-
-model CuttingTaskSource {
-  id                       String   @id @default(cuid())
-  taskId                   String
-  task                     CuttingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  planSourceId             String
-  planSource               CuttingPlanSource @relation(fields: [planSourceId], references: [id])
-  sourceEntityId           String
-  sourceEntity             ProfileStockEntity @relation("CuttingTaskSourceEntity", fields: [sourceEntityId], references: [id])
-  sourceUnitIndex          Int
-  actualSourceLengthMm     Float
-  actualRemainingLengthMm  Float
-  actualKerfLossMm         Float
-  actualFixedLossMm        Float
-  actualOtherLossMm        Float
-  disposition              String
-  remnantEntityId          String?  @unique
-  remnantEntity            ProfileStockEntity? @relation("CuttingTaskRemnantEntity", fields: [remnantEntityId], references: [id])
-  remnantStockLogId         String?
-  outputs                  CuttingTaskOutput[]
-
-  @@unique([taskId, planSourceId])
-  @@index([sourceEntityId])
-}
-
-model CuttingTaskOutput {
-  id                 String   @id @default(cuid())
-  taskSourceId       String
-  taskSource         CuttingTaskSource @relation(fields: [taskSourceId], references: [id], onDelete: Cascade)
-  cuttingDemandId    String
-  cuttingDemand      CuttingDemand @relation(fields: [cuttingDemandId], references: [id])
-  plannedQty         Int
-  pieceLengthMm      Float
-  goodQty            Int      @default(0)
-  badQty             Int      @default(0)
-  scrapQty           Int      @default(0)
-  badReason           String?
-
-  @@unique([taskSourceId, cuttingDemandId])
-  @@index([cuttingDemandId])
-}
-
-model CuttingTaskCostLayerConsumption {
-  id                String   @id @default(cuid())
-  taskId            String
-  task              CuttingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  costLayerId       String
-  costLayer         InventoryCostLayer @relation(fields: [costLayerId], references: [id])
-  materialId        String
-  stockQty          Float
-  valuationQty      Float
-  costAmount        Float
-  stockUnitCost     Float
-  valuationUnitCost Float
-  restoredAt        DateTime?
-  createdAt         DateTime @default(now())
-
-  @@index([taskId])
-  @@index([costLayerId])
-  @@index([restoredAt])
-}
-
-// ==================== 锯切后续加工、质检与成品入库 ====================
-
-model ProductionLot {
-  id                    String   @id @default(cuid())
-  lotNo                 String   @unique
-  sourceKey             String   @unique
-  cuttingTaskId         String
-  cuttingTask           CuttingTask @relation(fields: [cuttingTaskId], references: [id])
-  cuttingDemandId       String
-  cuttingDemand         CuttingDemand @relation(fields: [cuttingDemandId], references: [id])
-  productionOrderId     String
-  productionOrder       ProductionOrder @relation(fields: [productionOrderId], references: [id])
-  outputMaterialId      String
-  outputMaterial        Material @relation(fields: [outputMaterialId], references: [id])
-  status                String   @default("WAITING_QC")
-  requiresDrilling      Boolean  @default(false)
-  processSnapshot       String?
-  drillingSpecSnapshot  String?
-  cutGoodQty            Int
-  pendingDrillingQty    Int      @default(0)
-  pendingQcQty          Int      @default(0)
-  reworkQty             Int      @default(0)
-  passedQty             Int      @default(0)
-  scrappedQty           Int      @default(0)
-  stockedQty            Int      @default(0)
-  materialCostAmount    Float    @default(0)
-  unitMaterialCost      Float    @default(0)
-  stockedCostAmount     Float    @default(0)
-  drillingReports       DrillingReport[]
-  qualityInspections    QualityInspection[]
-  stockIns              StockIn[]
-  reversedAt            DateTime?
-  reversedBy            String?
-  reverseReason         String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  @@index([productionOrderId, status])
-  @@index([outputMaterialId, status])
-  @@index([cuttingTaskId])
-  @@index([cuttingDemandId])
-}
-
-model DrillingReport {
-  id                String   @id @default(cuid())
-  reportNo          String   @unique
-  clientRequestId   String   @unique
-  productionLotId   String
-  productionLot     ProductionLot @relation(fields: [productionLotId], references: [id])
-  status            String   @default("CONFIRMED")
-  operationType     String   @default("INITIAL")
-  sourceBucket      String
-  inputQty          Int
-  goodQty           Int
-  reworkQty         Int      @default(0)
-  scrapQty          Int      @default(0)
-  holeType          String?
-  drawingNo         String?
-  note              String?
-  operatorId        String?
-  operatorName      String?
-  startedAt         DateTime?
-  completedAt       DateTime @default(now())
-  reversedAt        DateTime?
-  reversedBy        String?
-  reversedById      String?
-  reverseReason     String?
-  createdAt         DateTime @default(now())
-
-  @@index([productionLotId, createdAt])
-  @@index([status])
-}
-
-model QualityInspection {
-  id                String   @id @default(cuid())
-  inspectionNo      String   @unique
-  clientRequestId   String   @unique
-  productionLotId   String
-  productionLot     ProductionLot @relation(fields: [productionLotId], references: [id])
-  status            String   @default("CONFIRMED")
-  inspectionType    String   @default("INITIAL")
-  sourceBucket      String
-  inputQty          Int
-  sampleQty         Int
-  passedQty         Int
-  reworkQty         Int      @default(0)
-  scrapQty          Int      @default(0)
-  result            String
-  badReason         String?
-  note              String?
-  inspectorId       String?
-  inspectorName     String
-  checkedAt         DateTime @default(now())
-  reversedAt        DateTime?
-  reversedBy        String?
-  reversedById      String?
-  reverseReason     String?
-  createdAt         DateTime @default(now())
-
-  @@index([productionLotId, checkedAt])
-  @@index([status])
 }
 
 // ==================== 物料领用 ====================
@@ -913,14 +519,6 @@ model StockLog {
   conversionRateUsed Float?
   conversionSource String?
   costingMethodSnapshot String?
-  beforeReservedQty Float?
-  afterReservedQty Float?
-  beforeAvailableQty Float?
-  afterAvailableQty Float?
-  beforeReservedValuationQty Float?
-  afterReservedValuationQty Float?
-  beforeAvailableValuationQty Float?
-  afterAvailableValuationQty Float?
   sourceMovementId String?
   reversalMovementId String?
   idempotencyKey String? @unique
@@ -939,26 +537,11 @@ model StockIn {
   order       ProductionOrder @relation(fields: [orderId], references: [id])
   productId   String
   product     Product  @relation(fields: [productId], references: [id])
-  productionLotId String?
-  productionLot   ProductionLot? @relation(fields: [productionLotId], references: [id])
-  materialId      String?
-  material        Material? @relation("ProductionStockInMaterial", fields: [materialId], references: [id])
-  clientRequestId String?  @unique
-  status          String   @default("CONFIRMED")
   qty         Int
   batchNo     String?
   inDate      DateTime @default(now())
   inBy        String?
   note        String?
-  valuationQty Float   @default(0)
-  costAmount   Float   @default(0)
-  stockLogId   String?
-  reversedAt   DateTime?
-  reversedBy   String?
-  reverseReason String?
-
-  @@index([productionLotId, status])
-  @@index([materialId])
 }
 
 // ==================== 客户与供应商 ====================
@@ -989,7 +572,6 @@ model Supplier {
   deletedAt   DateTime?
   deletedBy   String?
   materialIns MaterialIn[]
-  profileStockEntities ProfileStockEntity[]
   createdAt   DateTime @default(now())
 }
 
@@ -998,7 +580,6 @@ model Supplier {
 model MaterialIn {
   id          String   @id @default(cuid())
   inboundNo   String   @unique
-  clientRequestId String? @unique
   voucherNo   String?
   supplierId  String
   supplier    Supplier @relation(fields: [supplierId], references: [id])
@@ -1023,111 +604,7 @@ model MaterialIn {
   note        String?
   deletedAt   DateTime?
   deletedBy   String?
-  profileLines MaterialInProfileLine[]
-  profileStockEntities ProfileStockEntity[]
   createdAt   DateTime @default(now())
-}
-
-model MaterialInProfileLine {
-  id             String   @id @default(cuid())
-  clientLineId   String?  @unique
-  materialInId   String
-  materialIn     MaterialIn @relation(fields: [materialInId], references: [id], onDelete: Cascade)
-  actualLengthMm Float
-  quantity       Int
-  trackingMode   String   @default("BATCH")
-  sortOrder      Int      @default(0)
-  totalWeightKg  Float?
-  location       String?
-  note           String?
-  entities       ProfileStockEntity[]
-  createdAt      DateTime @default(now())
-
-  @@index([materialInId])
-  @@index([actualLengthMm])
-}
-
-model ProfileStockEntity {
-  id                String   @id @default(cuid())
-  entityNo          String   @unique
-  materialId        String
-  material          Material @relation(fields: [materialId], references: [id])
-  materialInId      String?
-  materialIn        MaterialIn? @relation(fields: [materialInId], references: [id])
-  receiptLineId     String?
-  receiptLine       MaterialInProfileLine? @relation(fields: [receiptLineId], references: [id])
-  supplierId        String?
-  supplier          Supplier? @relation(fields: [supplierId], references: [id])
-  parentEntityId    String?
-  parentEntity      ProfileStockEntity? @relation("ProfileEntityLineage", fields: [parentEntityId], references: [id])
-  childEntities     ProfileStockEntity[] @relation("ProfileEntityLineage")
-  entityType        String   @default("BATCH")
-  actualLengthMm    Float
-  originalLengthMm  Float
-  quantity          Int
-  availableQty      Int      @default(0)
-  reservedQty       Int      @default(0)
-  consumedQty       Int      @default(0)
-  scrappedQty       Int      @default(0)
-  splitQty          Int      @default(0)
-  totalWeightKg     Float?
-  unitWeightKg      Float?
-  batchNo           String?
-  location          String?
-  status            String   @default("AVAILABLE")
-  isRemnant         Boolean  @default(false)
-  reusable          Boolean  @default(true)
-  sourceType        String
-  sourceId          String
-  receivedAt        DateTime?
-  reversedAt        DateTime?
-  note              String?
-  movements         ProfileStockMovement[]
-  cuttingPlanSources CuttingPlanSource[]
-  cuttingTaskSources CuttingTaskSource[] @relation("CuttingTaskSourceEntity")
-  createdForCuttingTaskSource CuttingTaskSource? @relation("CuttingTaskRemnantEntity")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@index([materialId, status, actualLengthMm])
-  @@index([materialInId])
-  @@index([receiptLineId])
-  @@index([supplierId])
-  @@index([parentEntityId])
-  @@index([sourceType, sourceId])
-}
-
-model ProfileStockMovement {
-  id                 String   @id @default(cuid())
-  entityId           String
-  entity             ProfileStockEntity @relation(fields: [entityId], references: [id])
-  movementType       String
-  quantityDelta      Int
-  beforeAvailableQty Int
-  afterAvailableQty  Int
-  beforeReservedQty  Int?
-  afterReservedQty   Int?
-  beforeConsumedQty  Int?
-  afterConsumedQty   Int?
-  beforeScrappedQty  Int?
-  afterScrappedQty   Int?
-  beforeStatus       String?
-  afterStatus        String?
-  lengthBeforeMm     Float?
-  lengthAfterMm      Float?
-  sourceType         String
-  sourceId           String
-  sourceMovementId   String?
-  reversalMovementId String?
-  idempotencyKey     String   @unique
-  operatorId         String?
-  operatorName       String?
-  note               String?
-  createdAt          DateTime @default(now())
-
-  @@index([entityId, createdAt])
-  @@index([sourceType, sourceId])
-  @@index([sourceMovementId])
 }
 
 model InventoryCostLayer {
@@ -1150,7 +627,6 @@ model InventoryCostLayer {
   status                String   @default("OPEN")
   createdAt             DateTime @default(now())
   consumptions          CostLayerConsumption[]
-  cuttingTaskConsumptions CuttingTaskCostLayerConsumption[]
 
   @@index([materialId])
   @@index([materialInId])
