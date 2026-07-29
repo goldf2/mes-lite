@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic'
 import { useState, useEffect, useRef, type RefObject } from 'react'
 import * as Collapsible from '@radix-ui/react-collapsible'
-import { Boxes, ChevronDown, ListTree, Search } from 'lucide-react'
+import { Boxes, ChevronDown, ListTree, PencilLine, Search } from 'lucide-react'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
 import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
@@ -128,7 +128,7 @@ interface ProcessStep {
 }
 
 type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'scanPrint' | 'operators' | 'system' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
-type MaterialSection = 'materials' | 'bomSetup' | 'bomUsage'
+type MaterialSection = 'materials' | 'bomWorkspace' | 'bomSetup' | 'bomUsage'
 type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'logistics' | 'inventory' | 'tools'
 
 const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: TabType[] }> = [
@@ -391,7 +391,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [navItems, setNavItems] = useState<{ key: TabType; label: string }[]>(readableBusinessNavItems)
   const materialSectionItems = [
     { key: 'materials' as const, label: '物料管理', visible: canRead('materials') },
-    { key: 'bomSetup' as const, label: 'BOM 设定', visible: canRead('bomCost') },
+    { key: 'bomWorkspace' as const, label: '物料 BOM 编辑', visible: canRead('materials') && canRead('bomCost') },
+    { key: 'bomSetup' as const, label: 'BOM 关系设定', visible: canRead('bomCost') },
     { key: 'bomUsage' as const, label: 'BOM 反查', visible: canRead('bomCost') },
   ].filter((item) => item.visible)
   const tabLabels: Record<string, string> = Object.fromEntries(baseNavItems.map((item) => [item.key, item.label]))
@@ -884,6 +885,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                       {materialSectionItems.map((section) => {
                         const SectionIcon = section.key === 'materials'
                           ? Boxes
+                          : section.key === 'bomWorkspace'
+                            ? PencilLine
                           : section.key === 'bomSetup'
                             ? ListTree
                             : Search
@@ -1752,6 +1755,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {/* 物料与 BOM */}
         {tab === 'materials' && materialSection === 'materials' && (
           <MaterialPage onMessage={showMessage} showBomWorkspace={false} />
+        )}
+        {tab === 'materials' && materialSection === 'bomWorkspace' && (
+          <MaterialPage onMessage={showMessage} showBomWorkspace />
         )}
         {tab === 'materials' && materialSection === 'bomSetup' && (
           <div className="min-h-0 flex-1 overflow-y-auto xl:overscroll-contain">
