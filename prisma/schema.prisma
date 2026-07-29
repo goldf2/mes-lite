@@ -716,6 +716,65 @@ model Shipment {
   @@index([materialId])
 }
 
+// ==================== 扫码计数与标签打印 ====================
+
+model ScanCountSession {
+  id             String   @id @default(cuid())
+  sessionNo      String   @unique
+  clientRequestId String? @unique
+  name           String?
+  purpose        String   @default("SHIPMENT")
+  referenceType  String
+  referenceId    String
+  expectedCode   String
+  expectedQty    Float
+  countedQty     Float    @default(0)
+  status         String   @default("OPEN")
+  scannerModel   String?
+  createdBy      String?
+  completedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  events         ScanCountEvent[]
+
+  @@index([referenceType, referenceId, status])
+}
+
+model ScanCountEvent {
+  id          String   @id @default(cuid())
+  clientEventId String? @unique
+  sessionId   String
+  session     ScanCountSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  rawValue    String
+  code        String
+  quantity    Float    @default(1)
+  result      String
+  createdAt   DateTime @default(now())
+
+  @@index([sessionId, createdAt])
+}
+
+model LabelPrintJob {
+  id             String   @id @default(cuid())
+  jobNo          String   @unique
+  clientRequestId String? @unique
+  templateType   String
+  referenceType  String
+  referenceId    String
+  printerModel   String
+  printerDpi     Int
+  printerIp      String?
+  labelWidthMm   Float
+  labelHeightMm  Float
+  copies         Int      @default(1)
+  payloadJson    String?
+  status         String   @default("REQUESTED")
+  requestedBy    String?
+  requestedAt    DateTime @default(now())
+
+  @@index([referenceType, referenceId, requestedAt])
+}
+
 // ==================== 退货管理 ====================
 
 model ReturnOrder {

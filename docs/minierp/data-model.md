@@ -631,6 +631,24 @@ BOM 数据只保存规范方向：目标物料或产出物料 -> 输入物料及
 - 重新选择模板时，才会用最新模板覆盖当前工序快照。
 - 路线的千件人工工时、机时和工艺成本由所有未归档工序快照汇总。
 
+### scan_count_sessions / scan_count_events
+
+扫码计数使用通用会话和追加事件建模，不直接外键绑定发货单。
+
+| 模型 | 关键字段 | 含义 |
+| --- | --- | --- |
+| `ScanCountSession` | `purpose`、`referenceType`、`referenceId` | 为后续业务联动保留的通用引用；当前独立计数使用 `GENERAL_COUNT / GENERAL` |
+| `ScanCountSession` | `expectedCode`、`expectedQty`、`countedQty` | 目标条码、目标数量和已接受数量 |
+| `ScanCountSession` | `status`、`scannerModel` | `OPEN / COMPLETED / CANCELLED` 与设备型号 |
+| `ScanCountSession` | `clientRequestId` | 创建会话的幂等键，避免网络重试生成重复会话 |
+| `ScanCountEvent` | `rawValue`、`code`、`quantity` | 原始扫码值、规范化编码和本次数量 |
+| `ScanCountEvent` | `result` | `MATCHED / UNKNOWN / OVER`，只有 `MATCHED` 增加会话累计数量 |
+| `ScanCountEvent` | `clientEventId` | 单次扫码幂等键，重复请求不得重复累计 |
+
+### label_print_jobs
+
+标签打印任务保存模板、通用引用、打印机配置、尺寸、份数和标签数据快照。`clientRequestId` 保证同一打印请求只登记一次。当前 `REQUESTED` 表示系统已经发起浏览器打印请求，不表示打印机已经物理出纸；后续独立打印桥接模块需扩展可确认的发送和设备回执状态。
+
 ## 核心关系
 
 ```mermaid

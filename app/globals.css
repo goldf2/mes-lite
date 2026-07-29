@@ -25,3 +25,51 @@ body[data-modal-glass='off'] .mes-modal-overlay-dark {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
+
+.shipment-label-print-root {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: 100mm 150mm;
+    margin: 0;
+  }
+
+  body.printing-shipment-label {
+    margin: 0;
+    background: white;
+  }
+
+  body.printing-shipment-label * {
+    visibility: hidden !important;
+  }
+
+  body.printing-shipment-label .shipment-label-print-root,
+  body.printing-shipment-label .shipment-label-print-root * {
+    visibility: visible !important;
+  }
+
+  body.printing-shipment-label .shipment-label-print-root {
+    position: absolute;
+    inset: 0 auto auto 0;
+    display: block !important;
+  }
+
+  .shipment-label-sheet {
+    box-sizing: border-box;
+    display: flex;
+    width: 100mm;
+    height: 150mm;
+    break-after: page;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 6mm;
+    color: black;
+    background: white;
+  }
+
+  .shipment-label-sheet:last-child {
+    break-after: auto;
+  }
+}

@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type RefObject } from 'react'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { Boxes, ChevronDown, ListTree, Search } from 'lucide-react'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
@@ -21,6 +21,7 @@ const ShipmentPage = dynamic(() => import('./components/ShipmentPage'), { loadin
 const ReturnPage = dynamic(() => import('./components/ReturnPage'), { loading: FeaturePageLoading })
 const StatsPage = dynamic(() => import('./components/StatsPage'), { loading: FeaturePageLoading })
 const SawingCostCalculatorPage = dynamic(() => import('./components/SawingCostCalculatorPage'), { loading: FeaturePageLoading })
+const ScanPrintPage = dynamic(() => import('./components/ScanPrintPage'), { loading: FeaturePageLoading })
 const BomRelationPage = dynamic(() => import('./components/BomRelationPage'), { loading: FeaturePageLoading })
 const BomUsagePage = dynamic(() => import('./components/BomUsagePage'), { loading: FeaturePageLoading })
 const MaterialPage = dynamic(() => import('./components/MaterialPage'), { loading: FeaturePageLoading })
@@ -126,8 +127,18 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'operators' | 'system' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
+type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'scanPrint' | 'operators' | 'system' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
 type MaterialSection = 'materials' | 'bomSetup' | 'bomUsage'
+type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'logistics' | 'inventory' | 'tools'
+
+const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: TabType[] }> = [
+  { key: 'workspace', label: '工作台', tabs: ['dashboard'] },
+  { key: 'materials', label: '物料', tabs: ['materials'] },
+  { key: 'production', label: '生产', tabs: ['orders', 'stats', 'workInstructions', 'dispatch'] },
+  { key: 'logistics', label: '物流', tabs: ['materialIn', 'shipment', 'return'] },
+  { key: 'inventory', label: '库存', tabs: ['stocks'] },
+  { key: 'tools', label: '工具', tabs: ['sawingCost', 'scanPrint'] },
+]
 
 const lightweightHiddenResources = new Set<string>([
   'dispatch',
@@ -148,6 +159,7 @@ function MenuIcon({ icon }: { icon: string }) {
     return: '退',
     stats: '报',
     sawingCost: '锯',
+    scanPrint: '扫',
     operators: '人',
     system: '设',
     permissionUsers: '权',
@@ -209,6 +221,83 @@ const orderStatusOptions = [
 
 const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0'
 
+function SystemMenu({
+  containerRef,
+  operator,
+  items,
+  activeTab,
+  open,
+  onToggle,
+  onNavigate,
+  onLogout,
+  compact = false,
+}: {
+  containerRef: RefObject<HTMLDivElement>
+  operator: CurrentOperator
+  items: Array<{ key: TabType; label: string }>
+  activeTab: TabType
+  open: boolean
+  onToggle: () => void
+  onNavigate: (tab: TabType) => void
+  onLogout: () => void
+  compact?: boolean
+}) {
+  return (
+    <div ref={containerRef} className="relative shrink-0">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={onToggle}
+        className={`flex items-center rounded-lg border border-gray-200 bg-white font-medium text-gray-700 hover:bg-gray-50 ${
+          compact ? 'gap-1 px-2 py-1.5 text-xs sm:gap-2 sm:px-3 sm:py-2 sm:text-sm' : 'gap-2 px-3 py-2 text-sm'
+        }`}
+      >
+        <span className={compact ? 'hidden max-w-32 truncate sm:inline' : 'max-w-32 truncate'}>{operator.name}</span>
+        {compact && <span className="sm:hidden">我</span>}
+        <span aria-hidden="true" className="text-gray-400">▾</span>
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
+        >
+          <div className="border-b border-gray-100 px-4 py-3">
+            <OperatorBadge operator={operator} />
+            <div className="mt-1 text-xs font-medium text-gray-400">MES-lite v{appVersion}</div>
+          </div>
+          <div className="p-2">
+            {items.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                role="menuitem"
+                onClick={() => onNavigate(item.key)}
+                className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition ${
+                  activeTab === item.key ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <MenuIcon icon={item.key} />
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <div className="border-t border-gray-100 p-2">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={onLogout}
+              className="flex w-full items-center justify-center rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+            >
+              退出登录
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ==================== 主组件 ====================
 
 export default function Home() {
@@ -239,6 +328,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'stocks', label: '库存管理', resource: 'stocks' },
     { key: 'stats', label: '生产日报', resource: 'stats' },
     { key: 'sawingCost', label: '锯切成本', resource: 'sawingCost' },
+    { key: 'scanPrint', label: '硬件工具', resource: 'scanPrint' },
     { key: 'operators', label: '人员管理', resource: 'operators' },
     { key: 'system', label: '系统管理', resource: 'system' },
     { key: 'permissionUsers', label: '人员权限', resource: 'permissionUsers' },
@@ -284,7 +374,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [systemMenuOpen, setSystemMenuOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const systemMenuRef = useRef<HTMLDivElement | null>(null)
+  const systemMenuRef = useRef<HTMLDivElement>(null)
+  const desktopSystemMenuRef = useRef<HTMLDivElement>(null)
   const navOrderLoadedRef = useRef(false)
   const [adjustingStock, setAdjustingStock] = useState<Stock | null>(null)
   const [stockAdjustForm, setStockAdjustForm] = useState({
@@ -310,6 +401,18 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     ? materialSectionItems.find((item) => item.key === materialSection)?.label || '物料与 BOM'
     : tabLabels[tab] || 'MES-lite'
   const activeSystemTab = readableSystemNavItems.some((item) => item.key === tab)
+  const activeBusinessGroupKey: BusinessNavGroupKey = tab === 'create' || tab === 'detail'
+    ? 'production'
+    : businessNavGroups.find((group) => group.tabs.includes(tab))?.key || 'workspace'
+  const visibleBusinessGroups = businessNavGroups
+    .map((group) => ({
+      ...group,
+      items: navItems.filter((item) => group.tabs.includes(item.key)),
+    }))
+    .filter((group) => group.items.length > 0)
+  const activeBusinessGroup = visibleBusinessGroups.find((group) => group.key === activeBusinessGroupKey)
+    || visibleBusinessGroups[0]
+  const sidebarNavItems = activeSystemTab ? readableSystemNavItems : activeBusinessGroup?.items || []
   const baseMobileNavItems = navItems.slice(0, 4)
   const activeBusinessNavItem = navItems.find((item) => item.key === tab)
   const mobilePrimaryItems = activeBusinessNavItem && !baseMobileNavItems.some((item) => item.key === activeBusinessNavItem.key)
@@ -345,8 +448,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     if (!systemMenuOpen) return
 
     const closeOnOutsidePointerDown = (event: PointerEvent) => {
-      const menu = systemMenuRef.current
-      if (!menu || menu.contains(event.target as Node)) return
+      const target = event.target as Node
+      if (systemMenuRef.current?.contains(target) || desktopSystemMenuRef.current?.contains(target)) return
       setSystemMenuOpen(false)
     }
 
@@ -665,21 +768,81 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   return (
     <div className="min-h-screen overflow-x-hidden bg-gray-50">
       <InterfacePreferenceSync />
-      <aside className="fixed left-0 top-0 z-20 hidden h-screen w-56 flex-col bg-white shadow-sm lg:flex">
-        <div className="p-4 border-b shrink-0">
+      <header className="fixed inset-x-0 top-0 z-50 hidden h-16 items-center border-b border-gray-200 bg-white lg:flex">
+        <div className="flex h-full w-56 shrink-0 items-center gap-3 border-r border-gray-200 px-4">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600">
+            <span className="text-lg font-bold text-white">M</span>
+          </div>
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-bold text-gray-800">MES-lite</h1>
+            <p className="truncate text-[11px] text-gray-500">生产系统 · v{appVersion}</p>
+          </div>
+        </div>
+        <nav aria-label="主业务分类" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-4">
+          {visibleBusinessGroups.map((group) => {
+            const selected = !activeSystemTab && group.key === activeBusinessGroupKey
+            return (
+              <button
+                key={group.key}
+                type="button"
+                aria-current={selected ? 'page' : undefined}
+                onClick={() => {
+                  const firstItem = group.items[0]
+                  if (!firstItem) return
+                  setTab(firstItem.key)
+                  if (firstItem.key === 'materials') setMaterialMenuOpen(true)
+                  setSystemMenuOpen(false)
+                }}
+                className={`shrink-0 rounded-md px-3 py-2 text-sm font-medium transition ${
+                  selected
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                }`}
+              >
+                {group.label}
+              </button>
+            )
+          })}
+        </nav>
+        <div className="flex h-full shrink-0 items-center border-l border-gray-100 px-4">
+          <SystemMenu
+            containerRef={desktopSystemMenuRef}
+            operator={operator}
+            items={readableSystemNavItems}
+            activeTab={tab}
+            open={systemMenuOpen}
+            onToggle={() => setSystemMenuOpen((open) => !open)}
+            onNavigate={(nextTab) => {
+              setTab(nextTab)
+              setSystemMenuOpen(false)
+            }}
+            onLogout={() => {
+              setSystemMenuOpen(false)
+              onLogout()
+            }}
+          />
+        </div>
+      </header>
+
+      <aside className="fixed bottom-0 left-0 top-16 z-30 hidden w-56 flex-col border-r border-gray-200 bg-white lg:flex">
+        <div className="shrink-0 border-b border-gray-100 px-4 py-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">M</span>
-            </div>
             <div>
-              <h1 className="text-lg font-bold text-gray-800">MES-lite</h1>
-              <p className="text-xs text-gray-500">生产系统 · v{appVersion}</p>
+              <div className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                {activeSystemTab ? '系统设置' : '当前模块'}
+              </div>
+              <div className="mt-1 text-sm font-semibold text-gray-800">
+                {activeSystemTab ? '系统管理' : activeBusinessGroup?.label || '业务功能'}
+              </div>
             </div>
           </div>
         </div>
         <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
-          {navItems.map((item, index) => {
-            const itemClassName = `w-full px-4 py-3 rounded-lg text-sm font-medium transition flex items-center justify-between cursor-grab ${
+          {sidebarNavItems.map((item) => {
+            const index = navItems.findIndex((navItem) => navItem.key === item.key)
+            const itemClassName = `w-full px-4 py-3 rounded-lg text-sm font-medium transition flex items-center justify-between ${
+              activeSystemTab ? 'cursor-default' : 'cursor-grab'
+            } ${
               draggedIndex === index ? 'opacity-50 bg-gray-200' :
               dragOverIndex === index ? 'ring-2 ring-blue-400 bg-blue-50' :
               tab === item.key ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
@@ -755,7 +918,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             return (
               <button
                 key={item.key}
-                draggable
+                draggable={!activeSystemTab}
                 onDragStart={(event) => handleDragStart(event, index)}
                 onDragOver={(event) => handleDragOver(event, index)}
                 onDragLeave={handleDragLeave}
@@ -775,15 +938,60 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             )
           })}
         </nav>
-        <div className="shrink-0 p-4 border-t bg-white space-y-3">
-          <div className="mb-3 px-3 py-2 border border-gray-200 rounded-lg">
-            <OperatorBadge operator={operator} />
-          </div>
-        </div>
       </aside>
 
-      <main className={`min-w-0 p-3 pb-28 sm:p-4 lg:ml-56 lg:p-6 ${tab === 'materials' ? 'xl:flex xl:h-screen xl:flex-col xl:overflow-hidden' : ''}`}>
-        <div className="sticky top-0 z-30 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:-mx-6 lg:px-6">
+      <main className="min-w-0 p-3 pb-28 sm:p-4 lg:ml-56 lg:min-h-screen lg:p-6 lg:pt-20">
+        <div className="sticky top-0 z-30 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:top-16 lg:-mx-6 lg:px-6">
+          <nav aria-label="主业务分类" className="-mx-1 mb-2 flex min-w-0 gap-1 overflow-x-auto px-1 lg:hidden">
+            {visibleBusinessGroups.map((group) => {
+              const selected = !activeSystemTab && group.key === activeBusinessGroupKey
+              return (
+                <button
+                  key={group.key}
+                  type="button"
+                  aria-current={selected ? 'page' : undefined}
+                  onClick={() => {
+                    const firstItem = group.items[0]
+                    if (!firstItem) return
+                    setTab(firstItem.key)
+                    if (firstItem.key === 'materials') setMaterialMenuOpen(true)
+                    setSystemMenuOpen(false)
+                  }}
+                  className={`shrink-0 rounded-md px-3 py-2 text-sm font-medium transition ${
+                    selected
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:bg-white hover:text-gray-900'
+                  }`}
+                >
+                  {group.label}
+                </button>
+              )
+            })}
+          </nav>
+          <nav aria-label="当前模块菜单" className="-mx-1 mb-2 flex min-w-0 gap-1 overflow-x-auto px-1 lg:hidden">
+            {sidebarNavItems.map((item) => {
+              const selected = tab === item.key
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  aria-current={selected ? 'page' : undefined}
+                  onClick={() => {
+                    setTab(item.key)
+                    if (item.key === 'materials') setMaterialMenuOpen(true)
+                    setSystemMenuOpen(false)
+                  }}
+                  className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition sm:text-sm ${
+                    selected
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-gray-500 hover:bg-white hover:text-gray-900'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              )
+            })}
+          </nav>
           <div className="flex min-w-0 flex-nowrap items-center gap-2">
             <div className="min-w-0 shrink-0 pt-1">
               <div className="hidden text-xs font-medium text-gray-400 sm:block">{activeSystemTab ? '系统功能' : '业务功能'}</div>
@@ -893,51 +1101,24 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   />
                 ) : null}
             </div>
-            <div ref={systemMenuRef} className="relative shrink-0">
-              <button
-                onClick={() => setSystemMenuOpen((open) => !open)}
-                className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
-              >
-                <span className="hidden max-w-32 truncate sm:inline">{operator.name}</span>
-                <span className="sm:hidden">我</span>
-                <span className="text-gray-400">▾</span>
-              </button>
-              {systemMenuOpen && (
-                <div className="absolute right-0 top-full z-30 mt-2 w-64 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
-                  <div className="border-b border-gray-100 px-4 py-3">
-                    <OperatorBadge operator={operator} />
-                    <div className="mt-1 text-xs font-medium text-gray-400">MES-lite v{appVersion}</div>
-                  </div>
-                  <div className="p-2">
-                    {readableSystemNavItems.map((item) => (
-                      <button
-                        key={item.key}
-                        onClick={() => {
-                          setTab(item.key)
-                          setSystemMenuOpen(false)
-                        }}
-                        className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition ${
-                          tab === item.key ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        <MenuIcon icon={item.key} />
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="border-t border-gray-100 p-2">
-                    <button
-                      onClick={() => {
-                        setSystemMenuOpen(false)
-                        onLogout()
-                      }}
-                      className="flex w-full items-center justify-center rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-                    >
-                      退出登录
-                    </button>
-                  </div>
-                </div>
-              )}
+            <div className="lg:hidden">
+              <SystemMenu
+                containerRef={systemMenuRef}
+                operator={operator}
+                items={readableSystemNavItems}
+                activeTab={tab}
+                open={systemMenuOpen}
+                onToggle={() => setSystemMenuOpen((open) => !open)}
+                onNavigate={(nextTab) => {
+                  setTab(nextTab)
+                  setSystemMenuOpen(false)
+                }}
+                onLogout={() => {
+                  setSystemMenuOpen(false)
+                  onLogout()
+                }}
+                compact
+              />
             </div>
           </div>
         </div>
@@ -1613,6 +1794,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
         {/* 锯切加工成本计算 */}
         {tab === 'sawingCost' && <SawingCostCalculatorPage />}
+
+        {/* 扫码计数与标签打印底座 */}
+        {tab === 'scanPrint' && <ScanPrintPage onMessage={showMessage} />}
 
         {/* 人员管理 */}
         {tab === 'operators' && <OperatorPage currentOperator={operator} onMessage={showMessage} />}

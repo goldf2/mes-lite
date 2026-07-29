@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import { useModalGlassPreference } from './interfacePreferences'
 import MaterialChoiceSearch from './MaterialChoiceSearch'
+import useCompactViewport from './useCompactViewport'
 
 interface Supplier {
   id: string
@@ -240,6 +241,8 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
   const [loading, setLoading] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.suppliers.viewMode', 'list')
+  const isCompactViewport = useCompactViewport(1023)
+  const effectiveViewMode = isCompactViewport ? 'card' : viewMode
   const [form, setForm] = useState({
     code: '',
     name: '',
@@ -328,27 +331,29 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="rounded-lg bg-white p-4 shadow sm:p-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold">供应商管理</h3>
           <p className="text-sm text-gray-500 mt-1">用于来料单选择供应商，不再使用的供应商只能归档。</p>
         </div>
-        <div className="flex items-center gap-3">
-          <ViewModeToggle value={viewMode} onChange={setViewMode} />
+        <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+          <div className="hidden lg:block">
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
+          </div>
           <input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="搜索编码、名称、联系人、电话"
-            className="px-4 py-2 border border-gray-200 rounded-lg text-sm w-64"
+            className="w-full rounded-lg border border-gray-200 px-4 py-2 text-sm sm:w-64"
           />
-          <button onClick={openAdd} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
+          <button onClick={openAdd} className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 sm:w-auto">
             新增供应商
           </button>
         </div>
       </div>
 
-      {viewMode === 'card' && suppliers.length > 0 ? (
+      {effectiveViewMode === 'card' && suppliers.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {suppliers.map((supplier) => (
             <div key={supplier.id} className="rounded-lg border border-gray-200 bg-white p-4">
@@ -469,6 +474,8 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.customers.viewMode', 'list')
+  const isCompactViewport = useCompactViewport(1023)
+  const effectiveViewMode = isCompactViewport ? 'card' : viewMode
   const [form, setForm] = useState({
     name: '',
     contact: '',
@@ -555,27 +562,29 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="rounded-lg bg-white p-4 shadow sm:p-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold">客户管理</h3>
           <p className="text-sm text-gray-500 mt-1">用于按最终客户筛选物料、库存和发货记录。</p>
         </div>
-        <div className="flex items-center gap-3">
-          <ViewModeToggle value={viewMode} onChange={setViewMode} />
+        <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+          <div className="hidden lg:block">
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
+          </div>
           <input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="搜索名称、联系人、电话"
-            className="px-4 py-2 border border-gray-200 rounded-lg text-sm w-64"
+            className="w-full rounded-lg border border-gray-200 px-4 py-2 text-sm sm:w-64"
           />
-          <button onClick={openAdd} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
+          <button onClick={openAdd} className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 sm:w-auto">
             新增客户
           </button>
         </div>
       </div>
 
-      {viewMode === 'card' && customers.length > 0 ? (
+      {effectiveViewMode === 'card' && customers.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {customers.map((customer) => (
             <div key={customer.id} className="rounded-lg border border-gray-200 bg-white p-4">
@@ -785,6 +794,8 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [editingRoute, setEditingRoute] = useState<ProcessRoute | null>(null)
   const [loading, setLoading] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.process.viewMode', 'list')
+  const isCompactViewport = useCompactViewport(1023)
+  const effectiveViewMode = isCompactViewport ? 'card' : viewMode
   const [form, setForm] = useState({
     productId: '',
     name: '',
@@ -929,21 +940,23 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="rounded-lg bg-white p-4 shadow sm:p-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold">BOM/工艺</h3>
           <p className="text-sm text-gray-500 mt-1">维护物料工艺路线和工序。已产生派工或报工的工序不建议直接修改。</p>
         </div>
-        <div className="flex items-center gap-3">
-          <ViewModeToggle value={viewMode} onChange={setViewMode} />
-          <button onClick={openAdd} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
+        <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+          <div className="hidden lg:block">
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
+          </div>
+          <button onClick={openAdd} className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 sm:w-auto">
             新增工艺路线
           </button>
         </div>
       </div>
 
-      {viewMode === 'card' && routes.length > 0 ? (
+      {effectiveViewMode === 'card' && routes.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {routes.map((route) => (
             <div key={route.id} className="rounded-lg border border-gray-200 bg-white p-4">
@@ -1146,6 +1159,8 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
   const [records, setRecords] = useState<DeletedRecord[]>([])
   const [loading, setLoading] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.recycle.viewMode', 'list')
+  const isCompactViewport = useCompactViewport(1023)
+  const effectiveViewMode = isCompactViewport ? 'card' : viewMode
 
   useEffect(() => {
     fetchDeletedRecords()
@@ -1193,20 +1208,22 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="rounded-lg bg-white p-4 shadow sm:p-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold">归档记录</h3>
           <p className="text-sm text-gray-500 mt-1">业务数据归档后不会物理删除，可在这里恢复。</p>
         </div>
-        <div className="flex items-center gap-3">
-          <ViewModeToggle value={viewMode} onChange={setViewMode} />
-          <button onClick={fetchDeletedRecords} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
+        <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+          <div className="hidden lg:block">
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
+          </div>
+          <button onClick={fetchDeletedRecords} className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50 sm:w-auto">
             刷新
           </button>
         </div>
       </div>
-      {viewMode === 'card' && records.length > 0 ? (
+      {effectiveViewMode === 'card' && records.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {records.map((record) => (
             <div key={`${record.model}-${record.id}`} className="rounded-lg border border-gray-200 bg-white p-4">
@@ -1260,6 +1277,8 @@ function AuditLogViewer({ onMessage }: { onMessage: (msg: string) => void }) {
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.audit.viewMode', 'list')
+  const isCompactViewport = useCompactViewport(1023)
+  const effectiveViewMode = isCompactViewport ? 'card' : viewMode
 
   useEffect(() => {
     fetchLogs()
@@ -1278,20 +1297,22 @@ function AuditLogViewer({ onMessage }: { onMessage: (msg: string) => void }) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="rounded-lg bg-white p-4 shadow sm:p-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold">操作记录</h3>
           <p className="text-sm text-gray-500 mt-1">记录新增、修改、归档、恢复、收货、盘点等关键操作。</p>
         </div>
-        <div className="flex items-center gap-3">
-          <ViewModeToggle value={viewMode} onChange={setViewMode} />
-          <button onClick={fetchLogs} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
+        <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+          <div className="hidden lg:block">
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
+          </div>
+          <button onClick={fetchLogs} className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50 sm:w-auto">
             刷新
           </button>
         </div>
       </div>
-      {viewMode === 'card' && logs.length > 0 ? (
+      {effectiveViewMode === 'card' && logs.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {logs.map((log) => (
             <div key={log.id} className="rounded-lg border border-gray-200 bg-white p-4">

@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.86",
+  "version": "0.1.87",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -16,11 +16,13 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "verify:permissions": "tsx scripts/verify-permissions.ts",
-    "verify:dual-units": "tsx scripts/verify-dual-unit-flow.ts"
+    "verify:dual-units": "tsx scripts/verify-dual-unit-flow.ts",
+    "verify:scan-print": "tsx scripts/verify-scan-print.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.13.0",
     "@radix-ui/react-collapsible": "^1.1.20",
+    "jsbarcode": "^3.12.3",
     "lucide-react": "^1.27.0",
     "next": "14.2.0",
     "pdfkit": "^0.19.1",
@@ -30,6 +32,7 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@types/jsbarcode": "^3.11.4",
     "@types/node": "^20",
     "@types/pdfkit": "^0.17.6",
     "@types/react": "^18",
