@@ -21,7 +21,7 @@ const materialSchema = z.object({
   costingMethod: z.enum(['WEIGHTED_AVERAGE', 'FIFO']).optional(),
 })
 
-const materialSortFields = new Set(['createdAt', 'code', 'name', 'category', 'spec', 'stockUnit', 'valuationUnit', 'costingMethod'])
+const materialSortFields = new Set(['createdAt', 'code', 'name', 'category', 'customer', 'spec', 'note', 'stockUnit', 'valuationUnit', 'costingMethod', 'stock', 'valuationStock'])
 
 export async function GET(req: NextRequest) {
   try {
@@ -40,6 +40,13 @@ export async function GET(req: NextRequest) {
     const requestedSortBy = searchParams.get('sortBy') || 'createdAt'
     const sortBy = materialSortFields.has(requestedSortBy) ? requestedSortBy : 'createdAt'
     const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc'
+    const orderBy: any = sortBy === 'customer'
+      ? { customer: { name: sortDir } }
+      : sortBy === 'stock'
+        ? { stock: { qty: sortDir } }
+        : sortBy === 'valuationStock'
+          ? { stock: { valuationQty: sortDir } }
+          : { [sortBy]: sortDir }
 
     const where: any = { deletedAt: null }
     if (categories.length === 1) where.category = categories[0]
@@ -75,7 +82,7 @@ export async function GET(req: NextRequest) {
         },
         skip: (page - 1) * pageSize,
         take: pageSize,
-        orderBy: { [sortBy]: sortDir },
+        orderBy,
       }),
       prisma.material.count({ where }),
     ])

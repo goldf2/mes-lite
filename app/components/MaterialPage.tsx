@@ -125,10 +125,14 @@ const materialSortOptions = [
   { value: 'code', label: '物料编码' },
   { value: 'name', label: '物料名称' },
   { value: 'category', label: '物料分类' },
+  { value: 'customer', label: '归属客户' },
   { value: 'spec', label: '规格' },
+  { value: 'note', label: '备注' },
   { value: 'stockUnit', label: '库存单位' },
   { value: 'valuationUnit', label: '核算单位' },
   { value: 'costingMethod', label: '成本方法' },
+  { value: 'stock', label: '库存数量' },
+  { value: 'valuationStock', label: '核算库存' },
 ] as const
 
 type MaterialSortBy = (typeof materialSortOptions)[number]['value']
@@ -295,6 +299,44 @@ function MaterialPagination({
         </button>
       </div>
     </div>
+  )
+}
+
+function MaterialSortableHeader({
+  field,
+  label,
+  sortBy,
+  sortDir,
+  className,
+  onSort,
+}: {
+  field: MaterialSortBy
+  label: string
+  sortBy: MaterialSortBy
+  sortDir: SortDirection
+  className: string
+  onSort: (field: MaterialSortBy) => void
+}) {
+  const active = sortBy === field
+
+  return (
+    <th
+      scope="col"
+      aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className={`${className} whitespace-nowrap px-4 py-3 text-left text-sm font-semibold`}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(field)}
+        className={`group flex w-full items-center gap-1 text-left transition ${active ? 'text-blue-700' : 'text-gray-600 hover:text-blue-700'}`}
+        title={`按${label}${active && sortDir === 'asc' ? '降序' : '升序'}排列`}
+      >
+        <span>{label}</span>
+        <span aria-hidden="true" className={`text-xs ${active ? 'text-blue-600' : 'text-gray-300 group-hover:text-blue-400'}`}>
+          {active ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+        </span>
+      </button>
+    </th>
   )
 }
 
@@ -1023,6 +1065,16 @@ export default function MaterialPage({
     setRelationWastageRate(Number(item.wastageRate || 0))
   }
 
+  const handleHeaderSort = (field: MaterialSortBy) => {
+    if (sortBy === field) {
+      setSortDir((current) => current === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(field)
+      setSortDir('asc')
+    }
+    setPage(1)
+  }
+
   const activeFilterLabels = useMemo(() => {
     const labels: string[] = []
     if (selectedCategories.length !== materialCategoryFilterOptions.length) {
@@ -1343,17 +1395,17 @@ export default function MaterialPage({
               <thead className="bg-gray-50">
                 <tr>
                   {showField('image') && <th className="w-20 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">图片</th>}
-                  {showField('code') && <th className="w-36 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">物料编码</th>}
-                  <th className="w-36 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">物料名称</th>
-                  {showField('category') && <th className="w-24 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">分类</th>}
-                  {showField('customer') && <th className="w-44 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">归属客户</th>}
-                  {showField('spec') && <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">规格</th>}
-                  {showField('note') && <th className="w-56 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">备注</th>}
-                  {showField('stockUnit') && <th className="w-24 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">库存单位</th>}
-                  {showField('valuationUnit') && <th className="w-48 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">核算单位</th>}
-                  {showField('stock') && <th className="w-28 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">库存</th>}
-                  {showField('valuationStock') && <th className="w-28 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">核算库存</th>}
-                  {showField('createdAt') && <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">创建时间</th>}
+                  {showField('code') && <MaterialSortableHeader field="code" label="物料编码" sortBy={sortBy} sortDir={sortDir} className="w-36" onSort={handleHeaderSort} />}
+                  <MaterialSortableHeader field="name" label="物料名称" sortBy={sortBy} sortDir={sortDir} className="w-36" onSort={handleHeaderSort} />
+                  {showField('category') && <MaterialSortableHeader field="category" label="分类" sortBy={sortBy} sortDir={sortDir} className="w-24" onSort={handleHeaderSort} />}
+                  {showField('customer') && <MaterialSortableHeader field="customer" label="归属客户" sortBy={sortBy} sortDir={sortDir} className="w-44" onSort={handleHeaderSort} />}
+                  {showField('spec') && <MaterialSortableHeader field="spec" label="规格" sortBy={sortBy} sortDir={sortDir} className="w-32" onSort={handleHeaderSort} />}
+                  {showField('note') && <MaterialSortableHeader field="note" label="备注" sortBy={sortBy} sortDir={sortDir} className="w-56" onSort={handleHeaderSort} />}
+                  {showField('stockUnit') && <MaterialSortableHeader field="stockUnit" label="库存单位" sortBy={sortBy} sortDir={sortDir} className="w-24" onSort={handleHeaderSort} />}
+                  {showField('valuationUnit') && <MaterialSortableHeader field="valuationUnit" label="核算单位" sortBy={sortBy} sortDir={sortDir} className="w-48" onSort={handleHeaderSort} />}
+                  {showField('stock') && <MaterialSortableHeader field="stock" label="库存" sortBy={sortBy} sortDir={sortDir} className="w-28" onSort={handleHeaderSort} />}
+                  {showField('valuationStock') && <MaterialSortableHeader field="valuationStock" label="核算库存" sortBy={sortBy} sortDir={sortDir} className="w-28" onSort={handleHeaderSort} />}
+                  {showField('createdAt') && <MaterialSortableHeader field="createdAt" label="创建时间" sortBy={sortBy} sortDir={sortDir} className="w-32" onSort={handleHeaderSort} />}
                   <th className="w-56 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">BOM 简况</th>
                   <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr>
