@@ -12,6 +12,9 @@ const bomItemSchema = z.object({
   quantity: z.number().finite().nonnegative(),
   unit: z.string().trim().optional(),
   wastageRate: z.number().finite().nonnegative().default(0),
+  cutLengthMm: z.number().finite().positive().nullable().optional(),
+  cutTolerancePlusMm: z.number().finite().nonnegative().nullable().optional(),
+  cutToleranceMinusMm: z.number().finite().nonnegative().nullable().optional(),
 })
 
 const saveBomSchema = z.object({
@@ -26,6 +29,9 @@ const bomItemSelect = {
   quantity: true,
   unit: true,
   wastageRate: true,
+  cutLengthMm: true,
+  cutTolerancePlusMm: true,
+  cutToleranceMinusMm: true,
   material: {
     select: {
       id: true,
@@ -168,6 +174,9 @@ export async function PUT(req: NextRequest) {
           quantity: item.quantity,
           unit: material?.stockUnit || material?.unit || '件',
           wastageRate: item.wastageRate,
+          cutLengthMm: item.cutLengthMm ?? null,
+          cutTolerancePlusMm: item.cutLengthMm ? item.cutTolerancePlusMm ?? 0 : null,
+          cutToleranceMinusMm: item.cutLengthMm ? item.cutToleranceMinusMm ?? 0 : null,
         }
       })
 

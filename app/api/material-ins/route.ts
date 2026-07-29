@@ -7,6 +7,7 @@ import { resolveMaterialUnits, toValuationQty } from '@/lib/units'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 
 const createMaterialInSchema = z.object({
+  clientRequestId: z.string().min(8).optional(),
   voucherNo: z.string().optional(),
   supplierId: z.string().min(1, '供应商必填'),
   materialId: z.string().min(1, '物料必填'),
@@ -19,6 +20,15 @@ const createMaterialInSchema = z.object({
   batchNo: z.string().optional(),
   receivedBy: z.string().optional(),
   note: z.string().optional(),
+  profileLines: z.array(z.object({
+    clientLineId: z.string().min(8).optional(),
+    actualLengthMm: z.number().positive('实际长度必须大于 0'),
+    quantity: z.number().int().positive('根数必须为正整数').max(10000),
+    trackingMode: z.enum(['BATCH', 'SINGLE']).default('BATCH'),
+    totalWeightKg: z.number().nonnegative('实测重量不能为负').optional(),
+    location: z.string().trim().optional(),
+    note: z.string().trim().optional(),
+  })).max(200).optional(),
 })
 
 // GET: 来料单列表，支持 status 筛选和分页
@@ -62,7 +72,8 @@ export async function GET(req: NextRequest) {
         where,
         include: {
           supplier: true,
-          material: { include: { customer: { select: { id: true, code: true, name: true } } } },
+          material: { include: { customer: { select: { id: true, code: true, name: true } }, profileSpec: true } },
+          profileLines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
@@ -88,8 +99,16 @@ export async function POST(req: NextRequest) {
     if (denied) return denied
 
     const body = await req.json()
-    const { supplierId, materialId, qty, valuationQty, unitPrice, batchNo, receivedBy, note, voucherNo } =
+    const { clientRequestId, supplierId, materialId, qty, valuationQty, unitPrice, batchNo, receivedBy, note, voucherNo, profileLines } =
       createMaterialInSchema.parse(body)
+
+    if (clientRequestId) {
+      const existingRequest = await prisma.materialIn.findUnique({
+        where: { clientRequestId },
+        include: { supplier: true, material: true, profileLines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] } },
+      })
+      if (existingRequest) return NextResponse.json({ data: existingRequest, duplicate: true })
+    }
 
     // 校验供应商存在且未归档
     const supplier = await prisma.supplier.findFirst({
@@ -102,9 +121,19 @@ export async function POST(req: NextRequest) {
     // 校验物料存在且未归档
     const material = await prisma.material.findFirst({
       where: { id: materialId, deletedAt: null },
+      include: { profileSpec: true },
     })
     if (!material) {
       return NextResponse.json({ error: '物料不存在或已归档' }, { status: 404 })
+    }
+    if (profileLines?.length && !material.profileSpec) {
+      return NextResponse.json({ error: '该物料尚未启用型材实体追踪，请先维护型材规格' }, { status: 400 })
+    }
+    if (profileLines?.length) {
+      const profileQty = profileLines.reduce((sum, line) => sum + line.quantity, 0)
+      if (Math.abs(profileQty - qty) > 0.000001) {
+        return NextResponse.json({ error: '来料数量必须等于所有实测长度行的根数合计' }, { status: 400 })
+      }
     }
     const units = resolveMaterialUnits(material)
     const stockUnit = body.unit || units.stockUnit
@@ -135,8 +164,9 @@ export async function POST(req: NextRequest) {
     const valuationUnitCost = effectiveValuationQty > 0 ? Number((totalAmount / effectiveValuationQty).toFixed(6)) : 0
     const stockUnitCost = qty > 0 ? Number((totalAmount / qty).toFixed(6)) : 0
 
-    const materialIn = await prisma.materialIn.create({
+    const materialIn = await prisma.$transaction((tx) => tx.materialIn.create({
       data: {
+        clientRequestId: clientRequestId || null,
         inboundNo,
         voucherNo: voucherNo?.trim() || null,
         supplierId,
@@ -157,12 +187,25 @@ export async function POST(req: NextRequest) {
         receivedBy,
         note,
         status: 'PENDING',
+        profileLines: profileLines?.length ? {
+          create: profileLines.map((line, index) => ({
+            clientLineId: line.clientLineId || null,
+            actualLengthMm: line.actualLengthMm,
+            quantity: line.quantity,
+            trackingMode: line.trackingMode,
+            sortOrder: index,
+            totalWeightKg: line.totalWeightKg ?? null,
+            location: line.location || null,
+            note: line.note || null,
+          })),
+        } : undefined,
       },
       include: {
         supplier: true,
         material: true,
+        profileLines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
       },
-    })
+    }))
 
     await writeAuditLog(req, {
       action: 'CREATE',

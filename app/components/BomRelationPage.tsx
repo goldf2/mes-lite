@@ -20,6 +20,9 @@ interface BomItem {
   quantity: number
   unit: string
   wastageRate: number
+  cutLengthMm?: number | null
+  cutTolerancePlusMm?: number | null
+  cutToleranceMinusMm?: number | null
   material?: MaterialOption | null
   costObject?: { id: string; code: string; name: string; objectType: string; unit: string } | null
   sawingScenario?: { id: string; name: string } | null
@@ -49,6 +52,9 @@ interface DraftBomItem {
   quantity: number
   unit: string
   wastageRate: number
+  cutLengthMm: number | null
+  cutTolerancePlusMm: number | null
+  cutToleranceMinusMm: number | null
 }
 
 const materialCategoryLabels: Record<string, string> = {
@@ -344,6 +350,9 @@ export default function BomRelationPage({
           quantity: Number(item.quantity || 0),
           unit: item.material?.stockUnit || item.material?.unit || '件',
           wastageRate: Number(item.wastageRate || 0),
+          cutLengthMm: item.cutLengthMm == null ? null : Number(item.cutLengthMm),
+          cutTolerancePlusMm: item.cutTolerancePlusMm == null ? null : Number(item.cutTolerancePlusMm),
+          cutToleranceMinusMm: item.cutToleranceMinusMm == null ? null : Number(item.cutToleranceMinusMm),
         })))
     } catch (error) {
       onMessage('获取 BOM 关系失败')
@@ -368,6 +377,9 @@ export default function BomRelationPage({
         quantity: Number(item.quantity || 0),
         unit: item.material?.stockUnit || item.material?.unit || '件',
         wastageRate: Number(item.wastageRate || 0),
+        cutLengthMm: item.cutLengthMm == null ? null : Number(item.cutLengthMm),
+        cutTolerancePlusMm: item.cutTolerancePlusMm == null ? null : Number(item.cutTolerancePlusMm),
+        cutToleranceMinusMm: item.cutToleranceMinusMm == null ? null : Number(item.cutToleranceMinusMm),
       })))
     if (options.scrollToDetail) {
       window.setTimeout(() => detailPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
@@ -387,6 +399,9 @@ export default function BomRelationPage({
         quantity: 1,
         unit: material.stockUnit || material.unit || '件',
         wastageRate: 0,
+        cutLengthMm: null,
+        cutTolerancePlusMm: null,
+        cutToleranceMinusMm: null,
       },
     ])
   }
@@ -410,6 +425,9 @@ export default function BomRelationPage({
         quantity: Number((Number(item.quantity || 0) / currentOutputQuantity * nextOutputQuantity).toFixed(8)),
         unit: item.material?.stockUnit || item.material?.unit || '件',
         wastageRate: Number(item.wastageRate || 0),
+        cutLengthMm: item.cutLengthMm == null ? null : Number(item.cutLengthMm),
+        cutTolerancePlusMm: item.cutTolerancePlusMm == null ? null : Number(item.cutTolerancePlusMm),
+        cutToleranceMinusMm: item.cutToleranceMinusMm == null ? null : Number(item.cutToleranceMinusMm),
       }))
     setSelectedProductId(conversionOutputProduct.id)
     setDraftOutputQuantity(nextOutputQuantity)
@@ -430,6 +448,9 @@ export default function BomRelationPage({
           quantity: Number(conversionInputQty),
           unit: conversionInputMaterial.stockUnit || conversionInputMaterial.unit || '件',
           wastageRate: 0,
+          cutLengthMm: null,
+          cutTolerancePlusMm: null,
+          cutToleranceMinusMm: null,
         },
       ]
     })
@@ -456,6 +477,9 @@ export default function BomRelationPage({
             quantity: Number(item.quantity || 0),
             unit: item.unit,
             wastageRate: Number(item.wastageRate || 0),
+            cutLengthMm: item.cutLengthMm,
+            cutTolerancePlusMm: item.cutLengthMm == null ? null : Number(item.cutTolerancePlusMm || 0),
+            cutToleranceMinusMm: item.cutLengthMm == null ? null : Number(item.cutToleranceMinusMm || 0),
           })),
         }),
       })
@@ -609,12 +633,14 @@ export default function BomRelationPage({
               <div className="rounded-lg border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500">暂无物料 BOM 项，请先添加原材料</div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[780px] text-sm">
+                <table className="w-full min-w-[1040px] text-sm">
                   <thead className="bg-gray-50 text-left text-gray-600">
                     <tr>
                       <th className="px-3 py-2">原材料</th>
                       <th className="px-3 py-2 text-right">基准投入量</th>
                       <th className="px-3 py-2">单位</th>
+                      <th className="px-3 py-2 text-right">成品切长</th>
+                      <th className="px-3 py-2 text-right">公差 + / -</th>
                       <th className="px-3 py-2 text-right">损耗率</th>
                       <th className="px-3 py-2 text-right">含损耗用量</th>
                       <th className="px-3 py-2 text-right">操作</th>
@@ -645,6 +671,50 @@ export default function BomRelationPage({
                             <span className="inline-flex min-w-20 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
                               {material?.stockUnit || material?.unit || item.unit}
                             </span>
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <div className="inline-flex overflow-hidden rounded-lg border border-gray-200">
+                              <input
+                                type="number"
+                                min="0.1"
+                                step="0.1"
+                                value={item.cutLengthMm ?? ''}
+                                onChange={(event) => updateDraftItem(item.clientId, {
+                                  cutLengthMm: event.target.value === '' ? null : Math.max(0.1, Number(event.target.value)),
+                                })}
+                                placeholder="不切割"
+                                className="w-24 px-3 py-2 text-right text-sm outline-none"
+                              />
+                              <span className="flex items-center border-l border-gray-200 bg-gray-50 px-2 text-xs text-gray-500">mm</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <div className="inline-grid grid-cols-2 overflow-hidden rounded-lg border border-gray-200">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                disabled={item.cutLengthMm == null}
+                                value={item.cutTolerancePlusMm ?? ''}
+                                onChange={(event) => updateDraftItem(item.clientId, {
+                                  cutTolerancePlusMm: event.target.value === '' ? null : Math.max(0, Number(event.target.value)),
+                                })}
+                                placeholder="+"
+                                className="w-16 px-2 py-2 text-right text-sm outline-none disabled:bg-gray-50"
+                              />
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                disabled={item.cutLengthMm == null}
+                                value={item.cutToleranceMinusMm ?? ''}
+                                onChange={(event) => updateDraftItem(item.clientId, {
+                                  cutToleranceMinusMm: event.target.value === '' ? null : Math.max(0, Number(event.target.value)),
+                                })}
+                                placeholder="-"
+                                className="w-16 border-l border-gray-200 px-2 py-2 text-right text-sm outline-none disabled:bg-gray-50"
+                              />
+                            </div>
                           </td>
                           <td className="px-3 py-2 text-right">
                             <div className="inline-flex overflow-hidden rounded-lg border border-gray-200">

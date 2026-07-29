@@ -57,6 +57,9 @@ interface BomItem {
   quantity: number
   unit: string
   wastageRate: number
+  cutLengthMm?: number | null
+  cutTolerancePlusMm?: number | null
+  cutToleranceMinusMm?: number | null
   material?: BomMaterialOption | null
 }
 
@@ -83,6 +86,9 @@ interface DraftBomItem {
   quantity: number
   unit: string
   wastageRate: number
+  cutLengthMm: number | null
+  cutTolerancePlusMm: number | null
+  cutToleranceMinusMm: number | null
 }
 
 interface Customer {
@@ -687,6 +693,9 @@ export default function MaterialPage({
       quantity: Number(item.quantity || 0),
       unit: item.material?.stockUnit || item.material?.unit || '件',
       wastageRate: Number(item.wastageRate || 0),
+      cutLengthMm: item.cutLengthMm == null ? null : Number(item.cutLengthMm),
+      cutTolerancePlusMm: item.cutTolerancePlusMm == null ? null : Number(item.cutTolerancePlusMm),
+      cutToleranceMinusMm: item.cutToleranceMinusMm == null ? null : Number(item.cutToleranceMinusMm),
     })))
   }, [selectedBomMaterialItems])
 
@@ -1093,6 +1102,9 @@ export default function MaterialPage({
             quantity: Number(item.quantity || 0),
             unit: item.unit,
             wastageRate: Number(item.wastageRate || 0),
+            cutLengthMm: item.cutLengthMm,
+            cutTolerancePlusMm: item.cutLengthMm == null ? null : Number(item.cutTolerancePlusMm || 0),
+            cutToleranceMinusMm: item.cutLengthMm == null ? null : Number(item.cutToleranceMinusMm || 0),
           })),
         }),
       })
@@ -1137,6 +1149,9 @@ export default function MaterialPage({
         quantity: Number((Number(item.quantity || 0) / currentOutputQuantity * nextOutputQuantity).toFixed(8)),
         unit: item.unit || item.material?.stockUnit || item.material?.unit || '件',
         wastageRate: Number(item.wastageRate || 0),
+        cutLengthMm: item.cutLengthMm == null ? null : Number(item.cutLengthMm),
+        cutTolerancePlusMm: item.cutTolerancePlusMm == null ? null : Number(item.cutTolerancePlusMm),
+        cutToleranceMinusMm: item.cutToleranceMinusMm == null ? null : Number(item.cutToleranceMinusMm),
       }))
     const existing = currentItems.find((item) => item.materialId === relationMaterial.id)
     const nextItems = existing
@@ -1154,6 +1169,9 @@ export default function MaterialPage({
             quantity: Number(relationMaterialQty),
             unit: relationMaterial.stockUnit || relationMaterial.unit || '件',
             wastageRate: Number(relationWastageRate || 0),
+            cutLengthMm: null,
+            cutTolerancePlusMm: null,
+            cutToleranceMinusMm: null,
           },
         ]
 
@@ -1846,6 +1864,48 @@ export default function MaterialPage({
                                   value={item.wastageRate || ''}
                                   onChange={(event) => updateDraftBomItem(item.clientId, { wastageRate: Math.max(0, Number(event.target.value)) })}
                                   className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-right text-sm"
+                                />
+                              </label>
+                              <label className="min-w-0">
+                                <span className="text-xs text-gray-500">成品切长 mm</span>
+                                <input
+                                  type="number"
+                                  min="0.1"
+                                  step="0.1"
+                                  value={item.cutLengthMm ?? ''}
+                                  placeholder="不切割"
+                                  onChange={(event) => updateDraftBomItem(item.clientId, {
+                                    cutLengthMm: event.target.value === '' ? null : Math.max(0.1, Number(event.target.value)),
+                                  })}
+                                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-right text-sm"
+                                />
+                              </label>
+                              <label className="min-w-0">
+                                <span className="text-xs text-gray-500">上公差 mm</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.1"
+                                  disabled={item.cutLengthMm == null}
+                                  value={item.cutTolerancePlusMm ?? ''}
+                                  onChange={(event) => updateDraftBomItem(item.clientId, {
+                                    cutTolerancePlusMm: event.target.value === '' ? null : Math.max(0, Number(event.target.value)),
+                                  })}
+                                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-right text-sm disabled:bg-gray-50"
+                                />
+                              </label>
+                              <label className="min-w-0">
+                                <span className="text-xs text-gray-500">下公差 mm</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.1"
+                                  disabled={item.cutLengthMm == null}
+                                  value={item.cutToleranceMinusMm ?? ''}
+                                  onChange={(event) => updateDraftBomItem(item.clientId, {
+                                    cutToleranceMinusMm: event.target.value === '' ? null : Math.max(0, Number(event.target.value)),
+                                  })}
+                                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-right text-sm disabled:bg-gray-50"
                                 />
                               </label>
                             </div>

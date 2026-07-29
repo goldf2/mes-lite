@@ -33,6 +33,24 @@ interface Material {
   conversionRate: number
   customerId?: string | null
   customer?: { id: string; code: string; name: string } | null
+  profileSpec?: {
+    id: string
+    trackingMode: 'BATCH' | 'SINGLE'
+    sectionDescription?: string | null
+    alloyGrade?: string | null
+    surfaceTreatment?: string | null
+  } | null
+}
+
+interface MaterialInProfileLine {
+  id?: string
+  clientLineId: string
+  actualLengthMm: number
+  quantity: number
+  trackingMode: 'BATCH' | 'SINGLE'
+  totalWeightKg: number
+  location: string
+  note: string
 }
 
 interface MaterialIn {
@@ -58,8 +76,42 @@ interface MaterialIn {
   inboundDate: string
   receivedBy?: string
   note?: string
+  profileLines?: MaterialInProfileLine[]
   supplier: { id: string; code: string; name: string }
-  material: { id: string; code: string; name: string; spec?: string; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number; customerId?: string | null; customer?: { id: string; code: string; name: string } | null }
+  material: { id: string; code: string; name: string; spec?: string; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number; customerId?: string | null; customer?: { id: string; code: string; name: string } | null; profileSpec?: Material['profileSpec'] }
+}
+
+interface MaterialInForm {
+  voucherNo: string
+  supplierId: string
+  materialId: string
+  qty: number
+  valuationQty: number
+  unitPrice: number
+  priceBasis: string
+  batchNo: string
+  receivedBy: string
+  note: string
+  profileLines: MaterialInProfileLine[]
+}
+
+function newClientId(prefix: string) {
+  const randomPart = typeof window !== 'undefined' && window.crypto?.randomUUID
+    ? window.crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `${prefix}-${randomPart}`
+}
+
+function createProfileLine(mode: 'BATCH' | 'SINGLE' = 'BATCH'): MaterialInProfileLine {
+  return {
+    clientLineId: newClientId('profile-line'),
+    actualLengthMm: 0,
+    quantity: 1,
+    trackingMode: mode,
+    totalWeightKg: 0,
+    location: '',
+    note: '',
+  }
 }
 
 const statusColors: Record<string, string> = {
@@ -105,7 +157,8 @@ export default function MaterialInPage({
   const isCompactViewport = useCompactViewport()
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
 
-  const [form, setForm] = useState({
+  const [clientRequestId, setClientRequestId] = useState('')
+  const [form, setForm] = useState<MaterialInForm>({
     voucherNo: '',
     supplierId: '',
     materialId: '',
@@ -116,6 +169,7 @@ export default function MaterialInPage({
     batchNo: '',
     receivedBy: '',
     note: '',
+    profileLines: [],
   })
 
   useEffect(() => {
@@ -181,6 +235,7 @@ export default function MaterialInPage({
 
   const resetForm = () => {
     setEditingItem(null)
+    setClientRequestId('')
     setForm({
       voucherNo: '',
       supplierId: '',
@@ -192,12 +247,19 @@ export default function MaterialInPage({
       batchNo: '',
       receivedBy: '',
       note: '',
+      profileLines: [],
     })
   }
 
   const handleSubmit = async () => {
-    if (!form.supplierId || !form.materialId || form.qty <= 0) {
+    const profileQty = form.profileLines.reduce((sum, line) => sum + Number(line.quantity || 0), 0)
+    const submitQty = form.profileLines.length > 0 ? profileQty : form.qty
+    if (!form.supplierId || !form.materialId || submitQty <= 0) {
       onMessage('请选择供应商和物料，并输入有效长度/件数')
+      return
+    }
+    if (form.profileLines.some((line) => line.actualLengthMm <= 0 || !Number.isInteger(line.quantity) || line.quantity <= 0)) {
+      onMessage('请完整填写每个实测长度行，长度和根数必须大于 0')
       return
     }
     setLoading(true)
@@ -208,22 +270,37 @@ export default function MaterialInPage({
       const submitUsesDualUnit = Boolean(
         selectedMaterial && (submitStockUnit !== submitValuationUnit || Number(selectedMaterial.conversionRate || 1) !== 1)
       )
+      const requestId = editingItem ? undefined : (clientRequestId || newClientId('material-in'))
+      if (requestId && !clientRequestId) setClientRequestId(requestId)
+      const measuredWeight = form.profileLines.reduce((sum, line) => sum + Number(line.totalWeightKg || 0), 0)
       const res = await fetch(editingItem ? `/api/material-ins/${editingItem.id}` : '/api/material-ins', {
         method: editingItem ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          clientRequestId: requestId,
           supplierId: form.supplierId,
           voucherNo: form.voucherNo || undefined,
           materialId: form.materialId,
-          qty: form.qty,
+          qty: submitQty,
           unit: submitStockUnit,
-          valuationQty: submitUsesDualUnit && form.valuationQty > 0 ? form.valuationQty : undefined,
+          valuationQty: submitUsesDualUnit && (form.valuationQty > 0 || measuredWeight > 0)
+            ? (form.valuationQty > 0 ? form.valuationQty : measuredWeight)
+            : undefined,
           valuationUnit: submitValuationUnit,
           unitPrice: form.unitPrice,
           priceBasis: submitUsesDualUnit ? form.priceBasis : 'STOCK',
           batchNo: form.batchNo || undefined,
           receivedBy: form.receivedBy || undefined,
           note: form.note || undefined,
+          profileLines: form.profileLines.length > 0 ? form.profileLines.map((line) => ({
+            clientLineId: line.clientLineId,
+            actualLengthMm: line.actualLengthMm,
+            quantity: line.quantity,
+            trackingMode: line.trackingMode,
+            totalWeightKg: line.totalWeightKg > 0 ? line.totalWeightKg : undefined,
+            location: line.location || undefined,
+            note: line.note || undefined,
+          })) : undefined,
         }),
       })
       const data = await res.json()
@@ -242,18 +319,20 @@ export default function MaterialInPage({
   }
 
   const selectedMaterial = materials.find((material) => material.id === form.materialId)
-  const referenceValuationQty = selectedMaterial && form.qty > 0 ? Number((form.qty * (selectedMaterial.conversionRate || 1)).toFixed(6)) : 0
+  const profileQty = form.profileLines.reduce((sum, line) => sum + Number(line.quantity || 0), 0)
+  const documentQty = form.profileLines.length > 0 ? profileQty : form.qty
+  const referenceValuationQty = selectedMaterial && documentQty > 0 ? Number((documentQty * (selectedMaterial.conversionRate || 1)).toFixed(6)) : 0
   const stockUnitLabel = selectedMaterial?.stockUnit || selectedMaterial?.unit || '库存单位'
   const valuationUnitLabel = selectedMaterial?.valuationUnit || 'kg'
   const materialUsesDualUnit = Boolean(selectedMaterial && (stockUnitLabel !== valuationUnitLabel || Number(selectedMaterial.conversionRate || 1) !== 1))
   const previewPriceBasis = materialUsesDualUnit ? form.priceBasis : 'STOCK'
   const effectiveValuationQty = materialUsesDualUnit
     ? (form.valuationQty > 0 ? form.valuationQty : referenceValuationQty)
-    : form.qty
-  const actualConversionRate = form.qty > 0 && effectiveValuationQty > 0 ? Number((effectiveValuationQty / form.qty).toFixed(6)) : 0
-  const totalAmountPreview = Number(((previewPriceBasis === 'STOCK' ? form.qty : effectiveValuationQty) * form.unitPrice).toFixed(4))
+    : documentQty
+  const actualConversionRate = documentQty > 0 && effectiveValuationQty > 0 ? Number((effectiveValuationQty / documentQty).toFixed(6)) : 0
+  const totalAmountPreview = Number(((previewPriceBasis === 'STOCK' ? documentQty : effectiveValuationQty) * form.unitPrice).toFixed(4))
   const valuationUnitCostPreview = effectiveValuationQty > 0 ? Number((totalAmountPreview / effectiveValuationQty).toFixed(6)) : 0
-  const stockUnitCostPreview = form.qty > 0 ? Number((totalAmountPreview / form.qty).toFixed(6)) : 0
+  const stockUnitCostPreview = documentQty > 0 ? Number((totalAmountPreview / documentQty).toFixed(6)) : 0
   const valuationPriceDisplay = previewPriceBasis === 'VALUATION' ? form.unitPrice : valuationUnitCostPreview
   const stockPriceDisplay = previewPriceBasis === 'STOCK' ? form.unitPrice : stockUnitCostPreview
 
@@ -292,6 +371,16 @@ export default function MaterialInPage({
       batchNo: item.batchNo || '',
       receivedBy: item.receivedBy || '',
       note: item.note || '',
+      profileLines: (item.profileLines || []).map((line) => ({
+        id: line.id,
+        clientLineId: line.clientLineId || newClientId('profile-line'),
+        actualLengthMm: Number(line.actualLengthMm),
+        quantity: Number(line.quantity),
+        trackingMode: line.trackingMode === 'SINGLE' ? 'SINGLE' : 'BATCH',
+        totalWeightKg: Number(line.totalWeightKg || 0),
+        location: line.location || '',
+        note: line.note || '',
+      })),
     })
     setShowModal(true)
   }
@@ -503,6 +592,11 @@ export default function MaterialInPage({
                   <div className="rounded bg-gray-50 p-2 sm:p-3">
                     <div className="text-xs text-gray-500">库存数量</div>
                     <div className="mt-1 font-semibold">{item.qty} {item.unit}</div>
+                    {Boolean(item.profileLines?.length) && (
+                      <div className="mt-1 text-[11px] text-blue-700">
+                        {item.profileLines?.map((line) => `${line.actualLengthMm}mm × ${line.quantity}`).join('；')}
+                      </div>
+                    )}
                   </div>
                   <div className="rounded bg-gray-50 p-2 sm:p-3">
                     <div className="text-xs text-gray-500">核算数量</div>
@@ -604,7 +698,14 @@ export default function MaterialInPage({
                       <div className="text-xs text-gray-500">{item.material?.code}</div>
                       <div className="text-xs text-gray-500">客户：{item.material?.customer?.name || '通用/未绑定'}</div>
                     </td>
-                    <td className="px-4 py-3">{item.qty} {item.unit}</td>
+                    <td className="px-4 py-3">
+                      <div>{item.qty} {item.unit}</div>
+                      {Boolean(item.profileLines?.length) && (
+                        <div className="mt-1 max-w-52 text-xs text-blue-700">
+                          {item.profileLines?.map((line) => `${line.actualLengthMm}mm × ${line.quantity}（${line.trackingMode === 'SINGLE' ? '单根' : '同长批次'}）`).join('；')}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <div>{item.valuationQty} {item.valuationUnit}</div>
                       <div className="text-xs text-gray-500">1 {item.unit} = {item.conversionRate} {item.valuationUnit}</div>
@@ -732,6 +833,9 @@ export default function MaterialInPage({
                       materialId: e.target.value,
                       valuationQty: 0,
                       priceBasis: nextUsesDualUnit ? form.priceBasis : 'STOCK',
+                      profileLines: material?.profileSpec
+                        ? [createProfileLine(material.profileSpec.trackingMode)]
+                        : [],
                     })
                   }}
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -746,10 +850,12 @@ export default function MaterialInPage({
               </div>
               <div className={`grid gap-4 ${materialUsesDualUnit ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">长度/件数 {selectedMaterial ? `(${selectedMaterial.stockUnit || selectedMaterial.unit})` : ''}</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {selectedMaterial?.profileSpec ? '实测行根数合计' : '长度/件数'} {selectedMaterial ? `(${selectedMaterial.stockUnit || selectedMaterial.unit})` : ''}
+                  </label>
                   <input
                     type="number"
-                    value={form.qty || ''}
+                    value={(selectedMaterial?.profileSpec ? documentQty : form.qty) || ''}
                     onChange={(e) => {
                       const qty = Number(e.target.value)
                       setForm({
@@ -758,8 +864,12 @@ export default function MaterialInPage({
                       })
                     }}
                     min={0}
+                    readOnly={Boolean(selectedMaterial?.profileSpec)}
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
+                  {selectedMaterial?.profileSpec && (
+                    <p className="mt-1 text-xs text-gray-500">数量由下方各实测长度行自动汇总。</p>
+                  )}
                 </div>
                 {materialUsesDualUnit && (
                   <div>
@@ -780,6 +890,119 @@ export default function MaterialInPage({
                   </div>
                 )}
               </div>
+              {selectedMaterial?.profileSpec && (
+                <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/60 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-blue-900">不规则来料实测长度</div>
+                      <div className="mt-1 text-xs text-blue-700">相同实际长度可合并一行；选择单根追溯时，收货后自动拆成独立实体。</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setForm({
+                        ...form,
+                        profileLines: [...form.profileLines, createProfileLine(selectedMaterial.profileSpec?.trackingMode || 'BATCH')],
+                      })}
+                      className="shrink-0 rounded-md border border-blue-300 bg-white px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
+                    >
+                      添加长度
+                    </button>
+                  </div>
+                  {form.profileLines.map((line, index) => (
+                    <div key={line.clientLineId} className="rounded-lg border border-blue-100 bg-white p-3">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="text-xs text-gray-600">
+                          实际长度（mm）
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.1"
+                            value={line.actualLengthMm || ''}
+                            onChange={(event) => {
+                              const next = [...form.profileLines]
+                              next[index] = { ...line, actualLengthMm: Number(event.target.value) }
+                              setForm({ ...form, profileLines: next })
+                            }}
+                            className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <label className="text-xs text-gray-600">
+                          根数
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={line.quantity || ''}
+                            onChange={(event) => {
+                              const next = [...form.profileLines]
+                              next[index] = { ...line, quantity: Number(event.target.value) }
+                              setForm({ ...form, profileLines: next })
+                            }}
+                            className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <label className="text-xs text-gray-600">
+                          追溯粒度
+                          <select
+                            value={line.trackingMode}
+                            onChange={(event) => {
+                              const next = [...form.profileLines]
+                              next[index] = { ...line, trackingMode: event.target.value as 'BATCH' | 'SINGLE' }
+                              setForm({ ...form, profileLines: next })
+                            }}
+                            className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+                          >
+                            <option value="BATCH">同长批次</option>
+                            <option value="SINGLE">拆分单根</option>
+                          </select>
+                        </label>
+                        <label className="text-xs text-gray-600">
+                          本行总重量 kg（可选）
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.001"
+                            value={line.totalWeightKg || ''}
+                            onChange={(event) => {
+                              const next = [...form.profileLines]
+                              next[index] = { ...line, totalWeightKg: Number(event.target.value) }
+                              setForm({ ...form, profileLines: next })
+                            }}
+                            className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <label className="text-xs text-gray-600 sm:col-span-2">
+                          库位（可选）
+                          <input
+                            value={line.location}
+                            onChange={(event) => {
+                              const next = [...form.profileLines]
+                              next[index] = { ...line, location: event.target.value }
+                              setForm({ ...form, profileLines: next })
+                            }}
+                            placeholder="例如：原料库-A01"
+                            className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+                          />
+                        </label>
+                      </div>
+                      {form.profileLines.length > 1 && (
+                        <div className="mt-2 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setForm({
+                              ...form,
+                              profileLines: form.profileLines.filter((_, lineIndex) => lineIndex !== index),
+                            })}
+                            className="text-xs text-red-600 hover:text-red-700"
+                          >
+                            删除本行
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
               <div>
                 <div className="mb-2 text-sm font-medium text-gray-700">材料单价</div>
                 {materialUsesDualUnit ? (

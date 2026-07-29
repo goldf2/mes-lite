@@ -5,6 +5,7 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 import { ensureProductForMaterial, isMaterialProductId, materialProductPrefix } from '@/lib/material-product'
+import { loadProductionOrderSnapshots, usesProfileEntityCutting } from '@/lib/cutting'
 
 const createOrderSchema = z.object({
   voucherNo: z.string().optional(),
@@ -13,6 +14,7 @@ const createOrderSchema = z.object({
   productId: z.string().min(1).optional(),
   materialId: z.string().min(1).optional(),
   planQty: z.number().int().positive(),
+  dueDate: z.string().trim().optional(),
   note: z.string().optional(),
 })
 
@@ -30,6 +32,10 @@ export async function POST(req: NextRequest) {
     const rawTargetId = parsed.targetId ?? parsed.materialId ?? parsed.productId
     const targetId = isMaterialProductId(rawTargetId) ? rawTargetId?.slice(materialProductPrefix.length) : rawTargetId
     const { planQty, note, voucherNo } = parsed
+    const dueDate = parsed.dueDate ? new Date(parsed.dueDate) : null
+    if (dueDate && Number.isNaN(dueDate.getTime())) {
+      return NextResponse.json({ error: '交期格式无效' }, { status: 400 })
+    }
 
     if (!targetId) {
       return NextResponse.json({ error: '请选择物料' }, { status: 400 })
@@ -37,8 +43,6 @@ export async function POST(req: NextRequest) {
 
     let productId = ''
     let materialId: string | null = null
-    let bomWithItems: { items: any[] } | null = null
-
     const material = await prisma.material.findUnique({
       where: { id: targetId },
       select: { id: true, code: true, name: true, category: true, customerId: true, stockUnit: true, unit: true, deletedAt: true },
@@ -50,10 +54,6 @@ export async function POST(req: NextRequest) {
 
     materialId = material.id
     productId = await ensureSimpleProductForMaterial(material)
-    bomWithItems = await prisma.bOM.findUnique({
-      where: { productId },
-      include: { items: { where: { itemType: 'MATERIAL' }, include: { material: { include: { stock: true } } } } },
-    })
 
     const today = new Date()
     const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')
@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
     const orderNo = `WO-${dateStr}-${String(count + 1).padStart(3, '0')}`
 
     const order = await prisma.$transaction(async (tx) => {
+      const snapshots = await loadProductionOrderSnapshots(tx, productId)
       const newOrder = await tx.productionOrder.create({
         data: {
           orderNo,
@@ -70,15 +71,22 @@ export async function POST(req: NextRequest) {
           productId,
           materialId,
           planQty,
+          dueDate,
+          bomVersionSnapshot: snapshots.bomSnapshot?.version || null,
+          bomSnapshot: snapshots.bomSnapshot ? JSON.stringify(snapshots.bomSnapshot) : null,
+          processSnapshot: snapshots.processSnapshot ? JSON.stringify(snapshots.processSnapshot) : null,
+          snapshotCreatedAt: new Date(),
           status: 'DRAFT',
           note,
         },
       })
 
-      for (const bomItem of bomWithItems?.items ?? []) {
+      for (const bomItem of snapshots.bom?.items ?? []) {
+        if (bomItem.itemType !== 'MATERIAL') continue
         if (!bomItem.material || !bomItem.materialId) continue
+        if (usesProfileEntityCutting(bomItem)) continue
         const requiredQty = Number(bomItem.quantity) * planQty
-          / Number((bomWithItems as any)?.outputQuantity || 1)
+          / Number(snapshots.bom?.outputQuantity || 1)
           * (1 + Number(bomItem.wastageRate) / 100)
         const stockQty = Number(bomItem.material.stock?.availableQty ?? 0)
 

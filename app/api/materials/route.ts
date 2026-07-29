@@ -79,6 +79,7 @@ export async function GET(req: NextRequest) {
             },
           },
           customer: { select: { id: true, code: true, name: true } },
+          profileSpec: true,
         },
         skip: (page - 1) * pageSize,
         take: pageSize,
