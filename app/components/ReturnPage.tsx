@@ -85,6 +85,7 @@ export default function ReturnPage({
     reason: '',
     note: '',
   })
+  const selectedProduct = products.find((item) => item.id === form.productId)
 
   useEffect(() => {
     fetchReturns()
@@ -481,12 +482,13 @@ export default function ReturnPage({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">数量</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">数量{selectedProduct ? ` (${selectedProduct.unit})` : ''}</label>
                 <input
                   type="number"
+                  step="any"
                   value={form.qty || ''}
                   onChange={(e) => setForm({ ...form, qty: Number(e.target.value) })}
-                  min={1}
+                  min={0}
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>

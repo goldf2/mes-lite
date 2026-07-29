@@ -9,7 +9,7 @@ import { resolveMaterialIdForProduct, resolveProductId } from '@/lib/material-pr
 const createShipmentSchema = z.object({
   voucherNo: z.string().optional(),
   productId: z.string().min(1),
-  qty: z.number().int().positive(),
+  qty: z.number().finite().positive(),
   unitPrice: z.number().nonnegative(),
   customerId: z.string().optional(),
   customer: z.string().min(1),

@@ -124,7 +124,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         })
       }
 
-      await tx.stockLog.create({
+      const sourceMovement = await tx.stockLog.findFirst({
+        where: { refType: 'MATERIAL_IN', refId: materialIn.id, type: 'IN' },
+        orderBy: { createdAt: 'desc' },
+      })
+      const reversalMovement = await tx.stockLog.create({
         data: {
           stockId: stock.id,
           type: 'REVERSE_IN',
@@ -137,12 +141,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           costAmount: -reverseCostAmount,
           beforeCostAmount,
           afterCostAmount,
+          stockUnitSnapshot: materialIn.unit,
+          valuationUnitSnapshot: materialIn.valuationUnit,
+          conversionRateUsed: materialIn.conversionRate,
+          conversionSource: 'ORIGINAL_MOVEMENT',
+          costingMethodSnapshot: materialIn.material.costingMethod,
+          sourceMovementId: sourceMovement?.id,
+          idempotencyKey: `MATERIAL_IN:${materialIn.id}:REVERSE`,
           refType: 'MATERIAL_IN_REVERSE',
           refId: materialIn.id,
           note: `红冲来料单 ${materialIn.inboundNo}: ${reason}`,
           createdBy: reversedBy,
         },
       })
+      if (sourceMovement) {
+        await tx.stockLog.update({
+          where: { id: sourceMovement.id },
+          data: { reversalMovementId: reversalMovement.id },
+        })
+      }
 
       return tx.materialIn.update({
         where: { id: materialIn.id },

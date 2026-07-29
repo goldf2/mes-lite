@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { resolveMaterialIdForProduct } from '@/lib/material-product'
 import { getCurrentOperator } from '@/lib/auth'
+import { postInventoryReceipt } from '@/lib/inventory'
 
 const processSchema = z.object({
   processedBy: z.string().trim().optional(),
@@ -35,20 +36,20 @@ export async function PATCH(
     }
 
     const materialId = await resolveMaterialIdForProduct(prisma, returnOrder.productId, returnOrder.materialId)
+    if (!materialId) return NextResponse.json({ error: '退货对象未关联统一物料档案' }, { status: 400 })
 
     await prisma.$transaction(async (tx) => {
-      let stock = materialId
-        ? await tx.stock.findUnique({ where: { materialId } })
-        : await tx.stock.findUnique({ where: { productId: returnOrder.productId } })
-
-      const beforeQty = stock ? Number(stock.qty) : 0
-      const afterQty = beforeQty + returnOrder.qty
+      const stock = await tx.stock.findUnique({ where: { materialId } })
+      const material = await tx.material.findUnique({
+        where: { id: materialId },
+        select: { conversionRate: true },
+      })
       const shipment = returnOrder.shipmentId
         ? await tx.shipment.findUnique({ where: { id: returnOrder.shipmentId } })
         : null
       const currentValuationRate = stock && Number(stock.qty) > 0
         ? Number(stock.valuationQty) / Number(stock.qty)
-        : 1
+        : Number(material?.conversionRate || 1)
       const currentStockUnitCost = stock && Number(stock.qty) > 0
         ? Number(stock.totalCost) / Number(stock.qty)
         : 0
@@ -58,63 +59,27 @@ export async function PATCH(
       const returnCostAmount = shipment && shipment.qty > 0
         ? Number((Number(shipment.shippedCostAmount) * returnOrder.qty / shipment.qty).toFixed(6))
         : Number((returnOrder.qty * currentStockUnitCost).toFixed(6))
-      const beforeValuationQty = Number(stock?.valuationQty || 0)
-      const afterValuationQty = beforeValuationQty + returnValuationQty
-      const beforeCostAmount = Number(stock?.totalCost || 0)
-      const afterCostAmount = beforeCostAmount + returnCostAmount
-
-      if (stock) {
-        stock = await tx.stock.update({
-          where: { id: stock.id },
-          data: {
-            qty: { increment: returnOrder.qty },
-            availableQty: { increment: returnOrder.qty },
-            valuationQty: { increment: returnValuationQty },
-            availableValuationQty: { increment: returnValuationQty },
-            totalCost: { increment: returnCostAmount },
-            valuationUnitCost: afterValuationQty > 0 ? afterCostAmount / afterValuationQty : 0,
-            stockUnitCost: afterQty > 0 ? afterCostAmount / afterQty : 0,
-          },
-        })
-      } else {
-        stock = await tx.stock.create({
-          data: {
-            materialId,
-            productId: materialId ? null : returnOrder.productId,
-            qty: returnOrder.qty,
-            reservedQty: 0,
-            availableQty: returnOrder.qty,
-            valuationQty: returnValuationQty,
-            availableValuationQty: returnValuationQty,
-            totalCost: returnCostAmount,
-            valuationUnitCost: returnValuationQty > 0 ? returnCostAmount / returnValuationQty : 0,
-            stockUnitCost: returnOrder.qty > 0 ? returnCostAmount / returnOrder.qty : 0,
-          },
-        })
-      }
-
-      // c. 创建 StockLog 记录
-      await tx.stockLog.create({
-        data: {
-          stockId: stock.id,
-          type: 'RETURN_IN',
-          qty: returnOrder.qty,
-          beforeQty,
-          afterQty,
-          valuationQty: returnValuationQty,
-          beforeValuationQty,
-          afterValuationQty,
-          costAmount: returnCostAmount,
-          beforeCostAmount,
-          afterCostAmount,
-          refType: 'RETURN',
-          refId: returnOrder.id,
-          note: `退货单 ${returnOrder.returnNo} 退回入库`,
-          createdBy: processedBy,
-        },
+      const sourceMovement = shipment
+        ? await tx.stockLog.findFirst({
+            where: { refType: 'SHIPMENT', refId: shipment.id, type: 'OUT' },
+            orderBy: { createdAt: 'desc' },
+          })
+        : null
+      const receipt = await postInventoryReceipt(tx, {
+        materialId,
+        stockQty: Number(returnOrder.qty),
+        valuationQty: returnValuationQty,
+        conversionSource: shipment ? 'ORIGINAL_MOVEMENT' : 'LEGACY_ESTIMATE',
+        costAmount: returnCostAmount,
+        type: 'RETURN_IN',
+        refType: 'RETURN',
+        refId: returnOrder.id,
+        note: `退货单 ${returnOrder.returnNo} 退回入库`,
+        createdBy: processedBy,
+        idempotencyKey: `RETURN:${returnOrder.id}:PROCESS`,
+        sourceMovementId: sourceMovement?.id,
       })
 
-      // d. 更新退货单状态
       await tx.returnOrder.update({
         where: { id: returnOrder.id },
         data: {
@@ -122,6 +87,12 @@ export async function PATCH(
           processedAt: new Date(),
           processedBy,
           materialId,
+          processedValuationQty: returnValuationQty,
+          processedCostAmount: returnCostAmount,
+          stockUnitSnapshot: receipt.material?.stockUnit,
+          valuationUnitSnapshot: receipt.material?.valuationUnit,
+          conversionRateUsed: receipt.quantities?.conversionRateUsed,
+          conversionSource: shipment ? 'ORIGINAL_MOVEMENT' : 'LEGACY_ESTIMATE',
         },
       })
     })

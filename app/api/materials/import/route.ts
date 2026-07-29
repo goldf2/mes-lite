@@ -219,12 +219,43 @@ export async function POST(req: NextRequest) {
     const codes = parsed.map((item) => item.code)
     const existingMaterials = await prisma.material.findMany({
       where: { code: { in: codes } },
-      select: { id: true, code: true, deletedAt: true },
+      select: {
+        id: true,
+        code: true,
+        deletedAt: true,
+        stockUnit: true,
+        valuationUnit: true,
+        stock: true,
+        _count: { select: { bomItems: true } },
+      },
     })
     const existingByCode = new Map(existingMaterials.map((material) => [material.code, material]))
     const archivedCodes = existingMaterials.filter((material) => material.deletedAt).map((material) => material.code)
     if (archivedCodes.length > 0) {
       return NextResponse.json({ error: `以下物料编码已被已归档记录占用：${archivedCodes.join('、')}` }, { status: 400 })
+    }
+    if (mode === 'update') {
+      const lockedUnitErrors = (await Promise.all(parsed.map(async (item) => {
+        const existing = existingByCode.get(item.code)
+        if (!existing || (
+          existing.stockUnit === item.stockUnit
+          && existing.valuationUnit === item.valuationUnit
+        )) return null
+        const [movementCount, outputBomCount] = await Promise.all([
+          prisma.stockLog.count({ where: { stock: { materialId: existing.id } } }),
+          prisma.bOM.count({ where: { product: { sku: { in: [existing.code, `MAT-${existing.code}`] } } } }),
+        ])
+        const hasBalance = existing.stock
+          ? ['qty', 'valuationQty', 'reservedQty', 'reservedValuationQty', 'totalCost']
+              .some((field) => Math.abs(Number((existing.stock as any)[field] || 0)) > 0.000001)
+          : false
+        return hasBalance || movementCount > 0 || existing._count.bomItems > 0 || outputBomCount > 0
+          ? `第 ${item.rowNumber} 行：物料 ${item.code} 已有库存、流水或 BOM，不能通过导入修改单位`
+          : null
+      }))).filter(Boolean)
+      if (lockedUnitErrors.length > 0) {
+        return NextResponse.json({ error: '导入校验失败', details: lockedUnitErrors }, { status: 400 })
+      }
     }
 
     const summary = await prisma.$transaction(async (tx) => {
@@ -268,6 +299,7 @@ export async function POST(req: NextRequest) {
           valuationUnit: item.valuationUnit,
           conversionRate: item.conversionRate,
           conversionNote: item.conversionNote || null,
+          unitMode: item.stockUnit === item.valuationUnit && item.conversionRate === 1 ? 'SINGLE' : 'DUAL',
           costingMethod: item.costingMethod,
         }
 

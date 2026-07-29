@@ -172,6 +172,8 @@ export async function POST(req: NextRequest) {
           valuationUnit: body.valuationUnit || body.unit,
           conversionRate: normalizeConversionRate(body.conversionRate),
           conversionNote: body.conversionNote || null,
+          unitMode: (body.stockUnit || body.unit) === (body.valuationUnit || body.unit)
+            && normalizeConversionRate(body.conversionRate) === 1 ? 'SINGLE' : 'DUAL',
           costingMethod: body.costingMethod || 'WEIGHTED_AVERAGE',
         },
       })
@@ -237,7 +239,34 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: existing.deletedAt ? '物料编码已被已归档记录占用' : '物料编码已存在' }, { status: 400 })
     }
 
-    const before = await prisma.material.findUnique({ where: { id: body.id } })
+    const before = await prisma.material.findUnique({
+      where: { id: body.id },
+      include: { stock: true, _count: { select: { bomItems: true } } },
+    })
+    if (!before) return NextResponse.json({ error: '物料不存在' }, { status: 404 })
+    const nextStockUnit = body.stockUnit || body.unit
+    const nextValuationUnit = body.valuationUnit || body.unit
+    const unitsChanged = before.stockUnit !== nextStockUnit || before.valuationUnit !== nextValuationUnit
+    if (unitsChanged) {
+      const [movementCount, outputBomCount] = await Promise.all([
+        prisma.stockLog.count({ where: { stock: { materialId: before.id } } }),
+        prisma.bOM.count({
+          where: {
+            product: { sku: { in: [before.code, `MAT-${before.code}`] } },
+          },
+        }),
+      ])
+      const hasBalance = before.stock
+        ? ['qty', 'valuationQty', 'reservedQty', 'reservedValuationQty', 'totalCost']
+            .some((field) => Math.abs(Number((before.stock as any)[field] || 0)) > 0.000001)
+        : false
+      if (hasBalance || movementCount > 0 || before._count.bomItems > 0 || outputBomCount > 0) {
+        return NextResponse.json(
+          { error: '物料已有库存、流水或 BOM 关系，不能直接修改库存单位/核算单位；请先完成单位转换或新建物料' },
+          { status: 400 },
+        )
+      }
+    }
     const material = await prisma.$transaction(async (tx) => {
       const updated = await tx.material.update({
         where: { id: body.id },
@@ -253,6 +282,8 @@ export async function PUT(req: NextRequest) {
           valuationUnit: body.valuationUnit || body.unit,
           conversionRate: normalizeConversionRate(body.conversionRate),
           conversionNote: body.conversionNote || null,
+          unitMode: nextStockUnit === nextValuationUnit && normalizeConversionRate(body.conversionRate) === 1 ? 'SINGLE' : 'DUAL',
+          unitVersion: unitsChanged ? { increment: 1 } : undefined,
           costingMethod: body.costingMethod || 'WEIGHTED_AVERAGE',
         },
       })

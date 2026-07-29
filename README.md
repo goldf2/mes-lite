@@ -10,6 +10,8 @@
 - [领域模型](./docs/minierp/domain-model.md)
 - [功能模型](./docs/minierp/feature-model.md)
 - [数据模型](./docs/minierp/data-model.md)
+- [双单位库存与成本核算说明](./docs/minierp/双单位库存与成本核算说明.md)
+- [双单位全流程改造规划](./docs/minierp/双单位全流程改造规划.md)
 - [微信小程序接入模型](./docs/minierp/wechat-mini-program-model.md)
 - [功能验收清单](./docs/minierp/功能验收清单.md)
 - [ADR 0001：小程序第一版作为移动管理入口](./docs/adr/0001-mini-program-as-management-entry.md)

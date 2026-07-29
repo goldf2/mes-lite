@@ -322,6 +322,12 @@ export async function POST(req: NextRequest) {
     if (!stock) {
       return NextResponse.json({ error: '库存记录不存在' }, { status: 404 })
     }
+    if (stock.material?.costingMethod === 'FIFO') {
+      return NextResponse.json(
+        { error: 'FIFO 物料不能直接修改库存余额，请使用来料、生产、退货或后续正式盘点单，避免库存与成本层不一致' },
+        { status: 400 },
+      )
+    }
 
     const oldQty = Number(stock.qty)
     const diff = newQty - oldQty
@@ -370,6 +376,11 @@ export async function POST(req: NextRequest) {
           costAmount: costDiff,
           beforeCostAmount: oldTotalCost,
           afterCostAmount: targetTotalCost,
+          stockUnitSnapshot: stock.material?.stockUnit || stock.material?.unit || '件',
+          valuationUnitSnapshot: stock.material?.valuationUnit || stock.material?.unit || '件',
+          conversionRateUsed: newQty > 0 ? Number((targetValuationQty / newQty).toFixed(6)) : 0,
+          conversionSource: 'DOCUMENT_ACTUAL',
+          costingMethodSnapshot: stock.material?.costingMethod || 'WEIGHTED_AVERAGE',
           refType: 'ADJUST',
           note: `存货调整: ${reason}`,
           createdBy: adjustedBy,

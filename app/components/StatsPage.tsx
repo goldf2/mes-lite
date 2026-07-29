@@ -33,6 +33,8 @@ interface MaterialOption {
     id: string
     version: string
     isActive: boolean
+    outputQuantity: number
+    outputUnit: string
     items: BomItem[]
   } | null
 }
@@ -172,7 +174,11 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
     .filter((item) => item.material && Number(item.quantity) > 0)
     .map((item) => ({
       ...item,
-      calculatedQty: totalProcessedQty * Number(item.quantity) * (1 + Number(item.wastageRate || 0) / 100),
+      quantityPerUnit: Number(item.quantity) / Number(selectedMaterial?.bom?.outputQuantity || 1),
+      calculatedQty: totalProcessedQty
+        * Number(item.quantity)
+        / Number(selectedMaterial?.bom?.outputQuantity || 1)
+        * (1 + Number(item.wastageRate || 0) / 100),
     })), [selectedMaterial, totalProcessedQty])
 
   const summary = useMemo(() => reports.reduce((result, report) => {
@@ -527,7 +533,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                             <span className="font-medium text-gray-900">{materialNameSpec(item.material)}</span>
                             <span className="ml-2 font-mono text-xs text-gray-400">{item.material.code}</span>
                           </div>
-                          <div className="text-xs text-gray-500">单件 {numberText(item.quantity)} {item.unit} + {numberText(item.wastageRate)}%</div>
+                          <div className="text-xs text-gray-500">单件 {numberText(item.quantityPerUnit)} {item.unit} + {numberText(item.wastageRate)}%</div>
                           <div className="font-semibold text-blue-700">{numberText(item.calculatedQty)} {item.unit}</div>
                         </div>
                       ))}

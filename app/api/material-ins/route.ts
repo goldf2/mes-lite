@@ -113,6 +113,9 @@ export async function POST(req: NextRequest) {
       ? valuationQty
       : toValuationQty(qty, units.conversionRate)
     const conversionRate = Number((effectiveValuationQty / qty).toFixed(6))
+    const conversionSource = materialUsesDualUnit && valuationQty && valuationQty > 0
+      ? 'DOCUMENT_ACTUAL'
+      : 'MASTER_DEFAULT'
     const valuationUnit = materialUsesDualUnit ? body.valuationUnit || units.valuationUnit : stockUnit
     const requestedPriceBasis = body.priceBasis || 'VALUATION'
     const priceBasis = materialUsesDualUnit ? requestedPriceBasis : 'STOCK'
@@ -143,6 +146,7 @@ export async function POST(req: NextRequest) {
         valuationQty: effectiveValuationQty,
         valuationUnit,
         conversionRate,
+        conversionSource,
         unitPrice,
         priceBasis,
         priceUnit,

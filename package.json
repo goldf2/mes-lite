@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.84",
+  "version": "0.1.85",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -15,7 +15,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "verify:permissions": "tsx scripts/verify-permissions.ts"
+    "verify:permissions": "tsx scripts/verify-permissions.ts",
+    "verify:dual-units": "tsx scripts/verify-dual-unit-flow.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.13.0",

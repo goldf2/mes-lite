@@ -46,6 +46,7 @@ interface MaterialIn {
   valuationQty: number
   valuationUnit: string
   conversionRate: number
+  conversionSource?: string
   stockUnitCost: number
   valuationUnitCost: number
   unitPrice: number
@@ -518,7 +519,9 @@ export default function MaterialInPage({
                   </div>
                 </div>
                 <div className="mt-3 text-xs text-gray-500">
-                  批次：{item.batchNo || '-'} · 1 {item.unit} = {item.conversionRate} {item.valuationUnit} · {item.priceBasis === 'STOCK' ? '按数量/长度报价' : '按重量报价'}
+                  批次：{item.batchNo || '-'} · 1 {item.unit} = {item.conversionRate} {item.valuationUnit}
+                  · {item.conversionSource === 'DOCUMENT_ACTUAL' ? '本批实测换算' : '物料默认换算'}
+                  · {item.priceBasis === 'STOCK' ? '按数量/长度报价' : '按重量报价'}
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                   <AttachmentPanel ownerType="MATERIAL_IN" ownerId={item.id} compact onMessage={onMessage} />

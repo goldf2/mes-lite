@@ -77,7 +77,9 @@ export async function POST(req: NextRequest) {
 
       for (const bomItem of bomWithItems?.items ?? []) {
         if (!bomItem.material || !bomItem.materialId) continue
-        const requiredQty = Number(bomItem.quantity) * planQty * (1 + Number(bomItem.wastageRate) / 100)
+        const requiredQty = Number(bomItem.quantity) * planQty
+          / Number((bomWithItems as any)?.outputQuantity || 1)
+          * (1 + Number(bomItem.wastageRate) / 100)
         const stockQty = Number(bomItem.material.stock?.availableQty ?? 0)
 
         let valuationReserveQty = 0

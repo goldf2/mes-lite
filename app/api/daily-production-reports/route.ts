@@ -79,9 +79,11 @@ export async function GET(req: NextRequest) {
             sku: true,
             bom: {
               select: {
-                id: true,
-                version: true,
-                isActive: true,
+              id: true,
+              version: true,
+              isActive: true,
+              outputQuantity: true,
+              outputUnit: true,
                 items: {
                   where: { itemType: 'MATERIAL', materialId: { not: null } },
                   select: {

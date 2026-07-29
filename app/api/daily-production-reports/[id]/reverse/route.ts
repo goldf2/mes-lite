@@ -54,6 +54,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         if (Number(finishedStock.totalCost) + 0.000001 < Number(report.outputCostAmount)) {
           throw new Error('成品库存金额不足，无法冲销；请先检查后续发货或库存调整')
         }
+        const outputLayers = await tx.inventoryCostLayer.findMany({
+          where: { sourceType: 'DAILY_PRODUCTION_REPORT', sourceId: report.id },
+        })
+        if (outputLayers.some((layer) =>
+          Math.abs(Number(layer.remainingStockQty) - Number(layer.stockQty)) > 0.000001
+          || Math.abs(Number(layer.remainingValuationQty) - Number(layer.valuationQty)) > 0.000001
+        )) {
+          throw new Error('本次生产入库已被后续发货或生产消耗，不能直接冲销')
+        }
+        if (outputLayers.length > 0) {
+          await tx.inventoryCostLayer.deleteMany({
+            where: { sourceType: 'DAILY_PRODUCTION_REPORT', sourceId: report.id },
+          })
+        }
 
         const beforeQty = Number(finishedStock.qty)
         const beforeValuationQty = Number(finishedStock.valuationQty)
@@ -73,7 +87,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             stockUnitCost: afterQty > 0 ? afterCost / afterQty : 0,
           },
         })
-        await tx.stockLog.create({
+        const sourceMovement = await tx.stockLog.findFirst({
+          where: { refType: 'DAILY_PRODUCTION_REPORT', refId: report.id, type: 'PRODUCTION_IN' },
+          orderBy: { createdAt: 'desc' },
+        })
+        const reversalMovement = await tx.stockLog.create({
           data: {
             stockId: finishedStock.id,
             type: 'PRODUCTION_REVERSE_OUT',
@@ -86,12 +104,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             costAmount: -Number(report.outputCostAmount),
             beforeCostAmount: beforeCost,
             afterCostAmount: afterCost,
+            stockUnitSnapshot: report.outputStockUnit || report.finishedMaterial.stockUnit || report.finishedMaterial.unit,
+            valuationUnitSnapshot: report.outputValuationUnit || report.finishedMaterial.valuationUnit || report.finishedMaterial.unit,
+            conversionRateUsed: report.outputConversionRate,
+            conversionSource: 'ORIGINAL_MOVEMENT',
+            costingMethodSnapshot: report.finishedMaterial.costingMethod,
+            sourceMovementId: sourceMovement?.id,
+            idempotencyKey: `DAILY_PRODUCTION:${report.id}:REVERSE_OUTPUT`,
             refType: 'DAILY_PRODUCTION_REPORT_REVERSE',
             refId: report.id,
             note: `冲销生产日报 ${report.reportNo}: ${input.reason}`,
             createdBy: reversedBy,
           },
         })
+        if (sourceMovement) {
+          await tx.stockLog.update({
+            where: { id: sourceMovement.id },
+            data: { reversalMovementId: reversalMovement.id },
+          })
+        }
       }
 
       for (const line of report.consumptions) {
@@ -132,7 +163,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           })
         }
 
-        await tx.stockLog.create({
+        const sourceMovement = await tx.stockLog.findFirst({
+          where: {
+            refType: 'DAILY_PRODUCTION_REPORT',
+            refId: report.id,
+            type: 'PRODUCTION_CONSUME',
+            stockId: stock.id,
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+        const reversalMovement = await tx.stockLog.create({
           data: {
             stockId: stock.id,
             type: 'PRODUCTION_REVERSE_CONSUME',
@@ -145,12 +185,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             costAmount: Number(line.costAmount),
             beforeCostAmount: beforeCost,
             afterCostAmount: afterCost,
+            stockUnitSnapshot: line.unit,
+            valuationUnitSnapshot: line.valuationUnit || line.material.valuationUnit || line.material.unit,
+            conversionRateUsed: line.conversionRateUsed,
+            conversionSource: 'ORIGINAL_MOVEMENT',
+            costingMethodSnapshot: line.costingMethod,
+            sourceMovementId: sourceMovement?.id,
+            idempotencyKey: `DAILY_PRODUCTION:${report.id}:REVERSE_CONSUME:${line.id}`,
             refType: 'DAILY_PRODUCTION_REPORT_REVERSE',
             refId: report.id,
             note: `冲销生产日报 ${report.reportNo}，恢复原料`,
             createdBy: reversedBy,
           },
         })
+        if (sourceMovement) {
+          await tx.stockLog.update({
+            where: { id: sourceMovement.id },
+            data: { reversalMovementId: reversalMovement.id },
+          })
+        }
       }
 
       return tx.dailyProductionReport.update({

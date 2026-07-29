@@ -71,6 +71,8 @@ interface MaterialBom {
     id: string
     version: string
     isActive: boolean
+    outputQuantity: number
+    outputUnit: string
     items: BomItem[]
   } | null
 }
@@ -681,7 +683,7 @@ export default function MaterialPage({
       clientId: item.id,
       materialId: item.material?.id || '',
       quantity: Number(item.quantity || 0),
-      unit: item.unit || item.material?.stockUnit || item.material?.unit || '件',
+      unit: item.material?.stockUnit || item.material?.unit || '件',
       wastageRate: Number(item.wastageRate || 0),
     })))
   }, [selectedBomMaterialItems])
@@ -1070,7 +1072,12 @@ export default function MaterialPage({
     setDraftBomItems((current) => current.map((item) => item.clientId === clientId ? { ...item, ...patch } : item))
   }
 
-  const saveBomForProduct = async (productId: string, items: DraftBomItem[], successMessage = 'BOM 关系已保存') => {
+  const saveBomForProduct = async (
+    productId: string,
+    items: DraftBomItem[],
+    successMessage = 'BOM 关系已保存',
+    outputQuantity = 1,
+  ) => {
     setBomSaving(true)
     try {
       const res = await fetch('/api/boms', {
@@ -1078,6 +1085,7 @@ export default function MaterialPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId,
+          outputQuantity,
           items: items.map((item) => ({
             materialId: item.materialId,
             quantity: Number(item.quantity || 0),
@@ -1102,7 +1110,12 @@ export default function MaterialPage({
 
   const saveSelectedBom = async () => {
     if (!selectedMaterial) return onMessage('请选择物料')
-    await saveBomForProduct(selectedBomProduct?.id || `${materialProductPrefix}${selectedMaterial.id}`, draftBomItems)
+    await saveBomForProduct(
+      selectedBomProduct?.id || `${materialProductPrefix}${selectedMaterial.id}`,
+      draftBomItems,
+      'BOM 关系已保存',
+      Number(selectedBomProduct?.bom?.outputQuantity || 1),
+    )
   }
 
   const applyRelationBom = async () => {
@@ -1112,13 +1125,14 @@ export default function MaterialPage({
     if (Number(relationProductQty || 0) <= 0) return onMessage('成品数量必须大于 0')
     if (Number(relationMaterialQty || 0) <= 0) return onMessage('原料数量必须大于 0')
 
-    const nextQuantity = Number((Number(relationMaterialQty) / Number(relationProductQty)).toFixed(8))
+    const nextOutputQuantity = Number(relationProductQty)
+    const currentOutputQuantity = Number(relationProduct.bom?.outputQuantity || 1)
     const currentItems = (relationProduct.bom?.items || [])
       .filter((item) => item.itemType === 'MATERIAL' && item.material)
       .map((item) => ({
         clientId: item.id,
         materialId: item.material?.id || '',
-        quantity: Number(item.quantity || 0),
+        quantity: Number((Number(item.quantity || 0) / currentOutputQuantity * nextOutputQuantity).toFixed(8)),
         unit: item.unit || item.material?.stockUnit || item.material?.unit || '件',
         wastageRate: Number(item.wastageRate || 0),
       }))
@@ -1126,7 +1140,7 @@ export default function MaterialPage({
     const nextItems = existing
       ? currentItems.map((item) => item.materialId === relationMaterial.id ? {
           ...item,
-          quantity: nextQuantity,
+          quantity: Number(relationMaterialQty),
           unit: relationMaterial.stockUnit || relationMaterial.unit || item.unit || '件',
           wastageRate: Number(relationWastageRate || 0),
         } : item)
@@ -1135,19 +1149,19 @@ export default function MaterialPage({
           {
             clientId: `relation-${relationMaterial.id}-${Date.now()}`,
             materialId: relationMaterial.id,
-            quantity: nextQuantity,
+            quantity: Number(relationMaterialQty),
             unit: relationMaterial.stockUnit || relationMaterial.unit || '件',
             wastageRate: Number(relationWastageRate || 0),
           },
         ]
 
-    await saveBomForProduct(relationProduct.id, nextItems, 'BOM 比例已写入')
+    await saveBomForProduct(relationProduct.id, nextItems, 'BOM 比例已写入', nextOutputQuantity)
   }
 
   const editInputBasisUsage = (product: MaterialBom, item: BomItem) => {
     setRelationProductId(product.id)
     setRelationMaterialId(item.material?.id || '')
-    setRelationProductQty(1)
+    setRelationProductQty(Number(product.bom?.outputQuantity || 1))
     setRelationMaterialQty(Number(item.quantity || 0))
     setRelationWastageRate(Number(item.wastageRate || 0))
   }
@@ -1155,7 +1169,7 @@ export default function MaterialPage({
   const editOutputBasisUsage = (item: DraftBomItem) => {
     setRelationProductId(selectedBomProduct?.id || (selectedMaterial ? `${materialProductPrefix}${selectedMaterial.id}` : ''))
     setRelationMaterialId(item.materialId)
-    setRelationProductQty(1)
+    setRelationProductQty(Number(selectedBomProduct?.bom?.outputQuantity || 1))
     setRelationMaterialQty(Number(item.quantity || 0))
     setRelationWastageRate(Number(item.wastageRate || 0))
   }
@@ -1789,7 +1803,7 @@ export default function MaterialPage({
                             </div>
                             <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-2">
                               <label className="min-w-0">
-                                <span className="text-xs text-gray-500">每件用量</span>
+                                <span className="text-xs text-gray-500">基准投入量</span>
                                 <input
                                   type="number"
                                   min="0"
@@ -1799,14 +1813,12 @@ export default function MaterialPage({
                                   className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-right text-sm"
                                 />
                               </label>
-                              <label className="min-w-0">
+                              <div className="min-w-0">
                                 <span className="text-xs text-gray-500">单位</span>
-                                <input
-                                  value={item.unit}
-                                  onChange={(event) => updateDraftBomItem(item.clientId, { unit: event.target.value })}
-                                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
-                                />
-                              </label>
+                                <div className="mt-1 w-full rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-sm text-gray-700">
+                                  {material?.stockUnit || material?.unit || item.unit}
+                                </div>
+                              </div>
                               <label className="min-w-0">
                                 <span className="text-xs text-gray-500">损耗率 %</span>
                                 <input

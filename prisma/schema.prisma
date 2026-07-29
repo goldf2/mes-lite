@@ -46,6 +46,8 @@ model Material {
   valuationUnit String @default("kg")
   conversionRate Float @default(1)
   conversionNote String?
+  unitMode    String   @default("DUAL")
+  unitVersion Int      @default(1)
   costingMethod String @default("WEIGHTED_AVERAGE")
   deletedAt   DateTime?
   deletedBy   String?
@@ -74,6 +76,8 @@ model BOM {
   costRuns    BomCostRun[]
   version     String   @default("v1")
   isActive    Boolean  @default(true)
+  outputQuantity Float @default(1)
+  outputUnit  String   @default("件")
   createdAt   DateTime @default(now())
 }
 
@@ -411,6 +415,10 @@ model DailyProductionReport {
   bomVersion          String?
   outputValuationQty  Float    @default(0)
   outputCostAmount    Float    @default(0)
+  outputStockUnit     String?
+  outputValuationUnit String?
+  outputConversionRate Float?
+  outputConversionSource String?
   confirmedAt         DateTime?
   confirmedBy         String?
   reversedAt          DateTime?
@@ -440,8 +448,10 @@ model DailyProductionConsumption {
   actualQty             Float
   unit                  String
   valuationQty          Float    @default(0)
+  valuationUnit         String?
   costAmount            Float    @default(0)
   conversionRateUsed    Float?
+  conversionSource      String?
   costingMethod         String?
   costLayerSnapshot     String?
   createdAt             DateTime @default(now())
@@ -504,6 +514,14 @@ model StockLog {
   costAmount   Float?
   beforeCostAmount Float?
   afterCostAmount Float?
+  stockUnitSnapshot String?
+  valuationUnitSnapshot String?
+  conversionRateUsed Float?
+  conversionSource String?
+  costingMethodSnapshot String?
+  sourceMovementId String?
+  reversalMovementId String?
+  idempotencyKey String? @unique
   
   refType     String?
   refId       String?
@@ -572,6 +590,7 @@ model MaterialIn {
   valuationQty Float   @default(0)
   valuationUnit String  @default("kg")
   conversionRate Float  @default(1)
+  conversionSource String @default("MASTER_DEFAULT")
   unitPrice   Float    @default(0)
   priceBasis  String   @default("VALUATION")
   priceUnit   String?
@@ -593,6 +612,8 @@ model InventoryCostLayer {
   materialId            String
   material              Material @relation(fields: [materialId], references: [id])
   materialInId          String?
+  sourceType            String?
+  sourceId              String?
   stockQty              Float
   remainingStockQty     Float
   valuationQty          Float
@@ -609,6 +630,7 @@ model InventoryCostLayer {
 
   @@index([materialId])
   @@index([materialInId])
+  @@index([sourceType, sourceId])
   @@index([status])
 }
 
@@ -669,7 +691,7 @@ model Shipment {
   material      Material? @relation(fields: [materialId], references: [id])
   customerId    String?
   customerRef   Customer? @relation(fields: [customerId], references: [id])
-  qty           Int
+  qty           Float
   unitPrice     Float    @default(0)
   totalAmount   Float    @default(0)
   customer      String
@@ -680,6 +702,10 @@ model Shipment {
   shippedBy     String?
   shippedValuationQty Float @default(0)
   shippedCostAmount Float @default(0)
+  stockUnitSnapshot String?
+  valuationUnitSnapshot String?
+  conversionRateUsed Float?
+  conversionSource String?
   trackingNo    String?
   note          String?
   deletedAt     DateTime?
@@ -702,7 +728,13 @@ model ReturnOrder {
   product       Product  @relation(fields: [productId], references: [id])
   materialId    String?
   material      Material? @relation(fields: [materialId], references: [id])
-  qty           Int
+  qty           Float
+  processedValuationQty Float @default(0)
+  processedCostAmount Float @default(0)
+  stockUnitSnapshot String?
+  valuationUnitSnapshot String?
+  conversionRateUsed Float?
+  conversionSource String?
   reason        String
   status        String   @default("PENDING")
   processedAt   DateTime?

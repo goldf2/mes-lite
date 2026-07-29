@@ -1321,7 +1321,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                         成本：¥{Number(stock.valuationUnitCost || 0).toFixed(4)} / {stock.material.valuationUnit}
                         <span className="ml-2">¥{Number(stock.stockUnitCost || 0).toFixed(4)} / {stock.material.stockUnit || stock.material.unit}</span>
                       </div>
-                      <div className="mt-1">换算：1 {stock.material.stockUnit || stock.material.unit} = {stock.material.conversionRate || 1} {stock.material.valuationUnit}</div>
+                      <div className="mt-1">
+                        当前实际换算：1 {stock.material.stockUnit || stock.material.unit} = {Number(stock.qty) > 0 ? (Number(stock.valuationQty) / Number(stock.qty)).toFixed(6) : '-'} {stock.material.valuationUnit}
+                      </div>
+                      <div className="mt-1 text-gray-500">物料默认换算：1 {stock.material.stockUnit || stock.material.unit} = {stock.material.conversionRate || 1} {stock.material.valuationUnit}</div>
                     </div>
                   )}
                   {canUpdate('stocks') && (

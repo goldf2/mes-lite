@@ -37,6 +37,8 @@ interface MaterialBom {
     id: string
     version: string
     isActive: boolean
+    outputQuantity: number
+    outputUnit: string
     items: BomItem[]
   } | null
 }
@@ -294,6 +296,7 @@ export default function BomRelationPage({ onMessage }: { onMessage: (msg: string
   const [materials, setMaterials] = useState<MaterialOption[]>([])
   const [selectedProductId, setSelectedProductId] = useState('')
   const [draftItems, setDraftItems] = useState<DraftBomItem[]>([])
+  const [draftOutputQuantity, setDraftOutputQuantity] = useState(1)
   const [conversionInputMaterialId, setConversionInputMaterialId] = useState('')
   const [conversionOutputProductId, setConversionOutputProductId] = useState('')
   const [conversionInputQty, setConversionInputQty] = useState(1)
@@ -327,13 +330,14 @@ export default function BomRelationPage({ onMessage }: { onMessage: (msg: string
       const withBom = nextProducts.find((product: MaterialBom) => product.bom?.items.some((item) => item.itemType === 'MATERIAL'))
       const nextProduct = preferred || withBom || nextProducts[0]
       setSelectedProductId(nextProduct?.id || '')
+      setDraftOutputQuantity(Number(nextProduct?.bom?.outputQuantity || 1))
       setDraftItems((nextProduct?.bom?.items || [])
         .filter((item: BomItem) => item.itemType === 'MATERIAL' && item.material)
         .map((item: BomItem) => ({
           clientId: item.id,
           materialId: item.material?.id || '',
           quantity: Number(item.quantity || 0),
-          unit: item.unit || item.material?.stockUnit || item.material?.unit || '件',
+          unit: item.material?.stockUnit || item.material?.unit || '件',
           wastageRate: Number(item.wastageRate || 0),
         })))
     } catch (error) {
@@ -350,13 +354,14 @@ export default function BomRelationPage({ onMessage }: { onMessage: (msg: string
   const selectProduct = (productId: string, options: { scrollToDetail?: boolean } = {}) => {
     const product = products.find((item) => item.id === productId)
     setSelectedProductId(productId)
+    setDraftOutputQuantity(Number(product?.bom?.outputQuantity || 1))
     setDraftItems((product?.bom?.items || [])
       .filter((item) => item.itemType === 'MATERIAL' && item.material)
       .map((item) => ({
         clientId: item.id,
         materialId: item.material?.id || '',
         quantity: Number(item.quantity || 0),
-        unit: item.unit || item.material?.stockUnit || item.material?.unit || '件',
+        unit: item.material?.stockUnit || item.material?.unit || '件',
         wastageRate: Number(item.wastageRate || 0),
       })))
     if (options.scrollToDetail) {
@@ -390,14 +395,25 @@ export default function BomRelationPage({ onMessage }: { onMessage: (msg: string
       return onMessage('原材料不能和产出物料相同')
     }
 
-    const nextQuantity = Number((Number(conversionInputQty) / Number(conversionOutputQty)).toFixed(8))
-    selectProduct(conversionOutputProduct.id, { scrollToDetail: true })
-    setDraftItems((current) => {
+    const nextOutputQuantity = Number(conversionOutputQty)
+    const currentOutputQuantity = Number(conversionOutputProduct.bom?.outputQuantity || 1)
+    const current = (conversionOutputProduct.bom?.items || [])
+      .filter((item) => item.itemType === 'MATERIAL' && item.material)
+      .map((item) => ({
+        clientId: item.id,
+        materialId: item.material?.id || '',
+        quantity: Number((Number(item.quantity || 0) / currentOutputQuantity * nextOutputQuantity).toFixed(8)),
+        unit: item.material?.stockUnit || item.material?.unit || '件',
+        wastageRate: Number(item.wastageRate || 0),
+      }))
+    setSelectedProductId(conversionOutputProduct.id)
+    setDraftOutputQuantity(nextOutputQuantity)
+    setDraftItems(() => {
       const existing = current.find((item) => item.materialId === conversionInputMaterial.id)
       if (existing) {
         return current.map((item) => item.materialId === conversionInputMaterial.id ? {
           ...item,
-          quantity: nextQuantity,
+          quantity: Number(conversionInputQty),
           unit: conversionInputMaterial.stockUnit || conversionInputMaterial.unit || item.unit || '件',
         } : item)
       }
@@ -406,12 +422,13 @@ export default function BomRelationPage({ onMessage }: { onMessage: (msg: string
         {
           clientId: `conversion-${conversionInputMaterial.id}-${Date.now()}`,
           materialId: conversionInputMaterial.id,
-          quantity: nextQuantity,
+          quantity: Number(conversionInputQty),
           unit: conversionInputMaterial.stockUnit || conversionInputMaterial.unit || '件',
           wastageRate: 0,
         },
       ]
     })
+    window.setTimeout(() => detailPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
     onMessage('已按产出关系更新 BOM 用量')
   }
 
@@ -428,6 +445,7 @@ export default function BomRelationPage({ onMessage }: { onMessage: (msg: string
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId: selectedProductId,
+          outputQuantity: draftOutputQuantity,
           items: draftItems.map((item) => ({
             materialId: item.materialId,
             quantity: Number(item.quantity || 0),
@@ -589,6 +607,9 @@ export default function BomRelationPage({ onMessage }: { onMessage: (msg: string
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="rounded bg-gray-100 px-2 py-1 text-gray-600">{selectedProduct?.bom ? selectedProduct.bom.version : '未创建 BOM'}</span>
+                <span className="rounded bg-emerald-50 px-2 py-1 text-emerald-700">
+                  基准 {qty(draftOutputQuantity, 6)} {selectedProduct?.bom?.outputUnit || selectedProduct?.unit || '件'}
+                </span>
                 <span className="rounded bg-blue-50 px-2 py-1 text-blue-700">{draftItems.length} 个原材料项</span>
               </div>
             </div>
@@ -600,7 +621,7 @@ export default function BomRelationPage({ onMessage }: { onMessage: (msg: string
                   <thead className="bg-gray-50 text-left text-gray-600">
                     <tr>
                       <th className="px-3 py-2">原材料</th>
-                      <th className="px-3 py-2 text-right">用量</th>
+                      <th className="px-3 py-2 text-right">基准投入量</th>
                       <th className="px-3 py-2">单位</th>
                       <th className="px-3 py-2 text-right">损耗率</th>
                       <th className="px-3 py-2 text-right">含损耗用量</th>
@@ -629,11 +650,9 @@ export default function BomRelationPage({ onMessage }: { onMessage: (msg: string
                             />
                           </td>
                           <td className="px-3 py-2">
-                            <input
-                              value={item.unit}
-                              onChange={(event) => updateDraftItem(item.clientId, { unit: event.target.value })}
-                              className="w-24 rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                            />
+                            <span className="inline-flex min-w-20 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                              {material?.stockUnit || material?.unit || item.unit}
+                            </span>
                           </td>
                           <td className="px-3 py-2 text-right">
                             <div className="inline-flex overflow-hidden rounded-lg border border-gray-200">

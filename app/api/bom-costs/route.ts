@@ -132,7 +132,12 @@ export async function POST(req: NextRequest) {
 
     const lines: BomCostLineInput[] = []
     product.bom.items.forEach((item, index) => {
-      const baseQty = round(Number(item.quantity || 0) * input.quantityBasis * (1 + Number(item.wastageRate || 0) / 100))
+      const baseQty = round(
+        Number(item.quantity || 0)
+        * input.quantityBasis
+        / Number(product.bom?.outputQuantity || 1)
+        * (1 + Number(item.wastageRate || 0) / 100),
+      )
       if (item.costObject) {
         const activeCost = item.costObject.costs[0]
         const materialCostPerUnit = Number(activeCost?.materialCostPerUnit || 0)

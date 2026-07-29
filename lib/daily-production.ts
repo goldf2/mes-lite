@@ -40,6 +40,7 @@ export async function buildDailyProductionConsumption(
                   name: true,
                   deletedAt: true,
                   stockUnit: true,
+                  valuationUnit: true,
                   unit: true,
                 },
               },
@@ -66,6 +67,7 @@ export async function buildDailyProductionConsumption(
     plannedQty: number
     actualQty: number
     unit: string
+    valuationUnit: string
   }>()
 
   for (const item of bom.items) {
@@ -75,8 +77,13 @@ export async function buildDailyProductionConsumption(
     if (item.material.id === finishedMaterial.id) {
       throw new Error('BOM 不能消耗产出物料自身')
     }
+    const stockUnit = item.material.stockUnit || item.material.unit
+    if (item.unit !== stockUnit) {
+      throw new Error(`BOM 原料 ${item.material.code} ${item.material.name} 的单位必须为库存单位 ${stockUnit}`)
+    }
 
-    const quantityPerUnit = Number(item.quantity)
+    const outputBasis = Number(bom.outputQuantity || 1)
+    const quantityPerUnit = roundQty(Number(item.quantity) / outputBasis)
     const wastageRate = Number(item.wastageRate)
     const plannedQty = roundQty(totalProcessedQty * quantityPerUnit * (1 + wastageRate / 100))
     if (plannedQty <= 0) continue
@@ -99,6 +106,7 @@ export async function buildDailyProductionConsumption(
       plannedQty,
       actualQty: plannedQty,
       unit: item.unit || item.material.stockUnit || item.material.unit,
+      valuationUnit: item.material.valuationUnit || item.material.unit,
     })
   }
 

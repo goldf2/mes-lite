@@ -16,6 +16,7 @@ const bomItemSchema = z.object({
 
 const saveBomSchema = z.object({
   productId: z.string().min(1, '请选择物料'),
+  outputQuantity: z.number().finite().positive().default(1),
   items: z.array(bomItemSchema).max(200, 'BOM 明细过多'),
 })
 
@@ -72,6 +73,8 @@ export async function GET() {
             id: true,
             version: true,
             isActive: true,
+            outputQuantity: true,
+            outputUnit: true,
             items: {
               orderBy: { id: 'asc' },
               select: bomItemSelect,
@@ -127,6 +130,12 @@ export async function PUT(req: NextRequest) {
     const resolvedProductId = await prisma.$transaction((tx) => resolveProductId(tx, input.productId, { description: '由物料自动映射，用于 BOM 关系。' }))
     const product = await prisma.product.findUnique({ where: { id: resolvedProductId } })
     if (!product) return NextResponse.json({ error: '物料不存在' }, { status: 404 })
+    const outputCode = product.sku.startsWith('MAT-') ? product.sku.slice(4) : product.sku
+    const outputMaterial = await prisma.material.findFirst({
+      where: { code: outputCode, deletedAt: null },
+      select: { id: true, stockUnit: true, unit: true },
+    })
+    if (!outputMaterial) return NextResponse.json({ error: 'BOM 产出物料不存在或已归档' }, { status: 400 })
 
     const materialIds = Array.from(new Set(input.items.map((item) => item.materialId)))
     const materials = await prisma.material.findMany({
@@ -138,6 +147,17 @@ export async function PUT(req: NextRequest) {
     }
 
     const materialById = new Map(materials.map((material) => [material.id, material]))
+    const unitMismatch = input.items.find((item) => {
+      const material = materialById.get(item.materialId)
+      return item.unit && material && item.unit !== (material.stockUnit || material.unit)
+    })
+    if (unitMismatch) {
+      const material = materialById.get(unitMismatch.materialId)
+      return NextResponse.json(
+        { error: `BOM 投入单位必须使用物料库存单位 ${(material?.stockUnit || material?.unit)}` },
+        { status: 400 },
+      )
+    }
     const items = input.items
       .filter((item) => item.quantity > 0)
       .map((item) => {
@@ -146,7 +166,7 @@ export async function PUT(req: NextRequest) {
           itemType: 'MATERIAL',
           materialId: item.materialId,
           quantity: item.quantity,
-          unit: item.unit || material?.stockUnit || material?.unit || '件',
+          unit: material?.stockUnit || material?.unit || '件',
           wastageRate: item.wastageRate,
         }
       })
@@ -154,8 +174,18 @@ export async function PUT(req: NextRequest) {
     const saved = await prisma.$transaction(async (tx) => {
       const bom = await tx.bOM.upsert({
         where: { productId: product.id },
-        update: { isActive: true },
-        create: { productId: product.id, version: 'v1', isActive: true },
+        update: {
+          isActive: true,
+          outputQuantity: input.outputQuantity,
+          outputUnit: outputMaterial.stockUnit || outputMaterial.unit,
+        },
+        create: {
+          productId: product.id,
+          version: 'v1',
+          isActive: true,
+          outputQuantity: input.outputQuantity,
+          outputUnit: outputMaterial.stockUnit || outputMaterial.unit,
+        },
         select: { id: true },
       })
 
@@ -175,6 +205,8 @@ export async function PUT(req: NextRequest) {
           id: true,
           version: true,
           isActive: true,
+          outputQuantity: true,
+          outputUnit: true,
           items: {
             orderBy: { id: 'asc' },
             select: bomItemSelect,

@@ -92,6 +92,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       ? valuationQty
       : toValuationQty(qty, units.conversionRate)
     const conversionRate = Number((effectiveValuationQty / qty).toFixed(6))
+    const conversionSource = materialUsesDualUnit && valuationQty && valuationQty > 0
+      ? 'DOCUMENT_ACTUAL'
+      : 'MASTER_DEFAULT'
     const requestedPriceBasis = body.priceBasis || 'VALUATION'
     const priceBasis = materialUsesDualUnit ? requestedPriceBasis : 'STOCK'
     const priceUnit = priceBasis === 'STOCK' ? stockUnit : valuationUnit
@@ -112,6 +115,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         valuationQty: effectiveValuationQty,
         valuationUnit,
         conversionRate,
+        conversionSource,
         unitPrice,
         priceBasis,
         priceUnit,
