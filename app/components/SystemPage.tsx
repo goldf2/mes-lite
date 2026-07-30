@@ -1304,6 +1304,7 @@ function Placeholder({ title, text }: { title: string; text: string }) {
 function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
   const [records, setRecords] = useState<DeletedRecord[]>([])
   const [loading, setLoading] = useState(false)
+  const [purgingKey, setPurgingKey] = useState('')
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.recycle.viewMode', 'list')
   const isCompactViewport = useCompactViewport(1023)
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
@@ -1353,12 +1354,42 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
     }
   }
 
+  const purge = async (record: DeletedRecord) => {
+    const confirmation = window.prompt(
+      `永久删除「${record.label}」后不能恢复。若确认继续，请输入“永久删除”：`,
+    )
+    if (confirmation === null) return
+    if (confirmation !== '永久删除') {
+      onMessage('输入内容不一致，已取消永久删除')
+      return
+    }
+
+    const key = `${record.model}-${record.id}`
+    setPurgingKey(key)
+    try {
+      const res = await fetch('/api/deleted-records', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: record.model, id: record.id, confirmation: '永久删除' }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        onMessage('归档记录已永久删除')
+        await fetchDeletedRecords()
+      } else {
+        onMessage(data.error || '永久删除失败')
+      }
+    } finally {
+      setPurgingKey('')
+    }
+  }
+
   return (
     <div className="rounded-lg bg-white p-4 shadow sm:p-6">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold">归档记录</h3>
-          <p className="text-sm text-gray-500 mt-1">业务数据归档后不会物理删除，可在这里恢复。</p>
+          <p className="text-sm text-gray-500 mt-1">归档记录可以恢复；没有库存、单据、附件等业务引用时，也可永久删除并释放占用的编码。</p>
         </div>
         <div className="flex flex-wrap items-center gap-3 sm:justify-end">
           <div className="hidden lg:block">
@@ -1378,9 +1409,16 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
                   <div className="font-mono text-sm font-semibold text-blue-700">{record.label}</div>
                   <div className="mt-1 text-sm text-gray-500">{record.type}</div>
                 </div>
-                <button onClick={() => restore(record)} className="px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">
-                  恢复归档
-                </button>
+                <div className="flex shrink-0 flex-col gap-2">
+                  <button onClick={() => restore(record)} className="px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">恢复归档</button>
+                  <button
+                    onClick={() => purge(record)}
+                    disabled={purgingKey === `${record.model}-${record.id}`}
+                    className="rounded border border-red-300 px-3 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {purgingKey === `${record.model}-${record.id}` ? '删除中...' : '永久删除'}
+                  </button>
+                </div>
               </div>
               <div className="mt-4 text-xs text-gray-500">归档时间：{record.deletedAt ? new Date(record.deletedAt).toLocaleString('zh-CN') : '-'}</div>
             </div>
@@ -1404,9 +1442,16 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
                 <td className="px-4 py-3 font-mono text-sm text-blue-700">{record.label}</td>
                 <td className="px-4 py-3 text-xs text-gray-500">{record.deletedAt ? new Date(record.deletedAt).toLocaleString('zh-CN') : '-'}</td>
                 <td className="px-4 py-3">
-                  <button onClick={() => restore(record)} className="px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">
-                    恢复归档
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => restore(record)} className="px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">恢复归档</button>
+                    <button
+                      onClick={() => purge(record)}
+                      disabled={purgingKey === `${record.model}-${record.id}`}
+                      className="rounded border border-red-300 px-3 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {purgingKey === `${record.model}-${record.id}` ? '删除中...' : '永久删除'}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

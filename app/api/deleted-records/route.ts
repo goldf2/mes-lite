@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
+import { writeAuditLog } from '@/lib/audit'
+import { ArchivedRecordPurgeError, purgeArchivedRecord } from '@/lib/archived-record-purge'
 
 export const dynamic = 'force-dynamic'
+
+const purgeSchema = z.object({
+  model: z.enum(['material', 'supplier', 'customer', 'materialIn', 'workInstruction', 'order', 'dispatch', 'shipment', 'return']),
+  id: z.string().min(1),
+  confirmation: z.literal('永久删除'),
+})
 
 export async function GET(req: NextRequest) {
   try {
@@ -79,5 +88,40 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('Get archived records error:', error)
     return NextResponse.json({ error: '获取归档记录失败' }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const denied = await requireResourcePermission('system', 'delete')
+    if (denied) return denied
+
+    const input = purgeSchema.safeParse(await req.json())
+    if (!input.success) {
+      return NextResponse.json({ error: '参数错误', details: input.error.errors }, { status: 400 })
+    }
+
+    const result = await purgeArchivedRecord(input.data.model, input.data.id)
+    await writeAuditLog(req, {
+      action: 'PURGE',
+      entityType: result.entityType,
+      entityId: result.id,
+      entityLabel: result.entityLabel,
+      beforeData: result.snapshot,
+      note: '从归档记录永久删除；此操作不可恢复',
+    })
+
+    return NextResponse.json({ message: '归档记录已永久删除' })
+  } catch (error) {
+    if (error instanceof ArchivedRecordPurgeError) {
+      return NextResponse.json({
+        error: error.blockers.length > 0
+          ? `${error.message}：${error.blockers.join('；')}`
+          : error.message,
+        blockers: error.blockers,
+      }, { status: error.status })
+    }
+    console.error('Purge archived record error:', error)
+    return NextResponse.json({ error: '永久删除归档记录失败' }, { status: 500 })
   }
 }
