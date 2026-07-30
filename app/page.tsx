@@ -10,6 +10,7 @@ import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
 import ViewModeToggle, { usePersistedViewMode } from './components/ViewModeToggle'
 import useCompactViewport from './components/useCompactViewport'
 import { InterfacePreferenceSync } from './components/interfacePreferences'
+import type { SystemSection } from './components/SystemPage'
 
 function FeaturePageLoading() {
   return <div className="py-12 text-center text-sm text-gray-500" role="status">加载中...</div>
@@ -127,18 +128,29 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'scanPrint' | 'operators' | 'system' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
+type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
 type MaterialSection = 'materials' | 'bomWorkspace' | 'bomSetup' | 'bomUsage'
 type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'logistics' | 'inventory' | 'tools'
 
 const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: TabType[] }> = [
   { key: 'workspace', label: '工作台', tabs: ['dashboard'] },
   { key: 'materials', label: '物料', tabs: ['materials'] },
-  { key: 'production', label: '生产', tabs: ['orders', 'stats', 'workInstructions', 'dispatch'] },
-  { key: 'logistics', label: '物流', tabs: ['materialIn', 'shipment', 'return'] },
+  { key: 'production', label: '生产', tabs: ['orders', 'stats', 'workInstructions', 'processTemplates', 'processRoutes', 'dispatch'] },
+  { key: 'logistics', label: '物流', tabs: ['materialIn', 'shipment', 'return', 'suppliers', 'customers'] },
   { key: 'inventory', label: '库存', tabs: ['stocks'] },
-  { key: 'tools', label: '工具', tabs: ['sawingCost', 'scanPrint'] },
+  { key: 'tools', label: '工具', tabs: ['sawingCost', 'scanPrint', 'archive', 'auditLogs', 'dataTools', 'systemSettings'] },
 ]
+
+const systemSectionByTab: Partial<Record<TabType, SystemSection>> = {
+  suppliers: 'suppliers',
+  customers: 'customers',
+  processTemplates: 'processTemplates',
+  processRoutes: 'process',
+  archive: 'recycle',
+  auditLogs: 'audit',
+  dataTools: 'dataTools',
+  systemSettings: 'preferences',
+}
 
 const lightweightHiddenResources = new Set<string>([
   'dispatch',
@@ -160,8 +172,15 @@ function MenuIcon({ icon }: { icon: string }) {
     stats: '报',
     sawingCost: '锯',
     scanPrint: '扫',
+    suppliers: '供',
+    customers: '客',
+    processTemplates: '艺',
+    processRoutes: '线',
+    archive: '档',
+    auditLogs: '记',
+    dataTools: '数',
+    systemSettings: '设',
     operators: '人',
-    system: '设',
     permissionUsers: '权',
     permissionGroups: '组',
     permissions: '限',
@@ -327,22 +346,29 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'return', label: '退货管理', resource: 'return' },
     { key: 'stocks', label: '库存管理', resource: 'stocks' },
     { key: 'stats', label: '生产日报', resource: 'stats' },
+    { key: 'processTemplates', label: '加工工艺', resource: 'system' },
+    { key: 'processRoutes', label: '物料路线', resource: 'system' },
     { key: 'sawingCost', label: '锯切成本', resource: 'sawingCost' },
     { key: 'scanPrint', label: '硬件工具', resource: 'scanPrint' },
+    { key: 'suppliers', label: '供应商资料', resource: 'system' },
+    { key: 'customers', label: '客户资料', resource: 'system' },
+    { key: 'archive', label: '归档记录', resource: 'system' },
+    { key: 'auditLogs', label: '操作记录', resource: 'system' },
+    { key: 'dataTools', label: '数据工具', resource: 'system' },
+    { key: 'systemSettings', label: '系统设置', resource: 'system' },
     { key: 'operators', label: '人员管理', resource: 'operators' },
-    { key: 'system', label: '系统管理', resource: 'system' },
     { key: 'permissionUsers', label: '人员权限', resource: 'permissionUsers' },
     { key: 'permissionGroups', label: '组权限', resource: 'permissionGroups' },
   ]
   const hiddenResources = lightweightHiddenResources
-  const systemResources = new Set(['operators', 'system', 'permissionUsers', 'permissionGroups', 'permissions'])
+  const accountMenuKeys = new Set<TabType>(['operators', 'permissionUsers', 'permissionGroups', 'permissions'])
   const canReadNavItem = (item: { key: TabType; resource: string }) => (
     item.key === 'materials'
       ? canRead('materials') || canRead('bomCost')
       : canRead(item.resource)
   )
-  const readableBusinessNavItems = baseNavItems.filter((item) => canReadNavItem(item) && !systemResources.has(item.resource) && !hiddenResources.has(item.resource))
-  const readableSystemNavItems = baseNavItems.filter((item) => canRead(item.resource) && systemResources.has(item.resource) && !hiddenResources.has(item.resource))
+  const readableBusinessNavItems = baseNavItems.filter((item) => canReadNavItem(item) && !accountMenuKeys.has(item.key) && !hiddenResources.has(item.resource))
+  const readableSystemNavItems = baseNavItems.filter((item) => canRead(item.resource) && accountMenuKeys.has(item.key) && !hiddenResources.has(item.resource))
   const [tab, setTab] = useState<TabType>('stats')
   const [materialSection, setMaterialSection] = useState<MaterialSection>(canRead('materials') ? 'materials' : 'bomSetup')
   const [materialMenuOpen, setMaterialMenuOpen] = useState(true)
@@ -401,6 +427,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const activeTabLabel = tab === 'materials'
     ? materialSectionItems.find((item) => item.key === materialSection)?.label || '物料与 BOM'
     : tabLabels[tab] || 'MES-lite'
+  const activeSystemSection = systemSectionByTab[tab]
   const activeSystemTab = readableSystemNavItems.some((item) => item.key === tab)
   const activeBusinessGroupKey: BusinessNavGroupKey = tab === 'create' || tab === 'detail'
     ? 'production'
@@ -830,10 +857,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           <div className="flex items-center gap-3">
             <div>
               <div className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                {activeSystemTab ? '系统设置' : '当前模块'}
+                {activeSystemTab ? '账号设置' : '当前模块'}
               </div>
               <div className="mt-1 text-sm font-semibold text-gray-800">
-                {activeSystemTab ? '系统管理' : activeBusinessGroup?.label || '业务功能'}
+                {activeSystemTab ? '人员与权限' : activeBusinessGroup?.label || '业务功能'}
               </div>
             </div>
           </div>
@@ -997,7 +1024,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           </nav>
           <div className="flex min-w-0 flex-nowrap items-center gap-2">
             <div className="min-w-0 shrink-0 pt-1">
-              <div className="hidden text-xs font-medium text-gray-400 sm:block">{activeSystemTab ? '系统功能' : '业务功能'}</div>
+              <div className="hidden text-xs font-medium text-gray-400 sm:block">{activeSystemTab ? '账号功能' : '业务功能'}</div>
               <div className="max-w-[5.5rem] truncate text-sm font-semibold text-gray-900 sm:max-w-[10rem] sm:text-lg lg:max-w-[12rem]">{activeTabLabel}</div>
             </div>
             <div id="topbar-actions" className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible">
@@ -1807,8 +1834,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {/* 人员管理 */}
         {tab === 'operators' && <OperatorPage currentOperator={operator} onMessage={showMessage} />}
 
-        {/* 系统管理 */}
-        {tab === 'system' && <SystemPage onMessage={showMessage} />}
+        {/* 分布在生产、物流和工具菜单中的管理页面 */}
+        {activeSystemSection && <SystemPage section={activeSystemSection} onMessage={showMessage} />}
 
         {/* 人员权限控制 */}
         {tab === 'permissionUsers' && <PermissionPage mode="users" onMessage={showMessage} />}

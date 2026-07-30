@@ -171,53 +171,26 @@ function routeStepCostPerThousand(step: ProcessRoute['steps'][number] | ProcessS
   return { laborHours, machineHours, cost }
 }
 
-type SystemTab = 'suppliers' | 'customers' | 'processTemplates' | 'process' | 'recycle' | 'audit' | 'dataTools' | 'preferences'
+export type SystemSection = 'suppliers' | 'customers' | 'processTemplates' | 'process' | 'recycle' | 'audit' | 'dataTools' | 'preferences'
 
-export default function SystemPage({ onMessage }: { onMessage: (msg: string) => void }) {
-  const [tab, setTab] = useState<SystemTab>('suppliers')
-
+export default function SystemPage({
+  section,
+  onMessage,
+}: {
+  section: SystemSection
+  onMessage: (msg: string) => void
+}) {
   return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold">系统管理</h2>
-            <p className="text-sm text-gray-500 mt-1">维护客户、供应商、物料工艺等基础数据。</p>
-          </div>
-          <div className="flex flex-wrap justify-end gap-2">
-            {([
-              ['suppliers', '供应商'],
-              ['customers', '客户'],
-              ['processTemplates', '加工工艺'],
-              ['process', '物料路线'],
-              ['recycle', '归档记录'],
-              ['audit', '操作记录'],
-              ['dataTools', '数据工具'],
-              ['preferences', '系统设置'],
-            ] as const).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                  tab === key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {tab === 'suppliers' && <SupplierManager onMessage={onMessage} />}
-      {tab === 'customers' && <CustomerManager onMessage={onMessage} />}
-      {tab === 'processTemplates' && <ProcessTemplateManager onMessage={onMessage} />}
-      {tab === 'process' && <ProcessManager onMessage={onMessage} />}
-      {tab === 'recycle' && <RecycleBin onMessage={onMessage} />}
-      {tab === 'audit' && <AuditLogViewer onMessage={onMessage} />}
-      {tab === 'dataTools' && <DataToolManager onMessage={onMessage} />}
-      {tab === 'preferences' && <InterfacePreferenceManager onMessage={onMessage} />}
-    </div>
+    <>
+      {section === 'suppliers' && <SupplierManager onMessage={onMessage} />}
+      {section === 'customers' && <CustomerManager onMessage={onMessage} />}
+      {section === 'processTemplates' && <ProcessTemplateManager onMessage={onMessage} />}
+      {section === 'process' && <ProcessManager onMessage={onMessage} />}
+      {section === 'recycle' && <RecycleBin onMessage={onMessage} />}
+      {section === 'audit' && <AuditLogViewer onMessage={onMessage} />}
+      {section === 'dataTools' && <DataToolManager onMessage={onMessage} />}
+      {section === 'preferences' && <InterfacePreferenceManager onMessage={onMessage} />}
+    </>
   )
 }
 
