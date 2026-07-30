@@ -250,7 +250,7 @@ export async function POST(req: NextRequest) {
         machineCost: 0,
         directCost: 0,
         totalCost: materialCost,
-        note: `按 BOM 单位消耗量 ${round(Number(item.quantity || 0) / Number(product.bom?.outputQuantity || 1))} ${item.unit}/${product.unit} 计算`,
+        note: `按 BOM 单位消耗量 ${round(Number(item.quantity || 0) / Number(product.bom?.outputQuantity || 1))} ${item.unit}原料/${product.unit}产出计算`,
         sortOrder: index,
       })
     })

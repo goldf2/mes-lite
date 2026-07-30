@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict'
 import { prisma } from '../lib/prisma'
 import { classifyScan, normalizeScanCode } from '../lib/scanning'
-import { pc310t203Profile } from '../app/components/scan-print/labelProfiles'
+import {
+  labelCanvasDots,
+  labelPrintPageStyle,
+  pc310t203Profile,
+  pc310tDefaultLabelMedia,
+  pc310tLabelMediaProfiles,
+} from '../app/components/scan-print/labelProfiles'
 import { honeywell1900Profile } from '../app/components/scan-print/scannerAdapter'
 
 async function main() {
@@ -28,8 +34,13 @@ async function main() {
     quantity: 1,
   }).result, 'OVER')
 
-  assert.equal(pc310t203Profile.canvasWidthDots, 800)
-  assert.equal(pc310t203Profile.canvasHeightDots, 1200)
+  assert.equal(pc310tDefaultLabelMedia.widthMm, 105)
+  assert.equal(pc310tDefaultLabelMedia.heightMm, 70)
+  assert.equal(pc310tLabelMediaProfiles.some((media) => media.id === '100X150'), true)
+  assert.deepEqual(labelCanvasDots(pc310tDefaultLabelMedia), { width: 840, height: 560 })
+  assert.match(labelPrintPageStyle(pc310tDefaultLabelMedia), /size: 105mm 70mm/)
+  assert.equal(pc310t203Profile.canvasWidthDots, 840)
+  assert.equal(pc310t203Profile.canvasHeightDots, 560)
   assert.equal(pc310t203Profile.dpi, 203)
   assert.equal(honeywell1900Profile.inputMode, 'USB HID Keyboard')
 
@@ -73,7 +84,7 @@ async function main() {
       data: {
         jobNo: `VERIFY-LP-${suffix}`,
         clientRequestId: `VERIFY-PRINT-${suffix}`,
-        templateType: 'GENERIC_100X150',
+        templateType: 'GENERIC_LABEL',
         referenceType: 'GENERAL',
         referenceId: 'VERIFY-CODE',
         printerModel: pc310t203Profile.model,
@@ -86,7 +97,8 @@ async function main() {
     })
     printJobId = printJob.id
     assert.equal(printJob.printerDpi, 203)
-    assert.equal(printJob.labelWidthMm, 100)
+    assert.equal(printJob.labelWidthMm, 105)
+    assert.equal(printJob.labelHeightMm, 70)
   } finally {
     if (sessionId) await prisma.scanCountSession.delete({ where: { id: sessionId } }).catch(() => undefined)
     if (printJobId) await prisma.labelPrintJob.delete({ where: { id: printJobId } }).catch(() => undefined)

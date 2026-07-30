@@ -674,7 +674,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
                     <div className="font-medium text-gray-900">{item.material.code} · {item.material.name}</div>
                     {item.quantity > 0 ? (
                       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
-                        <span>单位耗用 {qty(item.quantity / Number(selectedProduct.bom?.outputQuantity || 1), 6)} {item.unit}/{selectedProduct.unit}</span>
+                        <span>单位耗用 {qty(item.quantity / Number(selectedProduct.bom?.outputQuantity || 1), 6)} {item.unit}原料/{selectedProduct.unit}产出</span>
                         <span className="font-semibold text-blue-700">
                           本次 {qty(item.quantity * form.quantityBasis / Number(selectedProduct.bom?.outputQuantity || 1), 6)} {item.unit}
                         </span>

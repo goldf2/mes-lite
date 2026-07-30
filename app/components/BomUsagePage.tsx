@@ -166,7 +166,7 @@ export default function BomUsagePage({
                       </div>
                       <div className={`rounded px-2 py-1 text-xs ${item.quantity > 0 ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
                         {item.quantity > 0
-                          ? `单位耗用 ${Number(item.quantity).toFixed(6).replace(/\.?0+$/, '')} ${item.unit}/件`
+                          ? `单位耗用 ${Number(item.quantity).toFixed(6).replace(/\.?0+$/, '')} ${item.unit}原料/${product.unit || '单位'}成品`
                           : '待填写单位耗用'}
                       </div>
                       <button

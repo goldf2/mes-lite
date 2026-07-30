@@ -970,7 +970,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </nav>
       </aside>
 
-      <main className="min-w-0 p-3 pb-28 sm:p-4 lg:ml-56 lg:min-h-screen lg:p-6 lg:pt-20">
+      <main className={`min-w-0 p-3 pb-28 sm:p-4 lg:ml-56 lg:min-h-screen lg:p-6 lg:pt-20 ${
+        tab === 'materials' && materialSection === 'bomWorkspace'
+          ? 'xl:flex xl:h-screen xl:flex-col xl:overflow-hidden'
+          : ''
+      }`}>
         <div className="sticky top-0 z-30 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:top-16 lg:-mx-6 lg:px-6">
           <nav aria-label="主业务分类" className="-mx-1 mb-2 flex min-w-0 gap-1 overflow-x-auto px-1 lg:hidden">
             {visibleBusinessGroups.map((group) => {

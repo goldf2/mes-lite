@@ -32,7 +32,7 @@ body[data-modal-glass='off'] .mes-modal-overlay-dark {
 
 @media print {
   @page {
-    size: 100mm 150mm;
+    size: 105mm 70mm;
     margin: 0;
   }
 
@@ -59,12 +59,12 @@ body[data-modal-glass='off'] .mes-modal-overlay-dark {
   .shipment-label-sheet {
     box-sizing: border-box;
     display: flex;
-    width: 100mm;
-    height: 150mm;
+    width: 105mm;
+    height: 70mm;
     break-after: page;
     flex-direction: column;
     overflow: hidden;
-    padding: 6mm;
+    padding: 4mm;
     color: black;
     background: white;
   }

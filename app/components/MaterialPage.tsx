@@ -1259,7 +1259,7 @@ export default function MaterialPage({
       if (selected.has('spec') && item.material?.spec) parts.push(item.material.spec)
       if (selected.has('code')) parts.push(item.material?.code || '')
       const relation = parts.filter(Boolean).join(' · ')
-      return item.quantity > 0 ? `${relation}（${qty(item.quantity)} ${item.unit}/件）` : relation
+      return item.quantity > 0 ? `${relation}（${qty(item.quantity)} ${item.unit}原料/${product?.unit || '单位'}成品）` : relation
     }
     const usageText = ({ product: usageProduct, item }: { product: MaterialBom; item: BomItem }) => {
       const parts: string[] = []
@@ -1627,10 +1627,13 @@ export default function MaterialPage({
           '--material-right': `${100 - splitPercent}fr`,
         } as CSSProperties : undefined}
         className={showBomWorkspace
-          ? 'grid grid-cols-1 items-start gap-4 xl:items-stretch xl:gap-0 xl:[grid-template-columns:minmax(0,var(--material-left))_12px_minmax(0,var(--material-right))]'
+          ? 'grid grid-cols-1 items-start gap-4 xl:min-h-0 xl:flex-1 xl:items-stretch xl:gap-0 xl:overflow-hidden xl:[grid-template-columns:minmax(0,var(--material-left))_12px_minmax(0,var(--material-right))]'
           : 'min-w-0'}
       >
-        <div className="min-w-0 rounded-lg bg-transparent p-0 shadow-none sm:bg-white sm:p-4 sm:shadow">
+        <div
+          aria-label={showBomWorkspace ? '物料列表工作区' : undefined}
+          className={`min-w-0 rounded-lg bg-transparent p-0 shadow-none sm:bg-white sm:p-4 sm:shadow ${showBomWorkspace ? 'xl:h-full xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain xl:[scrollbar-gutter:stable]' : ''}`}
+        >
           {materials.length === 0 ? (
           <div className="rounded-lg bg-white py-10 text-center text-gray-500 shadow sm:bg-transparent sm:py-12 sm:shadow-none">
             <p>暂无物料</p>
@@ -1747,7 +1750,7 @@ export default function MaterialPage({
           <>
             <div className="overflow-x-auto rounded-lg border border-gray-100">
               <table className="min-w-full table-auto">
-              <thead className="bg-gray-50">
+              <thead className={showBomWorkspace ? 'sticky top-0 z-10 bg-gray-50' : 'bg-gray-50'}>
                 <tr>
                   {showField('image') && <MaterialTableHeader columnKey="image" label="图片" style={columnStyle('image')} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
                   {showField('code') && <MaterialSortableHeader columnKey="code" field="code" label="物料编码" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('code')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
@@ -1884,7 +1887,7 @@ export default function MaterialPage({
           </div>
         </div>
 
-        <div className="min-w-0 rounded-lg bg-white p-4 shadow">
+        <div aria-label="BOM 明细工作区" className="min-w-0 rounded-lg bg-white p-4 shadow xl:h-full xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain xl:[scrollbar-gutter:stable]">
           <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -1964,7 +1967,7 @@ export default function MaterialPage({
                 </div>
 
                 <div className="mt-3 flex flex-col gap-3 border-t border-gray-200 pt-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0 text-xs text-gray-600">单位消耗量使用原料主库存单位；长度原料填写每件标准长度，数量原料填写每件标准件数。</div>
+                  <div className="min-w-0 text-xs text-gray-600">单位消耗量使用原料主库存单位；长度原料填写每一产出单位的标准长度，数量原料填写每一产出单位的标准数量。</div>
                   <button
                     type="button"
                     onClick={applyRelationBom}
@@ -2036,7 +2039,7 @@ export default function MaterialPage({
                                     )))}
                                     className="w-24 border-x border-gray-200 px-2 py-1 text-right text-xs outline-none"
                                   />
-                                  <span className="flex items-center px-2 text-xs text-gray-600">{material?.stockUnit || material?.unit || item.unit}/件</span>
+                                  <span className="flex items-center px-2 text-xs text-gray-600">{material?.stockUnit || material?.unit || item.unit}原料/{selectedBomProduct?.unit || '单位'}成品</span>
                                 </label>
                                 <button
                                   type="button"
@@ -2069,7 +2072,7 @@ export default function MaterialPage({
                         </span>
                         <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 sm:justify-end">
                           <span className="rounded bg-gray-100 px-2 py-1">
-                            {item.quantity > 0 ? `单位耗用 ${qty(item.quantity)} ${item.unit}/件` : '待填写单位耗用'}
+                            {item.quantity > 0 ? `单位耗用 ${qty(item.quantity)} ${item.unit}原料/${product.unit || '单位'}成品` : '待填写单位耗用'}
                           </span>
                         </span>
                       </button>

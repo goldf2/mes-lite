@@ -7,11 +7,13 @@ import { writeAuditLog } from '@/lib/audit'
 
 const printSchema = z.object({
   clientRequestId: z.string().min(1).max(100),
-  templateType: z.string().trim().max(50).default('GENERIC_100X150'),
+  templateType: z.string().trim().max(50).default('GENERIC_LABEL'),
   referenceType: z.string().trim().max(50).default('GENERAL'),
   referenceId: z.string().trim().max(100).optional(),
   copies: z.number().int().min(1).max(100).default(1),
   printerIp: z.string().trim().optional(),
+  labelWidthMm: z.number().finite().min(10).max(500).default(105),
+  labelHeightMm: z.number().finite().min(10).max(500).default(70),
   payload: z.record(z.unknown()).optional(),
 })
 
@@ -41,8 +43,8 @@ export async function POST(req: NextRequest) {
         printerModel: 'Honeywell PC310T',
         printerDpi: 203,
         printerIp: data.printerIp || null,
-        labelWidthMm: 100,
-        labelHeightMm: 150,
+        labelWidthMm: data.labelWidthMm,
+        labelHeightMm: data.labelHeightMm,
         copies: data.copies,
         payloadJson: data.payload ? JSON.stringify(data.payload) : null,
         requestedBy: operator?.name,

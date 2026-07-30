@@ -373,9 +373,9 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
             <span className="ml-2 font-mono text-gray-400">{line.materialCode}</span>
           </div>
           <div className="flex items-center gap-4 text-gray-600">
-            {line.quantityPerUnit > 0 && <span>标准 {numberText(line.quantityPerUnit)} {line.unit}/件</span>}
+            {line.quantityPerUnit > 0 && <span>标准 {numberText(line.quantityPerUnit)} {line.unit}原料/{report.finishedMaterial.stockUnit || report.finishedMaterial.unit}产出</span>}
             {line.lossMode === 'PERCENT' && line.lossValue > 0 && <span>损耗 {numberText(line.lossValue)}%</span>}
-            {line.lossMode === 'FIXED_PER_UNIT' && line.lossValue > 0 && <span>每件损耗 {numberText(line.lossValue)} {line.unit}</span>}
+            {line.lossMode === 'FIXED_PER_UNIT' && line.lossValue > 0 && <span>每 {report.finishedMaterial.stockUnit || report.finishedMaterial.unit} 损耗 {numberText(line.lossValue)} {line.unit}</span>}
             {line.lossMode === 'MANUAL' && <span>历史手工耗用</span>}
             <span className="font-semibold text-gray-900">实际耗用 {numberText(line.actualQty)} {line.unit}</span>
           </div>
@@ -566,7 +566,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                 <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-4 py-3">
                   <div>
                     <div className="text-sm font-medium text-gray-900">原料耗用与损耗</div>
-                    <div className="mt-0.5 text-xs text-gray-500">总加工 {numberText(totalProcessedQty)}；标准耗用来自 BOM，可按每件固定值或百分比增加损耗</div>
+                    <div className="mt-0.5 text-xs text-gray-500">总加工 {numberText(totalProcessedQty)}；标准耗用来自 BOM，可按每一产出单位固定值或百分比增加损耗</div>
                   </div>
                   {selectedMaterial?.bom && <span className="text-xs text-gray-500">{selectedMaterial.bom.version}</span>}
                 </div>
@@ -584,7 +584,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                             <span className="ml-2 font-mono text-xs text-gray-400">{item.material.code}</span>
                             <div className={`mt-0.5 text-xs ${item.quantityPerUnit > 0 ? 'text-gray-500' : 'text-red-600'}`}>
                               {item.quantityPerUnit > 0
-                                ? `单位消耗量 ${numberText(item.quantityPerUnit)} ${item.material.stockUnit || item.material.unit}/件`
+                                ? `单位消耗量 ${numberText(item.quantityPerUnit)} ${item.material.stockUnit || item.material.unit}原料/${selectedMaterial.stockUnit || selectedMaterial.unit}产出`
                                 : '尚未填写 BOM 单位消耗量'}
                             </div>
                           </div>
@@ -604,11 +604,11 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                                 className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
                               >
                                 <option value="PERCENT">百分比损耗</option>
-                                <option value="FIXED_PER_UNIT">每件固定损耗</option>
+                                <option value="FIXED_PER_UNIT">每产出单位固定损耗</option>
                               </select>
                             </label>
                             <label className="text-xs text-gray-600">
-                              {item.lossMode === 'PERCENT' ? '损耗百分比' : '每件固定损耗'}
+                              {item.lossMode === 'PERCENT' ? '损耗百分比' : `每 ${selectedMaterial.stockUnit || selectedMaterial.unit} 固定损耗`}
                               <span className="mt-1 flex overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
                                 <input
                                   type="number"
@@ -626,7 +626,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                                   className="min-w-0 flex-1 px-3 py-2 text-right text-sm outline-none"
                                 />
                                 <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">
-                                  {item.lossMode === 'PERCENT' ? '%' : `${item.material.stockUnit || item.material.unit}/件`}
+                                  {item.lossMode === 'PERCENT' ? '%' : `${item.material.stockUnit || item.material.unit}原料/${selectedMaterial.stockUnit || selectedMaterial.unit}产出`}
                                 </span>
                               </span>
                             </label>

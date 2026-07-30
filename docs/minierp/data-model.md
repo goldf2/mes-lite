@@ -582,7 +582,7 @@ BOM 数据只保存规范方向：目标物料或产出物料 -> 输入物料及
 | --- | --- |
 | `quantityPerUnit` | 日报创建时的 BOM 单位消耗量快照 |
 | `lossMode` | `FIXED_PER_UNIT`、`PERCENT`；历史手工日报为 `MANUAL` |
-| `lossValue` | 每件固定损耗值或损耗百分比 |
+| `lossValue` | 每产出单位固定损耗值或损耗百分比 |
 | `lossQty` | 按本次产量计算出的损耗主单位数量 |
 | `plannedQty` | 基准耗用加损耗后的计算耗用 |
 | `actualQty` | 最终确认扣减的实际主单位耗用 |
@@ -672,7 +672,7 @@ BOM 数据只保存规范方向：目标物料或产出物料 -> 输入物料及
 
 ### label_print_jobs
 
-标签打印任务保存模板、通用引用、打印机配置、尺寸、份数和标签数据快照。`clientRequestId` 保证同一打印请求只登记一次。当前 `REQUESTED` 表示系统已经发起浏览器打印请求，不表示打印机已经物理出纸；后续独立打印桥接模块需扩展可确认的发送和设备回执状态。
+标签打印任务保存模板、通用引用、打印机配置、所选介质宽高、份数和标签数据快照。当前默认介质为 105 × 70 mm，但每次任务以 `labelWidthMm / labelHeightMm` 快照为准，历史记录不随后续默认值变化。`clientRequestId` 保证同一打印请求只登记一次。当前 `REQUESTED` 表示系统已经发起浏览器打印请求，不表示打印机已经物理出纸；后续独立打印桥接模块需扩展可确认的发送和设备回执状态。
 
 ### document_categories / work_instructions
 
