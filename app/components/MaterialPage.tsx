@@ -86,7 +86,7 @@ interface MaterialBom {
 interface DraftBomItem {
   clientId: string
   materialId: string
-  quantity: number
+  quantity: number | string
   unit: string
   wastageRate: number
 }
@@ -523,7 +523,7 @@ function MaterialSortableHeader({
   )
 }
 
-function qty(value: number, digits = 3) {
+function qty(value: number, digits = 6) {
   return Number(value || 0).toFixed(digits).replace(/\.?0+$/, '')
 }
 
@@ -706,11 +706,11 @@ export default function MaterialPage({
   const [relationProductId, setRelationProductId] = useState('')
   const [relationMaterialId, setRelationMaterialId] = useState('')
   const [relationInputMode, setRelationInputMode] = useState<BomRatioInputMode>('USAGE_LOSS')
-  const [relationStandardUsage, setRelationStandardUsage] = useState(0)
+  const [relationStandardUsage, setRelationStandardUsage] = useState('')
   const [relationLossMode, setRelationLossMode] = useState<BomLossInputMode>('PERCENT')
-  const [relationLossValue, setRelationLossValue] = useState(0)
-  const [relationOutputQuantity, setRelationOutputQuantity] = useState(1)
-  const [relationRawQuantity, setRelationRawQuantity] = useState(0)
+  const [relationLossValue, setRelationLossValue] = useState('')
+  const [relationOutputQuantity, setRelationOutputQuantity] = useState('1')
+  const [relationRawQuantity, setRelationRawQuantity] = useState('')
   const [bomLoading, setBomLoading] = useState(false)
   const [bomSaving, setBomSaving] = useState(false)
   const [keyword, setKeyword] = useState('')
@@ -753,11 +753,11 @@ export default function MaterialPage({
     try {
       return calculateBomUnitRatio({
         mode: relationInputMode,
-        standardUsage: relationStandardUsage,
+        standardUsage: Number(relationStandardUsage),
         lossMode: relationLossMode,
-        lossValue: relationLossValue,
-        outputQuantity: relationOutputQuantity,
-        rawMaterialQuantity: relationRawQuantity,
+        lossValue: Number(relationLossValue),
+        outputQuantity: Number(relationOutputQuantity),
+        rawMaterialQuantity: Number(relationRawQuantity),
       })
     } catch {
       return 0
@@ -783,11 +783,11 @@ export default function MaterialPage({
   }, [bomProducts, selectedMaterial])
 
   const resetRelationCalculator = () => {
-    setRelationStandardUsage(0)
+    setRelationStandardUsage('')
     setRelationLossMode('PERCENT')
-    setRelationLossValue(0)
-    setRelationOutputQuantity(1)
-    setRelationRawQuantity(0)
+    setRelationLossValue('')
+    setRelationOutputQuantity('1')
+    setRelationRawQuantity('')
   }
 
   const fetchBomData = useCallback(async () => {
@@ -1425,16 +1425,16 @@ export default function MaterialPage({
     setRelationProductId(product.id)
     setRelationMaterialId(item.material?.id || '')
     setRelationInputMode('DIRECT_RATIO')
-    setRelationOutputQuantity(1)
-    setRelationRawQuantity(Number(item.quantity || 0))
+    setRelationOutputQuantity('1')
+    setRelationRawQuantity(String(Number(item.quantity || 0)))
   }
 
   const editOutputBasisUsage = (item: DraftBomItem) => {
     setRelationProductId(selectedBomProduct?.id || (selectedMaterial ? `${materialProductPrefix}${selectedMaterial.id}` : ''))
     setRelationMaterialId(item.materialId)
     setRelationInputMode('DIRECT_RATIO')
-    setRelationOutputQuantity(1)
-    setRelationRawQuantity(Number(item.quantity || 0))
+    setRelationOutputQuantity('1')
+    setRelationRawQuantity(String(Number(item.quantity || 0)))
   }
 
   const handleHeaderSort = (field: MaterialSortBy) => {
@@ -2039,10 +2039,11 @@ export default function MaterialPage({
                             type="number"
                             min="0"
                             step="any"
-                            value={relationStandardUsage || ''}
-                            onChange={(event) => setRelationStandardUsage(Math.max(0, Number(event.target.value)))}
+                            inputMode="decimal"
+                            value={relationStandardUsage}
+                            onChange={(event) => setRelationStandardUsage(event.target.value)}
                             className="min-w-0 flex-1 px-3 py-2 text-right text-sm outline-none"
-                            placeholder="如 350"
+                            placeholder="如 0.001"
                           />
                           <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">
                             {relationMaterial?.stockUnit || relationMaterial?.unit || '原料主单位'}
@@ -2067,8 +2068,9 @@ export default function MaterialPage({
                             type="number"
                             min="0"
                             step="any"
-                            value={relationLossValue || ''}
-                            onChange={(event) => setRelationLossValue(Math.max(0, Number(event.target.value)))}
+                            inputMode="decimal"
+                            value={relationLossValue}
+                            onChange={(event) => setRelationLossValue(event.target.value)}
                             className="min-w-0 flex-1 px-3 py-2 text-right text-sm outline-none"
                             placeholder="0"
                           />
@@ -2087,8 +2089,9 @@ export default function MaterialPage({
                             type="number"
                             min="0"
                             step="any"
-                            value={relationOutputQuantity || ''}
-                            onChange={(event) => setRelationOutputQuantity(Math.max(0, Number(event.target.value)))}
+                            inputMode="decimal"
+                            value={relationOutputQuantity}
+                            onChange={(event) => setRelationOutputQuantity(event.target.value)}
                             className="min-w-0 flex-1 px-3 py-2 text-right text-sm outline-none"
                             placeholder="如 20"
                           />
@@ -2104,8 +2107,9 @@ export default function MaterialPage({
                             type="number"
                             min="0"
                             step="any"
-                            value={relationRawQuantity || ''}
-                            onChange={(event) => setRelationRawQuantity(Math.max(0, Number(event.target.value)))}
+                            inputMode="decimal"
+                            value={relationRawQuantity}
+                            onChange={(event) => setRelationRawQuantity(event.target.value)}
                             className="min-w-0 flex-1 px-3 py-2 text-right text-sm outline-none"
                             placeholder="如 7000"
                           />
@@ -2189,10 +2193,11 @@ export default function MaterialPage({
                                     type="number"
                                     min="0"
                                     step="any"
+                                    inputMode="decimal"
                                     value={item.quantity || ''}
                                     onChange={(event) => setDraftBomItems((current) => current.map((draft) => (
                                       draft.clientId === item.clientId
-                                        ? { ...draft, quantity: Math.max(0, Number(event.target.value)) }
+                                        ? { ...draft, quantity: event.target.value }
                                         : draft
                                     )))}
                                     className="w-24 border-x border-gray-200 px-2 py-1 text-right text-xs outline-none"
@@ -2230,7 +2235,7 @@ export default function MaterialPage({
                         </span>
                         <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 sm:justify-end">
                           <span className="rounded bg-gray-100 px-2 py-1">
-                            {item.quantity > 0 ? `换算比例 ${qty(item.quantity)} ${item.unit}原料/${product.unit || '单位'}成品` : '待填写换算比例'}
+                            {Number(item.quantity) > 0 ? `换算比例 ${qty(Number(item.quantity))} ${item.unit}原料/${product.unit || '单位'}成品` : '待填写换算比例'}
                           </span>
                         </span>
                       </button>

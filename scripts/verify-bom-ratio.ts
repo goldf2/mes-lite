@@ -21,6 +21,19 @@ assert.equal(calculateBomUnitRatio({
   rawMaterialQuantity: 7000,
 }), 350)
 
+assert.equal(calculateBomUnitRatio({
+  mode: 'USAGE_LOSS',
+  standardUsage: 0.001,
+  lossMode: 'PERCENT',
+  lossValue: 0,
+}), 0.001)
+
+assert.equal(calculateBomUnitRatio({
+  mode: 'DIRECT_RATIO',
+  outputQuantity: 1000,
+  rawMaterialQuantity: 1,
+}), 0.001)
+
 assert.throws(() => calculateBomUnitRatio({
   mode: 'DIRECT_RATIO',
   outputQuantity: 0,
