@@ -369,7 +369,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   )
   const readableBusinessNavItems = baseNavItems.filter((item) => canReadNavItem(item) && !accountMenuKeys.has(item.key) && !hiddenResources.has(item.resource))
   const readableSystemNavItems = baseNavItems.filter((item) => canRead(item.resource) && accountMenuKeys.has(item.key) && !hiddenResources.has(item.resource))
-  const [tab, setTab] = useState<TabType>('stats')
+  const initialTab = readableBusinessNavItems.find((item) => item.key === 'dashboard')?.key
+    ?? readableBusinessNavItems[0]?.key
+    ?? readableSystemNavItems[0]?.key
+    ?? 'dashboard'
+  const [tab, setTab] = useState<TabType>(initialTab)
   const [materialSection, setMaterialSection] = useState<MaterialSection>(canRead('materials') ? 'materials' : 'bomSetup')
   const [materialMenuOpen, setMaterialMenuOpen] = useState(true)
   const [bomSetupProductId, setBomSetupProductId] = useState('')
