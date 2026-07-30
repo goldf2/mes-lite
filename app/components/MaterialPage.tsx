@@ -806,6 +806,9 @@ export default function MaterialPage({
     relationInputToStockUnitRate,
   ])
   const relationProductSourceMaterialId = relationProduct?.sourceMaterialId || relationProduct?.id.replace(materialProductPrefix, '') || ''
+  const relationExistingBomItem = relationProduct?.bom?.items.find((item) => (
+    item.itemType === 'MATERIAL' && item.material?.id === relationMaterialId
+  )) || null
   const bomMaterialById = useMemo(() => new Map(bomMaterialOptions.map((material) => [material.id, material])), [bomMaterialOptions])
   const selectedBomMaterialItems = useMemo(() => (
     selectedBomProduct?.bom?.items.filter((item) => item.itemType === 'MATERIAL' && item.material) || []
@@ -1403,11 +1406,11 @@ export default function MaterialPage({
     items: DraftBomItem[],
     successMessage = 'BOM 换算比例已保存',
     outputQuantity = 1,
-  ) => {
+  ): Promise<boolean> => {
     const invalidItem = items.find((item) => !item.materialId || Number(item.quantity) <= 0)
     if (invalidItem) {
       onMessage('请为每种原料填写大于 0 的换算比例')
-      return
+      return false
     }
     setBomSaving(true)
     try {
@@ -1428,12 +1431,14 @@ export default function MaterialPage({
       const data = await res.json()
       if (!res.ok) {
         onMessage(data.error || '保存 BOM 关系失败')
-        return
+        return false
       }
-      onMessage(data.message || successMessage)
+      onMessage(successMessage || data.message || 'BOM 换算比例已保存')
       await fetchBomData()
+      return true
     } catch (err) {
       onMessage('保存 BOM 关系失败')
+      return false
     } finally {
       setBomSaving(false)
     }
@@ -1461,24 +1466,27 @@ export default function MaterialPage({
         clientId: item.id,
         materialId: item.material?.id || '',
         quantity: Number(item.quantity || 0),
-        unit: item.unit || item.material?.stockUnit || item.material?.unit || '件',
+        unit: item.material?.stockUnit || item.material?.unit || item.unit || '件',
         wastageRate: Number(item.wastageRate || 0),
       }))
     const existing = currentItems.find((item) => item.materialId === relationMaterial.id)
-    if (existing) return onMessage('该原料已经关联')
-    const nextItems = [
-      ...currentItems,
-      {
-        clientId: `relation-${relationMaterial.id}-${Date.now()}`,
-        materialId: relationMaterial.id,
-        quantity: relationUnitRatio,
-        unit: relationMaterial.stockUnit || relationMaterial.unit || '件',
-        wastageRate: 0,
-      },
-    ]
+    const nextItem = {
+      clientId: existing?.clientId || `relation-${relationMaterial.id}-${Date.now()}`,
+      materialId: relationMaterial.id,
+      quantity: relationUnitRatio,
+      unit: relationMaterial.stockUnit || relationMaterial.unit || '件',
+      wastageRate: 0,
+    }
+    const nextItems = existing
+      ? currentItems.map((item) => item.materialId === relationMaterial.id ? nextItem : item)
+      : [...currentItems, nextItem]
 
-    await saveBomForProduct(relationProduct.id, nextItems, 'BOM 原料换算比例已添加')
-    resetRelationCalculator()
+    const saved = await saveBomForProduct(
+      relationProduct.id,
+      nextItems,
+      existing ? 'BOM 原料换算比例已更新' : 'BOM 原料换算比例已添加',
+    )
+    if (saved) resetRelationCalculator()
   }
 
   const editInputBasisUsage = (product: MaterialBom, item: BomItem) => {
@@ -2218,13 +2226,20 @@ export default function MaterialPage({
                   )}
 
                   <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
-                    最终换算比例：
-                    <strong className="mx-1">{relationUnitRatio > 0 ? qty(relationUnitRatio) : '—'}</strong>
-                    {relationUsesLengthInput ? 'm' : relationMaterial?.stockUnit || relationMaterial?.unit || '原料主单位'}原料 / 1 {relationProduct?.unit || '成品主单位'}成品
-                    {relationUsesLengthInput && relationUnitRatio > 0 && (
-                      <span className="ml-2 text-xs font-normal text-blue-700">
-                        （已由 {relationInputUnit} 自动换算）
-                      </span>
+                    <div>
+                      本次计算比例：
+                      <strong className="mx-1">{relationUnitRatio > 0 ? qty(relationUnitRatio) : '—'}</strong>
+                      {relationUsesLengthInput ? 'm' : relationMaterial?.stockUnit || relationMaterial?.unit || '原料主单位'}原料 / 1 {relationProduct?.unit || '成品主单位'}成品
+                      {relationUsesLengthInput && relationUnitRatio > 0 && (
+                        <span className="ml-2 text-xs font-normal text-blue-700">
+                          （已由 {relationInputUnit} 自动换算）
+                        </span>
+                      )}
+                    </div>
+                    {relationExistingBomItem && (
+                      <div className="mt-1 text-xs text-blue-700">
+                        当前已保存比例：{qty(Number(relationExistingBomItem.quantity))} {relationExistingBomItem.unit}原料 / 1 {relationProduct?.unit || '成品主单位'}成品；点击“更新关联”后才会覆盖。
+                      </div>
                     )}
                   </div>
                 </div>
@@ -2242,7 +2257,9 @@ export default function MaterialPage({
                     disabled={bomSaving || !relationProductId || !relationMaterialId || relationUnitRatio <= 0 || !relationLengthStockUnitValid}
                     className="shrink-0 whitespace-nowrap rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {bomSaving ? '添加中...' : '添加关联'}
+                    {bomSaving
+                      ? relationExistingBomItem ? '更新中...' : '添加中...'
+                      : relationExistingBomItem ? '更新关联' : '添加关联'}
                   </button>
                 </div>
               </div>
