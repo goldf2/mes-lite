@@ -53,8 +53,6 @@ DATABASE_URL=file:/app/data/mes_lite.db
 
 ```bash
 sudo mkdir -p /opt/mes-lite/data /opt/mes-lite/uploads
-sudo chown -R 1000:1000 /opt/mes-lite
-sudo chmod -R 750 /opt/mes-lite
 ```
 
 在 Coolify 的 Persistent Storage 中添加两个 Bind Mount：
@@ -65,7 +63,24 @@ sudo chmod -R 750 /opt/mes-lite
 /opt/mes-lite/uploads    -> /app/public/uploads
 ```
 
-容器启动时会先创建 SQLite 文件，再自动执行 `prisma migrate deploy`，然后启动 Next.js。全新数据库首次注册的用户会自动成为管理员；已有数据库则继续使用原账号。
+容器启动入口会先以 root 身份幂等修复 `/app/data` 与 `/app/public/uploads` 的所有者和读写权限，再立即通过 `gosu` 降权为 `node` 用户；随后创建 SQLite 文件、执行 `prisma migrate deploy` 并启动 Next.js。应用进程本身不会以 root 运行。全新数据库首次注册的用户会自动成为管理员；已有数据库则继续使用原账号。
+
+默认目录可通过以下环境变量调整，但禁止把 `/`、`/app` 或 `/app/public` 这类过宽目录设为修复目标：
+
+```env
+MES_LITE_DATA_DIR=/app/data
+MES_LITE_UPLOAD_DIR=/app/public/uploads
+MES_LITE_STORAGE_USER=node
+MES_LITE_STORAGE_GROUP=node
+```
+
+需要在运行中的容器内手动复查或修复时，可以执行：
+
+```bash
+docker exec -u root <容器名> npm run storage:fix
+```
+
+脚本会递归修复 SQLite 数据库、WAL/SHM 文件及附件子目录，并验证降权后的 `node` 用户确实可写；无法修复时容器会停止并输出明确错误。
 
 `20260730163000_link_work_instructions_to_material` 是一次明确的破坏性迁移：首次执行前会删除旧指导书专属附件目录，迁移会删除旧指导书及对应附件元数据，然后启用产品必选的“产品文档”模型。迁移完成后，启动脚本通过迁移记录识别已执行状态，不会再次清理新产品文档。
 
@@ -74,7 +89,7 @@ sudo chmod -R 750 /opt/mes-lite
 - `/app/data` 是否可写。
 - `DATABASE_URL` 是否为 `file:/app/data/mes_lite.db`。
 - Coolify 的 Persistent Storage 是否正确挂载。
-- 主机目录所有者是否为容器内 `node` 用户对应的 `1000:1000`。
+- 启动日志是否出现“持久存储权限已就绪”；若未出现，检查挂载是否允许容器 root 用户执行 `chown`。
 
 ## 4. 部署与备份
 

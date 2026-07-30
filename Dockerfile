@@ -34,7 +34,7 @@ ENV NODE_ENV=production \
     PDF_FONT_PATH=/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl fonts-noto-cjk \
+    && apt-get install -y --no-install-recommends ca-certificates curl fonts-noto-cjk gosu \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /app/data /app/public/uploads \
     && chown -R node:node /app
@@ -45,13 +45,14 @@ COPY --from=builder --chown=node:node /app/.next ./.next
 COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/prisma ./prisma
 COPY --from=builder --chown=node:node /app/scripts/cleanup-legacy-work-instruction-files.mjs ./scripts/cleanup-legacy-work-instruction-files.mjs
+COPY --from=builder --chown=root:root --chmod=755 /app/scripts/fix-persistent-storage-permissions.sh /app/scripts/docker-entrypoint.sh ./scripts/
 COPY --from=builder --chown=node:node /app/next.config.js ./next.config.js
-
-USER node
 
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD curl -fsS "http://127.0.0.1:${PORT:-3000}/api/health" || exit 1
+
+ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 
 CMD ["sh", "-c", "touch /app/data/mes_lite.db && node scripts/cleanup-legacy-work-instruction-files.mjs && npx prisma migrate deploy && npm run start"]
