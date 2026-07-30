@@ -1236,7 +1236,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
               </div>
             ) : (
               <iframe
-                src={`${selectedViewerAttachment.url}#view=FitH&toolbar=1&navpanes=0`}
+                src={`${selectedViewerAttachment.url}#view=Fit&toolbar=1&navpanes=0`}
                 title={selectedViewerAttachment.originalName}
                 className="h-full w-full border-0 bg-white"
               />
