@@ -16,6 +16,7 @@ interface BomItem {
     code: string
     name: string
     spec?: string | null
+    primaryMeasure?: string
     stockUnit: string
     unit: string
   } | null
@@ -139,6 +140,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
   const [formOpen, setFormOpen] = useState(false)
   const [editingReport, setEditingReport] = useState<DailyProductionReport | null>(null)
   const [form, setForm] = useState<ReportForm>(emptyForm)
+  const [consumptionQtyByMaterial, setConsumptionQtyByMaterial] = useState<Record<string, number>>({})
   const [confirmingReport, setConfirmingReport] = useState<DailyProductionReport | null>(null)
   const [reversingReport, setReversingReport] = useState<DailyProductionReport | null>(null)
   const [reverseReason, setReverseReason] = useState('')
@@ -172,15 +174,11 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
   const selectedMaterial = materials.find((material) => material.id === form.finishedMaterialId)
   const totalProcessedQty = Number(form.goodQty || 0) + Number(form.badQty || 0) + Number(form.scrapQty || 0)
   const previewConsumptions = useMemo(() => (selectedMaterial?.bom?.items || [])
-    .filter((item) => item.material && Number(item.quantity) > 0)
+    .filter((item) => item.material)
     .map((item) => ({
       ...item,
-      quantityPerUnit: Number(item.quantity) / Number(selectedMaterial?.bom?.outputQuantity || 1),
-      calculatedQty: totalProcessedQty
-        * Number(item.quantity)
-        / Number(selectedMaterial?.bom?.outputQuantity || 1)
-        * (1 + Number(item.wastageRate || 0) / 100),
-    })), [selectedMaterial, totalProcessedQty])
+      actualQty: item.material ? Number(consumptionQtyByMaterial[item.material.id] || 0) : 0,
+    })), [consumptionQtyByMaterial, selectedMaterial])
 
   const summary = useMemo(() => reports.reduce((result, report) => {
     if (report.status === 'CONFIRMED') {
@@ -195,6 +193,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
   const openCreate = () => {
     setEditingReport(null)
     setForm(emptyForm())
+    setConsumptionQtyByMaterial({})
     setFormOpen(true)
   }
 
@@ -209,6 +208,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
       workers: report.workers,
       note: report.note || '',
     })
+    setConsumptionQtyByMaterial(Object.fromEntries(report.consumptions.map((line) => [line.materialId, Number(line.actualQty)])))
     setFormOpen(true)
   }
 
@@ -217,7 +217,10 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
     if (!form.workers.trim()) return onMessage('请填写生产人员')
     if (totalProcessedQty <= 0) return onMessage('合格、不良和报废数量不能全部为 0')
     if (!selectedMaterial?.bom?.isActive || previewConsumptions.length === 0) {
-      return onMessage('该物料尚未建立有效 BOM，请先在 BOM 关系中配置原料')
+      return onMessage('该物料尚未建立有效 BOM，请先在物料 BOM 关联中添加原料')
+    }
+    if (!previewConsumptions.some((item) => item.actualQty > 0)) {
+      return onMessage('请至少填写一项实际原料耗用')
     }
 
     setSaving(true)
@@ -232,6 +235,10 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
           goodQty: Number(form.goodQty || 0),
           badQty: Number(form.badQty || 0),
           scrapQty: Number(form.scrapQty || 0),
+          consumptions: previewConsumptions.flatMap((item) => item.material ? [{
+            materialId: item.material.id,
+            actualQty: item.actualQty,
+          }] : []),
         }),
       })
       const data = await res.json()
@@ -331,9 +338,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
             <span className="ml-2 font-mono text-gray-400">{line.materialCode}</span>
           </div>
           <div className="flex items-center gap-4 text-gray-600">
-            <span>单件 {numberText(line.quantityPerUnit)} {line.unit}</span>
-            {Number(line.wastageRate) > 0 && <span>损耗 {numberText(line.wastageRate)}%</span>}
-            <span className="font-semibold text-gray-900">耗用 {numberText(line.actualQty)} {line.unit}</span>
+            <span className="font-semibold text-gray-900">实际耗用 {numberText(line.actualQty)} {line.unit}</span>
           </div>
         </div>
       ))}
@@ -346,7 +351,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">生产日报</h2>
-            <p className="mt-1 text-sm text-gray-500">日报确认后自动扣减 BOM 原料，并将合格品计入成品库存</p>
+            <p className="mt-1 text-sm text-gray-500">按主库存单位填写实际原料耗用；确认后扣减原料并将合格品入库</p>
           </div>
           <button type="button" onClick={openCreate} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
             新建生产日报
@@ -503,7 +508,10 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                       unit: material.stockUnit || material.unit,
                       customer: material.customer,
                     }))}
-                    onChange={(finishedMaterialId) => setForm({ ...form, finishedMaterialId })}
+                    onChange={(finishedMaterialId) => {
+                      setForm({ ...form, finishedMaterialId })
+                      setConsumptionQtyByMaterial({})
+                    }}
                     placeholder="输入成品编码、名称或规格筛选"
                   />
                 </div>
@@ -518,26 +526,39 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
               <div className="mt-5 rounded-lg border border-gray-200">
                 <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-4 py-3">
                   <div>
-                    <div className="text-sm font-medium text-gray-900">BOM 自动耗料预览</div>
-                    <div className="mt-0.5 text-xs text-gray-500">总加工 {numberText(totalProcessedQty)}，损耗按当前 BOM 快照计算</div>
+                    <div className="text-sm font-medium text-gray-900">实际原料耗用</div>
+                    <div className="mt-0.5 text-xs text-gray-500">总加工 {numberText(totalProcessedQty)}；BOM 只限定可用原料，耗用量按本次实绩填写</div>
                   </div>
                   {selectedMaterial?.bom && <span className="text-xs text-gray-500">{selectedMaterial.bom.version}</span>}
                 </div>
                 <div className="p-3">
                   {!selectedMaterial ? (
-                    <div className="py-6 text-center text-sm text-gray-500">选择产出物料后显示原料消耗</div>
+                    <div className="py-6 text-center text-sm text-gray-500">选择产出物料后填写实际原料耗用</div>
                   ) : previewConsumptions.length === 0 ? (
-                    <div className="rounded bg-amber-50 px-3 py-4 text-sm text-amber-800">该物料没有有效 BOM，暂时不能提交日报</div>
+                    <div className="rounded bg-amber-50 px-3 py-4 text-sm text-amber-800">该物料没有 BOM 原料关联，暂时不能提交日报</div>
                   ) : (
                     <div className="space-y-2">
                       {previewConsumptions.map((item) => item.material && (
-                        <div key={item.id} className="grid grid-cols-1 gap-2 rounded border border-gray-100 px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
+                        <div key={item.id} className="grid grid-cols-1 gap-2 rounded border border-gray-100 px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_220px] sm:items-center">
                           <div>
                             <span className="font-medium text-gray-900">{materialNameSpec(item.material)}</span>
                             <span className="ml-2 font-mono text-xs text-gray-400">{item.material.code}</span>
+                            <div className="mt-0.5 text-xs text-gray-500">按主库存单位录入，不使用固定 BOM 比例</div>
                           </div>
-                          <div className="text-xs text-gray-500">单件 {numberText(item.quantityPerUnit)} {item.unit} + {numberText(item.wastageRate)}%</div>
-                          <div className="font-semibold text-blue-700">{numberText(item.calculatedQty)} {item.unit}</div>
+                          <label className="flex overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={item.actualQty || ''}
+                              onChange={(event) => setConsumptionQtyByMaterial((current) => ({
+                                ...current,
+                                [item.material!.id]: Math.max(0, Number(event.target.value)),
+                              }))}
+                              className="min-w-0 flex-1 px-3 py-2 text-right font-semibold outline-none"
+                            />
+                            <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">{item.material.stockUnit || item.material.unit}</span>
+                          </label>
                         </div>
                       ))}
                     </div>

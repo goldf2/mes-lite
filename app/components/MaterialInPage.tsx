@@ -28,6 +28,8 @@ interface Material {
   code: string
   name: string
   spec?: string
+  primaryMeasure: 'LENGTH' | 'WEIGHT' | 'QUANTITY' | 'OTHER'
+  referenceMeasure?: 'LENGTH' | 'WEIGHT' | 'QUANTITY' | 'OTHER' | null
   unit: string
   stockUnit: string
   valuationUnit: string
@@ -44,6 +46,9 @@ interface MaterialIn {
   materialId: string
   qty: number
   unit: string
+  pieceCount?: number | null
+  stockQtyMode: 'TOTAL' | 'PER_PIECE'
+  stockQtyInput?: number | null
   valuationQty: number
   valuationUnit: string
   conversionRate: number
@@ -60,7 +65,7 @@ interface MaterialIn {
   receivedBy?: string
   note?: string
   supplier: { id: string; code: string; name: string }
-  material: { id: string; code: string; name: string; spec?: string; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number; customerId?: string | null; customer?: { id: string; code: string; name: string } | null }
+  material: { id: string; code: string; name: string; spec?: string; primaryMeasure: string; referenceMeasure?: string | null; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number; customerId?: string | null; customer?: { id: string; code: string; name: string } | null }
 }
 
 const statusColors: Record<string, string> = {
@@ -102,6 +107,7 @@ export default function MaterialInPage({
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [editingItem, setEditingItem] = useState<MaterialIn | null>(null)
+  const [linkedBatchRatios, setLinkedBatchRatios] = useState<{ lengthPerPiece: number; weightPerLength: number } | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.materialIn.viewMode', 'list')
   const isCompactViewport = useCompactViewport()
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
@@ -111,6 +117,9 @@ export default function MaterialInPage({
     supplierId: '',
     materialId: '',
     qty: 0,
+    pieceCount: 0,
+    stockQtyMode: 'TOTAL' as 'TOTAL' | 'PER_PIECE',
+    stockQtyInput: 0,
     valuationQty: 0,
     unitPrice: 0,
     priceBasis: 'VALUATION',
@@ -182,11 +191,15 @@ export default function MaterialInPage({
 
   const resetForm = () => {
     setEditingItem(null)
+    setLinkedBatchRatios(null)
     setForm({
       voucherNo: '',
       supplierId: '',
       materialId: '',
       qty: 0,
+      pieceCount: 0,
+      stockQtyMode: 'TOTAL',
+      stockQtyInput: 0,
       valuationQty: 0,
       unitPrice: 0,
       priceBasis: 'VALUATION',
@@ -197,8 +210,12 @@ export default function MaterialInPage({
   }
 
   const handleSubmit = async () => {
-    if (!form.supplierId || !form.materialId || form.qty <= 0) {
-      onMessage('请选择供应商和物料，并输入有效长度/件数')
+    if (!form.supplierId || !form.materialId || calculatedStockQty <= 0) {
+      onMessage('请选择供应商和物料，并输入有效的主单位数量')
+      return
+    }
+    if (isLengthMaterial && form.pieceCount <= 0) {
+      onMessage('长度型物料请填写根数')
       return
     }
     setLoading(true)
@@ -216,7 +233,10 @@ export default function MaterialInPage({
           supplierId: form.supplierId,
           voucherNo: form.voucherNo || undefined,
           materialId: form.materialId,
-          qty: form.qty,
+          qty: calculatedStockQty,
+          pieceCount: isLengthMaterial ? form.pieceCount : undefined,
+          stockQtyMode: isLengthMaterial ? form.stockQtyMode : undefined,
+          stockQtyInput: isLengthMaterial ? form.stockQtyInput : undefined,
           unit: submitStockUnit,
           valuationQty: submitUsesDualUnit && form.valuationQty > 0 ? form.valuationQty : undefined,
           valuationUnit: submitValuationUnit,
@@ -243,20 +263,105 @@ export default function MaterialInPage({
   }
 
   const selectedMaterial = materials.find((material) => material.id === form.materialId)
-  const referenceValuationQty = selectedMaterial && form.qty > 0 ? Number((form.qty * (selectedMaterial.conversionRate || 1)).toFixed(6)) : 0
+  const isLengthMaterial = selectedMaterial?.primaryMeasure === 'LENGTH'
+  const calculatedStockQty = isLengthMaterial
+    ? Number(((form.stockQtyMode === 'PER_PIECE'
+      ? Number(form.pieceCount || 0) * Number(form.stockQtyInput || 0)
+      : Number(form.stockQtyInput || 0))).toFixed(6))
+    : Number(form.qty || 0)
+  const referenceValuationQty = selectedMaterial && calculatedStockQty > 0 ? Number((calculatedStockQty * (selectedMaterial.conversionRate || 1)).toFixed(6)) : 0
   const stockUnitLabel = selectedMaterial?.stockUnit || selectedMaterial?.unit || '库存单位'
   const valuationUnitLabel = selectedMaterial?.valuationUnit || 'kg'
+  const primaryQtyLabel = selectedMaterial?.primaryMeasure === 'LENGTH'
+    ? '总长度'
+    : selectedMaterial?.primaryMeasure === 'WEIGHT'
+      ? '总重量'
+      : selectedMaterial?.primaryMeasure === 'QUANTITY'
+        ? '总数量'
+        : '主单位总量'
+  const referenceQtyLabel = selectedMaterial?.referenceMeasure === 'LENGTH'
+    ? '总长度'
+    : selectedMaterial?.referenceMeasure === 'WEIGHT'
+      ? '总重量'
+      : selectedMaterial?.referenceMeasure === 'QUANTITY'
+        ? '总数量'
+        : '参考总量'
   const materialUsesDualUnit = Boolean(selectedMaterial && (stockUnitLabel !== valuationUnitLabel || Number(selectedMaterial.conversionRate || 1) !== 1))
   const previewPriceBasis = materialUsesDualUnit ? form.priceBasis : 'STOCK'
   const effectiveValuationQty = materialUsesDualUnit
     ? (form.valuationQty > 0 ? form.valuationQty : referenceValuationQty)
-    : form.qty
-  const actualConversionRate = form.qty > 0 && effectiveValuationQty > 0 ? Number((effectiveValuationQty / form.qty).toFixed(6)) : 0
-  const totalAmountPreview = Number(((previewPriceBasis === 'STOCK' ? form.qty : effectiveValuationQty) * form.unitPrice).toFixed(4))
+    : calculatedStockQty
+  const actualConversionRate = calculatedStockQty > 0 && effectiveValuationQty > 0 ? Number((effectiveValuationQty / calculatedStockQty).toFixed(6)) : 0
+  const totalAmountPreview = Number(((previewPriceBasis === 'STOCK' ? calculatedStockQty : effectiveValuationQty) * form.unitPrice).toFixed(4))
   const valuationUnitCostPreview = effectiveValuationQty > 0 ? Number((totalAmountPreview / effectiveValuationQty).toFixed(6)) : 0
-  const stockUnitCostPreview = form.qty > 0 ? Number((totalAmountPreview / form.qty).toFixed(6)) : 0
+  const stockUnitCostPreview = calculatedStockQty > 0 ? Number((totalAmountPreview / calculatedStockQty).toFixed(6)) : 0
   const valuationPriceDisplay = previewPriceBasis === 'VALUATION' ? form.unitPrice : valuationUnitCostPreview
   const stockPriceDisplay = previewPriceBasis === 'STOCK' ? form.unitPrice : stockUnitCostPreview
+  const canLinkLengthWeight = isLengthMaterial
+    && selectedMaterial?.referenceMeasure === 'WEIGHT'
+    && form.pieceCount > 0
+    && calculatedStockQty > 0
+    && form.valuationQty > 0
+
+  const toggleBatchLink = () => {
+    if (linkedBatchRatios) {
+      setLinkedBatchRatios(null)
+      return
+    }
+    if (!canLinkLengthWeight) {
+      onMessage('请先填写根数、总长度和总重量，再开启比例联动')
+      return
+    }
+    setLinkedBatchRatios({
+      lengthPerPiece: calculatedStockQty / form.pieceCount,
+      weightPerLength: form.valuationQty / calculatedStockQty,
+    })
+    setForm((current) => ({ ...current, stockQtyMode: 'TOTAL', stockQtyInput: calculatedStockQty }))
+  }
+
+  const updateLinkedPieceCount = (pieceCount: number) => {
+    if (!linkedBatchRatios) {
+      setForm({ ...form, pieceCount })
+      return
+    }
+    const totalLength = Number((pieceCount * linkedBatchRatios.lengthPerPiece).toFixed(6))
+    setForm({
+      ...form,
+      pieceCount,
+      stockQtyMode: 'TOTAL',
+      stockQtyInput: totalLength,
+      valuationQty: Number((totalLength * linkedBatchRatios.weightPerLength).toFixed(6)),
+    })
+  }
+
+  const updateLinkedTotalLength = (totalLength: number) => {
+    if (!linkedBatchRatios) {
+      setForm({ ...form, stockQtyInput: totalLength })
+      return
+    }
+    setForm({
+      ...form,
+      pieceCount: Math.max(1, Math.round(totalLength / linkedBatchRatios.lengthPerPiece)),
+      stockQtyMode: 'TOTAL',
+      stockQtyInput: totalLength,
+      valuationQty: Number((totalLength * linkedBatchRatios.weightPerLength).toFixed(6)),
+    })
+  }
+
+  const updateLinkedTotalWeight = (totalWeight: number) => {
+    if (!linkedBatchRatios || linkedBatchRatios.weightPerLength <= 0) {
+      setForm({ ...form, valuationQty: totalWeight })
+      return
+    }
+    const totalLength = Number((totalWeight / linkedBatchRatios.weightPerLength).toFixed(6))
+    setForm({
+      ...form,
+      pieceCount: Math.max(1, Math.round(totalLength / linkedBatchRatios.lengthPerPiece)),
+      stockQtyMode: 'TOTAL',
+      stockQtyInput: totalLength,
+      valuationQty: totalWeight,
+    })
+  }
 
   const handleReceive = async (id: string) => {
     setLoading(true)
@@ -282,11 +387,15 @@ export default function MaterialInPage({
     }
 
     setEditingItem(item)
+    setLinkedBatchRatios(null)
     setForm({
       voucherNo: item.voucherNo || '',
       supplierId: item.supplierId,
       materialId: item.materialId,
-      qty: Number(item.qty),
+      qty: item.material.primaryMeasure === 'LENGTH' ? 0 : Number(item.qty),
+      pieceCount: Number(item.pieceCount || 0),
+      stockQtyMode: item.stockQtyMode || 'TOTAL',
+      stockQtyInput: Number(item.stockQtyInput ?? item.qty),
       valuationQty: Number(item.valuationQty),
       unitPrice: Number(item.unitPrice),
       priceBasis: item.priceBasis || 'VALUATION',
@@ -502,6 +611,7 @@ export default function MaterialInPage({
                   <div className="rounded bg-gray-50 p-2 sm:p-3">
                     <div className="text-xs text-gray-500">库存数量</div>
                     <div className="mt-1 font-semibold">{item.qty} {item.unit}</div>
+                    {item.pieceCount ? <div className="mt-0.5 text-xs text-gray-500">{item.pieceCount} 根 · {item.stockQtyMode === 'PER_PIECE' ? `单根 ${item.stockQtyInput} ${item.unit}` : '按总长度录入'}</div> : null}
                   </div>
                   <div className="rounded bg-gray-50 p-2 sm:p-3">
                     <div className="text-xs text-gray-500">核算数量</div>
@@ -603,7 +713,10 @@ export default function MaterialInPage({
                       <div className="text-xs text-gray-500">{item.material?.code}</div>
                       <div className="text-xs text-gray-500">客户：{item.material?.customer?.name || '通用/未绑定'}</div>
                     </td>
-                    <td className="px-4 py-3">{item.qty} {item.unit}</td>
+                    <td className="px-4 py-3">
+                      <div>{item.qty} {item.unit}</div>
+                      {item.pieceCount ? <div className="text-xs text-gray-500">{item.pieceCount} 根 · {item.stockQtyMode === 'PER_PIECE' ? `单根 ${item.stockQtyInput} ${item.unit}` : '总长度'}</div> : null}
+                    </td>
                     <td className="px-4 py-3">
                       <div>{item.valuationQty} {item.valuationUnit}</div>
                       <div className="text-xs text-gray-500">1 {item.unit} = {item.conversionRate} {item.valuationUnit}</div>
@@ -722,6 +835,7 @@ export default function MaterialInPage({
                 <select
                   value={form.materialId}
                   onChange={(e) => {
+                    setLinkedBatchRatios(null)
                     const material = materials.find((item) => item.id === e.target.value)
                     const nextStockUnit = material?.stockUnit || material?.unit
                     const nextValuationUnit = material?.valuationUnit || material?.unit
@@ -729,6 +843,10 @@ export default function MaterialInPage({
                     setForm({
                       ...form,
                       materialId: e.target.value,
+                      qty: 0,
+                      pieceCount: 0,
+                      stockQtyMode: 'TOTAL',
+                      stockQtyInput: 0,
                       valuationQty: 0,
                       priceBasis: nextUsesDualUnit ? form.priceBasis : 'STOCK',
                     })
@@ -743,37 +861,113 @@ export default function MaterialInPage({
                   ))}
                 </select>
               </div>
-              <div className={`grid gap-4 ${materialUsesDualUnit ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">长度/件数 {selectedMaterial ? `(${selectedMaterial.stockUnit || selectedMaterial.unit})` : ''}</label>
-                  <input
-                    type="number"
-                    value={form.qty || ''}
-                    onChange={(e) => {
-                      const qty = Number(e.target.value)
-                      setForm({
-                        ...form,
-                        qty,
-                      })
-                    }}
-                    min={0}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
+              {isLengthMaterial && (
+                <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-medium text-gray-800">长度入库</div>
+                      <div className="mt-0.5 text-xs text-gray-500">不同长度混批用总长度；同长多根可按单根长度自动相乘。</div>
+                    </div>
+                    <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
+                      {([
+                        ['TOTAL', '总长度'],
+                        ['PER_PIECE', '单根长度'],
+                      ] as const).map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => {
+                            setLinkedBatchRatios(null)
+                            setForm({ ...form, stockQtyMode: value })
+                          }}
+                          className={`rounded-md px-3 py-1.5 text-sm ${form.stockQtyMode === value ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">根数 *</label>
+                      <input
+                        type="number"
+                        step="1"
+                        min={1}
+                        value={form.pieceCount || ''}
+                        onChange={(event) => updateLinkedPieceCount(Math.max(0, Math.floor(Number(event.target.value))))}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                        {form.stockQtyMode === 'TOTAL' ? '总长度' : '单根长度'} ({stockUnitLabel}) *
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min={0}
+                        value={form.stockQtyInput || ''}
+                        onChange={(event) => {
+                          const value = Math.max(0, Number(event.target.value))
+                          if (form.stockQtyMode === 'TOTAL') updateLinkedTotalLength(value)
+                          else setForm({ ...form, stockQtyInput: value })
+                        }}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-3 rounded bg-white px-3 py-2 text-sm text-blue-900">
+                    入库主数量：<strong>{calculatedStockQty} {stockUnitLabel}</strong>
+                    {form.stockQtyMode === 'PER_PIECE' && (
+                      <span className="ml-2 text-xs text-gray-500">= {form.pieceCount || 0} 根 × {form.stockQtyInput || 0} {stockUnitLabel}</span>
+                    )}
+                  </div>
+                  {selectedMaterial?.referenceMeasure === 'WEIGHT' && (
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-blue-100 pt-3">
+                      <div className="text-xs text-gray-600">
+                        {linkedBatchRatios
+                          ? `已锁定本批比例：${linkedBatchRatios.lengthPerPiece.toFixed(6)} ${stockUnitLabel}/根，${linkedBatchRatios.weightPerLength.toFixed(6)} ${valuationUnitLabel}/${stockUnitLabel}`
+                          : '填完根数、总长度和总重量后，可锁定本批比例进行三值联动。'}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={toggleBatchLink}
+                        className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${linkedBatchRatios ? 'border-blue-600 bg-blue-600 text-white' : 'border-blue-200 bg-white text-blue-700'}`}
+                      >
+                        {linkedBatchRatios ? '关闭比例联动' : '开启比例联动'}
+                      </button>
+                    </div>
+                  )}
                 </div>
+              )}
+              <div className={`grid gap-4 ${materialUsesDualUnit ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                {!isLengthMaterial && (
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">{primaryQtyLabel} {selectedMaterial ? `(${selectedMaterial.stockUnit || selectedMaterial.unit})` : ''}</label>
+                    <input
+                      type="number"
+                      value={form.qty || ''}
+                      onChange={(event) => setForm({ ...form, qty: Number(event.target.value) })}
+                      min={0}
+                      className="w-full rounded-lg border border-gray-200 px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
                 {materialUsesDualUnit && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">实际核算数量/重量（可选）{selectedMaterial ? `(${selectedMaterial.valuationUnit})` : ''}</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">{referenceQtyLabel}（可选）{selectedMaterial ? `(${selectedMaterial.valuationUnit})` : ''}</label>
                     <input
                       type="number"
                       step="0.0001"
                       value={form.valuationQty || ''}
-                      onChange={(e) => setForm({ ...form, valuationQty: Number(e.target.value) })}
+                      onChange={(e) => updateLinkedTotalWeight(Math.max(0, Number(e.target.value)))}
                       min={0}
                       className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                     {selectedMaterial && (
                       <p className="mt-1 text-xs text-gray-500">
-                        不填则按默认换算：约 {referenceValuationQty} {selectedMaterial.valuationUnit}；称重后可填写实际值覆盖。
+                        例如填写本批实际总重量。不填时才按物料默认参考换算约为 {referenceValuationQty} {selectedMaterial.valuationUnit}。
                       </p>
                     )}
                   </div>
@@ -828,7 +1022,7 @@ export default function MaterialInPage({
                       className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      当前物料未启用双单位制，入库和计价都按 {stockUnitLabel} 记录，不要求填写重量。
+                      当前物料未配置参考/计价单位，入库和计价都按主库存单位 {stockUnitLabel} 记录。
                     </p>
                   </div>
                 )}

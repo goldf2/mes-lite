@@ -20,6 +20,8 @@ interface Material {
   category: string
   customerId?: string | null
   customer?: { id: string; code: string; name: string } | null
+  primaryMeasure: 'LENGTH' | 'WEIGHT' | 'QUANTITY' | 'OTHER'
+  referenceMeasure?: 'LENGTH' | 'WEIGHT' | 'QUANTITY' | 'OTHER' | null
   unit: string
   stockUnit: string
   valuationUnit: string
@@ -121,6 +123,13 @@ const materialCategoryOptions = [
 ] as const
 
 const materialCategoryFilterOptions = materialCategoryOptions.map(([value, label]) => ({ value, label }))
+const primaryMeasureOptions = [
+  ['LENGTH', '长度'],
+  ['WEIGHT', '重量'],
+  ['QUANTITY', '数量'],
+  ['OTHER', '其他'],
+] as const
+const primaryMeasureLabels = Object.fromEntries(primaryMeasureOptions) as Record<string, string>
 const materialProductPrefix = 'material:'
 const materialSplitStorageKey = 'mes-lite.materials.splitPercent'
 const bomSummaryFieldsStorageKey = 'mes-lite.materials.bomSummaryFields'
@@ -135,10 +144,10 @@ const materialSortOptions = [
   { value: 'spec', label: '规格' },
   { value: 'note', label: '备注' },
   { value: 'stockUnit', label: '库存单位' },
-  { value: 'valuationUnit', label: '核算单位' },
+  { value: 'valuationUnit', label: '参考/计价单位' },
   { value: 'costingMethod', label: '成本方法' },
   { value: 'stock', label: '库存数量' },
-  { value: 'valuationStock', label: '核算库存' },
+  { value: 'valuationStock', label: '参考数量' },
 ] as const
 
 type MaterialSortBy = (typeof materialSortOptions)[number]['value']
@@ -152,9 +161,9 @@ const materialVisibleFieldOptions = [
   { key: 'spec', label: '规格' },
   { key: 'note', label: '备注' },
   { key: 'stockUnit', label: '库存单位' },
-  { key: 'valuationUnit', label: '核算单位' },
+  { key: 'valuationUnit', label: '参考/计价单位' },
   { key: 'stock', label: '库存' },
-  { key: 'valuationStock', label: '核算库存' },
+  { key: 'valuationStock', label: '参考数量' },
   { key: 'createdAt', label: '创建时间' },
 ] as const
 
@@ -183,9 +192,6 @@ const bomSummaryFieldOptions = [
   { key: 'name', label: '物料名称' },
   { key: 'spec', label: '规格' },
   { key: 'code', label: '编码' },
-  { key: 'quantity', label: '每件用量' },
-  { key: 'unit', label: '单位' },
-  { key: 'wastageRate', label: '损耗率' },
 ] as const
 
 type BomSummaryField = (typeof bomSummaryFieldOptions)[number]['key']
@@ -212,6 +218,8 @@ function createEmptyMaterialForm() {
     note: '',
     category: 'RAW',
     customerId: '',
+    primaryMeasure: 'QUANTITY',
+    referenceMeasure: 'WEIGHT',
     unit: '',
     stockUnit: '',
     useDualUnit: false,
@@ -695,9 +703,6 @@ export default function MaterialPage({
   const [draftBomItems, setDraftBomItems] = useState<DraftBomItem[]>([])
   const [relationProductId, setRelationProductId] = useState('')
   const [relationMaterialId, setRelationMaterialId] = useState('')
-  const [relationProductQty, setRelationProductQty] = useState(1)
-  const [relationMaterialQty, setRelationMaterialQty] = useState(1)
-  const [relationWastageRate, setRelationWastageRate] = useState(0)
   const [bomLoading, setBomLoading] = useState(false)
   const [bomSaving, setBomSaving] = useState(false)
   const [keyword, setKeyword] = useState('')
@@ -747,7 +752,6 @@ export default function MaterialPage({
       .filter((item) => item.itemType === 'MATERIAL' && item.material?.id === selectedMaterial.id)
       .map((item) => ({ product, item })))
   }, [bomProducts, selectedMaterial])
-  const relationUnitQty = Number(relationProductQty || 0) > 0 ? Number(relationMaterialQty || 0) / Number(relationProductQty || 0) : 0
 
   const fetchBomData = useCallback(async () => {
     setBomLoading(true)
@@ -794,9 +798,9 @@ export default function MaterialPage({
     setDraftBomItems(selectedBomMaterialItems.map((item) => ({
       clientId: item.id,
       materialId: item.material?.id || '',
-      quantity: Number(item.quantity || 0),
+      quantity: 0,
       unit: item.material?.stockUnit || item.material?.unit || '件',
-      wastageRate: Number(item.wastageRate || 0),
+      wastageRate: 0,
     })))
   }, [selectedBomMaterialItems])
 
@@ -1120,6 +1124,8 @@ export default function MaterialPage({
         note: form.note,
         category: form.category,
         customerId: form.customerId || undefined,
+        primaryMeasure: form.primaryMeasure,
+        referenceMeasure: form.useDualUnit ? form.referenceMeasure : undefined,
         unit: form.stockUnit,
         stockUnit: form.stockUnit,
         valuationUnit: form.useDualUnit ? form.valuationUnit : form.stockUnit,
@@ -1191,6 +1197,8 @@ export default function MaterialPage({
       note: material.note || '',
       category: material.category || 'RAW',
       customerId: material.customerId || '',
+      primaryMeasure: material.primaryMeasure || 'QUANTITY',
+      referenceMeasure: material.referenceMeasure || 'WEIGHT',
       unit: stockUnit,
       stockUnit,
       useDualUnit,
@@ -1249,9 +1257,6 @@ export default function MaterialPage({
       if (selected.has('name')) parts.push(item.material?.name || '物料')
       if (selected.has('spec') && item.material?.spec) parts.push(item.material.spec)
       if (selected.has('code')) parts.push(item.material?.code || '')
-      if (selected.has('quantity')) parts.push(qty(item.quantity, 4))
-      if (selected.has('unit')) parts.push(item.unit || item.material?.stockUnit || item.material?.unit || '')
-      if (selected.has('wastageRate')) parts.push(`损耗 ${qty(item.wastageRate, 2)}%`)
       return parts.filter(Boolean).join(' · ')
     }
     const usageText = ({ product: usageProduct, item }: { product: MaterialBom; item: BomItem }) => {
@@ -1259,9 +1264,6 @@ export default function MaterialPage({
       if (selected.has('name')) parts.push(usageProduct.name)
       if (selected.has('spec') && usageProduct.description) parts.push(usageProduct.description)
       if (selected.has('code')) parts.push(usageProduct.sku)
-      if (selected.has('quantity')) parts.push(qty(item.quantity, 4))
-      if (selected.has('unit')) parts.push(item.unit || material.stockUnit || material.unit)
-      if (selected.has('wastageRate')) parts.push(`损耗 ${qty(item.wastageRate, 2)}%`)
       return parts.filter(Boolean).join(' · ')
     }
     const sections: string[] = []
@@ -1288,10 +1290,6 @@ export default function MaterialPage({
     setRelationMaterialId(material.id)
   }
 
-  const updateDraftBomItem = (clientId: string, patch: Partial<DraftBomItem>) => {
-    setDraftBomItems((current) => current.map((item) => item.clientId === clientId ? { ...item, ...patch } : item))
-  }
-
   const saveBomForProduct = async (
     productId: string,
     items: DraftBomItem[],
@@ -1308,9 +1306,9 @@ export default function MaterialPage({
           outputQuantity,
           items: items.map((item) => ({
             materialId: item.materialId,
-            quantity: Number(item.quantity || 0),
+            quantity: 0,
             unit: item.unit,
-            wastageRate: Number(item.wastageRate || 0),
+            wastageRate: 0,
           })),
         }),
       })
@@ -1342,56 +1340,39 @@ export default function MaterialPage({
     if (!relationProduct) return onMessage('请选择成品物料')
     if (!relationMaterial) return onMessage('请选择原料物料')
     if (relationProductSourceMaterialId === relationMaterial.id) return onMessage('成品和原料不能是同一个物料')
-    if (Number(relationProductQty || 0) <= 0) return onMessage('成品数量必须大于 0')
-    if (Number(relationMaterialQty || 0) <= 0) return onMessage('原料数量必须大于 0')
-
-    const nextOutputQuantity = Number(relationProductQty)
-    const currentOutputQuantity = Number(relationProduct.bom?.outputQuantity || 1)
     const currentItems = (relationProduct.bom?.items || [])
       .filter((item) => item.itemType === 'MATERIAL' && item.material)
       .map((item) => ({
         clientId: item.id,
         materialId: item.material?.id || '',
-        quantity: Number((Number(item.quantity || 0) / currentOutputQuantity * nextOutputQuantity).toFixed(8)),
+        quantity: 0,
         unit: item.unit || item.material?.stockUnit || item.material?.unit || '件',
-        wastageRate: Number(item.wastageRate || 0),
+        wastageRate: 0,
       }))
     const existing = currentItems.find((item) => item.materialId === relationMaterial.id)
-    const nextItems = existing
-      ? currentItems.map((item) => item.materialId === relationMaterial.id ? {
-          ...item,
-          quantity: Number(relationMaterialQty),
-          unit: relationMaterial.stockUnit || relationMaterial.unit || item.unit || '件',
-          wastageRate: Number(relationWastageRate || 0),
-        } : item)
-      : [
-          ...currentItems,
-          {
-            clientId: `relation-${relationMaterial.id}-${Date.now()}`,
-            materialId: relationMaterial.id,
-            quantity: Number(relationMaterialQty),
-            unit: relationMaterial.stockUnit || relationMaterial.unit || '件',
-            wastageRate: Number(relationWastageRate || 0),
-          },
-        ]
+    if (existing) return onMessage('该原料已经关联')
+    const nextItems = [
+      ...currentItems,
+      {
+        clientId: `relation-${relationMaterial.id}-${Date.now()}`,
+        materialId: relationMaterial.id,
+        quantity: 0,
+        unit: relationMaterial.stockUnit || relationMaterial.unit || '件',
+        wastageRate: 0,
+      },
+    ]
 
-    await saveBomForProduct(relationProduct.id, nextItems, 'BOM 比例已写入', nextOutputQuantity)
+    await saveBomForProduct(relationProduct.id, nextItems, 'BOM 物料关联已添加')
   }
 
   const editInputBasisUsage = (product: MaterialBom, item: BomItem) => {
     setRelationProductId(product.id)
     setRelationMaterialId(item.material?.id || '')
-    setRelationProductQty(Number(product.bom?.outputQuantity || 1))
-    setRelationMaterialQty(Number(item.quantity || 0))
-    setRelationWastageRate(Number(item.wastageRate || 0))
   }
 
   const editOutputBasisUsage = (item: DraftBomItem) => {
     setRelationProductId(selectedBomProduct?.id || (selectedMaterial ? `${materialProductPrefix}${selectedMaterial.id}` : ''))
     setRelationMaterialId(item.materialId)
-    setRelationProductQty(Number(selectedBomProduct?.bom?.outputQuantity || 1))
-    setRelationMaterialQty(Number(item.quantity || 0))
-    setRelationWastageRate(Number(item.wastageRate || 0))
   }
 
   const handleHeaderSort = (field: MaterialSortBy) => {
@@ -1698,7 +1679,7 @@ export default function MaterialPage({
                     )}
                     {showField('valuationStock') && (
                       <div className="min-w-0">
-                        <div className="text-xs text-gray-500">核算库存</div>
+                        <div className="text-xs text-gray-500">参考数量</div>
                         <div className="mt-0.5 truncate font-semibold text-emerald-700">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</div>
                       </div>
                     )}
@@ -1765,9 +1746,9 @@ export default function MaterialPage({
                   {showField('spec') && <MaterialSortableHeader columnKey="spec" field="spec" label="规格" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('spec')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
                   {showField('note') && <MaterialSortableHeader columnKey="note" field="note" label="备注" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('note')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
                   {showField('stockUnit') && <MaterialSortableHeader columnKey="stockUnit" field="stockUnit" label="库存单位" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('stockUnit')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
-                  {showField('valuationUnit') && <MaterialSortableHeader columnKey="valuationUnit" field="valuationUnit" label="核算单位" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('valuationUnit')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
+                  {showField('valuationUnit') && <MaterialSortableHeader columnKey="valuationUnit" field="valuationUnit" label="参考/计价单位" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('valuationUnit')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
                   {showField('stock') && <MaterialSortableHeader columnKey="stock" field="stock" label="库存" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('stock')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
-                  {showField('valuationStock') && <MaterialSortableHeader columnKey="valuationStock" field="valuationStock" label="核算库存" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('valuationStock')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
+                  {showField('valuationStock') && <MaterialSortableHeader columnKey="valuationStock" field="valuationStock" label="参考数量" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('valuationStock')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
                   {showField('createdAt') && <MaterialSortableHeader columnKey="createdAt" field="createdAt" label="创建时间" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('createdAt')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
                   {showBomWorkspace && <MaterialTableHeader columnKey="bomSummary" label="BOM 简况" style={columnStyle('bomSummary')} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
                   <MaterialTableHeader columnKey="actions" label="操作" style={columnStyle('actions')} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />
@@ -1928,17 +1909,6 @@ export default function MaterialPage({
                       disabledIds={relationMaterialId ? [relationMaterialId] : []}
                       onChange={setRelationProductId}
                     />
-                    <label className="mt-3 block">
-                      <span className="text-xs font-medium text-gray-500">成品数量</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={relationProductQty || ''}
-                        onChange={(event) => setRelationProductQty(Math.max(0, Number(event.target.value)))}
-                        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-right text-sm font-semibold text-gray-900"
-                      />
-                    </label>
                   </div>
 
                   <div className="min-w-0">
@@ -1952,49 +1922,18 @@ export default function MaterialPage({
                       disabledIds={relationProductSourceMaterialId ? [relationProductSourceMaterialId] : []}
                       onChange={setRelationMaterialId}
                     />
-                    <div className="mt-3 grid grid-cols-[minmax(0,1fr)_96px] gap-2">
-                      <label className="block">
-                        <span className="text-xs font-medium text-gray-500">原料数量</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={relationMaterialQty || ''}
-                          onChange={(event) => setRelationMaterialQty(Math.max(0, Number(event.target.value)))}
-                          className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-right text-sm font-semibold text-gray-900"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="text-xs font-medium text-gray-500">损耗率</span>
-                        <div className="mt-1 flex overflow-hidden rounded-lg border border-gray-200">
-                          <input
-                            type="number"
-                            min="0"
-                            step="any"
-                            value={relationWastageRate || ''}
-                            onChange={(event) => setRelationWastageRate(Math.max(0, Number(event.target.value)))}
-                            className="min-w-0 flex-1 px-2 py-2 text-right text-sm outline-none"
-                          />
-                          <span className="flex items-center border-l border-gray-200 bg-gray-50 px-2 text-xs text-gray-500">%</span>
-                        </div>
-                      </label>
-                    </div>
                   </div>
                 </div>
 
                 <div className="mt-3 flex flex-col gap-3 border-t border-gray-200 pt-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0 text-xs text-gray-600">
-                    {relationUnitQty > 0
-                      ? <>{qty(relationProductQty, 6)} {relationProduct?.unit || '成品'} = {qty(relationMaterialQty, 6)} {relationMaterial?.stockUnit || relationMaterial?.unit || '原料'}，每件用量 {qty(relationUnitQty, 6)}</>
-                      : '填写成品数量和原料数量后自动折算每件用量'}
-                  </div>
+                  <div className="min-w-0 text-xs text-gray-600">这里只维护产品与原料的组成关系；实际耗用量在生产日报中按主库存单位填写。</div>
                   <button
                     type="button"
                     onClick={applyRelationBom}
                     disabled={bomSaving || !relationProductId || !relationMaterialId}
                     className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {bomSaving ? '写入中...' : '写入 BOM'}
+                    {bomSaving ? '添加中...' : '添加关联'}
                   </button>
                 </div>
               </div>
@@ -2024,7 +1963,7 @@ export default function MaterialPage({
                       被引用 {selectedMaterialUsageRows.length}
                     </button>
                   </div>
-                  <span className="hidden text-xs text-gray-400 sm:inline">点击条目可载入上方比例编辑器</span>
+                  <span className="hidden text-xs text-gray-400 sm:inline">BOM 仅表示关联，不保存固定比例</span>
                 </div>
 
                 {bomAuxiliaryView === 'components' ? (
@@ -2034,16 +1973,18 @@ export default function MaterialPage({
                     <div className="space-y-2">
                       {draftBomItems.map((item) => {
                         const material = bomMaterialById.get(item.materialId)
-                        const quantityWithWastage = Number(item.quantity || 0) * (1 + Number(item.wastageRate || 0) / 100)
                         return (
                           <div key={item.clientId} className="rounded-lg border border-gray-200 p-3">
                             <div className="flex items-start justify-between gap-3">
                               <button type="button" onClick={() => editOutputBasisUsage(item)} className="min-w-0 text-left">
                                 <div className="truncate text-sm font-medium text-gray-900">{material?.name || '未知物料'}</div>
-                                <div className="mt-0.5 truncate font-mono text-xs text-blue-700">{material?.code || item.materialId}</div>
+                                <div className="mt-0.5 truncate text-xs text-gray-500">
+                                  <span className="font-mono text-blue-700">{material?.code || item.materialId}</span>
+                                  {material?.spec ? <span className="ml-2">{material.spec}</span> : null}
+                                </div>
                               </button>
                               <div className="flex shrink-0 items-center gap-2">
-                                <span className="text-xs text-gray-500">含损耗 {qty(quantityWithWastage, 4)} {item.unit || material?.stockUnit || material?.unit}</span>
+                                <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">{material?.stockUnit || material?.unit || item.unit}</span>
                                 <button
                                   type="button"
                                   onClick={() => setDraftBomItems((current) => current.filter((draft) => draft.clientId !== item.clientId))}
@@ -2052,36 +1993,6 @@ export default function MaterialPage({
                                   移除
                                 </button>
                               </div>
-                            </div>
-                            <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-2">
-                              <label className="min-w-0">
-                                <span className="text-xs text-gray-500">基准投入量</span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="any"
-                                  value={item.quantity || ''}
-                                  onChange={(event) => updateDraftBomItem(item.clientId, { quantity: Math.max(0, Number(event.target.value)) })}
-                                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-right text-sm"
-                                />
-                              </label>
-                              <div className="min-w-0">
-                                <span className="text-xs text-gray-500">单位</span>
-                                <div className="mt-1 w-full rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-sm text-gray-700">
-                                  {material?.stockUnit || material?.unit || item.unit}
-                                </div>
-                              </div>
-                              <label className="min-w-0">
-                                <span className="text-xs text-gray-500">损耗率 %</span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="any"
-                                  value={item.wastageRate || ''}
-                                  onChange={(event) => updateDraftBomItem(item.clientId, { wastageRate: Math.max(0, Number(event.target.value)) })}
-                                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-right text-sm"
-                                />
-                              </label>
                             </div>
                           </div>
                         )
@@ -2104,9 +2015,7 @@ export default function MaterialPage({
                           <span className="mt-0.5 block truncate font-mono text-xs text-blue-700">{product.sku}</span>
                         </span>
                         <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 sm:justify-end">
-                          <span>每件 <strong className="font-semibold text-gray-900">{qty(item.quantity, 6)} {item.unit}</strong></span>
-                          <span>损耗 <strong className="font-semibold text-gray-900">{qty(item.wastageRate, 3)}%</strong></span>
-                          <span>含损耗 <strong className="font-semibold text-gray-900">{qty(Number(item.quantity || 0) * (1 + Number(item.wastageRate || 0) / 100), 6)} {item.unit}</strong></span>
+                          <span className="rounded bg-gray-100 px-2 py-1">已关联</span>
                         </span>
                       </button>
                     ))}
@@ -2218,7 +2127,28 @@ export default function MaterialPage({
                   <h4 className="border-b border-gray-100 pb-2 text-sm font-semibold text-gray-900">单位与换算</h4>
                   <div className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">库存/领料单位 *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">主计量方式 *</label>
+                      <select
+                        value={form.primaryMeasure}
+                        onChange={(event) => {
+                          const primaryMeasure = event.target.value
+                          const defaultUnit = primaryMeasure === 'LENGTH'
+                            ? 'm'
+                            : primaryMeasure === 'WEIGHT'
+                              ? 'kg'
+                              : primaryMeasure === 'QUANTITY'
+                                ? '件'
+                                : form.stockUnit
+                          setForm({ ...form, primaryMeasure, stockUnit: defaultUnit, unit: defaultUnit })
+                        }}
+                        className="w-full rounded-lg border border-gray-200 px-4 py-2"
+                      >
+                        {primaryMeasureOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">库存、领料和生产耗用均按主计量方式记账。</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">主库存单位 *</label>
                       <input
                         type="text"
                         value={form.stockUnit}
@@ -2227,7 +2157,7 @@ export default function MaterialPage({
                         placeholder="如：根、米、件、kg"
                       />
                     </div>
-                    <label className="flex min-h-[42px] items-center gap-2 self-end rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 xl:col-span-2">
+                    <label className="flex min-h-[42px] items-center gap-2 self-end rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
                       <input
                         type="checkbox"
                         checked={form.useDualUnit}
@@ -2240,13 +2170,23 @@ export default function MaterialPage({
                         })}
                         className="h-4 w-4"
                       />
-                      启用双单位制（库存单位与成本单位不同）
+                      记录参考/计价单位
                     </label>
                   </div>
                   {form.useDualUnit && (
-                    <div className="grid grid-cols-1 gap-x-4 gap-y-3 rounded-lg border border-blue-100 bg-blue-50/40 p-4 md:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-x-4 gap-y-3 rounded-lg border border-blue-100 bg-blue-50/40 p-4 md:grid-cols-2 xl:grid-cols-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">计价/核算单位 *</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">参考计量方式 *</label>
+                        <select
+                          value={form.referenceMeasure}
+                          onChange={(event) => setForm({ ...form, referenceMeasure: event.target.value })}
+                          className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2"
+                        >
+                          {primaryMeasureOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">参考/计价单位 *</label>
                         <input
                           type="text"
                           value={form.valuationUnit}
@@ -2256,7 +2196,7 @@ export default function MaterialPage({
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">换算系数 *</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">默认参考换算 *</label>
                         <input
                           type="number"
                           step="0.0001"
@@ -2266,7 +2206,7 @@ export default function MaterialPage({
                           className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-white"
                           placeholder="例如：2.35"
                         />
-                        <p className="mt-1 text-xs text-gray-500">1 {form.stockUnit || '库存单位'} = {form.conversionRate || 0} {form.valuationUnit || '核算单位'}</p>
+                        <p className="mt-1 text-xs text-gray-500">仅在来料未填实测值时参考：1 {form.stockUnit || '主单位'} = {form.conversionRate || 0} {form.valuationUnit || '参考单位'}</p>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">换算说明</label>
@@ -2275,11 +2215,12 @@ export default function MaterialPage({
                           value={form.conversionNote}
                           onChange={(e) => setForm({ ...form, conversionNote: e.target.value })}
                           className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-white"
-                          placeholder="如：按理论重量，实际称重可在来料单修正"
+                          placeholder="如：仅作缺少实测时的参考，来料实际值优先"
                         />
                       </div>
                     </div>
                   )}
+                  <p className="text-xs text-gray-500">物料不保存标准长度。长度型原料在每张来料单按根数及总长度/单根长度录入本批实际长度。</p>
                 </section>
               </div>
             </div>
@@ -2435,15 +2376,21 @@ export default function MaterialPage({
 
                   <dl className="grid grid-cols-2 gap-5 pt-5">
                     <div>
-                      <dt className="text-xs text-gray-500">计价/核算单位</dt>
-                      <dd className="mt-1 text-sm font-medium text-gray-900">{detailMaterial.valuationUnit}</dd>
+                      <dt className="text-xs text-gray-500">主计量方式</dt>
+                      <dd className="mt-1 text-sm font-medium text-gray-900">{primaryMeasureLabels[detailMaterial.primaryMeasure] || '其他'}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-gray-500">核算库存</dt>
+                      <dt className="text-xs text-gray-500">参考/计价单位</dt>
+                      <dd className="mt-1 text-sm font-medium text-gray-900">
+                        {detailMaterial.referenceMeasure ? `${primaryMeasureLabels[detailMaterial.referenceMeasure]} · ` : ''}{detailMaterial.valuationUnit}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-gray-500">参考数量</dt>
                       <dd className="mt-1 text-sm font-medium text-gray-900">{detailMaterial.stock?.valuationQty || 0} {detailMaterial.valuationUnit}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-gray-500">换算关系</dt>
+                      <dt className="text-xs text-gray-500">默认参考换算</dt>
                       <dd className="mt-1 text-sm font-medium text-gray-900">1 {detailMaterial.stockUnit || detailMaterial.unit} = {detailMaterial.conversionRate || 1} {detailMaterial.valuationUnit}</dd>
                     </div>
                     <div>

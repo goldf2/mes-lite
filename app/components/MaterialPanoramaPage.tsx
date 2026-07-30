@@ -1038,7 +1038,7 @@ export default function MaterialPanoramaPage({
                                     <span className="truncate">
                                       {item.material ? `${item.material.code} · ${item.material.name}` : item.costObject ? `${item.costObject.code} · ${item.costObject.name}` : item.sawingScenario?.name || item.itemType || 'BOM项'}
                                     </span>
-                                    <span className="shrink-0">{formatNumber(item.quantity, 6)} {item.unit}</span>
+                                    <span className="shrink-0">{item.material ? '已关联' : `${formatNumber(item.quantity, 6)} ${item.unit}`}</span>
                                   </div>
                                 ))}
                               </div>
@@ -1062,9 +1062,9 @@ export default function MaterialPanoramaPage({
                                   <div className="font-medium text-gray-900">{item.bom.product.name}</div>
                                   <div className="mt-0.5 font-mono text-xs text-blue-700">{item.bom.product.sku} · {item.bom.version}</div>
                                 </div>
-                                <div className="text-right text-sm text-gray-800">{formatNumber(item.quantity, 6)} {item.unit}</div>
+                                <div className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">已关联</div>
                               </div>
-                              <div className="mt-1 text-xs text-gray-500">损耗率 {formatNumber(item.wastageRate, 4)}%</div>
+                              <div className="mt-1 text-xs text-gray-500">实际耗用在生产日报中按主库存单位记录</div>
                             </div>
                           ))}
                         </div>

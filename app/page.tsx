@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic'
 import { useState, useEffect, useRef, type RefObject } from 'react'
 import * as Collapsible from '@radix-ui/react-collapsible'
-import { Boxes, ChevronDown, ListTree, PencilLine, Search } from 'lucide-react'
+import { Boxes, ChevronDown, PencilLine, Search } from 'lucide-react'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
 import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
@@ -24,7 +24,6 @@ const ReturnPage = dynamic(() => import('./components/ReturnPage'), { loading: F
 const StatsPage = dynamic(() => import('./components/StatsPage'), { loading: FeaturePageLoading })
 const SawingCostCalculatorPage = dynamic(() => import('./components/SawingCostCalculatorPage'), { loading: FeaturePageLoading })
 const ScanPrintPage = dynamic(() => import('./components/ScanPrintPage'), { loading: FeaturePageLoading })
-const BomRelationPage = dynamic(() => import('./components/BomRelationPage'), { loading: FeaturePageLoading })
 const BomUsagePage = dynamic(() => import('./components/BomUsagePage'), { loading: FeaturePageLoading })
 const MaterialPage = dynamic(() => import('./components/MaterialPage'), { loading: FeaturePageLoading })
 const WorkInstructionPage = dynamic(() => import('./components/WorkInstructionPage'), { loading: FeaturePageLoading })
@@ -116,7 +115,7 @@ interface Order {
 
 interface PickItem {
   id: string
-  material: { id: string; code: string; name: string; unit: string }
+  material: { id: string; code: string; name: string; unit: string; stockUnit?: string }
   requiredQty: number
   actualQty: number
   status: string
@@ -130,7 +129,7 @@ interface ProcessStep {
 }
 
 type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
-type MaterialSection = 'materials' | 'bomWorkspace' | 'bomSetup' | 'bomUsage'
+type MaterialSection = 'materials' | 'bomWorkspace' | 'bomUsage'
 type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'logistics' | 'inventory' | 'tools'
 
 const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: TabType[] }> = [
@@ -375,9 +374,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     ?? readableSystemNavItems[0]?.key
     ?? 'dashboard'
   const [tab, setTab] = useState<TabType>(initialTab)
-  const [materialSection, setMaterialSection] = useState<MaterialSection>(canRead('materials') ? 'materials' : 'bomSetup')
+  const [materialSection, setMaterialSection] = useState<MaterialSection>(canRead('materials') ? 'materials' : 'bomUsage')
   const [materialMenuOpen, setMaterialMenuOpen] = useState(true)
-  const [bomSetupProductId, setBomSetupProductId] = useState('')
   const [orders, setOrders] = useState<Order[]>([])
   const [stocks, setStocks] = useState<Stock[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -422,8 +420,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [navItems, setNavItems] = useState<{ key: TabType; label: string }[]>(readableBusinessNavItems)
   const materialSectionItems = [
     { key: 'materials' as const, label: '物料管理', visible: canRead('materials') },
-    { key: 'bomWorkspace' as const, label: '物料 BOM 编辑', visible: canRead('materials') && canRead('bomCost') },
-    { key: 'bomSetup' as const, label: 'BOM 关系设定', visible: canRead('bomCost') },
+    { key: 'bomWorkspace' as const, label: '物料 BOM 关联', visible: canRead('materials') && canRead('bomCost') },
     { key: 'bomUsage' as const, label: 'BOM 反查', visible: canRead('bomCost') },
   ].filter((item) => item.visible)
   const tabLabels: Record<string, string> = Object.fromEntries(baseNavItems.map((item) => [item.key, item.label]))
@@ -919,8 +916,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                           ? Boxes
                           : section.key === 'bomWorkspace'
                             ? PencilLine
-                          : section.key === 'bomSetup'
-                            ? ListTree
                             : Search
                         const selected = tab === 'materials' && materialSection === section.key
                         return (
@@ -1387,7 +1382,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                         <span className={`px-2 py-1 rounded text-xs ${statusColors[pick.status]}`}>{statusLabels[pick.status]}</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span>需求：{pick.requiredQty} {pick.material.unit}</span>
+                        <span>{Number(pick.requiredQty) > 0 ? `需求：${pick.requiredQty}` : '按实际领用'} {pick.material.stockUnit || pick.material.unit}</span>
                         <span>已领：{pick.actualQty} {pick.material.unit}</span>
                       </div>
                     </div>
@@ -1789,19 +1784,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {tab === 'materials' && materialSection === 'bomWorkspace' && (
           <MaterialPage onMessage={showMessage} showBomWorkspace />
         )}
-        {tab === 'materials' && materialSection === 'bomSetup' && (
-          <div className="min-w-0">
-            <BomRelationPage onMessage={showMessage} initialProductId={bomSetupProductId} />
-          </div>
-        )}
         {tab === 'materials' && materialSection === 'bomUsage' && (
           <div className="min-w-0">
             <BomUsagePage
               onMessage={showMessage}
-              onOpenBom={(productId) => {
-                setBomSetupProductId(productId)
-                setMaterialSection('bomSetup')
-              }}
+              onOpenBom={() => setMaterialSection('bomWorkspace')}
             />
           </div>
         )}

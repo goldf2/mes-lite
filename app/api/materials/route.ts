@@ -15,6 +15,8 @@ const materialSchema = z.object({
   note: z.string().optional(),
   category: z.enum(['RAW', 'FINISHED', 'AUXILIARY', 'SCRAP', 'DEFECTIVE', 'PACKAGING', 'OTHER']).optional(),
   customerId: z.string().optional(),
+  primaryMeasure: z.enum(['LENGTH', 'WEIGHT', 'QUANTITY', 'OTHER']).optional(),
+  referenceMeasure: z.enum(['LENGTH', 'WEIGHT', 'QUANTITY', 'OTHER']).optional(),
   unit: z.string().min(1, '单位不能为空'),
   stockUnit: z.string().optional(),
   valuationUnit: z.string().optional(),
@@ -180,6 +182,8 @@ export async function POST(req: NextRequest) {
           note: body.note || null,
           category: body.category || 'RAW',
           customerId: body.customerId || null,
+          primaryMeasure: body.primaryMeasure || 'QUANTITY',
+          referenceMeasure: body.referenceMeasure || null,
           unit: body.stockUnit || body.unit,
           stockUnit: body.stockUnit || body.unit,
           valuationUnit: body.valuationUnit || body.unit,
@@ -228,6 +232,8 @@ export async function PUT(req: NextRequest) {
         note: z.string().optional(),
         category: z.enum(['RAW', 'FINISHED', 'AUXILIARY', 'SCRAP', 'DEFECTIVE', 'PACKAGING', 'OTHER']).optional(),
         customerId: z.string().optional(),
+        primaryMeasure: z.enum(['LENGTH', 'WEIGHT', 'QUANTITY', 'OTHER']).optional(),
+        referenceMeasure: z.enum(['LENGTH', 'WEIGHT', 'QUANTITY', 'OTHER']).optional(),
         unit: z.string().min(1),
         stockUnit: z.string().optional(),
         valuationUnit: z.string().optional(),
@@ -259,7 +265,12 @@ export async function PUT(req: NextRequest) {
     if (!before) return NextResponse.json({ error: '物料不存在' }, { status: 404 })
     const nextStockUnit = body.stockUnit || body.unit
     const nextValuationUnit = body.valuationUnit || body.unit
-    const unitsChanged = before.stockUnit !== nextStockUnit || before.valuationUnit !== nextValuationUnit
+    const nextPrimaryMeasure = body.primaryMeasure || before.primaryMeasure || 'QUANTITY'
+    const nextReferenceMeasure = body.referenceMeasure || null
+    const unitsChanged = before.stockUnit !== nextStockUnit
+      || before.valuationUnit !== nextValuationUnit
+      || before.primaryMeasure !== nextPrimaryMeasure
+      || before.referenceMeasure !== nextReferenceMeasure
     if (unitsChanged) {
       const [movementCount, outputBomCount] = await Promise.all([
         prisma.stockLog.count({ where: { stock: { materialId: before.id } } }),
@@ -275,7 +286,7 @@ export async function PUT(req: NextRequest) {
         : false
       if (hasBalance || movementCount > 0 || before._count.bomItems > 0 || outputBomCount > 0) {
         return NextResponse.json(
-          { error: '物料已有库存、流水或 BOM 关系，不能直接修改库存单位/核算单位；请先完成单位转换或新建物料' },
+          { error: '物料已有库存、流水或 BOM 关系，不能直接修改主计量方式、主库存单位或参考单位；请先完成单位转换或新建物料' },
           { status: 400 },
         )
       }
@@ -290,6 +301,8 @@ export async function PUT(req: NextRequest) {
           note: body.note || null,
           category: body.category || 'RAW',
           customerId: body.customerId || null,
+          primaryMeasure: nextPrimaryMeasure,
+          referenceMeasure: nextReferenceMeasure,
           unit: body.stockUnit || body.unit,
           stockUnit: body.stockUnit || body.unit,
           valuationUnit: body.valuationUnit || body.unit,

@@ -48,7 +48,9 @@ model Material {
   customerId  String?
   customer    Customer? @relation(fields: [customerId], references: [id])
   unit        String
+  primaryMeasure String @default("QUANTITY")
   stockUnit   String   @default("件")
+  referenceMeasure String?
   valuationUnit String @default("kg")
   conversionRate Float @default(1)
   conversionNote String?
@@ -592,6 +594,9 @@ model MaterialIn {
   material    Material @relation(fields: [materialId], references: [id])
   qty         Float
   unit        String
+  pieceCount  Int?
+  stockQtyMode String @default("TOTAL")
+  stockQtyInput Float?
   valuationQty Float   @default(0)
   valuationUnit String  @default("kg")
   conversionRate Float  @default(1)

@@ -40,10 +40,6 @@ interface UsageRow {
   products: Array<{ product: BomProduct; item: BomItem }>
 }
 
-function qty(value: number, digits = 6) {
-  return Number(value || 0).toFixed(digits).replace(/\.?0+$/, '')
-}
-
 export default function BomUsagePage({
   onMessage,
   onOpenBom,
@@ -156,15 +152,10 @@ export default function BomUsagePage({
               </div>
 
               <div className="divide-y divide-gray-100">
-                {row.products.map(({ product, item }) => {
-                  const outputQuantity = Number(product.bom?.outputQuantity || 1)
-                  const outputUnit = product.bom?.outputUnit || product.unit || '件'
-                  const inputQuantity = Number(item.quantity || 0)
-                  const quantityWithWastage = inputQuantity * (1 + Number(item.wastageRate || 0) / 100)
-                  return (
+                {row.products.map(({ product, item }) => (
                     <div
                       key={`${product.id}-${item.id}`}
-                      className="grid grid-cols-1 gap-3 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(300px,auto)_auto] lg:items-center"
+                      className="grid grid-cols-1 gap-3 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-center"
                     >
                       <div className="min-w-0">
                         <div className="truncate text-sm font-medium text-gray-900">{product.name}</div>
@@ -173,21 +164,16 @@ export default function BomUsagePage({
                           {product.customer && <span>{product.customer.name}</span>}
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-600">
-                        <span>产出基准 <strong className="font-semibold text-gray-900">{qty(outputQuantity)} {outputUnit}</strong></span>
-                        <span>投入 <strong className="font-semibold text-gray-900">{qty(inputQuantity)} {item.unit}</strong></span>
-                        <span>含损耗 <strong className="font-semibold text-gray-900">{qty(quantityWithWastage)} {item.unit}</strong></span>
-                      </div>
+                      <div className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">已关联</div>
                       <button
                         type="button"
                         onClick={() => onOpenBom(product.id)}
                         className="justify-self-start rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 lg:justify-self-end"
                       >
-                        打开 BOM 设定
+                        打开 BOM 关联
                       </button>
                     </div>
-                  )
-                })}
+                ))}
               </div>
             </article>
           ))}

@@ -22,6 +22,12 @@ const costingMethodLabels: Record<string, string> = {
   WEIGHTED_AVERAGE: '移动加权平均',
   FIFO: '先入先出 FIFO',
 }
+const primaryMeasureLabels: Record<string, string> = {
+  LENGTH: '长度',
+  WEIGHT: '重量',
+  QUANTITY: '数量',
+  OTHER: '其他',
+}
 
 const materialSortFields = new Set(['createdAt', 'code', 'name', 'category', 'customer', 'spec', 'note', 'stockUnit', 'valuationUnit', 'costingMethod', 'stock', 'valuationStock'])
 
@@ -91,9 +97,11 @@ export async function GET(req: NextRequest) {
         '分类',
         '分类名称',
         '归属客户',
+        '主计量方式',
         '库存单位',
-        '核算单位',
-        '换算系数',
+        '参考计量方式',
+        '参考/计价单位',
+        '默认参考换算',
         '成本方法',
         '成本方法名称',
         '库存数量',
@@ -115,7 +123,9 @@ export async function GET(req: NextRequest) {
         material.category,
         materialCategoryLabels[material.category] || material.category,
         material.customer?.name || '',
+        primaryMeasureLabels[material.primaryMeasure] || material.primaryMeasure,
         material.stockUnit || material.unit,
+        material.referenceMeasure ? primaryMeasureLabels[material.referenceMeasure] || material.referenceMeasure : '',
         material.valuationUnit || material.unit,
         material.conversionRate || 1,
         material.costingMethod,

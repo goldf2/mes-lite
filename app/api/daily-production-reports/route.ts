@@ -63,6 +63,7 @@ export async function GET(req: NextRequest) {
           name: true,
           spec: true,
           category: true,
+          primaryMeasure: true,
           stockUnit: true,
           unit: true,
           customer: { select: { id: true, code: true, name: true } },
@@ -97,6 +98,7 @@ export async function GET(req: NextRequest) {
                         code: true,
                         name: true,
                         spec: true,
+                        primaryMeasure: true,
                         stockUnit: true,
                         unit: true,
                       },
@@ -128,10 +130,8 @@ export async function POST(req: NextRequest) {
 
     const input = dailyProductionReportInputSchema.parse(await req.json())
     const reportDate = parseDailyProductionReportDate(input.reportDate)
-    const totalProcessedQty = input.goodQty + input.badQty + input.scrapQty
-
     const report = await prisma.$transaction(async (tx) => {
-      const snapshot = await buildDailyProductionConsumption(tx, input.finishedMaterialId, totalProcessedQty)
+      const snapshot = await buildDailyProductionConsumption(tx, input.finishedMaterialId, input.consumptions)
       const reportNo = await nextReportNo(tx, reportDate)
       return tx.dailyProductionReport.create({
         data: {

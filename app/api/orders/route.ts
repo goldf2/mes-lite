@@ -37,8 +37,6 @@ export async function POST(req: NextRequest) {
 
     let productId = ''
     let materialId: string | null = null
-    let bomWithItems: { items: any[] } | null = null
-
     const material = await prisma.material.findUnique({
       where: { id: targetId },
       select: { id: true, code: true, name: true, category: true, customerId: true, stockUnit: true, unit: true, deletedAt: true },
@@ -50,10 +48,6 @@ export async function POST(req: NextRequest) {
 
     materialId = material.id
     productId = await ensureSimpleProductForMaterial(material)
-    bomWithItems = await prisma.bOM.findUnique({
-      where: { productId },
-      include: { items: { where: { itemType: 'MATERIAL' }, include: { material: { include: { stock: true } } } } },
-    })
 
     const today = new Date()
     const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')
@@ -74,46 +68,6 @@ export async function POST(req: NextRequest) {
           note,
         },
       })
-
-      for (const bomItem of bomWithItems?.items ?? []) {
-        if (!bomItem.material || !bomItem.materialId) continue
-        const requiredQty = Number(bomItem.quantity) * planQty
-          / Number((bomWithItems as any)?.outputQuantity || 1)
-          * (1 + Number(bomItem.wastageRate) / 100)
-        const stockQty = Number(bomItem.material.stock?.availableQty ?? 0)
-
-        let valuationReserveQty = 0
-        if (bomItem.material.stock) {
-          const stock = bomItem.material.stock
-          const stockQty = Number(stock.qty)
-          const stockValuationQty = Number(stock.valuationQty)
-          const materialConversionRate = Number(bomItem.material.conversionRate || 1)
-          valuationReserveQty = Number((
-            requiredQty * (stockQty > 0 ? stockValuationQty / stockQty : materialConversionRate)
-          ).toFixed(6))
-
-          await tx.stock.update({
-            where: { id: stock.id },
-            data: {
-              reservedQty: { increment: requiredQty },
-              availableQty: { decrement: requiredQty },
-              reservedValuationQty: { increment: valuationReserveQty },
-              availableValuationQty: { decrement: valuationReserveQty },
-            },
-          })
-        }
-
-        await tx.pickItem.create({
-          data: {
-            orderId: newOrder.id,
-            materialId: bomItem.materialId,
-            requiredQty: requiredQty,
-            reservedValuationQty: valuationReserveQty,
-            actualQty: 0,
-            status: stockQty >= requiredQty ? 'PENDING' : 'PENDING',
-          },
-        })
-      }
 
       return newOrder
     })

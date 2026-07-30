@@ -8,6 +8,7 @@ import { createInternalCode } from '@/lib/internal-codes'
 
 const allowedCategories = new Set(['RAW', 'FINISHED', 'AUXILIARY', 'SCRAP', 'DEFECTIVE', 'PACKAGING', 'OTHER'])
 const allowedCostingMethods = new Set(['WEIGHTED_AVERAGE', 'FIFO'])
+const allowedPrimaryMeasures = new Set(['LENGTH', 'WEIGHT', 'QUANTITY', 'OTHER'])
 const categoryAliases: Record<string, string> = {
   RAW: 'RAW',
   原材料: 'RAW',
@@ -33,6 +34,17 @@ const costingAliases: Record<string, string> = {
   FIFO: 'FIFO',
   先入先出: 'FIFO',
 }
+const primaryMeasureAliases: Record<string, string> = {
+  LENGTH: 'LENGTH',
+  长度: 'LENGTH',
+  WEIGHT: 'WEIGHT',
+  重量: 'WEIGHT',
+  QUANTITY: 'QUANTITY',
+  数量: 'QUANTITY',
+  计数: 'QUANTITY',
+  OTHER: 'OTHER',
+  其他: 'OTHER',
+}
 
 type ImportMaterial = {
   rowNumber: number
@@ -43,6 +55,8 @@ type ImportMaterial = {
   category: string
   customerName: string
   customerId: string | null
+  primaryMeasure: string
+  referenceMeasure: string | null
   stockUnit: string
   valuationUnit: string
   conversionRate: number
@@ -75,6 +89,11 @@ function normalizeCategory(value: string) {
 function normalizeCostingMethod(value: string) {
   const next = value.trim() || 'WEIGHTED_AVERAGE'
   return costingAliases[next] || next.toUpperCase()
+}
+
+function normalizePrimaryMeasure(value: string) {
+  const next = value.trim() || 'QUANTITY'
+  return primaryMeasureAliases[next] || next.toUpperCase()
 }
 
 export async function POST(req: NextRequest) {
@@ -147,8 +166,12 @@ export async function POST(req: NextRequest) {
       const category = normalizeCategory(cell(row, headerMap, ['分类', '物料分类']))
       const customerName = cell(row, headerMap, ['归属客户', '客户', '客户名称', '归属客户名称'])
       const customerCode = cell(row, headerMap, ['客户编码', '归属客户编码'])
+      const primaryMeasure = normalizePrimaryMeasure(cell(row, headerMap, ['主计量方式', '主计量类型']))
       const stockUnit = cell(row, headerMap, ['库存单位', '领料单位', '单位'])
       const useDualUnit = normalizeYes(cell(row, headerMap, ['启用双单位', '双单位']))
+      const referenceMeasure = useDualUnit
+        ? normalizePrimaryMeasure(cell(row, headerMap, ['参考计量方式', '核算计量方式']) || 'OTHER')
+        : null
       const rawValuationUnit = cell(row, headerMap, ['核算单位', '计价单位'])
       const rawConversionRate = cell(row, headerMap, ['换算系数', '换算率'])
       const conversionNote = cell(row, headerMap, ['换算说明'])
@@ -160,6 +183,8 @@ export async function POST(req: NextRequest) {
       if (code && seenCodes.has(code)) errors.push(`第 ${rowNumber} 行：物料编码在文件中重复`)
       if (code) seenCodes.add(code)
       if (!allowedCategories.has(category)) errors.push(`第 ${rowNumber} 行：分类无效，应为 RAW/FINISHED/AUXILIARY/SCRAP/DEFECTIVE/PACKAGING/OTHER`)
+      if (!allowedPrimaryMeasures.has(primaryMeasure)) errors.push(`第 ${rowNumber} 行：主计量方式无效，应为 LENGTH/WEIGHT/QUANTITY/OTHER`)
+      if (referenceMeasure && !allowedPrimaryMeasures.has(referenceMeasure)) errors.push(`第 ${rowNumber} 行：参考计量方式无效，应为 LENGTH/WEIGHT/QUANTITY/OTHER`)
       if (!allowedCostingMethods.has(costingMethod)) errors.push(`第 ${rowNumber} 行：成本方法无效，应为 WEIGHTED_AVERAGE 或 FIFO`)
 
       const valuationUnit = useDualUnit ? rawValuationUnit : stockUnit
@@ -204,6 +229,8 @@ export async function POST(req: NextRequest) {
         category,
         customerName,
         customerId,
+        primaryMeasure,
+        referenceMeasure,
         stockUnit,
         valuationUnit: valuationUnit || stockUnit,
         conversionRate: normalizeConversionRate(conversionRate),
@@ -223,6 +250,8 @@ export async function POST(req: NextRequest) {
         id: true,
         code: true,
         deletedAt: true,
+        primaryMeasure: true,
+        referenceMeasure: true,
         stockUnit: true,
         valuationUnit: true,
         stock: true,
@@ -238,7 +267,9 @@ export async function POST(req: NextRequest) {
       const lockedUnitErrors = (await Promise.all(parsed.map(async (item) => {
         const existing = existingByCode.get(item.code)
         if (!existing || (
-          existing.stockUnit === item.stockUnit
+          existing.primaryMeasure === item.primaryMeasure
+          && existing.referenceMeasure === item.referenceMeasure
+          && existing.stockUnit === item.stockUnit
           && existing.valuationUnit === item.valuationUnit
         )) return null
         const [movementCount, outputBomCount] = await Promise.all([
@@ -294,6 +325,8 @@ export async function POST(req: NextRequest) {
           note: item.note || null,
           category: item.category,
           customerId: item.customerId || (item.customerName ? createdCustomerByName.get(item.customerName) || null : null),
+          primaryMeasure: item.primaryMeasure,
+          referenceMeasure: item.referenceMeasure,
           unit: item.stockUnit,
           stockUnit: item.stockUnit,
           valuationUnit: item.valuationUnit,

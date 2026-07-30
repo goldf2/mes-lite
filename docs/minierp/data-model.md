@@ -570,11 +570,25 @@ BOM 成本计算快照。它是独立于派工、领料和库存的成本测算�
 
 BOM 成本计算会展开物料 BOM：
 
-- `MATERIAL` 项读取物料库存成本单价，按数量和损耗率计算材料成本。
+- `MATERIAL` 项只保存关联。每次成本试算必须按原料主库存单位输入本次预计耗用量，再读取库存成本单价计算材料成本。
 - `SAWING_COST` 或其他成本对象项读取生效成本版本，按数量计算材料成本、人工工时、机时和直接费用。
 - 固定费用作为本次 `OVERHEAD` 快照行保存，不写入 BOM 本体。
 
-BOM 数据只保存规范方向：目标物料或产出物料 -> 输入物料及单位用量。界面允许从原材料产出关系反向录入，例如“1 根原材料产出 20 个成品”，保存前换算为该成品 BOM 中原材料用量 `0.05`。后续螺钉、螺母等辅材仍继续作为同一个目标物料 BOM 下的输入物料追加。
+BOM 数据只保存规范方向：目标物料或产出物料 -> 可用输入物料。物料项的历史 `quantity`、`wastageRate` 字段保留用于兼容，但新的物料关联统一写入 `0`，不作为生产和成本计算依据。当前轻量流程不生成领料项或预留库存；生产日报按本次实际主单位耗用形成快照，并由成本层换算参考数量和成本；成本试算按本次预计主单位耗用形成快照。
+
+### 物料主计量与长度型来料
+
+`Material.primaryMeasure` 取 `LENGTH`、`WEIGHT`、`QUANTITY` 或 `OTHER`。`stockUnit` 是主库存单位，库存、领料和生产耗用都以它为准。`referenceMeasure`、`valuationUnit` 和 `conversionRate` 是可选参考/计价口径，默认换算只在来料未填写实测值时使用；物料不保存标准长度。
+
+长度型 `MaterialIn` 使用 `pieceCount`、`stockQtyMode` 和 `stockQtyInput` 保留原始录入语义：
+
+- `TOTAL`：`stockQtyInput` 是本批总长度，`qty = stockQtyInput`。
+- `PER_PIECE`：`stockQtyInput` 是单根长度，`qty = pieceCount × stockQtyInput`。
+- 当参考计量为重量时，`valuationQty` 是本批总重量，`conversionRate = valuationQty ÷ qty`。
+
+因此 `qty` 是入账总长度，`pieceCount` 是物理根数，`valuationQty` 是本批总重量；三者都进入来料快照和审计记录，但只有主库存数量可被直接领用。
+
+当前库存不维护长度分布，只保存汇总值，不能直接回答某个具体长度各有多少根。未来如需显示“3.5 m 有几根、1.5 m 有几根”，应在来料单下增加同长分组/包装明细并汇总到现有字段；不需要改成每根实体库存。
 
 ### 库存余额一致性补齐
 

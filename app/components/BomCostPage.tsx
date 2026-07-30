@@ -8,7 +8,15 @@ interface ProductOption {
   sku: string
   name: string
   unit: string
-  bom?: { id: string; version: string; isActive: boolean } | null
+  bom?: {
+    id: string
+    version: string
+    isActive: boolean
+    items: Array<{
+      id: string
+      material: { id: string; code: string; name: string; stockUnit: string; unit: string } | null
+    }>
+  } | null
 }
 
 interface BomCostLine {
@@ -322,6 +330,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
     directCostPerUnit: 0,
   })
   const [selectedProductId, setSelectedProductId] = useState('')
+  const [materialConsumptions, setMaterialConsumptions] = useState<Record<string, number>>({})
   const [selectedRun, setSelectedRun] = useState<BomCostRun | null>(null)
   const [loading, setLoading] = useState(false)
   const [calculating, setCalculating] = useState(false)
@@ -378,18 +387,30 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
 
   const selectProduct = async (productId: string) => {
     setSelectedProductId(productId)
+    setMaterialConsumptions({})
     setSelectedRun(null)
     await loadData(productId)
   }
 
   const calculate = async () => {
     if (!selectedProductId) return onMessage('请选择物料')
+    const materialItems = selectedProduct?.bom?.items.filter((item) => item.material) || []
+    if (materialItems.some((item) => Number(materialConsumptions[item.material!.id] || 0) <= 0)) {
+      return onMessage('请填写所有关联原料的本次预计耗用量')
+    }
     setCalculating(true)
     try {
       const res = await fetch('/api/bom-costs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId: selectedProductId, ...form }),
+        body: JSON.stringify({
+          productId: selectedProductId,
+          ...form,
+          materialConsumptions: materialItems.map((item) => ({
+            materialId: item.material!.id,
+            quantity: Number(materialConsumptions[item.material!.id] || 0),
+          })),
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -642,6 +663,26 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
               <NumberField label="机时费率" value={form.machineRatePerHour} unit="元/小时" onChange={(value) => setForm((current) => ({ ...current, machineRatePerHour: value }))} />
               <NumberField label="固定费用分摊" value={form.overheadCost} unit="元/次" onChange={(value) => setForm((current) => ({ ...current, overheadCost: value }))} />
             </div>
+          </div>
+
+          <div className="rounded-lg bg-white p-5 shadow-sm">
+            <h3 className="font-semibold text-gray-900">本次原料耗用</h3>
+            <p className="mt-1 text-xs text-gray-500">BOM 只保存物料关联；成本按本次预计主库存单位耗用量计算。</p>
+            {!selectedProduct?.bom?.items.some((item) => item.material) ? (
+              <div className="mt-4 rounded-lg border border-dashed border-gray-200 p-5 text-sm text-gray-500">选择有 BOM 原料关联的物料</div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {selectedProduct.bom.items.filter((item) => item.material).map((item) => item.material && (
+                  <NumberField
+                    key={item.id}
+                    label={`${item.material.code} · ${item.material.name}`}
+                    value={materialConsumptions[item.material.id] || 0}
+                    unit={item.material.stockUnit || item.material.unit}
+                    onChange={(value) => setMaterialConsumptions((current) => ({ ...current, [item.material!.id]: value }))}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="rounded-lg bg-white p-5 shadow-sm">

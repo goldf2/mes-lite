@@ -8,8 +8,14 @@ export const dailyProductionReportInputSchema = z.object({
   scrapQty: z.number().finite().nonnegative(),
   workers: z.string().trim().min(1, '生产人员必填'),
   note: z.string().trim().optional(),
+  consumptions: z.array(z.object({
+    materialId: z.string().min(1),
+    actualQty: z.number().finite().nonnegative(),
+  })).max(200).default([]),
 }).refine((value) => value.goodQty + value.badQty + value.scrapQty > 0, {
   message: '合格、不良和报废数量不能全部为 0',
+}).refine((value) => value.consumptions.some((item) => item.actualQty > 0), {
+  message: '请至少填写一项实际原料耗用',
 })
 
 export function parseDailyProductionReportDate(value: string) {
@@ -25,6 +31,7 @@ export const dailyProductionReportInclude = {
       code: true,
       name: true,
       category: true,
+      primaryMeasure: true,
       stockUnit: true,
       unit: true,
     },
@@ -36,6 +43,7 @@ export const dailyProductionReportInclude = {
           id: true,
           code: true,
           name: true,
+          primaryMeasure: true,
           stockUnit: true,
           unit: true,
           stock: { select: { qty: true, availableQty: true } },
