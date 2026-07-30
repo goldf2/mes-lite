@@ -12,8 +12,11 @@ interface ProductOption {
     id: string
     version: string
     isActive: boolean
+    outputQuantity: number
     items: Array<{
       id: string
+      quantity: number
+      unit: string
       material: { id: string; code: string; name: string; stockUnit: string; unit: string } | null
     }>
   } | null
@@ -330,7 +333,6 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
     directCostPerUnit: 0,
   })
   const [selectedProductId, setSelectedProductId] = useState('')
-  const [materialConsumptions, setMaterialConsumptions] = useState<Record<string, number>>({})
   const [selectedRun, setSelectedRun] = useState<BomCostRun | null>(null)
   const [loading, setLoading] = useState(false)
   const [calculating, setCalculating] = useState(false)
@@ -387,7 +389,6 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
 
   const selectProduct = async (productId: string) => {
     setSelectedProductId(productId)
-    setMaterialConsumptions({})
     setSelectedRun(null)
     await loadData(productId)
   }
@@ -395,8 +396,8 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
   const calculate = async () => {
     if (!selectedProductId) return onMessage('请选择物料')
     const materialItems = selectedProduct?.bom?.items.filter((item) => item.material) || []
-    if (materialItems.some((item) => Number(materialConsumptions[item.material!.id] || 0) <= 0)) {
-      return onMessage('请填写所有关联原料的本次预计耗用量')
+    if (materialItems.some((item) => Number(item.quantity || 0) <= 0)) {
+      return onMessage('BOM 中存在未填写单位消耗量的原料')
     }
     setCalculating(true)
     try {
@@ -406,10 +407,6 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
         body: JSON.stringify({
           productId: selectedProductId,
           ...form,
-          materialConsumptions: materialItems.map((item) => ({
-            materialId: item.material!.id,
-            quantity: Number(materialConsumptions[item.material!.id] || 0),
-          })),
         }),
       })
       const data = await res.json()
@@ -666,20 +663,26 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
           </div>
 
           <div className="rounded-lg bg-white p-5 shadow-sm">
-            <h3 className="font-semibold text-gray-900">本次原料耗用</h3>
-            <p className="mt-1 text-xs text-gray-500">BOM 只保存物料关联；成本按本次预计主库存单位耗用量计算。</p>
+            <h3 className="font-semibold text-gray-900">标准原料耗用</h3>
+            <p className="mt-1 text-xs text-gray-500">按 BOM 单位消耗量 × 数量基准计算，不包含生产日报的本次损耗。</p>
             {!selectedProduct?.bom?.items.some((item) => item.material) ? (
               <div className="mt-4 rounded-lg border border-dashed border-gray-200 p-5 text-sm text-gray-500">选择有 BOM 原料关联的物料</div>
             ) : (
               <div className="mt-4 space-y-3">
                 {selectedProduct.bom.items.filter((item) => item.material).map((item) => item.material && (
-                  <NumberField
-                    key={item.id}
-                    label={`${item.material.code} · ${item.material.name}`}
-                    value={materialConsumptions[item.material.id] || 0}
-                    unit={item.material.stockUnit || item.material.unit}
-                    onChange={(value) => setMaterialConsumptions((current) => ({ ...current, [item.material!.id]: value }))}
-                  />
+                  <div key={item.id} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm">
+                    <div className="font-medium text-gray-900">{item.material.code} · {item.material.name}</div>
+                    {item.quantity > 0 ? (
+                      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
+                        <span>单位耗用 {qty(item.quantity / Number(selectedProduct.bom?.outputQuantity || 1), 6)} {item.unit}/{selectedProduct.unit}</span>
+                        <span className="font-semibold text-blue-700">
+                          本次 {qty(item.quantity * form.quantityBasis / Number(selectedProduct.bom?.outputQuantity || 1), 6)} {item.unit}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="mt-1 text-xs text-amber-700">待填写 BOM 单位消耗量</div>
+                    )}
+                  </div>
                 ))}
               </div>
             )}

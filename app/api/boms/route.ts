@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 
 const bomItemSchema = z.object({
   materialId: z.string().min(1, '请选择物料'),
-  quantity: z.number().finite().nonnegative().optional().default(0),
+  quantity: z.number().finite().positive('单位消耗量必须大于 0'),
   unit: z.string().trim().optional(),
   wastageRate: z.number().finite().nonnegative().optional().default(0),
 })
@@ -140,6 +140,9 @@ export async function PUT(req: NextRequest) {
     if (!outputMaterial) return NextResponse.json({ error: 'BOM 产出物料不存在或已归档' }, { status: 400 })
 
     const materialIds = Array.from(new Set(input.items.map((item) => item.materialId)))
+    if (materialIds.includes(outputMaterial.id)) {
+      return NextResponse.json({ error: 'BOM 不能消耗产出物料自身' }, { status: 400 })
+    }
     if (materialIds.length !== input.items.length) {
       return NextResponse.json({ error: '同一原料不能重复关联' }, { status: 400 })
     }
@@ -152,13 +155,24 @@ export async function PUT(req: NextRequest) {
     }
 
     const materialById = new Map(materials.map((material) => [material.id, material]))
+    const unitMismatch = input.items.find((item) => {
+      const material = materialById.get(item.materialId)
+      return item.unit && material && item.unit !== (material.stockUnit || material.unit)
+    })
+    if (unitMismatch) {
+      const material = materialById.get(unitMismatch.materialId)
+      return NextResponse.json(
+        { error: `单位消耗量必须使用原料主库存单位 ${material?.stockUnit || material?.unit}` },
+        { status: 400 },
+      )
+    }
     const items = input.items
       .map((item) => {
         const material = materialById.get(item.materialId)
         return {
           itemType: 'MATERIAL',
           materialId: item.materialId,
-          quantity: 0,
+          quantity: item.quantity,
           unit: material?.stockUnit || material?.unit || '件',
           wastageRate: 0,
         }
@@ -216,7 +230,7 @@ export async function PUT(req: NextRequest) {
       afterData: saved,
     })
 
-    return NextResponse.json({ data: saved, message: 'BOM 物料关联已保存' })
+    return NextResponse.json({ data: saved, message: 'BOM 单位消耗量已保存' })
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
     console.error('Save BOM error:', error)

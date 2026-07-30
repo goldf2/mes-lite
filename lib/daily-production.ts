@@ -1,12 +1,19 @@
 import { Prisma } from '@prisma/client'
 import { simpleProductSku } from './material-product'
+import { calculateProductionConsumption, ProductionLossMode } from './production-consumption'
 
 const roundQty = (value: number) => Number(value.toFixed(6))
 
 export async function buildDailyProductionConsumption(
   tx: Prisma.TransactionClient,
   finishedMaterialId: string,
-  requestedConsumptions: Array<{ materialId: string; actualQty: number }>,
+  totalProcessedQty: number,
+  requestedConsumptions: Array<{
+    materialId: string
+    lossMode: ProductionLossMode
+    lossValue: number
+    actualQty?: number
+  }>,
 ) {
   const finishedMaterial = await tx.material.findFirst({
     where: { id: finishedMaterialId, deletedAt: null },
@@ -64,11 +71,19 @@ export async function buildDailyProductionConsumption(
     materialName: string
     quantityPerUnit: number
     wastageRate: number
+    lossMode: string
+    lossValue: number
+    lossQty: number
     plannedQty: number
     actualQty: number
     unit: string
     valuationUnit: string
   }>()
+
+  const associatedMaterialIds = new Set(bom.items.flatMap((item) => item.material?.id ? [item.material.id] : []))
+  const invalidInput = requestedConsumptions.find((item) => !associatedMaterialIds.has(item.materialId))
+  if (invalidInput) throw new Error('实际耗用中存在未关联到当前 BOM 的原料')
+  const requestedByMaterial = new Map(requestedConsumptions.map((item) => [item.materialId, item]))
 
   for (const item of bom.items) {
     if (!item.material || item.material.deletedAt) {
@@ -82,37 +97,41 @@ export async function buildDailyProductionConsumption(
       throw new Error(`BOM 原料 ${item.material.code} ${item.material.name} 的单位必须为库存单位 ${stockUnit}`)
     }
 
-    const actualQty = roundQty(requestedConsumptions
-      .filter((input) => input.materialId === item.material?.id)
-      .reduce((sum, input) => sum + Number(input.actualQty || 0), 0))
-    if (actualQty <= 0) continue
-
-    const existing = consumptionByMaterial.get(item.material.id)
-    if (existing) {
-      continue
+    const outputBasis = Number(bom.outputQuantity || 1)
+    const quantityPerUnit = roundQty(Number(item.quantity) / outputBasis)
+    if (quantityPerUnit <= 0) {
+      throw new Error(`请先填写原料 ${item.material.code} ${item.material.name} 的 BOM 单位消耗量`)
     }
+    const requested = requestedByMaterial.get(item.material.id)
+    if (!requested) throw new Error(`请填写原料 ${item.material.code} ${item.material.name} 的损耗方式`)
+    const calculated = calculateProductionConsumption({
+      outputQty: totalProcessedQty,
+      unitConsumption: quantityPerUnit,
+      lossMode: requested.lossMode,
+      lossValue: requested.lossValue,
+      actualQty: requested.actualQty,
+    })
 
     consumptionByMaterial.set(item.material.id, {
       materialId: item.material.id,
       bomItemId: item.id,
       materialCode: item.material.code,
       materialName: item.material.name,
-      quantityPerUnit: 0,
-      wastageRate: 0,
-      plannedQty: actualQty,
-      actualQty,
+      quantityPerUnit,
+      wastageRate: requested.lossMode === 'PERCENT' ? requested.lossValue : 0,
+      lossMode: requested.lossMode,
+      lossValue: requested.lossValue,
+      lossQty: calculated.lossQty,
+      plannedQty: calculated.plannedQty,
+      actualQty: calculated.actualQty,
       unit: item.material.stockUnit || item.material.unit,
       valuationUnit: item.material.valuationUnit || item.material.unit,
     })
   }
 
   if (consumptionByMaterial.size === 0) {
-    throw new Error('请按主库存单位填写至少一项实际原料耗用')
+    throw new Error('BOM 没有可计算的单位消耗量，请先完善 BOM')
   }
-
-  const associatedMaterialIds = new Set(bom.items.flatMap((item) => item.material?.id ? [item.material.id] : []))
-  const invalidInput = requestedConsumptions.find((item) => item.actualQty > 0 && !associatedMaterialIds.has(item.materialId))
-  if (invalidInput) throw new Error('实际耗用中存在未关联到当前 BOM 的原料')
 
   return {
     finishedMaterial,

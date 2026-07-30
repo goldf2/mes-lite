@@ -703,6 +703,7 @@ export default function MaterialPage({
   const [draftBomItems, setDraftBomItems] = useState<DraftBomItem[]>([])
   const [relationProductId, setRelationProductId] = useState('')
   const [relationMaterialId, setRelationMaterialId] = useState('')
+  const [relationUnitConsumption, setRelationUnitConsumption] = useState(0)
   const [bomLoading, setBomLoading] = useState(false)
   const [bomSaving, setBomSaving] = useState(false)
   const [keyword, setKeyword] = useState('')
@@ -798,7 +799,7 @@ export default function MaterialPage({
     setDraftBomItems(selectedBomMaterialItems.map((item) => ({
       clientId: item.id,
       materialId: item.material?.id || '',
-      quantity: 0,
+      quantity: Number(item.quantity || 0),
       unit: item.material?.stockUnit || item.material?.unit || '件',
       wastageRate: 0,
     })))
@@ -1257,7 +1258,8 @@ export default function MaterialPage({
       if (selected.has('name')) parts.push(item.material?.name || '物料')
       if (selected.has('spec') && item.material?.spec) parts.push(item.material.spec)
       if (selected.has('code')) parts.push(item.material?.code || '')
-      return parts.filter(Boolean).join(' · ')
+      const relation = parts.filter(Boolean).join(' · ')
+      return item.quantity > 0 ? `${relation}（${qty(item.quantity)} ${item.unit}/件）` : relation
     }
     const usageText = ({ product: usageProduct, item }: { product: MaterialBom; item: BomItem }) => {
       const parts: string[] = []
@@ -1293,9 +1295,14 @@ export default function MaterialPage({
   const saveBomForProduct = async (
     productId: string,
     items: DraftBomItem[],
-    successMessage = 'BOM 关系已保存',
+    successMessage = 'BOM 单位消耗量已保存',
     outputQuantity = 1,
   ) => {
+    const invalidItem = items.find((item) => !item.materialId || Number(item.quantity) <= 0)
+    if (invalidItem) {
+      onMessage('请为每种原料填写大于 0 的单位消耗量')
+      return
+    }
     setBomSaving(true)
     try {
       const res = await fetch('/api/boms', {
@@ -1306,7 +1313,7 @@ export default function MaterialPage({
           outputQuantity,
           items: items.map((item) => ({
             materialId: item.materialId,
-            quantity: 0,
+            quantity: Number(item.quantity),
             unit: item.unit,
             wastageRate: 0,
           })),
@@ -1331,7 +1338,7 @@ export default function MaterialPage({
     await saveBomForProduct(
       selectedBomProduct?.id || `${materialProductPrefix}${selectedMaterial.id}`,
       draftBomItems,
-      'BOM 关系已保存',
+      'BOM 单位消耗量已保存',
       Number(selectedBomProduct?.bom?.outputQuantity || 1),
     )
   }
@@ -1340,12 +1347,13 @@ export default function MaterialPage({
     if (!relationProduct) return onMessage('请选择成品物料')
     if (!relationMaterial) return onMessage('请选择原料物料')
     if (relationProductSourceMaterialId === relationMaterial.id) return onMessage('成品和原料不能是同一个物料')
+    if (relationUnitConsumption <= 0) return onMessage('请填写大于 0 的单位消耗量')
     const currentItems = (relationProduct.bom?.items || [])
       .filter((item) => item.itemType === 'MATERIAL' && item.material)
       .map((item) => ({
         clientId: item.id,
         materialId: item.material?.id || '',
-        quantity: 0,
+        quantity: Number(item.quantity || 0),
         unit: item.unit || item.material?.stockUnit || item.material?.unit || '件',
         wastageRate: 0,
       }))
@@ -1356,23 +1364,26 @@ export default function MaterialPage({
       {
         clientId: `relation-${relationMaterial.id}-${Date.now()}`,
         materialId: relationMaterial.id,
-        quantity: 0,
+        quantity: relationUnitConsumption,
         unit: relationMaterial.stockUnit || relationMaterial.unit || '件',
         wastageRate: 0,
       },
     ]
 
-    await saveBomForProduct(relationProduct.id, nextItems, 'BOM 物料关联已添加')
+    await saveBomForProduct(relationProduct.id, nextItems, 'BOM 原料及单位消耗量已添加')
+    setRelationUnitConsumption(0)
   }
 
   const editInputBasisUsage = (product: MaterialBom, item: BomItem) => {
     setRelationProductId(product.id)
     setRelationMaterialId(item.material?.id || '')
+    setRelationUnitConsumption(Number(item.quantity || 0))
   }
 
   const editOutputBasisUsage = (item: DraftBomItem) => {
     setRelationProductId(selectedBomProduct?.id || (selectedMaterial ? `${materialProductPrefix}${selectedMaterial.id}` : ''))
     setRelationMaterialId(item.materialId)
+    setRelationUnitConsumption(Number(item.quantity || 0))
   }
 
   const handleHeaderSort = (field: MaterialSortBy) => {
@@ -1907,7 +1918,10 @@ export default function MaterialPage({
                       value={relationProductId}
                       products={bomProducts}
                       disabledIds={relationMaterialId ? [relationMaterialId] : []}
-                      onChange={setRelationProductId}
+                      onChange={(value) => {
+                        setRelationProductId(value)
+                        setRelationUnitConsumption(0)
+                      }}
                     />
                   </div>
 
@@ -1920,13 +1934,37 @@ export default function MaterialPage({
                       value={relationMaterialId}
                       materials={bomMaterialOptions}
                       disabledIds={relationProductSourceMaterialId ? [relationProductSourceMaterialId] : []}
-                      onChange={setRelationMaterialId}
+                      onChange={(value) => {
+                        setRelationMaterialId(value)
+                        setRelationUnitConsumption(0)
+                      }}
                     />
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <label className="text-xs font-medium text-gray-600">单位消耗量</label>
+                      <span className="text-xs text-gray-400">每 1 {relationProduct?.unit || '件'} 成品</span>
+                    </div>
+                    <div className="flex overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={relationUnitConsumption || ''}
+                        onChange={(event) => setRelationUnitConsumption(Math.max(0, Number(event.target.value)))}
+                        className="min-w-0 flex-1 px-3 py-2 text-right text-sm outline-none"
+                        placeholder="如 3.5"
+                      />
+                      <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">
+                        {relationMaterial?.stockUnit || relationMaterial?.unit || '原料主单位'}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
                 <div className="mt-3 flex flex-col gap-3 border-t border-gray-200 pt-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0 text-xs text-gray-600">这里只维护产品与原料的组成关系；实际耗用量在生产日报中按主库存单位填写。</div>
+                  <div className="min-w-0 text-xs text-gray-600">单位消耗量使用原料主库存单位；长度原料填写每件标准长度，数量原料填写每件标准件数。</div>
                   <button
                     type="button"
                     onClick={applyRelationBom}
@@ -1963,7 +2001,7 @@ export default function MaterialPage({
                       被引用 {selectedMaterialUsageRows.length}
                     </button>
                   </div>
-                  <span className="hidden text-xs text-gray-400 sm:inline">BOM 仅表示关联，不保存固定比例</span>
+                  <span className="hidden text-xs text-gray-400 sm:inline">生产日报按单位消耗量 × 总加工数计算</span>
                 </div>
 
                 {bomAuxiliaryView === 'components' ? (
@@ -1984,7 +2022,22 @@ export default function MaterialPage({
                                 </div>
                               </button>
                               <div className="flex shrink-0 items-center gap-2">
-                                <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">{material?.stockUnit || material?.unit || item.unit}</span>
+                                <label className="flex overflow-hidden rounded border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
+                                  <span className="flex items-center bg-gray-50 px-2 text-xs text-gray-500">单位耗用</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={item.quantity || ''}
+                                    onChange={(event) => setDraftBomItems((current) => current.map((draft) => (
+                                      draft.clientId === item.clientId
+                                        ? { ...draft, quantity: Math.max(0, Number(event.target.value)) }
+                                        : draft
+                                    )))}
+                                    className="w-24 border-x border-gray-200 px-2 py-1 text-right text-xs outline-none"
+                                  />
+                                  <span className="flex items-center px-2 text-xs text-gray-600">{material?.stockUnit || material?.unit || item.unit}/件</span>
+                                </label>
                                 <button
                                   type="button"
                                   onClick={() => setDraftBomItems((current) => current.filter((draft) => draft.clientId !== item.clientId))}
@@ -2015,7 +2068,9 @@ export default function MaterialPage({
                           <span className="mt-0.5 block truncate font-mono text-xs text-blue-700">{product.sku}</span>
                         </span>
                         <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 sm:justify-end">
-                          <span className="rounded bg-gray-100 px-2 py-1">已关联</span>
+                          <span className="rounded bg-gray-100 px-2 py-1">
+                            {item.quantity > 0 ? `单位耗用 ${qty(item.quantity)} ${item.unit}/件` : '待填写单位耗用'}
+                          </span>
                         </span>
                       </button>
                     ))}

@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.102",
+  "version": "0.1.103",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -27,7 +27,8 @@
     "verify:archived-record-purge": "tsx scripts/verify-archived-record-purge.ts",
     "verify:natural-code-sort": "tsx scripts/verify-natural-code-sort.ts",
     "verify:document-categories": "tsx scripts/verify-document-categories.ts",
-    "verify:material-measures": "tsx scripts/verify-material-measures.ts"
+    "verify:material-measures": "tsx scripts/verify-material-measures.ts",
+    "verify:production-consumption": "tsx scripts/verify-production-consumption.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.13.0",

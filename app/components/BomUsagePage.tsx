@@ -164,7 +164,11 @@ export default function BomUsagePage({
                           {product.customer && <span>{product.customer.name}</span>}
                         </div>
                       </div>
-                      <div className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">已关联</div>
+                      <div className={`rounded px-2 py-1 text-xs ${item.quantity > 0 ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+                        {item.quantity > 0
+                          ? `单位耗用 ${Number(item.quantity).toFixed(6).replace(/\.?0+$/, '')} ${item.unit}/件`
+                          : '待填写单位耗用'}
+                      </div>
                       <button
                         type="button"
                         onClick={() => onOpenBom(product.id)}

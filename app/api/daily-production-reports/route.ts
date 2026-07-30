@@ -130,8 +130,9 @@ export async function POST(req: NextRequest) {
 
     const input = dailyProductionReportInputSchema.parse(await req.json())
     const reportDate = parseDailyProductionReportDate(input.reportDate)
+    const totalProcessedQty = input.goodQty + input.badQty + input.scrapQty
     const report = await prisma.$transaction(async (tx) => {
-      const snapshot = await buildDailyProductionConsumption(tx, input.finishedMaterialId, input.consumptions)
+      const snapshot = await buildDailyProductionConsumption(tx, input.finishedMaterialId, totalProcessedQty, input.consumptions)
       const reportNo = await nextReportNo(tx, reportDate)
       return tx.dailyProductionReport.create({
         data: {

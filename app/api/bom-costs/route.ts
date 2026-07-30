@@ -15,10 +15,6 @@ const schema = z.object({
   laborRatePerHour: number.default(0),
   machineRatePerHour: number.default(0),
   overheadCost: number.default(0),
-  materialConsumptions: z.array(z.object({
-    materialId: z.string().min(1),
-    quantity: number.positive(),
-  })).max(200).default([]),
 })
 
 function round(value: number) {
@@ -77,10 +73,13 @@ export async function GET(req: NextRequest) {
             id: true,
             version: true,
             isActive: true,
+            outputQuantity: true,
             items: {
               where: { itemType: 'MATERIAL', materialId: { not: null } },
               select: {
                 id: true,
+                quantity: true,
+                unit: true,
                 material: { select: { id: true, code: true, name: true, stockUnit: true, unit: true } },
               },
             },
@@ -152,30 +151,23 @@ export async function POST(req: NextRequest) {
 
     if (!product) return NextResponse.json({ error: '物料不存在' }, { status: 404 })
     if (!product.bom) return NextResponse.json({ error: '该物料暂无 BOM，无法计算成本' }, { status: 400 })
-    const materialConsumptionById = new Map(input.materialConsumptions.map((item) => [item.materialId, item.quantity]))
     const associatedMaterials = product.bom.items.filter((item) => item.itemType === 'MATERIAL' && item.material)
-    const associatedMaterialIds = new Set(associatedMaterials.map((item) => item.material!.id))
-    if (input.materialConsumptions.some((item) => !associatedMaterialIds.has(item.materialId))) {
-      return NextResponse.json({ error: '预计耗用中存在未关联到当前 BOM 的原料' }, { status: 400 })
-    }
-    const missingMaterial = associatedMaterials.find((item) => !materialConsumptionById.get(item.material!.id))
+    const missingMaterial = associatedMaterials.find((item) => Number(item.quantity) <= 0)
     if (missingMaterial?.material) {
       return NextResponse.json(
-        { error: `请填写原料 ${missingMaterial.material.code} ${missingMaterial.material.name} 的本次预计耗用量` },
+        { error: `请先填写原料 ${missingMaterial.material.code} ${missingMaterial.material.name} 的 BOM 单位消耗量` },
         { status: 400 },
       )
     }
 
     const lines: BomCostLineInput[] = []
     product.bom.items.forEach((item, index) => {
-      const baseQty = item.itemType === 'MATERIAL' && item.material
-        ? round(Number(materialConsumptionById.get(item.material.id) || 0))
-        : round(
-            Number(item.quantity || 0)
-            * input.quantityBasis
-            / Number(product.bom?.outputQuantity || 1)
-            * (1 + Number(item.wastageRate || 0) / 100),
-          )
+      const baseQty = round(
+        Number(item.quantity || 0)
+        * input.quantityBasis
+        / Number(product.bom?.outputQuantity || 1)
+        * (1 + Number(item.wastageRate || 0) / 100),
+      )
       if (item.costObject) {
         const activeCost = item.costObject.costs[0]
         const materialCostPerUnit = Number(activeCost?.materialCostPerUnit || 0)
@@ -258,7 +250,7 @@ export async function POST(req: NextRequest) {
         machineCost: 0,
         directCost: 0,
         totalCost: materialCost,
-        note: '按本次输入的主库存单位预计耗用量计算',
+        note: `按 BOM 单位消耗量 ${round(Number(item.quantity || 0) / Number(product.bom?.outputQuantity || 1))} ${item.unit}/${product.unit} 计算`,
         sortOrder: index,
       })
     })

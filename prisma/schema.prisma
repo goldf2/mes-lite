@@ -452,6 +452,9 @@ model DailyProductionConsumption {
   materialName          String
   quantityPerUnit       Float
   wastageRate           Float    @default(0)
+  lossMode              String   @default("MANUAL")
+  lossValue             Float    @default(0)
+  lossQty               Float    @default(0)
   plannedQty            Float
   actualQty             Float
   unit                  String

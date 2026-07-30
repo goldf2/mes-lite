@@ -10,12 +10,14 @@ export const dailyProductionReportInputSchema = z.object({
   note: z.string().trim().optional(),
   consumptions: z.array(z.object({
     materialId: z.string().min(1),
-    actualQty: z.number().finite().nonnegative(),
-  })).max(200).default([]),
+    lossMode: z.enum(['FIXED_PER_UNIT', 'PERCENT']).default('PERCENT'),
+    lossValue: z.number().finite().nonnegative(),
+    actualQty: z.number().finite().positive().optional(),
+  })).min(1, '请填写原料耗用').max(200),
 }).refine((value) => value.goodQty + value.badQty + value.scrapQty > 0, {
   message: '合格、不良和报废数量不能全部为 0',
-}).refine((value) => value.consumptions.some((item) => item.actualQty > 0), {
-  message: '请至少填写一项实际原料耗用',
+}).refine((value) => new Set(value.consumptions.map((item) => item.materialId)).size === value.consumptions.length, {
+  message: '同一原料不能重复填写',
 })
 
 export function parseDailyProductionReportDate(value: string) {

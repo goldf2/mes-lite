@@ -22,8 +22,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: '只有草稿日报可以修改；已确认日报请先冲销' }, { status: 400 })
     }
 
+    const totalProcessedQty = input.goodQty + input.badQty + input.scrapQty
     const report = await prisma.$transaction(async (tx) => {
-      const snapshot = await buildDailyProductionConsumption(tx, input.finishedMaterialId, input.consumptions)
+      const snapshot = await buildDailyProductionConsumption(tx, input.finishedMaterialId, totalProcessedQty, input.consumptions)
       await tx.dailyProductionConsumption.deleteMany({ where: { reportId: existing.id } })
       return tx.dailyProductionReport.update({
         where: { id: existing.id },
