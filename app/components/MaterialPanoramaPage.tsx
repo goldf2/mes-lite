@@ -2,6 +2,7 @@
 
 import { ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react'
 import ModalOverlay from './ModalOverlay'
+import DocumentPreviewThumb from './DocumentPreviewThumb'
 
 interface AttachmentItem {
   id: string
@@ -160,10 +161,15 @@ interface ProductionOrderSummary {
 
 interface WorkInstructionSummary {
   id: string
-  category: string
+  categoryId: string
+  category: {
+    id: string
+    name: string
+    parentId?: string | null
+    parent?: { id: string; name: string } | null
+  }
   version: string
   status: string
-  processName?: string | null
   note?: string | null
   material: {
     id: string
@@ -515,17 +521,8 @@ function statusText(status: string) {
   return statusLabels[status] || status
 }
 
-function documentCategoryText(category: string) {
-  const labels: Record<string, string> = {
-    WORK_INSTRUCTION: '作业指导书',
-    DRAWING: '图纸',
-    PROCESS: '工艺文件',
-    QUALITY: '检验文件',
-    PACKAGING: '包装文件',
-    EQUIPMENT: '设备文件',
-    OTHER: '其他',
-  }
-  return labels[category] || category
+function documentCategoryText(category: WorkInstructionSummary['category']) {
+  return category.parent ? `${category.parent.name} / ${category.name}` : category.name
 }
 
 function Panel({
@@ -964,31 +961,46 @@ export default function MaterialPanoramaPage({
                         <EmptyText>暂无直接关联到该产品的文档</EmptyText>
                       ) : (
                         <div className="space-y-2">
-                          {data.workInstructions.map((instruction) => (
-                            <div key={instruction.id} className="rounded-md border border-gray-100 px-3 py-2">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div className="min-w-0">
-                                  <div className="truncate text-sm font-medium text-gray-900">{instruction.material.name}</div>
-                                  <div className="mt-0.5 font-mono text-xs text-blue-700">{instruction.material.code} · {instruction.version}</div>
-                                </div>
-                                <div className="flex shrink-0 items-center gap-2">
-                                  <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700">{documentCategoryText(instruction.category)}</span>
-                                  <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{statusText(instruction.status)}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => openWorkInstructionViewer(instruction)}
-                                    disabled={!instruction.attachments || instruction.attachments.length === 0}
-                                    className="rounded bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
-                                  >
-                                    全屏打开
-                                  </button>
+                          {data.workInstructions.map((instruction) => {
+                            const previewAttachment = instruction.attachments.find((attachment) => attachment.mimeType.startsWith('image/'))
+                              || instruction.attachments[0]
+                            return (
+                              <div key={instruction.id} className="flex items-start gap-3 rounded-md border border-gray-100 px-3 py-2">
+                                <button
+                                  type="button"
+                                  onClick={() => openWorkInstructionViewer(instruction)}
+                                  disabled={!previewAttachment}
+                                  className="w-24 shrink-0 text-left disabled:cursor-not-allowed"
+                                >
+                                  <DocumentPreviewThumb attachment={previewAttachment} title={instruction.material.name} />
+                                </button>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <div className="truncate text-sm font-medium text-gray-900">{instruction.material.name}</div>
+                                      <div className="mt-0.5 font-mono text-xs text-blue-700">{instruction.material.code} · {instruction.version}</div>
+                                    </div>
+                                    <div className="flex shrink-0 items-center gap-2">
+                                      <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700">{documentCategoryText(instruction.category)}</span>
+                                      <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{statusText(instruction.status)}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => openWorkInstructionViewer(instruction)}
+                                        disabled={!previewAttachment}
+                                        className="rounded bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
+                                      >
+                                        全屏打开
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div className="mt-1 text-xs text-gray-500">
+                                    客户：{instruction.material.customer?.name || '通用产品'} · 文件：{instruction.imageCount} 图 / {instruction.pdfCount} PDF
+                                  </div>
+                                  {instruction.note && <div className="mt-1 line-clamp-2 text-xs text-gray-500">备注：{instruction.note}</div>}
                                 </div>
                               </div>
-                              <div className="mt-1 text-xs text-gray-500">
-                                工序：{instruction.processName || '-'} · 客户：{instruction.material.customer?.name || '通用产品'} · 文件：{instruction.imageCount} 图 / {instruction.pdfCount} PDF
-                              </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       )}
                     </div>
@@ -1417,7 +1429,7 @@ export default function MaterialPanoramaPage({
               </div>
             ) : (
               <iframe
-                src={selectedViewerAttachment.url}
+                src={`${selectedViewerAttachment.url}#view=FitH&toolbar=1&navpanes=0`}
                 title={selectedViewerAttachment.originalName}
                 className="h-full w-full border-0 bg-white"
               />

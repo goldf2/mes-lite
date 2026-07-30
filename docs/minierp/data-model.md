@@ -649,6 +649,19 @@ BOM 数据只保存规范方向：目标物料或产出物料 -> 输入物料及
 
 标签打印任务保存模板、通用引用、打印机配置、尺寸、份数和标签数据快照。`clientRequestId` 保证同一打印请求只登记一次。当前 `REQUESTED` 表示系统已经发起浏览器打印请求，不表示打印机已经物理出纸；后续独立打印桥接模块需扩展可确认的发送和设备回执状态。
 
+### document_categories / work_instructions
+
+产品文档使用可配置类别，不在前端或 API 中维护固定类别枚举。
+
+| 模型 | 关键字段 | 含义 |
+| --- | --- | --- |
+| `DocumentCategory` | `name`、`parentId`、`sortOrder` | 文档类别；`parentId = null` 为一级类别，非空为二级类别，最多两级 |
+| `WorkInstruction` | `materialId`、`categoryId` | 产品文档必须关联成品物料和一个可用类别 |
+| `WorkInstruction` | `version`、`status`、`note` | 保存版本、状态和通用备注；不保存适用工序 |
+| `DocumentAttachment` | `ownerType = WORK_INSTRUCTION`、`ownerId` | 保存产品文档的图片或 PDF 文件 |
+
+默认数据包含“作业指导书、图纸、工艺文件、检验文件、包装文件、设备文件、其他”等一级类别，但它们是可维护的数据库记录。“作业指导书”下可增加“机床作业、环境作业”等二级类别。已有文档引用或仍有子类别时禁止删除类别。
+
 ### system_settings
 
 系统级运行设置使用键值记录保存，由“工具 / 系统设置”维护。

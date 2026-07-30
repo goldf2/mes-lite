@@ -8,6 +8,12 @@ import StatusCheckboxFilter, { getMultiSelectQuery } from './StatusCheckboxFilte
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import useCompactViewport from './useCompactViewport'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
+import DocumentPreviewThumb from './DocumentPreviewThumb'
+import DocumentCategoryManagerModal, {
+  DocumentCategoryItem,
+  documentCategoryLabel,
+  documentCategoryOptions,
+} from './DocumentCategoryManagerModal'
 
 interface Customer {
   id: string
@@ -39,12 +45,12 @@ interface AttachmentItem {
 
 interface WorkInstruction {
   id: string
-  category: string
+  categoryId: string
+  category: Pick<DocumentCategoryItem, 'id' | 'name' | 'parentId' | 'parent'>
   version: string
   status: string
   materialId: string
   material: MaterialOption
-  processName?: string | null
   note?: string | null
   attachmentCount: number
   imageCount: number
@@ -62,23 +68,12 @@ interface PaginationState {
 }
 
 type WorkInstructionForm = {
-  category: string
+  categoryId: string
   version: string
   status: string
   materialId: string
-  processName: string
   note: string
 }
-
-const instructionCategoryOptions = [
-  { value: 'WORK_INSTRUCTION', label: '作业指导书' },
-  { value: 'DRAWING', label: '图纸' },
-  { value: 'PROCESS', label: '工艺文件' },
-  { value: 'QUALITY', label: '检验文件' },
-  { value: 'PACKAGING', label: '包装文件' },
-  { value: 'EQUIPMENT', label: '设备文件' },
-  { value: 'OTHER', label: '其他' },
-]
 
 const instructionStatusOptions = [
   { value: 'ACTIVE', label: '启用' },
@@ -92,16 +87,14 @@ const fileTypeOptions = [
   { value: 'pdf', label: 'PDF' },
 ] as const
 
-const categoryLabels = Object.fromEntries(instructionCategoryOptions.map((item) => [item.value, item.label]))
 const statusLabels = Object.fromEntries(instructionStatusOptions.map((item) => [item.value, item.label]))
 
 function createEmptyForm(): WorkInstructionForm {
   return {
-    category: 'WORK_INSTRUCTION',
+    categoryId: '',
     version: 'v1',
     status: 'ACTIVE',
     materialId: '',
-    processName: '',
     note: '',
   }
 }
@@ -178,25 +171,6 @@ function InstructionBadge({ children, tone = 'gray' }: { children: ReactNode; to
   }[tone]
 
   return <span className={`rounded px-2 py-1 text-xs font-medium ${toneClass}`}>{children}</span>
-}
-
-function FilePreviewThumb({ attachment, title }: { attachment?: AttachmentItem | null; title: string }) {
-  return (
-    <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-gray-50">
-      {attachment ? (
-        attachment.mimeType.startsWith('image/') ? (
-          <img src={attachment.url} alt={attachment.note || title} className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-red-50 text-red-700">
-            <span className="text-lg font-semibold">PDF</span>
-            <span className="max-w-[80%] truncate text-xs">{attachment.originalName}</span>
-          </div>
-        )
-      ) : (
-        <span className="text-sm text-gray-400">暂无文件</span>
-      )}
-    </div>
-  )
 }
 
 function formatMaterialLabel(material: MaterialOption) {
@@ -335,10 +309,11 @@ function MaterialSearchSelect({
 
 export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: string) => void }) {
   const [items, setItems] = useState<WorkInstruction[]>([])
+  const [categories, setCategories] = useState<DocumentCategoryItem[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [materials, setMaterials] = useState<MaterialOption[]>([])
   const [keyword, setKeyword] = useState('')
-  const [selectedCategories, setSelectedCategories] = useState(instructionCategoryOptions.map((item) => item.value))
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[] | null>(null)
   const [selectedStatuses, setSelectedStatuses] = useState(instructionStatusOptions.map((item) => item.value))
   const [customerFilter, setCustomerFilter] = useState('')
   const [materialFilter, setMaterialFilter] = useState('')
@@ -350,6 +325,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const [pageSize, setPageSize] = useState(20)
   const [pagination, setPagination] = useState<PaginationState>({ page: 1, pageSize: 20, total: 0, totalPages: 1 })
   const [showModal, setShowModal] = useState(false)
+  const [showCategoryManager, setShowCategoryManager] = useState(false)
   const [editing, setEditing] = useState<WorkInstruction | null>(null)
   const [detailEditing, setDetailEditing] = useState(false)
   const [detailFullscreen, setDetailFullscreen] = useState(false)
@@ -365,16 +341,19 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const [focusUploadOnOpen, setFocusUploadOnOpen] = useState(false)
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
   const detailUploadRef = useRef<HTMLDivElement | null>(null)
+  const availableCategoryOptions = useMemo(() => documentCategoryOptions(categories), [categories])
+  const effectiveSelectedCategoryIds = selectedCategoryIds ?? availableCategoryOptions.map((option) => option.value)
 
   useEffect(() => {
     fetchInstructions()
-  }, [keyword, selectedCategories, selectedStatuses, customerFilter, materialFilter, fileType, page, pageSize])
+  }, [keyword, selectedCategoryIds, selectedStatuses, customerFilter, materialFilter, fileType, page, pageSize, availableCategoryOptions.length])
 
   useEffect(() => {
     setPage(1)
-  }, [keyword, selectedCategories, selectedStatuses, customerFilter, materialFilter, fileType, pageSize])
+  }, [keyword, selectedCategoryIds, selectedStatuses, customerFilter, materialFilter, fileType, pageSize])
 
   useEffect(() => {
+    fetchCategories()
     fetchCustomers()
     fetchMaterials()
   }, [])
@@ -408,6 +387,23 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     mergeMaterialOptions([material])
   }, [mergeMaterialOptions])
 
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('/api/document-categories')
+      const data = await res.json()
+      if (!res.ok) {
+        onMessage(data.error || '获取文档类别失败')
+        return
+      }
+      const nextCategories = (data.data || []) as DocumentCategoryItem[]
+      const availableIds = new Set(nextCategories.map((category) => category.id))
+      setCategories(nextCategories)
+      setSelectedCategoryIds((current) => current === null ? null : current.filter((id) => availableIds.has(id)))
+    } catch (err) {
+      onMessage('获取文档类别失败')
+    }
+  }
+
   const buildParams = () => {
     const params = new URLSearchParams()
     params.set('page', String(page))
@@ -416,7 +412,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     if (customerFilter) params.set('customerId', customerFilter)
     if (materialFilter) params.set('materialId', materialFilter)
     if (fileType !== 'all') params.set('fileType', fileType)
-    const categoryQuery = getMultiSelectQuery('categories', selectedCategories, instructionCategoryOptions)
+    const categoryQuery = getMultiSelectQuery('categoryIds', effectiveSelectedCategoryIds, availableCategoryOptions)
     if (categoryQuery) {
       const categoryParams = new URLSearchParams(categoryQuery)
       categoryParams.forEach((value, key) => params.set(key, value))
@@ -497,7 +493,10 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const openAddModal = () => {
     setEditing(null)
     setDetailEditing(false)
-    setForm(createEmptyForm())
+    setForm({
+      ...createEmptyForm(),
+      categoryId: availableCategoryOptions[0]?.value || '',
+    })
     setShowModal(true)
   }
 
@@ -513,11 +512,10 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     ensureMaterialOption(instruction.material)
     setEditing(instruction)
     setForm({
-      category: instruction.category || 'WORK_INSTRUCTION',
+      categoryId: instruction.categoryId,
       version: instruction.version || 'v1',
       status: instruction.status || 'ACTIVE',
       materialId: instruction.materialId,
-      processName: instruction.processName || '',
       note: instruction.note || '',
     })
     setDetailEditing(true)
@@ -540,15 +538,18 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       onMessage('请选择关联产品')
       return
     }
+    if (!form.categoryId) {
+      onMessage('请选择文档类别')
+      return
+    }
 
     setLoading(true)
     try {
       const payload = {
         materialId: form.materialId,
-        category: form.category,
+        categoryId: form.categoryId,
         version: form.version.trim() || 'v1',
         status: form.status,
-        processName: form.processName.trim() || undefined,
         note: form.note.trim() || undefined,
       }
       const res = await fetch('/api/work-instructions', {
@@ -702,8 +703,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   )
   const activeFilterLabels = useMemo(() => {
     const labels: string[] = []
-    if (selectedCategories.length !== instructionCategoryOptions.length) {
-      labels.push(selectedCategories.length === 0 ? '无类型' : `${selectedCategories.length} 类`)
+    if (effectiveSelectedCategoryIds.length !== availableCategoryOptions.length) {
+      labels.push(effectiveSelectedCategoryIds.length === 0 ? '无类型' : `${effectiveSelectedCategoryIds.length} 类`)
     }
     if (selectedStatuses.length !== instructionStatusOptions.length) {
       labels.push(selectedStatuses.length === 0 ? '无状态' : `${selectedStatuses.length} 状态`)
@@ -716,7 +717,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       labels.push(selectedFilterMaterial ? selectedFilterMaterial.name : '指定产品')
     }
     return labels
-  }, [selectedCategories, selectedStatuses, fileType, customerFilter, materialFilter, customers, selectedFilterMaterial])
+  }, [effectiveSelectedCategoryIds, availableCategoryOptions.length, selectedStatuses, fileType, customerFilter, materialFilter, customers, selectedFilterMaterial])
 
   const toolbar = (
     <ResponsiveToolbarActions
@@ -725,7 +726,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           type="text"
           value={keyword}
           onChange={(event) => setKeyword(event.target.value)}
-          placeholder="搜索产品、工序或备注"
+          placeholder="搜索产品、文档类别或备注"
           className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] rounded-lg border border-gray-200 px-4 py-2 text-sm"
         />
       )}
@@ -736,9 +737,9 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       filters={(
         <>
           <StatusCheckboxFilter
-            options={instructionCategoryOptions}
-            value={selectedCategories}
-            onChange={setSelectedCategories}
+            options={availableCategoryOptions}
+            value={effectiveSelectedCategoryIds}
+            onChange={setSelectedCategoryIds}
             allLabel="全部文档类别"
           />
           <StatusCheckboxFilter
@@ -782,6 +783,13 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       )}
       actions={(
         <>
+          <button
+            type="button"
+            onClick={() => setShowCategoryManager(true)}
+            className="shrink-0 whitespace-nowrap rounded-lg border border-blue-300 px-3 py-1.5 text-xs font-medium text-blue-700 transition hover:bg-blue-50 sm:px-4 sm:py-2 sm:text-sm"
+          >
+            类别管理
+          </button>
           <div className="hidden sm:block">
             <ViewModeToggle value={viewMode} onChange={setViewMode} />
           </div>
@@ -820,15 +828,15 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                 <article key={instruction.id} className="flex flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:shadow-none">
                   <button
                     type="button"
-                    onClick={() => openDetail(instruction)}
+                    onClick={() => instruction.attachmentCount > 0 ? void openInstructionViewer(instruction) : openDetail(instruction, true)}
                     className="text-left"
                   >
-                    <FilePreviewThumb attachment={instruction.primaryAttachment} title={instruction.material.name} />
+                    <DocumentPreviewThumb attachment={instruction.primaryAttachment} title={instruction.material.name} />
                   </button>
                   <div className="mt-3 min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <InstructionBadge tone="blue">{instruction.material.code}</InstructionBadge>
-                      <InstructionBadge>{categoryLabels[instruction.category] || instruction.category}</InstructionBadge>
+                      <InstructionBadge>{documentCategoryLabel(instruction.category)}</InstructionBadge>
                       <InstructionBadge tone={instruction.status === 'ACTIVE' ? 'green' : instruction.status === 'DRAFT' ? 'amber' : 'gray'}>
                         {statusLabels[instruction.status] || instruction.status}
                       </InstructionBadge>
@@ -838,8 +846,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       <div className="truncate">版本：{instruction.version || '-'}</div>
                       {instruction.material.spec && <div className="truncate">规格：{instruction.material.spec}</div>}
                       <div className="truncate">客户：{getInstructionCustomerName(instruction)}</div>
-                      <div className="truncate">工序：{instruction.processName || '-'}</div>
                       <div>文件：{instruction.imageCount} 图 / {instruction.pdfCount} PDF</div>
+                      {instruction.note && <div className="line-clamp-2">备注：{instruction.note}</div>}
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap justify-end gap-2">
@@ -891,16 +899,21 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   {items.map((instruction) => (
                     <tr key={instruction.id} className="align-top hover:bg-gray-50">
                       <td className="px-4 py-3">
-                        <button type="button" onClick={() => openDetail(instruction)} className="block h-14 w-20 overflow-hidden rounded">
-                          <FilePreviewThumb attachment={instruction.primaryAttachment} title={instruction.material.name} />
+                        <button
+                          type="button"
+                          onClick={() => instruction.attachmentCount > 0 ? void openInstructionViewer(instruction) : openDetail(instruction, true)}
+                          className="block h-14 w-20 overflow-hidden rounded"
+                        >
+                          <DocumentPreviewThumb attachment={instruction.primaryAttachment} title={instruction.material.name} />
                         </button>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 font-mono text-sm text-blue-700">{instruction.material.code}</td>
                       <td className="px-4 py-3">
                         <div className="font-medium text-gray-900">{instruction.material.name}</div>
-                        <div className="mt-1 text-xs text-gray-500">{instruction.version || '-'} · {instruction.processName || '未绑定工序'}</div>
+                        <div className="mt-1 text-xs text-gray-500">{instruction.version || '-'}</div>
+                        {instruction.note && <div className="mt-1 line-clamp-2 text-xs text-gray-500">备注：{instruction.note}</div>}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-sm">{categoryLabels[instruction.category] || instruction.category}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-sm">{documentCategoryLabel(instruction.category)}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm">{statusLabels[instruction.status] || instruction.status}</td>
                       <td className="px-4 py-3 text-sm">{getInstructionCustomerName(instruction)}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm">{instruction.imageCount} 图 / {instruction.pdfCount} PDF</td>
@@ -951,8 +964,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">文档类别</label>
-                  <select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2">
-                    {instructionCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  <select value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2">
+                    {availableCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </div>
                 <div>
@@ -965,13 +978,9 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   <label className="mb-2 block text-sm font-medium text-gray-700">版本</label>
                   <input value={form.version} onChange={(event) => setForm({ ...form, version: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2" placeholder="v1" />
                 </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">适用工序</label>
-                  <input value={form.processName} onChange={(event) => setForm({ ...form, processName: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2" placeholder="如：CNC 精加工、终检、包装" />
-                </div>
                 <div className="md:col-span-2 xl:col-span-3">
                   <label className="mb-2 block text-sm font-medium text-gray-700">备注</label>
-                  <textarea rows={4} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2" placeholder="记录适用范围、注意事项或变更说明" />
+                  <textarea rows={4} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2" placeholder="记录适用范围、注意事项、变更说明等通用信息" />
                 </div>
               </div>
               <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
@@ -1039,8 +1048,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-1">
                           <div>
                             <label className="mb-1 block text-xs font-medium text-gray-600">文档类别</label>
-                            <select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
-                              {instructionCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                            <select value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                              {availableCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                             </select>
                           </div>
                           <div>
@@ -1053,10 +1062,6 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                             <label className="mb-1 block text-xs font-medium text-gray-600">版本</label>
                             <input value={form.version} onChange={(event) => setForm({ ...form, version: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
                           </div>
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-gray-600">适用工序</label>
-                          <input value={form.processName} onChange={(event) => setForm({ ...form, processName: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
                         </div>
                         <div>
                           <label className="mb-1 block text-xs font-medium text-gray-600">备注</label>
@@ -1073,7 +1078,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   ) : (
                     <div className="rounded-lg border border-gray-200 p-4">
                       <div className="flex flex-wrap gap-2">
-                        <InstructionBadge>{categoryLabels[detail.category] || detail.category}</InstructionBadge>
+                        <InstructionBadge>{documentCategoryLabel(detail.category)}</InstructionBadge>
                         <InstructionBadge tone={detail.status === 'ACTIVE' ? 'green' : detail.status === 'DRAFT' ? 'amber' : 'gray'}>{statusLabels[detail.status] || detail.status}</InstructionBadge>
                         <InstructionBadge tone="blue">{detail.version}</InstructionBadge>
                       </div>
@@ -1081,7 +1086,6 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                         <div>客户：{getInstructionCustomerName(detail)}</div>
                         <div>产品：{detail.material.code} · {detail.material.name}</div>
                         {detail.material?.spec && <div>规格：{detail.material.spec}</div>}
-                        <div>工序：{detail.processName || '-'}</div>
                         <div>创建时间：{formatDate(detail.createdAt)}</div>
                       </div>
                       {detail.note && <div className="mt-4 whitespace-pre-wrap rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600">{detail.note}</div>}
@@ -1159,7 +1163,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                             onClick={() => openViewer(detail, detailAttachments, index)}
                             className="block w-full text-left"
                           >
-                            <FilePreviewThumb attachment={attachment} title={detail.material.name} />
+                            <DocumentPreviewThumb attachment={attachment} title={detail.material.name} />
                           </button>
                           <div className="p-3">
                             <div className="truncate text-sm font-medium text-gray-900">{attachment.originalName}</div>
@@ -1182,6 +1186,17 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           </div>
         </div>
       )}
+
+      <DocumentCategoryManagerModal
+        open={showCategoryManager}
+        categories={categories}
+        onClose={() => setShowCategoryManager(false)}
+        onChanged={async () => {
+          await fetchCategories()
+          await fetchInstructions()
+        }}
+        onMessage={onMessage}
+      />
 
       {viewer && selectedViewerAttachment && (
         <div className="fixed inset-0 z-[70] flex flex-col bg-slate-950 text-white">
@@ -1221,7 +1236,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
               </div>
             ) : (
               <iframe
-                src={selectedViewerAttachment.url}
+                src={`${selectedViewerAttachment.url}#view=FitH&toolbar=1&navpanes=0`}
                 title={selectedViewerAttachment.originalName}
                 className="h-full w-full border-0 bg-white"
               />

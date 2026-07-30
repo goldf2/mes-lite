@@ -7,10 +7,9 @@ import { parseCsvFilter } from '@/lib/status-filter'
 
 const workInstructionSchema = z.object({
   materialId: z.string().min(1, '请选择关联产品'),
-  category: z.enum(['WORK_INSTRUCTION', 'DRAWING', 'PROCESS', 'QUALITY', 'PACKAGING', 'EQUIPMENT', 'OTHER']).optional(),
+  categoryId: z.string().min(1, '请选择文档类别'),
   version: z.string().optional(),
   status: z.enum(['ACTIVE', 'DRAFT', 'ARCHIVED']).optional(),
-  processName: z.string().optional(),
   note: z.string().optional(),
 })
 
@@ -47,7 +46,7 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const keyword = searchParams.get('keyword')?.trim()
-    const categories = parseCsvFilter(searchParams.get('categories'))
+    const categoryIds = parseCsvFilter(searchParams.get('categoryIds'))
     const statuses = parseCsvFilter(searchParams.get('statuses'))
     const customerId = searchParams.get('customerId')
     const materialId = searchParams.get('materialId')
@@ -57,11 +56,19 @@ export async function GET(req: NextRequest) {
     const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
     const pageSize = Number.isFinite(rawPageSize) && rawPageSize > 0 ? Math.min(rawPageSize, 200) : 20
     const fileOwnerIds = await ownerIdsByFileType(fileType)
+    const resolvedCategoryIds = categoryIds.length === 0 ? [] : (await prisma.documentCategory.findMany({
+      where: {
+        OR: [
+          { id: { in: categoryIds } },
+          { parentId: { in: categoryIds } },
+        ],
+      },
+      select: { id: true },
+    })).map((category) => category.id)
 
     const where: any = { deletedAt: null }
     const andFilters: any[] = []
-    if (categories.length === 1) where.category = categories[0]
-    else if (categories.length > 1) where.category = { in: categories }
+    if (categoryIds.length > 0) where.categoryId = { in: resolvedCategoryIds }
     if (statuses.length === 1) where.status = statuses[0]
     else if (statuses.length > 1) where.status = { in: statuses }
     if (customerId === '__UNASSIGNED__') {
@@ -76,8 +83,8 @@ export async function GET(req: NextRequest) {
     }
     if (keyword) {
       where.OR = [
-        { processName: { contains: keyword } },
         { note: { contains: keyword } },
+        { category: { is: { name: { contains: keyword } } } },
         { material: { is: { code: { contains: keyword } } } },
         { material: { is: { name: { contains: keyword } } } },
         { material: { is: { customer: { is: { code: { contains: keyword } } } } } },
@@ -90,6 +97,14 @@ export async function GET(req: NextRequest) {
       prisma.workInstruction.findMany({
         where,
         include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              parentId: true,
+              parent: { select: { id: true, name: true } },
+            },
+          },
           material: {
             select: {
               id: true,
@@ -180,17 +195,31 @@ export async function POST(req: NextRequest) {
     if (!material) {
       return NextResponse.json({ error: '关联产品不存在或已归档' }, { status: 400 })
     }
+    const category = await prisma.documentCategory.findUnique({
+      where: { id: data.categoryId },
+      select: { id: true },
+    })
+    if (!category) {
+      return NextResponse.json({ error: '文档类别不存在' }, { status: 400 })
+    }
 
     const instruction = await prisma.workInstruction.create({
       data: {
-        category: data.category || 'WORK_INSTRUCTION',
+        categoryId: category.id,
         version: data.version || 'v1',
         status: data.status || 'ACTIVE',
         materialId: material.id,
-        processName: data.processName || null,
         note: data.note || null,
       },
       include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+            parentId: true,
+            parent: { select: { id: true, name: true } },
+          },
+        },
         material: {
           select: {
             id: true,
@@ -243,18 +272,32 @@ export async function PUT(req: NextRequest) {
     if (!material) {
       return NextResponse.json({ error: '关联产品不存在或已归档' }, { status: 400 })
     }
+    const category = await prisma.documentCategory.findUnique({
+      where: { id: data.categoryId },
+      select: { id: true },
+    })
+    if (!category) {
+      return NextResponse.json({ error: '文档类别不存在' }, { status: 400 })
+    }
 
     const instruction = await prisma.workInstruction.update({
       where: { id: data.id },
       data: {
-        category: data.category || 'WORK_INSTRUCTION',
+        categoryId: category.id,
         version: data.version || 'v1',
         status: data.status || 'ACTIVE',
         materialId: material.id,
-        processName: data.processName || null,
         note: data.note || null,
       },
       include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+            parentId: true,
+            parent: { select: { id: true, name: true } },
+          },
+        },
         material: {
           select: {
             id: true,

@@ -79,10 +79,12 @@ async function main() {
       },
     })
     documentMaterialId = documentMaterial.id
+    const documentCategory = await prisma.documentCategory.findFirst({ orderBy: { sortOrder: 'asc' } })
+    assert.ok(documentCategory, '缺少产品文档类别')
     const workInstruction = await prisma.workInstruction.create({
       data: {
         materialId: documentMaterial.id,
-        category: 'DRAWING',
+        categoryId: documentCategory.id,
         deletedAt: new Date(),
       },
     })

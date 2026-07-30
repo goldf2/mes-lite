@@ -214,6 +214,14 @@ export async function GET(
           materialId: material.id,
         },
         include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              parentId: true,
+              parent: { select: { id: true, name: true } },
+            },
+          },
           material: {
             select: {
               id: true,
@@ -225,7 +233,6 @@ export async function GET(
           },
         },
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-        take: 10,
       }),
       prisma.costObject.findMany({
         where: {

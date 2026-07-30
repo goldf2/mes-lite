@@ -12,4 +12,5 @@ __pycache__/
 *.log
 public/uploads/*
 !public/uploads/.gitkeep
+public/pdfjs/*.mjs
 .runtime/

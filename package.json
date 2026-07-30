@@ -1,11 +1,16 @@
 {
   "name": "mes-lite",
-  "version": "0.1.96",
+  "version": "0.1.97",
   "private": true,
   "scripts": {
+    "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
+    "predev": "npm run prepare:pdf-worker",
     "dev": "next dev",
+    "predev:3001": "npm run prepare:pdf-worker",
     "dev:3001": "next dev --port 3001",
+    "predev:3002": "npm run prepare:pdf-worker",
     "dev:3002": "next dev --port 3002",
+    "prebuild": "npm run prepare:pdf-worker",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -20,7 +25,8 @@
     "verify:scan-print": "tsx scripts/verify-scan-print.ts",
     "verify:material-code-normalization": "tsx scripts/verify-material-code-normalization.ts",
     "verify:archived-record-purge": "tsx scripts/verify-archived-record-purge.ts",
-    "verify:natural-code-sort": "tsx scripts/verify-natural-code-sort.ts"
+    "verify:natural-code-sort": "tsx scripts/verify-natural-code-sort.ts",
+    "verify:document-categories": "tsx scripts/verify-document-categories.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.13.0",
@@ -43,6 +49,7 @@
     "autoprefixer": "^10.4.18",
     "eslint": "^8",
     "eslint-config-next": "14.2.0",
+    "pdfjs-dist": "5.6.205",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.7.0",

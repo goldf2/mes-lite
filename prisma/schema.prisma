@@ -873,21 +873,36 @@ model DocumentAttachment {
 
 model WorkInstruction {
   id          String   @id @default(cuid())
-  category    String   @default("WORK_INSTRUCTION")
+  categoryId  String
+  category    DocumentCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   version     String   @default("v1")
   status      String   @default("ACTIVE")
   materialId  String
   material    Material @relation(fields: [materialId], references: [id])
-  processName String?
   note        String?
   deletedAt   DateTime?
   deletedBy   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@index([category])
+  @@index([categoryId])
   @@index([status])
   @@index([materialId])
+}
+
+model DocumentCategory {
+  id               String   @id @default(cuid())
+  name             String
+  parentId         String?
+  parent           DocumentCategory? @relation("DocumentCategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children         DocumentCategory[] @relation("DocumentCategoryHierarchy")
+  sortOrder        Int      @default(0)
+  workInstructions WorkInstruction[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([parentId])
+  @@index([sortOrder])
 }
 
 // ==================== 操作人员与注册审核 ====================
