@@ -1216,16 +1216,8 @@ export default function MaterialPage({
       onMessage('请填写完整信息')
       return
     }
-    const stockUnitChanged = Boolean(editingMaterial && (editingMaterial.stockUnit || editingMaterial.unit) !== form.stockUnit)
-    if (stockUnitChanged) {
-      const confirmed = window.confirm(
-        `主库存单位将从“${editingMaterial?.stockUnit || editingMaterial?.unit}”修改为“${form.stockUnit}”。\n\n`
-        + '系统会同步当前物料及 BOM 的单位名称，但不会换算库存、BOM 比例和历史流水中的数值。'
-        + '只有两个单位数值完全等价、只是改名时才能继续；例如“件”改“个”可以确认，“m”改“mm”必须取消并先做数量换算。',
-      )
-      if (!confirmed) return
-    }
     setLoading(true)
+    let succeeded = false
     try {
       const payload = {
         code: form.code,
@@ -1242,7 +1234,6 @@ export default function MaterialPage({
         conversionRate: form.useDualUnit ? form.conversionRate : 1,
         conversionNote: form.conversionNote || undefined,
         costingMethod: form.costingMethod,
-        confirmEquivalentUnitChange: stockUnitChanged,
       }
       if (editingMaterial) {
         const res = await fetch('/api/materials', {
@@ -1253,6 +1244,7 @@ export default function MaterialPage({
         const data = await res.json()
         if (res.ok) {
           onMessage('物料更新成功')
+          succeeded = true
         } else {
           onMessage(data.error || '更新失败')
         }
@@ -1265,16 +1257,19 @@ export default function MaterialPage({
         const data = await res.json()
         if (res.ok) {
           onMessage('物料创建成功')
+          succeeded = true
         } else {
           onMessage(data.error || '创建失败')
         }
       }
-      setShowModal(false)
-      setForm(createEmptyMaterialForm())
-      setEditingMaterial(null)
-      setPage(1)
-      fetchMaterials()
-      if (showBomWorkspace) fetchBomData()
+      if (succeeded) {
+        setShowModal(false)
+        setForm(createEmptyMaterialForm())
+        setEditingMaterial(null)
+        setPage(1)
+        fetchMaterials()
+        if (showBomWorkspace) fetchBomData()
+      }
     } catch (err) {
       onMessage('操作失败')
     }
@@ -2493,7 +2488,7 @@ export default function MaterialPage({
                       <p className="mt-1 text-xs text-gray-500">只能选择系统单位目录中的单位；新增单位请到“工具 → 单位配置”。</p>
                       {editingMaterial && (editingMaterial.stockUnit || editingMaterial.unit) !== form.stockUnit && (
                         <p className="mt-1 rounded bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
-                          将从 {editingMaterial.stockUnit || editingMaterial.unit} 改为 {form.stockUnit || '空'}；保存前会再次确认。此入口只修改等价单位名称，不换算既有数值。
+                          将从 {editingMaterial.stockUnit || editingMaterial.unit} 改为 {form.stockUnit || '空'}。系统只修改物料主数据并记录审计，不换算数值，也不改写历史业务记录和既有 BOM。
                         </p>
                       )}
                     </div>

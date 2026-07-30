@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
-import { writeAuditLog } from '@/lib/audit'
+import { createAuditLog, getAuditContext, writeAuditLog } from '@/lib/audit'
 import { normalizeConversionRate } from '@/lib/units'
 import { parseCsvFilter } from '@/lib/status-filter'
 import { sortByNaturalText } from '@/lib/natural-sort'
@@ -280,7 +280,6 @@ export async function PUT(req: NextRequest) {
         conversionRate: z.number().positive().optional(),
         conversionNote: z.string().optional(),
         costingMethod: z.enum(['WEIGHTED_AVERAGE', 'FIFO']).optional(),
-        confirmEquivalentUnitChange: z.boolean().optional().default(false),
       })
       .safeParse(body)
 
@@ -321,43 +320,11 @@ export async function PUT(req: NextRequest) {
       },
     })
     if (unitError) return NextResponse.json({ error: unitError }, { status: 400 })
-    const stockUnitChanged = before.stockUnit !== nextStockUnit
-    const equivalentSingleUnitRename = stockUnitChanged
-      && before.valuationUnit === before.stockUnit
-      && nextValuationUnit === nextStockUnit
-    const otherUnitsChanged = (before.valuationUnit !== nextValuationUnit && !equivalentSingleUnitRename)
-      || before.primaryMeasure !== nextPrimaryMeasure
-      || before.referenceMeasure !== nextReferenceMeasure
-    const unitsChanged = stockUnitChanged
+    const unitsChanged = before.stockUnit !== nextStockUnit
       || before.valuationUnit !== nextValuationUnit
       || before.primaryMeasure !== nextPrimaryMeasure
       || before.referenceMeasure !== nextReferenceMeasure
-    if (stockUnitChanged && !body.confirmEquivalentUnitChange) {
-      return NextResponse.json(
-        { error: `主库存单位将从 ${before.stockUnit} 修改为 ${nextStockUnit}。该操作只适用于等价单位改名，必须先确认影响。` },
-        { status: 409 },
-      )
-    }
-    if (unitsChanged) {
-      const [movementCount, outputBomCount] = await Promise.all([
-        prisma.stockLog.count({ where: { stock: { materialId: before.id } } }),
-        prisma.bOM.count({
-          where: {
-            product: { sku: { in: [before.code, `MAT-${before.code}`] } },
-          },
-        }),
-      ])
-      const hasBalance = before.stock
-        ? ['qty', 'valuationQty', 'reservedQty', 'reservedValuationQty', 'totalCost']
-            .some((field) => Math.abs(Number((before.stock as any)[field] || 0)) > 0.000001)
-        : false
-      if (otherUnitsChanged && (hasBalance || movementCount > 0 || before._count.bomItems > 0 || outputBomCount > 0)) {
-        return NextResponse.json(
-          { error: '物料已有库存、流水或 BOM 关系，不能直接修改主计量方式或参考/计价单位；请先完成单位转换或新建物料' },
-          { status: 400 },
-        )
-      }
-    }
+    const unitChangeAuditContext = unitsChanged ? await getAuditContext(req) : null
     const material = await prisma.$transaction(async (tx) => {
       const updated = await tx.material.update({
         where: { id: body.id },
@@ -387,37 +354,49 @@ export async function PUT(req: NextRequest) {
         create: { materialId: updated.id },
       })
 
-      if (stockUnitChanged) {
-        await tx.bOMItem.updateMany({
-          where: { materialId: updated.id, itemType: 'MATERIAL' },
-          data: { unit: nextStockUnit },
-        })
-        await tx.product.updateMany({
-          where: { sku: { in: [before.code, `MAT-${before.code}`] } },
-          data: { unit: nextStockUnit },
-        })
-        await tx.bOM.updateMany({
-          where: { product: { sku: { in: [before.code, `MAT-${before.code}`] } } },
-          data: { outputUnit: nextStockUnit },
+      if (unitChangeAuditContext) {
+        await createAuditLog(tx, unitChangeAuditContext, {
+          action: 'UNIT_CHANGE',
+          entityType: 'MATERIAL',
+          entityId: updated.id,
+          entityLabel: updated.code,
+          beforeData: before,
+          afterData: {
+            ...updated,
+            unitChange: {
+              numericValuesConverted: false,
+              relatedRecordsUpdated: false,
+              from: {
+                primaryMeasure: before.primaryMeasure,
+                stockUnit: before.stockUnit,
+                referenceMeasure: before.referenceMeasure,
+                valuationUnit: before.valuationUnit,
+              },
+              to: {
+                primaryMeasure: nextPrimaryMeasure,
+                stockUnit: nextStockUnit,
+                referenceMeasure: nextReferenceMeasure,
+                valuationUnit: nextValuationUnit,
+              },
+            },
+          },
+          note: '修改物料计量设置；未换算任何数值，也未改写历史单据、库存流水、成本层或既有 BOM',
         })
       }
 
       return updated
     })
 
-    await writeAuditLog(req, {
-      action: 'UPDATE',
-      entityType: 'MATERIAL',
-      entityId: material.id,
-      entityLabel: material.code,
-      beforeData: before,
-      afterData: {
-        ...material,
-        equivalentStockUnitRename: stockUnitChanged
-          ? { from: before.stockUnit, to: nextStockUnit, numericValuesConverted: false }
-          : null,
-      },
-    })
+    if (!unitsChanged) {
+      await writeAuditLog(req, {
+        action: 'UPDATE',
+        entityType: 'MATERIAL',
+        entityId: material.id,
+        entityLabel: material.code,
+        beforeData: before,
+        afterData: material,
+      })
+    }
 
     return NextResponse.json({ data: material })
   } catch (error) {
