@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { parseCsvFilter } from '@/lib/status-filter'
 import { csvResponse, toCsv } from '@/lib/csv'
+import { sortByNaturalText } from '@/lib/natural-sort'
+import { getSystemSettings } from '@/lib/system-settings'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +38,8 @@ export async function GET(req: NextRequest) {
     const requestedSortBy = searchParams.get('sortBy') || 'createdAt'
     const sortBy = materialSortFields.has(requestedSortBy) ? requestedSortBy : 'createdAt'
     const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc'
+    const naturalCodeSortEnabled = sortBy === 'code'
+      && (await getSystemSettings()).naturalMaterialCodeSortEnabled
     const orderBy: any = sortBy === 'customer'
       ? { customer: { name: sortDir } }
       : sortBy === 'stock'
@@ -57,7 +61,7 @@ export async function GET(req: NextRequest) {
       ]
     }
 
-    const materials = await prisma.material.findMany({
+    const queriedMaterials = await prisma.material.findMany({
       where,
       include: {
         customer: { select: { name: true } },
@@ -73,6 +77,10 @@ export async function GET(req: NextRequest) {
       },
       orderBy,
     })
+
+    const materials = naturalCodeSortEnabled
+      ? sortByNaturalText(queriedMaterials, (material) => material.code, sortDir)
+      : queriedMaterials
 
     const rows: unknown[][] = [
       [

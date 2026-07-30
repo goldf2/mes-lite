@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.93",
+  "version": "0.1.94",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -19,7 +19,8 @@
     "verify:dual-units": "tsx scripts/verify-dual-unit-flow.ts",
     "verify:scan-print": "tsx scripts/verify-scan-print.ts",
     "verify:material-code-normalization": "tsx scripts/verify-material-code-normalization.ts",
-    "verify:archived-record-purge": "tsx scripts/verify-archived-record-purge.ts"
+    "verify:archived-record-purge": "tsx scripts/verify-archived-record-purge.ts",
+    "verify:natural-code-sort": "tsx scripts/verify-natural-code-sort.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.13.0",

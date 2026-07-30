@@ -193,7 +193,7 @@ export default function SystemPage({ onMessage }: { onMessage: (msg: string) => 
               ['recycle', '归档记录'],
               ['audit', '操作记录'],
               ['dataTools', '数据工具'],
-              ['preferences', '界面设置'],
+              ['preferences', '系统设置'],
             ] as const).map(([key, label]) => (
               <button
                 key={key}
@@ -216,7 +216,7 @@ export default function SystemPage({ onMessage }: { onMessage: (msg: string) => 
       {tab === 'recycle' && <RecycleBin onMessage={onMessage} />}
       {tab === 'audit' && <AuditLogViewer onMessage={onMessage} />}
       {tab === 'dataTools' && <DataToolManager onMessage={onMessage} />}
-      {tab === 'preferences' && <InterfacePreferenceManager />}
+      {tab === 'preferences' && <InterfacePreferenceManager onMessage={onMessage} />}
     </div>
   )
 }
@@ -347,20 +347,89 @@ function DataToolManager({ onMessage }: { onMessage: (msg: string) => void }) {
   )
 }
 
-function InterfacePreferenceManager() {
+function InterfacePreferenceManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [modalGlassEnabled, setModalGlassEnabled] = useModalGlassPreference()
+  const [naturalCodeSortEnabled, setNaturalCodeSortEnabled] = useState(false)
+  const [settingLoading, setSettingLoading] = useState(true)
+  const [settingSaving, setSettingSaving] = useState(false)
+
+  const loadSettings = useCallback(async () => {
+    setSettingLoading(true)
+    try {
+      const res = await fetch('/api/system/settings')
+      const data = await res.json()
+      if (!res.ok) {
+        onMessage(data.error || '获取系统设置失败')
+        return
+      }
+      setNaturalCodeSortEnabled(Boolean(data.data?.naturalMaterialCodeSortEnabled))
+    } finally {
+      setSettingLoading(false)
+    }
+  }, [onMessage])
+
+  useEffect(() => {
+    loadSettings()
+  }, [loadSettings])
+
+  const saveNaturalCodeSort = async (enabled: boolean) => {
+    setSettingSaving(true)
+    try {
+      const res = await fetch('/api/system/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ naturalMaterialCodeSortEnabled: enabled }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        onMessage(data.error || '保存系统设置失败')
+        return
+      }
+      setNaturalCodeSortEnabled(Boolean(data.data?.naturalMaterialCodeSortEnabled))
+      onMessage(`物料编码数字自然排序已${enabled ? '开启' : '关闭'}`)
+    } finally {
+      setSettingSaving(false)
+    }
+  }
 
   return (
-    <div className="rounded-lg bg-white p-6 shadow">
+    <div className="rounded-lg bg-white p-4 shadow sm:p-6">
       <div className="mb-5">
-        <h3 className="text-lg font-semibold">界面设置</h3>
-        <p className="mt-1 text-sm text-gray-500">这些偏好保存在当前浏览器，用来减少误操作并适配不同设备性能。</p>
+        <h3 className="text-lg font-semibold">系统设置</h3>
+        <p className="mt-1 text-sm text-gray-500">业务规则对所有客户端生效；界面偏好只保存在当前浏览器。</p>
       </div>
+
       <div className="rounded-lg border border-gray-200 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="font-medium text-gray-900">物料编码数字自然排序</div>
+            <div className="mt-1 text-sm text-gray-500">开启后，物料列表和导出中的编码按数字片段排序，例如 2 排在 12 前、A2 排在 A10 前；不会修改编码内容。</div>
+            <div className="mt-2 text-xs text-gray-500">系统级设置，保存后对所有客户端生效。</div>
+          </div>
+          <label className={`inline-flex items-center gap-3 ${settingLoading || settingSaving ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}>
+            <span className="text-sm text-gray-600">
+              {settingLoading ? '读取中' : settingSaving ? '保存中' : naturalCodeSortEnabled ? '已开启' : '已关闭'}
+            </span>
+            <input
+              type="checkbox"
+              checked={naturalCodeSortEnabled}
+              disabled={settingLoading || settingSaving}
+              onChange={(event) => saveNaturalCodeSort(event.target.checked)}
+              className="sr-only"
+            />
+            <span className={`relative h-7 w-12 rounded-full transition ${naturalCodeSortEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}>
+              <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${naturalCodeSortEnabled ? 'left-6' : 'left-1'}`} />
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-gray-200 p-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="font-medium text-gray-900">弹窗背景磨砂玻璃</div>
             <div className="mt-1 text-sm text-gray-500">开启后弹窗出现时背景会模糊并遮罩；关闭后仅保留半透明遮罩，仍会屏蔽底层按钮响应。</div>
+            <div className="mt-2 text-xs text-gray-500">界面偏好，只保存在当前浏览器。</div>
           </div>
           <label className="inline-flex cursor-pointer items-center gap-3">
             <span className="text-sm text-gray-600">{modalGlassEnabled ? '已开启' : '已关闭'}</span>

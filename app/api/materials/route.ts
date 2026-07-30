@@ -5,6 +5,8 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { normalizeConversionRate } from '@/lib/units'
 import { parseCsvFilter } from '@/lib/status-filter'
+import { sortByNaturalText } from '@/lib/natural-sort'
+import { getSystemSettings } from '@/lib/system-settings'
 
 const materialSchema = z.object({
   code: z.string().min(1, '物料编码不能为空'),
@@ -40,6 +42,8 @@ export async function GET(req: NextRequest) {
     const requestedSortBy = searchParams.get('sortBy') || 'createdAt'
     const sortBy = materialSortFields.has(requestedSortBy) ? requestedSortBy : 'createdAt'
     const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc'
+    const naturalCodeSortEnabled = sortBy === 'code'
+      && (await getSystemSettings()).naturalMaterialCodeSortEnabled
     const orderBy: any = sortBy === 'customer'
       ? { customer: { name: sortDir } }
       : sortBy === 'stock'
@@ -61,7 +65,7 @@ export async function GET(req: NextRequest) {
       ]
     }
 
-    const [materials, total] = await Promise.all([
+    const [queriedMaterials, total] = await Promise.all([
       prisma.material.findMany({
         where,
         include: {
@@ -80,12 +84,21 @@ export async function GET(req: NextRequest) {
           },
           customer: { select: { id: true, code: true, name: true } },
         },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        orderBy,
+        ...(naturalCodeSortEnabled
+          ? {}
+          : {
+              skip: (page - 1) * pageSize,
+              take: pageSize,
+              orderBy,
+            }),
       }),
       prisma.material.count({ where }),
     ])
+
+    const materials = naturalCodeSortEnabled
+      ? sortByNaturalText(queriedMaterials, (material) => material.code, sortDir)
+          .slice((page - 1) * pageSize, page * pageSize)
+      : queriedMaterials
 
     const materialIds = materials.map((material) => material.id)
     const images = materialIds.length === 0 ? [] : await prisma.documentAttachment.findMany({
