@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.91",
+  "version": "0.1.92",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -17,7 +17,8 @@
     "db:studio": "prisma studio",
     "verify:permissions": "tsx scripts/verify-permissions.ts",
     "verify:dual-units": "tsx scripts/verify-dual-unit-flow.ts",
-    "verify:scan-print": "tsx scripts/verify-scan-print.ts"
+    "verify:scan-print": "tsx scripts/verify-scan-print.ts",
+    "verify:material-code-normalization": "tsx scripts/verify-material-code-normalization.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.13.0",
