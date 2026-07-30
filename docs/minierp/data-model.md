@@ -591,6 +591,8 @@ BOM 数据只保存规范方向：目标物料或产出物料 -> 输入物料及
 
 `Material.primaryMeasure` 取 `LENGTH`、`WEIGHT`、`QUANTITY` 或 `OTHER`。`stockUnit` 是主库存单位，库存、领料和生产耗用都以它为准。`referenceMeasure`、`valuationUnit` 和 `conversionRate` 是可选参考/计价口径，默认换算只在来料未填写实测值时使用；物料不保存标准长度。
 
+物料单位必须来自系统单位目录。长度、重量、数量和其他计量方式的系统基准单位分别为 `m`、`kg`、`件` 和 `项`；自定义单位保存到 `SystemSetting` 的 `units.customCatalog` 配置中，并记录换算到所属基准单位的系数。该目录只处理同一计量方式内的通用换算，物料自身的长度与重量等跨计量关系仍由 `conversionRate` 表达。
+
 编辑物料时允许把主库存单位改为数值完全等价的新名称。前端必须在提交前提醒，后端要求显式确认，并同步当前 BOM 原料单位、兼容产品单位和 BOM 产出单位；库存、比例和历史流水数值不换算，历史单位快照不改写。`m -> mm` 等非等价变更不能使用该入口，应先执行数量换算。
 
 长度型 `MaterialIn` 使用 `pieceCount`、`stockQtyMode` 和 `stockQtyInput` 保留原始录入语义：

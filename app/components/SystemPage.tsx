@@ -145,6 +145,25 @@ interface MaterialCodeNormalizationPreview {
   canExecute: boolean
 }
 
+type MeasureType = 'LENGTH' | 'WEIGHT' | 'QUANTITY' | 'OTHER'
+
+interface ConfiguredUnit {
+  code: string
+  name: string
+  measureType: MeasureType
+  toBaseFactor: number
+  isBase: boolean
+  isPreset: boolean
+  usedByMaterialCount: number
+}
+
+const measureTypeOptions: Array<[MeasureType, string, string]> = [
+  ['LENGTH', '长度', 'm'],
+  ['WEIGHT', '重量', 'kg'],
+  ['QUANTITY', '数量', '件'],
+  ['OTHER', '其他', '项'],
+]
+
 const processCategoryOptions = [
   ['SAWING', '锯切'], ['DRILLING', '钻孔'], ['TURNING', '车削'], ['MILLING', '铣削'], ['GRINDING', '磨削'],
   ['HEAT_TREATMENT', '热处理'], ['SURFACE_TREATMENT', '表面处理'], ['ASSEMBLY', '装配'], ['INSPECTION', '检验'], ['OTHER', '其他'],
@@ -172,7 +191,7 @@ function routeStepCostPerThousand(step: ProcessRoute['steps'][number] | ProcessS
   return { laborHours, machineHours, cost }
 }
 
-export type SystemSection = 'suppliers' | 'customers' | 'processTemplates' | 'process' | 'recycle' | 'audit' | 'dataTools' | 'preferences'
+export type SystemSection = 'suppliers' | 'customers' | 'processTemplates' | 'process' | 'recycle' | 'audit' | 'dataTools' | 'units' | 'preferences'
 
 export default function SystemPage({
   section,
@@ -190,8 +209,210 @@ export default function SystemPage({
       {section === 'recycle' && <RecycleBin onMessage={onMessage} />}
       {section === 'audit' && <AuditLogViewer onMessage={onMessage} />}
       {section === 'dataTools' && <DataToolManager onMessage={onMessage} />}
+      {section === 'units' && <UnitCatalogManager onMessage={onMessage} />}
       {section === 'preferences' && <InterfacePreferenceManager onMessage={onMessage} />}
     </>
+  )
+}
+
+function UnitCatalogManager({ onMessage }: { onMessage: (msg: string) => void }) {
+  const emptyForm = { code: '', name: '', measureType: 'LENGTH' as MeasureType, toBaseFactor: 1 }
+  const [units, setUnits] = useState<ConfiguredUnit[]>([])
+  const [form, setForm] = useState(emptyForm)
+  const [editing, setEditing] = useState<ConfiguredUnit | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const baseUnit = measureTypeOptions.find(([measure]) => measure === form.measureType)?.[2] || '基准单位'
+
+  const loadUnits = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/system/units')
+      const data = await res.json()
+      if (!res.ok) {
+        onMessage(data.error || '获取单位配置失败')
+        return
+      }
+      setUnits(data.data || [])
+    } finally {
+      setLoading(false)
+    }
+  }, [onMessage])
+
+  useEffect(() => {
+    loadUnits()
+  }, [loadUnits])
+
+  const resetForm = () => {
+    setEditing(null)
+    setForm(emptyForm)
+  }
+
+  const save = async () => {
+    if (!form.code.trim() || !form.name.trim() || !Number.isFinite(form.toBaseFactor) || form.toBaseFactor <= 0) {
+      onMessage('请填写有效的单位编码、名称和换算系数')
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch('/api/system/units', {
+        method: editing ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editing ? {
+          ...form,
+          originalCode: editing.code,
+          originalMeasureType: editing.measureType,
+        } : form),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        onMessage(data.error || '保存单位失败')
+        return
+      }
+      setUnits(data.data || [])
+      onMessage(editing ? '单位配置已更新' : '自定义单位已添加')
+      resetForm()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const startEdit = (unit: ConfiguredUnit) => {
+    setEditing(unit)
+    setForm({
+      code: unit.code,
+      name: unit.name,
+      measureType: unit.measureType,
+      toBaseFactor: unit.toBaseFactor,
+    })
+  }
+
+  const remove = async (unit: ConfiguredUnit) => {
+    if (!confirm(`确认删除自定义单位“${unit.name}（${unit.code}）”吗？`)) return
+    const params = new URLSearchParams({ code: unit.code, measureType: unit.measureType })
+    const res = await fetch(`/api/system/units?${params.toString()}`, { method: 'DELETE' })
+    const data = await res.json()
+    if (!res.ok) {
+      onMessage(data.error || '删除单位失败')
+      return
+    }
+    setUnits(data.data || [])
+    if (editing?.code === unit.code && editing.measureType === unit.measureType) resetForm()
+    onMessage('自定义单位已删除')
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg bg-white p-4 shadow sm:p-6">
+        <div className="mb-5">
+          <h3 className="text-lg font-semibold">单位配置</h3>
+          <p className="mt-1 text-sm text-gray-500">物料只能选择已配置单位；自定义单位必须明确换算到所属计量方式的系统基准单位。</p>
+        </div>
+        <div className="grid grid-cols-1 gap-3 rounded-lg border border-blue-100 bg-blue-50/40 p-4 md:grid-cols-2 xl:grid-cols-5">
+          <label className="text-sm text-gray-700">
+            计量方式
+            <select
+              value={form.measureType}
+              disabled={Boolean(editing?.usedByMaterialCount)}
+              onChange={(event) => setForm({ ...form, measureType: event.target.value as MeasureType })}
+              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2"
+            >
+              {measureTypeOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </label>
+          <label className="text-sm text-gray-700">
+            单位编码
+            <input
+              value={form.code}
+              disabled={Boolean(editing?.usedByMaterialCount)}
+              onChange={(event) => setForm({ ...form, code: event.target.value })}
+              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2"
+              placeholder="如：ft"
+            />
+          </label>
+          <label className="text-sm text-gray-700">
+            显示名称
+            <input
+              value={form.name}
+              onChange={(event) => setForm({ ...form, name: event.target.value })}
+              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2"
+              placeholder="如：英尺"
+            />
+          </label>
+          <label className="text-sm text-gray-700">
+            换算到 {baseUnit}
+            <span className="mt-1 flex overflow-hidden rounded-lg border border-gray-200 bg-white">
+              <input
+                type="number"
+                min="0"
+                step="any"
+                disabled={Boolean(editing?.usedByMaterialCount)}
+                value={form.toBaseFactor || ''}
+                onChange={(event) => setForm({ ...form, toBaseFactor: Number(event.target.value) })}
+                className="min-w-0 flex-1 px-3 py-2 text-right outline-none"
+              />
+              <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">{baseUnit}</span>
+            </span>
+          </label>
+          <div className="flex items-end gap-2">
+            <button
+              type="button"
+              disabled={saving}
+              onClick={save}
+              className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {saving ? '保存中...' : editing ? '保存修改' : '添加单位'}
+            </button>
+            {editing && <button type="button" onClick={resetForm} className="rounded-lg border border-gray-200 px-4 py-2 text-sm">取消</button>}
+          </div>
+          <div className="md:col-span-2 xl:col-span-5 text-xs text-gray-500">
+            关系定义：1 自定义单位 = 换算系数 × {baseUnit}。单位一旦被物料使用，只允许修改显示名称。
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="rounded-lg bg-white p-6 text-sm text-gray-500 shadow">正在读取单位配置...</div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {measureTypeOptions.map(([measureType, label, base]) => {
+            const rows = units.filter((unit) => unit.measureType === measureType)
+            return (
+              <div key={measureType} className="rounded-lg bg-white p-4 shadow sm:p-5">
+                <div className="mb-3 flex items-center justify-between">
+                  <h4 className="font-semibold text-gray-900">{label}单位</h4>
+                  <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">基准：{base}</span>
+                </div>
+                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-left text-gray-600">
+                      <tr><th className="px-3 py-2">单位</th><th className="px-3 py-2">换算关系</th><th className="px-3 py-2">使用</th><th className="px-3 py-2 text-right">操作</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {rows.map((unit) => (
+                        <tr key={`${unit.measureType}-${unit.code}`}>
+                          <td className="px-3 py-2"><span className="font-medium">{unit.name}</span><span className="ml-2 font-mono text-xs text-gray-500">{unit.code}</span>{unit.isPreset && <span className="ml-2 rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">预置</span>}</td>
+                          <td className="px-3 py-2 text-gray-600">1 {unit.code} = {unit.toBaseFactor} {base}</td>
+                          <td className="px-3 py-2 text-gray-600">{unit.usedByMaterialCount} 个物料</td>
+                          <td className="px-3 py-2 text-right">
+                            {!unit.isPreset && (
+                              <span className="inline-flex gap-2">
+                                <button type="button" onClick={() => startEdit(unit)} className="text-blue-600">编辑</button>
+                                <button type="button" onClick={() => remove(unit)} className="text-red-600">删除</button>
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.107",
+  "version": "0.1.108",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -29,7 +29,8 @@
     "verify:document-categories": "tsx scripts/verify-document-categories.ts",
     "verify:material-measures": "tsx scripts/verify-material-measures.ts",
     "verify:production-consumption": "tsx scripts/verify-production-consumption.ts",
-    "verify:bom-ratio": "tsx scripts/verify-bom-ratio.ts"
+    "verify:bom-ratio": "tsx scripts/verify-bom-ratio.ts",
+    "verify:unit-catalog": "tsx scripts/verify-unit-catalog.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.13.0",

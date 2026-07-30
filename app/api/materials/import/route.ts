@@ -5,6 +5,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { parseCsv } from '@/lib/csv'
 import { normalizeConversionRate } from '@/lib/units'
 import { createInternalCode } from '@/lib/internal-codes'
+import { findCatalogUnit, getUnitCatalog } from '@/lib/unit-catalog'
 
 const allowedCategories = new Set(['RAW', 'FINISHED', 'AUXILIARY', 'SCRAP', 'DEFECTIVE', 'PACKAGING', 'OTHER'])
 const allowedCostingMethods = new Set(['WEIGHTED_AVERAGE', 'FIFO'])
@@ -156,6 +157,7 @@ export async function POST(req: NextRequest) {
     const errors: string[] = []
     const parsed: ImportMaterial[] = []
     const seenCodes = new Set<string>()
+    const unitCatalog = await getUnitCatalog()
 
     rows.slice(1).forEach((row, index) => {
       const rowNumber = index + 2
@@ -186,9 +188,15 @@ export async function POST(req: NextRequest) {
       if (!allowedPrimaryMeasures.has(primaryMeasure)) errors.push(`第 ${rowNumber} 行：主计量方式无效，应为 LENGTH/WEIGHT/QUANTITY/OTHER`)
       if (referenceMeasure && !allowedPrimaryMeasures.has(referenceMeasure)) errors.push(`第 ${rowNumber} 行：参考计量方式无效，应为 LENGTH/WEIGHT/QUANTITY/OTHER`)
       if (!allowedCostingMethods.has(costingMethod)) errors.push(`第 ${rowNumber} 行：成本方法无效，应为 WEIGHTED_AVERAGE 或 FIFO`)
+      if (allowedPrimaryMeasures.has(primaryMeasure) && stockUnit && !findCatalogUnit(unitCatalog, primaryMeasure, stockUnit)) {
+        errors.push(`第 ${rowNumber} 行：库存单位 ${stockUnit} 未在${primaryMeasure}计量方式下配置`)
+      }
 
       const valuationUnit = useDualUnit ? rawValuationUnit : stockUnit
       if (useDualUnit && !valuationUnit) errors.push(`第 ${rowNumber} 行：启用双单位时核算单位不能为空`)
+      if (useDualUnit && referenceMeasure && valuationUnit && !findCatalogUnit(unitCatalog, referenceMeasure, valuationUnit)) {
+        errors.push(`第 ${rowNumber} 行：核算单位 ${valuationUnit} 未在${referenceMeasure}计量方式下配置`)
+      }
 
       const conversionRate = useDualUnit ? Number(rawConversionRate) : 1
       if (useDualUnit && (!Number.isFinite(conversionRate) || conversionRate <= 0)) {

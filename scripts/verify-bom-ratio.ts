@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import {
-  bomLengthInputToMeters,
+  baseUnitToBomInput,
+  bomInputToBaseUnit,
   calculateBomUnitRatio,
-  metersToBomLengthInput,
 } from '../lib/bom-ratio'
 import { isMeterUnit } from '../lib/units'
 
@@ -11,7 +11,7 @@ assert.equal(calculateBomUnitRatio({
   standardUsage: 350,
   lossMode: 'PERCENT',
   lossValue: 5,
-  inputToStockUnitRate: bomLengthInputToMeters(1, 'mm'),
+  inputToStockUnitRate: 0.001,
 }), 0.3675)
 
 assert.equal(calculateBomUnitRatio({
@@ -19,14 +19,14 @@ assert.equal(calculateBomUnitRatio({
   standardUsage: 350,
   lossMode: 'FIXED',
   lossValue: 2.5,
-  inputToStockUnitRate: bomLengthInputToMeters(1, 'mm'),
+  inputToStockUnitRate: 0.001,
 }), 0.3525)
 
 assert.equal(calculateBomUnitRatio({
   mode: 'DIRECT_RATIO',
   outputQuantity: 20,
   rawMaterialQuantity: 7000,
-  inputToStockUnitRate: bomLengthInputToMeters(1, 'mm'),
+  inputToStockUnitRate: 0.001,
 }), 0.35)
 
 assert.equal(calculateBomUnitRatio({
@@ -34,17 +34,18 @@ assert.equal(calculateBomUnitRatio({
   standardUsage: 35,
   lossMode: 'FIXED',
   lossValue: 0.25,
-  inputToStockUnitRate: bomLengthInputToMeters(1, 'cm'),
+  inputToStockUnitRate: 0.01,
 }), 0.3525)
 
 assert.equal(calculateBomUnitRatio({
   mode: 'DIRECT_RATIO',
   outputQuantity: 20,
   rawMaterialQuantity: 7,
-  inputToStockUnitRate: bomLengthInputToMeters(1, 'm'),
+  inputToStockUnitRate: 1,
 }), 0.35)
 
-assert.equal(metersToBomLengthInput(0.3525, 'mm'), 352.5)
+assert.equal(bomInputToBaseUnit(352.5, 0.001), 0.3525)
+assert.equal(baseUnitToBomInput(0.3525, 0.001), 352.5)
 assert.equal(isMeterUnit('m'), true)
 assert.equal(isMeterUnit('米'), true)
 assert.equal(isMeterUnit('mm'), false)

@@ -7,6 +7,7 @@ import { normalizeConversionRate } from '@/lib/units'
 import { parseCsvFilter } from '@/lib/status-filter'
 import { sortByNaturalText } from '@/lib/natural-sort'
 import { getSystemSettings } from '@/lib/system-settings'
+import { findCatalogUnit, getUnitCatalog } from '@/lib/unit-catalog'
 
 const materialSchema = z.object({
   code: z.string().min(1, '物料编码不能为空'),
@@ -26,6 +27,38 @@ const materialSchema = z.object({
 })
 
 const materialSortFields = new Set(['createdAt', 'code', 'name', 'category', 'customer', 'spec', 'note', 'stockUnit', 'valuationUnit', 'costingMethod', 'stock', 'valuationStock'])
+
+async function validateConfiguredMaterialUnits(input: {
+  primaryMeasure: string
+  stockUnit: string
+  referenceMeasure?: string | null
+  valuationUnit?: string | null
+  legacy?: {
+    primaryMeasure: string
+    stockUnit: string
+    referenceMeasure?: string | null
+    valuationUnit?: string | null
+  }
+}) {
+  const catalog = await getUnitCatalog()
+  const stockConfigured = findCatalogUnit(catalog, input.primaryMeasure, input.stockUnit)
+  const stockUnchanged = input.legacy
+    && input.legacy.primaryMeasure === input.primaryMeasure
+    && input.legacy.stockUnit === input.stockUnit
+  if (!stockConfigured && !stockUnchanged) {
+    return `主库存单位 ${input.stockUnit} 未在${input.primaryMeasure}计量方式下配置`
+  }
+  if (input.referenceMeasure) {
+    const valuationConfigured = findCatalogUnit(catalog, input.referenceMeasure, input.valuationUnit)
+    const valuationUnchanged = input.legacy
+      && input.legacy.referenceMeasure === input.referenceMeasure
+      && input.legacy.valuationUnit === input.valuationUnit
+    if (!valuationConfigured && !valuationUnchanged) {
+      return `参考/计价单位 ${input.valuationUnit || '空'} 未在${input.referenceMeasure}计量方式下配置`
+    }
+  }
+  return null
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -164,6 +197,13 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
+    const unitError = await validateConfiguredMaterialUnits({
+      primaryMeasure: body.primaryMeasure || 'QUANTITY',
+      stockUnit: body.stockUnit || body.unit,
+      referenceMeasure: body.referenceMeasure || null,
+      valuationUnit: body.valuationUnit || null,
+    })
+    if (unitError) return NextResponse.json({ error: unitError }, { status: 400 })
 
     const existing = await prisma.material.findUnique({
       where: { code: body.code },
@@ -268,6 +308,19 @@ export async function PUT(req: NextRequest) {
     const nextValuationUnit = body.valuationUnit || body.unit
     const nextPrimaryMeasure = body.primaryMeasure || before.primaryMeasure || 'QUANTITY'
     const nextReferenceMeasure = body.referenceMeasure || null
+    const unitError = await validateConfiguredMaterialUnits({
+      primaryMeasure: nextPrimaryMeasure,
+      stockUnit: nextStockUnit,
+      referenceMeasure: nextReferenceMeasure,
+      valuationUnit: nextValuationUnit,
+      legacy: {
+        primaryMeasure: before.primaryMeasure,
+        stockUnit: before.stockUnit,
+        referenceMeasure: before.referenceMeasure,
+        valuationUnit: before.valuationUnit,
+      },
+    })
+    if (unitError) return NextResponse.json({ error: unitError }, { status: 400 })
     const stockUnitChanged = before.stockUnit !== nextStockUnit
     const equivalentSingleUnitRename = stockUnitChanged
       && before.valuationUnit === before.stockUnit

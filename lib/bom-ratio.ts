@@ -1,20 +1,14 @@
 export type BomRatioInputMode = 'USAGE_LOSS' | 'DIRECT_RATIO'
 export type BomLossInputMode = 'PERCENT' | 'FIXED'
-export type BomLengthInputUnit = 'mm' | 'cm' | 'm'
 
 const roundRatio = (value: number) => Number(value.toFixed(6))
-const lengthUnitToMeter: Record<BomLengthInputUnit, number> = {
-  mm: 0.001,
-  cm: 0.01,
-  m: 1,
+
+export function bomInputToBaseUnit(value: number, toBaseFactor: number) {
+  return Number(value) * Number(toBaseFactor)
 }
 
-export function bomLengthInputToMeters(value: number, unit: BomLengthInputUnit) {
-  return Number(value) * lengthUnitToMeter[unit]
-}
-
-export function metersToBomLengthInput(value: number, unit: BomLengthInputUnit) {
-  return Number(value) / lengthUnitToMeter[unit]
+export function baseUnitToBomInput(value: number, toBaseFactor: number) {
+  return Number(value) / Number(toBaseFactor)
 }
 
 function positive(value: number, label: string) {

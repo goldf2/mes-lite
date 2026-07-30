@@ -11,12 +11,11 @@ import MaterialPanoramaPage from './MaterialPanoramaPage'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import {
-  BomLengthInputUnit,
   BomLossInputMode,
   BomRatioInputMode,
-  bomLengthInputToMeters,
+  baseUnitToBomInput,
+  bomInputToBaseUnit,
   calculateBomUnitRatio,
-  metersToBomLengthInput,
 } from '@/lib/bom-ratio'
 import { isMeterUnit } from '@/lib/units'
 
@@ -105,6 +104,15 @@ interface Customer {
   name: string
 }
 
+interface ConfiguredUnit {
+  code: string
+  name: string
+  measureType: 'LENGTH' | 'WEIGHT' | 'QUANTITY' | 'OTHER'
+  toBaseFactor: number
+  isBase: boolean
+  isPreset: boolean
+}
+
 interface PaginationState {
   page: number
   pageSize: number
@@ -140,7 +148,6 @@ const primaryMeasureOptions = [
   ['OTHER', '其他'],
 ] as const
 const primaryMeasureLabels = Object.fromEntries(primaryMeasureOptions) as Record<string, string>
-const bomLengthInputUnits: BomLengthInputUnit[] = ['mm', 'cm', 'm']
 const materialProductPrefix = 'material:'
 const materialSplitStorageKey = 'mes-lite.materials.splitPercent'
 const bomSummaryFieldsStorageKey = 'mes-lite.materials.bomSummaryFields'
@@ -231,8 +238,8 @@ function createEmptyMaterialForm() {
     customerId: '',
     primaryMeasure: 'QUANTITY',
     referenceMeasure: 'WEIGHT',
-    unit: '',
-    stockUnit: '',
+    unit: '件',
+    stockUnit: '件',
     useDualUnit: false,
     valuationUnit: '',
     conversionRate: 1,
@@ -720,7 +727,8 @@ export default function MaterialPage({
   const [relationLossValue, setRelationLossValue] = useState('')
   const [relationOutputQuantity, setRelationOutputQuantity] = useState('1')
   const [relationRawQuantity, setRelationRawQuantity] = useState('')
-  const [relationLengthInputUnit, setRelationLengthInputUnit] = useState<BomLengthInputUnit>('mm')
+  const [relationLengthInputUnit, setRelationLengthInputUnit] = useState('mm')
+  const [unitCatalog, setUnitCatalog] = useState<ConfiguredUnit[]>([])
   const [bomLoading, setBomLoading] = useState(false)
   const [bomSaving, setBomSaving] = useState(false)
   const [keyword, setKeyword] = useState('')
@@ -748,6 +756,10 @@ export default function MaterialPage({
   const isCompactViewport = useCompactViewport()
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
   const [form, setForm] = useState(createEmptyMaterialForm())
+  const formStockUnitOptions = unitCatalog.filter((unit) => unit.measureType === form.primaryMeasure)
+  const formValuationUnitOptions = unitCatalog.filter((unit) => unit.measureType === form.referenceMeasure)
+  const formStockUnitConfigured = formStockUnitOptions.some((unit) => unit.code === form.stockUnit)
+  const formValuationUnitConfigured = formValuationUnitOptions.some((unit) => unit.code === form.valuationUnit)
   const showField = (field: MaterialVisibleField) => visibleFields.includes(field)
   const [loading, setLoading] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
@@ -759,6 +771,8 @@ export default function MaterialPage({
   const selectedBomProduct = selectedMaterial ? bomProductByMaterialId.get(selectedMaterial.id) || null : null
   const relationProduct = bomProducts.find((product) => product.id === relationProductId) || null
   const relationMaterial = bomMaterialOptions.find((material) => material.id === relationMaterialId) || null
+  const bomLengthInputUnits = unitCatalog.filter((unit) => unit.measureType === 'LENGTH')
+  const relationLengthInputDefinition = bomLengthInputUnits.find((unit) => unit.code === relationLengthInputUnit)
   const relationUsesLengthInput = relationMaterial?.primaryMeasure === 'LENGTH'
   const relationLengthStockUnitValid = !relationUsesLengthInput
     || isMeterUnit(relationMaterial?.stockUnit || relationMaterial?.unit)
@@ -766,7 +780,7 @@ export default function MaterialPage({
     ? relationLengthInputUnit
     : relationMaterial?.stockUnit || relationMaterial?.unit || '原料主单位'
   const relationInputToStockUnitRate = relationUsesLengthInput
-    ? bomLengthInputToMeters(1, relationLengthInputUnit)
+    ? relationLengthInputDefinition?.toBaseFactor || 0.001
     : 1
   const relationUnitRatio = useMemo(() => {
     try {
@@ -811,12 +825,14 @@ export default function MaterialPage({
     setRelationRawQuantity('')
   }
 
-  const changeRelationLengthInputUnit = (nextUnit: BomLengthInputUnit) => {
+  const changeRelationLengthInputUnit = (nextUnit: string) => {
+    const currentFactor = relationLengthInputDefinition?.toBaseFactor || 0.001
+    const nextFactor = bomLengthInputUnits.find((unit) => unit.code === nextUnit)?.toBaseFactor || 1
     const convertValue = (value: string) => {
       if (!value) return ''
-      return qty(metersToBomLengthInput(
-        bomLengthInputToMeters(Number(value), relationLengthInputUnit),
-        nextUnit,
+      return qty(baseUnitToBomInput(
+        bomInputToBaseUnit(Number(value), currentFactor),
+        nextFactor,
       ))
     }
     setRelationStandardUsage((value) => convertValue(value))
@@ -855,6 +871,7 @@ export default function MaterialPage({
 
   useEffect(() => {
     fetchCustomers()
+    fetchUnitCatalog()
     if (showBomWorkspace) fetchBomData()
   }, [fetchBomData, showBomWorkspace])
 
@@ -1184,6 +1201,16 @@ export default function MaterialPage({
     }
   }
 
+  const fetchUnitCatalog = async () => {
+    try {
+      const res = await fetch('/api/system/units')
+      const data = await res.json()
+      if (res.ok) setUnitCatalog(data.data || [])
+    } catch {
+      // 物料列表仍可读取；编辑时会保留现有旧单位。
+    }
+  }
+
   const handleSubmit = async () => {
     if (!form.code || !form.name || !form.stockUnit || (form.useDualUnit && (!form.valuationUnit || form.conversionRate <= 0))) {
       onMessage('请填写完整信息')
@@ -1466,7 +1493,7 @@ export default function MaterialPage({
     setRelationOutputQuantity('1')
     setRelationRawQuantity(String(
       item.material?.primaryMeasure === 'LENGTH'
-        ? metersToBomLengthInput(Number(item.quantity || 0), relationLengthInputUnit)
+        ? baseUnitToBomInput(Number(item.quantity || 0), relationLengthInputDefinition?.toBaseFactor || 0.001)
         : Number(item.quantity || 0),
     ))
   }
@@ -1479,7 +1506,7 @@ export default function MaterialPage({
     const material = bomMaterialById.get(item.materialId)
     setRelationRawQuantity(String(
       material?.primaryMeasure === 'LENGTH'
-        ? metersToBomLengthInput(Number(item.quantity || 0), relationLengthInputUnit)
+        ? baseUnitToBomInput(Number(item.quantity || 0), relationLengthInputDefinition?.toBaseFactor || 0.001)
         : Number(item.quantity || 0),
     ))
   }
@@ -2053,7 +2080,7 @@ export default function MaterialPage({
                       <div className="text-xs font-medium text-gray-700">比例录入算法</div>
                       <div className="mt-0.5 text-xs text-gray-500">
                         {relationUsesLengthInput
-                          ? '长度尺寸可按 mm、cm 或 m 录入；BOM 最终统一换算为米保存。'
+                          ? '长度尺寸可按系统配置的长度单位录入；BOM 最终统一换算为米保存。'
                           : '仅用于换算；BOM 最终统一保存每 1 个成品主单位对应的原料主库存单位数量。'}
                       </div>
                     </div>
@@ -2063,10 +2090,10 @@ export default function MaterialPage({
                           尺寸录入单位
                           <select
                             value={relationLengthInputUnit}
-                            onChange={(event) => changeRelationLengthInputUnit(event.target.value as BomLengthInputUnit)}
+                            onChange={(event) => changeRelationLengthInputUnit(event.target.value)}
                             className="rounded-md border border-gray-200 bg-white px-2 py-1.5 font-medium text-gray-800 outline-none focus:ring-2 focus:ring-blue-500"
                           >
-                            {bomLengthInputUnits.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                            {bomLengthInputUnits.map((unit) => <option key={unit.code} value={unit.code}>{unit.code}</option>)}
                           </select>
                         </label>
                       )}
@@ -2437,13 +2464,8 @@ export default function MaterialPage({
                         value={form.primaryMeasure}
                         onChange={(event) => {
                           const primaryMeasure = event.target.value
-                          const defaultUnit = primaryMeasure === 'LENGTH'
-                            ? 'm'
-                            : primaryMeasure === 'WEIGHT'
-                              ? 'kg'
-                              : primaryMeasure === 'QUANTITY'
-                                ? '件'
-                                : form.stockUnit
+                          const defaultUnit = unitCatalog.find((unit) => unit.measureType === primaryMeasure && unit.isBase)?.code
+                            || (primaryMeasure === 'LENGTH' ? 'm' : primaryMeasure === 'WEIGHT' ? 'kg' : primaryMeasure === 'QUANTITY' ? '件' : '项')
                           setForm({ ...form, primaryMeasure, stockUnit: defaultUnit, unit: defaultUnit })
                         }}
                         className="w-full rounded-lg border border-gray-200 px-4 py-2"
@@ -2454,13 +2476,21 @@ export default function MaterialPage({
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">主库存单位 *</label>
-                      <input
-                        type="text"
+                      <select
                         value={form.stockUnit}
-                        onChange={(e) => setForm({ ...form, stockUnit: e.target.value, unit: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                        placeholder="如：根、米、件、kg"
-                      />
+                        onChange={(event) => setForm({ ...form, stockUnit: event.target.value, unit: event.target.value })}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2"
+                      >
+                        {!formStockUnitConfigured && form.stockUnit && (
+                          <option value={form.stockUnit}>旧单位：{form.stockUnit}（待配置）</option>
+                        )}
+                        {formStockUnitOptions.map((unit) => (
+                          <option key={`${unit.measureType}-${unit.code}`} value={unit.code}>
+                            {unit.name}（{unit.code}） · 1 {unit.code} = {unit.toBaseFactor} {formStockUnitOptions.find((item) => item.isBase)?.code || '基准单位'}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">只能选择系统单位目录中的单位；新增单位请到“工具 → 单位配置”。</p>
                       {editingMaterial && (editingMaterial.stockUnit || editingMaterial.unit) !== form.stockUnit && (
                         <p className="mt-1 rounded bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
                           将从 {editingMaterial.stockUnit || editingMaterial.unit} 改为 {form.stockUnit || '空'}；保存前会再次确认。此入口只修改等价单位名称，不换算既有数值。
@@ -2474,7 +2504,9 @@ export default function MaterialPage({
                         onChange={(e) => setForm({
                           ...form,
                           useDualUnit: e.target.checked,
-                          valuationUnit: e.target.checked ? form.valuationUnit : '',
+                          valuationUnit: e.target.checked
+                            ? form.valuationUnit || unitCatalog.find((unit) => unit.measureType === form.referenceMeasure && unit.isBase)?.code || ''
+                            : '',
                           conversionRate: e.target.checked ? form.conversionRate : 1,
                           conversionNote: e.target.checked ? form.conversionNote : '',
                         })}
@@ -2489,7 +2521,11 @@ export default function MaterialPage({
                         <label className="block text-sm font-medium text-gray-700 mb-2">参考计量方式 *</label>
                         <select
                           value={form.referenceMeasure}
-                          onChange={(event) => setForm({ ...form, referenceMeasure: event.target.value })}
+                          onChange={(event) => {
+                            const referenceMeasure = event.target.value
+                            const valuationUnit = unitCatalog.find((unit) => unit.measureType === referenceMeasure && unit.isBase)?.code || ''
+                            setForm({ ...form, referenceMeasure, valuationUnit })
+                          }}
                           className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2"
                         >
                           {primaryMeasureOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -2497,13 +2533,20 @@ export default function MaterialPage({
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">参考/计价单位 *</label>
-                        <input
-                          type="text"
+                        <select
                           value={form.valuationUnit}
-                          onChange={(e) => setForm({ ...form, valuationUnit: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-white"
-                          placeholder="如：kg"
-                        />
+                          onChange={(event) => setForm({ ...form, valuationUnit: event.target.value })}
+                          className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2"
+                        >
+                          {!formValuationUnitConfigured && form.valuationUnit && (
+                            <option value={form.valuationUnit}>旧单位：{form.valuationUnit}（待配置）</option>
+                          )}
+                          {formValuationUnitOptions.map((unit) => (
+                            <option key={`${unit.measureType}-${unit.code}`} value={unit.code}>
+                              {unit.name}（{unit.code}）
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">默认参考换算 *</label>
