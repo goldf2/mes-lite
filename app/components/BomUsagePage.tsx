@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
+import ResponsiveToolbarActions from './ResponsiveToolbarActions'
+import TopBarPortal from './TopBarPortal'
 
 interface MaterialOption {
   id: string
@@ -102,20 +104,25 @@ export default function BomUsagePage({
   )
 
   return (
-    <div className="space-y-4">
-      <header className="flex flex-col gap-3 border-b border-gray-200 pb-4 sm:flex-row sm:items-end sm:justify-between">
+    <>
+      <TopBarPortal>
+        <ResponsiveToolbarActions
+          primaryFilters={(
+            <SearchFieldWithPresets
+              storageKey="mes-lite.searchPresets.bomUsage"
+              value={keyword}
+              onChange={setKeyword}
+              placeholder="搜索原材料、产品或客户"
+            />
+          )}
+        />
+      </TopBarPortal>
+      <div className="space-y-4">
+      <header className="border-b border-gray-200 pb-4">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">BOM 反查</h2>
           <p className="mt-1 text-sm text-gray-500">从原材料出发，查看它被哪些产品 BOM 使用</p>
         </div>
-        <SearchFieldWithPresets
-          storageKey="mes-lite.searchPresets.bomUsage"
-          value={keyword}
-          onChange={setKeyword}
-          placeholder="搜索原材料、产品或客户"
-          className="flex w-full items-center gap-2 sm:max-w-[450px]"
-          inputClassName="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-        />
       </header>
 
       <div className="grid grid-cols-2 border-y border-gray-200 bg-white sm:max-w-lg">
@@ -166,8 +173,8 @@ export default function BomUsagePage({
                       </div>
                       <div className={`rounded px-2 py-1 text-xs ${item.quantity > 0 ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
                         {item.quantity > 0
-                          ? `单位耗用 ${Number(item.quantity).toFixed(6).replace(/\.?0+$/, '')} ${item.unit}原料/${product.unit || '单位'}成品`
-                          : '待填写单位耗用'}
+                          ? `换算比例 ${Number(item.quantity).toFixed(6).replace(/\.?0+$/, '')} ${item.unit}原料/${product.unit || '单位'}成品`
+                          : '待填写换算比例'}
                       </div>
                       <button
                         type="button"
@@ -183,6 +190,7 @@ export default function BomUsagePage({
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </>
   )
 }

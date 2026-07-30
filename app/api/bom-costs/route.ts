@@ -155,7 +155,7 @@ export async function POST(req: NextRequest) {
     const missingMaterial = associatedMaterials.find((item) => Number(item.quantity) <= 0)
     if (missingMaterial?.material) {
       return NextResponse.json(
-        { error: `请先填写原料 ${missingMaterial.material.code} ${missingMaterial.material.name} 的 BOM 单位消耗量` },
+        { error: `请先填写原料 ${missingMaterial.material.code} ${missingMaterial.material.name} 的 BOM 换算比例` },
         { status: 400 },
       )
     }
@@ -250,7 +250,7 @@ export async function POST(req: NextRequest) {
         machineCost: 0,
         directCost: 0,
         totalCost: materialCost,
-        note: `按 BOM 单位消耗量 ${round(Number(item.quantity || 0) / Number(product.bom?.outputQuantity || 1))} ${item.unit}原料/${product.unit}产出计算`,
+        note: `按 BOM 换算比例 ${round(Number(item.quantity || 0) / Number(product.bom?.outputQuantity || 1))} ${item.unit}原料/${product.unit}产出计算`,
         sortOrder: index,
       })
     })

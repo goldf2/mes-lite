@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import MaterialChoiceSearch from './MaterialChoiceSearch'
 import ModalOverlay from './ModalOverlay'
+import ResponsiveToolbarActions from './ResponsiveToolbarActions'
+import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import { calculateProductionConsumption, ProductionLossMode } from '@/lib/production-consumption'
@@ -253,7 +255,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
       return onMessage('该物料尚未建立有效 BOM，请先在物料 BOM 关联中添加原料')
     }
     if (previewConsumptions.some((item) => item.quantityPerUnit <= 0)) {
-      return onMessage('BOM 中存在未填写单位消耗量的原料，请先完善 BOM')
+      return onMessage('BOM 中存在未填写换算比例的原料，请先完善 BOM')
     }
 
     setSaving(true)
@@ -385,42 +387,46 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
   )
 
   return (
-    <div className="space-y-4">
+    <>
+      <TopBarPortal>
+        <ResponsiveToolbarActions
+          primaryFilters={(
+            <SearchFieldWithPresets
+              storageKey="mes-lite.searchPresets.productionReports"
+              value={keyword}
+              onChange={setKeyword}
+              placeholder="搜索日报号、物料、人员或备注"
+            />
+          )}
+          filters={(
+            <select value={status} onChange={(event) => setStatus(event.target.value)} className="w-36 rounded-lg border border-gray-200 px-3 py-2 text-sm">
+              <option value="ALL">全部状态</option>
+              <option value="DRAFT">草稿</option>
+              <option value="CONFIRMED">已确认</option>
+              <option value="REVERSED">已冲销</option>
+            </select>
+          )}
+          actions={(
+            <>
+              <ViewModeToggle value={viewMode} onChange={setViewMode} />
+              <button type="button" onClick={openCreate} className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                新建
+              </button>
+            </>
+          )}
+        />
+      </TopBarPortal>
+      <div className="space-y-4">
       <section className="rounded-lg bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">生产日报</h2>
-            <p className="mt-1 text-sm text-gray-500">按 BOM 单位消耗量和本次损耗计算原料耗用；确认后扣减原料并将合格品入库</p>
-          </div>
-          <button type="button" onClick={openCreate} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-            新建生产日报
-          </button>
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">生产日报</h2>
+          <p className="mt-1 text-sm text-gray-500">按 BOM 换算比例和本次额外损耗计算原料耗用；确认后扣减原料并将合格品入库</p>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Metric label="已确认日报" value={summary.confirmed} />
           <Metric label="合格入库" value={numberText(summary.good)} tone="text-emerald-700" />
           <Metric label="不良品" value={numberText(summary.bad)} tone="text-amber-700" />
           <Metric label="报废品" value={numberText(summary.scrap)} tone="text-red-700" />
-        </div>
-      </section>
-
-      <section className="rounded-lg bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center">
-          <SearchFieldWithPresets
-            storageKey="mes-lite.searchPresets.productionReports"
-            value={keyword}
-            onChange={setKeyword}
-            placeholder="输入日报号、物料、人员或备注筛选"
-            className="flex min-w-0 flex-1 items-center gap-2"
-            inputClassName="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
-            <option value="ALL">全部状态</option>
-            <option value="DRAFT">草稿</option>
-            <option value="CONFIRMED">已确认</option>
-            <option value="REVERSED">已冲销</option>
-          </select>
-          <ViewModeToggle value={viewMode} onChange={setViewMode} />
         </div>
       </section>
 
@@ -566,7 +572,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                 <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-4 py-3">
                   <div>
                     <div className="text-sm font-medium text-gray-900">原料耗用与损耗</div>
-                    <div className="mt-0.5 text-xs text-gray-500">总加工 {numberText(totalProcessedQty)}；标准耗用来自 BOM，可按每一产出单位固定值或百分比增加损耗</div>
+                    <div className="mt-0.5 text-xs text-gray-500">总加工 {numberText(totalProcessedQty)}；基准耗用来自 BOM 换算比例，可再记录本批次额外损耗</div>
                   </div>
                   {selectedMaterial?.bom && <span className="text-xs text-gray-500">{selectedMaterial.bom.version}</span>}
                 </div>
@@ -574,7 +580,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                   {!selectedMaterial ? (
                     <div className="py-6 text-center text-sm text-gray-500">选择产出物料后计算原料耗用</div>
                   ) : previewConsumptions.length === 0 ? (
-                    <div className="rounded bg-amber-50 px-3 py-4 text-sm text-amber-800">该物料没有 BOM 原料及单位消耗量，暂时不能提交日报</div>
+                    <div className="rounded bg-amber-50 px-3 py-4 text-sm text-amber-800">该物料没有 BOM 原料及换算比例，暂时不能提交日报</div>
                   ) : (
                     <div className="space-y-2">
                       {previewConsumptions.map((item) => item.material && (
@@ -584,8 +590,8 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                             <span className="ml-2 font-mono text-xs text-gray-400">{item.material.code}</span>
                             <div className={`mt-0.5 text-xs ${item.quantityPerUnit > 0 ? 'text-gray-500' : 'text-red-600'}`}>
                               {item.quantityPerUnit > 0
-                                ? `单位消耗量 ${numberText(item.quantityPerUnit)} ${item.material.stockUnit || item.material.unit}原料/${selectedMaterial.stockUnit || selectedMaterial.unit}产出`
-                                : '尚未填写 BOM 单位消耗量'}
+                                ? `换算比例 ${numberText(item.quantityPerUnit)} ${item.material.stockUnit || item.material.unit}原料/${selectedMaterial.stockUnit || selectedMaterial.unit}产出`
+                                : '尚未填写 BOM 换算比例'}
                             </div>
                           </div>
                           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[170px_minmax(0,1fr)_minmax(0,1fr)]">
@@ -714,7 +720,8 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
           </div>
         </ModalOverlay>
       )}
-    </div>
+      </div>
+    </>
   )
 }
 

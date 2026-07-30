@@ -13,7 +13,7 @@ export function calculateProductionConsumption(input: {
   const unitConsumption = Number(input.unitConsumption)
   const lossValue = Number(input.lossValue)
   if (!Number.isFinite(outputQty) || outputQty <= 0) throw new Error('总加工数量必须大于 0')
-  if (!Number.isFinite(unitConsumption) || unitConsumption <= 0) throw new Error('BOM 单位消耗量必须大于 0')
+  if (!Number.isFinite(unitConsumption) || unitConsumption <= 0) throw new Error('BOM 换算比例必须大于 0')
   if (!Number.isFinite(lossValue) || lossValue < 0) throw new Error('损耗不能小于 0')
 
   const baseQty = roundQty(outputQty * unitConsumption)

@@ -33,6 +33,6 @@ assert.throws(() => calculateProductionConsumption({
   unitConsumption: 0,
   lossMode: 'PERCENT',
   lossValue: 0,
-}), /单位消耗量/)
+}), /换算比例/)
 
 console.log('生产单位消耗量与损耗计算验证通过')
