@@ -14,12 +14,16 @@ const attachmentOwnerTypes: Partial<Record<SoftDeleteModelKey, string>> = {
 }
 
 const purgeableDocumentStatuses: Partial<Record<SoftDeleteModelKey, string[]>> = {
-  materialIn: ['PENDING', 'REJECTED'],
+  materialIn: ['PENDING', 'REJECTED', 'REVERSED'],
   order: ['DRAFT', 'CANCELLED'],
   dispatch: ['PENDING', 'CANCELLED'],
   shipment: ['PENDING', 'CANCELLED'],
   return: ['PENDING', 'REJECTED'],
 }
+
+const purgeableNestedMaterialInStatuses = new Set(['REJECTED', 'REVERSED'])
+const purgeableInventoryLogTypes = new Set(['IN', 'REVERSE_IN'])
+const zeroTolerance = 0.000001
 
 export class ArchivedRecordPurgeError extends Error {
   status: number
@@ -63,17 +67,37 @@ async function addWeakReferenceBlockers(
   id: string,
   blockers: string[],
 ) {
-  const ownerType = attachmentOwnerTypes[model]
-  const [attachmentCount, scanCount, printCount] = await Promise.all([
-    ownerType && model !== 'workInstruction'
-      ? tx.documentAttachment.count({ where: { ownerType, ownerId: id } })
-      : Promise.resolve(0),
+  const [scanCount, printCount] = await Promise.all([
     tx.scanCountSession.count({ where: { referenceId: id } }),
     tx.labelPrintJob.count({ where: { referenceId: id } }),
   ])
-  addCountBlocker(blockers, attachmentCount, '附件')
   addCountBlocker(blockers, scanCount, '扫码计数记录')
   addCountBlocker(blockers, printCount, '标签打印记录')
+}
+
+function hasNonZeroCostLayer(layer: {
+  remainingStockQty: number
+  remainingValuationQty: number
+  remainingAmount: number
+}) {
+  return [
+    layer.remainingStockQty,
+    layer.remainingValuationQty,
+    layer.remainingAmount,
+  ].some((value) => Math.abs(Number(value || 0)) > zeroTolerance)
+}
+
+function hasNonZeroMovementTotal(logs: Array<{
+  qty: number
+  valuationQty: number | null
+  costAmount: number | null
+}>) {
+  const totals = logs.reduce<{ qty: number; valuationQty: number; costAmount: number }>((sum, log) => ({
+    qty: sum.qty + Number(log.qty || 0),
+    valuationQty: sum.valuationQty + Number(log.valuationQty || 0),
+    costAmount: sum.costAmount + Number(log.costAmount || 0),
+  }), { qty: 0, valuationQty: 0, costAmount: 0 })
+  return Object.values(totals).some((value) => Math.abs(value) > zeroTolerance)
 }
 
 export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string) {
@@ -95,6 +119,11 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
       : null
 
     const blockers: string[] = []
+    const attachmentOwners: Array<{ ownerType: string; ownerId: string }> = []
+    const ownerType = attachmentOwnerTypes[model]
+    if (ownerType) attachmentOwners.push({ ownerType, ownerId: id })
+    let materialStockId: string | null = null
+    let nestedMaterialInIds: string[] = []
     const allowedStatuses = purgeableDocumentStatuses[model]
     if (allowedStatuses && !allowedStatuses.includes(String(current.status))) {
       blockers.push(`业务状态为 ${current.status}，仅 ${allowedStatuses.join(' / ')} 状态允许永久删除`)
@@ -102,20 +131,29 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
     await addWeakReferenceBlockers(tx, model, id, blockers)
 
     if (model === 'material') {
-      const [stock, counts] = await Promise.all([
+      const [stock, counts, materialIns, costLayers, detachedConsumptionCount] = await Promise.all([
         tx.stock.findUnique({
           where: { materialId: id },
-          include: { _count: { select: { logs: true } } },
+          include: {
+            logs: {
+              select: {
+                id: true,
+                type: true,
+                qty: true,
+                valuationQty: true,
+                costAmount: true,
+                refId: true,
+              },
+            },
+          },
         }),
         tx.material.findUniqueOrThrow({
           where: { id },
           select: {
             _count: {
               select: {
-                costLayers: true,
                 bomItems: true,
                 pickItems: true,
-                materialIns: true,
                 productionOrders: true,
                 workInstructions: true,
                 processTemplates: true,
@@ -127,15 +165,59 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
             },
           },
         }),
+        tx.materialIn.findMany({
+          where: { materialId: id },
+          select: { id: true, status: true, deletedAt: true },
+        }),
+        tx.inventoryCostLayer.findMany({
+          where: { materialId: id },
+          select: {
+            id: true,
+            status: true,
+            remainingStockQty: true,
+            remainingValuationQty: true,
+            remainingAmount: true,
+            _count: { select: { consumptions: true } },
+          },
+        }),
+        tx.costLayerConsumption.count({ where: { materialId: id } }),
       ])
+      materialStockId = stock?.id || null
+      nestedMaterialInIds = materialIns.map((item) => item.id)
+      attachmentOwners.push(...nestedMaterialInIds.map((ownerId) => ({ ownerType: 'MATERIAL_IN', ownerId })))
+
       if (stock) {
         if (hasNonZeroStock(stock)) blockers.push('库存余额或库存金额不为零')
-        addCountBlocker(blockers, stock._count.logs, '库存流水')
       }
-      addCountBlocker(blockers, counts._count.costLayers, '库存成本层')
+      const unsafeMaterialIns = materialIns.filter((item) => (
+        !purgeableNestedMaterialInStatuses.has(item.status) &&
+        !(item.status === 'PENDING' && item.deletedAt)
+      ))
+      addCountBlocker(blockers, unsafeMaterialIns.length, '仍有效或未归档的来料单')
+
+      const unsafeCostLayers = costLayers.filter((layer) => (
+        layer.status !== 'REVERSED' ||
+        hasNonZeroCostLayer(layer) ||
+        layer._count.consumptions > 0
+      ))
+      addCountBlocker(blockers, unsafeCostLayers.length, '未完全红冲的库存成本层')
+      addCountBlocker(blockers, detachedConsumptionCount, '库存成本消耗记录')
+
+      if (stock?.logs.length) {
+        const materialInIdSet = new Set(nestedMaterialInIds)
+        const unsafeLogs = stock.logs.filter((log) => (
+          !purgeableInventoryLogTypes.has(log.type) ||
+          !log.refId ||
+          !materialInIdSet.has(log.refId)
+        ))
+        addCountBlocker(blockers, unsafeLogs.length, '非来料红冲库存流水')
+        if (unsafeLogs.length === 0 && hasNonZeroMovementTotal(stock.logs)) {
+          blockers.push('来料库存流水未完全对冲')
+        }
+      }
+
       addCountBlocker(blockers, counts._count.bomItems, 'BOM 用料')
       addCountBlocker(blockers, counts._count.pickItems, '工单领料')
-      addCountBlocker(blockers, counts._count.materialIns, '来料单')
       addCountBlocker(blockers, counts._count.productionOrders, '生产工单')
       addCountBlocker(blockers, counts._count.workInstructions, '产品文档')
       addCountBlocker(blockers, counts._count.processTemplates, '加工工艺')
@@ -143,7 +225,6 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
       addCountBlocker(blockers, counts._count.dailyProductionConsumptions, '生产日报用料')
       addCountBlocker(blockers, counts._count.shipments, '发货单')
       addCountBlocker(blockers, counts._count.returnOrders, '退货单')
-      if (blockers.length === 0 && stock) await tx.stock.delete({ where: { id: stock.id } })
     } else if (model === 'supplier') {
       const count = await tx.materialIn.count({ where: { supplierId: id } })
       addCountBlocker(blockers, count, '来料单')
@@ -164,14 +245,45 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
       addCountBlocker(blockers, counts._count.materials, '物料')
       addCountBlocker(blockers, counts._count.shipments, '发货单')
     } else if (model === 'materialIn') {
-      const [costLayerCount, stockLogCount] = await Promise.all([
-        tx.inventoryCostLayer.count({
+      const [costLayers, stockLogs] = await Promise.all([
+        tx.inventoryCostLayer.findMany({
           where: { OR: [{ materialInId: id }, { sourceId: id }] },
+          select: {
+            id: true,
+            status: true,
+            remainingStockQty: true,
+            remainingValuationQty: true,
+            remainingAmount: true,
+            _count: { select: { consumptions: true } },
+          },
         }),
-        tx.stockLog.count({ where: { refId: id } }),
+        tx.stockLog.findMany({
+          where: { refId: id },
+          select: {
+            id: true,
+            type: true,
+            qty: true,
+            valuationQty: true,
+            costAmount: true,
+          },
+        }),
       ])
-      addCountBlocker(blockers, costLayerCount, '库存成本层')
-      addCountBlocker(blockers, stockLogCount, '库存流水')
+      if (current.status === 'REVERSED') {
+        const unsafeCostLayers = costLayers.filter((layer) => (
+          layer.status !== 'REVERSED' ||
+          hasNonZeroCostLayer(layer) ||
+          layer._count.consumptions > 0
+        ))
+        const unsafeLogs = stockLogs.filter((log) => !purgeableInventoryLogTypes.has(log.type))
+        addCountBlocker(blockers, unsafeCostLayers.length, '未完全红冲的库存成本层')
+        addCountBlocker(blockers, unsafeLogs.length, '非来料红冲库存流水')
+        if (unsafeLogs.length === 0 && hasNonZeroMovementTotal(stockLogs)) {
+          blockers.push('来料库存流水未完全对冲')
+        }
+      } else {
+        addCountBlocker(blockers, costLayers.length, '库存成本层')
+        addCountBlocker(blockers, stockLogs.length, '库存流水')
+      }
     } else if (model === 'order') {
       const counts = await tx.productionOrder.findUniqueOrThrow({
         where: { id },
@@ -212,10 +324,33 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
       throw new ArchivedRecordPurgeError('归档记录仍有业务引用，不能永久删除', 409, blockers)
     }
 
-    if (model === 'workInstruction') {
+    const ownedAttachments = attachmentOwners.length > 0
+      ? await tx.documentAttachment.findMany({
+          where: { OR: attachmentOwners },
+          select: { storagePath: true },
+        })
+      : []
+    if (attachmentOwners.length > 0) {
       await tx.documentAttachment.deleteMany({
-        where: { ownerType: 'WORK_INSTRUCTION', ownerId: id },
+        where: { OR: attachmentOwners },
       })
+    }
+    if (model === 'material') {
+      await tx.inventoryCostLayer.deleteMany({ where: { materialId: id } })
+      if (materialStockId) {
+        await tx.stockLog.deleteMany({ where: { stockId: materialStockId } })
+      }
+      if (nestedMaterialInIds.length > 0) {
+        await tx.materialIn.deleteMany({ where: { id: { in: nestedMaterialInIds } } })
+      }
+      if (materialStockId) {
+        await tx.stock.delete({ where: { id: materialStockId } })
+      }
+    } else if (model === 'materialIn') {
+      await tx.inventoryCostLayer.deleteMany({
+        where: { OR: [{ materialInId: id }, { sourceId: id }] },
+      })
+      await tx.stockLog.deleteMany({ where: { refId: id } })
     }
     const deleted = await delegate.delete({ where: { id } })
     return {
@@ -225,6 +360,7 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
         ? `${workInstructionMaterial.code} · ${workInstructionMaterial.name}`
         : String(deleted[config.labelField] || deleted.id),
       snapshot: deleted,
+      attachmentStoragePaths: ownedAttachments.map((attachment) => attachment.storagePath),
     }
   })
 }

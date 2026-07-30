@@ -1,6 +1,6 @@
 'use client'
 
-import { CSSProperties, ReactNode, useCallback, useState, useEffect, useMemo, useRef } from 'react'
+import { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode, useCallback, useState, useEffect, useMemo, useRef } from 'react'
 import AttachmentPanel from './AttachmentPanel'
 import StatusCheckboxFilter, { getMultiSelectQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
@@ -64,6 +64,7 @@ interface MaterialBom {
   id: string
   sku: string
   name: string
+  description?: string | null
   category: string
   unit: string
   sourceMaterialId?: string
@@ -122,6 +123,7 @@ const materialCategoryFilterOptions = materialCategoryOptions.map(([value, label
 const materialProductPrefix = 'material:'
 const materialSplitStorageKey = 'mes-lite.materials.splitPercent'
 const bomSummaryFieldsStorageKey = 'mes-lite.materials.bomSummaryFields'
+const materialColumnWidthsStorageKey = 'mes-lite.materials.columnWidths'
 
 const materialSortOptions = [
   { value: 'createdAt', label: '创建时间' },
@@ -156,6 +158,25 @@ const materialVisibleFieldOptions = [
 ] as const
 
 type MaterialVisibleField = (typeof materialVisibleFieldOptions)[number]['key']
+type MaterialTableColumnKey = MaterialVisibleField | 'name' | 'bomSummary' | 'actions'
+type MaterialColumnWidths = Partial<Record<MaterialTableColumnKey, number>>
+
+const materialColumnMinWidths: Record<MaterialTableColumnKey, number> = {
+  image: 72,
+  code: 112,
+  name: 112,
+  category: 80,
+  customer: 112,
+  spec: 96,
+  note: 144,
+  stockUnit: 88,
+  valuationUnit: 160,
+  stock: 96,
+  valuationStock: 96,
+  createdAt: 128,
+  bomSummary: 176,
+  actions: 232,
+}
 
 const bomSummaryFieldOptions = [
   { key: 'name', label: '物料名称' },
@@ -367,20 +388,99 @@ function MaterialPagination({
   )
 }
 
+function ColumnResizeHandle({
+  label,
+  onPointerDown,
+  onReset,
+  onNudge,
+}: {
+  label: string
+  onPointerDown: (event: ReactPointerEvent<HTMLSpanElement>) => void
+  onReset: () => void
+  onNudge: (delta: number) => void
+}) {
+  return (
+    <span
+      role="separator"
+      aria-label={`调整${label}列宽`}
+      aria-orientation="vertical"
+      tabIndex={0}
+      onPointerDown={onPointerDown}
+      onDoubleClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        onReset()
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+        event.preventDefault()
+        event.stopPropagation()
+        onNudge(event.key === 'ArrowRight' ? 12 : -12)
+      }}
+      title="拖动调整列宽，双击恢复自动列宽"
+      className="absolute -right-1 top-0 z-10 flex h-full w-3 cursor-col-resize touch-none items-center justify-center outline-none before:h-5 before:w-px before:bg-gray-300 hover:before:bg-blue-500 focus:before:bg-blue-500"
+    />
+  )
+}
+
+function MaterialTableHeader({
+  columnKey,
+  label,
+  className,
+  style,
+  onResize,
+  onReset,
+  onNudge,
+}: {
+  columnKey: MaterialTableColumnKey
+  label: string
+  className?: string
+  style?: CSSProperties
+  onResize: (column: MaterialTableColumnKey, event: ReactPointerEvent<HTMLSpanElement>) => void
+  onReset: (column: MaterialTableColumnKey) => void
+  onNudge: (column: MaterialTableColumnKey, delta: number) => void
+}) {
+  return (
+    <th
+      scope="col"
+      style={style}
+      className={`relative whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600 ${className || ''}`}
+    >
+      {label}
+      <ColumnResizeHandle
+        label={label}
+        onPointerDown={(event) => onResize(columnKey, event)}
+        onReset={() => onReset(columnKey)}
+        onNudge={(delta) => onNudge(columnKey, delta)}
+      />
+    </th>
+  )
+}
+
 function MaterialSortableHeader({
+  columnKey,
   field,
   label,
   sortBy,
   sortDir,
   className,
+  style,
   onSort,
+  onResize,
+  onReset,
+  onNudge,
 }: {
+  columnKey: MaterialTableColumnKey
   field: MaterialSortBy
   label: string
   sortBy: MaterialSortBy
   sortDir: SortDirection
   className: string
+  style?: CSSProperties
   onSort: (field: MaterialSortBy) => void
+  onResize: (column: MaterialTableColumnKey, event: ReactPointerEvent<HTMLSpanElement>) => void
+  onReset: (column: MaterialTableColumnKey) => void
+  onNudge: (column: MaterialTableColumnKey, delta: number) => void
 }) {
   const active = sortBy === field
 
@@ -388,7 +488,8 @@ function MaterialSortableHeader({
     <th
       scope="col"
       aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-      className={`${className} whitespace-nowrap px-4 py-3 text-left text-sm font-semibold`}
+      style={style}
+      className={`${className} relative whitespace-nowrap px-4 py-3 text-left text-sm font-semibold`}
     >
       <button
         type="button"
@@ -401,6 +502,12 @@ function MaterialSortableHeader({
           {active ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
         </span>
       </button>
+      <ColumnResizeHandle
+        label={label}
+        onPointerDown={(event) => onResize(columnKey, event)}
+        onReset={() => onReset(columnKey)}
+        onNudge={(delta) => onNudge(columnKey, delta)}
+      />
     </th>
   )
 }
@@ -608,10 +715,12 @@ export default function MaterialPage({
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.materials.viewMode', 'list')
   const [visibleFields, setVisibleFields] = useState<MaterialVisibleField[]>(defaultMaterialVisibleFields)
   const [bomSummaryFields, setBomSummaryFields] = useState<BomSummaryField[]>(defaultBomSummaryFields)
+  const [columnWidths, setColumnWidths] = useState<MaterialColumnWidths>({})
   const [splitPercent, setSplitPercent] = useState(46)
   const [isResizingSplit, setIsResizingSplit] = useState(false)
   const [bomAuxiliaryView, setBomAuxiliaryView] = useState<'components' | 'usage'>('components')
   const splitContainerRef = useRef<HTMLDivElement>(null)
+  const columnResizeCleanupRef = useRef<(() => void) | null>(null)
   const isCompactViewport = useCompactViewport()
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
   const [form, setForm] = useState(createEmptyMaterialForm())
@@ -732,6 +841,27 @@ export default function MaterialPage({
   }, [])
 
   useEffect(() => {
+    const saved = window.localStorage.getItem(materialColumnWidthsStorageKey)
+    if (!saved) return
+    try {
+      const parsed = JSON.parse(saved) as Record<string, unknown>
+      const allowed = new Set(Object.keys(materialColumnMinWidths))
+      const next = Object.fromEntries(Object.entries(parsed).filter(([key, value]) => (
+        allowed.has(key) &&
+        typeof value === 'number' &&
+        Number.isFinite(value) &&
+        value >= materialColumnMinWidths[key as MaterialTableColumnKey] &&
+        value <= 720
+      ))) as MaterialColumnWidths
+      setColumnWidths(next)
+    } catch (err) {
+      // ignore invalid local preference
+    }
+  }, [])
+
+  useEffect(() => () => columnResizeCleanupRef.current?.(), [])
+
+  useEffect(() => {
     const saved = Number(window.localStorage.getItem(materialSplitStorageKey))
     if (Number.isFinite(saved) && saved >= 28 && saved <= 70) {
       setSplitPercent(saved)
@@ -787,6 +917,73 @@ export default function MaterialPage({
   const updateBomSummaryFields = (next: BomSummaryField[]) => {
     setBomSummaryFields(next)
     window.localStorage.setItem(bomSummaryFieldsStorageKey, JSON.stringify(next))
+  }
+
+  const updateColumnWidth = useCallback((column: MaterialTableColumnKey, width: number) => {
+    setColumnWidths((current) => {
+      const next = {
+        ...current,
+        [column]: Math.min(720, Math.max(materialColumnMinWidths[column], Math.round(width))),
+      }
+      window.localStorage.setItem(materialColumnWidthsStorageKey, JSON.stringify(next))
+      return next
+    })
+  }, [])
+
+  const resetColumnWidth = useCallback((column: MaterialTableColumnKey) => {
+    setColumnWidths((current) => {
+      const next = { ...current }
+      delete next[column]
+      window.localStorage.setItem(materialColumnWidthsStorageKey, JSON.stringify(next))
+      return next
+    })
+  }, [])
+
+  const resetAllColumnWidths = useCallback(() => {
+    columnResizeCleanupRef.current?.()
+    setColumnWidths({})
+    window.localStorage.removeItem(materialColumnWidthsStorageKey)
+  }, [])
+
+  const nudgeColumnWidth = useCallback((column: MaterialTableColumnKey, delta: number) => {
+    updateColumnWidth(column, (columnWidths[column] || materialColumnMinWidths[column]) + delta)
+  }, [columnWidths, updateColumnWidth])
+
+  const startColumnResize = useCallback((
+    column: MaterialTableColumnKey,
+    event: ReactPointerEvent<HTMLSpanElement>,
+  ) => {
+    event.preventDefault()
+    event.stopPropagation()
+    columnResizeCleanupRef.current?.()
+    const header = event.currentTarget.closest('th')
+    if (!header) return
+    const startX = event.clientX
+    const startWidth = header.getBoundingClientRect().width
+
+    const cleanup = () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', cleanup)
+      window.removeEventListener('pointercancel', cleanup)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      columnResizeCleanupRef.current = null
+    }
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      updateColumnWidth(column, startWidth + moveEvent.clientX - startX)
+    }
+
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', cleanup)
+    window.addEventListener('pointercancel', cleanup)
+    columnResizeCleanupRef.current = cleanup
+  }, [updateColumnWidth])
+
+  const columnStyle = (column: MaterialTableColumnKey): CSSProperties | undefined => {
+    const width = columnWidths[column]
+    return width ? { width, minWidth: width, maxWidth: width } : undefined
   }
 
   const buildMaterialParams = () => {
@@ -1041,9 +1238,12 @@ export default function MaterialPage({
 
   const getBomSummary = (material: Material) => {
     const product = getMaterialBomProduct(material)
-    const items = product?.bom?.items.filter((item) => item.itemType === 'MATERIAL' && item.material) || []
+    const componentItems = product?.bom?.items.filter((item) => item.itemType === 'MATERIAL' && item.material) || []
+    const usageItems = bomProducts.flatMap((usageProduct) => (usageProduct.bom?.items || [])
+      .filter((item) => item.itemType === 'MATERIAL' && item.material?.id === material.id)
+      .map((item) => ({ product: usageProduct, item })))
     const selected = new Set(bomSummaryFields)
-    const itemText = (item: BomItem) => {
+    const componentText = (item: BomItem) => {
       const parts: string[] = []
       if (selected.has('name')) parts.push(item.material?.name || '物料')
       if (selected.has('spec') && item.material?.spec) parts.push(item.material.spec)
@@ -1053,11 +1253,28 @@ export default function MaterialPage({
       if (selected.has('wastageRate')) parts.push(`损耗 ${qty(item.wastageRate, 2)}%`)
       return parts.filter(Boolean).join(' · ')
     }
+    const usageText = ({ product: usageProduct, item }: { product: MaterialBom; item: BomItem }) => {
+      const parts: string[] = []
+      if (selected.has('name')) parts.push(usageProduct.name)
+      if (selected.has('spec') && usageProduct.description) parts.push(usageProduct.description)
+      if (selected.has('code')) parts.push(usageProduct.sku)
+      if (selected.has('quantity')) parts.push(qty(item.quantity, 4))
+      if (selected.has('unit')) parts.push(item.unit || material.stockUnit || material.unit)
+      if (selected.has('wastageRate')) parts.push(`损耗 ${qty(item.wastageRate, 2)}%`)
+      return parts.filter(Boolean).join(' · ')
+    }
+    const sections: string[] = []
+    if (componentItems.length > 0) {
+      sections.push(`组成：${componentItems.slice(0, 2).map(componentText).join('，')}`)
+    }
+    if (usageItems.length > 0) {
+      sections.push(`用于：${usageItems.slice(0, 2).map(usageText).join('，')}`)
+    }
     return {
-      count: items.length,
-      text: items.length === 0
-        ? '无 BOM'
-        : items.slice(0, 2).map(itemText).join('，'),
+      count: componentItems.length + usageItems.length,
+      componentCount: componentItems.length,
+      usageCount: new Set(usageItems.map(({ product: usageProduct }) => usageProduct.id)).size,
+      text: sections.join('；') || '无 BOM 关联',
     }
   }
 
@@ -1268,6 +1485,15 @@ export default function MaterialPage({
                 onChange={updateBomSummaryFields}
               />
             )}
+            {effectiveViewMode === 'list' && Object.keys(columnWidths).length > 0 && (
+              <button
+                type="button"
+                onClick={resetAllColumnWidths}
+                className="h-9 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                恢复自动列宽
+              </button>
+            )}
           </>
         )}
         actions={(
@@ -1299,7 +1525,7 @@ export default function MaterialPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, sortBy, sortDir, viewMode, setViewMode, visibleFields, bomSummaryFields, activeFilterLabels, showBomWorkspace])
+  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, sortBy, sortDir, viewMode, setViewMode, visibleFields, bomSummaryFields, activeFilterLabels, showBomWorkspace, effectiveViewMode, columnWidths, resetAllColumnWidths])
 
   return (
     <>
@@ -1364,6 +1590,15 @@ export default function MaterialPage({
                   value={bomSummaryFields}
                   onChange={updateBomSummaryFields}
                 />
+              )}
+              {effectiveViewMode === 'list' && Object.keys(columnWidths).length > 0 && (
+                <button
+                  type="button"
+                  onClick={resetAllColumnWidths}
+                  className="h-9 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  恢复自动列宽
+                </button>
               )}
             </>
           )}
@@ -1481,7 +1716,7 @@ export default function MaterialPage({
                   <div className={`mt-2 rounded border-l-2 px-2 py-1.5 text-xs ${bomSummary.count > 0 ? 'border-emerald-400 bg-emerald-50 text-emerald-800' : 'border-gray-300 bg-gray-50 text-gray-500'}`}>
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium">BOM</span>
-                      <span>{bomSummary.count} 项</span>
+                      <span>组成 {bomSummary.componentCount} · 被引用 {bomSummary.usageCount}</span>
                     </div>
                     <div className="mt-0.5 truncate" title={bomSummary.text}>{bomSummary.text}</div>
                   </div>
@@ -1520,23 +1755,23 @@ export default function MaterialPage({
         ) : (
           <>
             <div className="overflow-x-auto rounded-lg border border-gray-100">
-              <table className="w-full min-w-max">
+              <table className="min-w-full table-auto">
               <thead className="bg-gray-50">
                 <tr>
-                  {showField('image') && <th className="w-20 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">图片</th>}
-                  {showField('code') && <MaterialSortableHeader field="code" label="物料编码" sortBy={sortBy} sortDir={sortDir} className="w-36" onSort={handleHeaderSort} />}
-                  <MaterialSortableHeader field="name" label="物料名称" sortBy={sortBy} sortDir={sortDir} className="w-36" onSort={handleHeaderSort} />
-                  {showField('category') && <MaterialSortableHeader field="category" label="分类" sortBy={sortBy} sortDir={sortDir} className="w-24" onSort={handleHeaderSort} />}
-                  {showField('customer') && <MaterialSortableHeader field="customer" label="归属客户" sortBy={sortBy} sortDir={sortDir} className="w-44" onSort={handleHeaderSort} />}
-                  {showField('spec') && <MaterialSortableHeader field="spec" label="规格" sortBy={sortBy} sortDir={sortDir} className="w-32" onSort={handleHeaderSort} />}
-                  {showField('note') && <MaterialSortableHeader field="note" label="备注" sortBy={sortBy} sortDir={sortDir} className="w-56" onSort={handleHeaderSort} />}
-                  {showField('stockUnit') && <MaterialSortableHeader field="stockUnit" label="库存单位" sortBy={sortBy} sortDir={sortDir} className="w-24" onSort={handleHeaderSort} />}
-                  {showField('valuationUnit') && <MaterialSortableHeader field="valuationUnit" label="核算单位" sortBy={sortBy} sortDir={sortDir} className="w-48" onSort={handleHeaderSort} />}
-                  {showField('stock') && <MaterialSortableHeader field="stock" label="库存" sortBy={sortBy} sortDir={sortDir} className="w-28" onSort={handleHeaderSort} />}
-                  {showField('valuationStock') && <MaterialSortableHeader field="valuationStock" label="核算库存" sortBy={sortBy} sortDir={sortDir} className="w-28" onSort={handleHeaderSort} />}
-                  {showField('createdAt') && <MaterialSortableHeader field="createdAt" label="创建时间" sortBy={sortBy} sortDir={sortDir} className="w-32" onSort={handleHeaderSort} />}
-                  {showBomWorkspace && <th className="w-56 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">BOM 简况</th>}
-                  <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
+                  {showField('image') && <MaterialTableHeader columnKey="image" label="图片" style={columnStyle('image')} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
+                  {showField('code') && <MaterialSortableHeader columnKey="code" field="code" label="物料编码" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('code')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
+                  <MaterialSortableHeader columnKey="name" field="name" label="物料名称" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('name')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />
+                  {showField('category') && <MaterialSortableHeader columnKey="category" field="category" label="分类" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('category')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
+                  {showField('customer') && <MaterialSortableHeader columnKey="customer" field="customer" label="归属客户" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('customer')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
+                  {showField('spec') && <MaterialSortableHeader columnKey="spec" field="spec" label="规格" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('spec')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
+                  {showField('note') && <MaterialSortableHeader columnKey="note" field="note" label="备注" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('note')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
+                  {showField('stockUnit') && <MaterialSortableHeader columnKey="stockUnit" field="stockUnit" label="库存单位" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('stockUnit')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
+                  {showField('valuationUnit') && <MaterialSortableHeader columnKey="valuationUnit" field="valuationUnit" label="核算单位" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('valuationUnit')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
+                  {showField('stock') && <MaterialSortableHeader columnKey="stock" field="stock" label="库存" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('stock')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
+                  {showField('valuationStock') && <MaterialSortableHeader columnKey="valuationStock" field="valuationStock" label="核算库存" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('valuationStock')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
+                  {showField('createdAt') && <MaterialSortableHeader columnKey="createdAt" field="createdAt" label="创建时间" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('createdAt')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
+                  {showBomWorkspace && <MaterialTableHeader columnKey="bomSummary" label="BOM 简况" style={columnStyle('bomSummary')} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
+                  <MaterialTableHeader columnKey="actions" label="操作" style={columnStyle('actions')} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -1552,7 +1787,7 @@ export default function MaterialPage({
                     className={`align-top transition ${showBomWorkspace ? 'cursor-pointer' : ''} ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
                   >
                     {showField('image') && (
-                      <td className="px-4 py-3">
+                      <td style={columnStyle('image')} className="overflow-hidden px-4 py-3">
                         <button
                           onClick={() => handleViewDetail(material)}
                           className="h-12 w-12 overflow-hidden rounded border border-gray-200 bg-gray-50"
@@ -1566,35 +1801,35 @@ export default function MaterialPage({
                         </button>
                       </td>
                     )}
-                    {showField('code') && <td className="whitespace-nowrap px-4 py-3 font-mono text-sm text-blue-600">{material.code}</td>}
-                    <td className="whitespace-nowrap px-4 py-3 text-sm font-medium">{material.name}</td>
-                    {showField('category') && <td className="whitespace-nowrap px-4 py-3 text-sm">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</td>}
-                    {showField('customer') && <td className="px-4 py-3 text-sm">{material.customer?.name || '通用/未绑定'}</td>}
-                    {showField('spec') && <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">{material.spec || '-'}</td>}
-                    {showField('note') && <td className="max-w-xs px-4 py-3 text-sm text-gray-500">{material.note || '-'}</td>}
-                    {showField('stockUnit') && <td className="whitespace-nowrap px-4 py-3 text-sm">{material.stockUnit || material.unit}</td>}
+                    {showField('code') && <td style={columnStyle('code')} className="overflow-hidden px-4 py-3 font-mono text-sm text-blue-600"><div className="truncate" title={material.code}>{material.code}</div></td>}
+                    <td style={columnStyle('name')} className="overflow-hidden px-4 py-3 text-sm font-medium"><div className="truncate" title={material.name}>{material.name}</div></td>
+                    {showField('category') && <td style={columnStyle('category')} className="overflow-hidden px-4 py-3 text-sm"><div className="truncate">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</div></td>}
+                    {showField('customer') && <td style={columnStyle('customer')} className="overflow-hidden px-4 py-3 text-sm"><div className="truncate" title={material.customer?.name || '通用/未绑定'}>{material.customer?.name || '通用/未绑定'}</div></td>}
+                    {showField('spec') && <td style={columnStyle('spec')} className="overflow-hidden px-4 py-3 text-sm text-gray-500"><div className="truncate" title={material.spec || '-'}>{material.spec || '-'}</div></td>}
+                    {showField('note') && <td style={columnStyle('note')} className="overflow-hidden px-4 py-3 text-sm text-gray-500"><div className="line-clamp-2" title={material.note || '-'}>{material.note || '-'}</div></td>}
+                    {showField('stockUnit') && <td style={columnStyle('stockUnit')} className="overflow-hidden px-4 py-3 text-sm"><div className="truncate">{material.stockUnit || material.unit}</div></td>}
                     {showField('valuationUnit') && (
-                      <td className="px-4 py-3 text-sm">
-                        <div className="whitespace-nowrap">{material.valuationUnit || material.unit}</div>
-                        <div className="whitespace-nowrap text-xs text-gray-500">1 {material.stockUnit || material.unit} = {material.conversionRate || 1} {material.valuationUnit || material.unit}</div>
-                        <div className="whitespace-nowrap text-xs text-gray-500">成本法：{material.costingMethod === 'FIFO' ? '先入先出' : '移动加权平均'}</div>
+                      <td style={columnStyle('valuationUnit')} className="overflow-hidden px-4 py-3 text-sm">
+                        <div className="truncate">{material.valuationUnit || material.unit}</div>
+                        <div className="truncate text-xs text-gray-500">1 {material.stockUnit || material.unit} = {material.conversionRate || 1} {material.valuationUnit || material.unit}</div>
+                        <div className="truncate text-xs text-gray-500">成本法：{material.costingMethod === 'FIFO' ? '先入先出' : '移动加权平均'}</div>
                       </td>
                     )}
-                    {showField('stock') && <td className="whitespace-nowrap px-4 py-3 text-sm">{material.stock?.qty || 0} {material.stockUnit || material.unit}</td>}
-                    {showField('valuationStock') && <td className="whitespace-nowrap px-4 py-3 text-sm text-green-600">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</td>}
-                    {showField('createdAt') && <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-500">{new Date(material.createdAt).toLocaleString('zh-CN')}</td>}
+                    {showField('stock') && <td style={columnStyle('stock')} className="overflow-hidden px-4 py-3 text-sm"><div className="truncate">{material.stock?.qty || 0} {material.stockUnit || material.unit}</div></td>}
+                    {showField('valuationStock') && <td style={columnStyle('valuationStock')} className="overflow-hidden px-4 py-3 text-sm text-green-600"><div className="truncate">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</div></td>}
+                    {showField('createdAt') && <td style={columnStyle('createdAt')} className="overflow-hidden px-4 py-3 text-xs text-gray-500"><div className="truncate">{new Date(material.createdAt).toLocaleString('zh-CN')}</div></td>}
                     {bomSummary && (
-                      <td className="px-4 py-3 text-sm">
+                      <td style={columnStyle('bomSummary')} className="overflow-hidden px-4 py-3 text-sm">
                         <div className={`rounded-lg border px-2 py-1.5 text-xs ${bomSummary.count > 0 ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : 'border-gray-100 bg-gray-50 text-gray-500'}`}>
                           <div className="flex items-center justify-between gap-2">
                             <span className="font-medium">BOM</span>
-                            <span>{bomSummary.count} 项</span>
+                            <span>组成 {bomSummary.componentCount} · 被引用 {bomSummary.usageCount}</span>
                           </div>
                           <div className="mt-1 line-clamp-2">{bomSummary.text}</div>
                         </div>
                       </td>
                     )}
-                    <td className="whitespace-nowrap px-4 py-3">
+                    <td style={columnStyle('actions')} className="overflow-hidden whitespace-nowrap px-4 py-3">
                       <button
                         onClick={() => handleOpenPanorama(material)}
                         className="px-3 py-1 text-blue-700 border border-blue-300 rounded text-xs hover:bg-blue-50 transition"

@@ -15,13 +15,15 @@ const purgeSchema = z.object({
   confirmation: z.literal('永久删除'),
 })
 
-async function removeWorkInstructionFiles(id: string) {
-  const uploadRoot = path.resolve(process.cwd(), 'public', 'uploads', 'WORK_INSTRUCTION')
-  const ownerDirectory = path.resolve(uploadRoot, id.replace(/[^a-zA-Z0-9_-]/g, '_'))
-  if (!ownerDirectory.startsWith(`${uploadRoot}${path.sep}`)) {
-    throw new Error('非法的产品文档附件目录')
+async function removeAttachmentFiles(storagePaths: string[]) {
+  const uploadRoot = path.resolve(process.cwd(), 'public', 'uploads')
+  for (const storagePath of storagePaths) {
+    const resolvedPath = path.resolve(storagePath)
+    if (!resolvedPath.startsWith(`${uploadRoot}${path.sep}`)) {
+      throw new Error('非法的附件文件路径')
+    }
+    await rm(resolvedPath, { force: true })
   }
-  await rm(ownerDirectory, { recursive: true, force: true })
 }
 
 export async function GET(req: NextRequest) {
@@ -114,12 +116,12 @@ export async function DELETE(req: NextRequest) {
 
     const result = await purgeArchivedRecord(input.data.model, input.data.id)
     let fileCleanupFailed = false
-    if (input.data.model === 'workInstruction') {
+    if (result.attachmentStoragePaths.length > 0) {
       try {
-        await removeWorkInstructionFiles(input.data.id)
+        await removeAttachmentFiles(result.attachmentStoragePaths)
       } catch (error) {
         fileCleanupFailed = true
-        console.error('Remove product document files error:', error)
+        console.error('Remove archived record attachment files error:', error)
       }
     }
     await writeAuditLog(req, {

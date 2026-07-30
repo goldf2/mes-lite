@@ -1431,7 +1431,7 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold">归档记录</h3>
-          <p className="text-sm text-gray-500 mt-1">归档记录可以恢复；没有库存、单据、附件等业务引用时，也可永久删除并释放占用的编码。</p>
+          <p className="text-sm text-gray-500 mt-1">归档记录可以恢复；没有有效库存和下游业务引用时可永久删除并释放编码，完整红冲且净影响为零的来料历史会一并清理。</p>
         </div>
         <div className="flex flex-wrap items-center gap-3 sm:justify-end">
           <div className="hidden lg:block">

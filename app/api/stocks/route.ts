@@ -255,12 +255,15 @@ export async function GET(req: NextRequest) {
     const visibleStocks = (includeInvalid ? stocksWithImages : stocksWithImages.filter((stock) => !stock.material?.deletedAt || hasStockBalance(stock)))
       .filter((stock) => stock.material || hasStockBalance(stock))
 
-    const filtered = keyword
+    const normalizedKeyword = keyword?.trim().toLocaleLowerCase('zh-CN')
+    const filtered = normalizedKeyword
       ? visibleStocks.filter(s =>
-          s.material?.name?.includes(keyword) ||
-          s.material?.code?.includes(keyword) ||
-          s.product?.name?.includes(keyword) ||
-          s.product?.sku?.includes(keyword)
+          [
+            s.material?.name,
+            s.material?.code,
+            s.product?.name,
+            s.product?.sku,
+          ].some((value) => value?.toLocaleLowerCase('zh-CN').includes(normalizedKeyword))
         )
       : visibleStocks
 
