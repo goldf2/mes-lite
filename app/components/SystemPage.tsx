@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import { useModalGlassPreference } from './interfacePreferences'
 import MaterialChoiceSearch from './MaterialChoiceSearch'
+import { SearchFieldWithPresets } from './SavedSearchPresets'
 import useCompactViewport from './useCompactViewport'
 
 interface Supplier {
@@ -529,11 +530,12 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
           <div className="hidden lg:block">
             <ViewModeToggle value={viewMode} onChange={setViewMode} />
           </div>
-          <input
+          <SearchFieldWithPresets
+            storageKey="mes-lite.searchPresets.suppliers"
             value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            onChange={setKeyword}
             placeholder="搜索编码、名称、联系人、电话"
-            className="w-full rounded-lg border border-gray-200 px-4 py-2 text-sm sm:w-64"
+            className="flex w-full items-center gap-2 sm:w-[420px]"
           />
           <button onClick={openAdd} className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 sm:w-auto">
             新增供应商
@@ -760,11 +762,12 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
           <div className="hidden lg:block">
             <ViewModeToggle value={viewMode} onChange={setViewMode} />
           </div>
-          <input
+          <SearchFieldWithPresets
+            storageKey="mes-lite.searchPresets.customers"
             value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            onChange={setKeyword}
             placeholder="搜索名称、联系人、电话"
-            className="w-full rounded-lg border border-gray-200 px-4 py-2 text-sm sm:w-64"
+            className="flex w-full items-center gap-2 sm:w-[420px]"
           />
           <button onClick={openAdd} className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 sm:w-auto">
             新增客户

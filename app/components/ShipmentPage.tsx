@@ -8,6 +8,7 @@ import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import useCompactViewport from './useCompactViewport'
 import MaterialChoiceSearch from './MaterialChoiceSearch'
+import { SearchFieldWithPresets } from './SavedSearchPresets'
 
 interface MaterialChoice {
   id: string
@@ -252,12 +253,11 @@ export default function ShipmentPage({
     onToolbarChange(
       <ResponsiveToolbarActions
         primaryFilters={(
-          <input
-            type="text"
+          <SearchFieldWithPresets
+            storageKey="mes-lite.searchPresets.shipments"
             value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            onChange={setKeyword}
             placeholder="搜索发货单号、物料、客户或物流号"
-            className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
           />
         )}
         filters={(
@@ -308,12 +308,11 @@ export default function ShipmentPage({
       <TopBarPortal>
         <ResponsiveToolbarActions
           primaryFilters={(
-            <input
-              type="text"
+            <SearchFieldWithPresets
+              storageKey="mes-lite.searchPresets.shipments"
               value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
+              onChange={setKeyword}
               placeholder="搜索发货单号、物料、客户或物流号"
-              className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
             />
           )}
           filters={(

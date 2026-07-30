@@ -7,6 +7,7 @@ import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import useCompactViewport from './useCompactViewport'
+import { SearchFieldWithPresets } from './SavedSearchPresets'
 import MaterialChoiceSearch from './MaterialChoiceSearch'
 
 interface MaterialChoice {
@@ -201,12 +202,11 @@ export default function ReturnPage({
     onToolbarChange(
       <ResponsiveToolbarActions
         primaryFilters={(
-          <input
-            type="text"
+          <SearchFieldWithPresets
+            storageKey="mes-lite.searchPresets.returns"
             value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            onChange={setKeyword}
             placeholder="搜索退货单号、物料、发货单或原因"
-            className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
           />
         )}
         filters={(
@@ -257,12 +257,11 @@ export default function ReturnPage({
       <TopBarPortal>
         <ResponsiveToolbarActions
           primaryFilters={(
-            <input
-              type="text"
+            <SearchFieldWithPresets
+              storageKey="mes-lite.searchPresets.returns"
               value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
+              onChange={setKeyword}
               placeholder="搜索退货单号、物料、发货单或原因"
-              className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
             />
           )}
           filters={(

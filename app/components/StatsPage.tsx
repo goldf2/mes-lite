@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import MaterialChoiceSearch from './MaterialChoiceSearch'
 import ModalOverlay from './ModalOverlay'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
+import { SearchFieldWithPresets } from './SavedSearchPresets'
 
 interface BomItem {
   id: string
@@ -361,11 +362,13 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
 
       <section className="rounded-lg bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-center">
-          <input
+          <SearchFieldWithPresets
+            storageKey="mes-lite.searchPresets.productionReports"
             value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
+            onChange={setKeyword}
             placeholder="输入日报号、物料、人员或备注筛选"
-            className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex min-w-0 flex-1 items-center gap-2"
+            inputClassName="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
           />
           <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
             <option value="ALL">全部状态</option>

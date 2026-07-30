@@ -10,6 +10,7 @@ import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
 import ViewModeToggle, { usePersistedViewMode } from './components/ViewModeToggle'
 import useCompactViewport from './components/useCompactViewport'
 import { InterfacePreferenceSync } from './components/interfacePreferences'
+import { SearchFieldWithPresets } from './components/SavedSearchPresets'
 import type { SystemSection } from './components/SystemPage'
 
 function FeaturePageLoading() {
@@ -1035,12 +1036,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 {tab === 'orders' ? (
                   <ResponsiveToolbarActions
                     primaryFilters={(
-                      <input
-                        type="text"
+                      <SearchFieldWithPresets
+                        storageKey="mes-lite.searchPresets.orders"
                         value={orderKeyword}
-                        onChange={(e) => setOrderKeyword(e.target.value)}
+                        onChange={setOrderKeyword}
                         placeholder="搜索工单号、凭据号或物料"
-                        className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
                       />
                     )}
                     filters={(
@@ -1070,12 +1070,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 ) : tab === 'stocks' ? (
                   <ResponsiveToolbarActions
                     primaryFilters={(
-                      <input
-                        type="text"
+                      <SearchFieldWithPresets
+                        storageKey="mes-lite.searchPresets.stocks"
                         value={stockKeyword}
-                        onChange={(e) => setStockKeyword(e.target.value)}
+                        onChange={setStockKeyword}
                         placeholder="搜索物料或编码"
-                        className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] px-4 py-2 border border-gray-200 rounded-lg text-sm"
                       />
                     )}
                     filters={(

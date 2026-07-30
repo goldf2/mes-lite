@@ -9,6 +9,7 @@ import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import useCompactViewport from './useCompactViewport'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import DocumentPreviewThumb from './DocumentPreviewThumb'
+import { SearchFieldWithPresets } from './SavedSearchPresets'
 import DocumentCategoryManagerModal, {
   DocumentCategoryItem,
   documentCategoryLabel,
@@ -722,12 +723,11 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const toolbar = (
     <ResponsiveToolbarActions
       primaryFilters={(
-        <input
-          type="text"
+        <SearchFieldWithPresets
+          storageKey="mes-lite.searchPresets.documents"
           value={keyword}
-          onChange={(event) => setKeyword(event.target.value)}
+          onChange={setKeyword}
           placeholder="搜索产品、文档类别或备注"
-          className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] rounded-lg border border-gray-200 px-4 py-2 text-sm"
         />
       )}
       filterCount={activeFilterLabels.length}

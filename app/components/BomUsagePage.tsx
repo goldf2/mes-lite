@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { SearchFieldWithPresets } from './SavedSearchPresets'
 
 interface MaterialOption {
   id: string
@@ -111,12 +112,13 @@ export default function BomUsagePage({
           <h2 className="text-xl font-semibold text-gray-900">BOM 反查</h2>
           <p className="mt-1 text-sm text-gray-500">从原材料出发，查看它被哪些产品 BOM 使用</p>
         </div>
-        <input
-          type="search"
+        <SearchFieldWithPresets
+          storageKey="mes-lite.searchPresets.bomUsage"
           value={keyword}
-          onChange={(event) => setKeyword(event.target.value)}
+          onChange={setKeyword}
           placeholder="搜索原材料、产品或客户"
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 sm:max-w-sm"
+          className="flex w-full items-center gap-2 sm:max-w-[450px]"
+          inputClassName="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
         />
       </header>
 

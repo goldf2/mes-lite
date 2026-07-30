@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
+import { SearchFieldWithPresets } from './SavedSearchPresets'
 
 interface ResourceItem {
   key: string
@@ -298,11 +299,13 @@ export default function PermissionPage({
           <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
             <div className="px-4 py-3 bg-gray-900 text-white text-sm font-medium">人员列表 ({operators.length})</div>
             <div className="p-3 border-b border-gray-100">
-              <input
+              <SearchFieldWithPresets
+                storageKey="mes-lite.searchPresets.permissionUsers"
                 value={searchKeyword}
-                onChange={(event) => setSearchKeyword(event.target.value)}
+                onChange={setSearchKeyword}
                 placeholder="搜索账号、姓名或角色"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                className="flex w-full items-center gap-2"
+                inputClassName="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm"
               />
             </div>
             <div className="max-h-[480px] overflow-y-auto">
