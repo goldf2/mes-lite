@@ -3,6 +3,11 @@ export function normalizeConversionRate(value: unknown) {
   return Number.isFinite(rate) && rate > 0 ? rate : 1
 }
 
+export function isMeterUnit(value: unknown) {
+  const unit = String(value || '').trim().toLowerCase()
+  return unit === 'm' || unit === '米'
+}
+
 export function toValuationQty(stockQty: number, conversionRate: number) {
   return Number((stockQty * normalizeConversionRate(conversionRate)).toFixed(6))
 }

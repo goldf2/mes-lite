@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { materialAsProductOption, resolveProductId, simpleProductSku } from '@/lib/material-product'
+import { isMeterUnit } from '@/lib/units'
 
 export const dynamic = 'force-dynamic'
 
@@ -148,10 +149,19 @@ export async function PUT(req: NextRequest) {
     }
     const materials = await prisma.material.findMany({
       where: { id: { in: materialIds }, deletedAt: null },
-      select: { id: true, stockUnit: true, unit: true },
+      select: { id: true, primaryMeasure: true, stockUnit: true, unit: true },
     })
     if (materials.length !== materialIds.length) {
       return NextResponse.json({ error: 'BOM 中存在无效或已归档物料' }, { status: 400 })
+    }
+    const invalidLengthMaterial = materials.find((material) => (
+      material.primaryMeasure === 'LENGTH' && !isMeterUnit(material.stockUnit || material.unit)
+    ))
+    if (invalidLengthMaterial) {
+      return NextResponse.json(
+        { error: '长度原料的主库存单位必须为 m，BOM 尺寸录入值会统一换算为米保存' },
+        { status: 400 },
+      )
     }
 
     const materialById = new Map(materials.map((material) => [material.id, material]))
