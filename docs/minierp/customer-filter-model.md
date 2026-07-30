@@ -24,8 +24,8 @@
 | 库存管理 | 用户侧按 `Material.customerId`；旧兼容库存按 `Product.customerId` 兜底。 |
 | 来料管理 | 按来料物料的 `Material.customerId` 筛选；供应商筛选仍作为采购侧辅助维度。 |
 | 派工管理 | 按目标物料客户筛选；旧工单缺少目标物料时按内部兼容 `Product.customerId` 兜底。 |
-| 作业指导书管理 | 可按指导书绑定物料的客户或指导书自身 `customerId` 筛选。 |
-| 物料全景图 | 只显示 `WorkInstruction.materialId` 精确等于当前物料的指导书，不自动混入同客户指导书。 |
+| 产品文档管理 | 只按关联产品的 `Material.customerId` 筛选，不保存独立客户字段。 |
+| 物料全景图 | 只显示 `WorkInstruction.materialId` 精确等于当前产品的文档，不自动混入同客户其他产品的文档。 |
 | 发货管理 | 按发货单绑定客户筛选，送货单客户名称保留为文本快照。 |
 | 退货管理 | 优先按关联发货单客户筛选；无发货单时按内部兼容记录客户兜底。 |
 

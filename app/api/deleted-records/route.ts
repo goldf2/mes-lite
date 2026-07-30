@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { ArchivedRecordPurgeError, purgeArchivedRecord } from '@/lib/archived-record-purge'
+import { rm } from 'fs/promises'
+import path from 'path'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +14,15 @@ const purgeSchema = z.object({
   id: z.string().min(1),
   confirmation: z.literal('永久删除'),
 })
+
+async function removeWorkInstructionFiles(id: string) {
+  const uploadRoot = path.resolve(process.cwd(), 'public', 'uploads', 'WORK_INSTRUCTION')
+  const ownerDirectory = path.resolve(uploadRoot, id.replace(/[^a-zA-Z0-9_-]/g, '_'))
+  if (!ownerDirectory.startsWith(`${uploadRoot}${path.sep}`)) {
+    throw new Error('非法的产品文档附件目录')
+  }
+  await rm(ownerDirectory, { recursive: true, force: true })
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -51,7 +62,7 @@ export async function GET(req: NextRequest) {
     if (model === 'all' || model === 'workInstruction') {
       result.workInstructions = await prisma.workInstruction.findMany({
         where: { deletedAt: { not: null } },
-        include: { material: true, customer: true },
+        include: { material: true },
         orderBy: { deletedAt: 'desc' },
       })
     }
@@ -102,6 +113,15 @@ export async function DELETE(req: NextRequest) {
     }
 
     const result = await purgeArchivedRecord(input.data.model, input.data.id)
+    let fileCleanupFailed = false
+    if (input.data.model === 'workInstruction') {
+      try {
+        await removeWorkInstructionFiles(input.data.id)
+      } catch (error) {
+        fileCleanupFailed = true
+        console.error('Remove product document files error:', error)
+      }
+    }
     await writeAuditLog(req, {
       action: 'PURGE',
       entityType: result.entityType,
@@ -111,7 +131,12 @@ export async function DELETE(req: NextRequest) {
       note: '从归档记录永久删除；此操作不可恢复',
     })
 
-    return NextResponse.json({ message: '归档记录已永久删除' })
+    return NextResponse.json({
+      message: fileCleanupFailed
+        ? '归档记录已永久删除，但附件文件目录清理失败，请检查服务器存储'
+        : '归档记录已永久删除',
+      fileCleanupFailed,
+    })
   } catch (error) {
     if (error instanceof ArchivedRecordPurgeError) {
       return NextResponse.json({

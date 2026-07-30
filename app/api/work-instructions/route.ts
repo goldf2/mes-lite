@@ -6,27 +6,20 @@ import { writeAuditLog } from '@/lib/audit'
 import { parseCsvFilter } from '@/lib/status-filter'
 
 const workInstructionSchema = z.object({
-  code: z.string().min(1, '指导书编码必填'),
-  title: z.string().min(1, '指导书标题必填'),
-  category: z.enum(['PROCESS', 'QUALITY', 'PACKAGING', 'SAFETY', 'MAINTENANCE', 'OTHER']).optional(),
+  materialId: z.string().min(1, '请选择关联产品'),
+  category: z.enum(['WORK_INSTRUCTION', 'DRAWING', 'PROCESS', 'QUALITY', 'PACKAGING', 'EQUIPMENT', 'OTHER']).optional(),
   version: z.string().optional(),
   status: z.enum(['ACTIVE', 'DRAFT', 'ARCHIVED']).optional(),
-  customerId: z.string().optional(),
-  materialId: z.string().optional(),
   processName: z.string().optional(),
   note: z.string().optional(),
 })
 
 const updateWorkInstructionSchema = workInstructionSchema.extend({
-  id: z.string().min(1, '缺少指导书 ID'),
+  id: z.string().min(1, '缺少产品文档 ID'),
 })
 
 function withFileUrl<T extends { id: string }>(attachment: T) {
   return { ...attachment, url: `/api/attachments/${attachment.id}/file` }
-}
-
-function normalizeOptionalId(value: string | null | undefined) {
-  return value && value !== '__UNASSIGNED__' ? value : null
 }
 
 async function ownerIdsByFileType(fileType: string | null) {
@@ -72,36 +65,23 @@ export async function GET(req: NextRequest) {
     if (statuses.length === 1) where.status = statuses[0]
     else if (statuses.length > 1) where.status = { in: statuses }
     if (customerId === '__UNASSIGNED__') {
-      andFilters.push({
-        OR: [
-          { material: { is: null }, customerId: null },
-          { material: { is: { customerId: null } }, customerId: null },
-        ],
-      })
+      andFilters.push({ material: { is: { customerId: null } } })
     } else if (customerId) {
-      andFilters.push({
-        OR: [
-          { material: { is: { customerId } } },
-          { material: { is: null }, customerId },
-          { material: { is: { customerId: null } }, customerId },
-        ],
-      })
+      andFilters.push({ material: { is: { customerId } } })
     }
-    if (materialId === '__UNASSIGNED__') where.materialId = null
+    if (materialId === '__UNASSIGNED__') where.id = { in: [] }
     else if (materialId) where.materialId = materialId
     if (fileOwnerIds) {
       where.id = fileOwnerIds.length > 0 ? { in: fileOwnerIds } : { in: [] }
     }
     if (keyword) {
       where.OR = [
-        { code: { contains: keyword } },
-        { title: { contains: keyword } },
         { processName: { contains: keyword } },
         { note: { contains: keyword } },
         { material: { is: { code: { contains: keyword } } } },
         { material: { is: { name: { contains: keyword } } } },
-        { customer: { is: { code: { contains: keyword } } } },
-        { customer: { is: { name: { contains: keyword } } } },
+        { material: { is: { customer: { is: { code: { contains: keyword } } } } } },
+        { material: { is: { customer: { is: { name: { contains: keyword } } } } } },
       ]
     }
     if (andFilters.length > 0) where.AND = andFilters
@@ -110,7 +90,6 @@ export async function GET(req: NextRequest) {
       prisma.workInstruction.findMany({
         where,
         include: {
-          customer: { select: { id: true, code: true, name: true } },
           material: {
             select: {
               id: true,
@@ -183,7 +162,7 @@ export async function GET(req: NextRequest) {
     })
   } catch (error) {
     console.error('Get work instructions error:', error)
-    return NextResponse.json({ error: '获取作业指导书失败' }, { status: 500 })
+    return NextResponse.json({ error: '获取产品文档失败' }, { status: 500 })
   }
 }
 
@@ -194,27 +173,35 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const data = workInstructionSchema.parse(body)
-
-    const existing = await prisma.workInstruction.findUnique({ where: { code: data.code } })
-    if (existing) {
-      return NextResponse.json({ error: existing.deletedAt ? '指导书编码已被已归档记录占用' : '指导书编码已存在' }, { status: 400 })
+    const material = await prisma.material.findFirst({
+      where: { id: data.materialId, category: 'FINISHED', deletedAt: null },
+      select: { id: true, code: true, name: true },
+    })
+    if (!material) {
+      return NextResponse.json({ error: '关联产品不存在或已归档' }, { status: 400 })
     }
 
     const instruction = await prisma.workInstruction.create({
       data: {
-        code: data.code,
-        title: data.title,
-        category: data.category || 'PROCESS',
+        category: data.category || 'WORK_INSTRUCTION',
         version: data.version || 'v1',
         status: data.status || 'ACTIVE',
-        customerId: normalizeOptionalId(data.customerId),
-        materialId: normalizeOptionalId(data.materialId),
+        materialId: material.id,
         processName: data.processName || null,
         note: data.note || null,
       },
       include: {
-        customer: { select: { id: true, code: true, name: true } },
-        material: { select: { id: true, code: true, name: true, spec: true } },
+        material: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            spec: true,
+            category: true,
+            customerId: true,
+            customer: { select: { id: true, code: true, name: true } },
+          },
+        },
       },
     })
 
@@ -222,7 +209,7 @@ export async function POST(req: NextRequest) {
       action: 'CREATE',
       entityType: 'WORK_INSTRUCTION',
       entityId: instruction.id,
-      entityLabel: instruction.code,
+      entityLabel: `${material.code} · ${material.name}`,
       afterData: instruction,
     })
 
@@ -232,7 +219,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
     }
     console.error('Create work instruction error:', error)
-    return NextResponse.json({ error: '创建作业指导书失败' }, { status: 500 })
+    return NextResponse.json({ error: '创建产品文档失败' }, { status: 500 })
   }
 }
 
@@ -246,30 +233,39 @@ export async function PUT(req: NextRequest) {
 
     const current = await prisma.workInstruction.findUnique({ where: { id: data.id } })
     if (!current || current.deletedAt) {
-      return NextResponse.json({ error: '作业指导书不存在或已归档' }, { status: 404 })
+      return NextResponse.json({ error: '产品文档不存在或已归档' }, { status: 404 })
     }
 
-    const existing = await prisma.workInstruction.findUnique({ where: { code: data.code } })
-    if (existing && existing.id !== data.id) {
-      return NextResponse.json({ error: existing.deletedAt ? '指导书编码已被已归档记录占用' : '指导书编码已存在' }, { status: 400 })
+    const material = await prisma.material.findFirst({
+      where: { id: data.materialId, category: 'FINISHED', deletedAt: null },
+      select: { id: true, code: true, name: true },
+    })
+    if (!material) {
+      return NextResponse.json({ error: '关联产品不存在或已归档' }, { status: 400 })
     }
 
     const instruction = await prisma.workInstruction.update({
       where: { id: data.id },
       data: {
-        code: data.code,
-        title: data.title,
-        category: data.category || 'PROCESS',
+        category: data.category || 'WORK_INSTRUCTION',
         version: data.version || 'v1',
         status: data.status || 'ACTIVE',
-        customerId: normalizeOptionalId(data.customerId),
-        materialId: normalizeOptionalId(data.materialId),
+        materialId: material.id,
         processName: data.processName || null,
         note: data.note || null,
       },
       include: {
-        customer: { select: { id: true, code: true, name: true } },
-        material: { select: { id: true, code: true, name: true, spec: true } },
+        material: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            spec: true,
+            category: true,
+            customerId: true,
+            customer: { select: { id: true, code: true, name: true } },
+          },
+        },
       },
     })
 
@@ -277,18 +273,18 @@ export async function PUT(req: NextRequest) {
       action: 'UPDATE',
       entityType: 'WORK_INSTRUCTION',
       entityId: instruction.id,
-      entityLabel: instruction.code,
+      entityLabel: `${material.code} · ${material.name}`,
       beforeData: current,
       afterData: instruction,
     })
 
-    return NextResponse.json({ data: instruction, message: '作业指导书已更新' })
+    return NextResponse.json({ data: instruction, message: '产品文档已更新' })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
     }
     console.error('Update work instruction error:', error)
-    return NextResponse.json({ error: '更新作业指导书失败' }, { status: 500 })
+    return NextResponse.json({ error: '更新产品文档失败' }, { status: 500 })
   }
 }
 
@@ -299,11 +295,14 @@ export async function DELETE(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
-    if (!id) return NextResponse.json({ error: '缺少作业指导书 ID' }, { status: 400 })
+    if (!id) return NextResponse.json({ error: '缺少产品文档 ID' }, { status: 400 })
 
-    const instruction = await prisma.workInstruction.findUnique({ where: { id } })
+    const instruction = await prisma.workInstruction.findUnique({
+      where: { id },
+      include: { material: { select: { code: true, name: true } } },
+    })
     if (!instruction || instruction.deletedAt) {
-      return NextResponse.json({ error: '作业指导书不存在或已归档' }, { status: 404 })
+      return NextResponse.json({ error: '产品文档不存在或已归档' }, { status: 404 })
     }
 
     const archived = await prisma.workInstruction.update({
@@ -315,14 +314,14 @@ export async function DELETE(req: NextRequest) {
       action: 'ARCHIVE',
       entityType: 'WORK_INSTRUCTION',
       entityId: archived.id,
-      entityLabel: archived.code,
+      entityLabel: `${instruction.material.code} · ${instruction.material.name}`,
       beforeData: instruction,
       afterData: archived,
     })
 
-    return NextResponse.json({ success: true, message: '作业指导书已归档' })
+    return NextResponse.json({ success: true, message: '产品文档已归档' })
   } catch (error) {
     console.error('Archive work instruction error:', error)
-    return NextResponse.json({ error: '归档作业指导书失败' }, { status: 500 })
+    return NextResponse.json({ error: '归档产品文档失败' }, { status: 500 })
   }
 }

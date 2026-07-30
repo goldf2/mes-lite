@@ -160,15 +160,18 @@ interface ProductionOrderSummary {
 
 interface WorkInstructionSummary {
   id: string
-  code: string
-  title: string
   category: string
   version: string
   status: string
   processName?: string | null
   note?: string | null
-  customer?: { id: string; code: string; name: string } | null
-  material?: { id: string; code: string; name: string; spec?: string | null } | null
+  material: {
+    id: string
+    code: string
+    name: string
+    spec?: string | null
+    customer?: { id: string; code: string; name: string } | null
+  }
   attachments: AttachmentItem[]
   attachmentCount: number
   imageCount: number
@@ -274,7 +277,7 @@ const defaultPanoramaLayout: PanoramaLayoutConfig = {
 
 const panoramaModuleLabels: Record<PanoramaModuleId, { name: string; description: string }> = {
   summary: { name: '档案与库存', description: '物料档案、库存总览' },
-  documents: { name: '库位与文档', description: '库位分布、作业指导书、附件' },
+  documents: { name: '库位与文档', description: '库位分布、产品文档、附件' },
   bomProcess: { name: 'BOM 与工艺', description: '相关 BOM、加工工艺和作业步骤' },
   costing: { name: '成本与快照', description: '加工参数、成本对象、物料成本快照' },
   orders: { name: '工单与领料', description: '相关工单、作为用料的领料记录' },
@@ -510,6 +513,19 @@ function processCostPerThousand(item: {
 
 function statusText(status: string) {
   return statusLabels[status] || status
+}
+
+function documentCategoryText(category: string) {
+  const labels: Record<string, string> = {
+    WORK_INSTRUCTION: '作业指导书',
+    DRAWING: '图纸',
+    PROCESS: '工艺文件',
+    QUALITY: '检验文件',
+    PACKAGING: '包装文件',
+    EQUIPMENT: '设备文件',
+    OTHER: '其他',
+  }
+  return labels[category] || category
 }
 
 function Panel({
@@ -783,7 +799,7 @@ export default function MaterialPanoramaPage({
 
   const openWorkInstructionViewer = (instruction: WorkInstructionSummary) => {
     if (!instruction.attachments || instruction.attachments.length === 0) {
-      onMessage('这份作业指导书还没有上传图片或 PDF')
+      onMessage('这条产品文档还没有上传图片或 PDF')
       return
     }
     setViewer({ instruction, attachments: instruction.attachments, index: 0 })
@@ -940,22 +956,23 @@ export default function MaterialPanoramaPage({
                   )}
                 </Panel>
 
-                <Panel title="作业指导书与相关文档" action={`${data.workInstructions.length} 份指导书`}>
+                <Panel title="产品文档与相关附件" action={`${data.workInstructions.length} 条产品文档`}>
                   <div className="space-y-3">
                     <div>
-                      <div className="mb-2 text-xs font-medium text-gray-500">正式作业指导书</div>
+                      <div className="mb-2 text-xs font-medium text-gray-500">正式产品文档</div>
                       {data.workInstructions.length === 0 ? (
-                        <EmptyText>暂无绑定到该物料或客户的作业指导书</EmptyText>
+                        <EmptyText>暂无直接关联到该产品的文档</EmptyText>
                       ) : (
                         <div className="space-y-2">
                           {data.workInstructions.map((instruction) => (
                             <div key={instruction.id} className="rounded-md border border-gray-100 px-3 py-2">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="min-w-0">
-                                  <div className="truncate text-sm font-medium text-gray-900">{instruction.title}</div>
-                                  <div className="mt-0.5 font-mono text-xs text-blue-700">{instruction.code} · {instruction.version}</div>
+                                  <div className="truncate text-sm font-medium text-gray-900">{instruction.material.name}</div>
+                                  <div className="mt-0.5 font-mono text-xs text-blue-700">{instruction.material.code} · {instruction.version}</div>
                                 </div>
                                 <div className="flex shrink-0 items-center gap-2">
+                                  <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700">{documentCategoryText(instruction.category)}</span>
                                   <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{statusText(instruction.status)}</span>
                                   <button
                                     type="button"
@@ -968,7 +985,7 @@ export default function MaterialPanoramaPage({
                                 </div>
                               </div>
                               <div className="mt-1 text-xs text-gray-500">
-                                工序：{instruction.processName || '-'} · 客户：{instruction.customer?.name || '通用/未绑定'} · 文件：{instruction.imageCount} 图 / {instruction.pdfCount} PDF
+                                工序：{instruction.processName || '-'} · 客户：{instruction.material.customer?.name || '通用产品'} · 文件：{instruction.imageCount} 图 / {instruction.pdfCount} PDF
                               </div>
                             </div>
                           ))}
@@ -1364,7 +1381,7 @@ export default function MaterialPanoramaPage({
         <div className="fixed inset-0 z-[80] flex flex-col bg-slate-950 text-white">
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-white/10 px-3 py-2 sm:px-4">
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">{viewer.instruction.title}</div>
+              <div className="truncate text-sm font-semibold">{viewer.instruction.material.code} · {viewer.instruction.material.name}</div>
               <div className="truncate text-xs text-white/60">
                 {selectedViewerAttachment.originalName} · {formatSize(selectedViewerAttachment.size)} · {viewer.index + 1}/{viewer.attachments.length}
               </div>

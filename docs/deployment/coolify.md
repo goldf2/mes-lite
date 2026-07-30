@@ -67,6 +67,8 @@ sudo chmod -R 750 /opt/mes-lite
 
 容器启动时会先创建 SQLite 文件，再自动执行 `prisma migrate deploy`，然后启动 Next.js。全新数据库首次注册的用户会自动成为管理员；已有数据库则继续使用原账号。
 
+`20260730163000_link_work_instructions_to_material` 是一次明确的破坏性迁移：首次执行前会删除旧指导书专属附件目录，迁移会删除旧指导书及对应附件元数据，然后启用产品必选的“产品文档”模型。迁移完成后，启动脚本通过迁移记录识别已执行状态，不会再次清理新产品文档。
+
 镜像内置了 Docker `HEALTHCHECK`，使用 `curl` 请求 `/api/health` 检查 Web 服务是否启动。首次启动会先执行 SQLite 迁移，健康检查有 60 秒启动宽限期。如果健康检查失败，优先检查：
 
 - `/app/data` 是否可写。

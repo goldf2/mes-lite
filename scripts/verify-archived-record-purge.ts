@@ -8,6 +8,8 @@ async function main() {
   const blockedCode = `VERIFY-BLOCKED-${suffix}`
   let blockedMaterialId = ''
   let blockedStockId = ''
+  let documentMaterialId = ''
+  let workInstructionId = ''
 
   try {
     const purgeMaterial = await prisma.material.create({
@@ -66,8 +68,58 @@ async function main() {
     )
     assert.equal(await prisma.material.count({ where: { id: blockedMaterialId } }), 1)
 
-    console.log('归档永久删除验证通过：无引用物料释放编码及零库存行，有库存流水的物料被安全阻止。')
+    const documentMaterial = await prisma.material.create({
+      data: {
+        code: `VERIFY-DOCUMENT-${suffix}`,
+        name: '产品文档级联删除验证',
+        category: 'FINISHED',
+        unit: '件',
+        stockUnit: '件',
+        valuationUnit: '件',
+      },
+    })
+    documentMaterialId = documentMaterial.id
+    const workInstruction = await prisma.workInstruction.create({
+      data: {
+        materialId: documentMaterial.id,
+        category: 'DRAWING',
+        deletedAt: new Date(),
+      },
+    })
+    workInstructionId = workInstruction.id
+    await prisma.documentAttachment.create({
+      data: {
+        ownerType: 'WORK_INSTRUCTION',
+        ownerId: workInstruction.id,
+        documentType: 'WORK_INSTRUCTION',
+        originalName: 'verify.pdf',
+        fileName: 'verify.pdf',
+        mimeType: 'application/pdf',
+        size: 1,
+        url: '/verify.pdf',
+        storagePath: '/tmp/verify.pdf',
+      },
+    })
+
+    const purgedDocument = await purgeArchivedRecord('workInstruction', workInstruction.id)
+    assert.equal(purgedDocument.entityLabel, `${documentMaterial.code} · ${documentMaterial.name}`)
+    assert.equal(await prisma.workInstruction.count({ where: { id: workInstruction.id } }), 0)
+    assert.equal(await prisma.documentAttachment.count({
+      where: { ownerType: 'WORK_INSTRUCTION', ownerId: workInstruction.id },
+    }), 0)
+    workInstructionId = ''
+
+    console.log('归档永久删除验证通过：普通主数据继续执行引用保护，产品文档会级联删除自有附件记录。')
   } finally {
+    if (workInstructionId) {
+      await prisma.documentAttachment.deleteMany({
+        where: { ownerType: 'WORK_INSTRUCTION', ownerId: workInstructionId },
+      }).catch(() => undefined)
+      await prisma.workInstruction.deleteMany({ where: { id: workInstructionId } }).catch(() => undefined)
+    }
+    if (documentMaterialId) {
+      await prisma.material.deleteMany({ where: { id: documentMaterialId } }).catch(() => undefined)
+    }
     if (blockedStockId) {
       await prisma.stockLog.deleteMany({ where: { stockId: blockedStockId } }).catch(() => undefined)
       await prisma.stock.deleteMany({ where: { id: blockedStockId } }).catch(() => undefined)

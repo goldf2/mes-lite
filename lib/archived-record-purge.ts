@@ -65,7 +65,7 @@ async function addWeakReferenceBlockers(
 ) {
   const ownerType = attachmentOwnerTypes[model]
   const [attachmentCount, scanCount, printCount] = await Promise.all([
-    ownerType
+    ownerType && model !== 'workInstruction'
       ? tx.documentAttachment.count({ where: { ownerType, ownerId: id } })
       : Promise.resolve(0),
     tx.scanCountSession.count({ where: { referenceId: id } }),
@@ -87,6 +87,12 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
     const current = await delegate.findUnique({ where: { id } })
     if (!current) throw new ArchivedRecordPurgeError('归档记录不存在', 404)
     if (!current.deletedAt) throw new ArchivedRecordPurgeError('记录尚未归档，不能永久删除', 409)
+    const workInstructionMaterial = model === 'workInstruction'
+      ? await tx.material.findUnique({
+          where: { id: current.materialId },
+          select: { code: true, name: true },
+        })
+      : null
 
     const blockers: string[] = []
     const allowedStatuses = purgeableDocumentStatuses[model]
@@ -131,7 +137,7 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
       addCountBlocker(blockers, counts._count.pickItems, '工单领料')
       addCountBlocker(blockers, counts._count.materialIns, '来料单')
       addCountBlocker(blockers, counts._count.productionOrders, '生产工单')
-      addCountBlocker(blockers, counts._count.workInstructions, '作业指导书')
+      addCountBlocker(blockers, counts._count.workInstructions, '产品文档')
       addCountBlocker(blockers, counts._count.processTemplates, '加工工艺')
       addCountBlocker(blockers, counts._count.dailyProductionReports, '生产日报成品')
       addCountBlocker(blockers, counts._count.dailyProductionConsumptions, '生产日报用料')
@@ -149,7 +155,6 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
             select: {
               products: true,
               materials: true,
-              workInstructions: true,
               shipments: true,
             },
           },
@@ -157,7 +162,6 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
       })
       addCountBlocker(blockers, counts._count.products, '兼容产品')
       addCountBlocker(blockers, counts._count.materials, '物料')
-      addCountBlocker(blockers, counts._count.workInstructions, '作业指导书')
       addCountBlocker(blockers, counts._count.shipments, '发货单')
     } else if (model === 'materialIn') {
       const [costLayerCount, stockLogCount] = await Promise.all([
@@ -208,11 +212,18 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
       throw new ArchivedRecordPurgeError('归档记录仍有业务引用，不能永久删除', 409, blockers)
     }
 
+    if (model === 'workInstruction') {
+      await tx.documentAttachment.deleteMany({
+        where: { ownerType: 'WORK_INSTRUCTION', ownerId: id },
+      })
+    }
     const deleted = await delegate.delete({ where: { id } })
     return {
       id: deleted.id as string,
       entityType: config.entityType,
-      entityLabel: String(deleted[config.labelField] || deleted.id),
+      entityLabel: workInstructionMaterial
+        ? `${workInstructionMaterial.code} · ${workInstructionMaterial.name}`
+        : String(deleted[config.labelField] || deleted.id),
       snapshot: deleted,
     }
   })

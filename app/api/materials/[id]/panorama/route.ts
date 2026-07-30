@@ -214,8 +214,15 @@ export async function GET(
           materialId: material.id,
         },
         include: {
-          customer: { select: { id: true, code: true, name: true } },
-          material: { select: { id: true, code: true, name: true, spec: true } },
+          material: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              spec: true,
+              customer: { select: { id: true, code: true, name: true } },
+            },
+          },
         },
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
         take: 10,
@@ -378,7 +385,7 @@ export async function GET(
         integrityWarnings,
         modelNotes: [
           '库位明细尚未建模，本页先用默认库位展示库存余额。',
-          '作业指导书优先读取正式指导书模块，旧附件文档保留为历史资料。',
+          '产品文档优先读取正式产品文档模块，旧附件文档保留为历史资料。',
         ],
       },
     })

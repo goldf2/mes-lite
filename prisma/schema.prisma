@@ -563,7 +563,6 @@ model Customer {
   deletedBy   String?
   products    Product[]
   materials   Material[]
-  workInstructions WorkInstruction[]
   shipments   Shipment[]
   createdAt   DateTime @default(now())
 }
@@ -874,15 +873,11 @@ model DocumentAttachment {
 
 model WorkInstruction {
   id          String   @id @default(cuid())
-  code        String   @unique
-  title       String
-  category    String   @default("PROCESS")
+  category    String   @default("WORK_INSTRUCTION")
   version     String   @default("v1")
   status      String   @default("ACTIVE")
-  customerId  String?
-  customer    Customer? @relation(fields: [customerId], references: [id])
-  materialId  String?
-  material    Material? @relation(fields: [materialId], references: [id])
+  materialId  String
+  material    Material @relation(fields: [materialId], references: [id])
   processName String?
   note        String?
   deletedAt   DateTime?
@@ -892,7 +887,6 @@ model WorkInstruction {
 
   @@index([category])
   @@index([status])
-  @@index([customerId])
   @@index([materialId])
 }
 

@@ -39,15 +39,11 @@ interface AttachmentItem {
 
 interface WorkInstruction {
   id: string
-  code: string
-  title: string
   category: string
   version: string
   status: string
-  customerId?: string | null
-  customer?: Customer | null
-  materialId?: string | null
-  material?: MaterialOption | null
+  materialId: string
+  material: MaterialOption
   processName?: string | null
   note?: string | null
   attachmentCount: number
@@ -66,23 +62,21 @@ interface PaginationState {
 }
 
 type WorkInstructionForm = {
-  code: string
-  title: string
   category: string
   version: string
   status: string
-  customerId: string
   materialId: string
   processName: string
   note: string
 }
 
 const instructionCategoryOptions = [
-  { value: 'PROCESS', label: '工艺作业' },
-  { value: 'QUALITY', label: '质量检验' },
-  { value: 'PACKAGING', label: '包装发货' },
-  { value: 'SAFETY', label: '安全操作' },
-  { value: 'MAINTENANCE', label: '设备维护' },
+  { value: 'WORK_INSTRUCTION', label: '作业指导书' },
+  { value: 'DRAWING', label: '图纸' },
+  { value: 'PROCESS', label: '工艺文件' },
+  { value: 'QUALITY', label: '检验文件' },
+  { value: 'PACKAGING', label: '包装文件' },
+  { value: 'EQUIPMENT', label: '设备文件' },
   { value: 'OTHER', label: '其他' },
 ]
 
@@ -103,12 +97,9 @@ const statusLabels = Object.fromEntries(instructionStatusOptions.map((item) => [
 
 function createEmptyForm(): WorkInstructionForm {
   return {
-    code: `WI-${Date.now().toString().slice(-8)}`,
-    title: '',
-    category: 'PROCESS',
+    category: 'WORK_INSTRUCTION',
     version: 'v1',
     status: 'ACTIVE',
-    customerId: '',
     materialId: '',
     processName: '',
     note: '',
@@ -222,7 +213,7 @@ function materialIncludesKeyword(material: MaterialOption, keyword: string) {
 }
 
 function getInstructionCustomerName(instruction: WorkInstruction) {
-  return instruction.material?.customer?.name || instruction.customer?.name || '通用/未绑定'
+  return instruction.material.customer?.name || '通用产品'
 }
 
 function MaterialSearchSelect({
@@ -231,8 +222,8 @@ function MaterialSearchSelect({
   selectedOption,
   onChange,
   onSearch,
-  placeholder = '输入物料编码或名称搜索',
-  emptyLabel = '不绑定物料',
+  placeholder = '输入产品编码或名称搜索',
+  emptyLabel = '请选择产品',
   unassignedLabel,
 }: {
   value: string
@@ -319,7 +310,7 @@ function MaterialSearchSelect({
             </button>
           )}
           {visibleOptions.length === 0 ? (
-            <div className="px-3 py-3 text-sm text-gray-400">没有匹配物料</div>
+            <div className="px-3 py-3 text-sm text-gray-400">没有匹配产品</div>
           ) : (
             visibleOptions.map((material) => (
               <button
@@ -444,7 +435,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       const res = await fetch(`/api/work-instructions?${params.toString()}`)
       const data = await res.json()
       if (!res.ok) {
-        onMessage(data.error || '获取作业指导书失败')
+        onMessage(data.error || '获取产品文档失败')
         setItems([])
         return
       }
@@ -457,7 +448,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       }
       setDetail((current) => current ? nextItems.find((item: WorkInstruction) => item.id === current.id) || current : null)
     } catch (err) {
-      onMessage('获取作业指导书失败')
+      onMessage('获取产品文档失败')
       setItems([])
     }
   }
@@ -478,6 +469,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     try {
       const params = new URLSearchParams()
       params.set('pageSize', '50')
+      params.set('category', 'FINISHED')
       const keyword = searchKeyword.trim()
       if (keyword) params.set('keyword', keyword)
       const res = await fetch(`/api/materials?${params.toString()}`)
@@ -521,13 +513,10 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     ensureMaterialOption(instruction.material)
     setEditing(instruction)
     setForm({
-      code: instruction.code,
-      title: instruction.title,
-      category: instruction.category || 'PROCESS',
+      category: instruction.category || 'WORK_INSTRUCTION',
       version: instruction.version || 'v1',
       status: instruction.status || 'ACTIVE',
-      customerId: instruction.customerId || '',
-      materialId: instruction.materialId || '',
+      materialId: instruction.materialId,
       processName: instruction.processName || '',
       note: instruction.note || '',
     })
@@ -547,21 +536,18 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   }
 
   const submitForm = async () => {
-    if (!form.code.trim() || !form.title.trim()) {
-      onMessage('请填写编码和标题')
+    if (!form.materialId) {
+      onMessage('请选择关联产品')
       return
     }
 
     setLoading(true)
     try {
       const payload = {
-        code: form.code.trim(),
-        title: form.title.trim(),
+        materialId: form.materialId,
         category: form.category,
         version: form.version.trim() || 'v1',
         status: form.status,
-        customerId: form.customerId || undefined,
-        materialId: form.materialId || undefined,
         processName: form.processName.trim() || undefined,
         note: form.note.trim() || undefined,
       }
@@ -574,7 +560,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       if (res.ok) {
         const savedInstruction = data.data
         const wasEditing = Boolean(editing)
-        onMessage(editing ? '作业指导书已更新' : '作业指导书已创建，请上传图片或 PDF')
+        onMessage(editing ? '产品文档已更新' : '产品文档已创建，请上传图片或 PDF')
         setShowModal(false)
         setEditing(null)
         setDetailEditing(false)
@@ -605,12 +591,12 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   }
 
   const archiveInstruction = async (instruction: WorkInstruction) => {
-    if (!confirm(`确定归档作业指导书 ${instruction.code} 吗？`)) return
+    if (!confirm(`确定归档产品 ${instruction.material.code} 的这条文档吗？`)) return
     try {
       const res = await fetch(`/api/work-instructions?id=${instruction.id}`, { method: 'DELETE' })
       const data = await res.json()
       if (res.ok) {
-        onMessage(data.message || '作业指导书已归档')
+        onMessage(data.message || '产品文档已归档')
         if (detail?.id === instruction.id) closeDetail()
         await fetchInstructions()
       } else {
@@ -680,14 +666,14 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
   const openInstructionViewer = async (instruction: WorkInstruction) => {
     if (instruction.attachmentCount === 0) {
-      onMessage('这份作业指导书还没有上传图片或 PDF')
+      onMessage('这条产品文档还没有上传图片或 PDF')
       return
     }
     try {
       const res = await fetch(`/api/attachments?ownerType=WORK_INSTRUCTION&ownerId=${encodeURIComponent(instruction.id)}`)
       const data = await res.json()
       if (!res.ok) {
-        onMessage(data.error || '获取指导书文件失败')
+        onMessage(data.error || '获取产品文档文件失败')
         return
       }
       const attachments = (data.data || []) as AttachmentItem[]
@@ -696,12 +682,12 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           openViewer(instruction, [instruction.primaryAttachment])
           return
         }
-        onMessage('这份作业指导书还没有上传图片或 PDF')
+        onMessage('这条产品文档还没有上传图片或 PDF')
         return
       }
       openViewer(instruction, attachments)
     } catch (err) {
-      onMessage('获取指导书文件失败')
+      onMessage('获取产品文档文件失败')
     }
   }
 
@@ -727,7 +713,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       labels.push(customerFilter === '__UNASSIGNED__' ? '通用/未绑定' : customers.find((customer) => customer.id === customerFilter)?.name || '指定客户')
     }
     if (materialFilter) {
-      labels.push(materialFilter === '__UNASSIGNED__' ? '未绑定物料' : selectedFilterMaterial ? selectedFilterMaterial.name : '指定物料')
+      labels.push(selectedFilterMaterial ? selectedFilterMaterial.name : '指定产品')
     }
     return labels
   }, [selectedCategories, selectedStatuses, fileType, customerFilter, materialFilter, customers, selectedFilterMaterial])
@@ -739,7 +725,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           type="text"
           value={keyword}
           onChange={(event) => setKeyword(event.target.value)}
-          placeholder="搜索编码、标题、物料或工序"
+          placeholder="搜索产品、工序或备注"
           className="w-full min-w-[180px] max-w-[320px] flex-[1_1_240px] rounded-lg border border-gray-200 px-4 py-2 text-sm"
         />
       )}
@@ -753,7 +739,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
             options={instructionCategoryOptions}
             value={selectedCategories}
             onChange={setSelectedCategories}
-            allLabel="全部类型"
+            allLabel="全部文档类别"
           />
           <StatusCheckboxFilter
             options={instructionStatusOptions}
@@ -788,9 +774,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
               selectedOption={selectedFilterMaterial}
               onChange={(nextValue) => setMaterialFilter(nextValue)}
               onSearch={fetchMaterials}
-              placeholder="筛选关联物料"
-              emptyLabel="全部物料"
-              unassignedLabel="未绑定物料"
+              placeholder="筛选关联产品"
+              emptyLabel="全部产品"
             />
           </div>
         </>
@@ -819,13 +804,13 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       <div className="rounded-lg bg-transparent p-0 shadow-none sm:bg-white sm:p-6 sm:shadow">
         {items.length === 0 ? (
           <div className="rounded-lg bg-white py-10 text-center text-gray-500 shadow sm:bg-transparent sm:py-12 sm:shadow-none">
-            <p>暂无作业指导书</p>
+            <p>暂无产品文档</p>
             <button
               type="button"
               onClick={openAddModal}
               className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white transition hover:bg-blue-700"
             >
-              新建第一份指导书
+              新建第一条产品文档
             </button>
           </div>
         ) : effectiveViewMode === 'card' ? (
@@ -838,20 +823,20 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                     onClick={() => openDetail(instruction)}
                     className="text-left"
                   >
-                    <FilePreviewThumb attachment={instruction.primaryAttachment} title={instruction.title} />
+                    <FilePreviewThumb attachment={instruction.primaryAttachment} title={instruction.material.name} />
                   </button>
                   <div className="mt-3 min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <InstructionBadge tone="blue">{instruction.code}</InstructionBadge>
+                      <InstructionBadge tone="blue">{instruction.material.code}</InstructionBadge>
                       <InstructionBadge>{categoryLabels[instruction.category] || instruction.category}</InstructionBadge>
                       <InstructionBadge tone={instruction.status === 'ACTIVE' ? 'green' : instruction.status === 'DRAFT' ? 'amber' : 'gray'}>
                         {statusLabels[instruction.status] || instruction.status}
                       </InstructionBadge>
                     </div>
-                    <h3 className="mt-2 line-clamp-2 text-base font-semibold text-gray-900">{instruction.title}</h3>
+                    <h3 className="mt-2 line-clamp-2 text-base font-semibold text-gray-900">{instruction.material.name}</h3>
                     <div className="mt-1 space-y-0.5 text-xs text-gray-500">
                       <div className="truncate">版本：{instruction.version || '-'}</div>
-                      <div className="truncate">物料：{instruction.material ? `${instruction.material.code} · ${instruction.material.name}` : '未绑定'}</div>
+                      {instruction.material.spec && <div className="truncate">规格：{instruction.material.spec}</div>}
                       <div className="truncate">客户：{getInstructionCustomerName(instruction)}</div>
                       <div className="truncate">工序：{instruction.processName || '-'}</div>
                       <div>文件：{instruction.imageCount} 图 / {instruction.pdfCount} PDF</div>
@@ -889,15 +874,14 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         ) : (
           <>
             <div className="overflow-x-auto rounded-lg border border-gray-100">
-              <table className="w-full min-w-[1120px]">
+              <table className="w-full min-w-[960px]">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="w-24 px-4 py-3 text-left text-sm font-semibold text-gray-600">预览</th>
-                    <th className="w-36 px-4 py-3 text-left text-sm font-semibold text-gray-600">编码</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">标题</th>
-                    <th className="w-28 px-4 py-3 text-left text-sm font-semibold text-gray-600">类型</th>
+                    <th className="w-44 px-4 py-3 text-left text-sm font-semibold text-gray-600">产品编码</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品名称</th>
+                    <th className="w-28 px-4 py-3 text-left text-sm font-semibold text-gray-600">文档类别</th>
                     <th className="w-24 px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
-                    <th className="w-44 px-4 py-3 text-left text-sm font-semibold text-gray-600">关联物料</th>
                     <th className="w-36 px-4 py-3 text-left text-sm font-semibold text-gray-600">客户</th>
                     <th className="w-28 px-4 py-3 text-left text-sm font-semibold text-gray-600">文件</th>
                     <th className="w-56 px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
@@ -908,17 +892,16 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                     <tr key={instruction.id} className="align-top hover:bg-gray-50">
                       <td className="px-4 py-3">
                         <button type="button" onClick={() => openDetail(instruction)} className="block h-14 w-20 overflow-hidden rounded">
-                          <FilePreviewThumb attachment={instruction.primaryAttachment} title={instruction.title} />
+                          <FilePreviewThumb attachment={instruction.primaryAttachment} title={instruction.material.name} />
                         </button>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-sm text-blue-700">{instruction.code}</td>
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-sm text-blue-700">{instruction.material.code}</td>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900">{instruction.title}</div>
+                        <div className="font-medium text-gray-900">{instruction.material.name}</div>
                         <div className="mt-1 text-xs text-gray-500">{instruction.version || '-'} · {instruction.processName || '未绑定工序'}</div>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm">{categoryLabels[instruction.category] || instruction.category}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm">{statusLabels[instruction.status] || instruction.status}</td>
-                      <td className="px-4 py-3 text-sm">{instruction.material ? `${instruction.material.code} · ${instruction.material.name}` : '-'}</td>
                       <td className="px-4 py-3 text-sm">{getInstructionCustomerName(instruction)}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm">{instruction.imageCount} 图 / {instruction.pdfCount} PDF</td>
                       <td className="whitespace-nowrap px-4 py-3">
@@ -948,21 +931,26 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
           <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl">
             <div className="flex shrink-0 items-center justify-between border-b px-6 py-4">
-              <h3 className="text-lg font-semibold text-gray-900">新增作业指导书</h3>
+              <h3 className="text-lg font-semibold text-gray-900">新增产品文档</h3>
               <button onClick={() => setShowModal(false)} className="text-2xl text-gray-400 hover:text-gray-700">&times;</button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">指导书编码 *</label>
-                  <input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2" />
+                <div className="md:col-span-2 xl:col-span-3">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">关联产品 *</label>
+                  <MaterialSearchSelect
+                    value={form.materialId}
+                    options={materials}
+                    selectedOption={selectedMaterial}
+                    onSearch={fetchMaterials}
+                    onChange={(nextValue) => setForm({ ...form, materialId: nextValue })}
+                    placeholder="输入产品编码、名称或规格搜索"
+                    emptyLabel="请选择产品"
+                  />
+                  {selectedMaterial?.spec && <div className="mt-1 text-xs text-gray-500">规格：{selectedMaterial.spec}</div>}
                 </div>
-                <div className="md:col-span-2">
-                  <label className="mb-2 block text-sm font-medium text-gray-700">标题 *</label>
-                  <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2" placeholder="如：CNC 铝件首件检验作业指导书" />
-                </div>
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">类型</label>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">文档类别</label>
                   <select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2">
                     {instructionCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
@@ -978,32 +966,6 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   <input value={form.version} onChange={(event) => setForm({ ...form, version: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2" placeholder="v1" />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">客户</label>
-                  <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2">
-                    <option value="">通用/未绑定客户</option>
-                    {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">关联物料</label>
-                  <MaterialSearchSelect
-                    value={form.materialId}
-                    options={materials}
-                    selectedOption={selectedMaterial}
-                    onSearch={fetchMaterials}
-                    onChange={(nextValue, material) => {
-                      setForm({
-                        ...form,
-                        materialId: nextValue,
-                        customerId: material?.customerId || form.customerId,
-                      })
-                    }}
-                    placeholder="输入物料编码、名称或规格搜索"
-                    emptyLabel="不绑定物料"
-                  />
-                  {selectedMaterial?.spec && <div className="mt-1 text-xs text-gray-500">规格：{selectedMaterial.spec}</div>}
-                </div>
-                <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">适用工序</label>
                   <input value={form.processName} onChange={(event) => setForm({ ...form, processName: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2" placeholder="如：CNC 精加工、终检、包装" />
                 </div>
@@ -1013,7 +975,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                 </div>
               </div>
               <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                新建指导书先保存基础信息，保存成功后会自动打开上传区域。
+                选择产品并保存后，系统会自动打开图片或 PDF 上传区域。
               </div>
             </div>
             <div className="flex shrink-0 gap-3 border-t bg-white px-6 py-4">
@@ -1031,8 +993,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           <div className={`flex flex-col overflow-hidden bg-white shadow-xl ${detailFullscreen ? 'h-screen w-screen' : 'max-h-[92vh] w-full max-w-6xl rounded-lg'}`}>
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-6">
               <div className="min-w-0">
-                <div className="font-mono text-sm text-blue-700">{detail.code}</div>
-                <h3 className="truncate text-lg font-semibold text-gray-900">{detail.title}</h3>
+                <div className="font-mono text-sm text-blue-700">{detail.material.code}</div>
+                <h3 className="truncate text-lg font-semibold text-gray-900">{detail.material.name}</h3>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <label className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700">
@@ -1063,16 +1025,20 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       <div className="mb-3 text-sm font-semibold text-gray-900">基础信息</div>
                       <div className="grid grid-cols-1 gap-3">
                         <div>
-                          <label className="mb-1 block text-xs font-medium text-gray-600">指导书编码 *</label>
-                          <input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-gray-600">标题 *</label>
-                          <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                          <label className="mb-1 block text-xs font-medium text-gray-600">关联产品 *</label>
+                          <MaterialSearchSelect
+                            value={form.materialId}
+                            options={materials}
+                            selectedOption={selectedMaterial}
+                            onSearch={fetchMaterials}
+                            onChange={(nextValue) => setForm({ ...form, materialId: nextValue })}
+                            placeholder="输入产品编码、名称或规格搜索"
+                            emptyLabel="请选择产品"
+                          />
                         </div>
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-1">
                           <div>
-                            <label className="mb-1 block text-xs font-medium text-gray-600">类型</label>
+                            <label className="mb-1 block text-xs font-medium text-gray-600">文档类别</label>
                             <select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
                               {instructionCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                             </select>
@@ -1087,31 +1053,6 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                             <label className="mb-1 block text-xs font-medium text-gray-600">版本</label>
                             <input value={form.version} onChange={(event) => setForm({ ...form, version: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
                           </div>
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-gray-600">客户</label>
-                          <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
-                            <option value="">通用/未绑定客户</option>
-                            {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-gray-600">关联物料</label>
-                          <MaterialSearchSelect
-                            value={form.materialId}
-                            options={materials}
-                            selectedOption={selectedMaterial}
-                            onSearch={fetchMaterials}
-                            onChange={(nextValue, material) => {
-                              setForm({
-                                ...form,
-                                materialId: nextValue,
-                                customerId: material?.customerId || form.customerId,
-                              })
-                            }}
-                            placeholder="输入物料编码、名称或规格搜索"
-                            emptyLabel="不绑定物料"
-                          />
                         </div>
                         <div>
                           <label className="mb-1 block text-xs font-medium text-gray-600">适用工序</label>
@@ -1138,7 +1079,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       </div>
                       <div className="mt-4 space-y-2 text-sm text-gray-600">
                         <div>客户：{getInstructionCustomerName(detail)}</div>
-                        <div>物料：{detail.material ? `${detail.material.code} · ${detail.material.name}` : '未绑定'}</div>
+                        <div>产品：{detail.material.code} · {detail.material.name}</div>
                         {detail.material?.spec && <div>规格：{detail.material.spec}</div>}
                         <div>工序：{detail.processName || '-'}</div>
                         <div>创建时间：{formatDate(detail.createdAt)}</div>
@@ -1150,7 +1091,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   <div ref={detailUploadRef} className="rounded-lg border-2 border-dashed border-green-300 bg-green-50/40 p-4">
                     <div className="mb-3 flex items-center justify-between">
                       <div>
-                        <h4 className="text-sm font-semibold text-gray-900">上传指导书文件</h4>
+                        <h4 className="text-sm font-semibold text-gray-900">上传产品文档文件</h4>
                         <p className="mt-1 text-xs text-gray-500">支持图片和 PDF，可一次选择多个文件。</p>
                       </div>
                       <label className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700">
@@ -1218,7 +1159,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                             onClick={() => openViewer(detail, detailAttachments, index)}
                             className="block w-full text-left"
                           >
-                            <FilePreviewThumb attachment={attachment} title={detail.title} />
+                            <FilePreviewThumb attachment={attachment} title={detail.material.name} />
                           </button>
                           <div className="p-3">
                             <div className="truncate text-sm font-medium text-gray-900">{attachment.originalName}</div>
@@ -1246,7 +1187,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         <div className="fixed inset-0 z-[70] flex flex-col bg-slate-950 text-white">
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-white/10 px-3 py-2 sm:px-4">
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">{viewer.instruction.title}</div>
+              <div className="truncate text-sm font-semibold">{viewer.instruction.material.code} · {viewer.instruction.material.name}</div>
               <div className="truncate text-xs text-white/60">{selectedViewerAttachment.originalName} · {viewer.index + 1}/{viewer.attachments.length}</div>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">

@@ -338,7 +338,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const baseNavItems: { key: TabType; label: string; resource: string }[] = [
     { key: 'dashboard', label: '仪表盘', resource: 'dashboard' },
     { key: 'materials', label: '物料与 BOM', resource: 'materials' },
-    { key: 'workInstructions', label: '作业指导书', resource: 'workInstructions' },
+    { key: 'workInstructions', label: '产品文档', resource: 'workInstructions' },
     { key: 'materialIn', label: '来料管理', resource: 'materialIn' },
     { key: 'orders', label: '工单管理', resource: 'orders' },
     { key: 'dispatch', label: '派工管理', resource: 'dispatch' },
@@ -1803,7 +1803,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           </div>
         )}
 
-        {/* 作业指导书 */}
+        {/* 产品文档 */}
         {tab === 'workInstructions' && <WorkInstructionPage onMessage={showMessage} />}
 
         {/* 来料管理 */}

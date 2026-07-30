@@ -23,7 +23,7 @@ export const SOFT_DELETE_MODELS = {
   },
   workInstruction: {
     entityType: 'WORK_INSTRUCTION',
-    labelField: 'code',
+    labelField: 'id',
     delegate: prisma.workInstruction,
   },
   order: {
