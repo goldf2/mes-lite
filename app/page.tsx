@@ -973,7 +973,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </nav>
       </aside>
 
-      <main className="min-w-0 p-3 pb-28 sm:p-4 lg:ml-56 lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20">
+      <main className="mes-mobile-main min-w-0 p-3 sm:p-4 lg:ml-56 lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20">
         <div className="sticky top-0 z-30 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:static lg:-mx-6 lg:px-6">
           <nav aria-label="主业务分类" className="-mx-1 mb-2 flex min-w-0 gap-1 overflow-x-auto px-1 lg:hidden">
             {visibleBusinessGroups.map((group) => {
@@ -1849,7 +1849,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       {mobileNavOpen && (
         <div className="fixed inset-0 z-40 mes-modal-overlay lg:hidden" onClick={() => setMobileNavOpen(false)}>
           <div
-            className="absolute inset-x-3 bottom-[5.25rem] max-h-[68vh] overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 shadow-xl"
+            className="mes-mobile-sheet-above-nav absolute inset-x-3 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between">

@@ -631,7 +631,7 @@ export default function SawingCostCalculatorPage() {
         </div>
       </div>}
 
-      <div className="sticky bottom-20 z-10 flex items-center justify-between rounded-lg border border-gray-200 bg-white/95 p-3 shadow-lg backdrop-blur lg:bottom-3">
+      <div className="mes-mobile-sticky-above-nav sticky bottom-20 z-10 flex items-center justify-between rounded-lg border border-gray-200 bg-white/95 p-3 shadow-lg backdrop-blur lg:bottom-3">
         <button onClick={() => setActiveStep((step) => Math.max(1, step - 1))} disabled={activeStep === 1} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 disabled:opacity-30">上一步</button>
         <div className="text-center text-xs text-gray-500"><span className="font-semibold text-gray-900">{activeStep} / 3</span><span className="hidden sm:inline"> · 当前规模收入 {money(scaleResult.totalRevenue)}</span></div>
         <button onClick={() => setActiveStep((step) => Math.min(3, step + 1))} disabled={activeStep === 3} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-30">下一步</button>

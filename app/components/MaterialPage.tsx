@@ -2429,7 +2429,7 @@ export default function MaterialPage({
                 )}
               </div>
 
-              <div className="sticky bottom-0 z-10 -mx-4 -mb-4 mt-4 flex flex-col gap-3 border-t border-gray-200 bg-white/95 px-4 py-3 shadow-[0_-8px_20px_rgba(15,23,42,0.06)] backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+              <div className="mes-mobile-sticky-above-nav sticky bottom-0 z-10 -mx-4 -mb-4 mt-4 flex flex-col gap-3 border-t border-gray-200 bg-white/95 px-4 py-3 shadow-[0_-8px_20px_rgba(15,23,42,0.06)] backdrop-blur sm:flex-row sm:items-center sm:justify-between">
                 <div className={`text-xs ${draftBomDirty ? 'font-medium text-amber-700' : 'text-gray-500'}`}>
                   {draftBomDirty
                     ? '有未保存修改；确认所有新增、比例调整和移除后，点击“保存”统一生效。'
