@@ -774,6 +774,7 @@ export default function MaterialPage({
   const [bomAuxiliaryView, setBomAuxiliaryView] = useState<'components' | 'usage'>('components')
   const splitContainerRef = useRef<HTMLDivElement>(null)
   const columnResizeCleanupRef = useRef<(() => void) | null>(null)
+  const loadedBomDraftSignatureRef = useRef('')
   const isCompactViewport = useCompactViewport()
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
   const [form, setForm] = useState(createEmptyMaterialForm())
@@ -923,6 +924,17 @@ export default function MaterialPage({
   }, [materials, selectedMaterialId])
 
   useEffect(() => {
+    const savedSignature = JSON.stringify({
+      productId: selectedBomProduct?.id || '',
+      items: selectedBomMaterialItems.map((item) => ({
+        id: item.id,
+        materialId: item.material?.id || '',
+        quantity: Number(item.quantity || 0),
+        unit: item.material?.stockUnit || item.material?.unit || item.unit || '件',
+      })),
+    })
+    if (loadedBomDraftSignatureRef.current === savedSignature) return
+    loadedBomDraftSignatureRef.current = savedSignature
     setDraftBomItems(selectedBomMaterialItems.map((item) => ({
       clientId: item.id,
       materialId: item.material?.id || '',
@@ -930,7 +942,7 @@ export default function MaterialPage({
       unit: item.material?.stockUnit || item.material?.unit || '件',
       wastageRate: 0,
     })))
-  }, [selectedBomMaterialItems])
+  }, [selectedBomMaterialItems, selectedBomProduct?.id])
 
   useEffect(() => {
     if (!selectedMaterial) return
@@ -1517,7 +1529,9 @@ export default function MaterialPage({
     setDraftBomItems((current) => existing
       ? current.map((item) => item.materialId === relationMaterial.id ? nextItem : item)
       : [...current, nextItem])
-    onMessage(existing ? '条目已更新到待保存明细' : '条目已添加到待保存明细')
+    onMessage(existing
+      ? `已更新待保存条目：${relationMaterial.code}，请点击底部“保存”生效`
+      : `已添加待保存条目：${relationMaterial.code}，请点击底部“保存”生效`)
     resetRelationCalculator()
   }
 
@@ -2272,7 +2286,7 @@ export default function MaterialPage({
                     </div>
                     {relationExistingBomItem && (
                       <div className="mt-1 text-xs text-blue-700">
-                        当前已保存比例：{qty(Number(relationExistingBomItem.quantity))} {relationExistingBomItem.unit}原料 / 1 {relationProduct?.unit || '成品主单位'}成品；先添加条目，再点击底部“保存”后覆盖。
+                        当前已保存比例：{qty(Number(relationExistingBomItem.quantity))} {relationExistingBomItem.unit}原料 / 1 {relationProduct?.unit || '成品主单位'}成品；点击“添加或更新”，再点击底部“保存”后覆盖。
                       </div>
                     )}
                   </div>
@@ -2284,7 +2298,7 @@ export default function MaterialPage({
                       ? '长度原料统一按米保存；标准尺寸与固定损耗使用当前选择的尺寸单位，百分比损耗使用 %。'
                       : '原料计算单位固定使用主库存单位。'}
                     换算后仅保存比例；这里录入的标准损耗已包含在比例中，生产日报损耗表示具体批次的额外偏差。
-                    点击“添加条目”只更新下方待保存明细，不会立即写入数据库。
+                    点击“添加或更新”会新增待保存条目，或覆盖同一原料的待保存比例，不会立即写入数据库。
                   </div>
                   <button
                     type="button"
@@ -2292,7 +2306,7 @@ export default function MaterialPage({
                     disabled={!relationTargetsSelectedBom || !relationMaterialId || relationUnitRatio <= 0 || !relationLengthStockUnitValid}
                     className="shrink-0 whitespace-nowrap rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    添加条目
+                    添加或更新
                   </button>
                 </div>
               </div>
@@ -2419,7 +2433,7 @@ export default function MaterialPage({
                 <div className={`text-xs ${draftBomDirty ? 'font-medium text-amber-700' : 'text-gray-500'}`}>
                   {draftBomDirty
                     ? '有未保存修改；确认所有新增、比例调整和移除后，点击“保存”统一生效。'
-                    : '当前 BOM 已保存；“添加条目”只会先加入待保存明细。'}
+                    : '当前 BOM 已保存；“添加或更新”只会先修改待保存明细。'}
                 </div>
                 <button
                   type="button"

@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useState, useEffect, useRef, type RefObject } from 'react'
+import { useState, useEffect, useRef, useCallback, type RefObject } from 'react'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { Boxes, ChevronDown, PencilLine, Search } from 'lucide-react'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
@@ -541,10 +541,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     })
   }
 
-  const showMessage = (msg: string) => {
+  const showMessage = useCallback((msg: string) => {
     setMessage(msg)
     setTimeout(() => setMessage(''), 5000)
-  }
+  }, [])
 
   useEffect(() => {
     if (tab === 'dashboard') fetchDashboard()
