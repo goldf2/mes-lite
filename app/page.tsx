@@ -268,7 +268,7 @@ function SystemMenu({
   compact?: boolean
 }) {
   return (
-    <div ref={containerRef} className="relative shrink-0">
+    <div ref={containerRef} className={compact ? 'static shrink-0' : 'relative shrink-0'}>
       <button
         type="button"
         aria-haspopup="menu"
@@ -285,7 +285,11 @@ function SystemMenu({
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
+          className={`absolute top-full z-50 mt-2 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white shadow-lg ${
+            compact
+              ? 'inset-x-3 sm:left-auto sm:right-4 sm:w-64'
+              : 'right-0 w-64'
+          }`}
         >
           <div className="border-b border-gray-100 px-4 py-3">
             <OperatorBadge operator={operator} />
@@ -372,14 +376,14 @@ function CompactBusinessMenu({
         <div
           role="menu"
           aria-label="业务功能"
-          className="absolute left-0 top-full z-50 mt-2 max-h-[min(70dvh,560px)] w-[min(calc(100vw-24px),560px)] overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 shadow-xl"
+          className="absolute left-0 top-full z-50 mt-2 max-h-[min(calc(100dvh-5rem),560px)] w-[min(calc(100vw-2rem),560px)] overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white p-2 shadow-xl"
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]">
             {groups.map((group) => (
               <section
                 key={group.key}
                 aria-label={group.label}
-                className="min-w-0 border-b border-gray-100 p-2 last:border-b-0 sm:border-b-0"
+                className="min-w-0 border-b border-gray-100 p-1.5 last:border-b-0"
               >
                 <div className={`mb-1 px-2 text-xs font-semibold ${
                   group.key === activeGroup?.key ? 'text-blue-700' : 'text-gray-400'
@@ -394,7 +398,7 @@ function CompactBusinessMenu({
                       role="menuitem"
                       aria-current={activeTab === item.key ? 'page' : undefined}
                       onClick={() => onNavigate(item.key)}
-                      className={`flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
+                      className={`flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition [&>span:first-child]:h-6 [&>span:first-child]:w-6 ${
                         activeTab === item.key
                           ? 'bg-blue-50 font-semibold text-blue-700'
                           : 'text-gray-700 hover:bg-gray-50'
@@ -619,6 +623,18 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       document.removeEventListener('keydown', closeOnEscape)
     }
   }, [businessMenuOpen])
+
+  useEffect(() => {
+    if (!businessMenuOpen && !systemMenuOpen) return
+    if (window.matchMedia('(min-width: 1024px)').matches) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [businessMenuOpen, systemMenuOpen])
 
   useEffect(() => {
     const savedWidth = Number(window.localStorage.getItem(desktopSidebarStorageKey))
@@ -1173,7 +1189,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       </aside>
 
       <main className="mes-mobile-main min-w-0 p-3 sm:p-4 lg:ml-[var(--mes-desktop-sidebar-width)] lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20">
-        <div className="sticky top-0 z-30 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:static lg:-mx-6 lg:px-6">
+        <div className={`sticky top-0 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:static lg:-mx-6 lg:px-6 ${
+          businessMenuOpen || systemMenuOpen ? 'z-[60]' : 'z-30'
+        }`}>
           <div className="flex min-w-0 flex-wrap items-center gap-2 lg:flex-nowrap">
             <div className="hidden min-w-0 shrink-0 pt-1 lg:block">
               <div className="hidden text-xs font-medium text-gray-400 sm:block">{activeSystemTab ? '账号功能' : '业务功能'}</div>
@@ -1199,7 +1217,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 }}
               />
             </div>
-            <div id="topbar-actions" className="order-3 flex min-w-0 flex-[1_1_100%] items-center justify-start gap-2 overflow-visible sm:order-none sm:flex-[1_1_480px] lg:flex-1">
+            <div id="topbar-actions" className="order-3 flex min-w-0 flex-[1_1_100%] items-center justify-start gap-2 overflow-visible empty:hidden lg:order-none lg:flex-1">
                 {tab === 'orders' ? (
                   <ResponsiveToolbarActions
                     primaryFilters={(
@@ -1301,7 +1319,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   />
                 ) : null}
             </div>
-            <div className="lg:hidden">
+            <div className="ml-auto lg:hidden">
               <SystemMenu
                 containerRef={systemMenuRef}
                 operator={operator}
