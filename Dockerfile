@@ -18,7 +18,9 @@ RUN ldconfig
 FROM base AS dependencies
 
 WORKDIR /app
-COPY package.json package-lock.json ./
+# 仅复制去除项目发布版本号的依赖清单。这样应用版本递增时仍可复用
+# node_modules 层，只有依赖或锁定结果变化时才重新执行 npm ci。
+COPY docker/dependencies/package.json docker/dependencies/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --no-audit --fund=false --prefer-offline \
       --fetch-retries=5 \
@@ -34,7 +36,8 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 
-RUN npx prisma generate \
+RUN node scripts/sync-docker-dependency-manifest.mjs --check \
+    && npx prisma generate \
     && npm run build \
     && npm prune --omit=dev
 

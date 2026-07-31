@@ -86,6 +86,15 @@ docker exec -u root <容器名> npm run storage:fix
 
 镜像构建不再执行 `apt-get`：Prisma 所需的 OpenSSL 3 运行库从 Docker 官方 `buildpack-deps:bookworm-curl` 镜像复制，送货单使用的 Noto Sans CJK SC 字体及其 SIL OFL 许可证随仓库发布。这样可避免部署机访问 Debian 软件源超时，同时保证 Prisma 构建和中文 PDF 使用相同、可验证的依赖。
 
+Docker 的 `dependencies` 阶段使用 `docker/dependencies/` 下去除项目发布版本号的依赖清单。正常递增 `package.json` 与 `package-lock.json` 的版本号不会再触发 `npm ci`；只有依赖或锁定结果变化时才会重建该层。新增、升级或删除 npm 依赖后必须运行并提交：
+
+```bash
+npm run docker:sync-deps
+npm run verify:docker-deps
+```
+
+Docker 正式构建也会执行一致性校验，依赖清单过期时会中止构建并给出同步命令。页面显示的 `MES-lite v...` 仍来自根目录 `package.json`，不受缓存清单影响。
+
 镜像内置了 Docker `HEALTHCHECK`，使用 Node.js 内置 `fetch` 请求 `/api/health` 检查 Web 服务是否启动。首次启动会先执行 SQLite 迁移，健康检查有 60 秒启动宽限期。如果健康检查失败，优先检查：
 
 - `/app/data` 是否可写。

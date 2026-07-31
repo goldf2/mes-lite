@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.118",
+  "version": "0.1.119",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -14,6 +14,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "docker:sync-deps": "node scripts/sync-docker-dependency-manifest.mjs",
+    "verify:docker-deps": "node scripts/sync-docker-dependency-manifest.mjs --check",
     "dev:admin": "tsx scripts/ensure-dev-admin.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
