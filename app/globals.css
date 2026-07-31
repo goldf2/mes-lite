@@ -15,11 +15,6 @@ body {
     padding-bottom: calc(var(--mes-mobile-nav-offset) + 1rem);
   }
 
-  .mes-mobile-sheet-above-nav {
-    bottom: calc(var(--mes-mobile-nav-offset) + 0.75rem);
-    max-height: min(68vh, calc(100dvh - var(--mes-mobile-nav-offset) - 1.5rem));
-  }
-
   .mes-mobile-sticky-above-nav {
     bottom: calc(var(--mes-mobile-nav-offset) + 0.5rem);
   }

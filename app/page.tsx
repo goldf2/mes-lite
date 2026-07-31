@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic'
 import { useState, useEffect, useRef, useCallback, type CSSProperties, type RefObject } from 'react'
 import * as Collapsible from '@radix-ui/react-collapsible'
-import { Boxes, ChevronDown, PencilLine, Search } from 'lucide-react'
+import { Boxes, ChevronDown, Menu, PencilLine, Search, X } from 'lucide-react'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
 import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
@@ -452,12 +452,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     || visibleBusinessGroups[0]
   const sidebarNavItems = activeSystemTab ? readableSystemNavItems : activeBusinessGroup?.items || []
   const baseMobileNavItems = navItems.slice(0, 4)
-  const activeBusinessNavItem = navItems.find((item) => item.key === tab)
   const mobilePrimaryItems = baseMobileNavItems
-  const mobileMoreActive = Boolean(
-    activeBusinessNavItem
-    && !baseMobileNavItems.some((item) => item.key === activeBusinessNavItem.key)
-  )
 
   useEffect(() => {
     const savedOrder = window.localStorage.getItem('mes-lite.nav.order')
@@ -517,6 +512,22 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       document.body.style.overflow = previousOverflow
     }
   }, [systemMenuOpen])
+
+  useEffect(() => {
+    if (!mobileNavOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileNavOpen(false)
+    }
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [mobileNavOpen])
 
   useEffect(() => {
     const savedWidth = Number(window.localStorage.getItem(desktopSidebarStorageKey))
@@ -1090,10 +1101,43 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <div className="hidden text-xs font-medium text-gray-400 sm:block">{activeSystemTab ? '账号功能' : '业务功能'}</div>
               <div className="max-w-[5.5rem] truncate text-sm font-semibold text-gray-900 sm:max-w-[10rem] sm:text-lg lg:max-w-[12rem]">{activeTabLabel}</div>
             </div>
-            <div className="min-w-0 lg:hidden">
-              <div className="max-w-[12rem] truncate text-base font-semibold text-gray-900">
+            <div className="flex min-w-0 flex-1 items-center gap-2 lg:hidden">
+              <button
+                type="button"
+                aria-label="打开全部功能"
+                aria-haspopup="dialog"
+                aria-expanded={mobileNavOpen}
+                onClick={() => {
+                  setMobileNavOpen(true)
+                  setSystemMenuOpen(false)
+                }}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50"
+              >
+                <Menu aria-hidden="true" className="h-5 w-5" />
+              </button>
+              <div className="min-w-0 flex-1 truncate text-base font-semibold text-gray-900">
                 {activeTabLabel}
               </div>
+              <SystemMenu
+                containerRef={systemMenuRef}
+                operator={operator}
+                items={readableSystemNavItems}
+                activeTab={tab}
+                open={systemMenuOpen}
+                onToggle={() => {
+                  setSystemMenuOpen((open) => !open)
+                  setMobileNavOpen(false)
+                }}
+                onNavigate={(nextTab) => {
+                  setTab(nextTab)
+                  setSystemMenuOpen(false)
+                }}
+                onLogout={() => {
+                  setSystemMenuOpen(false)
+                  onLogout()
+                }}
+                compact
+              />
             </div>
             <div id="topbar-actions" className="order-3 flex min-w-0 flex-[1_1_100%] items-center justify-start gap-2 overflow-visible empty:hidden lg:order-none lg:flex-1">
                 {tab === 'orders' ? (
@@ -1196,27 +1240,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     )}
                   />
                 ) : null}
-            </div>
-            <div className="ml-auto lg:hidden">
-              <SystemMenu
-                containerRef={systemMenuRef}
-                operator={operator}
-                items={readableSystemNavItems}
-                activeTab={tab}
-                open={systemMenuOpen}
-                onToggle={() => {
-                  setSystemMenuOpen((open) => !open)
-                }}
-                onNavigate={(nextTab) => {
-                  setTab(nextTab)
-                  setSystemMenuOpen(false)
-                }}
-                onLogout={() => {
-                  setSystemMenuOpen(false)
-                  onLogout()
-                }}
-                compact
-              />
             </div>
           </div>
         </div>
@@ -1914,30 +1937,36 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       </main>
 
       {mobileNavOpen && (
-        <div className="fixed inset-0 z-40 mes-modal-overlay lg:hidden" onClick={() => setMobileNavOpen(false)}>
-          <div
-            className="mes-mobile-sheet-above-nav absolute inset-x-3 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 shadow-xl"
+        <div className="fixed inset-0 z-[70] mes-modal-overlay lg:hidden" onClick={() => setMobileNavOpen(false)}>
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="全部功能"
+            className="absolute inset-y-0 left-0 flex w-[min(88vw,380px)] flex-col overflow-hidden border-r border-gray-200 bg-white shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="mb-3 flex items-center justify-between">
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 pb-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
               <div>
-                <div className="text-sm font-semibold text-gray-900">全部功能</div>
-                <div className="text-xs text-gray-500">按业务分组显示，可设置底部常用入口</div>
+                <div className="text-base font-semibold text-gray-900">全部功能</div>
+                <div className="mt-0.5 text-xs text-gray-500">MES-lite v{appVersion}</div>
               </div>
               <button
                 type="button"
+                aria-label="关闭全部功能"
                 onClick={() => setMobileNavOpen(false)}
-                className="rounded-md border border-gray-200 px-2.5 py-1 text-sm text-gray-600"
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
               >
-                关闭
+                <X aria-hidden="true" className="h-5 w-5" />
               </button>
             </div>
-            <div className="space-y-4">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
               <section aria-label="底部常用入口">
-                <div className="mb-2 text-xs font-semibold text-gray-500">底部常用入口</div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="sticky top-0 z-10 border-b border-gray-100 bg-white py-3 text-xs font-semibold text-gray-500">
+                  底部常用入口
+                </div>
+                <div>
                   {baseMobileNavItems.map((item, index) => (
-                    <div key={item.key} className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50/50 p-2">
+                    <div key={item.key} className="flex min-h-12 items-center gap-2 border-b border-gray-100 py-1">
                       <button
                         type="button"
                         onClick={() => {
@@ -1945,8 +1974,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                           setMobileNavOpen(false)
                           setSystemMenuOpen(false)
                         }}
-                        className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium ${
-                          tab === item.key ? 'text-blue-700' : 'text-gray-700'
+                        className={`flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-2 text-left text-sm font-medium ${
+                          tab === item.key ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
                         }`}
                       >
                         <MenuIcon icon={item.key} />
@@ -1958,7 +1987,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                           aria-label={`${item.label} 在常用入口中上移`}
                           disabled={index === 0}
                           onClick={() => moveNavItem(item.key, -1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-sm text-gray-600 disabled:opacity-30"
+                          className="flex h-8 w-8 items-center justify-center rounded-md text-sm text-gray-500 hover:bg-gray-100 disabled:opacity-25"
                         >
                           ↑
                         </button>
@@ -1967,7 +1996,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                           aria-label={`${item.label} 在常用入口中下移`}
                           disabled={index === baseMobileNavItems.length - 1}
                           onClick={() => moveNavItem(item.key, 1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-sm text-gray-600 disabled:opacity-30"
+                          className="flex h-8 w-8 items-center justify-center rounded-md text-sm text-gray-500 hover:bg-gray-100 disabled:opacity-25"
                         >
                           ↓
                         </button>
@@ -1978,15 +2007,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               </section>
 
               {visibleBusinessGroups.map((group) => (
-                <section key={group.key} aria-label={group.label}>
-                  <div className="mb-2 border-b border-gray-100 pb-1 text-xs font-semibold text-gray-500">
+                <section key={group.key} aria-label={group.label} className="pt-2">
+                  <div className="border-b border-gray-200 py-3 text-sm font-semibold text-gray-900">
                     {group.label}
                   </div>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div>
                     {group.items.map((item) => {
                       const isFavorite = baseMobileNavItems.some((favorite) => favorite.key === item.key)
                       return (
-                        <div key={item.key} className="flex items-center gap-2 rounded-lg border border-gray-100 p-2">
+                        <div key={item.key} className="flex min-h-12 items-center gap-2 border-b border-gray-100 py-1">
                           <button
                             type="button"
                             onClick={() => {
@@ -1994,7 +2023,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                               setMobileNavOpen(false)
                               setSystemMenuOpen(false)
                             }}
-                            className={`flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-2 text-left text-sm font-medium ${
+                            className={`flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-2.5 text-left text-sm font-medium ${
                               tab === item.key ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
                             }`}
                           >
@@ -2002,14 +2031,14 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                             <span className="truncate">{item.label}</span>
                           </button>
                           {isFavorite ? (
-                            <span className="shrink-0 rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+                            <span className="shrink-0 px-2 py-1 text-xs font-medium text-blue-600">
                               常用
                             </span>
                           ) : (
                             <button
                               type="button"
                               onClick={() => setMobileFavorite(item.key)}
-                              className="shrink-0 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                              className="shrink-0 rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100"
                             >
                               设为常用
                             </button>
@@ -2021,12 +2050,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 </section>
               ))}
             </div>
-          </div>
+          </aside>
         </div>
       )}
 
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
-        <div className="grid grid-cols-5 gap-1">
+        <div
+          className="grid gap-1"
+          style={{ gridTemplateColumns: `repeat(${Math.max(mobilePrimaryItems.length, 1)}, minmax(0, 1fr))` }}
+        >
           {mobilePrimaryItems.map((item) => (
             <button
               key={item.key}
@@ -2044,18 +2076,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <span className="max-w-full truncate">{compactNavLabel(item.label)}</span>
             </button>
           ))}
-          <button
-            type="button"
-            onClick={() => setMobileNavOpen((open) => !open)}
-            className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-medium transition ${
-              mobileNavOpen || mobileMoreActive
-                ? 'bg-gray-900 text-white [&_span:first-child]:bg-white/15 [&_span:first-child]:text-white'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-[13px] font-semibold text-slate-700">多</span>
-            <span>更多</span>
-          </button>
         </div>
       </nav>
     </div>
