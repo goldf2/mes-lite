@@ -151,6 +151,7 @@ const primaryMeasureOptions = [
 const primaryMeasureLabels = Object.fromEntries(primaryMeasureOptions) as Record<string, string>
 const materialProductPrefix = 'material:'
 const materialSplitStorageKey = 'mes-lite.materials.splitPercent'
+const bomSummaryVisibleStorageKey = 'mes-lite.materials.bomSummaryVisible'
 const bomSummaryFieldsStorageKey = 'mes-lite.materials.bomSummaryFields'
 const materialColumnWidthsStorageKey = 'mes-lite.materials.columnWidths'
 
@@ -298,10 +299,14 @@ function MaterialFieldVisibilityControl({
 }
 
 function BomSummaryVisibilityControl({
+  visible,
   value,
+  onVisibleChange,
   onChange,
 }: {
+  visible: boolean
   value: BomSummaryField[]
+  onVisibleChange: (visible: boolean) => void
   onChange: (next: BomSummaryField[]) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -323,24 +328,38 @@ function BomSummaryVisibilityControl({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="h-9 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 hover:bg-gray-50"
+        className={`h-9 whitespace-nowrap rounded-lg border bg-white px-3 text-sm hover:bg-gray-50 ${visible ? 'border-gray-200 text-gray-700' : 'border-blue-300 text-blue-700'}`}
       >
-        BOM 简况配置
+        {visible ? 'BOM 简况配置' : 'BOM 简况已隐藏'}
       </button>
       {open && (
         <div className="absolute right-0 top-full z-40 mt-1 w-52 rounded-lg border border-gray-200 bg-white p-2 shadow-xl">
-          <div className="px-2 pb-2 text-xs text-gray-500">选择简况中显示的内容</div>
-          {bomSummaryFieldOptions.map((option) => (
-            <label key={option.key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm text-gray-700 hover:bg-gray-50">
-              <input
-                type="checkbox"
-                checked={selected.has(option.key)}
-                onChange={() => toggleField(option.key)}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              {option.label}
-            </label>
-          ))}
+          <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50">
+            <input
+              type="checkbox"
+              checked={visible}
+              onChange={(event) => onVisibleChange(event.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            显示 BOM 简况
+          </label>
+          {visible && (
+            <>
+              <div className="mx-2 my-1 border-t border-gray-100" />
+              <div className="px-2 py-2 text-xs text-gray-500">选择简况中显示的内容</div>
+              {bomSummaryFieldOptions.map((option) => (
+                <label key={option.key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(option.key)}
+                    onChange={() => toggleField(option.key)}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  {option.label}
+                </label>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>
@@ -747,6 +766,7 @@ export default function MaterialPage({
   const [panoramaMaterialId, setPanoramaMaterialId] = useState<string | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.materials.viewMode', 'list')
   const [visibleFields, setVisibleFields] = useState<MaterialVisibleField[]>(defaultMaterialVisibleFields)
+  const [bomSummaryVisible, setBomSummaryVisible] = useState(true)
   const [bomSummaryFields, setBomSummaryFields] = useState<BomSummaryField[]>(defaultBomSummaryFields)
   const [columnWidths, setColumnWidths] = useState<MaterialColumnWidths>({})
   const [splitPercent, setSplitPercent] = useState(46)
@@ -939,6 +959,11 @@ export default function MaterialPage({
   }, [])
 
   useEffect(() => {
+    const saved = window.localStorage.getItem(bomSummaryVisibleStorageKey)
+    if (saved !== null) setBomSummaryVisible(saved !== 'false')
+  }, [])
+
+  useEffect(() => {
     const saved = window.localStorage.getItem(bomSummaryFieldsStorageKey)
     if (!saved) return
     try {
@@ -1030,6 +1055,11 @@ export default function MaterialPage({
   const updateBomSummaryFields = (next: BomSummaryField[]) => {
     setBomSummaryFields(next)
     window.localStorage.setItem(bomSummaryFieldsStorageKey, JSON.stringify(next))
+  }
+
+  const updateBomSummaryVisible = (visible: boolean) => {
+    setBomSummaryVisible(visible)
+    window.localStorage.setItem(bomSummaryVisibleStorageKey, String(visible))
   }
 
   const updateColumnWidth = useCallback((column: MaterialTableColumnKey, width: number) => {
@@ -1537,11 +1567,15 @@ export default function MaterialPage({
     if (sortBy !== 'createdAt' || sortDir !== 'desc') {
       labels.push(`排序 ${materialSortOptions.find((option) => option.value === sortBy)?.label || sortBy}/${sortDir === 'asc' ? '升序' : '降序'}`)
     }
-    if (visibleFields.length !== defaultMaterialVisibleFields.length || visibleFields.some((field, index) => field !== defaultMaterialVisibleFields[index])) {
+    if (
+      visibleFields.length !== defaultMaterialVisibleFields.length
+      || visibleFields.some((field, index) => field !== defaultMaterialVisibleFields[index])
+      || (showBomWorkspace && !bomSummaryVisible)
+    ) {
       labels.push('字段显示')
     }
     return labels
-  }, [selectedCategories, customerFilter, customers, sortBy, sortDir, visibleFields])
+  }, [selectedCategories, customerFilter, customers, sortBy, sortDir, visibleFields, showBomWorkspace, bomSummaryVisible])
 
   useEffect(() => {
     if (!onToolbarChange) return
@@ -1603,7 +1637,9 @@ export default function MaterialPage({
             />
             {showBomWorkspace && (
               <BomSummaryVisibilityControl
+                visible={bomSummaryVisible}
                 value={bomSummaryFields}
+                onVisibleChange={updateBomSummaryVisible}
                 onChange={updateBomSummaryFields}
               />
             )}
@@ -1647,7 +1683,7 @@ export default function MaterialPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, sortBy, sortDir, viewMode, setViewMode, visibleFields, bomSummaryFields, activeFilterLabels, showBomWorkspace, effectiveViewMode, columnWidths, resetAllColumnWidths])
+  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, sortBy, sortDir, viewMode, setViewMode, visibleFields, bomSummaryVisible, bomSummaryFields, activeFilterLabels, showBomWorkspace, effectiveViewMode, columnWidths, resetAllColumnWidths])
 
   return (
     <>
@@ -1708,7 +1744,9 @@ export default function MaterialPage({
               />
               {showBomWorkspace && (
                 <BomSummaryVisibilityControl
+                  visible={bomSummaryVisible}
                   value={bomSummaryFields}
+                  onVisibleChange={updateBomSummaryVisible}
                   onChange={updateBomSummaryFields}
                 />
               )}
@@ -1778,7 +1816,7 @@ export default function MaterialPage({
           <>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] items-start gap-3">
               {materials.map((material) => {
-                const bomSummary = showBomWorkspace ? getBomSummary(material) : null
+                const bomSummary = showBomWorkspace && bomSummaryVisible ? getBomSummary(material) : null
                 const isSelected = showBomWorkspace && material.id === selectedMaterialId
                 return (
                 <div
@@ -1837,10 +1875,10 @@ export default function MaterialPage({
                   </div>
                 )}
                 {bomSummary && (
-                  <div className={`mt-2 rounded border-l-2 px-2 py-1.5 text-xs ${bomSummary.count > 0 ? 'border-emerald-400 bg-emerald-50 text-emerald-800' : 'border-gray-300 bg-gray-50 text-gray-500'}`}>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">BOM</span>
-                      <span>组成 {bomSummary.componentCount} · 被引用 {bomSummary.usageCount}</span>
+                  <div className={`mt-2 overflow-hidden rounded border-l-2 px-2 py-1.5 text-xs ${bomSummary.count > 0 ? 'border-emerald-400 bg-emerald-50 text-emerald-800' : 'border-gray-300 bg-gray-50 text-gray-500'}`}>
+                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      <span className="shrink-0 font-medium">BOM</span>
+                      <span className="min-w-0 truncate">组成 {bomSummary.componentCount} · 被引用 {bomSummary.usageCount}</span>
                     </div>
                     <div className="mt-0.5 truncate" title={bomSummary.text}>{bomSummary.text}</div>
                   </div>
@@ -1894,13 +1932,13 @@ export default function MaterialPage({
                   {showField('stock') && <MaterialSortableHeader columnKey="stock" field="stock" label="库存" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('stock')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
                   {showField('valuationStock') && <MaterialSortableHeader columnKey="valuationStock" field="valuationStock" label="参考数量" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('valuationStock')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
                   {showField('createdAt') && <MaterialSortableHeader columnKey="createdAt" field="createdAt" label="创建时间" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('createdAt')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
-                  {showBomWorkspace && <MaterialTableHeader columnKey="bomSummary" label="BOM 简况" style={columnStyle('bomSummary')} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
+                  {showBomWorkspace && bomSummaryVisible && <MaterialTableHeader columnKey="bomSummary" label="BOM 简况" style={columnStyle('bomSummary')} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
                   <MaterialTableHeader columnKey="actions" label="操作" style={columnStyle('actions')} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {materials.map((material) => {
-                  const bomSummary = showBomWorkspace ? getBomSummary(material) : null
+                  const bomSummary = showBomWorkspace && bomSummaryVisible ? getBomSummary(material) : null
                   const isSelected = showBomWorkspace && material.id === selectedMaterialId
                   return (
                   <tr
@@ -1944,12 +1982,12 @@ export default function MaterialPage({
                     {showField('createdAt') && <td style={columnStyle('createdAt')} className="overflow-hidden px-4 py-3 text-xs text-gray-500"><div className="truncate">{new Date(material.createdAt).toLocaleString('zh-CN')}</div></td>}
                     {bomSummary && (
                       <td style={columnStyle('bomSummary')} className="overflow-hidden px-4 py-3 text-sm">
-                        <div className={`rounded-lg border px-2 py-1.5 text-xs ${bomSummary.count > 0 ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : 'border-gray-100 bg-gray-50 text-gray-500'}`}>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-medium">BOM</span>
-                            <span>组成 {bomSummary.componentCount} · 被引用 {bomSummary.usageCount}</span>
+                        <div className={`overflow-hidden rounded-lg border px-2 py-1.5 text-xs ${bomSummary.count > 0 ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : 'border-gray-100 bg-gray-50 text-gray-500'}`}>
+                          <div className="flex min-w-0 items-center justify-between gap-2">
+                            <span className="shrink-0 font-medium">BOM</span>
+                            <span className="min-w-0 truncate">组成 {bomSummary.componentCount} · 被引用 {bomSummary.usageCount}</span>
                           </div>
-                          <div className="mt-1 line-clamp-2">{bomSummary.text}</div>
+                          <div className="mt-1 truncate" title={bomSummary.text}>{bomSummary.text}</div>
                         </div>
                       </td>
                     )}
