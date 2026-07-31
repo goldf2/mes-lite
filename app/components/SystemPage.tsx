@@ -6,6 +6,7 @@ import { useModalGlassPreference } from './interfacePreferences'
 import MaterialChoiceSearch from './MaterialChoiceSearch'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import useCompactViewport from './useCompactViewport'
+import DataIntegrityPanel from './DataIntegrityPanel'
 
 interface Supplier {
   id: string
@@ -471,11 +472,13 @@ function DataToolManager({ onMessage }: { onMessage: (msg: string) => void }) {
   return (
     <div className="rounded-lg bg-white p-4 shadow sm:p-6">
       <div className="mb-5">
-        <h3 className="text-lg font-semibold">一次性数据工具</h3>
-        <p className="mt-1 text-sm text-gray-500">执行前先预检，操作使用数据库事务并写入操作记录。</p>
+        <h3 className="text-lg font-semibold">数据工具</h3>
+        <p className="mt-1 text-sm text-gray-500">执行前先预检，修改与删除操作使用数据库事务并写入操作记录。</p>
       </div>
 
-      <div className="rounded-lg border border-gray-200 p-4">
+      <DataIntegrityPanel onMessage={onMessage} />
+
+      <div className="mt-4 rounded-lg border border-gray-200 p-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="font-medium text-gray-900">规范化物料编码</div>

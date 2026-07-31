@@ -165,17 +165,6 @@ export async function PUT(req: NextRequest) {
     }
 
     const materialById = new Map(materials.map((material) => [material.id, material]))
-    const unitMismatch = input.items.find((item) => {
-      const material = materialById.get(item.materialId)
-      return item.unit && material && item.unit !== (material.stockUnit || material.unit)
-    })
-    if (unitMismatch) {
-      const material = materialById.get(unitMismatch.materialId)
-      return NextResponse.json(
-        { error: `换算比例必须使用原料主库存单位 ${material?.stockUnit || material?.unit}` },
-        { status: 400 },
-      )
-    }
     const items = input.items
       .map((item) => {
         const material = materialById.get(item.materialId)
@@ -206,9 +195,19 @@ export async function PUT(req: NextRequest) {
         select: { id: true },
       })
 
-      await tx.bOMItem.deleteMany({
+      const replacedItemIds = (await tx.bOMItem.findMany({
         where: { bomId: bom.id, itemType: 'MATERIAL' },
-      })
+        select: { id: true },
+      })).map((item) => item.id)
+      if (replacedItemIds.length > 0) {
+        await tx.dailyProductionConsumption.updateMany({
+          where: { bomItemId: { in: replacedItemIds } },
+          data: { bomItemId: null },
+        })
+        await tx.bOMItem.deleteMany({
+          where: { id: { in: replacedItemIds } },
+        })
+      }
 
       if (items.length > 0) {
         await tx.bOMItem.createMany({
