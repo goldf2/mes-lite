@@ -4,6 +4,8 @@ import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
 import { randomUUID } from 'crypto'
 import { requireResourcePermission } from '@/lib/permissions'
+import { writeAuditLog } from '@/lib/audit'
+import { isAttachmentRotation } from '@/lib/attachment-rotation'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -139,19 +141,58 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('materials', 'update')
-    if (denied) return denied
+    const readDenied = await requireResourcePermission('attachments', 'read')
+    if (readDenied) return readDenied
 
     const body = await req.json()
     const id = String(body.id || '')
-    if (!id || body.action !== 'SET_COVER') {
+    const action = String(body.action || '')
+    if (!id || !['SET_COVER', 'SET_ROTATION'].includes(action)) {
       return NextResponse.json({ error: '参数错误' }, { status: 400 })
     }
 
     const attachment = await prisma.documentAttachment.findUnique({ where: { id } })
+    if (!attachment || attachment.deletedAt) {
+      return NextResponse.json({ error: '附件不存在或已归档' }, { status: 404 })
+    }
+
+    if (action === 'SET_ROTATION') {
+      const permissionResource = attachment.ownerType === 'WORK_INSTRUCTION'
+        ? 'workInstructions'
+        : attachment.ownerType === 'MATERIAL'
+          ? 'materials'
+          : 'attachments'
+      const denied = await requireResourcePermission(permissionResource, 'update')
+      if (denied) return denied
+
+      const rotation = Number(body.rotation)
+      if (!Number.isInteger(rotation) || !isAttachmentRotation(rotation)) {
+        return NextResponse.json({ error: '旋转角度只能为 0、90、180 或 270' }, { status: 400 })
+      }
+
+      const updated = await prisma.documentAttachment.update({
+        where: { id },
+        data: { rotation },
+      })
+      await writeAuditLog(req, {
+        action: 'UPDATE',
+        entityType: 'DOCUMENT_ATTACHMENT',
+        entityId: attachment.id,
+        entityLabel: attachment.originalName,
+        beforeData: { rotation: attachment.rotation },
+        afterData: { rotation: updated.rotation },
+        note: `文件显示方向调整为 ${updated.rotation}°`,
+      })
+      return NextResponse.json({
+        data: withFileUrl(updated),
+        message: '文件方向已保存',
+      })
+    }
+
+    const denied = await requireResourcePermission('materials', 'update')
+    if (denied) return denied
+
     if (
-      !attachment ||
-      attachment.deletedAt ||
       attachment.ownerType !== 'MATERIAL' ||
       attachment.documentType !== 'MATERIAL_IMAGE' ||
       !attachment.mimeType.startsWith('image/')

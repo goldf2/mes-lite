@@ -3,6 +3,8 @@
 import { ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react'
 import ModalOverlay from './ModalOverlay'
 import DocumentPreviewThumb from './DocumentPreviewThumb'
+import PdfDocumentViewer from './PdfDocumentViewer'
+import { normalizeAttachmentRotation } from '@/lib/attachment-rotation'
 
 interface AttachmentItem {
   id: string
@@ -13,6 +15,7 @@ interface AttachmentItem {
   note?: string | null
   documentType: string
   isCover: boolean
+  rotation: number
   createdAt: string
 }
 
@@ -679,7 +682,7 @@ export default function MaterialPanoramaPage({
   const [error, setError] = useState('')
   const [viewer, setViewer] = useState<{ instruction: WorkInstructionSummary; attachments: AttachmentItem[]; index: number } | null>(null)
   const [viewerZoom, setViewerZoom] = useState(1)
-  const [viewerRotation, setViewerRotation] = useState(0)
+  const [rotationSaving, setRotationSaving] = useState(false)
   const [layoutOpen, setLayoutOpen] = useState(false)
   const [layoutConfig, setLayoutConfig] = useState<PanoramaLayoutConfig>(defaultPanoramaLayout)
   const moduleConfig = layoutConfig.modules
@@ -801,7 +804,50 @@ export default function MaterialPanoramaPage({
     }
     setViewer({ instruction, attachments: instruction.attachments, index: 0 })
     setViewerZoom(1)
-    setViewerRotation(0)
+  }
+
+  const saveSelectedAttachmentRotation = async (delta: number) => {
+    if (!selectedViewerAttachment || rotationSaving) return
+    const nextRotation = normalizeAttachmentRotation(Number(selectedViewerAttachment.rotation || 0) + delta)
+    setRotationSaving(true)
+    try {
+      const res = await fetch('/api/attachments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: selectedViewerAttachment.id,
+          action: 'SET_ROTATION',
+          rotation: nextRotation,
+        }),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        onMessage(result.error || '保存文件方向失败')
+        return
+      }
+      const updated = result.data as AttachmentItem
+      setViewer((current) => current ? {
+        ...current,
+        attachments: current.attachments.map((attachment) => attachment.id === updated.id ? updated : attachment),
+      } : current)
+      setData((current) => current ? {
+        ...current,
+        attachments: {
+          images: current.attachments.images.map((attachment) => attachment.id === updated.id ? updated : attachment),
+          documents: current.attachments.documents.map((attachment) => attachment.id === updated.id ? updated : attachment),
+          workInstructions: current.attachments.workInstructions.map((attachment) => attachment.id === updated.id ? updated : attachment),
+        },
+        workInstructions: current.workInstructions.map((instruction) => ({
+          ...instruction,
+          attachments: instruction.attachments.map((attachment) => attachment.id === updated.id ? updated : attachment),
+        })),
+      } : current)
+      onMessage(result.message || '文件方向已保存')
+    } catch (err) {
+      onMessage('保存文件方向失败')
+    } finally {
+      setRotationSaving(false)
+    }
   }
 
   const renderLayoutModule = (id: PanoramaModuleId, children: ReactNode) => {
@@ -1409,15 +1455,11 @@ export default function MaterialPanoramaPage({
             <div className="flex flex-wrap items-center justify-end gap-2">
               <button onClick={() => setViewer({ ...viewer, index: Math.max(0, viewer.index - 1) })} disabled={viewer.index <= 0} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">上一份</button>
               <button onClick={() => setViewer({ ...viewer, index: Math.min(viewer.attachments.length - 1, viewer.index + 1) })} disabled={viewer.index >= viewer.attachments.length - 1} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">下一份</button>
-              {selectedViewerAttachment.mimeType.startsWith('image/') && (
-                <>
-                  <button onClick={() => setViewerZoom((value) => Math.max(0.25, Number((value - 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">缩小</button>
-                  <button onClick={() => setViewerZoom((value) => Math.min(4, Number((value + 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">放大</button>
-                  <button onClick={() => setViewerRotation((value) => value - 90)} className="rounded border border-white/20 px-3 py-1.5 text-sm">左转</button>
-                  <button onClick={() => setViewerRotation((value) => value + 90)} className="rounded border border-white/20 px-3 py-1.5 text-sm">右转</button>
-                  <button onClick={() => { setViewerZoom(1); setViewerRotation(0) }} className="rounded border border-white/20 px-3 py-1.5 text-sm">复位</button>
-                </>
-              )}
+              <button onClick={() => setViewerZoom((value) => Math.max(0.25, Number((value - 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">缩小</button>
+              <button onClick={() => setViewerZoom((value) => Math.min(4, Number((value + 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">放大</button>
+              <button onClick={() => void saveSelectedAttachmentRotation(-90)} disabled={rotationSaving} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">左转并保存</button>
+              <button onClick={() => void saveSelectedAttachmentRotation(90)} disabled={rotationSaving} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">右转并保存</button>
+              <button onClick={() => setViewerZoom(1)} className="rounded border border-white/20 px-3 py-1.5 text-sm">适合页面</button>
               <a href={selectedViewerAttachment.url} target="_blank" rel="noreferrer" className="rounded border border-white/20 px-3 py-1.5 text-sm">新窗口</a>
               <button onClick={() => setViewer(null)} className="rounded bg-white px-3 py-1.5 text-sm text-slate-900">关闭</button>
             </div>
@@ -1430,22 +1472,23 @@ export default function MaterialPanoramaPage({
                   alt={selectedViewerAttachment.originalName}
                   className="max-h-full max-w-full object-contain"
                   style={{
-                    transform: `rotate(${viewerRotation}deg) scale(${viewerZoom})`,
+                    transform: `rotate(${selectedViewerAttachment.rotation || 0}deg) scale(${viewerZoom})`,
                     transformOrigin: 'center center',
                   }}
                 />
               </div>
             ) : (
-              <iframe
-                src={`${selectedViewerAttachment.url}#view=Fit&toolbar=1&navpanes=0`}
+              <PdfDocumentViewer
+                url={selectedViewerAttachment.url}
                 title={selectedViewerAttachment.originalName}
-                className="h-full w-full border-0 bg-white"
+                rotation={selectedViewerAttachment.rotation}
+                zoom={viewerZoom}
               />
             )}
           </div>
           {selectedViewerAttachment.mimeType === 'application/pdf' && (
             <div className="shrink-0 border-t border-white/10 px-4 py-2 text-xs text-white/60">
-              PDF 多页由浏览器内置阅读器滚动显示。
+              PDF 多页可纵向滚动；方向调整会保存到当前文件，并同步用于卡片预览和产品文档。
             </div>
           )}
         </div>

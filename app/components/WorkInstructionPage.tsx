@@ -9,7 +9,9 @@ import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import useCompactViewport from './useCompactViewport'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import DocumentPreviewThumb from './DocumentPreviewThumb'
+import PdfDocumentViewer from './PdfDocumentViewer'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
+import { normalizeAttachmentRotation } from '@/lib/attachment-rotation'
 import DocumentCategoryManagerModal, {
   DocumentCategoryItem,
   documentCategoryLabel,
@@ -41,6 +43,7 @@ interface AttachmentItem {
   note?: string | null
   documentType: string
   isCover: boolean
+  rotation: number
   createdAt: string
 }
 
@@ -338,7 +341,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const [dragActive, setDragActive] = useState(false)
   const [viewer, setViewer] = useState<{ instruction: WorkInstruction; attachments: AttachmentItem[]; index: number } | null>(null)
   const [viewerZoom, setViewerZoom] = useState(1)
-  const [viewerRotation, setViewerRotation] = useState(0)
+  const [rotationSaving, setRotationSaving] = useState(false)
   const [focusUploadOnOpen, setFocusUploadOnOpen] = useState(false)
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
   const detailUploadRef = useRef<HTMLDivElement | null>(null)
@@ -663,7 +666,6 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     }
     setViewer({ instruction, attachments, index })
     setViewerZoom(1)
-    setViewerRotation(0)
   }
 
   const openInstructionViewer = async (instruction: WorkInstruction) => {
@@ -694,6 +696,48 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   }
 
   const selectedViewerAttachment = viewer?.attachments[viewer.index]
+  const saveSelectedAttachmentRotation = async (delta: number) => {
+    if (!selectedViewerAttachment || rotationSaving) return
+    const nextRotation = normalizeAttachmentRotation(Number(selectedViewerAttachment.rotation || 0) + delta)
+    setRotationSaving(true)
+    try {
+      const res = await fetch('/api/attachments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: selectedViewerAttachment.id,
+          action: 'SET_ROTATION',
+          rotation: nextRotation,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        onMessage(data.error || '保存文件方向失败')
+        return
+      }
+      const updated = data.data as AttachmentItem
+      setViewer((current) => current ? {
+        ...current,
+        attachments: current.attachments.map((attachment) => attachment.id === updated.id ? updated : attachment),
+      } : current)
+      setDetailAttachments((current) => current.map((attachment) => attachment.id === updated.id ? updated : attachment))
+      setItems((current) => current.map((instruction) => (
+        instruction.primaryAttachment?.id === updated.id
+          ? { ...instruction, primaryAttachment: updated }
+          : instruction
+      )))
+      setDetail((current) => (
+        current?.primaryAttachment?.id === updated.id
+          ? { ...current, primaryAttachment: updated }
+          : current
+      ))
+      onMessage(data.message || '文件方向已保存')
+    } catch (err) {
+      onMessage('保存文件方向失败')
+    } finally {
+      setRotationSaving(false)
+    }
+  }
   const selectedMaterial = useMemo(
     () => materials.find((material) => material.id === form.materialId),
     [materials, form.materialId]
@@ -1208,15 +1252,11 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
             <div className="flex flex-wrap items-center justify-end gap-2">
               <button onClick={() => setViewer({ ...viewer, index: Math.max(0, viewer.index - 1) })} disabled={viewer.index <= 0} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">上一份</button>
               <button onClick={() => setViewer({ ...viewer, index: Math.min(viewer.attachments.length - 1, viewer.index + 1) })} disabled={viewer.index >= viewer.attachments.length - 1} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">下一份</button>
-              {selectedViewerAttachment.mimeType.startsWith('image/') && (
-                <>
-                  <button onClick={() => setViewerZoom((value) => Math.max(0.25, Number((value - 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">缩小</button>
-                  <button onClick={() => setViewerZoom((value) => Math.min(4, Number((value + 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">放大</button>
-                  <button onClick={() => setViewerRotation((value) => value - 90)} className="rounded border border-white/20 px-3 py-1.5 text-sm">左转</button>
-                  <button onClick={() => setViewerRotation((value) => value + 90)} className="rounded border border-white/20 px-3 py-1.5 text-sm">右转</button>
-                  <button onClick={() => { setViewerZoom(1); setViewerRotation(0) }} className="rounded border border-white/20 px-3 py-1.5 text-sm">复位</button>
-                </>
-              )}
+              <button onClick={() => setViewerZoom((value) => Math.max(0.25, Number((value - 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">缩小</button>
+              <button onClick={() => setViewerZoom((value) => Math.min(4, Number((value + 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">放大</button>
+              <button onClick={() => void saveSelectedAttachmentRotation(-90)} disabled={rotationSaving} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">左转并保存</button>
+              <button onClick={() => void saveSelectedAttachmentRotation(90)} disabled={rotationSaving} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">右转并保存</button>
+              <button onClick={() => setViewerZoom(1)} className="rounded border border-white/20 px-3 py-1.5 text-sm">适合页面</button>
               <a href={selectedViewerAttachment.url} target="_blank" rel="noreferrer" className="rounded border border-white/20 px-3 py-1.5 text-sm">新窗口</a>
               <button onClick={() => setViewer(null)} className="rounded bg-white px-3 py-1.5 text-sm text-slate-900">关闭</button>
             </div>
@@ -1229,22 +1269,23 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   alt={selectedViewerAttachment.originalName}
                   className="max-h-full max-w-full object-contain"
                   style={{
-                    transform: `rotate(${viewerRotation}deg) scale(${viewerZoom})`,
+                    transform: `rotate(${selectedViewerAttachment.rotation || 0}deg) scale(${viewerZoom})`,
                     transformOrigin: 'center center',
                   }}
                 />
               </div>
             ) : (
-              <iframe
-                src={`${selectedViewerAttachment.url}#view=Fit&toolbar=1&navpanes=0`}
+              <PdfDocumentViewer
+                url={selectedViewerAttachment.url}
                 title={selectedViewerAttachment.originalName}
-                className="h-full w-full border-0 bg-white"
+                rotation={selectedViewerAttachment.rotation}
+                zoom={viewerZoom}
               />
             )}
           </div>
           {selectedViewerAttachment.mimeType === 'application/pdf' && (
             <div className="shrink-0 border-t border-white/10 px-4 py-2 text-xs text-white/60">
-              PDF 多页由浏览器内置阅读器滚动显示。
+              PDF 多页可纵向滚动；方向调整会保存到当前文件，并同步用于卡片预览和产品全景图。
             </div>
           )}
         </div>

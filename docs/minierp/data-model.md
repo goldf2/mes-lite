@@ -692,6 +692,7 @@ BOM 数据只保存规范方向：目标物料或产出物料 -> 输入物料及
 | `WorkInstruction` | `materialId`、`categoryId` | 产品文档必须关联成品物料和一个可用类别 |
 | `WorkInstruction` | `version`、`status`、`note` | 保存版本、状态和通用备注；不保存适用工序 |
 | `DocumentAttachment` | `ownerType = WORK_INSTRUCTION`、`ownerId` | 保存产品文档的图片或 PDF 文件 |
+| `DocumentAttachment` | `rotation` | 文件显示方向校正角度，只允许 `0 / 90 / 180 / 270`；不修改原文件 |
 
 默认数据包含“作业指导书、图纸、工艺文件、检验文件、包装文件、设备文件、其他”等一级类别，但它们是可维护的数据库记录。“作业指导书”下可增加“机床作业、环境作业”等二级类别。已有文档引用或仍有子类别时禁止删除类别。
 

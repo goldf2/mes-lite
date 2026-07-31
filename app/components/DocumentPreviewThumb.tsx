@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { PDFDocumentLoadingTask, RenderTask } from 'pdfjs-dist'
+import { normalizeAttachmentRotation } from '@/lib/attachment-rotation'
 
 export interface PreviewAttachment {
   id: string
@@ -9,6 +10,7 @@ export interface PreviewAttachment {
   mimeType: string
   url: string
   note?: string | null
+  rotation?: number
 }
 
 const pdfModuleSrc = '/pdfjs/pdf.mjs'
@@ -34,7 +36,8 @@ function PdfFirstPagePreview({ attachment }: { attachment: PreviewAttachment }) 
         const canvas = canvasRef.current
         if (!active || !canvas) return
 
-        const baseViewport = page.getViewport({ scale: 1 })
+        const rotation = normalizeAttachmentRotation(Number(page.rotate || 0) + Number(attachment.rotation || 0))
+        const baseViewport = page.getViewport({ scale: 1, rotation })
         const containerWidth = canvas.parentElement?.clientWidth || 320
         const containerHeight = canvas.parentElement?.clientHeight || containerWidth * 0.75
         const viewport = page.getViewport({
@@ -43,6 +46,7 @@ function PdfFirstPagePreview({ attachment }: { attachment: PreviewAttachment }) 
             containerWidth / Math.max(baseViewport.width, 1),
             containerHeight / Math.max(baseViewport.height, 1)
           )),
+          rotation,
         })
         const outputScale = Math.min(window.devicePixelRatio || 1, 2)
         canvas.width = Math.max(1, Math.floor(viewport.width * outputScale))
@@ -76,7 +80,7 @@ function PdfFirstPagePreview({ attachment }: { attachment: PreviewAttachment }) 
       renderTask?.cancel()
       void loadingTask?.destroy()
     }
-  }, [attachment.url])
+  }, [attachment.rotation, attachment.url])
 
   return (
     <>
@@ -114,7 +118,12 @@ export default function DocumentPreviewThumb({
     <div className={`flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-gray-50 ${className}`}>
       {attachment ? (
         attachment.mimeType.startsWith('image/') ? (
-          <img src={attachment.url} alt={attachment.note || title} className="h-full w-full object-cover" />
+          <img
+            src={attachment.url}
+            alt={attachment.note || title}
+            className="h-full w-full object-contain"
+            style={{ transform: `rotate(${attachment.rotation || 0}deg)` }}
+          />
         ) : attachment.mimeType === 'application/pdf' ? (
           <PdfFirstPagePreview attachment={attachment} />
         ) : (

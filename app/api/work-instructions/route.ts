@@ -143,6 +143,7 @@ export async function GET(req: NextRequest) {
         note: true,
         documentType: true,
         isCover: true,
+        rotation: true,
         createdAt: true,
       },
     })

@@ -291,6 +291,7 @@ export async function GET(
         note: true,
         documentType: true,
         isCover: true,
+        rotation: true,
         createdAt: true,
       },
     })

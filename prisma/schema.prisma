@@ -870,6 +870,7 @@ model DocumentAttachment {
   note          String?
   uploadedBy    String?
   isCover       Boolean  @default(false)
+  rotation      Int      @default(0)
   deletedAt     DateTime?
   deletedBy     String?
   createdAt     DateTime @default(now())
