@@ -63,7 +63,7 @@ sudo mkdir -p /opt/mes-lite/data /opt/mes-lite/uploads
 /opt/mes-lite/uploads    -> /app/public/uploads
 ```
 
-容器启动入口会先以 root 身份幂等修复 `/app/data` 与 `/app/public/uploads` 的所有者和读写权限，再立即通过 `gosu` 降权为 `node` 用户；随后创建 SQLite 文件、执行 `prisma migrate deploy` 并启动 Next.js。应用进程本身不会以 root 运行。全新数据库首次注册的用户会自动成为管理员；已有数据库则继续使用原账号。
+容器启动入口会先以 root 身份幂等修复 `/app/data` 与 `/app/public/uploads` 的所有者和读写权限，再立即通过 Debian 基础镜像内置的 `setpriv` 降权为 `node` 用户；随后创建 SQLite 文件、执行 `prisma migrate deploy` 并启动 Next.js。应用进程本身不会以 root 运行。全新数据库首次注册的用户会自动成为管理员；已有数据库则继续使用原账号。
 
 默认目录可通过以下环境变量调整，但禁止把 `/`、`/app` 或 `/app/public` 这类过宽目录设为修复目标：
 
@@ -84,7 +84,9 @@ docker exec -u root <容器名> npm run storage:fix
 
 `20260730163000_link_work_instructions_to_material` 是一次明确的破坏性迁移：首次执行前会删除旧指导书专属附件目录，迁移会删除旧指导书及对应附件元数据，然后启用产品必选的“产品文档”模型。迁移完成后，启动脚本通过迁移记录识别已执行状态，不会再次清理新产品文档。
 
-镜像内置了 Docker `HEALTHCHECK`，使用 `curl` 请求 `/api/health` 检查 Web 服务是否启动。首次启动会先执行 SQLite 迁移，健康检查有 60 秒启动宽限期。如果健康检查失败，优先检查：
+镜像构建不再执行 `apt-get`：Prisma 所需的 OpenSSL 3 运行库从 Docker 官方 `buildpack-deps:bookworm-curl` 镜像复制，送货单使用的 Noto Sans CJK SC 字体及其 SIL OFL 许可证随仓库发布。这样可避免部署机访问 Debian 软件源超时，同时保证 Prisma 构建和中文 PDF 使用相同、可验证的依赖。
+
+镜像内置了 Docker `HEALTHCHECK`，使用 Node.js 内置 `fetch` 请求 `/api/health` 检查 Web 服务是否启动。首次启动会先执行 SQLite 迁移，健康检查有 60 秒启动宽限期。如果健康检查失败，优先检查：
 
 - `/app/data` 是否可写。
 - `DATABASE_URL` 是否为 `file:/app/data/mes_lite.db`。

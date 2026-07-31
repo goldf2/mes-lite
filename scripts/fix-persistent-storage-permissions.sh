@@ -34,10 +34,14 @@ repair_storage_dir() {
   chmod -R u+rwX,g+rX,o-rwx "$storage_dir"
 
   if [ "$(id -u)" = "0" ]; then
-    if command -v gosu >/dev/null 2>&1; then
-      gosu "$storage_user:$storage_group" test -w "$storage_dir"
+    if command -v setpriv >/dev/null 2>&1; then
+      setpriv \
+        --reuid="$storage_user" \
+        --regid="$storage_group" \
+        --init-groups \
+        -- test -w "$storage_dir"
     else
-      echo "缺少 gosu，无法验证降权后的写入权限" >&2
+      echo "缺少 setpriv，无法验证降权后的写入权限" >&2
       exit 1
     fi
   elif [ ! -w "$storage_dir" ]; then
