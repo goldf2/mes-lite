@@ -6,7 +6,7 @@ const nextConfig = {
     NEXT_PUBLIC_APP_VERSION: version,
   },
   experimental: {
-    serverComponentsExternalPackages: ['@napi-rs/canvas', '@prisma/client', 'pdfkit'],
+    serverComponentsExternalPackages: ['@napi-rs/canvas', '@prisma/client', 'pdfjs-dist', 'pdfkit'],
   },
 }
 
