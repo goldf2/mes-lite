@@ -6,6 +6,8 @@ import { randomUUID } from 'crypto'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { isAttachmentRotation } from '@/lib/attachment-rotation'
+import { attachmentUploadRoot, ensureAttachmentThumbnail } from '@/lib/attachment-thumbnail'
+import { withAttachmentUrls } from '@/lib/attachment-urls'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -36,10 +38,6 @@ function extensionFrom(fileName: string, mimeType: string) {
   return ''
 }
 
-function withFileUrl<T extends { id: string }>(attachment: T) {
-  return { ...attachment, url: `/api/attachments/${attachment.id}/file` }
-}
-
 export async function GET(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('attachments', 'read')
@@ -58,7 +56,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     })
 
-    return NextResponse.json({ data: attachments.map(withFileUrl) })
+    return NextResponse.json({ data: attachments.map(withAttachmentUrls) })
   } catch (error) {
     console.error('Get attachments error:', error)
     return NextResponse.json({ error: '获取附件失败' }, { status: 500 })
@@ -96,7 +94,7 @@ export async function POST(req: NextRequest) {
 
     const ownerTypeDir = safeSegment(ownerType)
     const ownerIdDir = safeSegment(ownerId)
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', ownerTypeDir, ownerIdDir)
+    const uploadDir = path.join(attachmentUploadRoot(), ownerTypeDir, ownerIdDir)
     await mkdir(uploadDir, { recursive: true })
 
     const fileName = `${Date.now()}-${randomUUID()}${extensionFrom(file.name, file.type)}`
@@ -131,8 +129,15 @@ export async function POST(req: NextRequest) {
         isCover: isMaterialImage && existingImageCount === 0,
       },
     })
+    if (attachment.mimeType === 'application/pdf' || attachment.mimeType.startsWith('image/')) {
+      try {
+        await ensureAttachmentThumbnail(attachment)
+      } catch (error) {
+        console.error('Generate uploaded attachment thumbnail error:', error)
+      }
+    }
 
-    return NextResponse.json({ data: withFileUrl(attachment) }, { status: 201 })
+    return NextResponse.json({ data: withAttachmentUrls(attachment) }, { status: 201 })
   } catch (error) {
     console.error('Upload attachment error:', error)
     return NextResponse.json({ error: '上传附件失败' }, { status: 500 })
@@ -184,7 +189,7 @@ export async function PATCH(req: NextRequest) {
         note: `文件显示方向调整为 ${updated.rotation}°`,
       })
       return NextResponse.json({
-        data: withFileUrl(updated),
+        data: withAttachmentUrls(updated),
         message: '文件方向已保存',
       })
     }

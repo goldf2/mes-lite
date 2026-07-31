@@ -4,8 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { ArchivedRecordPurgeError, purgeArchivedRecord } from '@/lib/archived-record-purge'
-import { rm } from 'fs/promises'
-import path from 'path'
+import { removeAttachmentStoredFiles } from '@/lib/attachment-thumbnail'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,13 +15,8 @@ const purgeSchema = z.object({
 })
 
 async function removeAttachmentFiles(storagePaths: string[]) {
-  const uploadRoot = path.resolve(process.cwd(), 'public', 'uploads')
   for (const storagePath of storagePaths) {
-    const resolvedPath = path.resolve(storagePath)
-    if (!resolvedPath.startsWith(`${uploadRoot}${path.sep}`)) {
-      throw new Error('非法的附件文件路径')
-    }
-    await rm(resolvedPath, { force: true })
+    await removeAttachmentStoredFiles(storagePath)
   }
 }
 

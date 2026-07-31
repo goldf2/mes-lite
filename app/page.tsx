@@ -1190,14 +1190,19 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
       <main className="mes-mobile-main min-w-0 p-3 sm:p-4 lg:ml-[var(--mes-desktop-sidebar-width)] lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20">
         <div className={`sticky top-0 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:static lg:-mx-6 lg:px-6 ${
-          businessMenuOpen || systemMenuOpen ? 'z-[60]' : 'z-30'
+          businessMenuOpen || systemMenuOpen ? 'z-[60] lg:z-auto' : 'z-30 lg:z-auto'
         }`}>
           <div className="flex min-w-0 flex-wrap items-center gap-2 lg:flex-nowrap">
             <div className="hidden min-w-0 shrink-0 pt-1 lg:block">
               <div className="hidden text-xs font-medium text-gray-400 sm:block">{activeSystemTab ? '账号功能' : '业务功能'}</div>
               <div className="max-w-[5.5rem] truncate text-sm font-semibold text-gray-900 sm:max-w-[10rem] sm:text-lg lg:max-w-[12rem]">{activeTabLabel}</div>
             </div>
-            <div className="lg:hidden">
+            <div className="min-w-0 sm:hidden">
+              <div className="max-w-[12rem] truncate text-base font-semibold text-gray-900">
+                {activeTabLabel}
+              </div>
+            </div>
+            <div className="hidden sm:block lg:hidden">
               <CompactBusinessMenu
                 containerRef={businessMenuRef}
                 groups={visibleBusinessGroups}
@@ -2037,7 +2042,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       </main>
 
       {mobileNavOpen && (
-        <div className="fixed inset-0 z-40 mes-modal-overlay lg:hidden" onClick={() => setMobileNavOpen(false)}>
+        <div className="fixed inset-0 z-40 mes-modal-overlay sm:hidden" onClick={() => setMobileNavOpen(false)}>
           <div
             className="mes-mobile-sheet-above-nav absolute inset-x-3 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 shadow-xl"
             onClick={(event) => event.stopPropagation()}
@@ -2099,7 +2104,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </div>
       )}
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:hidden">
         <div className="grid grid-cols-5 gap-1">
           {mobilePrimaryItems.map((item) => (
             <button

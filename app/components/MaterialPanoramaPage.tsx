@@ -12,6 +12,7 @@ interface AttachmentItem {
   mimeType: string
   size: number
   url: string
+  thumbnailUrl?: string | null
   note?: string | null
   documentType: string
   isCover: boolean

@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
-
-function withFileUrl<T extends { id: string }>(attachment: T) {
-  return { ...attachment, url: `/api/attachments/${attachment.id}/file` }
-}
+import { withAttachmentUrls } from '@/lib/attachment-urls'
 
 function isWorkInstruction(attachment: { documentType: string; originalName: string; note: string | null }) {
   const text = `${attachment.documentType} ${attachment.originalName} ${attachment.note || ''}`.toLowerCase()
@@ -267,13 +264,13 @@ export async function GET(
 
     const images = attachments
       .filter((attachment) => attachment.mimeType.startsWith('image/'))
-      .map(withFileUrl)
+      .map(withAttachmentUrls)
     const workInstructions = attachments
       .filter((attachment) => isWorkInstruction(attachment))
-      .map(withFileUrl)
+      .map(withAttachmentUrls)
     const documents = attachments
       .filter((attachment) => !attachment.mimeType.startsWith('image/') || attachment.documentType !== 'MATERIAL_IMAGE')
-      .map(withFileUrl)
+      .map(withAttachmentUrls)
     const formalWorkInstructionIds = formalWorkInstructions.map((instruction) => instruction.id)
     const formalWorkInstructionAttachments = formalWorkInstructionIds.length === 0 ? [] : await prisma.documentAttachment.findMany({
       where: {
@@ -305,7 +302,7 @@ export async function GET(
       const itemAttachments = formalAttachmentsByOwner.get(instruction.id) || []
       return {
         ...instruction,
-        attachments: itemAttachments.map(withFileUrl),
+        attachments: itemAttachments.map(withAttachmentUrls),
         attachmentCount: itemAttachments.length,
         imageCount: itemAttachments.filter((attachment) => attachment.mimeType.startsWith('image/')).length,
         pdfCount: itemAttachments.filter((attachment) => attachment.mimeType === 'application/pdf').length,

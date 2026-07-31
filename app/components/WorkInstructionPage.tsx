@@ -6,7 +6,6 @@ import TopBarPortal from './TopBarPortal'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import StatusCheckboxFilter, { getMultiSelectQuery } from './StatusCheckboxFilter'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
-import useCompactViewport from './useCompactViewport'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import DocumentPreviewThumb from './DocumentPreviewThumb'
 import PdfDocumentViewer from './PdfDocumentViewer'
@@ -40,6 +39,7 @@ interface AttachmentItem {
   mimeType: string
   size: number
   url: string
+  thumbnailUrl?: string | null
   note?: string | null
   documentType: string
   isCover: boolean
@@ -323,8 +323,6 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const [materialFilter, setMaterialFilter] = useState('')
   const [fileType, setFileType] = useState<'all' | 'image' | 'pdf'>('all')
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.workInstructions.viewMode', 'card')
-  const isCompactViewport = useCompactViewport()
-  const effectiveViewMode = isCompactViewport ? 'card' : viewMode
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [pagination, setPagination] = useState<PaginationState>({ page: 1, pageSize: 20, total: 0, totalPages: 1 })
@@ -834,7 +832,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           >
             类别管理
           </button>
-          <div className="hidden sm:block">
+          <div>
             <ViewModeToggle value={viewMode} onChange={setViewMode} />
           </div>
           <button
@@ -865,7 +863,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
               新建第一条产品文档
             </button>
           </div>
-        ) : effectiveViewMode === 'card' ? (
+        ) : viewMode === 'card' ? (
           <>
             <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {items.map((instruction) => (

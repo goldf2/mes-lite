@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { parseCsvFilter } from '@/lib/status-filter'
+import { withAttachmentUrls } from '@/lib/attachment-urls'
 
 const workInstructionSchema = z.object({
   materialId: z.string().min(1, '请选择关联产品'),
@@ -16,10 +17,6 @@ const workInstructionSchema = z.object({
 const updateWorkInstructionSchema = workInstructionSchema.extend({
   id: z.string().min(1, '缺少产品文档 ID'),
 })
-
-function withFileUrl<T extends { id: string }>(attachment: T) {
-  return { ...attachment, url: `/api/attachments/${attachment.id}/file` }
-}
 
 async function ownerIdsByFileType(fileType: string | null) {
   if (fileType !== 'image' && fileType !== 'pdf') return null
@@ -163,7 +160,7 @@ export async function GET(req: NextRequest) {
         attachmentCount: itemAttachments.length,
         imageCount: itemAttachments.filter((attachment) => attachment.mimeType.startsWith('image/')).length,
         pdfCount: itemAttachments.filter((attachment) => attachment.mimeType === 'application/pdf').length,
-        primaryAttachment: primary ? withFileUrl(primary) : null,
+        primaryAttachment: primary ? withAttachmentUrls(primary) : null,
       }
     })
 

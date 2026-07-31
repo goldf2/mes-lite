@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { readFile } from 'fs/promises'
-import path from 'path'
 import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
+import { resolveAttachmentStoragePath } from '@/lib/attachment-thumbnail'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -22,11 +22,7 @@ export async function GET(
       return NextResponse.json({ error: '附件不存在' }, { status: 404 })
     }
 
-    const uploadRoot = path.resolve(process.cwd(), 'public', 'uploads')
-    const storagePath = path.resolve(attachment.storagePath)
-    if (!storagePath.startsWith(`${uploadRoot}${path.sep}`)) {
-      return NextResponse.json({ error: '附件路径无效' }, { status: 400 })
-    }
+    const storagePath = resolveAttachmentStoragePath(attachment.storagePath)
 
     const file = await readFile(storagePath)
     return new NextResponse(new Uint8Array(file), {

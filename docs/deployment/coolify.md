@@ -63,6 +63,8 @@ sudo mkdir -p /opt/mes-lite/data /opt/mes-lite/uploads
 /opt/mes-lite/uploads    -> /app/public/uploads
 ```
 
+产品文档图片/PDF 的持久缩略图与原文件存放在同一个 uploads 挂载中，不需要新增存储卷；迁移或备份时必须整体保留该目录。
+
 容器启动入口会先以 root 身份幂等修复 `/app/data` 与 `/app/public/uploads` 的所有者和读写权限，再立即通过 Debian 基础镜像内置的 `setpriv` 降权为 `node` 用户；随后创建 SQLite 文件、执行 `prisma migrate deploy` 并启动 Next.js。应用进程本身不会以 root 运行。全新数据库首次注册的用户会自动成为管理员；已有数据库则继续使用原账号。
 
 默认目录可通过以下环境变量调整，但禁止把 `/`、`/app` 或 `/app/public` 这类过宽目录设为修复目标：

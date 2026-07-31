@@ -14,6 +14,7 @@ interface ResponsiveToolbarActionsProps {
 
 export default function ResponsiveToolbarActions({ children, primaryFilters, filters, filterCount = 0, filterSummary, actions }: ResponsiveToolbarActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [actionMenuOpen, setActionMenuOpen] = useState(false)
   const filterContent = filters ?? children
   const hasPrimaryFilters = primaryFilters !== null && primaryFilters !== undefined && primaryFilters !== false
   const hasFilters = filterContent !== null && filterContent !== undefined && filterContent !== false
@@ -30,7 +31,10 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, fil
         <div className="relative flex min-w-0 shrink-0 items-center gap-2">
           <button
             type="button"
-            onClick={() => setMenuOpen((open) => !open)}
+            onClick={() => {
+              setMenuOpen((open) => !open)
+              setActionMenuOpen(false)
+            }}
             className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 sm:px-3 sm:py-2 sm:text-sm"
           >
             <span className="flex h-5 w-5 items-center justify-center rounded bg-gray-100 text-[11px] text-gray-600">筛</span>
@@ -63,9 +67,55 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, fil
         </div>
       )}
       {hasActions && (
-        <div className="flex min-w-max shrink-0 flex-nowrap items-center justify-end gap-2 whitespace-nowrap xl:gap-3">
-          {actions}
-        </div>
+        <>
+          <div className="hidden min-w-max shrink-0 flex-nowrap items-center justify-end gap-2 whitespace-nowrap sm:flex xl:gap-3">
+            {actions}
+          </div>
+          <div className="sm:hidden">
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded={actionMenuOpen}
+              onClick={() => {
+                setActionMenuOpen(true)
+                setMenuOpen(false)
+              }}
+              className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            >
+              <span className="flex h-5 w-5 items-center justify-center rounded bg-gray-100 text-[13px] text-gray-600">⋯</span>
+              操作
+            </button>
+            {actionMenuOpen && (
+              <ModalOverlay
+                onClose={() => setActionMenuOpen(false)}
+                className="items-end pb-[calc(var(--mes-mobile-nav-offset)+0.75rem)]"
+              >
+                <div className="w-full max-w-sm overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl">
+                  <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+                    <div className="text-sm font-semibold text-gray-900">页面操作</div>
+                    <button
+                      type="button"
+                      onClick={() => setActionMenuOpen(false)}
+                      className="rounded px-2 py-1 text-sm text-gray-500 hover:bg-gray-100"
+                    >
+                      关闭
+                    </button>
+                  </div>
+                  <div
+                    className="grid gap-2 p-3 [&>button]:w-full [&>button]:justify-center [&>div]:w-full [&>div>div]:w-full [&>div>div]:justify-center"
+                    onClick={(event) => {
+                      if ((event.target as HTMLElement).closest('button')) {
+                        setActionMenuOpen(false)
+                      }
+                    }}
+                  >
+                    {actions}
+                  </div>
+                </div>
+              </ModalOverlay>
+            )}
+          </div>
+        </>
       )}
       {!hasActions && !hasFilters && !hasPrimaryFilters && (
         <div className="sr-only">无工具栏操作</div>
