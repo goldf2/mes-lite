@@ -68,10 +68,10 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, fil
       )}
       {hasActions && (
         <>
-          <div className="hidden min-w-max shrink-0 flex-nowrap items-center justify-end gap-2 whitespace-nowrap sm:flex xl:gap-3">
+          <div className="hidden min-w-max shrink-0 flex-nowrap items-center justify-end gap-2 whitespace-nowrap lg:flex xl:gap-3">
             {actions}
           </div>
-          <div className="sm:hidden">
+          <div className="order-first lg:order-none lg:hidden">
             <button
               type="button"
               aria-haspopup="dialog"
@@ -83,7 +83,7 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, fil
               className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
             >
               <span className="flex h-5 w-5 items-center justify-center rounded bg-gray-100 text-[13px] text-gray-600">⋯</span>
-              操作
+              工具
             </button>
             {actionMenuOpen && (
               <ModalOverlay
@@ -92,7 +92,7 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, fil
               >
                 <div className="w-full max-w-sm overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl">
                   <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-                    <div className="text-sm font-semibold text-gray-900">页面操作</div>
+                    <div className="text-sm font-semibold text-gray-900">页面工具</div>
                     <button
                       type="button"
                       onClick={() => setActionMenuOpen(false)}
@@ -102,7 +102,7 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, fil
                     </button>
                   </div>
                   <div
-                    className="grid gap-2 p-3 [&>button]:w-full [&>button]:justify-center [&>div]:w-full [&>div>div]:w-full [&>div>div]:justify-center"
+                    className="grid max-h-[60dvh] gap-2 overflow-y-auto p-3 [&>button]:w-full [&>button]:justify-center [&>div]:w-full [&>div>div]:w-full [&>div>div]:justify-center"
                     onClick={(event) => {
                       if ((event.target as HTMLElement).closest('button')) {
                         setActionMenuOpen(false)

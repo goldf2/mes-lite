@@ -6,7 +6,6 @@ import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
-import useCompactViewport from './useCompactViewport'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 
 interface Supplier {
@@ -109,8 +108,6 @@ export default function MaterialInPage({
   const [editingItem, setEditingItem] = useState<MaterialIn | null>(null)
   const [linkedBatchRatios, setLinkedBatchRatios] = useState<{ lengthPerPiece: number; weightPerLength: number } | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.materialIn.viewMode', 'list')
-  const isCompactViewport = useCompactViewport()
-  const effectiveViewMode = isCompactViewport ? 'card' : viewMode
 
   const [form, setForm] = useState({
     voucherNo: '',
@@ -493,7 +490,7 @@ export default function MaterialInPage({
         )}
         actions={(
           <>
-            <div className="hidden sm:block">
+            <div>
               <ViewModeToggle value={viewMode} onChange={setViewMode} />
             </div>
             <button
@@ -558,7 +555,7 @@ export default function MaterialInPage({
           )}
           actions={(
             <>
-              <div className="hidden sm:block">
+              <div>
                 <ViewModeToggle value={viewMode} onChange={setViewMode} />
               </div>
               <button
@@ -581,7 +578,7 @@ export default function MaterialInPage({
             <p className="text-4xl mb-4">📦</p>
             <p>暂无来料单</p>
           </div>
-        ) : effectiveViewMode === 'card' ? (
+        ) : viewMode === 'card' ? (
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {materialIns.map((item) => (
               <div key={item.id} className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">

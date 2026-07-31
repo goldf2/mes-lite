@@ -6,7 +6,6 @@ import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
-import useCompactViewport from './useCompactViewport'
 
 interface Order {
   id: string
@@ -103,8 +102,6 @@ export default function DispatchPage({
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.dispatch.viewMode.v2', 'card')
-  const isCompactViewport = useCompactViewport()
-  const effectiveViewMode = isCompactViewport ? 'card' : viewMode
 
   const [form, setForm] = useState({
     voucherNo: '',
@@ -278,7 +275,7 @@ export default function DispatchPage({
         )}
         actions={(
           <>
-            <div className="hidden sm:block">
+            <div>
               <ViewModeToggle value={viewMode} onChange={setViewMode} />
             </div>
             {onCreateOrder && (
@@ -333,7 +330,7 @@ export default function DispatchPage({
           )}
           actions={(
             <>
-              <div className="hidden sm:block">
+              <div>
                 <ViewModeToggle value={viewMode} onChange={setViewMode} />
               </div>
               {onCreateOrder && (
@@ -364,7 +361,7 @@ export default function DispatchPage({
             <p className="text-4xl mb-4">📋</p>
             <p>暂无派工单</p>
           </div>
-        ) : effectiveViewMode === 'card' ? (
+        ) : viewMode === 'card' ? (
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {dispatches.map((item) => (
               <div key={item.id} className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">

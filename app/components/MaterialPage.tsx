@@ -6,7 +6,6 @@ import StatusCheckboxFilter, { getMultiSelectQuery } from './StatusCheckboxFilte
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
-import useCompactViewport from './useCompactViewport'
 import MaterialPanoramaPage from './MaterialPanoramaPage'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
@@ -775,8 +774,6 @@ export default function MaterialPage({
   const splitContainerRef = useRef<HTMLDivElement>(null)
   const columnResizeCleanupRef = useRef<(() => void) | null>(null)
   const loadedBomDraftSignatureRef = useRef('')
-  const isCompactViewport = useCompactViewport()
-  const effectiveViewMode = isCompactViewport ? 'card' : viewMode
   const [form, setForm] = useState(createEmptyMaterialForm())
   const formStockUnitOptions = unitCatalog.filter((unit) => unit.measureType === form.primaryMeasure)
   const formValuationUnitOptions = unitCatalog.filter((unit) => unit.measureType === form.referenceMeasure)
@@ -1657,7 +1654,7 @@ export default function MaterialPage({
                 onChange={updateBomSummaryFields}
               />
             )}
-            {effectiveViewMode === 'list' && Object.keys(columnWidths).length > 0 && (
+            {viewMode === 'list' && Object.keys(columnWidths).length > 0 && (
               <button
                 type="button"
                 onClick={resetAllColumnWidths}
@@ -1670,7 +1667,7 @@ export default function MaterialPage({
         )}
         actions={(
           <>
-            <div className="hidden sm:block">
+            <div>
               <ViewModeToggle value={viewMode} onChange={setViewMode} />
             </div>
             <button
@@ -1697,7 +1694,7 @@ export default function MaterialPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, sortBy, sortDir, viewMode, setViewMode, visibleFields, bomSummaryVisible, bomSummaryFields, activeFilterLabels, showBomWorkspace, effectiveViewMode, columnWidths, resetAllColumnWidths])
+  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, sortBy, sortDir, viewMode, setViewMode, visibleFields, bomSummaryVisible, bomSummaryFields, activeFilterLabels, showBomWorkspace, columnWidths, resetAllColumnWidths])
 
   return (
     <>
@@ -1764,7 +1761,7 @@ export default function MaterialPage({
                   onChange={updateBomSummaryFields}
                 />
               )}
-              {effectiveViewMode === 'list' && Object.keys(columnWidths).length > 0 && (
+              {viewMode === 'list' && Object.keys(columnWidths).length > 0 && (
                 <button
                   type="button"
                   onClick={resetAllColumnWidths}
@@ -1777,7 +1774,7 @@ export default function MaterialPage({
           )}
           actions={(
             <>
-              <div className="hidden sm:block">
+              <div>
                 <ViewModeToggle value={viewMode} onChange={setViewMode} />
               </div>
               <button
@@ -1826,7 +1823,7 @@ export default function MaterialPage({
               创建第一个物料
             </button>
           </div>
-        ) : effectiveViewMode === 'card' ? (
+        ) : viewMode === 'card' ? (
           <>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] items-start gap-3">
               {materials.map((material) => {

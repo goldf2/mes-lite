@@ -8,7 +8,6 @@ import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
 import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
 import ViewModeToggle, { usePersistedViewMode } from './components/ViewModeToggle'
-import useCompactViewport from './components/useCompactViewport'
 import { InterfacePreferenceSync } from './components/interfacePreferences'
 import { SearchFieldWithPresets } from './components/SavedSearchPresets'
 import type { SystemSection } from './components/SystemPage'
@@ -275,11 +274,10 @@ function SystemMenu({
         aria-expanded={open}
         onClick={onToggle}
         className={`flex items-center rounded-lg border border-gray-200 bg-white font-medium text-gray-700 hover:bg-gray-50 ${
-          compact ? 'gap-1 px-2 py-1.5 text-xs sm:gap-2 sm:px-3 sm:py-2 sm:text-sm' : 'gap-2 px-3 py-2 text-sm'
+          compact ? 'gap-1 px-2 py-1.5 text-xs' : 'gap-2 px-3 py-2 text-sm'
         }`}
       >
-        <span className={compact ? 'hidden max-w-32 truncate sm:inline' : 'max-w-32 truncate'}>{operator.name}</span>
-        {compact && <span className="sm:hidden">我</span>}
+        <span className={compact ? '' : 'max-w-32 truncate'}>{compact ? '我' : operator.name}</span>
         <span aria-hidden="true" className="text-gray-400">▾</span>
       </button>
       {open && (
@@ -320,97 +318,6 @@ function SystemMenu({
             >
               退出登录
             </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function CompactBusinessMenu({
-  containerRef,
-  groups,
-  activeGroup,
-  activeTab,
-  activeTabLabel,
-  open,
-  onToggle,
-  onNavigate,
-}: {
-  containerRef: RefObject<HTMLDivElement>
-  groups: Array<{
-    key: BusinessNavGroupKey
-    label: string
-    items: Array<{ key: TabType; label: string }>
-  }>
-  activeGroup?: {
-    key: BusinessNavGroupKey
-    label: string
-    items: Array<{ key: TabType; label: string }>
-  }
-  activeTab: TabType
-  activeTabLabel: string
-  open: boolean
-  onToggle: () => void
-  onNavigate: (tab: TabType) => void
-}) {
-  return (
-    <div ref={containerRef} className="relative min-w-0 shrink-0">
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={onToggle}
-        className="flex h-9 max-w-[15rem] items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 text-left text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 sm:h-10 sm:max-w-[19rem] sm:px-3 sm:text-sm"
-      >
-        <span className="shrink-0 text-gray-500">{activeGroup?.label || '业务菜单'}</span>
-        <span aria-hidden="true" className="h-4 w-px shrink-0 bg-gray-200" />
-        <span className="min-w-0 truncate font-semibold text-gray-900">{activeTabLabel}</span>
-        <ChevronDown
-          aria-hidden="true"
-          className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
-        />
-      </button>
-
-      {open && (
-        <div
-          role="menu"
-          aria-label="业务功能"
-          className="absolute left-0 top-full z-50 mt-2 max-h-[min(calc(100dvh-5rem),560px)] w-[min(calc(100vw-2rem),560px)] overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white p-2 shadow-xl"
-        >
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]">
-            {groups.map((group) => (
-              <section
-                key={group.key}
-                aria-label={group.label}
-                className="min-w-0 border-b border-gray-100 p-1.5 last:border-b-0"
-              >
-                <div className={`mb-1 px-2 text-xs font-semibold ${
-                  group.key === activeGroup?.key ? 'text-blue-700' : 'text-gray-400'
-                }`}>
-                  {group.label}
-                </div>
-                <div className="space-y-0.5">
-                  {group.items.map((item) => (
-                    <button
-                      key={item.key}
-                      type="button"
-                      role="menuitem"
-                      aria-current={activeTab === item.key ? 'page' : undefined}
-                      onClick={() => onNavigate(item.key)}
-                      className={`flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition [&>span:first-child]:h-6 [&>span:first-child]:w-6 ${
-                        activeTab === item.key
-                          ? 'bg-blue-50 font-semibold text-blue-700'
-                          : 'text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      <MenuIcon icon={item.key} />
-                      <span className="truncate">{item.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ))}
           </div>
         </div>
       )}
@@ -504,13 +411,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [systemMenuOpen, setSystemMenuOpen] = useState(false)
-  const [businessMenuOpen, setBusinessMenuOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [desktopSidebarWidth, setDesktopSidebarWidth] = useState(defaultDesktopSidebarWidth)
   const [desktopSidebarReady, setDesktopSidebarReady] = useState(false)
   const [resizingDesktopSidebar, setResizingDesktopSidebar] = useState(false)
   const systemMenuRef = useRef<HTMLDivElement>(null)
-  const businessMenuRef = useRef<HTMLDivElement>(null)
   const desktopSystemMenuRef = useRef<HTMLDivElement>(null)
   const navOrderLoadedRef = useRef(false)
   const [adjustingStock, setAdjustingStock] = useState<Stock | null>(null)
@@ -520,10 +425,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     newTotalCost: 0,
     reason: '',
   })
-  const isCompactViewport = useCompactViewport()
-  const effectiveOrderViewMode = isCompactViewport ? 'card' : orderViewMode
-  const effectiveStockViewMode = isCompactViewport ? 'card' : stockViewMode
-
   const [navItems, setNavItems] = useState<{ key: TabType; label: string }[]>(readableBusinessNavItems)
   const materialSectionItems = [
     { key: 'materials' as const, label: '物料管理', visible: canRead('materials') },
@@ -552,9 +453,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const sidebarNavItems = activeSystemTab ? readableSystemNavItems : activeBusinessGroup?.items || []
   const baseMobileNavItems = navItems.slice(0, 4)
   const activeBusinessNavItem = navItems.find((item) => item.key === tab)
-  const mobilePrimaryItems = activeBusinessNavItem && !baseMobileNavItems.some((item) => item.key === activeBusinessNavItem.key)
-    ? [...baseMobileNavItems.slice(0, 3), activeBusinessNavItem]
-    : baseMobileNavItems
+  const mobilePrimaryItems = baseMobileNavItems
+  const mobileMoreActive = Boolean(
+    activeBusinessNavItem
+    && !baseMobileNavItems.some((item) => item.key === activeBusinessNavItem.key)
+  )
 
   useEffect(() => {
     const savedOrder = window.localStorage.getItem('mes-lite.nav.order')
@@ -604,28 +507,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   }, [systemMenuOpen])
 
   useEffect(() => {
-    if (!businessMenuOpen) return
-
-    const closeOnOutsidePointerDown = (event: PointerEvent) => {
-      if (businessMenuRef.current?.contains(event.target as Node)) return
-      setBusinessMenuOpen(false)
-    }
-
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setBusinessMenuOpen(false)
-    }
-
-    document.addEventListener('pointerdown', closeOnOutsidePointerDown, true)
-    document.addEventListener('keydown', closeOnEscape)
-
-    return () => {
-      document.removeEventListener('pointerdown', closeOnOutsidePointerDown, true)
-      document.removeEventListener('keydown', closeOnEscape)
-    }
-  }, [businessMenuOpen])
-
-  useEffect(() => {
-    if (!businessMenuOpen && !systemMenuOpen) return
+    if (!systemMenuOpen) return
     if (window.matchMedia('(min-width: 1024px)').matches) return
 
     const previousOverflow = document.body.style.overflow
@@ -634,7 +516,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     return () => {
       document.body.style.overflow = previousOverflow
     }
-  }, [businessMenuOpen, systemMenuOpen])
+  }, [systemMenuOpen])
 
   useEffect(() => {
     const savedWidth = Number(window.localStorage.getItem(desktopSidebarStorageKey))
@@ -717,6 +599,17 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       const next = [...current]
       const [item] = next.splice(index, 1)
       next.splice(nextIndex, 0, item)
+      return next
+    })
+  }
+
+  const setMobileFavorite = (key: TabType) => {
+    setNavItems((current) => {
+      const index = current.findIndex((item) => item.key === key)
+      if (index < 0 || index < 4) return current
+      const next = [...current]
+      const [item] = next.splice(index, 1)
+      next.splice(Math.min(3, next.length), 0, item)
       return next
     })
   }
@@ -1190,37 +1083,17 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
       <main className="mes-mobile-main min-w-0 p-3 sm:p-4 lg:ml-[var(--mes-desktop-sidebar-width)] lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20">
         <div className={`sticky top-0 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:static lg:-mx-6 lg:px-6 ${
-          businessMenuOpen || systemMenuOpen ? 'z-[60] lg:z-auto' : 'z-30 lg:z-auto'
+          systemMenuOpen ? 'z-[60] lg:z-auto' : 'z-30 lg:z-auto'
         }`}>
           <div className="flex min-w-0 flex-wrap items-center gap-2 lg:flex-nowrap">
             <div className="hidden min-w-0 shrink-0 pt-1 lg:block">
               <div className="hidden text-xs font-medium text-gray-400 sm:block">{activeSystemTab ? '账号功能' : '业务功能'}</div>
               <div className="max-w-[5.5rem] truncate text-sm font-semibold text-gray-900 sm:max-w-[10rem] sm:text-lg lg:max-w-[12rem]">{activeTabLabel}</div>
             </div>
-            <div className="min-w-0 sm:hidden">
+            <div className="min-w-0 lg:hidden">
               <div className="max-w-[12rem] truncate text-base font-semibold text-gray-900">
                 {activeTabLabel}
               </div>
-            </div>
-            <div className="hidden sm:block lg:hidden">
-              <CompactBusinessMenu
-                containerRef={businessMenuRef}
-                groups={visibleBusinessGroups}
-                activeGroup={activeSystemTab ? undefined : activeBusinessGroup}
-                activeTab={tab}
-                activeTabLabel={activeTabLabel}
-                open={businessMenuOpen}
-                onToggle={() => {
-                  setBusinessMenuOpen((open) => !open)
-                  setSystemMenuOpen(false)
-                }}
-                onNavigate={(nextTab) => {
-                  setTab(nextTab)
-                  if (nextTab === 'materials') setMaterialMenuOpen(true)
-                  setBusinessMenuOpen(false)
-                  setSystemMenuOpen(false)
-                }}
-              />
             </div>
             <div id="topbar-actions" className="order-3 flex min-w-0 flex-[1_1_100%] items-center justify-start gap-2 overflow-visible empty:hidden lg:order-none lg:flex-1">
                 {tab === 'orders' ? (
@@ -1243,7 +1116,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     )}
                     actions={(
                       <>
-                        <div className="hidden sm:block">
+                        <div>
                           <ViewModeToggle value={orderViewMode} onChange={setOrderViewMode} />
                         </div>
                         {canCreate('orders') && (
@@ -1310,7 +1183,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     )}
                     actions={(
                       <>
-                        <div className="hidden sm:block">
+                        <div>
                           <ViewModeToggle value={stockViewMode} onChange={setStockViewMode} />
                         </div>
                         <button
@@ -1333,7 +1206,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 open={systemMenuOpen}
                 onToggle={() => {
                   setSystemMenuOpen((open) => !open)
-                  setBusinessMenuOpen(false)
                 }}
                 onNavigate={(nextTab) => {
                   setTab(nextTab)
@@ -1425,7 +1297,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   </button>
                 )}
               </div>
-            ) : effectiveOrderViewMode === 'card' ? (
+            ) : orderViewMode === 'card' ? (
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                 {orders.map((order) => (
                   <div
@@ -1702,7 +1574,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 </div>
               </div>
             )}
-            {effectiveStockViewMode === 'list' ? (
+            {stockViewMode === 'list' ? (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1080px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">
                   <thead className="bg-gray-50">
@@ -2042,7 +1914,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       </main>
 
       {mobileNavOpen && (
-        <div className="fixed inset-0 z-40 mes-modal-overlay sm:hidden" onClick={() => setMobileNavOpen(false)}>
+        <div className="fixed inset-0 z-40 mes-modal-overlay lg:hidden" onClick={() => setMobileNavOpen(false)}>
           <div
             className="mes-mobile-sheet-above-nav absolute inset-x-3 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 shadow-xl"
             onClick={(event) => event.stopPropagation()}
@@ -2050,7 +1922,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <div className="text-sm font-semibold text-gray-900">全部功能</div>
-                <div className="text-xs text-gray-500">上下移动可调整底部常用入口</div>
+                <div className="text-xs text-gray-500">按业务分组显示，可设置底部常用入口</div>
               </div>
               <button
                 type="button"
@@ -2060,51 +1932,100 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 关闭
               </button>
             </div>
-            <div className="grid grid-cols-1 gap-2">
-              {navItems.map((item, index) => (
-                <div key={item.key} className="flex items-center gap-2 rounded-lg border border-gray-100 p-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTab(item.key)
-                      setMobileNavOpen(false)
-                      setSystemMenuOpen(false)
-                    }}
-                    className={`flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-2 text-left text-sm font-medium ${
-                      tab === item.key ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
-                    }`}
-                  >
-                    <MenuIcon icon={item.key} />
-                    <span className="truncate">{item.label}</span>
-                  </button>
-                  <div className="flex shrink-0 gap-1">
-                    <button
-                      type="button"
-                      aria-label={`${item.label} 上移`}
-                      disabled={index === 0}
-                      onClick={() => moveNavItem(item.key, -1)}
-                      className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-sm text-gray-600 disabled:opacity-30"
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`${item.label} 下移`}
-                      disabled={index === navItems.length - 1}
-                      onClick={() => moveNavItem(item.key, 1)}
-                      className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-sm text-gray-600 disabled:opacity-30"
-                    >
-                      ↓
-                    </button>
-                  </div>
+            <div className="space-y-4">
+              <section aria-label="底部常用入口">
+                <div className="mb-2 text-xs font-semibold text-gray-500">底部常用入口</div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {baseMobileNavItems.map((item, index) => (
+                    <div key={item.key} className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50/50 p-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTab(item.key)
+                          setMobileNavOpen(false)
+                          setSystemMenuOpen(false)
+                        }}
+                        className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium ${
+                          tab === item.key ? 'text-blue-700' : 'text-gray-700'
+                        }`}
+                      >
+                        <MenuIcon icon={item.key} />
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                      <div className="flex shrink-0 gap-1">
+                        <button
+                          type="button"
+                          aria-label={`${item.label} 在常用入口中上移`}
+                          disabled={index === 0}
+                          onClick={() => moveNavItem(item.key, -1)}
+                          className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-sm text-gray-600 disabled:opacity-30"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`${item.label} 在常用入口中下移`}
+                          disabled={index === baseMobileNavItems.length - 1}
+                          onClick={() => moveNavItem(item.key, 1)}
+                          className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-sm text-gray-600 disabled:opacity-30"
+                        >
+                          ↓
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              </section>
+
+              {visibleBusinessGroups.map((group) => (
+                <section key={group.key} aria-label={group.label}>
+                  <div className="mb-2 border-b border-gray-100 pb-1 text-xs font-semibold text-gray-500">
+                    {group.label}
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {group.items.map((item) => {
+                      const isFavorite = baseMobileNavItems.some((favorite) => favorite.key === item.key)
+                      return (
+                        <div key={item.key} className="flex items-center gap-2 rounded-lg border border-gray-100 p-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTab(item.key)
+                              setMobileNavOpen(false)
+                              setSystemMenuOpen(false)
+                            }}
+                            className={`flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-2 text-left text-sm font-medium ${
+                              tab === item.key ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            <MenuIcon icon={item.key} />
+                            <span className="truncate">{item.label}</span>
+                          </button>
+                          {isFavorite ? (
+                            <span className="shrink-0 rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+                              常用
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setMobileFavorite(item.key)}
+                              className="shrink-0 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                            >
+                              设为常用
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </section>
               ))}
             </div>
           </div>
         </div>
       )}
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
         <div className="grid grid-cols-5 gap-1">
           {mobilePrimaryItems.map((item) => (
             <button
@@ -2127,7 +2048,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             type="button"
             onClick={() => setMobileNavOpen((open) => !open)}
             className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-medium transition ${
-              mobileNavOpen ? 'bg-gray-900 text-white [&_span:first-child]:bg-white/15 [&_span:first-child]:text-white' : 'text-gray-600 hover:bg-gray-100'
+              mobileNavOpen || mobileMoreActive
+                ? 'bg-gray-900 text-white [&_span:first-child]:bg-white/15 [&_span:first-child]:text-white'
+                : 'text-gray-600 hover:bg-gray-100'
             }`}
           >
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-[13px] font-semibold text-slate-700">多</span>
