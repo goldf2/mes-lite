@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useState, useEffect, useRef, useCallback, type RefObject } from 'react'
+import { useState, useEffect, useRef, useCallback, type CSSProperties, type RefObject } from 'react'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { Boxes, ChevronDown, PencilLine, Search } from 'lucide-react'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
@@ -241,6 +241,10 @@ const orderStatusOptions = [
 ]
 
 const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0'
+const desktopSidebarStorageKey = 'mes-lite.layout.desktopSidebarWidth'
+const defaultDesktopSidebarWidth = 224
+const minDesktopSidebarWidth = 184
+const maxDesktopSidebarWidth = 320
 
 function SystemMenu({
   containerRef,
@@ -312,6 +316,97 @@ function SystemMenu({
             >
               退出登录
             </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CompactBusinessMenu({
+  containerRef,
+  groups,
+  activeGroup,
+  activeTab,
+  activeTabLabel,
+  open,
+  onToggle,
+  onNavigate,
+}: {
+  containerRef: RefObject<HTMLDivElement>
+  groups: Array<{
+    key: BusinessNavGroupKey
+    label: string
+    items: Array<{ key: TabType; label: string }>
+  }>
+  activeGroup?: {
+    key: BusinessNavGroupKey
+    label: string
+    items: Array<{ key: TabType; label: string }>
+  }
+  activeTab: TabType
+  activeTabLabel: string
+  open: boolean
+  onToggle: () => void
+  onNavigate: (tab: TabType) => void
+}) {
+  return (
+    <div ref={containerRef} className="relative min-w-0 shrink-0">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={onToggle}
+        className="flex h-9 max-w-[15rem] items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 text-left text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 sm:h-10 sm:max-w-[19rem] sm:px-3 sm:text-sm"
+      >
+        <span className="shrink-0 text-gray-500">{activeGroup?.label || '业务菜单'}</span>
+        <span aria-hidden="true" className="h-4 w-px shrink-0 bg-gray-200" />
+        <span className="min-w-0 truncate font-semibold text-gray-900">{activeTabLabel}</span>
+        <ChevronDown
+          aria-hidden="true"
+          className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          aria-label="业务功能"
+          className="absolute left-0 top-full z-50 mt-2 max-h-[min(70dvh,560px)] w-[min(calc(100vw-24px),560px)] overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 shadow-xl"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2">
+            {groups.map((group) => (
+              <section
+                key={group.key}
+                aria-label={group.label}
+                className="min-w-0 border-b border-gray-100 p-2 last:border-b-0 sm:border-b-0"
+              >
+                <div className={`mb-1 px-2 text-xs font-semibold ${
+                  group.key === activeGroup?.key ? 'text-blue-700' : 'text-gray-400'
+                }`}>
+                  {group.label}
+                </div>
+                <div className="space-y-0.5">
+                  {group.items.map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      role="menuitem"
+                      aria-current={activeTab === item.key ? 'page' : undefined}
+                      onClick={() => onNavigate(item.key)}
+                      className={`flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
+                        activeTab === item.key
+                          ? 'bg-blue-50 font-semibold text-blue-700'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <MenuIcon icon={item.key} />
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
           </div>
         </div>
       )}
@@ -405,8 +500,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [systemMenuOpen, setSystemMenuOpen] = useState(false)
+  const [businessMenuOpen, setBusinessMenuOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [desktopSidebarWidth, setDesktopSidebarWidth] = useState(defaultDesktopSidebarWidth)
+  const [desktopSidebarReady, setDesktopSidebarReady] = useState(false)
+  const [resizingDesktopSidebar, setResizingDesktopSidebar] = useState(false)
   const systemMenuRef = useRef<HTMLDivElement>(null)
+  const businessMenuRef = useRef<HTMLDivElement>(null)
   const desktopSystemMenuRef = useRef<HTMLDivElement>(null)
   const navOrderLoadedRef = useRef(false)
   const [adjustingStock, setAdjustingStock] = useState<Stock | null>(null)
@@ -498,6 +598,70 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       document.removeEventListener('keydown', closeOnEscape)
     }
   }, [systemMenuOpen])
+
+  useEffect(() => {
+    if (!businessMenuOpen) return
+
+    const closeOnOutsidePointerDown = (event: PointerEvent) => {
+      if (businessMenuRef.current?.contains(event.target as Node)) return
+      setBusinessMenuOpen(false)
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setBusinessMenuOpen(false)
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsidePointerDown, true)
+    document.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointerDown, true)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [businessMenuOpen])
+
+  useEffect(() => {
+    const savedWidth = Number(window.localStorage.getItem(desktopSidebarStorageKey))
+    if (
+      Number.isFinite(savedWidth)
+      && savedWidth >= minDesktopSidebarWidth
+      && savedWidth <= maxDesktopSidebarWidth
+    ) {
+      setDesktopSidebarWidth(savedWidth)
+    }
+    setDesktopSidebarReady(true)
+  }, [])
+
+  useEffect(() => {
+    if (!desktopSidebarReady) return
+    window.localStorage.setItem(desktopSidebarStorageKey, String(desktopSidebarWidth))
+  }, [desktopSidebarReady, desktopSidebarWidth])
+
+  useEffect(() => {
+    if (!resizingDesktopSidebar) return
+
+    const previousCursor = document.body.style.cursor
+    const previousUserSelect = document.body.style.userSelect
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const resize = (event: PointerEvent) => {
+      setDesktopSidebarWidth(Math.min(
+        maxDesktopSidebarWidth,
+        Math.max(minDesktopSidebarWidth, event.clientX),
+      ))
+    }
+    const stop = () => setResizingDesktopSidebar(false)
+
+    window.addEventListener('pointermove', resize)
+    window.addEventListener('pointerup', stop, { once: true })
+    return () => {
+      document.body.style.cursor = previousCursor
+      document.body.style.userSelect = previousUserSelect
+      window.removeEventListener('pointermove', resize)
+      window.removeEventListener('pointerup', stop)
+    }
+  }, [resizingDesktopSidebar])
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index)
@@ -799,10 +963,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   ))
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-gray-50">
+    <div
+      className="min-h-screen overflow-x-hidden bg-gray-50"
+      style={{ '--mes-desktop-sidebar-width': `${desktopSidebarWidth}px` } as CSSProperties}
+    >
       <InterfacePreferenceSync />
       <header className="fixed inset-x-0 top-0 z-50 hidden h-16 items-center border-b border-gray-200 bg-white lg:flex">
-        <div className="flex h-full w-56 shrink-0 items-center gap-3 border-r border-gray-200 px-4">
+        <div className="flex h-full w-[var(--mes-desktop-sidebar-width)] shrink-0 items-center gap-3 border-r border-gray-200 px-4">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600">
             <span className="text-lg font-bold text-white">M</span>
           </div>
@@ -857,7 +1024,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </div>
       </header>
 
-      <aside className="fixed bottom-0 left-0 top-16 z-30 hidden w-56 flex-col border-r border-gray-200 bg-white lg:flex">
+      <aside className="fixed bottom-0 left-0 top-16 z-30 hidden w-[var(--mes-desktop-sidebar-width)] flex-col border-r border-gray-200 bg-white lg:flex">
         <div className="shrink-0 border-b border-gray-100 px-4 py-4">
           <div className="flex items-center gap-3">
             <div>
@@ -971,66 +1138,68 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             )
           })}
         </nav>
+        <div
+          role="separator"
+          aria-label="调整左侧辅助功能区宽度"
+          aria-orientation="vertical"
+          aria-valuemin={minDesktopSidebarWidth}
+          aria-valuemax={maxDesktopSidebarWidth}
+          aria-valuenow={Math.round(desktopSidebarWidth)}
+          tabIndex={0}
+          onPointerDown={(event) => {
+            event.preventDefault()
+            setResizingDesktopSidebar(true)
+          }}
+          onDoubleClick={() => setDesktopSidebarWidth(defaultDesktopSidebarWidth)}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+            event.preventDefault()
+            setDesktopSidebarWidth((current) => Math.min(
+              maxDesktopSidebarWidth,
+              Math.max(minDesktopSidebarWidth, current + (event.key === 'ArrowRight' ? 8 : -8)),
+            ))
+          }}
+          className={`group absolute inset-y-0 right-0 flex w-3 translate-x-1/2 cursor-col-resize touch-none items-center justify-center outline-none ${
+            resizingDesktopSidebar ? 'bg-blue-50/70' : ''
+          }`}
+          title="拖动调整左侧宽度，双击恢复默认"
+        >
+          <span className={`h-20 w-1 rounded-full transition ${
+            resizingDesktopSidebar
+              ? 'bg-blue-500'
+              : 'bg-gray-300 group-hover:bg-blue-400 group-focus:bg-blue-500'
+          }`} />
+        </div>
       </aside>
 
-      <main className="mes-mobile-main min-w-0 p-3 sm:p-4 lg:ml-56 lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20">
+      <main className="mes-mobile-main min-w-0 p-3 sm:p-4 lg:ml-[var(--mes-desktop-sidebar-width)] lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20">
         <div className="sticky top-0 z-30 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:static lg:-mx-6 lg:px-6">
-          <nav aria-label="主业务分类" className="-mx-1 mb-2 flex min-w-0 gap-1 overflow-x-auto px-1 lg:hidden">
-            {visibleBusinessGroups.map((group) => {
-              const selected = !activeSystemTab && group.key === activeBusinessGroupKey
-              return (
-                <button
-                  key={group.key}
-                  type="button"
-                  aria-current={selected ? 'page' : undefined}
-                  onClick={() => {
-                    const firstItem = group.items[0]
-                    if (!firstItem) return
-                    setTab(firstItem.key)
-                    if (firstItem.key === 'materials') setMaterialMenuOpen(true)
-                    setSystemMenuOpen(false)
-                  }}
-                  className={`shrink-0 rounded-md px-3 py-2 text-sm font-medium transition ${
-                    selected
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-gray-600 hover:bg-white hover:text-gray-900'
-                  }`}
-                >
-                  {group.label}
-                </button>
-              )
-            })}
-          </nav>
-          <nav aria-label="当前模块菜单" className="-mx-1 mb-2 flex min-w-0 gap-1 overflow-x-auto px-1 lg:hidden">
-            {sidebarNavItems.map((item) => {
-              const selected = tab === item.key
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  aria-current={selected ? 'page' : undefined}
-                  onClick={() => {
-                    setTab(item.key)
-                    if (item.key === 'materials') setMaterialMenuOpen(true)
-                    setSystemMenuOpen(false)
-                  }}
-                  className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition sm:text-sm ${
-                    selected
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-gray-500 hover:bg-white hover:text-gray-900'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              )
-            })}
-          </nav>
-          <div className="flex min-w-0 flex-nowrap items-center gap-2">
-            <div className="min-w-0 shrink-0 pt-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 lg:flex-nowrap">
+            <div className="hidden min-w-0 shrink-0 pt-1 lg:block">
               <div className="hidden text-xs font-medium text-gray-400 sm:block">{activeSystemTab ? '账号功能' : '业务功能'}</div>
               <div className="max-w-[5.5rem] truncate text-sm font-semibold text-gray-900 sm:max-w-[10rem] sm:text-lg lg:max-w-[12rem]">{activeTabLabel}</div>
             </div>
-            <div id="topbar-actions" className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible">
+            <div className="lg:hidden">
+              <CompactBusinessMenu
+                containerRef={businessMenuRef}
+                groups={visibleBusinessGroups}
+                activeGroup={activeSystemTab ? undefined : activeBusinessGroup}
+                activeTab={tab}
+                activeTabLabel={activeTabLabel}
+                open={businessMenuOpen}
+                onToggle={() => {
+                  setBusinessMenuOpen((open) => !open)
+                  setSystemMenuOpen(false)
+                }}
+                onNavigate={(nextTab) => {
+                  setTab(nextTab)
+                  if (nextTab === 'materials') setMaterialMenuOpen(true)
+                  setBusinessMenuOpen(false)
+                  setSystemMenuOpen(false)
+                }}
+              />
+            </div>
+            <div id="topbar-actions" className="order-3 flex min-w-0 flex-[1_1_100%] items-center justify-start gap-2 overflow-visible sm:order-none sm:flex-[1_1_480px] lg:flex-1">
                 {tab === 'orders' ? (
                   <ResponsiveToolbarActions
                     primaryFilters={(
@@ -1139,7 +1308,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 items={readableSystemNavItems}
                 activeTab={tab}
                 open={systemMenuOpen}
-                onToggle={() => setSystemMenuOpen((open) => !open)}
+                onToggle={() => {
+                  setSystemMenuOpen((open) => !open)
+                  setBusinessMenuOpen(false)
+                }}
                 onNavigate={(nextTab) => {
                   setTab(nextTab)
                   setSystemMenuOpen(false)
