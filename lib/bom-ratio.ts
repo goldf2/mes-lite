@@ -3,6 +3,10 @@ export type BomLossInputMode = 'PERCENT' | 'FIXED'
 
 const roundRatio = (value: number) => Number(value.toFixed(6))
 
+export function bomRatiosDiffer(savedRatio: number, nextRatio: number) {
+  return roundRatio(Number(savedRatio)) !== roundRatio(Number(nextRatio))
+}
+
 export function bomInputToBaseUnit(value: number, toBaseFactor: number) {
   return Number(value) * Number(toBaseFactor)
 }

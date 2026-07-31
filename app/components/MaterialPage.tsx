@@ -14,6 +14,7 @@ import {
   BomLossInputMode,
   BomRatioInputMode,
   baseUnitToBomInput,
+  bomRatiosDiffer,
   bomInputToBaseUnit,
   calculateBomUnitRatio,
 } from '@/lib/bom-ratio'
@@ -809,10 +810,23 @@ export default function MaterialPage({
   const relationExistingBomItem = relationProduct?.bom?.items.find((item) => (
     item.itemType === 'MATERIAL' && item.material?.id === relationMaterialId
   )) || null
+  const relationTargetsSelectedBom = Boolean(
+    selectedBomProduct
+    && relationProduct
+    && selectedBomProduct.id === relationProduct.id,
+  )
   const bomMaterialById = useMemo(() => new Map(bomMaterialOptions.map((material) => [material.id, material])), [bomMaterialOptions])
   const selectedBomMaterialItems = useMemo(() => (
     selectedBomProduct?.bom?.items.filter((item) => item.itemType === 'MATERIAL' && item.material) || []
   ), [selectedBomProduct])
+  const savedBomItemByMaterialId = useMemo(() => new Map(
+    selectedBomMaterialItems.map((item) => [item.material?.id || '', item]),
+  ), [selectedBomMaterialItems])
+  const draftBomDirty = draftBomItems.length !== selectedBomMaterialItems.length
+    || draftBomItems.some((item) => {
+      const savedItem = savedBomItemByMaterialId.get(item.materialId)
+      return !savedItem || bomRatiosDiffer(Number(savedItem.quantity), Number(item.quantity))
+    })
   const selectedMaterialUsageRows = useMemo(() => {
     if (!selectedMaterial) return []
     return bomProducts.flatMap((product) => (product.bom?.items || [])
@@ -1454,39 +1468,27 @@ export default function MaterialPage({
     )
   }
 
-  const applyRelationBom = async () => {
+  const addRelationToDraft = () => {
     if (!relationProduct) return onMessage('请选择成品物料')
     if (!relationMaterial) return onMessage('请选择原料物料')
+    if (!relationTargetsSelectedBom) return onMessage('请先确认当前成品物料')
     if (!relationLengthStockUnitValid) return onMessage('长度原料的主库存单位必须先设置为 m')
     if (relationProductSourceMaterialId === relationMaterial.id) return onMessage('成品和原料不能是同一个物料')
     if (relationUnitRatio <= 0) return onMessage('请填写有效的用量或比例关系')
-    const currentItems = (relationProduct.bom?.items || [])
-      .filter((item) => item.itemType === 'MATERIAL' && item.material)
-      .map((item) => ({
-        clientId: item.id,
-        materialId: item.material?.id || '',
-        quantity: Number(item.quantity || 0),
-        unit: item.material?.stockUnit || item.material?.unit || item.unit || '件',
-        wastageRate: Number(item.wastageRate || 0),
-      }))
-    const existing = currentItems.find((item) => item.materialId === relationMaterial.id)
-    const nextItem = {
+
+    const existing = draftBomItems.find((item) => item.materialId === relationMaterial.id)
+    const nextItem: DraftBomItem = {
       clientId: existing?.clientId || `relation-${relationMaterial.id}-${Date.now()}`,
       materialId: relationMaterial.id,
       quantity: relationUnitRatio,
       unit: relationMaterial.stockUnit || relationMaterial.unit || '件',
       wastageRate: 0,
     }
-    const nextItems = existing
-      ? currentItems.map((item) => item.materialId === relationMaterial.id ? nextItem : item)
-      : [...currentItems, nextItem]
-
-    const saved = await saveBomForProduct(
-      relationProduct.id,
-      nextItems,
-      existing ? 'BOM 原料换算比例已更新' : 'BOM 原料换算比例已添加',
-    )
-    if (saved) resetRelationCalculator()
+    setDraftBomItems((current) => existing
+      ? current.map((item) => item.materialId === relationMaterial.id ? nextItem : item)
+      : [...current, nextItem])
+    onMessage(existing ? '条目已更新到待保存明细' : '条目已添加到待保存明细')
+    resetRelationCalculator()
   }
 
   const editInputBasisUsage = (product: MaterialBom, item: BomItem) => {
@@ -2016,7 +2018,7 @@ export default function MaterialPage({
         </div>
 
         <div aria-label="BOM 明细工作区" className="min-w-0 rounded-lg bg-white p-4 shadow xl:h-full xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain xl:[scrollbar-gutter:stable]">
-          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="mb-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-semibold text-gray-900">BOM 工作区</h3>
@@ -2026,14 +2028,6 @@ export default function MaterialPage({
                 {selectedMaterial ? `${selectedMaterial.code} · ${selectedMaterial.name}` : '请选择左侧物料'}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={saveSelectedBom}
-              disabled={!selectedMaterial || bomSaving}
-              className="shrink-0 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {bomSaving ? '保存中...' : '保存明细'}
-            </button>
           </div>
 
           {selectedMaterial ? (
@@ -2051,6 +2045,8 @@ export default function MaterialPage({
                       disabledIds={relationMaterialId ? [relationMaterialId] : []}
                       onChange={(value) => {
                         setRelationProductId(value)
+                        const nextProduct = bomProducts.find((product) => product.id === value)
+                        if (nextProduct?.sourceMaterialId) setSelectedMaterialId(nextProduct.sourceMaterialId)
                         resetRelationCalculator()
                       }}
                     />
@@ -2238,7 +2234,7 @@ export default function MaterialPage({
                     </div>
                     {relationExistingBomItem && (
                       <div className="mt-1 text-xs text-blue-700">
-                        当前已保存比例：{qty(Number(relationExistingBomItem.quantity))} {relationExistingBomItem.unit}原料 / 1 {relationProduct?.unit || '成品主单位'}成品；点击“更新关联”后才会覆盖。
+                        当前已保存比例：{qty(Number(relationExistingBomItem.quantity))} {relationExistingBomItem.unit}原料 / 1 {relationProduct?.unit || '成品主单位'}成品；先添加条目，再点击底部“保存”后覆盖。
                       </div>
                     )}
                   </div>
@@ -2250,16 +2246,15 @@ export default function MaterialPage({
                       ? '长度原料统一按米保存；标准尺寸与固定损耗使用当前选择的尺寸单位，百分比损耗使用 %。'
                       : '原料计算单位固定使用主库存单位。'}
                     换算后仅保存比例；这里录入的标准损耗已包含在比例中，生产日报损耗表示具体批次的额外偏差。
+                    点击“添加条目”只更新下方待保存明细，不会立即写入数据库。
                   </div>
                   <button
                     type="button"
-                    onClick={applyRelationBom}
-                    disabled={bomSaving || !relationProductId || !relationMaterialId || relationUnitRatio <= 0 || !relationLengthStockUnitValid}
+                    onClick={addRelationToDraft}
+                    disabled={!relationTargetsSelectedBom || !relationMaterialId || relationUnitRatio <= 0 || !relationLengthStockUnitValid}
                     className="shrink-0 whitespace-nowrap rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {bomSaving
-                      ? relationExistingBomItem ? '更新中...' : '添加中...'
-                      : relationExistingBomItem ? '更新关联' : '添加关联'}
+                    添加条目
                   </button>
                 </div>
               </div>
@@ -2299,6 +2294,9 @@ export default function MaterialPage({
                     <div className="space-y-2">
                       {draftBomItems.map((item) => {
                         const material = bomMaterialById.get(item.materialId)
+                        const savedItem = savedBomItemByMaterialId.get(item.materialId)
+                        const itemPending = !savedItem
+                          || bomRatiosDiffer(Number(savedItem.quantity), Number(item.quantity))
                         return (
                           <div key={item.clientId} className="rounded-lg border border-gray-200 p-3">
                             <div className="flex items-start justify-between gap-3">
@@ -2310,23 +2308,35 @@ export default function MaterialPage({
                                 </div>
                               </button>
                               <div className="flex shrink-0 items-center gap-2">
-                                <label className="flex overflow-hidden rounded border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
-                                  <span className="flex items-center bg-gray-50 px-2 text-xs text-gray-500">换算比例</span>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                    inputMode="decimal"
-                                    value={item.quantity || ''}
-                                    onChange={(event) => setDraftBomItems((current) => current.map((draft) => (
-                                      draft.clientId === item.clientId
-                                        ? { ...draft, quantity: event.target.value }
-                                        : draft
-                                    )))}
-                                    className="w-24 border-x border-gray-200 px-2 py-1 text-right text-xs outline-none"
-                                  />
-                                  <span className="flex items-center px-2 text-xs text-gray-600">{material?.stockUnit || material?.unit || item.unit}原料/{selectedBomProduct?.unit || '单位'}成品</span>
-                                </label>
+                                <div>
+                                  <label className={`flex overflow-hidden rounded border bg-white focus-within:ring-2 focus-within:ring-blue-500 ${itemPending ? 'border-amber-300' : 'border-gray-200'}`}>
+                                    <span className={`flex items-center px-2 text-xs ${itemPending ? 'bg-amber-50 font-medium text-amber-700' : 'bg-gray-50 text-gray-500'}`}>
+                                      {itemPending ? '待保存比例' : '已保存比例'}
+                                    </span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="any"
+                                      inputMode="decimal"
+                                      value={item.quantity ?? ''}
+                                      onChange={(event) => setDraftBomItems((current) => current.map((draft) => (
+                                        draft.clientId === item.clientId
+                                          ? { ...draft, quantity: event.target.value }
+                                          : draft
+                                      )))}
+                                      className={`w-24 border-x px-2 py-1 text-right text-xs outline-none ${itemPending ? 'border-amber-200 bg-amber-50/40 font-semibold text-amber-800' : 'border-gray-200'}`}
+                                    />
+                                    <span className="flex items-center px-2 text-xs text-gray-600">{material?.stockUnit || material?.unit || item.unit}原料/{selectedBomProduct?.unit || '单位'}成品</span>
+                                  </label>
+                                  {itemPending && (
+                                    <div className="mt-1 text-right text-[11px] text-amber-700">
+                                      {savedItem
+                                        ? `当前已保存 ${qty(Number(savedItem.quantity))}`
+                                        : '新关联，尚未保存'}
+                                      ；点击底部“保存”后生效
+                                    </div>
+                                  )}
+                                </div>
                                 <button
                                   type="button"
                                   onClick={() => setDraftBomItems((current) => current.filter((draft) => draft.clientId !== item.clientId))}
@@ -2365,6 +2375,22 @@ export default function MaterialPage({
                     ))}
                   </div>
                 )}
+              </div>
+
+              <div className="sticky bottom-0 z-10 -mx-4 -mb-4 mt-4 flex flex-col gap-3 border-t border-gray-200 bg-white/95 px-4 py-3 shadow-[0_-8px_20px_rgba(15,23,42,0.06)] backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+                <div className={`text-xs ${draftBomDirty ? 'font-medium text-amber-700' : 'text-gray-500'}`}>
+                  {draftBomDirty
+                    ? '有未保存修改；确认所有新增、比例调整和移除后，点击“保存”统一生效。'
+                    : '当前 BOM 已保存；“添加条目”只会先加入待保存明细。'}
+                </div>
+                <button
+                  type="button"
+                  onClick={saveSelectedBom}
+                  disabled={bomSaving || !draftBomDirty}
+                  className="shrink-0 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {bomSaving ? '保存中...' : '保存'}
+                </button>
               </div>
             </div>
           ) : (

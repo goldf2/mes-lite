@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import {
   baseUnitToBomInput,
+  bomRatiosDiffer,
   bomInputToBaseUnit,
   calculateBomUnitRatio,
 } from '../lib/bom-ratio'
@@ -46,6 +47,8 @@ assert.equal(calculateBomUnitRatio({
 
 assert.equal(bomInputToBaseUnit(352.5, 0.001), 0.3525)
 assert.equal(baseUnitToBomInput(0.3525, 0.001), 352.5)
+assert.equal(bomRatiosDiffer(1, 0.0336), true)
+assert.equal(bomRatiosDiffer(0.0336, 0.0336000001), false)
 assert.equal(isMeterUnit('m'), true)
 assert.equal(isMeterUnit('米'), true)
 assert.equal(isMeterUnit('mm'), false)
