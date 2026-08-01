@@ -69,7 +69,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         totalConsumedCost = roundQty(totalConsumedCost + Number(issue.costAmount))
       }
 
-      const outputQty = Number(report.goodQty)
+      const outputQty = Number(report.outputQty)
       const outputCostAmount = outputQty > 0 ? totalConsumedCost : 0
       let outputValuationQty = 0
       let outputStockUnit: string | null = null
@@ -84,7 +84,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           type: 'PRODUCTION_IN',
           refType: 'DAILY_PRODUCTION_REPORT',
           refId: report.id,
-          note: `生产日报 ${report.reportNo} 合格品入库`,
+          note: `生产日报 ${report.reportNo} 产出入库`,
           createdBy: confirmedBy,
           idempotencyKey: `DAILY_PRODUCTION:${report.id}:OUTPUT`,
           locationId: report.outputLocationId,
@@ -122,7 +122,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       entityLabel: result.reportNo,
       beforeData: before,
       afterData: result,
-      note: '自动扣减 BOM 原料并增加合格成品库存',
+      note: '自动扣减 BOM 原料并将产出增加到所选库位',
     })
     return NextResponse.json({ data: result, message: '日报已确认，原料和成品库存已同步更新' })
   } catch (error) {

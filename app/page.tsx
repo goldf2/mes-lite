@@ -10,6 +10,7 @@ import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
 import ViewModeToggle, { usePersistedViewMode } from './components/ViewModeToggle'
 import { InterfacePreferenceSync } from './components/interfacePreferences'
 import { SearchFieldWithPresets } from './components/SavedSearchPresets'
+import SearchableSelect from './components/SearchableSelect'
 import type { SystemSection } from './components/SystemPage'
 
 function FeaturePageLoading() {
@@ -1532,14 +1533,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">选择物料</label>
-                <select value={selectedMaterialId} onChange={(e) => setSelectedMaterialId(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-lg">
-                  <option value="">请选择物料</option>
-                  {materialOptions.map((material) => (
-                    <option key={material.id} value={material.id}>
-                      {material.name} ({material.code}) · {materialCategoryLabels[material.category] || material.category}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={selectedMaterialId}
+                  onChange={setSelectedMaterialId}
+                  options={materialOptions.map((material) => ({
+                    value: material.id,
+                    label: `${material.code} · ${material.name} · ${materialCategoryLabels[material.category] || material.category}`,
+                  }))}
+                  placeholder="输入物料编码、名称或分类筛选"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">计划产量</label>

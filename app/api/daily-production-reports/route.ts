@@ -131,11 +131,10 @@ export async function POST(req: NextRequest) {
 
     const input = dailyProductionReportInputSchema.parse(await req.json())
     const reportDate = parseDailyProductionReportDate(input.reportDate)
-    const totalProcessedQty = input.goodQty + input.badQty + input.scrapQty
     const report = await prisma.$transaction(async (tx) => {
       const consumptionLocation = await resolveInventoryLocation(tx, input.consumptionLocationId)
       const outputLocation = await resolveInventoryLocation(tx, input.outputLocationId)
-      const snapshot = await buildDailyProductionConsumption(tx, input.finishedMaterialId, totalProcessedQty, input.consumptions)
+      const snapshot = await buildDailyProductionConsumption(tx, input.finishedMaterialId, input.outputQty, input.consumptions)
       const reportNo = await nextReportNo(tx, reportDate)
       return tx.dailyProductionReport.create({
         data: {
@@ -144,9 +143,7 @@ export async function POST(req: NextRequest) {
           finishedMaterialId: input.finishedMaterialId,
           consumptionLocationId: consumptionLocation.id,
           outputLocationId: outputLocation.id,
-          goodQty: input.goodQty,
-          badQty: input.badQty,
-          scrapQty: input.scrapQty,
+          outputQty: input.outputQty,
           workers: input.workers,
           note: input.note || null,
           bomId: snapshot.bom.id,

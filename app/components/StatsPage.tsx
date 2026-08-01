@@ -7,6 +7,7 @@ import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
+import SearchableSelect from './SearchableSelect'
 import { calculateProductionConsumption, ProductionLossMode } from '@/lib/production-consumption'
 
 interface BomItem {
@@ -73,9 +74,7 @@ interface DailyProductionReport {
   id: string
   reportNo: string
   reportDate: string
-  goodQty: number
-  badQty: number
-  scrapQty: number
+  outputQty: number
   workers: string
   note?: string | null
   status: 'DRAFT' | 'CONFIRMED' | 'REVERSED'
@@ -106,9 +105,7 @@ interface ReportForm {
   finishedMaterialId: string
   consumptionLocationId: string
   outputLocationId: string
-  goodQty: number
-  badQty: number
-  scrapQty: number
+  outputQty: number
   workers: string
   note: string
 }
@@ -130,9 +127,7 @@ const emptyForm = (): ReportForm => ({
   finishedMaterialId: '',
   consumptionLocationId: '',
   outputLocationId: '',
-  goodQty: 0,
-  badQty: 0,
-  scrapQty: 0,
+  outputQty: 0,
   workers: '',
   note: '',
 })
@@ -200,7 +195,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
   }, [])
 
   const selectedMaterial = materials.find((material) => material.id === form.finishedMaterialId)
-  const totalProcessedQty = Number(form.goodQty || 0) + Number(form.badQty || 0) + Number(form.scrapQty || 0)
+  const totalProcessedQty = Number(form.outputQty || 0)
   const previewConsumptions = useMemo(() => (selectedMaterial?.bom?.items || [])
     .filter((item) => item.material)
     .map((item) => {
@@ -228,14 +223,10 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
     }), [consumptionDraftByMaterial, selectedMaterial, totalProcessedQty])
 
   const summary = useMemo(() => reports.reduce((result, report) => {
-    if (report.status === 'CONFIRMED') {
-      result.confirmed += 1
-      result.good += Number(report.goodQty)
-      result.bad += Number(report.badQty)
-      result.scrap += Number(report.scrapQty)
-    }
+    result[report.status.toLowerCase() as 'draft' | 'confirmed' | 'reversed'] += 1
+    if (report.status === 'CONFIRMED' && report.outputLocation?.id) result.locationIds.add(report.outputLocation.id)
     return result
-  }, { confirmed: 0, good: 0, bad: 0, scrap: 0 }), [reports])
+  }, { confirmed: 0, draft: 0, reversed: 0, locationIds: new Set<string>() }), [reports])
 
   const openCreate = () => {
     setEditingReport(null)
@@ -252,9 +243,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
       finishedMaterialId: report.finishedMaterial.id,
       consumptionLocationId: report.consumptionLocationId || locations.find((location) => location.isDefault)?.id || '',
       outputLocationId: report.outputLocationId || locations.find((location) => location.isDefault)?.id || '',
-      goodQty: Number(report.goodQty),
-      badQty: Number(report.badQty),
-      scrapQty: Number(report.scrapQty),
+      outputQty: Number(report.outputQty),
       workers: report.workers,
       note: report.note || '',
     })
@@ -268,9 +257,9 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
 
   const submitForm = async () => {
     if (!form.finishedMaterialId) return onMessage('请选择产出物料')
-    if (!form.consumptionLocationId || !form.outputLocationId) return onMessage('请选择原料出库库位和成品入库库位')
+    if (!form.consumptionLocationId || !form.outputLocationId) return onMessage('请选择原料出库库位和产出入库库位')
     if (!form.workers.trim()) return onMessage('请填写生产人员')
-    if (totalProcessedQty <= 0) return onMessage('合格、不良和报废数量不能全部为 0')
+    if (totalProcessedQty <= 0) return onMessage('产出数量必须大于 0')
     if (!selectedMaterial?.bom?.isActive || previewConsumptions.length === 0) {
       return onMessage('该物料尚未建立有效 BOM，请先在物料 BOM 关联中添加原料')
     }
@@ -287,9 +276,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
-          goodQty: Number(form.goodQty || 0),
-          badQty: Number(form.badQty || 0),
-          scrapQty: Number(form.scrapQty || 0),
+          outputQty: Number(form.outputQty || 0),
           consumptions: previewConsumptions.flatMap((item) => item.material ? [{
             materialId: item.material.id,
             lossMode: item.lossMode,
@@ -440,13 +427,13 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
       <section className="rounded-lg bg-white p-5 shadow-sm">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">生产日报</h2>
-          <p className="mt-1 text-sm text-gray-500">按 BOM 换算比例和本次额外损耗计算原料耗用；确认后扣减原料并将合格品入库</p>
+          <p className="mt-1 text-sm text-gray-500">按 BOM 换算比例和本次额外损耗计算原料耗用；产出状态由入库库位表达，不再固定区分合格、不良和报废</p>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Metric label="已确认日报" value={summary.confirmed} />
-          <Metric label="合格入库" value={numberText(summary.good)} tone="text-emerald-700" />
-          <Metric label="不良品" value={numberText(summary.bad)} tone="text-amber-700" />
-          <Metric label="报废品" value={numberText(summary.scrap)} tone="text-red-700" />
+          <Metric label="草稿日报" value={summary.draft} />
+          <Metric label="已冲销日报" value={summary.reversed} tone="text-red-700" />
+          <Metric label="产出使用库位" value={summary.locationIds.size} tone="text-blue-700" />
         </div>
       </section>
 
@@ -474,10 +461,12 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                     <div className="mt-1 text-xs text-gray-500">{report.workers}</div>
                   </div>
                 </div>
-                <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                  <QuantityCell label="合格入库" value={report.goodQty} tone="text-emerald-700" />
-                  <QuantityCell label="不良" value={report.badQty} tone="text-amber-700" />
-                  <QuantityCell label="报废" value={report.scrapQty} tone="text-red-700" />
+                <div className="mt-4 grid grid-cols-2 gap-2 text-center">
+                  <QuantityCell label="产出入库" value={report.outputQty} tone="text-emerald-700" />
+                  <div className="rounded bg-gray-50 px-3 py-2">
+                    <div className="text-xs text-gray-500">产出库位</div>
+                    <div className="mt-1 font-semibold text-blue-700">{report.outputLocation?.code || '默认库位'}</div>
+                  </div>
                 </div>
                 <div className="mt-4 border-t border-gray-100 pt-4">
                   <div className="mb-2 flex items-center justify-between text-xs text-gray-500">
@@ -502,9 +491,8 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
               <tr>
                 <th className="px-4 py-3">生产日期 / 日报号</th>
                 <th className="px-4 py-3">产出物料</th>
-                <th className="px-4 py-3 text-right">合格</th>
-                <th className="px-4 py-3 text-right">不良</th>
-                <th className="px-4 py-3 text-right">报废</th>
+                <th className="px-4 py-3">产出库位</th>
+                <th className="px-4 py-3 text-right">产出数量</th>
                 <th className="px-4 py-3">人员</th>
                 <th className="px-4 py-3">状态</th>
                 <th className="px-4 py-3 text-right">操作</th>
@@ -527,9 +515,11 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                         <div className="mt-2 w-[520px] max-w-[60vw]">{consumptionList(report)}</div>
                       </details>
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold text-emerald-700">{numberText(report.goodQty)}</td>
-                    <td className="px-4 py-3 text-right text-amber-700">{numberText(report.badQty)}</td>
-                    <td className="px-4 py-3 text-right text-red-700">{numberText(report.scrapQty)}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <div className="font-medium">{report.outputLocation?.name || '默认库位'}</div>
+                      <div className="font-mono text-xs text-gray-500">{report.outputLocation?.code || 'DEFAULT'}</div>
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-emerald-700">{numberText(report.outputQty)} {report.finishedMaterial.stockUnit || report.finishedMaterial.unit}</td>
                     <td className="px-4 py-3 text-sm">{report.workers}</td>
                     <td className="px-4 py-3"><span className={`rounded px-2 py-1 text-xs ${meta.className}`}>{meta.label}</span></td>
                     <td className="px-4 py-3">{reportActions(report)}</td>
@@ -547,7 +537,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
               <div>
                 <h3 className="font-semibold text-gray-900">{editingReport ? '编辑生产日报' : '新建生产日报'}</h3>
-                <p className="mt-1 text-xs text-gray-500">总加工数量包含合格、不良和报废，三者都会消耗原料</p>
+                <p className="mt-1 text-xs text-gray-500">日报只记录产出数量和实际入库库位；如需区分状态，请在库位配置中建立对应库位</p>
               </div>
               <button type="button" onClick={() => setFormOpen(false)} className="text-2xl leading-none text-gray-400 hover:text-gray-600">×</button>
             </div>
@@ -582,31 +572,38 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                 </div>
                 <label className="text-sm text-gray-700">
                   原料出库库位
-                  <select value={form.consumptionLocationId} onChange={(event) => setForm({ ...form, consumptionLocationId: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2">
-                    <option value="">请选择库位</option>
-                    {locations.map((location) => <option key={location.id} value={location.id}>{location.code} · {location.name}</option>)}
-                  </select>
+                  <SearchableSelect
+                    value={form.consumptionLocationId}
+                    onChange={(consumptionLocationId) => setForm({ ...form, consumptionLocationId })}
+                    options={locations.map((location) => ({ value: location.id, label: `${location.code} · ${location.name}` }))}
+                    placeholder="输入库位编码或名称筛选"
+                    className="mt-1"
+                  />
                 </label>
                 <label className="text-sm text-gray-700">
-                  合格品入库库位
-                  <select value={form.outputLocationId} onChange={(event) => setForm({ ...form, outputLocationId: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2">
-                    <option value="">请选择库位</option>
-                    {locations.map((location) => <option key={location.id} value={location.id}>{location.code} · {location.name}</option>)}
-                  </select>
+                  产出入库库位
+                  <SearchableSelect
+                    value={form.outputLocationId}
+                    onChange={(outputLocationId) => setForm({ ...form, outputLocationId })}
+                    options={locations.map((location) => ({ value: location.id, label: `${location.code} · ${location.name}` }))}
+                    placeholder="输入库位编码或名称筛选"
+                    className="mt-1"
+                  />
                 </label>
               </div>
 
-              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <NumberField label="合格入库数量" value={form.goodQty} onChange={(goodQty) => setForm({ ...form, goodQty })} />
-                <NumberField label="不良品数量" value={form.badQty} onChange={(badQty) => setForm({ ...form, badQty })} />
-                <NumberField label="报废品数量" value={form.scrapQty} onChange={(scrapQty) => setForm({ ...form, scrapQty })} />
+              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <NumberField label="产出入库数量" value={form.outputQty} onChange={(outputQty) => setForm({ ...form, outputQty })} />
+                <div className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                  产出状态由所选库位决定；可在“工具 / 库位配置”中新建成品、不良、报废或其他业务库位。
+                </div>
               </div>
 
               <div className="mt-5 rounded-lg border border-gray-200">
                 <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-4 py-3">
                   <div>
                     <div className="text-sm font-medium text-gray-900">原料耗用与损耗</div>
-                    <div className="mt-0.5 text-xs text-gray-500">总加工 {numberText(totalProcessedQty)}；基准耗用来自 BOM 换算比例，可再记录本批次额外损耗</div>
+                    <div className="mt-0.5 text-xs text-gray-500">本次产出 {numberText(totalProcessedQty)}；基准耗用来自 BOM 换算比例，可再记录本批次额外损耗</div>
                   </div>
                   {selectedMaterial?.bom && <span className="text-xs text-gray-500">{selectedMaterial.bom.version}</span>}
                 </div>
@@ -727,8 +724,8 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
         <ModalOverlay onClose={() => !saving && setConfirmingReport(null)}>
           <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl">
             <h3 className="font-semibold text-gray-900">确认生产日报</h3>
-            <p className="mt-2 text-sm text-gray-600">确认后将立即扣减原料库存，并增加 {numberText(confirmingReport.goodQty)} {confirmingReport.finishedMaterial.stockUnit || confirmingReport.finishedMaterial.unit} 合格品库存。</p>
-            <p className="mt-2 text-xs text-gray-500">原料：{confirmingReport.consumptionLocation?.code || '默认库位'}；合格品：{confirmingReport.outputLocation?.code || '默认库位'}。入库后发货模块可直接读取该库位可用量。</p>
+            <p className="mt-2 text-sm text-gray-600">确认后将立即扣减原料库存，并把 {numberText(confirmingReport.outputQty)} {confirmingReport.finishedMaterial.stockUnit || confirmingReport.finishedMaterial.unit} 产出增加到所选库位。</p>
+            <p className="mt-2 text-xs text-gray-500">原料库位：{confirmingReport.consumptionLocation?.code || '默认库位'}；产出库位：{confirmingReport.outputLocation?.code || '默认库位'}。入库后发货模块可直接读取该库位可用量。</p>
             <div className="mt-4">{consumptionList(confirmingReport)}</div>
             <div className="mt-5 flex justify-end gap-3">
               <button type="button" onClick={() => setConfirmingReport(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm">取消</button>
@@ -744,7 +741,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
         <ModalOverlay onClose={() => !saving && setReversingReport(null)}>
           <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl">
             <h3 className="font-semibold text-gray-900">冲销生产日报</h3>
-            <p className="mt-2 text-sm text-gray-600">系统将扣回本次合格品，并恢复当时实际消耗的原料库存。</p>
+            <p className="mt-2 text-sm text-gray-600">系统将从原产出库位扣回本次入库数量，并恢复当时实际消耗的原料库存。</p>
             <textarea value={reverseReason} onChange={(event) => setReverseReason(event.target.value)} rows={3} placeholder="填写冲销原因" className="mt-4 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
             <div className="mt-5 flex justify-end gap-3">
               <button type="button" onClick={() => setReversingReport(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm">取消</button>

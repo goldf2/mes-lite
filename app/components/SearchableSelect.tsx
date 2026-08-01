@@ -1,0 +1,127 @@
+'use client'
+
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import useDismissibleSearchPopup from './useDismissibleSearchPopup'
+
+export interface SearchableSelectOption {
+  value: string
+  label: string
+  keywords?: string
+  disabled?: boolean
+}
+
+export default function SearchableSelect({
+  value,
+  options,
+  onChange,
+  placeholder = '输入关键词筛选',
+  emptyText = '没有匹配选项',
+  disabled = false,
+  allowClear = false,
+  className = '',
+}: {
+  value: string
+  options: SearchableSelectOption[]
+  onChange: (value: string) => void
+  placeholder?: string
+  emptyText?: string
+  disabled?: boolean
+  allowClear?: boolean
+  className?: string
+}) {
+  const listboxId = useId()
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const selected = options.find((option) => option.value === value)
+  const keyword = query.trim().toLocaleLowerCase()
+  const filtered = useMemo(() => options.filter((option) => {
+    if (!keyword) return true
+    return `${option.label} ${option.keywords || ''}`.toLocaleLowerCase().includes(keyword)
+  }).slice(0, 100), [keyword, options])
+
+  const closePopup = useCallback(() => {
+    setOpen(false)
+    setQuery('')
+    setActiveIndex(-1)
+  }, [])
+  const rootRef = useDismissibleSearchPopup<HTMLDivElement>(open, closePopup)
+
+  useEffect(() => {
+    if (activeIndex >= filtered.length) setActiveIndex(filtered.length - 1)
+  }, [activeIndex, filtered.length])
+
+  const choose = (nextValue: string) => {
+    onChange(nextValue)
+    closePopup()
+  }
+
+  return (
+    <div ref={rootRef} className={`relative ${className}`}>
+      <input
+        type="text"
+        role="combobox"
+        aria-label={placeholder}
+        aria-autocomplete="list"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        disabled={disabled}
+        value={open ? query : (selected?.label || '')}
+        placeholder={placeholder}
+        onFocus={() => {
+          setOpen(true)
+          setQuery('')
+          setActiveIndex(-1)
+        }}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setOpen(true)
+          setActiveIndex(-1)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') return closePopup()
+          if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            setOpen(true)
+            setActiveIndex((current) => Math.min(current + 1, filtered.length - 1))
+          }
+          if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            setActiveIndex((current) => Math.max(current - 1, 0))
+          }
+          if (event.key === 'Enter' && open && activeIndex >= 0 && filtered[activeIndex] && !filtered[activeIndex].disabled) {
+            event.preventDefault()
+            choose(filtered[activeIndex].value)
+          }
+        }}
+        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+      />
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">⌄</span>
+      {allowClear && value && !disabled && (
+        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => choose('')} className="absolute right-7 top-1/2 -translate-y-1/2 rounded px-1 text-xs text-gray-400 hover:text-gray-700" aria-label="清除选择">×</button>
+      )}
+      {open && !disabled && (
+        <div id={listboxId} role="listbox" className="absolute left-0 right-0 top-full z-[90] mt-1 max-h-64 overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-3 text-sm text-gray-400">{emptyText}</div>
+          ) : filtered.map((option, index) => (
+            <button
+              key={option.value}
+              type="button"
+              role="option"
+              aria-selected={option.value === value}
+              disabled={option.disabled}
+              onMouseDown={(event) => event.preventDefault()}
+              onMouseEnter={() => setActiveIndex(index)}
+              onClick={() => choose(option.value)}
+              className={`block w-full rounded-md px-3 py-2 text-left text-sm disabled:text-gray-300 ${index === activeIndex || option.value === value ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}
+            >
+              {option.label}
+            </button>
+          ))}
+          <div className="border-t border-gray-100 px-3 py-2 text-xs text-gray-400">可输入关键词筛选</div>
+        </div>
+      )}
+    </div>
+  )
+}

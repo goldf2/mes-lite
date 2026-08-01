@@ -7,6 +7,7 @@ import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import MaterialChoiceSearch from './MaterialChoiceSearch'
+import SearchableSelect from './SearchableSelect'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 
 interface MaterialChoice {
@@ -608,17 +609,15 @@ export default function ShipmentPage({
               </div>
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">发货库位</label>
-                <select
+                <SearchableSelect
                   value={form.locationId}
-                  onChange={(event) => setForm({ ...form, locationId: event.target.value })}
-                  className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">请选择库位</option>
-                  {locations.map((location) => <option key={location.id} value={location.id}>{location.code} · {location.name}</option>)}
-                </select>
+                  onChange={(locationId) => setForm({ ...form, locationId })}
+                  options={locations.map((location) => ({ value: location.id, label: `${location.code} · ${location.name}` }))}
+                  placeholder="输入库位编码或名称筛选"
+                />
                 {selectedProduct && (
                   <div className={`mt-2 rounded px-3 py-2 text-xs ${form.qty > Number(selectedLocationBalance?.availableQty || 0) ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>
-                    当前可用：<strong>{selectedLocationBalance?.availableQty || 0} {selectedProduct.unit}</strong>；生产日报确认的合格品入库会直接增加这里的数量。
+                    当前可用：<strong>{selectedLocationBalance?.availableQty || 0} {selectedProduct.unit}</strong>；生产日报确认的产出入库会直接增加这里的数量。
                     {form.qty > Number(selectedLocationBalance?.availableQty || 0) && ' 当前数量可先保存为待发货，确认发货时将再次校验库存。'}
                   </div>
                 )}
@@ -650,16 +649,15 @@ export default function ShipmentPage({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">客户</label>
-                  <select
+                  <SearchableSelect
                     value={form.customerId}
-                    onChange={(e) => handleCustomerChange(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">手工填写/未绑定</option>
-                    {customers.map((customer) => (
-                      <option key={customer.id} value={customer.id}>{customer.name}</option>
-                    ))}
-                  </select>
+                    onChange={handleCustomerChange}
+                    options={[
+                      { value: '', label: '手工填写/未绑定' },
+                      ...customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}`, keywords: `${customer.contact || ''} ${customer.phone || ''}` })),
+                    ]}
+                    placeholder="输入客户编码、名称或电话筛选"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">电话</label>

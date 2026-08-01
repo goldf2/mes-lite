@@ -45,7 +45,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       })
       if (!report || report.status !== 'CONFIRMED') throw new Error('日报状态已变化，请刷新后重试')
 
-      const outputQty = Number(report.goodQty)
+      const outputQty = Number(report.outputQty)
       const finishedStock = await tx.stock.findUnique({ where: { materialId: report.finishedMaterialId } })
       if (outputQty > 0) {
         if (!finishedStock) throw new Error('成品库存记录不存在，无法冲销')

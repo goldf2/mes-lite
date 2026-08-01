@@ -7,6 +7,7 @@ import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
+import SearchableSelect from './SearchableSelect'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import { MaterialInPriceUnit, normalizeMaterialInPriceUnit } from '@/lib/material-in-quantity'
 
@@ -1240,18 +1241,15 @@ export default function MaterialInPage({
               </div>
               <div className="lg:col-span-3">
                 <label className="mb-2 block text-sm font-medium text-gray-700">收货库位</label>
-                <select
+                <SearchableSelect
                   value={form.locationId}
-                  onChange={(event) => setForm({ ...form, locationId: event.target.value })}
-                  className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">请选择库位</option>
-                  {locations.map((location) => (
-                    <option key={location.id} value={location.id}>
-                      {location.code} · {location.name}{location.isDefault ? '（默认）' : ''}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(locationId) => setForm({ ...form, locationId })}
+                  options={locations.map((location) => ({
+                    value: location.id,
+                    label: `${location.code} · ${location.name}${location.isDefault ? '（默认）' : ''}`,
+                  }))}
+                  placeholder="输入库位编码或名称筛选"
+                />
               </div>
               {selectedMaterial && (
                 <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4 lg:col-span-7">

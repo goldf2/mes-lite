@@ -576,7 +576,7 @@ BOM 成本计算会展开物料 BOM：
 - `SAWING_COST` 或其他成本对象项读取生效成本版本，按数量计算材料成本、人工工时、机时和直接费用。
 - 固定费用作为本次 `OVERHEAD` 快照行保存，不写入 BOM 本体。
 
-BOM 数据只保存规范方向：目标物料或产出物料 -> 输入物料及归一换算比例。界面可以使用“标准用量 + 损耗”或“成品数量 : 原料数量”计算，最终均保存为 `BOM.outputQuantity = 1`、`BOMItem.quantity = 每 1 个成品主单位对应的原料主单位数量`，不保存录入算法参数。BOM 不保存生产批次额外损耗或实际耗用；生产日报以合格、不良、报废之和乘换算比例得到基准耗用，再保存本批损耗方式、损耗值、计算耗用和实际耗用快照。
+BOM 数据只保存规范方向：目标物料或产出物料 -> 输入物料及归一换算比例。界面可以使用“标准用量 + 损耗”或“成品数量 : 原料数量”计算，最终均保存为 `BOM.outputQuantity = 1`、`BOMItem.quantity = 每 1 个成品主单位对应的原料主单位数量`，不保存录入算法参数。BOM 不保存生产批次额外损耗或实际耗用；生产日报以本次 `outputQty` 乘换算比例得到基准耗用，再保存本批损耗方式、损耗值、计算耗用和实际耗用快照。产出是成品、不良品还是报废品不再使用固定数量字段，而由 `outputLocationId` 指向的业务库位表达。
 
 `DailyProductionConsumption` 的损耗与耗用字段：
 
@@ -724,7 +724,8 @@ BOM 数据只保存规范方向：目标物料或产出物料 -> 输入物料及
 | `StockLog.locationId` | 库位外键 | 记录每次库存变动发生在哪个库位 |
 | `MaterialIn.locationId` | 收货库位 | 确认收货时增加该库位和物料总库存 |
 | `DailyProductionReport.consumptionLocationId` | 原料出库库位 | 日报确认时从该库位扣减所有原料实际耗用 |
-| `DailyProductionReport.outputLocationId` | 合格品入库库位 | 日报确认时把合格数量增加到该库位 |
+| `DailyProductionReport.outputQty` | 产出入库数量 | 日报确认时增加到物料总库存和所选产出库位 |
+| `DailyProductionReport.outputLocationId` | 产出入库库位 | 表达产出的实际去向；成品、不良、报废等由可配置库位区分 |
 | `Shipment.locationId` | 发货库位 | 确认发货时同时校验并扣减该库位和总库存 |
 | `ReturnOrder.locationId` | 退回库位 | 退货处理时恢复该库位和总库存 |
 

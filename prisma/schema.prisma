@@ -436,9 +436,7 @@ model DailyProductionReport {
   consumptionLocation    InventoryLocation?           @relation("DailyProductionConsumptionLocation", fields: [consumptionLocationId], references: [id])
   outputLocationId       String?
   outputLocation         InventoryLocation?           @relation("DailyProductionOutputLocation", fields: [outputLocationId], references: [id])
-  goodQty                Float                        @default(0)
-  badQty                 Float                        @default(0)
-  scrapQty               Float                        @default(0)
+  outputQty              Float                        @default(0)
   workers                String
   note                   String?
   status                 String                       @default("DRAFT")

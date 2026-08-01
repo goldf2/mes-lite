@@ -9,6 +9,7 @@ import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import MaterialPanoramaPage from './MaterialPanoramaPage'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
+import SearchableSelect from './SearchableSelect'
 import {
   BomLossInputMode,
   BomRatioInputMode,
@@ -2517,16 +2518,15 @@ export default function MaterialPage({
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">归属客户</label>
-                      <select
+                      <SearchableSelect
                         value={form.customerId}
-                        onChange={(e) => setForm({ ...form, customerId: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                      >
-                        <option value="">通用/未绑定客户</option>
-                        {customers.map((customer) => (
-                          <option key={customer.id} value={customer.id}>{customer.name}</option>
-                        ))}
-                      </select>
+                        onChange={(customerId) => setForm({ ...form, customerId })}
+                        options={[
+                          { value: '', label: '通用/未绑定客户' },
+                          ...customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` })),
+                        ]}
+                        placeholder="输入客户编码或名称筛选"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">成本核算方法</label>
@@ -2563,20 +2563,18 @@ export default function MaterialPage({
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">主库存单位 *</label>
-                      <select
+                      <SearchableSelect
                         value={form.stockUnit}
-                        onChange={(event) => setForm({ ...form, stockUnit: event.target.value, unit: event.target.value })}
-                        className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2"
-                      >
-                        {!formStockUnitConfigured && form.stockUnit && (
-                          <option value={form.stockUnit}>旧单位：{form.stockUnit}（待配置）</option>
-                        )}
-                        {formStockUnitOptions.map((unit) => (
-                          <option key={`${unit.measureType}-${unit.code}`} value={unit.code}>
-                            {unit.name}（{unit.code}） · 1 {unit.code} = {unit.toBaseFactor} {formStockUnitOptions.find((item) => item.isBase)?.code || '基准单位'}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(stockUnit) => setForm({ ...form, stockUnit, unit: stockUnit })}
+                        options={[
+                          ...(!formStockUnitConfigured && form.stockUnit ? [{ value: form.stockUnit, label: `旧单位：${form.stockUnit}（待配置）` }] : []),
+                          ...formStockUnitOptions.map((unit) => ({
+                            value: unit.code,
+                            label: `${unit.name}（${unit.code}） · 1 ${unit.code} = ${unit.toBaseFactor} ${formStockUnitOptions.find((item) => item.isBase)?.code || '基准单位'}`,
+                          })),
+                        ]}
+                        placeholder="输入单位名称或编码筛选"
+                      />
                       <p className="mt-1 text-xs text-gray-500">只能选择系统单位目录中的单位；新增单位请到“工具 → 单位配置”。</p>
                       {editingMaterial && (editingMaterial.stockUnit || editingMaterial.unit) !== form.stockUnit && (
                         <p className="mt-1 rounded bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
@@ -2620,20 +2618,15 @@ export default function MaterialPage({
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">参考/计价单位 *</label>
-                        <select
+                        <SearchableSelect
                           value={form.valuationUnit}
-                          onChange={(event) => setForm({ ...form, valuationUnit: event.target.value })}
-                          className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2"
-                        >
-                          {!formValuationUnitConfigured && form.valuationUnit && (
-                            <option value={form.valuationUnit}>旧单位：{form.valuationUnit}（待配置）</option>
-                          )}
-                          {formValuationUnitOptions.map((unit) => (
-                            <option key={`${unit.measureType}-${unit.code}`} value={unit.code}>
-                              {unit.name}（{unit.code}）
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(valuationUnit) => setForm({ ...form, valuationUnit })}
+                          options={[
+                            ...(!formValuationUnitConfigured && form.valuationUnit ? [{ value: form.valuationUnit, label: `旧单位：${form.valuationUnit}（待配置）` }] : []),
+                            ...formValuationUnitOptions.map((unit) => ({ value: unit.code, label: `${unit.name}（${unit.code}）` })),
+                          ]}
+                          placeholder="输入单位名称或编码筛选"
+                        />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">默认参考换算 *</label>

@@ -23,11 +23,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: '只有草稿日报可以修改；已确认日报请先冲销' }, { status: 400 })
     }
 
-    const totalProcessedQty = input.goodQty + input.badQty + input.scrapQty
     const report = await prisma.$transaction(async (tx) => {
       const consumptionLocation = await resolveInventoryLocation(tx, input.consumptionLocationId || existing.consumptionLocationId)
       const outputLocation = await resolveInventoryLocation(tx, input.outputLocationId || existing.outputLocationId)
-      const snapshot = await buildDailyProductionConsumption(tx, input.finishedMaterialId, totalProcessedQty, input.consumptions)
+      const snapshot = await buildDailyProductionConsumption(tx, input.finishedMaterialId, input.outputQty, input.consumptions)
       await tx.dailyProductionConsumption.deleteMany({ where: { reportId: existing.id } })
       return tx.dailyProductionReport.update({
         where: { id: existing.id },
@@ -36,9 +35,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           finishedMaterialId: input.finishedMaterialId,
           consumptionLocationId: consumptionLocation.id,
           outputLocationId: outputLocation.id,
-          goodQty: input.goodQty,
-          badQty: input.badQty,
-          scrapQty: input.scrapQty,
+          outputQty: input.outputQty,
           workers: input.workers,
           note: input.note || null,
           bomId: snapshot.bom.id,

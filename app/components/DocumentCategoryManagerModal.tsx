@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import SearchableSelect from './SearchableSelect'
 
 export interface DocumentCategoryItem {
   id: string
@@ -162,16 +163,15 @@ export default function DocumentCategoryManagerModal({
                 maxLength={40}
                 className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
               />
-              <select
+              <SearchableSelect
                 value={parentId}
-                onChange={(event) => setParentId(event.target.value)}
-                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
-              >
-                <option value="">作为一级类别</option>
-                {roots.filter((root) => root.id !== editing?.id).map((root) => (
-                  <option key={root.id} value={root.id}>归入：{root.name}</option>
-                ))}
-              </select>
+                onChange={setParentId}
+                options={[
+                  { value: '', label: '作为一级类别' },
+                  ...roots.filter((root) => root.id !== editing?.id).map((root) => ({ value: root.id, label: `归入：${root.name}` })),
+                ]}
+                placeholder="输入一级类别名称筛选"
+              />
               <div className="flex gap-2">
                 {editing && (
                   <button type="button" onClick={resetForm} className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">

@@ -7,6 +7,7 @@ import MaterialChoiceSearch from './MaterialChoiceSearch'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import useCompactViewport from './useCompactViewport'
 import DataIntegrityPanel from './DataIntegrityPanel'
+import SearchableSelect from './SearchableSelect'
 
 interface Supplier {
   id: string
@@ -1631,7 +1632,18 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
                 <div className="space-y-3">
                   {form.steps.map((step, index) => (
                     <div key={index} className="border border-gray-200 rounded-lg p-3">
-                      <div className="mb-3"><label className="block text-xs text-gray-500 mb-1">从可计算工艺模板加入</label><select value={step.templateId} onChange={(event) => applyTemplate(index, event.target.value)} className="w-full rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm"><option value="">手工工序</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.code} · {template.name}</option>)}</select></div>
+                      <div className="mb-3">
+                        <label className="block text-xs text-gray-500 mb-1">从可计算工艺模板加入</label>
+                        <SearchableSelect
+                          value={step.templateId}
+                          onChange={(templateId) => applyTemplate(index, templateId)}
+                          options={[
+                            { value: '', label: '手工工序' },
+                            ...templates.map((template) => ({ value: template.id, label: `${template.code} · ${template.name}` })),
+                          ]}
+                          placeholder="输入模板编码或名称筛选"
+                        />
+                      </div>
                       <div className="grid grid-cols-4 gap-3">
                         <div>
                           <label className="block text-xs text-gray-500 mb-1">工序号 *</label>

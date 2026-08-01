@@ -10,6 +10,7 @@ import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import DocumentPreviewThumb from './DocumentPreviewThumb'
 import PdfDocumentViewer from './PdfDocumentViewer'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
+import SearchableSelect from './SearchableSelect'
 import { normalizeAttachmentRotation } from '@/lib/attachment-rotation'
 import DocumentCategoryManagerModal, {
   DocumentCategoryItem,
@@ -1006,9 +1007,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">文档类别</label>
-                  <select value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2">
-                    {availableCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
+                  <SearchableSelect value={form.categoryId} onChange={(categoryId) => setForm({ ...form, categoryId })} options={availableCategoryOptions} placeholder="输入文档类别筛选" />
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">状态</label>
@@ -1090,9 +1089,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-1">
                           <div>
                             <label className="mb-1 block text-xs font-medium text-gray-600">文档类别</label>
-                            <select value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
-                              {availableCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                            </select>
+                            <SearchableSelect value={form.categoryId} onChange={(categoryId) => setForm({ ...form, categoryId })} options={availableCategoryOptions} placeholder="输入文档类别筛选" />
                           </div>
                           <div>
                             <label className="mb-1 block text-xs font-medium text-gray-600">状态</label>

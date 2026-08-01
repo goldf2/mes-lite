@@ -6,6 +6,7 @@ import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
+import SearchableSelect from './SearchableSelect'
 
 interface Order {
   id: string
@@ -557,41 +558,35 @@ export default function DispatchPage({
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">工单</label>
-                <select
+                <SearchableSelect
                   value={form.orderId}
-                  onChange={(e) => {
-                    const orderId = e.target.value
+                  onChange={(orderId) => {
                     setForm({ ...form, orderId, stepId: '' })
                     fetchOrderSteps(orderId)
                   }}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">请选择工单</option>
-                  {orders.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.orderNo} - {o.targetMaterial?.name || o.product.name} (计划 {o.planQty})
-                    </option>
-                  ))}
-                </select>
+                  options={orders.map((order) => ({
+                    value: order.id,
+                    label: `${order.orderNo} · ${order.targetMaterial?.name || order.product.name} · 计划 ${order.planQty}`,
+                    keywords: `${order.targetMaterial?.code || order.product.sku}`,
+                  }))}
+                  placeholder="输入工单号或物料筛选"
+                />
                 {orders.length === 0 && (
                   <p className="text-xs text-orange-600 mt-1">暂无可派工单（需 PICKED 状态工单）</p>
                 )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">工序</label>
-                <select
+                <SearchableSelect
                   value={form.stepId}
-                  onChange={(e) => setForm({ ...form, stepId: e.target.value })}
+                  onChange={(stepId) => setForm({ ...form, stepId })}
                   disabled={!form.orderId}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
-                >
-                  <option value="">请选择工序</option>
-                  {steps.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.stepNo}. {s.name}{s.workstation ? ` (${s.workstation})` : ''}
-                    </option>
-                  ))}
-                </select>
+                  options={steps.map((step) => ({
+                    value: step.id,
+                    label: `${step.stepNo}. ${step.name}${step.workstation ? ` · ${step.workstation}` : ''}`,
+                  }))}
+                  placeholder="输入工序名称或工位筛选"
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

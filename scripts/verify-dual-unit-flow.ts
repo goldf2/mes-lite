@@ -96,7 +96,7 @@ async function main() {
       type: 'PRODUCTION_IN',
       refType: 'VERIFY',
       refId: `${suffix}-PRODUCTION`,
-      note: '合格品入库',
+      note: '生产产出入库',
       idempotencyKey: `${suffix}:PRODUCTION:OUTPUT`,
     }))
     const shipped = await prisma.$transaction((tx) => postInventoryIssue(tx, {
