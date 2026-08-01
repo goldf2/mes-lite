@@ -1,12 +1,13 @@
 'use client'
 
-import { ReactNode, useState, useEffect } from 'react'
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import AttachmentPanel from './AttachmentPanel'
 import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
+import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 
 interface Supplier {
   id: string
@@ -64,7 +65,154 @@ interface MaterialIn {
   receivedBy?: string
   note?: string
   supplier: { id: string; code: string; name: string }
-  material: { id: string; code: string; name: string; spec?: string; primaryMeasure: string; referenceMeasure?: string | null; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number; customerId?: string | null; customer?: { id: string; code: string; name: string } | null }
+  material: Material
+}
+
+function formatMaterialLabel(material: Material) {
+  return `${material.code} · ${material.name}${material.spec ? ` · ${material.spec}` : ''}`
+}
+
+function materialIncludesKeyword(material: Material, keyword: string) {
+  const normalizedKeyword = keyword.trim().toLocaleLowerCase()
+  if (!normalizedKeyword) return true
+  return [material.code, material.name, material.spec || '']
+    .join(' ')
+    .toLocaleLowerCase()
+    .includes(normalizedKeyword)
+}
+
+function MaterialSearchSelect({
+  value,
+  options,
+  onChange,
+  onSearch,
+}: {
+  value: string
+  options: Material[]
+  onChange: (material: Material | null) => void
+  onSearch: (keyword: string) => void | Promise<void>
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const closePopup = useCallback(() => {
+    setOpen(false)
+    setQuery('')
+    setActiveIndex(-1)
+  }, [])
+  const rootRef = useDismissibleSearchPopup<HTMLDivElement>(open, closePopup)
+  const selected = options.find((material) => material.id === value) || null
+  const visibleOptions = useMemo(
+    () => options.filter((material) => materialIncludesKeyword(material, query)).slice(0, 50),
+    [options, query]
+  )
+
+  useEffect(() => {
+    if (!open) return
+    const timer = window.setTimeout(() => {
+      void onSearch(query.trim())
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [open, query, onSearch])
+
+  useEffect(() => {
+    if (activeIndex >= visibleOptions.length) setActiveIndex(visibleOptions.length - 1)
+  }, [activeIndex, visibleOptions.length])
+
+  const selectMaterial = (material: Material | null) => {
+    onChange(material)
+    closePopup()
+  }
+
+  return (
+    <div ref={rootRef} className="relative">
+      <input
+        type="text"
+        role="combobox"
+        aria-label="物料"
+        aria-autocomplete="list"
+        aria-expanded={open}
+        aria-controls="material-in-options"
+        aria-activedescendant={open && activeIndex >= 0 ? `material-in-option-${visibleOptions[activeIndex]?.id}` : undefined}
+        value={open ? query : selected ? formatMaterialLabel(selected) : ''}
+        onFocus={() => {
+          setOpen(true)
+          setQuery('')
+          setActiveIndex(-1)
+        }}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setOpen(true)
+          setActiveIndex(-1)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            closePopup()
+            return
+          }
+          if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            setOpen(true)
+            setActiveIndex((current) => Math.min(current + 1, visibleOptions.length - 1))
+            return
+          }
+          if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            setOpen(true)
+            setActiveIndex((current) => Math.max(current - 1, 0))
+            return
+          }
+          if (event.key === 'Enter' && open && activeIndex >= 0 && visibleOptions[activeIndex]) {
+            event.preventDefault()
+            selectMaterial(visibleOptions[activeIndex])
+          }
+        }}
+        placeholder="输入物料名称、编码或规格"
+        className="w-full rounded-lg border border-gray-200 px-4 py-2 pr-14 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+      />
+      {value && (
+        <button
+          type="button"
+          aria-label="清除物料"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => selectMaterial(null)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100"
+        >
+          清除
+        </button>
+      )}
+      {open && (
+        <div
+          id="material-in-options"
+          role="listbox"
+          aria-label="物料选项"
+          className="absolute left-0 right-0 top-full z-[80] mt-1 max-h-64 overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+        >
+          {visibleOptions.length === 0 ? (
+            <div className="px-3 py-3 text-sm text-gray-400">没有匹配物料</div>
+          ) : (
+            visibleOptions.map((material, index) => (
+              <button
+                id={`material-in-option-${material.id}`}
+                key={material.id}
+                type="button"
+                role="option"
+                aria-selected={material.id === value}
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setActiveIndex(index)}
+                onClick={() => selectMaterial(material)}
+                className={`block w-full px-3 py-2 text-left ${index === activeIndex ? 'bg-blue-50' : 'hover:bg-blue-50'}`}
+              >
+                <div className="truncate text-sm font-medium text-gray-900">{material.code} · {material.name}</div>
+                <div className="mt-0.5 truncate text-xs text-gray-500">{material.spec || '无规格'}</div>
+              </button>
+            ))
+          )}
+          <div className="border-t border-gray-100 px-3 py-2 text-xs text-gray-400">输入名称、编码或规格继续筛选</div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 const statusColors: Record<string, string> = {
@@ -174,16 +322,40 @@ export default function MaterialInPage({
     }
   }
 
-  const fetchMaterials = async () => {
+  const fetchMaterials = useCallback(async (searchKeyword = '') => {
     try {
-      const res = await fetch('/api/materials')
+      const params = new URLSearchParams({ pageSize: '50', sortBy: 'code', sortDir: 'asc' })
+      const normalizedKeyword = searchKeyword.trim()
+      if (normalizedKeyword) params.set('keyword', normalizedKeyword)
+      const res = await fetch(`/api/materials?${params.toString()}`)
       if (res.ok) {
         const data = await res.json()
-        setMaterials(data.data || [])
+        setMaterials((current) => {
+          const merged = new Map(current.map((material) => [material.id, material]))
+          for (const material of data.data || []) merged.set(material.id, material)
+          return Array.from(merged.values())
+        })
       }
     } catch (err) {
       // ignore
     }
+  }, [])
+
+  const updateSelectedMaterial = (material: Material | null) => {
+    setLinkedBatchRatios(null)
+    const nextStockUnit = material?.stockUnit || material?.unit
+    const nextValuationUnit = material?.valuationUnit || material?.unit
+    const nextUsesDualUnit = Boolean(material && (nextStockUnit !== nextValuationUnit || Number(material.conversionRate || 1) !== 1))
+    setForm((current) => ({
+      ...current,
+      materialId: material?.id || '',
+      qty: 0,
+      pieceCount: 0,
+      stockQtyMode: 'TOTAL',
+      stockQtyInput: 0,
+      valuationQty: 0,
+      priceBasis: nextUsesDualUnit ? current.priceBasis : 'STOCK',
+    }))
   }
 
   const resetForm = () => {
@@ -383,6 +555,9 @@ export default function MaterialInPage({
       return
     }
 
+    setMaterials((current) => current.some((material) => material.id === item.material.id)
+      ? current
+      : [...current, item.material])
     setEditingItem(item)
     setLinkedBatchRatios(null)
     setForm({
@@ -829,34 +1004,12 @@ export default function MaterialInPage({
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">物料</label>
-                <select
+                <MaterialSearchSelect
                   value={form.materialId}
-                  onChange={(e) => {
-                    setLinkedBatchRatios(null)
-                    const material = materials.find((item) => item.id === e.target.value)
-                    const nextStockUnit = material?.stockUnit || material?.unit
-                    const nextValuationUnit = material?.valuationUnit || material?.unit
-                    const nextUsesDualUnit = Boolean(material && (nextStockUnit !== nextValuationUnit || Number(material.conversionRate || 1) !== 1))
-                    setForm({
-                      ...form,
-                      materialId: e.target.value,
-                      qty: 0,
-                      pieceCount: 0,
-                      stockQtyMode: 'TOTAL',
-                      stockQtyInput: 0,
-                      valuationQty: 0,
-                      priceBasis: nextUsesDualUnit ? form.priceBasis : 'STOCK',
-                    })
-                  }}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">请选择物料</option>
-                  {materials.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} ({m.code}){m.spec ? ` - ${m.spec}` : ''}
-                    </option>
-                  ))}
-                </select>
+                  options={materials}
+                  onChange={updateSelectedMaterial}
+                  onSearch={fetchMaterials}
+                />
               </div>
               {isLengthMaterial && (
                 <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4">

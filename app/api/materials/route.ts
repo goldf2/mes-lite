@@ -97,6 +97,7 @@ export async function GET(req: NextRequest) {
       where.OR = [
         { name: { contains: keyword } },
         { code: { contains: keyword } },
+        { spec: { contains: keyword } },
       ]
     }
 
