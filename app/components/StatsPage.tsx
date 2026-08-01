@@ -86,6 +86,10 @@ interface DailyProductionReport {
   reversedAt?: string | null
   reversedBy?: string | null
   reverseReason?: string | null
+  consumptionLocationId?: string | null
+  outputLocationId?: string | null
+  consumptionLocation?: { id: string; code: string; name: string } | null
+  outputLocation?: { id: string; code: string; name: string } | null
   finishedMaterial: {
     id: string
     code: string
@@ -100,6 +104,8 @@ interface DailyProductionReport {
 interface ReportForm {
   reportDate: string
   finishedMaterialId: string
+  consumptionLocationId: string
+  outputLocationId: string
   goodQty: number
   badQty: number
   scrapQty: number
@@ -122,6 +128,8 @@ const today = () => {
 const emptyForm = (): ReportForm => ({
   reportDate: today(),
   finishedMaterialId: '',
+  consumptionLocationId: '',
+  outputLocationId: '',
   goodQty: 0,
   badQty: 0,
   scrapQty: 0,
@@ -144,6 +152,7 @@ const materialNameSpec = (material: { name: string; spec?: string | null }) =>
 export default function StatsPage({ onMessage }: { onMessage: (msg: string) => void }) {
   const [reports, setReports] = useState<DailyProductionReport[]>([])
   const [materials, setMaterials] = useState<MaterialOption[]>([])
+  const [locations, setLocations] = useState<Array<{ id: string; code: string; name: string; isDefault: boolean }>>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [keyword, setKeyword] = useState('')
@@ -182,6 +191,13 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
     const timer = window.setTimeout(loadData, 180)
     return () => window.clearTimeout(timer)
   }, [loadData])
+
+  useEffect(() => {
+    fetch('/api/inventory-locations')
+      .then((res) => res.ok ? res.json() : Promise.reject())
+      .then((data) => setLocations(data.data || []))
+      .catch(() => undefined)
+  }, [])
 
   const selectedMaterial = materials.find((material) => material.id === form.finishedMaterialId)
   const totalProcessedQty = Number(form.goodQty || 0) + Number(form.badQty || 0) + Number(form.scrapQty || 0)
@@ -223,7 +239,8 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
 
   const openCreate = () => {
     setEditingReport(null)
-    setForm(emptyForm())
+    const defaultLocationId = locations.find((location) => location.isDefault)?.id || locations[0]?.id || ''
+    setForm({ ...emptyForm(), consumptionLocationId: defaultLocationId, outputLocationId: defaultLocationId })
     setConsumptionDraftByMaterial({})
     setFormOpen(true)
   }
@@ -233,6 +250,8 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
     setForm({
       reportDate: report.reportDate.slice(0, 10),
       finishedMaterialId: report.finishedMaterial.id,
+      consumptionLocationId: report.consumptionLocationId || locations.find((location) => location.isDefault)?.id || '',
+      outputLocationId: report.outputLocationId || locations.find((location) => location.isDefault)?.id || '',
       goodQty: Number(report.goodQty),
       badQty: Number(report.badQty),
       scrapQty: Number(report.scrapQty),
@@ -249,6 +268,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
 
   const submitForm = async () => {
     if (!form.finishedMaterialId) return onMessage('请选择产出物料')
+    if (!form.consumptionLocationId || !form.outputLocationId) return onMessage('请选择原料出库库位和成品入库库位')
     if (!form.workers.trim()) return onMessage('请填写生产人员')
     if (totalProcessedQty <= 0) return onMessage('合格、不良和报废数量不能全部为 0')
     if (!selectedMaterial?.bom?.isActive || previewConsumptions.length === 0) {
@@ -560,6 +580,20 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                     placeholder="输入成品编码、名称或规格筛选"
                   />
                 </div>
+                <label className="text-sm text-gray-700">
+                  原料出库库位
+                  <select value={form.consumptionLocationId} onChange={(event) => setForm({ ...form, consumptionLocationId: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2">
+                    <option value="">请选择库位</option>
+                    {locations.map((location) => <option key={location.id} value={location.id}>{location.code} · {location.name}</option>)}
+                  </select>
+                </label>
+                <label className="text-sm text-gray-700">
+                  合格品入库库位
+                  <select value={form.outputLocationId} onChange={(event) => setForm({ ...form, outputLocationId: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2">
+                    <option value="">请选择库位</option>
+                    {locations.map((location) => <option key={location.id} value={location.id}>{location.code} · {location.name}</option>)}
+                  </select>
+                </label>
               </div>
 
               <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -694,6 +728,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
           <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl">
             <h3 className="font-semibold text-gray-900">确认生产日报</h3>
             <p className="mt-2 text-sm text-gray-600">确认后将立即扣减原料库存，并增加 {numberText(confirmingReport.goodQty)} {confirmingReport.finishedMaterial.stockUnit || confirmingReport.finishedMaterial.unit} 合格品库存。</p>
+            <p className="mt-2 text-xs text-gray-500">原料：{confirmingReport.consumptionLocation?.code || '默认库位'}；合格品：{confirmingReport.outputLocation?.code || '默认库位'}。入库后发货模块可直接读取该库位可用量。</p>
             <div className="mt-4">{consumptionList(confirmingReport)}</div>
             <div className="mt-5 flex justify-end gap-3">
               <button type="button" onClick={() => setConfirmingReport(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm">取消</button>

@@ -10,6 +10,7 @@ import {
   dailyProductionReportInputSchema,
   parseDailyProductionReportDate,
 } from '@/lib/daily-production-request'
+import { resolveInventoryLocation } from '@/lib/inventory'
 
 export const dynamic = 'force-dynamic'
 
@@ -132,6 +133,8 @@ export async function POST(req: NextRequest) {
     const reportDate = parseDailyProductionReportDate(input.reportDate)
     const totalProcessedQty = input.goodQty + input.badQty + input.scrapQty
     const report = await prisma.$transaction(async (tx) => {
+      const consumptionLocation = await resolveInventoryLocation(tx, input.consumptionLocationId)
+      const outputLocation = await resolveInventoryLocation(tx, input.outputLocationId)
       const snapshot = await buildDailyProductionConsumption(tx, input.finishedMaterialId, totalProcessedQty, input.consumptions)
       const reportNo = await nextReportNo(tx, reportDate)
       return tx.dailyProductionReport.create({
@@ -139,6 +142,8 @@ export async function POST(req: NextRequest) {
           reportNo,
           reportDate,
           finishedMaterialId: input.finishedMaterialId,
+          consumptionLocationId: consumptionLocation.id,
+          outputLocationId: outputLocation.id,
           goodQty: input.goodQty,
           badQty: input.badQty,
           scrapQty: input.scrapQty,

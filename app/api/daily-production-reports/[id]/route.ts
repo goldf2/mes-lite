@@ -9,6 +9,7 @@ import {
   dailyProductionReportInputSchema,
   parseDailyProductionReportDate,
 } from '@/lib/daily-production-request'
+import { resolveInventoryLocation } from '@/lib/inventory'
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -24,6 +25,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const totalProcessedQty = input.goodQty + input.badQty + input.scrapQty
     const report = await prisma.$transaction(async (tx) => {
+      const consumptionLocation = await resolveInventoryLocation(tx, input.consumptionLocationId || existing.consumptionLocationId)
+      const outputLocation = await resolveInventoryLocation(tx, input.outputLocationId || existing.outputLocationId)
       const snapshot = await buildDailyProductionConsumption(tx, input.finishedMaterialId, totalProcessedQty, input.consumptions)
       await tx.dailyProductionConsumption.deleteMany({ where: { reportId: existing.id } })
       return tx.dailyProductionReport.update({
@@ -31,6 +34,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         data: {
           reportDate: parseDailyProductionReportDate(input.reportDate),
           finishedMaterialId: input.finishedMaterialId,
+          consumptionLocationId: consumptionLocation.id,
+          outputLocationId: outputLocation.id,
           goodQty: input.goodQty,
           badQty: input.badQty,
           scrapQty: input.scrapQty,

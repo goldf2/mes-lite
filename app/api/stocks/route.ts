@@ -4,6 +4,7 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { resolveMaterialUnits, toValuationQty } from '@/lib/units'
 import { parseCsvFilter } from '@/lib/status-filter'
+import { changeStockLocationBalance } from '@/lib/inventory'
 
 const STOCK_BALANCE_FIELDS = [
   'qty',
@@ -41,6 +42,7 @@ async function findStockIntegrityIssues() {
       include: {
         material: { select: { id: true, code: true, name: true } },
         product: { select: { id: true, sku: true, name: true } },
+        locationBalances: true,
       },
     }),
   ])
@@ -86,6 +88,17 @@ async function findStockIntegrityIssues() {
     if (reservedValuationQty - valuationQty > BALANCE_TOLERANCE) reasons.push('预留核算库存不能大于核算库存')
     if (!closeEnough(availableQty, qty - reservedQty)) reasons.push('可用库存必须等于库存减预留')
     if (!closeEnough(availableValuationQty, valuationQty - reservedValuationQty)) reasons.push('可用核算库存必须等于核算库存减预留核算库存')
+    const locationQty = stock.locationBalances.reduce((sum, item) => sum + Number(item.qty), 0)
+    const locationReservedQty = stock.locationBalances.reduce((sum, item) => sum + Number(item.reservedQty), 0)
+    const locationAvailableQty = stock.locationBalances.reduce((sum, item) => sum + Number(item.availableQty), 0)
+    if (!closeEnough(locationQty, qty)) reasons.push('各库位库存合计必须等于物料总库存')
+    if (!closeEnough(locationReservedQty, reservedQty)) reasons.push('各库位占用合计必须等于物料总占用')
+    if (!closeEnough(locationAvailableQty, availableQty)) reasons.push('各库位可用合计必须等于物料总可用')
+    if (stock.locationBalances.some((item) =>
+      Number(item.qty) < -BALANCE_TOLERANCE
+      || Number(item.reservedQty) < -BALANCE_TOLERANCE
+      || !closeEnough(Number(item.availableQty), Number(item.qty) - Number(item.reservedQty)),
+    )) reasons.push('库位余额存在负数或可用数量不一致')
 
     if (reasons.length > 0) {
       invalidStocks.push({
@@ -210,6 +223,10 @@ export async function GET(req: NextRequest) {
       include: {
         material: { select: { id: true, code: true, name: true, spec: true, category: true, customerId: true, customer: { select: { id: true, code: true, name: true } }, unit: true, stockUnit: true, valuationUnit: true, conversionRate: true, deletedAt: true } },
         product: { select: { id: true, sku: true, name: true, category: true, customerId: true, customer: { select: { id: true, code: true, name: true } }, unit: true } },
+        locationBalances: {
+          include: { location: { select: { id: true, code: true, name: true, isActive: true } } },
+          orderBy: { location: { code: 'asc' } },
+        },
       },
       orderBy: { id: 'asc' },
     })
@@ -365,10 +382,16 @@ export async function POST(req: NextRequest) {
           stockUnitCost,
         },
       })
+      const { location } = await changeStockLocationBalance(tx, {
+        stockId,
+        qtyDelta: diff,
+        availableDelta: diff,
+      })
 
       await tx.stockLog.create({
         data: {
           stockId,
+          locationId: location.id,
           type: 'ADJUST',
           qty: diff,
           beforeQty: oldQty,

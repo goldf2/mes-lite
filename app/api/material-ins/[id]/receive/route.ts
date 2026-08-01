@@ -42,6 +42,7 @@ export async function PATCH(_req: NextRequest, { params }: { params: { id: strin
         note: `来料入库: ${materialIn.inboundNo}`,
         idempotencyKey: `MATERIAL_IN:${id}:RECEIVE`,
         materialInId: id,
+        locationId: materialIn.locationId,
       })
       return tx.materialIn.update({
         where: { id },

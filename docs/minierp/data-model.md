@@ -712,6 +712,24 @@ BOM 数据只保存规范方向：目标物料或产出物料 -> 输入物料及
 
 `sorting.materialCodeNatural=true` 时，物料列表和物料导出在按编码排序时先读取完整筛选结果，再按数字片段自然排序后分页或输出；该设置不修改 `Material.code`。
 
+### inventory_locations / stock_location_balances
+
+库位采用“总库存 + 实物库位余额”双层模型，详细决策见 [ADR 0008](../adr/0008-configurable-inventory-locations.md)。
+
+| 模型 | 关键字段 | 含义 |
+| --- | --- | --- |
+| `InventoryLocation` | `code`、`name`、`isDefault`、`isActive` | 可配置库位；默认库位承接未明确指定库位的兼容流程 |
+| `StockLocationBalance` | `stockId`、`locationId`、`qty`、`reservedQty`、`availableQty` | 主库存单位下的库位实物余额，`stockId + locationId` 唯一 |
+| `Stock` | 原有总量、核算数量和成本字段 | 继续作为物料总库存及成本唯一汇总账，不把成本复制到库位余额 |
+| `StockLog.locationId` | 库位外键 | 记录每次库存变动发生在哪个库位 |
+| `MaterialIn.locationId` | 收货库位 | 确认收货时增加该库位和物料总库存 |
+| `DailyProductionReport.consumptionLocationId` | 原料出库库位 | 日报确认时从该库位扣减所有原料实际耗用 |
+| `DailyProductionReport.outputLocationId` | 合格品入库库位 | 日报确认时把合格数量增加到该库位 |
+| `Shipment.locationId` | 发货库位 | 确认发货时同时校验并扣减该库位和总库存 |
+| `ReturnOrder.locationId` | 退回库位 | 退货处理时恢复该库位和总库存 |
+
+所有正常过账和冲销在同一事务内更新 `Stock`、`StockLocationBalance`、成本层和 `StockLog`。各库位的数量、占用和可用合计必须分别等于总库存对应字段；数据检查接口会把不一致视为库存完整性错误。
+
 ## 核心关系
 
 ```mermaid

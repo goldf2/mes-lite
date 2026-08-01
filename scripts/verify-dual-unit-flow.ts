@@ -126,6 +126,20 @@ async function main() {
     close(Number(finishedStock.qty), 78.75, '发货退货后成品库存')
     close(Number(finishedStock.valuationQty), 78.75, '发货退货后成品核算库存')
 
+    const locationBalances = await prisma.stockLocationBalance.findMany({
+      where: { stockId: { in: [rawStock.id, finishedStock.id] } },
+      include: { location: true },
+    })
+    const rawLocationQty = locationBalances
+      .filter((item) => item.stockId === rawStock.id)
+      .reduce((sum, item) => sum + Number(item.qty), 0)
+    const finishedLocationQty = locationBalances
+      .filter((item) => item.stockId === finishedStock.id)
+      .reduce((sum, item) => sum + Number(item.qty), 0)
+    close(rawLocationQty, Number(rawStock.qty), '原料库位合计')
+    close(finishedLocationQty, Number(finishedStock.qty), '成品库位合计')
+    assert.ok(locationBalances.every((item) => item.location.isActive), '验证流水应进入启用库位')
+
     const movements = await prisma.stockLog.findMany({
       where: { refType: 'VERIFY', refId: { contains: suffix } },
     })
@@ -135,6 +149,7 @@ async function main() {
       && item.valuationUnitSnapshot
       && item.conversionSource
       && item.conversionRateUsed !== null
+      && item.locationId
     ), '所有新增流水必须保存单位和换算快照')
 
     console.log('双单位全流程验证通过')

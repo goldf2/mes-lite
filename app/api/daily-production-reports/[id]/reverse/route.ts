@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { getCurrentOperator } from '@/lib/auth'
 import { writeAuditLog } from '@/lib/audit'
+import { changeStockLocationBalance } from '@/lib/inventory'
 
 const reverseSchema = z.object({
   reason: z.string().trim().min(1, '冲销原因必填'),
@@ -87,6 +88,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             stockUnitCost: afterQty > 0 ? afterCost / afterQty : 0,
           },
         })
+        const { location: outputLocation } = await changeStockLocationBalance(tx, {
+          stockId: finishedStock.id,
+          locationId: report.outputLocationId,
+          qtyDelta: -outputQty,
+        })
         const sourceMovement = await tx.stockLog.findFirst({
           where: { refType: 'DAILY_PRODUCTION_REPORT', refId: report.id, type: 'PRODUCTION_IN' },
           orderBy: { createdAt: 'desc' },
@@ -94,6 +100,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         const reversalMovement = await tx.stockLog.create({
           data: {
             stockId: finishedStock.id,
+            locationId: outputLocation.id,
             type: 'PRODUCTION_REVERSE_OUT',
             qty: -outputQty,
             beforeQty,
@@ -147,6 +154,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             stockUnitCost: afterQty > 0 ? afterCost / afterQty : 0,
           },
         })
+        const { location: consumptionLocation } = await changeStockLocationBalance(tx, {
+          stockId: stock.id,
+          locationId: report.consumptionLocationId,
+          qtyDelta: Number(line.actualQty),
+        })
 
         const layerSnapshots = line.costLayerSnapshot
           ? JSON.parse(line.costLayerSnapshot) as LayerSnapshot[]
@@ -169,6 +181,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             refId: report.id,
             type: 'PRODUCTION_CONSUME',
             stockId: stock.id,
+            locationId: consumptionLocation.id,
           },
           orderBy: { createdAt: 'desc' },
         })

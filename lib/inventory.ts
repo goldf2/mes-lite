@@ -12,6 +12,7 @@ export type ConversionSource =
 
 const roundQty = (value: number) => Number(value.toFixed(6))
 const tolerance = 0.000001
+export const defaultInventoryLocationId = 'default-location'
 
 type MaterialPolicy = {
   id: string
@@ -55,6 +56,77 @@ async function getOrCreateStock(tx: Prisma.TransactionClient, materialId: string
     update: {},
     create: { materialId },
   })
+}
+
+export async function resolveInventoryLocation(
+  tx: Pick<Prisma.TransactionClient, 'inventoryLocation'>,
+  requestedLocationId?: string | null,
+) {
+  if (requestedLocationId) {
+    const requested = await tx.inventoryLocation.findFirst({
+      where: { id: requestedLocationId, isActive: true, deletedAt: null },
+    })
+    if (!requested) throw new Error('所选库位不存在、已停用或已归档')
+    return requested
+  }
+
+  const configuredDefault = await tx.inventoryLocation.findFirst({
+    where: { isDefault: true, isActive: true, deletedAt: null },
+    orderBy: { createdAt: 'asc' },
+  })
+  if (configuredDefault) return configuredDefault
+
+  return tx.inventoryLocation.upsert({
+    where: { id: defaultInventoryLocationId },
+    update: { isDefault: true, isActive: true, deletedAt: null },
+    create: {
+      id: defaultInventoryLocationId,
+      code: 'DEFAULT',
+      name: '默认库位',
+      isDefault: true,
+      isActive: true,
+    },
+  })
+}
+
+export async function changeStockLocationBalance(
+  tx: Prisma.TransactionClient,
+  input: {
+    stockId: string
+    locationId?: string | null
+    qtyDelta: number
+    reservedDelta?: number
+    availableDelta?: number
+  },
+) {
+  const location = await resolveInventoryLocation(tx, input.locationId)
+  const current = await tx.stockLocationBalance.upsert({
+    where: { stockId_locationId: { stockId: input.stockId, locationId: location.id } },
+    update: {},
+    create: { stockId: input.stockId, locationId: location.id },
+  })
+  const qty = roundQty(Number(current.qty) + input.qtyDelta)
+  const reservedQty = roundQty(Number(current.reservedQty) + Number(input.reservedDelta || 0))
+  const availableQty = roundQty(
+    Number(current.availableQty) + (input.availableDelta ?? input.qtyDelta),
+  )
+  if (qty < -tolerance || reservedQty < -tolerance || availableQty < -tolerance) {
+    throw new Error(
+      `库位 ${location.code} ${location.name} 库存不足：可用 ${current.availableQty}，本次变动 ${input.availableDelta ?? input.qtyDelta}`,
+    )
+  }
+  if (Math.abs(availableQty - (qty - reservedQty)) > tolerance) {
+    throw new Error(`库位 ${location.code} ${location.name} 的库存、占用和可用数量不一致`)
+  }
+  const balance = await tx.stockLocationBalance.update({
+    where: { id: current.id },
+    data: {
+      qty: Math.max(0, qty),
+      reservedQty: Math.max(0, reservedQty),
+      availableQty: Math.max(0, availableQty),
+    },
+  })
+  return { location, balance }
 }
 
 export function resolveReceiptQuantities(input: {
@@ -132,6 +204,7 @@ export async function postInventoryReceipt(
     createCostLayer?: boolean
     materialInId?: string | null
     sourceMovementId?: string | null
+    locationId?: string | null
   },
 ) {
   if (input.idempotencyKey) {
@@ -148,6 +221,11 @@ export async function postInventoryReceipt(
   const costAmount = roundQty(Number(input.costAmount || 0))
   if (costAmount < 0) throw new Error('入库成本不能为负数')
   const stock = await getOrCreateStock(tx, material.id)
+  const { location } = await changeStockLocationBalance(tx, {
+    stockId: stock.id,
+    locationId: input.locationId,
+    qtyDelta: quantities.stockQty,
+  })
   const beforeQty = Number(stock.qty)
   const beforeValuationQty = Number(stock.valuationQty)
   const beforeCostAmount = Number(stock.totalCost)
@@ -192,6 +270,7 @@ export async function postInventoryReceipt(
   const movement = await tx.stockLog.create({
     data: {
       stockId: stock.id,
+      locationId: location.id,
       type: input.type,
       qty: quantities.stockQty,
       beforeQty,
@@ -215,7 +294,7 @@ export async function postInventoryReceipt(
       createdBy: input.createdBy || null,
     },
   })
-  return { movement, material, quantities, costAmount, duplicate: false }
+  return { movement, material, location, quantities, costAmount, duplicate: false }
 }
 
 export async function postInventoryIssue(
@@ -229,6 +308,7 @@ export async function postInventoryIssue(
     note: string
     createdBy?: string | null
     idempotencyKey?: string
+    locationId?: string | null
   },
 ) {
   if (!Number.isFinite(input.stockQty) || input.stockQty <= 0) throw new Error('出库数量必须大于 0')
@@ -242,6 +322,15 @@ export async function postInventoryIssue(
   const issueQty = roundQty(input.stockQty)
   if (Number(stock.availableQty) + tolerance < issueQty) {
     throw new Error(`物料 ${material.code} ${material.name} 库存不足：可用 ${stock.availableQty} ${material.stockUnit}，需 ${issueQty} ${material.stockUnit}`)
+  }
+  const location = await resolveInventoryLocation(tx, input.locationId)
+  const locationBalance = await tx.stockLocationBalance.findUnique({
+    where: { stockId_locationId: { stockId: stock.id, locationId: location.id } },
+  })
+  if (!locationBalance || Number(locationBalance.availableQty) + tolerance < issueQty) {
+    throw new Error(
+      `物料 ${material.code} ${material.name} 在库位 ${location.code} ${location.name} 库存不足：可用 ${locationBalance?.availableQty || 0} ${material.stockUnit}，需 ${issueQty} ${material.stockUnit}`,
+    )
   }
   await ensureFifoOpeningLayer(tx, material, {
     qty: Number(stock.qty),
@@ -284,10 +373,16 @@ export async function postInventoryIssue(
       stockUnitCost: afterQty > 0 ? afterCostAmount / afterQty : 0,
     },
   })
+  await changeStockLocationBalance(tx, {
+    stockId: stock.id,
+    locationId: location.id,
+    qtyDelta: -issueQty,
+  })
   const conversionSource: ConversionSource = material.costingMethod === 'FIFO' ? 'FIFO_LAYER' : 'STOCK_AVERAGE'
   const movement = await tx.stockLog.create({
     data: {
       stockId: stock.id,
+      locationId: location.id,
       type: input.type,
       qty: -issueQty,
       beforeQty,
@@ -313,6 +408,7 @@ export async function postInventoryIssue(
   return {
     movement,
     material,
+    location,
     stockQty: issueQty,
     valuationQty: costResult.issueValuationQty,
     conversionRateUsed: costResult.issueValuationQty > 0 ? roundQty(costResult.issueValuationQty / issueQty) : 0,

@@ -28,6 +28,20 @@ export async function GET(req: NextRequest) {
         spec: true,
         unit: true,
         stockUnit: true,
+        stock: {
+          select: {
+            qty: true,
+            availableQty: true,
+            locationBalances: {
+              select: {
+                locationId: true,
+                qty: true,
+                availableQty: true,
+                location: { select: { code: true, name: true, isActive: true, deletedAt: true } },
+              },
+            },
+          },
+        },
         createdAt: true,
       },
       orderBy: { createdAt: 'desc' },

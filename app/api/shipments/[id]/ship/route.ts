@@ -42,6 +42,7 @@ export async function PATCH(
         note: `发货单 ${shipment.shipmentNo} 出库`,
         createdBy: shipment.shippedBy,
         idempotencyKey: `SHIPMENT:${shipment.id}:SHIP`,
+        locationId: shipment.locationId,
       })
 
       await tx.shipment.update({
@@ -63,6 +64,7 @@ export async function PATCH(
     return NextResponse.json({ success: true, message: '发货成功' })
   } catch (error) {
     console.error('Ship shipment error:', error)
+    if (error instanceof Error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ error: '确认发货失败' }, { status: 500 })
   }
 }

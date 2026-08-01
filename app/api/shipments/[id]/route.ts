@@ -15,6 +15,7 @@ export async function GET(
       where: { id: params.id },
       include: {
         product: true,
+        location: true,
         returnOrders: {
           orderBy: { createdAt: 'desc' },
         },

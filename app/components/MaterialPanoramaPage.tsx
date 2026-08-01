@@ -394,9 +394,6 @@ interface LocationBalance {
   qty: number
   reservedQty: number
   availableQty: number
-  valuationQty: number
-  reservedValuationQty: number
-  availableValuationQty: number
   note?: string
 }
 
@@ -973,7 +970,7 @@ export default function MaterialPanoramaPage({
 
               {renderLayoutModule('documents', (
               <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.15fr)]">
-                <Panel title="库位分布" action="当前为默认库位">
+                <Panel title="库位分布" action="实物数量按库位">
                   {data.locationBalances.length === 0 ? (
                     <EmptyText>暂无库存余额记录</EmptyText>
                   ) : (
@@ -990,9 +987,7 @@ export default function MaterialPanoramaPage({
                               <div className="text-xs text-green-700">可用 {formatNumber(location.availableQty)} {material.stockUnit || material.unit}</div>
                             </div>
                           </div>
-                          <div className="mt-2 text-xs text-gray-500">
-                            核算 {formatNumber(location.valuationQty)} {material.valuationUnit}，占用 {formatNumber(location.reservedQty)} {material.stockUnit || material.unit}
-                          </div>
+                          <div className="mt-2 text-xs text-gray-500">占用 {formatNumber(location.reservedQty)} {material.stockUnit || material.unit}；成本仍按物料总库存统一核算</div>
                           {location.note && <div className="mt-1 text-xs text-gray-500">{location.note}</div>}
                         </div>
                       ))}

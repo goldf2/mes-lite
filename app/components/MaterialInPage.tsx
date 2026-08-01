@@ -26,6 +26,13 @@ interface Customer {
   name: string
 }
 
+interface InventoryLocation {
+  id: string
+  code: string
+  name: string
+  isDefault: boolean
+}
+
 interface Material {
   id: string
   code: string
@@ -47,6 +54,7 @@ interface MaterialIn {
   voucherNo?: string | null
   supplierId: string
   materialId: string
+  locationId: string
   qty: number
   unit: string
   pieceCount?: number | null
@@ -71,6 +79,7 @@ interface MaterialIn {
   note?: string
   supplier: { id: string; code: string; name: string }
   material: Material
+  location?: InventoryLocation | null
 }
 
 function formatMaterialLabel(material: Material) {
@@ -403,6 +412,7 @@ export default function MaterialInPage({
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [materials, setMaterials] = useState<Material[]>([])
+  const [locations, setLocations] = useState<InventoryLocation[]>([])
   const [keyword, setKeyword] = useState('')
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [selectedSupplierId, setSelectedSupplierId] = useState('')
@@ -417,6 +427,7 @@ export default function MaterialInPage({
     voucherNo: '',
     supplierId: '',
     materialId: '',
+    locationId: '',
     qty: 0,
     pieceCount: 0,
     stockQtyMode: 'TOTAL' as 'TOTAL' | 'PER_PIECE',
@@ -437,7 +448,24 @@ export default function MaterialInPage({
     fetchSuppliers()
     fetchCustomers()
     fetchMaterials()
+    fetchLocations()
   }, [keyword, selectedStatuses, selectedSupplierId, selectedCustomerId])
+
+  const fetchLocations = async () => {
+    try {
+      const res = await fetch('/api/inventory-locations')
+      if (!res.ok) return
+      const data = await res.json()
+      const options = data.data || []
+      setLocations(options)
+      setForm((current) => current.locationId ? current : {
+        ...current,
+        locationId: options.find((item: InventoryLocation) => item.isDefault)?.id || options[0]?.id || '',
+      })
+    } catch {
+      // 由提交接口兜底使用默认库位
+    }
+  }
 
   const fetchMaterialIns = async () => {
     setLoading(true)
@@ -533,6 +561,7 @@ export default function MaterialInPage({
       voucherNo: '',
       supplierId: '',
       materialId: '',
+      locationId: locations.find((item) => item.isDefault)?.id || locations[0]?.id || '',
       qty: 0,
       pieceCount: 0,
       stockQtyMode: 'TOTAL',
@@ -550,8 +579,8 @@ export default function MaterialInPage({
   }
 
   const handleSubmit = async () => {
-    if (!form.supplierId || !form.materialId || calculatedStockQty <= 0) {
-      onMessage('请选择供应商和物料，并输入有效的主单位数量')
+    if (!form.supplierId || !form.materialId || !form.locationId || calculatedStockQty <= 0) {
+      onMessage('请选择供应商、物料和库位，并输入有效的主单位数量')
       return
     }
     if (isLengthMaterial && form.pieceCount <= 0) {
@@ -582,6 +611,7 @@ export default function MaterialInPage({
           supplierId: form.supplierId,
           voucherNo: form.voucherNo || undefined,
           materialId: form.materialId,
+          locationId: form.locationId,
           qty: calculatedStockQty,
           pieceCount: form.pieceCount > 0 ? form.pieceCount : undefined,
           stockQtyMode: isLengthMaterial ? form.stockQtyMode : undefined,
@@ -756,6 +786,7 @@ export default function MaterialInPage({
       voucherNo: item.voucherNo || '',
       supplierId: item.supplierId,
       materialId: item.materialId,
+      locationId: item.locationId || locations.find((location) => location.isDefault)?.id || '',
       qty: item.material.primaryMeasure === 'LENGTH' ? 0 : Number(item.qty),
       pieceCount: Number(item.pieceCount || 0),
       stockQtyMode: item.stockQtyMode || 'TOTAL',
@@ -972,6 +1003,7 @@ export default function MaterialInPage({
                     <div className="text-xs text-gray-500">物料</div>
                     <div className="mt-1 font-medium text-gray-900">{item.material?.name}</div>
                     <div className="text-xs text-gray-500">{item.material?.code} · 客户：{item.material?.customer?.name || '通用/未绑定'}</div>
+                    <div className="mt-1 text-xs text-blue-700">库位：{item.location ? `${item.location.code} · ${item.location.name}` : '默认库位'}</div>
                   </div>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4 sm:mt-4 sm:gap-3">
@@ -1055,6 +1087,7 @@ export default function MaterialInPage({
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">凭据号</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">供应商</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">收货库位</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存数量</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">核算数量</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">报价单价</th>
@@ -1082,6 +1115,7 @@ export default function MaterialInPage({
                       <div className="text-xs text-gray-500">{item.material?.code}</div>
                       <div className="text-xs text-gray-500">客户：{item.material?.customer?.name || '通用/未绑定'}</div>
                     </td>
+                    <td className="px-4 py-3 text-sm">{item.location ? <><div>{item.location.name}</div><div className="font-mono text-xs text-gray-500">{item.location.code}</div></> : '默认库位'}</td>
                     <td className="px-4 py-3">
                       <div>{item.qty} {item.unit}</div>
                       <div className="text-xs text-gray-500">
@@ -1176,7 +1210,7 @@ export default function MaterialInPage({
               </button>
             </div>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-3 xl:gap-4">
-              <div className="lg:col-span-4">
+              <div className="lg:col-span-3">
                 <label className="block text-sm font-medium text-gray-700 mb-2">凭据号</label>
                 <input
                   type="text"
@@ -1186,7 +1220,7 @@ export default function MaterialInPage({
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              <div className="lg:col-span-4">
+              <div className="lg:col-span-3">
                 <label className="block text-sm font-medium text-gray-700 mb-2">供应商</label>
                 <SupplierSearchSelect
                   value={form.supplierId}
@@ -1195,7 +1229,7 @@ export default function MaterialInPage({
                   onSearch={fetchSuppliers}
                 />
               </div>
-              <div className="lg:col-span-4">
+              <div className="lg:col-span-3">
                 <label className="block text-sm font-medium text-gray-700 mb-2">物料</label>
                 <MaterialSearchSelect
                   value={form.materialId}
@@ -1203,6 +1237,21 @@ export default function MaterialInPage({
                   onChange={updateSelectedMaterial}
                   onSearch={fetchMaterials}
                 />
+              </div>
+              <div className="lg:col-span-3">
+                <label className="mb-2 block text-sm font-medium text-gray-700">收货库位</label>
+                <select
+                  value={form.locationId}
+                  onChange={(event) => setForm({ ...form, locationId: event.target.value })}
+                  className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">请选择库位</option>
+                  {locations.map((location) => (
+                    <option key={location.id} value={location.id}>
+                      {location.code} · {location.name}{location.isDefault ? '（默认）' : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
               {selectedMaterial && (
                 <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4 lg:col-span-7">

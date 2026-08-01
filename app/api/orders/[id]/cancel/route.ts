@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { restoreMaterialCost } from '@/lib/costing'
+import { changeStockLocationBalance } from '@/lib/inventory'
 
 const cancelSchema = z.object({
   reason: z.string().min(1, '取消原因必填'),
@@ -92,10 +93,12 @@ export async function PATCH(
                 stockUnitCost: Math.max(0, nextStockUnitCost),
               },
             })
+            const { location } = await changeStockLocationBalance(tx, { stockId: stock.id, qtyDelta: returnQty })
 
             await tx.stockLog.create({
               data: {
                 stockId: stock.id,
+                locationId: location.id,
                 type: 'RETURN',
                 qty: returnQty,
                 beforeQty,
@@ -129,6 +132,12 @@ export async function PATCH(
                 reservedValuationQty: { decrement: valuationReserveQty },
                 availableValuationQty: { increment: valuationReserveQty },
               },
+            })
+            await changeStockLocationBalance(tx, {
+              stockId: stock.id,
+              qtyDelta: 0,
+              reservedDelta: -requiredQty,
+              availableDelta: requiredQty,
             })
           }
         }

@@ -23,6 +23,16 @@ export function materialAsProductOption(material: {
   stockUnit: string
   unit: string
   createdAt?: Date | string
+  stock?: {
+    qty: number
+    availableQty: number
+    locationBalances: Array<{
+      locationId: string
+      qty: number
+      availableQty: number
+      location: { code: string; name: string; isActive: boolean; deletedAt: Date | null }
+    }>
+  } | null
 }) {
   return {
     id: `${materialProductPrefix}${material.id}`,
@@ -34,6 +44,17 @@ export function materialAsProductOption(material: {
     unit: material.stockUnit || material.unit,
     description: material.spec || null,
     sourceMaterialId: material.id,
+    stockQty: Number(material.stock?.qty || 0),
+    availableQty: Number(material.stock?.availableQty || 0),
+    locationBalances: (material.stock?.locationBalances || [])
+      .filter((item) => item.location.isActive && !item.location.deletedAt)
+      .map((item) => ({
+        locationId: item.locationId,
+        locationCode: item.location.code,
+        locationName: item.location.name,
+        qty: Number(item.qty),
+        availableQty: Number(item.availableQty),
+      })),
     createdAt: material.createdAt,
   }
 }

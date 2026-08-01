@@ -5,10 +5,12 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 import { resolveMaterialIdForProduct, resolveProductId } from '@/lib/material-product'
+import { resolveInventoryLocation } from '@/lib/inventory'
 
 const createShipmentSchema = z.object({
   voucherNo: z.string().optional(),
   productId: z.string().min(1),
+  locationId: z.string().min(1, '发货库位必填').optional(),
   qty: z.number().finite().positive(),
   unitPrice: z.number().nonnegative(),
   customerId: z.string().optional(),
@@ -64,6 +66,7 @@ export async function GET(req: NextRequest) {
         include: {
           product: { select: { id: true, name: true, sku: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
           customerRef: { select: { id: true, code: true, name: true } },
+          location: { select: { id: true, code: true, name: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
@@ -90,6 +93,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const data = createShipmentSchema.parse(body)
+    const location = await resolveInventoryLocation(prisma, data.locationId)
 
     const resolved = await prisma.$transaction(async (tx) => {
       const materialId = await resolveMaterialIdForProduct(tx, data.productId)
@@ -119,6 +123,7 @@ export async function POST(req: NextRequest) {
         voucherNo: data.voucherNo?.trim() || null,
         productId,
         materialId,
+        locationId: location.id,
         customerId: data.customerId || null,
         qty: data.qty,
         unitPrice: data.unitPrice,
@@ -134,6 +139,7 @@ export async function POST(req: NextRequest) {
       include: {
         product: { select: { id: true, name: true, sku: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
         customerRef: { select: { id: true, code: true, name: true } },
+        location: { select: { id: true, code: true, name: true } },
       },
     })
 
@@ -149,6 +155,9 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
+    }
+    if (error instanceof Error && /库位/.test(error.message)) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('Create shipment error:', error)
     return NextResponse.json({ error: '创建发货单失败' }, { status: 500 })

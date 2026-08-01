@@ -78,6 +78,7 @@ export async function PATCH(
         createdBy: processedBy,
         idempotencyKey: `RETURN:${returnOrder.id}:PROCESS`,
         sourceMovementId: sourceMovement?.id,
+        locationId: returnOrder.locationId,
       })
 
       await tx.returnOrder.update({

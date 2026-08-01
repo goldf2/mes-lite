@@ -158,6 +158,19 @@ interface ConfiguredUnit {
   usedByMaterialCount: number
 }
 
+interface InventoryLocationConfig {
+  id: string
+  code: string
+  name: string
+  note?: string | null
+  isDefault: boolean
+  isActive: boolean
+  materialCount: number
+  qty: number
+  reservedQty: number
+  availableQty: number
+}
+
 const measureTypeOptions: Array<[MeasureType, string, string]> = [
   ['LENGTH', '长度', 'm'],
   ['WEIGHT', '重量', 'kg'],
@@ -192,7 +205,7 @@ function routeStepCostPerThousand(step: ProcessRoute['steps'][number] | ProcessS
   return { laborHours, machineHours, cost }
 }
 
-export type SystemSection = 'suppliers' | 'customers' | 'processTemplates' | 'process' | 'recycle' | 'audit' | 'dataTools' | 'units' | 'preferences'
+export type SystemSection = 'suppliers' | 'customers' | 'processTemplates' | 'process' | 'recycle' | 'audit' | 'dataTools' | 'units' | 'locations' | 'preferences'
 
 export default function SystemPage({
   section,
@@ -211,8 +224,137 @@ export default function SystemPage({
       {section === 'audit' && <AuditLogViewer onMessage={onMessage} />}
       {section === 'dataTools' && <DataToolManager onMessage={onMessage} />}
       {section === 'units' && <UnitCatalogManager onMessage={onMessage} />}
+      {section === 'locations' && <InventoryLocationManager onMessage={onMessage} />}
       {section === 'preferences' && <InterfacePreferenceManager onMessage={onMessage} />}
     </>
+  )
+}
+
+function InventoryLocationManager({ onMessage }: { onMessage: (msg: string) => void }) {
+  const emptyForm = { code: '', name: '', note: '', isDefault: false, isActive: true }
+  const [locations, setLocations] = useState<InventoryLocationConfig[]>([])
+  const [form, setForm] = useState(emptyForm)
+  const [editing, setEditing] = useState<InventoryLocationConfig | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  const loadLocations = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/inventory-locations?includeInactive=1')
+      const data = await res.json()
+      if (!res.ok) return onMessage(data.error || '获取库位失败')
+      setLocations(data.data || [])
+    } finally {
+      setLoading(false)
+    }
+  }, [onMessage])
+
+  useEffect(() => { loadLocations() }, [loadLocations])
+
+  const reset = () => {
+    setEditing(null)
+    setForm(emptyForm)
+  }
+
+  const save = async () => {
+    if (!form.code.trim() || !form.name.trim()) return onMessage('请填写库位编码和名称')
+    setSaving(true)
+    try {
+      const res = await fetch('/api/inventory-locations', {
+        method: editing ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editing ? { ...form, id: editing.id } : form),
+      })
+      const data = await res.json()
+      if (!res.ok) return onMessage(data.error || '保存库位失败')
+      setLocations(data.data || [])
+      onMessage(editing ? '库位已更新' : '库位已新增')
+      reset()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const startEdit = (location: InventoryLocationConfig) => {
+    setEditing(location)
+    setForm({
+      code: location.code,
+      name: location.name,
+      note: location.note || '',
+      isDefault: location.isDefault,
+      isActive: location.isActive,
+    })
+  }
+
+  const archive = async (location: InventoryLocationConfig) => {
+    if (!confirm(`确认归档库位“${location.code} · ${location.name}”吗？`)) return
+    const res = await fetch(`/api/inventory-locations?id=${encodeURIComponent(location.id)}`, { method: 'DELETE' })
+    const data = await res.json()
+    if (!res.ok) return onMessage(data.error || '归档库位失败')
+    setLocations(data.data || [])
+    onMessage('库位已归档')
+  }
+
+  const makeDefault = async (location: InventoryLocationConfig) => {
+    const res = await fetch('/api/inventory-locations', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: location.id, isDefault: true, isActive: true }),
+    })
+    const data = await res.json()
+    if (!res.ok) return onMessage(data.error || '设置默认库位失败')
+    setLocations(data.data || [])
+    onMessage(`默认库位已设为 ${location.code}`)
+  }
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-lg bg-white p-4 shadow sm:p-6">
+        <h3 className="text-lg font-semibold">库位配置</h3>
+        <p className="mt-1 text-sm text-gray-500">总库存继续统一核算；库位用于来料、生产日报和发货的实物数量分布与校验。</p>
+        <div className="mt-5 grid grid-cols-1 gap-3 rounded-lg border border-blue-100 bg-blue-50/40 p-4 md:grid-cols-2 xl:grid-cols-5">
+          <label className="text-sm text-gray-700">库位编码
+            <input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2" placeholder="如 A01" />
+          </label>
+          <label className="text-sm text-gray-700">库位名称
+            <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2" placeholder="如 成品区" />
+          </label>
+          <label className="text-sm text-gray-700 xl:col-span-2">备注
+            <input value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2" />
+          </label>
+          <div className="flex items-end gap-2">
+            <button type="button" onClick={save} disabled={saving} className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{saving ? '保存中...' : editing ? '保存修改' : '新增库位'}</button>
+            {editing && <button type="button" onClick={reset} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">取消</button>}
+          </div>
+          <div className="flex flex-wrap gap-5 md:col-span-2 xl:col-span-5">
+            <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.isDefault} onChange={(event) => setForm({ ...form, isDefault: event.target.checked })} />设为默认库位</label>
+            {editing && <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.isActive} disabled={editing.isDefault || editing.isActive} onChange={(event) => setForm({ ...form, isActive: event.target.checked })} />{editing.isActive ? '已启用（请用归档操作停用）' : '恢复启用'}</label>}
+          </div>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-lg bg-white shadow">
+        {loading ? <div className="py-12 text-center text-sm text-gray-500">加载中...</div> : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px]">
+              <thead className="bg-gray-50 text-left text-sm text-gray-600"><tr><th className="px-4 py-3">库位</th><th className="px-4 py-3">状态</th><th className="px-4 py-3">物料数</th><th className="px-4 py-3">库存 / 占用 / 可用</th><th className="px-4 py-3 text-right">操作</th></tr></thead>
+              <tbody className="divide-y divide-gray-100">
+                {locations.map((location) => (
+                  <tr key={location.id} className={!location.isActive ? 'bg-gray-50 text-gray-400' : ''}>
+                    <td className="px-4 py-3"><div className="font-medium">{location.code} · {location.name}</div>{location.note && <div className="mt-1 text-xs text-gray-500">{location.note}</div>}</td>
+                    <td className="px-4 py-3 text-sm">{location.isDefault ? <span className="rounded bg-blue-50 px-2 py-1 text-blue-700">默认</span> : location.isActive ? '启用' : '已归档'}</td>
+                    <td className="px-4 py-3 text-sm">{location.materialCount}</td>
+                    <td className="px-4 py-3 font-mono text-sm">{location.qty} / {location.reservedQty} / {location.availableQty}</td>
+                    <td className="px-4 py-3"><div className="flex justify-end gap-2"><button type="button" onClick={() => startEdit(location)} className="rounded border border-gray-200 px-3 py-1.5 text-xs">编辑</button>{location.isActive && !location.isDefault && <><button type="button" onClick={() => makeDefault(location)} className="rounded border border-blue-200 px-3 py-1.5 text-xs text-blue-700">设为默认</button><button type="button" onClick={() => archive(location)} className="rounded border border-red-200 px-3 py-1.5 text-xs text-red-700">归档</button></>}</div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
   )
 }
 

@@ -16,177 +16,196 @@ model SystemSetting {
   updatedAt DateTime @updatedAt
 }
 
+model InventoryLocation {
+  id                 String                  @id @default(cuid())
+  code               String                  @unique
+  name               String
+  note               String?
+  isDefault          Boolean                 @default(false)
+  isActive           Boolean                 @default(true)
+  deletedAt          DateTime?
+  balances           StockLocationBalance[]
+  stockLogs          StockLog[]
+  materialIns        MaterialIn[]
+  consumptionReports DailyProductionReport[] @relation("DailyProductionConsumptionLocation")
+  outputReports      DailyProductionReport[] @relation("DailyProductionOutputLocation")
+  shipments          Shipment[]
+  returnOrders       ReturnOrder[]
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+}
+
 model Product {
-  id          String   @id @default(cuid())
-  sku         String   @unique
-  name        String
-  category    String
-  customerId  String?
-  customer    Customer? @relation(fields: [customerId], references: [id])
-  unit        String   @default("件")
-  description String?
-  bom         BOM?
-  bomCostRuns BomCostRun[]
-  processRoutes ProcessRoute[]
-  stock       Stock?
-  sawingScenarios SawingCostScenario[]
+  id               String               @id @default(cuid())
+  sku              String               @unique
+  name             String
+  category         String
+  customerId       String?
+  customer         Customer?            @relation(fields: [customerId], references: [id])
+  unit             String               @default("件")
+  description      String?
+  bom              BOM?
+  bomCostRuns      BomCostRun[]
+  processRoutes    ProcessRoute[]
+  stock            Stock?
+  sawingScenarios  SawingCostScenario[]
   productionOrders ProductionOrder[]
-  stockIns    StockIn[]
-  shipments   Shipment[]
-  returnOrders ReturnOrder[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  stockIns         StockIn[]
+  shipments        Shipment[]
+  returnOrders     ReturnOrder[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
 }
 
 model Material {
-  id          String   @id @default(cuid())
-  code        String   @unique
-  name        String
-  spec        String?
-  note        String?
-  category    String   @default("RAW")
-  customerId  String?
-  customer    Customer? @relation(fields: [customerId], references: [id])
-  unit        String
-  primaryMeasure String @default("QUANTITY")
-  stockUnit   String   @default("件")
-  referenceMeasure String?
-  valuationUnit String @default("kg")
-  conversionRate Float @default(1)
-  conversionNote String?
-  unitMode    String   @default("DUAL")
-  unitVersion Int      @default(1)
-  costingMethod String @default("WEIGHTED_AVERAGE")
-  deletedAt   DateTime?
-  deletedBy   String?
-  stock       Stock?
-  costLayers  InventoryCostLayer[]
-  bomItems    BOMItem[]
-  pickItems   PickItem[]
-  materialIns MaterialIn[]
-  productionOrders ProductionOrder[] @relation("ProductionOrderTargetMaterial")
-  workInstructions WorkInstruction[]
-  processTemplates ProcessTemplate[]
-  dailyProductionReports DailyProductionReport[] @relation("DailyProductionFinishedMaterial")
+  id                          String                       @id @default(cuid())
+  code                        String                       @unique
+  name                        String
+  spec                        String?
+  note                        String?
+  category                    String                       @default("RAW")
+  customerId                  String?
+  customer                    Customer?                    @relation(fields: [customerId], references: [id])
+  unit                        String
+  primaryMeasure              String                       @default("QUANTITY")
+  stockUnit                   String                       @default("件")
+  referenceMeasure            String?
+  valuationUnit               String                       @default("kg")
+  conversionRate              Float                        @default(1)
+  conversionNote              String?
+  unitMode                    String                       @default("DUAL")
+  unitVersion                 Int                          @default(1)
+  costingMethod               String                       @default("WEIGHTED_AVERAGE")
+  deletedAt                   DateTime?
+  deletedBy                   String?
+  stock                       Stock?
+  costLayers                  InventoryCostLayer[]
+  bomItems                    BOMItem[]
+  pickItems                   PickItem[]
+  materialIns                 MaterialIn[]
+  productionOrders            ProductionOrder[]            @relation("ProductionOrderTargetMaterial")
+  workInstructions            WorkInstruction[]
+  processTemplates            ProcessTemplate[]
+  dailyProductionReports      DailyProductionReport[]      @relation("DailyProductionFinishedMaterial")
   dailyProductionConsumptions DailyProductionConsumption[] @relation("DailyProductionConsumedMaterial")
-  shipments   Shipment[]
-  returnOrders ReturnOrder[]
-  createdAt   DateTime @default(now())
+  shipments                   Shipment[]
+  returnOrders                ReturnOrder[]
+  createdAt                   DateTime                     @default(now())
 }
 
 // ==================== 物料清单 BOM ====================
 
 model BOM {
-  id          String   @id @default(cuid())
-  productId   String   @unique
-  product     Product  @relation(fields: [productId], references: [id])
-  items       BOMItem[]
-  costRuns    BomCostRun[]
-  version     String   @default("v1")
-  isActive    Boolean  @default(true)
-  outputQuantity Float @default(1)
-  outputUnit  String   @default("件")
-  createdAt   DateTime @default(now())
+  id             String       @id @default(cuid())
+  productId      String       @unique
+  product        Product      @relation(fields: [productId], references: [id])
+  items          BOMItem[]
+  costRuns       BomCostRun[]
+  version        String       @default("v1")
+  isActive       Boolean      @default(true)
+  outputQuantity Float        @default(1)
+  outputUnit     String       @default("件")
+  createdAt      DateTime     @default(now())
 }
 
 model BOMItem {
-  id          String   @id @default(cuid())
-  bomId       String
-  bom         BOM      @relation(fields: [bomId], references: [id], onDelete: Cascade)
-  itemType    String   @default("MATERIAL")
-  materialId  String?
-  material    Material? @relation(fields: [materialId], references: [id])
-  costObjectId String?
-  costObject   CostObject? @relation(fields: [costObjectId], references: [id])
+  id               String              @id @default(cuid())
+  bomId            String
+  bom              BOM                 @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  itemType         String              @default("MATERIAL")
+  materialId       String?
+  material         Material?           @relation(fields: [materialId], references: [id])
+  costObjectId     String?
+  costObject       CostObject?         @relation(fields: [costObjectId], references: [id])
   sawingScenarioId String?
   sawingScenario   SawingCostScenario? @relation(fields: [sawingScenarioId], references: [id])
-  quantity    Float    @default(0)
-  unit        String
-  wastageRate Float    @default(0)
+  quantity         Float               @default(0)
+  unit             String
+  wastageRate      Float               @default(0)
 
   @@index([costObjectId])
   @@index([sawingScenarioId])
 }
 
 model CostObject {
-  id          String   @id @default(cuid())
-  code        String   @unique
-  name        String
-  objectType  String   @default("MANUAL")
-  sourceType  String?
-  sourceId    String?
-  unit        String   @default("件")
-  status      String   @default("ACTIVE")
-  costs       CostObjectCost[]
-  bomItems    BOMItem[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String           @id @default(cuid())
+  code       String           @unique
+  name       String
+  objectType String           @default("MANUAL")
+  sourceType String?
+  sourceId   String?
+  unit       String           @default("件")
+  status     String           @default("ACTIVE")
+  costs      CostObjectCost[]
+  bomItems   BOMItem[]
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
 
   @@index([sourceType, sourceId])
 }
 
 model CostObjectCost {
-  id                    String   @id @default(cuid())
-  costObjectId           String
-  costObject             CostObject @relation(fields: [costObjectId], references: [id], onDelete: Cascade)
-  version                String   @default("v1")
-  materialCostPerUnit    Float    @default(0)
-  laborHoursPerUnit      Float    @default(0)
-  machineHoursPerUnit    Float    @default(0)
-  directCostPerUnit      Float    @default(0)
-  active                 Boolean  @default(true)
-  effectiveFrom          DateTime @default(now())
-  createdAt              DateTime @default(now())
+  id                  String     @id @default(cuid())
+  costObjectId        String
+  costObject          CostObject @relation(fields: [costObjectId], references: [id], onDelete: Cascade)
+  version             String     @default("v1")
+  materialCostPerUnit Float      @default(0)
+  laborHoursPerUnit   Float      @default(0)
+  machineHoursPerUnit Float      @default(0)
+  directCostPerUnit   Float      @default(0)
+  active              Boolean    @default(true)
+  effectiveFrom       DateTime   @default(now())
+  createdAt           DateTime   @default(now())
 
   @@index([costObjectId, active])
 }
 
 model BomCostRun {
-  id                String   @id @default(cuid())
-  productId         String
-  product           Product  @relation(fields: [productId], references: [id])
-  bomId             String?
-  bom               BOM?     @relation(fields: [bomId], references: [id])
-  bomVersion        String?
-  quantityBasis     Float    @default(1)
-  laborRatePerHour  Float    @default(0)
-  machineRatePerHour Float   @default(0)
-  overheadCost      Float    @default(0)
-  totalMaterialCost Float    @default(0)
-  totalLaborCost    Float    @default(0)
-  totalMachineCost  Float    @default(0)
-  totalDirectCost   Float    @default(0)
-  totalCost         Float    @default(0)
-  unitCost          Float    @default(0)
-  createdBy         String?
-  createdAt         DateTime @default(now())
-  lines             BomCostRunLine[]
+  id                 String           @id @default(cuid())
+  productId          String
+  product            Product          @relation(fields: [productId], references: [id])
+  bomId              String?
+  bom                BOM?             @relation(fields: [bomId], references: [id])
+  bomVersion         String?
+  quantityBasis      Float            @default(1)
+  laborRatePerHour   Float            @default(0)
+  machineRatePerHour Float            @default(0)
+  overheadCost       Float            @default(0)
+  totalMaterialCost  Float            @default(0)
+  totalLaborCost     Float            @default(0)
+  totalMachineCost   Float            @default(0)
+  totalDirectCost    Float            @default(0)
+  totalCost          Float            @default(0)
+  unitCost           Float            @default(0)
+  createdBy          String?
+  createdAt          DateTime         @default(now())
+  lines              BomCostRunLine[]
 
   @@index([productId, createdAt])
   @@index([bomId])
 }
 
 model BomCostRunLine {
-  id             String   @id @default(cuid())
-  runId          String
-  run            BomCostRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  lineType       String
-  sourceId       String?
-  code           String?
-  name           String
-  quantity       Float    @default(0)
-  unit           String
-  unitCost       Float    @default(0)
-  materialCost   Float    @default(0)
-  laborHours     Float    @default(0)
-  machineHours   Float    @default(0)
-  laborCost      Float    @default(0)
-  machineCost    Float    @default(0)
-  directCost     Float    @default(0)
-  totalCost      Float    @default(0)
-  note           String?
-  sortOrder      Int      @default(0)
-  createdAt      DateTime @default(now())
+  id           String     @id @default(cuid())
+  runId        String
+  run          BomCostRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  lineType     String
+  sourceId     String?
+  code         String?
+  name         String
+  quantity     Float      @default(0)
+  unit         String
+  unitCost     Float      @default(0)
+  materialCost Float      @default(0)
+  laborHours   Float      @default(0)
+  machineHours Float      @default(0)
+  laborCost    Float      @default(0)
+  machineCost  Float      @default(0)
+  directCost   Float      @default(0)
+  totalCost    Float      @default(0)
+  note         String?
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
 
   @@index([runId])
 }
@@ -194,68 +213,68 @@ model BomCostRunLine {
 // ==================== 工艺路线 ====================
 
 model ProcessRoute {
-  id          String   @id @default(cuid())
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id])
-  name        String
-  steps       ProcessStep[]
-  isDefault   Boolean  @default(false)
+  id        String        @id @default(cuid())
+  productId String
+  product   Product       @relation(fields: [productId], references: [id])
+  name      String
+  steps     ProcessStep[]
+  isDefault Boolean       @default(false)
 }
 
 model ProcessStep {
-  id            String   @id @default(cuid())
-  routeId       String
-  route         ProcessRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  stepNo        Int
-  name          String
-  defaultTime   Int?
-  workstation   String?
-  description   String?
-  templateId    String?
-  templateCode  String?
-  standardBatchQty Int @default(1000)
-  setupTimeMinutes Float @default(0)
-  cycleTimeSeconds Float @default(0)
-  peopleCount Float @default(1)
-  laborRatePerHour Float @default(0)
-  machineCount Float @default(1)
-  machineRatePerHour Float @default(0)
-  energyCostPerHour Float @default(0)
-  consumableCostPerBatch Float @default(0)
-  yieldRate Float @default(1)
-  deletedAt     DateTime?
-  deletedBy     String?
-  reports       WorkReport[]
-  dispatches    Dispatch[]
+  id                     String       @id @default(cuid())
+  routeId                String
+  route                  ProcessRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  stepNo                 Int
+  name                   String
+  defaultTime            Int?
+  workstation            String?
+  description            String?
+  templateId             String?
+  templateCode           String?
+  standardBatchQty       Int          @default(1000)
+  setupTimeMinutes       Float        @default(0)
+  cycleTimeSeconds       Float        @default(0)
+  peopleCount            Float        @default(1)
+  laborRatePerHour       Float        @default(0)
+  machineCount           Float        @default(1)
+  machineRatePerHour     Float        @default(0)
+  energyCostPerHour      Float        @default(0)
+  consumableCostPerBatch Float        @default(0)
+  yieldRate              Float        @default(1)
+  deletedAt              DateTime?
+  deletedBy              String?
+  reports                WorkReport[]
+  dispatches             Dispatch[]
 }
 
 model ProcessTemplate {
-  id            String   @id @default(cuid())
-  code          String   @unique
-  name          String
-  category      String
-  defaultTime   Int?
-  workstation   String?
-  description   String?
-  standardBatchQty Int    @default(1000)
-  setupTimeMinutes Float  @default(0)
-  cycleTimeSeconds Float  @default(0)
-  peopleCount    Float    @default(1)
-  laborRatePerHour Float  @default(0)
-  machineCount   Float    @default(1)
-  machineRatePerHour Float @default(0)
-  energyCostPerHour Float @default(0)
-  consumableCostPerBatch Float @default(0)
-  yieldRate      Float    @default(1)
-  isPreset      Boolean  @default(false)
-  materials     Material[]
-  sawingScenarios SawingCostScenario[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                     String               @id @default(cuid())
+  code                   String               @unique
+  name                   String
+  category               String
+  defaultTime            Int?
+  workstation            String?
+  description            String?
+  standardBatchQty       Int                  @default(1000)
+  setupTimeMinutes       Float                @default(0)
+  cycleTimeSeconds       Float                @default(0)
+  peopleCount            Float                @default(1)
+  laborRatePerHour       Float                @default(0)
+  machineCount           Float                @default(1)
+  machineRatePerHour     Float                @default(0)
+  energyCostPerHour      Float                @default(0)
+  consumableCostPerBatch Float                @default(0)
+  yieldRate              Float                @default(1)
+  isPreset               Boolean              @default(false)
+  materials              Material[]
+  sawingScenarios        SawingCostScenario[]
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
 }
 
 model SawingCostScenario {
-  id                   String   @id @default(cuid())
+  id                   String               @id @default(cuid())
   name                 String
   materialLength       Float
   materialWeight       Float
@@ -276,48 +295,48 @@ model SawingCostScenario {
   totalRevenue         Float
   totalProfit          Float
   grossMargin          Float
-  additionalDirectCost Float   @default(0)
-  laborCost             Float   @default(0)
-  fixedCost             Float   @default(0)
-  directStageCost       Float   @default(0)
-  manufacturingCost    Float   @default(0)
-  fullCost              Float   @default(0)
-  directProfit          Float   @default(0)
-  manufacturingProfit  Float   @default(0)
-  fullProfit            Float   @default(0)
-  directMargin          Float   @default(0)
-  manufacturingMargin  Float   @default(0)
-  fullMargin            Float   @default(0)
-  productKind           String  @default("TEMPORARY")
-  productId             String?
-  product               Product? @relation(fields: [productId], references: [id])
-  laborHoursPerPiece    Float   @default(0)
-  machineHoursPerPiece  Float   @default(0)
-  bomItems              BOMItem[]
+  additionalDirectCost Float                @default(0)
+  laborCost            Float                @default(0)
+  fixedCost            Float                @default(0)
+  directStageCost      Float                @default(0)
+  manufacturingCost    Float                @default(0)
+  fullCost             Float                @default(0)
+  directProfit         Float                @default(0)
+  manufacturingProfit  Float                @default(0)
+  fullProfit           Float                @default(0)
+  directMargin         Float                @default(0)
+  manufacturingMargin  Float                @default(0)
+  fullMargin           Float                @default(0)
+  productKind          String               @default("TEMPORARY")
+  productId            String?
+  product              Product?             @relation(fields: [productId], references: [id])
+  laborHoursPerPiece   Float                @default(0)
+  machineHoursPerPiece Float                @default(0)
+  bomItems             BOMItem[]
   processTemplates     ProcessTemplate[]
   costItems            ProductionCostItem[]
   createdBy            String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
 
   @@index([productId])
 }
 
 model ProductionCostItem {
-  id          String   @id @default(cuid())
+  id          String             @id @default(cuid())
   scenarioId  String
   scenario    SawingCostScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
   stage       String
   name        String
   method      String
-  inputA      Float    @default(0)
-  inputB      Float    @default(0)
-  inputC      Float    @default(0)
+  inputA      Float              @default(0)
+  inputB      Float              @default(0)
+  inputC      Float              @default(0)
   amount      Float
-  isDeduction Boolean  @default(false)
+  isDeduction Boolean            @default(false)
   note        String?
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
+  sortOrder   Int                @default(0)
+  createdAt   DateTime           @default(now())
 
   @@index([scenarioId, stage])
 }
@@ -325,116 +344,120 @@ model ProductionCostItem {
 // ==================== 生产工单 ====================
 
 model ProductionOrder {
-  id            String   @id @default(cuid())
-  orderNo       String   @unique
-  voucherNo     String?
-  productId     String
-  product       Product  @relation(fields: [productId], references: [id])
+  id             String    @id @default(cuid())
+  orderNo        String    @unique
+  voucherNo      String?
+  productId      String
+  product        Product   @relation(fields: [productId], references: [id])
   materialId     String?
   targetMaterial Material? @relation("ProductionOrderTargetMaterial", fields: [materialId], references: [id])
-  planQty       Int
-  completeQty   Int      @default(0)
-  scrapQty      Int      @default(0)
-  status        String   @default("DRAFT")
-  
-  planId        String?
-  note          String?
-  picks         PickItem[]
-  reports       WorkReport[]
-  qcRecords     QCRecord[]
-  stockIns      StockIn[]
-  dispatches    Dispatch[]
-  costRecords   CostRecord[]
-  
-  startTime     DateTime?
-  completeTime  DateTime?
-  cancelTime    DateTime?
-  cancelReason  String?
-  deletedAt     DateTime?
-  deletedBy     String?
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  planQty        Int
+  completeQty    Int       @default(0)
+  scrapQty       Int       @default(0)
+  status         String    @default("DRAFT")
+
+  planId      String?
+  note        String?
+  picks       PickItem[]
+  reports     WorkReport[]
+  qcRecords   QCRecord[]
+  stockIns    StockIn[]
+  dispatches  Dispatch[]
+  costRecords CostRecord[]
+
+  startTime    DateTime?
+  completeTime DateTime?
+  cancelTime   DateTime?
+  cancelReason String?
+  deletedAt    DateTime?
+  deletedBy    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ==================== 物料领用 ====================
 
 model PickItem {
-  id          String   @id @default(cuid())
-  orderId     String
-  order       ProductionOrder @relation(fields: [orderId], references: [id])
-  materialId  String
-  material    Material @relation(fields: [materialId], references: [id])
-  requiredQty Float    @default(0)
-  reservedValuationQty Float @default(0)
-  actualQty   Float    @default(0)
-  actualValuationQty Float @default(0)
-  conversionRateUsed Float?
-  conversionSource String?
-  costAmount Float @default(0)
-  costingMethod String?
+  id                    String                 @id @default(cuid())
+  orderId               String
+  order                 ProductionOrder        @relation(fields: [orderId], references: [id])
+  materialId            String
+  material              Material               @relation(fields: [materialId], references: [id])
+  requiredQty           Float                  @default(0)
+  reservedValuationQty  Float                  @default(0)
+  actualQty             Float                  @default(0)
+  actualValuationQty    Float                  @default(0)
+  conversionRateUsed    Float?
+  conversionSource      String?
+  costAmount            Float                  @default(0)
+  costingMethod         String?
   costLayerConsumptions CostLayerConsumption[]
-  returnedQty Float    @default(0)
-  status      String   @default("PENDING")
-  pickedAt    DateTime?
-  pickedBy    String?
-  createdAt   DateTime @default(now())
+  returnedQty           Float                  @default(0)
+  status                String                 @default("PENDING")
+  pickedAt              DateTime?
+  pickedBy              String?
+  createdAt             DateTime               @default(now())
 }
 
 // ==================== 工序报工 ====================
 
 model WorkReport {
-  id          String   @id @default(cuid())
-  orderId     String
-  order       ProductionOrder @relation(fields: [orderId], references: [id])
-  stepId      String
-  step        ProcessStep @relation(fields: [stepId], references: [id])
-  
-  workerName  String
-  workerId    String?
-  
-  startTime   DateTime
-  endTime     DateTime?
-  
-  goodQty     Int      @default(0)
-  badQty      Int      @default(0)
-  badReason   String?
-  remark      String?
-  photoUrls   String?
-  
-  createdAt   DateTime @default(now())
+  id      String          @id @default(cuid())
+  orderId String
+  order   ProductionOrder @relation(fields: [orderId], references: [id])
+  stepId  String
+  step    ProcessStep     @relation(fields: [stepId], references: [id])
+
+  workerName String
+  workerId   String?
+
+  startTime DateTime
+  endTime   DateTime?
+
+  goodQty   Int     @default(0)
+  badQty    Int     @default(0)
+  badReason String?
+  remark    String?
+  photoUrls String?
+
+  createdAt DateTime @default(now())
 }
 
 // ==================== 独立生产日报 ====================
 
 model DailyProductionReport {
-  id                 String   @id @default(cuid())
-  reportNo           String   @unique
-  reportDate         DateTime
-  finishedMaterialId String
-  finishedMaterial   Material @relation("DailyProductionFinishedMaterial", fields: [finishedMaterialId], references: [id])
-  goodQty            Float    @default(0)
-  badQty             Float    @default(0)
-  scrapQty           Float    @default(0)
-  workers             String
-  note                String?
-  status              String   @default("DRAFT")
-  bomId               String?
-  bomVersion          String?
-  outputValuationQty  Float    @default(0)
-  outputCostAmount    Float    @default(0)
-  outputStockUnit     String?
-  outputValuationUnit String?
-  outputConversionRate Float?
+  id                     String                       @id @default(cuid())
+  reportNo               String                       @unique
+  reportDate             DateTime
+  finishedMaterialId     String
+  finishedMaterial       Material                     @relation("DailyProductionFinishedMaterial", fields: [finishedMaterialId], references: [id])
+  consumptionLocationId  String?
+  consumptionLocation    InventoryLocation?           @relation("DailyProductionConsumptionLocation", fields: [consumptionLocationId], references: [id])
+  outputLocationId       String?
+  outputLocation         InventoryLocation?           @relation("DailyProductionOutputLocation", fields: [outputLocationId], references: [id])
+  goodQty                Float                        @default(0)
+  badQty                 Float                        @default(0)
+  scrapQty               Float                        @default(0)
+  workers                String
+  note                   String?
+  status                 String                       @default("DRAFT")
+  bomId                  String?
+  bomVersion             String?
+  outputValuationQty     Float                        @default(0)
+  outputCostAmount       Float                        @default(0)
+  outputStockUnit        String?
+  outputValuationUnit    String?
+  outputConversionRate   Float?
   outputConversionSource String?
-  confirmedAt         DateTime?
-  confirmedBy         String?
-  reversedAt          DateTime?
-  reversedBy          String?
-  reverseReason       String?
-  consumptions        DailyProductionConsumption[]
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  confirmedAt            DateTime?
+  confirmedBy            String?
+  reversedAt             DateTime?
+  reversedBy             String?
+  reverseReason          String?
+  consumptions           DailyProductionConsumption[]
+  createdAt              DateTime                     @default(now())
+  updatedAt              DateTime                     @updatedAt
 
   @@index([reportDate])
   @@index([finishedMaterialId])
@@ -442,30 +465,30 @@ model DailyProductionReport {
 }
 
 model DailyProductionConsumption {
-  id                    String   @id @default(cuid())
-  reportId              String
-  report                DailyProductionReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  materialId            String
-  material              Material @relation("DailyProductionConsumedMaterial", fields: [materialId], references: [id])
-  bomItemId             String?
-  materialCode          String
-  materialName          String
-  quantityPerUnit       Float
-  wastageRate           Float    @default(0)
-  lossMode              String   @default("MANUAL")
-  lossValue             Float    @default(0)
-  lossQty               Float    @default(0)
-  plannedQty            Float
-  actualQty             Float
-  unit                  String
-  valuationQty          Float    @default(0)
-  valuationUnit         String?
-  costAmount            Float    @default(0)
-  conversionRateUsed    Float?
-  conversionSource      String?
-  costingMethod         String?
-  costLayerSnapshot     String?
-  createdAt             DateTime @default(now())
+  id                 String                @id @default(cuid())
+  reportId           String
+  report             DailyProductionReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  materialId         String
+  material           Material              @relation("DailyProductionConsumedMaterial", fields: [materialId], references: [id])
+  bomItemId          String?
+  materialCode       String
+  materialName       String
+  quantityPerUnit    Float
+  wastageRate        Float                 @default(0)
+  lossMode           String                @default("MANUAL")
+  lossValue          Float                 @default(0)
+  lossQty            Float                 @default(0)
+  plannedQty         Float
+  actualQty          Float
+  unit               String
+  valuationQty       Float                 @default(0)
+  valuationUnit      String?
+  costAmount         Float                 @default(0)
+  conversionRateUsed Float?
+  conversionSource   String?
+  costingMethod      String?
+  costLayerSnapshot  String?
+  createdAt          DateTime              @default(now())
 
   @@index([reportId])
   @@index([materialId])
@@ -474,107 +497,125 @@ model DailyProductionConsumption {
 // ==================== 质检记录 ====================
 
 model QCRecord {
-  id          String   @id @default(cuid())
-  orderId     String
-  order       ProductionOrder @relation(fields: [orderId], references: [id])
-  checkType   String
-  sampleQty   Int
-  goodQty     Int
-  badQty      Int
-  result      String
-  badReason   String?
-  inspector   String
-  checkedAt   DateTime @default(now())
-  photos      String?
+  id        String          @id @default(cuid())
+  orderId   String
+  order     ProductionOrder @relation(fields: [orderId], references: [id])
+  checkType String
+  sampleQty Int
+  goodQty   Int
+  badQty    Int
+  result    String
+  badReason String?
+  inspector String
+  checkedAt DateTime        @default(now())
+  photos    String?
 }
 
 // ==================== 库存与入库 ====================
 
 model Stock {
-  id          String   @id @default(cuid())
-  materialId  String?  @unique
-  material    Material? @relation(fields: [materialId], references: [id])
-  productId   String?  @unique
-  product     Product?  @relation(fields: [productId], references: [id])
-  
-  qty         Float    @default(0)
-  reservedQty Float    @default(0)
-  availableQty Float   @default(0)
-  valuationQty Float   @default(0)
-  reservedValuationQty Float @default(0)
+  id         String    @id @default(cuid())
+  materialId String?   @unique
+  material   Material? @relation(fields: [materialId], references: [id])
+  productId  String?   @unique
+  product    Product?  @relation(fields: [productId], references: [id])
+
+  qty                   Float @default(0)
+  reservedQty           Float @default(0)
+  availableQty          Float @default(0)
+  valuationQty          Float @default(0)
+  reservedValuationQty  Float @default(0)
   availableValuationQty Float @default(0)
-  totalCost    Float    @default(0)
-  valuationUnitCost Float @default(0)
-  stockUnitCost Float @default(0)
-  
-  logs        StockLog[]
+  totalCost             Float @default(0)
+  valuationUnitCost     Float @default(0)
+  stockUnitCost         Float @default(0)
+
+  logs             StockLog[]
+  locationBalances StockLocationBalance[]
+}
+
+model StockLocationBalance {
+  id           String            @id @default(cuid())
+  stockId      String
+  stock        Stock             @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  locationId   String
+  location     InventoryLocation @relation(fields: [locationId], references: [id])
+  qty          Float             @default(0)
+  reservedQty  Float             @default(0)
+  availableQty Float             @default(0)
+  updatedAt    DateTime          @updatedAt
+
+  @@unique([stockId, locationId])
+  @@index([locationId])
 }
 
 model StockLog {
-  id          String   @id @default(cuid())
-  stockId     String
-  stock       Stock    @relation(fields: [stockId], references: [id])
-  
-  type        String
-  qty         Float
-  beforeQty   Float
-  afterQty    Float
-  valuationQty Float?
-  beforeValuationQty Float?
-  afterValuationQty Float?
-  costAmount   Float?
-  beforeCostAmount Float?
-  afterCostAmount Float?
-  stockUnitSnapshot String?
+  id         String             @id @default(cuid())
+  stockId    String
+  stock      Stock              @relation(fields: [stockId], references: [id])
+  locationId String?
+  location   InventoryLocation? @relation(fields: [locationId], references: [id])
+
+  type                  String
+  qty                   Float
+  beforeQty             Float
+  afterQty              Float
+  valuationQty          Float?
+  beforeValuationQty    Float?
+  afterValuationQty     Float?
+  costAmount            Float?
+  beforeCostAmount      Float?
+  afterCostAmount       Float?
+  stockUnitSnapshot     String?
   valuationUnitSnapshot String?
-  conversionRateUsed Float?
-  conversionSource String?
+  conversionRateUsed    Float?
+  conversionSource      String?
   costingMethodSnapshot String?
-  sourceMovementId String?
-  reversalMovementId String?
-  idempotencyKey String? @unique
-  
-  refType     String?
-  refId       String?
-  note        String?
-  
-  createdAt   DateTime @default(now())
-  createdBy   String?
+  sourceMovementId      String?
+  reversalMovementId    String?
+  idempotencyKey        String? @unique
+
+  refType String?
+  refId   String?
+  note    String?
+
+  createdAt DateTime @default(now())
+  createdBy String?
 }
 
 model StockIn {
-  id          String   @id @default(cuid())
-  orderId     String
-  order       ProductionOrder @relation(fields: [orderId], references: [id])
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id])
-  qty         Int
-  batchNo     String?
-  inDate      DateTime @default(now())
-  inBy        String?
-  note        String?
+  id        String          @id @default(cuid())
+  orderId   String
+  order     ProductionOrder @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product         @relation(fields: [productId], references: [id])
+  qty       Int
+  batchNo   String?
+  inDate    DateTime        @default(now())
+  inBy      String?
+  note      String?
 }
 
 // ==================== 客户与供应商 ====================
 
 model Customer {
-  id          String   @id @default(cuid())
-  code        String   @unique
-  name        String
-  contact     String?
-  phone       String?
-  address     String?
-  deletedAt   DateTime?
-  deletedBy   String?
-  products    Product[]
-  materials   Material[]
-  shipments   Shipment[]
-  createdAt   DateTime @default(now())
+  id        String     @id @default(cuid())
+  code      String     @unique
+  name      String
+  contact   String?
+  phone     String?
+  address   String?
+  deletedAt DateTime?
+  deletedBy String?
+  products  Product[]
+  materials Material[]
+  shipments Shipment[]
+  createdAt DateTime   @default(now())
 }
 
 model Supplier {
-  id          String   @id @default(cuid())
-  code        String   @unique
+  id          String       @id @default(cuid())
+  code        String       @unique
   name        String
   contact     String?
   phone       String?
@@ -582,50 +623,52 @@ model Supplier {
   deletedAt   DateTime?
   deletedBy   String?
   materialIns MaterialIn[]
-  createdAt   DateTime @default(now())
+  createdAt   DateTime     @default(now())
 }
 
 // ==================== 来料入库 ====================
 
 model MaterialIn {
-  id          String   @id @default(cuid())
-  inboundNo   String   @unique
-  voucherNo   String?
-  supplierId  String
-  supplier    Supplier @relation(fields: [supplierId], references: [id])
-  materialId  String
-  material    Material @relation(fields: [materialId], references: [id])
-  qty         Float
-  unit        String
-  pieceCount  Int?
-  stockQtyMode String @default("TOTAL")
-  stockQtyInput Float?
-  totalLength Float?
-  totalWeight Float?
-  valuationQty Float   @default(0)
-  valuationUnit String  @default("kg")
-  conversionRate Float  @default(1)
-  conversionSource String @default("MASTER_DEFAULT")
-  unitPrice   Float    @default(0)
-  priceBasis  String   @default("VALUATION")
-  priceUnit   String?
-  valuationUnitCost Float @default(0)
-  stockUnitCost Float   @default(0)
-  totalAmount Float    @default(0)
-  batchNo     String?
-  status      String   @default("PENDING")
-  inboundDate DateTime @default(now())
-  receivedBy  String?
-  note        String?
-  deletedAt   DateTime?
-  deletedBy   String?
-  createdAt   DateTime @default(now())
+  id                String             @id @default(cuid())
+  inboundNo         String             @unique
+  voucherNo         String?
+  supplierId        String
+  supplier          Supplier           @relation(fields: [supplierId], references: [id])
+  materialId        String
+  material          Material           @relation(fields: [materialId], references: [id])
+  locationId        String?
+  location          InventoryLocation? @relation(fields: [locationId], references: [id])
+  qty               Float
+  unit              String
+  pieceCount        Int?
+  stockQtyMode      String             @default("TOTAL")
+  stockQtyInput     Float?
+  totalLength       Float?
+  totalWeight       Float?
+  valuationQty      Float              @default(0)
+  valuationUnit     String             @default("kg")
+  conversionRate    Float              @default(1)
+  conversionSource  String             @default("MASTER_DEFAULT")
+  unitPrice         Float              @default(0)
+  priceBasis        String             @default("VALUATION")
+  priceUnit         String?
+  valuationUnitCost Float              @default(0)
+  stockUnitCost     Float              @default(0)
+  totalAmount       Float              @default(0)
+  batchNo           String?
+  status            String             @default("PENDING")
+  inboundDate       DateTime           @default(now())
+  receivedBy        String?
+  note              String?
+  deletedAt         DateTime?
+  deletedBy         String?
+  createdAt         DateTime           @default(now())
 }
 
 model InventoryCostLayer {
-  id                    String   @id @default(cuid())
+  id                    String                 @id @default(cuid())
   materialId            String
-  material              Material @relation(fields: [materialId], references: [id])
+  material              Material               @relation(fields: [materialId], references: [id])
   materialInId          String?
   sourceType            String?
   sourceId              String?
@@ -638,9 +681,9 @@ model InventoryCostLayer {
   valuationUnitCost     Float
   stockUnitCost         Float
   totalAmount           Float
-  remainingAmount       Float    @default(0)
-  status                String   @default("OPEN")
-  createdAt             DateTime @default(now())
+  remainingAmount       Float                  @default(0)
+  status                String                 @default("OPEN")
+  createdAt             DateTime               @default(now())
   consumptions          CostLayerConsumption[]
 
   @@index([materialId])
@@ -650,9 +693,9 @@ model InventoryCostLayer {
 }
 
 model CostLayerConsumption {
-  id                String   @id @default(cuid())
+  id                String             @id @default(cuid())
   pickItemId        String
-  pickItem          PickItem @relation(fields: [pickItemId], references: [id], onDelete: Cascade)
+  pickItem          PickItem           @relation(fields: [pickItemId], references: [id], onDelete: Cascade)
   costLayerId       String
   costLayer         InventoryCostLayer @relation(fields: [costLayerId], references: [id])
   materialId        String
@@ -662,7 +705,7 @@ model CostLayerConsumption {
   stockUnitCost     Float
   valuationUnitCost Float
   restoredAt        DateTime?
-  createdAt         DateTime @default(now())
+  createdAt         DateTime           @default(now())
 
   @@index([pickItemId])
   @@index([costLayerId])
@@ -673,60 +716,62 @@ model CostLayerConsumption {
 // ==================== 派工管理 ====================
 
 model Dispatch {
-  id            String   @id @default(cuid())
-  dispatchNo    String   @unique
-  voucherNo     String?
-  orderId       String
-  order         ProductionOrder @relation(fields: [orderId], references: [id])
-  stepId        String
-  step          ProcessStep @relation(fields: [stepId], references: [id])
-  workerName    String
-  workerId      String?
-  planQty       Int
-  priority      String   @default("NORMAL")
-  status        String   @default("PENDING")
-  dispatchedAt  DateTime?
-  startedAt     DateTime?
-  completedAt   DateTime?
-  note          String?
-  deletedAt     DateTime?
-  deletedBy     String?
-  createdAt     DateTime @default(now())
+  id           String          @id @default(cuid())
+  dispatchNo   String          @unique
+  voucherNo    String?
+  orderId      String
+  order        ProductionOrder @relation(fields: [orderId], references: [id])
+  stepId       String
+  step         ProcessStep     @relation(fields: [stepId], references: [id])
+  workerName   String
+  workerId     String?
+  planQty      Int
+  priority     String          @default("NORMAL")
+  status       String          @default("PENDING")
+  dispatchedAt DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  note         String?
+  deletedAt    DateTime?
+  deletedBy    String?
+  createdAt    DateTime        @default(now())
 }
 
 // ==================== 发货管理 ====================
 
 model Shipment {
-  id            String   @id @default(cuid())
-  shipmentNo    String   @unique
-  voucherNo     String?
-  productId     String
-  product       Product  @relation(fields: [productId], references: [id])
-  materialId    String?
-  material      Material? @relation(fields: [materialId], references: [id])
-  customerId    String?
-  customerRef   Customer? @relation(fields: [customerId], references: [id])
-  qty           Float
-  unitPrice     Float    @default(0)
-  totalAmount   Float    @default(0)
-  customer      String
-  customerPhone String?
-  address       String?
-  status        String   @default("PENDING")
-  shippedAt     DateTime?
-  shippedBy     String?
-  shippedValuationQty Float @default(0)
-  shippedCostAmount Float @default(0)
-  stockUnitSnapshot String?
+  id                    String             @id @default(cuid())
+  shipmentNo            String             @unique
+  voucherNo             String?
+  productId             String
+  product               Product            @relation(fields: [productId], references: [id])
+  materialId            String?
+  material              Material?          @relation(fields: [materialId], references: [id])
+  locationId            String?
+  location              InventoryLocation? @relation(fields: [locationId], references: [id])
+  customerId            String?
+  customerRef           Customer?          @relation(fields: [customerId], references: [id])
+  qty                   Float
+  unitPrice             Float              @default(0)
+  totalAmount           Float              @default(0)
+  customer              String
+  customerPhone         String?
+  address               String?
+  status                String             @default("PENDING")
+  shippedAt             DateTime?
+  shippedBy             String?
+  shippedValuationQty   Float              @default(0)
+  shippedCostAmount     Float              @default(0)
+  stockUnitSnapshot     String?
   valuationUnitSnapshot String?
-  conversionRateUsed Float?
-  conversionSource String?
-  trackingNo    String?
-  note          String?
-  deletedAt     DateTime?
-  deletedBy     String?
-  returnOrders  ReturnOrder[]
-  createdAt     DateTime @default(now())
+  conversionRateUsed    Float?
+  conversionSource      String?
+  trackingNo            String?
+  note                  String?
+  deletedAt             DateTime?
+  deletedBy             String?
+  returnOrders          ReturnOrder[]
+  createdAt             DateTime           @default(now())
 
   @@index([materialId])
 }
@@ -734,58 +779,58 @@ model Shipment {
 // ==================== 扫码计数与标签打印 ====================
 
 model ScanCountSession {
-  id             String   @id @default(cuid())
-  sessionNo      String   @unique
-  clientRequestId String? @unique
-  name           String?
-  purpose        String   @default("SHIPMENT")
-  referenceType  String
-  referenceId    String
-  expectedCode   String
-  expectedQty    Float
-  countedQty     Float    @default(0)
-  status         String   @default("OPEN")
-  scannerModel   String?
-  createdBy      String?
-  completedAt    DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  events         ScanCountEvent[]
+  id              String           @id @default(cuid())
+  sessionNo       String           @unique
+  clientRequestId String?          @unique
+  name            String?
+  purpose         String           @default("SHIPMENT")
+  referenceType   String
+  referenceId     String
+  expectedCode    String
+  expectedQty     Float
+  countedQty      Float            @default(0)
+  status          String           @default("OPEN")
+  scannerModel    String?
+  createdBy       String?
+  completedAt     DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  events          ScanCountEvent[]
 
   @@index([referenceType, referenceId, status])
 }
 
 model ScanCountEvent {
-  id          String   @id @default(cuid())
-  clientEventId String? @unique
-  sessionId   String
-  session     ScanCountSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  rawValue    String
-  code        String
-  quantity    Float    @default(1)
-  result      String
-  createdAt   DateTime @default(now())
+  id            String           @id @default(cuid())
+  clientEventId String?          @unique
+  sessionId     String
+  session       ScanCountSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  rawValue      String
+  code          String
+  quantity      Float            @default(1)
+  result        String
+  createdAt     DateTime         @default(now())
 
   @@index([sessionId, createdAt])
 }
 
 model LabelPrintJob {
-  id             String   @id @default(cuid())
-  jobNo          String   @unique
-  clientRequestId String? @unique
-  templateType   String
-  referenceType  String
-  referenceId    String
-  printerModel   String
-  printerDpi     Int
-  printerIp      String?
-  labelWidthMm   Float
-  labelHeightMm  Float
-  copies         Int      @default(1)
-  payloadJson    String?
-  status         String   @default("REQUESTED")
-  requestedBy    String?
-  requestedAt    DateTime @default(now())
+  id              String   @id @default(cuid())
+  jobNo           String   @unique
+  clientRequestId String?  @unique
+  templateType    String
+  referenceType   String
+  referenceId     String
+  printerModel    String
+  printerDpi      Int
+  printerIp       String?
+  labelWidthMm    Float
+  labelHeightMm   Float
+  copies          Int      @default(1)
+  payloadJson     String?
+  status          String   @default("REQUESTED")
+  requestedBy     String?
+  requestedAt     DateTime @default(now())
 
   @@index([referenceType, referenceId, requestedAt])
 }
@@ -793,48 +838,50 @@ model LabelPrintJob {
 // ==================== 退货管理 ====================
 
 model ReturnOrder {
-  id            String   @id @default(cuid())
-  returnNo      String   @unique
-  voucherNo     String?
-  shipmentId    String?
-  shipment      Shipment? @relation(fields: [shipmentId], references: [id])
-  productId     String
-  product       Product  @relation(fields: [productId], references: [id])
-  materialId    String?
-  material      Material? @relation(fields: [materialId], references: [id])
-  qty           Float
-  processedValuationQty Float @default(0)
-  processedCostAmount Float @default(0)
-  stockUnitSnapshot String?
+  id                    String             @id @default(cuid())
+  returnNo              String             @unique
+  voucherNo             String?
+  shipmentId            String?
+  shipment              Shipment?          @relation(fields: [shipmentId], references: [id])
+  productId             String
+  product               Product            @relation(fields: [productId], references: [id])
+  materialId            String?
+  material              Material?          @relation(fields: [materialId], references: [id])
+  locationId            String?
+  location              InventoryLocation? @relation(fields: [locationId], references: [id])
+  qty                   Float
+  processedValuationQty Float              @default(0)
+  processedCostAmount   Float              @default(0)
+  stockUnitSnapshot     String?
   valuationUnitSnapshot String?
-  conversionRateUsed Float?
-  conversionSource String?
-  reason        String
-  status        String   @default("PENDING")
-  processedAt   DateTime?
-  processedBy   String?
-  note          String?
-  deletedAt     DateTime?
-  deletedBy     String?
-  createdAt     DateTime @default(now())
+  conversionRateUsed    Float?
+  conversionSource      String?
+  reason                String
+  status                String             @default("PENDING")
+  processedAt           DateTime?
+  processedBy           String?
+  note                  String?
+  deletedAt             DateTime?
+  deletedBy             String?
+  createdAt             DateTime           @default(now())
 
   @@index([materialId])
 }
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  operatorId  String?
+  id           String   @id @default(cuid())
+  operatorId   String?
   operatorName String?
-  action      String
-  entityType  String
-  entityId    String?
-  entityLabel String?
-  beforeData  String?
-  afterData   String?
-  note        String?
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime @default(now())
+  action       String
+  entityType   String
+  entityId     String?
+  entityLabel  String?
+  beforeData   String?
+  afterData    String?
+  note         String?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
 
   @@index([entityType, entityId])
   @@index([operatorId])
@@ -844,38 +891,38 @@ model AuditLog {
 // ==================== 成本统计 ====================
 
 model CostRecord {
-  id            String   @id @default(cuid())
-  orderId       String?
-  order         ProductionOrder? @relation(fields: [orderId], references: [id])
-  costType      String
-  category      String
-  amount        Float
-  description   String?
-  date          DateTime
-  createdBy     String?
-  createdAt     DateTime @default(now())
+  id          String           @id @default(cuid())
+  orderId     String?
+  order       ProductionOrder? @relation(fields: [orderId], references: [id])
+  costType    String
+  category    String
+  amount      Float
+  description String?
+  date        DateTime
+  createdBy   String?
+  createdAt   DateTime         @default(now())
 }
 
 // ==================== 原始单据附件 ====================
 
 model DocumentAttachment {
-  id            String   @id @default(cuid())
-  ownerType     String
-  ownerId       String
-  documentType  String   @default("ORIGINAL")
-  originalName  String
-  fileName      String
-  mimeType      String
-  size          Int
-  url           String
-  storagePath   String
-  note          String?
-  uploadedBy    String?
-  isCover       Boolean  @default(false)
-  rotation      Int      @default(0)
-  deletedAt     DateTime?
-  deletedBy     String?
-  createdAt     DateTime @default(now())
+  id           String    @id @default(cuid())
+  ownerType    String
+  ownerId      String
+  documentType String    @default("ORIGINAL")
+  originalName String
+  fileName     String
+  mimeType     String
+  size         Int
+  url          String
+  storagePath  String
+  note         String?
+  uploadedBy   String?
+  isCover      Boolean   @default(false)
+  rotation     Int       @default(0)
+  deletedAt    DateTime?
+  deletedBy    String?
+  createdAt    DateTime  @default(now())
 
   @@index([ownerType, ownerId])
 }
@@ -883,18 +930,18 @@ model DocumentAttachment {
 // ==================== 作业指导书 ====================
 
 model WorkInstruction {
-  id          String   @id @default(cuid())
-  categoryId  String
-  category    DocumentCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  version     String   @default("v1")
-  status      String   @default("ACTIVE")
-  materialId  String
-  material    Material @relation(fields: [materialId], references: [id])
-  note        String?
-  deletedAt   DateTime?
-  deletedBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String           @id @default(cuid())
+  categoryId String
+  category   DocumentCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  version    String           @default("v1")
+  status     String           @default("ACTIVE")
+  materialId String
+  material   Material         @relation(fields: [materialId], references: [id])
+  note       String?
+  deletedAt  DateTime?
+  deletedBy  String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
 
   @@index([categoryId])
   @@index([status])
@@ -902,15 +949,15 @@ model WorkInstruction {
 }
 
 model DocumentCategory {
-  id               String   @id @default(cuid())
+  id               String             @id @default(cuid())
   name             String
   parentId         String?
-  parent           DocumentCategory? @relation("DocumentCategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  parent           DocumentCategory?  @relation("DocumentCategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
   children         DocumentCategory[] @relation("DocumentCategoryHierarchy")
-  sortOrder        Int      @default(0)
+  sortOrder        Int                @default(0)
   workInstructions WorkInstruction[]
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
   @@index([parentId])
   @@index([sortOrder])
@@ -919,22 +966,22 @@ model DocumentCategory {
 // ==================== 操作人员与注册审核 ====================
 
 model Operator {
-  id           String   @id @default(cuid())
-  username     String   @unique
-  passwordHash String
-  name         String
-  phone        String?
-  role         String   @default("OPERATOR")
-  status       String   @default("PENDING")
-  approvedAt   DateTime?
-  approvedBy   String?
-  lastLoginAt  DateTime?
-  sessions     OperatorSession[]
-  authAccounts OperatorAuthAccount[]
+  id                  String                       @id @default(cuid())
+  username            String                       @unique
+  passwordHash        String
+  name                String
+  phone               String?
+  role                String                       @default("OPERATOR")
+  status              String                       @default("PENDING")
+  approvedAt          DateTime?
+  approvedBy          String?
+  lastLoginAt         DateTime?
+  sessions            OperatorSession[]
+  authAccounts        OperatorAuthAccount[]
   permissionOverrides OperatorPermissionOverride[]
-  permissionGroups OperatorPermissionGroup[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  permissionGroups    OperatorPermissionGroup[]
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
 }
 
 model OperatorAuthAccount {
@@ -971,57 +1018,57 @@ model PermissionSetting {
 }
 
 model OperatorPermissionOverride {
-  id        String   @id @default(cuid())
+  id         String   @id @default(cuid())
   operatorId String
-  operator  Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
-  resource  String
-  canRead   Boolean  @default(false)
-  canCreate Boolean  @default(false)
-  canUpdate Boolean  @default(false)
-  canDelete Boolean  @default(false)
-  canGrant  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  operator   Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  resource   String
+  canRead    Boolean  @default(false)
+  canCreate  Boolean  @default(false)
+  canUpdate  Boolean  @default(false)
+  canDelete  Boolean  @default(false)
+  canGrant   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@unique([operatorId, resource])
   @@index([operatorId])
 }
 
 model PermissionGroup {
-  id          String   @id @default(cuid())
-  code        String   @unique
+  id          String                    @id @default(cuid())
+  code        String                    @unique
   name        String
   description String?
-  isSystem    Boolean  @default(false)
+  isSystem    Boolean                   @default(false)
   settings    PermissionGroupSetting[]
   operators   OperatorPermissionGroup[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
 }
 
 model PermissionGroupSetting {
-  id        String   @id @default(cuid())
+  id        String          @id @default(cuid())
   groupId   String
   group     PermissionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   resource  String
-  canRead   Boolean  @default(false)
-  canCreate Boolean  @default(false)
-  canUpdate Boolean  @default(false)
-  canDelete Boolean  @default(false)
-  canGrant  Boolean  @default(false)
-  updatedAt DateTime @updatedAt
+  canRead   Boolean         @default(false)
+  canCreate Boolean         @default(false)
+  canUpdate Boolean         @default(false)
+  canDelete Boolean         @default(false)
+  canGrant  Boolean         @default(false)
+  updatedAt DateTime        @updatedAt
 
   @@unique([groupId, resource])
   @@index([groupId])
 }
 
 model OperatorPermissionGroup {
-  id         String   @id @default(cuid())
+  id         String          @id @default(cuid())
   operatorId String
-  operator   Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  operator   Operator        @relation(fields: [operatorId], references: [id], onDelete: Cascade)
   groupId    String
   group      PermissionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
+  createdAt  DateTime        @default(now())
 
   @@unique([operatorId, groupId])
   @@index([operatorId])
@@ -1029,12 +1076,12 @@ model OperatorPermissionGroup {
 }
 
 model OperatorSession {
-  id          String   @id @default(cuid())
-  tokenHash   String   @unique
-  operatorId  String
-  operator    Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  operatorId String
+  operator   Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
 
   @@index([operatorId])
 }

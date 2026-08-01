@@ -50,6 +50,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           note: `生产日报 ${report.reportNo} 自动耗料`,
           createdBy: confirmedBy,
           idempotencyKey: `DAILY_PRODUCTION:${report.id}:CONSUME:${line.id}`,
+          locationId: report.consumptionLocationId,
         })
         await tx.dailyProductionConsumption.update({
           where: { id: line.id },
@@ -86,6 +87,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           note: `生产日报 ${report.reportNo} 合格品入库`,
           createdBy: confirmedBy,
           idempotencyKey: `DAILY_PRODUCTION:${report.id}:OUTPUT`,
+          locationId: report.outputLocationId,
         })
         outputValuationQty = Number(receipt.quantities?.valuationQty || 0)
         outputStockUnit = receipt.material?.stockUnit || null

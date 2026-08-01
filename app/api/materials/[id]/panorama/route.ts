@@ -55,7 +55,14 @@ export async function GET(
       where: { id: params.id },
       include: {
         customer: { select: { id: true, code: true, name: true } },
-        stock: true,
+        stock: {
+          include: {
+            locationBalances: {
+              include: { location: true },
+              orderBy: { location: { code: 'asc' } },
+            },
+          },
+        },
         processTemplates: { orderBy: [{ category: 'asc' }, { code: 'asc' }] },
         bomItems: {
           orderBy: { id: 'asc' },
@@ -309,20 +316,15 @@ export async function GET(
       }
     })
 
-    const locationBalances = material.stock
-      ? [{
-          id: 'default',
-          locationCode: 'DEFAULT',
-          locationName: '默认库位',
-          qty: material.stock.qty,
-          reservedQty: material.stock.reservedQty,
-          availableQty: material.stock.availableQty,
-          valuationQty: material.stock.valuationQty,
-          reservedValuationQty: material.stock.reservedValuationQty,
-          availableValuationQty: material.stock.availableValuationQty,
-          note: '当前版本尚未启用库位明细模型，先以默认库位展示总库存。',
-        }]
-      : []
+    const locationBalances = (material.stock?.locationBalances || []).map((balance) => ({
+      id: balance.id,
+      locationCode: balance.location.code,
+      locationName: balance.location.name,
+      qty: balance.qty,
+      reservedQty: balance.reservedQty,
+      availableQty: balance.availableQty,
+      note: balance.location.note || undefined,
+    }))
 
     const productBoms = linkedProducts
       .filter((product) => product.bom)
@@ -389,7 +391,7 @@ export async function GET(
         costLayers,
         integrityWarnings,
         modelNotes: [
-          '库位明细尚未建模，本页先用默认库位展示库存余额。',
+          '库位余额只记录实物主库存数量；成本与核算数量继续按物料总库存统一核算。',
           '产品文档优先读取正式产品文档模块，旧附件文档保留为历史资料。',
         ],
       },

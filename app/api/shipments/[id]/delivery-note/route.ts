@@ -69,6 +69,7 @@ async function renderDeliveryNotePdf(shipment: any) {
     doc.text(`客户：${shipment.customer}`, left, 136)
     doc.text(`电话：${shipment.customerPhone || '-'}`, left + 280, 136)
     doc.text(`地址：${shipment.address || '-'}`, left, 160, { width: tableWidth })
+    doc.text(`发货库位：${shipment.location ? `${shipment.location.code} · ${shipment.location.name}` : '默认库位'}`, left + 280, 184)
 
     const tableTop = 204
     const headerHeight = 34
@@ -133,6 +134,7 @@ export async function GET(
       where: { id: params.id },
       include: {
         product: { select: { sku: true, name: true, unit: true } },
+        location: { select: { code: true, name: true } },
       },
     })
 

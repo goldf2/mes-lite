@@ -6,11 +6,13 @@ import { writeAuditLog } from '@/lib/audit'
 import { resolveMaterialUnits, toValuationQty } from '@/lib/units'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 import { materialInPriceUnits, normalizeMaterialInPriceUnit, resolveMaterialInPricing, resolveMaterialInStockQuantity } from '@/lib/material-in-quantity'
+import { resolveInventoryLocation } from '@/lib/inventory'
 
 const createMaterialInSchema = z.object({
   voucherNo: z.string().optional(),
   supplierId: z.string().min(1, '供应商必填'),
   materialId: z.string().min(1, '物料必填'),
+  locationId: z.string().min(1, '库位必填').optional(),
   qty: z.number().positive('数量必须大于 0'),
   pieceCount: z.number().int().positive('数量必须为正整数').optional(),
   stockQtyMode: z.enum(['TOTAL', 'PER_PIECE']).optional(),
@@ -70,6 +72,7 @@ export async function GET(req: NextRequest) {
         where,
         include: {
           supplier: true,
+          location: true,
           material: { include: { customer: { select: { id: true, code: true, name: true } } } },
         },
         orderBy: { createdAt: 'desc' },
@@ -96,7 +99,7 @@ export async function POST(req: NextRequest) {
     if (denied) return denied
 
     const body = await req.json()
-    const { supplierId, materialId, valuationQty, unitPrice, batchNo, receivedBy, note, voucherNo } =
+    const { supplierId, materialId, locationId, valuationQty, unitPrice, batchNo, receivedBy, note, voucherNo } =
       createMaterialInSchema.parse(body)
 
     // 校验供应商存在且未归档
@@ -114,6 +117,7 @@ export async function POST(req: NextRequest) {
     if (!material) {
       return NextResponse.json({ error: '物料不存在或已归档' }, { status: 404 })
     }
+    const location = await resolveInventoryLocation(prisma, locationId)
     const stockQuantity = resolveMaterialInStockQuantity({
       primaryMeasure: material.primaryMeasure,
       qty: body.qty,
@@ -174,6 +178,7 @@ export async function POST(req: NextRequest) {
         voucherNo: voucherNo?.trim() || null,
         supplierId,
         materialId,
+        locationId: location.id,
         qty,
         unit: stockUnit,
         pieceCount,
@@ -199,6 +204,7 @@ export async function POST(req: NextRequest) {
       include: {
         supplier: true,
         material: true,
+        location: true,
       },
     })
 
@@ -215,7 +221,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
     }
-    if (error instanceof Error && /必须|不能为负|必须大于/.test(error.message)) {
+    if (error instanceof Error && /必须|不能为负|必须大于|库位/.test(error.message)) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('Create material-in error:', error)

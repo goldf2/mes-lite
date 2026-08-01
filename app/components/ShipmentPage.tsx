@@ -17,6 +17,21 @@ interface MaterialChoice {
   customerId?: string | null
   customer?: { id: string; code: string; name: string } | null
   unit: string
+  availableQty: number
+  locationBalances: Array<{
+    locationId: string
+    locationCode: string
+    locationName: string
+    qty: number
+    availableQty: number
+  }>
+}
+
+interface InventoryLocation {
+  id: string
+  code: string
+  name: string
+  isDefault: boolean
 }
 
 interface Customer {
@@ -33,6 +48,7 @@ interface Shipment {
   shipmentNo: string
   voucherNo?: string | null
   productId: string
+  locationId?: string | null
   customerId?: string | null
   qty: number
   unitPrice: number
@@ -48,6 +64,7 @@ interface Shipment {
   createdAt: string
   product: { id: string; name: string; sku: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null }
   customerRef?: { id: string; code: string; name: string } | null
+  location?: { id: string; code: string; name: string } | null
 }
 
 const statusColors: Record<string, string> = {
@@ -81,6 +98,7 @@ export default function ShipmentPage({
   const [shipments, setShipments] = useState<Shipment[]>([])
   const [products, setProducts] = useState<MaterialChoice[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
+  const [locations, setLocations] = useState<InventoryLocation[]>([])
   const [keyword, setKeyword] = useState('')
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
@@ -91,6 +109,7 @@ export default function ShipmentPage({
   const [form, setForm] = useState({
     voucherNo: '',
     productId: '',
+    locationId: '',
     customerId: '',
     qty: 0,
     unitPrice: 0,
@@ -101,11 +120,13 @@ export default function ShipmentPage({
     note: '',
   })
   const selectedProduct = products.find((item) => item.id === form.productId)
+  const selectedLocationBalance = selectedProduct?.locationBalances.find((item) => item.locationId === form.locationId)
 
   useEffect(() => {
     fetchShipments()
     fetchProducts()
     fetchCustomers()
+    fetchLocations()
   }, [keyword, selectedStatuses, selectedCustomerId])
 
   const fetchShipments = async () => {
@@ -149,10 +170,27 @@ export default function ShipmentPage({
     }
   }
 
+  const fetchLocations = async () => {
+    try {
+      const res = await fetch('/api/inventory-locations')
+      if (!res.ok) return
+      const data = await res.json()
+      const options = data.data || []
+      setLocations(options)
+      setForm((current) => current.locationId ? current : {
+        ...current,
+        locationId: options.find((item: InventoryLocation) => item.isDefault)?.id || options[0]?.id || '',
+      })
+    } catch {
+      // 提交接口会校验库位
+    }
+  }
+
   const resetForm = () => {
     setForm({
       voucherNo: '',
       productId: '',
+      locationId: locations.find((item) => item.isDefault)?.id || locations[0]?.id || '',
       customerId: '',
       qty: 0,
       unitPrice: 0,
@@ -164,9 +202,15 @@ export default function ShipmentPage({
     })
   }
 
+  const openCreate = async () => {
+    resetForm()
+    await Promise.all([fetchProducts(), fetchLocations()])
+    setShowModal(true)
+  }
+
   const handleSubmit = async () => {
-    if (!form.productId || form.qty <= 0 || !form.customer) {
-      onMessage('请选择物料并填写数量和客户')
+    if (!form.productId || !form.locationId || form.qty <= 0 || !form.customer) {
+      onMessage('请选择物料和发货库位，并填写数量和客户')
       return
     }
     setLoading(true)
@@ -176,6 +220,7 @@ export default function ShipmentPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId: form.productId,
+          locationId: form.locationId,
           voucherNo: form.voucherNo || undefined,
           customerId: form.customerId || undefined,
           qty: form.qty,
@@ -284,10 +329,7 @@ export default function ShipmentPage({
               <ViewModeToggle value={viewMode} onChange={setViewMode} />
             </div>
             <button
-              onClick={() => {
-                resetForm()
-                setShowModal(true)
-              }}
+              onClick={openCreate}
               className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
             >
               新增
@@ -339,10 +381,7 @@ export default function ShipmentPage({
                 <ViewModeToggle value={viewMode} onChange={setViewMode} />
               </div>
               <button
-                onClick={() => {
-                  resetForm()
-                  setShowModal(true)
-                }}
+                onClick={openCreate}
                 className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
               >
                 新增
@@ -377,6 +416,7 @@ export default function ShipmentPage({
                     <div className="text-xs text-gray-500">物料</div>
                     <div className="mt-1 font-medium text-gray-900">{item.product?.name}</div>
                     <div className="text-xs text-gray-500">{item.product?.sku}</div>
+                    <div className="mt-1 text-xs text-blue-700">库位：{item.location ? `${item.location.code} · ${item.location.name}` : '默认库位'}</div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-500">客户</div>
@@ -451,6 +491,7 @@ export default function ShipmentPage({
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">发货单号</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">凭据号</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">发货库位</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">数量</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">单价</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">总金额</th>
@@ -470,6 +511,7 @@ export default function ShipmentPage({
                       <div className="font-medium">{item.product?.name}</div>
                       <div className="text-xs text-gray-500">{item.product?.sku}</div>
                     </td>
+                    <td className="px-4 py-3 text-sm">{item.location ? <><div>{item.location.name}</div><div className="font-mono text-xs text-gray-500">{item.location.code}</div></> : '默认库位'}</td>
                     <td className="px-4 py-3">{item.qty}</td>
                     <td className="px-4 py-3">¥{item.unitPrice.toFixed(2)}</td>
                     <td className="px-4 py-3 font-medium">¥{item.totalAmount.toFixed(2)}</td>
@@ -563,6 +605,23 @@ export default function ShipmentPage({
                   onChange={handleProductChange}
                   placeholder="输入物料编码、名称或客户筛选"
                 />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">发货库位</label>
+                <select
+                  value={form.locationId}
+                  onChange={(event) => setForm({ ...form, locationId: event.target.value })}
+                  className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">请选择库位</option>
+                  {locations.map((location) => <option key={location.id} value={location.id}>{location.code} · {location.name}</option>)}
+                </select>
+                {selectedProduct && (
+                  <div className={`mt-2 rounded px-3 py-2 text-xs ${form.qty > Number(selectedLocationBalance?.availableQty || 0) ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>
+                    当前可用：<strong>{selectedLocationBalance?.availableQty || 0} {selectedProduct.unit}</strong>；生产日报确认的合格品入库会直接增加这里的数量。
+                    {form.qty > Number(selectedLocationBalance?.availableQty || 0) && ' 当前数量可先保存为待发货，确认发货时将再次校验库存。'}
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

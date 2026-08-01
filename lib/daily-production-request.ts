@@ -3,6 +3,8 @@ import { z } from 'zod'
 export const dailyProductionReportInputSchema = z.object({
   reportDate: z.string().min(1, '生产日期必填'),
   finishedMaterialId: z.string().min(1, '请选择产出物料'),
+  consumptionLocationId: z.string().min(1, '请选择原料出库库位').optional(),
+  outputLocationId: z.string().min(1, '请选择成品入库库位').optional(),
   goodQty: z.number().finite().nonnegative(),
   badQty: z.number().finite().nonnegative(),
   scrapQty: z.number().finite().nonnegative(),
@@ -27,6 +29,8 @@ export function parseDailyProductionReportDate(value: string) {
 }
 
 export const dailyProductionReportInclude = {
+  consumptionLocation: { select: { id: true, code: true, name: true } },
+  outputLocation: { select: { id: true, code: true, name: true } },
   finishedMaterial: {
     select: {
       id: true,

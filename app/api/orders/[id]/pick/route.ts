@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { consumeMaterialCost } from '@/lib/costing'
 import { writeAuditLog } from '@/lib/audit'
+import { changeStockLocationBalance } from '@/lib/inventory'
 
 const pickSchema = z.object({
   items: z.array(
@@ -121,11 +122,18 @@ export async function POST(
             stockUnitCost: Math.max(0, nextStockUnitCost),
           },
         })
+        const { location } = await changeStockLocationBalance(tx, {
+          stockId: stock.id,
+          qtyDelta: -item.actualQty,
+          reservedDelta: -requiredQty,
+          availableDelta,
+        })
 
         // 记录库存日志
         await tx.stockLog.create({
           data: {
             stockId: stock.id,
+            locationId: location.id,
             type: 'PICK',
             qty: -item.actualQty,
             beforeQty: stock.qty,

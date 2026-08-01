@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
+import { changeStockLocationBalance } from '@/lib/inventory'
 
 const stockInSchema = z.object({
   qty: z.number().int().positive(),
@@ -73,10 +74,12 @@ export async function POST(
             } : {}),
           },
         })
+        const { location } = await changeStockLocationBalance(tx, { stockId: stock.id, qtyDelta: qty })
 
         await tx.stockLog.create({
           data: {
             stockId: stock.id,
+            locationId: location.id,
             type: 'STOCK_IN',
             qty,
             beforeQty: stock.qty,
@@ -94,7 +97,7 @@ export async function POST(
         })
       } else {
         // 新建库存记录
-        await tx.stock.create({
+        const createdStock = await tx.stock.create({
           data: {
             ...(targetMaterial ? { materialId: targetMaterial.id } : { productId: order.productId }),
             qty,
@@ -104,6 +107,7 @@ export async function POST(
             reservedQty: 0,
           },
         })
+        await changeStockLocationBalance(tx, { stockId: createdStock.id, qtyDelta: qty })
       }
 
       // 3. 更新工单状态

@@ -127,7 +127,7 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
+type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
 type MaterialSection = 'materials' | 'bomWorkspace' | 'bomUsage'
 type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'logistics' | 'inventory' | 'tools'
 
@@ -137,7 +137,7 @@ const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: 
   { key: 'production', label: '生产', tabs: ['orders', 'stats', 'workInstructions', 'processTemplates', 'processRoutes', 'dispatch'] },
   { key: 'logistics', label: '物流', tabs: ['materialIn', 'shipment', 'return', 'suppliers', 'customers'] },
   { key: 'inventory', label: '库存', tabs: ['stocks'] },
-  { key: 'tools', label: '工具', tabs: ['sawingCost', 'scanPrint', 'archive', 'auditLogs', 'dataTools', 'unitSettings', 'systemSettings'] },
+  { key: 'tools', label: '工具', tabs: ['sawingCost', 'scanPrint', 'archive', 'auditLogs', 'dataTools', 'unitSettings', 'locationSettings', 'systemSettings'] },
 ]
 
 const systemSectionByTab: Partial<Record<TabType, SystemSection>> = {
@@ -149,6 +149,7 @@ const systemSectionByTab: Partial<Record<TabType, SystemSection>> = {
   auditLogs: 'audit',
   dataTools: 'dataTools',
   unitSettings: 'units',
+  locationSettings: 'locations',
   systemSettings: 'preferences',
 }
 
@@ -180,6 +181,7 @@ function MenuIcon({ icon }: { icon: string }) {
     auditLogs: '记',
     dataTools: '数',
     unitSettings: '单',
+    locationSettings: '位',
     systemSettings: '设',
     operators: '人',
     permissionUsers: '权',
@@ -364,6 +366,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'auditLogs', label: '操作记录', resource: 'system' },
     { key: 'dataTools', label: '数据工具', resource: 'system' },
     { key: 'unitSettings', label: '单位配置', resource: 'system' },
+    { key: 'locationSettings', label: '库位配置', resource: 'system' },
     { key: 'systemSettings', label: '系统设置', resource: 'system' },
     { key: 'operators', label: '人员管理', resource: 'operators' },
     { key: 'permissionUsers', label: '人员权限', resource: 'permissionUsers' },

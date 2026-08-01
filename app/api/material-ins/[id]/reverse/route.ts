@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { z } from 'zod'
+import { changeStockLocationBalance } from '@/lib/inventory'
 
 const reverseSchema = z.object({
   reason: z.string().min(1, '红冲原因必填'),
@@ -93,6 +94,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           stockUnitCost: Math.max(0, stockUnitCost),
         },
       })
+      const { location } = await changeStockLocationBalance(tx, {
+        stockId: stock.id,
+        locationId: materialIn.locationId,
+        qtyDelta: -qty,
+      })
 
       if (layer) {
         await tx.inventoryCostLayer.update({
@@ -131,6 +137,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       const reversalMovement = await tx.stockLog.create({
         data: {
           stockId: stock.id,
+          locationId: location.id,
           type: 'REVERSE_IN',
           qty: -qty,
           beforeQty,
