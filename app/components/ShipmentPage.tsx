@@ -11,6 +11,8 @@ import SearchableSelect from './SearchableSelect'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import SortableTableHeader from './SortableTableHeader'
 import useClientTableSort from './useClientTableSort'
+import ModalDialog, { ModalActions } from './ModalDialog'
+import AppButton from './AppButton'
 
 interface MaterialChoice {
   id: string
@@ -325,17 +327,17 @@ export default function ShipmentPage({
               onChange={setSelectedStatuses}
               storageKey="mes-lite.filters.shipment.status.order"
             />
-            <select
+            <SearchableSelect
               value={selectedCustomerId}
-              onChange={(e) => setSelectedCustomerId(e.target.value)}
-              className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-            >
-              <option value="">全部客户</option>
-              <option value="__UNASSIGNED__">通用/未绑定</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>{customer.name}</option>
-              ))}
-            </select>
+              onChange={setSelectedCustomerId}
+              options={[
+                { value: '__UNASSIGNED__', label: '通用/未绑定' },
+                ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
+              ]}
+              placeholder="输入客户名称筛选（全部客户）"
+              allowClear
+              className="w-56"
+            />
           </>
         )}
         actions={(
@@ -343,12 +345,12 @@ export default function ShipmentPage({
             <div>
               <ViewModeToggle value={viewMode} onChange={setViewMode} />
             </div>
-            <button
+            <AppButton
+              variant="create"
               onClick={openCreate}
-              className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
             >
               新增
-            </button>
+            </AppButton>
           </>
         )}
       />
@@ -377,17 +379,17 @@ export default function ShipmentPage({
                 onChange={setSelectedStatuses}
                 storageKey="mes-lite.filters.shipment.status.order"
               />
-              <select
+              <SearchableSelect
                 value={selectedCustomerId}
-                onChange={(e) => setSelectedCustomerId(e.target.value)}
-                className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-              >
-                <option value="">全部客户</option>
-                <option value="__UNASSIGNED__">通用/未绑定</option>
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>{customer.name}</option>
-                ))}
-              </select>
+                onChange={setSelectedCustomerId}
+                options={[
+                  { value: '__UNASSIGNED__', label: '通用/未绑定' },
+                  ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
+                ]}
+                placeholder="输入客户名称筛选（全部客户）"
+                allowClear
+                className="w-56"
+              />
             </>
           )}
           actions={(
@@ -395,12 +397,12 @@ export default function ShipmentPage({
               <div>
                 <ViewModeToggle value={viewMode} onChange={setViewMode} />
               </div>
-              <button
+              <AppButton
+                variant="create"
                 onClick={openCreate}
-                className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
               >
                 新增
-              </button>
+              </AppButton>
             </>
           )}
         />
@@ -590,17 +592,20 @@ export default function ShipmentPage({
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">新增发货单</h3>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
-              >
-                ×
-              </button>
-            </div>
+        <ModalDialog
+          title="新增发货单"
+          description="选择物料和发货库位，库存将在确认发货时再次校验。"
+          onClose={() => setShowModal(false)}
+          closeDisabled={loading}
+          footer={(
+            <ModalActions
+              onCancel={() => setShowModal(false)}
+              onConfirm={handleSubmit}
+              confirmLabel="提交"
+              busy={loading}
+            />
+          )}
+        >
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">凭据号</label>
@@ -719,24 +724,8 @@ export default function ShipmentPage({
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
-                >
-                  {loading ? '提交中...' : '提交'}
-                </button>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
-                >
-                  取消
-                </button>
-              </div>
             </div>
-          </div>
-        </div>
+        </ModalDialog>
       )}
       </div>
     </>

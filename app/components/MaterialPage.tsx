@@ -19,6 +19,8 @@ import {
   calculateBomUnitRatio,
 } from '@/lib/bom-ratio'
 import { isMeterUnit } from '@/lib/units'
+import ModalDialog, { ModalActions } from './ModalDialog'
+import AppButton from './AppButton'
 
 interface Material {
   id: string
@@ -1614,17 +1616,17 @@ export default function MaterialPage({
               onChange={setSelectedCategories}
               allLabel="全部分类"
             />
-            <select
+            <SearchableSelect
               value={customerFilter}
-              onChange={(e) => setCustomerFilter(e.target.value)}
-              className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-            >
-              <option value="">全部客户</option>
-              <option value="__UNASSIGNED__">通用/未绑定</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>{customer.name}</option>
-              ))}
-            </select>
+              onChange={setCustomerFilter}
+              options={[
+                { value: '__UNASSIGNED__', label: '通用/未绑定' },
+                ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
+              ]}
+              placeholder="输入客户名称筛选（全部客户）"
+              allowClear
+              className="w-56"
+            />
             <div className="flex flex-nowrap items-center gap-2 whitespace-nowrap">
               <select
                 value={sortBy}
@@ -1671,24 +1673,22 @@ export default function MaterialPage({
             <div>
               <ViewModeToggle value={viewMode} onChange={setViewMode} />
             </div>
-            <button
+            <AppButton
+              variant="create"
               onClick={handleAdd}
-              className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
             >
               新增
-            </button>
-            <button
+            </AppButton>
+            <AppButton
               onClick={openImportModal}
-              className="shrink-0 whitespace-nowrap px-3 py-1.5 border border-blue-300 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-50 transition sm:px-4 sm:py-2 sm:text-sm"
             >
               导入
-            </button>
-            <button
+            </AppButton>
+            <AppButton
               onClick={handleExport}
-              className="shrink-0 whitespace-nowrap px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 transition sm:px-4 sm:py-2 sm:text-sm"
             >
               导出
-            </button>
+            </AppButton>
           </>
         )}
       />
@@ -1721,17 +1721,17 @@ export default function MaterialPage({
                 onChange={setSelectedCategories}
                 allLabel="全部分类"
               />
-              <select
+              <SearchableSelect
                 value={customerFilter}
-                onChange={(e) => setCustomerFilter(e.target.value)}
-                className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-              >
-                <option value="">全部客户</option>
-                <option value="__UNASSIGNED__">通用/未绑定</option>
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>{customer.name}</option>
-                ))}
-              </select>
+                onChange={setCustomerFilter}
+                options={[
+                  { value: '__UNASSIGNED__', label: '通用/未绑定' },
+                  ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
+                ]}
+                placeholder="输入客户名称筛选（全部客户）"
+                allowClear
+                className="w-56"
+              />
               <div className="flex flex-nowrap items-center gap-2 whitespace-nowrap">
                 <select
                   value={sortBy}
@@ -1778,24 +1778,22 @@ export default function MaterialPage({
               <div>
                 <ViewModeToggle value={viewMode} onChange={setViewMode} />
               </div>
-              <button
+              <AppButton
+                variant="create"
                 onClick={handleAdd}
-                className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
               >
                 新增
-              </button>
-              <button
+              </AppButton>
+              <AppButton
                 onClick={openImportModal}
-                className="shrink-0 whitespace-nowrap px-3 py-1.5 border border-blue-300 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-50 transition sm:px-4 sm:py-2 sm:text-sm"
               >
                 导入
-              </button>
-              <button
+              </AppButton>
+              <AppButton
                 onClick={handleExport}
-                className="shrink-0 whitespace-nowrap px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 transition sm:px-4 sm:py-2 sm:text-sm"
               >
                 导出
-              </button>
+              </AppButton>
             </>
           )}
         />
@@ -2452,15 +2450,21 @@ export default function MaterialPage({
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
-          <div className="flex max-h-[90vh] w-full max-w-6xl flex-col rounded-lg bg-white shadow-xl">
-            <div className="flex shrink-0 items-center justify-between border-b px-6 py-3">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">{editingMaterial ? '编辑物料' : '新增物料'}</h3>
-              </div>
-              <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">&times;</button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+        <ModalDialog
+          title={editingMaterial ? '编辑物料' : '新增物料'}
+          description="维护物料基础资料、库存主单位和参考计价单位。"
+          onClose={() => setShowModal(false)}
+          closeDisabled={loading}
+          size="wide"
+          footer={(
+            <ModalActions
+              onCancel={() => setShowModal(false)}
+              onConfirm={handleSubmit}
+              confirmLabel="保存"
+              busy={loading}
+            />
+          )}
+        >
               <div className="space-y-5">
                 <section className="space-y-3">
                   <h4 className="border-b border-gray-100 pb-2 text-sm font-semibold text-gray-900">基础信息</h4>
@@ -2575,7 +2579,7 @@ export default function MaterialPage({
                         ]}
                         placeholder="输入单位名称或编码筛选"
                       />
-                      <p className="mt-1 text-xs text-gray-500">只能选择系统单位目录中的单位；新增单位请到“工具 → 单位配置”。</p>
+                      <p className="mt-1 text-xs text-gray-500">只能选择系统单位目录中的单位；新增单位请到“配置 → 单位配置”。</p>
                       {editingMaterial && (editingMaterial.stockUnit || editingMaterial.unit) !== form.stockUnit && (
                         <p className="mt-1 rounded bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
                           将从 {editingMaterial.stockUnit || editingMaterial.unit} 改为 {form.stockUnit || '空'}。系统只修改物料主数据并记录审计，不换算数值，也不改写历史业务记录和既有 BOM。
@@ -2656,30 +2660,26 @@ export default function MaterialPage({
                   <p className="text-xs text-gray-500">物料不保存标准长度。长度型原料在每张来料单按根数及总长度/单根长度录入本批实际长度。</p>
                 </section>
               </div>
-            </div>
-            <div className="flex shrink-0 gap-3 border-t bg-white px-6 py-4">
-              <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
-                取消
-              </button>
-              <button onClick={handleSubmit} disabled={loading} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                {loading ? '保存中...' : '保存'}
-              </button>
-            </div>
-          </div>
-        </div>
+        </ModalDialog>
       )}
 
       {showImportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
-          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl">
-            <div className="flex shrink-0 items-center justify-between border-b px-6 py-4">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">批量导入物料</h3>
-                <p className="mt-1 text-sm text-gray-500">仅导入物料主数据，不导入库存数量和成本。</p>
-              </div>
-              <button onClick={() => setShowImportModal(false)} className="text-gray-500 hover:text-gray-700">&times;</button>
-            </div>
-            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
+        <ModalDialog
+          title="批量导入物料"
+          description="仅导入物料主数据，不导入库存数量和成本。"
+          onClose={() => setShowImportModal(false)}
+          closeDisabled={importLoading}
+          size="lg"
+          footer={(
+            <ModalActions
+              onCancel={() => setShowImportModal(false)}
+              onConfirm={handleImportSubmit}
+              confirmLabel="开始导入"
+              busy={importLoading}
+            />
+          )}
+        >
+            <div className="space-y-5">
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 物料编码是业务可视化编码，必须唯一；规格用于记录尺寸、材质、版本等描述。库存初始化请到库存管理做存货调整。
               </div>
@@ -2724,46 +2724,34 @@ export default function MaterialPage({
                 </div>
               )}
             </div>
-            <div className="flex shrink-0 gap-3 border-t bg-white px-6 py-4">
-              <button onClick={() => setShowImportModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
-                取消
-              </button>
-              <button onClick={handleImportSubmit} disabled={importLoading} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                {importLoading ? '导入中...' : '开始导入'}
-              </button>
-            </div>
-          </div>
-        </div>
+        </ModalDialog>
       )}
 
       {detailMaterial && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-5 border-b">
-              <h3 className="text-base font-semibold text-gray-900">物料详情</h3>
-              <div className="flex items-center gap-3">
-                <button
+        <ModalDialog
+          title="物料详情"
+          description={`${detailMaterial.code} · ${detailMaterial.name}`}
+          onClose={() => setDetailMaterial(null)}
+          size="xl"
+          headerActions={(
+            <>
+                <AppButton
                   onClick={() => handleOpenPanorama(detailMaterial)}
-                  className="px-3 py-2 text-sm text-green-700 border border-green-300 rounded-md hover:bg-green-50"
+                  variant="create"
+                  size="sm"
                 >
                   全景
-                </button>
-                <button
+                </AppButton>
+                <AppButton
                   onClick={handleEditFromDetail}
-                  className="px-3 py-2 text-sm text-blue-700 border border-blue-300 rounded-md hover:bg-blue-50"
+                  size="sm"
                 >
                   编辑资料
-                </button>
-                <button
-                  onClick={() => setDetailMaterial(null)}
-                  className="h-9 w-9 flex-shrink-0 text-2xl text-gray-400 hover:text-gray-700"
-                  aria-label="关闭详情"
-                >
-                  &times;
-                </button>
-              </div>
-            </div>
-            <div className="p-6 space-y-6">
+                </AppButton>
+            </>
+          )}
+          bodyClassName="space-y-6"
+        >
               <div className="grid gap-6 md:grid-cols-[minmax(260px,0.9fr)_minmax(0,1.35fr)]">
                 <a
                   href={detailMaterial.primaryImage?.url}
@@ -2855,9 +2843,7 @@ export default function MaterialPage({
                 allowCover
                 onMessage={handleAttachmentMessage}
               />
-            </div>
-          </div>
-        </div>
+        </ModalDialog>
       )}
 
       {panoramaMaterialId && (

@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import SearchableSelect from './SearchableSelect'
+import ModalDialog from './ModalDialog'
+import AppButton from './AppButton'
 
 export interface DocumentCategoryItem {
   id: string
@@ -142,17 +144,14 @@ export default function DocumentCategoryManagerModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[65] flex items-center justify-center mes-modal-overlay p-3 sm:p-4">
-      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
-        <div className="flex shrink-0 items-center justify-between border-b px-4 py-3 sm:px-6">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">文档类别管理</h3>
-            <p className="mt-1 text-xs text-gray-500">一级类别可直接使用，也可添加二级类别；最多支持两级。</p>
-          </div>
-          <button type="button" onClick={onClose} className="h-9 w-9 text-2xl text-gray-400 hover:text-gray-700" aria-label="关闭类别管理">&times;</button>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+    <ModalDialog
+      title="文档类别管理"
+      description="一级类别可直接使用，也可添加二级类别；最多支持两级。"
+      onClose={onClose}
+      closeDisabled={saving}
+      size="xl"
+      overlayClassName="z-[65]"
+    >
           <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4">
             <div className="mb-3 text-sm font-semibold text-gray-900">{editing ? '编辑类别' : '新增类别'}</div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(180px,0.7fr)_auto]">
@@ -174,13 +173,13 @@ export default function DocumentCategoryManagerModal({
               />
               <div className="flex gap-2">
                 {editing && (
-                  <button type="button" onClick={resetForm} className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                  <AppButton type="button" onClick={resetForm} size="sm">
                     取消
-                  </button>
+                  </AppButton>
                 )}
-                <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
+                <AppButton type="button" onClick={save} disabled={saving} variant="primary" size="sm">
                   {saving ? '保存中...' : '保存'}
-                </button>
+                </AppButton>
               </div>
             </div>
           </div>
@@ -197,9 +196,7 @@ export default function DocumentCategoryManagerModal({
               </div>
             ))}
           </div>
-        </div>
-      </div>
-    </div>
+    </ModalDialog>
   )
 }
 

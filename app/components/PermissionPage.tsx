@@ -5,6 +5,7 @@ import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import SortableTableHeader from './SortableTableHeader'
 import useClientTableSort from './useClientTableSort'
+import AppButton from './AppButton'
 
 interface ResourceItem {
   key: string
@@ -451,24 +452,24 @@ export default function PermissionPage({
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h3 className="text-lg font-semibold">权限组赋权</h3>
-            <p className="text-sm text-gray-500 mt-1">{activeGroup ? `${activeGroup.name}：${activeGroup.description || '配置这个权限组可访问的功能和操作。'}` : '新建或选择权限组后配置功能权限。'}</p>
+            <p className="text-sm text-gray-500 mt-1">{activeGroup ? `${activeGroup.name}：${activeGroup.description || '配置这个权限组可访问的功能和操作。'}` : '新增或选择权限组后配置功能权限。'}</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <ViewModeToggle value={groupViewMode} onChange={setGroupViewMode} />
-            <button
+            <AppButton
+              variant="create"
               onClick={() => setShowNewGroupForm((value) => !value)}
               disabled={loading}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
             >
-              新建权限组
-            </button>
-            <button
+              新增权限组
+            </AppButton>
+            <AppButton
+              variant="primary"
               onClick={saveGroupSettings}
               disabled={loading || !activeGroup}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
             >
               保存权限组赋权
-            </button>
+            </AppButton>
           </div>
         </div>
 

@@ -11,6 +11,9 @@ import MaterialChoiceSearch from './MaterialChoiceSearch'
 import SearchableSelect from './SearchableSelect'
 import SortableTableHeader from './SortableTableHeader'
 import useClientTableSort from './useClientTableSort'
+import ModalDialog, { ModalActions } from './ModalDialog'
+import FormField, { appInputClassName, appTextareaClassName } from './FormField'
+import AppButton from './AppButton'
 
 interface MaterialChoice {
   id: string
@@ -275,15 +278,15 @@ export default function ReturnPage({
             <div>
               <ViewModeToggle value={viewMode} onChange={setViewMode} />
             </div>
-            <button
+            <AppButton
+              variant="create"
               onClick={() => {
                 resetForm()
                 setShowModal(true)
               }}
-              className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
             >
               新增
-            </button>
+            </AppButton>
           </>
         )}
       />
@@ -330,15 +333,15 @@ export default function ReturnPage({
               <div>
                 <ViewModeToggle value={viewMode} onChange={setViewMode} />
               </div>
-              <button
+              <AppButton
+                variant="create"
                 onClick={() => {
                   resetForm()
                   setShowModal(true)
                 }}
-                className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
               >
                 新增
-              </button>
+              </AppButton>
             </>
           )}
         />
@@ -492,50 +495,49 @@ export default function ReturnPage({
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">新增退货单</h3>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
-              >
-                ×
-              </button>
-            </div>
+        <ModalDialog
+          title="新增退货单"
+          description="登记退回物料、数量和实际接收库位。"
+          onClose={() => setShowModal(false)}
+          closeDisabled={loading}
+          footer={(
+            <ModalActions
+              onCancel={() => setShowModal(false)}
+              onConfirm={handleSubmit}
+              confirmLabel="提交"
+              busy={loading}
+            />
+          )}
+        >
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">凭据号</label>
+              <FormField label="凭据号" hint="可填写客户退货单号、外部凭据号或纸质单号。">
                 <input
                   type="text"
                   value={form.voucherNo}
                   onChange={(e) => setForm({ ...form, voucherNo: e.target.value })}
                   placeholder="客户退货单号、外部凭据号或纸质单号"
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={appInputClassName}
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">物料</label>
+              </FormField>
+              <FormField label="物料" required>
                 <MaterialChoiceSearch
                   value={form.productId}
                   options={products}
                   onChange={(productId) => setForm({ ...form, productId })}
                   placeholder="输入物料编码、名称或客户筛选"
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">数量{selectedProduct ? ` (${selectedProduct.unit})` : ''}</label>
+              </FormField>
+              <FormField label={`数量${selectedProduct ? `（${selectedProduct.unit}）` : ''}`} required>
                 <input
                   type="number"
                   step="any"
                   value={form.qty || ''}
                   onChange={(e) => setForm({ ...form, qty: Number(e.target.value) })}
                   min={0}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={appInputClassName}
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">退回库位</label>
+              </FormField>
+              <FormField label="退回库位" required hint="退货处理后，库存会进入所选库位。">
                 <SearchableSelect
                   value={form.locationId}
                   onChange={(locationId) => setForm({ ...form, locationId })}
@@ -545,44 +547,26 @@ export default function ReturnPage({
                   }))}
                   placeholder="输入库位编码或名称筛选"
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">退货原因</label>
+              </FormField>
+              <FormField label="退货原因" required>
                 <textarea
                   value={form.reason}
                   onChange={(e) => setForm({ ...form, reason: e.target.value })}
                   rows={3}
                   placeholder="请填写退货原因"
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={appTextareaClassName}
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">备注</label>
+              </FormField>
+              <FormField label="备注">
                 <textarea
                   value={form.note}
                   onChange={(e) => setForm({ ...form, note: e.target.value })}
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={appTextareaClassName}
                 />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
-                >
-                  {loading ? '提交中...' : '提交'}
-                </button>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
-                >
-                  取消
-                </button>
-              </div>
+              </FormField>
             </div>
-          </div>
-        </div>
+        </ModalDialog>
       )}
       </div>
     </>

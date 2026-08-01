@@ -12,6 +12,8 @@ import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import { MaterialInPriceUnit, normalizeMaterialInPriceUnit } from '@/lib/material-in-quantity'
 import SortableTableHeader from './SortableTableHeader'
 import useClientTableSort from './useClientTableSort'
+import ModalDialog, { ModalActions } from './ModalDialog'
+import AppButton from './AppButton'
 
 const displayPriceUnit = (unit: string | null | undefined) => unit === 'm' ? '米' : unit || '-'
 
@@ -885,27 +887,25 @@ export default function MaterialInPage({
               onChange={setSelectedStatuses}
               storageKey="mes-lite.filters.materialIn.status.order"
             />
-            <select
+            <SearchableSelect
               value={selectedCustomerId}
-              onChange={(e) => setSelectedCustomerId(e.target.value)}
-              className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-            >
-              <option value="">全部客户</option>
-              <option value="__UNASSIGNED__">通用/未绑定</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>{customer.name}</option>
-              ))}
-            </select>
-            <select
+              onChange={setSelectedCustomerId}
+              options={[
+                { value: '__UNASSIGNED__', label: '通用/未绑定' },
+                ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
+              ]}
+              placeholder="输入客户名称筛选（全部客户）"
+              allowClear
+              className="w-56"
+            />
+            <SearchableSelect
               value={selectedSupplierId}
-              onChange={(e) => setSelectedSupplierId(e.target.value)}
-              className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-            >
-              <option value="">全部供应商</option>
-              {suppliers.map((supplier) => (
-                <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-              ))}
-            </select>
+              onChange={setSelectedSupplierId}
+              options={suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))}
+              placeholder="输入供应商名称筛选（全部供应商）"
+              allowClear
+              className="w-56"
+            />
           </>
         )}
         actions={(
@@ -913,15 +913,15 @@ export default function MaterialInPage({
             <div>
               <ViewModeToggle value={viewMode} onChange={setViewMode} />
             </div>
-            <button
+            <AppButton
+              variant="create"
               onClick={() => {
                 resetForm()
                 setShowModal(true)
               }}
-              className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
             >
               新增
-            </button>
+            </AppButton>
           </>
         )}
       />
@@ -950,27 +950,25 @@ export default function MaterialInPage({
                 onChange={setSelectedStatuses}
                 storageKey="mes-lite.filters.materialIn.status.order"
               />
-              <select
+              <SearchableSelect
                 value={selectedCustomerId}
-                onChange={(e) => setSelectedCustomerId(e.target.value)}
-                className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-              >
-                <option value="">全部客户</option>
-                <option value="__UNASSIGNED__">通用/未绑定</option>
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>{customer.name}</option>
-                ))}
-              </select>
-              <select
+                onChange={setSelectedCustomerId}
+                options={[
+                  { value: '__UNASSIGNED__', label: '通用/未绑定' },
+                  ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
+                ]}
+                placeholder="输入客户名称筛选（全部客户）"
+                allowClear
+                className="w-56"
+              />
+              <SearchableSelect
                 value={selectedSupplierId}
-                onChange={(e) => setSelectedSupplierId(e.target.value)}
-                className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-              >
-                <option value="">全部供应商</option>
-                {suppliers.map((supplier) => (
-                  <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-                ))}
-              </select>
+                onChange={setSelectedSupplierId}
+                options={suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))}
+                placeholder="输入供应商名称筛选（全部供应商）"
+                allowClear
+                className="w-56"
+              />
             </>
           )}
           actions={(
@@ -978,15 +976,15 @@ export default function MaterialInPage({
               <div>
                 <ViewModeToggle value={viewMode} onChange={setViewMode} />
               </div>
-              <button
+              <AppButton
+                variant="create"
                 onClick={() => {
                   resetForm()
                   setShowModal(true)
                 }}
-                className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition sm:px-4 sm:py-2 sm:text-sm"
               >
                 新增
-              </button>
+              </AppButton>
             </>
           )}
         />
@@ -1212,20 +1210,22 @@ export default function MaterialInPage({
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto mes-modal-overlay p-2 sm:p-4">
-          <div className="my-auto w-full max-w-6xl rounded-lg bg-white p-4 shadow-xl xl:p-6 max-sm:min-h-[calc(100dvh-1rem)]">
-            <div className="mb-3 flex items-center justify-between xl:mb-4">
-              <h3 className="text-lg font-semibold">{editingItem ? `编辑来料单 ${editingItem.inboundNo}` : '新增来料单'}</h3>
-              <button
-                onClick={() => {
-                  setShowModal(false)
-                  resetForm()
-                }}
-                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
-              >
-                ×
-              </button>
-            </div>
+        <ModalDialog
+          title={editingItem ? `编辑来料单 ${editingItem.inboundNo}` : '新增来料单'}
+          description="来料实测、采购计价和收货库位在同一张单据中记录。"
+          onClose={() => { setShowModal(false); resetForm() }}
+          closeDisabled={loading}
+          size="wide"
+          overlayClassName="z-[60]"
+          footer={(
+            <ModalActions
+              onCancel={() => { setShowModal(false); resetForm() }}
+              onConfirm={handleSubmit}
+              confirmLabel={editingItem ? '保存修改' : '提交'}
+              busy={loading}
+            />
+          )}
+        >
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-3 xl:gap-4">
               <div className="lg:col-span-3">
                 <label className="block text-sm font-medium text-gray-700 mb-2">凭据号</label>
@@ -1479,27 +1479,8 @@ export default function MaterialInPage({
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              <div className="flex justify-end gap-3 pt-2 lg:col-span-12">
-                <button
-                  onClick={() => {
-                    setShowModal(false)
-                    resetForm()
-                  }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  className="min-w-32 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
-                >
-                  {loading ? '提交中...' : editingItem ? '保存修改' : '提交'}
-                </button>
-              </div>
             </div>
-          </div>
-        </div>
+        </ModalDialog>
       )}
       </div>
     </>

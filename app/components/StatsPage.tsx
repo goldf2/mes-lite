@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import MaterialChoiceSearch from './MaterialChoiceSearch'
-import ModalOverlay from './ModalOverlay'
+import ModalDialog, { ModalActions } from './ModalDialog'
+import AppButton from './AppButton'
+import { appTextareaClassName } from './FormField'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
@@ -426,9 +428,9 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
           actions={(
             <>
               <ViewModeToggle value={viewMode} onChange={setViewMode} />
-              <button type="button" onClick={openCreate} className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                新建
-              </button>
+              <AppButton variant="create" onClick={openCreate}>
+                新增
+              </AppButton>
             </>
           )}
         />
@@ -542,16 +544,21 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
       )}
 
       {formOpen && (
-        <ModalOverlay onClose={() => !saving && setFormOpen(false)}>
-          <div className="flex max-h-[calc(100vh-32px)] w-full max-w-4xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-              <div>
-                <h3 className="font-semibold text-gray-900">{editingReport ? '编辑生产日报' : '新建生产日报'}</h3>
-                <p className="mt-1 text-xs text-gray-500">日报只记录产出数量和实际入库库位；如需区分状态，请在库位配置中建立对应库位</p>
-              </div>
-              <button type="button" onClick={() => setFormOpen(false)} className="text-2xl leading-none text-gray-400 hover:text-gray-600">×</button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+        <ModalDialog
+          title={editingReport ? '编辑生产日报' : '新增生产日报'}
+          description="日报只记录产出数量和实际入库库位；如需区分状态，请在库位配置中建立对应库位"
+          onClose={() => setFormOpen(false)}
+          closeDisabled={saving}
+          size="xl"
+          footer={(
+            <ModalActions
+              onCancel={() => setFormOpen(false)}
+              onConfirm={submitForm}
+              confirmLabel="保存草稿"
+              busy={saving}
+            />
+          )}
+        >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label className="text-sm text-gray-700">
                   生产日期
@@ -605,7 +612,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
               <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <NumberField label="产出入库数量" value={form.outputQty} onChange={(outputQty) => setForm({ ...form, outputQty })} />
                 <div className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                  产出状态由所选库位决定；可在“工具 / 库位配置”中新建成品、不良、报废或其他业务库位。
+                  产出状态由所选库位决定；可在“配置 / 库位配置”中新增相应业务库位。
                 </div>
               </div>
 
@@ -719,48 +726,49 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                 备注
                 <textarea rows={3} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2" />
               </label>
-            </div>
-            <div className="flex justify-end gap-3 border-t border-gray-100 px-5 py-4">
-              <button type="button" onClick={() => setFormOpen(false)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700">取消</button>
-              <button type="button" onClick={submitForm} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
-                {saving ? '保存中...' : '保存草稿'}
-              </button>
-            </div>
-          </div>
-        </ModalOverlay>
+        </ModalDialog>
       )}
 
       {confirmingReport && (
-        <ModalOverlay onClose={() => !saving && setConfirmingReport(null)}>
-          <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl">
-            <h3 className="font-semibold text-gray-900">确认生产日报</h3>
+        <ModalDialog
+          title="确认生产日报"
+          onClose={() => setConfirmingReport(null)}
+          closeDisabled={saving}
+          footer={(
+            <ModalActions
+              onCancel={() => setConfirmingReport(null)}
+              onConfirm={confirmReport}
+              confirmLabel="确认并更新库存"
+              confirmVariant="create"
+              busy={saving}
+            />
+          )}
+        >
             <p className="mt-2 text-sm text-gray-600">确认后将立即扣减原料库存，并把 {numberText(confirmingReport.outputQty)} {confirmingReport.finishedMaterial.stockUnit || confirmingReport.finishedMaterial.unit} 产出增加到所选库位。</p>
             <p className="mt-2 text-xs text-gray-500">原料库位：{confirmingReport.consumptionLocation?.code || '默认库位'}；产出库位：{confirmingReport.outputLocation?.code || '默认库位'}。入库后发货模块可直接读取该库位可用量。</p>
             <div className="mt-4">{consumptionList(confirmingReport)}</div>
-            <div className="mt-5 flex justify-end gap-3">
-              <button type="button" onClick={() => setConfirmingReport(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm">取消</button>
-              <button type="button" onClick={confirmReport} disabled={saving} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
-                {saving ? '处理中...' : '确认并更新库存'}
-              </button>
-            </div>
-          </div>
-        </ModalOverlay>
+        </ModalDialog>
       )}
 
       {reversingReport && (
-        <ModalOverlay onClose={() => !saving && setReversingReport(null)}>
-          <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl">
-            <h3 className="font-semibold text-gray-900">冲销生产日报</h3>
+        <ModalDialog
+          title="冲销生产日报"
+          onClose={() => setReversingReport(null)}
+          closeDisabled={saving}
+          footer={(
+            <ModalActions
+              onCancel={() => setReversingReport(null)}
+              onConfirm={reverseReport}
+              confirmLabel="确认冲销"
+              confirmVariant="danger"
+              disabled={!reverseReason.trim()}
+              busy={saving}
+            />
+          )}
+        >
             <p className="mt-2 text-sm text-gray-600">系统将从原产出库位扣回本次入库数量，并恢复当时实际消耗的原料库存。</p>
-            <textarea value={reverseReason} onChange={(event) => setReverseReason(event.target.value)} rows={3} placeholder="填写冲销原因" className="mt-4 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
-            <div className="mt-5 flex justify-end gap-3">
-              <button type="button" onClick={() => setReversingReport(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm">取消</button>
-              <button type="button" onClick={reverseReport} disabled={saving} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
-                {saving ? '处理中...' : '确认冲销'}
-              </button>
-            </div>
-          </div>
-        </ModalOverlay>
+            <textarea value={reverseReason} onChange={(event) => setReverseReason(event.target.value)} rows={3} placeholder="填写冲销原因" className={`mt-4 ${appTextareaClassName}`} />
+        </ModalDialog>
       )}
       </div>
     </>

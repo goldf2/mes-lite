@@ -13,6 +13,8 @@ import { SearchFieldWithPresets } from './components/SavedSearchPresets'
 import SearchableSelect from './components/SearchableSelect'
 import SortableTableHeader from './components/SortableTableHeader'
 import useClientTableSort from './components/useClientTableSort'
+import AppButton from './components/AppButton'
+import ModalDialog, { ModalActions } from './components/ModalDialog'
 import type { SystemSection } from './components/SystemPage'
 
 function FeaturePageLoading() {
@@ -1190,12 +1192,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                           <ViewModeToggle value={orderViewMode} onChange={setOrderViewMode} />
                         </div>
                         {canCreate('orders') && (
-                          <button
+                          <AppButton
+                            variant="create"
                             onClick={() => setTab('create')}
-                            className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition sm:px-4 sm:py-2 sm:text-sm"
                           >
                             新增
-                          </button>
+                          </AppButton>
                         )}
                       </>
                     )}
@@ -1212,17 +1214,17 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     )}
                     filters={(
                       <>
-                        <select
+                        <SearchableSelect
                           value={stockCustomerFilter}
-                          onChange={(e) => setStockCustomerFilter(e.target.value)}
-                          className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-                        >
-                          <option value="">全部客户</option>
-                          <option value="__UNASSIGNED__">通用/未绑定</option>
-                          {customers.map((customer) => (
-                            <option key={customer.id} value={customer.id}>{customer.name}</option>
-                          ))}
-                        </select>
+                          onChange={setStockCustomerFilter}
+                          options={[
+                            { value: '__UNASSIGNED__', label: '通用/未绑定' },
+                            ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
+                          ]}
+                          placeholder="输入客户名称筛选（全部客户）"
+                          allowClear
+                          className="w-56"
+                        />
                         {([['all', '全部库存'], ['material', '物料库存'], ['product', '成品库存']] as const).map(([key, label]) => (
                           <button
                             key={key}
@@ -1338,12 +1340,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <div className="text-center py-8 text-gray-500 sm:py-12">
                 <p className="mb-4">暂无工单</p>
                 {canCreate('orders') && (
-                  <button
+                  <AppButton
+                    variant="create"
                     onClick={() => setTab('create')}
-                    className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition sm:px-4 sm:py-2"
                   >
                     新增工单
-                  </button>
+                  </AppButton>
                 )}
               </div>
             ) : orderViewMode === 'card' ? (
@@ -1794,19 +1796,20 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         )}
 
         {adjustingStock && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg mx-4">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold">存货调整</h3>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {adjustingStock.material?.name || adjustingStock.product?.name} · {adjustingStock.material?.code || adjustingStock.product?.sku}
-                  </p>
-                </div>
-                <button onClick={() => setAdjustingStock(null)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">
-                  ×
-                </button>
-              </div>
+          <ModalDialog
+            title="存货调整"
+            description={`${adjustingStock.material?.name || adjustingStock.product?.name} · ${adjustingStock.material?.code || adjustingStock.product?.sku}`}
+            onClose={() => setAdjustingStock(null)}
+            closeDisabled={loading}
+            footer={(
+              <ModalActions
+                onCancel={() => setAdjustingStock(null)}
+                onConfirm={submitStockAdjust}
+                confirmLabel="确认调整"
+                busy={loading}
+              />
+            )}
+          >
               <div className="space-y-4">
                 <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
                   用于期初录入、盘点差异、损耗和早期数据尾差修正。来料单整单冲销仍使用“红冲”。
@@ -1860,35 +1863,16 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={submitStockAdjust}
-                    disabled={loading}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {loading ? '提交中...' : '确认调整'}
-                  </button>
-                  <button
-                    onClick={() => setAdjustingStock(null)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                  >
-                    取消
-                  </button>
-                </div>
               </div>
-            </div>
-          </div>
+          </ModalDialog>
         )}
 
         {showStockHelp && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg mx-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">存货调整</h3>
-                <button onClick={() => setShowStockHelp(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">
-                  ×
-                </button>
-              </div>
+          <ModalDialog
+            title="存货调整说明"
+            onClose={() => setShowStockHelp(false)}
+            footer={<AppButton variant="primary" onClick={() => setShowStockHelp(false)}>知道了</AppButton>}
+          >
               <div className="space-y-3 text-sm text-gray-600">
                 <div className="rounded-lg bg-blue-50 p-3 text-blue-900">
                   先建立物料，系统会自动生成 0 库存记录；再回到库存页，在对应库存卡片中点击“存货调整”，填写调整后数量、核算重量、库存金额和原因。
@@ -1896,13 +1880,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 <p>存货调整统一覆盖期初录入、盘点差异、损耗、早期数据尾差和初始化库存。所有调整都会写入操作日志，不做物理删除。</p>
                 <p>已经有来料单、领料、红冲等业务单据时，优先使用对应业务单据；存货调整只处理非单据型差异。</p>
               </div>
-              <div className="mt-5 flex justify-end">
-                <button onClick={() => setShowStockHelp(false)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
-                  知道了
-                </button>
-              </div>
-            </div>
-          </div>
+          </ModalDialog>
         )}
 
         {/* 物料与 BOM */}

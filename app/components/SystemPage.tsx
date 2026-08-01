@@ -10,6 +10,9 @@ import DataIntegrityPanel from './DataIntegrityPanel'
 import SearchableSelect from './SearchableSelect'
 import SortableTableHeader from './SortableTableHeader'
 import useClientTableSort from './useClientTableSort'
+import AppButton from './AppButton'
+import ModalDialog, { ModalActions } from './ModalDialog'
+import { appInputClassName, appTextareaClassName } from './FormField'
 
 interface Supplier {
   id: string
@@ -324,17 +327,17 @@ function InventoryLocationManager({ onMessage }: { onMessage: (msg: string) => v
         <p className="mt-1 text-sm text-gray-500">总库存继续统一核算；库位用于来料、生产日报和发货的实物数量分布与校验。</p>
         <div className="mt-5 grid grid-cols-1 gap-3 rounded-lg border border-blue-100 bg-blue-50/40 p-4 md:grid-cols-2 xl:grid-cols-5">
           <label className="text-sm text-gray-700">库位编码
-            <input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2" placeholder="如 A01" />
+            <input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} className={`mt-1 ${appInputClassName}`} placeholder="如 A01" />
           </label>
           <label className="text-sm text-gray-700">库位名称
-            <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2" placeholder="如 成品区" />
+            <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={`mt-1 ${appInputClassName}`} placeholder="如 成品区" />
           </label>
           <label className="text-sm text-gray-700 xl:col-span-2">备注
-            <input value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2" />
+            <input value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} className={`mt-1 ${appInputClassName}`} />
           </label>
           <div className="flex items-end gap-2">
-            <button type="button" onClick={save} disabled={saving} className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{saving ? '保存中...' : editing ? '保存修改' : '新增库位'}</button>
-            {editing && <button type="button" onClick={reset} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">取消</button>}
+            <AppButton onClick={save} disabled={saving} variant={editing ? 'primary' : 'create'} fullWidth>{saving ? '保存中…' : editing ? '保存修改' : '新增库位'}</AppButton>
+            {editing && <AppButton onClick={reset}>取消</AppButton>}
           </div>
           <div className="flex flex-wrap gap-5 md:col-span-2 xl:col-span-5">
             <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.isDefault} onChange={(event) => setForm({ ...form, isDefault: event.target.checked })} />设为默认库位</label>
@@ -922,9 +925,9 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
             placeholder="搜索名称、联系人、电话"
             className="flex w-full items-center gap-2 sm:w-[420px]"
           />
-          <button onClick={openAdd} className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 sm:w-auto">
+          <AppButton onClick={openAdd} variant="create" className="w-full sm:w-auto">
             新增供应商
-          </button>
+          </AppButton>
         </div>
       </div>
 
@@ -999,15 +1002,23 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
       {suppliers.length === 0 && <div className="text-center py-12 text-gray-500">暂无供应商</div>}
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold">{editingSupplier ? '编辑供应商' : '新增供应商'}</h3>
-              <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">&times;</button>
-            </div>
-            <div className="p-4 space-y-4">
+        <ModalDialog
+          title={editingSupplier ? '编辑供应商' : '新增供应商'}
+          description="供应商内部编码由系统自动维护。"
+          onClose={() => setShowModal(false)}
+          closeDisabled={loading}
+          footer={(
+            <ModalActions
+              onCancel={() => setShowModal(false)}
+              onConfirm={submit}
+              confirmLabel="保存"
+              busy={loading}
+            />
+          )}
+        >
+            <div className="space-y-4">
               <Field label="供应商名称 *" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="联系人" value={form.contact} onChange={(value) => setForm({ ...form, contact: value })} />
                 <Field label="电话" value={form.phone} onChange={(value) => setForm({ ...form, phone: value })} />
               </div>
@@ -1017,20 +1028,11 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
                   value={form.address}
                   onChange={(e) => setForm({ ...form, address: e.target.value })}
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                  className={appTextareaClassName}
                 />
               </div>
-              <div className="flex gap-3 pt-2">
-                <button onClick={submit} disabled={loading} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                  {loading ? '保存中...' : '保存'}
-                </button>
-                <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-                  取消
-                </button>
-              </div>
             </div>
-          </div>
-        </div>
+        </ModalDialog>
       )}
     </div>
   )
@@ -1155,9 +1157,9 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
             placeholder="搜索名称、联系人、电话"
             className="flex w-full items-center gap-2 sm:w-[420px]"
           />
-          <button onClick={openAdd} className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 sm:w-auto">
+          <AppButton onClick={openAdd} variant="create" className="w-full sm:w-auto">
             新增客户
-          </button>
+          </AppButton>
         </div>
       </div>
 
@@ -1232,17 +1234,25 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
       {customers.length === 0 && <div className="text-center py-12 text-gray-500">暂无客户</div>}
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold">{editingCustomer ? '编辑客户' : '新增客户'}</h3>
-              <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">&times;</button>
-            </div>
-            <div className="p-4 space-y-4">
+        <ModalDialog
+          title={editingCustomer ? '编辑客户' : '新增客户'}
+          description="客户资料用于物料归属、库存筛选和发货信息。"
+          onClose={() => setShowModal(false)}
+          closeDisabled={loading}
+          footer={(
+            <ModalActions
+              onCancel={() => setShowModal(false)}
+              onConfirm={submit}
+              confirmLabel="保存"
+              busy={loading}
+            />
+          )}
+        >
+            <div className="space-y-4">
               <div>
                 <Field label="客户名称 *" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="联系人" value={form.contact} onChange={(value) => setForm({ ...form, contact: value })} />
                 <Field label="电话" value={form.phone} onChange={(value) => setForm({ ...form, phone: value })} />
               </div>
@@ -1252,20 +1262,11 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
                   value={form.address}
                   onChange={(e) => setForm({ ...form, address: e.target.value })}
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                  className={appTextareaClassName}
                 />
               </div>
-              <div className="flex gap-3 pt-2">
-                <button onClick={submit} disabled={loading} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                  {loading ? '保存中...' : '保存'}
-                </button>
-                <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-                  取消
-                </button>
-              </div>
             </div>
-          </div>
-        </div>
+        </ModalDialog>
       )}
     </div>
   )
@@ -1275,7 +1276,7 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
-      <input value={value} onChange={(e) => onChange(e.target.value)} className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+      <input value={value} onChange={(e) => onChange(e.target.value)} className={appInputClassName} />
     </div>
   )
 }
@@ -1323,7 +1324,7 @@ function ProcessTemplateManager({ onMessage }: { onMessage: (msg: string) => voi
     <div className="rounded-lg bg-white p-6 shadow">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div><h3 className="text-lg font-semibold">加工工艺</h3><p className="mt-1 text-sm text-gray-500">按类别维护可复用工艺，并关联到物料全景。</p></div>
-        <button onClick={openAdd} className="rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700">新增</button>
+        <AppButton onClick={openAdd} variant="create">新增</AppButton>
       </div>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {templates.map((template) => {
@@ -1338,8 +1339,13 @@ function ProcessTemplateManager({ onMessage }: { onMessage: (msg: string) => voi
           </div>
         )})}
       </div>
-      {showModal && <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4"><div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
-        <div className="mb-4 flex justify-between"><h3 className="text-lg font-semibold">{editing ? '编辑加工工艺' : '新增加工工艺'}</h3><button onClick={() => setShowModal(false)} className="text-xl text-gray-400">×</button></div>
+      {showModal && <ModalDialog
+        title={editing ? '编辑加工工艺' : '新增加工工艺'}
+        description="维护可复用工艺参数，并可关联适用物料。"
+        onClose={() => setShowModal(false)}
+        size="lg"
+        footer={<ModalActions onCancel={() => setShowModal(false)} onConfirm={submit} confirmLabel="保存" />}
+      >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="模板编码 *" value={form.code} onChange={(value) => setForm({ ...form, code: value })} />
           <Field label="工艺名称 *" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
@@ -1356,8 +1362,7 @@ function ProcessTemplateManager({ onMessage }: { onMessage: (msg: string) => voi
           ] as const).map(([key, label, unit]) => <label key={key} className="text-xs text-gray-600">{label}<div className="mt-1 flex overflow-hidden rounded border border-gray-200 bg-white"><input type="number" min="0" step="any" value={form[key] || ''} onChange={(event) => setForm({ ...form, [key]: Number(event.target.value) })} className="min-w-0 flex-1 px-2 py-2 text-sm outline-none"/><span className="border-l bg-gray-50 px-2 py-2">{unit}</span></div></label>)}
         </div></div>
         <div className="mt-4"><div className="mb-2 text-sm font-medium">关联物料（可多选）</div><div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-gray-200 p-3">{materials.map((material) => <label key={material.id} className="flex gap-2 text-sm"><input type="checkbox" checked={form.materialIds.includes(material.id)} onChange={(event) => setForm({ ...form, materialIds: event.target.checked ? [...form.materialIds, material.id] : form.materialIds.filter((id) => id !== material.id) })} />{material.code} · {material.name}</label>)}</div></div>
-        <div className="mt-5 flex justify-end gap-2"><button onClick={() => setShowModal(false)} className="rounded-lg border px-4 py-2 text-sm">取消</button><button onClick={submit} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white">保存</button></div>
-      </div></div>}
+      </ModalDialog>}
     </div>
   )
 }
@@ -1533,9 +1538,9 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
           <div className="hidden lg:block">
             <ViewModeToggle value={viewMode} onChange={setViewMode} />
           </div>
-          <button onClick={openAdd} className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 sm:w-auto">
+          <AppButton onClick={openAdd} variant="create" className="w-full sm:w-auto">
             新增工艺路线
-          </button>
+          </AppButton>
         </div>
       </div>
 
@@ -1618,14 +1623,23 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
       {routes.length === 0 && <div className="text-center py-12 text-gray-500">暂无工艺路线</div>}
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold">{editingRoute ? '编辑工艺路线' : '新增工艺路线'}</h3>
-              <button onClick={() => { setShowModal(false); resetForm() }} className="text-gray-500 hover:text-gray-700">&times;</button>
-            </div>
-            <div className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+        <ModalDialog
+          title={editingRoute ? '编辑工艺路线' : '新增工艺路线'}
+          description="维护物料默认路线及其有序工序。"
+          onClose={() => { setShowModal(false); resetForm() }}
+          closeDisabled={loading}
+          size="xl"
+          footer={(
+            <ModalActions
+              onCancel={() => { setShowModal(false); resetForm() }}
+              onConfirm={submit}
+              confirmLabel="保存"
+              busy={loading}
+            />
+          )}
+        >
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">物料 *</label>
                   <MaterialChoiceSearch
@@ -1669,7 +1683,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
                           placeholder="输入模板编码或名称筛选"
                         />
                       </div>
-                      <div className="grid grid-cols-4 gap-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                         <div>
                           <label className="block text-xs text-gray-500 mb-1">工序号 *</label>
                           <input
@@ -1724,17 +1738,8 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-2">
-                <button onClick={submit} disabled={loading} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                  {loading ? '保存中...' : '保存'}
-                </button>
-                <button onClick={() => { setShowModal(false); resetForm() }} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-                  取消
-                </button>
-              </div>
             </div>
-          </div>
-        </div>
+        </ModalDialog>
       )}
     </div>
   )

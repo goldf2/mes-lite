@@ -19,6 +19,9 @@ import DocumentCategoryManagerModal, {
 } from './DocumentCategoryManagerModal'
 import SortableTableHeader from './SortableTableHeader'
 import useClientTableSort from './useClientTableSort'
+import ModalDialog, { ModalActions } from './ModalDialog'
+import { appInputClassName, appSelectClassName, appTextareaClassName } from './FormField'
+import AppButton from './AppButton'
 
 interface Customer {
   id: string
@@ -810,17 +813,17 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
-          <select
+          <SearchableSelect
             value={customerFilter}
-            onChange={(event) => setCustomerFilter(event.target.value)}
-            className="w-48 rounded-lg border border-gray-200 px-4 py-2 text-sm"
-          >
-            <option value="">全部客户</option>
-            <option value="__UNASSIGNED__">通用/未绑定</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>{customer.name}</option>
-            ))}
-          </select>
+            onChange={setCustomerFilter}
+            options={[
+              { value: '__UNASSIGNED__', label: '通用/未绑定' },
+              ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
+            ]}
+            placeholder="输入客户名称筛选（全部客户）"
+            allowClear
+            className="w-56"
+          />
           <div className="w-64">
             <MaterialSearchSelect
               value={materialFilter}
@@ -846,13 +849,12 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           <div>
             <ViewModeToggle value={viewMode} onChange={setViewMode} />
           </div>
-          <button
-            type="button"
+          <AppButton
+            variant="create"
             onClick={openAddModal}
-            className="shrink-0 whitespace-nowrap rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-green-700 sm:px-4 sm:py-2 sm:text-sm"
           >
             新增
-          </button>
+          </AppButton>
         </>
       )}
     />
@@ -866,13 +868,13 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         {items.length === 0 ? (
           <div className="rounded-lg bg-white py-10 text-center text-gray-500 shadow sm:bg-transparent sm:py-12 sm:shadow-none">
             <p>暂无产品文档</p>
-            <button
-              type="button"
+            <AppButton
+              variant="create"
               onClick={openAddModal}
-              className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white transition hover:bg-blue-700"
+              className="mt-4"
             >
-              新建第一条产品文档
-            </button>
+              新增第一条产品文档
+            </AppButton>
           </div>
         ) : viewMode === 'card' ? (
           <>
@@ -994,13 +996,21 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
-          <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl">
-            <div className="flex shrink-0 items-center justify-between border-b px-6 py-4">
-              <h3 className="text-lg font-semibold text-gray-900">新增产品文档</h3>
-              <button onClick={() => setShowModal(false)} className="text-2xl text-gray-400 hover:text-gray-700">&times;</button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <ModalDialog
+          title="新增产品文档"
+          description="关联产品后保存，再上传图片或 PDF 文件。"
+          onClose={() => setShowModal(false)}
+          closeDisabled={loading}
+          size="xl"
+          footer={(
+            <ModalActions
+              onCancel={() => setShowModal(false)}
+              onConfirm={submitForm}
+              confirmLabel="保存并上传文件"
+              busy={loading}
+            />
+          )}
+        >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <div className="md:col-span-2 xl:col-span-3">
                   <label className="mb-2 block text-sm font-medium text-gray-700">关联产品 *</label>
@@ -1021,31 +1031,23 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">状态</label>
-                  <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2">
+                  <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })} className={appSelectClassName}>
                     {instructionStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">版本</label>
-                  <input value={form.version} onChange={(event) => setForm({ ...form, version: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2" placeholder="v1" />
+                  <input value={form.version} onChange={(event) => setForm({ ...form, version: event.target.value })} className={appInputClassName} placeholder="v1" />
                 </div>
                 <div className="md:col-span-2 xl:col-span-3">
                   <label className="mb-2 block text-sm font-medium text-gray-700">备注</label>
-                  <textarea rows={4} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} className="w-full rounded-lg border border-gray-200 px-4 py-2" placeholder="记录适用范围、注意事项、变更说明等通用信息" />
+                  <textarea rows={4} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} className={appTextareaClassName} placeholder="记录适用范围、注意事项、变更说明等通用信息" />
                 </div>
               </div>
               <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
                 选择产品并保存后，系统会自动打开图片或 PDF 上传区域。
               </div>
-            </div>
-            <div className="flex shrink-0 gap-3 border-t bg-white px-6 py-4">
-              <button onClick={() => setShowModal(false)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50">取消</button>
-              <button onClick={submitForm} disabled={loading} className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50">
-                {loading ? '保存中...' : '保存并上传文件'}
-              </button>
-            </div>
-          </div>
-        </div>
+        </ModalDialog>
       )}
 
       {detail && (

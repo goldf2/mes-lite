@@ -13,6 +13,7 @@ import {
   pc310tLabelMediaProfiles,
 } from './scan-print/labelProfiles'
 import SplitWorkspace from './layout/SplitWorkspace'
+import AppButton from './AppButton'
 
 interface ScanEvent {
   id: string
@@ -400,10 +401,10 @@ export default function ScanPrintPage({ onMessage }: { onMessage: (message: stri
                 <input value={expectedCode} onChange={(event) => setExpectedCode(event.target.value)} placeholder="目标条码" className="rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm" />
                 <input type="number" min="0.000001" step="any" value={expectedQty} onChange={(event) => setExpectedQty(Number(event.target.value))} className="rounded-lg border border-gray-200 px-3 py-2 text-right text-sm" />
               </div>
-              <button type="button" disabled={loading} onClick={startSession} className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+              <AppButton variant="create" size="lg" fullWidth disabled={loading} onClick={startSession}>
                 <ScanLine className="h-5 w-5" />
-                新建计数会话
-              </button>
+                新增计数会话
+              </AppButton>
               {openSessions.length > 0 && (
                 <div>
                   <div className="mb-2 text-xs font-medium text-gray-500">未完成会话</div>
