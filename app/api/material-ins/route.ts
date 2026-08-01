@@ -5,21 +5,25 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { resolveMaterialUnits, toValuationQty } from '@/lib/units'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
-import { resolveMaterialInStockQuantity } from '@/lib/material-in-quantity'
+import { materialInPriceUnits, normalizeMaterialInPriceUnit, resolveMaterialInPricing, resolveMaterialInStockQuantity } from '@/lib/material-in-quantity'
 
 const createMaterialInSchema = z.object({
   voucherNo: z.string().optional(),
   supplierId: z.string().min(1, '供应商必填'),
   materialId: z.string().min(1, '物料必填'),
   qty: z.number().positive('数量必须大于 0'),
-  pieceCount: z.number().int().positive('根数必须为正整数').optional(),
+  pieceCount: z.number().int().positive('数量必须为正整数').optional(),
   stockQtyMode: z.enum(['TOTAL', 'PER_PIECE']).optional(),
   stockQtyInput: z.number().positive('长度必须大于 0').optional(),
+  totalLength: z.number().nonnegative('总长度不能为负').optional(),
+  totalWeight: z.number().nonnegative('总重量不能为负').optional(),
   unit: z.string().optional(),
   valuationQty: z.number().nonnegative('核算数量不能为负').optional(),
   valuationUnit: z.string().optional(),
   unitPrice: z.number().nonnegative('单价不能为负'),
+  totalAmount: z.number().nonnegative('总价格不能为负').optional(),
   priceBasis: z.enum(['VALUATION', 'STOCK']).optional(),
+  priceUnit: z.enum(materialInPriceUnits).optional(),
   batchNo: z.string().optional(),
   receivedBy: z.string().optional(),
   note: z.string().optional(),
@@ -116,22 +120,41 @@ export async function POST(req: NextRequest) {
       pieceCount: body.pieceCount,
       stockQtyMode: body.stockQtyMode,
       stockQtyInput: body.stockQtyInput,
+      totalLength: body.totalLength,
+      totalWeight: body.totalWeight,
     })
-    const { qty, pieceCount, stockQtyMode, stockQtyInput } = stockQuantity
+    const { qty, pieceCount, stockQtyMode, stockQtyInput, totalLength, totalWeight } = stockQuantity
     const units = resolveMaterialUnits(material)
     const stockUnit = body.unit || units.stockUnit
     const materialUsesDualUnit = units.stockUnit !== units.valuationUnit || units.conversionRate !== 1
-    const effectiveValuationQty = materialUsesDualUnit && valuationQty && valuationQty > 0
-      ? valuationQty
+    const actualReferenceQty = material.referenceMeasure === 'LENGTH'
+      ? totalLength
+      : material.referenceMeasure === 'WEIGHT'
+        ? totalWeight
+        : material.referenceMeasure === 'QUANTITY'
+          ? pieceCount
+          : valuationQty
+    const effectiveValuationQty = materialUsesDualUnit && actualReferenceQty && actualReferenceQty > 0
+      ? actualReferenceQty
       : toValuationQty(qty, units.conversionRate)
     const conversionRate = Number((effectiveValuationQty / qty).toFixed(6))
-    const conversionSource = materialUsesDualUnit && valuationQty && valuationQty > 0
+    const conversionSource = materialUsesDualUnit && actualReferenceQty && actualReferenceQty > 0
       ? 'DOCUMENT_ACTUAL'
       : 'MASTER_DEFAULT'
     const valuationUnit = materialUsesDualUnit ? body.valuationUnit || units.valuationUnit : stockUnit
     const requestedPriceBasis = body.priceBasis || 'VALUATION'
-    const priceBasis = materialUsesDualUnit ? requestedPriceBasis : 'STOCK'
-    const priceUnit = priceBasis === 'STOCK' ? stockUnit : valuationUnit
+    const requestedPriceUnit = normalizeMaterialInPriceUnit(
+      body.priceUnit || (requestedPriceBasis === 'VALUATION' ? valuationUnit : stockUnit),
+      requestedPriceBasis === 'VALUATION' ? material.referenceMeasure || material.primaryMeasure : material.primaryMeasure
+    )
+    const pricing = resolveMaterialInPricing({
+      priceUnit: requestedPriceUnit,
+      unitPrice,
+      totalAmount: body.totalAmount,
+      totalLength,
+      totalWeight,
+      pieceCount,
+    })
 
     // 生成 inboundNo: IN-YYYYMMDD-XXX
     const today = new Date()
@@ -141,9 +164,7 @@ export async function POST(req: NextRequest) {
     })
     const inboundNo = `IN-${dateStr}-${String(count + 1).padStart(3, '0')}`
 
-    const totalAmount = priceBasis === 'STOCK'
-      ? Number((qty * unitPrice).toFixed(6))
-      : Number((effectiveValuationQty * unitPrice).toFixed(6))
+    const { totalAmount, priceBasis, priceUnit } = pricing
     const valuationUnitCost = effectiveValuationQty > 0 ? Number((totalAmount / effectiveValuationQty).toFixed(6)) : 0
     const stockUnitCost = qty > 0 ? Number((totalAmount / qty).toFixed(6)) : 0
 
@@ -158,11 +179,13 @@ export async function POST(req: NextRequest) {
         pieceCount,
         stockQtyMode,
         stockQtyInput,
+        totalLength,
+        totalWeight,
         valuationQty: effectiveValuationQty,
         valuationUnit,
         conversionRate,
         conversionSource,
-        unitPrice,
+        unitPrice: pricing.unitPrice,
         priceBasis,
         priceUnit,
         valuationUnitCost,
@@ -191,6 +214,9 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
+    }
+    if (error instanceof Error && /必须|不能为负|必须大于/.test(error.message)) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('Create material-in error:', error)
     return NextResponse.json({ error: '创建来料单失败' }, { status: 500 })

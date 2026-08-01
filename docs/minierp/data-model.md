@@ -601,13 +601,15 @@ BOM 数据只保存规范方向：目标物料或产出物料 -> 输入物料及
 
 有效库存成本层的单位若与当前物料主单位不一致，不能仅改标签或直接删除，因为该层仍参与 FIFO 和成本运算。数据关系检查只把它列为阻塞风险，必须由操作员核对并通过合法库存调整处理。
 
-长度型 `MaterialIn` 使用 `pieceCount`、`stockQtyMode` 和 `stockQtyInput` 保留原始录入语义：
+`MaterialIn` 使用 `pieceCount`、`totalLength` 和 `totalWeight` 保存本批实测的件数、总长度（m）和总重量（kg）；三者是独立事实，不因物料只配置了单一库存单位而丢弃。长度型来料同时使用 `stockQtyMode` 和 `stockQtyInput` 保留原始录入语义：
 
 - `TOTAL`：`stockQtyInput` 是本批总长度，`qty = stockQtyInput`。
 - `PER_PIECE`：`stockQtyInput` 是单根长度，`qty = pieceCount × stockQtyInput`。
-- 当参考计量为重量时，`valuationQty` 是本批总重量，`conversionRate = valuationQty ÷ qty`。
+- 当参考计量为重量时，`valuationQty` 取本批 `totalWeight`，`conversionRate = valuationQty ÷ qty`；未配置重量参考单位时，`totalWeight` 仍作为来料实测快照保存，但不改变库存核算单位。
 
-因此 `qty` 是入账总长度，`pieceCount` 是物理根数，`valuationQty` 是本批总重量；三者都进入来料快照和审计记录，但只有主库存数量可被直接领用。
+因此长度型物料的 `qty` 是入账总长度，`pieceCount` 是物理件数，`totalWeight` 是本批总重量；只有按物料主计量方式解析出的 `qty` 进入主库存。`priceUnit` 固定为 `m`、`kg` 或 `件`，计价数量分别取 `totalLength`、`totalWeight` 或 `pieceCount`。用户可以录入单价或总价格，服务端最终统一保存相互一致的 `unitPrice` 与 `totalAmount`。
+
+> v0.1.127 上线前来料单均为测试数据，迁移会一次性删除旧来料单、关联附件、审计、扫码/打印记录，并清零受影响物料的测试库存流水与成本层。新接口不对旧来料请求做字段兜底。
 
 当前库存不维护长度分布，只保存汇总值，不能直接回答某个具体长度各有多少根。未来如需显示“3.5 m 有几根、1.5 m 有几根”，应在来料单下增加同长分组/包装明细并汇总到现有字段；不需要改成每根实体库存。
 

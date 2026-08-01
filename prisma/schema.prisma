@@ -600,6 +600,8 @@ model MaterialIn {
   pieceCount  Int?
   stockQtyMode String @default("TOTAL")
   stockQtyInput Float?
+  totalLength Float?
+  totalWeight Float?
   valuationQty Float   @default(0)
   valuationUnit String  @default("kg")
   conversionRate Float  @default(1)

@@ -161,8 +161,8 @@ flowchart TD
 
 当前设计：
 
-- 来料单记录供应商、物料、库存单位数量、核算单位数量、单价依据、总金额、批次和状态。
-- `priceBasis` 支持按核算单位或库存单位定价。
+- 来料单记录供应商、物料、件数、总长度、总重量、库存单位数量、核算单位数量、计价单位、单价、总金额、批次和状态。
+- `priceUnit` 取 `m`、`kg` 或 `件`；`priceBasis` 作为库存/核算口径兼容标记，实际金额以 `priceUnit` 对应的实测数量计算。
 - 收货后应同步增加 `Stock`，生成库存流水，并生成成本层。
 - FIFO 消耗通过 `InventoryCostLayer` 和 `CostLayerConsumption` 记录。
 
