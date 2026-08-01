@@ -1002,9 +1002,9 @@ export default function MaterialInPage({
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center mes-modal-overlay p-4">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto mes-modal-overlay p-2 sm:p-4">
+          <div className="my-auto w-full max-w-6xl rounded-lg bg-white p-4 shadow-xl xl:p-6 max-sm:min-h-[calc(100dvh-1rem)]">
+            <div className="mb-3 flex items-center justify-between xl:mb-4">
               <h3 className="text-lg font-semibold">{editingItem ? `编辑来料单 ${editingItem.inboundNo}` : '新增来料单'}</h3>
               <button
                 onClick={() => {
@@ -1016,8 +1016,8 @@ export default function MaterialInPage({
                 ×
               </button>
             </div>
-            <div className="space-y-4">
-              <div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-3 xl:gap-4">
+              <div className="lg:col-span-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">凭据号</label>
                 <input
                   type="text"
@@ -1027,7 +1027,7 @@ export default function MaterialInPage({
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              <div>
+              <div className="lg:col-span-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">供应商</label>
                 <select
                   value={form.supplierId}
@@ -1042,7 +1042,7 @@ export default function MaterialInPage({
                   ))}
                 </select>
               </div>
-              <div>
+              <div className="lg:col-span-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">物料</label>
                 <MaterialSearchSelect
                   value={form.materialId}
@@ -1052,7 +1052,7 @@ export default function MaterialInPage({
                 />
               </div>
               {selectedMaterial && (
-                <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4">
+                <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4 lg:col-span-7">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <div className="text-sm font-medium text-gray-800">来料实测</div>
@@ -1170,7 +1170,8 @@ export default function MaterialInPage({
                   )}
                 </div>
               )}
-              <div className="rounded-lg border border-gray-200 p-4">
+              <div className={`space-y-4 ${selectedMaterial ? 'lg:col-span-5' : 'lg:col-span-12'}`}>
+                <div className="rounded-lg border border-gray-200 p-4">
                 <div className="mb-3">
                   <div className="text-sm font-medium text-gray-800">采购计价</div>
                   <div className="mt-0.5 text-xs text-gray-500">单价或总价格任选一个修改，系统按所选计价单位自动换算另一项。</div>
@@ -1219,20 +1220,21 @@ export default function MaterialInPage({
                     />
                   </div>
                 </div>
+                </div>
+                <div className="grid grid-cols-1 gap-x-4 gap-y-1 rounded-lg bg-blue-50 p-4 text-sm text-blue-900 sm:grid-cols-2">
+                  <div>计价数量：{priceQuantity || 0} {displayPriceUnit(form.priceUnit)}</div>
+                  <div>单价：¥{unitPricePreview.toFixed(4)} / {displayPriceUnit(form.priceUnit)}</div>
+                  <div>总价格：¥{totalAmountPreview.toFixed(2)}</div>
+                  <div>主库存单位成本：¥{stockUnitCostPreview.toFixed(4)} / {stockUnitLabel}</div>
+                  {materialUsesDualUnit && (
+                    <>
+                      <div>核算单位成本：¥{valuationUnitCostPreview.toFixed(4)} / {valuationUnitLabel}</div>
+                      <div>本批实际换算：{actualConversionRate || 0} {valuationUnitLabel} / {stockUnitLabel}</div>
+                    </>
+                  )}
+                </div>
               </div>
-              <div className="rounded-lg bg-blue-50 p-4 text-sm text-blue-900">
-                <div>计价数量：{priceQuantity || 0} {displayPriceUnit(form.priceUnit)}</div>
-                <div className="mt-1">单价：¥{unitPricePreview.toFixed(4)} / {displayPriceUnit(form.priceUnit)}</div>
-                <div className="mt-1">总价格：¥{totalAmountPreview.toFixed(2)}</div>
-                <div className="mt-1">主库存单位成本：¥{stockUnitCostPreview.toFixed(4)} / {stockUnitLabel}</div>
-                {materialUsesDualUnit && (
-                  <>
-                    <div className="mt-1">核算单位成本：¥{valuationUnitCostPreview.toFixed(4)} / {valuationUnitLabel}</div>
-                    <div className="mt-1">本批实际换算：{actualConversionRate || 0} {valuationUnitLabel} / {stockUnitLabel}</div>
-                  </>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 lg:col-span-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">批次号</label>
                   <input
@@ -1252,23 +1254,16 @@ export default function MaterialInPage({
                   />
                 </div>
               </div>
-              <div>
+              <div className="lg:col-span-8">
                 <label className="block text-sm font-medium text-gray-700 mb-2">备注</label>
                 <textarea
                   value={form.note}
                   onChange={(e) => setForm({ ...form, note: e.target.value })}
-                  rows={3}
+                  rows={2}
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
-                >
-                  {loading ? '提交中...' : editingItem ? '保存修改' : '提交'}
-                </button>
+              <div className="flex justify-end gap-3 pt-2 lg:col-span-12">
                 <button
                   onClick={() => {
                     setShowModal(false)
@@ -1277,6 +1272,13 @@ export default function MaterialInPage({
                   className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
                 >
                   取消
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="min-w-32 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
+                >
+                  {loading ? '提交中...' : editingItem ? '保存修改' : '提交'}
                 </button>
               </div>
             </div>
