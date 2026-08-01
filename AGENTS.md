@@ -14,6 +14,7 @@
 
 必须优先检查并同步以下文档：
 
+- `docs/minierp/系统交互与设计规范.md`
 - `docs/minierp/当前系统建模与结构审查.md`
 - `docs/minierp/system-function-flow.md`
 - `docs/minierp/data-model.md`
