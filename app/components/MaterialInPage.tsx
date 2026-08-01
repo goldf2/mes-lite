@@ -86,6 +86,157 @@ function materialIncludesKeyword(material: Material, keyword: string) {
     .includes(normalizedKeyword)
 }
 
+function formatSupplierLabel(supplier: Supplier) {
+  return `${supplier.name} (${supplier.code})`
+}
+
+function supplierIncludesKeyword(supplier: Supplier, keyword: string) {
+  const normalizedKeyword = keyword.trim().toLocaleLowerCase()
+  if (!normalizedKeyword) return true
+  return [supplier.code, supplier.name, supplier.contact || '', supplier.phone || '']
+    .join(' ')
+    .toLocaleLowerCase()
+    .includes(normalizedKeyword)
+}
+
+function SupplierSearchSelect({
+  value,
+  options,
+  onChange,
+  onSearch,
+}: {
+  value: string
+  options: Supplier[]
+  onChange: (supplier: Supplier | null) => void
+  onSearch: (keyword: string) => void | Promise<void>
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const closePopup = useCallback(() => {
+    setOpen(false)
+    setQuery('')
+    setActiveIndex(-1)
+  }, [])
+  const rootRef = useDismissibleSearchPopup<HTMLDivElement>(open, closePopup)
+  const selected = options.find((supplier) => supplier.id === value) || null
+  const visibleOptions = useMemo(
+    () => options.filter((supplier) => supplierIncludesKeyword(supplier, query)).slice(0, 50),
+    [options, query]
+  )
+
+  useEffect(() => {
+    if (!open) return
+    const timer = window.setTimeout(() => {
+      void onSearch(query.trim())
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [open, query, onSearch])
+
+  useEffect(() => {
+    if (activeIndex >= visibleOptions.length) setActiveIndex(visibleOptions.length - 1)
+  }, [activeIndex, visibleOptions.length])
+
+  const selectSupplier = (supplier: Supplier | null) => {
+    onChange(supplier)
+    closePopup()
+  }
+
+  return (
+    <div ref={rootRef} className="relative">
+      <input
+        type="text"
+        role="combobox"
+        aria-label="供应商"
+        aria-autocomplete="list"
+        aria-expanded={open}
+        aria-controls="material-in-supplier-options"
+        aria-activedescendant={open && activeIndex >= 0 ? `material-in-supplier-option-${visibleOptions[activeIndex]?.id}` : undefined}
+        value={open ? query : selected ? formatSupplierLabel(selected) : ''}
+        onFocus={() => {
+          setOpen(true)
+          setQuery('')
+          setActiveIndex(-1)
+        }}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setOpen(true)
+          setActiveIndex(-1)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            closePopup()
+            return
+          }
+          if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            setOpen(true)
+            setActiveIndex((current) => Math.min(current + 1, visibleOptions.length - 1))
+            return
+          }
+          if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            setOpen(true)
+            setActiveIndex((current) => Math.max(current - 1, 0))
+            return
+          }
+          if (event.key === 'Enter' && open && activeIndex >= 0 && visibleOptions[activeIndex]) {
+            event.preventDefault()
+            selectSupplier(visibleOptions[activeIndex])
+          }
+        }}
+        placeholder="输入供应商名称、编码、联系人或电话"
+        className="w-full rounded-lg border border-gray-200 px-4 py-2 pr-14 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+      />
+      {value && (
+        <button
+          type="button"
+          aria-label="清除供应商"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => selectSupplier(null)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100"
+        >
+          清除
+        </button>
+      )}
+      {open && (
+        <div
+          id="material-in-supplier-options"
+          role="listbox"
+          aria-label="供应商选项"
+          className="absolute left-0 right-0 top-full z-[80] mt-1 max-h-64 overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+        >
+          {visibleOptions.length === 0 ? (
+            <div className="px-3 py-3 text-sm text-gray-400">没有匹配供应商</div>
+          ) : (
+            visibleOptions.map((supplier, index) => (
+              <button
+                id={`material-in-supplier-option-${supplier.id}`}
+                key={supplier.id}
+                type="button"
+                role="option"
+                aria-selected={supplier.id === value}
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setActiveIndex(index)}
+                onClick={() => selectSupplier(supplier)}
+                className={`block w-full px-3 py-2 text-left ${index === activeIndex ? 'bg-blue-50' : 'hover:bg-blue-50'}`}
+              >
+                <div className="truncate text-sm font-medium text-gray-900">{supplier.name} · {supplier.code}</div>
+                {(supplier.contact || supplier.phone) && (
+                  <div className="mt-0.5 truncate text-xs text-gray-500">
+                    {[supplier.contact, supplier.phone].filter(Boolean).join(' · ')}
+                  </div>
+                )}
+              </button>
+            ))
+          )}
+          <div className="border-t border-gray-100 px-3 py-2 text-xs text-gray-400">输入名称、编码、联系人或电话继续筛选</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function MaterialSearchSelect({
   value,
   options,
@@ -318,17 +469,25 @@ export default function MaterialInPage({
     }
   }
 
-  const fetchSuppliers = async () => {
+  const fetchSuppliers = useCallback(async (searchKeyword = '') => {
     try {
-      const res = await fetch('/api/suppliers')
+      const params = new URLSearchParams()
+      const normalizedKeyword = searchKeyword.trim()
+      if (normalizedKeyword) params.set('keyword', normalizedKeyword)
+      const url = params.toString() ? `/api/suppliers?${params.toString()}` : '/api/suppliers'
+      const res = await fetch(url)
       if (res.ok) {
         const data = await res.json()
-        setSuppliers(data.data || [])
+        setSuppliers((current) => {
+          const merged = new Map(current.map((supplier) => [supplier.id, supplier]))
+          for (const supplier of data.data || []) merged.set(supplier.id, supplier)
+          return Array.from(merged.values())
+        })
       }
     } catch (err) {
       // ignore
     }
-  }
+  }, [])
 
   const fetchMaterials = useCallback(async (searchKeyword = '') => {
     try {
@@ -1029,18 +1188,12 @@ export default function MaterialInPage({
               </div>
               <div className="lg:col-span-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">供应商</label>
-                <select
+                <SupplierSearchSelect
                   value={form.supplierId}
-                  onChange={(e) => setForm({ ...form, supplierId: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">请选择供应商</option>
-                  {suppliers.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.code})
-                    </option>
-                  ))}
-                </select>
+                  options={suppliers}
+                  onChange={(supplier) => setForm((current) => ({ ...current, supplierId: supplier?.id || '' }))}
+                  onSearch={fetchSuppliers}
+                />
               </div>
               <div className="lg:col-span-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">物料</label>
