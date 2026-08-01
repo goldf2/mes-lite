@@ -3,9 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
+import { randomUUID } from 'crypto'
 
 const createSupplierSchema = z.object({
-  code: z.string().min(1, '供应商编码必填'),
   name: z.string().min(1, '供应商名称必填'),
   contact: z.string().optional(),
   phone: z.string().optional(),
@@ -54,12 +54,8 @@ export async function POST(req: NextRequest) {
     if (denied) return denied
 
     const body = await req.json()
-    const { code, name, contact, phone, address } = createSupplierSchema.parse(body)
-
-    const existing = await prisma.supplier.findUnique({ where: { code } })
-    if (existing) {
-      return NextResponse.json({ error: existing.deletedAt ? '供应商编码已被已归档记录占用' : '供应商编码已存在' }, { status: 400 })
-    }
+    const { name, contact, phone, address } = createSupplierSchema.parse(body)
+    const code = `SUP-${Date.now().toString(36).toUpperCase()}-${randomUUID().slice(0, 8).toUpperCase()}`
 
     const supplier = await prisma.supplier.create({
       data: { code, name, contact, phone, address },
@@ -82,22 +78,16 @@ export async function PUT(req: NextRequest) {
     if (denied) return denied
 
     const body = await req.json()
-    const { id, code, name, contact, phone, address } = updateSupplierSchema.parse(body)
+    const { id, name, contact, phone, address } = updateSupplierSchema.parse(body)
 
     const supplier = await prisma.supplier.findUnique({ where: { id } })
     if (!supplier || supplier.deletedAt) {
       return NextResponse.json({ error: '供应商不存在' }, { status: 404 })
     }
 
-    const existing = await prisma.supplier.findUnique({ where: { code } })
-    if (existing && existing.id !== id) {
-      return NextResponse.json({ error: existing.deletedAt ? '供应商编码已被已归档记录占用' : '供应商编码已存在' }, { status: 400 })
-    }
-
     const updated = await prisma.supplier.update({
       where: { id },
       data: {
-        code,
         name,
         contact: contact || null,
         phone: phone || null,
@@ -144,7 +134,7 @@ export async function DELETE(req: NextRequest) {
       action: 'ARCHIVE',
       entityType: 'SUPPLIER',
       entityId: archived.id,
-      entityLabel: archived.code,
+      entityLabel: archived.name,
       beforeData: supplier,
       afterData: archived,
     })

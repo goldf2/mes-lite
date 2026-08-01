@@ -8,6 +8,9 @@ import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import MaterialChoiceSearch from './MaterialChoiceSearch'
+import SearchableSelect from './SearchableSelect'
+import SortableTableHeader from './SortableTableHeader'
+import useClientTableSort from './useClientTableSort'
 
 interface MaterialChoice {
   id: string
@@ -25,6 +28,13 @@ interface Customer {
   name: string
 }
 
+interface InventoryLocation {
+  id: string
+  code: string
+  name: string
+  isDefault: boolean
+}
+
 interface ReturnOrder {
   id: string
   returnNo: string
@@ -39,6 +49,7 @@ interface ReturnOrder {
   processedAt?: string
   product: { id: string; name: string; sku: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null }
   shipment?: { id: string; shipmentNo: string; customerId?: string | null; customerRef?: { id: string; code: string; name: string } | null } | null
+  location?: InventoryLocation | null
 }
 
 const statusColors: Record<string, string> = {
@@ -69,6 +80,7 @@ export default function ReturnPage({
   const [returns, setReturns] = useState<ReturnOrder[]>([])
   const [products, setProducts] = useState<MaterialChoice[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
+  const [locations, setLocations] = useState<InventoryLocation[]>([])
   const [keyword, setKeyword] = useState('')
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
@@ -79,16 +91,29 @@ export default function ReturnPage({
   const [form, setForm] = useState({
     voucherNo: '',
     productId: '',
+    locationId: '',
     qty: 0,
     reason: '',
     note: '',
   })
+  const returnSort = useClientTableSort(returns, {
+    returnNo: (item) => item.returnNo,
+    voucherNo: (item) => item.voucherNo,
+    shipment: (item) => item.shipment?.shipmentNo,
+    material: (item) => `${item.product?.sku || ''} ${item.product?.name || ''}`,
+    qty: (item) => item.qty,
+    location: (item) => item.location ? `${item.location.code} ${item.location.name}` : null,
+    reason: (item) => item.reason,
+    status: (item) => statusLabels[item.status] || item.status,
+    createdAt: (item) => new Date(item.createdAt),
+  }, 'createdAt', 'desc')
   const selectedProduct = products.find((item) => item.id === form.productId)
 
   useEffect(() => {
     fetchReturns()
     fetchProducts()
     fetchCustomers()
+    fetchLocations()
   }, [keyword, selectedStatuses, selectedCustomerId])
 
   const fetchReturns = async () => {
@@ -132,10 +157,27 @@ export default function ReturnPage({
     }
   }
 
+  const fetchLocations = async () => {
+    try {
+      const res = await fetch('/api/inventory-locations')
+      if (!res.ok) return
+      const data = await res.json()
+      const nextLocations = data.data || []
+      setLocations(nextLocations)
+      setForm((current) => current.locationId ? current : {
+        ...current,
+        locationId: nextLocations.find((location: InventoryLocation) => location.isDefault)?.id || nextLocations[0]?.id || '',
+      })
+    } catch (err) {
+      // ignore
+    }
+  }
+
   const resetForm = () => {
     setForm({
       voucherNo: '',
       productId: '',
+      locationId: locations.find((location) => location.isDefault)?.id || locations[0]?.id || '',
       qty: 0,
       reason: '',
       note: '',
@@ -143,8 +185,8 @@ export default function ReturnPage({
   }
 
   const handleSubmit = async () => {
-    if (!form.productId || form.qty <= 0 || !form.reason) {
-      onMessage('请选择物料并填写数量和退货原因')
+    if (!form.productId || !form.locationId || form.qty <= 0 || !form.reason) {
+      onMessage('请选择物料和退回库位，并填写数量和退货原因')
       return
     }
     setLoading(true)
@@ -154,6 +196,7 @@ export default function ReturnPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId: form.productId,
+          locationId: form.locationId,
           voucherNo: form.voucherNo || undefined,
           qty: form.qty,
           reason: form.reason,
@@ -214,17 +257,17 @@ export default function ReturnPage({
               onChange={setSelectedStatuses}
               storageKey="mes-lite.filters.return.status.order"
             />
-            <select
+            <SearchableSelect
               value={selectedCustomerId}
-              onChange={(e) => setSelectedCustomerId(e.target.value)}
-              className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-            >
-              <option value="">全部客户</option>
-              <option value="__UNASSIGNED__">通用/未绑定</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>{customer.name}</option>
-              ))}
-            </select>
+              onChange={setSelectedCustomerId}
+              options={[
+                { value: '__UNASSIGNED__', label: '通用/未绑定' },
+                ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
+              ]}
+              placeholder="输入客户名称筛选"
+              allowClear
+              className="w-48"
+            />
           </>
         )}
         actions={(
@@ -269,17 +312,17 @@ export default function ReturnPage({
                 onChange={setSelectedStatuses}
                 storageKey="mes-lite.filters.return.status.order"
               />
-              <select
+              <SearchableSelect
                 value={selectedCustomerId}
-                onChange={(e) => setSelectedCustomerId(e.target.value)}
-                className="w-48 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-              >
-                <option value="">全部客户</option>
-                <option value="__UNASSIGNED__">通用/未绑定</option>
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>{customer.name}</option>
-                ))}
-              </select>
+                onChange={setSelectedCustomerId}
+                options={[
+                  { value: '__UNASSIGNED__', label: '通用/未绑定' },
+                  ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
+                ]}
+                placeholder="输入客户名称筛选"
+                allowClear
+                className="w-48"
+              />
             </>
           )}
           actions={(
@@ -309,7 +352,7 @@ export default function ReturnPage({
           </div>
         ) : viewMode === 'card' ? (
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-            {returns.map((item) => (
+            {returnSort.sortedRows.map((item) => (
               <div key={item.id} className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -331,6 +374,7 @@ export default function ReturnPage({
                   <div>
                     <div className="text-xs text-gray-500">退货信息</div>
                     <div className="mt-1 font-medium text-gray-900">数量：{item.qty}</div>
+                    <div className="text-xs text-gray-500">退回库位：{item.location ? `${item.location.code} · ${item.location.name}` : '-'}</div>
                     <div className="text-xs text-gray-500">创建：{new Date(item.createdAt).toLocaleString('zh-CN')}</div>
                     {item.processedAt && <div className="text-xs text-gray-500">处理：{new Date(item.processedAt).toLocaleString('zh-CN')}</div>}
                   </div>
@@ -374,20 +418,21 @@ export default function ReturnPage({
             <table className="w-full min-w-[1120px]">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">退货单号</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">凭据号</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">关联发货单</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">数量</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">退货原因</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">创建时间</th>
+                  <SortableTableHeader column="returnNo" activeColumn={returnSort.sortColumn} direction={returnSort.sortDirection} onSort={returnSort.toggleSort}>退货单号</SortableTableHeader>
+                  <SortableTableHeader column="voucherNo" activeColumn={returnSort.sortColumn} direction={returnSort.sortDirection} onSort={returnSort.toggleSort}>凭据号</SortableTableHeader>
+                  <SortableTableHeader column="shipment" activeColumn={returnSort.sortColumn} direction={returnSort.sortDirection} onSort={returnSort.toggleSort}>关联发货单</SortableTableHeader>
+                  <SortableTableHeader column="material" activeColumn={returnSort.sortColumn} direction={returnSort.sortDirection} onSort={returnSort.toggleSort}>物料</SortableTableHeader>
+                  <SortableTableHeader column="qty" activeColumn={returnSort.sortColumn} direction={returnSort.sortDirection} onSort={returnSort.toggleSort}>数量</SortableTableHeader>
+                  <SortableTableHeader column="location" activeColumn={returnSort.sortColumn} direction={returnSort.sortDirection} onSort={returnSort.toggleSort}>退回库位</SortableTableHeader>
+                  <SortableTableHeader column="reason" activeColumn={returnSort.sortColumn} direction={returnSort.sortDirection} onSort={returnSort.toggleSort}>退货原因</SortableTableHeader>
+                  <SortableTableHeader column="status" activeColumn={returnSort.sortColumn} direction={returnSort.sortDirection} onSort={returnSort.toggleSort}>状态</SortableTableHeader>
+                  <SortableTableHeader column="createdAt" activeColumn={returnSort.sortColumn} direction={returnSort.sortDirection} onSort={returnSort.toggleSort}>创建时间</SortableTableHeader>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">原始单据</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {returns.map((item) => (
+                {returnSort.sortedRows.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono text-blue-600">{item.returnNo}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{item.voucherNo || '-'}</td>
@@ -402,6 +447,7 @@ export default function ReturnPage({
 	                      </div>
 	                    </td>
                     <td className="px-4 py-3">{item.qty}</td>
+                    <td className="px-4 py-3 text-sm">{item.location ? `${item.location.code} · ${item.location.name}` : '-'}</td>
                     <td className="px-4 py-3 text-sm">{item.reason}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[item.status]}`}>
@@ -486,6 +532,18 @@ export default function ReturnPage({
                   onChange={(e) => setForm({ ...form, qty: Number(e.target.value) })}
                   min={0}
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">退回库位</label>
+                <SearchableSelect
+                  value={form.locationId}
+                  onChange={(locationId) => setForm({ ...form, locationId })}
+                  options={locations.map((location) => ({
+                    value: location.id,
+                    label: `${location.code} · ${location.name}${location.isDefault ? '（默认）' : ''}`,
+                  }))}
+                  placeholder="输入库位编码或名称筛选"
                 />
               </div>
               <div>

@@ -11,6 +11,8 @@ import ViewModeToggle, { usePersistedViewMode } from './components/ViewModeToggl
 import { InterfacePreferenceSync } from './components/interfacePreferences'
 import { SearchFieldWithPresets } from './components/SavedSearchPresets'
 import SearchableSelect from './components/SearchableSelect'
+import SortableTableHeader from './components/SortableTableHeader'
+import useClientTableSort from './components/useClientTableSort'
 import type { SystemSection } from './components/SystemPage'
 
 function FeaturePageLoading() {
@@ -130,15 +132,16 @@ interface ProcessStep {
 
 type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
 type MaterialSection = 'materials' | 'bomWorkspace' | 'bomUsage'
-type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'logistics' | 'inventory' | 'tools'
+type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'logistics' | 'inventory' | 'configuration' | 'tools'
 
 const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: TabType[] }> = [
   { key: 'workspace', label: '工作台', tabs: ['dashboard'] },
   { key: 'materials', label: '物料', tabs: ['materials'] },
-  { key: 'production', label: '生产', tabs: ['orders', 'stats', 'workInstructions', 'processTemplates', 'processRoutes', 'dispatch'] },
-  { key: 'logistics', label: '物流', tabs: ['materialIn', 'shipment', 'return', 'suppliers', 'customers'] },
+  { key: 'production', label: '生产', tabs: ['orders', 'stats', 'workInstructions', 'dispatch'] },
+  { key: 'logistics', label: '物流', tabs: ['materialIn', 'shipment', 'return'] },
   { key: 'inventory', label: '库存', tabs: ['stocks'] },
-  { key: 'tools', label: '工具', tabs: ['sawingCost', 'scanPrint', 'archive', 'auditLogs', 'dataTools', 'unitSettings', 'locationSettings', 'systemSettings'] },
+  { key: 'configuration', label: '配置', tabs: ['suppliers', 'customers', 'locationSettings', 'unitSettings', 'processTemplates', 'processRoutes', 'systemSettings'] },
+  { key: 'tools', label: '工具', tabs: ['sawingCost', 'scanPrint', 'archive', 'auditLogs', 'dataTools'] },
 ]
 
 const systemSectionByTab: Partial<Record<TabType, SystemSection>> = {
@@ -357,17 +360,17 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'return', label: '退货管理', resource: 'return' },
     { key: 'stocks', label: '库存管理', resource: 'stocks' },
     { key: 'stats', label: '生产日报', resource: 'stats' },
+    { key: 'suppliers', label: '供应商资料', resource: 'system' },
+    { key: 'customers', label: '客户资料', resource: 'system' },
+    { key: 'locationSettings', label: '库位配置', resource: 'system' },
+    { key: 'unitSettings', label: '单位配置', resource: 'system' },
     { key: 'processTemplates', label: '加工工艺', resource: 'system' },
     { key: 'processRoutes', label: '物料路线', resource: 'system' },
     { key: 'sawingCost', label: '锯切成本', resource: 'sawingCost' },
     { key: 'scanPrint', label: '硬件工具', resource: 'scanPrint' },
-    { key: 'suppliers', label: '供应商资料', resource: 'system' },
-    { key: 'customers', label: '客户资料', resource: 'system' },
     { key: 'archive', label: '归档记录', resource: 'system' },
     { key: 'auditLogs', label: '操作记录', resource: 'system' },
     { key: 'dataTools', label: '数据工具', resource: 'system' },
-    { key: 'unitSettings', label: '单位配置', resource: 'system' },
-    { key: 'locationSettings', label: '库位配置', resource: 'system' },
     { key: 'systemSettings', label: '系统设置', resource: 'system' },
     { key: 'operators', label: '人员管理', resource: 'operators' },
     { key: 'permissionUsers', label: '人员权限', resource: 'permissionUsers' },
@@ -885,6 +888,25 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const visibleStocks = stocks.filter((stock) => (
     stockFilter === 'all' ? true : stockFilter === 'material' ? !!stock.material : !!stock.product
   ))
+  const orderSort = useClientTableSort(orders, {
+    orderNo: (order) => order.orderNo,
+    voucherNo: (order) => order.voucherNo,
+    target: (order) => `${order.targetMaterial?.code || order.product.sku} ${order.targetMaterial?.name || order.product.name}`,
+    planQty: (order) => order.planQty,
+    completed: (order) => order.completeQty,
+    status: (order) => statusLabels[order.status] || order.status,
+    createdAt: (order) => new Date(order.createdAt),
+  }, 'createdAt', 'desc')
+  const stockSort = useClientTableSort(visibleStocks, {
+    object: (stock) => `${stock.material?.code || stock.product?.sku || ''} ${stock.material?.name || stock.product?.name || ''}`,
+    customer: (stock) => stock.material?.customer?.name || stock.product?.customer?.name || '通用/未绑定',
+    type: (stock) => stock.material ? materialCategoryLabels[stock.material.category || 'RAW'] || '物料' : '成品',
+    qty: (stock) => stock.qty,
+    reservedQty: (stock) => stock.reservedQty,
+    availableQty: (stock) => stock.availableQty,
+    valuationQty: (stock) => stock.valuationQty,
+    totalCost: (stock) => stock.totalCost,
+  }, 'object', 'asc')
 
   return (
     <div
@@ -1326,7 +1348,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               </div>
             ) : orderViewMode === 'card' ? (
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                {orders.map((order) => (
+                {orderSort.sortedRows.map((order) => (
                   <div
                     key={order.id}
                     onClick={() => handleSelectOrder(order)}
@@ -1384,19 +1406,19 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 <table className="w-full min-w-[1080px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">工单号</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">凭据号</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">目标</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">计划</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">完成/报废</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">时间</th>
+                      <SortableTableHeader column="orderNo" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>工单号</SortableTableHeader>
+                      <SortableTableHeader column="voucherNo" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>凭据号</SortableTableHeader>
+                      <SortableTableHeader column="target" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>目标</SortableTableHeader>
+                      <SortableTableHeader column="planQty" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>计划</SortableTableHeader>
+                      <SortableTableHeader column="completed" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>完成/报废</SortableTableHeader>
+                      <SortableTableHeader column="status" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>状态</SortableTableHeader>
+                      <SortableTableHeader column="createdAt" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>时间</SortableTableHeader>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">原始单据</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {orders.map((order) => (
+                    {orderSort.sortedRows.map((order) => (
                       <tr key={order.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => handleSelectOrder(order)}>
                         <td className="px-4 py-3 font-mono text-blue-600 text-sm">{order.orderNo}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">{order.voucherNo || '-'}</td>
@@ -1608,19 +1630,19 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">图片</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存对象</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">客户</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">类型</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">已预留</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">可用</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">核算库存</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存金额</th>
+                      <SortableTableHeader column="object" activeColumn={stockSort.sortColumn} direction={stockSort.sortDirection} onSort={stockSort.toggleSort}>库存对象</SortableTableHeader>
+                      <SortableTableHeader column="customer" activeColumn={stockSort.sortColumn} direction={stockSort.sortDirection} onSort={stockSort.toggleSort}>客户</SortableTableHeader>
+                      <SortableTableHeader column="type" activeColumn={stockSort.sortColumn} direction={stockSort.sortDirection} onSort={stockSort.toggleSort}>类型</SortableTableHeader>
+                      <SortableTableHeader column="qty" activeColumn={stockSort.sortColumn} direction={stockSort.sortDirection} onSort={stockSort.toggleSort}>库存</SortableTableHeader>
+                      <SortableTableHeader column="reservedQty" activeColumn={stockSort.sortColumn} direction={stockSort.sortDirection} onSort={stockSort.toggleSort}>已预留</SortableTableHeader>
+                      <SortableTableHeader column="availableQty" activeColumn={stockSort.sortColumn} direction={stockSort.sortDirection} onSort={stockSort.toggleSort}>可用</SortableTableHeader>
+                      <SortableTableHeader column="valuationQty" activeColumn={stockSort.sortColumn} direction={stockSort.sortDirection} onSort={stockSort.toggleSort}>核算库存</SortableTableHeader>
+                      <SortableTableHeader column="totalCost" activeColumn={stockSort.sortColumn} direction={stockSort.sortDirection} onSort={stockSort.toggleSort}>库存金额</SortableTableHeader>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {visibleStocks.map((stock) => (
+                    {stockSort.sortedRows.map((stock) => (
                       <tr key={stock.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3">
                           {stock.material?.primaryImage ? (
@@ -1682,7 +1704,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {visibleStocks.map((stock) => (
+                {stockSort.sortedRows.map((stock) => (
                   <div key={stock.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
 	                  <div className="flex items-start justify-between mb-3">
 	                    <div className="flex min-w-0 items-start gap-3">

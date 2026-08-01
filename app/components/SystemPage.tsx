@@ -8,6 +8,8 @@ import { SearchFieldWithPresets } from './SavedSearchPresets'
 import useCompactViewport from './useCompactViewport'
 import DataIntegrityPanel from './DataIntegrityPanel'
 import SearchableSelect from './SearchableSelect'
+import SortableTableHeader from './SortableTableHeader'
+import useClientTableSort from './useClientTableSort'
 
 interface Supplier {
   id: string
@@ -238,6 +240,12 @@ function InventoryLocationManager({ onMessage }: { onMessage: (msg: string) => v
   const [editing, setEditing] = useState<InventoryLocationConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const locationSort = useClientTableSort(locations, {
+    location: (location) => `${location.code} ${location.name}`,
+    status: (location) => location.isDefault ? '默认' : location.isActive ? '启用' : '已归档',
+    materialCount: (location) => location.materialCount,
+    qty: (location) => location.qty,
+  }, 'location', 'asc')
 
   const loadLocations = useCallback(async () => {
     setLoading(true)
@@ -339,9 +347,9 @@ function InventoryLocationManager({ onMessage }: { onMessage: (msg: string) => v
         {loading ? <div className="py-12 text-center text-sm text-gray-500">加载中...</div> : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px]">
-              <thead className="bg-gray-50 text-left text-sm text-gray-600"><tr><th className="px-4 py-3">库位</th><th className="px-4 py-3">状态</th><th className="px-4 py-3">物料数</th><th className="px-4 py-3">库存 / 占用 / 可用</th><th className="px-4 py-3 text-right">操作</th></tr></thead>
+              <thead className="bg-gray-50 text-left text-sm text-gray-600"><tr><SortableTableHeader column="location" activeColumn={locationSort.sortColumn} direction={locationSort.sortDirection} onSort={locationSort.toggleSort}>库位</SortableTableHeader><SortableTableHeader column="status" activeColumn={locationSort.sortColumn} direction={locationSort.sortDirection} onSort={locationSort.toggleSort}>状态</SortableTableHeader><SortableTableHeader column="materialCount" activeColumn={locationSort.sortColumn} direction={locationSort.sortDirection} onSort={locationSort.toggleSort}>物料数</SortableTableHeader><SortableTableHeader column="qty" activeColumn={locationSort.sortColumn} direction={locationSort.sortDirection} onSort={locationSort.toggleSort}>库存 / 占用 / 可用</SortableTableHeader><th className="px-4 py-3 text-right">操作</th></tr></thead>
               <tbody className="divide-y divide-gray-100">
-                {locations.map((location) => (
+                {locationSort.sortedRows.map((location) => (
                   <tr key={location.id} className={!location.isActive ? 'bg-gray-50 text-gray-400' : ''}>
                     <td className="px-4 py-3"><div className="font-medium">{location.code} · {location.name}</div>{location.note && <div className="mt-1 text-xs text-gray-500">{location.note}</div>}</td>
                     <td className="px-4 py-3 text-sm">{location.isDefault ? <span className="rounded bg-blue-50 px-2 py-1 text-blue-700">默认</span> : location.isActive ? '启用' : '已归档'}</td>
@@ -367,6 +375,11 @@ function UnitCatalogManager({ onMessage }: { onMessage: (msg: string) => void })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const baseUnit = measureTypeOptions.find(([measure]) => measure === form.measureType)?.[2] || '基准单位'
+  const unitSort = useClientTableSort(units, {
+    unit: (unit) => `${unit.name} ${unit.code}`,
+    factor: (unit) => unit.toBaseFactor,
+    usage: (unit) => unit.usedByMaterialCount,
+  }, 'unit', 'asc')
 
   const loadUnits = useCallback(async () => {
     setLoading(true)
@@ -520,7 +533,7 @@ function UnitCatalogManager({ onMessage }: { onMessage: (msg: string) => void })
       ) : (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {measureTypeOptions.map(([measureType, label, base]) => {
-            const rows = units.filter((unit) => unit.measureType === measureType)
+            const rows = unitSort.sortedRows.filter((unit) => unit.measureType === measureType)
             return (
               <div key={measureType} className="rounded-lg bg-white p-4 shadow sm:p-5">
                 <div className="mb-3 flex items-center justify-between">
@@ -530,7 +543,7 @@ function UnitCatalogManager({ onMessage }: { onMessage: (msg: string) => void })
                 <div className="overflow-x-auto rounded-lg border border-gray-200">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 text-left text-gray-600">
-                      <tr><th className="px-3 py-2">单位</th><th className="px-3 py-2">换算关系</th><th className="px-3 py-2">使用</th><th className="px-3 py-2 text-right">操作</th></tr>
+                      <tr><SortableTableHeader column="unit" activeColumn={unitSort.sortColumn} direction={unitSort.sortDirection} onSort={unitSort.toggleSort} className="px-3 py-2">单位</SortableTableHeader><SortableTableHeader column="factor" activeColumn={unitSort.sortColumn} direction={unitSort.sortDirection} onSort={unitSort.toggleSort} className="px-3 py-2">换算关系</SortableTableHeader><SortableTableHeader column="usage" activeColumn={unitSort.sortColumn} direction={unitSort.sortDirection} onSort={unitSort.toggleSort} className="px-3 py-2">使用</SortableTableHeader><th className="px-3 py-2 text-right">操作</th></tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {rows.map((unit) => (
@@ -800,12 +813,18 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const isCompactViewport = useCompactViewport(1023)
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
   const [form, setForm] = useState({
-    code: '',
     name: '',
     contact: '',
     phone: '',
     address: '',
   })
+  const supplierSort = useClientTableSort(suppliers, {
+    name: (supplier) => supplier.name,
+    contact: (supplier) => supplier.contact,
+    phone: (supplier) => supplier.phone,
+    address: (supplier) => supplier.address,
+    createdAt: (supplier) => new Date(supplier.createdAt),
+  }, 'createdAt', 'desc')
 
   useEffect(() => {
     fetchSuppliers()
@@ -823,7 +842,7 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
   }
 
   const resetForm = () => {
-    setForm({ code: '', name: '', contact: '', phone: '', address: '' })
+    setForm({ name: '', contact: '', phone: '', address: '' })
     setEditingSupplier(null)
   }
 
@@ -835,7 +854,6 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const openEdit = (supplier: Supplier) => {
     setEditingSupplier(supplier)
     setForm({
-      code: supplier.code,
       name: supplier.name,
       contact: supplier.contact || '',
       phone: supplier.phone || '',
@@ -845,8 +863,8 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
   }
 
   const submit = async () => {
-    if (!form.code || !form.name) {
-      onMessage('供应商编码和名称必填')
+    if (!form.name) {
+      onMessage('供应商名称必填')
       return
     }
 
@@ -901,7 +919,7 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
             storageKey="mes-lite.searchPresets.suppliers"
             value={keyword}
             onChange={setKeyword}
-            placeholder="搜索编码、名称、联系人、电话"
+            placeholder="搜索名称、联系人、电话"
             className="flex w-full items-center gap-2 sm:w-[420px]"
           />
           <button onClick={openAdd} className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 sm:w-auto">
@@ -912,12 +930,11 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
 
       {effectiveViewMode === 'card' && suppliers.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {suppliers.map((supplier) => (
+          {supplierSort.sortedRows.map((supplier) => (
             <div key={supplier.id} className="rounded-lg border border-gray-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="truncate font-semibold text-gray-900">{supplier.name}</div>
-                  <div className="mt-1 font-mono text-sm text-blue-700">{supplier.code}</div>
                 </div>
                 <button onClick={() => openEdit(supplier)} className="shrink-0 px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">
                   编辑
@@ -948,19 +965,17 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">编码</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">名称</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">联系人</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">电话</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">地址</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">创建时间</th>
+              <SortableTableHeader column="name" activeColumn={supplierSort.sortColumn} direction={supplierSort.sortDirection} onSort={supplierSort.toggleSort}>名称</SortableTableHeader>
+              <SortableTableHeader column="contact" activeColumn={supplierSort.sortColumn} direction={supplierSort.sortDirection} onSort={supplierSort.toggleSort}>联系人</SortableTableHeader>
+              <SortableTableHeader column="phone" activeColumn={supplierSort.sortColumn} direction={supplierSort.sortDirection} onSort={supplierSort.toggleSort}>电话</SortableTableHeader>
+              <SortableTableHeader column="address" activeColumn={supplierSort.sortColumn} direction={supplierSort.sortDirection} onSort={supplierSort.toggleSort}>地址</SortableTableHeader>
+              <SortableTableHeader column="createdAt" activeColumn={supplierSort.sortColumn} direction={supplierSort.sortDirection} onSort={supplierSort.toggleSort}>创建时间</SortableTableHeader>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {suppliers.map((supplier) => (
+            {supplierSort.sortedRows.map((supplier) => (
               <tr key={supplier.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-mono text-blue-700 text-sm">{supplier.code}</td>
                 <td className="px-4 py-3 font-medium text-sm">{supplier.name}</td>
                 <td className="px-4 py-3 text-sm">{supplier.contact || '-'}</td>
                 <td className="px-4 py-3 text-sm">{supplier.phone || '-'}</td>
@@ -991,10 +1006,7 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
               <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">&times;</button>
             </div>
             <div className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="供应商编码 *" value={form.code} onChange={(value) => setForm({ ...form, code: value })} />
-                <Field label="供应商名称 *" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
-              </div>
+              <Field label="供应商名称 *" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
               <div className="grid grid-cols-2 gap-4">
                 <Field label="联系人" value={form.contact} onChange={(value) => setForm({ ...form, contact: value })} />
                 <Field label="电话" value={form.phone} onChange={(value) => setForm({ ...form, phone: value })} />
@@ -1039,6 +1051,13 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
     phone: '',
     address: '',
   })
+  const customerSort = useClientTableSort(customers, {
+    name: (customer) => customer.name,
+    contact: (customer) => customer.contact,
+    phone: (customer) => customer.phone,
+    address: (customer) => customer.address,
+    createdAt: (customer) => new Date(customer.createdAt),
+  }, 'createdAt', 'desc')
 
   useEffect(() => {
     fetchCustomers()
@@ -1144,7 +1163,7 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
 
       {effectiveViewMode === 'card' && customers.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {customers.map((customer) => (
+          {customerSort.sortedRows.map((customer) => (
             <div key={customer.id} className="rounded-lg border border-gray-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -1179,16 +1198,16 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">名称</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">联系人</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">电话</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">地址</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">创建时间</th>
+              <SortableTableHeader column="name" activeColumn={customerSort.sortColumn} direction={customerSort.sortDirection} onSort={customerSort.toggleSort}>名称</SortableTableHeader>
+              <SortableTableHeader column="contact" activeColumn={customerSort.sortColumn} direction={customerSort.sortDirection} onSort={customerSort.toggleSort}>联系人</SortableTableHeader>
+              <SortableTableHeader column="phone" activeColumn={customerSort.sortColumn} direction={customerSort.sortDirection} onSort={customerSort.toggleSort}>电话</SortableTableHeader>
+              <SortableTableHeader column="address" activeColumn={customerSort.sortColumn} direction={customerSort.sortDirection} onSort={customerSort.toggleSort}>地址</SortableTableHeader>
+              <SortableTableHeader column="createdAt" activeColumn={customerSort.sortColumn} direction={customerSort.sortDirection} onSort={customerSort.toggleSort}>创建时间</SortableTableHeader>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {customers.map((customer) => (
+            {customerSort.sortedRows.map((customer) => (
               <tr key={customer.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-sm">{customer.name}</td>
                 <td className="px-4 py-3 text-sm">{customer.contact || '-'}</td>
@@ -1361,6 +1380,12 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
     steps: [emptyStep()],
   })
   const displayMaterialCode = (sku?: string | null) => sku?.startsWith('MAT-') ? sku.slice(4) : sku || ''
+  const routeSort = useClientTableSort(routes, {
+    material: (route) => `${displayMaterialCode(route.product?.sku)} ${route.product?.name || ''}`,
+    name: (route) => route.name,
+    default: (route) => route.isDefault,
+    steps: (route) => route.steps.length,
+  }, 'material', 'asc')
 
   useEffect(() => {
     fetchProducts()
@@ -1516,7 +1541,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
 
       {effectiveViewMode === 'card' && routes.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {routes.map((route) => (
+          {routeSort.sortedRows.map((route) => (
             <div key={route.id} className="rounded-lg border border-gray-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -1551,15 +1576,15 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">路线名称</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">默认</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">工序</th>
+              <SortableTableHeader column="material" activeColumn={routeSort.sortColumn} direction={routeSort.sortDirection} onSort={routeSort.toggleSort}>物料</SortableTableHeader>
+              <SortableTableHeader column="name" activeColumn={routeSort.sortColumn} direction={routeSort.sortDirection} onSort={routeSort.toggleSort}>路线名称</SortableTableHeader>
+              <SortableTableHeader column="default" activeColumn={routeSort.sortColumn} direction={routeSort.sortDirection} onSort={routeSort.toggleSort}>默认</SortableTableHeader>
+              <SortableTableHeader column="steps" activeColumn={routeSort.sortColumn} direction={routeSort.sortDirection} onSort={routeSort.toggleSort}>工序</SortableTableHeader>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {routes.map((route) => (
+            {routeSort.sortedRows.map((route) => (
               <tr key={route.id} className="hover:bg-gray-50 align-top">
                 <td className="px-4 py-3">
                   <div className="font-medium text-sm">{route.product?.name}</div>
@@ -1731,6 +1756,11 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.recycle.viewMode', 'list')
   const isCompactViewport = useCompactViewport(1023)
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
+  const recordSort = useClientTableSort(records, {
+    type: (record) => record.type,
+    label: (record) => record.label,
+    deletedAt: (record) => record.deletedAt ? new Date(record.deletedAt) : null,
+  }, 'deletedAt', 'desc')
 
   useEffect(() => {
     fetchDeletedRecords()
@@ -1739,7 +1769,7 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
   const flattenRecords = (data: any): DeletedRecord[] => {
     const rows: DeletedRecord[] = []
     ;(data.materials || []).forEach((item: any) => rows.push({ id: item.id, label: item.code, type: '物料', model: 'material', deletedAt: item.deletedAt }))
-    ;(data.suppliers || []).forEach((item: any) => rows.push({ id: item.id, label: item.code, type: '供应商', model: 'supplier', deletedAt: item.deletedAt }))
+    ;(data.suppliers || []).forEach((item: any) => rows.push({ id: item.id, label: item.name, type: '供应商', model: 'supplier', deletedAt: item.deletedAt }))
     ;(data.customers || []).forEach((item: any) => rows.push({ id: item.id, label: item.name, type: '客户', model: 'customer', deletedAt: item.deletedAt }))
     ;(data.materialIn || []).forEach((item: any) => rows.push({ id: item.id, label: item.inboundNo, type: '来料单', model: 'materialIn', deletedAt: item.deletedAt }))
     ;(data.workInstructions || []).forEach((item: any) => rows.push({ id: item.id, label: `${item.material?.code || '-'} · ${item.material?.name || '未知产品'}`, type: '产品文档', model: 'workInstruction', deletedAt: item.deletedAt }))
@@ -1825,7 +1855,7 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
       </div>
       {effectiveViewMode === 'card' && records.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {records.map((record) => (
+          {recordSort.sortedRows.map((record) => (
             <div key={`${record.model}-${record.id}`} className="rounded-lg border border-gray-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -1852,14 +1882,14 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">类型</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">编号</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">归档时间</th>
+              <SortableTableHeader column="type" activeColumn={recordSort.sortColumn} direction={recordSort.sortDirection} onSort={recordSort.toggleSort}>类型</SortableTableHeader>
+              <SortableTableHeader column="label" activeColumn={recordSort.sortColumn} direction={recordSort.sortDirection} onSort={recordSort.toggleSort}>编号</SortableTableHeader>
+              <SortableTableHeader column="deletedAt" activeColumn={recordSort.sortColumn} direction={recordSort.sortDirection} onSort={recordSort.toggleSort}>归档时间</SortableTableHeader>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {records.map((record) => (
+            {recordSort.sortedRows.map((record) => (
               <tr key={`${record.model}-${record.id}`} className="hover:bg-gray-50">
                 <td className="px-4 py-3 text-sm">{record.type}</td>
                 <td className="px-4 py-3 font-mono text-sm text-blue-700">{record.label}</td>
@@ -1893,6 +1923,13 @@ function AuditLogViewer({ onMessage }: { onMessage: (msg: string) => void }) {
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.audit.viewMode', 'list')
   const isCompactViewport = useCompactViewport(1023)
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
+  const auditSort = useClientTableSort(logs, {
+    createdAt: (log) => new Date(log.createdAt),
+    operator: (log) => log.operatorName,
+    action: (log) => log.action,
+    entity: (log) => `${log.entityType} ${log.entityLabel || log.entityId || ''}`,
+    note: (log) => log.note,
+  }, 'createdAt', 'desc')
 
   useEffect(() => {
     fetchLogs()
@@ -1928,7 +1965,7 @@ function AuditLogViewer({ onMessage }: { onMessage: (msg: string) => void }) {
       </div>
       {effectiveViewMode === 'card' && logs.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {logs.map((log) => (
+          {auditSort.sortedRows.map((log) => (
             <div key={log.id} className="rounded-lg border border-gray-200 bg-white p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="font-semibold text-gray-900">{log.action}</div>
@@ -1953,15 +1990,15 @@ function AuditLogViewer({ onMessage }: { onMessage: (msg: string) => void }) {
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">时间</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">人员</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">动作</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">对象</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">备注</th>
+              <SortableTableHeader column="createdAt" activeColumn={auditSort.sortColumn} direction={auditSort.sortDirection} onSort={auditSort.toggleSort}>时间</SortableTableHeader>
+              <SortableTableHeader column="operator" activeColumn={auditSort.sortColumn} direction={auditSort.sortDirection} onSort={auditSort.toggleSort}>人员</SortableTableHeader>
+              <SortableTableHeader column="action" activeColumn={auditSort.sortColumn} direction={auditSort.sortDirection} onSort={auditSort.toggleSort}>动作</SortableTableHeader>
+              <SortableTableHeader column="entity" activeColumn={auditSort.sortColumn} direction={auditSort.sortDirection} onSort={auditSort.toggleSort}>对象</SortableTableHeader>
+              <SortableTableHeader column="note" activeColumn={auditSort.sortColumn} direction={auditSort.sortDirection} onSort={auditSort.toggleSort}>备注</SortableTableHeader>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {logs.map((log) => (
+            {auditSort.sortedRows.map((log) => (
               <tr key={log.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 text-xs text-gray-500">{new Date(log.createdAt).toLocaleString('zh-CN')}</td>
                 <td className="px-4 py-3 text-sm">{log.operatorName || '-'}</td>

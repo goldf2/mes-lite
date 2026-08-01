@@ -11,7 +11,7 @@ const createReturnSchema = z.object({
   voucherNo: z.string().optional(),
   shipmentId: z.string().min(1).optional(),
   productId: z.string().min(1),
-  locationId: z.string().min(1).optional(),
+  locationId: z.string().min(1, '退回库位必填'),
   qty: z.number().finite().positive(),
   reason: z.string().min(1, '退货原因必填'),
   note: z.string().optional(),
@@ -24,8 +24,8 @@ export async function POST(req: NextRequest) {
     if (denied) return denied
 
     const body = await req.json()
-    const { shipmentId, productId, qty, reason, note, voucherNo } = createReturnSchema.parse(body)
-    let requestedLocationId = body.locationId as string | undefined
+    const { shipmentId, productId, locationId, qty, reason, note, voucherNo } = createReturnSchema.parse(body)
+    const requestedLocationId = locationId
 
     const resolved = await prisma.$transaction(async (tx) => {
       const materialId = await resolveMaterialIdForProduct(tx, productId)
@@ -49,7 +49,6 @@ export async function POST(req: NextRequest) {
       if (shipment.status !== 'SHIPPED' && shipment.status !== 'DELIVERED') {
         return NextResponse.json({ error: '只有已发货或已签收单据可以退货' }, { status: 400 })
       }
-      requestedLocationId ||= shipment.locationId || undefined
       const shipmentMaterialId = await resolveMaterialIdForProduct(prisma, shipment.productId, shipment.materialId)
       if (!shipmentMaterialId || shipmentMaterialId !== materialId) {
         return NextResponse.json({ error: '退货物料必须与原发货单一致' }, { status: 400 })

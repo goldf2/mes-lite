@@ -10,6 +10,8 @@ import { SearchFieldWithPresets } from './SavedSearchPresets'
 import SearchableSelect from './SearchableSelect'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import { MaterialInPriceUnit, normalizeMaterialInPriceUnit } from '@/lib/material-in-quantity'
+import SortableTableHeader from './SortableTableHeader'
+import useClientTableSort from './useClientTableSort'
 
 const displayPriceUnit = (unit: string | null | undefined) => unit === 'm' ? '米' : unit || '-'
 
@@ -97,13 +99,13 @@ function materialIncludesKeyword(material: Material, keyword: string) {
 }
 
 function formatSupplierLabel(supplier: Supplier) {
-  return `${supplier.name} (${supplier.code})`
+  return supplier.name
 }
 
 function supplierIncludesKeyword(supplier: Supplier, keyword: string) {
   const normalizedKeyword = keyword.trim().toLocaleLowerCase()
   if (!normalizedKeyword) return true
-  return [supplier.code, supplier.name, supplier.contact || '', supplier.phone || '']
+  return [supplier.name, supplier.contact || '', supplier.phone || '']
     .join(' ')
     .toLocaleLowerCase()
     .includes(normalizedKeyword)
@@ -195,7 +197,7 @@ function SupplierSearchSelect({
             selectSupplier(visibleOptions[activeIndex])
           }
         }}
-        placeholder="输入供应商名称、编码、联系人或电话"
+        placeholder="输入供应商名称、联系人或电话"
         className="w-full rounded-lg border border-gray-200 px-4 py-2 pr-14 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
       />
       {value && (
@@ -231,7 +233,7 @@ function SupplierSearchSelect({
                 onClick={() => selectSupplier(supplier)}
                 className={`block w-full px-3 py-2 text-left ${index === activeIndex ? 'bg-blue-50' : 'hover:bg-blue-50'}`}
               >
-                <div className="truncate text-sm font-medium text-gray-900">{supplier.name} · {supplier.code}</div>
+                <div className="truncate text-sm font-medium text-gray-900">{supplier.name}</div>
                 {(supplier.contact || supplier.phone) && (
                   <div className="mt-0.5 truncate text-xs text-gray-500">
                     {[supplier.contact, supplier.phone].filter(Boolean).join(' · ')}
@@ -443,6 +445,22 @@ export default function MaterialInPage({
     receivedBy: '',
     note: '',
   })
+  const materialInSort = useClientTableSort(materialIns, {
+    inboundNo: (item) => item.inboundNo,
+    voucherNo: (item) => item.voucherNo,
+    supplier: (item) => item.supplier?.name,
+    material: (item) => `${item.material?.code || ''} ${item.material?.name || ''}`,
+    location: (item) => item.location ? `${item.location.code} ${item.location.name}` : null,
+    qty: (item) => item.qty,
+    valuationQty: (item) => item.valuationQty,
+    unitPrice: (item) => item.unitPrice,
+    valuationUnitCost: (item) => item.valuationUnitCost,
+    stockUnitCost: (item) => item.stockUnitCost,
+    totalAmount: (item) => item.totalAmount,
+    batchNo: (item) => item.batchNo,
+    status: (item) => statusLabels[item.status] || item.status,
+    inboundDate: (item) => new Date(item.inboundDate),
+  }, 'inboundDate', 'desc')
 
   useEffect(() => {
     fetchMaterialIns()
@@ -982,7 +1000,7 @@ export default function MaterialInPage({
           </div>
         ) : viewMode === 'card' ? (
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-            {materialIns.map((item) => (
+            {materialInSort.sortedRows.map((item) => (
               <div key={item.id} className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -998,7 +1016,6 @@ export default function MaterialInPage({
                   <div>
                     <div className="text-xs text-gray-500">供应商</div>
                     <div className="mt-1 font-medium text-gray-900">{item.supplier?.name}</div>
-                    <div className="text-xs text-gray-500">{item.supplier?.code}</div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-500">物料</div>
@@ -1084,32 +1101,31 @@ export default function MaterialInPage({
             <table className="w-full min-w-[1240px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">入库单号</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">凭据号</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">供应商</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">收货库位</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库存数量</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">核算数量</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">报价单价</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">每核算单位成本</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">每库存单位成本</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">总金额</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">批次</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">入库日期</th>
+                  <SortableTableHeader column="inboundNo" activeColumn={materialInSort.sortColumn} direction={materialInSort.sortDirection} onSort={materialInSort.toggleSort}>入库单号</SortableTableHeader>
+                  <SortableTableHeader column="voucherNo" activeColumn={materialInSort.sortColumn} direction={materialInSort.sortDirection} onSort={materialInSort.toggleSort}>凭据号</SortableTableHeader>
+                  <SortableTableHeader column="supplier" activeColumn={materialInSort.sortColumn} direction={materialInSort.sortDirection} onSort={materialInSort.toggleSort}>供应商</SortableTableHeader>
+                  <SortableTableHeader column="material" activeColumn={materialInSort.sortColumn} direction={materialInSort.sortDirection} onSort={materialInSort.toggleSort}>物料</SortableTableHeader>
+                  <SortableTableHeader column="location" activeColumn={materialInSort.sortColumn} direction={materialInSort.sortDirection} onSort={materialInSort.toggleSort}>收货库位</SortableTableHeader>
+                  <SortableTableHeader column="qty" activeColumn={materialInSort.sortColumn} direction={materialInSort.sortDirection} onSort={materialInSort.toggleSort}>库存数量</SortableTableHeader>
+                  <SortableTableHeader column="valuationQty" activeColumn={materialInSort.sortColumn} direction={materialInSort.sortDirection} onSort={materialInSort.toggleSort}>核算数量</SortableTableHeader>
+                  <SortableTableHeader column="unitPrice" activeColumn={materialInSort.sortColumn} direction={materialInSort.sortDirection} onSort={materialInSort.toggleSort}>报价单价</SortableTableHeader>
+                  <SortableTableHeader column="valuationUnitCost" activeColumn={materialInSort.sortColumn} direction={materialInSort.sortDirection} onSort={materialInSort.toggleSort}>每核算单位成本</SortableTableHeader>
+                  <SortableTableHeader column="stockUnitCost" activeColumn={materialInSort.sortColumn} direction={materialInSort.sortDirection} onSort={materialInSort.toggleSort}>每库存单位成本</SortableTableHeader>
+                  <SortableTableHeader column="totalAmount" activeColumn={materialInSort.sortColumn} direction={materialInSort.sortDirection} onSort={materialInSort.toggleSort}>总金额</SortableTableHeader>
+                  <SortableTableHeader column="batchNo" activeColumn={materialInSort.sortColumn} direction={materialInSort.sortDirection} onSort={materialInSort.toggleSort}>批次</SortableTableHeader>
+                  <SortableTableHeader column="status" activeColumn={materialInSort.sortColumn} direction={materialInSort.sortDirection} onSort={materialInSort.toggleSort}>状态</SortableTableHeader>
+                  <SortableTableHeader column="inboundDate" activeColumn={materialInSort.sortColumn} direction={materialInSort.sortDirection} onSort={materialInSort.toggleSort}>入库日期</SortableTableHeader>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">原始单据</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {materialIns.map((item) => (
+                {materialInSort.sortedRows.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono text-blue-600">{item.inboundNo}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{item.voucherNo || '-'}</td>
                     <td className="px-4 py-3">
                       <div className="font-medium">{item.supplier?.name}</div>
-                      <div className="text-xs text-gray-500">{item.supplier?.code}</div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="font-medium">{item.material?.name}</div>

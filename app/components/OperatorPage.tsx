@@ -6,6 +6,8 @@ import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
+import SortableTableHeader from './SortableTableHeader'
+import useClientTableSort from './useClientTableSort'
 
 interface Operator {
   id: string
@@ -60,6 +62,14 @@ export default function OperatorPage({
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [loading, setLoading] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.operators.viewMode', 'list')
+  const operatorSort = useClientTableSort(operators, {
+    username: (operator) => operator.username,
+    name: (operator) => operator.name,
+    phone: (operator) => operator.phone,
+    role: (operator) => roleLabels[operator.role],
+    status: (operator) => statusLabels[operator.status],
+    createdAt: (operator) => new Date(operator.createdAt),
+  }, 'createdAt', 'desc')
 
   const canManage = currentOperator.role === 'ADMIN'
   const totalCount = operators.length
@@ -167,7 +177,7 @@ export default function OperatorPage({
 
       {viewMode === 'card' && operators.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {operators.map((operator) => (
+          {operatorSort.sortedRows.map((operator) => (
             <div key={operator.id} className="rounded-lg border border-gray-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -242,17 +252,17 @@ export default function OperatorPage({
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">账号</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">姓名</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">手机号</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">角色</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">注册时间</th>
+                <SortableTableHeader column="username" activeColumn={operatorSort.sortColumn} direction={operatorSort.sortDirection} onSort={operatorSort.toggleSort}>账号</SortableTableHeader>
+                <SortableTableHeader column="name" activeColumn={operatorSort.sortColumn} direction={operatorSort.sortDirection} onSort={operatorSort.toggleSort}>姓名</SortableTableHeader>
+                <SortableTableHeader column="phone" activeColumn={operatorSort.sortColumn} direction={operatorSort.sortDirection} onSort={operatorSort.toggleSort}>手机号</SortableTableHeader>
+                <SortableTableHeader column="role" activeColumn={operatorSort.sortColumn} direction={operatorSort.sortDirection} onSort={operatorSort.toggleSort}>角色</SortableTableHeader>
+                <SortableTableHeader column="status" activeColumn={operatorSort.sortColumn} direction={operatorSort.sortDirection} onSort={operatorSort.toggleSort}>状态</SortableTableHeader>
+                <SortableTableHeader column="createdAt" activeColumn={operatorSort.sortColumn} direction={operatorSort.sortDirection} onSort={operatorSort.toggleSort}>注册时间</SortableTableHeader>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {operators.map((operator) => (
+              {operatorSort.sortedRows.map((operator) => (
                 <tr key={operator.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-blue-700 text-sm">{operator.username}</td>
                   <td className="px-4 py-3 font-medium text-sm">{operator.name}</td>

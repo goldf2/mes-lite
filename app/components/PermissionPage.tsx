@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
+import SortableTableHeader from './SortableTableHeader'
+import useClientTableSort from './useClientTableSort'
 
 interface ResourceItem {
   key: string
@@ -133,6 +135,12 @@ export default function PermissionPage({
     })
     return counts
   }, [operatorGroups])
+  const groupSort = useClientTableSort(groups, {
+    name: (group) => group.name,
+    code: (group) => group.code,
+    description: (group) => group.description,
+    memberCount: (group) => groupMemberCounts[group.id] || 0,
+  }, 'name', 'asc')
   const filteredOperators = useMemo(() => {
     const keyword = searchKeyword.trim().toLowerCase()
     if (!keyword) return operators
@@ -360,7 +368,7 @@ export default function PermissionPage({
               {activeOperator ? (
                 userViewMode === 'card' ? (
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {groups.map((group) => {
+                    {groupSort.sortedRows.map((group) => {
                       const checked = activeOperator.role === 'ADMIN' || isAssigned(activeOperator.id, group.id)
                       return (
                         <label
@@ -394,15 +402,15 @@ export default function PermissionPage({
                     <table className="w-full">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">权限组</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">编码</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">说明</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">成员数</th>
+                          <SortableTableHeader column="name" activeColumn={groupSort.sortColumn} direction={groupSort.sortDirection} onSort={groupSort.toggleSort}>权限组</SortableTableHeader>
+                          <SortableTableHeader column="code" activeColumn={groupSort.sortColumn} direction={groupSort.sortDirection} onSort={groupSort.toggleSort}>编码</SortableTableHeader>
+                          <SortableTableHeader column="description" activeColumn={groupSort.sortColumn} direction={groupSort.sortDirection} onSort={groupSort.toggleSort}>说明</SortableTableHeader>
+                          <SortableTableHeader column="memberCount" activeColumn={groupSort.sortColumn} direction={groupSort.sortDirection} onSort={groupSort.toggleSort}>成员数</SortableTableHeader>
                           <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">授权</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {groups.map((group) => {
+                        {groupSort.sortedRows.map((group) => {
                           const checked = activeOperator.role === 'ADMIN' || isAssigned(activeOperator.id, group.id)
                           return (
                             <tr
@@ -495,7 +503,7 @@ export default function PermissionPage({
         )}
 
         <div className="mt-5 flex flex-wrap gap-2">
-          {groups.map((group) => (
+          {groupSort.sortedRows.map((group) => (
             <button
               key={group.id}
               onClick={() => setActiveGroupId(group.id)}

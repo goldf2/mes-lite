@@ -9,6 +9,8 @@ import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import SearchableSelect from './SearchableSelect'
 import { calculateProductionConsumption, ProductionLossMode } from '@/lib/production-consumption'
+import SortableTableHeader from './SortableTableHeader'
+import useClientTableSort from './useClientTableSort'
 
 interface BomItem {
   id: string
@@ -160,6 +162,14 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
   const [confirmingReport, setConfirmingReport] = useState<DailyProductionReport | null>(null)
   const [reversingReport, setReversingReport] = useState<DailyProductionReport | null>(null)
   const [reverseReason, setReverseReason] = useState('')
+  const reportSort = useClientTableSort(reports, {
+    reportDate: (report) => new Date(report.reportDate),
+    material: (report) => `${report.finishedMaterial.code} ${report.finishedMaterial.name}`,
+    location: (report) => report.outputLocation ? `${report.outputLocation.code} ${report.outputLocation.name}` : null,
+    outputQty: (report) => report.outputQty,
+    workers: (report) => report.workers,
+    status: (report) => statusMeta[report.status].label,
+  }, 'reportDate', 'desc')
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -443,7 +453,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
         <div className="rounded-lg bg-white py-16 text-center text-sm text-gray-500 shadow-sm">暂无生产日报</div>
       ) : viewMode === 'card' ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {reports.map((report) => {
+          {reportSort.sortedRows.map((report) => {
             const meta = statusMeta[report.status]
             return (
               <article key={report.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
@@ -489,17 +499,17 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
           <table className="w-full min-w-[980px]">
             <thead className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
               <tr>
-                <th className="px-4 py-3">生产日期 / 日报号</th>
-                <th className="px-4 py-3">产出物料</th>
-                <th className="px-4 py-3">产出库位</th>
-                <th className="px-4 py-3 text-right">产出数量</th>
-                <th className="px-4 py-3">人员</th>
-                <th className="px-4 py-3">状态</th>
+                <SortableTableHeader column="reportDate" activeColumn={reportSort.sortColumn} direction={reportSort.sortDirection} onSort={reportSort.toggleSort}>生产日期 / 日报号</SortableTableHeader>
+                <SortableTableHeader column="material" activeColumn={reportSort.sortColumn} direction={reportSort.sortDirection} onSort={reportSort.toggleSort}>产出物料</SortableTableHeader>
+                <SortableTableHeader column="location" activeColumn={reportSort.sortColumn} direction={reportSort.sortDirection} onSort={reportSort.toggleSort}>产出库位</SortableTableHeader>
+                <SortableTableHeader column="outputQty" activeColumn={reportSort.sortColumn} direction={reportSort.sortDirection} onSort={reportSort.toggleSort} className="text-right">产出数量</SortableTableHeader>
+                <SortableTableHeader column="workers" activeColumn={reportSort.sortColumn} direction={reportSort.sortDirection} onSort={reportSort.toggleSort}>人员</SortableTableHeader>
+                <SortableTableHeader column="status" activeColumn={reportSort.sortColumn} direction={reportSort.sortDirection} onSort={reportSort.toggleSort}>状态</SortableTableHeader>
                 <th className="px-4 py-3 text-right">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {reports.map((report) => {
+              {reportSort.sortedRows.map((report) => {
                 const meta = statusMeta[report.status]
                 return (
                   <tr key={report.id} className="align-top hover:bg-gray-50">

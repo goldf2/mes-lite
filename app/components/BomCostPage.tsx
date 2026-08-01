@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
+import SortableTableHeader from './SortableTableHeader'
+import useClientTableSort from './useClientTableSort'
 
 interface ProductOption {
   id: string
@@ -344,6 +346,20 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
   })
   const selectedProduct = products.find((product) => product.id === selectedProductId)
   const displayedRun = selectedRun || runs[0] || null
+  const lineSort = useClientTableSort(displayedRun?.lines || [], {
+    type: (line) => lineTypeLabels[line.lineType] || line.lineType,
+    code: (line) => line.code,
+    name: (line) => line.name,
+    quantity: (line) => line.quantity,
+    unitCost: (line) => line.unitCost,
+    materialCost: (line) => line.materialCost,
+    laborHours: (line) => line.laborHours,
+    machineHours: (line) => line.machineHours,
+    laborCost: (line) => line.laborCost,
+    machineCost: (line) => line.machineCost,
+    directCost: (line) => line.directCost,
+    totalCost: (line) => line.totalCost,
+  }, 'type', 'asc')
 
   const loadData = async (productId = selectedProductId) => {
     setLoading(true)
@@ -748,22 +764,22 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
                   <table className="w-full min-w-[1040px] text-sm">
                     <thead className="bg-gray-50 text-left text-gray-600">
                       <tr>
-                        <th className="px-3 py-2">类型</th>
-                        <th className="px-3 py-2">编码</th>
-                        <th className="px-3 py-2">名称</th>
-                        <th className="px-3 py-2 text-right">数量</th>
-                        <th className="px-3 py-2 text-right">单位成本</th>
-                        <th className="px-3 py-2 text-right">材料</th>
-                        <th className="px-3 py-2 text-right">人工时</th>
-                        <th className="px-3 py-2 text-right">机时</th>
-                        <th className="px-3 py-2 text-right">人工</th>
-                        <th className="px-3 py-2 text-right">机时费</th>
-                        <th className="px-3 py-2 text-right">直接费</th>
-                        <th className="px-3 py-2 text-right">合计</th>
+                        <SortableTableHeader column="type" activeColumn={lineSort.sortColumn} direction={lineSort.sortDirection} onSort={lineSort.toggleSort} className="px-3 py-2">类型</SortableTableHeader>
+                        <SortableTableHeader column="code" activeColumn={lineSort.sortColumn} direction={lineSort.sortDirection} onSort={lineSort.toggleSort} className="px-3 py-2">编码</SortableTableHeader>
+                        <SortableTableHeader column="name" activeColumn={lineSort.sortColumn} direction={lineSort.sortDirection} onSort={lineSort.toggleSort} className="px-3 py-2">名称</SortableTableHeader>
+                        <SortableTableHeader column="quantity" activeColumn={lineSort.sortColumn} direction={lineSort.sortDirection} onSort={lineSort.toggleSort} className="px-3 py-2 text-right">数量</SortableTableHeader>
+                        <SortableTableHeader column="unitCost" activeColumn={lineSort.sortColumn} direction={lineSort.sortDirection} onSort={lineSort.toggleSort} className="px-3 py-2 text-right">单位成本</SortableTableHeader>
+                        <SortableTableHeader column="materialCost" activeColumn={lineSort.sortColumn} direction={lineSort.sortDirection} onSort={lineSort.toggleSort} className="px-3 py-2 text-right">材料</SortableTableHeader>
+                        <SortableTableHeader column="laborHours" activeColumn={lineSort.sortColumn} direction={lineSort.sortDirection} onSort={lineSort.toggleSort} className="px-3 py-2 text-right">人工时</SortableTableHeader>
+                        <SortableTableHeader column="machineHours" activeColumn={lineSort.sortColumn} direction={lineSort.sortDirection} onSort={lineSort.toggleSort} className="px-3 py-2 text-right">机时</SortableTableHeader>
+                        <SortableTableHeader column="laborCost" activeColumn={lineSort.sortColumn} direction={lineSort.sortDirection} onSort={lineSort.toggleSort} className="px-3 py-2 text-right">人工</SortableTableHeader>
+                        <SortableTableHeader column="machineCost" activeColumn={lineSort.sortColumn} direction={lineSort.sortDirection} onSort={lineSort.toggleSort} className="px-3 py-2 text-right">机时费</SortableTableHeader>
+                        <SortableTableHeader column="directCost" activeColumn={lineSort.sortColumn} direction={lineSort.sortDirection} onSort={lineSort.toggleSort} className="px-3 py-2 text-right">直接费</SortableTableHeader>
+                        <SortableTableHeader column="totalCost" activeColumn={lineSort.sortColumn} direction={lineSort.sortDirection} onSort={lineSort.toggleSort} className="px-3 py-2 text-right">合计</SortableTableHeader>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {displayedRun.lines.map((line) => (
+                      {lineSort.sortedRows.map((line) => (
                         <tr key={line.id} className="align-top hover:bg-gray-50">
                           <td className="px-3 py-2">
                             <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">{lineTypeLabels[line.lineType] || line.lineType}</span>

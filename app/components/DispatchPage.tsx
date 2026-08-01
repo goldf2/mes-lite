@@ -7,6 +7,8 @@ import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import SearchableSelect from './SearchableSelect'
+import SortableTableHeader from './SortableTableHeader'
+import useClientTableSort from './useClientTableSort'
 
 interface Order {
   id: string
@@ -114,6 +116,17 @@ export default function DispatchPage({
     priority: 'NORMAL',
     note: '',
   })
+  const dispatchSort = useClientTableSort(dispatches, {
+    dispatchNo: (item) => item.dispatchNo,
+    voucherNo: (item) => item.voucherNo,
+    orderNo: (item) => item.order?.orderNo,
+    material: (item) => item.order?.targetMaterial?.name || item.order?.product?.name,
+    step: (item) => `${item.step?.stepNo || 0} ${item.step?.name || ''}`,
+    worker: (item) => item.workerName,
+    planQty: (item) => item.planQty,
+    priority: (item) => priorityLabels[item.priority] || item.priority,
+    status: (item) => statusLabels[item.status] || item.status,
+  }, 'dispatchNo', 'desc')
 
   useEffect(() => {
     fetchDispatches()
@@ -364,7 +377,7 @@ export default function DispatchPage({
           </div>
         ) : viewMode === 'card' ? (
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-            {dispatches.map((item) => (
+            {dispatchSort.sortedRows.map((item) => (
               <div key={item.id} className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -443,21 +456,21 @@ export default function DispatchPage({
             <table className="w-full min-w-[1280px]">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="w-40 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">派工单号</th>
-                  <th className="w-36 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">凭据号</th>
-                  <th className="w-40 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">工单号</th>
-                  <th className="min-w-64 px-4 py-3 text-left text-sm font-semibold text-gray-600">物料</th>
-                  <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">工序</th>
-                  <th className="w-32 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">工人</th>
-                  <th className="w-24 whitespace-nowrap px-4 py-3 text-center text-sm font-semibold text-gray-600">计划数量</th>
-                  <th className="w-24 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">优先级</th>
-                  <th className="w-24 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
+                  <SortableTableHeader column="dispatchNo" activeColumn={dispatchSort.sortColumn} direction={dispatchSort.sortDirection} onSort={dispatchSort.toggleSort} className="w-40 whitespace-nowrap">派工单号</SortableTableHeader>
+                  <SortableTableHeader column="voucherNo" activeColumn={dispatchSort.sortColumn} direction={dispatchSort.sortDirection} onSort={dispatchSort.toggleSort} className="w-36 whitespace-nowrap">凭据号</SortableTableHeader>
+                  <SortableTableHeader column="orderNo" activeColumn={dispatchSort.sortColumn} direction={dispatchSort.sortDirection} onSort={dispatchSort.toggleSort} className="w-40 whitespace-nowrap">工单号</SortableTableHeader>
+                  <SortableTableHeader column="material" activeColumn={dispatchSort.sortColumn} direction={dispatchSort.sortDirection} onSort={dispatchSort.toggleSort} className="min-w-64">物料</SortableTableHeader>
+                  <SortableTableHeader column="step" activeColumn={dispatchSort.sortColumn} direction={dispatchSort.sortDirection} onSort={dispatchSort.toggleSort} className="w-32 whitespace-nowrap">工序</SortableTableHeader>
+                  <SortableTableHeader column="worker" activeColumn={dispatchSort.sortColumn} direction={dispatchSort.sortDirection} onSort={dispatchSort.toggleSort} className="w-32 whitespace-nowrap">工人</SortableTableHeader>
+                  <SortableTableHeader column="planQty" activeColumn={dispatchSort.sortColumn} direction={dispatchSort.sortDirection} onSort={dispatchSort.toggleSort} className="w-24 whitespace-nowrap text-center">计划数量</SortableTableHeader>
+                  <SortableTableHeader column="priority" activeColumn={dispatchSort.sortColumn} direction={dispatchSort.sortDirection} onSort={dispatchSort.toggleSort} className="w-24 whitespace-nowrap">优先级</SortableTableHeader>
+                  <SortableTableHeader column="status" activeColumn={dispatchSort.sortColumn} direction={dispatchSort.sortDirection} onSort={dispatchSort.toggleSort} className="w-24 whitespace-nowrap">状态</SortableTableHeader>
                   <th className="w-44 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">原始单据</th>
                   <th className="w-24 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {dispatches.map((item) => (
+                {dispatchSort.sortedRows.map((item) => (
                   <tr key={item.id} className="align-top hover:bg-gray-50">
                     <td className="whitespace-nowrap px-4 py-3 font-mono text-sm text-blue-600">{item.dispatchNo}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-700">{item.voucherNo || '-'}</td>

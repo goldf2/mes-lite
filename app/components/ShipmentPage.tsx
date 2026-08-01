@@ -9,6 +9,8 @@ import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import MaterialChoiceSearch from './MaterialChoiceSearch'
 import SearchableSelect from './SearchableSelect'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
+import SortableTableHeader from './SortableTableHeader'
+import useClientTableSort from './useClientTableSort'
 
 interface MaterialChoice {
   id: string
@@ -120,6 +122,18 @@ export default function ShipmentPage({
     shippedBy: '',
     note: '',
   })
+  const shipmentSort = useClientTableSort(shipments, {
+    shipmentNo: (item) => item.shipmentNo,
+    voucherNo: (item) => item.voucherNo,
+    material: (item) => `${item.product?.sku || ''} ${item.product?.name || ''}`,
+    location: (item) => item.location ? `${item.location.code} ${item.location.name}` : null,
+    qty: (item) => item.qty,
+    unitPrice: (item) => item.unitPrice,
+    totalAmount: (item) => item.totalAmount,
+    customer: (item) => item.customer,
+    status: (item) => statusLabels[item.status] || item.status,
+    shippedAt: (item) => item.shippedAt ? new Date(item.shippedAt) : null,
+  }, 'shipmentNo', 'desc')
   const selectedProduct = products.find((item) => item.id === form.productId)
   const selectedLocationBalance = selectedProduct?.locationBalances.find((item) => item.locationId === form.locationId)
 
@@ -400,7 +414,7 @@ export default function ShipmentPage({
           </div>
         ) : viewMode === 'card' ? (
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-            {shipments.map((item) => (
+            {shipmentSort.sortedRows.map((item) => (
               <div key={item.id} className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -489,22 +503,22 @@ export default function ShipmentPage({
             <table className="w-full min-w-[1120px]">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">发货单号</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">凭据号</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">物料</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">发货库位</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">数量</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">单价</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">总金额</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">客户</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">发货日期</th>
+                  <SortableTableHeader column="shipmentNo" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>发货单号</SortableTableHeader>
+                  <SortableTableHeader column="voucherNo" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>凭据号</SortableTableHeader>
+                  <SortableTableHeader column="material" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>物料</SortableTableHeader>
+                  <SortableTableHeader column="location" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>发货库位</SortableTableHeader>
+                  <SortableTableHeader column="qty" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>数量</SortableTableHeader>
+                  <SortableTableHeader column="unitPrice" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>单价</SortableTableHeader>
+                  <SortableTableHeader column="totalAmount" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>总金额</SortableTableHeader>
+                  <SortableTableHeader column="customer" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>客户</SortableTableHeader>
+                  <SortableTableHeader column="status" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>状态</SortableTableHeader>
+                  <SortableTableHeader column="shippedAt" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>发货日期</SortableTableHeader>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">原始单据</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {shipments.map((item) => (
+                {shipmentSort.sortedRows.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono text-blue-600">{item.shipmentNo}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{item.voucherNo || '-'}</td>

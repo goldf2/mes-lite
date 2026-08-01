@@ -17,6 +17,8 @@ import DocumentCategoryManagerModal, {
   documentCategoryLabel,
   documentCategoryOptions,
 } from './DocumentCategoryManagerModal'
+import SortableTableHeader from './SortableTableHeader'
+import useClientTableSort from './useClientTableSort'
 
 interface Customer {
   id: string
@@ -346,6 +348,14 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const detailUploadRef = useRef<HTMLDivElement | null>(null)
   const availableCategoryOptions = useMemo(() => documentCategoryOptions(categories), [categories])
   const effectiveSelectedCategoryIds = selectedCategoryIds ?? availableCategoryOptions.map((option) => option.value)
+  const instructionSort = useClientTableSort(items, {
+    code: (instruction) => instruction.material.code,
+    name: (instruction) => instruction.material.name,
+    category: (instruction) => documentCategoryLabel(instruction.category),
+    status: (instruction) => statusLabels[instruction.status] || instruction.status,
+    customer: (instruction) => getInstructionCustomerName(instruction),
+    files: (instruction) => instruction.attachmentCount,
+  }, 'code', 'asc')
 
   useEffect(() => {
     fetchInstructions()
@@ -867,7 +877,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         ) : viewMode === 'card' ? (
           <>
             <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {items.map((instruction) => (
+              {instructionSort.sortedRows.map((instruction) => (
                 <article key={instruction.id} className="flex flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:shadow-none">
                   <button
                     type="button"
@@ -929,17 +939,17 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="w-24 px-4 py-3 text-left text-sm font-semibold text-gray-600">预览</th>
-                    <th className="w-44 px-4 py-3 text-left text-sm font-semibold text-gray-600">产品编码</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">产品名称</th>
-                    <th className="w-28 px-4 py-3 text-left text-sm font-semibold text-gray-600">文档类别</th>
-                    <th className="w-24 px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
-                    <th className="w-36 px-4 py-3 text-left text-sm font-semibold text-gray-600">客户</th>
-                    <th className="w-28 px-4 py-3 text-left text-sm font-semibold text-gray-600">文件</th>
+                    <SortableTableHeader column="code" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort} className="w-44">产品编码</SortableTableHeader>
+                    <SortableTableHeader column="name" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort}>产品名称</SortableTableHeader>
+                    <SortableTableHeader column="category" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort} className="w-28">文档类别</SortableTableHeader>
+                    <SortableTableHeader column="status" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort} className="w-24">状态</SortableTableHeader>
+                    <SortableTableHeader column="customer" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort} className="w-36">客户</SortableTableHeader>
+                    <SortableTableHeader column="files" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort} className="w-28">文件</SortableTableHeader>
                     <th className="w-56 px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {items.map((instruction) => (
+                  {instructionSort.sortedRows.map((instruction) => (
                     <tr key={instruction.id} className="align-top hover:bg-gray-50">
                       <td className="px-4 py-3">
                         <button
