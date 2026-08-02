@@ -857,19 +857,32 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const dashboardView = {
     todayOrderCount: dashboard?.todayOrderCount ?? dashboard?.todayOrders ?? 0,
     monthOrderCount: dashboard?.monthOrderCount ?? dashboard?.monthOrders ?? 0,
+    todayDailyReportCount: dashboard?.todayDailyReportCount ?? 0,
+    monthDailyReportCount: dashboard?.monthDailyReportCount ?? 0,
+    todayProductionRecordCount: dashboard?.todayProductionRecordCount
+      ?? ((dashboard?.todayOrderCount ?? dashboard?.todayOrders ?? 0) + (dashboard?.todayDailyReportCount ?? 0)),
+    monthProductionRecordCount: dashboard?.monthProductionRecordCount
+      ?? ((dashboard?.monthOrderCount ?? dashboard?.monthOrders ?? 0) + (dashboard?.monthDailyReportCount ?? 0)),
+    todayWorkReportProduction: dashboard?.todayWorkReportProduction ?? dashboard?.todayProduction ?? 0,
+    monthWorkReportProduction: dashboard?.monthWorkReportProduction ?? dashboard?.monthProduction ?? 0,
+    todayDailyReportProduction: dashboard?.todayDailyReportProduction ?? 0,
+    monthDailyReportProduction: dashboard?.monthDailyReportProduction ?? 0,
     todayProduction: dashboard?.todayProduction ?? 0,
     monthProduction: dashboard?.monthProduction ?? 0,
+    pendingDailyReportCount: dashboard?.pendingDailyReportCount ?? 0,
     pendingMaterialInCount: dashboard?.pendingMaterialInCount ?? dashboard?.pendingMaterialIns ?? 0,
     pendingShipmentCount: dashboard?.pendingShipmentCount ?? dashboard?.pendingShipments ?? 0,
     pendingReturnCount: dashboard?.pendingReturnCount ?? dashboard?.pendingReturns ?? 0,
     lowStocks: dashboard?.lowStocks ?? dashboard?.alertStocks ?? [],
     statusDistribution: dashboard?.statusDistribution ?? dashboard?.orderStatusDist ?? [],
+    dailyReportStatusDistribution: dashboard?.dailyReportStatusDistribution ?? [],
   }
+  const dashboardNumberText = (value: number) => Number(value || 0).toFixed(3).replace(/\.?0+$/, '') || '0'
   const dashboardMetricItems = [
-    { label: '今日工单', value: dashboardView.todayOrderCount, tone: 'blue', hint: '新建' },
-    { label: '本月工单', value: dashboardView.monthOrderCount, tone: 'indigo', hint: '累计' },
-    { label: '今日产量', value: dashboardView.todayProduction, tone: 'green', hint: '完工' },
-    { label: '本月产量', value: dashboardView.monthProduction, tone: 'emerald', hint: '累计' },
+    { label: '今日生产记录', value: dashboardView.todayProductionRecordCount, tone: 'blue', hint: `工单 ${dashboardView.todayOrderCount} · 日报 ${dashboardView.todayDailyReportCount}` },
+    { label: '本月生产记录', value: dashboardView.monthProductionRecordCount, tone: 'indigo', hint: `工单 ${dashboardView.monthOrderCount} · 日报 ${dashboardView.monthDailyReportCount}` },
+    { label: '今日产量', value: dashboardView.todayProduction, tone: 'green', hint: `报工 ${dashboardNumberText(dashboardView.todayWorkReportProduction)} · 日报 ${dashboardNumberText(dashboardView.todayDailyReportProduction)}` },
+    { label: '本月产量', value: dashboardView.monthProduction, tone: 'emerald', hint: `报工 ${dashboardNumberText(dashboardView.monthWorkReportProduction)} · 日报 ${dashboardNumberText(dashboardView.monthDailyReportProduction)}` },
     { label: '待收货', value: dashboardView.pendingMaterialInCount, tone: 'yellow', hint: '来料' },
     { label: '待发货', value: dashboardView.pendingShipmentCount, tone: 'orange', hint: '出库' },
     { label: '退货待处理', value: dashboardView.pendingReturnCount, tone: 'red', hint: '售后' },
@@ -877,11 +890,14 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   ]
   const dashboardWorkloadItems = [
     { label: '今日工单', value: dashboardView.todayOrderCount, tone: 'blue' },
-    { label: '本月工单', value: dashboardView.monthOrderCount, tone: 'indigo' },
+    { label: '今日日报', value: dashboardView.todayDailyReportCount, tone: 'indigo' },
+    { label: '本月工单', value: dashboardView.monthOrderCount, tone: 'blue' },
+    { label: '本月日报', value: dashboardView.monthDailyReportCount, tone: 'indigo' },
     { label: '今日产量', value: dashboardView.todayProduction, tone: 'green' },
     { label: '本月产量', value: dashboardView.monthProduction, tone: 'emerald' },
   ]
   const dashboardPendingItems = [
+    { label: '日报待确认', value: dashboardView.pendingDailyReportCount, tone: 'indigo', hint: '生产日报草稿' },
     { label: '待收货', value: dashboardView.pendingMaterialInCount, tone: 'yellow', hint: '原材料入库' },
     { label: '待发货', value: dashboardView.pendingShipmentCount, tone: 'orange', hint: '成品出库' },
     { label: '退货待处理', value: dashboardView.pendingReturnCount, tone: 'red', hint: '售后返库' },
@@ -1122,13 +1138,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
       <main className="mes-mobile-main min-w-0 p-3 sm:p-4 lg:ml-[var(--mes-desktop-sidebar-width)] lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20">
         <div className={`sticky top-0 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:static lg:-mx-6 lg:px-6 ${
+          tab === 'dashboard' ? 'lg:hidden' : ''
+        } ${
           systemMenuOpen ? 'z-[60] lg:z-auto' : 'z-30 lg:z-auto'
         }`}>
           <div className="flex min-w-0 flex-wrap items-center gap-2 lg:flex-nowrap">
-            <div className="hidden min-w-0 shrink-0 pt-1 lg:block">
-              <div className="hidden text-xs font-medium text-gray-400 sm:block">{activeSystemTab ? '账号功能' : '业务功能'}</div>
-              <div className="max-w-[5.5rem] truncate text-sm font-semibold text-gray-900 sm:max-w-[10rem] sm:text-lg lg:max-w-[12rem]">{activeTabLabel}</div>
-            </div>
             <div className="flex min-w-0 flex-1 items-center gap-2 lg:hidden">
               <button
                 type="button"
@@ -1323,7 +1337,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               />
             </div>
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <OrderStatusDonut items={dashboardView.statusDistribution} />
+              <ProductionStatusOverview
+                orderItems={dashboardView.statusDistribution}
+                reportItems={dashboardView.dailyReportStatusDistribution}
+              />
               <StockAlertList stocks={dashboardView.lowStocks} />
             </div>
           </div>
@@ -2218,8 +2235,80 @@ function DashboardSignalGrid({
   )
 }
 
-function OrderStatusDonut({ items }: { items: { status: string; count: number }[] }) {
-  const palette: Record<string, string> = {
+function DashboardStatusSection({
+  title,
+  totalLabel,
+  emptyText,
+  items,
+  labels,
+  palette,
+}: {
+  title: string
+  totalLabel: string
+  emptyText: string
+  items: { status: string; count: number }[]
+  labels: Record<string, string>
+  palette: Record<string, string>
+}) {
+  const normalizedItems = [...items].sort((a, b) => (b.count || 0) - (a.count || 0))
+  const total = normalizedItems.reduce((sum, item) => sum + (Number(item.count) || 0), 0)
+  let cursor = 0
+  const segments = normalizedItems.map((item) => {
+    const share = total > 0 ? (Number(item.count) / total) * 100 : 0
+    const start = cursor
+    const end = cursor + share
+    cursor = end
+    return { ...item, start, end, color: palette[item.status] || '#64748b' }
+  })
+  const gradient = segments.length
+    ? `conic-gradient(${segments.map((segment) => `${segment.color} ${segment.start}% ${segment.end}%`).join(', ')})`
+    : 'conic-gradient(#e5e7eb 0% 100%)'
+
+  return (
+    <section className="rounded-lg border border-gray-100 p-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h4 className="text-sm font-semibold text-gray-800">{title}</h4>
+        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">合计 {total}</span>
+      </div>
+      <div className="grid grid-cols-1 items-center gap-5 sm:grid-cols-[136px_minmax(0,1fr)]">
+        <div className="flex justify-center">
+          <div className="relative h-32 w-32 rounded-full shadow-inner" style={{ background: gradient }}>
+            <div className="absolute inset-4 flex flex-col items-center justify-center rounded-full bg-white shadow-sm">
+              <div className="text-2xl font-semibold text-gray-900">{total}</div>
+              <div className="text-xs text-gray-500">{totalLabel}</div>
+            </div>
+          </div>
+        </div>
+        {segments.length === 0 ? (
+          <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-500">
+            {emptyText}
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {segments.map((item) => (
+              <div key={item.status} className="flex items-center justify-between gap-3 text-sm">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                  <span className="truncate font-medium text-gray-700">{labels[item.status] || item.status}</span>
+                </div>
+                <span className="shrink-0 font-semibold text-gray-950">{item.count}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function ProductionStatusOverview({
+  orderItems,
+  reportItems,
+}: {
+  orderItems: { status: string; count: number }[]
+  reportItems: { status: string; count: number }[]
+}) {
+  const orderPalette: Record<string, string> = {
     DRAFT: '#94a3b8',
     CONFIRMED: '#3b82f6',
     PICKED: '#eab308',
@@ -2229,77 +2318,32 @@ function OrderStatusDonut({ items }: { items: { status: string; count: number }[
     COMPLETED: '#22c55e',
     CANCELLED: '#ef4444',
   }
-  const normalizedItems = [...items].sort((a, b) => (b.count || 0) - (a.count || 0))
-  const total = normalizedItems.reduce((sum, item) => sum + (Number(item.count) || 0), 0)
-
-  let cursor = 0
-  const segments = normalizedItems.map((item) => {
-    const share = total > 0 ? (Number(item.count) / total) * 100 : 0
-    const start = cursor
-    const end = cursor + share
-    cursor = end
-    return {
-      ...item,
-      start,
-      end,
-      color: palette[item.status] || '#64748b',
-    }
-  })
-  const gradient = segments.length
-    ? `conic-gradient(${segments.map((segment) => `${segment.color} ${segment.start}% ${segment.end}%`).join(', ')})`
-    : 'conic-gradient(#e5e7eb 0% 100%)'
+  const reportLabels = { DRAFT: '草稿', CONFIRMED: '已确认', REVERSED: '已冲销' }
+  const reportPalette = { DRAFT: '#94a3b8', CONFIRMED: '#22c55e', REVERSED: '#ef4444' }
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-5">
-        <h3 className="font-semibold text-gray-900">工单状态分布</h3>
-        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">合计 {total}</span>
+      <div className="mb-5 flex items-center justify-between">
+        <h3 className="font-semibold text-gray-900">生产状态分布</h3>
+        <span className="text-xs text-gray-500">工单 / 生产日报</span>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-[180px_minmax(0,1fr)] gap-6 items-center">
-        <div className="flex justify-center">
-          <div
-            className="relative h-40 w-40 rounded-full shadow-inner"
-            style={{ background: gradient }}
-          >
-            <div className="absolute inset-5 rounded-full bg-white shadow-sm flex flex-col items-center justify-center">
-              <div className="text-3xl font-semibold text-gray-900">{total}</div>
-              <div className="text-xs text-gray-500">总工单</div>
-            </div>
-          </div>
-        </div>
-        {segments.length === 0 ? (
-          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-500">
-            暂无工单状态数据
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {segments.map((item) => (
-              <div key={item.status}>
-                <div className="mb-1 flex items-center justify-between gap-3 text-sm">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="truncate font-medium text-gray-700">{statusLabels[item.status] || item.status}</span>
-                  </div>
-                  <div className="shrink-0 font-semibold text-gray-950">{item.count}</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${total > 0 ? Math.max(4, (Number(item.count) / total) * 100) : 0}%`,
-                        backgroundColor: item.color,
-                      }}
-                    />
-                  </div>
-                  <span className="w-12 text-right text-xs text-gray-500">
-                    {total > 0 ? `${((Number(item.count) / total) * 100).toFixed(0)}%` : '0%'}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="space-y-4">
+        <DashboardStatusSection
+          title="工单流"
+          totalLabel="总工单"
+          emptyText="暂无工单状态数据"
+          items={orderItems}
+          labels={statusLabels}
+          palette={orderPalette}
+        />
+        <DashboardStatusSection
+          title="生产日报流"
+          totalLabel="总日报"
+          emptyText="暂无生产日报状态数据"
+          items={reportItems}
+          labels={reportLabels}
+          palette={reportPalette}
+        />
       </div>
     </div>
   )

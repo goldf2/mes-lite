@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
+import { buildProductionFlowDashboard } from '@/lib/dashboard'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,14 +27,22 @@ export async function GET(req: NextRequest) {
 
     const now = new Date()
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1)
 
     const [
       todayOrderCount,
       monthOrderCount,
       statusDistribution,
-      todayProductionAgg,
-      monthProductionAgg,
+      todayWorkReportProductionAgg,
+      monthWorkReportProductionAgg,
+      todayDailyReportCount,
+      monthDailyReportCount,
+      dailyReportStatusDistribution,
+      todayDailyReportProductionAgg,
+      monthDailyReportProductionAgg,
+      pendingDailyReportCount,
       pendingMaterialInCount,
       pendingShipmentCount,
       pendingReturnCount,
@@ -57,6 +66,39 @@ export async function GET(req: NextRequest) {
         where: { createdAt: { gte: monthStart } },
         _sum: { goodQty: true },
       }),
+      prisma.dailyProductionReport.count({
+        where: {
+          reportDate: { gte: todayStart, lt: tomorrowStart },
+          status: { in: ['DRAFT', 'CONFIRMED'] },
+        },
+      }),
+      prisma.dailyProductionReport.count({
+        where: {
+          reportDate: { gte: monthStart, lt: nextMonthStart },
+          status: { in: ['DRAFT', 'CONFIRMED'] },
+        },
+      }),
+      prisma.dailyProductionReport.groupBy({
+        by: ['status'],
+        _count: true,
+      }),
+      prisma.dailyProductionReport.aggregate({
+        where: {
+          reportDate: { gte: todayStart, lt: tomorrowStart },
+          status: 'CONFIRMED',
+        },
+        _sum: { outputQty: true },
+      }),
+      prisma.dailyProductionReport.aggregate({
+        where: {
+          reportDate: { gte: monthStart, lt: nextMonthStart },
+          status: 'CONFIRMED',
+        },
+        _sum: { outputQty: true },
+      }),
+      prisma.dailyProductionReport.count({
+        where: { status: 'DRAFT' },
+      }),
       prisma.materialIn.count({
         where: { status: 'PENDING' },
       }),
@@ -75,16 +117,29 @@ export async function GET(req: NextRequest) {
       }),
     ])
 
+    const productionFlow = buildProductionFlowDashboard({
+      todayOrderCount,
+      monthOrderCount,
+      todayDailyReportCount,
+      monthDailyReportCount,
+      todayWorkReportProduction: todayWorkReportProductionAgg._sum.goodQty ?? 0,
+      monthWorkReportProduction: monthWorkReportProductionAgg._sum.goodQty ?? 0,
+      todayDailyReportProduction: todayDailyReportProductionAgg._sum.outputQty ?? 0,
+      monthDailyReportProduction: monthDailyReportProductionAgg._sum.outputQty ?? 0,
+    })
+
     return NextResponse.json({
       data: {
-        todayOrderCount,
-        monthOrderCount,
+        ...productionFlow,
         statusDistribution: statusDistribution.map((s) => ({
           status: s.status,
           count: s._count,
         })),
-        todayProduction: todayProductionAgg._sum.goodQty ?? 0,
-        monthProduction: monthProductionAgg._sum.goodQty ?? 0,
+        dailyReportStatusDistribution: dailyReportStatusDistribution.map((item) => ({
+          status: item.status,
+          count: item._count,
+        })),
+        pendingDailyReportCount,
         pendingMaterialInCount,
         pendingShipmentCount,
         pendingReturnCount,
