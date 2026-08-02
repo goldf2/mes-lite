@@ -978,8 +978,34 @@ model Operator {
   authAccounts        OperatorAuthAccount[]
   permissionOverrides OperatorPermissionOverride[]
   permissionGroups    OperatorPermissionGroup[]
+  workspacePreference OperatorWorkspacePreference?
+  functionUsages      OperatorFunctionUsage[]
   createdAt           DateTime                     @default(now())
   updatedAt           DateTime                     @updatedAt
+}
+
+model OperatorWorkspacePreference {
+  operatorId String   @id
+  operator   Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  mode       String   @default("DEFAULT")
+  layoutJson String   @default("[]")
+  pinnedJson String   @default("[]")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model OperatorFunctionUsage {
+  id          String   @id @default(cuid())
+  operatorId  String
+  operator    Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  functionKey String
+  useCount    Int      @default(0)
+  lastUsedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([operatorId, functionKey])
+  @@index([operatorId, useCount])
 }
 
 model OperatorAuthAccount {

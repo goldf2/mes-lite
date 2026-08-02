@@ -15,7 +15,14 @@ import SortableTableHeader from './components/SortableTableHeader'
 import useClientTableSort from './components/useClientTableSort'
 import AppButton from './components/AppButton'
 import ModalDialog, { ModalActions } from './components/ModalDialog'
+import { AllFunctionsPage, WorkspaceLauncher } from './components/WorkspacePages'
+import type { WorkspaceFunctionItem } from './components/WorkspacePages'
 import type { SystemSection } from './components/SystemPage'
+import {
+  defaultWorkspacePreference,
+  isWorkspaceFunctionKey,
+} from '@/lib/workspace'
+import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/workspace'
 
 function FeaturePageLoading() {
   return <div className="py-12 text-center text-sm text-gray-500" role="status">加载中...</div>
@@ -132,18 +139,54 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
+type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
 type MaterialSection = 'materials' | 'bomWorkspace' | 'bomUsage'
 type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'logistics' | 'inventory' | 'configuration' | 'tools'
 
 const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: TabType[] }> = [
-  { key: 'workspace', label: '工作台', tabs: ['dashboard'] },
+  { key: 'workspace', label: '工作台', tabs: ['dashboard', 'allFunctions'] },
   { key: 'materials', label: '物料', tabs: ['materials'] },
   { key: 'production', label: '生产', tabs: ['orders', 'stats', 'workInstructions', 'dispatch'] },
   { key: 'logistics', label: '物流', tabs: ['materialIn', 'shipment', 'return'] },
   { key: 'inventory', label: '库存', tabs: ['stocks'] },
   { key: 'configuration', label: '配置', tabs: ['suppliers', 'customers', 'locationSettings', 'unitSettings', 'processTemplates', 'processRoutes', 'systemSettings'] },
   { key: 'tools', label: '工具', tabs: ['sawingCost', 'scanPrint', 'archive', 'auditLogs', 'dataTools'] },
+]
+
+interface WorkspaceFunctionDefinition extends WorkspaceFunctionItem {
+  tab: TabType
+  materialSection?: MaterialSection
+  resource: string
+  extraResource?: string
+}
+
+const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
+  { key: 'dashboard', label: '仪表盘', groupKey: 'workspace', groupLabel: '工作台', description: '查看业务、生产和库存总览', icon: '仪', tab: 'dashboard', resource: 'dashboard' },
+  { key: 'materialManagement', label: '物料管理', groupKey: 'materials', groupLabel: '物料', description: '维护物料、单位、规格和库存基础', icon: '料', tab: 'materials', materialSection: 'materials', resource: 'materials' },
+  { key: 'bomWorkspace', label: '物料 BOM 关联', groupKey: 'materials', groupLabel: '物料', description: '维护产品与原材料的用量关系', icon: '本', tab: 'materials', materialSection: 'bomWorkspace', resource: 'materials', extraResource: 'bomCost' },
+  { key: 'bomUsage', label: 'BOM 反查', groupKey: 'materials', groupLabel: '物料', description: '查看原材料被哪些产品使用', icon: '查', tab: 'materials', materialSection: 'bomUsage', resource: 'bomCost' },
+  { key: 'workInstructions', label: '产品文档', groupKey: 'production', groupLabel: '生产', description: '管理图纸、PDF 和作业指导文档', icon: '书', tab: 'workInstructions', resource: 'workInstructions' },
+  { key: 'orders', label: '工单管理', groupKey: 'production', groupLabel: '生产', description: '创建、查看和处理生产工单', icon: '工', tab: 'orders', resource: 'orders' },
+  { key: 'stats', label: '生产日报', groupKey: 'production', groupLabel: '生产', description: '登记日产出、原料耗用与入库', icon: '报', tab: 'stats', resource: 'stats' },
+  { key: 'materialIn', label: '来料管理', groupKey: 'logistics', groupLabel: '物流', description: '登记供应商来料、实测和采购计价', icon: '入', tab: 'materialIn', resource: 'materialIn' },
+  { key: 'shipment', label: '发货管理', groupKey: 'logistics', groupLabel: '物流', description: '创建发货单并扣减对应库位库存', icon: '发', tab: 'shipment', resource: 'shipment' },
+  { key: 'return', label: '退货管理', groupKey: 'logistics', groupLabel: '物流', description: '登记退货、审核并处理返库', icon: '退', tab: 'return', resource: 'return' },
+  { key: 'stocks', label: '库存管理', groupKey: 'inventory', groupLabel: '库存', description: '查看库存、库位余额和成本', icon: '库', tab: 'stocks', resource: 'stocks' },
+  { key: 'suppliers', label: '供应商资料', groupKey: 'configuration', groupLabel: '配置', description: '维护供应商基础资料', icon: '供', tab: 'suppliers', resource: 'system' },
+  { key: 'customers', label: '客户资料', groupKey: 'configuration', groupLabel: '配置', description: '维护客户基础资料', icon: '客', tab: 'customers', resource: 'system' },
+  { key: 'locationSettings', label: '库位配置', groupKey: 'configuration', groupLabel: '配置', description: '配置库位、用途和默认库位', icon: '位', tab: 'locationSettings', resource: 'system' },
+  { key: 'unitSettings', label: '单位配置', groupKey: 'configuration', groupLabel: '配置', description: '配置计量单位和同量纲换算', icon: '单', tab: 'unitSettings', resource: 'system' },
+  { key: 'processTemplates', label: '加工工艺', groupKey: 'configuration', groupLabel: '配置', description: '维护加工工艺模板和成本参数', icon: '艺', tab: 'processTemplates', resource: 'system' },
+  { key: 'processRoutes', label: '物料路线', groupKey: 'configuration', groupLabel: '配置', description: '维护产品加工路线和工步', icon: '线', tab: 'processRoutes', resource: 'system' },
+  { key: 'systemSettings', label: '系统设置', groupKey: 'configuration', groupLabel: '配置', description: '维护编码、排序和界面偏好', icon: '设', tab: 'systemSettings', resource: 'system' },
+  { key: 'sawingCost', label: '锯切成本', groupKey: 'tools', groupLabel: '工具', description: '计算锯切、损耗和直接加工成本', icon: '锯', tab: 'sawingCost', resource: 'sawingCost' },
+  { key: 'scanPrint', label: '硬件工具', groupKey: 'tools', groupLabel: '工具', description: '使用扫码计数和标签测试打印', icon: '扫', tab: 'scanPrint', resource: 'scanPrint' },
+  { key: 'archive', label: '归档记录', groupKey: 'tools', groupLabel: '工具', description: '恢复或永久删除已归档记录', icon: '档', tab: 'archive', resource: 'system' },
+  { key: 'auditLogs', label: '操作记录', groupKey: 'tools', groupLabel: '工具', description: '查看业务和系统操作审计记录', icon: '记', tab: 'auditLogs', resource: 'system' },
+  { key: 'dataTools', label: '数据工具', groupKey: 'tools', groupLabel: '工具', description: '执行数据检查和可控的错误数据清理', icon: '数', tab: 'dataTools', resource: 'system' },
+  { key: 'operators', label: '人员管理', groupKey: 'account', groupLabel: '账号与权限', description: '审核、启停和维护操作人员', icon: '人', tab: 'operators', resource: 'operators' },
+  { key: 'permissionUsers', label: '人员权限', groupKey: 'account', groupLabel: '账号与权限', description: '为人员分配权限组和个人权限', icon: '权', tab: 'permissionUsers', resource: 'permissionUsers' },
+  { key: 'permissionGroups', label: '组权限', groupKey: 'account', groupLabel: '账号与权限', description: '维护可复用的权限组', icon: '组', tab: 'permissionGroups', resource: 'permissionGroups' },
 ]
 
 const systemSectionByTab: Partial<Record<TabType, SystemSection>> = {
@@ -168,6 +211,7 @@ const lightweightHiddenResources = new Set<string>([
 function MenuIcon({ icon }: { icon: string }) {
   const icons: Record<string, string> = {
     dashboard: '仪',
+    allFunctions: '全',
     orders: '工',
     materials: '料',
     workInstructions: '书',
@@ -374,6 +418,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'auditLogs', label: '操作记录', resource: 'system' },
     { key: 'dataTools', label: '数据工具', resource: 'system' },
     { key: 'systemSettings', label: '系统设置', resource: 'system' },
+    { key: 'allFunctions', label: '所有功能', resource: 'dashboard' },
     { key: 'operators', label: '人员管理', resource: 'operators' },
     { key: 'permissionUsers', label: '人员权限', resource: 'permissionUsers' },
     { key: 'permissionGroups', label: '组权限', resource: 'permissionGroups' },
@@ -399,6 +444,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [customers, setCustomers] = useState<Customer[]>([])
   const [materialOptions, setMaterialOptions] = useState<MaterialOption[]>([])
   const [dashboard, setDashboard] = useState<any>(null)
+  const [workspacePreference, setWorkspacePreference] = useState<WorkspacePreferenceValue>(defaultWorkspacePreference)
   const [orderDetail, setOrderDetail] = useState<any>(null)
   const [orderTargetType] = useState<'MATERIAL'>('MATERIAL')
   const [planQty, setPlanQty] = useState(100)
@@ -440,6 +486,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'bomWorkspace' as const, label: '物料 BOM 关联', visible: canRead('materials') && canRead('bomCost') },
     { key: 'bomUsage' as const, label: 'BOM 反查', visible: canRead('bomCost') },
   ].filter((item) => item.visible)
+  const workspaceFunctionItems = workspaceFunctionCatalog.filter((item) => (
+    canRead(item.resource) && (!item.extraResource || canRead(item.extraResource))
+  ))
   const tabLabels: Record<string, string> = Object.fromEntries(baseNavItems.map((item) => [item.key, item.label]))
   tabLabels.create = '创建工单'
   tabLabels.detail = '工单详情'
@@ -638,6 +687,89 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setMessage(msg)
     setTimeout(() => setMessage(''), 5000)
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/workspace-preferences')
+      .then((response) => response.json())
+      .then((payload) => {
+        if (cancelled || !payload.data) return
+        const data = payload.data
+        setWorkspacePreference({
+          mode: data.mode === 'SMART' || data.mode === 'CUSTOM' ? data.mode : 'DEFAULT',
+          layout: Array.isArray(data.layout) ? data.layout.filter(isWorkspaceFunctionKey) : defaultWorkspacePreference.layout,
+          pinned: Array.isArray(data.pinned) ? data.pinned.filter(isWorkspaceFunctionKey) : [],
+          usage: Array.isArray(data.usage)
+            ? data.usage.filter((item: { functionKey?: string }) => item.functionKey && isWorkspaceFunctionKey(item.functionKey))
+            : [],
+        })
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const saveWorkspacePreference = async (next: Pick<WorkspacePreferenceValue, 'mode' | 'layout' | 'pinned'>) => {
+    const response = await fetch('/api/workspace-preferences', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(next),
+    })
+    const payload = await response.json()
+    if (!response.ok) {
+      showMessage(payload.error || '保存工作台设置失败')
+      throw new Error(payload.error || '保存工作台设置失败')
+    }
+    setWorkspacePreference((current) => ({ ...current, ...next }))
+  }
+
+  const recordWorkspaceUsage = (functionKey: WorkspaceFunctionKey) => {
+    const usedAt = new Date().toISOString()
+    setWorkspacePreference((current) => {
+      const existing = current.usage.find((item) => item.functionKey === functionKey)
+      const usage = existing
+        ? current.usage.map((item) => item.functionKey === functionKey
+          ? { ...item, useCount: item.useCount + 1, lastUsedAt: usedAt }
+          : item)
+        : [...current.usage, { functionKey, useCount: 1, lastUsedAt: usedAt }]
+      return { ...current, usage }
+    })
+    void fetch('/api/workspace-usage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ functionKey }),
+    }).catch(() => undefined)
+  }
+
+  const openWorkspaceFunction = (functionKey: WorkspaceFunctionKey) => {
+    const target = workspaceFunctionItems.find((item) => item.key === functionKey)
+    if (!target) return
+    if (target.materialSection) setMaterialSection(target.materialSection)
+    setTab(target.tab)
+    setMobileNavOpen(false)
+    setSystemMenuOpen(false)
+    recordWorkspaceUsage(functionKey)
+  }
+
+  const navigateToTab = (nextTab: TabType, nextMaterialSection?: MaterialSection) => {
+    if (nextTab === 'allFunctions') {
+      setTab('allFunctions')
+      setMobileNavOpen(false)
+      setSystemMenuOpen(false)
+      return
+    }
+    const target = nextTab === 'materials'
+      ? workspaceFunctionItems.find((item) => item.materialSection === (nextMaterialSection || 'materials'))
+      : workspaceFunctionItems.find((item) => item.tab === nextTab)
+    if (target) {
+      openWorkspaceFunction(target.key)
+      return
+    }
+    setTab(nextTab)
+    setMobileNavOpen(false)
+    setSystemMenuOpen(false)
+  }
 
   useEffect(() => {
     if (tab === 'dashboard') fetchDashboard()
@@ -951,11 +1083,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 type="button"
                 aria-current={selected ? 'page' : undefined}
                 onClick={() => {
-                  const firstItem = group.items[0]
+                  const firstItem = group.tabs
+                    .map((key) => group.items.find((item) => item.key === key))
+                    .find(Boolean)
                   if (!firstItem) return
-                  setTab(firstItem.key)
+                  navigateToTab(firstItem.key)
                   if (firstItem.key === 'materials') setMaterialMenuOpen(true)
-                  setSystemMenuOpen(false)
                 }}
                 className={`shrink-0 rounded-md px-3 py-2 text-sm font-medium transition ${
                   selected
@@ -977,8 +1110,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             open={systemMenuOpen}
             onToggle={() => setSystemMenuOpen((open) => !open)}
             onNavigate={(nextTab) => {
-              setTab(nextTab)
-              setSystemMenuOpen(false)
+              navigateToTab(nextTab)
             }}
             onLogout={() => {
               setSystemMenuOpen(false)
@@ -1028,8 +1160,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                       onDragLeave={handleDragLeave}
                       onDrop={(event) => handleDrop(event, index)}
                       onClick={() => {
-                        setTab('materials')
-                        setSystemMenuOpen(false)
+                        navigateToTab('materials', materialSection)
                       }}
                       className={itemClassName}
                     >
@@ -1058,9 +1189,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                             type="button"
                             aria-current={selected ? 'page' : undefined}
                             onClick={() => {
-                              setTab('materials')
-                              setMaterialSection(section.key)
-                              setSystemMenuOpen(false)
+                              navigateToTab('materials', section.key)
                             }}
                             className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition ${
                               selected
@@ -1088,8 +1217,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 onDragLeave={handleDragLeave}
                 onDrop={(event) => handleDrop(event, index)}
                 onClick={() => {
-                  setTab(item.key)
-                  setSystemMenuOpen(false)
+                  navigateToTab(item.key)
                 }}
                 className={itemClassName}
               >
@@ -1138,7 +1266,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
       <main className="mes-mobile-main min-w-0 p-3 sm:p-4 lg:ml-[var(--mes-desktop-sidebar-width)] lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20">
         <div className={`sticky top-0 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:static lg:-mx-6 lg:px-6 ${
-          tab === 'dashboard' ? 'lg:hidden' : ''
+          tab === 'dashboard' || tab === 'allFunctions' ? 'lg:hidden' : ''
         } ${
           systemMenuOpen ? 'z-[60] lg:z-auto' : 'z-30 lg:z-auto'
         }`}>
@@ -1171,8 +1299,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   setMobileNavOpen(false)
                 }}
                 onNavigate={(nextTab) => {
-                  setTab(nextTab)
-                  setSystemMenuOpen(false)
+                  navigateToTab(nextTab)
                 }}
                 onLogout={() => {
                   setSystemMenuOpen(false)
@@ -1328,6 +1455,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {/* 仪表盘 */}
         {tab === 'dashboard' && dashboard && (
           <div className="space-y-6">
+            <WorkspaceLauncher
+              items={workspaceFunctionItems.filter((item) => item.key !== 'dashboard')}
+              preference={workspacePreference}
+              onOpen={openWorkspaceFunction}
+              onOpenAllFunctions={() => navigateToTab('allFunctions')}
+              onSave={saveWorkspacePreference}
+            />
             <DashboardKpiGrid items={dashboardMetricItems} />
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <DashboardBarPanel title="生产负荷" items={dashboardWorkloadItems} />
@@ -1348,6 +1482,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
         {tab === 'dashboard' && !dashboard && (
           <div className="text-center py-12 text-gray-500">加载中...</div>
+        )}
+
+        {/* 所有功能 */}
+        {tab === 'allFunctions' && (
+          <AllFunctionsPage
+            items={workspaceFunctionItems}
+            preference={workspacePreference}
+            onOpen={openWorkspaceFunction}
+          />
         )}
 
         {/* 工单管理 */}
@@ -1992,9 +2135,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                       <button
                         type="button"
                         onClick={() => {
-                          setTab(item.key)
-                          setMobileNavOpen(false)
-                          setSystemMenuOpen(false)
+                          navigateToTab(item.key)
                         }}
                         className={`flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-2 text-left text-sm font-medium ${
                           tab === item.key ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
@@ -2041,9 +2182,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                           <button
                             type="button"
                             onClick={() => {
-                              setTab(item.key)
-                              setMobileNavOpen(false)
-                              setSystemMenuOpen(false)
+                              navigateToTab(item.key)
                             }}
                             className={`flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-2.5 text-left text-sm font-medium ${
                               tab === item.key ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
@@ -2086,9 +2225,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               key={item.key}
               type="button"
               onClick={() => {
-                setTab(item.key)
-                setMobileNavOpen(false)
-                setSystemMenuOpen(false)
+                navigateToTab(item.key)
               }}
               className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-medium transition ${
                 tab === item.key ? 'bg-blue-600 text-white shadow-sm [&_span:first-child]:bg-white/15 [&_span:first-child]:text-white' : 'text-gray-600 hover:bg-gray-100'
