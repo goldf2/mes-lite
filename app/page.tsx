@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { useState, useEffect, useRef, useCallback, type CSSProperties, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { Boxes, ChevronDown, Menu, PencilLine, Search, X } from 'lucide-react'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
@@ -1462,11 +1463,18 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         )}
 
         {message && (
-          <div role="status" aria-live="polite" className={`mb-4 p-4 rounded-lg text-sm ${
-            message.includes('成功') || message.includes('完成') || message.includes('补齐') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-          }`}>
-            {message}
-          </div>
+          createPortal(
+            <div className="pointer-events-none fixed inset-x-0 top-4 z-[100] flex justify-center px-4 sm:left-auto sm:right-4 sm:top-20 sm:w-[min(32rem,calc(100vw-2rem))] sm:px-0">
+              <div role="status" aria-live="polite" className={`w-full rounded-lg border p-4 text-sm shadow-xl ${
+                message.includes('成功') || message.includes('完成') || message.includes('补齐')
+                  ? 'border-green-200 bg-green-100 text-green-700'
+                  : 'border-red-200 bg-red-100 text-red-700'
+              }`}>
+                {message}
+              </div>
+            </div>,
+            document.body,
+          )
         )}
 
         {/* 仪表盘 */}
