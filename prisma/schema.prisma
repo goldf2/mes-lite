@@ -152,6 +152,7 @@ model Material {
   stock                       Stock?
   costLayers                  InventoryCostLayer[]
   bomItems                    BOMItem[]
+  bomItemOutputs              BOMItem[]                     @relation("BOMItemOutputMaterial")
   bomOutputs                  BOMOutput[]
   pickItems                   PickItem[]
   materialIns                 MaterialIn[]
@@ -213,6 +214,8 @@ model BOMItem {
   itemType         String              @default("MATERIAL")
   materialId       String?
   material         Material?           @relation(fields: [materialId], references: [id])
+  outputMaterialId String?
+  outputMaterial   Material?           @relation("BOMItemOutputMaterial", fields: [outputMaterialId], references: [id])
   costObjectId     String?
   costObject       CostObject?         @relation(fields: [costObjectId], references: [id])
   sawingScenarioId String?
@@ -221,8 +224,10 @@ model BOMItem {
   unit             String
   wastageRate      Float               @default(0)
 
+  @@unique([bomId, materialId, outputMaterialId])
   @@index([costObjectId])
   @@index([sawingScenarioId])
+  @@index([outputMaterialId])
 }
 
 model CostObject {

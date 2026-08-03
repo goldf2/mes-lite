@@ -8,27 +8,10 @@ import {
 import { isMeterUnit } from '../lib/units'
 
 assert.equal(calculateBomUnitRatio({
-  mode: 'USAGE_LOSS',
+  mode: 'STANDARD_USAGE',
   standardUsage: 350,
-  lossMode: 'NONE',
   inputToStockUnitRate: 0.001,
 }), 0.35)
-
-assert.equal(calculateBomUnitRatio({
-  mode: 'USAGE_LOSS',
-  standardUsage: 350,
-  lossMode: 'PERCENT',
-  lossValue: 5,
-  inputToStockUnitRate: 0.001,
-}), 0.3675)
-
-assert.equal(calculateBomUnitRatio({
-  mode: 'USAGE_LOSS',
-  standardUsage: 350,
-  lossMode: 'FIXED',
-  lossValue: 2.5,
-  inputToStockUnitRate: 0.001,
-}), 0.3525)
 
 assert.equal(calculateBomUnitRatio({
   mode: 'DIRECT_RATIO',
@@ -45,12 +28,10 @@ assert.equal(calculateBomUnitRatio({
 }), 0.5)
 
 assert.equal(calculateBomUnitRatio({
-  mode: 'USAGE_LOSS',
+  mode: 'STANDARD_USAGE',
   standardUsage: 35,
-  lossMode: 'FIXED',
-  lossValue: 0.25,
   inputToStockUnitRate: 0.01,
-}), 0.3525)
+}), 0.35)
 
 assert.equal(calculateBomUnitRatio({
   mode: 'DIRECT_RATIO',
@@ -68,10 +49,8 @@ assert.equal(isMeterUnit('米'), true)
 assert.equal(isMeterUnit('mm'), false)
 
 assert.equal(calculateBomUnitRatio({
-  mode: 'USAGE_LOSS',
+  mode: 'STANDARD_USAGE',
   standardUsage: 0.001,
-  lossMode: 'PERCENT',
-  lossValue: 0,
 }), 0.001)
 
 assert.equal(calculateBomUnitRatio({
@@ -86,4 +65,4 @@ assert.throws(() => calculateBomUnitRatio({
   rawMaterialQuantity: 7000,
 }), /产出总量/)
 
-console.log('BOM 标准净用量、损耗及长度/重量/数量批量换算统一为单位比例验证通过')
+console.log('BOM 单位标准用量及长度/重量/数量批量换算统一为单位比例验证通过')

@@ -1,5 +1,4 @@
-export type BomRatioInputMode = 'USAGE_LOSS' | 'DIRECT_RATIO'
-export type BomLossInputMode = 'NONE' | 'PERCENT' | 'FIXED'
+export type BomRatioInputMode = 'STANDARD_USAGE' | 'DIRECT_RATIO'
 
 const roundRatio = (value: number) => Number(value.toFixed(6))
 
@@ -23,19 +22,9 @@ function positive(value: number, label: string) {
   return normalized
 }
 
-function nonnegative(value: number, label: string) {
-  const normalized = Number(value)
-  if (!Number.isFinite(normalized) || normalized < 0) {
-    throw new Error(`${label}不能小于 0`)
-  }
-  return normalized
-}
-
 export function calculateBomUnitRatio(input: {
   mode: BomRatioInputMode
   standardUsage?: number
-  lossMode?: BomLossInputMode
-  lossValue?: number
   outputQuantity?: number
   rawMaterialQuantity?: number
   inputToStockUnitRate?: number
@@ -48,11 +37,5 @@ export function calculateBomUnitRatio(input: {
   }
 
   const standardUsage = positive(Number(input.standardUsage), '标准用量')
-  const lossValue = nonnegative(Number(input.lossValue || 0), '损耗')
-  const totalUsage = input.lossMode === 'FIXED'
-    ? standardUsage + lossValue
-    : input.lossMode === 'PERCENT'
-      ? standardUsage * (1 + lossValue / 100)
-      : standardUsage
-  return roundRatio(totalUsage * inputToStockUnitRate)
+  return roundRatio(standardUsage * inputToStockUnitRate)
 }

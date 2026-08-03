@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
           select: {
             id: true,
             materialId: true,
+            outputMaterialId: true,
             quantity: true,
             unit: true,
             material: { select: { code: true, name: true, stockUnit: true, unit: true } },

@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic'
 
 const bomItemSchema = z.object({
   materialId: z.string().min(1, '请选择物料'),
+  outputMaterialId: z.string().min(1, '请选择该投入对应的产出物料'),
   quantity: z.number().finite().positive('批量用量必须大于 0'),
   unit: z.string().trim().optional(),
   wastageRate: z.number().finite().nonnegative().optional().default(0),
@@ -41,6 +42,20 @@ const bomItemSelect = {
   quantity: true,
   unit: true,
   wastageRate: true,
+  outputMaterialId: true,
+  outputMaterial: {
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      spec: true,
+      category: true,
+      unit: true,
+      stockUnit: true,
+      valuationUnit: true,
+      primaryMeasure: true,
+    },
+  },
   material: {
     select: {
       id: true,
@@ -263,7 +278,7 @@ export async function PUT(req: NextRequest) {
     const outputMaterialIds = normalizedOutputs.map((output) => output.materialId)
     const outputMaterials = await prisma.material.findMany({
       where: { id: { in: outputMaterialIds }, deletedAt: null },
-      select: { id: true, stockUnit: true, unit: true },
+      select: { id: true, code: true, name: true, stockUnit: true, unit: true },
     })
     if (outputMaterials.length !== outputMaterialIds.length) {
       return NextResponse.json({ error: 'BOM 中存在无效或已归档的产出物料' }, { status: 400 })
@@ -272,12 +287,27 @@ export async function PUT(req: NextRequest) {
     const primaryOutput = normalizedOutputs.find((output) => output.isPrimary)!
     const primaryOutputMaterial = outputMaterialById.get(primaryOutput.materialId)!
 
+    const invalidItemOutput = input.items.find((item) => !outputMaterialIds.includes(item.outputMaterialId))
+    if (invalidItemOutput) {
+      return NextResponse.json({ error: 'BOM 投入换算关系必须绑定到本方案中的产出物料' }, { status: 400 })
+    }
+    const relationKeys = input.items.map((item) => `${item.outputMaterialId}:${item.materialId}`)
+    if (new Set(relationKeys).size !== relationKeys.length) {
+      return NextResponse.json({ error: '同一产出与投入物料的换算关系不能重复添加' }, { status: 400 })
+    }
+    const missingOutputRelation = outputMaterialIds.find((outputMaterialId) => (
+      !input.items.some((item) => item.outputMaterialId === outputMaterialId)
+    ))
+    if (missingOutputRelation) {
+      const missingOutput = outputMaterialById.get(missingOutputRelation)
+      return NextResponse.json({
+        error: `请为产出 ${missingOutput?.code || ''} ${missingOutput?.name || ''} 配置至少一项投入换算模型`,
+      }, { status: 400 })
+    }
+
     const materialIds = Array.from(new Set(input.items.map((item) => item.materialId)))
     if (materialIds.some((materialId) => outputMaterialIds.includes(materialId))) {
       return NextResponse.json({ error: 'BOM 投入与产出不能使用同一物料；同物料跨库位请使用流程转移' }, { status: 400 })
-    }
-    if (materialIds.length !== input.items.length) {
-      return NextResponse.json({ error: '同一投入物料不能重复关联' }, { status: 400 })
     }
     const materials = await prisma.material.findMany({
       where: { id: { in: materialIds }, deletedAt: null },
@@ -302,6 +332,7 @@ export async function PUT(req: NextRequest) {
       return {
         itemType: 'MATERIAL',
         materialId: item.materialId,
+        outputMaterialId: item.outputMaterialId,
         quantity: item.quantity,
         unit: material?.stockUnit || material?.unit || '件',
         wastageRate: 0,

@@ -77,12 +77,18 @@ export async function GET(req: NextRequest) {
             version: true,
             isActive: true,
             outputQuantity: true,
+            outputs: {
+              where: { isPrimary: true },
+              take: 1,
+              select: { materialId: true, quantity: true },
+            },
             items: {
               where: { itemType: 'MATERIAL', materialId: { not: null } },
               select: {
                 id: true,
                 quantity: true,
                 unit: true,
+                outputMaterialId: true,
                 material: { select: { id: true, code: true, name: true, stockUnit: true, unit: true } },
               },
             },
@@ -110,7 +116,14 @@ export async function GET(req: NextRequest) {
   const materialProducts = materials.map((material) => {
     const product = productBySku.get(material.code) || productBySku.get(simpleProductSku(material.code))
     if (product) {
-      return { ...materialAsProductOption(material), bom: product.boms[0] || null }
+      const bom = product.boms[0]
+      return {
+        ...materialAsProductOption(material),
+        bom: bom ? {
+          ...bom,
+          items: bom.items.filter((item) => !item.outputMaterialId || item.outputMaterialId === material.id),
+        } : null,
+      }
     }
     return { ...materialAsProductOption(material), bom: null }
   })
@@ -134,6 +147,7 @@ export async function POST(req: NextRequest) {
           orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
           take: 1,
           include: {
+            outputs: { where: { isPrimary: true }, take: 1 },
             items: {
               orderBy: { id: 'asc' },
               include: {
@@ -158,7 +172,12 @@ export async function POST(req: NextRequest) {
     if (!product) return NextResponse.json({ error: '物料不存在' }, { status: 404 })
     const bom = product.boms[0]
     if (!bom) return NextResponse.json({ error: '该物料暂无有效的默认 BOM，无法计算成本' }, { status: 400 })
-    const associatedMaterials = bom.items.filter((item) => item.itemType === 'MATERIAL' && item.material)
+    const primaryOutput = bom.outputs[0]
+    const costingItems = bom.items.filter((item) => (
+      item.itemType !== 'MATERIAL' || !item.outputMaterialId || item.outputMaterialId === primaryOutput?.materialId
+    ))
+    const outputBasis = Number(primaryOutput?.quantity || bom.outputQuantity || 1)
+    const associatedMaterials = costingItems.filter((item) => item.itemType === 'MATERIAL' && item.material)
     const missingMaterial = associatedMaterials.find((item) => Number(item.quantity) <= 0)
     if (missingMaterial?.material) {
       return NextResponse.json(
@@ -168,11 +187,11 @@ export async function POST(req: NextRequest) {
     }
 
     const lines: BomCostLineInput[] = []
-    bom.items.forEach((item, index) => {
+    costingItems.forEach((item, index) => {
       const baseQty = round(
         Number(item.quantity || 0)
         * input.quantityBasis
-        / Number(bom.outputQuantity || 1)
+        / outputBasis
         * (1 + Number(item.wastageRate || 0) / 100),
       )
       if (item.costObject) {
@@ -257,7 +276,7 @@ export async function POST(req: NextRequest) {
         machineCost: 0,
         directCost: 0,
         totalCost: materialCost,
-        note: `按 BOM 换算比例 ${round(Number(item.quantity || 0) / Number(bom.outputQuantity || 1))} ${item.unit}原料/${product.unit}产出计算`,
+        note: `按 BOM 换算比例 ${round(Number(item.quantity || 0) / outputBasis)} ${item.unit}原料/${product.unit}产出计算`,
         sortOrder: index,
       })
     })

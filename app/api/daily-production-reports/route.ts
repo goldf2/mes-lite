@@ -102,6 +102,7 @@ export async function GET(req: NextRequest) {
                   where: { itemType: 'MATERIAL', materialId: { not: null } },
                   select: {
                     id: true,
+                    outputMaterialId: true,
                     quantity: true,
                     unit: true,
                     wastageRate: true,
@@ -145,10 +146,14 @@ export async function GET(req: NextRequest) {
     const materialsWithBom = materials.map((material) => {
       const product = productBySku.get(material.code) || productBySku.get(`MAT-${material.code}`)
       const image = primaryImageByMaterial.get(material.id)
+      const compatibleBoms = (product?.boms || []).map((bom) => ({
+        ...bom,
+        items: bom.items.filter((item) => !item.outputMaterialId || item.outputMaterialId === material.id),
+      }))
       return {
         ...material,
-        bom: product?.boms[0] || null,
-        boms: product?.boms || [],
+        bom: compatibleBoms[0] || null,
+        boms: compatibleBoms,
         primaryImage: image ? {
           id: image.id,
           url: `/api/attachments/${image.id}/file`,

@@ -83,6 +83,7 @@ export async function getDataIntegrityReport(
     }),
     db.bOM.findMany({
       include: {
+        outputs: { select: { materialId: true } },
         product: {
           select: {
             id: true,
@@ -161,7 +162,7 @@ export async function getDataIntegrityReport(
   const issues: DataIntegrityIssue[] = []
   const materialByCode = new Map(materials.map((material) => [material.code, material]))
   const bomItemIdSet = new Set(bomItems.map((item) => item.id))
-  const outputMaterialByBomId = new Map<string, (typeof materials)[number]>()
+  const outputMaterialIdsByBomId = new Map(boms.map((bom) => [bom.id, new Set(bom.outputs.map((output) => output.materialId))]))
 
   for (const bom of boms) {
     const exact = materialByCode.get(bom.product.sku)
@@ -190,7 +191,8 @@ export async function getDataIntegrityReport(
     }
 
     const outputMaterial = candidates[0]
-    outputMaterialByBomId.set(bom.id, outputMaterial)
+    const outputMaterialIds = outputMaterialIdsByBomId.get(bom.id)
+    if (outputMaterialIds && outputMaterialIds.size === 0) outputMaterialIds.add(outputMaterial.id)
     const expectedUnit = outputMaterial.stockUnit || outputMaterial.unit
     if (bom.outputUnit !== expectedUnit) {
       issues.push({
@@ -236,7 +238,7 @@ export async function getDataIntegrityReport(
   const duplicateGroups = new Map<string, typeof bomItems>()
   for (const item of bomItems) {
     if (!item.materialId) continue
-    const key = `${item.bomId}:${item.materialId}`
+    const key = `${item.bomId}:${item.outputMaterialId || 'UNBOUND'}:${item.materialId}`
     const group = duplicateGroups.get(key) || []
     group.push(item)
     duplicateGroups.set(key, group)
@@ -264,6 +266,19 @@ export async function getDataIntegrityReport(
     }
 
     const materialLabel = `${item.material.code} · ${item.material.name}`
+    if (!item.outputMaterialId || !outputMaterialIdsByBomId.get(item.bomId)?.has(item.outputMaterialId)) {
+      issues.push({
+        id: issueId('BOM_OUTPUT_RELATION_MISSING', item.id),
+        type: 'BOM_OUTPUT_RELATION_MISSING',
+        severity: 'BLOCKING',
+        title: 'BOM 投入未绑定有效产出',
+        detail: `${productLabel} 中原料 ${materialLabel} 没有绑定到本方案的有效产出产品。`,
+        entityType: 'BOM_ITEM',
+        entityId: item.id,
+        entityLabel: `${productLabel} → ${materialLabel}`,
+        actions: [deleteBomItemAction],
+      })
+    }
     if (item.material.deletedAt) {
       issues.push({
         id: issueId('BOM_MATERIAL_ARCHIVED', item.id),
@@ -299,8 +314,8 @@ export async function getDataIntegrityReport(
         id: issueId('BOM_DUPLICATE_MATERIAL', item.id),
         type: 'BOM_DUPLICATE_MATERIAL',
         severity: 'BLOCKING',
-        title: 'BOM 重复关联同一原料',
-        detail: `${productLabel} 中原料 ${materialLabel} 出现多次；保留首条，当前条可删除。`,
+        title: 'BOM 同一产出重复关联同一投入',
+        detail: `${productLabel} 的同一产出中原料 ${materialLabel} 出现多次；保留首条，当前条可删除。`,
         entityType: 'BOM_ITEM',
         entityId: item.id,
         entityLabel: `${productLabel} → ${materialLabel}`,
@@ -308,8 +323,7 @@ export async function getDataIntegrityReport(
       })
     }
 
-    const outputMaterial = outputMaterialByBomId.get(item.bomId)
-    if (outputMaterial?.id === item.material.id) {
+    if (outputMaterialIdsByBomId.get(item.bomId)?.has(item.material.id)) {
       issues.push({
         id: issueId('BOM_SELF_REFERENCE', item.id),
         type: 'BOM_SELF_REFERENCE',

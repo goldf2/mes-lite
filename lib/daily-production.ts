@@ -46,7 +46,12 @@ export async function buildDailyProductionConsumption(
         take: 1,
         include: {
           items: {
-            where: { itemType: 'MATERIAL', materialId: { not: null } },
+            where: {
+              itemType: 'MATERIAL',
+              materialId: { not: null },
+              OR: [{ outputMaterialId: finishedMaterial.id }, { outputMaterialId: null }],
+            },
+            orderBy: { id: 'asc' },
             include: {
               material: {
                 select: {

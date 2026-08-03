@@ -23,6 +23,7 @@ type BomSnapshot = {
   items: Array<{
     id: string
     materialId: string
+    outputMaterialId?: string | null
     quantity: number
     unit: string
     material: { code: string; name: string; stockUnit: string; unit: string }
@@ -133,20 +134,36 @@ export default function ProductionOrderActualPanel({
   const primaryBasis = Number(primaryOutput?.quantity || 1)
   const batchFactor = primaryBasis > 0 ? primaryActualQty / primaryBasis : 0
 
-  const calculatedInputs = useMemo(() => (snapshot?.items || []).map((item) => {
-    const draft = inputs[item.materialId]
-    const unitConsumption = Number(item.quantity) / primaryBasis
-    const calculated = primaryActualQty > 0 && primaryBasis > 0 && unitConsumption > 0
+  const calculatedInputs = useMemo(() => {
+    const relationsByMaterial = new Map<string, BomSnapshot['items']>()
+    for (const item of snapshot?.items || []) {
+      const relations = relationsByMaterial.get(item.materialId) || []
+      relations.push(item)
+      relationsByMaterial.set(item.materialId, relations)
+    }
+    return Array.from(relationsByMaterial.values()).map((relations) => {
+      const item = relations[0]
+      const draft = inputs[item.materialId]
+      const plannedBaseQty = relations.reduce((sum, relation) => {
+        const targetOutput = snapshot?.outputs.find((output) => (
+          output.materialId === (relation.outputMaterialId || primaryOutput?.materialId)
+        ))
+        const targetActualQty = Number(outputs[targetOutput?.materialId || '']?.actualQty || 0)
+        const outputBasis = Number(targetOutput?.quantity || 0)
+        return outputBasis > 0 ? sum + targetActualQty * Number(relation.quantity) / outputBasis : sum
+      }, 0)
+      const calculated = plannedBaseQty > 0
       ? calculateProductionConsumption({
           outputQty: primaryActualQty,
-          unitConsumption,
+          unitConsumption: primaryActualQty > 0 ? plannedBaseQty / primaryActualQty : 0,
           lossMode: draft?.lossMode || 'PERCENT',
           lossValue: Number(draft?.lossValue || 0),
           actualQty: Number(draft?.actualQty || 0) > 0 ? Number(draft.actualQty) : undefined,
         })
       : { baseQty: 0, lossQty: 0, plannedQty: 0, actualQty: Number(draft?.actualQty || 0) }
-    return { item, draft, calculated }
-  }), [inputs, primaryActualQty, primaryBasis, snapshot?.items])
+      return { item, relations, draft, calculated }
+    })
+  }, [inputs, outputs, primaryActualQty, primaryOutput?.materialId, snapshot?.items, snapshot?.outputs])
 
   const openForm = () => {
     if (!data?.order.bomSnapshot) return onMessage('该生产订单没有 BOM 快照，请重新创建生产订单')
@@ -344,7 +361,7 @@ export default function ProductionOrderActualPanel({
           <div className="mt-5 grid gap-5 xl:grid-cols-2">
             <section className="rounded-lg border border-gray-200 p-4">
               <h4 className="font-semibold text-gray-900">投入物料</h4>
-              <p className="mt-1 text-xs text-gray-500">允许原材料、半成品或已有产品作为投入；系统按主产出数量和 BOM 比例计算。</p>
+              <p className="mt-1 text-xs text-gray-500">允许原材料、半成品或已有产品作为投入；系统按每项实际产出及其专属 BOM 比例汇总计算。</p>
               <div className="mt-4 space-y-4">
                 {calculatedInputs.map(({ item, draft, calculated }) => (
                   <div key={item.materialId} className="rounded-lg bg-gray-50 p-3">
@@ -355,10 +372,10 @@ export default function ProductionOrderActualPanel({
                         <SearchableSelect value={draft?.locationId || ''} onChange={(locationId) => setInputs((current) => ({ ...current, [item.materialId]: { ...current[item.materialId], locationId } }))} options={data.locations.map((location) => ({ value: location.id, label: `${location.code} · ${location.name}` }))} placeholder="输入库位筛选" />
                       </div>
                       <div>
-                        <div className="mb-1 text-xs text-gray-500">损耗方式</div>
-                        <SearchableSelect value={draft?.lossMode || 'PERCENT'} onChange={(lossMode) => setInputs((current) => ({ ...current, [item.materialId]: { ...current[item.materialId], lossMode: lossMode as ProductionLossMode } }))} options={[{ value: 'PERCENT', label: '百分比损耗' }, { value: 'FIXED_PER_UNIT', label: '每单位固定损耗' }]} placeholder="输入损耗方式筛选" />
+                        <div className="mb-1 text-xs text-gray-500">计划外额外耗用</div>
+                        <SearchableSelect value={draft?.lossMode || 'PERCENT'} onChange={(lossMode) => setInputs((current) => ({ ...current, [item.materialId]: { ...current[item.materialId], lossMode: lossMode as ProductionLossMode } }))} options={[{ value: 'PERCENT', label: '按基准耗用百分比' }, { value: 'FIXED_PER_UNIT', label: '每主产出单位固定增加' }]} placeholder="输入额外耗用方式筛选" />
                       </div>
-                      <label className="block text-xs text-gray-500">损耗值
+                      <label className="block text-xs text-gray-500">额外耗用值
                         <input type="number" min="0" step="0.000001" value={draft?.lossValue ?? 0} onChange={(event) => setInputs((current) => ({ ...current, [item.materialId]: { ...current[item.materialId], lossValue: Number(event.target.value) } }))} className={`${appInputClassName} mt-1`} />
                       </label>
                       <label className="block text-xs text-gray-500">实际投入（{item.unit}）

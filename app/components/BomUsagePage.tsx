@@ -22,6 +22,14 @@ interface BomItem {
   unit: string
   wastageRate: number
   material?: MaterialOption | null
+  outputMaterialId?: string | null
+  outputMaterial?: MaterialOption | null
+}
+
+interface BomOutput {
+  quantity: number
+  isPrimary: boolean
+  material: MaterialOption
 }
 
 interface BomProduct {
@@ -37,6 +45,7 @@ interface BomProduct {
     isDefault: boolean
     outputQuantity: number
     outputUnit: string
+    outputs: BomOutput[]
     items: BomItem[]
   } | null
   boms: Array<{
@@ -46,6 +55,7 @@ interface BomProduct {
     isDefault: boolean
     outputQuantity: number
     outputUnit: string
+    outputs: BomOutput[]
     items: BomItem[]
   }>
 }
@@ -172,13 +182,16 @@ export default function BomUsagePage({
               </div>
 
               <div className="divide-y divide-gray-100">
-                {row.products.map(({ product, bom, item }) => (
+                {row.products.map(({ product, bom, item }) => {
+                  const output = bom.outputs.find((candidate) => candidate.material.id === (item.outputMaterialId || item.outputMaterial?.id))
+                    || bom.outputs.find((candidate) => candidate.isPrimary)
+                  return (
                     <div
                       key={`${product.id}-${bom.id}-${item.id}`}
                       className="grid grid-cols-1 gap-3 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-center"
                     >
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-gray-900">{product.name}</div>
+                        <div className="truncate text-sm font-medium text-gray-900">{output?.material.name || product.name}</div>
                         <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
                           <span className="font-mono text-blue-700">{product.sku}</span>
                           <span>{bom.name} · {bom.version}{bom.isDefault ? ' · 默认' : ''}</span>
@@ -187,7 +200,7 @@ export default function BomUsagePage({
                       </div>
                       <div className={`rounded px-2 py-1 text-xs ${item.quantity > 0 ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
                         {item.quantity > 0
-                          ? `单位用量 ${(Number(item.quantity) / Number(bom.outputQuantity || 1)).toFixed(6).replace(/\.?0+$/, '')} ${item.unit}原料/${product.unit || '单位'}成品`
+                          ? `单位用量 ${(Number(item.quantity) / Number(output?.quantity || bom.outputQuantity || 1)).toFixed(6).replace(/\.?0+$/, '')} ${item.unit}原料/${output?.material.stockUnit || product.unit || '单位'}产出`
                           : '待填写换算比例'}
                       </div>
                       <button
@@ -198,7 +211,8 @@ export default function BomUsagePage({
                         打开 BOM 关联
                       </button>
                     </div>
-                ))}
+                  )
+                })}
               </div>
             </article>
           ))}

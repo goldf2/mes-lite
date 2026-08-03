@@ -21,6 +21,7 @@ export type ProductionOrderBomSnapshot = {
   items: Array<{
     id: string
     materialId: string
+    outputMaterialId?: string | null
     quantity: number
     unit: string
     material: { code: string; name: string; stockUnit: string; unit: string }
@@ -126,37 +127,56 @@ export async function buildProductionOrderActualLines(
     })
   }
 
-  const inputs = []
+  const inputRelationsByMaterial = new Map<string, typeof snapshot.items>()
   for (const item of snapshot.items) {
-    const requested = requestedInputByMaterial.get(item.materialId)
-    if (!requested) throw new Error(`请填写投入 ${item.material.code} ${item.material.name} 的来源库位和损耗`)
+    const relations = inputRelationsByMaterial.get(item.materialId) || []
+    relations.push(item)
+    inputRelationsByMaterial.set(item.materialId, relations)
+  }
+
+  const inputs = []
+  for (const [materialId, relations] of Array.from(inputRelationsByMaterial.entries())) {
+    const representative = relations[0]
+    const requested = requestedInputByMaterial.get(materialId)
+    if (!requested) throw new Error(`请填写投入 ${representative.material.code} ${representative.material.name} 的来源库位和计划外额外耗用`)
     const location = await resolveInventoryLocation(tx, requested.locationId)
-    const unitConsumption = Number(item.quantity) / primaryBasis
+    let plannedBaseQty = 0
+    for (const relation of relations) {
+      const targetOutput = snapshot.outputs.find((output) => (
+        output.materialId === (relation.outputMaterialId || primaryOutput.materialId)
+      ))
+      if (!targetOutput || Number(targetOutput.quantity) <= 0) {
+        throw new Error(`投入 ${representative.material.code} 的产出换算关系无效，请重新保存 BOM`)
+      }
+      const requestedTargetOutput = requestedOutputByMaterial.get(targetOutput.materialId)
+      plannedBaseQty += Number(requestedTargetOutput?.actualQty || 0) * Number(relation.quantity) / Number(targetOutput.quantity)
+    }
+    plannedBaseQty = roundQty(plannedBaseQty)
     const calculated = calculateProductionConsumption({
       outputQty: requestedPrimary.actualQty,
-      unitConsumption,
+      unitConsumption: plannedBaseQty / requestedPrimary.actualQty,
       lossMode: requested.lossMode,
       lossValue: requested.lossValue,
       actualQty: requested.actualQty,
     })
     await assertInventoryIssueAvailability(tx, {
-      materialId: item.materialId,
+      materialId,
       stockQty: calculated.actualQty,
       locationId: location.id,
     })
     inputs.push({
-      materialId: item.materialId,
+      materialId,
       locationId: location.id,
-      bomItemId: item.id,
-      materialCode: item.material.code,
-      materialName: item.material.name,
-      quantityPerBatch: Number(item.quantity),
+      bomItemId: relations.length === 1 ? representative.id : null,
+      materialCode: representative.material.code,
+      materialName: representative.material.name,
+      quantityPerBatch: roundQty(relations.reduce((sum, relation) => sum + Number(relation.quantity), 0)),
       lossMode: requested.lossMode,
       lossValue: requested.lossValue,
       lossQty: calculated.lossQty,
       plannedQty: calculated.plannedQty,
       actualQty: calculated.actualQty,
-      unit: item.unit || item.material.stockUnit || item.material.unit,
+      unit: representative.unit || representative.material.stockUnit || representative.material.unit,
     })
   }
 
