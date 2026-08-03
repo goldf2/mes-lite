@@ -37,7 +37,7 @@ const FlowTransferPage = dynamic(() => import('./components/FlowTransferPage'), 
 const EmployeePage = dynamic(() => import('./components/EmployeePage'), { loading: FeaturePageLoading })
 const SawingCostCalculatorPage = dynamic(() => import('./components/SawingCostCalculatorPage'), { loading: FeaturePageLoading })
 const ScanPrintPage = dynamic(() => import('./components/ScanPrintPage'), { loading: FeaturePageLoading })
-const BomUsagePage = dynamic(() => import('./components/BomUsagePage'), { loading: FeaturePageLoading })
+const BomOverviewPage = dynamic(() => import('./components/BomOverviewPage'), { loading: FeaturePageLoading })
 const MaterialPage = dynamic(() => import('./components/MaterialPage'), { loading: FeaturePageLoading })
 const WorkInstructionPage = dynamic(() => import('./components/WorkInstructionPage'), { loading: FeaturePageLoading })
 const EquipmentPage = dynamic(() => import('./components/EquipmentPage'), { loading: FeaturePageLoading })
@@ -160,6 +160,12 @@ interface ProcessStep {
 type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'employees' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
 type MaterialSection = 'materials' | 'bomWorkspace' | 'bomUsage'
 
+interface BomEditorTarget {
+  materialId: string
+  bomId: string
+  requestId: number
+}
+
 interface PageContinuityState {
   tab?: TabType
   materialSection?: MaterialSection
@@ -212,8 +218,8 @@ interface WorkspaceFunctionDefinition extends WorkspaceFunctionItem {
 const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
   { key: 'dashboard', label: '仪表盘', groupKey: 'workspace', groupLabel: '工作台', description: '查看业务、生产和库存总览', icon: '仪', tab: 'dashboard', resource: 'dashboard' },
   { key: 'materialManagement', label: '物料管理', groupKey: 'materials', groupLabel: '物料', description: '维护物料、单位、规格和库存基础', icon: '料', tab: 'materials', materialSection: 'materials', resource: 'materials' },
-  { key: 'bomWorkspace', label: '物料 BOM 关联', groupKey: 'materials', groupLabel: '物料', description: '维护任意投入物料与一个或多个产出的转换关系', icon: '本', tab: 'materials', materialSection: 'bomWorkspace', resource: 'materials', extraResource: 'bomCost' },
-  { key: 'bomUsage', label: 'BOM 反查', groupKey: 'materials', groupLabel: '物料', description: '查看物料被哪些 BOM 作为投入使用', icon: '查', tab: 'materials', materialSection: 'bomUsage', resource: 'bomCost' },
+  { key: 'bomWorkspace', label: 'BOM 设置', groupKey: 'materials', groupLabel: '物料', description: '创建 BOM 或修改已有 BOM 的投入、产出和换算关系', icon: '本', tab: 'materials', materialSection: 'bomWorkspace', resource: 'materials', extraResource: 'bomCost' },
+  { key: 'bomUsage', label: 'BOM 全览', groupKey: 'materials', groupLabel: '物料', description: '查看与某个物料有关的全部产出和投入 BOM', icon: '查', tab: 'materials', materialSection: 'bomUsage', resource: 'bomCost' },
   { key: 'workInstructions', label: '产品文档', groupKey: 'production', groupLabel: '生产', description: '管理图纸、PDF 和作业指导文档', icon: '书', tab: 'workInstructions', resource: 'workInstructions' },
   { key: 'equipment', label: '设备台账', groupKey: 'equipment', groupLabel: '设备', description: '维护设备、状态、工作中心归属和基础参数', icon: '机', tab: 'equipment', resource: 'equipment' },
   { key: 'orders', label: '生产订单', groupKey: 'production', groupLabel: '生产', description: '先保存生产计划，班后再登记实际产量', icon: '工', tab: 'orders', resource: 'orders' },
@@ -517,6 +523,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [materialSection, setMaterialSection] = useState<MaterialSection>(
     restoredMaterialSectionAllowed ? restoredMaterialSection as MaterialSection : defaultMaterialSection,
   )
+  const [bomEditorTarget, setBomEditorTarget] = useState<BomEditorTarget | null>(null)
   const [materialMenuOpen, setMaterialMenuOpen] = useState(true)
   const [orders, setOrders] = useState<Order[]>([])
   const [stocks, setStocks] = useState<Stock[]>([])
@@ -565,8 +572,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [navItems, setNavItems] = useState<{ key: TabType; label: string }[]>(readableBusinessNavItems)
   const materialSectionItems = [
     { key: 'materials' as const, label: '物料管理', visible: canRead('materials') },
-    { key: 'bomWorkspace' as const, label: '物料 BOM 关联', visible: canRead('materials') && canRead('bomCost') },
-    { key: 'bomUsage' as const, label: 'BOM 反查', visible: canRead('bomCost') },
+    { key: 'bomWorkspace' as const, label: 'BOM 设置', visible: canRead('materials') && canRead('bomCost') },
+    { key: 'bomUsage' as const, label: 'BOM 全览', visible: canRead('bomCost') },
   ].filter((item) => item.visible)
   const workspaceFunctionItems = workspaceFunctionCatalog.filter((item) => (
     canRead(item.resource) && (!item.extraResource || canRead(item.extraResource))
@@ -861,6 +868,16 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const showMessage = useCallback((msg: string) => {
     setMessage(msg)
     setTimeout(() => setMessage(''), 5000)
+  }, [])
+
+  const openBomEditor = useCallback((materialId: string, bomId: string) => {
+    setBomEditorTarget({ materialId, bomId, requestId: Date.now() })
+    setMaterialSection('bomWorkspace')
+    setTab('materials')
+  }, [])
+
+  const clearBomEditorTarget = useCallback(() => {
+    setBomEditorTarget(null)
   }, [])
 
   useEffect(() => {
@@ -2194,13 +2211,18 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           <MaterialPage onMessage={showMessage} showBomWorkspace={false} />
         )}
         {tab === 'materials' && materialSection === 'bomWorkspace' && (
-          <MaterialPage onMessage={showMessage} showBomWorkspace />
+          <MaterialPage
+            onMessage={showMessage}
+            showBomWorkspace
+            openBomRequest={bomEditorTarget}
+            onOpenBomRequestHandled={clearBomEditorTarget}
+          />
         )}
         {tab === 'materials' && materialSection === 'bomUsage' && (
           <div className="min-w-0">
-            <BomUsagePage
+            <BomOverviewPage
               onMessage={showMessage}
-              onOpenBom={() => setMaterialSection('bomWorkspace')}
+              onOpenBom={openBomEditor}
             />
           </div>
         )}

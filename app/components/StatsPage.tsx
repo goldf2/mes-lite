@@ -306,7 +306,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
     if (totalProcessedQty <= 0) return onMessage('产出数量必须大于 0')
     if (!form.bomId) return onMessage('请选择生产方案（BOM）')
     if (!selectedBom?.isActive || previewConsumptions.length === 0) {
-      return onMessage('该物料尚未建立有效 BOM，请先在物料 BOM 关联中添加原料')
+      return onMessage('该物料尚未建立有效 BOM，请先在 BOM 设置中添加投入物料')
     }
     if (previewConsumptions.some((item) => !item.locationId)) return onMessage('请选择每项投入物料的来源库位')
     if (previewConsumptions.some((item) => item.quantityPerUnit <= 0)) {

@@ -126,8 +126,6 @@ interface DraftBomOutput {
   unit: string
 }
 
-type BomObservationMode = 'product' | 'material'
-
 interface Customer {
   id: string
   code: string
@@ -679,10 +677,14 @@ export default function MaterialPage({
   onMessage,
   onToolbarChange,
   showBomWorkspace = false,
+  openBomRequest,
+  onOpenBomRequestHandled,
 }: {
   onMessage: (msg: string) => void
   onToolbarChange?: (actions: ReactNode | null) => void
   showBomWorkspace?: boolean
+  openBomRequest?: { materialId: string; bomId: string; requestId: number } | null
+  onOpenBomRequestHandled?: () => void
 }) {
   const [materials, setMaterials] = useState<Material[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -708,7 +710,6 @@ export default function MaterialPage({
   const [bomDataReady, setBomDataReady] = useState(false)
   const [bomSaving, setBomSaving] = useState(false)
   const [bomKeyword, setBomKeyword] = useState('')
-  const [bomObservationMode, setBomObservationMode] = useState<BomObservationMode>('product')
   const [keyword, setKeyword] = useState('')
   const [customerFilter, setCustomerFilter] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<string[]>(materialCategoryFilterOptions.map((option) => option.value))
@@ -731,6 +732,7 @@ export default function MaterialPage({
   const columnResizeCleanupRef = useRef<(() => void) | null>(null)
   const loadedBomDraftSignatureRef = useRef('')
   const bomWorkspaceStateRestoredRef = useRef(false)
+  const handledBomOpenRequestRef = useRef<number | null>(null)
   const relationCalculatorRef = useRef<HTMLDivElement>(null)
   const pendingRelationCalculatorScrollRef = useRef(false)
   const [form, setForm] = useState(createEmptyMaterialForm())
@@ -784,34 +786,6 @@ export default function MaterialPage({
         ...bom.items.flatMap((item) => [item.material?.code, item.material?.name, item.material?.spec]),
       ].filter(Boolean).join(' ').toLocaleLowerCase().includes(normalizedKeyword)
     })
-  }, [bomKeyword, bomMaterialById, bomProducts])
-  const existingBomMaterialRows = useMemo(() => {
-    const normalizedKeyword = bomKeyword.trim().toLocaleLowerCase()
-    return bomProducts.flatMap((product) => product.boms.flatMap((bom) => bom.items
-      .filter((item) => item.itemType === 'MATERIAL' && item.material)
-      .map((item) => ({
-        product,
-        bom,
-        item,
-        materialId: product.sourceMaterialId || product.id.replace(materialProductPrefix, ''),
-        outputMaterial: bomMaterialById.get(product.sourceMaterialId || product.id.replace(materialProductPrefix, '')) || null,
-        inputMaterial: item.material!,
-      }))))
-      .filter(({ product, bom, inputMaterial, outputMaterial }) => {
-        if (!normalizedKeyword) return true
-        return [
-          inputMaterial.code,
-          inputMaterial.name,
-          inputMaterial.spec,
-          product.sku,
-          product.name,
-          product.description,
-          outputMaterial?.code,
-          outputMaterial?.name,
-          bom.name,
-          bom.version,
-        ].filter(Boolean).join(' ').toLocaleLowerCase().includes(normalizedKeyword)
-      })
   }, [bomKeyword, bomMaterialById, bomProducts])
   const selectedBomProduct = selectedMaterial ? bomProductByMaterialId.get(selectedMaterial.id) || null : null
   const selectedBom = selectedBomId === '__new__'
@@ -1035,7 +1009,7 @@ export default function MaterialPage({
     if (loadedBomDraftSignatureRef.current === savedSignature) return
     loadedBomDraftSignatureRef.current = savedSignature
     if (selectedBomId === '__new__') {
-      setDraftBomName(`方案 ${(selectedBomProduct?.boms.length || 0) + 1}`)
+      setDraftBomName(`BOM ${(selectedBomProduct?.boms.length || 0) + 1}`)
       setDraftBomOutputQuantity('1')
       setDraftBomOutputs([])
       setDraftBomIsDefault((selectedBomProduct?.boms.length || 0) === 0)
@@ -1608,16 +1582,27 @@ export default function MaterialPage({
   }, [])
 
   useEffect(() => {
+    if (!showBomWorkspace || !bomDataReady || !openBomRequest) return
+    if (handledBomOpenRequestRef.current === openBomRequest.requestId) return
+    handledBomOpenRequestRef.current = openBomRequest.requestId
+    bomWorkspaceStateRestoredRef.current = true
+    const product = bomProductByMaterialId.get(openBomRequest.materialId)
+    if (!product?.boms.some((bom) => bom.id === openBomRequest.bomId)) {
+      onMessage('目标 BOM 不存在或已归档')
+      onOpenBomRequestHandled?.()
+      return
+    }
+    selectExistingBom(openBomRequest.materialId, openBomRequest.bomId)
+    onOpenBomRequestHandled?.()
+  }, [bomDataReady, bomProductByMaterialId, onMessage, onOpenBomRequestHandled, openBomRequest, selectExistingBom, showBomWorkspace])
+
+  useEffect(() => {
     if (!showBomWorkspace || !bomDataReady || bomWorkspaceStateRestoredRef.current) return
     bomWorkspaceStateRestoredRef.current = true
     try {
       const saved = JSON.parse(window.localStorage.getItem(bomWorkspaceStateStorageKey) || '{}') as {
         materialId?: string
         bomId?: string
-        observationMode?: BomObservationMode
-      }
-      if (saved.observationMode === 'product' || saved.observationMode === 'material') {
-        setBomObservationMode(saved.observationMode)
       }
       if (!saved.materialId || !saved.bomId) return
       const product = bomProductByMaterialId.get(saved.materialId)
@@ -1633,14 +1618,13 @@ export default function MaterialPage({
     window.localStorage.setItem(bomWorkspaceStateStorageKey, JSON.stringify({
       materialId: selectedBomId && selectedBomId !== '__new__' ? selectedMaterialId : undefined,
       bomId: selectedBomId && selectedBomId !== '__new__' ? selectedBomId : undefined,
-      observationMode: bomObservationMode,
     }))
-  }, [bomObservationMode, selectedBomId, selectedMaterialId, showBomWorkspace])
+  }, [selectedBomId, selectedMaterialId, showBomWorkspace])
 
   const saveBomForProduct = async (
     productId: string,
     items: DraftBomItem[],
-    successMessage = 'BOM 方案已保存',
+    successMessage = 'BOM 已保存',
   ): Promise<boolean> => {
     const invalidItem = items.find((item) => !item.materialId || !item.outputMaterialId || Number(item.quantity) <= 0)
     if (invalidItem) {
@@ -1716,12 +1700,12 @@ export default function MaterialPage({
   const saveSelectedBom = async () => {
     if (!selectedMaterial) return onMessage('请先添加主产出物料')
     if (draftBomItems.length === 0) return onMessage('请至少添加一项投入物料转换模型')
-    if (!draftBomName.trim()) return onMessage('请填写 BOM 方案名称')
+    if (!draftBomName.trim()) return onMessage('请填写 BOM 名称')
     if (!Number.isFinite(selectedBomOutputQuantity) || selectedBomOutputQuantity <= 0) return onMessage('基准产出数量必须大于 0')
     await saveBomForProduct(
       selectedBomProduct?.id || `${materialProductPrefix}${selectedMaterial.id}`,
       draftBomItems,
-      'BOM 方案已保存',
+      'BOM 已保存',
     )
   }
 
@@ -2303,121 +2287,60 @@ export default function MaterialPage({
           >
             <div className="mb-3 flex items-start justify-between gap-3 px-1">
               <div className="min-w-0">
-                <h3 className="text-base font-semibold text-gray-900">已有 BOM</h3>
-                <p className="mt-0.5 text-xs text-gray-500">按产出或投入物料观察，选择后在右侧修改</p>
+                <h3 className="text-base font-semibold text-gray-900">BOM 列表</h3>
+                <p className="mt-0.5 text-xs text-gray-500">选择 BOM 后在右侧修改；可按产品或投入物料搜索</p>
               </div>
               <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-                {bomObservationMode === 'product' ? existingBomRows.length : existingBomMaterialRows.length}
+                {existingBomRows.length}
               </span>
-            </div>
-
-            <div aria-label="BOM 观察维度" className="mb-3 grid grid-cols-2 rounded-lg bg-gray-100 p-1">
-              <button
-                type="button"
-                aria-pressed={bomObservationMode === 'product'}
-                onClick={() => setBomObservationMode('product')}
-                className={`rounded-md px-3 py-2 text-sm font-medium transition ${bomObservationMode === 'product' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
-              >
-                按产品
-              </button>
-              <button
-                type="button"
-                aria-pressed={bomObservationMode === 'material'}
-                onClick={() => setBomObservationMode('material')}
-                className={`rounded-md px-3 py-2 text-sm font-medium transition ${bomObservationMode === 'material' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
-              >
-                按投入
-              </button>
             </div>
 
             {bomLoading ? (
               <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">正在加载 BOM...</div>
-            ) : (bomObservationMode === 'product' ? existingBomRows.length : existingBomMaterialRows.length) === 0 ? (
+            ) : existingBomRows.length === 0 ? (
               <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">
                 {bomKeyword.trim()
                   ? '没有匹配的已有 BOM'
-                  : bomObservationMode === 'product'
-                    ? '暂无已有 BOM，可点击“新建 BOM”创建'
-                    : '暂无包含该投入物料的 BOM'}
+                  : '暂无已有 BOM，可点击“新建 BOM”创建'}
               </div>
-            ) : bomObservationMode === 'product' ? (
+            ) : (
               <div className="space-y-2">
                 {existingBomRows.map(({ product, bom, materialId, material }) => {
                   const isSelected = selectedMaterialId === materialId && selectedBomId === bom.id
+                  const primaryOutput = bom.outputs.find((output) => output.isPrimary)?.material || material
+                  const inputMaterials = bom.items
+                    .filter((item) => item.itemType === 'MATERIAL' && item.material)
+                    .map((item) => item.material!)
+                  const inputSummary = inputMaterials.length > 0
+                    ? `${inputMaterials.slice(0, 2).map((item) => `${item.code} ${item.name}`).join('、')}${inputMaterials.length > 2 ? ` 等 ${inputMaterials.length} 项` : ''}`
+                    : '暂无投入物料'
                   return (
                     <button
                       key={bom.id}
                       type="button"
                       onClick={() => selectExistingBom(materialId, bom.id)}
-                      className={`grid w-full grid-cols-[3.5rem_minmax(0,1fr)] gap-3 rounded-lg border p-3 text-left transition ${isSelected ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-100' : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/30'}`}
-                    >
-                      <span className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-gray-50">
-                        {material?.primaryImage ? (
-                          <img
-                            src={material.primaryImage.url}
-                            alt={material.primaryImage.note || product.name}
-                            className="h-full w-full object-contain"
-                          />
-                        ) : (
-                          <span className="text-xs text-gray-400">暂无</span>
-                        )}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="flex items-start justify-between gap-2">
-                          <span className="min-w-0">
-                            <span className="block truncate font-mono text-xs font-semibold text-blue-700">{product.sku}</span>
-                            <span className="mt-0.5 block truncate text-sm font-medium text-gray-900">{product.name}</span>
-                          </span>
-                          {bom.isDefault && <span className="shrink-0 rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700">默认</span>}
-                        </span>
-                        <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
-                          <span>{bom.name}</span>
-                          <span>·</span>
-                          <span>{bom.version}</span>
-                          {!bom.isActive && <span className="rounded bg-gray-100 px-1.5 py-0.5">已停用</span>}
-                        </span>
-                        <span className="mt-1 block text-xs text-gray-500">
-                          投入 {bom.items.length} 项 · 产出 {bom.outputs.length} 项
-                        </span>
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {existingBomMaterialRows.map(({ product, bom, item, materialId, inputMaterial }) => {
-                  const isSelected = selectedMaterialId === materialId
-                    && selectedBomId === bom.id
-                    && relationMaterialId === inputMaterial.id
-                  const itemOutputMaterialId = item.outputMaterialId || item.outputMaterial?.id
-                    || bom.outputs.find((output) => output.isPrimary)?.material.id
-                  const itemOutput = bom.outputs.find((output) => output.material.id === itemOutputMaterialId)
-                  const unitQuantity = Number(item.quantity || 0) / Number(itemOutput?.quantity || bom.outputQuantity || 1)
-                  return (
-                    <button
-                      key={`${bom.id}-${item.id}`}
-                      type="button"
-                      onClick={() => {
-                        selectExistingBom(materialId, bom.id)
-                        editInputBasisUsage(product, item, bom)
-                      }}
                       className={`w-full rounded-lg border p-3 text-left transition ${isSelected ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-100' : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/30'}`}
                     >
                       <span className="flex items-start justify-between gap-2">
                         <span className="min-w-0">
-                          <span className="block truncate font-mono text-xs font-semibold text-blue-700">{inputMaterial.code}</span>
-                          <span className="mt-0.5 block truncate text-sm font-medium text-gray-900">{inputMaterial.name}</span>
-                          {inputMaterial.spec && <span className="mt-0.5 block truncate text-xs text-gray-500">{inputMaterial.spec}</span>}
+                          <span className="block text-[11px] font-medium text-blue-600">BOM · {bom.version}</span>
+                          <span className="mt-0.5 block truncate text-sm font-semibold text-gray-900">{bom.name}</span>
                         </span>
-                        <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-600">
-                          {qty(unitQuantity)} {item.unit}
+                        <span className="flex shrink-0 items-center gap-1">
+                          {bom.isDefault && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700">默认</span>}
+                          {!bom.isActive && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600">已停用</span>}
                         </span>
                       </span>
                       <span className="my-2 block border-t border-gray-100" />
-                      <span className="block truncate text-xs text-gray-500">对应产出</span>
-                      <span className="mt-0.5 block truncate text-sm text-gray-800">{itemOutput?.material.code || product.sku} · {itemOutput?.material.name || product.name}</span>
-                      <span className="mt-1 block truncate text-xs text-gray-500">{bom.name} · {bom.version}</span>
+                      <span className="block truncate text-xs text-gray-600">
+                        主产出：{primaryOutput?.code || product.sku} · {primaryOutput?.name || product.name}
+                      </span>
+                      <span className="mt-1 block truncate text-xs text-gray-500" title={inputSummary}>
+                        投入：{inputSummary}
+                      </span>
+                      <span className="mt-2 block text-[11px] text-gray-400">
+                        投入 {bom.items.length} 项 · 产出 {bom.outputs.length} 项
+                      </span>
                     </button>
                   )
                 })}
@@ -2636,46 +2559,16 @@ export default function MaterialPage({
           {selectedMaterial ? (
             <div className="flex flex-col gap-3">
               <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-                  <label className="min-w-0 flex-1 text-xs font-medium text-gray-700">
-                    BOM 方案
-                    <select
-                      value={selectedBomId}
-                      onChange={(event) => setSelectedBomId(event.target.value)}
-                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {(selectedBomProduct?.boms || []).map((bom) => (
-                        <option key={bom.id} value={bom.id}>
-                          {bom.name} · {bom.version}{bom.isDefault ? ' · 默认' : ''}{!bom.isActive ? ' · 已停用' : ''}
-                        </option>
-                      ))}
-                      {selectedBomId === '__new__' && <option value="__new__">新方案（未保存）</option>}
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      loadedBomDraftSignatureRef.current = ''
-                      setSelectedBomId('__new__')
-                    }}
-                    className="shrink-0 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
-                  >
-                    新建方案
-                  </button>
-                </div>
-
-                <div className="mt-3">
-                  <label className="text-xs font-medium text-gray-700">
-                    方案名称
-                    <input
-                      value={draftBomName}
-                      onChange={(event) => setDraftBomName(event.target.value)}
-                      maxLength={80}
-                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="如：常规生产"
-                    />
-                  </label>
-                </div>
+                <label className="block text-xs font-medium text-gray-700">
+                  BOM 名称
+                  <input
+                    value={draftBomName}
+                    onChange={(event) => setDraftBomName(event.target.value)}
+                    maxLength={80}
+                    className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="如：自动锯切"
+                  />
+                </label>
 
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs">
                   <label className="inline-flex items-center gap-2 text-gray-700">
@@ -2878,7 +2771,7 @@ export default function MaterialPage({
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs">
                 <span className="text-gray-500">分类 <strong className="ml-1 font-medium text-gray-900">{materialCategoryLabels[selectedMaterial.category || 'RAW'] || '其他'}</strong></span>
                 <span className="text-gray-500">BOM <strong className="ml-1 font-semibold text-blue-700">{draftBomItems.length} 项</strong></span>
-                <span className="text-gray-500">被引用 <strong className="ml-1 font-semibold text-blue-700">{selectedMaterialUsageRows.length} 个 BOM 方案</strong></span>
+                <span className="text-gray-500">被引用 <strong className="ml-1 font-semibold text-blue-700">{selectedMaterialUsageRows.length} 个 BOM</strong></span>
                 <span className="text-gray-500">库存 <strong className="ml-1 font-semibold text-emerald-700">{selectedMaterialStockQty} {selectedMaterial.stockUnit || selectedMaterial.unit}</strong></span>
               </div>
 
