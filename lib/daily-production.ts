@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { simpleProductSku } from './material-product'
 import { calculateProductionConsumption, ProductionLossMode } from './production-consumption'
+import { assertInventoryIssueAvailability } from './inventory'
 
 const roundQty = (value: number) => Number(value.toFixed(6))
 
@@ -155,6 +156,14 @@ export async function buildDailyProductionConsumption(
   if (consumptionByMaterial.size === 0) {
     throw new Error('BOM 没有可计算的换算比例，请先完善 BOM')
   }
+
+  await Promise.all(Array.from(consumptionByMaterial.values()).map((line) => (
+    assertInventoryIssueAvailability(tx, {
+      materialId: line.materialId,
+      stockQty: line.actualQty,
+      locationId: line.locationId,
+    })
+  )))
 
   return {
     finishedMaterial,

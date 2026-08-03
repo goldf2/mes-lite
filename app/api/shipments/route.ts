@@ -5,7 +5,7 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 import { resolveMaterialIdForProduct, resolveProductId } from '@/lib/material-product'
-import { resolveInventoryLocation } from '@/lib/inventory'
+import { assertInventoryIssueAvailability, resolveInventoryLocation } from '@/lib/inventory'
 
 const createShipmentSchema = z.object({
   voucherNo: z.string().optional(),
@@ -93,14 +93,19 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const data = createShipmentSchema.parse(body)
-    const location = await resolveInventoryLocation(prisma, data.locationId)
-
     const resolved = await prisma.$transaction(async (tx) => {
       const materialId = await resolveMaterialIdForProduct(tx, data.productId)
+      if (!materialId) throw new Error('发货物料未关联统一物料档案')
       const productId = await resolveProductId(tx, data.productId, { description: '由物料自动映射，用于发货兼容。' })
-      return { productId, materialId }
+      const location = await resolveInventoryLocation(tx, data.locationId)
+      await assertInventoryIssueAvailability(tx, {
+        materialId,
+        stockQty: data.qty,
+        locationId: location.id,
+      })
+      return { productId, materialId, location }
     })
-    const { productId, materialId } = resolved
+    const { productId, materialId, location } = resolved
     const product = await prisma.product.findUnique({ where: { id: productId } })
 
     if (!product) {
@@ -156,7 +161,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
     }
-    if (error instanceof Error && /库位/.test(error.message)) {
+    if (error instanceof Error && /物料|库存|库位|出库数量|归档|关联/.test(error.message)) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('Create shipment error:', error)

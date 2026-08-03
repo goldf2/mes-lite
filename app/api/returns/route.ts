@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
 
     const resolved = await prisma.$transaction(async (tx) => {
       const materialId = await resolveMaterialIdForProduct(tx, productId)
+      if (!materialId) throw new Error('退货物料未关联统一物料档案')
       const resolvedProductId = await resolveProductId(tx, productId, { description: '由物料自动映射，用于退货兼容。' })
       return { resolvedProductId, materialId }
     })
@@ -107,6 +108,9 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
+    }
+    if (error instanceof Error && /物料|归档|关联/.test(error.message)) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('Create return error:', error)
     return NextResponse.json({ error: '创建退货单失败' }, { status: 500 })

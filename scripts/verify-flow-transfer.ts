@@ -23,17 +23,22 @@ async function main() {
       prisma.inventoryLocation.create({ data: { code: `SOURCE-${suffix}`, name: '待检库位' } }),
       prisma.inventoryLocation.create({ data: { code: `TARGET-${suffix}`, name: '合格库位' } }),
     ])
-    const material = await prisma.material.create({
-      data: {
-        code: `FLOW-${suffix}`,
-        name: '流程转移验证物料',
-        category: 'FINISHED',
-        unit: '件',
-        stockUnit: '件',
-        valuationUnit: 'kg',
-        conversionRate: 0.5,
-      },
-    })
+    const [material, employee] = await Promise.all([
+      prisma.material.create({
+        data: {
+          code: `FLOW-${suffix}`,
+          name: '流程转移验证物料',
+          category: 'FINISHED',
+          unit: '件',
+          stockUnit: '件',
+          valuationUnit: 'kg',
+          conversionRate: 0.5,
+        },
+      }),
+      prisma.employee.create({
+        data: { code: `EMP-${suffix}`, name: '验证员' },
+      }),
+    ])
 
     await prisma.$transaction((tx) => postInventoryReceipt(tx, {
       materialId: material.id,
@@ -46,6 +51,22 @@ async function main() {
       note: '验证期初入库',
       locationId: source.id,
     }))
+
+    const { resolveFlowTransferDraft } = await import('../lib/flow-transfer')
+    const draftInput = {
+      transferDate: '2026-08-03',
+      materialId: material.id,
+      sourceLocationId: source.id,
+      targetLocationId: target.id,
+      quantity: 25,
+      employeeId: employee.id,
+    }
+    await prisma.$transaction((tx) => resolveFlowTransferDraft(tx, draftInput))
+    await assert.rejects(
+      prisma.$transaction((tx) => resolveFlowTransferDraft(tx, { ...draftInput, quantity: 101 })),
+      /库存不足/,
+      '保存流程转移草稿时应拒绝超过来源库位可用量的数量',
+    )
 
     const stockBefore = await prisma.stock.findUniqueOrThrow({ where: { materialId: material.id } })
     const layersBefore = await prisma.inventoryCostLayer.findMany({ where: { materialId: material.id }, orderBy: { id: 'asc' } })

@@ -58,6 +58,38 @@ async function getOrCreateStock(tx: Prisma.TransactionClient, materialId: string
   })
 }
 
+export async function assertInventoryIssueAvailability(
+  tx: Prisma.TransactionClient,
+  input: {
+    materialId: string
+    stockQty: number
+    locationId?: string | null
+  },
+) {
+  if (!Number.isFinite(input.stockQty) || input.stockQty <= 0) throw new Error('出库数量必须大于 0')
+
+  const material = await getMaterialPolicy(tx, input.materialId)
+  const stock = await tx.stock.findUnique({ where: { materialId: material.id } })
+  if (!stock) throw new Error(`物料 ${material.code} ${material.name} 没有库存记录`)
+
+  const issueQty = roundQty(input.stockQty)
+  if (Number(stock.availableQty) + tolerance < issueQty) {
+    throw new Error(`物料 ${material.code} ${material.name} 库存不足：可用 ${stock.availableQty} ${material.stockUnit}，需 ${issueQty} ${material.stockUnit}`)
+  }
+
+  const location = await resolveInventoryLocation(tx, input.locationId)
+  const locationBalance = await tx.stockLocationBalance.findUnique({
+    where: { stockId_locationId: { stockId: stock.id, locationId: location.id } },
+  })
+  if (!locationBalance || Number(locationBalance.availableQty) + tolerance < issueQty) {
+    throw new Error(
+      `物料 ${material.code} ${material.name} 在库位 ${location.code} ${location.name} 库存不足：可用 ${locationBalance?.availableQty || 0} ${material.stockUnit}，需 ${issueQty} ${material.stockUnit}`,
+    )
+  }
+
+  return { material, stock, issueQty, location, locationBalance }
+}
+
 export async function resolveInventoryLocation(
   tx: Pick<Prisma.TransactionClient, 'inventoryLocation'>,
   requestedLocationId?: string | null,
@@ -311,27 +343,11 @@ export async function postInventoryIssue(
     locationId?: string | null
   },
 ) {
-  if (!Number.isFinite(input.stockQty) || input.stockQty <= 0) throw new Error('出库数量必须大于 0')
   if (input.idempotencyKey) {
     const existing = await tx.stockLog.findUnique({ where: { idempotencyKey: input.idempotencyKey } })
     if (existing) return { movement: existing, duplicate: true, layerConsumptions: [] }
   }
-  const material = await getMaterialPolicy(tx, input.materialId)
-  const stock = await tx.stock.findUnique({ where: { materialId: material.id } })
-  if (!stock) throw new Error(`物料 ${material.code} ${material.name} 没有库存记录`)
-  const issueQty = roundQty(input.stockQty)
-  if (Number(stock.availableQty) + tolerance < issueQty) {
-    throw new Error(`物料 ${material.code} ${material.name} 库存不足：可用 ${stock.availableQty} ${material.stockUnit}，需 ${issueQty} ${material.stockUnit}`)
-  }
-  const location = await resolveInventoryLocation(tx, input.locationId)
-  const locationBalance = await tx.stockLocationBalance.findUnique({
-    where: { stockId_locationId: { stockId: stock.id, locationId: location.id } },
-  })
-  if (!locationBalance || Number(locationBalance.availableQty) + tolerance < issueQty) {
-    throw new Error(
-      `物料 ${material.code} ${material.name} 在库位 ${location.code} ${location.name} 库存不足：可用 ${locationBalance?.availableQty || 0} ${material.stockUnit}，需 ${issueQty} ${material.stockUnit}`,
-    )
-  }
+  const { material, stock, issueQty, location } = await assertInventoryIssueAvailability(tx, input)
   await ensureFifoOpeningLayer(tx, material, {
     qty: Number(stock.qty),
     valuationQty: Number(stock.valuationQty),

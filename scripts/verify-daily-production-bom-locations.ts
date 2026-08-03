@@ -88,6 +88,21 @@ async function main() {
       })
     })
 
+    await assert.rejects(
+      prisma.$transaction((tx) => buildDailyProductionConsumption(
+        tx,
+        finished.id,
+        100,
+        [
+          { materialId: rawA.id, locationId: locationA.id, lossMode: 'PERCENT', lossValue: 0 },
+          { materialId: rawB.id, locationId: locationB.id, lossMode: 'PERCENT', lossValue: 0 },
+        ],
+        { bomId: selectedBom.id },
+      )),
+      /库存不足/,
+      '保存生产记录草稿时应拒绝超过来源库位可用量的耗用',
+    )
+
     const snapshot = await prisma.$transaction((tx) => buildDailyProductionConsumption(
       tx,
       finished.id,

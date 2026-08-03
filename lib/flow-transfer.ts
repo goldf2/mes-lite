@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
+import { assertInventoryIssueAvailability } from './inventory'
 
 export const flowTransferInputSchema = z.object({
   transferDate: z.string().min(1, '转移日期必填'),
@@ -64,5 +65,10 @@ export async function resolveFlowTransferDraft(
   if (!targetLocation) throw new Error('目标库位不存在、已停用或已归档')
   if (!employee) throw new Error('操作员工不存在或已停用，请重新选择')
   if (sourceLocation.id === targetLocation.id) throw new Error('来源库位和目标库位不能相同')
+  await assertInventoryIssueAvailability(tx, {
+    materialId: material.id,
+    stockQty: input.quantity,
+    locationId: sourceLocation.id,
+  })
   return { material, sourceLocation, targetLocation, employee }
 }
