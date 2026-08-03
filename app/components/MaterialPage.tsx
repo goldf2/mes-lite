@@ -2455,7 +2455,7 @@ export default function MaterialPage({
               />
 
               {selectedMaterial ? (
-                <div className="mt-2 space-y-2">
+                <div className={`mt-2 space-y-2 ${draftBomOutputs.length >= 3 ? 'mes-bom-output-scroll' : ''}`}>
                   <div className="rounded-lg border border-emerald-200 bg-white p-2">
                     <div className="flex min-w-0 items-center gap-2">
                       <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50">
