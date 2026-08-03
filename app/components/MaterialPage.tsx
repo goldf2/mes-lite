@@ -657,84 +657,6 @@ function BomMaterialSelectSearch({
   )
 }
 
-function BomProductSearch({
-  value,
-  products,
-  disabledIds,
-  onChange,
-}: {
-  value: string
-  products: MaterialBom[]
-  disabledIds: string[]
-  onChange: (value: string) => void
-}) {
-  const [query, setQuery] = useState('')
-  const [open, setOpen] = useState(false)
-  const closePopup = useCallback(() => {
-    setOpen(false)
-    setQuery('')
-  }, [])
-  const rootRef = useDismissibleSearchPopup<HTMLDivElement>(open, closePopup)
-  const disabled = new Set(disabledIds)
-  const selected = products.find((product) => product.id === value)
-  const keyword = query.trim().toLowerCase()
-  const filtered = products.filter((product) => {
-    if (!keyword) return true
-    return `${product.sku} ${product.name} ${materialCategoryLabels[product.category] || product.category}`.toLowerCase().includes(keyword)
-  }).slice(0, 60)
-
-  return (
-    <div ref={rootRef} className="relative">
-      <input
-        value={open ? query : (selected ? `${selected.sku} · ${selected.name}` : query)}
-        onFocus={() => setOpen(true)}
-        onChange={(event) => {
-          setQuery(event.target.value)
-          setOpen(true)
-          if (value) onChange('')
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') closePopup()
-        }}
-        placeholder="输入产品物料编码或名称筛选"
-        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-      />
-      {open && (
-        <div className="absolute left-0 right-0 z-30 mt-1 max-h-72 overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
-          {filtered.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-gray-500">没有匹配物料</div>
-          ) : (
-            filtered.map((product) => {
-              const disabledOption = disabled.has(product.id) || disabled.has(product.sourceMaterialId || '')
-              return (
-                <button
-                  key={product.id}
-                  type="button"
-                  disabled={disabledOption}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
-                    onChange(product.id)
-                    closePopup()
-                  }}
-                  className="block w-full rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="min-w-0">
-                      <span className="font-mono text-xs text-gray-500">{product.sku}</span>
-                      <span className="ml-2">{product.name}</span>
-                    </span>
-                    <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{product.unit}</span>
-                  </div>
-                </button>
-              )
-            })
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function MaterialPage({
   onMessage,
   onToolbarChange,
@@ -1524,6 +1446,18 @@ export default function MaterialPage({
     setRelationRawQuantity('')
   }, [])
 
+  const selectOutputMaterialForBom = useCallback((materialId: string) => {
+    loadedBomDraftSignatureRef.current = ''
+    setSelectedMaterialId(materialId)
+    setSelectedBomId('__new__')
+    setRelationProductId(materialId ? `${materialProductPrefix}${materialId}` : '')
+    setRelationStandardUsage('')
+    setRelationLossMode('PERCENT')
+    setRelationLossValue('')
+    setRelationOutputQuantity('1')
+    setRelationRawQuantity('')
+  }, [])
+
   const selectExistingBom = useCallback((materialId: string, bomId: string) => {
     loadedBomDraftSignatureRef.current = ''
     setSelectedMaterialId(materialId)
@@ -2291,9 +2225,50 @@ export default function MaterialPage({
                 {bomLoading && <span className="text-xs text-gray-500">同步中...</span>}
               </div>
               <div className="mt-1 truncate text-sm text-gray-500">
-                {selectedMaterial ? `${selectedMaterial.code} · ${selectedMaterial.name}` : '新建 BOM：请先选择产出物料'}
+                {selectedMaterial ? `${selectedMaterial.code} · ${selectedMaterial.name}` : '新建 BOM：请选择输入原料和输出产品'}
               </div>
             </div>
+          </div>
+
+          <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50/70 p-3">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              <div className="min-w-0">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label className="text-sm font-medium text-gray-800">输入（原料）</label>
+                  {relationMaterial && (
+                    <span className="rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                      主库存计算单位：{relationMaterial.stockUnit || relationMaterial.unit}
+                    </span>
+                  )}
+                </div>
+                <BomMaterialSelectSearch
+                  value={relationMaterialId}
+                  materials={bomMaterialOptions}
+                  disabledIds={selectedMaterialId ? [selectedMaterialId] : []}
+                  onChange={(value) => {
+                    setRelationMaterialId(value)
+                    resetRelationCalculator()
+                  }}
+                />
+              </div>
+
+              <label className="min-w-0 text-sm font-medium text-gray-800">
+                <span className="mb-2 flex items-center justify-between gap-3">
+                  <span>输出（产品）</span>
+                  {selectedMaterial && <span className="text-xs font-normal text-gray-500">计算单位：{selectedMaterial.unit}</span>}
+                </span>
+                <SearchableSelect
+                  value={selectedMaterialId}
+                  options={bomOutputMaterialOptions}
+                  onChange={selectOutputMaterialForBom}
+                  placeholder="输入产品编码、名称或规格"
+                  emptyText="没有匹配的产品物料"
+                  allowClear
+                  className="w-full"
+                />
+              </label>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">输入原料和输出产品可按任意顺序选择；选择输出产品后直接维护方案、用量和组成明细。</p>
           </div>
 
           {selectedMaterial ? (
@@ -2411,50 +2386,7 @@ export default function MaterialPage({
               </div>
 
               <div className="rounded-lg border border-gray-200 bg-gray-50/70 p-3">
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  <div className="min-w-0">
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <label className="text-xs font-medium text-gray-600">输出（产品）</label>
-                      <span className="text-xs text-gray-400">计算单位：{relationProduct?.unit || '成品主单位'}</span>
-                    </div>
-                    <BomProductSearch
-                      value={relationProductId}
-                      products={bomProducts}
-                      disabledIds={relationMaterialId ? [relationMaterialId] : []}
-                      onChange={(value) => {
-                        const nextProduct = bomProducts.find((product) => product.id === value)
-                        if (nextProduct?.sourceMaterialId && nextProduct.sourceMaterialId !== selectedMaterialId) {
-                          selectMaterialForBom(nextProduct.sourceMaterialId)
-                        } else {
-                          setRelationProductId(value)
-                        }
-                        resetRelationCalculator()
-                      }}
-                    />
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <label className="text-xs font-medium text-gray-600">输入（原料）</label>
-                      {relationMaterial && (
-                        <span className="rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                          主库存计算单位：{relationMaterial.stockUnit || relationMaterial.unit}
-                        </span>
-                      )}
-                    </div>
-                    <BomMaterialSelectSearch
-                      value={relationMaterialId}
-                      materials={bomMaterialOptions}
-                      disabledIds={relationProductSourceMaterialId ? [relationProductSourceMaterialId] : []}
-                      onChange={(value) => {
-                        setRelationMaterialId(value)
-                        resetRelationCalculator()
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-4 border-t border-gray-200 pt-4">
+                <div>
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <div className="text-xs font-medium text-gray-700">比例录入算法</div>
@@ -2775,34 +2707,20 @@ export default function MaterialPage({
               </div>
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-gray-200 p-5 sm:p-8">
-              <div className="mx-auto max-w-3xl">
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  <label className="text-sm font-medium text-gray-800">
-                    输出（产品）
-                    <SearchableSelect
-                      value=""
-                      options={bomOutputMaterialOptions}
-                      onChange={selectMaterialForBom}
-                      placeholder="输入产品编码、名称或规格"
-                      emptyText="没有匹配的产品物料"
-                      className="mt-2 w-full"
-                    />
-                  </label>
-                  <label className="text-sm font-medium text-gray-400">
-                    输入（原料）
-                    <input
-                      type="text"
-                      disabled
-                      placeholder="请先选择输出产品"
-                      className="mt-2 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-400 disabled:cursor-not-allowed"
-                    />
-                  </label>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-gray-500">
-                  先选择输出产品；随后可沿用原有输入原料、尺寸/用量、损耗或比例算法添加组成明细。
-                </p>
+            <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-xs text-gray-500">
+                {relationMaterial
+                  ? `已选择输入原料 ${relationMaterial.code}；选择右侧输出产品后即可填写用量并保存。`
+                  : '请选择输入原料和输出产品，随后填写用量并保存。'}
               </div>
+              <button
+                type="button"
+                disabled
+                title="请先选择输出产品"
+                className="shrink-0 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                保存
+              </button>
             </div>
           )}
           </div>
