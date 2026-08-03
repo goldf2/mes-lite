@@ -180,7 +180,7 @@ export default function EmployeePage({
       <div className="space-y-4">
         <section className="rounded-lg bg-white p-5 shadow-sm">
           <h2 className="text-xl font-semibold text-gray-900">员工资料</h2>
-          <p className="mt-1 text-sm text-gray-500">业务员工档案用于生产记录和流程转移选人；员工编码由系统生成，可绑定一个已注册账号，但绑定本身不会改变账号状态、角色或权限。</p>
+          <p className="mt-1 text-sm text-gray-500">业务员工档案用于生产订单实绩和流程转移选人；员工编码由系统生成，可绑定一个已注册账号，但绑定本身不会改变账号状态、角色或权限。</p>
           <div className="mt-4 flex flex-wrap gap-3 text-sm">
             <span className="rounded bg-blue-50 px-3 py-1.5 text-blue-700">员工总数 {employees.length}</span>
             <span className="rounded bg-emerald-50 px-3 py-1.5 text-emerald-700">在职 {activeCount}</span>

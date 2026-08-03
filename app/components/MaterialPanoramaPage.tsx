@@ -1116,7 +1116,7 @@ export default function MaterialPanoramaPage({
                                     : '待填写换算比例'}
                                 </div>
                               </div>
-                              <div className="mt-1 text-xs text-gray-500">实际耗用在生产日报中按主库存单位记录</div>
+                              <div className="mt-1 text-xs text-gray-500">实际耗用在生产订单班后实绩中按主库存单位记录</div>
                             </div>
                           ))}
                         </div>

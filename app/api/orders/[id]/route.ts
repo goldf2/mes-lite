@@ -15,6 +15,7 @@ export async function GET(
       include: {
         product: true,
         targetMaterial: true,
+        bom: { select: { id: true, name: true, version: true } },
         picks: {
           include: { material: true },
           orderBy: { createdAt: 'asc' },
@@ -27,6 +28,7 @@ export async function GET(
           orderBy: { checkedAt: 'desc' },
         },
         stockIns: true,
+        _count: { select: { actuals: true } },
       },
     })
 

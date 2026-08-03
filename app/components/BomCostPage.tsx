@@ -680,7 +680,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
 
           <div className="rounded-lg bg-white p-5 shadow-sm">
             <h3 className="font-semibold text-gray-900">标准原料耗用</h3>
-            <p className="mt-1 text-xs text-gray-500">按 BOM 换算比例 × 数量基准计算，不包含生产日报的本批次额外损耗。</p>
+            <p className="mt-1 text-xs text-gray-500">按 BOM 换算比例 × 数量基准计算，不包含生产订单实绩的本批次额外损耗。</p>
             {!selectedProduct?.bom?.items.some((item) => item.material) ? (
               <div className="mt-4 rounded-lg border border-dashed border-gray-200 p-5 text-sm text-gray-500">选择有 BOM 原料关联的物料</div>
             ) : (

@@ -1,34 +1,32 @@
 import assert from 'node:assert/strict'
 import { buildProductionFlowDashboard } from '../lib/dashboard'
 
-const mixedFlow = buildProductionFlowDashboard({
+const orderActualFlow = buildProductionFlowDashboard({
   todayOrderCount: 2,
   monthOrderCount: 9,
-  todayDailyReportCount: 3,
-  monthDailyReportCount: 12,
-  todayWorkReportProduction: 20,
-  monthWorkReportProduction: 80,
-  todayDailyReportProduction: 7.125,
-  monthDailyReportProduction: 35.875,
+  todayProductionActualCount: 3,
+  monthProductionActualCount: 12,
+  todayProductionActualOutput: 7.125,
+  monthProductionActualOutput: 35.875,
 })
 
-assert.equal(mixedFlow.todayProductionRecordCount, 5)
-assert.equal(mixedFlow.monthProductionRecordCount, 21)
-assert.equal(mixedFlow.todayProduction, 27.125)
-assert.equal(mixedFlow.monthProduction, 115.875)
+assert.equal(orderActualFlow.todayOrderCount, 2)
+assert.equal(orderActualFlow.monthOrderCount, 9)
+assert.equal(orderActualFlow.todayProductionActualCount, 3)
+assert.equal(orderActualFlow.monthProductionActualCount, 12)
+assert.equal(orderActualFlow.todayProduction, 7.125)
+assert.equal(orderActualFlow.monthProduction, 35.875)
 
-const reportOnly = buildProductionFlowDashboard({
+const orderWithoutActual = buildProductionFlowDashboard({
   todayOrderCount: 0,
   monthOrderCount: 0,
-  todayDailyReportCount: 2,
-  monthDailyReportCount: 6,
-  todayWorkReportProduction: 0,
-  monthWorkReportProduction: 0,
-  todayDailyReportProduction: 4.5,
-  monthDailyReportProduction: 18.25,
+  todayProductionActualCount: 0,
+  monthProductionActualCount: 0,
+  todayProductionActualOutput: 0,
+  monthProductionActualOutput: 0,
 })
 
-assert.equal(reportOnly.todayProductionRecordCount, 2)
-assert.equal(reportOnly.todayProduction, 4.5)
+assert.equal(orderWithoutActual.todayProduction, 0)
+assert.equal(orderWithoutActual.monthProduction, 0)
 
-console.log('仪表盘工单流与生产日报流兼容统计验证通过')
+console.log('仪表盘生产订单与班后实绩统计验证通过')

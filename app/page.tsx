@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useState, useEffect, useRef, useCallback, type CSSProperties, type RefObject } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { Boxes, ChevronDown, Menu, PencilLine, Search, X } from 'lucide-react'
@@ -33,7 +33,6 @@ const MaterialInPage = dynamic(() => import('./components/MaterialInPage'), { lo
 const DispatchPage = dynamic(() => import('./components/DispatchPage'), { loading: FeaturePageLoading })
 const ShipmentPage = dynamic(() => import('./components/ShipmentPage'), { loading: FeaturePageLoading })
 const ReturnPage = dynamic(() => import('./components/ReturnPage'), { loading: FeaturePageLoading })
-const StatsPage = dynamic(() => import('./components/StatsPage'), { loading: FeaturePageLoading })
 const FlowTransferPage = dynamic(() => import('./components/FlowTransferPage'), { loading: FeaturePageLoading })
 const EmployeePage = dynamic(() => import('./components/EmployeePage'), { loading: FeaturePageLoading })
 const SawingCostCalculatorPage = dynamic(() => import('./components/SawingCostCalculatorPage'), { loading: FeaturePageLoading })
@@ -43,6 +42,7 @@ const MaterialPage = dynamic(() => import('./components/MaterialPage'), { loadin
 const WorkInstructionPage = dynamic(() => import('./components/WorkInstructionPage'), { loading: FeaturePageLoading })
 const EquipmentPage = dynamic(() => import('./components/EquipmentPage'), { loading: FeaturePageLoading })
 const AttachmentPanel = dynamic(() => import('./components/AttachmentPanel'), { loading: FeaturePageLoading })
+const ProductionOrderActualPanel = dynamic(() => import('./components/ProductionOrderActualPanel'), { loading: FeaturePageLoading })
 const OperatorPage = dynamic(() => import('./components/OperatorPage'), { loading: FeaturePageLoading })
 const SystemPage = dynamic(() => import('./components/SystemPage'), { loading: FeaturePageLoading })
 const PermissionPage = dynamic(() => import('./components/PermissionPage'), { loading: FeaturePageLoading })
@@ -57,6 +57,17 @@ interface MaterialOption {
   category: string
   stockUnit: string
   valuationUnit: string
+}
+
+interface OrderBomOption {
+  id: string
+  name: string
+  version: string
+  isDefault: boolean
+}
+
+interface OrderMaterialOption extends MaterialOption {
+  boms: OrderBomOption[]
 }
 
 interface Customer {
@@ -125,7 +136,10 @@ interface Order {
   createdAt: string
   product: { id: string; name: string; sku: string }
   targetMaterial?: { id: string; name: string; code: string; category?: string; stockUnit?: string; unit?: string } | null
-  _count: { reports: number; picks: number }
+  bom?: { id: string; name: string; version: string } | null
+  bomName?: string | null
+  bomVersion?: string | null
+  _count: { reports: number; picks: number; actuals: number }
 }
 
 interface PickItem {
@@ -143,14 +157,14 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'employees' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
+type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'employees' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
 type MaterialSection = 'materials' | 'bomWorkspace' | 'bomUsage'
 type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'equipment' | 'logistics' | 'inventory' | 'configuration' | 'tools'
 
 const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: TabType[] }> = [
   { key: 'workspace', label: '工作台', tabs: ['dashboard', 'allFunctions'] },
   { key: 'materials', label: '物料', tabs: ['materials'] },
-  { key: 'production', label: '生产', tabs: ['orders', 'stats', 'flowTransfers', 'workInstructions', 'dispatch'] },
+  { key: 'production', label: '生产', tabs: ['orders', 'flowTransfers', 'workInstructions', 'dispatch'] },
   { key: 'equipment', label: '设备', tabs: ['equipment'] },
   { key: 'logistics', label: '物流', tabs: ['materialIn', 'shipment', 'return'] },
   { key: 'inventory', label: '库存', tabs: ['stocks'] },
@@ -168,12 +182,11 @@ interface WorkspaceFunctionDefinition extends WorkspaceFunctionItem {
 const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
   { key: 'dashboard', label: '仪表盘', groupKey: 'workspace', groupLabel: '工作台', description: '查看业务、生产和库存总览', icon: '仪', tab: 'dashboard', resource: 'dashboard' },
   { key: 'materialManagement', label: '物料管理', groupKey: 'materials', groupLabel: '物料', description: '维护物料、单位、规格和库存基础', icon: '料', tab: 'materials', materialSection: 'materials', resource: 'materials' },
-  { key: 'bomWorkspace', label: '物料 BOM 关联', groupKey: 'materials', groupLabel: '物料', description: '维护产品与原材料的用量关系', icon: '本', tab: 'materials', materialSection: 'bomWorkspace', resource: 'materials', extraResource: 'bomCost' },
-  { key: 'bomUsage', label: 'BOM 反查', groupKey: 'materials', groupLabel: '物料', description: '查看原材料被哪些产品使用', icon: '查', tab: 'materials', materialSection: 'bomUsage', resource: 'bomCost' },
+  { key: 'bomWorkspace', label: '物料 BOM 关联', groupKey: 'materials', groupLabel: '物料', description: '维护任意投入物料与一个或多个产出的转换关系', icon: '本', tab: 'materials', materialSection: 'bomWorkspace', resource: 'materials', extraResource: 'bomCost' },
+  { key: 'bomUsage', label: 'BOM 反查', groupKey: 'materials', groupLabel: '物料', description: '查看物料被哪些 BOM 作为投入使用', icon: '查', tab: 'materials', materialSection: 'bomUsage', resource: 'bomCost' },
   { key: 'workInstructions', label: '产品文档', groupKey: 'production', groupLabel: '生产', description: '管理图纸、PDF 和作业指导文档', icon: '书', tab: 'workInstructions', resource: 'workInstructions' },
   { key: 'equipment', label: '设备台账', groupKey: 'equipment', groupLabel: '设备', description: '维护设备、状态、工作中心归属和基础参数', icon: '机', tab: 'equipment', resource: 'equipment' },
   { key: 'orders', label: '生产订单', groupKey: 'production', groupLabel: '生产', description: '先保存生产计划，班后再登记实际产量', icon: '工', tab: 'orders', resource: 'orders' },
-  { key: 'stats', label: '生产记录', groupKey: 'production', groupLabel: '生产', description: '按 BOM 登记投入、产出与入库', icon: '产', tab: 'stats', resource: 'stats' },
   { key: 'flowTransfers', label: '流程转移', groupKey: 'production', groupLabel: '生产', description: '同一物料在库位或流程节点之间转移', icon: '转', tab: 'flowTransfers', resource: 'stats' },
   { key: 'materialIn', label: '来料管理', groupKey: 'logistics', groupLabel: '物流', description: '登记供应商来料、实测和采购计价', icon: '入', tab: 'materialIn', resource: 'materialIn' },
   { key: 'shipment', label: '发货管理', groupKey: 'logistics', groupLabel: '物流', description: '创建发货单并扣减对应库位库存', icon: '发', tab: 'shipment', resource: 'shipment' },
@@ -420,7 +433,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'shipment', label: '发货管理', resource: 'shipment' },
     { key: 'return', label: '退货管理', resource: 'return' },
     { key: 'stocks', label: '库存管理', resource: 'stocks' },
-    { key: 'stats', label: '生产记录', resource: 'stats' },
     { key: 'flowTransfers', label: '流程转移', resource: 'stats' },
     { key: 'suppliers', label: '供应商资料', resource: 'system' },
     { key: 'customers', label: '客户资料', resource: 'system' },
@@ -460,14 +472,16 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [orders, setOrders] = useState<Order[]>([])
   const [stocks, setStocks] = useState<Stock[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
-  const [materialOptions, setMaterialOptions] = useState<MaterialOption[]>([])
+  const [orderMaterialOptions, setOrderMaterialOptions] = useState<OrderMaterialOption[]>([])
   const [dashboard, setDashboard] = useState<any>(null)
   const [workspacePreference, setWorkspacePreference] = useState<WorkspacePreferenceValue>(defaultWorkspacePreference)
   const [orderDetail, setOrderDetail] = useState<any>(null)
   const [orderTargetType] = useState<'MATERIAL'>('MATERIAL')
   const [planQty, setPlanQty] = useState(100)
   const [orderVoucherNo, setOrderVoucherNo] = useState('')
+  const [orderNote, setOrderNote] = useState('')
   const [selectedMaterialId, setSelectedMaterialId] = useState('')
+  const [selectedOrderBomId, setSelectedOrderBomId] = useState('')
   const [orderKeyword, setOrderKeyword] = useState('')
   const [selectedOrderStatuses, setSelectedOrderStatuses] = useState(orderStatusOptions.map((option) => option.value))
   const [orderViewMode, setOrderViewMode] = usePersistedViewMode('mes-lite.orders.viewMode', 'card')
@@ -529,6 +543,14 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const sidebarNavItems = activeSystemTab ? readableSystemNavItems : activeBusinessGroup?.items || []
   const baseMobileNavItems = navItems.slice(0, 4)
   const mobilePrimaryItems = baseMobileNavItems
+  const selectedOrderMaterial = orderMaterialOptions.find((material) => material.id === selectedMaterialId) || null
+  const selectedOrderBoms = useMemo(() => selectedOrderMaterial?.boms || [], [selectedOrderMaterial])
+
+  useEffect(() => {
+    if (selectedOrderBoms.some((bom) => bom.id === selectedOrderBomId)) return
+    const preferred = selectedOrderBoms.find((bom) => bom.isDefault) || selectedOrderBoms[0]
+    setSelectedOrderBomId(preferred?.id || '')
+  }, [selectedOrderBomId, selectedOrderBoms])
 
   useEffect(() => {
     const savedOrder = window.localStorage.getItem('mes-lite.nav.order')
@@ -930,10 +952,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   }
 
   const fetchMaterialOptions = async () => {
-    const res = await fetch('/api/materials?pageSize=200')
+    const res = await fetch('/api/orders/options')
     if (res.ok) {
       const data = await res.json()
-      setMaterialOptions(data.data || [])
+      const options = (data.data || []) as OrderMaterialOption[]
+      setOrderMaterialOptions(options)
     }
   }
 
@@ -953,8 +976,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
   const createOrder = async () => {
     const targetId = selectedMaterialId
-    if (!targetId || planQty <= 0) {
-      showMessage('请选择物料并输入有效数量')
+    if (!targetId || !selectedOrderBomId || planQty <= 0) {
+      showMessage('请选择产出物料、BOM 方案并输入有效计划数量')
       return
     }
     setLoading(true)
@@ -962,14 +985,23 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetType: orderTargetType, targetId, planQty, voucherNo: orderVoucherNo || undefined }),
+        body: JSON.stringify({
+          targetType: orderTargetType,
+          targetId,
+          bomId: selectedOrderBomId,
+          planQty,
+          voucherNo: orderVoucherNo || undefined,
+          note: orderNote || undefined,
+        }),
       })
       const data = await res.json()
       if (res.ok) {
         showMessage(`生产订单已保存：${data.data.orderNo}`)
         setPlanQty(100)
         setOrderVoucherNo('')
+        setOrderNote('')
         setSelectedMaterialId('')
+        setSelectedOrderBomId('')
         await fetchOrders()
         await fetchStocks()
         setTab('orders')
@@ -982,23 +1014,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setLoading(false)
   }
 
-  const confirmOrder = async (orderId: string) => {
-    setLoading(true)
-    try {
-      const res = await fetch(`/api/orders/${orderId}/confirm`, { method: 'PATCH' })
-      const data = await res.json()
-      if (res.ok) {
-        showMessage(data.message)
-        await fetchOrders()
-      } else {
-        showMessage(data.error || '确认失败')
-      }
-    } catch (err) {
-      showMessage('确认失败')
-    }
-    setLoading(false)
-  }
-
   const handleSelectOrder = (order: Order) => {
     fetchOrderDetail(order.id)
     setTab('detail')
@@ -1007,47 +1022,39 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const dashboardView = {
     todayOrderCount: dashboard?.todayOrderCount ?? dashboard?.todayOrders ?? 0,
     monthOrderCount: dashboard?.monthOrderCount ?? dashboard?.monthOrders ?? 0,
-    todayDailyReportCount: dashboard?.todayDailyReportCount ?? 0,
-    monthDailyReportCount: dashboard?.monthDailyReportCount ?? 0,
-    todayProductionRecordCount: dashboard?.todayProductionRecordCount
-      ?? ((dashboard?.todayOrderCount ?? dashboard?.todayOrders ?? 0) + (dashboard?.todayDailyReportCount ?? 0)),
-    monthProductionRecordCount: dashboard?.monthProductionRecordCount
-      ?? ((dashboard?.monthOrderCount ?? dashboard?.monthOrders ?? 0) + (dashboard?.monthDailyReportCount ?? 0)),
-    todayWorkReportProduction: dashboard?.todayWorkReportProduction ?? dashboard?.todayProduction ?? 0,
-    monthWorkReportProduction: dashboard?.monthWorkReportProduction ?? dashboard?.monthProduction ?? 0,
-    todayDailyReportProduction: dashboard?.todayDailyReportProduction ?? 0,
-    monthDailyReportProduction: dashboard?.monthDailyReportProduction ?? 0,
+    todayProductionActualCount: dashboard?.todayProductionActualCount ?? 0,
+    monthProductionActualCount: dashboard?.monthProductionActualCount ?? 0,
     todayProduction: dashboard?.todayProduction ?? 0,
     monthProduction: dashboard?.monthProduction ?? 0,
-    pendingDailyReportCount: dashboard?.pendingDailyReportCount ?? 0,
+    pendingProductionActualCount: dashboard?.pendingProductionActualCount ?? 0,
     pendingMaterialInCount: dashboard?.pendingMaterialInCount ?? dashboard?.pendingMaterialIns ?? 0,
     pendingShipmentCount: dashboard?.pendingShipmentCount ?? dashboard?.pendingShipments ?? 0,
     pendingReturnCount: dashboard?.pendingReturnCount ?? dashboard?.pendingReturns ?? 0,
     lowStocks: dashboard?.lowStocks ?? dashboard?.alertStocks ?? [],
     statusDistribution: dashboard?.statusDistribution ?? dashboard?.orderStatusDist ?? [],
-    dailyReportStatusDistribution: dashboard?.dailyReportStatusDistribution ?? [],
+    productionActualStatusDistribution: dashboard?.productionActualStatusDistribution ?? [],
   }
   const dashboardNumberText = (value: number) => Number(value || 0).toFixed(3).replace(/\.?0+$/, '') || '0'
   const dashboardMetricItems = [
-    { label: '今日生产记录', value: dashboardView.todayProductionRecordCount, tone: 'blue', hint: `工单 ${dashboardView.todayOrderCount} · 日报 ${dashboardView.todayDailyReportCount}` },
-    { label: '本月生产记录', value: dashboardView.monthProductionRecordCount, tone: 'indigo', hint: `工单 ${dashboardView.monthOrderCount} · 日报 ${dashboardView.monthDailyReportCount}` },
-    { label: '今日产量', value: dashboardView.todayProduction, tone: 'green', hint: `报工 ${dashboardNumberText(dashboardView.todayWorkReportProduction)} · 日报 ${dashboardNumberText(dashboardView.todayDailyReportProduction)}` },
-    { label: '本月产量', value: dashboardView.monthProduction, tone: 'emerald', hint: `报工 ${dashboardNumberText(dashboardView.monthWorkReportProduction)} · 日报 ${dashboardNumberText(dashboardView.monthDailyReportProduction)}` },
+    { label: '今日生产订单', value: dashboardView.todayOrderCount, tone: 'blue', hint: `班后实绩 ${dashboardView.todayProductionActualCount}` },
+    { label: '本月生产订单', value: dashboardView.monthOrderCount, tone: 'indigo', hint: `班后实绩 ${dashboardView.monthProductionActualCount}` },
+    { label: '今日确认产量', value: dashboardView.todayProduction, tone: 'green', hint: `主产出 ${dashboardNumberText(dashboardView.todayProduction)}` },
+    { label: '本月确认产量', value: dashboardView.monthProduction, tone: 'emerald', hint: `主产出 ${dashboardNumberText(dashboardView.monthProduction)}` },
     { label: '待收货', value: dashboardView.pendingMaterialInCount, tone: 'yellow', hint: '来料' },
     { label: '待发货', value: dashboardView.pendingShipmentCount, tone: 'orange', hint: '出库' },
     { label: '退货待处理', value: dashboardView.pendingReturnCount, tone: 'red', hint: '售后' },
     { label: '库存预警', value: dashboardView.lowStocks.length, tone: 'pink', hint: '低库存' },
   ]
   const dashboardWorkloadItems = [
-    { label: '今日工单', value: dashboardView.todayOrderCount, tone: 'blue' },
-    { label: '今日日报', value: dashboardView.todayDailyReportCount, tone: 'indigo' },
-    { label: '本月工单', value: dashboardView.monthOrderCount, tone: 'blue' },
-    { label: '本月日报', value: dashboardView.monthDailyReportCount, tone: 'indigo' },
-    { label: '今日产量', value: dashboardView.todayProduction, tone: 'green' },
-    { label: '本月产量', value: dashboardView.monthProduction, tone: 'emerald' },
+    { label: '今日订单', value: dashboardView.todayOrderCount, tone: 'blue' },
+    { label: '今日实绩', value: dashboardView.todayProductionActualCount, tone: 'indigo' },
+    { label: '本月订单', value: dashboardView.monthOrderCount, tone: 'blue' },
+    { label: '本月实绩', value: dashboardView.monthProductionActualCount, tone: 'indigo' },
+    { label: '今日主产出', value: dashboardView.todayProduction, tone: 'green' },
+    { label: '本月主产出', value: dashboardView.monthProduction, tone: 'emerald' },
   ]
   const dashboardPendingItems = [
-    { label: '生产记录待确认', value: dashboardView.pendingDailyReportCount, tone: 'indigo', hint: '生产记录草稿' },
+    { label: '生产实绩待确认', value: dashboardView.pendingProductionActualCount, tone: 'indigo', hint: '班后实绩草稿' },
     { label: '待收货', value: dashboardView.pendingMaterialInCount, tone: 'yellow', hint: '原材料入库' },
     { label: '待发货', value: dashboardView.pendingShipmentCount, tone: 'orange', hint: '成品出库' },
     { label: '退货待处理', value: dashboardView.pendingReturnCount, tone: 'red', hint: '售后返库' },
@@ -1498,7 +1505,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <ProductionStatusOverview
                 orderItems={dashboardView.statusDistribution}
-                reportItems={dashboardView.dailyReportStatusDistribution}
+                actualItems={dashboardView.productionActualStatusDistribution}
               />
               <StockAlertList stocks={dashboardView.lowStocks} />
             </div>
@@ -1573,17 +1580,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                       </div>
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-3 text-xs text-gray-500 sm:mt-4">
-                      <span>报工 {order._count.reports} · 领料 {order._count.picks}</span>
+                      <span>BOM {order.bom?.name || order.bomName || '-'} {order.bom?.version || order.bomVersion || ''} · 实绩 {order._count.actuals || 0}</span>
                       <div onClick={(e) => e.stopPropagation()}>
                         <AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={order.id} compact onMessage={showMessage} />
                       </div>
                     </div>
                     <div className="mt-3 flex justify-end">
-                      {order.status === 'DRAFT' ? (
-                        <button onClick={(e) => { e.stopPropagation(); confirmOrder(order.id) }} className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">确认</button>
-                      ) : (
-                        <button onClick={(e) => { e.stopPropagation(); handleSelectOrder(order) }} className="px-3 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">详情</button>
-                      )}
+                      <button onClick={(e) => { e.stopPropagation(); handleSelectOrder(order) }} className="px-3 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">详情 / 登记实绩</button>
                     </div>
                   </div>
                 ))}
@@ -1631,12 +1634,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                           <AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={order.id} compact onMessage={showMessage} />
                         </td>
                         <td className="px-4 py-3">
-                          {order.status === 'DRAFT' && (
-                            <button onClick={(e) => { e.stopPropagation(); confirmOrder(order.id) }} className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">确认</button>
-                          )}
-                          {order.status !== 'DRAFT' && (
-                            <button onClick={(e) => { e.stopPropagation(); handleSelectOrder(order) }} className="px-3 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">详情</button>
-                          )}
+                          <button onClick={(e) => { e.stopPropagation(); handleSelectOrder(order) }} className="px-3 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">详情 / 登记实绩</button>
                         </td>
                       </tr>
                     ))}
@@ -1658,13 +1656,18 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               </div>
               <button onClick={() => setTab('orders')} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">返回列表</button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 gap-4 mb-6 md:grid-cols-5">
               <div className="border border-gray-200 rounded-lg p-4">
                 <div className="text-sm text-gray-500 mb-1">目标</div>
                 <div className="font-medium">{orderDetail.targetMaterial?.name || orderDetail.product.name}</div>
                 <div className="text-xs text-gray-400">
                   物料 {orderDetail.targetMaterial?.code || displayMaterialCode(orderDetail.product.sku)}
                 </div>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-4">
+                <div className="text-sm text-gray-500 mb-1">BOM 方案</div>
+                <div className="font-medium">{orderDetail.bomName || orderDetail.bom?.name || '-'}</div>
+                <div className="text-xs text-gray-400">{orderDetail.bomVersion || orderDetail.bom?.version || '-'}</div>
               </div>
               <div className="border border-gray-200 rounded-lg p-4">
                 <div className="text-sm text-gray-500 mb-1">状态</div>
@@ -1679,51 +1682,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 <div className="font-medium text-red-600">{orderDetail.scrapQty}</div>
               </div>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div>
-                <h3 className="font-semibold mb-4">领料项</h3>
-                <div className="space-y-2">
-                  {orderDetail.picks?.length === 0 && (
-                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-500">无领料项</div>
-                  )}
-                  {orderDetail.picks?.map((pick: PickItem) => (
-                    <div key={pick.id} className="border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div>
-                          <div className="font-medium text-sm">{pick.material.name}</div>
-                          <div className="text-xs text-gray-500">{pick.material.code}</div>
-                        </div>
-                        <span className={`px-2 py-1 rounded text-xs ${statusColors[pick.status]}`}>{statusLabels[pick.status]}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>{Number(pick.requiredQty) > 0 ? `需求：${pick.requiredQty}` : '按实际领用'} {pick.material.stockUnit || pick.material.unit}</span>
-                        <span>已领：{pick.actualQty} {pick.material.unit}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <h3 className="font-semibold mb-4">工艺路线</h3>
-                <div className="space-y-2">
-                  {orderDetail.routeSteps?.length === 0 && (
-                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-500">无工艺路线</div>
-                  )}
-                  {orderDetail.routeSteps?.map((step: ProcessStep) => (
-                    <div key={step.id} className={`border rounded-lg p-3 ${step.id === orderDetail.currentStepId ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
-                      <div className="flex items-center gap-3">
-                        <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step.id === orderDetail.currentStepId ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>{step.stepNo}</span>
-                        <div className="flex-1">
-                          <div className="font-medium text-sm">{step.name}</div>
-                          {step.workstation && <div className="text-xs text-gray-500">工作中心：{step.workstation}</div>}
-                        </div>
-                        {step.id === orderDetail.currentStepId && <span className="text-xs text-blue-600 font-medium">当前工序</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <ProductionOrderActualPanel
+              orderId={orderDetail.id}
+              onMessage={showMessage}
+              onOrderChanged={async () => {
+                await Promise.all([fetchOrderDetail(orderDetail.id), fetchOrders(), fetchDashboard()])
+              }}
+            />
             <div className="mt-6">
               <AttachmentPanel
                 ownerType="PRODUCTION_ORDER"
@@ -1742,20 +1707,33 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             <p className="mb-6 text-sm text-gray-500">先录入基本信息形成草稿；班后再进入订单登记实际产量、投入和损耗。</p>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">选择物料</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">主产出物料</label>
                 <SearchableSelect
                   value={selectedMaterialId}
                   onChange={setSelectedMaterialId}
-                  options={materialOptions.map((material) => ({
+                  options={orderMaterialOptions.map((material) => ({
                     value: material.id,
                     label: `${material.code} · ${material.name} · ${materialCategoryLabels[material.category] || material.category}`,
                   }))}
-                  placeholder="输入物料编码、名称或分类筛选"
+                  placeholder="输入可生产物料的编码、名称或分类筛选"
+                />
+                <p className="mt-1 text-xs text-gray-500">仅显示已有启用 BOM 的物料；BOM 投入可包含原材料、半成品或已有产品。</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">BOM 方案</label>
+                <SearchableSelect
+                  value={selectedOrderBomId}
+                  onChange={setSelectedOrderBomId}
+                  options={selectedOrderBoms.map((bom) => ({
+                    value: bom.id,
+                    label: `${bom.name} · ${bom.version}${bom.isDefault ? ' · 默认' : ''}`,
+                  }))}
+                  placeholder={selectedMaterialId ? '输入方案名称或版本筛选' : '请先选择主产出物料'}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">计划产量</label>
-                <input type="number" value={planQty} onChange={(e) => setPlanQty(Number(e.target.value))} min={1} className="w-full px-4 py-3 border border-gray-200 rounded-lg" />
+                <input type="number" value={planQty} onChange={(e) => setPlanQty(Number(e.target.value))} min="0.000001" step="0.000001" className="w-full px-4 py-3 border border-gray-200 rounded-lg" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">凭据号</label>
@@ -1765,6 +1743,16 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   onChange={(e) => setOrderVoucherNo(e.target.value)}
                   placeholder="客户订单号、生产指令号或纸质单号"
                   className="w-full px-4 py-3 border border-gray-200 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">备注</label>
+                <textarea
+                  value={orderNote}
+                  onChange={(event) => setOrderNote(event.target.value)}
+                  rows={3}
+                  placeholder="交期、班次、客户要求或其它生产说明"
+                  className="w-full rounded-lg border border-gray-200 px-4 py-3"
                 />
               </div>
               <button onClick={createOrder} disabled={loading} className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
@@ -2106,9 +2094,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
         {/* 退货管理 */}
         {tab === 'return' && <ReturnPage onMessage={showMessage} />}
-
-        {/* 生产记录 */}
-        {tab === 'stats' && <StatsPage onMessage={showMessage} />}
 
         {/* 流程转移 */}
         {tab === 'flowTransfers' && <FlowTransferPage onMessage={showMessage} />}
@@ -2475,10 +2460,10 @@ function DashboardStatusSection({
 
 function ProductionStatusOverview({
   orderItems,
-  reportItems,
+  actualItems,
 }: {
   orderItems: { status: string; count: number }[]
-  reportItems: { status: string; count: number }[]
+  actualItems: { status: string; count: number }[]
 }) {
   const orderPalette: Record<string, string> = {
     DRAFT: '#94a3b8',
@@ -2490,31 +2475,31 @@ function ProductionStatusOverview({
     COMPLETED: '#22c55e',
     CANCELLED: '#ef4444',
   }
-  const reportLabels = { DRAFT: '草稿', CONFIRMED: '已确认', REVERSED: '已冲销' }
-  const reportPalette = { DRAFT: '#94a3b8', CONFIRMED: '#22c55e', REVERSED: '#ef4444' }
+  const actualLabels = { DRAFT: '草稿', CONFIRMED: '已确认', REVERSED: '已冲销' }
+  const actualPalette = { DRAFT: '#94a3b8', CONFIRMED: '#22c55e', REVERSED: '#ef4444' }
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
       <div className="mb-5 flex items-center justify-between">
         <h3 className="font-semibold text-gray-900">生产状态分布</h3>
-        <span className="text-xs text-gray-500">工单 / 生产记录</span>
+        <span className="text-xs text-gray-500">生产订单 / 班后实绩</span>
       </div>
       <div className="space-y-4">
         <DashboardStatusSection
-          title="工单流"
-          totalLabel="总工单"
-          emptyText="暂无工单状态数据"
+          title="生产订单"
+          totalLabel="总订单"
+          emptyText="暂无生产订单状态数据"
           items={orderItems}
           labels={statusLabels}
           palette={orderPalette}
         />
         <DashboardStatusSection
-          title="生产记录流"
-          totalLabel="总记录"
-          emptyText="暂无生产记录状态数据"
-          items={reportItems}
-          labels={reportLabels}
-          palette={reportPalette}
+          title="班后生产实绩"
+          totalLabel="总实绩"
+          emptyText="暂无班后实绩状态数据"
+          items={actualItems}
+          labels={actualLabels}
+          palette={actualPalette}
         />
       </div>
     </div>

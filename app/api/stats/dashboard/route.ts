@@ -35,14 +35,12 @@ export async function GET(req: NextRequest) {
       todayOrderCount,
       monthOrderCount,
       statusDistribution,
-      todayWorkReportProductionAgg,
-      monthWorkReportProductionAgg,
-      todayDailyReportCount,
-      monthDailyReportCount,
-      dailyReportStatusDistribution,
-      todayDailyReportProductionAgg,
-      monthDailyReportProductionAgg,
-      pendingDailyReportCount,
+      todayProductionActualCount,
+      monthProductionActualCount,
+      productionActualStatusDistribution,
+      todayProductionActualOutputAgg,
+      monthProductionActualOutputAgg,
+      pendingProductionActualCount,
       pendingMaterialInCount,
       pendingShipmentCount,
       pendingReturnCount,
@@ -58,45 +56,37 @@ export async function GET(req: NextRequest) {
         by: ['status'],
         _count: true,
       }),
-      prisma.workReport.aggregate({
-        where: { createdAt: { gte: todayStart } },
-        _sum: { goodQty: true },
-      }),
-      prisma.workReport.aggregate({
-        where: { createdAt: { gte: monthStart } },
-        _sum: { goodQty: true },
-      }),
-      prisma.dailyProductionReport.count({
+      prisma.productionOrderActual.count({
         where: {
-          reportDate: { gte: todayStart, lt: tomorrowStart },
+          actualDate: { gte: todayStart, lt: tomorrowStart },
           status: { in: ['DRAFT', 'CONFIRMED'] },
         },
       }),
-      prisma.dailyProductionReport.count({
+      prisma.productionOrderActual.count({
         where: {
-          reportDate: { gte: monthStart, lt: nextMonthStart },
+          actualDate: { gte: monthStart, lt: nextMonthStart },
           status: { in: ['DRAFT', 'CONFIRMED'] },
         },
       }),
-      prisma.dailyProductionReport.groupBy({
+      prisma.productionOrderActual.groupBy({
         by: ['status'],
         _count: true,
       }),
-      prisma.dailyProductionReport.aggregate({
+      prisma.productionOrderActualOutput.aggregate({
         where: {
-          reportDate: { gte: todayStart, lt: tomorrowStart },
-          status: 'CONFIRMED',
+          isPrimary: true,
+          actual: { is: { actualDate: { gte: todayStart, lt: tomorrowStart }, status: 'CONFIRMED' } },
         },
-        _sum: { outputQty: true },
+        _sum: { actualQty: true },
       }),
-      prisma.dailyProductionReport.aggregate({
+      prisma.productionOrderActualOutput.aggregate({
         where: {
-          reportDate: { gte: monthStart, lt: nextMonthStart },
-          status: 'CONFIRMED',
+          isPrimary: true,
+          actual: { is: { actualDate: { gte: monthStart, lt: nextMonthStart }, status: 'CONFIRMED' } },
         },
-        _sum: { outputQty: true },
+        _sum: { actualQty: true },
       }),
-      prisma.dailyProductionReport.count({
+      prisma.productionOrderActual.count({
         where: { status: 'DRAFT' },
       }),
       prisma.materialIn.count({
@@ -120,12 +110,10 @@ export async function GET(req: NextRequest) {
     const productionFlow = buildProductionFlowDashboard({
       todayOrderCount,
       monthOrderCount,
-      todayDailyReportCount,
-      monthDailyReportCount,
-      todayWorkReportProduction: todayWorkReportProductionAgg._sum.goodQty ?? 0,
-      monthWorkReportProduction: monthWorkReportProductionAgg._sum.goodQty ?? 0,
-      todayDailyReportProduction: todayDailyReportProductionAgg._sum.outputQty ?? 0,
-      monthDailyReportProduction: monthDailyReportProductionAgg._sum.outputQty ?? 0,
+      todayProductionActualCount,
+      monthProductionActualCount,
+      todayProductionActualOutput: todayProductionActualOutputAgg._sum.actualQty ?? 0,
+      monthProductionActualOutput: monthProductionActualOutputAgg._sum.actualQty ?? 0,
     })
 
     return NextResponse.json({
@@ -135,11 +123,11 @@ export async function GET(req: NextRequest) {
           status: s.status,
           count: s._count,
         })),
-        dailyReportStatusDistribution: dailyReportStatusDistribution.map((item) => ({
+        productionActualStatusDistribution: productionActualStatusDistribution.map((item) => ({
           status: item.status,
           count: item._count,
         })),
-        pendingDailyReportCount,
+        pendingProductionActualCount,
         pendingMaterialInCount,
         pendingShipmentCount,
         pendingReturnCount,

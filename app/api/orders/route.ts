@@ -12,7 +12,8 @@ const createOrderSchema = z.object({
   targetId: z.string().min(1).optional(),
   productId: z.string().min(1).optional(),
   materialId: z.string().min(1).optional(),
-  planQty: z.number().int().positive(),
+  bomId: z.string().min(1, '请选择 BOM 方案'),
+  planQty: z.number().finite().positive(),
   note: z.string().optional(),
 })
 
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
     const parsed = createOrderSchema.parse(body)
     const rawTargetId = parsed.targetId ?? parsed.materialId ?? parsed.productId
     const targetId = isMaterialProductId(rawTargetId) ? rawTargetId?.slice(materialProductPrefix.length) : rawTargetId
-    const { planQty, note, voucherNo } = parsed
+    const { planQty, note, voucherNo, bomId } = parsed
 
     if (!targetId) {
       return NextResponse.json({ error: '请选择物料' }, { status: 400 })
@@ -49,6 +50,44 @@ export async function POST(req: NextRequest) {
     materialId = material.id
     productId = await ensureSimpleProductForMaterial(material)
 
+    const bom = await prisma.bOM.findFirst({
+      where: { id: bomId, productId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        version: true,
+        outputQuantity: true,
+        outputUnit: true,
+        outputs: {
+          orderBy: { isPrimary: 'desc' },
+          select: {
+            id: true,
+            materialId: true,
+            quantity: true,
+            unit: true,
+            isPrimary: true,
+            material: { select: { code: true, name: true, stockUnit: true, unit: true } },
+          },
+        },
+        items: {
+          where: { itemType: 'MATERIAL', materialId: { not: null } },
+          select: {
+            id: true,
+            materialId: true,
+            quantity: true,
+            unit: true,
+            material: { select: { code: true, name: true, stockUnit: true, unit: true } },
+          },
+        },
+      },
+    })
+    if (!bom || bom.outputs.length === 0 || bom.items.length === 0) {
+      return NextResponse.json({ error: '所选 BOM 不存在、已停用或缺少投入/产出明细' }, { status: 400 })
+    }
+    if (bom.outputs.filter((output) => output.isPrimary).length !== 1) {
+      return NextResponse.json({ error: '所选 BOM 必须且只能有一项主产出' }, { status: 400 })
+    }
+
     const today = new Date()
     const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')
     const count = await prisma.productionOrder.count({
@@ -63,6 +102,10 @@ export async function POST(req: NextRequest) {
           voucherNo: voucherNo?.trim() || null,
           productId,
           materialId,
+          bomId: bom.id,
+          bomName: bom.name,
+          bomVersion: bom.version,
+          bomSnapshot: JSON.stringify(bom),
           planQty,
           status: 'DRAFT',
           note,
@@ -127,7 +170,8 @@ export async function GET(req: NextRequest) {
         include: {
           product: { select: { id: true, name: true, sku: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
           targetMaterial: { select: { id: true, name: true, code: true, category: true, customerId: true, customer: { select: { id: true, code: true, name: true } }, unit: true, stockUnit: true, valuationUnit: true } },
-          _count: { select: { reports: true, picks: true } },
+          bom: { select: { id: true, name: true, version: true } },
+          _count: { select: { reports: true, picks: true, actuals: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,

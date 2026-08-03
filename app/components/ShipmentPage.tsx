@@ -636,7 +636,7 @@ export default function ShipmentPage({
                 />
                 {selectedProduct && (
                   <div className={`mt-2 rounded px-3 py-2 text-xs ${form.qty > Number(selectedLocationBalance?.availableQty || 0) ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>
-                    当前可用：<strong>{selectedLocationBalance?.availableQty || 0} {selectedProduct.unit}</strong>；生产日报确认的产出入库会直接增加这里的数量。
+                    当前可用：<strong>{selectedLocationBalance?.availableQty || 0} {selectedProduct.unit}</strong>；生产订单实绩确认的产出入库会直接增加这里的数量。
                     {form.qty > Number(selectedLocationBalance?.availableQty || 0) && ' 当前数量可先保存为待发货，确认发货时将再次校验库存。'}
                   </div>
                 )}

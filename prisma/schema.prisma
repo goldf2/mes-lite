@@ -17,26 +17,28 @@ model SystemSetting {
 }
 
 model InventoryLocation {
-  id                 String                       @id @default(cuid())
-  code               String                       @unique
+  id                 String                        @id @default(cuid())
+  code               String                        @unique
   name               String
   note               String?
-  isDefault          Boolean                      @default(false)
-  isActive           Boolean                      @default(true)
-  sortOrder          Int                          @default(0)
+  isDefault          Boolean                       @default(false)
+  isActive           Boolean                       @default(true)
+  sortOrder          Int                           @default(0)
   deletedAt          DateTime?
   balances           StockLocationBalance[]
   stockLogs          StockLog[]
   materialIns        MaterialIn[]
-  consumptionReports DailyProductionReport[]      @relation("DailyProductionConsumptionLocation")
-  productionInputs   DailyProductionConsumption[] @relation("DailyProductionConsumptionLineLocation")
-  outputReports      DailyProductionReport[]      @relation("DailyProductionOutputLocation")
-  outgoingTransfers  FlowTransfer[]               @relation("FlowTransferSourceLocation")
-  incomingTransfers  FlowTransfer[]               @relation("FlowTransferTargetLocation")
+  consumptionReports DailyProductionReport[]       @relation("DailyProductionConsumptionLocation")
+  productionInputs   DailyProductionConsumption[]  @relation("DailyProductionConsumptionLineLocation")
+  outputReports      DailyProductionReport[]       @relation("DailyProductionOutputLocation")
+  orderActualInputs  ProductionOrderActualInput[]  @relation("ProductionOrderActualInputLocation")
+  orderActualOutputs ProductionOrderActualOutput[] @relation("ProductionOrderActualOutputLocation")
+  outgoingTransfers  FlowTransfer[]                @relation("FlowTransferSourceLocation")
+  incomingTransfers  FlowTransfer[]                @relation("FlowTransferTargetLocation")
   shipments          Shipment[]
   returnOrders       ReturnOrder[]
-  createdAt          DateTime                     @default(now())
-  updatedAt          DateTime                     @updatedAt
+  createdAt          DateTime                      @default(now())
+  updatedAt          DateTime                      @updatedAt
 
   @@index([sortOrder])
 }
@@ -71,6 +73,7 @@ model Employee {
   operatorId             String?                         @unique
   operator               Operator?                       @relation(fields: [operatorId], references: [id], onDelete: SetNull)
   dailyProductionReports DailyProductionReportEmployee[]
+  productionOrderActuals ProductionOrderActualEmployee[]
   flowTransfers          FlowTransfer[]
   createdAt              DateTime                        @default(now())
   updatedAt              DateTime                        @updatedAt
@@ -126,24 +129,24 @@ model Product {
 }
 
 model Material {
-  id                          String                       @id @default(cuid())
-  code                        String                       @unique
+  id                          String                        @id @default(cuid())
+  code                        String                        @unique
   name                        String
   spec                        String?
   note                        String?
-  category                    String                       @default("RAW")
+  category                    String                        @default("RAW")
   customerId                  String?
-  customer                    Customer?                    @relation(fields: [customerId], references: [id])
+  customer                    Customer?                     @relation(fields: [customerId], references: [id])
   unit                        String
-  primaryMeasure              String                       @default("QUANTITY")
-  stockUnit                   String                       @default("件")
+  primaryMeasure              String                        @default("QUANTITY")
+  stockUnit                   String                        @default("件")
   referenceMeasure            String?
-  valuationUnit               String                       @default("kg")
-  conversionRate              Float                        @default(1)
+  valuationUnit               String                        @default("kg")
+  conversionRate              Float                         @default(1)
   conversionNote              String?
-  unitMode                    String                       @default("DUAL")
-  unitVersion                 Int                          @default(1)
-  costingMethod               String                       @default("WEIGHTED_AVERAGE")
+  unitMode                    String                        @default("DUAL")
+  unitVersion                 Int                           @default(1)
+  costingMethod               String                        @default("WEIGHTED_AVERAGE")
   deletedAt                   DateTime?
   deletedBy                   String?
   stock                       Stock?
@@ -152,33 +155,36 @@ model Material {
   bomOutputs                  BOMOutput[]
   pickItems                   PickItem[]
   materialIns                 MaterialIn[]
-  productionOrders            ProductionOrder[]            @relation("ProductionOrderTargetMaterial")
+  productionOrders            ProductionOrder[]             @relation("ProductionOrderTargetMaterial")
   workInstructions            WorkInstruction[]
   processTemplates            ProcessTemplate[]
-  dailyProductionReports      DailyProductionReport[]      @relation("DailyProductionFinishedMaterial")
-  dailyProductionConsumptions DailyProductionConsumption[] @relation("DailyProductionConsumedMaterial")
+  dailyProductionReports      DailyProductionReport[]       @relation("DailyProductionFinishedMaterial")
+  dailyProductionConsumptions DailyProductionConsumption[]  @relation("DailyProductionConsumedMaterial")
+  productionActualInputs      ProductionOrderActualInput[]  @relation("ProductionOrderActualInputMaterial")
+  productionActualOutputs     ProductionOrderActualOutput[] @relation("ProductionOrderActualOutputMaterial")
   flowTransfers               FlowTransfer[]
   shipments                   Shipment[]
   returnOrders                ReturnOrder[]
-  createdAt                   DateTime                     @default(now())
+  createdAt                   DateTime                      @default(now())
 }
 
 // ==================== 物料清单 BOM ====================
 
 model BOM {
-  id             String       @id @default(cuid())
-  productId      String
-  product        Product      @relation(fields: [productId], references: [id])
-  items          BOMItem[]
-  outputs        BOMOutput[]
-  costRuns       BomCostRun[]
-  name           String       @default("默认方案")
-  version        String       @default("v1")
-  isDefault      Boolean      @default(true)
-  isActive       Boolean      @default(true)
-  outputQuantity Float        @default(1)
-  outputUnit     String       @default("件")
-  createdAt      DateTime     @default(now())
+  id               String            @id @default(cuid())
+  productId        String
+  product          Product           @relation(fields: [productId], references: [id])
+  items            BOMItem[]
+  outputs          BOMOutput[]
+  productionOrders ProductionOrder[]
+  costRuns         BomCostRun[]
+  name             String            @default("默认方案")
+  version          String            @default("v1")
+  isDefault        Boolean           @default(true)
+  isActive         Boolean           @default(true)
+  outputQuantity   Float             @default(1)
+  outputUnit       String            @default("件")
+  createdAt        DateTime          @default(now())
 
   @@unique([productId, version])
   @@index([productId, isActive, isDefault])
@@ -449,9 +455,14 @@ model ProductionOrder {
   product        Product   @relation(fields: [productId], references: [id])
   materialId     String?
   targetMaterial Material? @relation("ProductionOrderTargetMaterial", fields: [materialId], references: [id])
-  planQty        Int
-  completeQty    Int       @default(0)
-  scrapQty       Int       @default(0)
+  bomId          String?
+  bom            BOM?      @relation(fields: [bomId], references: [id])
+  bomName        String?
+  bomVersion     String?
+  bomSnapshot    String?   @map("productionBomSnapshot")
+  planQty        Float
+  completeQty    Float     @default(0)
+  scrapQty       Float     @default(0)
   status         String    @default("DRAFT")
 
   planId      String?
@@ -462,6 +473,7 @@ model ProductionOrder {
   stockIns    StockIn[]
   dispatches  Dispatch[]
   costRecords CostRecord[]
+  actuals     ProductionOrderActual[]
 
   startTime    DateTime?
   completeTime DateTime?
@@ -472,6 +484,109 @@ model ProductionOrder {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([materialId])
+  @@index([bomId])
+}
+
+model ProductionOrderActual {
+  id            String                          @id @default(cuid())
+  actualNo      String                          @unique
+  orderId       String
+  order         ProductionOrder                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actualDate    DateTime
+  workers       String
+  note          String?
+  status        String                          @default("DRAFT")
+  confirmedAt   DateTime?
+  confirmedBy   String?
+  reversedAt    DateTime?
+  reversedBy    String?
+  reverseReason String?
+  employees     ProductionOrderActualEmployee[]
+  inputs        ProductionOrderActualInput[]
+  outputs       ProductionOrderActualOutput[]
+  createdAt     DateTime                        @default(now())
+  updatedAt     DateTime                        @updatedAt
+
+  @@index([orderId, actualDate])
+  @@index([status])
+}
+
+model ProductionOrderActualEmployee {
+  id           String                @id @default(cuid())
+  actualId     String
+  actual       ProductionOrderActual @relation(fields: [actualId], references: [id], onDelete: Cascade)
+  employeeId   String?
+  employee     Employee?             @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  employeeCode String
+  employeeName String
+  createdAt    DateTime              @default(now())
+
+  @@unique([actualId, employeeId])
+  @@index([employeeId])
+}
+
+model ProductionOrderActualInput {
+  id                 String                @id @default(cuid())
+  actualId           String
+  actual             ProductionOrderActual @relation(fields: [actualId], references: [id], onDelete: Cascade)
+  materialId         String
+  material           Material              @relation("ProductionOrderActualInputMaterial", fields: [materialId], references: [id])
+  locationId         String
+  location           InventoryLocation     @relation("ProductionOrderActualInputLocation", fields: [locationId], references: [id])
+  bomItemId          String?
+  materialCode       String
+  materialName       String
+  quantityPerBatch   Float
+  lossMode           String                @default("PERCENT")
+  lossValue          Float                 @default(0)
+  lossQty            Float                 @default(0)
+  plannedQty         Float
+  actualQty          Float
+  unit               String
+  valuationQty       Float                 @default(0)
+  valuationUnit      String?
+  costAmount         Float                 @default(0)
+  conversionRateUsed Float?
+  conversionSource   String?
+  costingMethod      String?
+  costLayerSnapshot  String?
+  createdAt          DateTime              @default(now())
+
+  @@unique([actualId, materialId])
+  @@index([materialId])
+  @@index([locationId])
+}
+
+model ProductionOrderActualOutput {
+  id                 String                @id @default(cuid())
+  actualId           String
+  actual             ProductionOrderActual @relation(fields: [actualId], references: [id], onDelete: Cascade)
+  materialId         String
+  material           Material              @relation("ProductionOrderActualOutputMaterial", fields: [materialId], references: [id])
+  locationId         String
+  location           InventoryLocation     @relation("ProductionOrderActualOutputLocation", fields: [locationId], references: [id])
+  bomOutputId        String?
+  materialCode       String
+  materialName       String
+  quantityPerBatch   Float
+  plannedQty         Float
+  actualQty          Float
+  unit               String
+  isPrimary          Boolean               @default(false)
+  valuationQty       Float                 @default(0)
+  costAmount         Float                 @default(0)
+  stockUnit          String?
+  valuationUnit      String?
+  conversionRateUsed Float?
+  conversionSource   String?
+  createdAt          DateTime              @default(now())
+
+  @@unique([actualId, materialId])
+  @@index([materialId])
+  @@index([locationId])
+  @@index([actualId, isPrimary])
 }
 
 // ==================== 物料领用 ====================
@@ -522,7 +637,7 @@ model WorkReport {
   createdAt DateTime @default(now())
 }
 
-// ==================== 独立生产日报 ====================
+// ==================== 旧独立生产记录（入口已移除，待每日盘点切片清理） ====================
 
 model DailyProductionReport {
   id                     String                          @id @default(cuid())

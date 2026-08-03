@@ -822,7 +822,7 @@ export default function MaterialPage({
     || isMeterUnit(relationMaterial?.stockUnit || relationMaterial?.unit)
   const relationInputUnit = relationUsesLengthInput
     ? relationLengthInputUnit
-    : relationMaterial?.stockUnit || relationMaterial?.unit || '原料主单位'
+    : relationMaterial?.stockUnit || relationMaterial?.unit || '投入物料主单位'
   const relationInputToStockUnitRate = relationUsesLengthInput
     ? relationLengthInputDefinition?.toBaseFactor || 0.001
     : 1
@@ -1446,7 +1446,7 @@ export default function MaterialPage({
       if (selected.has('code')) parts.push(item.material?.code || '')
       const relation = parts.filter(Boolean).join(' · ')
       const unitQuantity = Number(item.quantity) / Number(product?.bom?.outputQuantity || 1)
-      return unitQuantity > 0 ? `${relation}（${qty(unitQuantity)} ${item.unit}原料/${product?.unit || '单位'}成品）` : relation
+      return unitQuantity > 0 ? `${relation}（${qty(unitQuantity)} ${item.unit}投入/${product?.unit || '单位'}产出）` : relation
     }
     const usageText = ({ product: usageProduct, item }: { product: MaterialBom; item: BomItem }) => {
       const parts: string[] = []
@@ -1549,7 +1549,7 @@ export default function MaterialPage({
   ): Promise<boolean> => {
     const invalidItem = items.find((item) => !item.materialId || Number(item.quantity) <= 0)
     if (invalidItem) {
-      onMessage('请为每种原料填写大于 0 的单位用量')
+      onMessage('请为每种投入物料填写大于 0 的单位用量')
       return false
     }
     const invalidOutput = draftBomOutputs.find((output) => !output.materialId || Number(output.quantity) <= 0)
@@ -1620,10 +1620,10 @@ export default function MaterialPage({
 
   const addRelationToDraft = () => {
     if (!relationProduct) return onMessage('请选择输出产品')
-    if (!relationMaterial) return onMessage('请选择输入原料')
+    if (!relationMaterial) return onMessage('请选择投入物料')
     if (!relationTargetsSelectedBom) return onMessage('请先确认当前输出产品')
-    if (!relationLengthStockUnitValid) return onMessage('长度原料的主库存单位必须先设置为 m')
-    if (relationProductSourceMaterialId === relationMaterial.id) return onMessage('成品和原料不能是同一个物料')
+    if (!relationLengthStockUnitValid) return onMessage('长度型投入物料的主库存单位必须先设置为 m')
+    if (relationProductSourceMaterialId === relationMaterial.id) return onMessage('主产出和投入不能是同一个物料；同物料等量移库请使用流程转移')
     if (draftBomOutputs.some((output) => output.materialId === relationMaterial.id)) return onMessage('该物料已是 BOM 产出，不能同时作为投入')
     if (relationUnitRatio <= 0) return onMessage('请填写有效的用量或比例关系')
 
@@ -1712,7 +1712,7 @@ export default function MaterialPage({
               storageKey="mes-lite.searchPresets.boms"
               value={bomKeyword}
               onChange={setBomKeyword}
-              placeholder="搜索产品、原料、BOM 或版本"
+              placeholder="搜索产出、投入物料、BOM 或版本"
             />
           )}
           actions={(
@@ -1838,7 +1838,7 @@ export default function MaterialPage({
                 storageKey="mes-lite.searchPresets.boms"
                 value={bomKeyword}
                 onChange={setBomKeyword}
-                placeholder="搜索产品、原料、BOM 或版本"
+                placeholder="搜索产出、投入物料、BOM 或版本"
               />
             )}
             actions={(
@@ -2187,7 +2187,7 @@ export default function MaterialPage({
             <div className="mb-3 flex items-start justify-between gap-3 px-1">
               <div className="min-w-0">
                 <h3 className="text-base font-semibold text-gray-900">已有 BOM</h3>
-                <p className="mt-0.5 text-xs text-gray-500">按产品或原料观察，选择后在右侧修改</p>
+                <p className="mt-0.5 text-xs text-gray-500">按产出或投入物料观察，选择后在右侧修改</p>
               </div>
               <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
                 {bomObservationMode === 'product' ? existingBomRows.length : existingBomMaterialRows.length}
@@ -2209,7 +2209,7 @@ export default function MaterialPage({
                 onClick={() => setBomObservationMode('material')}
                 className={`rounded-md px-3 py-2 text-sm font-medium transition ${bomObservationMode === 'material' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
               >
-                按原料
+                按投入
               </button>
             </div>
 
@@ -2221,7 +2221,7 @@ export default function MaterialPage({
                   ? '没有匹配的已有 BOM'
                   : bomObservationMode === 'product'
                     ? '暂无已有 BOM，可点击“新建 BOM”创建'
-                    : '暂无包含原料的 BOM'}
+                    : '暂无包含该投入物料的 BOM'}
               </div>
             ) : bomObservationMode === 'product' ? (
               <div className="space-y-2">
@@ -2313,7 +2313,7 @@ export default function MaterialPage({
                 {bomLoading && <span className="text-xs text-gray-500">同步中...</span>}
               </div>
               <div className="mt-1 truncate text-sm text-gray-500">
-                {selectedMaterial ? `${selectedMaterial.code} · ${selectedMaterial.name}` : '新建 BOM：请选择输入原料和输出产品'}
+                {selectedMaterial ? `${selectedMaterial.code} · ${selectedMaterial.name}` : '新建 BOM：请选择投入物料和主产出物料'}
               </div>
             </div>
           </div>
@@ -2322,7 +2322,7 @@ export default function MaterialPage({
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               <div className="min-w-0">
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <label className="text-sm font-medium text-gray-800">输入（原料）</label>
+                  <label className="text-sm font-medium text-gray-800">投入（物料）</label>
                   {relationMaterial && (
                     <span className="rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
                       主库存计算单位：{relationMaterial.stockUnit || relationMaterial.unit}
@@ -2522,7 +2522,7 @@ export default function MaterialPage({
                       <div className="mt-0.5 text-xs text-gray-500">
                         {relationUsesLengthInput
                           ? '长度尺寸可按系统配置的长度单位录入；BOM 最终统一换算为米保存。'
-                          : '仅用于换算；BOM 最终统一保存每 1 个成品主单位对应的原料主库存单位数量。'}
+                          : '仅用于换算；BOM 最终统一保存每 1 个主产出单位对应的投入物料主库存单位数量。'}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
@@ -2557,7 +2557,7 @@ export default function MaterialPage({
                           }}
                           className={`rounded-md px-3 py-1.5 text-xs font-medium ${relationInputMode === 'DIRECT_RATIO' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
                         >
-                          成品 : 原料比例
+                          产出 : 投入比例
                         </button>
                       </div>
                     </div>
@@ -2565,7 +2565,7 @@ export default function MaterialPage({
 
                   {!relationLengthStockUnitValid && (
                     <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                      当前长度原料的主库存单位为“{relationMaterial?.stockUnit || relationMaterial?.unit}”。请先在物料管理中改为 m，避免把米制 BOM 比例写入其它库存单位。
+                      当前长度型投入物料的主库存单位为“{relationMaterial?.stockUnit || relationMaterial?.unit}”。请先在物料管理中改为 m，避免把米制 BOM 比例写入其它库存单位。
                     </div>
                   )}
 
@@ -2643,7 +2643,7 @@ export default function MaterialPage({
                         </span>
                       </label>
                       <label className="text-xs font-medium text-gray-600">
-                        对应原料数量
+                        对应投入数量
                         <span className="mt-1 flex overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
                           <input
                             type="number"
@@ -2667,7 +2667,7 @@ export default function MaterialPage({
                     <div>
                       本次计算比例：
                       <strong className="mx-1">{relationUnitRatio > 0 ? qty(relationUnitRatio) : '—'}</strong>
-                      {relationUsesLengthInput ? 'm' : relationMaterial?.stockUnit || relationMaterial?.unit || '原料主单位'}原料 / 1 {relationProduct?.unit || '成品主单位'}成品
+                      {relationUsesLengthInput ? 'm' : relationMaterial?.stockUnit || relationMaterial?.unit || '投入物料主单位'}投入 / 1 {relationProduct?.unit || '主产出单位'}产出
                       {relationUsesLengthInput && relationUnitRatio > 0 && (
                         <span className="ml-2 text-xs font-normal text-blue-700">
                           （已由 {relationInputUnit} 自动换算）
@@ -2676,7 +2676,7 @@ export default function MaterialPage({
                     </div>
                     {relationExistingBomItem && (
                       <div className="mt-1 text-xs text-blue-700">
-                        当前已保存单位用量：{qty(Number(relationExistingBomItem.quantity) / Number(relationExistingBom?.outputQuantity || 1))} {relationExistingBomItem.unit}原料 / 1 {relationProduct?.unit || '成品主单位'}成品；点击“添加或更新”，再点击底部“保存”后覆盖。
+                        当前已保存单位用量：{qty(Number(relationExistingBomItem.quantity) / Number(relationExistingBom?.outputQuantity || 1))} {relationExistingBomItem.unit}投入 / 1 {relationProduct?.unit || '主产出单位'}产出；点击“添加或更新”，再点击底部“保存”后覆盖。
                       </div>
                     )}
                   </div>
@@ -2685,10 +2685,10 @@ export default function MaterialPage({
                 <div className="mt-3 flex flex-col gap-3 border-t border-gray-200 pt-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 text-xs text-gray-600">
                     {relationUsesLengthInput
-                      ? '长度原料统一按米保存；标准尺寸与固定损耗使用当前选择的尺寸单位，百分比损耗使用 %。'
-                      : '原料计算单位固定使用主库存单位。'}
+                      ? '长度型投入物料统一按米保存；标准尺寸与固定损耗使用当前选择的尺寸单位，百分比损耗使用 %。'
+                      : '投入计算单位固定使用所选物料的主库存单位。'}
                     换算后仅保存比例；这里录入的标准损耗已包含在比例中，生产订单实绩另记录具体批次的额外偏差。
-                    点击“添加或更新”会新增待保存条目，或覆盖同一原料的待保存比例，不会立即写入数据库。
+                    点击“添加或更新”会新增待保存条目，或覆盖同一投入物料的待保存比例，不会立即写入数据库。
                   </div>
                   <button
                     type="button"
@@ -2716,7 +2716,7 @@ export default function MaterialPage({
                       onClick={() => setBomAuxiliaryView('components')}
                       className={`border-b-2 px-3 py-2 text-sm font-medium transition ${bomAuxiliaryView === 'components' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
                     >
-                      组成明细 {draftBomItems.length}
+                      投入明细 {draftBomItems.length}
                     </button>
                     <button
                       type="button"
@@ -2731,7 +2731,7 @@ export default function MaterialPage({
 
                 {bomAuxiliaryView === 'components' ? (
                   draftBomItems.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">当前产品暂无 BOM 用料</div>
+                    <div className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">当前 BOM 暂无投入物料</div>
                   ) : (
                     <div className="space-y-2">
                       {draftBomItems.map((item) => {
@@ -2768,7 +2768,7 @@ export default function MaterialPage({
                                       )))}
                                       className={`w-24 border-x px-2 py-1 text-right text-xs outline-none ${itemPending ? 'border-amber-200 bg-amber-50/40 font-semibold text-amber-800' : 'border-gray-200'}`}
                                     />
-                                    <span className="flex items-center px-2 text-xs text-gray-600">{material?.stockUnit || material?.unit || item.unit}原料/{selectedBomProduct?.unit || '单位'}成品</span>
+                                    <span className="flex items-center px-2 text-xs text-gray-600">{material?.stockUnit || material?.unit || item.unit}投入/{selectedBomProduct?.unit || '单位'}产出</span>
                                   </label>
                                   {itemPending && (
                                     <div className="mt-1 text-right text-[11px] text-amber-700">
@@ -2810,7 +2810,7 @@ export default function MaterialPage({
                         </span>
                         <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 sm:justify-end">
                           <span className="rounded bg-gray-100 px-2 py-1">
-                            {Number(item.quantity) > 0 ? `单位用量 ${qty(Number(item.quantity) / Number(bom.outputQuantity || 1))} ${item.unit}原料/${product.unit || '单位'}成品` : '待填写换算比例'}
+                            {Number(item.quantity) > 0 ? `单位用量 ${qty(Number(item.quantity) / Number(bom.outputQuantity || 1))} ${item.unit}投入/${product.unit || '单位'}产出` : '待填写换算比例'}
                           </span>
                         </span>
                       </button>
@@ -2839,8 +2839,8 @@ export default function MaterialPage({
             <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-xs text-gray-500">
                 {relationMaterial
-                  ? `已选择输入原料 ${relationMaterial.code}；选择右侧输出产品后即可填写用量并保存。`
-                  : '请选择输入原料和输出产品，随后填写用量并保存。'}
+                  ? `已选择投入物料 ${relationMaterial.code}；选择右侧主产出后即可填写用量并保存。`
+                  : '请选择投入物料和主产出物料，随后填写用量并保存。'}
               </div>
               <button
                 type="button"

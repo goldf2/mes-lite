@@ -277,7 +277,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'BOM 投入与产出不能使用同一物料；同物料跨库位请使用流程转移' }, { status: 400 })
     }
     if (materialIds.length !== input.items.length) {
-      return NextResponse.json({ error: '同一原料不能重复关联' }, { status: 400 })
+      return NextResponse.json({ error: '同一投入物料不能重复关联' }, { status: 400 })
     }
     const materials = await prisma.material.findMany({
       where: { id: { in: materialIds }, deletedAt: null },
@@ -291,7 +291,7 @@ export async function PUT(req: NextRequest) {
     ))
     if (invalidLengthMaterial) {
       return NextResponse.json(
-        { error: '长度原料的主库存单位必须为 m，BOM 尺寸录入值会统一换算为米保存' },
+        { error: '长度型投入物料的主库存单位必须为 m，BOM 尺寸录入值会统一换算为米保存' },
         { status: 400 },
       )
     }

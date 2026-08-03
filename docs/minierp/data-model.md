@@ -73,7 +73,7 @@
 
 ### employees
 
-`Employee` 是业务员工档案，不是登录账号。它由“配置 / 员工资料”维护，供生产记录和流程转移选择；新增员工不会自动创建 `Operator`、登录凭证或权限。
+`Employee` 是业务员工档案，不是登录账号。它由“配置 / 员工资料”维护，供班后生产实绩和流程转移选择；新增员工不会自动创建 `Operator`、登录凭证或权限。
 
 | 字段 | 含义 |
 | --- | --- |
@@ -531,18 +531,18 @@ SKU，实际库存单位。
 | `isDefault / isActive` | 默认选择与启用状态 |
 | `outputQuantity / outputUnit` | 主产出基准数量/单位的兼容投影，真实产出集合以 `BOMOutput` 为准 |
 
-`BOMItem.quantity` 保存整个基准批量的投入量；`BOMOutput.quantity` 保存同一基准批量的每项产出，并以 `isPrimary` 标识唯一主产出。例如一批 `3.5 m` 原料可保存“主产品 `100 件` + 可回收料 `0.2 kg`”。以主产出为基准的单位用量为 `BOMItem.quantity / 主产出数量`。一对一只是普通数量比例，不设独立方案类型；同物料的纯移库不属于 BOM 转换。
+`BOMItem.quantity` 保存整个基准批量的投入量；`BOMOutput.quantity` 保存同一基准批量的每项产出，并以 `isPrimary` 标识唯一主产出。例如一批 `3.5 m` 型材可保存“主产品 `100 件` + 可回收料 `0.2 kg`”，也可用一个成品或半成品作为投入表达二次加工。投入物料不按 `Material.category` 限制，分类只参与筛选和显示。以主产出为基准的单位用量为 `BOMItem.quantity / 主产出数量`。一对一只是普通数量比例，不设独立方案类型；同物料的纯移库不属于 BOM 转换。
 
 ### BOMItem 锯切成本组成
 
 `BOMItem` 支持两类组成：
 
-- `MATERIAL`：原有物料组成，参与工单创建时的领料需求、库存预留和成本扣减。
+- `MATERIAL`：库存物料投入，可为原材料、半成品或已有产品；生产订单实绩确认时从所选来源库位扣减并结转成本。
 - `SAWING_COST`：锯切成本组成，关联 `CostObject`，兼容关联 `SawingCostScenario`，用于表达某个物料 BOM 包含一段锯切测算成本，不参与领料和库存扣减。
 
 锯切费用计算器保存方案时，会自动生成一个 `CostObject` 和一条生效的 `CostObjectCost`，并可将该成本对象作为 `SAWING_COST` 项追加到指定物料 BOM。该项保存数量、单位、成本对象引用和锯切方案引用；BOM 成本计算优先读取成本对象成本，旧数据可回退读取锯切方案中的单件材料成本、人工时和机时。
 
-当前轻量工单创建不生成领料或库存预留。`MATERIAL` 类型 BOM 项已用于现有生产记录的标准耗用计算和 BOM 成本试算；后续按 ADR-0013 迁入生产订单实绩。成本对象类型的 BOM 项只参与成本结构表达和 BOM 成本计算。
+当前轻量生产订单创建不生成领料或库存预留。创建时选择真实启用 BOM 并保存快照；`MATERIAL` 项在班后实绩中换算、校验并确认扣减。成本对象类型的 BOM 项只参与成本结构表达和 BOM 成本计算。
 
 ### cost_objects / cost_object_costs（当前 Prisma 已实现）
 
@@ -602,15 +602,23 @@ BOM 成本计算快照。它是独立于派工、领料和库存的成本测算�
 
 BOM 成本计算会展开物料 BOM：
 
-- `MATERIAL` 项的 `quantity` 保存基准批量输入，`unit` 固定为原料主库存单位。成本试算先除以 `outputQuantity` 得到单位用量，再乘数量基准和库存成本单价。
+- `MATERIAL` 项的 `quantity` 保存基准批量输入，`unit` 固定为所选投入物料主库存单位。成本试算先除以主产出数量得到单位用量，再乘数量基准和库存成本单价。
 - `SAWING_COST` 或其他成本对象项读取生效成本版本，按数量计算材料成本、人工工时、机时和直接费用。
 - 固定费用作为本次 `OVERHEAD` 快照行保存，不写入 BOM 本体。
 
-BOM 数据保存“基准批量投入 -> 基准批量多项产出”。界面可以使用“标准用量 + 损耗”或“主产出数量 : 原料数量”计算，保存时以主产出基准数量将界面单位用量还原为批量 `BOMItem.quantity`，不保存录入算法参数。BOM 不保存生产批次额外损耗或实际耗用；生产订单实绩将按当次 BOM 快照计算投入与各项产出，并为每项记录实际数量和去向库位。
+BOM 数据保存“基准批量投入 -> 基准批量多项产出”。界面可以使用“标准用量 + 损耗”或“主产出数量 : 投入数量”计算，保存时以主产出基准数量将界面单位用量还原为批量 `BOMItem.quantity`，不保存录入算法参数。BOM 不保存生产批次额外损耗或实际耗用；生产订单实绩按订单冻结的 BOM 快照计算投入与各项产出，并为每项记录实际数量和去向库位。
 
-`DailyProductionReport` 仍是过渡期已实现的生产过账模型，其中 `bomType` 仅为旧快照字段，不再来自 BOM 方案类型。按 ADR-0013，该过账能力将迁入生产订单实绩，随后由独立的每日盘点差异模型取代该入口。
+### ProductionOrder / ProductionOrderActual（当前 Prisma 已实现）
 
-生产记录通过 `DailyProductionReportEmployee` 支持多名员工。每行保存 `employeeId` 以及 `employeeCode`、`employeeName` 快照，`DailyProductionReport.workers` 同步保存按选择顺序拼接的姓名，用于历史显示和兼容查询。员工改名或停用后，历史快照保持不变；新建或修改草稿时只能选择当前启用员工。
+`ProductionOrder` 保存主产出目标、计划数量和创建时选定的 `bomId / bomName / bomVersion / bomSnapshot`。Prisma 字段 `bomSnapshot` 映射到数据库列 `productionBomSnapshot`，避免与曾部署后撤销的旧型材流程遗留同名列冲突。快照包含全部物料投入和全部产出，后续修改 BOM 不回算历史订单。
+
+`ProductionOrderActual` 是订单下可重复登记的班后生产实绩，状态为 `DRAFT → CONFIRMED → REVERSED`。`ProductionOrderActualEmployee` 保存员工引用及工号/姓名快照；`ProductionOrderActualInput` 保存任意类别投入物料、来源库位、基准批量用量、损耗、计划/实际耗用、成本和成本层快照；`ProductionOrderActualOutput` 保存全部产出、去向库位、主产出标识、计划/实际数量及入库成本。
+
+草稿保存时按主产出实际量和冻结 BOM 基准批量计算投入，并校验来源库位可用量。确认在单一事务内扣减所有投入、增加全部产出并累计订单完成数量；当前全部投入成本归集到主产出，其他产出零成本入库。冲销要求本次产出尚未被后续业务消耗，并反向恢复库存、库位余额、成本层和订单累计。
+
+`DailyProductionReport` 是测试期旧生产过账模型，其中 `bomType` 仅为旧快照字段，不再来自 BOM 方案类型。其业务入口已移除，新的生产过账统一使用 `ProductionOrderActual`；旧表暂留到每日盘点分片统一清理测试数据和旧代码。
+
+旧生产记录通过 `DailyProductionReportEmployee` 保留多名员工快照，仅用于清理前的历史数据解释。新流程的员工快照由 `ProductionOrderActualEmployee` 保存。
 
 `DailyProductionConsumption` 的损耗与耗用字段：
 
@@ -628,7 +636,7 @@ BOM 数据保存“基准批量投入 -> 基准批量多项产出”。界面可
 
 ### flow_transfers
 
-`FlowTransfer` 是独立的流程转移单，不属于 BOM 或生产记录。它仅表达同一物料在两个不同库位之间的物理位置或流程节点变化。
+`FlowTransfer` 是独立的流程转移单，不属于 BOM 或生产订单实绩。它仅表达同一物料在两个不同库位之间的物理位置或流程节点变化。
 
 | 字段 | 含义 |
 | --- | --- |

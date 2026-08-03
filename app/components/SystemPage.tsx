@@ -511,7 +511,7 @@ function InventoryLocationManager({ onMessage }: { onMessage: (msg: string) => v
     <div className="space-y-4">
       <section className="rounded-lg bg-white p-4 shadow sm:p-6">
         <h3 className="text-lg font-semibold">库位配置</h3>
-        <p className="mt-1 text-sm text-gray-500">总库存继续统一核算；库位用于来料、生产日报和发货的实物数量分布与校验。</p>
+        <p className="mt-1 text-sm text-gray-500">总库存继续统一核算；库位用于来料、生产订单实绩和发货的实物数量分布与校验。</p>
         <div className="mt-5 grid grid-cols-1 gap-3 rounded-lg border border-blue-100 bg-blue-50/40 p-4 md:grid-cols-2 xl:grid-cols-5">
           <label className="text-sm text-gray-700">库位编码
             <input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} className={`mt-1 ${appInputClassName}`} placeholder="如 A01" />
