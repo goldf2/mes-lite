@@ -109,6 +109,8 @@ interface DraftBomItem {
   wastageRate: number
 }
 
+type BomObservationMode = 'product' | 'material'
+
 interface Customer {
   id: string
   code: string
@@ -766,6 +768,7 @@ export default function MaterialPage({
   const [bomLoading, setBomLoading] = useState(false)
   const [bomSaving, setBomSaving] = useState(false)
   const [bomKeyword, setBomKeyword] = useState('')
+  const [bomObservationMode, setBomObservationMode] = useState<BomObservationMode>('product')
   const [keyword, setKeyword] = useState('')
   const [customerFilter, setCustomerFilter] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<string[]>(materialCategoryFilterOptions.map((option) => option.value))
@@ -834,8 +837,37 @@ export default function MaterialPage({
         material?.code,
         material?.name,
         material?.spec,
+        ...bom.items.flatMap((item) => [item.material?.code, item.material?.name, item.material?.spec]),
       ].filter(Boolean).join(' ').toLocaleLowerCase().includes(normalizedKeyword)
     })
+  }, [bomKeyword, bomMaterialById, bomProducts])
+  const existingBomMaterialRows = useMemo(() => {
+    const normalizedKeyword = bomKeyword.trim().toLocaleLowerCase()
+    return bomProducts.flatMap((product) => product.boms.flatMap((bom) => bom.items
+      .filter((item) => item.itemType === 'MATERIAL' && item.material)
+      .map((item) => ({
+        product,
+        bom,
+        item,
+        materialId: product.sourceMaterialId || product.id.replace(materialProductPrefix, ''),
+        outputMaterial: bomMaterialById.get(product.sourceMaterialId || product.id.replace(materialProductPrefix, '')) || null,
+        inputMaterial: item.material!,
+      }))))
+      .filter(({ product, bom, inputMaterial, outputMaterial }) => {
+        if (!normalizedKeyword) return true
+        return [
+          inputMaterial.code,
+          inputMaterial.name,
+          inputMaterial.spec,
+          product.sku,
+          product.name,
+          product.description,
+          outputMaterial?.code,
+          outputMaterial?.name,
+          bom.name,
+          bom.version,
+        ].filter(Boolean).join(' ').toLocaleLowerCase().includes(normalizedKeyword)
+      })
   }, [bomKeyword, bomMaterialById, bomProducts])
   const selectedBomProduct = selectedMaterial ? bomProductByMaterialId.get(selectedMaterial.id) || null : null
   const selectedBom = selectedBomId === '__new__'
@@ -1566,9 +1598,9 @@ export default function MaterialPage({
   }
 
   const addRelationToDraft = () => {
-    if (!relationProduct) return onMessage('请选择成品物料')
-    if (!relationMaterial) return onMessage('请选择原料物料')
-    if (!relationTargetsSelectedBom) return onMessage('请先确认当前成品物料')
+    if (!relationProduct) return onMessage('请选择输出产品')
+    if (!relationMaterial) return onMessage('请选择输入原料')
+    if (!relationTargetsSelectedBom) return onMessage('请先确认当前输出产品')
     if (!relationLengthStockUnitValid) return onMessage('长度原料的主库存单位必须先设置为 m')
     if (relationProductSourceMaterialId === relationMaterial.id) return onMessage('成品和原料不能是同一个物料')
     if (relationUnitRatio <= 0) return onMessage('请填写有效的用量或比例关系')
@@ -1658,7 +1690,7 @@ export default function MaterialPage({
               storageKey="mes-lite.searchPresets.boms"
               value={bomKeyword}
               onChange={setBomKeyword}
-              placeholder="搜索已有 BOM、产出物料或版本"
+              placeholder="搜索产品、原料、BOM 或版本"
             />
           )}
           actions={(
@@ -1784,7 +1816,7 @@ export default function MaterialPage({
                 storageKey="mes-lite.searchPresets.boms"
                 value={bomKeyword}
                 onChange={setBomKeyword}
-                placeholder="搜索已有 BOM、产出物料或版本"
+                placeholder="搜索产品、原料、BOM 或版本"
               />
             )}
             actions={(
@@ -2130,23 +2162,46 @@ export default function MaterialPage({
             aria-label="已有 BOM 列表"
             className="min-w-0 rounded-lg bg-white p-3 shadow xl:sticky xl:top-0 xl:max-h-[calc(100dvh-10rem)] xl:overflow-y-auto xl:overscroll-contain"
           >
-            <div className="mb-3 flex items-center justify-between gap-3 px-1">
-              <div>
+            <div className="mb-3 flex items-start justify-between gap-3 px-1">
+              <div className="min-w-0">
                 <h3 className="text-base font-semibold text-gray-900">已有 BOM</h3>
-                <p className="mt-0.5 text-xs text-gray-500">选择方案后在右侧修改</p>
+                <p className="mt-0.5 text-xs text-gray-500">按产品或原料观察，选择后在右侧修改</p>
               </div>
               <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-                {existingBomRows.length}
+                {bomObservationMode === 'product' ? existingBomRows.length : existingBomMaterialRows.length}
               </span>
+            </div>
+
+            <div aria-label="BOM 观察维度" className="mb-3 grid grid-cols-2 rounded-lg bg-gray-100 p-1">
+              <button
+                type="button"
+                aria-pressed={bomObservationMode === 'product'}
+                onClick={() => setBomObservationMode('product')}
+                className={`rounded-md px-3 py-2 text-sm font-medium transition ${bomObservationMode === 'product' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                按产品
+              </button>
+              <button
+                type="button"
+                aria-pressed={bomObservationMode === 'material'}
+                onClick={() => setBomObservationMode('material')}
+                className={`rounded-md px-3 py-2 text-sm font-medium transition ${bomObservationMode === 'material' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                按原料
+              </button>
             </div>
 
             {bomLoading ? (
               <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">正在加载 BOM...</div>
-            ) : existingBomRows.length === 0 ? (
+            ) : (bomObservationMode === 'product' ? existingBomRows.length : existingBomMaterialRows.length) === 0 ? (
               <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">
-                {bomKeyword.trim() ? '没有匹配的已有 BOM' : '暂无已有 BOM，可点击“新建 BOM”创建'}
+                {bomKeyword.trim()
+                  ? '没有匹配的已有 BOM'
+                  : bomObservationMode === 'product'
+                    ? '暂无已有 BOM，可点击“新建 BOM”创建'
+                    : '暂无包含原料的 BOM'}
               </div>
-            ) : (
+            ) : bomObservationMode === 'product' ? (
               <div className="space-y-2">
                 {existingBomRows.map(({ product, bom, materialId, material }) => {
                   const isSelected = selectedMaterialId === materialId && selectedBomId === bom.id
@@ -2186,6 +2241,41 @@ export default function MaterialPage({
                           {bom.items.length} 项 · 产出 {qty(Number(bom.outputQuantity || 1))} {bom.outputUnit || product.unit}
                         </span>
                       </span>
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {existingBomMaterialRows.map(({ product, bom, item, materialId, inputMaterial }) => {
+                  const isSelected = selectedMaterialId === materialId
+                    && selectedBomId === bom.id
+                    && relationMaterialId === inputMaterial.id
+                  const unitQuantity = Number(item.quantity || 0) / Number(bom.outputQuantity || 1)
+                  return (
+                    <button
+                      key={`${bom.id}-${item.id}`}
+                      type="button"
+                      onClick={() => {
+                        selectExistingBom(materialId, bom.id)
+                        editInputBasisUsage(product, item, bom)
+                      }}
+                      className={`w-full rounded-lg border p-3 text-left transition ${isSelected ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-100' : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/30'}`}
+                    >
+                      <span className="flex items-start justify-between gap-2">
+                        <span className="min-w-0">
+                          <span className="block truncate font-mono text-xs font-semibold text-blue-700">{inputMaterial.code}</span>
+                          <span className="mt-0.5 block truncate text-sm font-medium text-gray-900">{inputMaterial.name}</span>
+                          {inputMaterial.spec && <span className="mt-0.5 block truncate text-xs text-gray-500">{inputMaterial.spec}</span>}
+                        </span>
+                        <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-600">
+                          {qty(unitQuantity)} {item.unit}
+                        </span>
+                      </span>
+                      <span className="my-2 block border-t border-gray-100" />
+                      <span className="block truncate text-xs text-gray-500">用于产品</span>
+                      <span className="mt-0.5 block truncate text-sm text-gray-800">{product.sku} · {product.name}</span>
+                      <span className="mt-1 block truncate text-xs text-gray-500">{bom.name} · {bom.version}</span>
                     </button>
                   )
                 })}
@@ -2324,7 +2414,7 @@ export default function MaterialPage({
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                   <div className="min-w-0">
                     <div className="mb-2 flex items-center justify-between gap-3">
-                      <label className="text-xs font-medium text-gray-600">成品</label>
+                      <label className="text-xs font-medium text-gray-600">输出（产品）</label>
                       <span className="text-xs text-gray-400">计算单位：{relationProduct?.unit || '成品主单位'}</span>
                     </div>
                     <BomProductSearch
@@ -2332,9 +2422,12 @@ export default function MaterialPage({
                       products={bomProducts}
                       disabledIds={relationMaterialId ? [relationMaterialId] : []}
                       onChange={(value) => {
-                        setRelationProductId(value)
                         const nextProduct = bomProducts.find((product) => product.id === value)
-                        if (nextProduct?.sourceMaterialId) setSelectedMaterialId(nextProduct.sourceMaterialId)
+                        if (nextProduct?.sourceMaterialId && nextProduct.sourceMaterialId !== selectedMaterialId) {
+                          selectMaterialForBom(nextProduct.sourceMaterialId)
+                        } else {
+                          setRelationProductId(value)
+                        }
                         resetRelationCalculator()
                       }}
                     />
@@ -2342,7 +2435,7 @@ export default function MaterialPage({
 
                   <div className="min-w-0">
                     <div className="mb-2 flex items-center justify-between gap-3">
-                      <label className="text-xs font-medium text-gray-600">原料</label>
+                      <label className="text-xs font-medium text-gray-600">输入（原料）</label>
                       {relationMaterial && (
                         <span className="rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
                           主库存计算单位：{relationMaterial.stockUnit || relationMaterial.unit}
@@ -2683,20 +2776,31 @@ export default function MaterialPage({
             </div>
           ) : (
             <div className="rounded-lg border border-dashed border-gray-200 p-5 sm:p-8">
-              <div className="mx-auto max-w-2xl">
-                <label className="text-sm font-medium text-gray-800">
-                  产出物料
-                  <SearchableSelect
-                    value=""
-                    options={bomOutputMaterialOptions}
-                    onChange={selectMaterialForBom}
-                    placeholder="输入产出物料编码、名称或规格"
-                    emptyText="没有匹配的产出物料"
-                    className="mt-2 w-full"
-                  />
-                </label>
+              <div className="mx-auto max-w-3xl">
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <label className="text-sm font-medium text-gray-800">
+                    输出（产品）
+                    <SearchableSelect
+                      value=""
+                      options={bomOutputMaterialOptions}
+                      onChange={selectMaterialForBom}
+                      placeholder="输入产品编码、名称或规格"
+                      emptyText="没有匹配的产品物料"
+                      className="mt-2 w-full"
+                    />
+                  </label>
+                  <label className="text-sm font-medium text-gray-400">
+                    输入（原料）
+                    <input
+                      type="text"
+                      disabled
+                      placeholder="请先选择输出产品"
+                      className="mt-2 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-400 disabled:cursor-not-allowed"
+                    />
+                  </label>
+                </div>
                 <p className="mt-3 text-sm leading-6 text-gray-500">
-                  选择产出物料后会显示物料图片和基础信息，并在此处创建第一个 BOM 方案或新增方案。
+                  先选择输出产品；随后可沿用原有输入原料、尺寸/用量、损耗或比例算法添加组成明细。
                 </p>
               </div>
             </div>
