@@ -734,6 +734,8 @@ export default function MaterialPage({
   const loadedBomDraftSignatureRef = useRef('')
   const bomWorkspaceStateRestoredRef = useRef(false)
   const pendingPrimaryOutputQuantityRef = useRef<string | null>(null)
+  const relationCalculatorRef = useRef<HTMLDivElement>(null)
+  const pendingRelationCalculatorScrollRef = useRef(false)
   const [form, setForm] = useState(createEmptyMaterialForm())
   const formStockUnitOptions = unitCatalog.filter((unit) => unit.measureType === form.primaryMeasure)
   const formValuationUnitOptions = unitCatalog.filter((unit) => unit.measureType === form.referenceMeasure)
@@ -1082,6 +1084,14 @@ export default function MaterialPage({
       setRelationTargetOutputMaterialId(draftBomOutputDefinitions[0].materialId)
     }
   }, [draftBomOutputDefinitions, relationTargetOutputMaterialId])
+
+  useEffect(() => {
+    if (!pendingRelationCalculatorScrollRef.current || !relationTargetOutput) return
+    pendingRelationCalculatorScrollRef.current = false
+    window.requestAnimationFrame(() => {
+      relationCalculatorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [relationTargetOutput])
 
   useEffect(() => {
     const saved = window.localStorage.getItem('mes-lite.materials.visibleFields')
@@ -1572,6 +1582,7 @@ export default function MaterialPage({
       return
     }
     if (!selectedMaterial) {
+      pendingRelationCalculatorScrollRef.current = true
       pendingPrimaryOutputQuantityRef.current = pendingBomOutputQuantity
       selectOutputMaterialForBom(materialId)
       setPendingBomOutputQuantity('')
@@ -1587,6 +1598,7 @@ export default function MaterialPage({
     }
     const material = bomMaterialById.get(materialId)
     if (!material) return
+    pendingRelationCalculatorScrollRef.current = true
     setDraftBomOutputs((current) => current.some((output) => output.materialId === materialId)
       ? current
       : [...current, {
@@ -2590,8 +2602,22 @@ export default function MaterialPage({
                       disabled={!Number.isFinite(Number(pendingBomOutputQuantity)) || Number(pendingBomOutputQuantity) <= 0}
                       className="shrink-0 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {selectedMaterial ? '添加产出' : '确认主产出'}
+                      {selectedMaterial ? '添加产出并配置转换' : '确认主产出并配置转换'}
                     </button>
+                  </div>
+                  <div className="mt-2 rounded-lg border border-blue-200 bg-white p-2">
+                    <div className="text-xs font-semibold text-gray-800">该产品可用的内置转换模板</div>
+                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2">
+                        <div className="text-xs font-semibold text-blue-800">单位标准用量</div>
+                        <div className="mt-0.5 text-[11px] text-blue-600">每 1 当前产出的投入</div>
+                      </div>
+                      <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2">
+                        <div className="text-xs font-semibold text-blue-800">投入总量 ÷ 产出总量</div>
+                        <div className="mt-0.5 text-[11px] text-blue-600">适用于长度、重量或数量的批量换算</div>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-[11px] text-gray-500">确认基准数量后，将自动进入该产品的转换模型输入区。</div>
                   </div>
                 </div>
               )}
@@ -2771,7 +2797,7 @@ export default function MaterialPage({
                 </div>
               </div>
 
-              <div className="order-first rounded-lg border border-blue-200 bg-blue-50/40 p-3">
+              <div ref={relationCalculatorRef} className="order-first scroll-mt-4 rounded-lg border border-blue-200 bg-blue-50/40 p-3">
                 <div>
                   <div className="mb-3 rounded-lg border border-blue-100 bg-white p-2">
                     <div className="mb-2 text-xs font-medium text-gray-700">当前配置的产出产品</div>
