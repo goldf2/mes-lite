@@ -35,7 +35,6 @@ interface EmployeeItem {
 }
 
 const emptyForm = () => ({
-  code: '',
   name: '',
   department: '',
   phone: '',
@@ -119,7 +118,6 @@ export default function EmployeePage({
   const openEdit = (employee: EmployeeItem) => {
     setEditing(employee)
     setForm({
-      code: employee.code,
       name: employee.name,
       department: employee.department || '',
       phone: employee.phone || '',
@@ -131,7 +129,7 @@ export default function EmployeePage({
   }
 
   const save = async () => {
-    if (!form.code.trim() || !form.name.trim()) return onMessage('请填写员工编码和姓名')
+    if (!form.name.trim()) return onMessage('请填写员工姓名')
     setSaving(true)
     try {
       const response = await fetch('/api/employees', {
@@ -179,7 +177,7 @@ export default function EmployeePage({
       <div className="space-y-4">
         <section className="rounded-lg bg-white p-5 shadow-sm">
           <h2 className="text-xl font-semibold text-gray-900">员工资料</h2>
-          <p className="mt-1 text-sm text-gray-500">业务员工档案用于生产记录和流程转移选人；可绑定一个已注册账号，但绑定本身不会改变账号状态、角色或权限。</p>
+          <p className="mt-1 text-sm text-gray-500">业务员工档案用于生产记录和流程转移选人；员工编码由系统生成，可绑定一个已注册账号，但绑定本身不会改变账号状态、角色或权限。</p>
           <div className="mt-4 flex flex-wrap gap-3 text-sm">
             <span className="rounded bg-blue-50 px-3 py-1.5 text-blue-700">员工总数 {employees.length}</span>
             <span className="rounded bg-emerald-50 px-3 py-1.5 text-emerald-700">在职 {activeCount}</span>
@@ -225,13 +223,17 @@ export default function EmployeePage({
       {formOpen && (
         <ModalDialog
           title={editing ? '编辑员工' : '新增员工'}
-          description="员工可选择绑定一个注册账号；账号角色、审核状态和权限仍在账户菜单中独立维护。"
+          description="员工编码由系统生成且保存后不可修改；注册账号绑定不会改变账号角色、审核状态或权限。"
           onClose={() => setFormOpen(false)}
           closeDisabled={saving}
           footer={<ModalActions onCancel={() => setFormOpen(false)} onConfirm={save} busy={saving} />}
         >
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="text-sm font-medium text-gray-700">员工编码 *<input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} className={`mt-2 ${appInputClassName}`} placeholder="如 E001" /></label>
+            <label className="text-sm font-medium text-gray-700">
+              员工编码
+              <input value={editing?.code || '保存后自动生成'} readOnly disabled className={`mt-2 bg-gray-50 text-gray-500 ${appInputClassName}`} />
+              <span className="mt-1 block text-xs font-normal text-gray-400">系统编码与数据库内部 ID 分离，不支持手工修改。</span>
+            </label>
             <label className="text-sm font-medium text-gray-700">姓名 *<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={`mt-2 ${appInputClassName}`} /></label>
             <label className="text-sm font-medium text-gray-700">部门<input value={form.department} onChange={(event) => setForm({ ...form, department: event.target.value })} className={`mt-2 ${appInputClassName}`} /></label>
             <label className="text-sm font-medium text-gray-700">联系电话<input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className={`mt-2 ${appInputClassName}`} /></label>

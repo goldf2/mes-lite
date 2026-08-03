@@ -17,7 +17,7 @@ const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } })
 
 async function main() {
   try {
-    const { employeeNamesSnapshot, resolveActiveEmployees } = await import('../lib/employees')
+    const { employeeNamesSnapshot, nextEmployeeCode, resolveActiveEmployees } = await import('../lib/employees')
     const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`
     const registeredOperator = await prisma.operator.create({
       data: {
@@ -28,10 +28,13 @@ async function main() {
         status: 'ACTIVE',
       },
     })
-    const [employeeA, employeeB] = await Promise.all([
-      prisma.employee.create({ data: { code: `E-A-${suffix}`, name: '员工甲', department: '生产部', operatorId: registeredOperator.id } }),
-      prisma.employee.create({ data: { code: `E-B-${suffix}`, name: '员工乙', department: '质检部' } }),
-    ])
+    const firstCode = await prisma.$transaction((tx) => nextEmployeeCode(tx))
+    assert.equal(firstCode, 'EMP-000001')
+    const employeeA = await prisma.employee.create({ data: { code: firstCode, name: '员工甲', department: '生产部', operatorId: registeredOperator.id } })
+    await prisma.employee.create({ data: { code: 'LEGACY-001', name: '旧编码员工' } })
+    const secondCode = await prisma.$transaction((tx) => nextEmployeeCode(tx))
+    assert.equal(secondCode, 'EMP-000002', '新编码应跳过非系统格式的历史员工编码')
+    const employeeB = await prisma.employee.create({ data: { code: secondCode, name: '员工乙', department: '质检部' } })
     const linkedOperator = await prisma.operator.findUniqueOrThrow({
       where: { id: registeredOperator.id },
       include: { employee: true },
@@ -106,7 +109,7 @@ async function main() {
     const employeeAfterAccountDelete = await prisma.employee.findUniqueOrThrow({ where: { id: employeeA.id } })
     assert.equal(employeeAfterAccountDelete.operatorId, null, '删除测试账号后员工档案应保留并解除绑定')
 
-    console.log('员工与注册账号一对一绑定、在职校验、业务人员关联及历史姓名快照验证通过')
+    console.log('员工自动编码、注册账号一对一绑定、在职校验、业务人员关联及历史姓名快照验证通过')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

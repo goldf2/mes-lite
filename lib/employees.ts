@@ -1,5 +1,20 @@
 import { Prisma } from '@prisma/client'
 
+const EMPLOYEE_CODE_PATTERN = /^EMP-(\d+)$/
+
+export async function nextEmployeeCode(tx: Prisma.TransactionClient) {
+  const employees = await tx.employee.findMany({
+    where: { code: { startsWith: 'EMP-' } },
+    select: { code: true },
+  })
+  const largestSequence = employees.reduce((largest, employee) => {
+    const match = EMPLOYEE_CODE_PATTERN.exec(employee.code)
+    if (!match) return largest
+    return Math.max(largest, Number(match[1]))
+  }, 0)
+  return `EMP-${String(largestSequence + 1).padStart(6, '0')}`
+}
+
 export async function resolveActiveEmployees(
   tx: Prisma.TransactionClient,
   employeeIds: string[],
