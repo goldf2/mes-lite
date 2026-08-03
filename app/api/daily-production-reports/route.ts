@@ -82,13 +82,15 @@ export async function GET(req: NextRequest) {
             boms: {
               where: { isActive: true },
               orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
-              take: 1,
               select: {
-              id: true,
-              version: true,
-              isActive: true,
-              outputQuantity: true,
-              outputUnit: true,
+                id: true,
+                name: true,
+                version: true,
+                bomType: true,
+                isDefault: true,
+                isActive: true,
+                outputQuantity: true,
+                outputUnit: true,
                 items: {
                   where: { itemType: 'MATERIAL', materialId: { not: null } },
                   select: {
@@ -117,7 +119,7 @@ export async function GET(req: NextRequest) {
     const productBySku = new Map(compatibleProducts.map((product) => [product.sku, product]))
     const materialsWithBom = materials.map((material) => {
       const product = productBySku.get(material.code) || productBySku.get(`MAT-${material.code}`)
-      return { ...material, bom: product?.boms[0] || null }
+      return { ...material, bom: product?.boms[0] || null, boms: product?.boms || [] }
     })
 
     return NextResponse.json({ data: reports, materials: materialsWithBom })
@@ -137,7 +139,13 @@ export async function POST(req: NextRequest) {
     const report = await prisma.$transaction(async (tx) => {
       const consumptionLocation = await resolveInventoryLocation(tx, input.consumptionLocationId)
       const outputLocation = await resolveInventoryLocation(tx, input.outputLocationId)
-      const snapshot = await buildDailyProductionConsumption(tx, input.finishedMaterialId, input.outputQty, input.consumptions)
+      const snapshot = await buildDailyProductionConsumption(
+        tx,
+        input.finishedMaterialId,
+        input.outputQty,
+        input.consumptions,
+        { bomId: input.bomId },
+      )
       const reportNo = await nextReportNo(tx, reportDate)
       return tx.dailyProductionReport.create({
         data: {
@@ -150,7 +158,11 @@ export async function POST(req: NextRequest) {
           workers: input.workers,
           note: input.note || null,
           bomId: snapshot.bom.id,
+          bomName: snapshot.bom.name,
           bomVersion: snapshot.bom.version,
+          bomType: snapshot.bom.bomType,
+          bomOutputQuantity: snapshot.bom.outputQuantity,
+          bomOutputUnit: snapshot.bom.outputUnit,
           consumptions: { create: snapshot.consumptions },
         },
         include: dailyProductionReportInclude,

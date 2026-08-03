@@ -156,7 +156,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         })
         const { location: consumptionLocation } = await changeStockLocationBalance(tx, {
           stockId: stock.id,
-          locationId: report.consumptionLocationId,
+          locationId: line.locationId,
           qtyDelta: Number(line.actualQty),
         })
 
@@ -188,6 +188,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         const reversalMovement = await tx.stockLog.create({
           data: {
             stockId: stock.id,
+            locationId: consumptionLocation.id,
             type: 'PRODUCTION_REVERSE_CONSUME',
             qty: Number(line.actualQty),
             beforeQty,

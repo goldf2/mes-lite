@@ -39,14 +39,20 @@ interface MaterialOption {
   stockUnit: string
   unit: string
   customer?: { id: string; code: string; name: string } | null
-  bom?: {
-    id: string
-    version: string
-    isActive: boolean
-    outputQuantity: number
-    outputUnit: string
-    items: BomItem[]
-  } | null
+  bom?: BomOption | null
+  boms?: BomOption[]
+}
+
+interface BomOption {
+  id: string
+  name: string
+  version: string
+  bomType: string
+  isDefault: boolean
+  isActive: boolean
+  outputQuantity: number
+  outputUnit: string
+  items: BomItem[]
 }
 
 interface ConsumptionLine {
@@ -54,6 +60,8 @@ interface ConsumptionLine {
   materialId: string
   materialCode: string
   materialName: string
+  locationId?: string | null
+  location?: { id: string; code: string; name: string } | null
   quantityPerUnit: number
   wastageRate: number
   lossMode: 'MANUAL' | ProductionLossMode
@@ -82,7 +90,11 @@ interface DailyProductionReport {
   workers: string
   note?: string | null
   status: 'DRAFT' | 'CONFIRMED' | 'REVERSED'
+  bomId?: string | null
+  bomName?: string | null
   bomVersion?: string | null
+  bomOutputQuantity?: number | null
+  bomOutputUnit?: string | null
   outputCostAmount: number
   confirmedAt?: string | null
   confirmedBy?: string | null
@@ -107,6 +119,7 @@ interface DailyProductionReport {
 interface ReportForm {
   reportDate: string
   finishedMaterialId: string
+  bomId: string
   consumptionLocationId: string
   outputLocationId: string
   outputQty: number
@@ -115,6 +128,7 @@ interface ReportForm {
 }
 
 interface ConsumptionDraft {
+  locationId: string
   lossMode: ProductionLossMode
   lossValue: number
   actualQty: number | null
@@ -129,6 +143,7 @@ const today = () => {
 const emptyForm = (): ReportForm => ({
   reportDate: today(),
   finishedMaterialId: '',
+  bomId: '',
   consumptionLocationId: '',
   outputLocationId: '',
   outputQty: 0,
@@ -207,14 +222,16 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
   }, [])
 
   const selectedMaterial = materials.find((material) => material.id === form.finishedMaterialId)
+  const selectedBom = selectedMaterial?.boms?.find((bom) => bom.id === form.bomId)
+    || selectedMaterial?.bom
   const totalProcessedQty = Number(form.outputQty || 0)
-  const previewConsumptions = useMemo(() => (selectedMaterial?.bom?.items || [])
+  const previewConsumptions = useMemo(() => (selectedBom?.items || [])
     .filter((item) => item.material)
     .map((item) => {
       const draft = item.material ? consumptionDraftByMaterial[item.material.id] : undefined
       const lossMode = draft?.lossMode || 'PERCENT'
       const lossValue = Number(draft?.lossValue || 0)
-      const quantityPerUnit = Number(item.quantity || 0) / Number(selectedMaterial?.bom?.outputQuantity || 1)
+      const quantityPerUnit = Number(item.quantity || 0) / Number(selectedBom?.outputQuantity || 1)
       const calculated = totalProcessedQty > 0 && quantityPerUnit > 0
         ? calculateProductionConsumption({
             outputQty: totalProcessedQty,
@@ -226,13 +243,14 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
         : { baseQty: 0, lossQty: 0, plannedQty: 0, actualQty: Number(draft?.actualQty || 0) }
       return {
         ...item,
+        locationId: draft?.locationId || form.consumptionLocationId,
         quantityPerUnit,
         lossMode,
         lossValue,
         ...calculated,
         actualOverridden: draft?.actualQty !== null && draft?.actualQty !== undefined,
       }
-    }), [consumptionDraftByMaterial, selectedMaterial, totalProcessedQty])
+    }), [consumptionDraftByMaterial, form.consumptionLocationId, selectedBom, totalProcessedQty])
 
   const summary = useMemo(() => reports.reduce((result, report) => {
     result[report.status.toLowerCase() as 'draft' | 'confirmed' | 'reversed'] += 1
@@ -253,6 +271,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
     setForm({
       reportDate: report.reportDate.slice(0, 10),
       finishedMaterialId: report.finishedMaterial.id,
+      bomId: report.bomId || materials.find((material) => material.id === report.finishedMaterial.id)?.bom?.id || '',
       consumptionLocationId: report.consumptionLocationId || locations.find((location) => location.isDefault)?.id || '',
       outputLocationId: report.outputLocationId || locations.find((location) => location.isDefault)?.id || '',
       outputQty: Number(report.outputQty),
@@ -260,6 +279,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
       note: report.note || '',
     })
     setConsumptionDraftByMaterial(Object.fromEntries(report.consumptions.map((line) => [line.materialId, {
+      locationId: line.locationId || report.consumptionLocationId || '',
       lossMode: line.lossMode === 'FIXED_PER_UNIT' ? 'FIXED_PER_UNIT' : 'PERCENT',
       lossValue: line.lossMode === 'MANUAL' ? 0 : Number(line.lossValue || line.wastageRate || 0),
       actualQty: Number(line.actualQty),
@@ -272,9 +292,10 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
     if (!form.consumptionLocationId || !form.outputLocationId) return onMessage('请选择原料出库库位和产出入库库位')
     if (!form.workers.trim()) return onMessage('请填写生产人员')
     if (totalProcessedQty <= 0) return onMessage('产出数量必须大于 0')
-    if (!selectedMaterial?.bom?.isActive || previewConsumptions.length === 0) {
+    if (!selectedBom?.isActive || previewConsumptions.length === 0) {
       return onMessage('该物料尚未建立有效 BOM，请先在物料 BOM 关联中添加原料')
     }
+    if (previewConsumptions.some((item) => !item.locationId)) return onMessage('请选择每项投入物料的来源库位')
     if (previewConsumptions.some((item) => item.quantityPerUnit <= 0)) {
       return onMessage('BOM 中存在未填写换算比例的原料，请先完善 BOM')
     }
@@ -288,9 +309,11 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          bomId: selectedBom.id,
           outputQty: Number(form.outputQty || 0),
           consumptions: previewConsumptions.flatMap((item) => item.material ? [{
             materialId: item.material.id,
+            locationId: item.locationId,
             lossMode: item.lossMode,
             lossValue: item.lossValue,
             actualQty: item.actualOverridden ? item.actualQty : undefined,
@@ -392,6 +415,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
           <div className="min-w-0">
             <span className="font-medium text-gray-800">{line.materialName}</span>
             <span className="ml-2 font-mono text-gray-400">{line.materialCode}</span>
+            <span className="ml-2 text-gray-400">来源 {line.location?.code || report.consumptionLocation?.code || '默认库位'}</span>
           </div>
           <div className="flex items-center gap-4 text-gray-600">
             {line.quantityPerUnit > 0 && <span>标准 {numberText(line.quantityPerUnit)} {line.unit}原料/{report.finishedMaterial.stockUnit || report.finishedMaterial.unit}产出</span>}
@@ -482,7 +506,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                 </div>
                 <div className="mt-4 border-t border-gray-100 pt-4">
                   <div className="mb-2 flex items-center justify-between text-xs text-gray-500">
-                    <span>BOM {report.bomVersion || '-'}</span>
+                    <span>BOM {report.bomName || '默认方案'} · {report.bomVersion || '-'}</span>
                     <span>{report.consumptions.length} 项原料</span>
                   </div>
                   {consumptionList(report)}
@@ -581,14 +605,32 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                       customer: material.customer,
                     }))}
                     onChange={(finishedMaterialId) => {
-                      setForm({ ...form, finishedMaterialId })
+                      const material = materials.find((item) => item.id === finishedMaterialId)
+                      setForm({ ...form, finishedMaterialId, bomId: material?.bom?.id || '' })
                       setConsumptionDraftByMaterial({})
                     }}
                     placeholder="输入成品编码、名称或规格筛选"
                   />
                 </div>
+                <label className="text-sm text-gray-700 md:col-span-2">
+                  BOM 转换方案
+                  <SearchableSelect
+                    value={selectedBom?.id || ''}
+                    onChange={(bomId) => {
+                      setForm({ ...form, bomId })
+                      setConsumptionDraftByMaterial({})
+                    }}
+                    options={(selectedMaterial?.boms || []).map((bom) => ({
+                      value: bom.id,
+                      label: `${bom.name} · ${bom.version}${bom.isDefault ? ' · 默认' : ''} · ${numberText(bom.outputQuantity)} ${bom.outputUnit}/批`,
+                    }))}
+                    placeholder={selectedMaterial ? '输入方案名称或版本筛选' : '请先选择产出物料'}
+                    disabled={!selectedMaterial}
+                    className="mt-1"
+                  />
+                </label>
                 <label className="text-sm text-gray-700">
-                  原料出库库位
+                  默认投入来源库位
                   <SearchableSelect
                     value={form.consumptionLocationId}
                     onChange={(consumptionLocationId) => setForm({ ...form, consumptionLocationId })}
@@ -622,7 +664,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                     <div className="text-sm font-medium text-gray-900">原料耗用与损耗</div>
                     <div className="mt-0.5 text-xs text-gray-500">本次产出 {numberText(totalProcessedQty)}；基准耗用来自 BOM 换算比例，可再记录本批次额外损耗</div>
                   </div>
-                  {selectedMaterial?.bom && <span className="text-xs text-gray-500">{selectedMaterial.bom.version}</span>}
+                  {selectedBom && <span className="text-xs text-gray-500">{selectedBom.name} · {selectedBom.version}</span>}
                 </div>
                 <div className="p-3">
                   {!selectedMaterial ? (
@@ -642,7 +684,25 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                                 : '尚未填写 BOM 换算比例'}
                             </div>
                           </div>
-                          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[170px_minmax(0,1fr)_minmax(0,1fr)]">
+                          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                            <label className="text-xs text-gray-600">
+                              投入来源库位
+                              <SearchableSelect
+                                value={item.locationId}
+                                onChange={(locationId) => setConsumptionDraftByMaterial((current) => ({
+                                  ...current,
+                                  [item.material!.id]: {
+                                    locationId,
+                                    lossMode: current[item.material!.id]?.lossMode || 'PERCENT',
+                                    lossValue: current[item.material!.id]?.lossValue || 0,
+                                    actualQty: current[item.material!.id]?.actualQty ?? null,
+                                  },
+                                }))}
+                                options={locations.map((location) => ({ value: location.id, label: `${location.code} · ${location.name}` }))}
+                                placeholder="输入库位筛选"
+                                className="mt-1"
+                              />
+                            </label>
                             <label className="text-xs text-gray-600">
                               损耗方式
                               <select
@@ -650,6 +710,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                                 onChange={(event) => setConsumptionDraftByMaterial((current) => ({
                                   ...current,
                                   [item.material!.id]: {
+                                    locationId: current[item.material!.id]?.locationId || '',
                                     lossMode: event.target.value as ProductionLossMode,
                                     lossValue: 0,
                                     actualQty: null,
@@ -672,6 +733,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                                   onChange={(event) => setConsumptionDraftByMaterial((current) => ({
                                     ...current,
                                     [item.material!.id]: {
+                                      locationId: current[item.material!.id]?.locationId || '',
                                       lossMode: current[item.material!.id]?.lossMode || 'PERCENT',
                                       lossValue: Math.max(0, Number(event.target.value)),
                                       actualQty: null,
@@ -696,6 +758,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                                   onChange={(event) => setConsumptionDraftByMaterial((current) => ({
                                     ...current,
                                     [item.material!.id]: {
+                                      locationId: current[item.material!.id]?.locationId || '',
                                       lossMode: current[item.material!.id]?.lossMode || 'PERCENT',
                                       lossValue: current[item.material!.id]?.lossValue || 0,
                                       actualQty: event.target.value === '' || Number(event.target.value) <= 0
@@ -745,7 +808,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
           )}
         >
             <p className="mt-2 text-sm text-gray-600">确认后将立即扣减原料库存，并把 {numberText(confirmingReport.outputQty)} {confirmingReport.finishedMaterial.stockUnit || confirmingReport.finishedMaterial.unit} 产出增加到所选库位。</p>
-            <p className="mt-2 text-xs text-gray-500">原料库位：{confirmingReport.consumptionLocation?.code || '默认库位'}；产出库位：{confirmingReport.outputLocation?.code || '默认库位'}。入库后发货模块可直接读取该库位可用量。</p>
+            <p className="mt-2 text-xs text-gray-500">各项投入按明细中的来源库位扣减；产出库位：{confirmingReport.outputLocation?.code || '默认库位'}。入库后发货模块可直接读取该库位可用量。</p>
             <div className="mt-4">{consumptionList(confirmingReport)}</div>
         </ModalDialog>
       )}

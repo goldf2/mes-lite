@@ -50,7 +50,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           note: `生产日报 ${report.reportNo} 自动耗料`,
           createdBy: confirmedBy,
           idempotencyKey: `DAILY_PRODUCTION:${report.id}:CONSUME:${line.id}`,
-          locationId: report.consumptionLocationId,
+          locationId: line.locationId,
         })
         await tx.dailyProductionConsumption.update({
           where: { id: line.id },

@@ -17,22 +17,23 @@ model SystemSetting {
 }
 
 model InventoryLocation {
-  id                 String                  @id @default(cuid())
-  code               String                  @unique
+  id                 String                       @id @default(cuid())
+  code               String                       @unique
   name               String
   note               String?
-  isDefault          Boolean                 @default(false)
-  isActive           Boolean                 @default(true)
+  isDefault          Boolean                      @default(false)
+  isActive           Boolean                      @default(true)
   deletedAt          DateTime?
   balances           StockLocationBalance[]
   stockLogs          StockLog[]
   materialIns        MaterialIn[]
-  consumptionReports DailyProductionReport[] @relation("DailyProductionConsumptionLocation")
-  outputReports      DailyProductionReport[] @relation("DailyProductionOutputLocation")
+  consumptionReports DailyProductionReport[]      @relation("DailyProductionConsumptionLocation")
+  productionInputs   DailyProductionConsumption[] @relation("DailyProductionConsumptionLineLocation")
+  outputReports      DailyProductionReport[]      @relation("DailyProductionOutputLocation")
   shipments          Shipment[]
   returnOrders       ReturnOrder[]
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
 }
 
 model WorkCenter {
@@ -485,8 +486,12 @@ model DailyProductionReport {
   workers                String
   note                   String?
   status                 String                       @default("DRAFT")
-  bomId                  String?
-  bomVersion             String?
+  bomId                  String
+  bomName                String
+  bomVersion             String
+  bomType                String
+  bomOutputQuantity      Float
+  bomOutputUnit          String
   outputValuationQty     Float                        @default(0)
   outputCostAmount       Float                        @default(0)
   outputStockUnit        String?
@@ -513,6 +518,8 @@ model DailyProductionConsumption {
   report             DailyProductionReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
   materialId         String
   material           Material              @relation("DailyProductionConsumedMaterial", fields: [materialId], references: [id])
+  locationId         String
+  location           InventoryLocation     @relation("DailyProductionConsumptionLineLocation", fields: [locationId], references: [id])
   bomItemId          String?
   materialCode       String
   materialName       String
@@ -535,6 +542,7 @@ model DailyProductionConsumption {
 
   @@index([reportId])
   @@index([materialId])
+  @@index([locationId])
 }
 
 // ==================== 质检记录 ====================

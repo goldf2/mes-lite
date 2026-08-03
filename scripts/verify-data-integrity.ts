@@ -1,11 +1,23 @@
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { PrismaClient } from '@prisma/client'
 import {
   applyDataIntegrityAction,
   getDataIntegrityReport,
 } from '../lib/data-integrity'
 
-const prisma = new PrismaClient()
+const verifyRoot = mkdtempSync(join(tmpdir(), 'ml-integrity-'))
+const databaseUrl = `file:${join(verifyRoot, 'verify.db')}`
+execFileSync(join(process.cwd(), 'node_modules', '.bin', 'prisma'), ['migrate', 'deploy'], {
+  cwd: process.cwd(),
+  env: { ...process.env, DATABASE_URL: databaseUrl, RUST_LOG: 'info' },
+  stdio: 'pipe',
+})
+
+const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } })
 const rollbackMarker = new Error('VERIFY_DATA_INTEGRITY_ROLLBACK')
 
 async function main() {
@@ -82,13 +94,18 @@ async function main() {
           finishedMaterialId: output.id,
           workers: '验证',
           bomId: bom.id,
+          bomName: bom.name,
           bomVersion: bom.version,
+          bomType: bom.bomType,
+          bomOutputQuantity: bom.outputQuantity,
+          bomOutputUnit: bom.outputUnit,
         },
       })
       const consumption = await tx.dailyProductionConsumption.create({
         data: {
           reportId: report.id,
           materialId: raw.id,
+          locationId: 'default-location',
           bomItemId: `missing-${suffix}`,
           materialCode: raw.code,
           materialName: raw.name,
@@ -102,6 +119,7 @@ async function main() {
         data: {
           reportId: report.id,
           materialId: raw.id,
+          locationId: 'default-location',
           bomItemId: duplicate.id,
           materialCode: raw.code,
           materialName: raw.name,
@@ -190,4 +208,7 @@ main()
     console.error(error)
     process.exitCode = 1
   })
-  .finally(() => prisma.$disconnect())
+  .finally(async () => {
+    await prisma.$disconnect()
+    rmSync(verifyRoot, { recursive: true, force: true })
+  })

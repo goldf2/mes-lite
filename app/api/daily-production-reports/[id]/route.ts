@@ -26,7 +26,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const report = await prisma.$transaction(async (tx) => {
       const consumptionLocation = await resolveInventoryLocation(tx, input.consumptionLocationId || existing.consumptionLocationId)
       const outputLocation = await resolveInventoryLocation(tx, input.outputLocationId || existing.outputLocationId)
-      const snapshot = await buildDailyProductionConsumption(tx, input.finishedMaterialId, input.outputQty, input.consumptions)
+      const snapshot = await buildDailyProductionConsumption(
+        tx,
+        input.finishedMaterialId,
+        input.outputQty,
+        input.consumptions,
+        { bomId: input.bomId },
+      )
       await tx.dailyProductionConsumption.deleteMany({ where: { reportId: existing.id } })
       return tx.dailyProductionReport.update({
         where: { id: existing.id },
@@ -39,7 +45,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           workers: input.workers,
           note: input.note || null,
           bomId: snapshot.bom.id,
+          bomName: snapshot.bom.name,
           bomVersion: snapshot.bom.version,
+          bomType: snapshot.bom.bomType,
+          bomOutputQuantity: snapshot.bom.outputQuantity,
+          bomOutputUnit: snapshot.bom.outputUnit,
           consumptions: { create: snapshot.consumptions },
         },
         include: dailyProductionReportInclude,

@@ -10,10 +10,14 @@ export async function buildDailyProductionConsumption(
   totalProcessedQty: number,
   requestedConsumptions: Array<{
     materialId: string
+    locationId: string
     lossMode: ProductionLossMode
     lossValue: number
     actualQty?: number
   }>,
+  options: {
+    bomId: string
+  },
 ) {
   const finishedMaterial = await tx.material.findFirst({
     where: { id: finishedMaterialId, deletedAt: null },
@@ -36,7 +40,7 @@ export async function buildDailyProductionConsumption(
     },
     include: {
       boms: {
-        where: { isActive: true },
+        where: { isActive: true, id: options.bomId },
         orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
         take: 1,
         include: {
@@ -64,11 +68,25 @@ export async function buildDailyProductionConsumption(
     || products.find((item) => item.sku === simpleProductSku(finishedMaterial.code))
   const bom = product?.boms[0]
   if (!bom || bom.items.length === 0) {
-    throw new Error(`物料 ${finishedMaterial.code} ${finishedMaterial.name} 尚未建立有效 BOM，不能确认库存日报`)
+    throw new Error('所选 BOM 方案不存在、已停用、不属于当前产出物料或没有投入明细')
+  }
+
+  const requestedLocationIds = Array.from(new Set(requestedConsumptions.flatMap((item) => {
+    return [item.locationId]
+  })))
+  const activeLocations = requestedLocationIds.length > 0
+    ? await tx.inventoryLocation.findMany({
+        where: { id: { in: requestedLocationIds }, isActive: true, deletedAt: null },
+        select: { id: true },
+      })
+    : []
+  if (activeLocations.length !== requestedLocationIds.length) {
+    throw new Error('投入明细中存在无效、停用或已归档的来源库位')
   }
 
   const consumptionByMaterial = new Map<string, {
     materialId: string
+    locationId: string
     bomItemId: string
     materialCode: string
     materialName: string
@@ -107,6 +125,7 @@ export async function buildDailyProductionConsumption(
     }
     const requested = requestedByMaterial.get(item.material.id)
     if (!requested) throw new Error(`请填写原料 ${item.material.code} ${item.material.name} 的损耗方式`)
+    const locationId = requested.locationId
     const calculated = calculateProductionConsumption({
       outputQty: totalProcessedQty,
       unitConsumption: quantityPerUnit,
@@ -117,6 +136,7 @@ export async function buildDailyProductionConsumption(
 
     consumptionByMaterial.set(item.material.id, {
       materialId: item.material.id,
+      locationId,
       bomItemId: item.id,
       materialCode: item.material.code,
       materialName: item.material.name,
@@ -138,7 +158,14 @@ export async function buildDailyProductionConsumption(
 
   return {
     finishedMaterial,
-    bom: { id: bom.id, version: bom.version },
+    bom: {
+      id: bom.id,
+      name: bom.name,
+      version: bom.version,
+      bomType: bom.bomType,
+      outputQuantity: Number(bom.outputQuantity),
+      outputUnit: bom.outputUnit,
+    },
     consumptions: Array.from(consumptionByMaterial.values()),
   }
 }
