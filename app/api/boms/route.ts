@@ -151,7 +151,47 @@ export async function GET() {
     }
   })
 
-  return NextResponse.json({ products: materialProducts, materialOptions })
+  const materialIds = materialOptions.map((material) => material.id)
+  const [images, stocks] = materialIds.length === 0
+    ? [[], []] as const
+    : await Promise.all([
+        prisma.documentAttachment.findMany({
+          where: {
+            ownerType: 'MATERIAL',
+            ownerId: { in: materialIds },
+            documentType: 'MATERIAL_IMAGE',
+            mimeType: { startsWith: 'image/' },
+            deletedAt: null,
+          },
+          orderBy: [{ isCover: 'desc' }, { createdAt: 'desc' }],
+          select: { id: true, ownerId: true, note: true, mimeType: true, isCover: true },
+        }),
+        prisma.stock.findMany({
+          where: { materialId: { in: materialIds } },
+          select: { materialId: true, qty: true },
+        }),
+      ])
+  const primaryImageByMaterial = new Map<string, (typeof images)[number]>()
+  for (const image of images) {
+    if (!primaryImageByMaterial.has(image.ownerId)) primaryImageByMaterial.set(image.ownerId, image)
+  }
+  const stockQtyByMaterial = new Map(stocks.map((stock) => [stock.materialId, Number(stock.qty)]))
+  const materialOptionsWithSummary = materialOptions.map((material) => {
+    const image = primaryImageByMaterial.get(material.id)
+    return {
+      ...material,
+      stockQty: stockQtyByMaterial.get(material.id) || 0,
+      primaryImage: image ? {
+        id: image.id,
+        url: `/api/attachments/${image.id}/file`,
+        note: image.note,
+        mimeType: image.mimeType,
+        isCover: image.isCover,
+      } : null,
+    }
+  })
+
+  return NextResponse.json({ products: materialProducts, materialOptions: materialOptionsWithSummary })
 }
 
 export async function PUT(req: NextRequest) {

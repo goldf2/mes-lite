@@ -64,6 +64,8 @@ interface BomMaterialOption {
   stockUnit: string
   valuationUnit: string
   primaryMeasure?: 'LENGTH' | 'WEIGHT' | 'QUANTITY' | 'OTHER'
+  stockQty?: number
+  primaryImage?: { id: string; url: string; note?: string | null; mimeType: string; isCover: boolean } | null
 }
 
 interface BomItem {
@@ -158,7 +160,6 @@ const primaryMeasureOptions = [
 ] as const
 const primaryMeasureLabels = Object.fromEntries(primaryMeasureOptions) as Record<string, string>
 const materialProductPrefix = 'material:'
-const materialSplitStorageKey = 'mes-lite.materials.splitPercent'
 const bomSummaryVisibleStorageKey = 'mes-lite.materials.bomSummaryVisible'
 const bomSummaryFieldsStorageKey = 'mes-lite.materials.bomSummaryFields'
 const materialColumnWidthsStorageKey = 'mes-lite.materials.columnWidths'
@@ -782,10 +783,7 @@ export default function MaterialPage({
   const [bomSummaryVisible, setBomSummaryVisible] = useState(true)
   const [bomSummaryFields, setBomSummaryFields] = useState<BomSummaryField[]>(defaultBomSummaryFields)
   const [columnWidths, setColumnWidths] = useState<MaterialColumnWidths>({})
-  const [splitPercent, setSplitPercent] = useState(46)
-  const [isResizingSplit, setIsResizingSplit] = useState(false)
   const [bomAuxiliaryView, setBomAuxiliaryView] = useState<'components' | 'usage'>('components')
-  const splitContainerRef = useRef<HTMLDivElement>(null)
   const columnResizeCleanupRef = useRef<(() => void) | null>(null)
   const loadedBomDraftSignatureRef = useRef('')
   const [form, setForm] = useState(createEmptyMaterialForm())
@@ -799,7 +797,19 @@ export default function MaterialPage({
   const [importMode, setImportMode] = useState<'skip' | 'update'>('skip')
   const [importLoading, setImportLoading] = useState(false)
   const [importErrors, setImportErrors] = useState<string[]>([])
-  const selectedMaterial = materials.find((material) => material.id === selectedMaterialId) || null
+  const bomOutputMaterialOptions = useMemo(() => bomMaterialOptions.map((material) => ({
+    value: material.id,
+    label: materialOptionLabel(material),
+    keywords: `${material.code} ${material.name} ${material.spec || ''} ${materialCategoryLabels[material.category] || material.category}`,
+  })), [bomMaterialOptions])
+  const selectedMaterial = showBomWorkspace
+    ? bomMaterialOptions.find((material) => material.id === selectedMaterialId) || null
+    : materials.find((material) => material.id === selectedMaterialId) || null
+  const selectedMaterialStockQty = selectedMaterial
+    ? (showBomWorkspace
+        ? Number((selectedMaterial as BomMaterialOption).stockQty || 0)
+        : Number((selectedMaterial as Material).stock?.qty || 0))
+    : 0
   const bomProductByMaterialId = useMemo(() => new Map(bomProducts.map((product) => [product.sourceMaterialId || product.id.replace(materialProductPrefix, ''), product])), [bomProducts])
   const selectedBomProduct = selectedMaterial ? bomProductByMaterialId.get(selectedMaterial.id) || null : null
   const selectedBom = selectedBomId === '__new__'
@@ -921,8 +931,8 @@ export default function MaterialPage({
   }, [onMessage])
 
   useEffect(() => {
-    fetchMaterials()
-  }, [keyword, selectedCategories, customerFilter, sortBy, sortDir, page, pageSize])
+    if (!showBomWorkspace) fetchMaterials()
+  }, [keyword, selectedCategories, customerFilter, sortBy, sortDir, page, pageSize, showBomWorkspace])
 
   useEffect(() => {
     setPage(1)
@@ -935,14 +945,11 @@ export default function MaterialPage({
   }, [fetchBomData, showBomWorkspace])
 
   useEffect(() => {
-    if (!selectedMaterialId && materials[0]) {
-      setSelectedMaterialId(materials[0].id)
-      return
+    if (!showBomWorkspace || bomLoading || !selectedMaterialId) return
+    if (!bomMaterialOptions.some((material) => material.id === selectedMaterialId)) {
+      setSelectedMaterialId('')
     }
-    if (selectedMaterialId && !materials.some((material) => material.id === selectedMaterialId) && materials[0]) {
-      setSelectedMaterialId(materials[0].id)
-    }
-  }, [materials, selectedMaterialId])
+  }, [bomLoading, bomMaterialOptions, selectedMaterialId, showBomWorkspace])
 
   useEffect(() => {
     setSelectedBomId(selectedBomProduct?.bom?.id || '__new__')
@@ -989,12 +996,8 @@ export default function MaterialPage({
 
   useEffect(() => {
     if (!selectedMaterial) return
-    if (!relationProductId && !relationMaterialId) {
-      if (selectedMaterial.category === 'FINISHED') {
-        setRelationProductId(`${materialProductPrefix}${selectedMaterial.id}`)
-      } else {
-        setRelationMaterialId(selectedMaterial.id)
-      }
+    if (!relationProductId) {
+      setRelationProductId(`${materialProductPrefix}${selectedMaterial.id}`)
     }
   }, [relationMaterialId, relationProductId, selectedMaterial])
 
@@ -1053,54 +1056,6 @@ export default function MaterialPage({
   }, [])
 
   useEffect(() => () => columnResizeCleanupRef.current?.(), [])
-
-  useEffect(() => {
-    const saved = Number(window.localStorage.getItem(materialSplitStorageKey))
-    if (Number.isFinite(saved) && saved >= 28 && saved <= 70) {
-      setSplitPercent(saved)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!isResizingSplit) return
-
-    const handlePointerMove = (event: PointerEvent) => {
-      const container = splitContainerRef.current
-      if (!container) return
-      const bounds = container.getBoundingClientRect()
-      const dividerWidth = 12
-      const usableWidth = Math.max(1, bounds.width - dividerWidth)
-      const minLeft = Math.min(420, usableWidth * 0.45)
-      const minRight = Math.min(500, usableWidth * 0.45)
-      const leftWidth = Math.min(
-        usableWidth - minRight,
-        Math.max(minLeft, event.clientX - bounds.left),
-      )
-      setSplitPercent(Number(((leftWidth / usableWidth) * 100).toFixed(2)))
-    }
-
-    const handlePointerUp = () => {
-      setIsResizingSplit(false)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-    window.addEventListener('pointermove', handlePointerMove)
-    window.addEventListener('pointerup', handlePointerUp)
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove)
-      window.removeEventListener('pointerup', handlePointerUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-  }, [isResizingSplit])
-
-  useEffect(() => {
-    if (isResizingSplit) return
-    window.localStorage.setItem(materialSplitStorageKey, String(splitPercent))
-  }, [isResizingSplit, splitPercent])
 
   const updateVisibleFields = (next: MaterialVisibleField[]) => {
     setVisibleFields(next)
@@ -1492,14 +1447,17 @@ export default function MaterialPage({
     }
   }
 
-  const selectMaterialForBom = (material: Material) => {
-    setSelectedMaterialId(material.id)
-    if (material.category === 'FINISHED') {
-      setRelationProductId(`${materialProductPrefix}${material.id}`)
-      return
-    }
-    setRelationMaterialId(material.id)
-  }
+  const selectMaterialForBom = useCallback((materialId: string) => {
+    loadedBomDraftSignatureRef.current = ''
+    setSelectedMaterialId(materialId)
+    setRelationProductId(materialId ? `${materialProductPrefix}${materialId}` : '')
+    setRelationMaterialId('')
+    setRelationStandardUsage('')
+    setRelationLossMode('PERCENT')
+    setRelationLossValue('')
+    setRelationOutputQuantity('1')
+    setRelationRawQuantity('')
+  }, [])
 
   const saveBomForProduct = async (
     productId: string,
@@ -1646,6 +1604,25 @@ export default function MaterialPage({
   useEffect(() => {
     if (!onToolbarChange) return
 
+    if (showBomWorkspace) {
+      onToolbarChange(
+        <ResponsiveToolbarActions
+          primaryFilters={(
+            <SearchableSelect
+              value={selectedMaterialId}
+              options={bomOutputMaterialOptions}
+              onChange={selectMaterialForBom}
+              placeholder="输入产出物料编码、名称或规格"
+              emptyText="没有匹配的产出物料"
+              allowClear
+              className="w-full sm:w-[34rem]"
+            />
+          )}
+        />
+      )
+      return () => onToolbarChange(null)
+    }
+
     onToolbarChange(
       <ResponsiveToolbarActions
         primaryFilters={(
@@ -1747,12 +1724,27 @@ export default function MaterialPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, sortBy, sortDir, viewMode, setViewMode, visibleFields, bomSummaryVisible, bomSummaryFields, activeFilterLabels, showBomWorkspace, columnWidths, resetAllColumnWidths])
+  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, sortBy, sortDir, viewMode, setViewMode, visibleFields, bomSummaryVisible, bomSummaryFields, activeFilterLabels, showBomWorkspace, columnWidths, resetAllColumnWidths, selectedMaterialId, bomOutputMaterialOptions, selectMaterialForBom])
 
   return (
     <>
       <TopBarPortal>
-        <ResponsiveToolbarActions
+        {showBomWorkspace ? (
+          <ResponsiveToolbarActions
+            primaryFilters={(
+              <SearchableSelect
+                value={selectedMaterialId}
+                options={bomOutputMaterialOptions}
+                onChange={selectMaterialForBom}
+                placeholder="输入产出物料编码、名称或规格"
+                emptyText="没有匹配的产出物料"
+                allowClear
+                className="w-full sm:w-[34rem]"
+              />
+            )}
+          />
+        ) : (
+          <ResponsiveToolbarActions
           primaryFilters={(
             <SearchFieldWithPresets
               storageKey="mes-lite.searchPresets.materials"
@@ -1848,21 +1840,13 @@ export default function MaterialPage({
               </AppButton>
             </>
           )}
-        />
+          />
+        )}
       </TopBarPortal>
-      <div
-        ref={showBomWorkspace ? splitContainerRef : undefined}
-        style={showBomWorkspace ? {
-          '--material-left': `${splitPercent}fr`,
-          '--material-right': `${100 - splitPercent}fr`,
-        } as CSSProperties : undefined}
-        className={showBomWorkspace
-          ? 'grid grid-cols-1 items-start gap-4 xl:min-h-0 xl:flex-1 xl:items-stretch xl:gap-0 xl:overflow-hidden xl:[grid-template-columns:minmax(0,var(--material-left))_12px_minmax(0,var(--material-right))]'
-          : 'min-w-0'}
-      >
+      <div className="min-w-0">
+        {!showBomWorkspace && (
         <div
-          aria-label={showBomWorkspace ? '物料列表工作区' : undefined}
-          className={`min-w-0 rounded-lg bg-transparent p-0 shadow-none sm:bg-white sm:p-4 sm:shadow ${showBomWorkspace ? 'xl:h-full xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain xl:[scrollbar-gutter:stable]' : ''}`}
+          className="min-w-0 rounded-lg bg-transparent p-0 shadow-none sm:bg-white sm:p-4 sm:shadow"
         >
           {materials.length === 0 ? (
           <div className="rounded-lg bg-white py-10 text-center text-gray-500 shadow sm:bg-transparent sm:py-12 sm:shadow-none">
@@ -1884,7 +1868,7 @@ export default function MaterialPage({
                 <div
                   key={material.id}
                   onClick={() => {
-                    if (showBomWorkspace) selectMaterialForBom(material)
+                    if (showBomWorkspace) selectMaterialForBom(material.id)
                   }}
                   className={`group flex min-h-[218px] flex-col rounded-lg border bg-white p-3 shadow-sm transition sm:shadow-none ${showBomWorkspace ? 'cursor-pointer' : ''} ${isSelected ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200 hover:border-blue-300 hover:shadow-sm'}`}
                 >
@@ -2006,7 +1990,7 @@ export default function MaterialPage({
                   <tr
                     key={material.id}
                     onClick={() => {
-                      if (showBomWorkspace) selectMaterialForBom(material)
+                      if (showBomWorkspace) selectMaterialForBom(material.id)
                     }}
                     className={`align-top transition ${showBomWorkspace ? 'cursor-pointer' : ''} ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
                   >
@@ -2088,36 +2072,10 @@ export default function MaterialPage({
           </>
           )}
         </div>
+        )}
 
         {showBomWorkspace && (
-          <>
-        <div
-          role="separator"
-          aria-label="调整物料列表与 BOM 明细宽度"
-          aria-orientation="vertical"
-          aria-valuemin={28}
-          aria-valuemax={70}
-          aria-valuenow={Math.round(splitPercent)}
-          tabIndex={0}
-          onPointerDown={(event) => {
-            event.preventDefault()
-            setIsResizingSplit(true)
-          }}
-          onDoubleClick={() => setSplitPercent(46)}
-          onKeyDown={(event) => {
-            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-            event.preventDefault()
-            setSplitPercent((current) => Math.min(70, Math.max(28, current + (event.key === 'ArrowRight' ? 2 : -2))))
-          }}
-          className={`group hidden h-full min-h-0 cursor-col-resize touch-none items-start justify-center xl:flex ${isResizingSplit ? 'bg-blue-50' : ''}`}
-          title="拖动调整宽度，双击恢复默认"
-        >
-          <div className={`sticky top-28 mt-4 flex h-24 w-1 items-center justify-center rounded-full transition ${isResizingSplit ? 'bg-blue-500' : 'bg-gray-300 group-hover:bg-blue-400'}`}>
-            <span className="h-4 w-px bg-white/80" />
-          </div>
-        </div>
-
-        <div aria-label="BOM 明细工作区" className="min-w-0 rounded-lg bg-white p-4 shadow xl:h-full xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain xl:[scrollbar-gutter:stable]">
+        <div aria-label="BOM 编辑工作区" className="min-w-0 rounded-lg bg-white p-4 shadow sm:p-6">
           <div className="mb-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -2125,13 +2083,37 @@ export default function MaterialPage({
                 {bomLoading && <span className="text-xs text-gray-500">同步中...</span>}
               </div>
               <div className="mt-1 truncate text-sm text-gray-500">
-                {selectedMaterial ? `${selectedMaterial.code} · ${selectedMaterial.name}` : '请选择左侧物料'}
+                {selectedMaterial ? `${selectedMaterial.code} · ${selectedMaterial.name}` : '请先输入并选择产出物料'}
               </div>
             </div>
           </div>
 
           {selectedMaterial ? (
             <div className="space-y-3">
+              <div className="grid gap-4 rounded-lg border border-gray-200 bg-gray-50/70 p-4 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-center">
+                <div className="flex h-32 w-full items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-white sm:w-32">
+                  {selectedMaterial.primaryImage ? (
+                    <img
+                      src={selectedMaterial.primaryImage.url}
+                      alt={selectedMaterial.primaryImage.note || selectedMaterial.name}
+                      className="h-full w-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-sm text-gray-400">暂无物料图片</span>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-gray-500">已选产出物料</div>
+                  <div className="mt-1 font-mono text-sm font-semibold text-blue-700">{selectedMaterial.code}</div>
+                  <div className="mt-1 text-lg font-semibold text-gray-900">{selectedMaterial.name}</div>
+                  <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-gray-500">
+                    <span>规格：{selectedMaterial.spec || '未填写'}</span>
+                    <span>分类：{materialCategoryLabels[selectedMaterial.category || 'RAW'] || '其他'}</span>
+                    <span>库存单位：{selectedMaterial.stockUnit || selectedMaterial.unit}</span>
+                  </div>
+                </div>
+              </div>
+
               <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
                   <label className="min-w-0 flex-1 text-xs font-medium text-gray-700">
@@ -2451,7 +2433,7 @@ export default function MaterialPage({
                 <span className="text-gray-500">分类 <strong className="ml-1 font-medium text-gray-900">{materialCategoryLabels[selectedMaterial.category || 'RAW'] || '其他'}</strong></span>
                 <span className="text-gray-500">BOM <strong className="ml-1 font-semibold text-blue-700">{draftBomItems.length} 项</strong></span>
                 <span className="text-gray-500">被引用 <strong className="ml-1 font-semibold text-blue-700">{selectedMaterialUsageRows.length} 个 BOM 方案</strong></span>
-                <span className="text-gray-500">库存 <strong className="ml-1 font-semibold text-emerald-700">{selectedMaterial.stock?.qty || 0} {selectedMaterial.stockUnit || selectedMaterial.unit}</strong></span>
+                <span className="text-gray-500">库存 <strong className="ml-1 font-semibold text-emerald-700">{selectedMaterialStockQty} {selectedMaterial.stockUnit || selectedMaterial.unit}</strong></span>
               </div>
 
               <div>
@@ -2582,10 +2564,11 @@ export default function MaterialPage({
               </div>
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500">左侧选择一个物料后查看 BOM</div>
+            <div className="rounded-lg border border-dashed border-gray-200 p-10 text-center text-sm text-gray-500">
+              在顶部输入物料编码、名称或规格，选择产出物料后开始维护 BOM。
+            </div>
           )}
         </div>
-          </>
         )}
       </div>
 
