@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       ]
     }
 
-    const [transfers, materials, locations] = await Promise.all([
+    const [transfers, materials, locations, employees] = await Promise.all([
       prisma.flowTransfer.findMany({
         where,
         include: flowTransferInclude,
@@ -86,6 +86,11 @@ export async function GET(req: NextRequest) {
         select: { id: true, code: true, name: true, isDefault: true },
         orderBy: [{ isDefault: 'desc' }, { code: 'asc' }],
       }),
+      prisma.employee.findMany({
+        where: { isActive: true },
+        select: { id: true, code: true, name: true, department: true },
+        orderBy: [{ code: 'asc' }],
+      }),
     ])
 
     const materialIds = materials.map((material) => material.id)
@@ -118,7 +123,7 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    return NextResponse.json({ data: transfers, materials: materialOptions, locations })
+    return NextResponse.json({ data: transfers, materials: materialOptions, locations, employees })
   } catch (error) {
     console.error('Get flow transfers error:', error)
     return NextResponse.json({ error: '获取流程转移记录失败' }, { status: 500 })
@@ -133,7 +138,7 @@ export async function POST(req: NextRequest) {
     const input = flowTransferInputSchema.parse(await req.json())
     const transferDate = parseFlowTransferDate(input.transferDate)
     const transfer = await prisma.$transaction(async (tx) => {
-      const { material } = await resolveFlowTransferDraft(tx, input)
+      const { material, employee } = await resolveFlowTransferDraft(tx, input)
       const transferNo = await nextTransferNo(tx, transferDate)
       return tx.flowTransfer.create({
         data: {
@@ -144,7 +149,9 @@ export async function POST(req: NextRequest) {
           targetLocationId: input.targetLocationId,
           quantity: input.quantity,
           unit: material.stockUnit || material.unit,
-          operator: input.operator,
+          employeeId: employee.id,
+          employeeCode: employee.code,
+          operator: employee.name,
           note: input.note || null,
         },
         include: flowTransferInclude,

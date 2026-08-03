@@ -11,6 +11,7 @@ import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import SearchableSelect from './SearchableSelect'
+import EmployeeMultiSelect, { EmployeeChoice } from './EmployeeMultiSelect'
 import { calculateProductionConsumption, ProductionLossMode } from '@/lib/production-consumption'
 import SortableTableHeader from './SortableTableHeader'
 import useClientTableSort from './useClientTableSort'
@@ -90,6 +91,12 @@ interface DailyProductionReport {
   reportDate: string
   outputQty: number
   workers: string
+  employees: Array<{
+    employeeId?: string | null
+    employeeCode: string
+    employeeName: string
+    employee?: (EmployeeChoice & { isActive: boolean }) | null
+  }>
   note?: string | null
   status: 'DRAFT' | 'CONFIRMED' | 'REVERSED'
   bomId?: string | null
@@ -126,7 +133,7 @@ interface ReportForm {
   consumptionLocationId: string
   outputLocationId: string
   outputQty: number
-  workers: string
+  employeeIds: string[]
   note: string
 }
 
@@ -150,7 +157,7 @@ const emptyForm = (): ReportForm => ({
   consumptionLocationId: '',
   outputLocationId: '',
   outputQty: 0,
-  workers: '',
+  employeeIds: [],
   note: '',
 })
 
@@ -169,6 +176,7 @@ const materialNameSpec = (material: { name: string; spec?: string | null }) =>
 export default function StatsPage({ onMessage }: { onMessage: (msg: string) => void }) {
   const [reports, setReports] = useState<DailyProductionReport[]>([])
   const [materials, setMaterials] = useState<MaterialOption[]>([])
+  const [employees, setEmployees] = useState<EmployeeChoice[]>([])
   const [locations, setLocations] = useState<Array<{ id: string; code: string; name: string; isDefault: boolean }>>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -205,6 +213,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
       }
       setReports(data.data || [])
       setMaterials(data.materials || [])
+      setEmployees(data.employees || [])
     } catch {
       onMessage('获取生产记录失败')
     } finally {
@@ -279,7 +288,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
       consumptionLocationId: report.consumptionLocationId || locations.find((location) => location.isDefault)?.id || '',
       outputLocationId: report.outputLocationId || locations.find((location) => location.isDefault)?.id || '',
       outputQty: Number(report.outputQty),
-      workers: report.workers,
+      employeeIds: report.employees.flatMap((item) => item.employee?.isActive ? [item.employee.id] : []),
       note: report.note || '',
     })
     setConsumptionDraftByMaterial(Object.fromEntries(report.consumptions.map((line) => [line.materialId, {
@@ -294,7 +303,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
   const submitForm = async () => {
     if (!form.finishedMaterialId) return onMessage('请选择产出物料')
     if (!form.consumptionLocationId || !form.outputLocationId) return onMessage('请选择原料出库库位和产出入库库位')
-    if (!form.workers.trim()) return onMessage('请填写生产人员')
+    if (form.employeeIds.length === 0) return onMessage('请选择生产员工')
     if (totalProcessedQty <= 0) return onMessage('产出数量必须大于 0')
     if (!form.bomId) return onMessage('请选择生产方案（BOM）')
     if (!selectedBom?.isActive || previewConsumptions.length === 0) {
@@ -594,8 +603,8 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                   <input type="date" value={form.reportDate} onChange={(event) => setForm({ ...form, reportDate: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2" />
                 </label>
                 <label className="text-sm text-gray-700">
-                  生产人员
-                  <input value={form.workers} onChange={(event) => setForm({ ...form, workers: event.target.value })} placeholder="多人可用逗号分隔" className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2" />
+                  生产员工
+                  <div className="mt-1"><EmployeeMultiSelect value={form.employeeIds} options={employees} onChange={(employeeIds) => setForm({ ...form, employeeIds })} /></div>
                 </label>
                 <div className="md:col-span-2">
                   <div className="mb-1 text-sm text-gray-700">产出物料</div>

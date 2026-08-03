@@ -34,6 +34,7 @@ const ShipmentPage = dynamic(() => import('./components/ShipmentPage'), { loadin
 const ReturnPage = dynamic(() => import('./components/ReturnPage'), { loading: FeaturePageLoading })
 const StatsPage = dynamic(() => import('./components/StatsPage'), { loading: FeaturePageLoading })
 const FlowTransferPage = dynamic(() => import('./components/FlowTransferPage'), { loading: FeaturePageLoading })
+const EmployeePage = dynamic(() => import('./components/EmployeePage'), { loading: FeaturePageLoading })
 const SawingCostCalculatorPage = dynamic(() => import('./components/SawingCostCalculatorPage'), { loading: FeaturePageLoading })
 const ScanPrintPage = dynamic(() => import('./components/ScanPrintPage'), { loading: FeaturePageLoading })
 const BomUsagePage = dynamic(() => import('./components/BomUsagePage'), { loading: FeaturePageLoading })
@@ -141,7 +142,7 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
+type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'employees' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
 type MaterialSection = 'materials' | 'bomWorkspace' | 'bomUsage'
 type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'equipment' | 'logistics' | 'inventory' | 'configuration' | 'tools'
 
@@ -152,7 +153,7 @@ const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: 
   { key: 'equipment', label: '设备', tabs: ['equipment'] },
   { key: 'logistics', label: '物流', tabs: ['materialIn', 'shipment', 'return'] },
   { key: 'inventory', label: '库存', tabs: ['stocks'] },
-  { key: 'configuration', label: '配置', tabs: ['suppliers', 'customers', 'locationSettings', 'unitSettings', 'workCenters', 'processTemplates', 'processRoutes', 'systemSettings'] },
+  { key: 'configuration', label: '配置', tabs: ['suppliers', 'customers', 'employees', 'locationSettings', 'unitSettings', 'workCenters', 'processTemplates', 'processRoutes', 'systemSettings'] },
   { key: 'tools', label: '工具', tabs: ['sawingCost', 'scanPrint', 'archive', 'auditLogs', 'dataTools'] },
 ]
 
@@ -179,6 +180,7 @@ const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
   { key: 'stocks', label: '库存管理', groupKey: 'inventory', groupLabel: '库存', description: '查看库存、库位余额和成本', icon: '库', tab: 'stocks', resource: 'stocks' },
   { key: 'suppliers', label: '供应商资料', groupKey: 'configuration', groupLabel: '配置', description: '维护供应商基础资料', icon: '供', tab: 'suppliers', resource: 'system' },
   { key: 'customers', label: '客户资料', groupKey: 'configuration', groupLabel: '配置', description: '维护客户基础资料', icon: '客', tab: 'customers', resource: 'system' },
+  { key: 'employees', label: '员工资料', groupKey: 'configuration', groupLabel: '配置', description: '维护业务员工并供生产和转移单据选用', icon: '员', tab: 'employees', resource: 'system' },
   { key: 'locationSettings', label: '库位配置', groupKey: 'configuration', groupLabel: '配置', description: '配置库位、用途和默认库位', icon: '位', tab: 'locationSettings', resource: 'system' },
   { key: 'unitSettings', label: '单位配置', groupKey: 'configuration', groupLabel: '配置', description: '配置计量单位和同量纲换算', icon: '单', tab: 'unitSettings', resource: 'system' },
   { key: 'workCenters', label: '工作中心', groupKey: 'configuration', groupLabel: '配置', description: '配置锯切、钻孔、检验等生产能力区域', icon: '中', tab: 'workCenters', resource: 'system' },
@@ -234,6 +236,7 @@ function MenuIcon({ icon }: { icon: string }) {
     scanPrint: '扫',
     suppliers: '供',
     customers: '客',
+    employees: '员',
     processTemplates: '艺',
     processRoutes: '线',
     archive: '档',
@@ -420,6 +423,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'flowTransfers', label: '流程转移', resource: 'stats' },
     { key: 'suppliers', label: '供应商资料', resource: 'system' },
     { key: 'customers', label: '客户资料', resource: 'system' },
+    { key: 'employees', label: '员工资料', resource: 'system' },
     { key: 'locationSettings', label: '库位配置', resource: 'system' },
     { key: 'unitSettings', label: '单位配置', resource: 'system' },
     { key: 'workCenters', label: '工作中心', resource: 'system' },
@@ -2099,6 +2103,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
         {/* 流程转移 */}
         {tab === 'flowTransfers' && <FlowTransferPage onMessage={showMessage} />}
+
+        {/* 员工资料 */}
+        {tab === 'employees' && <EmployeePage onMessage={showMessage} canCreate={canCreate('system')} canUpdate={canUpdate('system')} />}
 
         {/* 锯切加工成本计算 */}
         {tab === 'sawingCost' && <SawingCostCalculatorPage />}

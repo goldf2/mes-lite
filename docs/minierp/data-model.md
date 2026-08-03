@@ -71,6 +71,23 @@
 | expires_at | 过期时间 |
 | created_at | 创建时间 |
 
+### employees
+
+`Employee` 是业务员工档案，不是登录账号。它由“配置 / 员工资料”维护，供生产记录和流程转移选择；新增员工不会自动创建 `Operator`、登录凭证或权限。
+
+| 字段 | 含义 |
+| --- | --- |
+| id | 员工 ID |
+| code | 员工编码，组织内唯一并统一转为大写 |
+| name | 员工姓名 |
+| department | 部门，可选 |
+| phone | 联系电话，可选 |
+| note | 备注，可选 |
+| isActive | 是否允许用于新业务单据 |
+| createdAt / updatedAt | 创建和更新时间 |
+
+员工停用后不再出现在新单据选择器中，但不会删除或改写已经保存的人员快照。`Operator` 继续只负责注册、登录、角色和权限，两者当前不自动绑定。
+
 ### tenant_members
 
 用户在某个租户里的员工身份。
@@ -593,6 +610,8 @@ BOM 数据只保存规范方向：目标物料或产出物料 -> 基准批量输
 
 `DailyProductionReport` 保存 `bomId` 作为生产 BOM 来源标识，同时用 `bomName`、`bomVersion`、`bomType`、`bomOutputQuantity` 和 `bomOutputUnit` 固化可读快照。`bomId` 必须指向当前产出物料的真实启用 BOM；流程转移不写入该模型。
 
+生产记录通过 `DailyProductionReportEmployee` 支持多名员工。每行保存 `employeeId` 以及 `employeeCode`、`employeeName` 快照，`DailyProductionReport.workers` 同步保存按选择顺序拼接的姓名，用于历史显示和兼容查询。员工改名或停用后，历史快照保持不变；新建或修改草稿时只能选择当前启用员工。
+
 `DailyProductionConsumption` 的损耗与耗用字段：
 
 | 字段 | 含义 |
@@ -617,7 +636,8 @@ BOM 数据只保存规范方向：目标物料或产出物料 -> 基准批量输
 | `materialId` | 转移前后的唯一物料，不存在第二个输出物料字段 |
 | `sourceLocationId` / `targetLocationId` | 来源和目标库位，必须不同 |
 | `quantity` / `unit` | 转移数量和物料主库存单位快照，转出和转入数量严格相等 |
-| `operator` / `note` | 业务操作人和备注 |
+| `employeeId` / `employeeCode` / `operator` | 当前员工引用、工号快照和姓名快照；历史旧单允许员工引用为空 |
+| `note` | 业务备注 |
 | `status` | `DRAFT` → `CONFIRMED` → `REVERSED` |
 | 确认/冲销字段 | 确认人、确认时间、冲销人、冲销时间和原因 |
 

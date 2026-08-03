@@ -10,6 +10,7 @@ import {
   parseDailyProductionReportDate,
 } from '@/lib/daily-production-request'
 import { resolveInventoryLocation } from '@/lib/inventory'
+import { employeeNamesSnapshot, resolveActiveEmployees } from '@/lib/employees'
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -26,6 +27,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const report = await prisma.$transaction(async (tx) => {
       const consumptionLocation = await resolveInventoryLocation(tx, input.consumptionLocationId || existing.consumptionLocationId)
       const outputLocation = await resolveInventoryLocation(tx, input.outputLocationId || existing.outputLocationId)
+      const employees = await resolveActiveEmployees(tx, input.employeeIds)
       const snapshot = await buildDailyProductionConsumption(
         tx,
         input.finishedMaterialId,
@@ -34,6 +36,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         { bomId: input.bomId },
       )
       await tx.dailyProductionConsumption.deleteMany({ where: { reportId: existing.id } })
+      await tx.dailyProductionReportEmployee.deleteMany({ where: { reportId: existing.id } })
       return tx.dailyProductionReport.update({
         where: { id: existing.id },
         data: {
@@ -42,7 +45,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           consumptionLocationId: consumptionLocation.id,
           outputLocationId: outputLocation.id,
           outputQty: input.outputQty,
-          workers: input.workers,
+          workers: employeeNamesSnapshot(employees),
           note: input.note || null,
           bomId: snapshot.bom.id,
           bomName: snapshot.bom.name,
@@ -50,6 +53,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           bomType: snapshot.bom.bomType,
           bomOutputQuantity: snapshot.bom.outputQuantity,
           bomOutputUnit: snapshot.bom.outputUnit,
+          employees: {
+            create: employees.map((employee) => ({
+              employeeId: employee.id,
+              employeeCode: employee.code,
+              employeeName: employee.name,
+            })),
+          },
           consumptions: { create: snapshot.consumptions },
         },
         include: dailyProductionReportInclude,

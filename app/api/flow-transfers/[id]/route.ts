@@ -23,7 +23,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
 
     const transfer = await prisma.$transaction(async (tx) => {
-      const { material } = await resolveFlowTransferDraft(tx, input)
+      const { material, employee } = await resolveFlowTransferDraft(tx, input)
       return tx.flowTransfer.update({
         where: { id: existing.id },
         data: {
@@ -33,7 +33,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           targetLocationId: input.targetLocationId,
           quantity: input.quantity,
           unit: material.stockUnit || material.unit,
-          operator: input.operator,
+          employeeId: employee.id,
+          employeeCode: employee.code,
+          operator: employee.name,
           note: input.note || null,
         },
         include: flowTransferInclude,

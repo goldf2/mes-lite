@@ -7,7 +7,7 @@ export const dailyProductionReportInputSchema = z.object({
   consumptionLocationId: z.string().min(1, '请选择原料出库库位').optional(),
   outputLocationId: z.string().min(1, '请选择产出入库库位').optional(),
   outputQty: z.number().finite().positive('产出数量必须大于 0'),
-  workers: z.string().trim().min(1, '生产人员必填'),
+  employeeIds: z.array(z.string().min(1)).min(1, '请选择生产员工').max(50, '一次最多选择 50 名员工'),
   note: z.string().trim().optional(),
   consumptions: z.array(z.object({
     materialId: z.string().min(1),
@@ -39,6 +39,12 @@ export const dailyProductionReportInclude = {
       stockUnit: true,
       unit: true,
     },
+  },
+  employees: {
+    include: {
+      employee: { select: { id: true, code: true, name: true, department: true, isActive: true } },
+    },
+    orderBy: { createdAt: 'asc' as const },
   },
   consumptions: {
     include: {

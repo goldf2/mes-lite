@@ -38,6 +38,13 @@ interface MaterialOption {
   } | null
 }
 
+interface EmployeeOption {
+  id: string
+  code: string
+  name: string
+  department?: string | null
+}
+
 interface FlowTransfer {
   id: string
   transferNo: string
@@ -45,6 +52,8 @@ interface FlowTransfer {
   quantity: number
   unit: string
   operator: string
+  employeeId?: string | null
+  employee?: (EmployeeOption & { isActive: boolean }) | null
   note?: string | null
   status: 'DRAFT' | 'CONFIRMED' | 'REVERSED'
   confirmedAt?: string | null
@@ -63,7 +72,7 @@ interface TransferForm {
   sourceLocationId: string
   targetLocationId: string
   quantity: number
-  operator: string
+  employeeId: string
   note: string
 }
 
@@ -79,7 +88,7 @@ const emptyForm = (): TransferForm => ({
   sourceLocationId: '',
   targetLocationId: '',
   quantity: 0,
-  operator: '',
+  employeeId: '',
   note: '',
 })
 
@@ -98,6 +107,7 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
   const [transfers, setTransfers] = useState<FlowTransfer[]>([])
   const [materials, setMaterials] = useState<MaterialOption[]>([])
   const [locations, setLocations] = useState<LocationOption[]>([])
+  const [employees, setEmployees] = useState<EmployeeOption[]>([])
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState('ALL')
   const [loading, setLoading] = useState(false)
@@ -121,6 +131,7 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
       setTransfers(data.data || [])
       setMaterials(data.materials || [])
       setLocations(data.locations || [])
+      setEmployees(data.employees || [])
     } catch {
       onMessage('获取流程转移记录失败')
     } finally {
@@ -161,7 +172,7 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
       sourceLocationId: transfer.sourceLocation.id,
       targetLocationId: transfer.targetLocation.id,
       quantity: Number(transfer.quantity),
-      operator: transfer.operator,
+      employeeId: transfer.employee?.isActive ? transfer.employee.id : '',
       note: transfer.note || '',
     })
     setFormOpen(true)
@@ -172,7 +183,7 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
     if (!form.sourceLocationId || !form.targetLocationId) return onMessage('请选择来源和目标库位')
     if (form.sourceLocationId === form.targetLocationId) return onMessage('来源库位和目标库位不能相同')
     if (Number(form.quantity) <= 0) return onMessage('转移数量必须大于 0')
-    if (!form.operator.trim()) return onMessage('请填写操作人')
+    if (!form.employeeId) return onMessage('请选择操作员工')
 
     setSaving(true)
     try {
@@ -181,7 +192,7 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
         {
           method: editingTransfer ? 'PATCH' : 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...form, quantity: Number(form.quantity), operator: form.operator.trim() }),
+          body: JSON.stringify({ ...form, quantity: Number(form.quantity) }),
         },
       )
       const data = await response.json()
@@ -353,8 +364,18 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
               <input type="date" value={form.transferDate} onChange={(event) => setForm({ ...form, transferDate: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2" />
             </label>
             <label className="text-sm text-gray-700">
-              操作人
-              <input value={form.operator} onChange={(event) => setForm({ ...form, operator: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2" />
+              操作员工
+              <SearchableSelect
+                value={form.employeeId}
+                onChange={(employeeId) => setForm({ ...form, employeeId })}
+                options={employees.map((employee) => ({
+                  value: employee.id,
+                  label: `${employee.code} · ${employee.name}${employee.department ? ` · ${employee.department}` : ''}`,
+                  keywords: `${employee.name} ${employee.department || ''}`,
+                }))}
+                placeholder="输入工号、姓名或部门筛选"
+                className="mt-1"
+              />
             </label>
             <label className="text-sm text-gray-700 md:col-span-2">
               转移物料

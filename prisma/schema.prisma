@@ -54,6 +54,23 @@ model WorkCenter {
   @@index([isActive])
 }
 
+model Employee {
+  id                     String                          @id @default(cuid())
+  code                   String                          @unique
+  name                   String
+  department             String?
+  phone                  String?
+  note                   String?
+  isActive               Boolean                         @default(true)
+  dailyProductionReports DailyProductionReportEmployee[]
+  flowTransfers          FlowTransfer[]
+  createdAt              DateTime                        @default(now())
+  updatedAt              DateTime                        @updatedAt
+
+  @@index([isActive])
+  @@index([name])
+}
+
 model Equipment {
   id              String     @id @default(cuid())
   code            String     @unique
@@ -476,27 +493,27 @@ model WorkReport {
 // ==================== 独立生产日报 ====================
 
 model DailyProductionReport {
-  id                     String                       @id @default(cuid())
-  reportNo               String                       @unique
+  id                     String                          @id @default(cuid())
+  reportNo               String                          @unique
   reportDate             DateTime
   finishedMaterialId     String
-  finishedMaterial       Material                     @relation("DailyProductionFinishedMaterial", fields: [finishedMaterialId], references: [id])
+  finishedMaterial       Material                        @relation("DailyProductionFinishedMaterial", fields: [finishedMaterialId], references: [id])
   consumptionLocationId  String?
-  consumptionLocation    InventoryLocation?           @relation("DailyProductionConsumptionLocation", fields: [consumptionLocationId], references: [id])
+  consumptionLocation    InventoryLocation?              @relation("DailyProductionConsumptionLocation", fields: [consumptionLocationId], references: [id])
   outputLocationId       String?
-  outputLocation         InventoryLocation?           @relation("DailyProductionOutputLocation", fields: [outputLocationId], references: [id])
-  outputQty              Float                        @default(0)
+  outputLocation         InventoryLocation?              @relation("DailyProductionOutputLocation", fields: [outputLocationId], references: [id])
+  outputQty              Float                           @default(0)
   workers                String
   note                   String?
-  status                 String                       @default("DRAFT")
+  status                 String                          @default("DRAFT")
   bomId                  String
   bomName                String
   bomVersion             String
   bomType                String
   bomOutputQuantity      Float
   bomOutputUnit          String
-  outputValuationQty     Float                        @default(0)
-  outputCostAmount       Float                        @default(0)
+  outputValuationQty     Float                           @default(0)
+  outputCostAmount       Float                           @default(0)
   outputStockUnit        String?
   outputValuationUnit    String?
   outputConversionRate   Float?
@@ -506,13 +523,28 @@ model DailyProductionReport {
   reversedAt             DateTime?
   reversedBy             String?
   reverseReason          String?
+  employees              DailyProductionReportEmployee[]
   consumptions           DailyProductionConsumption[]
-  createdAt              DateTime                     @default(now())
-  updatedAt              DateTime                     @updatedAt
+  createdAt              DateTime                        @default(now())
+  updatedAt              DateTime                        @updatedAt
 
   @@index([reportDate])
   @@index([finishedMaterialId])
   @@index([status])
+}
+
+model DailyProductionReportEmployee {
+  id           String                @id @default(cuid())
+  reportId     String
+  report       DailyProductionReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  employeeId   String?
+  employee     Employee?             @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  employeeCode String
+  employeeName String
+  createdAt    DateTime              @default(now())
+
+  @@unique([reportId, employeeId])
+  @@index([employeeId])
 }
 
 model DailyProductionConsumption {
@@ -562,6 +594,9 @@ model FlowTransfer {
   targetLocation   InventoryLocation @relation("FlowTransferTargetLocation", fields: [targetLocationId], references: [id])
   quantity         Float
   unit             String
+  employeeId       String?
+  employee         Employee?         @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  employeeCode     String?
   operator         String
   note             String?
   status           String            @default("DRAFT")
@@ -577,6 +612,7 @@ model FlowTransfer {
   @@index([materialId])
   @@index([sourceLocationId])
   @@index([targetLocationId])
+  @@index([employeeId])
   @@index([status])
 }
 

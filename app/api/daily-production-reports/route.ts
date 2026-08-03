@@ -11,6 +11,7 @@ import {
   parseDailyProductionReportDate,
 } from '@/lib/daily-production-request'
 import { resolveInventoryLocation } from '@/lib/inventory'
+import { employeeNamesSnapshot, resolveActiveEmployees } from '@/lib/employees'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
       ]
     }
 
-    const [reports, materials] = await Promise.all([
+    const [reports, materials, employees] = await Promise.all([
       prisma.dailyProductionReport.findMany({
         where,
         include: dailyProductionReportInclude,
@@ -71,6 +72,11 @@ export async function GET(req: NextRequest) {
         },
         orderBy: [{ category: 'asc' }, { code: 'asc' }],
         take: 1000,
+      }),
+      prisma.employee.findMany({
+        where: { isActive: true },
+        select: { id: true, code: true, name: true, department: true },
+        orderBy: [{ code: 'asc' }],
       }),
     ])
     const materialCodes = materials.flatMap((material) => [material.code, `MAT-${material.code}`])
@@ -154,7 +160,7 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    return NextResponse.json({ data: reports, materials: materialsWithBom })
+    return NextResponse.json({ data: reports, materials: materialsWithBom, employees })
   } catch (error) {
     console.error('Get daily production reports error:', error)
     return NextResponse.json({ error: '获取生产记录失败' }, { status: 500 })
@@ -171,6 +177,7 @@ export async function POST(req: NextRequest) {
     const report = await prisma.$transaction(async (tx) => {
       const consumptionLocation = await resolveInventoryLocation(tx, input.consumptionLocationId)
       const outputLocation = await resolveInventoryLocation(tx, input.outputLocationId)
+      const employees = await resolveActiveEmployees(tx, input.employeeIds)
       const snapshot = await buildDailyProductionConsumption(
         tx,
         input.finishedMaterialId,
@@ -187,7 +194,7 @@ export async function POST(req: NextRequest) {
           consumptionLocationId: consumptionLocation.id,
           outputLocationId: outputLocation.id,
           outputQty: input.outputQty,
-          workers: input.workers,
+          workers: employeeNamesSnapshot(employees),
           note: input.note || null,
           bomId: snapshot.bom.id,
           bomName: snapshot.bom.name,
@@ -195,6 +202,13 @@ export async function POST(req: NextRequest) {
           bomType: snapshot.bom.bomType,
           bomOutputQuantity: snapshot.bom.outputQuantity,
           bomOutputUnit: snapshot.bom.outputUnit,
+          employees: {
+            create: employees.map((employee) => ({
+              employeeId: employee.id,
+              employeeCode: employee.code,
+              employeeName: employee.name,
+            })),
+          },
           consumptions: { create: snapshot.consumptions },
         },
         include: dailyProductionReportInclude,
