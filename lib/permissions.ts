@@ -24,7 +24,7 @@ export const permissionActions = [
 
 export const permissionResources = [
   { key: 'dashboard', label: '仪表盘' },
-  { key: 'orders', label: '工单管理' },
+  { key: 'orders', label: '生产订单' },
   { key: 'materials', label: '物料管理' },
   { key: 'workInstructions', label: '产品文档' },
   { key: 'equipment', label: '设备管理' },

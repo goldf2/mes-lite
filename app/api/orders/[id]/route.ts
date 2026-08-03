@@ -31,7 +31,7 @@ export async function GET(
     })
 
     if (!order) {
-      return NextResponse.json({ error: '工单不存在' }, { status: 404 })
+      return NextResponse.json({ error: '生产订单不存在' }, { status: 404 })
     }
 
     // 计算当前应报工工序
@@ -60,6 +60,6 @@ export async function GET(
     })
   } catch (error) {
     console.error('Get order detail error:', error)
-    return NextResponse.json({ error: '获取工单详情失败' }, { status: 500 })
+    return NextResponse.json({ error: '获取生产订单详情失败' }, { status: 500 })
   }
 }

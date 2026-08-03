@@ -172,7 +172,7 @@ const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
   { key: 'bomUsage', label: 'BOM 反查', groupKey: 'materials', groupLabel: '物料', description: '查看原材料被哪些产品使用', icon: '查', tab: 'materials', materialSection: 'bomUsage', resource: 'bomCost' },
   { key: 'workInstructions', label: '产品文档', groupKey: 'production', groupLabel: '生产', description: '管理图纸、PDF 和作业指导文档', icon: '书', tab: 'workInstructions', resource: 'workInstructions' },
   { key: 'equipment', label: '设备台账', groupKey: 'equipment', groupLabel: '设备', description: '维护设备、状态、工作中心归属和基础参数', icon: '机', tab: 'equipment', resource: 'equipment' },
-  { key: 'orders', label: '工单管理', groupKey: 'production', groupLabel: '生产', description: '创建、查看和处理生产工单', icon: '工', tab: 'orders', resource: 'orders' },
+  { key: 'orders', label: '生产订单', groupKey: 'production', groupLabel: '生产', description: '先保存生产计划，班后再登记实际产量', icon: '工', tab: 'orders', resource: 'orders' },
   { key: 'stats', label: '生产记录', groupKey: 'production', groupLabel: '生产', description: '按 BOM 登记投入、产出与入库', icon: '产', tab: 'stats', resource: 'stats' },
   { key: 'flowTransfers', label: '流程转移', groupKey: 'production', groupLabel: '生产', description: '同一物料在库位或流程节点之间转移', icon: '转', tab: 'flowTransfers', resource: 'stats' },
   { key: 'materialIn', label: '来料管理', groupKey: 'logistics', groupLabel: '物流', description: '登记供应商来料、实测和采购计价', icon: '入', tab: 'materialIn', resource: 'materialIn' },
@@ -415,7 +415,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'workInstructions', label: '产品文档', resource: 'workInstructions' },
     { key: 'equipment', label: '设备台账', resource: 'equipment' },
     { key: 'materialIn', label: '来料管理', resource: 'materialIn' },
-    { key: 'orders', label: '工单管理', resource: 'orders' },
+    { key: 'orders', label: '生产订单', resource: 'orders' },
     { key: 'dispatch', label: '派工管理', resource: 'dispatch' },
     { key: 'shipment', label: '发货管理', resource: 'shipment' },
     { key: 'return', label: '退货管理', resource: 'return' },
@@ -508,8 +508,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     canRead(item.resource) && (!item.extraResource || canRead(item.extraResource))
   ))
   const tabLabels: Record<string, string> = Object.fromEntries(baseNavItems.map((item) => [item.key, item.label]))
-  tabLabels.create = '创建工单'
-  tabLabels.detail = '工单详情'
+  tabLabels.create = '创建生产订单'
+  tabLabels.detail = '生产订单详情'
   const activeTabLabel = tab === 'materials'
     ? materialSectionItems.find((item) => item.key === materialSection)?.label || '物料与 BOM'
     : tabLabels[tab] || 'MES-lite'
@@ -966,7 +966,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       })
       const data = await res.json()
       if (res.ok) {
-        showMessage(`工单创建成功：${data.data.orderNo}`)
+        showMessage(`生产订单已保存：${data.data.orderNo}`)
         setPlanQty(100)
         setOrderVoucherNo('')
         setSelectedMaterialId('')
@@ -1334,7 +1334,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                         storageKey="mes-lite.searchPresets.orders"
                         value={orderKeyword}
                         onChange={setOrderKeyword}
-                        placeholder="搜索工单号、凭据号或物料"
+                        placeholder="搜索生产订单号、凭据号或物料"
                       />
                     )}
                     filters={(
@@ -1518,18 +1518,18 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           />
         )}
 
-        {/* 工单管理 */}
+        {/* 生产订单 */}
         {tab === 'orders' && (
           <div className="bg-white rounded-lg shadow p-3 sm:p-6">
             {orders.length === 0 ? (
               <div className="text-center py-8 text-gray-500 sm:py-12">
-                <p className="mb-4">暂无工单</p>
+                <p className="mb-4">暂无生产订单</p>
                 {canCreate('orders') && (
                   <AppButton
                     variant="create"
                     onClick={() => setTab('create')}
                   >
-                    新增工单
+                    新增生产订单
                   </AppButton>
                 )}
               </div>
@@ -1593,7 +1593,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 <table className="w-full min-w-[1080px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">
                   <thead className="bg-gray-50">
                     <tr>
-                      <SortableTableHeader column="orderNo" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>工单号</SortableTableHeader>
+                      <SortableTableHeader column="orderNo" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>生产订单号</SortableTableHeader>
                       <SortableTableHeader column="voucherNo" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>凭据号</SortableTableHeader>
                       <SortableTableHeader column="target" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>目标</SortableTableHeader>
                       <SortableTableHeader column="planQty" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>计划</SortableTableHeader>
@@ -1647,12 +1647,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           </div>
         )}
 
-        {/* 工单详情 */}
+        {/* 生产订单详情 */}
         {tab === 'detail' && orderDetail && (
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-xl font-semibold">工单详情</h2>
+                <h2 className="text-xl font-semibold">生产订单详情</h2>
                 <p className="text-sm text-gray-500">{orderDetail.orderNo}</p>
                 <p className="text-sm text-gray-500">凭据号：{orderDetail.voucherNo || '-'}</p>
               </div>
@@ -1728,17 +1728,18 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <AttachmentPanel
                 ownerType="PRODUCTION_ORDER"
                 ownerId={orderDetail.id}
-                title="工单原始单据"
+                title="生产订单原始单据"
                 onMessage={showMessage}
               />
             </div>
           </div>
         )}
 
-        {/* 创建工单 */}
+        {/* 创建生产订单 */}
         {tab === 'create' && (
           <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
-            <h2 className="text-xl font-semibold mb-6">创建工单</h2>
+            <h2 className="text-xl font-semibold mb-2">创建生产订单</h2>
+            <p className="mb-6 text-sm text-gray-500">先录入基本信息形成草稿；班后再进入订单登记实际产量、投入和损耗。</p>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">选择物料</label>
@@ -1767,7 +1768,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 />
               </div>
               <button onClick={createOrder} disabled={loading} className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
-                {loading ? '创建中...' : '创建工单'}
+                {loading ? '创建中...' : '保存生产订单'}
               </button>
             </div>
           </div>

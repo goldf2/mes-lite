@@ -133,7 +133,7 @@ async function main() {
         bomId: snapshot.bom.id,
         bomName: snapshot.bom.name,
         bomVersion: snapshot.bom.version,
-        bomType: snapshot.bom.bomType,
+        bomType: 'PRODUCTION',
         bomOutputQuantity: snapshot.bom.outputQuantity,
         bomOutputUnit: snapshot.bom.outputUnit,
         consumptions: { create: snapshot.consumptions },

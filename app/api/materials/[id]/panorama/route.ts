@@ -332,7 +332,6 @@ export async function GET(
         id: bom.id,
         name: bom.name,
         version: bom.version,
-        bomType: bom.bomType,
         isDefault: bom.isDefault,
         isActive: bom.isActive,
         outputQuantity: bom.outputQuantity,

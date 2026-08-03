@@ -149,6 +149,7 @@ model Material {
   stock                       Stock?
   costLayers                  InventoryCostLayer[]
   bomItems                    BOMItem[]
+  bomOutputs                  BOMOutput[]
   pickItems                   PickItem[]
   materialIns                 MaterialIn[]
   productionOrders            ProductionOrder[]            @relation("ProductionOrderTargetMaterial")
@@ -169,10 +170,10 @@ model BOM {
   productId      String
   product        Product      @relation(fields: [productId], references: [id])
   items          BOMItem[]
+  outputs        BOMOutput[]
   costRuns       BomCostRun[]
   name           String       @default("默认方案")
   version        String       @default("v1")
-  bomType        String       @default("STANDARD")
   isDefault      Boolean      @default(true)
   isActive       Boolean      @default(true)
   outputQuantity Float        @default(1)
@@ -181,6 +182,22 @@ model BOM {
 
   @@unique([productId, version])
   @@index([productId, isActive, isDefault])
+}
+
+model BOMOutput {
+  id         String   @id @default(cuid())
+  bomId      String
+  bom        BOM      @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id])
+  quantity   Float    @default(1)
+  unit       String
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@unique([bomId, materialId])
+  @@index([materialId])
+  @@index([bomId, isPrimary])
 }
 
 model BOMItem {

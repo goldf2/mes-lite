@@ -50,7 +50,6 @@ interface BomOption {
   id: string
   name: string
   version: string
-  bomType: string
   isDefault: boolean
   isActive: boolean
   outputQuantity: number
@@ -637,7 +636,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                     options={(selectedMaterial?.boms || []).map((bom) => ({
                       value: bom.id,
                       label: `${bom.name} · ${bom.version}${bom.isDefault ? ' · 默认' : ''} · ${numberText(bom.outputQuantity)} ${bom.outputUnit}/批`,
-                      keywords: `BOM ${bom.bomType}`,
+                      keywords: 'BOM 生产转换',
                     }))}
                     placeholder={selectedMaterial ? '输入 BOM 名称或版本筛选' : '请先选择产出物料'}
                     disabled={!selectedMaterial}

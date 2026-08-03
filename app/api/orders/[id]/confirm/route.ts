@@ -13,11 +13,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     })
 
     if (!order) {
-      return NextResponse.json({ error: '工单不存在' }, { status: 404 })
+      return NextResponse.json({ error: '生产订单不存在' }, { status: 404 })
     }
 
     if (order.status !== 'DRAFT') {
-      return NextResponse.json({ error: '只能确认草稿状态的工单' }, { status: 400 })
+      return NextResponse.json({ error: '只能确认草稿状态的生产订单' }, { status: 400 })
     }
 
     const updatedOrder = await prisma.productionOrder.update({
@@ -30,11 +30,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     return NextResponse.json({
       success: true,
-      message: order._count.picks === 0 ? `工单 ${updatedOrder.orderNo} 已确认，可直接派工` : `工单 ${updatedOrder.orderNo} 已确认`,
+      message: order._count.picks === 0 ? `生产订单 ${updatedOrder.orderNo} 已确认，可直接派工` : `生产订单 ${updatedOrder.orderNo} 已确认`,
       data: updatedOrder,
     })
   } catch (error) {
     console.error('Confirm order error:', error)
-    return NextResponse.json({ error: '确认工单失败' }, { status: 500 })
+    return NextResponse.json({ error: '确认生产订单失败' }, { status: 500 })
   }
 }

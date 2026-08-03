@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
-import { materialAsProductOption, resolveProductId, simpleProductSku } from '@/lib/material-product'
+import { materialAsProductOption, materialProductPrefix, resolveProductId, simpleProductSku } from '@/lib/material-product'
 import { isMeterUnit } from '@/lib/units'
 
 export const dynamic = 'force-dynamic'
@@ -16,17 +16,23 @@ const bomItemSchema = z.object({
   wastageRate: z.number().finite().nonnegative().optional().default(0),
 })
 
+const bomOutputSchema = z.object({
+  materialId: z.string().min(1, '请选择产出物料'),
+  quantity: z.number().finite().positive('基准产出数量必须大于 0'),
+  isPrimary: z.boolean().optional().default(false),
+})
+
 const saveBomSchema = z.object({
   productId: z.string().min(1, '请选择物料'),
   bomId: z.string().min(1).optional(),
   createNew: z.boolean().optional().default(false),
   name: z.string().trim().min(1).max(80).optional(),
   version: z.string().trim().min(1).max(30).optional(),
-  bomType: z.enum(['STANDARD', 'BASE_ONE_TO_ONE']).optional().default('STANDARD'),
   isDefault: z.boolean().optional(),
   isActive: z.boolean().optional().default(true),
   outputQuantity: z.number().finite().positive('基准产出数量必须大于 0').default(1),
-  items: z.array(bomItemSchema).max(200, 'BOM 明细过多'),
+  outputs: z.array(bomOutputSchema).min(1, '至少需要一项产出').max(50, 'BOM 产出过多').optional(),
+  items: z.array(bomItemSchema).min(1, '至少需要一项投入').max(200, 'BOM 明细过多'),
 })
 
 const bomItemSelect = {
@@ -69,12 +75,33 @@ const bomSelect = {
   id: true,
   name: true,
   version: true,
-  bomType: true,
   isDefault: true,
   isActive: true,
   outputQuantity: true,
   outputUnit: true,
   createdAt: true,
+  outputs: {
+    orderBy: { isPrimary: 'desc' as const },
+    select: {
+      id: true,
+      quantity: true,
+      unit: true,
+      isPrimary: true,
+      material: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          spec: true,
+          category: true,
+          unit: true,
+          stockUnit: true,
+          valuationUnit: true,
+          primaryMeasure: true,
+        },
+      },
+    },
+  },
   items: {
     orderBy: { id: 'asc' as const },
     select: bomItemSelect,
@@ -200,27 +227,54 @@ export async function PUT(req: NextRequest) {
     if (denied) return denied
 
     const input = saveBomSchema.parse(await req.json())
-    if (input.bomType === 'BASE_ONE_TO_ONE' && (
-      input.outputQuantity !== 1
-      || input.items.length !== 1
-      || input.items[0].quantity !== 1
-    )) {
-      return NextResponse.json({ error: '一对一基础 BOM 必须为 1 个输入对应 1 个产出' }, { status: 400 })
+    const submittedOutputs = input.outputs || []
+    if (submittedOutputs.length > 0) {
+      const primaryCount = submittedOutputs.filter((output) => output.isPrimary).length
+      if (primaryCount !== 1) {
+        return NextResponse.json({ error: 'BOM 必须且只能设置一项主产出' }, { status: 400 })
+      }
+      if (new Set(submittedOutputs.map((output) => output.materialId)).size !== submittedOutputs.length) {
+        return NextResponse.json({ error: '同一产出物料不能重复添加' }, { status: 400 })
+      }
     }
 
-    const resolvedProductId = await prisma.$transaction((tx) => resolveProductId(tx, input.productId, { description: '由物料自动映射，用于 BOM 关系。' }))
+    const requestedPrimaryMaterialId = submittedOutputs.find((output) => output.isPrimary)?.materialId
+    const resolvedProductId = await prisma.$transaction((tx) => resolveProductId(
+      tx,
+      requestedPrimaryMaterialId ? `${materialProductPrefix}${requestedPrimaryMaterialId}` : input.productId,
+      { description: '由 BOM 主产出物料自动映射。' },
+    ))
     const product = await prisma.product.findUnique({ where: { id: resolvedProductId } })
     if (!product) return NextResponse.json({ error: '物料不存在' }, { status: 404 })
     const outputCode = product.sku.startsWith('MAT-') ? product.sku.slice(4) : product.sku
-    const outputMaterial = await prisma.material.findFirst({
-      where: { code: outputCode, deletedAt: null },
+    const legacyOutputMaterial = submittedOutputs.length === 0
+      ? await prisma.material.findFirst({
+          where: { code: outputCode, deletedAt: null },
+          select: { id: true, stockUnit: true, unit: true },
+        })
+      : null
+    const normalizedOutputs = submittedOutputs.length > 0
+      ? submittedOutputs
+      : legacyOutputMaterial
+        ? [{ materialId: legacyOutputMaterial.id, quantity: input.outputQuantity, isPrimary: true }]
+        : []
+    if (normalizedOutputs.length === 0) return NextResponse.json({ error: 'BOM 产出物料不存在或已归档' }, { status: 400 })
+
+    const outputMaterialIds = normalizedOutputs.map((output) => output.materialId)
+    const outputMaterials = await prisma.material.findMany({
+      where: { id: { in: outputMaterialIds }, deletedAt: null },
       select: { id: true, stockUnit: true, unit: true },
     })
-    if (!outputMaterial) return NextResponse.json({ error: 'BOM 产出物料不存在或已归档' }, { status: 400 })
+    if (outputMaterials.length !== outputMaterialIds.length) {
+      return NextResponse.json({ error: 'BOM 中存在无效或已归档的产出物料' }, { status: 400 })
+    }
+    const outputMaterialById = new Map(outputMaterials.map((material) => [material.id, material]))
+    const primaryOutput = normalizedOutputs.find((output) => output.isPrimary)!
+    const primaryOutputMaterial = outputMaterialById.get(primaryOutput.materialId)!
 
     const materialIds = Array.from(new Set(input.items.map((item) => item.materialId)))
-    if (materialIds.includes(outputMaterial.id)) {
-      return NextResponse.json({ error: 'BOM 不能消耗产出物料自身；同物料移库请使用移库单' }, { status: 400 })
+    if (materialIds.some((materialId) => outputMaterialIds.includes(materialId))) {
+      return NextResponse.json({ error: 'BOM 投入与产出不能使用同一物料；同物料跨库位请使用流程转移' }, { status: 400 })
     }
     if (materialIds.length !== input.items.length) {
       return NextResponse.json({ error: '同一原料不能重复关联' }, { status: 400 })
@@ -251,6 +305,15 @@ export async function PUT(req: NextRequest) {
         quantity: item.quantity,
         unit: material?.stockUnit || material?.unit || '件',
         wastageRate: 0,
+      }
+    })
+    const outputs = normalizedOutputs.map((output) => {
+      const material = outputMaterialById.get(output.materialId)!
+      return {
+        materialId: output.materialId,
+        quantity: output.quantity,
+        unit: material.stockUnit || material.unit || '件',
+        isPrimary: Boolean(output.isPrimary),
       }
     })
 
@@ -288,24 +351,22 @@ export async function PUT(req: NextRequest) {
             data: {
               name: input.name || '默认方案',
               version,
-              bomType: input.bomType,
               isDefault: shouldDefault,
               isActive: input.isActive,
-              outputQuantity: input.outputQuantity,
-              outputUnit: outputMaterial.stockUnit || outputMaterial.unit,
+              outputQuantity: primaryOutput.quantity,
+              outputUnit: primaryOutputMaterial.stockUnit || primaryOutputMaterial.unit,
             },
             select: { id: true },
           })
         : await tx.bOM.create({
             data: {
               productId: product.id,
-              name: input.name || (input.bomType === 'BASE_ONE_TO_ONE' ? '一对一基础转换' : `方案 ${version}`),
+              name: input.name || `方案 ${version}`,
               version,
-              bomType: input.bomType,
               isDefault: shouldDefault,
               isActive: input.isActive,
-              outputQuantity: input.outputQuantity,
-              outputUnit: outputMaterial.stockUnit || outputMaterial.unit,
+              outputQuantity: primaryOutput.quantity,
+              outputUnit: primaryOutputMaterial.stockUnit || primaryOutputMaterial.unit,
             },
             select: { id: true },
           })
@@ -326,6 +387,10 @@ export async function PUT(req: NextRequest) {
           data: items.map((item) => ({ ...item, bomId: bom.id })),
         })
       }
+      await tx.bOMOutput.deleteMany({ where: { bomId: bom.id } })
+      await tx.bOMOutput.createMany({
+        data: outputs.map((output) => ({ ...output, bomId: bom.id })),
+      })
 
       await tx.bOM.updateMany({
         where: { productId: product.id, isActive: false, isDefault: true },

@@ -96,7 +96,7 @@ async function main() {
           bomId: bom.id,
           bomName: bom.name,
           bomVersion: bom.version,
-          bomType: bom.bomType,
+          bomType: 'PRODUCTION',
           bomOutputQuantity: bom.outputQuantity,
           bomOutputUnit: bom.outputUnit,
         },

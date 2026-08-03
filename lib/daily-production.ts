@@ -171,7 +171,6 @@ export async function buildDailyProductionConsumption(
       id: bom.id,
       name: bom.name,
       version: bom.version,
-      bomType: bom.bomType,
       outputQuantity: Number(bom.outputQuantity),
       outputUnit: bom.outputUnit,
     },

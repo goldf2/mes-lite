@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
     }
     console.error('Create order error:', error)
-    return NextResponse.json({ error: '创建工单失败' }, { status: 500 })
+    return NextResponse.json({ error: '创建生产订单失败' }, { status: 500 })
   }
 }
 
@@ -142,7 +142,7 @@ export async function GET(req: NextRequest) {
     })
   } catch (error) {
     console.error('Get orders error:', error)
-    return NextResponse.json({ error: '获取工单列表失败' }, { status: 500 })
+    return NextResponse.json({ error: '获取生产订单列表失败' }, { status: 500 })
   }
 }
 
@@ -153,11 +153,11 @@ export async function DELETE(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
-    if (!id) return NextResponse.json({ error: '缺少工单 ID' }, { status: 400 })
+    if (!id) return NextResponse.json({ error: '缺少生产订单 ID' }, { status: 400 })
 
     const order = await prisma.productionOrder.findUnique({ where: { id } })
     if (!order || order.deletedAt) {
-      return NextResponse.json({ error: '工单不存在或已归档' }, { status: 404 })
+      return NextResponse.json({ error: '生产订单不存在或已归档' }, { status: 404 })
     }
 
     const updated = await prisma.productionOrder.update({
@@ -174,9 +174,9 @@ export async function DELETE(req: NextRequest) {
       afterData: updated,
     })
 
-    return NextResponse.json({ success: true, message: '工单已归档，可在归档记录中恢复' })
+    return NextResponse.json({ success: true, message: '生产订单已归档，可在归档记录中恢复' })
   } catch (error) {
     console.error('Archive order error:', error)
-    return NextResponse.json({ error: '归档工单失败' }, { status: 500 })
+    return NextResponse.json({ error: '归档生产订单失败' }, { status: 500 })
   }
 }
