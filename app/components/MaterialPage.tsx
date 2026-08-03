@@ -1522,6 +1522,11 @@ export default function MaterialPage({
 
   const addOutputMaterialToDraft = useCallback((materialId: string) => {
     if (!materialId) return
+    if (materialId === relationMaterialId) {
+      onMessage('该物料已选为当前投入，不能同时作为产出')
+      setRelationOutputMaterialId('')
+      return
+    }
     if (!selectedMaterial) {
       selectOutputMaterialForBom(materialId)
       return
@@ -1547,7 +1552,7 @@ export default function MaterialPage({
           unit: material.stockUnit || material.unit || '件',
         }])
     setRelationOutputMaterialId('')
-  }, [bomMaterialById, draftBomItems, onMessage, selectOutputMaterialForBom, selectedMaterial])
+  }, [bomMaterialById, draftBomItems, onMessage, relationMaterialId, selectOutputMaterialForBom, selectedMaterial])
 
   const selectExistingBom = useCallback((materialId: string, bomId: string) => {
     loadedBomDraftSignatureRef.current = ''
@@ -1659,7 +1664,8 @@ export default function MaterialPage({
   }
 
   const saveSelectedBom = async () => {
-    if (!selectedMaterial) return onMessage('请选择物料')
+    if (!selectedMaterial) return onMessage('请先添加主产出物料')
+    if (draftBomItems.length === 0) return onMessage('请至少添加一项投入物料')
     if (!draftBomName.trim()) return onMessage('请填写 BOM 方案名称')
     if (!Number.isFinite(selectedBomOutputQuantity) || selectedBomOutputQuantity <= 0) return onMessage('基准产出数量必须大于 0')
     await saveBomForProduct(
@@ -2378,98 +2384,102 @@ export default function MaterialPage({
             </button>
           </div>
 
-          <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50/70 p-3">
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-              <div className="min-w-0">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <label className="text-sm font-medium text-gray-800">投入（物料）</label>
-                  {relationMaterial && (
-                    <span className="rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                      主库存计算单位：{relationMaterial.stockUnit || relationMaterial.unit}
-                    </span>
-                  )}
+          <div className="mb-3 grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
+            <section className="min-w-0 rounded-lg border border-blue-100 bg-blue-50/40 p-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">投入物料</div>
+                  <div className="mt-0.5 text-xs text-gray-500">选择物料后使用下方转换模型添加或更新投入。</div>
                 </div>
-                <BomMaterialSelectSearch
-                  value={relationMaterialId}
-                  materials={bomMaterialOptions}
-                  disabledIds={[
-                    ...(selectedMaterialId ? [selectedMaterialId] : []),
-                    ...draftBomOutputs.map((output) => output.materialId),
-                  ]}
-                  onChange={(value) => {
-                    setRelationMaterialId(value)
-                    resetRelationCalculator()
-                  }}
-                />
+                <span className="rounded bg-white px-2 py-1 text-xs font-medium text-blue-700">已添加 {draftBomItems.length} 项</span>
               </div>
+              <BomMaterialSelectSearch
+                value={relationMaterialId}
+                materials={bomMaterialOptions}
+                disabledIds={[
+                  ...(selectedMaterialId ? [selectedMaterialId] : []),
+                  ...draftBomOutputs.map((output) => output.materialId),
+                ]}
+                onChange={(value) => {
+                  setRelationMaterialId(value)
+                  resetRelationCalculator()
+                }}
+              />
+              {relationMaterial && (
+                <div className="mt-2 grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 rounded-lg border border-blue-100 bg-white p-2">
+                  <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50">
+                    {relationMaterial.primaryImage ? (
+                      <img
+                        src={relationMaterial.primaryImage.url}
+                        alt={relationMaterial.primaryImage.note || relationMaterial.name}
+                        className="h-full w-full object-contain"
+                      />
+                    ) : (
+                      <span className="text-[11px] text-gray-400">无图</span>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-gray-900">{relationMaterial.code} · {relationMaterial.name}</div>
+                    <div className="mt-0.5 truncate text-xs text-blue-700">主库存计算单位：{relationMaterial.stockUnit || relationMaterial.unit}</div>
+                  </div>
+                </div>
+              )}
+            </section>
 
-              <label className="min-w-0 text-sm font-medium text-gray-800">
-                <span className="mb-2 flex items-center justify-between gap-3">
-                  <span>输出（产品）</span>
-                  {selectedMaterial && <span className="text-xs font-normal text-gray-500">已有 {1 + draftBomOutputs.length} 项产出</span>}
+            <section className="min-w-0 rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">产出明细（可多项）</div>
+                  <div className="mt-0.5 text-xs text-gray-500">连续添加主产品、副产品、回收料或废料，并分别填写基准产出量。</div>
+                </div>
+                <span className="rounded bg-white px-2 py-1 text-xs font-medium text-emerald-700">
+                  已添加 {selectedMaterial ? 1 + draftBomOutputs.length : 0} 项
                 </span>
-                <SearchableSelect
-                  value={relationOutputMaterialId}
-                  options={bomOutputMaterialOptions.filter((option) => (
-                    option.value !== selectedMaterialId
-                    && !draftBomOutputs.some((output) => output.materialId === option.value)
-                  ))}
-                  onChange={(value) => {
-                    setRelationOutputMaterialId(value)
-                    addOutputMaterialToDraft(value)
-                  }}
-                  placeholder={selectedMaterial ? '输入并添加其他产出物料' : '输入主产出物料编码、名称或规格'}
-                  emptyText="没有匹配的产品物料"
-                  allowClear
-                  className="w-full"
-                />
-              </label>
-            </div>
-            <p className="mt-2 text-xs text-gray-500">首个产出作为主产出；继续搜索可添加副产品、可回收料或废料等其他产出。</p>
-          </div>
-
-          {selectedMaterial ? (
-            <div className="flex flex-col gap-3">
-              <div className="grid gap-4 rounded-lg border border-gray-200 bg-gray-50/70 p-4 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-center">
-                <div className="flex h-32 w-full items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-white sm:w-32">
-                  {selectedMaterial.primaryImage ? (
-                    <img
-                      src={selectedMaterial.primaryImage.url}
-                      alt={selectedMaterial.primaryImage.note || selectedMaterial.name}
-                      className="h-full w-full object-contain"
-                    />
-                  ) : (
-                    <span className="text-sm text-gray-400">暂无物料图片</span>
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-medium text-gray-500">主产出物料</div>
-                  <div className="mt-1 font-mono text-sm font-semibold text-blue-700">{selectedMaterial.code}</div>
-                  <div className="mt-1 text-lg font-semibold text-gray-900">{selectedMaterial.name}</div>
-                  <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-gray-500">
-                    <span>规格：{selectedMaterial.spec || '未填写'}</span>
-                    <span>分类：{materialCategoryLabels[selectedMaterial.category || 'RAW'] || '其他'}</span>
-                    <span>库存单位：{selectedMaterial.stockUnit || selectedMaterial.unit}</span>
-                  </div>
-                </div>
               </div>
+              <SearchableSelect
+                value={relationOutputMaterialId}
+                options={bomOutputMaterialOptions.filter((option) => (
+                  option.value !== selectedMaterialId
+                  && option.value !== relationMaterialId
+                  && !draftBomOutputs.some((output) => output.materialId === option.value)
+                  && !draftBomItems.some((item) => item.materialId === option.value)
+                ))}
+                onChange={(value) => {
+                  setRelationOutputMaterialId(value)
+                  addOutputMaterialToDraft(value)
+                }}
+                placeholder={selectedMaterial ? '继续输入并添加其他产出物料' : '输入并添加首项主产出物料'}
+                emptyText="没有匹配的产出物料"
+                allowClear
+                className="w-full"
+              />
 
-              <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <div className="text-sm font-semibold text-gray-900">产出明细 {1 + draftBomOutputs.length} 项</div>
-                    <div className="mt-0.5 text-xs text-gray-500">数量均表示同一基准批量的产出，可同时产出多种物料。</div>
-                  </div>
-                  <span className="rounded bg-white px-2 py-1 text-xs font-medium text-emerald-700">主产出 1 项</span>
-                </div>
-                <div className="space-y-2">
-                  <div className="grid grid-cols-1 items-center gap-3 rounded-lg border border-emerald-100 bg-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(9rem,13rem)]">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium text-gray-900">{selectedMaterial.code} · {selectedMaterial.name}</div>
-                      <div className="mt-0.5 text-xs text-emerald-700">主产出 · {selectedMaterial.stockUnit || selectedMaterial.unit}</div>
+              {selectedMaterial ? (
+                <div className="mt-2 space-y-2">
+                  <div className="rounded-lg border border-emerald-200 bg-white p-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50">
+                        {selectedMaterial.primaryImage ? (
+                          <img
+                            src={selectedMaterial.primaryImage.url}
+                            alt={selectedMaterial.primaryImage.note || selectedMaterial.name}
+                            className="h-full w-full object-contain"
+                          />
+                        ) : (
+                          <span className="text-[11px] text-gray-400">无图</span>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-gray-900">{selectedMaterial.code} · {selectedMaterial.name}</div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs">
+                          <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-medium text-emerald-700">主产出</span>
+                          <span className="text-gray-500">生产订单和换算基准</span>
+                        </div>
+                      </div>
                     </div>
-                    <label className="flex overflow-hidden rounded border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
+                    <label className="mt-2 flex overflow-hidden rounded border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
                       <input
+                        aria-label={`${selectedMaterial.name}主产出数量`}
                         type="number"
                         min="0"
                         step="any"
@@ -2484,38 +2494,65 @@ export default function MaterialPage({
                   {draftBomOutputs.map((output) => {
                     const material = bomMaterialById.get(output.materialId)
                     return (
-                      <div key={output.clientId} className="grid grid-cols-1 items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(9rem,13rem)_auto]">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-medium text-gray-900">{material?.code || output.materialId} · {material?.name || '未知物料'}</div>
-                          <div className="mt-0.5 text-xs text-gray-500">其他产出 · {material?.stockUnit || material?.unit || output.unit}</div>
+                      <div key={output.clientId} className="rounded-lg border border-gray-200 bg-white p-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50">
+                            {material?.primaryImage ? (
+                              <img
+                                src={material.primaryImage.url}
+                                alt={material.primaryImage.note || material.name}
+                                className="h-full w-full object-contain"
+                              />
+                            ) : (
+                              <span className="text-[11px] text-gray-400">无图</span>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-medium text-gray-900">{material?.code || output.materialId} · {material?.name || '未知物料'}</div>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs">
+                              <span className="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-600">其他产出</span>
+                              <span className="text-gray-500">同一基准批次</span>
+                            </div>
+                          </div>
                         </div>
-                        <label className="flex overflow-hidden rounded border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
-                          <input
-                            type="number"
-                            min="0"
-                            step="any"
-                            inputMode="decimal"
-                            value={output.quantity}
-                            onChange={(event) => setDraftBomOutputs((current) => current.map((draft) => (
-                              draft.clientId === output.clientId ? { ...draft, quantity: event.target.value } : draft
-                            )))}
-                            className="min-w-0 flex-1 px-3 py-2 text-right text-sm outline-none"
-                          />
-                          <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">{material?.stockUnit || material?.unit || output.unit}</span>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => setDraftBomOutputs((current) => current.filter((draft) => draft.clientId !== output.clientId))}
-                          className="rounded border border-red-200 px-2 py-2 text-xs text-red-600 hover:bg-red-50"
-                        >
-                          移除
-                        </button>
+                        <div className="mt-2 flex items-center gap-2">
+                          <label className="flex min-w-0 flex-1 overflow-hidden rounded border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
+                            <input
+                              aria-label={`${material?.name || output.materialId}产出数量`}
+                              type="number"
+                              min="0"
+                              step="any"
+                              inputMode="decimal"
+                              value={output.quantity}
+                              onChange={(event) => setDraftBomOutputs((current) => current.map((draft) => (
+                                draft.clientId === output.clientId ? { ...draft, quantity: event.target.value } : draft
+                              )))}
+                              className="min-w-0 flex-1 px-3 py-2 text-right text-sm outline-none"
+                            />
+                            <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">{material?.stockUnit || material?.unit || output.unit}</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setDraftBomOutputs((current) => current.filter((draft) => draft.clientId !== output.clientId))}
+                            className="shrink-0 rounded border border-red-200 px-2 py-2 text-xs text-red-600 hover:bg-red-50"
+                          >
+                            移除
+                          </button>
+                        </div>
                       </div>
                     )
                   })}
                 </div>
-              </div>
+              ) : (
+                <div className="mt-2 rounded-lg border border-dashed border-emerald-200 bg-white/60 px-3 py-4 text-center text-xs text-gray-500">
+                  先添加首项主产出；添加后仍可在同一输入框继续添加其他产出物料。
+                </div>
+              )}
+            </section>
+          </div>
 
+          {selectedMaterial ? (
+            <div className="flex flex-col gap-3">
               <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
                   <label className="min-w-0 flex-1 text-xs font-medium text-gray-700">
