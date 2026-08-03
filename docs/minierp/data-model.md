@@ -503,6 +503,19 @@ SKU，实际库存单位。
 | labor_hours_per_piece / machine_hours_per_piece | 后续混合测算调用时使用的单件人工时和单件机时快照 |
 | process_templates | 多对多关联的加工工艺模板 |
 
+### BOM / BOMItem（当前 Prisma 已实现）
+
+`Product` 与 `BOM` 为一对多。同一产出物料的 `productId + version` 唯一，服务层保证每个产出物料最多只有一个启用的默认方案。旧读取场景继续使用默认启用 BOM，BOM 管理和反查则返回全部方案。
+
+| BOM 字段 | 含义 |
+| --- | --- |
+| `name / version` | 方案名称与产品内唯一版本 |
+| `bomType` | `STANDARD` 生产转换或 `BASE_ONE_TO_ONE` 一对一基础转换 |
+| `isDefault / isActive` | 默认选择与启用状态 |
+| `outputQuantity / outputUnit` | 基准批量的产出数量和产出单位 |
+
+`BOMItem.quantity` 保存整个基准批量的输入量，单位用量通过 `BOMItem.quantity / BOM.outputQuantity` 派生。例如 `3.5 m -> 100 件` 保存 `outputQuantity = 100`、`BOMItem.quantity = 3.5`，单位用量为 `0.035 m/件`。`BASE_ONE_TO_ONE` 强制一条输入明细且输入/产出数量均为 1；同物料的纯移库不属于 BOM 转换。
+
 ### BOMItem 锯切成本组成
 
 `BOMItem` 支持两类组成：
@@ -572,11 +585,11 @@ BOM 成本计算快照。它是独立于派工、领料和库存的成本测算�
 
 BOM 成本计算会展开物料 BOM：
 
-- `MATERIAL` 项的 `quantity` 保存归一换算比例，`unit` 固定为原料主库存单位。成本试算按换算比例乘数量基准，再读取库存成本单价计算材料成本。
+- `MATERIAL` 项的 `quantity` 保存基准批量输入，`unit` 固定为原料主库存单位。成本试算先除以 `outputQuantity` 得到单位用量，再乘数量基准和库存成本单价。
 - `SAWING_COST` 或其他成本对象项读取生效成本版本，按数量计算材料成本、人工工时、机时和直接费用。
 - 固定费用作为本次 `OVERHEAD` 快照行保存，不写入 BOM 本体。
 
-BOM 数据只保存规范方向：目标物料或产出物料 -> 输入物料及归一换算比例。界面可以使用“标准用量 + 损耗”或“成品数量 : 原料数量”计算，最终均保存为 `BOM.outputQuantity = 1`、`BOMItem.quantity = 每 1 个成品主单位对应的原料主单位数量`，不保存录入算法参数。BOM 不保存生产批次额外损耗或实际耗用；生产日报以本次 `outputQty` 乘换算比例得到基准耗用，再保存本批损耗方式、损耗值、计算耗用和实际耗用快照。产出是成品、不良品还是报废品不再使用固定数量字段，而由 `outputLocationId` 指向的业务库位表达。
+BOM 数据只保存规范方向：目标物料或产出物料 -> 基准批量输入物料。界面可以使用“标准用量 + 损耗”或“成品数量 : 原料数量”计算，保存时以当前 `outputQuantity` 将界面单位用量还原为批量 `BOMItem.quantity`，不保存录入算法参数。BOM 不保存生产批次额外损耗或实际耗用；生产日报按 `BOMItem.quantity / BOM.outputQuantity × outputQty` 得到基准耗用，再保存本批损耗方式、损耗值、计算耗用和实际耗用快照。产出去向仍由 `outputLocationId` 指向的业务库位表达。
 
 `DailyProductionConsumption` 的损耗与耗用字段：
 

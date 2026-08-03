@@ -181,7 +181,8 @@ export async function GET(
             where: { isDefault: true },
             select: processRouteSelect,
           },
-          bom: {
+          boms: {
+            orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
             include: {
               items: {
                 include: {
@@ -327,13 +328,16 @@ export async function GET(
       note: balance.location.note || undefined,
     }))
 
-    const productBoms = linkedProducts
-      .filter((product) => product.bom)
-      .map((product) => ({
-        id: product.bom!.id,
-        version: product.bom!.version,
-        isActive: product.bom!.isActive,
-        createdAt: product.bom!.createdAt,
+    const productBoms = linkedProducts.flatMap((product) => product.boms.map((bom) => ({
+        id: bom.id,
+        name: bom.name,
+        version: bom.version,
+        bomType: bom.bomType,
+        isDefault: bom.isDefault,
+        isActive: bom.isActive,
+        outputQuantity: bom.outputQuantity,
+        outputUnit: bom.outputUnit,
+        createdAt: bom.createdAt,
         product: {
           id: product.id,
           sku: product.sku,
@@ -343,9 +347,9 @@ export async function GET(
           customer: product.customer,
           processRoutes: product.processRoutes,
         },
-        items: product.bom!.items,
+        items: bom.items,
         latestCostRun: null as null | { id: string; unitCost: number; totalCost: number; quantityBasis: number; createdAt: Date },
-      }))
+      })))
     const productIds = productBoms.map((bom) => bom.product.id)
     const latestCostRuns = productIds.length === 0 ? [] : await prisma.bomCostRun.findMany({
       where: { productId: { in: productIds } },

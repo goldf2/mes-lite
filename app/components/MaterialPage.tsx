@@ -75,6 +75,18 @@ interface BomItem {
   material?: BomMaterialOption | null
 }
 
+interface BomVersion {
+  id: string
+  name: string
+  version: string
+  bomType: 'STANDARD' | 'BASE_ONE_TO_ONE'
+  isDefault: boolean
+  isActive: boolean
+  outputQuantity: number
+  outputUnit: string
+  items: BomItem[]
+}
+
 interface MaterialBom {
   id: string
   sku: string
@@ -83,14 +95,8 @@ interface MaterialBom {
   category: string
   unit: string
   sourceMaterialId?: string
-  bom?: {
-    id: string
-    version: string
-    isActive: boolean
-    outputQuantity: number
-    outputUnit: string
-    items: BomItem[]
-  } | null
+  bom?: BomVersion | null
+  boms: BomVersion[]
 }
 
 interface DraftBomItem {
@@ -740,6 +746,11 @@ export default function MaterialPage({
   const [bomProducts, setBomProducts] = useState<MaterialBom[]>([])
   const [bomMaterialOptions, setBomMaterialOptions] = useState<BomMaterialOption[]>([])
   const [selectedMaterialId, setSelectedMaterialId] = useState('')
+  const [selectedBomId, setSelectedBomId] = useState('')
+  const [draftBomName, setDraftBomName] = useState('')
+  const [draftBomOutputQuantity, setDraftBomOutputQuantity] = useState('1')
+  const [draftBomType, setDraftBomType] = useState<'STANDARD' | 'BASE_ONE_TO_ONE'>('STANDARD')
+  const [draftBomIsDefault, setDraftBomIsDefault] = useState(true)
   const [draftBomItems, setDraftBomItems] = useState<DraftBomItem[]>([])
   const [relationProductId, setRelationProductId] = useState('')
   const [relationMaterialId, setRelationMaterialId] = useState('')
@@ -791,6 +802,10 @@ export default function MaterialPage({
   const selectedMaterial = materials.find((material) => material.id === selectedMaterialId) || null
   const bomProductByMaterialId = useMemo(() => new Map(bomProducts.map((product) => [product.sourceMaterialId || product.id.replace(materialProductPrefix, ''), product])), [bomProducts])
   const selectedBomProduct = selectedMaterial ? bomProductByMaterialId.get(selectedMaterial.id) || null : null
+  const selectedBom = selectedBomId === '__new__'
+    ? null
+    : selectedBomProduct?.boms.find((bom) => bom.id === selectedBomId) || selectedBomProduct?.bom || null
+  const selectedBomOutputQuantity = Number(draftBomOutputQuantity)
   const relationProduct = bomProducts.find((product) => product.id === relationProductId) || null
   const relationMaterial = bomMaterialOptions.find((material) => material.id === relationMaterialId) || null
   const bomLengthInputUnits = unitCatalog.filter((unit) => unit.measureType === 'LENGTH')
@@ -828,31 +843,37 @@ export default function MaterialPage({
     relationInputToStockUnitRate,
   ])
   const relationProductSourceMaterialId = relationProduct?.sourceMaterialId || relationProduct?.id.replace(materialProductPrefix, '') || ''
-  const relationExistingBomItem = relationProduct?.bom?.items.find((item) => (
-    item.itemType === 'MATERIAL' && item.material?.id === relationMaterialId
-  )) || null
   const relationTargetsSelectedBom = Boolean(
     selectedBomProduct
     && relationProduct
     && selectedBomProduct.id === relationProduct.id,
   )
+  const relationExistingBom = relationTargetsSelectedBom ? selectedBom : relationProduct?.bom
+  const relationExistingBomItem = relationExistingBom?.items.find((item) => (
+    item.itemType === 'MATERIAL' && item.material?.id === relationMaterialId
+  )) || null
   const bomMaterialById = useMemo(() => new Map(bomMaterialOptions.map((material) => [material.id, material])), [bomMaterialOptions])
   const selectedBomMaterialItems = useMemo(() => (
-    selectedBomProduct?.bom?.items.filter((item) => item.itemType === 'MATERIAL' && item.material) || []
-  ), [selectedBomProduct])
+    selectedBom?.items.filter((item) => item.itemType === 'MATERIAL' && item.material) || []
+  ), [selectedBom])
   const savedBomItemByMaterialId = useMemo(() => new Map(
     selectedBomMaterialItems.map((item) => [item.material?.id || '', item]),
   ), [selectedBomMaterialItems])
   const draftBomDirty = draftBomItems.length !== selectedBomMaterialItems.length
     || draftBomItems.some((item) => {
       const savedItem = savedBomItemByMaterialId.get(item.materialId)
-      return !savedItem || bomRatiosDiffer(Number(savedItem.quantity), Number(item.quantity))
+      return !savedItem || bomRatiosDiffer(Number(savedItem.quantity) / Number(selectedBom?.outputQuantity || 1), Number(item.quantity))
     })
+    || selectedBomId === '__new__'
+    || draftBomName !== (selectedBom?.name || '')
+    || draftBomType !== (selectedBom?.bomType || 'STANDARD')
+    || draftBomIsDefault !== (selectedBom?.isDefault ?? true)
+    || bomRatiosDiffer(selectedBomOutputQuantity, Number(selectedBom?.outputQuantity || 1))
   const selectedMaterialUsageRows = useMemo(() => {
     if (!selectedMaterial) return []
-    return bomProducts.flatMap((product) => (product.bom?.items || [])
+    return bomProducts.flatMap((product) => product.boms.flatMap((bom) => bom.items
       .filter((item) => item.itemType === 'MATERIAL' && item.material?.id === selectedMaterial.id)
-      .map((item) => ({ product, item })))
+      .map((item) => ({ product, bom, item }))))
   }, [bomProducts, selectedMaterial])
 
   const resetRelationCalculator = () => {
@@ -924,25 +945,47 @@ export default function MaterialPage({
   }, [materials, selectedMaterialId])
 
   useEffect(() => {
-    const savedSignature = JSON.stringify({
-      productId: selectedBomProduct?.id || '',
+    setSelectedBomId(selectedBomProduct?.bom?.id || '__new__')
+  }, [selectedBomProduct?.bom?.id, selectedBomProduct?.id])
+
+  useEffect(() => {
+    const savedSignature = selectedBomId === '__new__'
+      ? `new:${selectedBomProduct?.id || ''}`
+      : JSON.stringify({
+      bomId: selectedBom?.id || '',
+      name: selectedBom?.name || '',
+      type: selectedBom?.bomType || 'STANDARD',
+      isDefault: selectedBom?.isDefault ?? true,
+      outputQuantity: Number(selectedBom?.outputQuantity || 1),
       items: selectedBomMaterialItems.map((item) => ({
         id: item.id,
         materialId: item.material?.id || '',
-        quantity: Number(item.quantity || 0),
+        quantity: Number(item.quantity || 0) / Number(selectedBom?.outputQuantity || 1),
         unit: item.material?.stockUnit || item.material?.unit || item.unit || '件',
       })),
     })
     if (loadedBomDraftSignatureRef.current === savedSignature) return
     loadedBomDraftSignatureRef.current = savedSignature
+    if (selectedBomId === '__new__') {
+      setDraftBomName(`方案 ${(selectedBomProduct?.boms.length || 0) + 1}`)
+      setDraftBomOutputQuantity('1')
+      setDraftBomType('STANDARD')
+      setDraftBomIsDefault((selectedBomProduct?.boms.length || 0) === 0)
+      setDraftBomItems([])
+      return
+    }
+    setDraftBomName(selectedBom?.name || '默认方案')
+    setDraftBomOutputQuantity(String(Number(selectedBom?.outputQuantity || 1)))
+    setDraftBomType(selectedBom?.bomType || 'STANDARD')
+    setDraftBomIsDefault(selectedBom?.isDefault ?? true)
     setDraftBomItems(selectedBomMaterialItems.map((item) => ({
       clientId: item.id,
       materialId: item.material?.id || '',
-      quantity: Number(item.quantity || 0),
+      quantity: Number(item.quantity || 0) / Number(selectedBom?.outputQuantity || 1),
       unit: item.material?.stockUnit || item.material?.unit || '件',
       wastageRate: 0,
     })))
-  }, [selectedBomMaterialItems, selectedBomProduct?.id])
+  }, [selectedBom, selectedBomId, selectedBomMaterialItems, selectedBomProduct?.boms.length, selectedBomProduct?.id])
 
   useEffect(() => {
     if (!selectedMaterial) return
@@ -1424,7 +1467,8 @@ export default function MaterialPage({
       if (selected.has('spec') && item.material?.spec) parts.push(item.material.spec)
       if (selected.has('code')) parts.push(item.material?.code || '')
       const relation = parts.filter(Boolean).join(' · ')
-      return item.quantity > 0 ? `${relation}（${qty(item.quantity)} ${item.unit}原料/${product?.unit || '单位'}成品）` : relation
+      const unitQuantity = Number(item.quantity) / Number(product?.bom?.outputQuantity || 1)
+      return unitQuantity > 0 ? `${relation}（${qty(unitQuantity)} ${item.unit}原料/${product?.unit || '单位'}成品）` : relation
     }
     const usageText = ({ product: usageProduct, item }: { product: MaterialBom; item: BomItem }) => {
       const parts: string[] = []
@@ -1460,12 +1504,11 @@ export default function MaterialPage({
   const saveBomForProduct = async (
     productId: string,
     items: DraftBomItem[],
-    successMessage = 'BOM 换算比例已保存',
-    outputQuantity = 1,
+    successMessage = 'BOM 方案已保存',
   ): Promise<boolean> => {
     const invalidItem = items.find((item) => !item.materialId || Number(item.quantity) <= 0)
     if (invalidItem) {
-      onMessage('请为每种原料填写大于 0 的换算比例')
+      onMessage('请为每种原料填写大于 0 的单位用量')
       return false
     }
     setBomSaving(true)
@@ -1475,10 +1518,16 @@ export default function MaterialPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId,
-          outputQuantity,
+          bomId: selectedBom?.id,
+          createNew: selectedBomId === '__new__',
+          name: draftBomName.trim(),
+          bomType: draftBomType,
+          isDefault: draftBomIsDefault,
+          isActive: selectedBom?.isActive ?? true,
+          outputQuantity: selectedBomOutputQuantity,
           items: items.map((item) => ({
             materialId: item.materialId,
-            quantity: Number(item.quantity),
+            quantity: Number(item.quantity) * selectedBomOutputQuantity,
             unit: item.unit,
             wastageRate: 0,
           })),
@@ -1490,6 +1539,7 @@ export default function MaterialPage({
         return false
       }
       onMessage(successMessage || data.message || 'BOM 换算比例已保存')
+      if (data.data?.id) setSelectedBomId(data.data.id)
       await fetchBomData()
       return true
     } catch (err) {
@@ -1502,11 +1552,12 @@ export default function MaterialPage({
 
   const saveSelectedBom = async () => {
     if (!selectedMaterial) return onMessage('请选择物料')
+    if (!draftBomName.trim()) return onMessage('请填写 BOM 方案名称')
+    if (!Number.isFinite(selectedBomOutputQuantity) || selectedBomOutputQuantity <= 0) return onMessage('基准产出数量必须大于 0')
     await saveBomForProduct(
       selectedBomProduct?.id || `${materialProductPrefix}${selectedMaterial.id}`,
       draftBomItems,
-      'BOM 换算比例已保存',
-      Number(selectedBomProduct?.bom?.outputQuantity || 1),
+      'BOM 方案已保存',
     )
   }
 
@@ -1535,15 +1586,16 @@ export default function MaterialPage({
     resetRelationCalculator()
   }
 
-  const editInputBasisUsage = (product: MaterialBom, item: BomItem) => {
+  const editInputBasisUsage = (product: MaterialBom, item: BomItem, bom: BomVersion) => {
     setRelationProductId(product.id)
     setRelationMaterialId(item.material?.id || '')
     setRelationInputMode('DIRECT_RATIO')
     setRelationOutputQuantity('1')
+    const unitQuantity = Number(item.quantity || 0) / Number(bom.outputQuantity || 1)
     setRelationRawQuantity(String(
       item.material?.primaryMeasure === 'LENGTH'
-        ? baseUnitToBomInput(Number(item.quantity || 0), relationLengthInputDefinition?.toBaseFactor || 0.001)
-        : Number(item.quantity || 0),
+        ? baseUnitToBomInput(unitQuantity, relationLengthInputDefinition?.toBaseFactor || 0.001)
+        : unitQuantity,
     ))
   }
 
@@ -2080,6 +2132,94 @@ export default function MaterialPage({
 
           {selectedMaterial ? (
             <div className="space-y-3">
+              <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                  <label className="min-w-0 flex-1 text-xs font-medium text-gray-700">
+                    BOM 方案
+                    <select
+                      value={selectedBomId}
+                      onChange={(event) => setSelectedBomId(event.target.value)}
+                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {(selectedBomProduct?.boms || []).map((bom) => (
+                        <option key={bom.id} value={bom.id}>
+                          {bom.name} · {bom.version}{bom.isDefault ? ' · 默认' : ''}{!bom.isActive ? ' · 已停用' : ''}
+                        </option>
+                      ))}
+                      {selectedBomId === '__new__' && <option value="__new__">新方案（未保存）</option>}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      loadedBomDraftSignatureRef.current = ''
+                      setSelectedBomId('__new__')
+                    }}
+                    className="shrink-0 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                  >
+                    新建方案
+                  </button>
+                </div>
+
+                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(9rem,0.5fr)_minmax(10rem,0.6fr)]">
+                  <label className="text-xs font-medium text-gray-700">
+                    方案名称
+                    <input
+                      value={draftBomName}
+                      onChange={(event) => setDraftBomName(event.target.value)}
+                      maxLength={80}
+                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="如：常规生产"
+                    />
+                  </label>
+                  <label className="text-xs font-medium text-gray-700">
+                    基准产出数量
+                    <span className="mt-1 flex overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        inputMode="decimal"
+                        value={draftBomOutputQuantity}
+                        onChange={(event) => setDraftBomOutputQuantity(event.target.value)}
+                        className="min-w-0 flex-1 px-3 py-2 text-right text-sm outline-none"
+                      />
+                      <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">{selectedBomProduct?.unit || '产出单位'}</span>
+                    </span>
+                  </label>
+                  <label className="text-xs font-medium text-gray-700">
+                    方案类型
+                    <select
+                      value={draftBomType}
+                      onChange={(event) => {
+                        const nextType = event.target.value as 'STANDARD' | 'BASE_ONE_TO_ONE'
+                        setDraftBomType(nextType)
+                        if (nextType === 'BASE_ONE_TO_ONE') setDraftBomOutputQuantity('1')
+                      }}
+                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="STANDARD">生产转换</option>
+                      <option value="BASE_ONE_TO_ONE">一对一基础转换</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <label className="inline-flex items-center gap-2 text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={draftBomIsDefault}
+                      onChange={(event) => setDraftBomIsDefault(event.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    作为当前默认 BOM（日报和成本默认使用）
+                  </label>
+                  <span className="text-gray-500">
+                    {selectedBom ? `版本 ${selectedBom.version}` : '保存时自动生成新版本'}；明细以此基准批量保存。
+                  </span>
+                </div>
+              </div>
+
               <div className="rounded-lg border border-gray-200 bg-gray-50/70 p-3">
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                   <div className="min-w-0">
@@ -2282,7 +2422,7 @@ export default function MaterialPage({
                     </div>
                     {relationExistingBomItem && (
                       <div className="mt-1 text-xs text-blue-700">
-                        当前已保存比例：{qty(Number(relationExistingBomItem.quantity))} {relationExistingBomItem.unit}原料 / 1 {relationProduct?.unit || '成品主单位'}成品；点击“添加或更新”，再点击底部“保存”后覆盖。
+                        当前已保存单位用量：{qty(Number(relationExistingBomItem.quantity) / Number(relationExistingBom?.outputQuantity || 1))} {relationExistingBomItem.unit}原料 / 1 {relationProduct?.unit || '成品主单位'}成品；点击“添加或更新”，再点击底部“保存”后覆盖。
                       </div>
                     )}
                   </div>
@@ -2310,7 +2450,7 @@ export default function MaterialPage({
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs">
                 <span className="text-gray-500">分类 <strong className="ml-1 font-medium text-gray-900">{materialCategoryLabels[selectedMaterial.category || 'RAW'] || '其他'}</strong></span>
                 <span className="text-gray-500">BOM <strong className="ml-1 font-semibold text-blue-700">{draftBomItems.length} 项</strong></span>
-                <span className="text-gray-500">被引用 <strong className="ml-1 font-semibold text-blue-700">{selectedMaterialUsageRows.length} 个产品</strong></span>
+                <span className="text-gray-500">被引用 <strong className="ml-1 font-semibold text-blue-700">{selectedMaterialUsageRows.length} 个 BOM 方案</strong></span>
                 <span className="text-gray-500">库存 <strong className="ml-1 font-semibold text-emerald-700">{selectedMaterial.stock?.qty || 0} {selectedMaterial.stockUnit || selectedMaterial.unit}</strong></span>
               </div>
 
@@ -2344,7 +2484,7 @@ export default function MaterialPage({
                         const material = bomMaterialById.get(item.materialId)
                         const savedItem = savedBomItemByMaterialId.get(item.materialId)
                         const itemPending = !savedItem
-                          || bomRatiosDiffer(Number(savedItem.quantity), Number(item.quantity))
+                          || bomRatiosDiffer(Number(savedItem.quantity) / Number(selectedBom?.outputQuantity || 1), Number(item.quantity))
                         return (
                           <div key={item.clientId} className="rounded-lg border border-gray-200 p-3">
                             <div className="flex items-start justify-between gap-3">
@@ -2379,7 +2519,7 @@ export default function MaterialPage({
                                   {itemPending && (
                                     <div className="mt-1 text-right text-[11px] text-amber-700">
                                       {savedItem
-                                        ? `当前已保存 ${qty(Number(savedItem.quantity))}`
+                                        ? `当前已保存 ${qty(Number(savedItem.quantity) / Number(selectedBom?.outputQuantity || 1))}`
                                         : '新关联，尚未保存'}
                                       ；点击底部“保存”后生效
                                     </div>
@@ -2403,20 +2543,20 @@ export default function MaterialPage({
                   <div className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">暂无关联产品 BOM</div>
                 ) : (
                   <div className="space-y-2">
-                    {selectedMaterialUsageRows.map(({ product, item }) => (
+                    {selectedMaterialUsageRows.map(({ product, bom, item }) => (
                       <button
                         type="button"
-                        key={`${product.id}-${item.id}`}
-                        onClick={() => editInputBasisUsage(product, item)}
+                        key={`${product.id}-${bom.id}-${item.id}`}
+                        onClick={() => editInputBasisUsage(product, item, bom)}
                         className="grid w-full grid-cols-1 gap-3 rounded-lg border border-gray-200 p-3 text-left transition hover:border-blue-300 hover:bg-blue-50/30 sm:grid-cols-[minmax(0,1fr)_auto]"
                       >
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-medium text-gray-900">{product.name}</span>
-                          <span className="mt-0.5 block truncate font-mono text-xs text-blue-700">{product.sku}</span>
+                          <span className="mt-0.5 block truncate font-mono text-xs text-blue-700">{product.sku} · {bom.name} · {bom.version}{bom.isDefault ? ' · 默认' : ''}</span>
                         </span>
                         <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 sm:justify-end">
                           <span className="rounded bg-gray-100 px-2 py-1">
-                            {Number(item.quantity) > 0 ? `换算比例 ${qty(Number(item.quantity))} ${item.unit}原料/${product.unit || '单位'}成品` : '待填写换算比例'}
+                            {Number(item.quantity) > 0 ? `单位用量 ${qty(Number(item.quantity) / Number(bom.outputQuantity || 1))} ${item.unit}原料/${product.unit || '单位'}成品` : '待填写换算比例'}
                           </span>
                         </span>
                       </button>

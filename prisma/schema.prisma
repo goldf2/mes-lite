@@ -83,7 +83,7 @@ model Product {
   customer         Customer?            @relation(fields: [customerId], references: [id])
   unit             String               @default("件")
   description      String?
-  bom              BOM?
+  boms             BOM[]
   bomCostRuns      BomCostRun[]
   processRoutes    ProcessRoute[]
   stock            Stock?
@@ -136,15 +136,21 @@ model Material {
 
 model BOM {
   id             String       @id @default(cuid())
-  productId      String       @unique
+  productId      String
   product        Product      @relation(fields: [productId], references: [id])
   items          BOMItem[]
   costRuns       BomCostRun[]
+  name           String       @default("默认方案")
   version        String       @default("v1")
+  bomType        String       @default("STANDARD")
+  isDefault      Boolean      @default(true)
   isActive       Boolean      @default(true)
   outputQuantity Float        @default(1)
   outputUnit     String       @default("件")
   createdAt      DateTime     @default(now())
+
+  @@unique([productId, version])
+  @@index([productId, isActive, isDefault])
 }
 
 model BOMItem {

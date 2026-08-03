@@ -109,10 +109,16 @@ export async function POST(req: NextRequest) {
       })
 
       if (resolvedBomProductId) {
-        const bom = await tx.bOM.upsert({
-          where: { productId: resolvedBomProductId },
-          update: {},
-          create: { productId: resolvedBomProductId },
+        const bom = await tx.bOM.findFirst({
+          where: { productId: resolvedBomProductId, isActive: true },
+          orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+        }) || await tx.bOM.create({
+          data: {
+            productId: resolvedBomProductId,
+            name: '默认方案',
+            version: 'v1',
+            isDefault: true,
+          },
         })
         await tx.bOMItem.create({
           data: {

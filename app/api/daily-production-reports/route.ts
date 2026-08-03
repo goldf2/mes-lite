@@ -79,7 +79,10 @@ export async function GET(req: NextRequest) {
           where: { sku: { in: materialCodes } },
           select: {
             sku: true,
-            bom: {
+            boms: {
+              where: { isActive: true },
+              orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+              take: 1,
               select: {
               id: true,
               version: true,
@@ -114,7 +117,7 @@ export async function GET(req: NextRequest) {
     const productBySku = new Map(compatibleProducts.map((product) => [product.sku, product]))
     const materialsWithBom = materials.map((material) => {
       const product = productBySku.get(material.code) || productBySku.get(`MAT-${material.code}`)
-      return { ...material, bom: product?.bom || null }
+      return { ...material, bom: product?.boms[0] || null }
     })
 
     return NextResponse.json({ data: reports, materials: materialsWithBom })

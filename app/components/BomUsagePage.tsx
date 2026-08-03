@@ -31,15 +31,28 @@ interface BomProduct {
   unit: string
   customer?: { id: string; name: string } | null
   bom?: {
+    id: string
+    name: string
+    version: string
+    isDefault: boolean
     outputQuantity: number
     outputUnit: string
     items: BomItem[]
   } | null
+  boms: Array<{
+    id: string
+    name: string
+    version: string
+    isDefault: boolean
+    outputQuantity: number
+    outputUnit: string
+    items: BomItem[]
+  }>
 }
 
 interface UsageRow {
   material: MaterialOption
-  products: Array<{ product: BomProduct; item: BomItem }>
+  products: Array<{ product: BomProduct; bom: BomProduct['boms'][number]; item: BomItem }>
 }
 
 export default function BomUsagePage({
@@ -81,9 +94,9 @@ export default function BomUsagePage({
     return materials
       .map<UsageRow>((material) => ({
         material,
-        products: products.flatMap((product) => (product.bom?.items || [])
+        products: products.flatMap((product) => product.boms.flatMap((bom) => bom.items
           .filter((item) => item.itemType === 'MATERIAL' && item.material?.id === material.id)
-          .map((item) => ({ product, item }))),
+          .map((item) => ({ product, bom, item })))),
       }))
       .filter((row) => row.products.length > 0)
       .filter((row) => {
@@ -155,25 +168,26 @@ export default function BomUsagePage({
                   </div>
                   <div className="mt-1 text-xs text-gray-500">库存单位：{row.material.stockUnit || row.material.unit}</div>
                 </div>
-                <span className="shrink-0 text-sm font-medium text-gray-700">{row.products.length} 个产品 BOM</span>
+                <span className="shrink-0 text-sm font-medium text-gray-700">{row.products.length} 个 BOM 方案</span>
               </div>
 
               <div className="divide-y divide-gray-100">
-                {row.products.map(({ product, item }) => (
+                {row.products.map(({ product, bom, item }) => (
                     <div
-                      key={`${product.id}-${item.id}`}
+                      key={`${product.id}-${bom.id}-${item.id}`}
                       className="grid grid-cols-1 gap-3 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-center"
                     >
                       <div className="min-w-0">
                         <div className="truncate text-sm font-medium text-gray-900">{product.name}</div>
                         <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
                           <span className="font-mono text-blue-700">{product.sku}</span>
+                          <span>{bom.name} · {bom.version}{bom.isDefault ? ' · 默认' : ''}</span>
                           {product.customer && <span>{product.customer.name}</span>}
                         </div>
                       </div>
                       <div className={`rounded px-2 py-1 text-xs ${item.quantity > 0 ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
                         {item.quantity > 0
-                          ? `换算比例 ${Number(item.quantity).toFixed(6).replace(/\.?0+$/, '')} ${item.unit}原料/${product.unit || '单位'}成品`
+                          ? `单位用量 ${(Number(item.quantity) / Number(bom.outputQuantity || 1)).toFixed(6).replace(/\.?0+$/, '')} ${item.unit}原料/${product.unit || '单位'}成品`
                           : '待填写换算比例'}
                       </div>
                       <button

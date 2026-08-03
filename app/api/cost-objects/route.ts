@@ -63,7 +63,10 @@ export async function GET() {
         sku: true,
         name: true,
         unit: true,
-        bom: {
+        boms: {
+          where: { isActive: true },
+          orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+          take: 1,
           select: {
             id: true,
             version: true,
@@ -150,7 +153,7 @@ export async function GET() {
     const product = productBySku.get(material.code) || productBySku.get(simpleProductSku(material.code))
     return {
       ...materialAsProductOption(material),
-      bom: product?.bom || null,
+      bom: product?.boms[0] || null,
       processRoutes: product?.processRoutes || [],
       bomCostRuns: product?.bomCostRuns || [],
     }

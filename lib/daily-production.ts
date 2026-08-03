@@ -35,7 +35,10 @@ export async function buildDailyProductionConsumption(
       sku: { in: [finishedMaterial.code, simpleProductSku(finishedMaterial.code)] },
     },
     include: {
-      bom: {
+      boms: {
+        where: { isActive: true },
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+        take: 1,
         include: {
           items: {
             where: { itemType: 'MATERIAL', materialId: { not: null } },
@@ -59,8 +62,8 @@ export async function buildDailyProductionConsumption(
   })
   const product = products.find((item) => item.sku === finishedMaterial.code)
     || products.find((item) => item.sku === simpleProductSku(finishedMaterial.code))
-  const bom = product?.bom
-  if (!bom || !bom.isActive || bom.items.length === 0) {
+  const bom = product?.boms[0]
+  if (!bom || bom.items.length === 0) {
     throw new Error(`物料 ${finishedMaterial.code} ${finishedMaterial.name} 尚未建立有效 BOM，不能确认库存日报`)
   }
 
