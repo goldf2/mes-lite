@@ -1,5 +1,5 @@
 export type BomRatioInputMode = 'USAGE_LOSS' | 'DIRECT_RATIO'
-export type BomLossInputMode = 'PERCENT' | 'FIXED'
+export type BomLossInputMode = 'NONE' | 'PERCENT' | 'FIXED'
 
 const roundRatio = (value: number) => Number(value.toFixed(6))
 
@@ -42,8 +42,8 @@ export function calculateBomUnitRatio(input: {
 }) {
   const inputToStockUnitRate = positive(Number(input.inputToStockUnitRate ?? 1), '录入单位换算率')
   if (input.mode === 'DIRECT_RATIO') {
-    const outputQuantity = positive(Number(input.outputQuantity), '成品数量')
-    const rawMaterialQuantity = positive(Number(input.rawMaterialQuantity), '原料数量')
+    const outputQuantity = positive(Number(input.outputQuantity), '产出总量')
+    const rawMaterialQuantity = positive(Number(input.rawMaterialQuantity), '投入总量')
     return roundRatio((rawMaterialQuantity * inputToStockUnitRate) / outputQuantity)
   }
 
@@ -51,6 +51,8 @@ export function calculateBomUnitRatio(input: {
   const lossValue = nonnegative(Number(input.lossValue || 0), '损耗')
   const totalUsage = input.lossMode === 'FIXED'
     ? standardUsage + lossValue
-    : standardUsage * (1 + lossValue / 100)
+    : input.lossMode === 'PERCENT'
+      ? standardUsage * (1 + lossValue / 100)
+      : standardUsage
   return roundRatio(totalUsage * inputToStockUnitRate)
 }

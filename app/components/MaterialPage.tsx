@@ -177,6 +177,7 @@ const primaryMeasureOptions = [
 ] as const
 const primaryMeasureLabels = Object.fromEntries(primaryMeasureOptions) as Record<string, string>
 const materialProductPrefix = 'material:'
+const bomWorkspaceStateStorageKey = 'mes-lite.boms.workspaceState'
 const bomSummaryVisibleStorageKey = 'mes-lite.materials.bomSummaryVisible'
 const bomSummaryFieldsStorageKey = 'mes-lite.materials.bomSummaryFields'
 const materialColumnWidthsStorageKey = 'mes-lite.materials.columnWidths'
@@ -697,13 +698,14 @@ export default function MaterialPage({
   const [relationOutputMaterialId, setRelationOutputMaterialId] = useState('')
   const [relationInputMode, setRelationInputMode] = useState<BomRatioInputMode>('USAGE_LOSS')
   const [relationStandardUsage, setRelationStandardUsage] = useState('')
-  const [relationLossMode, setRelationLossMode] = useState<BomLossInputMode>('PERCENT')
+  const [relationLossMode, setRelationLossMode] = useState<BomLossInputMode>('NONE')
   const [relationLossValue, setRelationLossValue] = useState('')
   const [relationOutputQuantity, setRelationOutputQuantity] = useState('1')
   const [relationRawQuantity, setRelationRawQuantity] = useState('')
   const [relationLengthInputUnit, setRelationLengthInputUnit] = useState('mm')
   const [unitCatalog, setUnitCatalog] = useState<ConfiguredUnit[]>([])
   const [bomLoading, setBomLoading] = useState(false)
+  const [bomDataReady, setBomDataReady] = useState(false)
   const [bomSaving, setBomSaving] = useState(false)
   const [bomKeyword, setBomKeyword] = useState('')
   const [bomObservationMode, setBomObservationMode] = useState<BomObservationMode>('product')
@@ -728,6 +730,7 @@ export default function MaterialPage({
   const [bomAuxiliaryView, setBomAuxiliaryView] = useState<'components' | 'usage'>('components')
   const columnResizeCleanupRef = useRef<(() => void) | null>(null)
   const loadedBomDraftSignatureRef = useRef('')
+  const bomWorkspaceStateRestoredRef = useRef(false)
   const [form, setForm] = useState(createEmptyMaterialForm())
   const formStockUnitOptions = unitCatalog.filter((unit) => unit.measureType === form.primaryMeasure)
   const formValuationUnitOptions = unitCatalog.filter((unit) => unit.measureType === form.referenceMeasure)
@@ -815,14 +818,30 @@ export default function MaterialPage({
   const selectedBomOutputQuantity = Number(draftBomOutputQuantity)
   const relationProduct = bomProducts.find((product) => product.id === relationProductId) || null
   const relationMaterial = bomMaterialOptions.find((material) => material.id === relationMaterialId) || null
+  const relationInputMeasureType = relationMaterial?.primaryMeasure && relationMaterial.primaryMeasure !== 'OTHER'
+    ? relationMaterial.primaryMeasure
+    : unitCatalog.find((unit) => unit.code === (relationMaterial?.stockUnit || relationMaterial?.unit))?.measureType
+  const relationOutputMeasureType = selectedMaterial?.primaryMeasure && selectedMaterial.primaryMeasure !== 'OTHER'
+    ? selectedMaterial.primaryMeasure
+    : unitCatalog.find((unit) => unit.code === (selectedMaterial?.stockUnit || selectedMaterial?.unit))?.measureType
   const bomLengthInputUnits = unitCatalog.filter((unit) => unit.measureType === 'LENGTH')
   const relationLengthInputDefinition = bomLengthInputUnits.find((unit) => unit.code === relationLengthInputUnit)
-  const relationUsesLengthInput = relationMaterial?.primaryMeasure === 'LENGTH'
+  const relationUsesLengthInput = relationInputMeasureType === 'LENGTH'
   const relationLengthStockUnitValid = !relationUsesLengthInput
     || isMeterUnit(relationMaterial?.stockUnit || relationMaterial?.unit)
   const relationInputUnit = relationUsesLengthInput
     ? relationLengthInputUnit
     : relationMaterial?.stockUnit || relationMaterial?.unit || '投入物料主单位'
+  const relationInputMeasureLabel = relationMaterial
+    ? primaryMeasureLabels[relationInputMeasureType || 'OTHER'] || '投入量'
+    : '投入量'
+  const relationOutputMeasureLabel = selectedMaterial
+    ? relationOutputMeasureType === 'QUANTITY'
+      ? selectedMaterial.stockUnit === '件' ? '件数' : '数量'
+      : primaryMeasureLabels[relationOutputMeasureType || 'OTHER'] || '产出量'
+    : '产出量'
+  const relationOutputUnit = selectedMaterial?.stockUnit || selectedMaterial?.unit || relationProduct?.unit || '产出单位'
+  const relationBatchConversionLabel = `${relationInputMeasureLabel} → ${relationOutputMeasureLabel}`
   const relationInputToStockUnitRate = relationUsesLengthInput
     ? relationLengthInputDefinition?.toBaseFactor || 0.001
     : 1
@@ -894,7 +913,7 @@ export default function MaterialPage({
 
   const resetRelationCalculator = () => {
     setRelationStandardUsage('')
-    setRelationLossMode('PERCENT')
+    setRelationLossMode('NONE')
     setRelationLossValue('')
     setRelationOutputQuantity('1')
     setRelationRawQuantity('')
@@ -920,6 +939,7 @@ export default function MaterialPage({
 
   const fetchBomData = useCallback(async () => {
     setBomLoading(true)
+    setBomDataReady(false)
     try {
       const res = await fetch('/api/boms')
       const data = await res.json()
@@ -933,6 +953,7 @@ export default function MaterialPage({
       onMessage('获取 BOM 关系失败')
     } finally {
       setBomLoading(false)
+      setBomDataReady(true)
     }
   }, [onMessage])
 
@@ -1479,7 +1500,7 @@ export default function MaterialPage({
     setRelationOutputMaterialId('')
     setDraftBomOutputs([])
     setRelationStandardUsage('')
-    setRelationLossMode('PERCENT')
+    setRelationLossMode('NONE')
     setRelationLossValue('')
     setRelationOutputQuantity('1')
     setRelationRawQuantity('')
@@ -1493,7 +1514,7 @@ export default function MaterialPage({
     setRelationOutputMaterialId('')
     setDraftBomOutputs([])
     setRelationStandardUsage('')
-    setRelationLossMode('PERCENT')
+    setRelationLossMode('NONE')
     setRelationLossValue('')
     setRelationOutputQuantity('1')
     setRelationRawQuantity('')
@@ -1536,11 +1557,41 @@ export default function MaterialPage({
     setRelationMaterialId('')
     setRelationOutputMaterialId('')
     setRelationStandardUsage('')
-    setRelationLossMode('PERCENT')
+    setRelationLossMode('NONE')
     setRelationLossValue('')
     setRelationOutputQuantity('1')
     setRelationRawQuantity('')
   }, [])
+
+  useEffect(() => {
+    if (!showBomWorkspace || !bomDataReady || bomWorkspaceStateRestoredRef.current) return
+    bomWorkspaceStateRestoredRef.current = true
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(bomWorkspaceStateStorageKey) || '{}') as {
+        materialId?: string
+        bomId?: string
+        observationMode?: BomObservationMode
+      }
+      if (saved.observationMode === 'product' || saved.observationMode === 'material') {
+        setBomObservationMode(saved.observationMode)
+      }
+      if (!saved.materialId || !saved.bomId) return
+      const product = bomProductByMaterialId.get(saved.materialId)
+      if (!product?.boms.some((bom) => bom.id === saved.bomId)) return
+      selectExistingBom(saved.materialId, saved.bomId)
+    } catch (error) {
+      window.localStorage.removeItem(bomWorkspaceStateStorageKey)
+    }
+  }, [bomDataReady, bomProductByMaterialId, selectExistingBom, showBomWorkspace])
+
+  useEffect(() => {
+    if (!showBomWorkspace || !bomWorkspaceStateRestoredRef.current) return
+    window.localStorage.setItem(bomWorkspaceStateStorageKey, JSON.stringify({
+      materialId: selectedBomId && selectedBomId !== '__new__' ? selectedMaterialId : undefined,
+      bomId: selectedBomId && selectedBomId !== '__new__' ? selectedBomId : undefined,
+      observationMode: bomObservationMode,
+    }))
+  }, [bomObservationMode, selectedBomId, selectedMaterialId, showBomWorkspace])
 
   const saveBomForProduct = async (
     productId: string,
@@ -1639,8 +1690,8 @@ export default function MaterialPage({
       ? current.map((item) => item.materialId === relationMaterial.id ? nextItem : item)
       : [...current, nextItem])
     onMessage(existing
-      ? `已更新待保存条目：${relationMaterial.code}，请点击底部“保存”生效`
-      : `已添加待保存条目：${relationMaterial.code}，请点击底部“保存”生效`)
+      ? `已更新待保存条目：${relationMaterial.code}，请点击顶部“保存 BOM”生效`
+      : `已添加待保存条目：${relationMaterial.code}，请点击顶部“保存 BOM”生效`)
     resetRelationCalculator()
   }
 
@@ -2306,7 +2357,7 @@ export default function MaterialPage({
           </aside>
 
           <div aria-label="BOM 创建与修改工作区" className="min-w-0 rounded-lg bg-white p-4 shadow sm:p-6">
-          <div className="mb-3">
+          <div className="mb-3 flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-semibold text-gray-900">创建 / 修改 BOM</h3>
@@ -2316,6 +2367,15 @@ export default function MaterialPage({
                 {selectedMaterial ? `${selectedMaterial.code} · ${selectedMaterial.name}` : '新建 BOM：请选择投入物料和主产出物料'}
               </div>
             </div>
+            <button
+              type="button"
+              onClick={saveSelectedBom}
+              disabled={bomSaving || !selectedMaterial || !draftBomDirty}
+              title={!selectedMaterial ? '请先选择主产出物料' : !draftBomDirty ? '当前没有待保存修改' : undefined}
+              className="shrink-0 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {bomSaving ? '保存中...' : '保存 BOM'}
+            </button>
           </div>
 
           <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50/70 p-3">
@@ -2369,7 +2429,7 @@ export default function MaterialPage({
           </div>
 
           {selectedMaterial ? (
-            <div className="space-y-3">
+            <div className="flex flex-col gap-3">
               <div className="grid gap-4 rounded-lg border border-gray-200 bg-gray-50/70 p-4 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-center">
                 <div className="flex h-32 w-full items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-white sm:w-32">
                   {selectedMaterial.primaryImage ? (
@@ -2514,53 +2574,77 @@ export default function MaterialPage({
                 </div>
               </div>
 
-              <div className="rounded-lg border border-gray-200 bg-gray-50/70 p-3">
+              <div className="order-first rounded-lg border border-blue-200 bg-blue-50/40 p-3">
                 <div>
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <div className="text-xs font-medium text-gray-700">比例录入算法</div>
+                      <div className="text-sm font-semibold text-gray-900">内置转换模型</div>
                       <div className="mt-0.5 text-xs text-gray-500">
-                        {relationUsesLengthInput
-                          ? '长度尺寸可按系统配置的长度单位录入；BOM 最终统一换算为米保存。'
-                          : '仅用于换算；BOM 最终统一保存每 1 个主产出单位对应的投入物料主库存单位数量。'}
+                        选择符合业务的录入方式；系统只保存统一的投入/产出比例，不保存换算界面参数。
                       </div>
                     </div>
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      {relationUsesLengthInput && (
-                        <label className="inline-flex items-center gap-2 text-xs text-gray-600">
-                          尺寸录入单位
-                          <select
-                            value={relationLengthInputUnit}
-                            onChange={(event) => changeRelationLengthInputUnit(event.target.value)}
-                            className="rounded-md border border-gray-200 bg-white px-2 py-1.5 font-medium text-gray-800 outline-none focus:ring-2 focus:ring-blue-500"
-                          >
-                            {bomLengthInputUnits.map((unit) => <option key={unit.code} value={unit.code}>{unit.code}</option>)}
-                          </select>
-                        </label>
-                      )}
-                      <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setRelationInputMode('USAGE_LOSS')
-                            resetRelationCalculator()
-                          }}
-                          className={`rounded-md px-3 py-1.5 text-xs font-medium ${relationInputMode === 'USAGE_LOSS' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                    {relationUsesLengthInput && (
+                      <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+                        长度录入单位
+                        <select
+                          value={relationLengthInputUnit}
+                          onChange={(event) => changeRelationLengthInputUnit(event.target.value)}
+                          className="rounded-md border border-gray-200 bg-white px-2 py-1.5 font-medium text-gray-800 outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                          {relationUsesLengthInput ? '标准尺寸 + 损耗' : '标准用量 + 损耗'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setRelationInputMode('DIRECT_RATIO')
-                            resetRelationCalculator()
-                          }}
-                          className={`rounded-md px-3 py-1.5 text-xs font-medium ${relationInputMode === 'DIRECT_RATIO' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-                        >
-                          产出 : 投入比例
-                        </button>
-                      </div>
-                    </div>
+                          {bomLengthInputUnits.map((unit) => <option key={unit.code} value={unit.code}>{unit.code}</option>)}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+
+                  <div className="mb-3 grid grid-cols-2 gap-2 xl:grid-cols-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetRelationCalculator()
+                        setRelationInputMode('USAGE_LOSS')
+                        setRelationLossMode('NONE')
+                      }}
+                      className={`rounded-lg border px-3 py-2 text-left transition ${relationInputMode === 'USAGE_LOSS' && relationLossMode === 'NONE' ? 'border-blue-500 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'}`}
+                    >
+                      <span className="block text-xs font-semibold">标准净用量</span>
+                      <span className={`mt-0.5 block text-[11px] ${relationInputMode === 'USAGE_LOSS' && relationLossMode === 'NONE' ? 'text-blue-100' : 'text-gray-500'}`}>每 1 产出的净投入</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetRelationCalculator()
+                        setRelationInputMode('USAGE_LOSS')
+                        setRelationLossMode('PERCENT')
+                      }}
+                      className={`rounded-lg border px-3 py-2 text-left transition ${relationInputMode === 'USAGE_LOSS' && relationLossMode === 'PERCENT' ? 'border-blue-500 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'}`}
+                    >
+                      <span className="block text-xs font-semibold">百分比损耗</span>
+                      <span className={`mt-0.5 block text-[11px] ${relationInputMode === 'USAGE_LOSS' && relationLossMode === 'PERCENT' ? 'text-blue-100' : 'text-gray-500'}`}>净用量 ×（1 + 损耗率）</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetRelationCalculator()
+                        setRelationInputMode('USAGE_LOSS')
+                        setRelationLossMode('FIXED')
+                      }}
+                      className={`rounded-lg border px-3 py-2 text-left transition ${relationInputMode === 'USAGE_LOSS' && relationLossMode === 'FIXED' ? 'border-blue-500 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'}`}
+                    >
+                      <span className="block text-xs font-semibold">固定损耗</span>
+                      <span className={`mt-0.5 block text-[11px] ${relationInputMode === 'USAGE_LOSS' && relationLossMode === 'FIXED' ? 'text-blue-100' : 'text-gray-500'}`}>净用量 + 每产出单位固定损耗</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetRelationCalculator()
+                        setRelationInputMode('DIRECT_RATIO')
+                      }}
+                      className={`rounded-lg border px-3 py-2 text-left transition ${relationInputMode === 'DIRECT_RATIO' ? 'border-blue-500 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'}`}
+                    >
+                      <span className="block text-xs font-semibold">{relationBatchConversionLabel}</span>
+                      <span className={`mt-0.5 block text-[11px] ${relationInputMode === 'DIRECT_RATIO' ? 'text-blue-100' : 'text-gray-500'}`}>投入总量 ÷ 产出总量</span>
+                    </button>
                   </div>
 
                   {!relationLengthStockUnitValid && (
@@ -2570,9 +2654,9 @@ export default function MaterialPage({
                   )}
 
                   {relationInputMode === 'USAGE_LOSS' ? (
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className={`grid grid-cols-1 gap-3 ${relationLossMode === 'NONE' ? '' : 'md:grid-cols-2'}`}>
                       <label className="text-xs font-medium text-gray-600">
-                        每 1 {relationProduct?.unit || '成品单位'} {relationUsesLengthInput ? '标准尺寸' : '标准净用量'}
+                        每 1 {relationOutputUnit} {relationUsesLengthInput ? '标准尺寸' : '标准净用量'}
                         <span className="mt-1 flex overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
                           <input
                             type="number"
@@ -2589,43 +2673,31 @@ export default function MaterialPage({
                           </span>
                         </span>
                       </label>
-                      <label className="text-xs font-medium text-gray-600">
-                        损耗方式
-                        <select
-                          value={relationLossMode}
-                          onChange={(event) => {
-                            setRelationLossMode(event.target.value as BomLossInputMode)
-                            setRelationLossValue('')
-                          }}
-                          className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="PERCENT">百分比损耗</option>
-                          <option value="FIXED">固定损耗</option>
-                        </select>
-                      </label>
-                      <label className="text-xs font-medium text-gray-600">
-                        {relationLossMode === 'PERCENT' ? '损耗百分比' : `每 1 ${relationProduct?.unit || '成品单位'} 固定损耗`}
-                        <span className="mt-1 flex overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
-                          <input
-                            type="number"
-                            min="0"
-                            step="any"
-                            inputMode="decimal"
-                            value={relationLossValue}
-                            onChange={(event) => setRelationLossValue(event.target.value)}
-                            className="min-w-0 flex-1 px-3 py-2 text-right text-sm outline-none"
-                            placeholder="0"
-                          />
-                          <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">
-                            {relationLossMode === 'PERCENT' ? '%' : relationInputUnit}
+                      {relationLossMode !== 'NONE' && (
+                        <label className="text-xs font-medium text-gray-600">
+                          {relationLossMode === 'PERCENT' ? '损耗百分比' : `每 1 ${relationOutputUnit} 固定损耗`}
+                          <span className="mt-1 flex overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              inputMode="decimal"
+                              value={relationLossValue}
+                              onChange={(event) => setRelationLossValue(event.target.value)}
+                              className="min-w-0 flex-1 px-3 py-2 text-right text-sm outline-none"
+                              placeholder="0"
+                            />
+                            <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">
+                              {relationLossMode === 'PERCENT' ? '%' : relationInputUnit}
+                            </span>
                           </span>
-                        </span>
-                      </label>
+                        </label>
+                      )}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       <label className="text-xs font-medium text-gray-600">
-                        成品数量
+                        产出总{relationOutputMeasureLabel}
                         <span className="mt-1 flex overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
                           <input
                             type="number"
@@ -2638,12 +2710,12 @@ export default function MaterialPage({
                             placeholder="如 20"
                           />
                           <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">
-                            {relationProduct?.unit || '成品主单位'}
+                            {relationOutputUnit}
                           </span>
                         </span>
                       </label>
                       <label className="text-xs font-medium text-gray-600">
-                        对应投入数量
+                        投入总{relationInputMeasureLabel}
                         <span className="mt-1 flex overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
                           <input
                             type="number"
@@ -2667,7 +2739,7 @@ export default function MaterialPage({
                     <div>
                       本次计算比例：
                       <strong className="mx-1">{relationUnitRatio > 0 ? qty(relationUnitRatio) : '—'}</strong>
-                      {relationUsesLengthInput ? 'm' : relationMaterial?.stockUnit || relationMaterial?.unit || '投入物料主单位'}投入 / 1 {relationProduct?.unit || '主产出单位'}产出
+                      {relationUsesLengthInput ? 'm' : relationMaterial?.stockUnit || relationMaterial?.unit || '投入物料主单位'}投入 / 1 {relationOutputUnit}产出
                       {relationUsesLengthInput && relationUnitRatio > 0 && (
                         <span className="ml-2 text-xs font-normal text-blue-700">
                           （已由 {relationInputUnit} 自动换算）
@@ -2676,7 +2748,7 @@ export default function MaterialPage({
                     </div>
                     {relationExistingBomItem && (
                       <div className="mt-1 text-xs text-blue-700">
-                        当前已保存单位用量：{qty(Number(relationExistingBomItem.quantity) / Number(relationExistingBom?.outputQuantity || 1))} {relationExistingBomItem.unit}投入 / 1 {relationProduct?.unit || '主产出单位'}产出；点击“添加或更新”，再点击底部“保存”后覆盖。
+                        当前已保存单位用量：{qty(Number(relationExistingBomItem.quantity) / Number(relationExistingBom?.outputQuantity || 1))} {relationExistingBomItem.unit}投入 / 1 {relationOutputUnit}产出；点击“添加或更新”，再点击顶部“保存 BOM”后覆盖。
                       </div>
                     )}
                   </div>
@@ -2775,7 +2847,7 @@ export default function MaterialPage({
                                       {savedItem
                                         ? `当前已保存 ${qty(Number(savedItem.quantity) / Number(selectedBom?.outputQuantity || 1))}`
                                         : '新关联，尚未保存'}
-                                      ；点击底部“保存”后生效
+                                      ；点击顶部“保存 BOM”后生效
                                     </div>
                                   )}
                                 </div>
@@ -2819,37 +2891,21 @@ export default function MaterialPage({
                 )}
               </div>
 
-              <div className="mt-4 flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
                 <div className={`text-xs ${draftBomDirty ? 'font-medium text-amber-700' : 'text-gray-500'}`}>
                   {draftBomDirty
-                    ? '有未保存修改；确认所有新增、比例调整和移除后，点击“保存”统一生效。'
+                    ? '有未保存修改；确认所有新增、比例调整和移除后，点击工作区顶部“保存 BOM”统一生效。'
                     : '当前 BOM 已保存；“添加或更新”只会先修改待保存明细。'}
                 </div>
-                <button
-                  type="button"
-                  onClick={saveSelectedBom}
-                  disabled={bomSaving || !draftBomDirty}
-                  className="shrink-0 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {bomSaving ? '保存中...' : '保存'}
-                </button>
               </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
               <div className="text-xs text-gray-500">
                 {relationMaterial
                   ? `已选择投入物料 ${relationMaterial.code}；选择右侧主产出后即可填写用量并保存。`
                   : '请选择投入物料和主产出物料，随后填写用量并保存。'}
               </div>
-              <button
-                type="button"
-                disabled
-                title="请先选择输出产品"
-                className="shrink-0 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                保存
-              </button>
             </div>
           )}
           </div>

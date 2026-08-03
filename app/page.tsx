@@ -159,6 +159,36 @@ interface ProcessStep {
 
 type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'employees' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
 type MaterialSection = 'materials' | 'bomWorkspace' | 'bomUsage'
+
+interface PageContinuityState {
+  tab?: TabType
+  materialSection?: MaterialSection
+  scrollPositions?: Record<string, { contentTop: number; windowTop: number }>
+}
+
+function readPageContinuity(storageKey: string): PageContinuityState {
+  if (typeof window === 'undefined') return {}
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(storageKey) || '{}')
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as PageContinuityState
+      : {}
+  } catch (error) {
+    return {}
+  }
+}
+
+function writePageContinuity(storageKey: string, update: Partial<PageContinuityState>) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify({
+      ...readPageContinuity(storageKey),
+      ...update,
+    }))
+  } catch (error) {
+    // 浏览器禁用或限制本地存储时不应阻断业务页面。
+  }
+}
 type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'equipment' | 'logistics' | 'inventory' | 'configuration' | 'tools'
 
 const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: TabType[] }> = [
@@ -462,12 +492,31 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   )
   const readableBusinessNavItems = baseNavItems.filter((item) => canReadNavItem(item) && !accountMenuKeys.has(item.key) && !hiddenResources.has(item.resource))
   const readableSystemNavItems = baseNavItems.filter((item) => canRead(item.resource) && accountMenuKeys.has(item.key) && !hiddenResources.has(item.resource))
-  const initialTab = readableBusinessNavItems.find((item) => item.key === 'dashboard')?.key
+  const pageContinuityStorageKey = `mes-lite.page-continuity.${operator.id}`
+  const restoredPageContinuity = useMemo(
+    () => readPageContinuity(pageContinuityStorageKey),
+    [pageContinuityStorageKey],
+  )
+  const fallbackInitialTab = readableBusinessNavItems.find((item) => item.key === 'dashboard')?.key
     ?? readableBusinessNavItems[0]?.key
     ?? readableSystemNavItems[0]?.key
     ?? 'dashboard'
+  const restoredTabAllowed = [...readableBusinessNavItems, ...readableSystemNavItems]
+    .some((item) => item.key === restoredPageContinuity.tab)
+  const initialTab = restoredTabAllowed ? restoredPageContinuity.tab as TabType : fallbackInitialTab
+  const defaultMaterialSection: MaterialSection = canRead('materials') ? 'materials' : 'bomUsage'
+  const restoredMaterialSection = restoredPageContinuity.materialSection
+  const restoredMaterialSectionAllowed = restoredMaterialSection === 'materials'
+    ? canRead('materials')
+    : restoredMaterialSection === 'bomWorkspace'
+      ? canRead('materials') && canRead('bomCost')
+      : restoredMaterialSection === 'bomUsage'
+        ? canRead('bomCost')
+        : false
   const [tab, setTab] = useState<TabType>(initialTab)
-  const [materialSection, setMaterialSection] = useState<MaterialSection>(canRead('materials') ? 'materials' : 'bomUsage')
+  const [materialSection, setMaterialSection] = useState<MaterialSection>(
+    restoredMaterialSectionAllowed ? restoredMaterialSection as MaterialSection : defaultMaterialSection,
+  )
   const [materialMenuOpen, setMaterialMenuOpen] = useState(true)
   const [orders, setOrders] = useState<Order[]>([])
   const [stocks, setStocks] = useState<Stock[]>([])
@@ -504,6 +553,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [resizingDesktopSidebar, setResizingDesktopSidebar] = useState(false)
   const systemMenuRef = useRef<HTMLDivElement>(null)
   const desktopSystemMenuRef = useRef<HTMLDivElement>(null)
+  const pageContentRef = useRef<HTMLDivElement>(null)
   const navOrderLoadedRef = useRef(false)
   const [adjustingStock, setAdjustingStock] = useState<Stock | null>(null)
   const [stockAdjustForm, setStockAdjustForm] = useState({
@@ -543,6 +593,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const sidebarNavItems = activeSystemTab ? readableSystemNavItems : activeBusinessGroup?.items || []
   const baseMobileNavItems = navItems.slice(0, 4)
   const mobilePrimaryItems = baseMobileNavItems
+  const pageLocationKey = tab === 'materials' ? `${tab}:${materialSection}` : tab
   const selectedOrderMaterial = orderMaterialOptions.find((material) => material.id === selectedMaterialId) || null
   const selectedOrderBoms = useMemo(() => selectedOrderMaterial?.boms || [], [selectedOrderMaterial])
 
@@ -576,6 +627,90 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     if (!navOrderLoadedRef.current) return
     window.localStorage.setItem('mes-lite.nav.order', JSON.stringify(navItems.map((item) => item.key)))
   }, [navItems])
+
+  useEffect(() => {
+    writePageContinuity(pageContinuityStorageKey, { tab, materialSection })
+  }, [materialSection, pageContinuityStorageKey, tab])
+
+  useEffect(() => {
+    const content = pageContentRef.current
+    if (!content) return
+
+    const saved = readPageContinuity(pageContinuityStorageKey).scrollPositions?.[pageLocationKey]
+    let restoring = false
+    let userMoved = false
+    let saveFrame = 0
+    let latestCheckpoint = {
+      contentTop: content.scrollTop,
+      windowTop: window.scrollY,
+    }
+
+    const saveCheckpoint = () => {
+      const current = readPageContinuity(pageContinuityStorageKey)
+      writePageContinuity(pageContinuityStorageKey, {
+        scrollPositions: {
+          ...(current.scrollPositions || {}),
+          [pageLocationKey]: latestCheckpoint,
+        },
+      })
+    }
+    const scheduleSave = () => {
+      if (restoring) return
+      latestCheckpoint = {
+        contentTop: content.scrollTop,
+        windowTop: window.scrollY,
+      }
+      if (saveFrame) return
+      saveFrame = window.requestAnimationFrame(() => {
+        saveFrame = 0
+        saveCheckpoint()
+      })
+    }
+    const saveBeforePageHide = () => {
+      latestCheckpoint = {
+        contentTop: content.scrollTop,
+        windowTop: window.scrollY,
+      }
+      saveCheckpoint()
+    }
+    const markUserMoved = () => {
+      if (!restoring) userMoved = true
+    }
+    const restoreCheckpoint = () => {
+      if (!saved || userMoved) return
+      restoring = true
+      const contentTop = Number.isFinite(Number(saved.contentTop)) ? Math.max(0, Number(saved.contentTop)) : 0
+      const windowTop = Number.isFinite(Number(saved.windowTop)) ? Math.max(0, Number(saved.windowTop)) : 0
+      content.scrollTop = contentTop
+      window.scrollTo({ top: windowTop, behavior: 'auto' })
+      latestCheckpoint = { contentTop, windowTop }
+      window.requestAnimationFrame(() => { restoring = false })
+    }
+
+    content.addEventListener('scroll', scheduleSave, { passive: true })
+    content.addEventListener('wheel', markUserMoved, { passive: true })
+    content.addEventListener('touchstart', markUserMoved, { passive: true })
+    window.addEventListener('scroll', scheduleSave, { passive: true })
+    window.addEventListener('wheel', markUserMoved, { passive: true })
+    window.addEventListener('touchstart', markUserMoved, { passive: true })
+    window.addEventListener('pagehide', saveBeforePageHide)
+
+    const firstRestoreFrame = window.requestAnimationFrame(restoreCheckpoint)
+    const delayedRestore = window.setTimeout(restoreCheckpoint, 500)
+    return () => {
+      if (saveFrame) saveCheckpoint()
+      window.cancelAnimationFrame(firstRestoreFrame)
+      if (saveFrame) window.cancelAnimationFrame(saveFrame)
+      window.clearTimeout(delayedRestore)
+      content.removeEventListener('scroll', scheduleSave)
+      content.removeEventListener('wheel', markUserMoved)
+      content.removeEventListener('touchstart', markUserMoved)
+      window.removeEventListener('scroll', scheduleSave)
+      window.removeEventListener('wheel', markUserMoved)
+      window.removeEventListener('touchstart', markUserMoved)
+      window.removeEventListener('pagehide', saveBeforePageHide)
+    }
+  }, [pageContinuityStorageKey, pageLocationKey])
 
   useEffect(() => {
     if (!systemMenuOpen) return
@@ -1439,6 +1574,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </div>
 
         <div
+          ref={pageContentRef}
           aria-label="页面内容区"
           className={`min-w-0 lg:min-h-0 lg:flex-1 lg:overscroll-contain lg:pb-6 ${
             tab === 'materials' && materialSection === 'bomWorkspace'
