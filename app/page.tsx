@@ -1576,11 +1576,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         <div
           ref={pageContentRef}
           aria-label="页面内容区"
-          className={`min-w-0 lg:min-h-0 lg:flex-1 lg:overscroll-contain lg:pb-6 ${
-            tab === 'materials' && materialSection === 'bomWorkspace'
-              ? 'xl:flex xl:flex-col xl:overflow-hidden'
-              : 'lg:overflow-y-auto lg:[scrollbar-gutter:stable]'
-          }`}
+          className="mes-page-content-scroll min-w-0 lg:min-h-0 lg:flex-1 lg:overflow-y-scroll lg:overscroll-contain lg:pb-6 lg:[scrollbar-gutter:stable]"
         >
         {tab === 'materials' && materialSectionItems.length > 1 && (
           <nav
