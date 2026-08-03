@@ -696,6 +696,7 @@ export default function MaterialPage({
   const [relationProductId, setRelationProductId] = useState('')
   const [relationMaterialId, setRelationMaterialId] = useState('')
   const [relationOutputMaterialId, setRelationOutputMaterialId] = useState('')
+  const [pendingBomOutputQuantity, setPendingBomOutputQuantity] = useState('')
   const [relationInputMode, setRelationInputMode] = useState<BomRatioInputMode>('USAGE_LOSS')
   const [relationStandardUsage, setRelationStandardUsage] = useState('')
   const [relationLossMode, setRelationLossMode] = useState<BomLossInputMode>('NONE')
@@ -731,6 +732,7 @@ export default function MaterialPage({
   const columnResizeCleanupRef = useRef<(() => void) | null>(null)
   const loadedBomDraftSignatureRef = useRef('')
   const bomWorkspaceStateRestoredRef = useRef(false)
+  const pendingPrimaryOutputQuantityRef = useRef<string | null>(null)
   const [form, setForm] = useState(createEmptyMaterialForm())
   const formStockUnitOptions = unitCatalog.filter((unit) => unit.measureType === form.primaryMeasure)
   const formValuationUnitOptions = unitCatalog.filter((unit) => unit.measureType === form.referenceMeasure)
@@ -757,6 +759,7 @@ export default function MaterialPage({
     : 0
   const bomProductByMaterialId = useMemo(() => new Map(bomProducts.map((product) => [product.sourceMaterialId || product.id.replace(materialProductPrefix, ''), product])), [bomProducts])
   const bomMaterialById = useMemo(() => new Map(bomMaterialOptions.map((material) => [material.id, material])), [bomMaterialOptions])
+  const pendingBomOutputMaterial = relationOutputMaterialId ? bomMaterialById.get(relationOutputMaterialId) || null : null
   const existingBomRows = useMemo(() => {
     const normalizedKeyword = bomKeyword.trim().toLocaleLowerCase()
     return bomProducts.flatMap((product) => product.boms.map((bom) => {
@@ -1014,7 +1017,8 @@ export default function MaterialPage({
     loadedBomDraftSignatureRef.current = savedSignature
     if (selectedBomId === '__new__') {
       setDraftBomName(`方案 ${(selectedBomProduct?.boms.length || 0) + 1}`)
-      setDraftBomOutputQuantity('1')
+      setDraftBomOutputQuantity(pendingPrimaryOutputQuantityRef.current || '1')
+      pendingPrimaryOutputQuantityRef.current = null
       setDraftBomOutputs([])
       setDraftBomIsDefault((selectedBomProduct?.boms.length || 0) === 0)
       setDraftBomItems([])
@@ -1493,11 +1497,13 @@ export default function MaterialPage({
 
   const selectMaterialForBom = useCallback((materialId: string) => {
     loadedBomDraftSignatureRef.current = ''
+    pendingPrimaryOutputQuantityRef.current = null
     setSelectedMaterialId(materialId)
     setSelectedBomId('__new__')
     setRelationProductId(materialId ? `${materialProductPrefix}${materialId}` : '')
     setRelationMaterialId('')
     setRelationOutputMaterialId('')
+    setPendingBomOutputQuantity('')
     setDraftBomOutputs([])
     setRelationStandardUsage('')
     setRelationLossMode('NONE')
@@ -1512,6 +1518,7 @@ export default function MaterialPage({
     setSelectedBomId('__new__')
     setRelationProductId(materialId ? `${materialProductPrefix}${materialId}` : '')
     setRelationOutputMaterialId('')
+    setPendingBomOutputQuantity('')
     setDraftBomOutputs([])
     setRelationStandardUsage('')
     setRelationLossMode('NONE')
@@ -1520,25 +1527,30 @@ export default function MaterialPage({
     setRelationRawQuantity('')
   }, [])
 
-  const addOutputMaterialToDraft = useCallback((materialId: string) => {
+  const confirmOutputMaterialToDraft = useCallback(() => {
+    const materialId = relationOutputMaterialId
     if (!materialId) return
+    const quantity = Number(pendingBomOutputQuantity)
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      onMessage('请先填写大于 0 的产出数量')
+      return
+    }
     if (materialId === relationMaterialId) {
       onMessage('该物料已选为当前投入，不能同时作为产出')
-      setRelationOutputMaterialId('')
       return
     }
     if (!selectedMaterial) {
+      pendingPrimaryOutputQuantityRef.current = pendingBomOutputQuantity
       selectOutputMaterialForBom(materialId)
+      setPendingBomOutputQuantity('')
       return
     }
     if (materialId === selectedMaterial.id) {
       onMessage('该物料已是主产出')
-      setRelationOutputMaterialId('')
       return
     }
     if (draftBomItems.some((item) => item.materialId === materialId)) {
       onMessage('同一物料不能同时作为 BOM 投入和产出')
-      setRelationOutputMaterialId('')
       return
     }
     const material = bomMaterialById.get(materialId)
@@ -1548,19 +1560,22 @@ export default function MaterialPage({
       : [...current, {
           clientId: `output-${materialId}-${Date.now()}`,
           materialId,
-          quantity: 1,
+          quantity: pendingBomOutputQuantity,
           unit: material.stockUnit || material.unit || '件',
         }])
     setRelationOutputMaterialId('')
-  }, [bomMaterialById, draftBomItems, onMessage, relationMaterialId, selectOutputMaterialForBom, selectedMaterial])
+    setPendingBomOutputQuantity('')
+  }, [bomMaterialById, draftBomItems, onMessage, pendingBomOutputQuantity, relationMaterialId, relationOutputMaterialId, selectOutputMaterialForBom, selectedMaterial])
 
   const selectExistingBom = useCallback((materialId: string, bomId: string) => {
     loadedBomDraftSignatureRef.current = ''
+    pendingPrimaryOutputQuantityRef.current = null
     setSelectedMaterialId(materialId)
     setSelectedBomId(bomId)
     setRelationProductId(`${materialProductPrefix}${materialId}`)
     setRelationMaterialId('')
     setRelationOutputMaterialId('')
+    setPendingBomOutputQuantity('')
     setRelationStandardUsage('')
     setRelationLossMode('NONE')
     setRelationLossValue('')
@@ -2430,7 +2445,7 @@ export default function MaterialPage({
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="text-sm font-semibold text-gray-900">产出明细（可多项）</div>
-                  <div className="mt-0.5 text-xs text-gray-500">连续添加主产品、副产品、回收料或废料，并分别填写基准产出量。</div>
+                  <div className="mt-0.5 text-xs text-gray-500">每次选择一项产出，确认基准数量并添加后，再继续选择下一项。</div>
                 </div>
                 <span className="rounded bg-white px-2 py-1 text-xs font-medium text-emerald-700">
                   已添加 {selectedMaterial ? 1 + draftBomOutputs.length : 0} 项
@@ -2446,13 +2461,78 @@ export default function MaterialPage({
                 ))}
                 onChange={(value) => {
                   setRelationOutputMaterialId(value)
-                  addOutputMaterialToDraft(value)
+                  setPendingBomOutputQuantity('')
                 }}
-                placeholder={selectedMaterial ? '继续输入并添加其他产出物料' : '输入并添加首项主产出物料'}
+                placeholder={selectedMaterial ? '输入并选择下一项产出物料' : '输入并选择首项主产出物料'}
                 emptyText="没有匹配的产出物料"
                 allowClear
+                disabled={Boolean(pendingBomOutputMaterial)}
                 className="w-full"
               />
+
+              {pendingBomOutputMaterial && (
+                <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/70 p-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded border border-amber-200 bg-white">
+                      {pendingBomOutputMaterial.primaryImage ? (
+                        <img
+                          src={pendingBomOutputMaterial.primaryImage.url}
+                          alt={pendingBomOutputMaterial.primaryImage.note || pendingBomOutputMaterial.name}
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-[11px] text-gray-400">无图</span>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-gray-900">{pendingBomOutputMaterial.code} · {pendingBomOutputMaterial.name}</div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-700">
+                          {selectedMaterial ? '待确认其他产出' : '待确认主产出'}
+                        </span>
+                        <span className="text-gray-500">填写数量后才能选择下一项</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <label className="flex min-w-[12rem] flex-1 overflow-hidden rounded border border-amber-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
+                      <input
+                        aria-label={`${pendingBomOutputMaterial.name}待添加产出数量`}
+                        type="number"
+                        min="0"
+                        step="any"
+                        inputMode="decimal"
+                        value={pendingBomOutputQuantity}
+                        onChange={(event) => setPendingBomOutputQuantity(event.target.value)}
+                        className="min-w-0 flex-1 px-3 py-2 text-right text-sm outline-none"
+                        placeholder="输入基准数量"
+                        autoFocus
+                      />
+                      <span className="flex items-center border-l border-amber-200 bg-amber-50 px-3 text-xs text-gray-600">
+                        {pendingBomOutputMaterial.stockUnit || pendingBomOutputMaterial.unit}
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRelationOutputMaterialId('')
+                        setPendingBomOutputQuantity('')
+                      }}
+                      className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmOutputMaterialToDraft}
+                      disabled={!Number.isFinite(Number(pendingBomOutputQuantity)) || Number(pendingBomOutputQuantity) <= 0}
+                      className="shrink-0 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {selectedMaterial ? '添加产出' : '确认主产出'}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {selectedMaterial ? (
                 <div className={`mt-2 space-y-2 ${draftBomOutputs.length >= 3 ? 'mes-bom-output-scroll' : ''}`}>
@@ -2543,11 +2623,11 @@ export default function MaterialPage({
                     )
                   })}
                 </div>
-              ) : (
+              ) : !pendingBomOutputMaterial ? (
                 <div className="mt-2 rounded-lg border border-dashed border-emerald-200 bg-white/60 px-3 py-4 text-center text-xs text-gray-500">
-                  先添加首项主产出；添加后仍可在同一输入框继续添加其他产出物料。
+                  先选择首项主产出并确认数量；添加后再逐项录入其他产出。
                 </div>
-              )}
+              ) : null}
             </section>
           </div>
 
