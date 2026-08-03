@@ -62,6 +62,8 @@ model Employee {
   phone                  String?
   note                   String?
   isActive               Boolean                         @default(true)
+  operatorId             String?                         @unique
+  operator               Operator?                       @relation(fields: [operatorId], references: [id], onDelete: SetNull)
   dailyProductionReports DailyProductionReportEmployee[]
   flowTransfers          FlowTransfer[]
   createdAt              DateTime                        @default(now())
@@ -1099,6 +1101,7 @@ model Operator {
   approvedAt          DateTime?
   approvedBy          String?
   lastLoginAt         DateTime?
+  employee            Employee?
   sessions            OperatorSession[]
   authAccounts        OperatorAuthAccount[]
   permissionOverrides OperatorPermissionOverride[]

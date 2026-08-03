@@ -19,10 +19,28 @@ async function main() {
   try {
     const { employeeNamesSnapshot, resolveActiveEmployees } = await import('../lib/employees')
     const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    const registeredOperator = await prisma.operator.create({
+      data: {
+        username: `employee-user-${suffix}`,
+        passwordHash: 'verification-only',
+        name: '员工甲登录账号',
+        role: 'OPERATOR',
+        status: 'ACTIVE',
+      },
+    })
     const [employeeA, employeeB] = await Promise.all([
-      prisma.employee.create({ data: { code: `E-A-${suffix}`, name: '员工甲', department: '生产部' } }),
+      prisma.employee.create({ data: { code: `E-A-${suffix}`, name: '员工甲', department: '生产部', operatorId: registeredOperator.id } }),
       prisma.employee.create({ data: { code: `E-B-${suffix}`, name: '员工乙', department: '质检部' } }),
     ])
+    const linkedOperator = await prisma.operator.findUniqueOrThrow({
+      where: { id: registeredOperator.id },
+      include: { employee: true },
+    })
+    assert.equal(linkedOperator.employee?.id, employeeA.id)
+    await assert.rejects(
+      prisma.employee.update({ where: { id: employeeB.id }, data: { operatorId: registeredOperator.id } }),
+      /Unique constraint failed/,
+    )
     const ordered = await prisma.$transaction((tx) => resolveActiveEmployees(tx, [employeeB.id, employeeA.id]))
     assert.deepEqual(ordered.map((employee) => employee.id), [employeeB.id, employeeA.id])
     assert.equal(employeeNamesSnapshot(ordered), '员工乙、员工甲')
@@ -84,8 +102,11 @@ async function main() {
       prisma.$transaction((tx) => resolveActiveEmployees(tx, [employeeA.id])),
       /不存在或已停用/,
     )
+    await prisma.operator.delete({ where: { id: registeredOperator.id } })
+    const employeeAfterAccountDelete = await prisma.employee.findUniqueOrThrow({ where: { id: employeeA.id } })
+    assert.equal(employeeAfterAccountDelete.operatorId, null, '删除测试账号后员工档案应保留并解除绑定')
 
-    console.log('员工档案、在职校验、生产多人关联、转移单人关联及历史姓名快照验证通过')
+    console.log('员工与注册账号一对一绑定、在职校验、业务人员关联及历史姓名快照验证通过')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

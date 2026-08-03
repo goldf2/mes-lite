@@ -14,6 +14,7 @@ const employeeFields = z.object({
   phone: z.string().trim().max(40, '联系电话不能超过 40 个字符').optional().nullable(),
   note: z.string().trim().max(500, '备注不能超过 500 个字符').optional().nullable(),
   isActive: z.boolean().optional(),
+  operatorId: z.string().trim().optional().nullable(),
 })
 
 const employeeUpdateSchema = employeeFields.extend({ id: z.string().min(1, '员工 ID 必填') })
@@ -30,6 +31,7 @@ function employeeData(input: z.infer<typeof employeeFields>) {
     phone: input.phone || null,
     note: input.note || null,
     isActive: input.isActive ?? true,
+    operatorId: input.operatorId || null,
   }
 }
 
@@ -42,13 +44,53 @@ async function listEmployees(keyword?: string, includeInactive = false) {
         { name: { contains: keyword } },
         { department: { contains: keyword } },
         { phone: { contains: keyword } },
+        { operator: { is: { username: { contains: keyword } } } },
+        { operator: { is: { name: { contains: keyword } } } },
       ],
     } : {}),
   }
   return prisma.employee.findMany({
     where,
+    include: {
+      operator: { select: { id: true, username: true, name: true, role: true, status: true } },
+    },
     orderBy: [{ isActive: 'desc' }, { code: 'asc' }],
   })
+}
+
+async function listOperators() {
+  return prisma.operator.findMany({
+    select: {
+      id: true,
+      username: true,
+      name: true,
+      role: true,
+      status: true,
+      employee: { select: { id: true, code: true, name: true } },
+    },
+    orderBy: [{ status: 'asc' }, { username: 'asc' }],
+  })
+}
+
+async function ensureOperatorAvailable(
+  tx: Prisma.TransactionClient,
+  operatorId: string | null | undefined,
+  employeeId?: string,
+) {
+  if (!operatorId) return
+  const operator = await tx.operator.findUnique({
+    where: { id: operatorId },
+    select: { username: true, employee: { select: { id: true, code: true, name: true } } },
+  })
+  if (!operator) throw new Error('所选注册账号不存在，请重新选择')
+  if (operator.employee && operator.employee.id !== employeeId) {
+    throw new Error(`注册账号“${operator.username}”已绑定员工 ${operator.employee.code} · ${operator.employee.name}`)
+  }
+}
+
+function employeeUniqueError(error: Prisma.PrismaClientKnownRequestError) {
+  const target = Array.isArray(error.meta?.target) ? error.meta.target.map(String) : []
+  return target.includes('operatorId') ? '该注册账号已绑定其他员工' : '员工编码已存在'
 }
 
 export async function GET(req: NextRequest) {
@@ -58,7 +100,11 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const keyword = searchParams.get('keyword')?.trim() || undefined
     const includeInactive = searchParams.get('includeInactive') === '1'
-    return NextResponse.json({ data: await listEmployees(keyword, includeInactive) })
+    const [employees, operators] = await Promise.all([
+      listEmployees(keyword, includeInactive),
+      listOperators(),
+    ])
+    return NextResponse.json({ data: employees, operators })
   } catch (error) {
     console.error('Get employees error:', error)
     return NextResponse.json({ error: '获取员工资料失败' }, { status: 500 })
@@ -70,7 +116,13 @@ export async function POST(req: NextRequest) {
     const denied = await requireResourcePermission('system', 'create')
     if (denied) return denied
     const input = employeeFields.parse(await req.json())
-    const employee = await prisma.employee.create({ data: employeeData(input) })
+    const employee = await prisma.$transaction(async (tx) => {
+      await ensureOperatorAvailable(tx, input.operatorId)
+      return tx.employee.create({
+        data: employeeData(input),
+        include: { operator: { select: { id: true, username: true, name: true, role: true, status: true } } },
+      })
+    })
     await writeAuditLog(req, {
       action: 'CREATE',
       entityType: 'EMPLOYEE',
@@ -84,8 +136,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.errors[0]?.message || '参数错误' }, { status: 400 })
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      return NextResponse.json({ error: '员工编码已存在' }, { status: 409 })
+      return NextResponse.json({ error: employeeUniqueError(error) }, { status: 409 })
     }
+    if (error instanceof Error) return NextResponse.json({ error: error.message }, { status: 400 })
     console.error('Create employee error:', error)
     return NextResponse.json({ error: '新增员工失败' }, { status: 500 })
   }
@@ -98,9 +151,13 @@ export async function PATCH(req: NextRequest) {
     const input = employeeUpdateSchema.parse(await req.json())
     const before = await prisma.employee.findUnique({ where: { id: input.id } })
     if (!before) return NextResponse.json({ error: '员工不存在' }, { status: 404 })
-    const employee = await prisma.employee.update({
-      where: { id: input.id },
-      data: employeeData(input),
+    const employee = await prisma.$transaction(async (tx) => {
+      await ensureOperatorAvailable(tx, input.operatorId, input.id)
+      return tx.employee.update({
+        where: { id: input.id },
+        data: employeeData(input),
+        include: { operator: { select: { id: true, username: true, name: true, role: true, status: true } } },
+      })
     })
     await writeAuditLog(req, {
       action: 'UPDATE',
@@ -117,8 +174,9 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: error.errors[0]?.message || '参数错误' }, { status: 400 })
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      return NextResponse.json({ error: '员工编码已存在' }, { status: 409 })
+      return NextResponse.json({ error: employeeUniqueError(error) }, { status: 409 })
     }
+    if (error instanceof Error) return NextResponse.json({ error: error.message }, { status: 400 })
     console.error('Update employee error:', error)
     return NextResponse.json({ error: '保存员工资料失败' }, { status: 500 })
   }
