@@ -182,6 +182,7 @@ interface WorkInstructionSummary {
     spec?: string | null
     customer?: { id: string; code: string; name: string } | null
   }
+  workCenters: Array<{ id: string; code: string; name: string }>
   attachments: AttachmentItem[]
   attachmentCount: number
   imageCount: number
@@ -1038,6 +1039,7 @@ export default function MaterialPanoramaPage({
                                   <div className="mt-1 text-xs text-gray-500">
                                     客户：{instruction.material.customer?.name || '通用产品'} · 文件：{instruction.imageCount} 图 / {instruction.pdfCount} PDF
                                   </div>
+                                  <div className="mt-1 line-clamp-2 text-xs text-gray-500">工作中心：{instruction.workCenters.length > 0 ? instruction.workCenters.map((item) => item.name).join('、') : '不限'}</div>
                                   {instruction.note && <div className="mt-1 line-clamp-2 text-xs text-gray-500">备注：{instruction.note}</div>}
                                 </div>
                               </div>

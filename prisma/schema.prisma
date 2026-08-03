@@ -35,6 +35,45 @@ model InventoryLocation {
   updatedAt          DateTime                @updatedAt
 }
 
+model WorkCenter {
+  id               String            @id @default(cuid())
+  code             String            @unique
+  name             String
+  category         String?
+  note             String?
+  isActive         Boolean           @default(true)
+  deletedAt        DateTime?
+  equipment        Equipment[]
+  workInstructions WorkInstruction[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([isActive])
+}
+
+model Equipment {
+  id              String     @id @default(cuid())
+  code            String     @unique
+  name            String
+  equipmentType   String
+  model           String?
+  manufacturer    String?
+  serialNumber    String?
+  status          String     @default("AVAILABLE")
+  location        String?
+  basicParameters String?
+  note            String?
+  workCenterId    String
+  workCenter      WorkCenter @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
+  deletedAt       DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([workCenterId])
+  @@index([status])
+  @@index([deletedAt])
+}
+
 model Product {
   id               String               @id @default(cuid())
   sku              String               @unique
@@ -928,18 +967,19 @@ model DocumentAttachment {
 // ==================== 作业指导书 ====================
 
 model WorkInstruction {
-  id         String           @id @default(cuid())
-  categoryId String
-  category   DocumentCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  version    String           @default("v1")
-  status     String           @default("ACTIVE")
-  materialId String
-  material   Material         @relation(fields: [materialId], references: [id])
-  note       String?
-  deletedAt  DateTime?
-  deletedBy  String?
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  id          String           @id @default(cuid())
+  categoryId  String
+  category    DocumentCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  version     String           @default("v1")
+  status      String           @default("ACTIVE")
+  materialId  String
+  material    Material         @relation(fields: [materialId], references: [id])
+  workCenters WorkCenter[]
+  note        String?
+  deletedAt   DateTime?
+  deletedBy   String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   @@index([categoryId])
   @@index([status])

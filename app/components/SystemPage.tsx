@@ -177,6 +177,17 @@ interface InventoryLocationConfig {
   availableQty: number
 }
 
+interface WorkCenterConfig {
+  id: string
+  code: string
+  name: string
+  category?: string | null
+  note?: string | null
+  isActive: boolean
+  deletedAt?: string | null
+  _count: { equipment: number; workInstructions: number }
+}
+
 const measureTypeOptions: Array<[MeasureType, string, string]> = [
   ['LENGTH', '长度', 'm'],
   ['WEIGHT', '重量', 'kg'],
@@ -211,7 +222,7 @@ function routeStepCostPerThousand(step: ProcessRoute['steps'][number] | ProcessS
   return { laborHours, machineHours, cost }
 }
 
-export type SystemSection = 'suppliers' | 'customers' | 'processTemplates' | 'process' | 'recycle' | 'audit' | 'dataTools' | 'units' | 'locations' | 'preferences'
+export type SystemSection = 'suppliers' | 'customers' | 'processTemplates' | 'process' | 'recycle' | 'audit' | 'dataTools' | 'units' | 'locations' | 'workCenters' | 'preferences'
 
 export default function SystemPage({
   section,
@@ -231,8 +242,155 @@ export default function SystemPage({
       {section === 'dataTools' && <DataToolManager onMessage={onMessage} />}
       {section === 'units' && <UnitCatalogManager onMessage={onMessage} />}
       {section === 'locations' && <InventoryLocationManager onMessage={onMessage} />}
+      {section === 'workCenters' && <WorkCenterManager onMessage={onMessage} />}
       {section === 'preferences' && <InterfacePreferenceManager onMessage={onMessage} />}
     </>
+  )
+}
+
+function WorkCenterManager({ onMessage }: { onMessage: (msg: string) => void }) {
+  const emptyForm = { code: '', name: '', category: '', note: '', isActive: true }
+  const [items, setItems] = useState<WorkCenterConfig[]>([])
+  const [keyword, setKeyword] = useState('')
+  const [form, setForm] = useState(emptyForm)
+  const [editing, setEditing] = useState<WorkCenterConfig | null>(null)
+  const [showModal, setShowModal] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const filteredItems = items.filter((item) => [item.code, item.name, item.category || '', item.note || '']
+    .join(' ').toLowerCase().includes(keyword.trim().toLowerCase()))
+  const tableSort = useClientTableSort(filteredItems, {
+    center: (item) => `${item.code} ${item.name}`,
+    category: (item) => item.category || '',
+    equipment: (item) => item._count.equipment,
+    documents: (item) => item._count.workInstructions,
+    status: (item) => item.isActive ? '启用' : '已归档',
+  }, 'center', 'asc')
+
+  const loadItems = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/work-centers?includeInactive=1')
+      const data = await res.json()
+      if (!res.ok) return onMessage(data.error || '获取工作中心失败')
+      setItems(data.data || [])
+    } finally {
+      setLoading(false)
+    }
+  }, [onMessage])
+
+  useEffect(() => { void loadItems() }, [loadItems])
+
+  const openCreate = () => {
+    setEditing(null)
+    setForm(emptyForm)
+    setShowModal(true)
+  }
+
+  const openEdit = (item: WorkCenterConfig) => {
+    setEditing(item)
+    setForm({
+      code: item.code,
+      name: item.name,
+      category: item.category || '',
+      note: item.note || '',
+      isActive: true,
+    })
+    setShowModal(true)
+  }
+
+  const save = async () => {
+    if (!form.code.trim() || !form.name.trim()) return onMessage('请填写工作中心编码和名称')
+    setSaving(true)
+    try {
+      const res = await fetch('/api/work-centers', {
+        method: editing ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editing ? { ...form, id: editing.id } : form),
+      })
+      const data = await res.json()
+      if (!res.ok) return onMessage(data.error || '保存工作中心失败')
+      setItems(data.data || [])
+      setShowModal(false)
+      onMessage(editing ? '工作中心已更新' : '工作中心已新增')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const archive = async (item: WorkCenterConfig) => {
+    if (!confirm(`确认归档工作中心“${item.code} · ${item.name}”吗？`)) return
+    const res = await fetch(`/api/work-centers?id=${encodeURIComponent(item.id)}`, { method: 'DELETE' })
+    const data = await res.json()
+    if (!res.ok) return onMessage(data.error || '归档工作中心失败')
+    setItems(data.data || [])
+    onMessage('工作中心已归档')
+  }
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-lg bg-white p-4 shadow sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold">工作中心</h3>
+            <p className="mt-1 text-sm text-gray-500">工作中心表示锯切、钻孔、检验等生产能力区域；设备归属工作中心，工艺文档引用适用工作中心。</p>
+          </div>
+          <AppButton variant="create" onClick={openCreate}>新增</AppButton>
+        </div>
+        <div className="mt-4 max-w-xl">
+          <input value={keyword} onChange={(event) => setKeyword(event.target.value)} className={appInputClassName} placeholder="搜索编码、名称、类别或备注" />
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-lg bg-white shadow">
+        {loading ? <div className="py-12 text-center text-sm text-gray-500">加载中...</div> : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[820px]">
+              <thead className="bg-gray-50 text-left text-sm text-gray-600"><tr>
+                <SortableTableHeader column="center" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>工作中心</SortableTableHeader>
+                <SortableTableHeader column="category" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>类别</SortableTableHeader>
+                <SortableTableHeader column="equipment" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>设备</SortableTableHeader>
+                <SortableTableHeader column="documents" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>工艺文档</SortableTableHeader>
+                <SortableTableHeader column="status" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>状态</SortableTableHeader>
+                <th className="px-4 py-3 text-right">操作</th>
+              </tr></thead>
+              <tbody className="divide-y divide-gray-100">
+                {tableSort.sortedRows.map((item) => (
+                  <tr key={item.id} className="text-sm hover:bg-gray-50">
+                    <td className="px-4 py-3"><div className="font-medium text-gray-900">{item.name}</div><div className="font-mono text-xs text-blue-700">{item.code}</div>{item.note && <div className="mt-1 line-clamp-2 text-xs text-gray-500">{item.note}</div>}</td>
+                    <td className="px-4 py-3 text-gray-600">{item.category || '-'}</td>
+                    <td className="px-4 py-3">{item._count.equipment}</td>
+                    <td className="px-4 py-3">{item._count.workInstructions}</td>
+                    <td className="px-4 py-3"><span className={`rounded px-2 py-1 text-xs ${item.isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{item.isActive ? '启用' : '已归档'}</span></td>
+                    <td className="px-4 py-3 text-right"><AppButton size="sm" onClick={() => openEdit(item)}>{item.isActive ? '编辑' : '恢复'}</AppButton>{item.isActive && <AppButton size="sm" variant="warning" className="ml-2" onClick={() => archive(item)}>归档</AppButton>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {tableSort.sortedRows.length === 0 && <div className="py-12 text-center text-sm text-gray-500">暂无工作中心</div>}
+          </div>
+        )}
+      </section>
+
+      {showModal && (
+        <ModalDialog
+          title={editing ? '编辑工作中心' : '新增工作中心'}
+          description="编码用于稳定引用，名称面向现场人员显示。"
+          onClose={() => setShowModal(false)}
+          closeDisabled={saving}
+          size="lg"
+          footer={<ModalActions onCancel={() => setShowModal(false)} onConfirm={save} busy={saving} />}
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="工作中心编码 *" value={form.code} onChange={(code) => setForm({ ...form, code })} />
+            <Field label="工作中心名称 *" value={form.name} onChange={(name) => setForm({ ...form, name })} />
+            <Field label="类别" value={form.category} onChange={(category) => setForm({ ...form, category })} />
+            {editing && <label className="flex items-center gap-2 self-end rounded-lg border border-gray-200 px-3 py-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm({ ...form, isActive: event.target.checked })} />启用</label>}
+            <label className="sm:col-span-2 text-sm font-medium text-gray-700">备注<textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} rows={4} className={`mt-2 ${appTextareaClassName}`} /></label>
+          </div>
+        </ModalDialog>
+      )}
+    </div>
   )
 }
 

@@ -38,6 +38,7 @@ const ScanPrintPage = dynamic(() => import('./components/ScanPrintPage'), { load
 const BomUsagePage = dynamic(() => import('./components/BomUsagePage'), { loading: FeaturePageLoading })
 const MaterialPage = dynamic(() => import('./components/MaterialPage'), { loading: FeaturePageLoading })
 const WorkInstructionPage = dynamic(() => import('./components/WorkInstructionPage'), { loading: FeaturePageLoading })
+const EquipmentPage = dynamic(() => import('./components/EquipmentPage'), { loading: FeaturePageLoading })
 const AttachmentPanel = dynamic(() => import('./components/AttachmentPanel'), { loading: FeaturePageLoading })
 const OperatorPage = dynamic(() => import('./components/OperatorPage'), { loading: FeaturePageLoading })
 const SystemPage = dynamic(() => import('./components/SystemPage'), { loading: FeaturePageLoading })
@@ -139,17 +140,18 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
+type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
 type MaterialSection = 'materials' | 'bomWorkspace' | 'bomUsage'
-type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'logistics' | 'inventory' | 'configuration' | 'tools'
+type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'equipment' | 'logistics' | 'inventory' | 'configuration' | 'tools'
 
 const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: TabType[] }> = [
   { key: 'workspace', label: '工作台', tabs: ['dashboard', 'allFunctions'] },
   { key: 'materials', label: '物料', tabs: ['materials'] },
   { key: 'production', label: '生产', tabs: ['orders', 'stats', 'workInstructions', 'dispatch'] },
+  { key: 'equipment', label: '设备', tabs: ['equipment'] },
   { key: 'logistics', label: '物流', tabs: ['materialIn', 'shipment', 'return'] },
   { key: 'inventory', label: '库存', tabs: ['stocks'] },
-  { key: 'configuration', label: '配置', tabs: ['suppliers', 'customers', 'locationSettings', 'unitSettings', 'processTemplates', 'processRoutes', 'systemSettings'] },
+  { key: 'configuration', label: '配置', tabs: ['suppliers', 'customers', 'locationSettings', 'unitSettings', 'workCenters', 'processTemplates', 'processRoutes', 'systemSettings'] },
   { key: 'tools', label: '工具', tabs: ['sawingCost', 'scanPrint', 'archive', 'auditLogs', 'dataTools'] },
 ]
 
@@ -166,6 +168,7 @@ const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
   { key: 'bomWorkspace', label: '物料 BOM 关联', groupKey: 'materials', groupLabel: '物料', description: '维护产品与原材料的用量关系', icon: '本', tab: 'materials', materialSection: 'bomWorkspace', resource: 'materials', extraResource: 'bomCost' },
   { key: 'bomUsage', label: 'BOM 反查', groupKey: 'materials', groupLabel: '物料', description: '查看原材料被哪些产品使用', icon: '查', tab: 'materials', materialSection: 'bomUsage', resource: 'bomCost' },
   { key: 'workInstructions', label: '产品文档', groupKey: 'production', groupLabel: '生产', description: '管理图纸、PDF 和作业指导文档', icon: '书', tab: 'workInstructions', resource: 'workInstructions' },
+  { key: 'equipment', label: '设备台账', groupKey: 'equipment', groupLabel: '设备', description: '维护设备、状态、工作中心归属和基础参数', icon: '机', tab: 'equipment', resource: 'equipment' },
   { key: 'orders', label: '工单管理', groupKey: 'production', groupLabel: '生产', description: '创建、查看和处理生产工单', icon: '工', tab: 'orders', resource: 'orders' },
   { key: 'stats', label: '生产日报', groupKey: 'production', groupLabel: '生产', description: '登记日产出、原料耗用与入库', icon: '报', tab: 'stats', resource: 'stats' },
   { key: 'materialIn', label: '来料管理', groupKey: 'logistics', groupLabel: '物流', description: '登记供应商来料、实测和采购计价', icon: '入', tab: 'materialIn', resource: 'materialIn' },
@@ -176,6 +179,7 @@ const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
   { key: 'customers', label: '客户资料', groupKey: 'configuration', groupLabel: '配置', description: '维护客户基础资料', icon: '客', tab: 'customers', resource: 'system' },
   { key: 'locationSettings', label: '库位配置', groupKey: 'configuration', groupLabel: '配置', description: '配置库位、用途和默认库位', icon: '位', tab: 'locationSettings', resource: 'system' },
   { key: 'unitSettings', label: '单位配置', groupKey: 'configuration', groupLabel: '配置', description: '配置计量单位和同量纲换算', icon: '单', tab: 'unitSettings', resource: 'system' },
+  { key: 'workCenters', label: '工作中心', groupKey: 'configuration', groupLabel: '配置', description: '配置锯切、钻孔、检验等生产能力区域', icon: '中', tab: 'workCenters', resource: 'system' },
   { key: 'processTemplates', label: '加工工艺', groupKey: 'configuration', groupLabel: '配置', description: '维护加工工艺模板和成本参数', icon: '艺', tab: 'processTemplates', resource: 'system' },
   { key: 'processRoutes', label: '物料路线', groupKey: 'configuration', groupLabel: '配置', description: '维护产品加工路线和工步', icon: '线', tab: 'processRoutes', resource: 'system' },
   { key: 'systemSettings', label: '系统设置', groupKey: 'configuration', groupLabel: '配置', description: '维护编码、排序和界面偏好', icon: '设', tab: 'systemSettings', resource: 'system' },
@@ -199,6 +203,7 @@ const systemSectionByTab: Partial<Record<TabType, SystemSection>> = {
   dataTools: 'dataTools',
   unitSettings: 'units',
   locationSettings: 'locations',
+  workCenters: 'workCenters',
   systemSettings: 'preferences',
 }
 
@@ -215,6 +220,7 @@ function MenuIcon({ icon }: { icon: string }) {
     orders: '工',
     materials: '料',
     workInstructions: '书',
+    equipment: '机',
     materialIn: '入',
     dispatch: '派',
     stocks: '库',
@@ -232,6 +238,7 @@ function MenuIcon({ icon }: { icon: string }) {
     dataTools: '数',
     unitSettings: '单',
     locationSettings: '位',
+    workCenters: '中',
     systemSettings: '设',
     operators: '人',
     permissionUsers: '权',
@@ -399,6 +406,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'dashboard', label: '仪表盘', resource: 'dashboard' },
     { key: 'materials', label: '物料与 BOM', resource: 'materials' },
     { key: 'workInstructions', label: '产品文档', resource: 'workInstructions' },
+    { key: 'equipment', label: '设备台账', resource: 'equipment' },
     { key: 'materialIn', label: '来料管理', resource: 'materialIn' },
     { key: 'orders', label: '工单管理', resource: 'orders' },
     { key: 'dispatch', label: '派工管理', resource: 'dispatch' },
@@ -410,6 +418,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'customers', label: '客户资料', resource: 'system' },
     { key: 'locationSettings', label: '库位配置', resource: 'system' },
     { key: 'unitSettings', label: '单位配置', resource: 'system' },
+    { key: 'workCenters', label: '工作中心', resource: 'system' },
     { key: 'processTemplates', label: '加工工艺', resource: 'system' },
     { key: 'processRoutes', label: '物料路线', resource: 'system' },
     { key: 'sawingCost', label: '锯切成本', resource: 'sawingCost' },
@@ -2061,6 +2070,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
         {/* 产品文档 */}
         {tab === 'workInstructions' && <WorkInstructionPage onMessage={showMessage} />}
+
+        {/* 设备台账 */}
+        {tab === 'equipment' && <EquipmentPage onMessage={showMessage} canCreate={canCreate('equipment')} canUpdate={canUpdate('equipment')} canDelete={operator.role === 'ADMIN' || Boolean(operator.permissions?.equipment?.canDelete)} />}
 
         {/* 来料管理 */}
         {tab === 'materialIn' && <MaterialInPage onMessage={showMessage} />}

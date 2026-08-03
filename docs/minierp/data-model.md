@@ -703,11 +703,25 @@ BOM 数据只保存规范方向：目标物料或产出物料 -> 输入物料及
 | --- | --- | --- |
 | `DocumentCategory` | `name`、`parentId`、`sortOrder` | 文档类别；`parentId = null` 为一级类别，非空为二级类别，最多两级 |
 | `WorkInstruction` | `materialId`、`categoryId` | 产品文档必须关联成品物料和一个可用类别 |
-| `WorkInstruction` | `version`、`status`、`note` | 保存版本、状态和通用备注；不保存适用工序 |
+| `WorkInstruction` | `version`、`status`、`note` | 保存版本、状态和通用备注；不保存具体工序实绩 |
+| `WorkInstruction.workCenters` | 多对多工作中心 | 工艺文件可声明一个或多个适用工作中心；空集合表示不限工作中心 |
 | `DocumentAttachment` | `ownerType = WORK_INSTRUCTION`、`ownerId` | 保存产品文档的图片或 PDF 文件 |
 | `DocumentAttachment` | `rotation` | 文件显示方向校正角度，只允许 `0 / 90 / 180 / 270`；不修改原文件 |
 
 默认数据包含“作业指导书、图纸、工艺文件、检验文件、包装文件、设备文件、其他”等一级类别，但它们是可维护的数据库记录。“作业指导书”下可增加“机床作业、环境作业”等二级类别。已有文档引用或仍有子类别时禁止删除类别。
+
+### work_centers / equipment
+
+工作中心与设备的边界见 [ADR 0010](../adr/0010-work-center-equipment-and-process-document-boundary.md)。
+
+| 模型 | 关键字段 | 含义 |
+| --- | --- | --- |
+| `WorkCenter` | `code`、`name`、`category`、`isActive` | 锯切、钻孔、检验等逻辑能力区域，由“配置 / 工作中心”维护 |
+| `Equipment` | `code`、`name`、`equipmentType`、`workCenterId` | 实际生产设备及其工作中心归属 |
+| `Equipment` | `manufacturer`、`model`、`serialNumber` | 设备厂商、型号和出厂编号 |
+| `Equipment` | `status`、`location`、`basicParameters` | 可用、使用中、维护、停用状态及基础能力参数 |
+
+工作中心归档前必须先调整其全部设备归属。设备归档保留审计记录，不影响既有工艺文档关系；工艺文档后续修改适用工作中心时使用显式保存。
 
 ### system_settings
 

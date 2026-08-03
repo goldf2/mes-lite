@@ -235,6 +235,7 @@ export async function GET(
               customer: { select: { id: true, code: true, name: true } },
             },
           },
+          workCenters: { select: { id: true, code: true, name: true } },
         },
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
       }),

@@ -39,6 +39,13 @@ interface MaterialOption {
   customer?: Customer | null
 }
 
+interface WorkCenterOption {
+  id: string
+  code: string
+  name: string
+  isActive: boolean
+}
+
 interface AttachmentItem {
   id: string
   originalName: string
@@ -61,6 +68,7 @@ interface WorkInstruction {
   status: string
   materialId: string
   material: MaterialOption
+  workCenters: WorkCenterOption[]
   note?: string | null
   attachmentCount: number
   imageCount: number
@@ -82,6 +90,7 @@ type WorkInstructionForm = {
   version: string
   status: string
   materialId: string
+  workCenterIds: string[]
   note: string
 }
 
@@ -105,6 +114,7 @@ function createEmptyForm(): WorkInstructionForm {
     version: 'v1',
     status: 'ACTIVE',
     materialId: '',
+    workCenterIds: [],
     note: '',
   }
 }
@@ -317,11 +327,48 @@ function MaterialSearchSelect({
   )
 }
 
+function WorkCenterPicker({
+  options,
+  value,
+  onChange,
+}: {
+  options: WorkCenterOption[]
+  value: string[]
+  onChange: (ids: string[]) => void
+}) {
+  const selected = options.filter((item) => value.includes(item.id))
+  const available = options.filter((item) => !value.includes(item.id)).map((item) => ({
+    value: item.id,
+    label: `${item.code} · ${item.name}`,
+    keywords: item.name,
+  }))
+
+  return (
+    <div className="space-y-2">
+      <SearchableSelect
+        value=""
+        onChange={(id) => id && onChange([...value, id])}
+        options={available}
+        placeholder={available.length > 0 ? '输入工作中心筛选并添加' : '已选择全部工作中心'}
+      />
+      <div className="flex min-h-8 flex-wrap gap-2">
+        {selected.length === 0 ? <span className="text-xs text-gray-400">未指定时表示不限制工作中心</span> : selected.map((item) => (
+          <span key={item.id} className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">
+            {item.code} · {item.name}
+            <button type="button" onClick={() => onChange(value.filter((id) => id !== item.id))} className="ml-1 text-blue-400 hover:text-blue-800" aria-label={`移除${item.name}`}>×</button>
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: string) => void }) {
   const [items, setItems] = useState<WorkInstruction[]>([])
   const [categories, setCategories] = useState<DocumentCategoryItem[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [materials, setMaterials] = useState<MaterialOption[]>([])
+  const [workCenters, setWorkCenters] = useState<WorkCenterOption[]>([])
   const [keyword, setKeyword] = useState('')
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[] | null>(null)
   const [selectedStatuses, setSelectedStatuses] = useState(instructionStatusOptions.map((item) => item.value))
@@ -358,6 +405,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     status: (instruction) => statusLabels[instruction.status] || instruction.status,
     customer: (instruction) => getInstructionCustomerName(instruction),
     files: (instruction) => instruction.attachmentCount,
+    workCenters: (instruction) => instruction.workCenters.map((item) => `${item.code} ${item.name}`).join(' '),
   }, 'code', 'asc')
 
   useEffect(() => {
@@ -372,6 +420,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     fetchCategories()
     fetchCustomers()
     fetchMaterials()
+    fetchWorkCenters()
   }, [])
 
   useEffect(() => {
@@ -506,6 +555,16 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     }
   }
 
+  const fetchWorkCenters = async () => {
+    try {
+      const res = await fetch('/api/work-centers')
+      const data = await res.json()
+      if (res.ok) setWorkCenters(data.data || [])
+    } catch (err) {
+      // 通用文档允许不限制工作中心，读取失败不阻塞其余内容。
+    }
+  }
+
   const openAddModal = () => {
     setEditing(null)
     setDetailEditing(false)
@@ -532,6 +591,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       version: instruction.version || 'v1',
       status: instruction.status || 'ACTIVE',
       materialId: instruction.materialId,
+      workCenterIds: instruction.workCenters.map((item) => item.id),
       note: instruction.note || '',
     })
     setDetailEditing(true)
@@ -566,6 +626,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         categoryId: form.categoryId,
         version: form.version.trim() || 'v1',
         status: form.status,
+        workCenterIds: form.workCenterIds,
         note: form.note.trim() || undefined,
       }
       const res = await fetch('/api/work-instructions', {
@@ -901,6 +962,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       <div className="truncate">版本：{instruction.version || '-'}</div>
                       {instruction.material.spec && <div className="truncate">规格：{instruction.material.spec}</div>}
                       <div className="truncate">客户：{getInstructionCustomerName(instruction)}</div>
+                      <div className="line-clamp-2">工作中心：{instruction.workCenters.length > 0 ? instruction.workCenters.map((item) => item.name).join('、') : '不限'}</div>
                       <div>文件：{instruction.imageCount} 图 / {instruction.pdfCount} PDF</div>
                       {instruction.note && <div className="line-clamp-2">备注：{instruction.note}</div>}
                     </div>
@@ -937,7 +999,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         ) : (
           <>
             <div className="overflow-x-auto rounded-lg border border-gray-100">
-              <table className="w-full min-w-[960px]">
+              <table className="w-full min-w-[1080px]">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="w-24 px-4 py-3 text-left text-sm font-semibold text-gray-600">预览</th>
@@ -946,6 +1008,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                     <SortableTableHeader column="category" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort} className="w-28">文档类别</SortableTableHeader>
                     <SortableTableHeader column="status" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort} className="w-24">状态</SortableTableHeader>
                     <SortableTableHeader column="customer" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort} className="w-36">客户</SortableTableHeader>
+                    <SortableTableHeader column="workCenters" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort} className="w-40">工作中心</SortableTableHeader>
                     <SortableTableHeader column="files" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort} className="w-28">文件</SortableTableHeader>
                     <th className="w-56 px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                   </tr>
@@ -971,6 +1034,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       <td className="whitespace-nowrap px-4 py-3 text-sm">{documentCategoryLabel(instruction.category)}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm">{statusLabels[instruction.status] || instruction.status}</td>
                       <td className="px-4 py-3 text-sm">{getInstructionCustomerName(instruction)}</td>
+                      <td className="px-4 py-3 text-sm"><div className="line-clamp-2">{instruction.workCenters.length > 0 ? instruction.workCenters.map((item) => item.name).join('、') : '不限'}</div></td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm">{instruction.imageCount} 图 / {instruction.pdfCount} PDF</td>
                       <td className="whitespace-nowrap px-4 py-3">
                         <div className="flex flex-wrap gap-2">
@@ -1038,6 +1102,10 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">版本</label>
                   <input value={form.version} onChange={(event) => setForm({ ...form, version: event.target.value })} className={appInputClassName} placeholder="v1" />
+                </div>
+                <div className="md:col-span-2 xl:col-span-3">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">适用工作中心</label>
+                  <WorkCenterPicker options={workCenters} value={form.workCenterIds} onChange={(workCenterIds) => setForm({ ...form, workCenterIds })} />
                 </div>
                 <div className="md:col-span-2 xl:col-span-3">
                   <label className="mb-2 block text-sm font-medium text-gray-700">备注</label>
@@ -1115,6 +1183,10 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                           </div>
                         </div>
                         <div>
+                          <label className="mb-1 block text-xs font-medium text-gray-600">适用工作中心</label>
+                          <WorkCenterPicker options={workCenters} value={form.workCenterIds} onChange={(workCenterIds) => setForm({ ...form, workCenterIds })} />
+                        </div>
+                        <div>
                           <label className="mb-1 block text-xs font-medium text-gray-600">备注</label>
                           <textarea rows={3} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
                         </div>
@@ -1137,6 +1209,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                         <div>客户：{getInstructionCustomerName(detail)}</div>
                         <div>产品：{detail.material.code} · {detail.material.name}</div>
                         {detail.material?.spec && <div>规格：{detail.material.spec}</div>}
+                        <div>工作中心：{detail.workCenters.length > 0 ? detail.workCenters.map((item) => `${item.code} · ${item.name}`).join('、') : '不限'}</div>
                         <div>创建时间：{formatDate(detail.createdAt)}</div>
                       </div>
                       {detail.note && <div className="mt-4 whitespace-pre-wrap rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600">{detail.note}</div>}

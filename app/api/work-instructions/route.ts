@@ -11,6 +11,7 @@ const workInstructionSchema = z.object({
   categoryId: z.string().min(1, '请选择文档类别'),
   version: z.string().optional(),
   status: z.enum(['ACTIVE', 'DRAFT', 'ARCHIVED']).optional(),
+  workCenterIds: z.array(z.string()).default([]),
   note: z.string().optional(),
 })
 
@@ -115,6 +116,7 @@ export async function GET(req: NextRequest) {
               customer: { select: { id: true, code: true, name: true } },
             },
           },
+          workCenters: { select: { id: true, code: true, name: true, isActive: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
@@ -200,6 +202,12 @@ export async function POST(req: NextRequest) {
     if (!category) {
       return NextResponse.json({ error: '文档类别不存在' }, { status: 400 })
     }
+    const workCenterCount = await prisma.workCenter.count({
+      where: { id: { in: data.workCenterIds }, isActive: true, deletedAt: null },
+    })
+    if (workCenterCount !== new Set(data.workCenterIds).size) {
+      return NextResponse.json({ error: '存在无效或已停用的工作中心' }, { status: 400 })
+    }
 
     const instruction = await prisma.workInstruction.create({
       data: {
@@ -207,6 +215,7 @@ export async function POST(req: NextRequest) {
         version: data.version || 'v1',
         status: data.status || 'ACTIVE',
         materialId: material.id,
+        workCenters: { connect: Array.from(new Set(data.workCenterIds)).map((id) => ({ id })) },
         note: data.note || null,
       },
       include: {
@@ -229,6 +238,7 @@ export async function POST(req: NextRequest) {
             customer: { select: { id: true, code: true, name: true } },
           },
         },
+        workCenters: { select: { id: true, code: true, name: true, isActive: true } },
       },
     })
 
@@ -258,7 +268,10 @@ export async function PUT(req: NextRequest) {
     const body = await req.json()
     const data = updateWorkInstructionSchema.parse(body)
 
-    const current = await prisma.workInstruction.findUnique({ where: { id: data.id } })
+    const current = await prisma.workInstruction.findUnique({
+      where: { id: data.id },
+      include: { workCenters: { select: { id: true, code: true, name: true } } },
+    })
     if (!current || current.deletedAt) {
       return NextResponse.json({ error: '产品文档不存在或已归档' }, { status: 404 })
     }
@@ -277,6 +290,12 @@ export async function PUT(req: NextRequest) {
     if (!category) {
       return NextResponse.json({ error: '文档类别不存在' }, { status: 400 })
     }
+    const workCenterCount = await prisma.workCenter.count({
+      where: { id: { in: data.workCenterIds }, isActive: true, deletedAt: null },
+    })
+    if (workCenterCount !== new Set(data.workCenterIds).size) {
+      return NextResponse.json({ error: '存在无效或已停用的工作中心' }, { status: 400 })
+    }
 
     const instruction = await prisma.workInstruction.update({
       where: { id: data.id },
@@ -285,6 +304,7 @@ export async function PUT(req: NextRequest) {
         version: data.version || 'v1',
         status: data.status || 'ACTIVE',
         materialId: material.id,
+        workCenters: { set: Array.from(new Set(data.workCenterIds)).map((id) => ({ id })) },
         note: data.note || null,
       },
       include: {
@@ -307,6 +327,7 @@ export async function PUT(req: NextRequest) {
             customer: { select: { id: true, code: true, name: true } },
           },
         },
+        workCenters: { select: { id: true, code: true, name: true, isActive: true } },
       },
     })
 
