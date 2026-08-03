@@ -23,6 +23,7 @@ model InventoryLocation {
   note               String?
   isDefault          Boolean                      @default(false)
   isActive           Boolean                      @default(true)
+  sortOrder          Int                          @default(0)
   deletedAt          DateTime?
   balances           StockLocationBalance[]
   stockLogs          StockLog[]
@@ -36,6 +37,8 @@ model InventoryLocation {
   returnOrders       ReturnOrder[]
   createdAt          DateTime                     @default(now())
   updatedAt          DateTime                     @updatedAt
+
+  @@index([sortOrder])
 }
 
 model WorkCenter {
@@ -45,6 +48,7 @@ model WorkCenter {
   category         String?
   note             String?
   isActive         Boolean           @default(true)
+  sortOrder        Int               @default(0)
   deletedAt        DateTime?
   equipment        Equipment[]
   workInstructions WorkInstruction[]
@@ -52,6 +56,7 @@ model WorkCenter {
   updatedAt        DateTime          @updatedAt
 
   @@index([isActive])
+  @@index([sortOrder])
 }
 
 model Employee {
@@ -62,6 +67,7 @@ model Employee {
   phone                  String?
   note                   String?
   isActive               Boolean                         @default(true)
+  sortOrder              Int                             @default(0)
   operatorId             String?                         @unique
   operator               Operator?                       @relation(fields: [operatorId], references: [id], onDelete: SetNull)
   dailyProductionReports DailyProductionReportEmployee[]
@@ -71,6 +77,7 @@ model Employee {
 
   @@index([isActive])
   @@index([name])
+  @@index([sortOrder])
 }
 
 model Equipment {
@@ -287,6 +294,9 @@ model ProcessRoute {
   name      String
   steps     ProcessStep[]
   isDefault Boolean       @default(false)
+  sortOrder Int           @default(0)
+
+  @@index([sortOrder])
 }
 
 model ProcessStep {
@@ -335,10 +345,13 @@ model ProcessTemplate {
   consumableCostPerBatch Float                @default(0)
   yieldRate              Float                @default(1)
   isPreset               Boolean              @default(false)
+  sortOrder              Int                  @default(0)
   materials              Material[]
   sawingScenarios        SawingCostScenario[]
   createdAt              DateTime             @default(now())
   updatedAt              DateTime             @updatedAt
+
+  @@index([sortOrder])
 }
 
 model SawingCostScenario {
@@ -731,10 +744,13 @@ model Customer {
   address   String?
   deletedAt DateTime?
   deletedBy String?
+  sortOrder Int        @default(0)
   products  Product[]
   materials Material[]
   shipments Shipment[]
   createdAt DateTime   @default(now())
+
+  @@index([sortOrder])
 }
 
 model Supplier {
@@ -746,8 +762,11 @@ model Supplier {
   address     String?
   deletedAt   DateTime?
   deletedBy   String?
+  sortOrder   Int          @default(0)
   materialIns MaterialIn[]
   createdAt   DateTime     @default(now())
+
+  @@index([sortOrder])
 }
 
 // ==================== 来料入库 ====================

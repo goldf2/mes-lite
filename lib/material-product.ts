@@ -72,6 +72,9 @@ export async function ensureProductForMaterial(
   options: { defaultRoute?: boolean; description?: string } = {}
 ) {
   const sku = simpleProductSku(material.code)
+  const routeSortOrder = options.defaultRoute
+    ? ((await tx.processRoute.aggregate({ _max: { sortOrder: true } }))._max.sortOrder ?? -1) + 1
+    : 0
   const existing = await tx.product.findFirst({
     where: { OR: [{ sku: material.code }, { sku }] },
     include: { stock: true, processRoutes: options.defaultRoute ? { where: { isDefault: true }, include: { steps: true } } : false },
@@ -94,6 +97,7 @@ export async function ensureProductForMaterial(
             productId: existing.id,
             name: '简易生产路线',
             isDefault: true,
+            sortOrder: routeSortOrder,
             steps: { create: [{ stepNo: 1, name: '简易作业', workstation: '现场' }] },
           },
         })
@@ -126,6 +130,7 @@ export async function ensureProductForMaterial(
               create: {
                 name: '简易生产路线',
                 isDefault: true,
+                sortOrder: routeSortOrder,
                 steps: { create: [{ stepNo: 1, name: '简易作业', workstation: '现场' }] },
               },
             },

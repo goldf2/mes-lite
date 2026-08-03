@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { nextEmployeeCode } from '@/lib/employees'
+import { nextConfigurationSortOrder } from '@/lib/configuration-order'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,7 +50,7 @@ async function listEmployees(keyword?: string, includeInactive = false) {
     include: {
       operator: { select: { id: true, username: true, name: true, role: true, status: true } },
     },
-    orderBy: [{ isActive: 'desc' }, { code: 'asc' }],
+    orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
   })
 }
 
@@ -114,7 +115,11 @@ export async function POST(req: NextRequest) {
     const employee = await prisma.$transaction(async (tx) => {
       await ensureOperatorAvailable(tx, input.operatorId)
       return tx.employee.create({
-        data: { code: await nextEmployeeCode(tx), ...employeeData(input) },
+        data: {
+          code: await nextEmployeeCode(tx),
+          ...employeeData(input),
+          sortOrder: await nextConfigurationSortOrder(tx, 'employees'),
+        },
         include: { operator: { select: { id: true, username: true, name: true, role: true, status: true } } },
       })
     })

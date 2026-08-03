@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { randomUUID } from 'crypto'
+import { nextConfigurationSortOrder } from '@/lib/configuration-order'
 
 const createSupplierSchema = z.object({
   name: z.string().min(1, '供应商名称必填'),
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
 
     const suppliers = await prisma.supplier.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     })
 
     return NextResponse.json({ data: suppliers })
@@ -57,9 +58,16 @@ export async function POST(req: NextRequest) {
     const { name, contact, phone, address } = createSupplierSchema.parse(body)
     const code = `SUP-${Date.now().toString(36).toUpperCase()}-${randomUUID().slice(0, 8).toUpperCase()}`
 
-    const supplier = await prisma.supplier.create({
-      data: { code, name, contact, phone, address },
-    })
+    const supplier = await prisma.$transaction(async (tx) => tx.supplier.create({
+      data: {
+        code,
+        name,
+        contact,
+        phone,
+        address,
+        sortOrder: await nextConfigurationSortOrder(tx, 'suppliers'),
+      },
+    }))
 
     return NextResponse.json({ data: supplier }, { status: 201 })
   } catch (error) {

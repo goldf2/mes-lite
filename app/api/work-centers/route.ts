@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentOperator } from '@/lib/auth'
 import { getEffectivePermissionMap, requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
+import { nextConfigurationSortOrder } from '@/lib/configuration-order'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +27,7 @@ async function listWorkCenters(includeInactive = false) {
   return prisma.workCenter.findMany({
     where: includeInactive ? {} : { isActive: true, deletedAt: null },
     include: { _count: { select: { equipment: true, workInstructions: true } } },
-    orderBy: [{ isActive: 'desc' }, { code: 'asc' }],
+    orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
   })
 }
 
@@ -48,15 +49,16 @@ export async function POST(req: NextRequest) {
     const denied = await requireResourcePermission('system', 'create')
     if (denied) return denied
     const body = fields.parse(await req.json())
-    const saved = await prisma.workCenter.create({
+    const saved = await prisma.$transaction(async (tx) => tx.workCenter.create({
       data: {
         code: normalizeCode(body.code),
         name: body.name.trim(),
         category: body.category?.trim() || null,
         note: body.note?.trim() || null,
         isActive: body.isActive ?? true,
+        sortOrder: await nextConfigurationSortOrder(tx, 'workCenters'),
       },
-    })
+    }))
     await writeAuditLog(req, {
       action: 'CREATE', entityType: 'WORK_CENTER', entityId: saved.id,
       entityLabel: `${saved.code} ${saved.name}`, afterData: saved,

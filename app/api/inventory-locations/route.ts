@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { getCurrentOperator } from '@/lib/auth'
+import { nextConfigurationSortOrder } from '@/lib/configuration-order'
 
 const locationFields = z.object({
   code: z.string().min(1, '库位编码必填').max(40),
@@ -24,7 +25,7 @@ async function listLocations(includeInactive = false) {
   const locations = await prisma.inventoryLocation.findMany({
     where: includeInactive ? {} : { isActive: true, deletedAt: null },
     include: { balances: { select: { qty: true, reservedQty: true, availableQty: true } } },
-    orderBy: [{ isDefault: 'desc' }, { code: 'asc' }],
+    orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
   })
   return locations.map(({ balances, ...location }) => ({
     ...location,
@@ -58,6 +59,7 @@ export async function POST(req: NextRequest) {
           note: body.note?.trim() || null,
           isDefault,
           isActive: body.isActive ?? true,
+          sortOrder: await nextConfigurationSortOrder(tx, 'locations'),
         },
       })
     })

@@ -4,6 +4,7 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { z } from 'zod'
 import { resolveProductId } from '@/lib/material-product'
+import { nextConfigurationSortOrder } from '@/lib/configuration-order'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,7 +55,7 @@ export async function GET() {
         product: { select: { id: true, sku: true, name: true } },
         steps: { where: { deletedAt: null }, orderBy: { stepNo: 'asc' } },
       },
-      orderBy: { product: { sku: 'asc' } },
+      orderBy: [{ sortOrder: 'asc' }, { product: { sku: 'asc' } }],
     })
 
     return NextResponse.json({ data: routes })
@@ -91,6 +92,7 @@ export async function POST(req: NextRequest) {
           productId,
           name: data.name,
           isDefault: Boolean(data.isDefault),
+          sortOrder: await nextConfigurationSortOrder(tx, 'processRoutes'),
           steps: {
             create: data.steps.map(stepData),
           },

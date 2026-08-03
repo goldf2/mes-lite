@@ -2,6 +2,7 @@ import { Prisma, PrismaClient } from '@prisma/client'
 import { prisma } from './prisma'
 
 export const UNIT_CATALOG_SETTING_KEY = 'units.customCatalog'
+export const UNIT_ORDER_SETTING_KEY = 'units.displayOrder'
 
 export const measureTypes = ['LENGTH', 'WEIGHT', 'QUANTITY', 'OTHER'] as const
 export type MeasureType = (typeof measureTypes)[number]
@@ -13,6 +14,7 @@ export interface UnitCatalogEntry {
   toBaseFactor: number
   isBase: boolean
   isPreset: boolean
+  sortOrder: number
 }
 
 export interface CustomUnitInput {
@@ -38,7 +40,7 @@ export const baseUnitByMeasure: Record<MeasureType, string> = {
   OTHER: '项',
 }
 
-export const presetUnitCatalog: UnitCatalogEntry[] = [
+export const presetUnitCatalog: Array<Omit<UnitCatalogEntry, 'sortOrder'>> = [
   { code: 'm', name: '米', measureType: 'LENGTH', toBaseFactor: 1, isBase: true, isPreset: true },
   { code: 'cm', name: '厘米', measureType: 'LENGTH', toBaseFactor: 0.01, isBase: false, isPreset: true },
   { code: 'mm', name: '毫米', measureType: 'LENGTH', toBaseFactor: 0.001, isBase: false, isPreset: true },
@@ -95,11 +97,46 @@ export async function getCustomUnits(client: SettingsClient = prisma) {
 }
 
 export async function getUnitCatalog(client: SettingsClient = prisma): Promise<UnitCatalogEntry[]> {
-  const customUnits = await getCustomUnits(client)
-  return [
+  const [customUnits, orderSetting] = await Promise.all([
+    getCustomUnits(client),
+    client.systemSetting.findUnique({ where: { key: UNIT_ORDER_SETTING_KEY }, select: { value: true } }),
+  ])
+  let savedOrder: Record<string, number> = {}
+  try {
+    const parsed = JSON.parse(orderSetting?.value || '{}')
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) savedOrder = parsed
+  } catch {
+    savedOrder = {}
+  }
+  const entries = [
     ...presetUnitCatalog,
     ...customUnits.map((unit) => ({ ...unit, isBase: false, isPreset: false })),
   ]
+  const measureOrder = new Map(measureTypes.map((measureType, index) => [measureType, index]))
+  return entries
+    .map((unit, index) => ({
+      ...unit,
+      sortOrder: Number.isFinite(Number(savedOrder[unitCatalogKey(unit)]))
+        ? Number(savedOrder[unitCatalogKey(unit)])
+        : index,
+    }))
+    .sort((left, right) => (
+      Number(measureOrder.get(left.measureType)) - Number(measureOrder.get(right.measureType))
+      || left.sortOrder - right.sortOrder
+    ))
+}
+
+export function unitCatalogKey(unit: Pick<UnitCatalogEntry, 'measureType' | 'code'>) {
+  return `${unit.measureType}:${normalizeUnitCode(unit.code)}`
+}
+
+export async function saveUnitCatalogOrder(orderedKeys: string[], client: SettingsClient = prisma) {
+  const order = Object.fromEntries(orderedKeys.map((key, index) => [key, index]))
+  await client.systemSetting.upsert({
+    where: { key: UNIT_ORDER_SETTING_KEY },
+    create: { key: UNIT_ORDER_SETTING_KEY, value: JSON.stringify(order) },
+    update: { value: JSON.stringify(order) },
+  })
 }
 
 export async function saveCustomUnits(units: CustomUnitInput[], client: SettingsClient = prisma) {
@@ -112,12 +149,20 @@ export async function saveCustomUnits(units: CustomUnitInput[], client: Settings
   return getUnitCatalog(client)
 }
 
-export function findCatalogUnit(catalog: UnitCatalogEntry[], measureType: string | null | undefined, code: unknown) {
+export function findCatalogUnit<T extends Pick<UnitCatalogEntry, 'measureType' | 'code'>>(
+  catalog: T[],
+  measureType: string | null | undefined,
+  code: unknown,
+): T | null {
   const normalizedCode = normalizeUnitCode(code)
   return catalog.find((unit) => unit.measureType === measureType && normalizeUnitCode(unit.code) === normalizedCode) || null
 }
 
-export function convertUnitValue(value: number, fromUnit: UnitCatalogEntry, toUnit: UnitCatalogEntry) {
+export function convertUnitValue(
+  value: number,
+  fromUnit: Pick<UnitCatalogEntry, 'measureType' | 'toBaseFactor'>,
+  toUnit: Pick<UnitCatalogEntry, 'measureType' | 'toBaseFactor'>,
+) {
   if (fromUnit.measureType !== toUnit.measureType) {
     throw new Error('不同计量方式之间不能直接换算')
   }

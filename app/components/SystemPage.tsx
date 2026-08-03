@@ -13,6 +13,7 @@ import useClientTableSort from './useClientTableSort'
 import AppButton from './AppButton'
 import ModalDialog, { ModalActions } from './ModalDialog'
 import { appInputClassName, appTextareaClassName } from './FormField'
+import ConfigurationManualOrder from './ConfigurationManualOrder'
 
 interface Supplier {
   id: string
@@ -22,6 +23,7 @@ interface Supplier {
   phone?: string | null
   address?: string | null
   createdAt: string
+  sortOrder: number
 }
 
 interface Customer {
@@ -32,6 +34,7 @@ interface Customer {
   phone?: string | null
   address?: string | null
   createdAt: string
+  sortOrder: number
 }
 
 interface AuditLog {
@@ -89,6 +92,7 @@ interface ProcessRoute {
   productId: string
   name: string
   isDefault: boolean
+  sortOrder: number
   product: { id: string; sku: string; name: string }
   steps: Array<{
     id: string
@@ -131,6 +135,7 @@ interface ProcessTemplate {
   consumableCostPerBatch: number
   yieldRate: number
   isPreset: boolean
+  sortOrder: number
   materials: Array<{ id: string; code: string; name: string }>
 }
 
@@ -162,6 +167,7 @@ interface ConfiguredUnit {
   isBase: boolean
   isPreset: boolean
   usedByMaterialCount: number
+  sortOrder: number
 }
 
 interface InventoryLocationConfig {
@@ -175,6 +181,7 @@ interface InventoryLocationConfig {
   qty: number
   reservedQty: number
   availableQty: number
+  sortOrder: number
 }
 
 interface WorkCenterConfig {
@@ -186,6 +193,7 @@ interface WorkCenterConfig {
   isActive: boolean
   deletedAt?: string | null
   _count: { equipment: number; workInstructions: number }
+  sortOrder: number
 }
 
 const measureTypeOptions: Array<[MeasureType, string, string]> = [
@@ -224,6 +232,19 @@ function routeStepCostPerThousand(step: ProcessRoute['steps'][number] | ProcessS
 
 export type SystemSection = 'suppliers' | 'customers' | 'processTemplates' | 'process' | 'recycle' | 'audit' | 'dataTools' | 'units' | 'locations' | 'workCenters' | 'preferences'
 
+const systemSectionOrderConfig: Partial<Record<SystemSection, {
+  entity: 'suppliers' | 'customers' | 'processTemplates' | 'processRoutes' | 'units' | 'locations' | 'workCenters'
+  label: string
+}>> = {
+  suppliers: { entity: 'suppliers', label: '供应商' },
+  customers: { entity: 'customers', label: '客户' },
+  processTemplates: { entity: 'processTemplates', label: '加工工艺' },
+  process: { entity: 'processRoutes', label: '物料路线' },
+  units: { entity: 'units', label: '单位' },
+  locations: { entity: 'locations', label: '库位' },
+  workCenters: { entity: 'workCenters', label: '工作中心' },
+}
+
 export default function SystemPage({
   section,
   onMessage,
@@ -231,19 +252,25 @@ export default function SystemPage({
   section: SystemSection
   onMessage: (msg: string) => void
 }) {
+  const [orderRevision, setOrderRevision] = useState(0)
+  const orderConfig = systemSectionOrderConfig[section]
+
   return (
     <>
-      {section === 'suppliers' && <SupplierManager onMessage={onMessage} />}
-      {section === 'customers' && <CustomerManager onMessage={onMessage} />}
-      {section === 'processTemplates' && <ProcessTemplateManager onMessage={onMessage} />}
-      {section === 'process' && <ProcessManager onMessage={onMessage} />}
-      {section === 'recycle' && <RecycleBin onMessage={onMessage} />}
-      {section === 'audit' && <AuditLogViewer onMessage={onMessage} />}
-      {section === 'dataTools' && <DataToolManager onMessage={onMessage} />}
-      {section === 'units' && <UnitCatalogManager onMessage={onMessage} />}
-      {section === 'locations' && <InventoryLocationManager onMessage={onMessage} />}
-      {section === 'workCenters' && <WorkCenterManager onMessage={onMessage} />}
-      {section === 'preferences' && <InterfacePreferenceManager onMessage={onMessage} />}
+      {orderConfig && <div className="mb-4 flex justify-end"><ConfigurationManualOrder {...orderConfig} onMessage={onMessage} onSaved={() => setOrderRevision((current) => current + 1)} /></div>}
+      <div key={`${section}-${orderRevision}`}>
+        {section === 'suppliers' && <SupplierManager onMessage={onMessage} />}
+        {section === 'customers' && <CustomerManager onMessage={onMessage} />}
+        {section === 'processTemplates' && <ProcessTemplateManager onMessage={onMessage} />}
+        {section === 'process' && <ProcessManager onMessage={onMessage} />}
+        {section === 'recycle' && <RecycleBin onMessage={onMessage} />}
+        {section === 'audit' && <AuditLogViewer onMessage={onMessage} />}
+        {section === 'dataTools' && <DataToolManager onMessage={onMessage} />}
+        {section === 'units' && <UnitCatalogManager onMessage={onMessage} />}
+        {section === 'locations' && <InventoryLocationManager onMessage={onMessage} />}
+        {section === 'workCenters' && <WorkCenterManager onMessage={onMessage} />}
+        {section === 'preferences' && <InterfacePreferenceManager onMessage={onMessage} />}
+      </div>
     </>
   )
 }
@@ -260,12 +287,13 @@ function WorkCenterManager({ onMessage }: { onMessage: (msg: string) => void }) 
   const filteredItems = items.filter((item) => [item.code, item.name, item.category || '', item.note || '']
     .join(' ').toLowerCase().includes(keyword.trim().toLowerCase()))
   const tableSort = useClientTableSort(filteredItems, {
+    manual: (item) => item.sortOrder,
     center: (item) => `${item.code} ${item.name}`,
     category: (item) => item.category || '',
     equipment: (item) => item._count.equipment,
     documents: (item) => item._count.workInstructions,
     status: (item) => item.isActive ? '启用' : '已归档',
-  }, 'center', 'asc')
+  }, 'manual', 'asc')
 
   const loadItems = useCallback(async () => {
     setLoading(true)
@@ -402,11 +430,12 @@ function InventoryLocationManager({ onMessage }: { onMessage: (msg: string) => v
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const locationSort = useClientTableSort(locations, {
+    manual: (location) => location.sortOrder,
     location: (location) => `${location.code} ${location.name}`,
     status: (location) => location.isDefault ? '默认' : location.isActive ? '启用' : '已归档',
     materialCount: (location) => location.materialCount,
     qty: (location) => location.qty,
-  }, 'location', 'asc')
+  }, 'manual', 'asc')
 
   const loadLocations = useCallback(async () => {
     setLoading(true)
@@ -537,10 +566,11 @@ function UnitCatalogManager({ onMessage }: { onMessage: (msg: string) => void })
   const [saving, setSaving] = useState(false)
   const baseUnit = measureTypeOptions.find(([measure]) => measure === form.measureType)?.[2] || '基准单位'
   const unitSort = useClientTableSort(units, {
+    manual: (unit) => unit.sortOrder,
     unit: (unit) => `${unit.name} ${unit.code}`,
     factor: (unit) => unit.toBaseFactor,
     usage: (unit) => unit.usedByMaterialCount,
-  }, 'unit', 'asc')
+  }, 'manual', 'asc')
 
   const loadUnits = useCallback(async () => {
     setLoading(true)
@@ -980,12 +1010,13 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
     address: '',
   })
   const supplierSort = useClientTableSort(suppliers, {
+    manual: (supplier) => supplier.sortOrder,
     name: (supplier) => supplier.name,
     contact: (supplier) => supplier.contact,
     phone: (supplier) => supplier.phone,
     address: (supplier) => supplier.address,
     createdAt: (supplier) => new Date(supplier.createdAt),
-  }, 'createdAt', 'desc')
+  }, 'manual', 'asc')
 
   useEffect(() => {
     fetchSuppliers()
@@ -1212,12 +1243,13 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
     address: '',
   })
   const customerSort = useClientTableSort(customers, {
+    manual: (customer) => customer.sortOrder,
     name: (customer) => customer.name,
     contact: (customer) => customer.contact,
     phone: (customer) => customer.phone,
     address: (customer) => customer.address,
     createdAt: (customer) => new Date(customer.createdAt),
-  }, 'createdAt', 'desc')
+  }, 'manual', 'asc')
 
   useEffect(() => {
     fetchCustomers()
@@ -1544,11 +1576,12 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
   })
   const displayMaterialCode = (sku?: string | null) => sku?.startsWith('MAT-') ? sku.slice(4) : sku || ''
   const routeSort = useClientTableSort(routes, {
+    manual: (route) => route.sortOrder,
     material: (route) => `${displayMaterialCode(route.product?.sku)} ${route.product?.name || ''}`,
     name: (route) => route.name,
     default: (route) => route.isDefault,
     steps: (route) => route.steps.length,
-  }, 'material', 'asc')
+  }, 'manual', 'asc')
 
   useEffect(() => {
     fetchProducts()

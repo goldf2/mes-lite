@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
+import { nextConfigurationSortOrder } from '@/lib/configuration-order'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,7 +39,7 @@ export async function GET() {
   if (denied) return denied
   const templates = await prisma.processTemplate.findMany({
     include,
-    orderBy: [{ isPreset: 'desc' }, { category: 'asc' }, { code: 'asc' }],
+    orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
   })
   return NextResponse.json({ data: templates, categories })
 }
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
     const denied = await requireResourcePermission('system', 'create')
     if (denied) return denied
     const data = templateSchema.parse(await req.json())
-    const template = await prisma.processTemplate.create({
+    const template = await prisma.$transaction(async (tx) => tx.processTemplate.create({
       data: {
         code: data.code,
         name: data.name,
@@ -66,10 +67,11 @@ export async function POST(req: NextRequest) {
         energyCostPerHour: data.energyCostPerHour,
         consumableCostPerBatch: data.consumableCostPerBatch,
         yieldRate: data.yieldRate,
+        sortOrder: await nextConfigurationSortOrder(tx, 'processTemplates'),
         materials: { connect: data.materialIds.map((id) => ({ id })) },
       },
       include,
-    })
+    }))
     await writeAuditLog(req, { action: 'CREATE', entityType: 'PROCESS_TEMPLATE', entityId: template.id, entityLabel: `${template.code} ${template.name}`, afterData: template })
     return NextResponse.json({ data: template }, { status: 201 })
   } catch (error) {

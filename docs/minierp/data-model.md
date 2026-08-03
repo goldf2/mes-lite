@@ -769,7 +769,7 @@ BOM 数据只保存规范方向：目标物料或产出物料 -> 基准批量输
 
 | 模型 | 关键字段 | 含义 |
 | --- | --- | --- |
-| `WorkCenter` | `code`、`name`、`category`、`isActive` | 锯切、钻孔、检验等逻辑能力区域，由“配置 / 工作中心”维护 |
+| `WorkCenter` | `code`、`name`、`category`、`isActive`、`sortOrder` | 锯切、钻孔、检验等逻辑能力区域，由“配置 / 工作中心”维护；`sortOrder` 保存共享默认顺序 |
 | `Equipment` | `code`、`name`、`equipmentType`、`workCenterId` | 实际生产设备及其工作中心归属 |
 | `Equipment` | `manufacturer`、`model`、`serialNumber` | 设备厂商、型号和出厂编号 |
 | `Equipment` | `status`、`location`、`basicParameters` | 可用、使用中、维护、停用状态及基础能力参数 |
@@ -782,11 +782,23 @@ BOM 数据只保存规范方向：目标物料或产出物料 -> 基准批量输
 
 | 字段 | 含义 |
 | --- | --- |
-| `key` | 设置键，当前包含 `sorting.materialCodeNatural` |
+| `key` | 设置键，当前包含 `sorting.materialCodeNatural`、`units.customCatalog`、`units.displayOrder` |
 | `value` | 字符串形式的设置值 |
 | `updatedAt` | 最近更新时间 |
 
 `sorting.materialCodeNatural=true` 时，物料列表和物料导出在按编码排序时先读取完整筛选结果，再按数字片段自然排序后分页或输出；该设置不修改 `Material.code`。
+
+`units.displayOrder` 保存单位目录键到人工顺序的映射；单位键由计量类别和单位编码组成。单位排序仅在相同计量类别内生效，自定义单位仍由 `units.customCatalog` 保存。
+
+### configuration_sort_order
+
+| 模型 | 排序字段 | 含义 |
+| --- | --- | --- |
+| `Supplier`、`Customer`、`Employee` | `sortOrder` | 供应商、客户和业务员工的共享默认显示顺序 |
+| `InventoryLocation`、`WorkCenter` | `sortOrder` | 库位和工作中心的共享默认显示顺序 |
+| `ProcessTemplate`、`ProcessRoute` | `sortOrder` | 加工工艺和物料路线的共享默认显示顺序 |
+
+新增记录使用当前最大 `sortOrder + 1` 追加；管理员保存手动排序时在事务内重新编号为连续整数并写入审计日志。表头临时排序不修改这些字段。
 
 ### inventory_locations / stock_location_balances
 
@@ -794,7 +806,7 @@ BOM 数据只保存规范方向：目标物料或产出物料 -> 基准批量输
 
 | 模型 | 关键字段 | 含义 |
 | --- | --- | --- |
-| `InventoryLocation` | `code`、`name`、`isDefault`、`isActive` | 可配置库位；默认库位承接未明确指定库位的兼容流程 |
+| `InventoryLocation` | `code`、`name`、`isDefault`、`isActive`、`sortOrder` | 可配置库位；默认库位承接未明确指定库位的兼容流程，`sortOrder` 保存共享默认顺序 |
 | `StockLocationBalance` | `stockId`、`locationId`、`qty`、`reservedQty`、`availableQty` | 主库存单位下的库位实物余额，`stockId + locationId` 唯一 |
 | `Stock` | 原有总量、核算数量和成本字段 | 继续作为物料总库存及成本唯一汇总账，不把成本复制到库位余额 |
 | `StockLog.locationId` | 库位外键 | 记录每次库存变动发生在哪个库位 |

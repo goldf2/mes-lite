@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.145",
+  "version": "0.1.146",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -42,6 +42,7 @@
     "verify:bom-ratio": "tsx scripts/verify-bom-ratio.ts",
     "verify:bom-versions": "tsx scripts/verify-bom-versions.ts",
     "verify:unit-catalog": "tsx scripts/verify-unit-catalog.ts",
+    "verify:configuration-order": "tsx scripts/verify-configuration-order.ts",
     "verify:data-integrity": "tsx scripts/verify-data-integrity.ts"
   },
   "dependencies": {

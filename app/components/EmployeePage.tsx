@@ -10,6 +10,7 @@ import SortableTableHeader from './SortableTableHeader'
 import TopBarPortal from './TopBarPortal'
 import useClientTableSort from './useClientTableSort'
 import SearchableSelect from './SearchableSelect'
+import ConfigurationManualOrder from './ConfigurationManualOrder'
 
 interface OperatorOption {
   id: string
@@ -32,6 +33,7 @@ interface EmployeeItem {
   operator?: Omit<OperatorOption, 'employee'> | null
   createdAt: string
   updatedAt: string
+  sortOrder: number
 }
 
 const emptyForm = () => ({
@@ -101,13 +103,14 @@ export default function EmployeePage({
     status === 'ALL' || (status === 'ACTIVE' ? employee.isActive : !employee.isActive)
   )), [employees, status])
   const tableSort = useClientTableSort(visibleEmployees, {
+    manual: (employee) => employee.sortOrder,
     code: (employee) => employee.code,
     name: (employee) => employee.name,
     department: (employee) => employee.department || '',
     phone: (employee) => employee.phone || '',
     operator: (employee) => employee.operator ? `${employee.operator.username} ${employee.operator.name}` : '',
     status: (employee) => employee.isActive ? '在职' : '停用',
-  }, 'code', 'asc')
+  }, 'manual', 'asc')
 
   const openCreate = () => {
     setEditing(null)
@@ -170,7 +173,7 @@ export default function EmployeePage({
               <option value="INACTIVE">已停用</option>
             </select>
           )}
-          actions={canCreate ? <AppButton variant="create" onClick={openCreate}>新增员工</AppButton> : null}
+          actions={(canUpdate || canCreate) ? <>{canUpdate && <ConfigurationManualOrder entity="employees" label="员工" onMessage={onMessage} onSaved={loadData} />}{canCreate && <AppButton variant="create" onClick={openCreate}>新增员工</AppButton>}</> : null}
         />
       </TopBarPortal>
 

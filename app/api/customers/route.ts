@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { createInternalCode } from '@/lib/internal-codes'
+import { nextConfigurationSortOrder } from '@/lib/configuration-order'
 
 const customerSchema = z.object({
   name: z.string().min(1, '客户名称必填'),
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
 
     const customers = await prisma.customer.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     })
 
     return NextResponse.json({ data: customers })
@@ -58,15 +59,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '客户名称已存在' }, { status: 400 })
     }
 
-    const customer = await prisma.customer.create({
+    const customer = await prisma.$transaction(async (tx) => tx.customer.create({
       data: {
         code: createInternalCode('cus'),
         name,
         contact: contact || null,
         phone: phone || null,
         address: address || null,
+        sortOrder: await nextConfigurationSortOrder(tx, 'customers'),
       },
-    })
+    }))
 
     await writeAuditLog(req, {
       action: 'CREATE',
