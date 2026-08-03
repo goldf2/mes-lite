@@ -74,8 +74,10 @@ export async function GET(req: NextRequest) {
       }),
     ])
     const materialCodes = materials.flatMap((material) => [material.code, `MAT-${material.code}`])
-    const compatibleProducts = materialCodes.length > 0
-      ? await prisma.product.findMany({
+    const materialIds = materials.map((material) => material.id)
+    const [compatibleProducts, images] = await Promise.all([
+      materialCodes.length > 0
+        ? prisma.product.findMany({
           where: { sku: { in: materialCodes } },
           select: {
             sku: true,
@@ -114,18 +116,48 @@ export async function GET(req: NextRequest) {
               },
             },
           },
-        })
-      : []
+          })
+        : [],
+      materialIds.length > 0
+        ? prisma.documentAttachment.findMany({
+            where: {
+              ownerType: 'MATERIAL',
+              ownerId: { in: materialIds },
+              documentType: 'MATERIAL_IMAGE',
+              mimeType: { startsWith: 'image/' },
+              deletedAt: null,
+            },
+            orderBy: [{ isCover: 'desc' }, { createdAt: 'desc' }],
+            select: { id: true, ownerId: true, note: true, mimeType: true, isCover: true },
+          })
+        : [],
+    ])
     const productBySku = new Map(compatibleProducts.map((product) => [product.sku, product]))
+    const primaryImageByMaterial = new Map<string, (typeof images)[number]>()
+    for (const image of images) {
+      if (!primaryImageByMaterial.has(image.ownerId)) primaryImageByMaterial.set(image.ownerId, image)
+    }
     const materialsWithBom = materials.map((material) => {
       const product = productBySku.get(material.code) || productBySku.get(`MAT-${material.code}`)
-      return { ...material, bom: product?.boms[0] || null, boms: product?.boms || [] }
+      const image = primaryImageByMaterial.get(material.id)
+      return {
+        ...material,
+        bom: product?.boms[0] || null,
+        boms: product?.boms || [],
+        primaryImage: image ? {
+          id: image.id,
+          url: `/api/attachments/${image.id}/file`,
+          note: image.note,
+          mimeType: image.mimeType,
+          isCover: image.isCover,
+        } : null,
+      }
     })
 
     return NextResponse.json({ data: reports, materials: materialsWithBom })
   } catch (error) {
     console.error('Get daily production reports error:', error)
-    return NextResponse.json({ error: '获取生产日报失败' }, { status: 500 })
+    return NextResponse.json({ error: '获取生产记录失败' }, { status: 500 })
   }
 }
 
@@ -175,16 +207,16 @@ export async function POST(req: NextRequest) {
       entityId: report.id,
       entityLabel: report.reportNo,
       afterData: report,
-      note: '创建生产日报草稿及 BOM 耗料快照',
+      note: '创建生产记录草稿及 BOM 耗料快照',
     })
 
-    return NextResponse.json({ data: report, message: '生产日报草稿已创建' }, { status: 201 })
+    return NextResponse.json({ data: report, message: '生产记录草稿已创建' }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors[0]?.message || '参数错误', details: error.errors }, { status: 400 })
     }
     if (error instanceof Error) return NextResponse.json({ error: error.message }, { status: 400 })
     console.error('Create daily production report error:', error)
-    return NextResponse.json({ error: '创建生产日报失败' }, { status: 500 })
+    return NextResponse.json({ error: '创建生产记录失败' }, { status: 500 })
   }
 }

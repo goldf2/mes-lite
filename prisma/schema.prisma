@@ -30,6 +30,8 @@ model InventoryLocation {
   consumptionReports DailyProductionReport[]      @relation("DailyProductionConsumptionLocation")
   productionInputs   DailyProductionConsumption[] @relation("DailyProductionConsumptionLineLocation")
   outputReports      DailyProductionReport[]      @relation("DailyProductionOutputLocation")
+  outgoingTransfers  FlowTransfer[]               @relation("FlowTransferSourceLocation")
+  incomingTransfers  FlowTransfer[]               @relation("FlowTransferTargetLocation")
   shipments          Shipment[]
   returnOrders       ReturnOrder[]
   createdAt          DateTime                     @default(now())
@@ -128,6 +130,7 @@ model Material {
   processTemplates            ProcessTemplate[]
   dailyProductionReports      DailyProductionReport[]      @relation("DailyProductionFinishedMaterial")
   dailyProductionConsumptions DailyProductionConsumption[] @relation("DailyProductionConsumedMaterial")
+  flowTransfers               FlowTransfer[]
   shipments                   Shipment[]
   returnOrders                ReturnOrder[]
   createdAt                   DateTime                     @default(now())
@@ -543,6 +546,38 @@ model DailyProductionConsumption {
   @@index([reportId])
   @@index([materialId])
   @@index([locationId])
+}
+
+// ==================== 流程转移 ====================
+
+model FlowTransfer {
+  id               String            @id @default(cuid())
+  transferNo       String            @unique
+  transferDate     DateTime
+  materialId       String
+  material         Material          @relation(fields: [materialId], references: [id])
+  sourceLocationId String
+  sourceLocation   InventoryLocation @relation("FlowTransferSourceLocation", fields: [sourceLocationId], references: [id])
+  targetLocationId String
+  targetLocation   InventoryLocation @relation("FlowTransferTargetLocation", fields: [targetLocationId], references: [id])
+  quantity         Float
+  unit             String
+  operator         String
+  note             String?
+  status           String            @default("DRAFT")
+  confirmedAt      DateTime?
+  confirmedBy      String?
+  reversedAt       DateTime?
+  reversedBy       String?
+  reverseReason    String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([transferDate])
+  @@index([materialId])
+  @@index([sourceLocationId])
+  @@index([targetLocationId])
+  @@index([status])
 }
 
 // ==================== 质检记录 ====================

@@ -25,9 +25,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       where: { id: params.id },
       include: { finishedMaterial: true, consumptions: { include: { material: true } } },
     })
-    if (!before) return NextResponse.json({ error: '生产日报不存在' }, { status: 404 })
+    if (!before) return NextResponse.json({ error: '生产记录不存在' }, { status: 404 })
     if (before.status !== 'DRAFT') {
-      return NextResponse.json({ error: '只有草稿日报可以确认' }, { status: 400 })
+      return NextResponse.json({ error: '只有草稿生产记录可以确认' }, { status: 400 })
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -35,8 +35,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         where: { id: before.id },
         include: { finishedMaterial: true, consumptions: { include: { material: true } } },
       })
-      if (!report || report.status !== 'DRAFT') throw new Error('日报状态已变化，请刷新后重试')
-      if (report.consumptions.length === 0) throw new Error('日报没有 BOM 原料消耗快照')
+      if (!report || report.status !== 'DRAFT') throw new Error('生产记录状态已变化，请刷新后重试')
+      if (report.consumptions.length === 0) throw new Error('生产记录没有 BOM 原料耗用快照')
 
       let totalConsumedCost = 0
 
@@ -47,7 +47,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           type: 'PRODUCTION_CONSUME',
           refType: 'DAILY_PRODUCTION_REPORT',
           refId: report.id,
-          note: `生产日报 ${report.reportNo} 自动耗料`,
+          note: `生产记录 ${report.reportNo} 自动耗料`,
           createdBy: confirmedBy,
           idempotencyKey: `DAILY_PRODUCTION:${report.id}:CONSUME:${line.id}`,
           locationId: line.locationId,
@@ -84,7 +84,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           type: 'PRODUCTION_IN',
           refType: 'DAILY_PRODUCTION_REPORT',
           refId: report.id,
-          note: `生产日报 ${report.reportNo} 产出入库`,
+          note: `生产记录 ${report.reportNo} 产出入库`,
           createdBy: confirmedBy,
           idempotencyKey: `DAILY_PRODUCTION:${report.id}:OUTPUT`,
           locationId: report.outputLocationId,
@@ -122,15 +122,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       entityLabel: result.reportNo,
       beforeData: before,
       afterData: result,
-      note: '自动扣减 BOM 原料并将产出增加到所选库位',
+      note: '按生产方案（BOM）扣减投入并将产出增加到所选库位',
     })
-    return NextResponse.json({ data: result, message: '日报已确认，原料和成品库存已同步更新' })
+    return NextResponse.json({ data: result, message: '生产记录已确认，原料和成品库存已同步更新' })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors[0]?.message || '参数错误' }, { status: 400 })
     }
     if (error instanceof Error) return NextResponse.json({ error: error.message }, { status: 400 })
     console.error('Confirm daily production report error:', error)
-    return NextResponse.json({ error: '确认生产日报失败' }, { status: 500 })
+    return NextResponse.json({ error: '确认生产记录失败' }, { status: 500 })
   }
 }

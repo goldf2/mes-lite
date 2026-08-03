@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Image from 'next/image'
 import MaterialChoiceSearch from './MaterialChoiceSearch'
 import ModalDialog, { ModalActions } from './ModalDialog'
 import AppButton from './AppButton'
@@ -39,6 +40,7 @@ interface MaterialOption {
   stockUnit: string
   unit: string
   customer?: { id: string; code: string; name: string } | null
+  primaryImage?: { id: string; url: string; note?: string | null } | null
   bom?: BomOption | null
   boms?: BomOption[]
 }
@@ -93,6 +95,7 @@ interface DailyProductionReport {
   bomId?: string | null
   bomName?: string | null
   bomVersion?: string | null
+  bomType?: string | null
   bomOutputQuantity?: number | null
   bomOutputUnit?: string | null
   outputCostAmount: number
@@ -197,13 +200,13 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
       const res = await fetch(`/api/daily-production-reports?${params}`)
       const data = await res.json()
       if (!res.ok) {
-        onMessage(data.error || '获取生产日报失败')
+        onMessage(data.error || '获取生产记录失败')
         return
       }
       setReports(data.data || [])
       setMaterials(data.materials || [])
     } catch {
-      onMessage('获取生产日报失败')
+      onMessage('获取生产记录失败')
     } finally {
       setLoading(false)
     }
@@ -222,8 +225,9 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
   }, [])
 
   const selectedMaterial = materials.find((material) => material.id === form.finishedMaterialId)
-  const selectedBom = selectedMaterial?.boms?.find((bom) => bom.id === form.bomId)
-    || selectedMaterial?.bom
+  const selectedBom = form.bomId
+    ? selectedMaterial?.boms?.find((bom) => bom.id === form.bomId) || null
+    : selectedMaterial?.bom || null
   const totalProcessedQty = Number(form.outputQty || 0)
   const previewConsumptions = useMemo(() => (selectedBom?.items || [])
     .filter((item) => item.material)
@@ -292,6 +296,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
     if (!form.consumptionLocationId || !form.outputLocationId) return onMessage('请选择原料出库库位和产出入库库位')
     if (!form.workers.trim()) return onMessage('请填写生产人员')
     if (totalProcessedQty <= 0) return onMessage('产出数量必须大于 0')
+    if (!form.bomId) return onMessage('请选择生产方案（BOM）')
     if (!selectedBom?.isActive || previewConsumptions.length === 0) {
       return onMessage('该物料尚未建立有效 BOM，请先在物料 BOM 关联中添加原料')
     }
@@ -322,14 +327,14 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
       })
       const data = await res.json()
       if (!res.ok) {
-        onMessage(data.error || '保存生产日报失败')
+        onMessage(data.error || '保存生产记录失败')
         return
       }
-      onMessage(data.message || '生产日报已保存')
+      onMessage(data.message || '生产记录已保存')
       setFormOpen(false)
       await loadData()
     } catch {
-      onMessage('保存生产日报失败')
+      onMessage('保存生产记录失败')
     } finally {
       setSaving(false)
     }
@@ -346,14 +351,14 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
       })
       const data = await res.json()
       if (!res.ok) {
-        onMessage(data.error || '确认生产日报失败')
+        onMessage(data.error || '确认生产记录失败')
         return
       }
-      onMessage(data.message || '生产日报已确认')
+      onMessage(data.message || '生产记录已确认')
       setConfirmingReport(null)
       await loadData()
     } catch {
-      onMessage('确认生产日报失败')
+      onMessage('确认生产记录失败')
     } finally {
       setSaving(false)
     }
@@ -371,15 +376,15 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
       })
       const data = await res.json()
       if (!res.ok) {
-        onMessage(data.error || '冲销生产日报失败')
+        onMessage(data.error || '冲销生产记录失败')
         return
       }
-      onMessage(data.message || '生产日报已冲销')
+      onMessage(data.message || '生产记录已冲销')
       setReversingReport(null)
       setReverseReason('')
       await loadData()
     } catch {
-      onMessage('冲销生产日报失败')
+      onMessage('冲销生产记录失败')
     } finally {
       setSaving(false)
     }
@@ -438,7 +443,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
               storageKey="mes-lite.searchPresets.productionReports"
               value={keyword}
               onChange={setKeyword}
-              placeholder="搜索日报号、物料、人员或备注"
+              placeholder="搜索记录号、物料、人员或备注"
             />
           )}
           filters={(
@@ -462,13 +467,13 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
       <div className="space-y-4">
       <section className="rounded-lg bg-white p-5 shadow-sm">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">生产日报</h2>
+          <h2 className="text-xl font-semibold text-gray-900">生产记录</h2>
           <p className="mt-1 text-sm text-gray-500">按 BOM 换算比例和本次额外损耗计算原料耗用；产出状态由入库库位表达，不再固定区分合格、不良和报废</p>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Metric label="已确认日报" value={summary.confirmed} />
-          <Metric label="草稿日报" value={summary.draft} />
-          <Metric label="已冲销日报" value={summary.reversed} tone="text-red-700" />
+          <Metric label="已确认记录" value={summary.confirmed} />
+          <Metric label="草稿记录" value={summary.draft} />
+          <Metric label="已冲销记录" value={summary.reversed} tone="text-red-700" />
           <Metric label="产出使用库位" value={summary.locationIds.size} tone="text-blue-700" />
         </div>
       </section>
@@ -476,7 +481,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
       {loading ? (
         <div className="rounded-lg bg-white py-16 text-center text-sm text-gray-500 shadow-sm">加载中...</div>
       ) : reports.length === 0 ? (
-        <div className="rounded-lg bg-white py-16 text-center text-sm text-gray-500 shadow-sm">暂无生产日报</div>
+        <div className="rounded-lg bg-white py-16 text-center text-sm text-gray-500 shadow-sm">暂无生产记录</div>
       ) : viewMode === 'card' ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {reportSort.sortedRows.map((report) => {
@@ -506,8 +511,8 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                 </div>
                 <div className="mt-4 border-t border-gray-100 pt-4">
                   <div className="mb-2 flex items-center justify-between text-xs text-gray-500">
-                    <span>BOM {report.bomName || '默认方案'} · {report.bomVersion || '-'}</span>
-                    <span>{report.consumptions.length} 项原料</span>
+                    <span>生产方案 {report.bomName || '默认方案'} · {report.bomVersion || '-'}</span>
+                    <span>{report.consumptions.length} 项投入</span>
                   </div>
                   {consumptionList(report)}
                 </div>
@@ -525,7 +530,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
           <table className="w-full min-w-[980px]">
             <thead className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
               <tr>
-                <SortableTableHeader column="reportDate" activeColumn={reportSort.sortColumn} direction={reportSort.sortDirection} onSort={reportSort.toggleSort}>生产日期 / 日报号</SortableTableHeader>
+                <SortableTableHeader column="reportDate" activeColumn={reportSort.sortColumn} direction={reportSort.sortDirection} onSort={reportSort.toggleSort}>生产日期 / 记录号</SortableTableHeader>
                 <SortableTableHeader column="material" activeColumn={reportSort.sortColumn} direction={reportSort.sortDirection} onSort={reportSort.toggleSort}>产出物料</SortableTableHeader>
                 <SortableTableHeader column="location" activeColumn={reportSort.sortColumn} direction={reportSort.sortDirection} onSort={reportSort.toggleSort}>产出库位</SortableTableHeader>
                 <SortableTableHeader column="outputQty" activeColumn={reportSort.sortColumn} direction={reportSort.sortDirection} onSort={reportSort.toggleSort} className="text-right">产出数量</SortableTableHeader>
@@ -569,8 +574,8 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
 
       {formOpen && (
         <ModalDialog
-          title={editingReport ? '编辑生产日报' : '新增生产日报'}
-          description="日报只记录产出数量和实际入库库位；如需区分状态，请在库位配置中建立对应库位"
+          title={editingReport ? '编辑生产记录' : '新增生产记录'}
+          description="生产记录必须选择 BOM；产出状态由实际入库库位表达"
           onClose={() => setFormOpen(false)}
           closeDisabled={saving}
           size="xl"
@@ -613,9 +618,9 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                   />
                 </div>
                 <label className="text-sm text-gray-700 md:col-span-2">
-                  BOM 转换方案
+                  生产方案（BOM）
                   <SearchableSelect
-                    value={selectedBom?.id || ''}
+                    value={form.bomId}
                     onChange={(bomId) => {
                       setForm({ ...form, bomId })
                       setConsumptionDraftByMaterial({})
@@ -623,8 +628,9 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                     options={(selectedMaterial?.boms || []).map((bom) => ({
                       value: bom.id,
                       label: `${bom.name} · ${bom.version}${bom.isDefault ? ' · 默认' : ''} · ${numberText(bom.outputQuantity)} ${bom.outputUnit}/批`,
+                      keywords: `BOM ${bom.bomType}`,
                     }))}
-                    placeholder={selectedMaterial ? '输入方案名称或版本筛选' : '请先选择产出物料'}
+                    placeholder={selectedMaterial ? '输入 BOM 名称或版本筛选' : '请先选择产出物料'}
                     disabled={!selectedMaterial}
                     className="mt-1"
                   />
@@ -651,6 +657,41 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                 </label>
               </div>
 
+              {selectedBom && selectedMaterial && (
+                <div className="mt-5 rounded-lg border border-blue-100 bg-blue-50/60 p-3">
+                  <div className="mb-2 text-xs font-medium text-blue-800">生产方案投入与产出核对</div>
+                  <div className="grid grid-cols-1 items-stretch gap-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center">
+                    <div className="space-y-2">
+                      {selectedBom.items.filter((item) => item.material).map((item) => {
+                        const inputMaterial = materials.find((material) => material.id === item.material?.id)
+                        return item.material && (
+                          <MaterialPreviewCard
+                            key={item.id}
+                            label="投入物料"
+                            material={inputMaterial || item.material}
+                            detail={`${numberText(item.quantity)} ${item.unit} / ${numberText(selectedBom.outputQuantity)} ${selectedBom.outputUnit}`}
+                          />
+                        )
+                      })}
+                      {selectedBom.items.every((item) => !item.material) && (
+                        <div className="rounded-lg border border-blue-100 bg-white px-3 py-5 text-sm text-gray-500">未配置投入物料</div>
+                      )}
+                    </div>
+                    <div className="text-center text-xs font-medium text-blue-700">
+                      <div>{selectedBom.name}</div>
+                      <div className="mt-1 text-lg">→</div>
+                    </div>
+                    <div>
+                      <MaterialPreviewCard
+                        label="产出物料"
+                        material={selectedMaterial}
+                        detail={`${numberText(selectedBom.outputQuantity)} ${selectedBom.outputUnit} / 批`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <NumberField label="产出入库数量" value={form.outputQty} onChange={(outputQty) => setForm({ ...form, outputQty })} />
                 <div className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800">
@@ -661,8 +702,10 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
               <div className="mt-5 rounded-lg border border-gray-200">
                 <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-4 py-3">
                   <div>
-                    <div className="text-sm font-medium text-gray-900">原料耗用与损耗</div>
-                    <div className="mt-0.5 text-xs text-gray-500">本次产出 {numberText(totalProcessedQty)}；基准耗用来自 BOM 换算比例，可再记录本批次额外损耗</div>
+                    <div className="text-sm font-medium text-gray-900">投入明细</div>
+                    <div className="mt-0.5 text-xs text-gray-500">
+                      本次产出 {numberText(totalProcessedQty)}；基准耗用来自 BOM 换算比例，可再记录本批次额外损耗
+                    </div>
                   </div>
                   {selectedBom && <span className="text-xs text-gray-500">{selectedBom.name} · {selectedBom.version}</span>}
                 </div>
@@ -670,7 +713,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                   {!selectedMaterial ? (
                     <div className="py-6 text-center text-sm text-gray-500">选择产出物料后计算原料耗用</div>
                   ) : previewConsumptions.length === 0 ? (
-                    <div className="rounded bg-amber-50 px-3 py-4 text-sm text-amber-800">该物料没有 BOM 原料及换算比例，暂时不能提交日报</div>
+                    <div className="rounded bg-amber-50 px-3 py-4 text-sm text-amber-800">该物料没有 BOM 原料及换算比例，暂时不能提交生产记录</div>
                   ) : (
                     <div className="space-y-2">
                       {previewConsumptions.map((item) => item.material && (
@@ -703,74 +746,74 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                                 className="mt-1"
                               />
                             </label>
-                            <label className="text-xs text-gray-600">
-                              损耗方式
-                              <select
-                                value={item.lossMode}
-                                onChange={(event) => setConsumptionDraftByMaterial((current) => ({
-                                  ...current,
-                                  [item.material!.id]: {
-                                    locationId: current[item.material!.id]?.locationId || '',
-                                    lossMode: event.target.value as ProductionLossMode,
-                                    lossValue: 0,
-                                    actualQty: null,
-                                  },
-                                }))}
-                                className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                              >
-                                <option value="PERCENT">百分比损耗</option>
-                                <option value="FIXED_PER_UNIT">每产出单位固定损耗</option>
-                              </select>
-                            </label>
-                            <label className="text-xs text-gray-600">
-                              {item.lossMode === 'PERCENT' ? '损耗百分比' : `每 ${selectedMaterial.stockUnit || selectedMaterial.unit} 固定损耗`}
-                              <span className="mt-1 flex overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="any"
-                                  value={item.lossValue || ''}
-                                  onChange={(event) => setConsumptionDraftByMaterial((current) => ({
-                                    ...current,
-                                    [item.material!.id]: {
-                                      locationId: current[item.material!.id]?.locationId || '',
-                                      lossMode: current[item.material!.id]?.lossMode || 'PERCENT',
-                                      lossValue: Math.max(0, Number(event.target.value)),
-                                      actualQty: null,
-                                    },
-                                  }))}
-                                  className="min-w-0 flex-1 px-3 py-2 text-right text-sm outline-none"
-                                />
-                                <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">
-                                  {item.lossMode === 'PERCENT' ? '%' : `${item.material.stockUnit || item.material.unit}原料/${selectedMaterial.stockUnit || selectedMaterial.unit}产出`}
-                                </span>
-                              </span>
-                            </label>
-                            <label className="text-xs text-gray-600">
-                              实际耗用（留空按计算值）
-                              <span className="mt-1 flex overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="any"
-                                  value={consumptionDraftByMaterial[item.material.id]?.actualQty ?? ''}
-                                  placeholder={numberText(item.plannedQty)}
-                                  onChange={(event) => setConsumptionDraftByMaterial((current) => ({
-                                    ...current,
-                                    [item.material!.id]: {
-                                      locationId: current[item.material!.id]?.locationId || '',
-                                      lossMode: current[item.material!.id]?.lossMode || 'PERCENT',
-                                      lossValue: current[item.material!.id]?.lossValue || 0,
-                                      actualQty: event.target.value === '' || Number(event.target.value) <= 0
-                                        ? null
-                                        : Number(event.target.value),
-                                    },
-                                  }))}
-                                  className="min-w-0 flex-1 px-3 py-2 text-right font-semibold outline-none"
-                                />
-                                <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">{item.material.stockUnit || item.material.unit}</span>
-                              </span>
-                            </label>
+                                <label className="text-xs text-gray-600">
+                                  损耗方式
+                                  <select
+                                    value={item.lossMode}
+                                    onChange={(event) => setConsumptionDraftByMaterial((current) => ({
+                                      ...current,
+                                      [item.material!.id]: {
+                                        locationId: current[item.material!.id]?.locationId || '',
+                                        lossMode: event.target.value as ProductionLossMode,
+                                        lossValue: 0,
+                                        actualQty: null,
+                                      },
+                                    }))}
+                                    className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                                  >
+                                    <option value="PERCENT">百分比损耗</option>
+                                    <option value="FIXED_PER_UNIT">每产出单位固定损耗</option>
+                                  </select>
+                                </label>
+                                <label className="text-xs text-gray-600">
+                                  {item.lossMode === 'PERCENT' ? '损耗百分比' : `每 ${selectedMaterial.stockUnit || selectedMaterial.unit} 固定损耗`}
+                                  <span className="mt-1 flex overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="any"
+                                      value={item.lossValue || ''}
+                                      onChange={(event) => setConsumptionDraftByMaterial((current) => ({
+                                        ...current,
+                                        [item.material!.id]: {
+                                          locationId: current[item.material!.id]?.locationId || '',
+                                          lossMode: current[item.material!.id]?.lossMode || 'PERCENT',
+                                          lossValue: Math.max(0, Number(event.target.value)),
+                                          actualQty: null,
+                                        },
+                                      }))}
+                                      className="min-w-0 flex-1 px-3 py-2 text-right text-sm outline-none"
+                                    />
+                                    <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">
+                                      {item.lossMode === 'PERCENT' ? '%' : `${item.material.stockUnit || item.material.unit}原料/${selectedMaterial.stockUnit || selectedMaterial.unit}产出`}
+                                    </span>
+                                  </span>
+                                </label>
+                                <label className="text-xs text-gray-600">
+                                  实际耗用（留空按计算值）
+                                  <span className="mt-1 flex overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="any"
+                                      value={consumptionDraftByMaterial[item.material.id]?.actualQty ?? ''}
+                                      placeholder={numberText(item.plannedQty)}
+                                      onChange={(event) => setConsumptionDraftByMaterial((current) => ({
+                                        ...current,
+                                        [item.material!.id]: {
+                                          locationId: current[item.material!.id]?.locationId || '',
+                                          lossMode: current[item.material!.id]?.lossMode || 'PERCENT',
+                                          lossValue: current[item.material!.id]?.lossValue || 0,
+                                          actualQty: event.target.value === '' || Number(event.target.value) <= 0
+                                            ? null
+                                            : Number(event.target.value),
+                                        },
+                                      }))}
+                                      className="min-w-0 flex-1 px-3 py-2 text-right font-semibold outline-none"
+                                    />
+                                    <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">{item.material.stockUnit || item.material.unit}</span>
+                                  </span>
+                                </label>
                           </div>
                           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 rounded bg-blue-50 px-3 py-2 text-xs text-blue-800">
                             <span>基准 {numberText(item.baseQty)} {item.unit}</span>
@@ -794,7 +837,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
 
       {confirmingReport && (
         <ModalDialog
-          title="确认生产日报"
+          title="确认生产记录"
           onClose={() => setConfirmingReport(null)}
           closeDisabled={saving}
           footer={(
@@ -815,7 +858,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
 
       {reversingReport && (
         <ModalDialog
-          title="冲销生产日报"
+          title="冲销生产记录"
           onClose={() => setReversingReport(null)}
           closeDisabled={saving}
           footer={(
@@ -843,6 +886,39 @@ function Metric({ label, value, tone = 'text-gray-900' }: { label: string; value
     <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
       <div className="text-xs text-gray-500">{label}</div>
       <div className={`mt-1 text-xl font-semibold ${tone}`}>{value}</div>
+    </div>
+  )
+}
+
+function MaterialPreviewCard({
+  label,
+  material,
+  detail,
+}: {
+  label: string
+  material: { code: string; name: string; spec?: string | null; primaryImage?: { url: string; note?: string | null } | null }
+  detail: string
+}) {
+  return (
+    <div className="flex min-h-24 items-center gap-3 rounded-lg border border-blue-100 bg-white p-3">
+      {material.primaryImage ? (
+        <Image
+          src={material.primaryImage.url}
+          alt={material.primaryImage.note || material.name}
+          width={64}
+          height={64}
+          unoptimized
+          className="h-16 w-16 shrink-0 rounded-lg border border-gray-100 object-cover"
+        />
+      ) : (
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50 text-xs text-gray-400">暂无图片</div>
+      )}
+      <div className="min-w-0">
+        <div className="text-xs text-gray-500">{label}</div>
+        <div className="mt-1 truncate font-mono text-xs text-gray-500">{material.code}</div>
+        <div className="truncate text-sm font-medium text-gray-900">{materialNameSpec(material)}</div>
+        <div className="mt-1 text-xs text-blue-700">{detail}</div>
+      </div>
     </div>
   )
 }

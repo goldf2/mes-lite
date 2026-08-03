@@ -33,9 +33,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       where: { id: params.id },
       include: { finishedMaterial: true, consumptions: { include: { material: true } } },
     })
-    if (!before) return NextResponse.json({ error: '生产日报不存在' }, { status: 404 })
+    if (!before) return NextResponse.json({ error: '生产记录不存在' }, { status: 404 })
     if (before.status !== 'CONFIRMED') {
-      return NextResponse.json({ error: '只有已确认日报可以冲销' }, { status: 400 })
+      return NextResponse.json({ error: '只有已确认生产记录可以冲销' }, { status: 400 })
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -43,7 +43,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         where: { id: before.id },
         include: { finishedMaterial: true, consumptions: { include: { material: true } } },
       })
-      if (!report || report.status !== 'CONFIRMED') throw new Error('日报状态已变化，请刷新后重试')
+      if (!report || report.status !== 'CONFIRMED') throw new Error('生产记录状态已变化，请刷新后重试')
 
       const outputQty = Number(report.outputQty)
       const finishedStock = await tx.stock.findUnique({ where: { materialId: report.finishedMaterialId } })
@@ -120,7 +120,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             idempotencyKey: `DAILY_PRODUCTION:${report.id}:REVERSE_OUTPUT`,
             refType: 'DAILY_PRODUCTION_REPORT_REVERSE',
             refId: report.id,
-            note: `冲销生产日报 ${report.reportNo}: ${input.reason}`,
+            note: `冲销生产记录 ${report.reportNo}: ${input.reason}`,
             createdBy: reversedBy,
           },
         })
@@ -208,7 +208,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             idempotencyKey: `DAILY_PRODUCTION:${report.id}:REVERSE_CONSUME:${line.id}`,
             refType: 'DAILY_PRODUCTION_REPORT_REVERSE',
             refId: report.id,
-            note: `冲销生产日报 ${report.reportNo}，恢复原料`,
+            note: `冲销生产记录 ${report.reportNo}，恢复原料`,
             createdBy: reversedBy,
           },
         })
@@ -244,7 +244,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       afterData: result,
       note: input.reason,
     })
-    return NextResponse.json({ data: result, message: '日报已冲销，原料和成品库存已反向恢复' })
+    return NextResponse.json({ data: result, message: '生产记录已冲销，原料和成品库存已反向恢复' })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors[0]?.message || '参数错误' }, { status: 400 })
@@ -252,6 +252,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (error instanceof SyntaxError) return NextResponse.json({ error: '历史成本层快照损坏，无法自动冲销' }, { status: 400 })
     if (error instanceof Error) return NextResponse.json({ error: error.message }, { status: 400 })
     console.error('Reverse daily production report error:', error)
-    return NextResponse.json({ error: '冲销生产日报失败' }, { status: 500 })
+    return NextResponse.json({ error: '冲销生产记录失败' }, { status: 500 })
   }
 }

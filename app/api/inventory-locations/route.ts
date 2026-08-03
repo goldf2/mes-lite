@@ -129,14 +129,15 @@ export async function DELETE(req: NextRequest) {
       Math.abs(Number(item.qty)) > 0.000001 || Math.abs(Number(item.reservedQty)) > 0.000001,
     )
     if (hasStock) return NextResponse.json({ error: '该库位仍有库存或占用数量，不能归档' }, { status: 409 })
-    const [pendingReceipts, draftReports, pendingShipments, pendingReturns] = await Promise.all([
+    const [pendingReceipts, draftReports, draftTransfers, pendingShipments, pendingReturns] = await Promise.all([
       prisma.materialIn.count({ where: { locationId: id, status: 'PENDING', deletedAt: null } }),
       prisma.dailyProductionReport.count({ where: { status: 'DRAFT', OR: [{ consumptionLocationId: id }, { outputLocationId: id }] } }),
+      prisma.flowTransfer.count({ where: { status: 'DRAFT', OR: [{ sourceLocationId: id }, { targetLocationId: id }] } }),
       prisma.shipment.count({ where: { locationId: id, status: 'PENDING', deletedAt: null } }),
       prisma.returnOrder.count({ where: { locationId: id, status: 'PENDING', deletedAt: null } }),
     ])
-    if (pendingReceipts + draftReports + pendingShipments + pendingReturns > 0) {
-      return NextResponse.json({ error: '该库位仍被待处理的来料、日报、发货或退货单引用，不能归档' }, { status: 409 })
+    if (pendingReceipts + draftReports + draftTransfers + pendingShipments + pendingReturns > 0) {
+      return NextResponse.json({ error: '该库位仍被待处理的来料、生产、转移、发货或退货单引用，不能归档' }, { status: 409 })
     }
     const saved = await prisma.inventoryLocation.update({
       where: { id }, data: { isActive: false, deletedAt: new Date() },

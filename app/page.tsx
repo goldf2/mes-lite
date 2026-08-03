@@ -33,6 +33,7 @@ const DispatchPage = dynamic(() => import('./components/DispatchPage'), { loadin
 const ShipmentPage = dynamic(() => import('./components/ShipmentPage'), { loading: FeaturePageLoading })
 const ReturnPage = dynamic(() => import('./components/ReturnPage'), { loading: FeaturePageLoading })
 const StatsPage = dynamic(() => import('./components/StatsPage'), { loading: FeaturePageLoading })
+const FlowTransferPage = dynamic(() => import('./components/FlowTransferPage'), { loading: FeaturePageLoading })
 const SawingCostCalculatorPage = dynamic(() => import('./components/SawingCostCalculatorPage'), { loading: FeaturePageLoading })
 const ScanPrintPage = dynamic(() => import('./components/ScanPrintPage'), { loading: FeaturePageLoading })
 const BomUsagePage = dynamic(() => import('./components/BomUsagePage'), { loading: FeaturePageLoading })
@@ -140,14 +141,14 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
+type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'stats' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
 type MaterialSection = 'materials' | 'bomWorkspace' | 'bomUsage'
 type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'equipment' | 'logistics' | 'inventory' | 'configuration' | 'tools'
 
 const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: TabType[] }> = [
   { key: 'workspace', label: '工作台', tabs: ['dashboard', 'allFunctions'] },
   { key: 'materials', label: '物料', tabs: ['materials'] },
-  { key: 'production', label: '生产', tabs: ['orders', 'stats', 'workInstructions', 'dispatch'] },
+  { key: 'production', label: '生产', tabs: ['orders', 'stats', 'flowTransfers', 'workInstructions', 'dispatch'] },
   { key: 'equipment', label: '设备', tabs: ['equipment'] },
   { key: 'logistics', label: '物流', tabs: ['materialIn', 'shipment', 'return'] },
   { key: 'inventory', label: '库存', tabs: ['stocks'] },
@@ -170,7 +171,8 @@ const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
   { key: 'workInstructions', label: '产品文档', groupKey: 'production', groupLabel: '生产', description: '管理图纸、PDF 和作业指导文档', icon: '书', tab: 'workInstructions', resource: 'workInstructions' },
   { key: 'equipment', label: '设备台账', groupKey: 'equipment', groupLabel: '设备', description: '维护设备、状态、工作中心归属和基础参数', icon: '机', tab: 'equipment', resource: 'equipment' },
   { key: 'orders', label: '工单管理', groupKey: 'production', groupLabel: '生产', description: '创建、查看和处理生产工单', icon: '工', tab: 'orders', resource: 'orders' },
-  { key: 'stats', label: '生产日报', groupKey: 'production', groupLabel: '生产', description: '登记日产出、原料耗用与入库', icon: '报', tab: 'stats', resource: 'stats' },
+  { key: 'stats', label: '生产记录', groupKey: 'production', groupLabel: '生产', description: '按 BOM 登记投入、产出与入库', icon: '产', tab: 'stats', resource: 'stats' },
+  { key: 'flowTransfers', label: '流程转移', groupKey: 'production', groupLabel: '生产', description: '同一物料在库位或流程节点之间转移', icon: '转', tab: 'flowTransfers', resource: 'stats' },
   { key: 'materialIn', label: '来料管理', groupKey: 'logistics', groupLabel: '物流', description: '登记供应商来料、实测和采购计价', icon: '入', tab: 'materialIn', resource: 'materialIn' },
   { key: 'shipment', label: '发货管理', groupKey: 'logistics', groupLabel: '物流', description: '创建发货单并扣减对应库位库存', icon: '发', tab: 'shipment', resource: 'shipment' },
   { key: 'return', label: '退货管理', groupKey: 'logistics', groupLabel: '物流', description: '登记退货、审核并处理返库', icon: '退', tab: 'return', resource: 'return' },
@@ -227,6 +229,7 @@ function MenuIcon({ icon }: { icon: string }) {
     shipment: '发',
     return: '退',
     stats: '报',
+    flowTransfers: '转',
     sawingCost: '锯',
     scanPrint: '扫',
     suppliers: '供',
@@ -413,7 +416,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'shipment', label: '发货管理', resource: 'shipment' },
     { key: 'return', label: '退货管理', resource: 'return' },
     { key: 'stocks', label: '库存管理', resource: 'stocks' },
-    { key: 'stats', label: '生产日报', resource: 'stats' },
+    { key: 'stats', label: '生产记录', resource: 'stats' },
+    { key: 'flowTransfers', label: '流程转移', resource: 'stats' },
     { key: 'suppliers', label: '供应商资料', resource: 'system' },
     { key: 'customers', label: '客户资料', resource: 'system' },
     { key: 'locationSettings', label: '库位配置', resource: 'system' },
@@ -1038,7 +1042,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { label: '本月产量', value: dashboardView.monthProduction, tone: 'emerald' },
   ]
   const dashboardPendingItems = [
-    { label: '日报待确认', value: dashboardView.pendingDailyReportCount, tone: 'indigo', hint: '生产日报草稿' },
+    { label: '生产记录待确认', value: dashboardView.pendingDailyReportCount, tone: 'indigo', hint: '生产记录草稿' },
     { label: '待收货', value: dashboardView.pendingMaterialInCount, tone: 'yellow', hint: '原材料入库' },
     { label: '待发货', value: dashboardView.pendingShipmentCount, tone: 'orange', hint: '成品出库' },
     { label: '退货待处理', value: dashboardView.pendingReturnCount, tone: 'red', hint: '售后返库' },
@@ -2090,8 +2094,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         {/* 退货管理 */}
         {tab === 'return' && <ReturnPage onMessage={showMessage} />}
 
-        {/* 统计分析 */}
+        {/* 生产记录 */}
         {tab === 'stats' && <StatsPage onMessage={showMessage} />}
+
+        {/* 流程转移 */}
+        {tab === 'flowTransfers' && <FlowTransferPage onMessage={showMessage} />}
 
         {/* 锯切加工成本计算 */}
         {tab === 'sawingCost' && <SawingCostCalculatorPage />}
@@ -2474,7 +2481,7 @@ function ProductionStatusOverview({
     <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
       <div className="mb-5 flex items-center justify-between">
         <h3 className="font-semibold text-gray-900">生产状态分布</h3>
-        <span className="text-xs text-gray-500">工单 / 生产日报</span>
+        <span className="text-xs text-gray-500">工单 / 生产记录</span>
       </div>
       <div className="space-y-4">
         <DashboardStatusSection
@@ -2486,9 +2493,9 @@ function ProductionStatusOverview({
           palette={orderPalette}
         />
         <DashboardStatusSection
-          title="生产日报流"
-          totalLabel="总日报"
-          emptyText="暂无生产日报状态数据"
+          title="生产记录流"
+          totalLabel="总记录"
+          emptyText="暂无生产记录状态数据"
           items={reportItems}
           labels={reportLabels}
           palette={reportPalette}

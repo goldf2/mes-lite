@@ -18,9 +18,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const input = dailyProductionReportInputSchema.parse(await req.json())
     const existing = await prisma.dailyProductionReport.findUnique({ where: { id: params.id } })
-    if (!existing) return NextResponse.json({ error: '生产日报不存在' }, { status: 404 })
+    if (!existing) return NextResponse.json({ error: '生产记录不存在' }, { status: 404 })
     if (existing.status !== 'DRAFT') {
-      return NextResponse.json({ error: '只有草稿日报可以修改；已确认日报请先冲销' }, { status: 400 })
+      return NextResponse.json({ error: '只有草稿生产记录可以修改；已确认记录请先冲销' }, { status: 400 })
     }
 
     const report = await prisma.$transaction(async (tx) => {
@@ -64,13 +64,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       beforeData: existing,
       afterData: report,
     })
-    return NextResponse.json({ data: report, message: '生产日报草稿已更新' })
+    return NextResponse.json({ data: report, message: '生产记录草稿已更新' })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors[0]?.message || '参数错误', details: error.errors }, { status: 400 })
     }
     if (error instanceof Error) return NextResponse.json({ error: error.message }, { status: 400 })
     console.error('Update daily production report error:', error)
-    return NextResponse.json({ error: '更新生产日报失败' }, { status: 500 })
+    return NextResponse.json({ error: '更新生产记录失败' }, { status: 500 })
   }
 }

@@ -589,9 +589,9 @@ BOM 成本计算会展开物料 BOM：
 - `SAWING_COST` 或其他成本对象项读取生效成本版本，按数量计算材料成本、人工工时、机时和直接费用。
 - 固定费用作为本次 `OVERHEAD` 快照行保存，不写入 BOM 本体。
 
-BOM 数据只保存规范方向：目标物料或产出物料 -> 基准批量输入物料。界面可以使用“标准用量 + 损耗”或“成品数量 : 原料数量”计算，保存时以当前 `outputQuantity` 将界面单位用量还原为批量 `BOMItem.quantity`，不保存录入算法参数。BOM 不保存生产批次额外损耗或实际耗用；生产日报显式选择一个启用方案，按 `BOMItem.quantity / BOM.outputQuantity × outputQty` 得到基准耗用，再保存本批损耗方式、损耗值、计算耗用和实际耗用快照。产出去向仍由 `outputLocationId` 指向的业务库位表达。
+BOM 数据只保存规范方向：目标物料或产出物料 -> 基准批量输入物料。界面可以使用“标准用量 + 损耗”或“成品数量 : 原料数量”计算，保存时以当前 `outputQuantity` 将界面单位用量还原为批量 `BOMItem.quantity`，不保存录入算法参数。BOM 不保存生产批次额外损耗或实际耗用；生产记录必须选择当前产出物料的启用 BOM，按 `BOMItem.quantity / BOM.outputQuantity × outputQty` 得到基准耗用，再保存本批损耗方式、损耗值、计算耗用和实际耗用快照。产出去向仍由 `outputLocationId` 指向的业务库位表达。
 
-`DailyProductionReport` 保存 `bomId` 作为来源追踪，同时用 `bomName`、`bomVersion`、`bomType`、`bomOutputQuantity` 和 `bomOutputUnit` 固化本次转换方案的可读快照；后续重命名或修改 BOM 不改变已保存日报的计算依据。
+`DailyProductionReport` 保存 `bomId` 作为生产 BOM 来源标识，同时用 `bomName`、`bomVersion`、`bomType`、`bomOutputQuantity` 和 `bomOutputUnit` 固化可读快照。`bomId` 必须指向当前产出物料的真实启用 BOM；流程转移不写入该模型。
 
 `DailyProductionConsumption` 的损耗与耗用字段：
 
@@ -606,6 +606,22 @@ BOM 数据只保存规范方向：目标物料或产出物料 -> 基准批量输
 | `locationId` | 本项投入实际扣减和冲销恢复的必填来源库位 |
 
 `bomItemId` 只是日报创建时指向来源 BOM 明细的辅助追踪字段，不是日报计算依据。BOM 明细被重新保存或通过数据工具删除时，系统把相应日报快照的 `bomItemId` 清空；上表中的耗用、损耗、单位和成本快照保持不变。
+
+### flow_transfers
+
+`FlowTransfer` 是独立的流程转移单，不属于 BOM 或生产记录。它仅表达同一物料在两个不同库位之间的物理位置或流程节点变化。
+
+| 字段 | 含义 |
+| --- | --- |
+| `transferNo` / `transferDate` | 转移单号和业务日期 |
+| `materialId` | 转移前后的唯一物料，不存在第二个输出物料字段 |
+| `sourceLocationId` / `targetLocationId` | 来源和目标库位，必须不同 |
+| `quantity` / `unit` | 转移数量和物料主库存单位快照，转出和转入数量严格相等 |
+| `operator` / `note` | 业务操作人和备注 |
+| `status` | `DRAFT` → `CONFIRMED` → `REVERSED` |
+| 确认/冲销字段 | 确认人、确认时间、冲销人、冲销时间和原因 |
+
+转移确认时只原子更新两个 `StockLocationBalance`：来源扣减、目标增加。`Stock.qty`、计价数量、总成本、单价和 `InventoryCostLayer` 全部不变。系统保存一出一入两条 `StockLog`，两条流水的总量/总成本前后值相同、成本变动为零。冲销按相反库位方向执行，目标库位可用数量不足时拒绝冲销。
 
 ### 物料主计量与长度型来料
 
@@ -766,10 +782,11 @@ BOM 数据只保存规范方向：目标物料或产出物料 -> 基准批量输
 | `DailyProductionConsumption.locationId` | 逐项投入来源库位 | 日报确认时按各明细库位扣减，冲销时恢复到同一库位 |
 | `DailyProductionReport.outputQty` | 产出入库数量 | 日报确认时增加到物料总库存和所选产出库位 |
 | `DailyProductionReport.outputLocationId` | 产出入库库位 | 表达产出的实际去向；成品、不良、报废等由可配置库位区分 |
+| `FlowTransfer.sourceLocationId / targetLocationId` | 转移来源/目标库位 | 确认时只在两个库位余额之间等量移动 |
 | `Shipment.locationId` | 发货库位 | 确认发货时同时校验并扣减该库位和总库存 |
 | `ReturnOrder.locationId` | 退回库位 | 退货处理时恢复该库位和总库存 |
 
-所有正常过账和冲销在同一事务内更新 `Stock`、`StockLocationBalance`、成本层和 `StockLog`。各库位的数量、占用和可用合计必须分别等于总库存对应字段；数据检查接口会把不一致视为库存完整性错误。
+生产、来料、发货、退货等正常过账和冲销在同一事务内更新 `Stock`、`StockLocationBalance`、成本层和 `StockLog`。流程转移是例外：它只更新库位余额并写入成对流水，不改变总库存或成本层。各库位的数量、占用和可用合计必须分别等于总库存对应字段；数据检查接口会把不一致视为库存完整性错误。
 
 `ReturnOrder.locationId` 在新建接口中为必填字段，不能再由界面隐式使用默认库位。`Supplier.code` 继续作为数据库内部唯一键和历史关联兼容字段，但由服务端自动生成；新增、编辑和业务选择器不接受或展示该编码。
 

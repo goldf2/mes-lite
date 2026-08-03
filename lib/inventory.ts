@@ -418,3 +418,104 @@ export async function postInventoryIssue(
     duplicate: false,
   }
 }
+
+export async function postInventoryLocationTransfer(
+  tx: Prisma.TransactionClient,
+  input: {
+    materialId: string
+    stockQty: number
+    sourceLocationId: string
+    targetLocationId: string
+    refId: string
+    note: string
+    createdBy?: string | null
+    reverse?: boolean
+  },
+) {
+  if (!Number.isFinite(input.stockQty) || input.stockQty <= 0) throw new Error('转移数量必须大于 0')
+  if (input.sourceLocationId === input.targetLocationId) throw new Error('来源库位和目标库位不能相同')
+
+  const material = await getMaterialPolicy(tx, input.materialId)
+  const stock = await tx.stock.findUnique({ where: { materialId: material.id } })
+  if (!stock) throw new Error(`物料 ${material.code} ${material.name} 没有库存记录`)
+
+  const [sourceLocation, targetLocation] = await Promise.all([
+    resolveInventoryLocation(tx, input.sourceLocationId),
+    resolveInventoryLocation(tx, input.targetLocationId),
+  ])
+  const transferQty = roundQty(input.stockQty)
+  const sourceBalance = await tx.stockLocationBalance.findUnique({
+    where: { stockId_locationId: { stockId: stock.id, locationId: sourceLocation.id } },
+  })
+  if (!sourceBalance || Number(sourceBalance.availableQty) + tolerance < transferQty) {
+    throw new Error(
+      `物料 ${material.code} ${material.name} 在库位 ${sourceLocation.code} ${sourceLocation.name} 库存不足：可用 ${sourceBalance?.availableQty || 0} ${material.stockUnit}，需 ${transferQty} ${material.stockUnit}`,
+    )
+  }
+
+  const sourceResult = await changeStockLocationBalance(tx, {
+    stockId: stock.id,
+    locationId: sourceLocation.id,
+    qtyDelta: -transferQty,
+  })
+  const targetResult = await changeStockLocationBalance(tx, {
+    stockId: stock.id,
+    locationId: targetLocation.id,
+    qtyDelta: transferQty,
+  })
+
+  const totalQty = Number(stock.qty)
+  const totalValuationQty = Number(stock.valuationQty)
+  const totalCost = Number(stock.totalCost)
+  const typePrefix = input.reverse ? 'FLOW_TRANSFER_REVERSE' : 'FLOW_TRANSFER'
+  const common = {
+    stockId: stock.id,
+    beforeQty: totalQty,
+    afterQty: totalQty,
+    beforeValuationQty: totalValuationQty,
+    afterValuationQty: totalValuationQty,
+    beforeCostAmount: totalCost,
+    afterCostAmount: totalCost,
+    stockUnitSnapshot: material.stockUnit,
+    valuationUnitSnapshot: material.valuationUnit,
+    conversionRateUsed: material.conversionRate,
+    conversionSource: 'ORIGINAL_MOVEMENT',
+    costingMethodSnapshot: material.costingMethod,
+    refType: 'FLOW_TRANSFER',
+    refId: input.refId,
+    note: input.note,
+    createdBy: input.createdBy || null,
+  }
+  const outgoing = await tx.stockLog.create({
+    data: {
+      ...common,
+      locationId: sourceLocation.id,
+      type: `${typePrefix}_OUT`,
+      qty: -transferQty,
+      valuationQty: 0,
+      costAmount: 0,
+    },
+  })
+  const incoming = await tx.stockLog.create({
+    data: {
+      ...common,
+      locationId: targetLocation.id,
+      type: `${typePrefix}_IN`,
+      qty: transferQty,
+      valuationQty: 0,
+      costAmount: 0,
+      sourceMovementId: outgoing.id,
+    },
+  })
+
+  return {
+    material,
+    stock,
+    sourceLocation,
+    targetLocation,
+    sourceBalance: sourceResult.balance,
+    targetBalance: targetResult.balance,
+    outgoing,
+    incoming,
+  }
+}
