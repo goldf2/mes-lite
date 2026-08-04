@@ -9,6 +9,7 @@ import { sortByNaturalText } from '@/lib/natural-sort'
 import { getSystemSettings } from '@/lib/system-settings'
 import { findCatalogUnit, getUnitCatalog } from '@/lib/unit-catalog'
 import { getBomStatusRelationFilters } from '@/lib/bom-status-filter'
+import { simpleProductSku } from '@/lib/material-product'
 
 const materialSchema = z.object({
   code: z.string().min(1, '物料编码不能为空'),
@@ -27,7 +28,7 @@ const materialSchema = z.object({
   costingMethod: z.enum(['WEIGHTED_AVERAGE', 'FIFO']).optional(),
 })
 
-const materialSortFields = new Set(['createdAt', 'code', 'name', 'category', 'customer', 'spec', 'note', 'stockUnit', 'valuationUnit', 'costingMethod', 'stock', 'valuationStock'])
+const materialSortFields = new Set(['createdAt', 'code', 'name', 'category', 'customer', 'spec', 'note', 'stockUnit', 'valuationUnit', 'costingMethod', 'stock', 'valuationStock', 'bomSummary'])
 
 async function validateConfiguredMaterialUnits(input: {
   primaryMeasure: string
@@ -72,7 +73,8 @@ export async function GET(req: NextRequest) {
     const categories = parseCsvFilter(searchParams.get('categories'))
     const customerId = searchParams.get('customerId')
     const bomStatus = searchParams.get('bomStatus')
-    if (bomStatus) {
+    const requestedSortBy = searchParams.get('sortBy') || 'createdAt'
+    if (bomStatus || requestedSortBy === 'bomSummary') {
       const bomDenied = await requireResourcePermission('bomCost', 'read')
       if (bomDenied) return bomDenied
     }
@@ -80,7 +82,6 @@ export async function GET(req: NextRequest) {
     const rawPageSize = parseInt(searchParams.get('pageSize') || '20')
     const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
     const pageSize = Number.isFinite(rawPageSize) && rawPageSize > 0 ? Math.min(rawPageSize, 200) : 20
-    const requestedSortBy = searchParams.get('sortBy') || 'createdAt'
     const sortBy = materialSortFields.has(requestedSortBy) ? requestedSortBy : 'createdAt'
     const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc'
     const naturalCodeSortEnabled = sortBy === 'code'
@@ -91,7 +92,9 @@ export async function GET(req: NextRequest) {
         ? { stock: { qty: sortDir } }
         : sortBy === 'valuationStock'
           ? { stock: { valuationQty: sortDir } }
-          : { [sortBy]: sortDir }
+          : sortBy === 'bomSummary'
+            ? undefined
+            : { [sortBy]: sortDir }
 
     const where: any = { deletedAt: null }
     const andFilters: any[] = []
@@ -110,40 +113,108 @@ export async function GET(req: NextRequest) {
     }
     if (andFilters.length > 0) where.AND = andFilters
 
-    const [queriedMaterials, total] = await Promise.all([
-      prisma.material.findMany({
-        where,
-        include: {
-          stock: {
-            select: {
-              qty: true,
-              reservedQty: true,
-              availableQty: true,
-              valuationQty: true,
-              reservedValuationQty: true,
-              availableValuationQty: true,
-              totalCost: true,
-              valuationUnitCost: true,
-              stockUnitCost: true,
+    const materialInclude = {
+      stock: {
+        select: {
+          qty: true,
+          reservedQty: true,
+          availableQty: true,
+          valuationQty: true,
+          reservedValuationQty: true,
+          availableValuationQty: true,
+          totalCost: true,
+          valuationUnitCost: true,
+          stockUnitCost: true,
+        },
+      },
+      customer: { select: { id: true, code: true, name: true } },
+    } as const
+
+    let materials
+    let total
+    if (sortBy === 'bomSummary') {
+      const [sortableMaterials, bomProducts] = await Promise.all([
+        prisma.material.findMany({ where, select: { id: true, code: true } }),
+        prisma.product.findMany({
+          orderBy: { createdAt: 'desc' },
+          take: 500,
+          select: {
+            sku: true,
+            boms: {
+              orderBy: [{ isActive: 'desc' }, { isDefault: 'desc' }, { createdAt: 'desc' }],
+              select: {
+                isActive: true,
+                isDefault: true,
+                items: {
+                  where: { itemType: 'MATERIAL', materialId: { not: null } },
+                  select: { materialId: true },
+                },
+              },
             },
           },
-          customer: { select: { id: true, code: true, name: true } },
-        },
-        ...(naturalCodeSortEnabled
-          ? {}
-          : {
-              skip: (page - 1) * pageSize,
-              take: pageSize,
-              orderBy,
-            }),
-      }),
-      prisma.material.count({ where }),
-    ])
-
-    const materials = naturalCodeSortEnabled
-      ? sortByNaturalText(queriedMaterials, (material) => material.code, sortDir)
-          .slice((page - 1) * pageSize, page * pageSize)
-      : queriedMaterials
+        }),
+      ])
+      const summaryCountByMaterialId = new Map<string, number>()
+      const productBySku = new Map(bomProducts.flatMap((product) => [
+        [product.sku, product] as const,
+        [product.sku.startsWith('MAT-') ? product.sku.slice(4) : product.sku, product] as const,
+      ]))
+      for (const material of sortableMaterials) {
+        const product = productBySku.get(material.code) || productBySku.get(simpleProductSku(material.code))
+        const bom = product?.boms.find((item) => item.isActive && item.isDefault)
+          || product?.boms.find((item) => item.isActive)
+          || product?.boms[0]
+        if (!bom) continue
+        summaryCountByMaterialId.set(
+          material.id,
+          (summaryCountByMaterialId.get(material.id) || 0) + bom.items.length,
+        )
+        for (const item of bom.items) {
+          if (!item.materialId) continue
+          summaryCountByMaterialId.set(item.materialId, (summaryCountByMaterialId.get(item.materialId) || 0) + 1)
+        }
+      }
+      const direction = sortDir === 'asc' ? 1 : -1
+      const sortedMaterialIds = sortableMaterials
+        .sort((left, right) => {
+          const countDifference = ((summaryCountByMaterialId.get(left.id) || 0) - (summaryCountByMaterialId.get(right.id) || 0)) * direction
+          return countDifference || left.code.localeCompare(right.code, 'zh-CN', { numeric: true, sensitivity: 'base' })
+        })
+        .slice((page - 1) * pageSize, page * pageSize)
+        .map((material) => material.id)
+      const pagedMaterials = sortedMaterialIds.length === 0
+        ? []
+        : await prisma.material.findMany({
+            where: { id: { in: sortedMaterialIds } },
+            include: materialInclude,
+          })
+      const materialById = new Map(pagedMaterials.map((material) => [material.id, material]))
+      materials = sortedMaterialIds.flatMap((id) => {
+        const material = materialById.get(id)
+        return material ? [material] : []
+      })
+      total = sortableMaterials.length
+    } else {
+      const [queriedMaterials, materialCount] = await Promise.all([
+        prisma.material.findMany({
+          where,
+          include: materialInclude,
+          ...(naturalCodeSortEnabled
+            ? {}
+            : {
+                skip: (page - 1) * pageSize,
+                take: pageSize,
+                orderBy,
+              }),
+        }),
+        prisma.material.count({ where }),
+      ])
+      materials = naturalCodeSortEnabled
+        ? sortByNaturalText(queriedMaterials, (material) => material.code, sortDir)
+            .slice((page - 1) * pageSize, page * pageSize)
+        : queriedMaterials
+      total = materialCount
+    }
 
     const materialIds = materials.map((material) => material.id)
     const images = materialIds.length === 0 ? [] : await prisma.documentAttachment.findMany({

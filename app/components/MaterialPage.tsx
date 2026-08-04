@@ -205,6 +205,7 @@ const materialSortOptions = [
   { value: 'costingMethod', label: '成本方法' },
   { value: 'stock', label: '库存数量' },
   { value: 'valuationStock', label: '参考数量' },
+  { value: 'bomSummary', label: 'BOM 简况' },
 ] as const
 
 type MaterialSortBy = (typeof materialSortOptions)[number]['value']
@@ -1984,7 +1985,7 @@ export default function MaterialPage({
                 onChange={(e) => setSortBy(e.target.value as MaterialSortBy)}
                 className="w-40 px-4 py-2 border border-gray-200 rounded-lg text-sm"
               >
-                {materialSortOptions.map((option) => (
+                {materialSortOptions.filter((option) => option.value !== 'bomSummary' || canUseBomData).map((option) => (
                   <option key={option.value} value={option.value}>按{option.label}</option>
                 ))}
               </select>
@@ -2314,7 +2315,7 @@ export default function MaterialPage({
                   onChange={(e) => setSortBy(e.target.value as MaterialSortBy)}
                   className="w-40 px-4 py-2 border border-gray-200 rounded-lg text-sm"
                 >
-                  {materialSortOptions.map((option) => (
+                  {materialSortOptions.filter((option) => option.value !== 'bomSummary' || canUseBomData).map((option) => (
                     <option key={option.value} value={option.value}>按{option.label}</option>
                   ))}
                 </select>
@@ -2518,7 +2519,7 @@ export default function MaterialPage({
                   {showField('stock') && <MaterialSortableHeader columnKey="stock" field="stock" label="库存" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('stock')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
                   {showField('valuationStock') && <MaterialSortableHeader columnKey="valuationStock" field="valuationStock" label="参考数量" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('valuationStock')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
                   {showField('createdAt') && <MaterialSortableHeader columnKey="createdAt" field="createdAt" label="创建时间" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('createdAt')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
-                  {canUseBomData && bomSummaryVisible && <MaterialTableHeader columnKey="bomSummary" label="BOM 简况" style={columnStyle('bomSummary')} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
+                  {canUseBomData && bomSummaryVisible && <MaterialSortableHeader columnKey="bomSummary" field="bomSummary" label="BOM 简况" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('bomSummary')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
                   <MaterialTableHeader columnKey="actions" label="操作" style={columnStyle('actions')} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />
                 </tr>
               </thead>
