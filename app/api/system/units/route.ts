@@ -31,22 +31,36 @@ const updateSchema = unitSchema.extend({
 
 async function unitUsageCount(measureType: string, code: string) {
   const normalizedCode = normalizeUnitCode(code)
-  const materials = await prisma.material.findMany({
-    select: {
-      primaryMeasure: true,
-      referenceMeasure: true,
-      stockUnit: true,
-      valuationUnit: true,
-    },
-  })
-  return materials.filter((material) => (
+  const [materials, bomItems, bomOutputs] = await Promise.all([
+    prisma.material.findMany({
+      select: {
+        primaryMeasure: true,
+        referenceMeasure: true,
+        stockUnit: true,
+        valuationUnit: true,
+      },
+    }),
+    prisma.bOMItem.findMany({
+      where: { entryUnit: { not: null }, materialId: { not: null } },
+      select: { entryUnit: true, material: { select: { primaryMeasure: true } } },
+    }),
+    prisma.bOMOutput.findMany({
+      where: { entryUnit: { not: null } },
+      select: { entryUnit: true, material: { select: { primaryMeasure: true } } },
+    }),
+  ])
+  const materialCount = materials.filter((material) => (
     (material.primaryMeasure === measureType && normalizeUnitCode(material.stockUnit) === normalizedCode)
     || (material.referenceMeasure === measureType && normalizeUnitCode(material.valuationUnit) === normalizedCode)
   )).length
+  const bomCount = [...bomItems, ...bomOutputs].filter((row) => (
+    row.material?.primaryMeasure === measureType && normalizeUnitCode(row.entryUnit) === normalizedCode
+  )).length
+  return materialCount + bomCount
 }
 
 async function catalogResponse() {
-  const [catalog, materials] = await Promise.all([
+  const [catalog, materials, bomItems, bomOutputs] = await Promise.all([
     getUnitCatalog(),
     prisma.material.findMany({
       select: {
@@ -56,15 +70,29 @@ async function catalogResponse() {
         valuationUnit: true,
       },
     }),
+    prisma.bOMItem.findMany({
+      where: { entryUnit: { not: null }, materialId: { not: null } },
+      select: { entryUnit: true, material: { select: { primaryMeasure: true } } },
+    }),
+    prisma.bOMOutput.findMany({
+      where: { entryUnit: { not: null } },
+      select: { entryUnit: true, material: { select: { primaryMeasure: true } } },
+    }),
   ])
   return catalog.map((unit) => {
     const normalizedCode = normalizeUnitCode(unit.code)
+    const usedByMaterialCount = materials.filter((material) => (
+      (material.primaryMeasure === unit.measureType && normalizeUnitCode(material.stockUnit) === normalizedCode)
+      || (material.referenceMeasure === unit.measureType && normalizeUnitCode(material.valuationUnit) === normalizedCode)
+    )).length
+    const usedByBomCount = [...bomItems, ...bomOutputs].filter((row) => (
+      row.material?.primaryMeasure === unit.measureType && normalizeUnitCode(row.entryUnit) === normalizedCode
+    )).length
     return {
       ...unit,
-      usedByMaterialCount: materials.filter((material) => (
-        (material.primaryMeasure === unit.measureType && normalizeUnitCode(material.stockUnit) === normalizedCode)
-        || (material.referenceMeasure === unit.measureType && normalizeUnitCode(material.valuationUnit) === normalizedCode)
-      )).length,
+      usedByMaterialCount,
+      usedByBomCount,
+      usageCount: usedByMaterialCount + usedByBomCount,
     }
   })
 }
@@ -146,7 +174,7 @@ export async function PATCH(req: NextRequest) {
       || Number(before.toBaseFactor) !== Number(input.toBaseFactor)
     )
     if (usageCount > 0 && semanticChanged) {
-      return NextResponse.json({ error: `该单位已被 ${usageCount} 个物料使用，只能修改显示名称` }, { status: 409 })
+      return NextResponse.json({ error: `该单位已被 ${usageCount} 条物料或 BOM 记录使用，只能修改显示名称` }, { status: 409 })
     }
 
     const next = [...customUnits]
@@ -182,7 +210,7 @@ export async function DELETE(req: NextRequest) {
     if (!target) return NextResponse.json({ error: '只能删除自定义单位' }, { status: 404 })
     const usageCount = await unitUsageCount(target.measureType, code)
     if (usageCount > 0) {
-      return NextResponse.json({ error: `该单位已被 ${usageCount} 个物料使用，不能删除` }, { status: 409 })
+      return NextResponse.json({ error: `该单位已被 ${usageCount} 条物料或 BOM 记录使用，不能删除` }, { status: 409 })
     }
     await saveCustomUnits(customUnits.filter((unit) => unit !== target))
     await writeAuditLog(req, {

@@ -42,12 +42,12 @@ async function main() {
         outputQuantity: 2,
         outputUnit: '件',
         items: {
-          create: { itemType: 'MATERIAL', materialId: raw.id, outputMaterialId: null, quantity: 0.35, unit: 'm' },
+          create: { itemType: 'MATERIAL', materialId: raw.id, outputMaterialId: null, quantity: 0.35, unit: 'm', entryUnit: 'mm' },
         },
         outputs: {
           create: [
-            { materialId: finished.id, quantity: 2, unit: '件', isPrimary: true },
-            { materialId: byproduct.id, quantity: 0.12, unit: 'kg', isPrimary: false },
+            { materialId: finished.id, quantity: 2, unit: '件', entryUnit: '件', isPrimary: true },
+            { materialId: byproduct.id, quantity: 0.12, unit: 'kg', entryUnit: 'g', isPrimary: false },
           ],
         },
       },
@@ -74,10 +74,12 @@ async function main() {
     assert.equal(defaultBom.items.length, 1)
     assert.equal(defaultBom.items[0].outputMaterialId, null)
     assert.equal(defaultBom.items[0].quantity, 0.35)
+    assert.equal(defaultBom.items[0].entryUnit, 'mm')
     assert.equal(alternateBom.items[0].quantity / alternateBom.outputQuantity, 0.18)
     assert.equal(defaultBom.outputs.length, 2)
     assert.equal(defaultBom.outputs.find((output) => output.isPrimary)?.quantity, 2)
     assert.equal(defaultBom.outputs.find((output) => output.materialId === byproduct.id)?.quantity, 0.12)
+    assert.equal(defaultBom.outputs.find((output) => output.materialId === byproduct.id)?.entryUnit, 'g')
     const batchesForOneHundredPieces = 100 / Number(defaultBom.outputs.find((output) => output.isPrimary)?.quantity)
     assert.equal(defaultBom.items[0].quantity * batchesForOneHundredPieces, 17.5)
     assert.equal(Number(defaultBom.outputs.find((output) => output.materialId === byproduct.id)?.quantity) * batchesForOneHundredPieces, 6)

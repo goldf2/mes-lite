@@ -167,6 +167,8 @@ interface ConfiguredUnit {
   isBase: boolean
   isPreset: boolean
   usedByMaterialCount: number
+  usedByBomCount: number
+  usageCount: number
   sortOrder: number
 }
 
@@ -569,7 +571,7 @@ function UnitCatalogManager({ onMessage }: { onMessage: (msg: string) => void })
     manual: (unit) => unit.sortOrder,
     unit: (unit) => `${unit.name} ${unit.code}`,
     factor: (unit) => unit.toBaseFactor,
-    usage: (unit) => unit.usedByMaterialCount,
+    usage: (unit) => unit.usageCount,
   }, 'manual', 'asc')
 
   const loadUnits = useCallback(async () => {
@@ -661,7 +663,7 @@ function UnitCatalogManager({ onMessage }: { onMessage: (msg: string) => void })
             计量方式
             <select
               value={form.measureType}
-              disabled={Boolean(editing?.usedByMaterialCount)}
+              disabled={Boolean(editing?.usageCount)}
               onChange={(event) => setForm({ ...form, measureType: event.target.value as MeasureType })}
               className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2"
             >
@@ -672,7 +674,7 @@ function UnitCatalogManager({ onMessage }: { onMessage: (msg: string) => void })
             单位编码
             <input
               value={form.code}
-              disabled={Boolean(editing?.usedByMaterialCount)}
+              disabled={Boolean(editing?.usageCount)}
               onChange={(event) => setForm({ ...form, code: event.target.value })}
               className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2"
               placeholder="如：ft"
@@ -694,7 +696,7 @@ function UnitCatalogManager({ onMessage }: { onMessage: (msg: string) => void })
                 type="number"
                 min="0"
                 step="any"
-                disabled={Boolean(editing?.usedByMaterialCount)}
+                disabled={Boolean(editing?.usageCount)}
                 value={form.toBaseFactor || ''}
                 onChange={(event) => setForm({ ...form, toBaseFactor: Number(event.target.value) })}
                 className="min-w-0 flex-1 px-3 py-2 text-right outline-none"
@@ -714,7 +716,7 @@ function UnitCatalogManager({ onMessage }: { onMessage: (msg: string) => void })
             {editing && <button type="button" onClick={resetForm} className="rounded-lg border border-gray-200 px-4 py-2 text-sm">取消</button>}
           </div>
           <div className="md:col-span-2 xl:col-span-5 text-xs text-gray-500">
-            关系定义：1 自定义单位 = 换算系数 × {baseUnit}。单位一旦被物料使用，只允许修改显示名称。
+            关系定义：1 自定义单位 = 换算系数 × {baseUnit}。单位一旦被物料或 BOM 使用，只允许修改显示名称。
           </div>
         </div>
       </div>
@@ -741,7 +743,7 @@ function UnitCatalogManager({ onMessage }: { onMessage: (msg: string) => void })
                         <tr key={`${unit.measureType}-${unit.code}`}>
                           <td className="px-3 py-2"><span className="font-medium">{unit.name}</span><span className="ml-2 font-mono text-xs text-gray-500">{unit.code}</span>{unit.isPreset && <span className="ml-2 rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">预置</span>}</td>
                           <td className="px-3 py-2 text-gray-600">1 {unit.code} = {unit.toBaseFactor} {base}</td>
-                          <td className="px-3 py-2 text-gray-600">{unit.usedByMaterialCount} 个物料</td>
+                          <td className="px-3 py-2 text-gray-600">{unit.usedByMaterialCount} 个物料 · {unit.usedByBomCount} 条 BOM</td>
                           <td className="px-3 py-2 text-right">
                             {!unit.isPreset && (
                               <span className="inline-flex gap-2">

@@ -13,6 +13,14 @@ import SearchableSelect from './SearchableSelect'
 import { bomRatiosDiffer } from '@/lib/bom-ratio'
 import ModalDialog, { ModalActions } from './ModalDialog'
 import AppButton from './AppButton'
+import {
+  bomEntryUnitOptions,
+  bomStoredQuantityToEntry,
+  convertBomEntryQuantity,
+  defaultBomEntryUnit,
+  normalizeBomEntryQuantity,
+} from '@/lib/bom-entry-units'
+import { normalizeUnitCode } from '@/lib/unit-catalog'
 
 interface Material {
   id: string
@@ -65,6 +73,7 @@ interface BomItem {
   itemType: string
   quantity: number
   unit: string
+  entryUnit?: string | null
   wastageRate: number
   material?: BomMaterialOption | null
   outputMaterialId?: string | null
@@ -87,6 +96,7 @@ interface BomOutput {
   id: string
   quantity: number
   unit: string
+  entryUnit?: string | null
   isPrimary: boolean
   material: BomMaterialOption
 }
@@ -665,6 +675,57 @@ function BomMaterialSelectSearch({
   )
 }
 
+function BomQuantityEditor({
+  label,
+  value,
+  unit,
+  material,
+  unitCatalog,
+  onValueChange,
+  onUnitChange,
+}: {
+  label: string
+  value: number | string
+  unit: string
+  material: BomMaterialOption
+  unitCatalog: ConfiguredUnit[]
+  onValueChange: (value: string) => void
+  onUnitChange: (unit: string) => void
+}) {
+  const unitOptions = bomEntryUnitOptions(unitCatalog, material)
+
+  return (
+    <label className="flex min-w-0 overflow-hidden rounded-md border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
+      <input
+        aria-label={label}
+        type="number"
+        min="0"
+        step="any"
+        inputMode="decimal"
+        value={value}
+        onChange={(event) => onValueChange(event.target.value)}
+        className="min-w-0 flex-1 px-2 py-2 text-right text-sm outline-none"
+      />
+      {unitOptions.length > 0 ? (
+        <select
+          aria-label={`${label}单位`}
+          value={unit}
+          onChange={(event) => onUnitChange(event.target.value)}
+          className="min-w-[4.5rem] max-w-24 border-l border-gray-200 bg-gray-50 px-2 text-xs text-gray-700 outline-none"
+        >
+          {unitOptions.map((option) => (
+            <option key={`${option.measureType}:${option.code}`} value={option.code}>{option.code}</option>
+          ))}
+        </select>
+      ) : (
+        <span className="flex min-w-10 items-center justify-center border-l border-gray-200 bg-gray-50 px-2 text-xs text-gray-600">
+          {unit || material.stockUnit || material.unit}
+        </span>
+      )}
+    </label>
+  )
+}
+
 export default function MaterialPage({
   onMessage,
   onToolbarChange,
@@ -686,6 +747,7 @@ export default function MaterialPage({
   const [selectedBomId, setSelectedBomId] = useState('')
   const [draftBomName, setDraftBomName] = useState('')
   const [draftBomOutputQuantity, setDraftBomOutputQuantity] = useState('1')
+  const [draftBomOutputUnit, setDraftBomOutputUnit] = useState('件')
   const [draftBomOutputs, setDraftBomOutputs] = useState<DraftBomOutput[]>([])
   const [draftBomIsDefault, setDraftBomIsDefault] = useState(true)
   const [draftBomItems, setDraftBomItems] = useState<DraftBomItem[]>([])
@@ -768,6 +830,7 @@ export default function MaterialPage({
     ? null
     : selectedBomProduct?.boms.find((bom) => bom.id === selectedBomId) || selectedBomProduct?.bom || null
   const selectedBomOutputQuantity = Number(draftBomOutputQuantity)
+  const selectedBomPrimaryOutput = selectedBom?.outputs.find((output) => output.isPrimary) || null
   const selectedBomMaterialItems = useMemo(() => (
     selectedBom?.items.filter((item) => item.itemType === 'MATERIAL' && item.material) || []
   ), [selectedBom])
@@ -792,21 +855,44 @@ export default function MaterialPage({
   const savedBomOutputByMaterialId = useMemo(() => new Map(
     selectedBomAdditionalOutputs.map((output) => [output.material.id, output]),
   ), [selectedBomAdditionalOutputs])
+  const draftQuantityInStockUnit = (quantity: number | string, entryUnit: string, material?: BomMaterialOption | Material | null) => {
+    if (!material) return Number.NaN
+    try {
+      return normalizeBomEntryQuantity({
+        quantity: Number(quantity),
+        entryUnit,
+        material,
+        catalog: unitCatalog,
+      }).quantity
+    } catch {
+      return Number.NaN
+    }
+  }
   const draftBomDirty = draftBomItems.length !== selectedBomBatchItems.length
     || draftBomItems.some((item) => {
       const savedItem = savedBomItemByMaterialId.get(item.materialId)
-      return !savedItem || bomRatiosDiffer(Number(savedItem.quantity), Number(item.quantity))
+      const material = bomMaterialById.get(item.materialId)
+      return !savedItem
+        || bomRatiosDiffer(Number(savedItem.quantity), draftQuantityInStockUnit(item.quantity, item.unit, material))
+        || normalizeUnitCode(savedItem.entryUnit || savedItem.unit) !== normalizeUnitCode(item.unit)
     })
     || draftBomOutputs.length !== selectedBomAdditionalOutputs.length
     || draftBomOutputs.some((output) => {
       const savedOutput = savedBomOutputByMaterialId.get(output.materialId)
-      return !savedOutput || bomRatiosDiffer(Number(savedOutput.quantity), Number(output.quantity))
+      const material = bomMaterialById.get(output.materialId)
+      return !savedOutput
+        || bomRatiosDiffer(Number(savedOutput.quantity), draftQuantityInStockUnit(output.quantity, output.unit, material))
+        || normalizeUnitCode(savedOutput.entryUnit || savedOutput.unit) !== normalizeUnitCode(output.unit)
     })
     || selectedBomId === '__new__'
     || draftBomName !== (selectedBom?.name || '')
     || draftBomIsDefault !== (selectedBom?.isDefault ?? true)
-    || bomRatiosDiffer(selectedBomOutputQuantity, Number(selectedBom?.outputQuantity || 1))
-  const fetchBomData = useCallback(async () => {
+    || bomRatiosDiffer(
+      draftQuantityInStockUnit(selectedBomOutputQuantity, draftBomOutputUnit, selectedMaterial),
+      Number(selectedBom?.outputQuantity || 1),
+    )
+    || normalizeUnitCode(selectedBomPrimaryOutput?.entryUnit || selectedBomPrimaryOutput?.unit || selectedBom?.outputUnit || '') !== normalizeUnitCode(draftBomOutputUnit)
+  const fetchBomData = useCallback(async (preferredBomId?: string) => {
     setBomLoading(true)
     setBomDataReady(false)
     try {
@@ -816,8 +902,17 @@ export default function MaterialPage({
         onMessage(data.error || '获取 BOM 关系失败')
         return
       }
-      setBomProducts(data.products || [])
+      const nextProducts = data.products || []
+      setBomProducts(nextProducts)
       setBomMaterialOptions(data.materialOptions || [])
+      if (preferredBomId) {
+        const targetProduct = nextProducts.find((product: MaterialBom) => product.boms.some((bom) => bom.id === preferredBomId))
+        if (targetProduct) {
+          loadedBomDraftSignatureRef.current = ''
+          setSelectedMaterialId(targetProduct.sourceMaterialId || targetProduct.id.replace(materialProductPrefix, ''))
+          setSelectedBomId(preferredBomId)
+        }
+      }
     } catch (err) {
       onMessage('获取 BOM 关系失败')
     } finally {
@@ -859,6 +954,7 @@ export default function MaterialPage({
   }, [selectedBomId, selectedBomProduct])
 
   useEffect(() => {
+    if (showBomWorkspace && unitCatalog.length === 0) return
     const savedSignature = selectedBomId === '__new__'
       ? `new:${selectedBomProduct?.id || ''}`
       : JSON.stringify({
@@ -870,6 +966,7 @@ export default function MaterialPage({
         id: output.id,
         materialId: output.material.id,
         quantity: Number(output.quantity),
+        entryUnit: output.entryUnit || output.unit,
         isPrimary: output.isPrimary,
       })),
       items: selectedBomBatchItems.map((item) => ({
@@ -877,6 +974,7 @@ export default function MaterialPage({
         materialId: item.material?.id || '',
         quantity: Number(item.quantity || 0),
         unit: item.material?.stockUnit || item.material?.unit || item.unit || '件',
+        entryUnit: item.entryUnit || item.unit,
       })),
     })
     if (loadedBomDraftSignatureRef.current === savedSignature) return
@@ -884,28 +982,47 @@ export default function MaterialPage({
     if (selectedBomId === '__new__') {
       setDraftBomName(`BOM ${(selectedBomProduct?.boms.length || 0) + 1}`)
       setDraftBomOutputQuantity('1')
+      setDraftBomOutputUnit(selectedMaterial ? defaultBomEntryUnit(unitCatalog, selectedMaterial) : '件')
       setDraftBomOutputs([])
       setDraftBomIsDefault((selectedBomProduct?.boms.length || 0) === 0)
       setDraftBomItems([])
       return
     }
     setDraftBomName(selectedBom?.name || '默认方案')
-    setDraftBomOutputQuantity(String(Number(selectedBom?.outputQuantity || 1)))
+    const primaryOutput = selectedBom?.outputs.find((output) => output.isPrimary)
+    const primaryEntryUnit = primaryOutput?.entryUnit || primaryOutput?.unit || selectedMaterial?.stockUnit || selectedMaterial?.unit || '件'
+    setDraftBomOutputUnit(primaryEntryUnit)
+    setDraftBomOutputQuantity(String(bomStoredQuantityToEntry({
+      quantity: Number(primaryOutput?.quantity || selectedBom?.outputQuantity || 1),
+      entryUnit: primaryEntryUnit,
+      material: selectedMaterial || {},
+      catalog: unitCatalog,
+    })))
     setDraftBomOutputs(selectedBomAdditionalOutputs.map((output) => ({
       clientId: output.id,
       materialId: output.material.id,
-      quantity: Number(output.quantity),
-      unit: output.material.stockUnit || output.material.unit || output.unit,
+      quantity: bomStoredQuantityToEntry({
+        quantity: Number(output.quantity),
+        entryUnit: output.entryUnit || output.unit,
+        material: output.material,
+        catalog: unitCatalog,
+      }),
+      unit: output.entryUnit || output.unit || output.material.stockUnit || output.material.unit,
     })))
     setDraftBomIsDefault(selectedBom?.isDefault ?? true)
     setDraftBomItems(selectedBomBatchItems.map((item) => ({
       clientId: item.id,
       materialId: item.material?.id || '',
-      quantity: Number(item.quantity || 0),
-      unit: item.material?.stockUnit || item.material?.unit || '件',
+      quantity: bomStoredQuantityToEntry({
+        quantity: Number(item.quantity || 0),
+        entryUnit: item.entryUnit || item.unit,
+        material: item.material || {},
+        catalog: unitCatalog,
+      }),
+      unit: item.entryUnit || item.unit || item.material?.stockUnit || item.material?.unit || '件',
       wastageRate: 0,
     })))
-  }, [selectedBom, selectedBomAdditionalOutputs, selectedBomBatchItems, selectedBomId, selectedBomProduct?.boms.length, selectedBomProduct?.id])
+  }, [selectedBom, selectedBomAdditionalOutputs, selectedBomBatchItems, selectedBomId, selectedBomProduct?.boms.length, selectedBomProduct?.id, selectedMaterial, showBomWorkspace, unitCatalog])
 
   useEffect(() => {
     const saved = window.localStorage.getItem('mes-lite.materials.visibleFields')
@@ -1354,25 +1471,30 @@ export default function MaterialPage({
 
   const selectMaterialForBom = useCallback((materialId: string) => {
     const product = materialId ? bomProductByMaterialId.get(materialId) : null
+    const material = bomMaterialById.get(materialId)
     loadedBomDraftSignatureRef.current = `new:${product?.id || ''}`
     setSelectedMaterialId(materialId)
     setSelectedBomId('__new__')
     setDraftBomName(`BOM ${(product?.boms.length || 0) + 1}`)
     setDraftBomOutputQuantity('1')
+    setDraftBomOutputUnit(material ? defaultBomEntryUnit(unitCatalog, material) : '件')
     setDraftBomOutputs([])
     setDraftBomIsDefault((product?.boms.length || 0) === 0)
     setDraftBomItems([])
-  }, [bomProductByMaterialId])
+  }, [bomMaterialById, bomProductByMaterialId, unitCatalog])
 
   const selectOutputMaterialForBom = useCallback((materialId: string) => {
     const product = bomProductByMaterialId.get(materialId)
+    const material = bomMaterialById.get(materialId)
     loadedBomDraftSignatureRef.current = `new:${product?.id || ''}`
     setSelectedMaterialId(materialId)
     setSelectedBomId('__new__')
+    setDraftBomOutputQuantity('1')
+    setDraftBomOutputUnit(material ? defaultBomEntryUnit(unitCatalog, material) : '件')
     setDraftBomOutputs([])
     setDraftBomName((current) => current.trim() || `BOM ${(product?.boms.length || 0) + 1}`)
     setDraftBomIsDefault((product?.boms.length || 0) === 0)
-  }, [bomProductByMaterialId])
+  }, [bomMaterialById, bomProductByMaterialId, unitCatalog])
 
   const addInputMaterialToDraft = useCallback((materialId: string) => {
     if (!materialId) return
@@ -1390,10 +1512,10 @@ export default function MaterialPage({
       clientId: `input-${materialId}-${Date.now()}`,
       materialId,
       quantity: '1',
-      unit: material.stockUnit || material.unit || '件',
+      unit: defaultBomEntryUnit(unitCatalog, material),
       wastageRate: 0,
     }])
-  }, [bomMaterialById, draftBomItems, draftBomOutputs, onMessage, selectedMaterialId])
+  }, [bomMaterialById, draftBomItems, draftBomOutputs, onMessage, selectedMaterialId, unitCatalog])
 
   const addOutputMaterialToDraft = useCallback((materialId: string) => {
     if (!materialId) return
@@ -1417,9 +1539,65 @@ export default function MaterialPage({
           clientId: `output-${materialId}-${Date.now()}`,
           materialId,
           quantity: '1',
-          unit: material.stockUnit || material.unit || '件',
+          unit: defaultBomEntryUnit(unitCatalog, material),
         }])
-  }, [bomMaterialById, draftBomItems, onMessage, selectOutputMaterialForBom, selectedMaterial])
+  }, [bomMaterialById, draftBomItems, onMessage, selectOutputMaterialForBom, selectedMaterial, unitCatalog])
+
+  const convertDraftQuantityForUnit = useCallback((
+    quantity: number | string,
+    fromUnit: string,
+    toUnit: string,
+    material: BomMaterialOption,
+  ): string => {
+    if (String(quantity).trim() === '') return String(quantity)
+    return String(convertBomEntryQuantity(Number(quantity), fromUnit, toUnit, material, unitCatalog))
+  }, [unitCatalog])
+
+  const changeDraftInputUnit = useCallback((clientId: string, nextUnit: string) => {
+    setDraftBomItems((current) => current.map((item) => {
+      if (item.clientId !== clientId) return item
+      const material = bomMaterialById.get(item.materialId)
+      if (!material) return item
+      try {
+        return {
+          ...item,
+          quantity: convertDraftQuantityForUnit(item.quantity, item.unit, nextUnit, material),
+          unit: nextUnit,
+        }
+      } catch (error) {
+        onMessage(error instanceof Error ? error.message : '单位换算失败')
+        return item
+      }
+    }))
+  }, [bomMaterialById, convertDraftQuantityForUnit, onMessage])
+
+  const changeDraftOutputUnit = useCallback((clientId: string, nextUnit: string) => {
+    setDraftBomOutputs((current) => current.map((output) => {
+      if (output.clientId !== clientId) return output
+      const material = bomMaterialById.get(output.materialId)
+      if (!material) return output
+      try {
+        return {
+          ...output,
+          quantity: convertDraftQuantityForUnit(output.quantity, output.unit, nextUnit, material),
+          unit: nextUnit,
+        }
+      } catch (error) {
+        onMessage(error instanceof Error ? error.message : '单位换算失败')
+        return output
+      }
+    }))
+  }, [bomMaterialById, convertDraftQuantityForUnit, onMessage])
+
+  const changePrimaryOutputUnit = useCallback((nextUnit: string) => {
+    if (!selectedMaterial) return
+    try {
+      setDraftBomOutputQuantity((current) => convertDraftQuantityForUnit(current, draftBomOutputUnit, nextUnit, selectedMaterial))
+      setDraftBomOutputUnit(nextUnit)
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '单位换算失败')
+    }
+  }, [convertDraftQuantityForUnit, draftBomOutputUnit, onMessage, selectedMaterial])
 
   const selectExistingBom = useCallback((materialId: string, bomId: string) => {
     loadedBomDraftSignatureRef.current = ''
@@ -1499,18 +1677,20 @@ export default function MaterialPage({
             {
               materialId: selectedMaterial?.id,
               quantity: selectedBomOutputQuantity,
+              entryUnit: draftBomOutputUnit,
               isPrimary: true,
             },
             ...draftBomOutputs.map((output) => ({
               materialId: output.materialId,
               quantity: Number(output.quantity),
+              entryUnit: output.unit,
               isPrimary: false,
             })),
           ],
           items: items.map((item) => ({
             materialId: item.materialId,
             quantity: Number(item.quantity),
-            unit: item.unit,
+            entryUnit: item.unit,
             wastageRate: 0,
           })),
         }),
@@ -1521,8 +1701,7 @@ export default function MaterialPage({
         return false
       }
       onMessage(successMessage || data.message || 'BOM 批次配方已保存')
-      if (data.data?.id) setSelectedBomId(data.data.id)
-      await fetchBomData()
+      await fetchBomData(data.data?.id)
       return true
     } catch (err) {
       onMessage('保存 BOM 批次配方失败')
@@ -2165,21 +2344,19 @@ export default function MaterialPage({
                           <div className="truncate text-sm font-medium text-gray-900">{material?.name || '未知物料'}</div>
                           <div className="truncate text-xs text-gray-500">{material?.code || item.materialId}{material?.spec ? ` · ${material.spec}` : ''}</div>
                         </div>
-                        <label className="flex min-w-0 overflow-hidden rounded-md border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
-                          <input
-                            aria-label={`${material?.name || item.materialId}每批投入数量`}
-                            type="number"
-                            min="0"
-                            step="any"
-                            inputMode="decimal"
+                        {material && (
+                          <BomQuantityEditor
+                            label={`${material.name}每批投入数量`}
                             value={item.quantity}
-                            onChange={(event) => setDraftBomItems((current) => current.map((draft) => (
-                              draft.clientId === item.clientId ? { ...draft, quantity: event.target.value } : draft
+                            unit={item.unit}
+                            material={material}
+                            unitCatalog={unitCatalog}
+                            onValueChange={(quantity) => setDraftBomItems((current) => current.map((draft) => (
+                              draft.clientId === item.clientId ? { ...draft, quantity } : draft
                             )))}
-                            className="min-w-0 flex-1 px-2 py-2 text-right text-sm outline-none"
+                            onUnitChange={(unit) => changeDraftInputUnit(item.clientId, unit)}
                           />
-                          <span className="flex min-w-10 items-center justify-center border-l border-gray-200 bg-gray-50 px-2 text-xs text-gray-600">{material?.stockUnit || material?.unit || item.unit}</span>
-                        </label>
+                        )}
                         <button
                           type="button"
                           onClick={() => setDraftBomItems((current) => current.filter((draft) => draft.clientId !== item.clientId))}
@@ -2224,19 +2401,15 @@ export default function MaterialPage({
                         </div>
                         <div className="truncate text-xs text-gray-500">{selectedMaterial.code}{selectedMaterial.spec ? ` · ${selectedMaterial.spec}` : ''}</div>
                       </div>
-                      <label className="flex min-w-0 overflow-hidden rounded-md border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
-                        <input
-                          aria-label={`${selectedMaterial.name}每批产出数量`}
-                          type="number"
-                          min="0"
-                          step="any"
-                          inputMode="decimal"
-                          value={draftBomOutputQuantity}
-                          onChange={(event) => setDraftBomOutputQuantity(event.target.value)}
-                          className="min-w-0 flex-1 px-2 py-2 text-right text-sm outline-none"
-                        />
-                        <span className="flex min-w-10 items-center justify-center border-l border-gray-200 bg-gray-50 px-2 text-xs text-gray-600">{selectedMaterial.stockUnit || selectedMaterial.unit}</span>
-                      </label>
+                      <BomQuantityEditor
+                        label={`${selectedMaterial.name}每批产出数量`}
+                        value={draftBomOutputQuantity}
+                        unit={draftBomOutputUnit}
+                        material={selectedMaterial}
+                        unitCatalog={unitCatalog}
+                        onValueChange={setDraftBomOutputQuantity}
+                        onUnitChange={changePrimaryOutputUnit}
+                      />
                       <span className="text-center text-xs text-gray-400">基准</span>
                     </div>
                   )}
@@ -2248,21 +2421,19 @@ export default function MaterialPage({
                           <div className="truncate text-sm font-medium text-gray-900">{material?.name || '未知物料'}</div>
                           <div className="truncate text-xs text-gray-500">{material?.code || output.materialId}{material?.spec ? ` · ${material.spec}` : ''}</div>
                         </div>
-                        <label className="flex min-w-0 overflow-hidden rounded-md border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
-                          <input
-                            aria-label={`${material?.name || output.materialId}每批产出数量`}
-                            type="number"
-                            min="0"
-                            step="any"
-                            inputMode="decimal"
+                        {material && (
+                          <BomQuantityEditor
+                            label={`${material.name}每批产出数量`}
                             value={output.quantity}
-                            onChange={(event) => setDraftBomOutputs((current) => current.map((draft) => (
-                              draft.clientId === output.clientId ? { ...draft, quantity: event.target.value } : draft
+                            unit={output.unit}
+                            material={material}
+                            unitCatalog={unitCatalog}
+                            onValueChange={(quantity) => setDraftBomOutputs((current) => current.map((draft) => (
+                              draft.clientId === output.clientId ? { ...draft, quantity } : draft
                             )))}
-                            className="min-w-0 flex-1 px-2 py-2 text-right text-sm outline-none"
+                            onUnitChange={(unit) => changeDraftOutputUnit(output.clientId, unit)}
                           />
-                          <span className="flex min-w-10 items-center justify-center border-l border-gray-200 bg-gray-50 px-2 text-xs text-gray-600">{material?.stockUnit || material?.unit || output.unit}</span>
-                        </label>
+                        )}
                         <button
                           type="button"
                           onClick={() => setDraftBomOutputs((current) => current.filter((draft) => draft.clientId !== output.clientId))}

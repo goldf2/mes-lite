@@ -199,6 +199,7 @@ model BOMOutput {
   material   Material @relation(fields: [materialId], references: [id])
   quantity   Float    @default(1)
   unit       String
+  entryUnit  String?
   isPrimary  Boolean  @default(false)
   createdAt  DateTime @default(now())
 
@@ -222,6 +223,7 @@ model BOMItem {
   sawingScenario   SawingCostScenario? @relation(fields: [sawingScenarioId], references: [id])
   quantity         Float               @default(0)
   unit             String
+  entryUnit        String?
   wastageRate      Float               @default(0)
 
   @@unique([bomId, materialId, outputMaterialId])

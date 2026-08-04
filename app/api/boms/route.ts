@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { materialAsProductOption, materialProductPrefix, resolveProductId, simpleProductSku } from '@/lib/material-product'
+import { normalizeBomEntryQuantity } from '@/lib/bom-entry-units'
+import { getUnitCatalog } from '@/lib/unit-catalog'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,12 +15,14 @@ const bomItemSchema = z.object({
   outputMaterialId: z.string().min(1).nullable().optional(),
   quantity: z.number().finite().positive('批量用量必须大于 0'),
   unit: z.string().trim().optional(),
+  entryUnit: z.string().trim().min(1).max(20).optional(),
   wastageRate: z.number().finite().nonnegative().optional().default(0),
 })
 
 const bomOutputSchema = z.object({
   materialId: z.string().min(1, '请选择产出物料'),
   quantity: z.number().finite().positive('基准产出数量必须大于 0'),
+  entryUnit: z.string().trim().min(1).max(20).optional(),
   isPrimary: z.boolean().optional().default(false),
 })
 
@@ -40,6 +44,7 @@ const bomItemSelect = {
   itemType: true,
   quantity: true,
   unit: true,
+  entryUnit: true,
   wastageRate: true,
   outputMaterialId: true,
   outputMaterial: {
@@ -100,6 +105,7 @@ const bomSelect = {
       id: true,
       quantity: true,
       unit: true,
+      entryUnit: true,
       isPrimary: true,
       material: {
         select: {
@@ -241,6 +247,7 @@ export async function PUT(req: NextRequest) {
     if (denied) return denied
 
     const input = saveBomSchema.parse(await req.json())
+    const unitCatalog = await getUnitCatalog()
     const submittedOutputs = input.outputs || []
     if (submittedOutputs.length > 0) {
       const primaryCount = submittedOutputs.filter((output) => output.isPrimary).length
@@ -277,14 +284,14 @@ export async function PUT(req: NextRequest) {
     const outputMaterialIds = normalizedOutputs.map((output) => output.materialId)
     const outputMaterials = await prisma.material.findMany({
       where: { id: { in: outputMaterialIds }, deletedAt: null },
-      select: { id: true, code: true, name: true, stockUnit: true, unit: true },
+      select: { id: true, code: true, name: true, primaryMeasure: true, stockUnit: true, unit: true },
     })
     if (outputMaterials.length !== outputMaterialIds.length) {
       return NextResponse.json({ error: 'BOM 中存在无效或已归档的产出物料' }, { status: 400 })
     }
     const outputMaterialById = new Map(outputMaterials.map((material) => [material.id, material]))
-    const primaryOutput = normalizedOutputs.find((output) => output.isPrimary)!
-    const primaryOutputMaterial = outputMaterialById.get(primaryOutput.materialId)!
+    const submittedPrimaryOutput = normalizedOutputs.find((output) => output.isPrimary)!
+    const primaryOutputMaterial = outputMaterialById.get(submittedPrimaryOutput.materialId)!
 
     if (new Set(input.items.map((item) => item.materialId)).size !== input.items.length) {
       return NextResponse.json({ error: '同一投入物料不能重复添加' }, { status: 400 })
@@ -296,32 +303,47 @@ export async function PUT(req: NextRequest) {
     }
     const materials = await prisma.material.findMany({
       where: { id: { in: materialIds }, deletedAt: null },
-      select: { id: true, stockUnit: true, unit: true },
+      select: { id: true, primaryMeasure: true, stockUnit: true, unit: true },
     })
     if (materials.length !== materialIds.length) {
       return NextResponse.json({ error: 'BOM 中存在无效或已归档物料' }, { status: 400 })
     }
     const materialById = new Map(materials.map((material) => [material.id, material]))
     const items = input.items.map((item) => {
-      const material = materialById.get(item.materialId)
+      const material = materialById.get(item.materialId)!
+      const normalized = normalizeBomEntryQuantity({
+        quantity: item.quantity,
+        entryUnit: item.entryUnit || item.unit,
+        material,
+        catalog: unitCatalog,
+      })
       return {
         itemType: 'MATERIAL',
         materialId: item.materialId,
         outputMaterialId: null,
-        quantity: item.quantity,
-        unit: material?.stockUnit || material?.unit || '件',
+        quantity: normalized.quantity,
+        unit: normalized.unit,
+        entryUnit: normalized.entryUnit,
         wastageRate: 0,
       }
     })
     const outputs = normalizedOutputs.map((output) => {
       const material = outputMaterialById.get(output.materialId)!
+      const normalized = normalizeBomEntryQuantity({
+        quantity: output.quantity,
+        entryUnit: output.entryUnit,
+        material,
+        catalog: unitCatalog,
+      })
       return {
         materialId: output.materialId,
-        quantity: output.quantity,
-        unit: material.stockUnit || material.unit || '件',
+        quantity: normalized.quantity,
+        unit: normalized.unit,
+        entryUnit: normalized.entryUnit,
         isPrimary: Boolean(output.isPrimary),
       }
     })
+    const primaryOutput = outputs.find((output) => output.isPrimary)!
 
     const saved = await prisma.$transaction(async (tx) => {
       const existingBoms = await tx.bOM.findMany({
@@ -431,6 +453,9 @@ export async function PUT(req: NextRequest) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
     if (error instanceof Error && error.message === 'BOM_NOT_FOUND') return NextResponse.json({ error: 'BOM 方案不存在' }, { status: 404 })
     if (error instanceof Error && error.message === 'BOM_VERSION_EXISTS') return NextResponse.json({ error: '同一产品的 BOM 版本号不能重复' }, { status: 409 })
+    if (error instanceof Error && /BOM 数量|所选单位|必须使用主库存单位|无法换算|换算后的 BOM/.test(error.message)) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     console.error('Save BOM error:', error)
     return NextResponse.json({ error: '保存 BOM 方案失败' }, { status: 500 })
   }
