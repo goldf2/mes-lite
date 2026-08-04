@@ -1347,9 +1347,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               }}
               aria-label="打开 AI 协作助手"
               aria-describedby="ai-assistant-trigger-tooltip"
-              className="mes-ai-assistant-trigger group relative flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white p-1 shadow-sm transition hover:border-blue-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              className="mes-ai-assistant-trigger group relative flex h-12 w-12 items-center justify-center rounded-full bg-transparent p-0.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             >
-              <AiAssistantMark animated priority className="h-8 w-8" />
+              <AiAssistantMark animated priority className="h-11 w-11" />
               <span
                 id="ai-assistant-trigger-tooltip"
                 role="tooltip"
@@ -2552,6 +2552,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         <AiAssistantPanel
           open={aiAssistantOpen}
           onClose={closeAiAssistant}
+          onOpenSettings={() => {
+            setAiAssistantOpen(false)
+            navigateToTab('systemSettings')
+          }}
           pageContext={{ key: pageLocationKey, label: activeTabLabel }}
           isAdmin={operator.role === 'ADMIN'}
         />
@@ -2586,9 +2590,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 setMobileNavOpen(false)
               }}
               aria-label="打开 AI 协作助手"
-              className="mes-ai-assistant-trigger flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg bg-blue-50 px-1 py-2 text-[11px] font-medium text-blue-700 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+              className="mes-ai-assistant-trigger flex min-w-0 flex-col items-center justify-center gap-1 bg-transparent px-1 py-2 text-[11px] font-medium text-blue-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
             >
-              <AiAssistantMark animated priority className="h-7 w-7" />
+              <AiAssistantMark animated priority className="h-8 w-8" />
               <span className="max-w-full truncate">问 AI</span>
             </button>
           )}

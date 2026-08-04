@@ -12,7 +12,7 @@ export async function GET() {
     return NextResponse.json({ error: '无权限' }, { status: 403 })
   }
 
-  const config = getAiAgentConfig()
+  const config = await getAiAgentConfig()
   const permissions = await getEffectivePermissionMap(operator)
   return NextResponse.json({
     data: {

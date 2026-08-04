@@ -1,4 +1,4 @@
-import { getAiAgentConfig } from '../lib/ai-agent/config'
+import { getAiAgentConfig, toPublicAiAgentConfig, updateAiAgentConfig } from '../lib/ai-agent/config'
 import { buildAiAgentSystemPrompt } from '../lib/ai-agent/agent'
 import { getAvailableAgentToolNames } from '../lib/ai-agent/tools'
 import type { PermissionMap } from '../lib/permissions'
@@ -42,28 +42,71 @@ assert(prompt.includes('结论：') && prompt.includes('查询条件：') && pro
 assert(prompt.includes('用途：') && prompt.includes('操作步骤：') && prompt.includes('注意事项：'), '系统提示必须包含系统使用回答范式')
 assert(prompt.includes('当前页面：库存管理（stocks）'), '系统提示必须带入当前页面上下文')
 
-const originalKey = process.env.AI_AGENT_API_KEY
-const originalModel = process.env.AI_AGENT_MODEL
-const originalEnabled = process.env.AI_AGENT_ENABLED
-try {
-  delete process.env.AI_AGENT_API_KEY
-  delete process.env.AI_AGENT_MODEL
-  process.env.AI_AGENT_ENABLED = 'true'
-  assert(!getAiAgentConfig().configured, '缺少密钥和模型时不得标记为已配置')
+async function verifyConfiguration() {
+  type SettingsClient = NonNullable<Parameters<typeof getAiAgentConfig>[0]>
+  let storedValue: string | null = null
+  const memoryClient = {
+    systemSetting: {
+      findUnique: async () => storedValue ? { value: storedValue } : null,
+      upsert: async (input: { create: { value: string }; update: { value: string } }) => {
+        storedValue = storedValue === null ? input.create.value : input.update.value
+        return { key: 'ai.agent.config.v1', value: storedValue }
+      },
+    },
+  } as unknown as SettingsClient
+  const originalKey = process.env.AI_AGENT_API_KEY
+  const originalModel = process.env.AI_AGENT_MODEL
+  const originalEnabled = process.env.AI_AGENT_ENABLED
+  const originalConfigSecret = process.env.AI_AGENT_CONFIG_SECRET
+  try {
+    delete process.env.AI_AGENT_API_KEY
+    delete process.env.AI_AGENT_MODEL
+    process.env.AI_AGENT_ENABLED = 'true'
+    assert(!(await getAiAgentConfig(memoryClient)).configured, '缺少密钥和模型时不得标记为已配置')
 
-  process.env.AI_AGENT_API_KEY = 'verification-only'
-  process.env.AI_AGENT_MODEL = 'verification-model'
-  assert(getAiAgentConfig().configured, '密钥和模型齐全时应标记为已配置')
+    process.env.AI_AGENT_API_KEY = 'verification-only'
+    process.env.AI_AGENT_MODEL = 'verification-model'
+    assert((await getAiAgentConfig(memoryClient)).configured, '密钥和模型齐全时应标记为已配置')
 
-  process.env.AI_AGENT_ENABLED = 'false'
-  assert(!getAiAgentConfig().configured, '明确停用后不得标记为已配置')
-} finally {
-  if (originalKey === undefined) delete process.env.AI_AGENT_API_KEY
-  else process.env.AI_AGENT_API_KEY = originalKey
-  if (originalModel === undefined) delete process.env.AI_AGENT_MODEL
-  else process.env.AI_AGENT_MODEL = originalModel
-  if (originalEnabled === undefined) delete process.env.AI_AGENT_ENABLED
-  else process.env.AI_AGENT_ENABLED = originalEnabled
+    process.env.AI_AGENT_ENABLED = 'false'
+    assert(!(await getAiAgentConfig(memoryClient)).configured, '明确停用后不得标记为已配置')
+
+    delete process.env.AI_AGENT_API_KEY
+    delete process.env.AI_AGENT_MODEL
+    process.env.AI_AGENT_ENABLED = 'true'
+    process.env.AI_AGENT_CONFIG_SECRET = 'verification-config-secret-at-least-32-characters'
+    const saved = await updateAiAgentConfig({
+      enabled: true,
+      providerName: '验证模型',
+      baseUrl: 'https://example.com/v1',
+      model: 'verification-model',
+      timeoutMs: 45000,
+      maxToolRounds: 4,
+      apiKey: 'page-secret-value',
+    }, memoryClient)
+    assert(saved.configured && saved.apiKeySource === 'PAGE', '页面密钥保存后应成为有效配置')
+    assert(Boolean(storedValue) && !String(storedValue).includes('page-secret-value'), 'SystemSetting 不得保存 API Key 明文')
+    const publicConfig = toPublicAiAgentConfig(saved)
+    assert(!('apiKey' in publicConfig), '前端配置响应不得包含 API Key 字段')
+
+    process.env.AI_AGENT_CONFIG_SECRET = 'different-verification-config-secret-value'
+    const unreadable = await getAiAgentConfig(memoryClient)
+    assert(unreadable.apiKeyError === 'DECRYPT_FAILED' && !unreadable.configured, '主密钥变化后必须拒绝使用既有页面密钥')
+  } finally {
+    if (originalKey === undefined) delete process.env.AI_AGENT_API_KEY
+    else process.env.AI_AGENT_API_KEY = originalKey
+    if (originalModel === undefined) delete process.env.AI_AGENT_MODEL
+    else process.env.AI_AGENT_MODEL = originalModel
+    if (originalEnabled === undefined) delete process.env.AI_AGENT_ENABLED
+    else process.env.AI_AGENT_ENABLED = originalEnabled
+    if (originalConfigSecret === undefined) delete process.env.AI_AGENT_CONFIG_SECRET
+    else process.env.AI_AGENT_CONFIG_SECRET = originalConfigSecret
+  }
 }
 
-console.log('AI Agent 验证通过：配置门槛、只读工具白名单和资源权限过滤符合预期。')
+verifyConfiguration()
+  .then(() => console.log('AI Agent 验证通过：配置门槛、加密密钥、前端脱敏、只读工具白名单和资源权限过滤符合预期。'))
+  .catch((error) => {
+    console.error(error)
+    process.exitCode = 1
+  })

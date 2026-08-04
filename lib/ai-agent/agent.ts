@@ -63,7 +63,7 @@ export async function runAiAgent(input: {
   context: AgentPageContext
   permissions: PermissionMap
 }) {
-  const config = getAiAgentConfig()
+  const config = await getAiAgentConfig()
   if (!config.enabled) throw new Error('AI_AGENT_DISABLED')
   if (!config.configured) throw new Error('AI_AGENT_NOT_CONFIGURED')
 

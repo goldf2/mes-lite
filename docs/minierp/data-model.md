@@ -789,17 +789,19 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 ### system_settings
 
-系统级运行设置使用键值记录保存，由“工具 / 系统设置”维护。
+系统级运行设置使用键值记录保存，由“配置 / 系统设置”维护。
 
 | 字段 | 含义 |
 | --- | --- |
-| `key` | 设置键，当前包含 `sorting.materialCodeNatural`、`units.customCatalog`、`units.displayOrder` |
+| `key` | 设置键，当前包含 `sorting.materialCodeNatural`、`units.customCatalog`、`units.displayOrder`、`ai.agent.config.v1` |
 | `value` | 字符串形式的设置值 |
 | `updatedAt` | 最近更新时间 |
 
 `sorting.materialCodeNatural=true` 时，物料列表和物料导出在按编码排序时先读取完整筛选结果，再按数字片段自然排序后分页或输出；该设置不修改 `Material.code`。
 
 `units.displayOrder` 保存单位目录键到人工顺序的映射；单位键由计量类别和单位编码组成。单位排序仅在相同计量类别内生效，自定义单位仍由 `units.customCatalog` 保存。
+
+`ai.agent.config.v1` 保存 AI 提供商、接口地址、模型、启用状态、超时、最大工具轮次和可选 API Key 密文。API Key 使用 AES-256-GCM 加密，解密主密钥只存在于服务端 `AI_AGENT_CONFIG_SECRET`，不能写入该记录、审计日志或前端响应。页面配置优先于环境变量；删除页面密钥后可继续回退到 `AI_AGENT_API_KEY`。
 
 ### configuration_sort_order
 

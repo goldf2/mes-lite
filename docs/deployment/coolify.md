@@ -55,11 +55,14 @@ AI_AGENT_PROVIDER_NAME=通义千问
 AI_AGENT_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 AI_AGENT_MODEL=<百炼中已开通且支持工具调用的模型 ID>
 AI_AGENT_API_KEY=<服务端 API Key>
+AI_AGENT_CONFIG_SECRET=<页面密钥加密主密钥>
 AI_AGENT_TIMEOUT_MS=45000
 AI_AGENT_MAX_TOOL_ROUNDS=4
 ```
 
-缺少 `AI_AGENT_MODEL` 或 `AI_AGENT_API_KEY` 时，全局入口仍可见但明确显示“AI 服务尚未配置”，不会向外部模型发送数据。设置 `AI_AGENT_ENABLED=false` 可以在不删除配置的情况下停用接口。
+`AI_AGENT_CONFIG_SECRET` 用于加密管理员在系统页面保存的 API Key，应使用 `openssl rand -hex 32` 生成一次并长期保留。修改或丢失该值后，数据库中的既有页面密钥无法解密，需要管理员重新录入。该主密钥不能写入数据库、仓库或客户端变量。
+
+部署后，管理员可在“配置 → 系统设置 → AI 助手配置”维护提供商、接口地址、模型、API Key、超时和工具轮次。页面配置优先于环境变量；未建立页面配置或未保存页面密钥时继续使用上述环境变量。缺少模型或可用 API Key 时，全局入口仍可见但明确显示“AI 服务尚未配置”，不会向外部模型发送数据。
 
 也可以参考仓库内的 `.env.coolify.example`，在 Coolify 的 Environment Variables 页面逐项填写。不要把生产 `.env` 文件提交到 Git。
 

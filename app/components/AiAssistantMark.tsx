@@ -10,14 +10,18 @@ export default function AiAssistantMark({
   priority?: boolean
 }) {
   return (
-    <Image
-      src="/ai/assistant-mark.png"
-      alt=""
+    <span
       aria-hidden="true"
-      width={128}
-      height={128}
-      className={`${animated ? 'mes-ai-assistant-mark ' : ''}rounded-[22%] ${className}`}
-      priority={priority}
-    />
+      className={`relative inline-block aspect-square shrink-0 ${animated ? 'mes-ai-assistant-orbit ' : ''}${className}`}
+    >
+      <Image
+        src="/ai/assistant-mark.png"
+        alt=""
+        fill
+        sizes="48px"
+        className={`${animated ? 'mes-ai-assistant-mark ' : ''}object-contain mix-blend-multiply`}
+        priority={priority}
+      />
+    </span>
   )
 }

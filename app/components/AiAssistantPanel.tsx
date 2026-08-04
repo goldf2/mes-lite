@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Database, Send, ShieldCheck, Sparkles, Square, Trash2, X } from 'lucide-react'
+import { Database, Send, Settings2, ShieldCheck, Sparkles, Square, Trash2, X } from 'lucide-react'
 import AiAssistantMark from './AiAssistantMark'
 
 interface AssistantMessage {
@@ -36,11 +36,13 @@ function messageId() {
 export default function AiAssistantPanel({
   open,
   onClose,
+  onOpenSettings,
   pageContext,
   isAdmin,
 }: {
   open: boolean
   onClose: () => void
+  onOpenSettings: () => void
   pageContext: { key: string; label: string }
   isAdmin: boolean
 }) {
@@ -191,7 +193,7 @@ export default function AiAssistantPanel({
       >
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white p-0.5 shadow-sm">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center">
               <AiAssistantMark className="h-9 w-9" />
             </div>
             <div className="min-w-0">
@@ -200,6 +202,17 @@ export default function AiAssistantPanel({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                aria-label="配置 AI 助手"
+                title="配置 AI 助手"
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
+              >
+                <Settings2 aria-hidden="true" className="h-4 w-4" />
+              </button>
+            )}
             <button
               type="button"
               onClick={clearConversation}
@@ -246,10 +259,19 @@ export default function AiAssistantPanel({
               <p className="mt-1 text-amber-800">
                 {status.enabled
                   ? (isAdmin
-                      ? '请在 Coolify 中配置国产模型的接口地址、模型名称和 API 密钥。'
+                      ? '请在系统设置中配置国产模型的接口地址、模型 ID 和 API Key。'
                       : '请联系系统管理员完成国产模型服务配置。')
-                  : (isAdmin ? '可在 Coolify 中重新启用 AI Agent。' : '请联系系统管理员。')}
+                  : (isAdmin ? '可在系统设置中重新启用 AI 助手。' : '请联系系统管理员。')}
               </p>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={onOpenSettings}
+                  className="mt-3 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100"
+                >
+                  打开 AI 配置
+                </button>
+              )}
             </div>
           )}
 
