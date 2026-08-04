@@ -27,10 +27,16 @@ export function bomEntryUnitOptions<T extends BomCatalogUnit>(catalog: T[], mate
   return catalog.filter((unit) => unit.measureType === material.primaryMeasure)
 }
 
-export function defaultBomEntryUnit(catalog: BomCatalogUnit[], material: BomUnitMaterial) {
+export function defaultBomEntryUnit(
+  catalog: BomCatalogUnit[],
+  material: BomUnitMaterial,
+  preferredCode?: string | null,
+) {
   const stockUnit = stockUnitOf(material)
-  const preferredCode = defaultEntryUnitByMeasure[material.primaryMeasure || '']
-  return findCatalogUnit(catalog, material.primaryMeasure, preferredCode)?.code || stockUnit
+  const configuredCode = findCatalogUnit(catalog, material.primaryMeasure, preferredCode)?.code
+  if (configuredCode) return configuredCode
+  const fallbackCode = defaultEntryUnitByMeasure[material.primaryMeasure || '']
+  return findCatalogUnit(catalog, material.primaryMeasure, fallbackCode)?.code || stockUnit
 }
 
 export function convertBomEntryQuantity(

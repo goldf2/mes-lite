@@ -31,6 +31,9 @@ assert.ok(gram)
 assert.ok(kilogram)
 assert.equal(defaultBomEntryUnit(presetUnitCatalog, { primaryMeasure: 'LENGTH', stockUnit: 'm' }), 'mm')
 assert.equal(defaultBomEntryUnit(presetUnitCatalog, { primaryMeasure: 'WEIGHT', stockUnit: 'kg' }), 'g')
+assert.equal(defaultBomEntryUnit(presetUnitCatalog, { primaryMeasure: 'LENGTH', stockUnit: 'm' }, 'cm'), 'cm')
+assert.equal(defaultBomEntryUnit(presetUnitCatalog, { primaryMeasure: 'WEIGHT', stockUnit: 'kg' }, 'kg'), 'kg')
+assert.equal(defaultBomEntryUnit(presetUnitCatalog, { primaryMeasure: 'LENGTH', stockUnit: 'm' }, 'invalid'), 'mm')
 assert.deepEqual(normalizeBomEntryQuantity({
   quantity: 31.6,
   entryUnit: 'mm',
