@@ -7,10 +7,16 @@ import { resolveMaterialUnits, toValuationQty } from '@/lib/units'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 import { materialInPriceUnits, normalizeMaterialInPriceUnit, resolveMaterialInPricing, resolveMaterialInStockQuantity } from '@/lib/material-in-quantity'
 import { resolveInventoryLocation } from '@/lib/inventory'
+import { Prisma } from '@prisma/client'
 
-const createMaterialInSchema = z.object({
+const materialInCommonShape = {
   voucherNo: z.string().optional(),
   supplierId: z.string().min(1, '供应商必填'),
+  receivedBy: z.string().optional(),
+  note: z.string().optional(),
+}
+
+const materialInItemShape = {
   materialId: z.string().min(1, '物料必填'),
   locationId: z.string().min(1, '库位必填').optional(),
   qty: z.number().positive('数量必须大于 0'),
@@ -27,9 +33,112 @@ const createMaterialInSchema = z.object({
   priceBasis: z.enum(['VALUATION', 'STOCK']).optional(),
   priceUnit: z.enum(materialInPriceUnits).optional(),
   batchNo: z.string().optional(),
-  receivedBy: z.string().optional(),
-  note: z.string().optional(),
-})
+}
+
+const materialInItemSchema = z.object(materialInItemShape)
+const createMaterialInSchema = z.union([
+  z.object({ ...materialInCommonShape, ...materialInItemShape }),
+  z.object({
+    ...materialInCommonShape,
+    items: z.array(materialInItemSchema).min(1, '请至少添加一种物料').max(100, '单张来料单最多添加 100 种物料'),
+  }),
+])
+
+type MaterialInItemInput = z.infer<typeof materialInItemSchema>
+
+async function createMaterialInLine(
+  tx: Prisma.TransactionClient,
+  common: { supplierId: string; voucherNo?: string; receivedBy?: string; note?: string },
+  input: MaterialInItemInput,
+  inboundNo: string,
+) {
+  const material = await tx.material.findFirst({
+    where: { id: input.materialId, deletedAt: null },
+  })
+  if (!material) throw new Error('物料不存在或已归档')
+
+  const location = await resolveInventoryLocation(tx, input.locationId)
+  const stockQuantity = resolveMaterialInStockQuantity({
+    primaryMeasure: material.primaryMeasure,
+    qty: input.qty,
+    pieceCount: input.pieceCount,
+    stockQtyMode: input.stockQtyMode,
+    stockQtyInput: input.stockQtyInput,
+    totalLength: input.totalLength,
+    totalWeight: input.totalWeight,
+  })
+  const { qty, pieceCount, stockQtyMode, stockQtyInput, totalLength, totalWeight } = stockQuantity
+  const units = resolveMaterialUnits(material)
+  const stockUnit = input.unit || units.stockUnit
+  const materialUsesDualUnit = units.stockUnit !== units.valuationUnit || units.conversionRate !== 1
+  const actualReferenceQty = material.referenceMeasure === 'LENGTH'
+    ? totalLength
+    : material.referenceMeasure === 'WEIGHT'
+      ? totalWeight
+      : material.referenceMeasure === 'QUANTITY'
+        ? pieceCount
+        : input.valuationQty
+  const effectiveValuationQty = materialUsesDualUnit && actualReferenceQty && actualReferenceQty > 0
+    ? actualReferenceQty
+    : toValuationQty(qty, units.conversionRate)
+  const conversionRate = Number((effectiveValuationQty / qty).toFixed(6))
+  const conversionSource = materialUsesDualUnit && actualReferenceQty && actualReferenceQty > 0
+    ? 'DOCUMENT_ACTUAL'
+    : 'MASTER_DEFAULT'
+  const valuationUnit = materialUsesDualUnit ? input.valuationUnit || units.valuationUnit : stockUnit
+  const requestedPriceBasis = input.priceBasis || 'VALUATION'
+  const requestedPriceUnit = normalizeMaterialInPriceUnit(
+    input.priceUnit || (requestedPriceBasis === 'VALUATION' ? valuationUnit : stockUnit),
+    requestedPriceBasis === 'VALUATION' ? material.referenceMeasure || material.primaryMeasure : material.primaryMeasure
+  )
+  const pricing = resolveMaterialInPricing({
+    priceUnit: requestedPriceUnit,
+    unitPrice: input.unitPrice,
+    totalAmount: input.totalAmount,
+    totalLength,
+    totalWeight,
+    pieceCount,
+  })
+  const { totalAmount, priceBasis, priceUnit } = pricing
+  const valuationUnitCost = effectiveValuationQty > 0 ? Number((totalAmount / effectiveValuationQty).toFixed(6)) : 0
+  const stockUnitCost = qty > 0 ? Number((totalAmount / qty).toFixed(6)) : 0
+
+  return tx.materialIn.create({
+    data: {
+      inboundNo,
+      voucherNo: common.voucherNo?.trim() || null,
+      supplierId: common.supplierId,
+      materialId: input.materialId,
+      locationId: location.id,
+      qty,
+      unit: stockUnit,
+      pieceCount,
+      stockQtyMode,
+      stockQtyInput,
+      totalLength,
+      totalWeight,
+      valuationQty: effectiveValuationQty,
+      valuationUnit,
+      conversionRate,
+      conversionSource,
+      unitPrice: pricing.unitPrice,
+      priceBasis,
+      priceUnit,
+      valuationUnitCost,
+      stockUnitCost,
+      totalAmount,
+      batchNo: input.batchNo,
+      receivedBy: common.receivedBy,
+      note: common.note,
+      status: 'PENDING',
+    },
+    include: {
+      supplier: true,
+      material: true,
+      location: true,
+    },
+  })
+}
 
 // GET: 来料单列表，支持 status 筛选和分页
 export async function GET(req: NextRequest) {
@@ -99,8 +208,9 @@ export async function POST(req: NextRequest) {
     if (denied) return denied
 
     const body = await req.json()
-    const { supplierId, materialId, locationId, valuationQty, unitPrice, batchNo, receivedBy, note, voucherNo } =
-      createMaterialInSchema.parse(body)
+    const parsed = createMaterialInSchema.parse(body)
+    const { supplierId, voucherNo, receivedBy, note } = parsed
+    const requestedItems = 'items' in parsed ? parsed.items : [parsed]
 
     // 校验供应商存在且未归档
     const supplier = await prisma.supplier.findFirst({
@@ -110,118 +220,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '供应商不存在或已归档' }, { status: 404 })
     }
 
-    // 校验物料存在且未归档
-    const material = await prisma.material.findFirst({
-      where: { id: materialId, deletedAt: null },
-    })
-    if (!material) {
-      return NextResponse.json({ error: '物料不存在或已归档' }, { status: 404 })
-    }
-    const location = await resolveInventoryLocation(prisma, locationId)
-    const stockQuantity = resolveMaterialInStockQuantity({
-      primaryMeasure: material.primaryMeasure,
-      qty: body.qty,
-      pieceCount: body.pieceCount,
-      stockQtyMode: body.stockQtyMode,
-      stockQtyInput: body.stockQtyInput,
-      totalLength: body.totalLength,
-      totalWeight: body.totalWeight,
-    })
-    const { qty, pieceCount, stockQtyMode, stockQtyInput, totalLength, totalWeight } = stockQuantity
-    const units = resolveMaterialUnits(material)
-    const stockUnit = body.unit || units.stockUnit
-    const materialUsesDualUnit = units.stockUnit !== units.valuationUnit || units.conversionRate !== 1
-    const actualReferenceQty = material.referenceMeasure === 'LENGTH'
-      ? totalLength
-      : material.referenceMeasure === 'WEIGHT'
-        ? totalWeight
-        : material.referenceMeasure === 'QUANTITY'
-          ? pieceCount
-          : valuationQty
-    const effectiveValuationQty = materialUsesDualUnit && actualReferenceQty && actualReferenceQty > 0
-      ? actualReferenceQty
-      : toValuationQty(qty, units.conversionRate)
-    const conversionRate = Number((effectiveValuationQty / qty).toFixed(6))
-    const conversionSource = materialUsesDualUnit && actualReferenceQty && actualReferenceQty > 0
-      ? 'DOCUMENT_ACTUAL'
-      : 'MASTER_DEFAULT'
-    const valuationUnit = materialUsesDualUnit ? body.valuationUnit || units.valuationUnit : stockUnit
-    const requestedPriceBasis = body.priceBasis || 'VALUATION'
-    const requestedPriceUnit = normalizeMaterialInPriceUnit(
-      body.priceUnit || (requestedPriceBasis === 'VALUATION' ? valuationUnit : stockUnit),
-      requestedPriceBasis === 'VALUATION' ? material.referenceMeasure || material.primaryMeasure : material.primaryMeasure
-    )
-    const pricing = resolveMaterialInPricing({
-      priceUnit: requestedPriceUnit,
-      unitPrice,
-      totalAmount: body.totalAmount,
-      totalLength,
-      totalWeight,
-      pieceCount,
-    })
-
     // 生成 inboundNo: IN-YYYYMMDD-XXX
     const today = new Date()
     const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')
+    const dayStart = new Date(today)
+    dayStart.setHours(0, 0, 0, 0)
     const count = await prisma.materialIn.count({
-      where: { createdAt: { gte: new Date(today.setHours(0, 0, 0, 0)) } },
+      where: { createdAt: { gte: dayStart } },
     })
-    const inboundNo = `IN-${dateStr}-${String(count + 1).padStart(3, '0')}`
-
-    const { totalAmount, priceBasis, priceUnit } = pricing
-    const valuationUnitCost = effectiveValuationQty > 0 ? Number((totalAmount / effectiveValuationQty).toFixed(6)) : 0
-    const stockUnitCost = qty > 0 ? Number((totalAmount / qty).toFixed(6)) : 0
-
-    const materialIn = await prisma.materialIn.create({
-      data: {
-        inboundNo,
-        voucherNo: voucherNo?.trim() || null,
-        supplierId,
-        materialId,
-        locationId: location.id,
-        qty,
-        unit: stockUnit,
-        pieceCount,
-        stockQtyMode,
-        stockQtyInput,
-        totalLength,
-        totalWeight,
-        valuationQty: effectiveValuationQty,
-        valuationUnit,
-        conversionRate,
-        conversionSource,
-        unitPrice: pricing.unitPrice,
-        priceBasis,
-        priceUnit,
-        valuationUnitCost,
-        stockUnitCost,
-        totalAmount,
-        batchNo,
-        receivedBy,
-        note,
-        status: 'PENDING',
-      },
-      include: {
-        supplier: true,
-        material: true,
-        location: true,
-      },
+    const materialIns = await prisma.$transaction(async (tx) => {
+      const created = []
+      for (let index = 0; index < requestedItems.length; index += 1) {
+        const inboundNo = `IN-${dateStr}-${String(count + index + 1).padStart(3, '0')}`
+        created.push(await createMaterialInLine(tx, { supplierId, voucherNo, receivedBy, note }, requestedItems[index], inboundNo))
+      }
+      return created
     })
 
-    await writeAuditLog(req, {
-      action: 'CREATE',
-      entityType: 'MATERIAL_IN',
-      entityId: materialIn.id,
-      entityLabel: materialIn.inboundNo,
-      afterData: materialIn,
-    })
+    for (const materialIn of materialIns) {
+      await writeAuditLog(req, {
+        action: 'CREATE',
+        entityType: 'MATERIAL_IN',
+        entityId: materialIn.id,
+        entityLabel: materialIn.inboundNo,
+        afterData: materialIn,
+      })
+    }
 
-    return NextResponse.json({ data: materialIn }, { status: 201 })
+    return NextResponse.json({ data: materialIns[0], items: materialIns, count: materialIns.length }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
     }
-    if (error instanceof Error && /必须|不能为负|必须大于|库位/.test(error.message)) {
+    if (error instanceof Error && /必须|不能为负|必须大于|库位|物料不存在|已归档/.test(error.message)) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('Create material-in error:', error)

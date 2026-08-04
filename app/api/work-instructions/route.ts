@@ -8,7 +8,7 @@ import { withAttachmentUrls } from '@/lib/attachment-urls'
 import { DocumentContentValidationError, normalizeDocumentContent } from '@/lib/document-content'
 
 const workInstructionSchema = z.object({
-  title: z.string().trim().min(1, '请输入文档标题').max(200, '文档标题不能超过 200 个字符'),
+  title: z.string().trim().max(200, '文档标题不能超过 200 个字符').optional().default(''),
   materialId: z.string().trim().optional().nullable(),
   categoryId: z.string().min(1, '请选择文档类别'),
   version: z.string().optional(),
@@ -21,6 +21,25 @@ const workInstructionSchema = z.object({
 const updateWorkInstructionSchema = workInstructionSchema.extend({
   id: z.string().min(1, '缺少产品文档 ID'),
 })
+
+function createAutomaticTitle(
+  material: { code: string; name: string } | null,
+  category: { name: string },
+) {
+  const parts = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date())
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || ''
+  const timestamp = `${value('year')}-${value('month')}-${value('day')} ${value('hour')}:${value('minute')}`
+  const scope = material ? `${material.code} ${material.name}` : '通用'
+  return `${scope} · ${category.name} · ${timestamp}`.slice(0, 200)
+}
 
 async function ownerIdsByFileType(fileType: string | null) {
   if (fileType !== 'image' && fileType !== 'pdf') return null
@@ -203,7 +222,7 @@ export async function POST(req: NextRequest) {
     }
     const category = await prisma.documentCategory.findUnique({
       where: { id: data.categoryId },
-      select: { id: true },
+      select: { id: true, name: true },
     })
     if (!category) {
       return NextResponse.json({ error: '文档类别不存在' }, { status: 400 })
@@ -216,10 +235,11 @@ export async function POST(req: NextRequest) {
     }
 
     const content = normalizeDocumentContent(data.contentJson)
+    const title = data.title || createAutomaticTitle(material, category)
     const instruction = await prisma.workInstruction.create({
       data: {
         categoryId: category.id,
-        title: data.title,
+        title,
         version: data.version || 'v1',
         status: data.status || 'ACTIVE',
         materialId: material?.id || null,
@@ -298,7 +318,7 @@ export async function PUT(req: NextRequest) {
     }
     const category = await prisma.documentCategory.findUnique({
       where: { id: data.categoryId },
-      select: { id: true },
+      select: { id: true, name: true },
     })
     if (!category) {
       return NextResponse.json({ error: '文档类别不存在' }, { status: 400 })
@@ -311,11 +331,12 @@ export async function PUT(req: NextRequest) {
     }
 
     const content = normalizeDocumentContent(data.contentJson)
+    const title = data.title || createAutomaticTitle(material, category)
     const instruction = await prisma.workInstruction.update({
       where: { id: data.id },
       data: {
         categoryId: category.id,
-        title: data.title,
+        title,
         version: data.version || 'v1',
         status: data.status || 'ACTIVE',
         materialId: material?.id || null,

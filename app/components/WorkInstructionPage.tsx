@@ -625,10 +625,6 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   }
 
   const submitForm = async () => {
-    if (!form.title.trim()) {
-      onMessage('请输入文档标题')
-      return
-    }
     if (!form.categoryId) {
       onMessage('请选择文档类别')
       return
@@ -1066,8 +1062,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <div className="md:col-span-2 xl:col-span-3">
-                  <label className="mb-2 block text-sm font-medium text-gray-700">文档标题 *</label>
-                  <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} className={appInputClassName} placeholder="例如：P12 切管机参数操作指导书" maxLength={200} />
+                  <label className="mb-2 block text-sm font-medium text-gray-700">文档标题（可选）</label>
+                  <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} className={appInputClassName} placeholder="留空后自动生成" maxLength={200} />
                 </div>
                 <div className="md:col-span-2 xl:col-span-3">
                   <label className="mb-2 block text-sm font-medium text-gray-700">关联产品（可选）</label>
@@ -1152,8 +1148,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       <div className="mb-3 text-sm font-semibold text-gray-900">基础信息</div>
                       <div className="grid grid-cols-1 gap-3">
                         <div>
-                          <label className="mb-1 block text-xs font-medium text-gray-600">文档标题 *</label>
-                          <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" maxLength={200} />
+                          <label className="mb-1 block text-xs font-medium text-gray-600">文档标题（可选）</label>
+                          <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="留空后自动生成" maxLength={200} />
                         </div>
                         <div>
                           <label className="mb-1 block text-xs font-medium text-gray-600">关联产品（可选）</label>

@@ -87,6 +87,25 @@ interface MaterialIn {
   location?: InventoryLocation | null
 }
 
+interface MaterialInDraftItem {
+  id: string
+  materialId: string
+  locationId: string
+  qty: number
+  pieceCount?: number
+  stockQtyMode?: 'TOTAL' | 'PER_PIECE'
+  stockQtyInput?: number
+  totalLength?: number
+  totalWeight?: number
+  unit: string
+  valuationUnit: string
+  unitPrice: number
+  totalAmount: number
+  priceUnit: MaterialInPriceUnit
+  priceBasis: 'VALUATION' | 'STOCK'
+  batchNo?: string
+}
+
 function formatMaterialLabel(material: Material) {
   return `${material.code} · ${material.name}${material.spec ? ` · ${material.spec}` : ''}`
 }
@@ -425,6 +444,7 @@ export default function MaterialInPage({
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [editingItem, setEditingItem] = useState<MaterialIn | null>(null)
+  const [draftItems, setDraftItems] = useState<MaterialInDraftItem[]>([])
   const [linkedBatchRatios, setLinkedBatchRatios] = useState<{ lengthPerPiece: number; weightPerLength: number } | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.materialIn.viewMode', 'list')
 
@@ -577,6 +597,7 @@ export default function MaterialInPage({
 
   const resetForm = () => {
     setEditingItem(null)
+    setDraftItems([])
     setLinkedBatchRatios(null)
     setForm({
       voucherNo: '',
@@ -599,60 +620,118 @@ export default function MaterialInPage({
     })
   }
 
+  const validateCurrentItem = () => {
+    if (!form.materialId || !form.locationId || calculatedStockQty <= 0) {
+      return '请选择物料和库位，并输入有效的主单位数量'
+    }
+    if (isLengthMaterial && form.pieceCount <= 0) return '长度型物料请填写数量'
+    if (form.priceUnit === 'm' && totalAmountPreview > 0 && calculatedTotalLength <= 0) return '按米计价时请填写总长度'
+    if (form.priceUnit === 'kg' && totalAmountPreview > 0 && form.totalWeight <= 0) return '按 kg 计价时请填写总重量'
+    if (form.priceUnit === '件' && totalAmountPreview > 0 && form.pieceCount <= 0) return '按件计价时请填写数量'
+    return null
+  }
+
+  const buildCurrentItem = (): MaterialInDraftItem => {
+    const material = materials.find((item) => item.id === form.materialId)
+    const stockUnit = material?.stockUnit || material?.unit || '个'
+    return {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      materialId: form.materialId,
+      locationId: form.locationId,
+      qty: calculatedStockQty,
+      pieceCount: form.pieceCount > 0 ? form.pieceCount : undefined,
+      stockQtyMode: isLengthMaterial ? form.stockQtyMode : undefined,
+      stockQtyInput: isLengthMaterial ? form.stockQtyInput : undefined,
+      totalLength: calculatedTotalLength > 0 ? calculatedTotalLength : undefined,
+      totalWeight: form.totalWeight > 0 ? form.totalWeight : undefined,
+      unit: stockUnit,
+      valuationUnit: material?.valuationUnit || stockUnit,
+      unitPrice: unitPricePreview,
+      totalAmount: totalAmountPreview,
+      priceUnit: form.priceUnit,
+      priceBasis: form.priceUnit === 'kg' ? 'VALUATION' : 'STOCK',
+      batchNo: form.batchNo || undefined,
+    }
+  }
+
+  const resetCurrentItem = () => {
+    setLinkedBatchRatios(null)
+    setForm((current) => ({
+      ...current,
+      materialId: '',
+      locationId: locations.find((item) => item.isDefault)?.id || locations[0]?.id || '',
+      qty: 0,
+      pieceCount: 0,
+      stockQtyMode: 'TOTAL',
+      stockQtyInput: 0,
+      totalLength: 0,
+      totalWeight: 0,
+      unitPrice: 0,
+      priceUnit: 'm',
+      totalAmount: 0,
+      priceInputMode: 'UNIT',
+      batchNo: '',
+    }))
+  }
+
+  const addCurrentItem = () => {
+    const error = validateCurrentItem()
+    if (error) {
+      onMessage(error)
+      return
+    }
+    setDraftItems((current) => [...current, buildCurrentItem()])
+    resetCurrentItem()
+    onMessage('物料明细已加入，可继续添加')
+  }
+
   const handleSubmit = async () => {
-    if (!form.supplierId || !form.materialId || !form.locationId || calculatedStockQty <= 0) {
-      onMessage('请选择供应商、物料和库位，并输入有效的主单位数量')
+    if (!form.supplierId) {
+      onMessage('请选择供应商')
       return
     }
-    if (isLengthMaterial && form.pieceCount <= 0) {
-      onMessage('长度型物料请填写数量')
+    let items = [...draftItems]
+    if (form.materialId) {
+      const error = validateCurrentItem()
+      if (error) {
+        onMessage(error)
+        return
+      }
+      items = [...items, buildCurrentItem()]
+    }
+    if (editingItem && items.length !== 1) {
+      onMessage('请填写有效的来料明细')
       return
     }
-    if (form.priceUnit === 'm' && totalAmountPreview > 0 && calculatedTotalLength <= 0) {
-      onMessage('按米计价时请填写总长度')
-      return
-    }
-    if (form.priceUnit === 'kg' && totalAmountPreview > 0 && form.totalWeight <= 0) {
-      onMessage('按 kg 计价时请填写总重量')
-      return
-    }
-    if (form.priceUnit === '件' && totalAmountPreview > 0 && form.pieceCount <= 0) {
-      onMessage('按件计价时请填写数量')
+    if (!editingItem && items.length === 0) {
+      onMessage('请至少添加一种物料')
       return
     }
     setLoading(true)
     try {
-      const selectedMaterial = materials.find((m) => m.id === form.materialId)
-      const submitStockUnit = selectedMaterial?.stockUnit || selectedMaterial?.unit || '个'
-      const submitValuationUnit = selectedMaterial?.valuationUnit || submitStockUnit
       const res = await fetch(editingItem ? `/api/material-ins/${editingItem.id}` : '/api/material-ins', {
         method: editingItem ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: JSON.stringify(editingItem ? {
           supplierId: form.supplierId,
           voucherNo: form.voucherNo || undefined,
-          materialId: form.materialId,
-          locationId: form.locationId,
-          qty: calculatedStockQty,
-          pieceCount: form.pieceCount > 0 ? form.pieceCount : undefined,
-          stockQtyMode: isLengthMaterial ? form.stockQtyMode : undefined,
-          stockQtyInput: isLengthMaterial ? form.stockQtyInput : undefined,
-          totalLength: calculatedTotalLength > 0 ? calculatedTotalLength : undefined,
-          totalWeight: form.totalWeight > 0 ? form.totalWeight : undefined,
-          unit: submitStockUnit,
-          valuationUnit: submitValuationUnit,
-          unitPrice: unitPricePreview,
-          totalAmount: totalAmountPreview,
-          priceUnit: form.priceUnit,
-          priceBasis: form.priceUnit === 'kg' ? 'VALUATION' : 'STOCK',
-          batchNo: form.batchNo || undefined,
+          ...items[0],
+          id: undefined,
           receivedBy: form.receivedBy || undefined,
           note: form.note || undefined,
+        } : {
+          supplierId: form.supplierId,
+          voucherNo: form.voucherNo || undefined,
+          receivedBy: form.receivedBy || undefined,
+          note: form.note || undefined,
+          items: items.map(({ id: _id, ...item }) => item),
         }),
       })
       const data = await res.json()
       if (res.ok) {
-        onMessage(editingItem ? `来料单已修改：${data.data.inboundNo}` : `来料单创建成功：${data.data.inboundNo}`)
+        onMessage(editingItem
+          ? `来料单已修改：${data.data.inboundNo}`
+          : `来料单创建成功，共 ${data.count || items.length} 种物料`)
         setShowModal(false)
         resetForm()
         await fetchMaterialIns()
@@ -802,6 +881,7 @@ export default function MaterialInPage({
       ? current
       : [...current, item.material])
     setEditingItem(item)
+    setDraftItems([])
     setLinkedBatchRatios(null)
     setForm({
       voucherNo: item.voucherNo || '',
@@ -1212,7 +1292,7 @@ export default function MaterialInPage({
       {showModal && (
         <ModalDialog
           title={editingItem ? `编辑来料单 ${editingItem.inboundNo}` : '新增来料单'}
-          description="来料实测、采购计价和收货库位在同一张单据中记录。"
+          description={editingItem ? '修改当前来料明细。' : '一张来料单可添加多种物料，每种物料分别记录数量、计价和库位。'}
           onClose={() => { setShowModal(false); resetForm() }}
           closeDisabled={loading}
           size="wide"
@@ -1221,7 +1301,7 @@ export default function MaterialInPage({
             <ModalActions
               onCancel={() => { setShowModal(false); resetForm() }}
               onConfirm={handleSubmit}
-              confirmLabel={editingItem ? '保存修改' : '提交'}
+              confirmLabel={editingItem ? '保存修改' : `提交 ${draftItems.length + (form.materialId ? 1 : 0)} 项`}
               busy={loading}
             />
           )}
@@ -1267,6 +1347,38 @@ export default function MaterialInPage({
                   placeholder="输入库位编码或名称筛选"
                 />
               </div>
+              {!editingItem && draftItems.length > 0 && (
+                <div className="lg:col-span-12">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-gray-900">已加入的物料明细</div>
+                    <div className="text-xs text-gray-500">{draftItems.length} 项</div>
+                  </div>
+                  <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+                    {draftItems.map((item, index) => {
+                      const material = materials.find((option) => option.id === item.materialId)
+                      const location = locations.find((option) => option.id === item.locationId)
+                      return (
+                        <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                          <div className="min-w-0">
+                            <span className="mr-2 text-xs text-gray-400">{index + 1}</span>
+                            <span className="font-medium text-gray-900">{material ? formatMaterialLabel(material) : item.materialId}</span>
+                            <span className="ml-2 text-xs text-gray-500">
+                              {item.qty} {item.unit} · {location ? `${location.code} ${location.name}` : item.locationId} · ¥{item.totalAmount.toFixed(2)}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setDraftItems((current) => current.filter((draft) => draft.id !== item.id))}
+                            className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                          >
+                            移除
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
               {selectedMaterial && (
                 <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4 lg:col-span-7">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -1479,6 +1591,11 @@ export default function MaterialInPage({
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
+              {!editingItem && selectedMaterial && (
+                <div className="flex justify-end lg:col-span-12">
+                  <AppButton variant="secondary" onClick={addCurrentItem}>添加本项并继续</AppButton>
+                </div>
+              )}
             </div>
         </ModalDialog>
       )}
