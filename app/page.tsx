@@ -129,6 +129,8 @@ const materialCategoryFilterOptions = materialCategoryOptions.map(([value, label
 interface Order {
   id: string
   orderNo: string
+  groupNo?: string | null
+  lineNo?: number
   voucherNo?: string | null
   status: string
   planQty: number
@@ -141,6 +143,13 @@ interface Order {
   bomName?: string | null
   bomVersion?: string | null
   _count: { reports: number; picks: number; actuals: number }
+}
+
+interface OrderDraftLine {
+  id: string
+  targetId: string
+  bomId: string
+  planQty: number
 }
 
 interface PickItem {
@@ -534,12 +543,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [dashboard, setDashboard] = useState<any>(null)
   const [workspacePreference, setWorkspacePreference] = useState<WorkspacePreferenceValue>(defaultWorkspacePreference)
   const [orderDetail, setOrderDetail] = useState<any>(null)
-  const [orderTargetType] = useState<'MATERIAL'>('MATERIAL')
   const [planQty, setPlanQty] = useState(100)
   const [orderVoucherNo, setOrderVoucherNo] = useState('')
   const [orderNote, setOrderNote] = useState('')
   const [selectedMaterialId, setSelectedMaterialId] = useState('')
   const [selectedOrderBomId, setSelectedOrderBomId] = useState('')
+  const [orderDraftLines, setOrderDraftLines] = useState<OrderDraftLine[]>([])
   const [orderKeyword, setOrderKeyword] = useState('')
   const [selectedOrderStatuses, setSelectedOrderStatuses] = useState(orderStatusOptions.map((option) => option.value))
   const [orderViewMode, setOrderViewMode] = usePersistedViewMode('mes-lite.orders.viewMode', 'card')
@@ -1130,9 +1139,20 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   }
 
   const createOrder = async () => {
-    const targetId = selectedMaterialId
-    if (!targetId || !selectedOrderBomId || planQty <= 0) {
-      showMessage('请选择产出物料、BOM 方案并输入有效计划数量')
+    let lines = [...orderDraftLines]
+    if (selectedMaterialId) {
+      if (!selectedOrderBomId || planQty <= 0) {
+        showMessage('请为当前产品选择 BOM 方案并输入有效计划数量')
+        return
+      }
+      if (lines.some((line) => line.targetId === selectedMaterialId)) {
+        showMessage('当前产品已经在订单明细中')
+        return
+      }
+      lines = [...lines, { id: 'current', targetId: selectedMaterialId, bomId: selectedOrderBomId, planQty }]
+    }
+    if (lines.length === 0) {
+      showMessage('请至少添加一个产品')
       return
     }
     setLoading(true)
@@ -1141,22 +1161,20 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          targetType: orderTargetType,
-          targetId,
-          bomId: selectedOrderBomId,
-          planQty,
+          items: lines.map(({ id: _id, ...line }) => line),
           voucherNo: orderVoucherNo || undefined,
           note: orderNote || undefined,
         }),
       })
       const data = await res.json()
       if (res.ok) {
-        showMessage(`生产订单已保存：${data.data.orderNo}`)
+        showMessage(data.count > 1 ? `生产订单已保存：${data.groupNo}，共 ${data.count} 个产品` : `生产订单已保存：${data.data.orderNo}`)
         setPlanQty(100)
         setOrderVoucherNo('')
         setOrderNote('')
         setSelectedMaterialId('')
         setSelectedOrderBomId('')
+        setOrderDraftLines([])
         await fetchOrders()
         await fetchStocks()
         setTab('orders')
@@ -1167,6 +1185,27 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       showMessage('创建失败')
     }
     setLoading(false)
+  }
+
+  const addOrderDraftLine = () => {
+    if (!selectedMaterialId || !selectedOrderBomId || planQty <= 0) {
+      showMessage('请选择产品、BOM 方案并输入有效计划数量')
+      return
+    }
+    if (orderDraftLines.some((line) => line.targetId === selectedMaterialId)) {
+      showMessage('当前产品已经在订单明细中')
+      return
+    }
+    setOrderDraftLines((current) => [...current, {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      targetId: selectedMaterialId,
+      bomId: selectedOrderBomId,
+      planQty,
+    }])
+    setSelectedMaterialId('')
+    setSelectedOrderBomId('')
+    setPlanQty(100)
+    showMessage('产品已加入订单，可继续添加')
   }
 
   const handleSelectOrder = (order: Order) => {
@@ -1219,7 +1258,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     stockFilter === 'all' ? true : stockFilter === 'material' ? !!stock.material : !!stock.product
   ))
   const orderSort = useClientTableSort(orders, {
-    orderNo: (order) => order.orderNo,
+    orderNo: (order) => order.groupNo || order.orderNo,
     voucherNo: (order) => order.voucherNo,
     target: (order) => `${order.targetMaterial?.code || order.product.sku} ${order.targetMaterial?.name || order.product.name}`,
     planQty: (order) => order.planQty,
@@ -1227,6 +1266,16 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     status: (order) => statusLabels[order.status] || order.status,
     createdAt: (order) => new Date(order.createdAt),
   }, 'createdAt', 'desc')
+  const orderCardGroups = Array.from(orderSort.sortedRows.reduce((groups, order) => {
+    const key = order.groupNo || order.orderNo
+    const current = groups.get(key) || []
+    current.push(order)
+    groups.set(key, current)
+    return groups
+  }, new Map<string, Order[]>())).map(([groupNo, lines]) => ({
+    groupNo,
+    lines: [...lines].sort((left, right) => Number(left.lineNo || 1) - Number(right.lineNo || 1)),
+  }))
   const stockSort = useClientTableSort(visibleStocks, {
     object: (stock) => `${stock.material?.code || stock.product?.sku || ''} ${stock.material?.name || stock.product?.name || ''}`,
     customer: (stock) => stock.material?.customer?.name || stock.product?.customer?.name || '通用/未绑定',
@@ -1460,7 +1509,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         <div className={`sticky top-0 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:static lg:-mx-6 lg:px-6 ${
           tab === 'dashboard' || tab === 'allFunctions' ? 'lg:hidden' : ''
         } ${
-          systemMenuOpen ? 'z-[60] lg:z-auto' : 'z-30 lg:z-auto'
+          systemMenuOpen ? 'z-[60]' : 'z-30'
         }`}>
           <div className="flex min-w-0 flex-wrap items-center gap-2 lg:flex-nowrap">
             <div className="flex min-w-0 flex-1 items-center gap-2 lg:hidden">
@@ -1719,54 +1768,42 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               </div>
             ) : orderViewMode === 'card' ? (
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                {orderSort.sortedRows.map((order) => (
-                  <div
-                    key={order.id}
-                    onClick={() => handleSelectOrder(order)}
-                    className="cursor-pointer rounded-lg border border-gray-200 bg-white p-3 transition hover:border-blue-200 hover:shadow-sm sm:p-4"
-                  >
+                {orderCardGroups.map((group) => {
+                  const first = group.lines[0]
+                  return (
+                  <div key={group.groupNo} className="rounded-lg border border-gray-200 bg-white p-3 transition hover:border-blue-200 hover:shadow-sm sm:p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <div className="font-mono text-sm font-semibold text-blue-700">{order.orderNo}</div>
-                        <div className="mt-1 text-xs text-gray-500">凭据号：{order.voucherNo || '-'}</div>
-                        <div className="mt-1 text-xs text-gray-500">{new Date(order.createdAt).toLocaleString('zh-CN')}</div>
+                        <div className="font-mono text-sm font-semibold text-blue-700">{group.groupNo}</div>
+                        <div className="mt-1 text-xs text-gray-500">凭据号：{first.voucherNo || '-'}</div>
+                        <div className="mt-1 text-xs text-gray-500">{new Date(first.createdAt).toLocaleString('zh-CN')}</div>
                       </div>
-                      <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[order.status]}`}>
-                        {statusLabels[order.status]}
-                      </span>
-                    </div>
-                    <div className="mt-3 sm:mt-4">
-                      <div className="text-xs text-gray-500">目标</div>
-                      <div className="mt-1 font-semibold text-gray-900">{order.targetMaterial?.name || order.product.name}</div>
-                      <div className="text-xs text-gray-500">
-                        物料 {order.targetMaterial?.code || displayMaterialCode(order.product.sku)}
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{group.lines.length} 个产品</span>
+                        <div onClick={(event) => event.stopPropagation()}>
+                          <AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={first.id} compact onMessage={showMessage} />
+                        </div>
                       </div>
                     </div>
-                    <div className="mt-3 grid grid-cols-3 gap-2 text-center sm:mt-4 sm:gap-3">
-                      <div className="rounded bg-gray-50 p-2 sm:p-3">
-                        <div className="text-xs text-gray-500">计划</div>
-                        <div className="mt-1 font-semibold">{order.planQty}</div>
-                      </div>
-                      <div className="rounded bg-gray-50 p-2 sm:p-3">
-                        <div className="text-xs text-gray-500">完成</div>
-                        <div className="mt-1 font-semibold text-green-700">{order.completeQty}</div>
-                      </div>
-                      <div className="rounded bg-gray-50 p-2 sm:p-3">
-                        <div className="text-xs text-gray-500">报废</div>
-                        <div className="mt-1 font-semibold text-red-600">{order.scrapQty}</div>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex items-center justify-between gap-3 text-xs text-gray-500 sm:mt-4">
-                      <span>BOM {order.bom?.name || order.bomName || '-'} {order.bom?.version || order.bomVersion || ''} · 实绩 {order._count.actuals || 0}</span>
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={order.id} compact onMessage={showMessage} />
-                      </div>
-                    </div>
-                    <div className="mt-3 flex justify-end">
-                      <button onClick={(e) => { e.stopPropagation(); handleSelectOrder(order) }} className="px-3 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">详情 / 登记实绩</button>
+                    <div className="mt-4 divide-y divide-gray-100 border-t border-gray-100">
+                      {group.lines.map((order) => (
+                        <div key={order.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                          <div className="min-w-0">
+                            <div className="font-medium text-gray-900">{order.targetMaterial?.name || order.product.name}</div>
+                            <div className="mt-0.5 text-xs text-gray-500">
+                              {order.targetMaterial?.code || displayMaterialCode(order.product.sku)} · BOM {order.bom?.name || order.bomName || '-'} {order.bom?.version || order.bomVersion || ''}
+                            </div>
+                            <div className="mt-1 text-xs text-gray-500">计划 {order.planQty} · 完成 {order.completeQty} · 报废 {order.scrapQty}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`rounded px-2 py-1 text-xs font-medium ${statusColors[order.status]}`}>{statusLabels[order.status]}</span>
+                            <button onClick={() => handleSelectOrder(order)} className="rounded border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50">详情 / 登记实绩</button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -1787,7 +1824,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   <tbody className="divide-y divide-gray-100">
                     {orderSort.sortedRows.map((order) => (
                       <tr key={order.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => handleSelectOrder(order)}>
-                        <td className="px-4 py-3 font-mono text-blue-600 text-sm">{order.orderNo}</td>
+                        <td className="px-4 py-3 font-mono text-blue-600 text-sm">
+                          {order.groupNo || order.orderNo}{order.groupNo ? <span className="ml-1 text-xs text-gray-400">第 {order.lineNo} 项</span> : null}
+                        </td>
                         <td className="px-4 py-3 text-sm text-gray-700">{order.voucherNo || '-'}</td>
                         <td className="px-4 py-3">
                           <div className="font-medium text-sm">{order.targetMaterial?.name || order.product.name}</div>
@@ -1828,7 +1867,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-xl font-semibold">生产订单详情</h2>
-                <p className="text-sm text-gray-500">{orderDetail.orderNo}</p>
+                <p className="text-sm text-gray-500">{orderDetail.groupNo || orderDetail.orderNo}{orderDetail.groupNo ? ` · 第 ${orderDetail.lineNo} 项` : ''}</p>
                 <p className="text-sm text-gray-500">凭据号：{orderDetail.voucherNo || '-'}</p>
               </div>
               <button onClick={() => setTab('orders')} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">返回列表</button>
@@ -1859,6 +1898,24 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 <div className="font-medium text-red-600">{orderDetail.scrapQty}</div>
               </div>
             </div>
+            {orderDetail.groupLines?.length > 1 && (
+              <div className="mb-6 rounded-lg border border-blue-100 bg-blue-50/30 p-4">
+                <div className="mb-3 text-sm font-semibold text-gray-900">本订单产品</div>
+                <div className="flex flex-wrap gap-2">
+                  {orderDetail.groupLines.map((line: any) => (
+                    <button
+                      key={line.id}
+                      type="button"
+                      onClick={() => fetchOrderDetail(line.id)}
+                      className={`rounded-md border px-3 py-2 text-left text-sm ${line.id === orderDetail.id ? 'border-blue-500 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-blue-200'}`}
+                    >
+                      <span className="font-medium">{line.targetMaterial?.name || line.product.name}</span>
+                      <span className={`ml-2 text-xs ${line.id === orderDetail.id ? 'text-blue-100' : 'text-gray-500'}`}>计划 {line.planQty}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <ProductionOrderActualPanel
               orderId={orderDetail.id}
               onMessage={showMessage}
@@ -1879,10 +1936,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
         {/* 创建生产订单 */}
         {tab === 'create' && (
-          <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
+          <div className="bg-white rounded-lg shadow p-6 max-w-4xl">
             <h2 className="text-xl font-semibold mb-2">创建生产订单</h2>
-            <p className="mb-6 text-sm text-gray-500">先录入基本信息形成草稿；班后再进入订单登记实际产量、投入和损耗。</p>
+            <p className="mb-6 text-sm text-gray-500">一张订单可加入多个产品；这里不指定库位，班后登记实际投入和产出时再选择对应库位。</p>
             <div className="space-y-4">
+              <div className="rounded-lg border border-gray-200 p-4">
+                <div className="mb-4 text-sm font-semibold text-gray-900">添加产品明细</div>
+                <div className="grid gap-4 md:grid-cols-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">主产出物料</label>
                 <SearchableSelect
@@ -1912,6 +1972,35 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 <label className="block text-sm font-medium text-gray-700 mb-2">计划产量</label>
                 <input type="number" value={planQty} onChange={(e) => setPlanQty(Number(e.target.value))} min="0.000001" step="0.000001" className="w-full px-4 py-3 border border-gray-200 rounded-lg" />
               </div>
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <AppButton variant="secondary" onClick={addOrderDraftLine}>添加产品</AppButton>
+                </div>
+              </div>
+              {orderDraftLines.length > 0 && (
+                <div className="rounded-lg border border-blue-100 bg-blue-50/30 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-gray-900">订单产品明细</div>
+                    <div className="text-xs text-gray-500">已添加 {orderDraftLines.length} 项</div>
+                  </div>
+                  <div className="space-y-2">
+                    {orderDraftLines.map((line, index) => {
+                      const material = orderMaterialOptions.find((item) => item.id === line.targetId)
+                      const bom = material?.boms.find((item) => item.id === line.bomId)
+                      return (
+                        <div key={line.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-blue-100 bg-white px-3 py-2 text-sm">
+                          <div className="min-w-0">
+                            <span className="mr-2 text-xs text-gray-400">{index + 1}</span>
+                            <span className="font-medium text-gray-900">{material?.code} · {material?.name}</span>
+                            <span className="ml-2 text-xs text-gray-500">{bom?.name} {bom?.version} · 计划 {line.planQty}</span>
+                          </div>
+                          <button type="button" onClick={() => setOrderDraftLines((current) => current.filter((item) => item.id !== line.id))} className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50">移除</button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">凭据号</label>
                 <input
@@ -1933,7 +2022,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 />
               </div>
               <button onClick={createOrder} disabled={loading} className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
-                {loading ? '创建中...' : '保存生产订单'}
+                {loading ? '创建中...' : `保存生产订单${orderDraftLines.length > 0 ? `（${orderDraftLines.length + (selectedMaterialId ? 1 : 0)} 个产品）` : ''}`}
               </button>
             </div>
           </div>

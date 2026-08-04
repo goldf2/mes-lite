@@ -80,7 +80,7 @@ export default function SavedSearchPresets({
   }
 
   return (
-    <div ref={rootRef} className="relative shrink-0">
+    <div ref={rootRef} className={`relative shrink-0 ${open ? 'z-[100]' : ''}`}>
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}

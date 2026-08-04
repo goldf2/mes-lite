@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 import { ensureProductForMaterial, isMaterialProductId, materialProductPrefix } from '@/lib/material-product'
+
+const orderLineSchema = z.object({
+  targetId: z.string().min(1, '请选择物料'),
+  bomId: z.string().min(1, '请选择 BOM 方案'),
+  planQty: z.number().finite().positive('计划数量必须大于 0'),
+})
 
 const createOrderSchema = z.object({
   voucherNo: z.string().optional(),
@@ -12,13 +19,71 @@ const createOrderSchema = z.object({
   targetId: z.string().min(1).optional(),
   productId: z.string().min(1).optional(),
   materialId: z.string().min(1).optional(),
-  bomId: z.string().min(1, '请选择 BOM 方案'),
-  planQty: z.number().finite().positive(),
+  bomId: z.string().min(1).optional(),
+  planQty: z.number().finite().positive().optional(),
+  items: z.array(orderLineSchema).min(1, '请至少添加一个产品').max(50, '单张生产订单最多添加 50 个产品').optional(),
   note: z.string().optional(),
+}).superRefine((value, context) => {
+  if (value.items?.length) return
+  if (!(value.targetId || value.materialId || value.productId)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: '请选择物料', path: ['targetId'] })
+  }
+  if (!value.bomId) context.addIssue({ code: z.ZodIssueCode.custom, message: '请选择 BOM 方案', path: ['bomId'] })
+  if (!value.planQty) context.addIssue({ code: z.ZodIssueCode.custom, message: '计划数量必须大于 0', path: ['planQty'] })
 })
 
-async function ensureSimpleProductForMaterial(material: { code: string; name: string; category: string; customerId?: string | null; stockUnit: string; unit: string }) {
-  return ensureProductForMaterial(prisma, material, { defaultRoute: true, description: `由物料 ${material.code} 自动映射，用于简易生产工单。` })
+async function resolveOrderLine(tx: Prisma.TransactionClient, input: z.infer<typeof orderLineSchema>) {
+  const rawTargetId = input.targetId
+  const targetId = isMaterialProductId(rawTargetId) ? rawTargetId.slice(materialProductPrefix.length) : rawTargetId
+  const material = await tx.material.findUnique({
+    where: { id: targetId },
+    select: { id: true, code: true, name: true, category: true, customerId: true, stockUnit: true, unit: true, deletedAt: true },
+  })
+  if (!material || material.deletedAt) throw new Error('物料不存在或已归档')
+
+  const productId = await ensureProductForMaterial(tx, material, {
+    defaultRoute: true,
+    description: `由物料 ${material.code} 自动映射，用于简易生产工单。`,
+  })
+  const bom = await tx.bOM.findFirst({
+    where: { id: input.bomId, productId, isActive: true },
+    select: {
+      id: true,
+      name: true,
+      version: true,
+      outputQuantity: true,
+      outputUnit: true,
+      outputs: {
+        orderBy: { isPrimary: 'desc' },
+        select: {
+          id: true,
+          materialId: true,
+          quantity: true,
+          unit: true,
+          isPrimary: true,
+          material: { select: { code: true, name: true, stockUnit: true, unit: true } },
+        },
+      },
+      items: {
+        where: { itemType: 'MATERIAL', materialId: { not: null } },
+        select: {
+          id: true,
+          materialId: true,
+          outputMaterialId: true,
+          quantity: true,
+          unit: true,
+          material: { select: { code: true, name: true, stockUnit: true, unit: true } },
+        },
+      },
+    },
+  })
+  if (!bom || bom.outputs.length === 0 || bom.items.length === 0) {
+    throw new Error(`物料 ${material.code} 的 BOM 不存在、已停用或缺少投入/产出明细`)
+  }
+  if (bom.outputs.filter((output) => output.isPrimary).length !== 1) {
+    throw new Error(`物料 ${material.code} 的 BOM 必须且只能有一项主产出`)
+  }
+  return { material, productId, bom, planQty: input.planQty }
 }
 
 export async function POST(req: NextRequest) {
@@ -28,98 +93,63 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const parsed = createOrderSchema.parse(body)
-    const rawTargetId = parsed.targetId ?? parsed.materialId ?? parsed.productId
-    const targetId = isMaterialProductId(rawTargetId) ? rawTargetId?.slice(materialProductPrefix.length) : rawTargetId
-    const { planQty, note, voucherNo, bomId } = parsed
-
-    if (!targetId) {
-      return NextResponse.json({ error: '请选择物料' }, { status: 400 })
-    }
-
-    let productId = ''
-    let materialId: string | null = null
-    const material = await prisma.material.findUnique({
-      where: { id: targetId },
-      select: { id: true, code: true, name: true, category: true, customerId: true, stockUnit: true, unit: true, deletedAt: true },
-    })
-
-    if (!material || material.deletedAt) {
-      return NextResponse.json({ error: '物料不存在或已归档' }, { status: 404 })
-    }
-
-    materialId = material.id
-    productId = await ensureSimpleProductForMaterial(material)
-
-    const bom = await prisma.bOM.findFirst({
-      where: { id: bomId, productId, isActive: true },
-      select: {
-        id: true,
-        name: true,
-        version: true,
-        outputQuantity: true,
-        outputUnit: true,
-        outputs: {
-          orderBy: { isPrimary: 'desc' },
-          select: {
-            id: true,
-            materialId: true,
-            quantity: true,
-            unit: true,
-            isPrimary: true,
-            material: { select: { code: true, name: true, stockUnit: true, unit: true } },
-          },
-        },
-        items: {
-          where: { itemType: 'MATERIAL', materialId: { not: null } },
-          select: {
-            id: true,
-            materialId: true,
-            outputMaterialId: true,
-            quantity: true,
-            unit: true,
-            material: { select: { code: true, name: true, stockUnit: true, unit: true } },
-          },
-        },
-      },
-    })
-    if (!bom || bom.outputs.length === 0 || bom.items.length === 0) {
-      return NextResponse.json({ error: '所选 BOM 不存在、已停用或缺少投入/产出明细' }, { status: 400 })
-    }
-    if (bom.outputs.filter((output) => output.isPrimary).length !== 1) {
-      return NextResponse.json({ error: '所选 BOM 必须且只能有一项主产出' }, { status: 400 })
-    }
+    const legacyTargetId = parsed.targetId ?? parsed.materialId ?? parsed.productId
+    const requestedLines = parsed.items || [{
+      targetId: legacyTargetId!,
+      bomId: parsed.bomId!,
+      planQty: parsed.planQty!,
+    }]
 
     const today = new Date()
     const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')
+    const dayStart = new Date(today)
+    dayStart.setHours(0, 0, 0, 0)
     const count = await prisma.productionOrder.count({
-      where: { createdAt: { gte: new Date(today.setHours(0, 0, 0, 0)) } },
+      where: { createdAt: { gte: dayStart } },
     })
-    const orderNo = `WO-${dateStr}-${String(count + 1).padStart(3, '0')}`
+    const groupNo = `WO-${dateStr}-${String(count + 1).padStart(3, '0')}`
 
-    const order = await prisma.$transaction(async (tx) => {
-      const newOrder = await tx.productionOrder.create({
-        data: {
-          orderNo,
-          voucherNo: voucherNo?.trim() || null,
-          productId,
-          materialId,
-          bomId: bom.id,
-          bomName: bom.name,
-          bomVersion: bom.version,
-          bomSnapshot: JSON.stringify(bom),
-          planQty,
-          status: 'DRAFT',
-          note,
-        },
-      })
+    const orders = await prisma.$transaction(async (tx) => {
+      const resolvedLines = []
+      for (const line of requestedLines) resolvedLines.push(await resolveOrderLine(tx, line))
 
-      return newOrder
+      const created = []
+      for (let index = 0; index < resolvedLines.length; index += 1) {
+        const line = resolvedLines[index]
+        const orderNo = index === 0 ? groupNo : `${groupNo}-${String(index + 1).padStart(2, '0')}`
+        created.push(await tx.productionOrder.create({
+          data: {
+            orderNo,
+            groupNo: resolvedLines.length > 1 ? groupNo : null,
+            lineNo: index + 1,
+            voucherNo: parsed.voucherNo?.trim() || null,
+            productId: line.productId,
+            materialId: line.material.id,
+            bomId: line.bom.id,
+            bomName: line.bom.name,
+            bomVersion: line.bom.version,
+            bomSnapshot: JSON.stringify(line.bom),
+            planQty: line.planQty,
+            status: 'DRAFT',
+            note: parsed.note,
+          },
+        }))
+      }
+      return created
     })
 
-    return NextResponse.json({ data: order }, { status: 201 })
+    return NextResponse.json({
+      data: orders[0],
+      items: orders,
+      count: orders.length,
+      groupNo: orders.length > 1 ? groupNo : null,
+    }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
+    }
+    if (error instanceof Error && /物料|BOM|计划/.test(error.message)) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('Create order error:', error)
     return NextResponse.json({ error: '创建生产订单失败' }, { status: 500 })
@@ -155,6 +185,7 @@ export async function GET(req: NextRequest) {
     if (keyword) {
       andConditions.push({ OR: [
         { orderNo: { contains: keyword } },
+        { groupNo: { contains: keyword } },
         { voucherNo: { contains: keyword } },
         { product: { is: { sku: { contains: keyword } } } },
         { product: { is: { name: { contains: keyword } } } },

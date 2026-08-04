@@ -36,6 +36,17 @@ export async function GET(
       return NextResponse.json({ error: '生产订单不存在' }, { status: 404 })
     }
 
+    const groupLines = order.groupNo ? await prisma.productionOrder.findMany({
+      where: { groupNo: order.groupNo, deletedAt: null },
+      include: {
+        product: true,
+        targetMaterial: true,
+        bom: { select: { id: true, name: true, version: true } },
+        _count: { select: { actuals: true } },
+      },
+      orderBy: { lineNo: 'asc' },
+    }) : []
+
     // 计算当前应报工工序
     const route = await prisma.processRoute.findFirst({
       where: { productId: order.productId, isDefault: true },
@@ -56,6 +67,7 @@ export async function GET(
     return NextResponse.json({
       data: {
         ...order,
+        groupLines,
         currentStepId,
         routeSteps: route?.steps ?? [],
       },

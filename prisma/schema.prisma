@@ -457,6 +457,8 @@ model ProductionCostItem {
 model ProductionOrder {
   id             String    @id @default(cuid())
   orderNo        String    @unique
+  groupNo        String?
+  lineNo         Int       @default(1)
   voucherNo      String?
   productId      String
   product        Product   @relation(fields: [productId], references: [id])
@@ -494,6 +496,7 @@ model ProductionOrder {
 
   @@index([materialId])
   @@index([bomId])
+  @@index([groupNo, lineNo])
 }
 
 model ProductionOrderActual {
