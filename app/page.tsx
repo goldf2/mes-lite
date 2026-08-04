@@ -196,12 +196,13 @@ function writePageContinuity(storageKey: string, update: Partial<PageContinuityS
     // 浏览器禁用或限制本地存储时不应阻断业务页面。
   }
 }
-type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'equipment' | 'logistics' | 'inventory' | 'configuration' | 'tools'
+type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'documents' | 'equipment' | 'logistics' | 'inventory' | 'configuration' | 'tools'
 
 const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: TabType[] }> = [
   { key: 'workspace', label: '工作台', tabs: ['dashboard', 'allFunctions'] },
   { key: 'materials', label: '物料', tabs: ['materials'] },
-  { key: 'production', label: '生产', tabs: ['orders', 'flowTransfers', 'workInstructions', 'dispatch'] },
+  { key: 'production', label: '生产', tabs: ['orders', 'flowTransfers', 'dispatch'] },
+  { key: 'documents', label: '文档', tabs: ['workInstructions'] },
   { key: 'equipment', label: '设备', tabs: ['equipment'] },
   { key: 'logistics', label: '物流', tabs: ['materialIn', 'shipment', 'return'] },
   { key: 'inventory', label: '库存', tabs: ['stocks'] },
@@ -221,7 +222,7 @@ const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
   { key: 'materialManagement', label: '物料管理', groupKey: 'materials', groupLabel: '物料', description: '维护物料、单位、规格和库存基础', icon: '料', tab: 'materials', materialSection: 'materials', resource: 'materials' },
   { key: 'bomWorkspace', label: 'BOM 设置', groupKey: 'materials', groupLabel: '物料', description: '创建 BOM 或修改已有 BOM 的整批输入与输出', icon: '本', tab: 'materials', materialSection: 'bomWorkspace', resource: 'materials', extraResource: 'bomCost' },
   { key: 'bomUsage', label: 'BOM 全览', groupKey: 'materials', groupLabel: '物料', description: '查看与某个物料有关的全部产出和投入 BOM', icon: '查', tab: 'materials', materialSection: 'bomUsage', resource: 'bomCost' },
-  { key: 'workInstructions', label: '产品文档', groupKey: 'production', groupLabel: '生产', description: '管理图纸、PDF 和作业指导文档', icon: '书', tab: 'workInstructions', resource: 'workInstructions' },
+  { key: 'workInstructions', label: '产品文档', groupKey: 'documents', groupLabel: '文档', description: '管理图纸、PDF 和作业指导文档', icon: '书', tab: 'workInstructions', resource: 'workInstructions' },
   { key: 'equipment', label: '设备台账', groupKey: 'equipment', groupLabel: '设备', description: '维护设备、状态、工作中心归属和基础参数', icon: '机', tab: 'equipment', resource: 'equipment' },
   { key: 'orders', label: '生产订单', groupKey: 'production', groupLabel: '生产', description: '先保存生产计划，班后再登记实际产量', icon: '工', tab: 'orders', resource: 'orders' },
   { key: 'flowTransfers', label: '流程转移', groupKey: 'production', groupLabel: '生产', description: '同一物料在库位或流程节点之间转移', icon: '转', tab: 'flowTransfers', resource: 'stats' },
