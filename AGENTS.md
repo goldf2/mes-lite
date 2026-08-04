@@ -64,3 +64,17 @@ MES-lite 的生产环境使用 Coolify 和 Docker BuildKit。修改 `Dockerfile`
 - 变更 Docker 构建逻辑后必须运行可用的本地生产构建；本机有 Docker CLI 时还必须构建运行镜像。本机无 Docker CLI 时，必须在发布说明中明确记录，并以 Coolify 详细构建日志完成最终验证。
 
 完整部署配置和故障排查步骤见 `docs/deployment/coolify.md`。
+
+## 多平台发布与单一代码源
+
+MES-lite 采用“单一 Web 业务系统 + 平台薄壳”的多平台路线。未来增加桌面 App 或移动 App 时，必须遵守以下规则：
+
+- Next.js 前端、API、权限、领域规则和数据库模型是唯一业务代码源；不得为 Windows、macOS、Android 或 iOS 复制并长期维护独立业务前端、接口或数据模型。
+- Web 生产服务继续由 Coolify 部署。桌面端和移动端默认连接同一套线上 API、账号、权限和数据库，不把生产数据库或完整 Next.js 服务打包进客户端。
+- 桌面端优先使用 Tauri，移动端优先使用 Capacitor。平台目录只负责启动配置、签名、窗口/导航壳和原生能力适配，不承载重复业务页面。
+- 扫码、拍照、打印、文件、系统通知、自动更新、串口等能力必须通过稳定的适配接口接入；共享业务组件不得直接依赖某个平台的原生 API，并应保留 Web 可用的降级路径。
+- 发布顺序默认是：先稳定 Web 核心闭环，再进行 Tauri 桌面内部测试，然后进行 Android 内部测试，最后评估 iOS、应用商店和离线同步。不得为了同时发布多平台拖慢仍在变化的 Web 业务模型。
+- Web 与 App 使用相同的展示版本号；Android `versionCode`、iOS/macOS `buildNumber` 和 Windows 构建号独立递增。签名证书、密钥和商店凭据不得提交仓库。
+- 修改共享业务代码时以 Web 验证为基础；修改平台适配层时必须额外验证对应平台的构建、安装、升级和原生能力。离线数据和冲突同步必须单独设计，不得由平台壳临时缓存逻辑替代。
+
+架构依据见 `docs/adr/0017-single-web-core-and-thin-platform-shells.md`。
