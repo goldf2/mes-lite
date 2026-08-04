@@ -413,7 +413,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
     if (!selectedProductId) return onMessage('请选择物料')
     const materialItems = selectedProduct?.bom?.items.filter((item) => item.material) || []
     if (materialItems.some((item) => Number(item.quantity || 0) <= 0)) {
-      return onMessage('BOM 中存在未填写换算比例的原料')
+      return onMessage('BOM 中存在未填写每批投入数量的原料')
     }
     setCalculating(true)
     try {
@@ -680,7 +680,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
 
           <div className="rounded-lg bg-white p-5 shadow-sm">
             <h3 className="font-semibold text-gray-900">标准原料耗用</h3>
-            <p className="mt-1 text-xs text-gray-500">按 BOM 换算比例 × 数量基准计算，不包含生产订单实绩的本批次额外损耗。</p>
+            <p className="mt-1 text-xs text-gray-500">按 BOM 每批投入和主产出批量折算成本，不包含生产订单实绩的本批次额外耗用。</p>
             {!selectedProduct?.bom?.items.some((item) => item.material) ? (
               <div className="mt-4 rounded-lg border border-dashed border-gray-200 p-5 text-sm text-gray-500">选择有 BOM 原料关联的物料</div>
             ) : (
@@ -690,13 +690,13 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
                     <div className="font-medium text-gray-900">{item.material.code} · {item.material.name}</div>
                     {item.quantity > 0 ? (
                       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
-                        <span>换算比例 {qty(item.quantity / Number(selectedProduct.bom?.outputQuantity || 1), 6)} {item.unit}原料/{selectedProduct.unit}产出</span>
+                        <span>每批投入 {qty(item.quantity, 6)} {item.unit} · 折合 {qty(item.quantity / Number(selectedProduct.bom?.outputQuantity || 1), 6)} {item.unit}/{selectedProduct.unit}</span>
                         <span className="font-semibold text-blue-700">
                           本次 {qty(item.quantity * form.quantityBasis / Number(selectedProduct.bom?.outputQuantity || 1), 6)} {item.unit}
                         </span>
                       </div>
                     ) : (
-                      <div className="mt-1 text-xs text-amber-700">待填写 BOM 换算比例</div>
+                      <div className="mt-1 text-xs text-amber-700">待填写 BOM 每批投入数量</div>
                     )}
                   </div>
                 ))}

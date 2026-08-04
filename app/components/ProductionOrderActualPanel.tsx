@@ -144,14 +144,15 @@ export default function ProductionOrderActualPanel({
     return Array.from(relationsByMaterial.values()).map((relations) => {
       const item = relations[0]
       const draft = inputs[item.materialId]
-      const plannedBaseQty = relations.reduce((sum, relation) => {
-        const targetOutput = snapshot?.outputs.find((output) => (
-          output.materialId === (relation.outputMaterialId || primaryOutput?.materialId)
-        ))
-        const targetActualQty = Number(outputs[targetOutput?.materialId || '']?.actualQty || 0)
-        const outputBasis = Number(targetOutput?.quantity || 0)
-        return outputBasis > 0 ? sum + targetActualQty * Number(relation.quantity) / outputBasis : sum
-      }, 0)
+      const sharedBatchInputs = relations.filter((relation) => !relation.outputMaterialId)
+      const plannedBaseQty = sharedBatchInputs.length > 0
+        ? sharedBatchInputs.reduce((sum, relation) => sum + Number(relation.quantity), 0) * batchFactor
+        : relations.reduce((sum, relation) => {
+            const targetOutput = snapshot?.outputs.find((output) => output.materialId === relation.outputMaterialId)
+            const targetActualQty = Number(outputs[targetOutput?.materialId || '']?.actualQty || 0)
+            const outputBasis = Number(targetOutput?.quantity || 0)
+            return outputBasis > 0 ? sum + targetActualQty * Number(relation.quantity) / outputBasis : sum
+          }, 0)
       const calculated = plannedBaseQty > 0
       ? calculateProductionConsumption({
           outputQty: primaryActualQty,
@@ -163,7 +164,7 @@ export default function ProductionOrderActualPanel({
       : { baseQty: 0, lossQty: 0, plannedQty: 0, actualQty: Number(draft?.actualQty || 0) }
       return { item, relations, draft, calculated }
     })
-  }, [inputs, outputs, primaryActualQty, primaryOutput?.materialId, snapshot?.items, snapshot?.outputs])
+  }, [batchFactor, inputs, outputs, primaryActualQty, snapshot?.items, snapshot?.outputs])
 
   const openForm = () => {
     if (!data?.order.bomSnapshot) return onMessage('该生产订单没有 BOM 快照，请重新创建生产订单')
@@ -407,7 +408,7 @@ export default function ProductionOrderActualPanel({
                           <input type="number" min={output.isPrimary ? '0.000001' : '0'} step="0.000001" value={draft?.actualQty ?? 0} onChange={(event) => setOutputs((current) => ({ ...current, [output.materialId]: { ...current[output.materialId], actualQty: Number(event.target.value) } }))} className={`${appInputClassName} mt-1`} />
                         </label>
                       </div>
-                      <div className="mt-2 text-xs text-gray-500">按主产出换算计划 {numberText(plannedQty)} {output.unit}</div>
+                      <div className="mt-2 text-xs text-gray-500">按主产出批次计划 {numberText(plannedQty)} {output.unit}</div>
                     </div>
                   )
                 })}

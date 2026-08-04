@@ -127,7 +127,7 @@ export async function buildDailyProductionConsumption(
     const outputBasis = Number(bom.outputQuantity || 1)
     const quantityPerUnit = roundQty(Number(item.quantity) / outputBasis)
     if (quantityPerUnit <= 0) {
-      throw new Error(`请先填写原料 ${item.material.code} ${item.material.name} 的 BOM 换算比例`)
+      throw new Error(`请先填写原料 ${item.material.code} ${item.material.name} 的 BOM 每批投入数量`)
     }
     const requested = requestedByMaterial.get(item.material.id)
     if (!requested) throw new Error(`请填写原料 ${item.material.code} ${item.material.name} 的损耗方式`)
@@ -159,7 +159,7 @@ export async function buildDailyProductionConsumption(
   }
 
   if (consumptionByMaterial.size === 0) {
-    throw new Error('BOM 没有可计算的换算比例，请先完善 BOM')
+    throw new Error('BOM 没有可计算的每批投入数量，请先完善 BOM')
   }
 
   await Promise.all(Array.from(consumptionByMaterial.values()).map((line) => (

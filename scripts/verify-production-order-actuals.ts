@@ -43,10 +43,7 @@ async function main() {
         outputQuantity: 1,
         outputUnit: '件',
         items: {
-          create: [
-            { materialId: existingProduct.id, outputMaterialId: finished.id, itemType: 'MATERIAL', quantity: 2, unit: '件' },
-            { materialId: existingProduct.id, outputMaterialId: scrap.id, itemType: 'MATERIAL', quantity: 0.5, unit: '件' },
-          ],
+          create: { materialId: existingProduct.id, outputMaterialId: null, itemType: 'MATERIAL', quantity: 2.5, unit: '件' },
         },
         outputs: {
           create: [
@@ -102,10 +99,11 @@ async function main() {
     ))
 
     assert.equal(lines.inputs[0].materialId, existingProduct.id, '成品类别物料应可作为二次加工投入')
-    assert.equal(lines.inputs.length, 1, '同一投入对应多个产出时应汇总为一条领料明细')
-    assert.equal(lines.inputs[0].plannedQty, 7.85)
+    assert.equal(lines.inputs.length, 1, '整批共同投入应只生成一条领料明细')
+    assert.equal(lines.inputs[0].quantityPerBatch, 2.5)
+    assert.equal(lines.inputs[0].plannedQty, 8.1)
     assert.equal(lines.inputs[0].lossQty, 0.6)
-    assert.equal(lines.inputs[0].actualQty, 7.85)
+    assert.equal(lines.inputs[0].actualQty, 8.1)
     assert.equal(lines.outputs.find((line) => line.isPrimary)?.actualQty, 3)
     assert.equal(lines.outputs.find((line) => line.materialId === scrap.id)?.actualQty, 0.25)
 
@@ -161,15 +159,15 @@ async function main() {
       prisma.stock.findUniqueOrThrow({ where: { materialId: scrap.id } }),
       prisma.productionOrder.findUniqueOrThrow({ where: { id: order.id } }),
     ])
-    assert.equal(inputStock.qty, 12.15)
+    assert.equal(inputStock.qty, 11.9)
     assert.equal(outputStock.qty, 3)
-    assert.equal(outputStock.totalCost, 78.5)
+    assert.equal(outputStock.totalCost, 81)
     assert.equal(scrapStock.qty, 0.25)
     assert.equal(updatedOrder.completeQty, 3)
     assert.equal(updatedOrder.scrapQty, 0.25)
     assert.equal(updatedOrder.status, 'RUNNING')
 
-    console.log('生产订单 BOM 快照、逐产出转换模型、投入汇总、二次加工、多产出及库存事务验证通过')
+    console.log('生产订单 BOM 快照、整批共同投入、二次加工、多产出及库存事务验证通过')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

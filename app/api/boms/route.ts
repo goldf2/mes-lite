@@ -5,13 +5,12 @@ import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { materialAsProductOption, materialProductPrefix, resolveProductId, simpleProductSku } from '@/lib/material-product'
-import { isMeterUnit } from '@/lib/units'
 
 export const dynamic = 'force-dynamic'
 
 const bomItemSchema = z.object({
   materialId: z.string().min(1, '请选择物料'),
-  outputMaterialId: z.string().min(1, '请选择该投入对应的产出物料'),
+  outputMaterialId: z.string().min(1).nullable().optional(),
   quantity: z.number().finite().positive('批量用量必须大于 0'),
   unit: z.string().trim().optional(),
   wastageRate: z.number().finite().nonnegative().optional().default(0),
@@ -287,22 +286,8 @@ export async function PUT(req: NextRequest) {
     const primaryOutput = normalizedOutputs.find((output) => output.isPrimary)!
     const primaryOutputMaterial = outputMaterialById.get(primaryOutput.materialId)!
 
-    const invalidItemOutput = input.items.find((item) => !outputMaterialIds.includes(item.outputMaterialId))
-    if (invalidItemOutput) {
-      return NextResponse.json({ error: 'BOM 投入换算关系必须绑定到本方案中的产出物料' }, { status: 400 })
-    }
-    const relationKeys = input.items.map((item) => `${item.outputMaterialId}:${item.materialId}`)
-    if (new Set(relationKeys).size !== relationKeys.length) {
-      return NextResponse.json({ error: '同一产出与投入物料的换算关系不能重复添加' }, { status: 400 })
-    }
-    const missingOutputRelation = outputMaterialIds.find((outputMaterialId) => (
-      !input.items.some((item) => item.outputMaterialId === outputMaterialId)
-    ))
-    if (missingOutputRelation) {
-      const missingOutput = outputMaterialById.get(missingOutputRelation)
-      return NextResponse.json({
-        error: `请为产出 ${missingOutput?.code || ''} ${missingOutput?.name || ''} 配置至少一项投入换算模型`,
-      }, { status: 400 })
+    if (new Set(input.items.map((item) => item.materialId)).size !== input.items.length) {
+      return NextResponse.json({ error: '同一投入物料不能重复添加' }, { status: 400 })
     }
 
     const materialIds = Array.from(new Set(input.items.map((item) => item.materialId)))
@@ -311,28 +296,18 @@ export async function PUT(req: NextRequest) {
     }
     const materials = await prisma.material.findMany({
       where: { id: { in: materialIds }, deletedAt: null },
-      select: { id: true, primaryMeasure: true, stockUnit: true, unit: true },
+      select: { id: true, stockUnit: true, unit: true },
     })
     if (materials.length !== materialIds.length) {
       return NextResponse.json({ error: 'BOM 中存在无效或已归档物料' }, { status: 400 })
     }
-    const invalidLengthMaterial = materials.find((material) => (
-      material.primaryMeasure === 'LENGTH' && !isMeterUnit(material.stockUnit || material.unit)
-    ))
-    if (invalidLengthMaterial) {
-      return NextResponse.json(
-        { error: '长度型投入物料的主库存单位必须为 m，BOM 尺寸录入值会统一换算为米保存' },
-        { status: 400 },
-      )
-    }
-
     const materialById = new Map(materials.map((material) => [material.id, material]))
     const items = input.items.map((item) => {
       const material = materialById.get(item.materialId)
       return {
         itemType: 'MATERIAL',
         materialId: item.materialId,
-        outputMaterialId: item.outputMaterialId,
+        outputMaterialId: null,
         quantity: item.quantity,
         unit: material?.stockUnit || material?.unit || '件',
         wastageRate: 0,

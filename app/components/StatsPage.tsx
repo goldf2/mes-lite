@@ -310,7 +310,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
     }
     if (previewConsumptions.some((item) => !item.locationId)) return onMessage('请选择每项投入物料的来源库位')
     if (previewConsumptions.some((item) => item.quantityPerUnit <= 0)) {
-      return onMessage('BOM 中存在未填写换算比例的原料，请先完善 BOM')
+      return onMessage('BOM 中存在未填写每批投入数量的原料，请先完善 BOM')
     }
 
     setSaving(true)
@@ -476,7 +476,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
       <section className="rounded-lg bg-white p-5 shadow-sm">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">生产记录</h2>
-          <p className="mt-1 text-sm text-gray-500">按 BOM 换算比例和本次额外损耗计算原料耗用；产出状态由入库库位表达，不再固定区分合格、不良和报废</p>
+          <p className="mt-1 text-sm text-gray-500">按 BOM 每批投入和主产出批量折算原料耗用；产出状态由入库库位表达，不再固定区分合格、不良和报废</p>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Metric label="已确认记录" value={summary.confirmed} />
@@ -712,7 +712,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                   <div>
                     <div className="text-sm font-medium text-gray-900">投入明细</div>
                     <div className="mt-0.5 text-xs text-gray-500">
-                      本次产出 {numberText(totalProcessedQty)}；基准耗用来自 BOM 换算比例，可再记录本批次额外损耗
+                      本次产出 {numberText(totalProcessedQty)}；基准耗用由 BOM 每批投入折算，可再记录本批次额外耗用
                     </div>
                   </div>
                   {selectedBom && <span className="text-xs text-gray-500">{selectedBom.name} · {selectedBom.version}</span>}
@@ -721,7 +721,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                   {!selectedMaterial ? (
                     <div className="py-6 text-center text-sm text-gray-500">选择产出物料后计算原料耗用</div>
                   ) : previewConsumptions.length === 0 ? (
-                    <div className="rounded bg-amber-50 px-3 py-4 text-sm text-amber-800">该物料没有 BOM 原料及换算比例，暂时不能提交生产记录</div>
+                    <div className="rounded bg-amber-50 px-3 py-4 text-sm text-amber-800">该物料没有 BOM 投入明细，暂时不能提交生产记录</div>
                   ) : (
                     <div className="space-y-2">
                       {previewConsumptions.map((item) => item.material && (
@@ -731,8 +731,8 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
                             <span className="ml-2 font-mono text-xs text-gray-400">{item.material.code}</span>
                             <div className={`mt-0.5 text-xs ${item.quantityPerUnit > 0 ? 'text-gray-500' : 'text-red-600'}`}>
                               {item.quantityPerUnit > 0
-                                ? `换算比例 ${numberText(item.quantityPerUnit)} ${item.material.stockUnit || item.material.unit}原料/${selectedMaterial.stockUnit || selectedMaterial.unit}产出`
-                                : '尚未填写 BOM 换算比例'}
+                                ? `批次折算 ${numberText(item.quantityPerUnit)} ${item.material.stockUnit || item.material.unit}原料/${selectedMaterial.stockUnit || selectedMaterial.unit}主产出`
+                                : '尚未填写 BOM 每批投入数量'}
                             </div>
                           </div>
                           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">

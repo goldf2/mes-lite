@@ -140,16 +140,19 @@ export async function buildProductionOrderActualLines(
     const requested = requestedInputByMaterial.get(materialId)
     if (!requested) throw new Error(`请填写投入 ${representative.material.code} ${representative.material.name} 的来源库位和计划外额外耗用`)
     const location = await resolveInventoryLocation(tx, requested.locationId)
-    let plannedBaseQty = 0
-    for (const relation of relations) {
-      const targetOutput = snapshot.outputs.find((output) => (
-        output.materialId === (relation.outputMaterialId || primaryOutput.materialId)
-      ))
-      if (!targetOutput || Number(targetOutput.quantity) <= 0) {
-        throw new Error(`投入 ${representative.material.code} 的产出换算关系无效，请重新保存 BOM`)
+    const sharedBatchInputs = relations.filter((relation) => !relation.outputMaterialId)
+    let plannedBaseQty = sharedBatchInputs.length > 0
+      ? sharedBatchInputs.reduce((sum, relation) => sum + Number(relation.quantity), 0) * batchFactor
+      : 0
+    if (sharedBatchInputs.length === 0) {
+      for (const relation of relations) {
+        const targetOutput = snapshot.outputs.find((output) => output.materialId === relation.outputMaterialId)
+        if (!targetOutput || Number(targetOutput.quantity) <= 0) {
+          throw new Error(`投入 ${representative.material.code} 的历史产出换算关系无效，请重新保存 BOM`)
+        }
+        const requestedTargetOutput = requestedOutputByMaterial.get(targetOutput.materialId)
+        plannedBaseQty += Number(requestedTargetOutput?.actualQty || 0) * Number(relation.quantity) / Number(targetOutput.quantity)
       }
-      const requestedTargetOutput = requestedOutputByMaterial.get(targetOutput.materialId)
-      plannedBaseQty += Number(requestedTargetOutput?.actualQty || 0) * Number(relation.quantity) / Number(targetOutput.quantity)
     }
     plannedBaseQty = roundQty(plannedBaseQty)
     const calculated = calculateProductionConsumption({

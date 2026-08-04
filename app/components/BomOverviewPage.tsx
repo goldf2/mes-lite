@@ -209,10 +209,7 @@ export default function BomOverviewPage({
     return allBoms.flatMap((listed) => {
       const selectedOutput = listed.bom.outputs.find((output) => output.material.id === selectedMaterial.id)
       if (!selectedOutput) return []
-      const relatedItems = listed.bom.items.filter((item) => {
-        const outputMaterialId = item.outputMaterialId || item.outputMaterial?.id || listed.primaryOutput?.material.id
-        return item.itemType === 'MATERIAL' && outputMaterialId === selectedMaterial.id
-      })
+      const relatedItems = listed.bom.items.filter((item) => item.itemType === 'MATERIAL' && item.material)
       return [{ ...listed, selectedOutput, relatedItems }]
     })
   }, [allBoms, selectedMaterial])
@@ -362,10 +359,10 @@ export default function BomOverviewPage({
                             </div>
                             <div className="mt-2 flex flex-wrap gap-2">
                               {relatedItems.length === 0 ? (
-                                <span className="text-xs text-amber-700">该产出尚未配置投入关系</span>
+                                <span className="text-xs text-amber-700">该 BOM 尚未配置批次投入</span>
                               ) : relatedItems.map((item) => item.material && (
                                 <span key={item.id} className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">
-                                  {materialLabel(item.material)} · {quantity(item.quantity)} {item.unit}
+                                  每批投入 {materialLabel(item.material)} · {quantity(item.quantity)} {item.unit}
                                   {Number(item.wastageRate) > 0 ? ` · 损耗 ${quantity(Number(item.wastageRate) * 100)}%` : ''}
                                 </span>
                               ))}
@@ -412,18 +409,14 @@ export default function BomOverviewPage({
                               <div className="mt-1 text-xs text-gray-500">主产出：{materialLabel(primaryOutput.material)}</div>
                             )}
                             <div className="mt-2 space-y-1.5">
-                              {usageItems.map((item) => {
-                                const targetOutput = bom.outputs.find((output) => output.material.id === (item.outputMaterialId || item.outputMaterial?.id)) || primaryOutput
-                                return (
-                                  <div key={item.id} className="flex flex-wrap items-center gap-1.5 text-sm text-gray-700">
-                                    <span className="font-medium text-blue-700">{quantity(item.quantity)} {item.unit}</span>
-                                    <ArrowRight className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
-                                    <span>{targetOutput ? materialLabel(targetOutput.material) : '未指定产出'}</span>
-                                    {targetOutput && <span className="text-xs text-gray-500">（基准产出 {quantity(targetOutput.quantity)} {targetOutput.material.stockUnit || targetOutput.unit}）</span>}
-                                    {Number(item.wastageRate) > 0 && <span className="text-xs text-amber-700">损耗 {quantity(Number(item.wastageRate) * 100)}%</span>}
-                                  </div>
-                                )
-                              })}
+                              {usageItems.map((item) => (
+                                <div key={item.id} className="flex flex-wrap items-center gap-1.5 text-sm text-gray-700">
+                                  <span className="font-medium text-blue-700">每批投入 {quantity(item.quantity)} {item.unit}</span>
+                                  <ArrowRight className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
+                                  <span>{bom.outputs.map((output) => `${materialLabel(output.material)} ${quantity(output.quantity)} ${output.material.stockUnit || output.unit}`).join('；')}</span>
+                                  {Number(item.wastageRate) > 0 && <span className="text-xs text-amber-700">损耗 {quantity(Number(item.wastageRate) * 100)}%</span>}
+                                </div>
+                              ))}
                             </div>
                           </div>
                           <button

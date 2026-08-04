@@ -238,7 +238,7 @@ export async function getDataIntegrityReport(
   const duplicateGroups = new Map<string, typeof bomItems>()
   for (const item of bomItems) {
     if (!item.materialId) continue
-    const key = `${item.bomId}:${item.outputMaterialId || 'UNBOUND'}:${item.materialId}`
+    const key = `${item.bomId}:${item.materialId}`
     const group = duplicateGroups.get(key) || []
     group.push(item)
     duplicateGroups.set(key, group)
@@ -266,13 +266,13 @@ export async function getDataIntegrityReport(
     }
 
     const materialLabel = `${item.material.code} · ${item.material.name}`
-    if (!item.outputMaterialId || !outputMaterialIdsByBomId.get(item.bomId)?.has(item.outputMaterialId)) {
+    if (item.outputMaterialId && !outputMaterialIdsByBomId.get(item.bomId)?.has(item.outputMaterialId)) {
       issues.push({
         id: issueId('BOM_OUTPUT_RELATION_MISSING', item.id),
         type: 'BOM_OUTPUT_RELATION_MISSING',
         severity: 'BLOCKING',
-        title: 'BOM 投入未绑定有效产出',
-        detail: `${productLabel} 中原料 ${materialLabel} 没有绑定到本方案的有效产出产品。`,
+        title: 'BOM 历史投入绑定了无效产出',
+        detail: `${productLabel} 中原料 ${materialLabel} 的历史产出引用不属于本方案；新整批投入应不绑定具体产出。`,
         entityType: 'BOM_ITEM',
         entityId: item.id,
         entityLabel: `${productLabel} → ${materialLabel}`,
@@ -298,8 +298,8 @@ export async function getDataIntegrityReport(
         id: issueId('BOM_INVALID_QUANTITY', item.id),
         type: 'BOM_INVALID_QUANTITY',
         severity: 'BLOCKING',
-        title: 'BOM 换算比例无效',
-        detail: `${productLabel} 使用 ${materialLabel} 的换算比例为 ${item.quantity}。`,
+        title: 'BOM 每批投入数量无效',
+        detail: `${productLabel} 使用 ${materialLabel} 的每批投入数量为 ${item.quantity}。`,
         entityType: 'BOM_ITEM',
         entityId: item.id,
         entityLabel: `${productLabel} → ${materialLabel}`,
@@ -314,8 +314,8 @@ export async function getDataIntegrityReport(
         id: issueId('BOM_DUPLICATE_MATERIAL', item.id),
         type: 'BOM_DUPLICATE_MATERIAL',
         severity: 'BLOCKING',
-        title: 'BOM 同一产出重复关联同一投入',
-        detail: `${productLabel} 的同一产出中原料 ${materialLabel} 出现多次；保留首条，当前条可删除。`,
+        title: 'BOM 重复添加同一投入',
+        detail: `${productLabel} 中原料 ${materialLabel} 出现多次；整批投入中每种物料只能出现一次。`,
         entityType: 'BOM_ITEM',
         entityId: item.id,
         entityLabel: `${productLabel} → ${materialLabel}`,
@@ -344,7 +344,7 @@ export async function getDataIntegrityReport(
         type: 'BOM_UNIT_MISMATCH',
         severity: 'BLOCKING',
         title: 'BOM 原料单位与当前主单位不一致',
-        detail: `${productLabel} 使用 ${materialLabel}：BOM 保存单位为 ${item.unit || '空'}，物料当前主库存单位为 ${expectedUnit}。修复只更新单位标签，不换算比例数值。`,
+        detail: `${productLabel} 使用 ${materialLabel}：BOM 保存单位为 ${item.unit || '空'}，物料当前主库存单位为 ${expectedUnit}。修复只更新单位标签，不换算每批数量。`,
         entityType: 'BOM_ITEM',
         entityId: item.id,
         entityLabel: `${productLabel} → ${materialLabel}`,

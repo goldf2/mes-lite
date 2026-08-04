@@ -36,21 +36,18 @@ async function main() {
     const defaultBom = await prisma.bOM.create({
       data: {
         productId: product.id,
-        name: '常规 100 件',
+        name: '一冲两件',
         version: 'v1',
         isDefault: true,
-        outputQuantity: 100,
+        outputQuantity: 2,
         outputUnit: '件',
         items: {
-          create: [
-            { itemType: 'MATERIAL', materialId: raw.id, outputMaterialId: finished.id, quantity: 3.5, unit: 'm' },
-            { itemType: 'MATERIAL', materialId: raw.id, outputMaterialId: byproduct.id, quantity: 0.25, unit: 'm' },
-          ],
+          create: { itemType: 'MATERIAL', materialId: raw.id, outputMaterialId: null, quantity: 0.35, unit: 'm' },
         },
         outputs: {
           create: [
-            { materialId: finished.id, quantity: 100, unit: '件', isPrimary: true },
-            { materialId: byproduct.id, quantity: 2.5, unit: 'kg', isPrimary: false },
+            { materialId: finished.id, quantity: 2, unit: '件', isPrimary: true },
+            { materialId: byproduct.id, quantity: 0.12, unit: 'kg', isPrimary: false },
           ],
         },
       },
@@ -65,7 +62,7 @@ async function main() {
         outputQuantity: 20,
         outputUnit: '件',
         items: {
-          create: { itemType: 'MATERIAL', materialId: raw.id, outputMaterialId: finished.id, quantity: 0.72, unit: 'm' },
+          create: { itemType: 'MATERIAL', materialId: raw.id, outputMaterialId: null, quantity: 3.6, unit: 'm' },
         },
         outputs: {
           create: { materialId: finished.id, quantity: 20, unit: '件', isPrimary: true },
@@ -74,12 +71,16 @@ async function main() {
       include: { items: true, outputs: true },
     })
 
-    assert.equal(Number(defaultBom.items.find((item) => item.outputMaterialId === finished.id)?.quantity) / defaultBom.outputQuantity, 0.035)
-    assert.equal(alternateBom.items[0].quantity / alternateBom.outputQuantity, 0.036)
+    assert.equal(defaultBom.items.length, 1)
+    assert.equal(defaultBom.items[0].outputMaterialId, null)
+    assert.equal(defaultBom.items[0].quantity, 0.35)
+    assert.equal(alternateBom.items[0].quantity / alternateBom.outputQuantity, 0.18)
     assert.equal(defaultBom.outputs.length, 2)
-    assert.equal(defaultBom.outputs.find((output) => output.isPrimary)?.quantity, 100)
-    assert.equal(defaultBom.outputs.find((output) => output.materialId === byproduct.id)?.quantity, 2.5)
-    assert.equal(defaultBom.items.find((item) => item.outputMaterialId === byproduct.id)?.quantity, 0.25)
+    assert.equal(defaultBom.outputs.find((output) => output.isPrimary)?.quantity, 2)
+    assert.equal(defaultBom.outputs.find((output) => output.materialId === byproduct.id)?.quantity, 0.12)
+    const batchesForOneHundredPieces = 100 / Number(defaultBom.outputs.find((output) => output.isPrimary)?.quantity)
+    assert.equal(defaultBom.items[0].quantity * batchesForOneHundredPieces, 17.5)
+    assert.equal(Number(defaultBom.outputs.find((output) => output.materialId === byproduct.id)?.quantity) * batchesForOneHundredPieces, 6)
     assert.notEqual(defaultBom.id, alternateBom.id)
 
     const boms = await prisma.bOM.findMany({ where: { productId: product.id }, orderBy: { version: 'asc' } })
@@ -91,7 +92,7 @@ async function main() {
       }),
     )
 
-    console.log('BOM 多方案、多产出、版本唯一性与批量换算验证通过')
+    console.log('BOM 多方案、整批共同投入、多产出和版本唯一性验证通过')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

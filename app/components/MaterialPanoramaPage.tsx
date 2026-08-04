@@ -1084,7 +1084,7 @@ export default function MaterialPanoramaPage({
                                     </span>
                                     <span className="shrink-0">
                                       {item.material
-                                        ? (item.quantity > 0 ? `换算比例 ${formatNumber(item.quantity, 6)} ${item.unit}原料/${bom.product.unit || '单位'}成品` : '待填写换算比例')
+                                        ? (item.quantity > 0 ? `每批投入 ${formatNumber(item.quantity, 6)} ${item.unit}` : '待填写每批投入数量')
                                         : `${formatNumber(item.quantity, 6)} ${item.unit}`}
                                     </span>
                                   </div>
@@ -1112,8 +1112,8 @@ export default function MaterialPanoramaPage({
                                 </div>
                                 <div className={`rounded px-2 py-1 text-xs ${item.quantity > 0 ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
                                   {item.quantity > 0
-                                    ? `换算比例 ${formatNumber(item.quantity, 6)} ${item.unit}原料/${item.bom.product.unit || '单位'}成品`
-                                    : '待填写换算比例'}
+                                    ? `每批投入 ${formatNumber(item.quantity, 6)} ${item.unit}`
+                                    : '待填写每批投入数量'}
                                 </div>
                               </div>
                               <div className="mt-1 text-xs text-gray-500">实际耗用在生产订单班后实绩中按主库存单位记录</div>
