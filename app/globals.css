@@ -10,6 +10,58 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
+@keyframes mes-ai-assistant-idle {
+  0%, 100% {
+    transform: rotate(-1deg) scale(0.97);
+    filter: saturate(0.96) brightness(1);
+  }
+  50% {
+    transform: rotate(1.5deg) scale(1.025);
+    filter: saturate(1.06) brightness(1.025);
+  }
+}
+
+@keyframes mes-ai-assistant-hover {
+  0%, 100% {
+    transform: rotate(-2deg) scale(1.02);
+  }
+  50% {
+    transform: rotate(3deg) scale(1.09);
+  }
+}
+
+.mes-ai-assistant-mark {
+  animation: mes-ai-assistant-idle 7s ease-in-out infinite;
+  transform-origin: center;
+  transition: filter 180ms ease, transform 140ms ease;
+  will-change: filter, transform;
+}
+
+.mes-ai-assistant-trigger:hover .mes-ai-assistant-mark,
+.mes-ai-assistant-trigger:focus-visible .mes-ai-assistant-mark {
+  animation: mes-ai-assistant-hover 1.4s ease-in-out infinite;
+  filter: saturate(1.12) brightness(1.04);
+}
+
+.mes-ai-assistant-trigger:active .mes-ai-assistant-mark {
+  animation: none;
+  transform: rotate(-4deg) scale(0.88);
+  filter: saturate(1.18) brightness(1.05);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mes-ai-assistant-mark,
+  .mes-ai-assistant-trigger:hover .mes-ai-assistant-mark,
+  .mes-ai-assistant-trigger:focus-visible .mes-ai-assistant-mark {
+    animation: none;
+    transform: none;
+  }
+
+  .mes-ai-assistant-trigger:active .mes-ai-assistant-mark {
+    transform: scale(0.96);
+  }
+}
+
 .mes-online-document-content {
   min-height: inherit;
   color: rgb(31 41 55);

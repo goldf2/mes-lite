@@ -2,7 +2,8 @@
 
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Bot, Database, Send, ShieldCheck, Sparkles, Square, Trash2, X } from 'lucide-react'
+import { Database, Send, ShieldCheck, Sparkles, Square, Trash2, X } from 'lucide-react'
+import AiAssistantMark from './AiAssistantMark'
 
 interface AssistantMessage {
   id: string
@@ -190,8 +191,8 @@ export default function AiAssistantPanel({
       >
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
-              <Sparkles aria-hidden="true" className="h-5 w-5" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white p-0.5 shadow-sm">
+              <AiAssistantMark className="h-9 w-9" />
             </div>
             <div className="min-w-0">
               <h2 className="truncate text-base font-semibold text-gray-900">AI 协作助手</h2>
@@ -255,9 +256,7 @@ export default function AiAssistantPanel({
           {messages.length === 0 && (!status || status.configured) && (
             <div>
               <div className="flex items-start gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
-                  <Bot aria-hidden="true" className="h-4 w-4" />
-                </div>
+                <AiAssistantMark className="h-8 w-8 shrink-0" />
                 <div>
                   <p className="text-sm leading-6 text-gray-700">
                     直接告诉我你要查询的物料、库存、BOM、生产情况，或者询问当前页面如何使用。
@@ -286,7 +285,7 @@ export default function AiAssistantPanel({
                 <div className={`max-w-[88%] ${message.role === 'user' ? 'rounded-lg bg-blue-600 px-3.5 py-2.5 text-white' : ''}`}>
                   {message.role === 'assistant' && (
                     <div className="mb-1.5 flex items-center gap-2 text-xs font-medium text-gray-500">
-                      <Bot aria-hidden="true" className="h-4 w-4 text-blue-600" />
+                      <AiAssistantMark className="h-4 w-4" />
                       MES-lite AI
                     </div>
                   )}

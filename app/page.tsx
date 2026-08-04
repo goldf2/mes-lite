@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic'
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import * as Collapsible from '@radix-ui/react-collapsible'
-import { Boxes, ChevronDown, Menu, PencilLine, Search, Settings2, Sparkles, X } from 'lucide-react'
+import { Boxes, ChevronDown, Menu, PencilLine, Search, Settings2, X } from 'lucide-react'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
 import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
@@ -17,6 +17,7 @@ import useClientTableSort from './components/useClientTableSort'
 import AppButton from './components/AppButton'
 import ModalDialog, { ModalActions } from './components/ModalDialog'
 import PageOptionsDialog from './components/PageOptionsDialog'
+import AiAssistantMark from './components/AiAssistantMark'
 import { AllFunctionsPage, WorkspaceLauncher } from './components/WorkspacePages'
 import type { WorkspaceFunctionItem } from './components/WorkspacePages'
 import type { SystemSection } from './components/SystemPage'
@@ -1345,10 +1346,17 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 setSystemMenuOpen(false)
               }}
               aria-label="打开 AI 协作助手"
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-700 shadow-sm hover:border-blue-300 hover:bg-blue-100"
+              aria-describedby="ai-assistant-trigger-tooltip"
+              className="mes-ai-assistant-trigger group relative flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white p-1 shadow-sm transition hover:border-blue-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             >
-              <Sparkles aria-hidden="true" className="h-4 w-4" />
-              AI 助手
+              <AiAssistantMark animated priority className="h-8 w-8" />
+              <span
+                id="ai-assistant-trigger-tooltip"
+                role="tooltip"
+                className="pointer-events-none absolute left-1/2 top-full z-[70] mt-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+              >
+                打开 AI 助手
+              </span>
             </button>
           )}
           <button
@@ -2578,11 +2586,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 setMobileNavOpen(false)
               }}
               aria-label="打开 AI 协作助手"
-              className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg bg-blue-50 px-1 py-2 text-[11px] font-medium text-blue-700 transition hover:bg-blue-100"
+              className="mes-ai-assistant-trigger flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg bg-blue-50 px-1 py-2 text-[11px] font-medium text-blue-700 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
             >
-              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-100 text-blue-700">
-                <Sparkles aria-hidden="true" className="h-4 w-4" />
-              </span>
+              <AiAssistantMark animated priority className="h-7 w-7" />
               <span className="max-w-full truncate">问 AI</span>
             </button>
           )}
