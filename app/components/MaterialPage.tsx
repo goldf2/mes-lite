@@ -783,7 +783,7 @@ export default function MaterialPage({
   showBomWorkspace = false,
   openBomRequest,
   onOpenBomRequestHandled,
-  onCreateBom,
+  onOpenBomWorkspace,
   canReadBom = false,
   canCreateBom = false,
 }: {
@@ -792,7 +792,7 @@ export default function MaterialPage({
   showBomWorkspace?: boolean
   openBomRequest?: { materialId: string; bomId?: string; requestId: number } | null
   onOpenBomRequestHandled?: () => void
-  onCreateBom?: (materialId: string) => void
+  onOpenBomWorkspace?: (materialId: string) => void
   canReadBom?: boolean
   canCreateBom?: boolean
 }) {
@@ -814,6 +814,8 @@ export default function MaterialPage({
   const [bomLoading, setBomLoading] = useState(false)
   const [bomDataReady, setBomDataReady] = useState(false)
   const [bomSaving, setBomSaving] = useState(false)
+  const [quickBomMaterialId, setQuickBomMaterialId] = useState<string | null>(null)
+  const [quickBomDraftReady, setQuickBomDraftReady] = useState(false)
   const [bomKeyword, setBomKeyword] = useState('')
   const [keyword, setKeyword] = useState('')
   const [customerFilter, setCustomerFilter] = useState('')
@@ -1698,6 +1700,29 @@ export default function MaterialPage({
     setSelectedBomId(bomId)
   }, [])
 
+  const openQuickBomCreate = useCallback((materialId: string) => {
+    setQuickBomMaterialId(materialId)
+    setQuickBomDraftReady(false)
+    if (!bomDataReady && !bomLoading) void fetchBomData()
+  }, [bomDataReady, bomLoading, fetchBomData])
+
+  const closeQuickBomCreate = useCallback(() => {
+    if (bomSaving) return
+    setQuickBomMaterialId(null)
+    setQuickBomDraftReady(false)
+  }, [bomSaving])
+
+  useEffect(() => {
+    if (showBomWorkspace || !quickBomMaterialId || quickBomDraftReady || !bomDataReady) return
+    if (!bomMaterialById.has(quickBomMaterialId)) {
+      onMessage('目标物料不存在或已归档')
+      setQuickBomMaterialId(null)
+      return
+    }
+    selectMaterialForBom(quickBomMaterialId)
+    setQuickBomDraftReady(true)
+  }, [bomDataReady, bomMaterialById, onMessage, quickBomDraftReady, quickBomMaterialId, selectMaterialForBom, showBomWorkspace])
+
   useEffect(() => {
     if (!showBomWorkspace || !bomDataReady || !openBomRequest) return
     if (handledBomOpenRequestRef.current === openBomRequest.requestId) return
@@ -1814,16 +1839,43 @@ export default function MaterialPage({
     }
   }
 
-  const saveSelectedBom = async () => {
-    if (!selectedMaterial) return onMessage('请先添加主产出物料')
-    if (draftBomItems.length === 0) return onMessage('请至少添加一项投入物料')
-    if (!draftBomName.trim()) return onMessage('请填写 BOM 名称')
-    if (!Number.isFinite(selectedBomOutputQuantity) || selectedBomOutputQuantity <= 0) return onMessage('基准产出数量必须大于 0')
-    await saveBomForProduct(
+  const saveSelectedBom = async (): Promise<boolean> => {
+    if (!selectedMaterial) {
+      onMessage('请先添加主产出物料')
+      return false
+    }
+    if (draftBomItems.length === 0) {
+      onMessage('请至少添加一项投入物料')
+      return false
+    }
+    if (!draftBomName.trim()) {
+      onMessage('请填写 BOM 名称')
+      return false
+    }
+    if (!Number.isFinite(selectedBomOutputQuantity) || selectedBomOutputQuantity <= 0) {
+      onMessage('基准产出数量必须大于 0')
+      return false
+    }
+    return saveBomForProduct(
       selectedBomProduct?.id || `${materialProductPrefix}${selectedMaterial.id}`,
       draftBomItems,
       'BOM 已保存',
     )
+  }
+
+  const saveQuickBom = async () => {
+    const saved = await saveSelectedBom()
+    if (!saved) return
+    setQuickBomMaterialId(null)
+    setQuickBomDraftReady(false)
+  }
+
+  const openFullBomEditorFromQuickCreate = () => {
+    if (!quickBomMaterialId || !onOpenBomWorkspace || bomSaving) return
+    const materialId = quickBomMaterialId
+    setQuickBomMaterialId(null)
+    setQuickBomDraftReady(false)
+    onOpenBomWorkspace(materialId)
   }
 
   const handleHeaderSort = (field: MaterialSortBy) => {
@@ -1995,6 +2047,205 @@ export default function MaterialPage({
 
     return () => onToolbarChange(null)
   }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, bomStatusFilter, sortBy, sortDir, viewMode, setViewMode, visibleFields, bomSummaryVisible, bomSummaryFields, activeFilterLabels, showBomWorkspace, columnWidths, resetAllColumnWidths, bomKeyword, selectMaterialForBom, canUseBomData])
+
+  const renderBomDraftEditor = (showSaveAction: boolean) => (
+    <>
+      <div className="rounded-lg border border-gray-200">
+        <div className="grid grid-cols-1 divide-y divide-gray-200 lg:grid-cols-2 lg:divide-x lg:divide-y-0">
+          <section className="min-w-0 p-3 sm:p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h4 className="text-sm font-semibold text-gray-900">输入</h4>
+              <span className="text-xs text-gray-500">{draftBomItems.length} 项</span>
+            </div>
+            <BomMaterialSelectSearch
+              value=""
+              materials={bomMaterialOptions}
+              disabledIds={[
+                ...(selectedMaterialId ? [selectedMaterialId] : []),
+                ...draftBomOutputs.map((output) => output.materialId),
+                ...draftBomItems.map((item) => item.materialId),
+              ]}
+              onChange={(value) => {
+                if (value) addInputMaterialToDraft(value)
+              }}
+            />
+            <div className="mt-3 divide-y divide-gray-100">
+              {draftBomItems.length === 0 ? (
+                <div className="py-8 text-center text-sm text-gray-400">暂无投入物料</div>
+              ) : draftBomItems.map((item) => {
+                const material = bomMaterialById.get(item.materialId)
+                return (
+                  <div key={item.clientId} className="grid min-w-0 grid-cols-[minmax(10rem,1fr)_auto] items-center gap-2 py-3 2xl:grid-cols-[minmax(0,1fr)_minmax(10rem,12rem)_auto]">
+                    <div className="col-span-2 min-w-0 2xl:col-span-1">
+                      <BomMaterialIdentity
+                        material={material}
+                        fallbackId={item.materialId}
+                        onPreview={setPreviewBomMaterial}
+                      />
+                    </div>
+                    {material && (
+                      <div className="min-w-0">
+                        <BomQuantityEditor
+                          label={`${material.name}每批投入数量`}
+                          value={item.quantity}
+                          unit={item.unit}
+                          material={material}
+                          unitCatalog={unitCatalog}
+                          onValueChange={(quantity) => setDraftBomItems((current) => current.map((draft) => (
+                            draft.clientId === item.clientId ? { ...draft, quantity } : draft
+                          )))}
+                          onUnitChange={(unit) => changeDraftInputUnit(item.clientId, unit)}
+                        />
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setDraftBomItems((current) => current.filter((draft) => draft.clientId !== item.clientId))}
+                      className="rounded-md px-2 py-2 text-xs text-red-600 hover:bg-red-50"
+                    >
+                      移除
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+
+          <section className="min-w-0 p-3 sm:p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h4 className="text-sm font-semibold text-gray-900">输出</h4>
+              <span className="text-xs text-gray-500">{selectedMaterial ? 1 + draftBomOutputs.length : 0} 项</span>
+            </div>
+            <SearchableSelect
+              value=""
+              options={bomOutputMaterialOptions.filter((option) => (
+                option.value !== selectedMaterialId
+                && !draftBomOutputs.some((output) => output.materialId === option.value)
+                && !draftBomItems.some((item) => item.materialId === option.value)
+              ))}
+              onChange={(value) => {
+                if (value) addOutputMaterialToDraft(value)
+              }}
+              placeholder={selectedMaterial ? '输入并选择下一项产出物料' : '输入并选择首项主产出物料'}
+              emptyText="没有匹配的产出物料"
+              className="w-full"
+            />
+            <div className="mt-3 divide-y divide-gray-100">
+              {!selectedMaterial ? (
+                <div className="py-8 text-center text-sm text-gray-400">暂无产出物料</div>
+              ) : (
+                <div className="grid min-w-0 grid-cols-[minmax(10rem,1fr)_auto] items-center gap-2 py-3 2xl:grid-cols-[minmax(0,1fr)_minmax(10rem,12rem)_auto]">
+                  <div className="col-span-2 min-w-0 2xl:col-span-1">
+                    <BomMaterialIdentity
+                      material={selectedMaterial}
+                      fallbackId={selectedMaterial.id}
+                      badge={<span className="shrink-0 rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700">主产出</span>}
+                      onPreview={setPreviewBomMaterial}
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <BomQuantityEditor
+                      label={`${selectedMaterial.name}每批产出数量`}
+                      value={draftBomOutputQuantity}
+                      unit={draftBomOutputUnit}
+                      material={selectedMaterial}
+                      unitCatalog={unitCatalog}
+                      onValueChange={setDraftBomOutputQuantity}
+                      onUnitChange={changePrimaryOutputUnit}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={removePrimaryOutput}
+                    className="rounded-md px-2 py-2 text-xs text-red-600 hover:bg-red-50"
+                  >
+                    移除
+                  </button>
+                </div>
+              )}
+              {draftBomOutputs.map((output) => {
+                const material = bomMaterialById.get(output.materialId)
+                return (
+                  <div key={output.clientId} className="grid min-w-0 grid-cols-[minmax(10rem,1fr)_auto] items-center gap-2 py-3 2xl:grid-cols-[minmax(0,1fr)_minmax(10rem,12rem)_auto]">
+                    <div className="col-span-2 min-w-0 2xl:col-span-1">
+                      <BomMaterialIdentity
+                        material={material}
+                        fallbackId={output.materialId}
+                        onPreview={setPreviewBomMaterial}
+                      />
+                    </div>
+                    {material && (
+                      <div className="min-w-0">
+                        <BomQuantityEditor
+                          label={`${material.name}每批产出数量`}
+                          value={output.quantity}
+                          unit={output.unit}
+                          material={material}
+                          unitCatalog={unitCatalog}
+                          onValueChange={(quantity) => setDraftBomOutputs((current) => current.map((draft) => (
+                            draft.clientId === output.clientId ? { ...draft, quantity } : draft
+                          )))}
+                          onUnitChange={(unit) => changeDraftOutputUnit(output.clientId, unit)}
+                        />
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setDraftBomOutputs((current) => current.filter((draft) => draft.clientId !== output.clientId))}
+                      className="rounded-md px-2 py-2 text-xs text-red-600 hover:bg-red-50"
+                    >
+                      移除
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-4 border-t border-gray-200 pt-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0 flex-1 lg:max-w-xl">
+          <label className="block text-xs font-medium text-gray-700">
+            BOM 方案名称
+            <input
+              value={draftBomName}
+              onChange={(event) => setDraftBomName(event.target.value)}
+              maxLength={80}
+              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="如：一模两件冲压方案"
+            />
+          </label>
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500">
+            <label className="inline-flex items-center gap-2 text-gray-700">
+              <input
+                type="checkbox"
+                checked={draftBomIsDefault}
+                onChange={(event) => setDraftBomIsDefault(event.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              默认 BOM
+            </label>
+            <span>{selectedBom ? `版本 ${selectedBom.version}` : '保存时自动生成版本'}</span>
+            <span className={draftBomDirty ? 'font-medium text-amber-700' : 'text-gray-400'}>
+              {draftBomDirty ? '有未保存修改' : '已保存'}
+            </span>
+          </div>
+        </div>
+        {showSaveAction && (
+          <button
+            type="button"
+            onClick={saveSelectedBom}
+            disabled={bomSaving || !selectedMaterial || !draftBomDirty}
+            title={!selectedMaterial ? '请先添加产出物料' : !draftBomDirty ? '当前没有待保存修改' : undefined}
+            className="shrink-0 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {bomSaving ? '保存中...' : '保存 BOM'}
+          </button>
+        )}
+      </div>
+    </>
+  )
 
   return (
     <>
@@ -2211,9 +2462,9 @@ export default function MaterialPage({
                   </div>
                 )}
                 <div className="mt-auto flex items-center justify-end gap-1.5 pt-3">
-                  {canCreateBom && onCreateBom && (
+                  {canCreateBom && (
                     <button
-                      onClick={() => onCreateBom(material.id)}
+                      onClick={() => openQuickBomCreate(material.id)}
                       className="rounded border border-emerald-300 px-2 py-1 text-xs text-emerald-700 transition hover:bg-emerald-50"
                     >
                       创建 BOM
@@ -2327,9 +2578,9 @@ export default function MaterialPage({
                       </td>
                     )}
                     <td style={columnStyle('actions')} className="overflow-hidden whitespace-nowrap px-4 py-3">
-                      {canCreateBom && onCreateBom && (
+                      {canCreateBom && (
                         <button
-                          onClick={() => onCreateBom(material.id)}
+                          onClick={() => openQuickBomCreate(material.id)}
                           className="mr-2 rounded border border-emerald-300 px-3 py-1 text-xs text-emerald-700 transition hover:bg-emerald-50"
                         >
                           创建 BOM
@@ -2454,202 +2705,45 @@ export default function MaterialPage({
             {bomLoading && <span className="shrink-0 text-xs text-gray-500">同步中...</span>}
           </div>
 
-          <div className="rounded-lg border border-gray-200">
-            <div className="grid grid-cols-1 divide-y divide-gray-200 lg:grid-cols-2 lg:divide-x lg:divide-y-0">
-              <section className="min-w-0 p-3 sm:p-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h4 className="text-sm font-semibold text-gray-900">输入</h4>
-                  <span className="text-xs text-gray-500">{draftBomItems.length} 项</span>
-                </div>
-                <BomMaterialSelectSearch
-                  value=""
-                  materials={bomMaterialOptions}
-                  disabledIds={[
-                    ...(selectedMaterialId ? [selectedMaterialId] : []),
-                    ...draftBomOutputs.map((output) => output.materialId),
-                    ...draftBomItems.map((item) => item.materialId),
-                  ]}
-                  onChange={(value) => {
-                    if (value) addInputMaterialToDraft(value)
-                  }}
-                />
-                <div className="mt-3 divide-y divide-gray-100">
-                  {draftBomItems.length === 0 ? (
-                    <div className="py-8 text-center text-sm text-gray-400">暂无投入物料</div>
-                  ) : draftBomItems.map((item) => {
-                    const material = bomMaterialById.get(item.materialId)
-                    return (
-                      <div key={item.clientId} className="grid min-w-0 grid-cols-[minmax(10rem,1fr)_auto] items-center gap-2 py-3 2xl:grid-cols-[minmax(0,1fr)_minmax(10rem,12rem)_auto]">
-                        <div className="col-span-2 min-w-0 2xl:col-span-1">
-                          <BomMaterialIdentity
-                            material={material}
-                            fallbackId={item.materialId}
-                            onPreview={setPreviewBomMaterial}
-                          />
-                        </div>
-                        {material && (
-                          <div className="min-w-0">
-                            <BomQuantityEditor
-                              label={`${material.name}每批投入数量`}
-                              value={item.quantity}
-                              unit={item.unit}
-                              material={material}
-                              unitCatalog={unitCatalog}
-                              onValueChange={(quantity) => setDraftBomItems((current) => current.map((draft) => (
-                                draft.clientId === item.clientId ? { ...draft, quantity } : draft
-                              )))}
-                              onUnitChange={(unit) => changeDraftInputUnit(item.clientId, unit)}
-                            />
-                          </div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setDraftBomItems((current) => current.filter((draft) => draft.clientId !== item.clientId))}
-                          className="rounded-md px-2 py-2 text-xs text-red-600 hover:bg-red-50"
-                        >
-                          移除
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
-              </section>
-
-              <section className="min-w-0 p-3 sm:p-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h4 className="text-sm font-semibold text-gray-900">输出</h4>
-                  <span className="text-xs text-gray-500">{selectedMaterial ? 1 + draftBomOutputs.length : 0} 项</span>
-                </div>
-                <SearchableSelect
-                  value=""
-                  options={bomOutputMaterialOptions.filter((option) => (
-                    option.value !== selectedMaterialId
-                    && !draftBomOutputs.some((output) => output.materialId === option.value)
-                    && !draftBomItems.some((item) => item.materialId === option.value)
-                  ))}
-                  onChange={(value) => {
-                    if (value) addOutputMaterialToDraft(value)
-                  }}
-                  placeholder={selectedMaterial ? '输入并选择下一项产出物料' : '输入并选择首项主产出物料'}
-                  emptyText="没有匹配的产出物料"
-                  className="w-full"
-                />
-                <div className="mt-3 divide-y divide-gray-100">
-                  {!selectedMaterial ? (
-                    <div className="py-8 text-center text-sm text-gray-400">暂无产出物料</div>
-                  ) : (
-                    <div className="grid min-w-0 grid-cols-[minmax(10rem,1fr)_auto] items-center gap-2 py-3 2xl:grid-cols-[minmax(0,1fr)_minmax(10rem,12rem)_auto]">
-                      <div className="col-span-2 min-w-0 2xl:col-span-1">
-                        <BomMaterialIdentity
-                          material={selectedMaterial}
-                          fallbackId={selectedMaterial.id}
-                          badge={<span className="shrink-0 rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700">主产出</span>}
-                          onPreview={setPreviewBomMaterial}
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <BomQuantityEditor
-                          label={`${selectedMaterial.name}每批产出数量`}
-                          value={draftBomOutputQuantity}
-                          unit={draftBomOutputUnit}
-                          material={selectedMaterial}
-                          unitCatalog={unitCatalog}
-                          onValueChange={setDraftBomOutputQuantity}
-                          onUnitChange={changePrimaryOutputUnit}
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={removePrimaryOutput}
-                        className="rounded-md px-2 py-2 text-xs text-red-600 hover:bg-red-50"
-                      >
-                        移除
-                      </button>
-                    </div>
-                  )}
-                  {draftBomOutputs.map((output) => {
-                    const material = bomMaterialById.get(output.materialId)
-                    return (
-                      <div key={output.clientId} className="grid min-w-0 grid-cols-[minmax(10rem,1fr)_auto] items-center gap-2 py-3 2xl:grid-cols-[minmax(0,1fr)_minmax(10rem,12rem)_auto]">
-                        <div className="col-span-2 min-w-0 2xl:col-span-1">
-                          <BomMaterialIdentity
-                            material={material}
-                            fallbackId={output.materialId}
-                            onPreview={setPreviewBomMaterial}
-                          />
-                        </div>
-                        {material && (
-                          <div className="min-w-0">
-                            <BomQuantityEditor
-                              label={`${material.name}每批产出数量`}
-                              value={output.quantity}
-                              unit={output.unit}
-                              material={material}
-                              unitCatalog={unitCatalog}
-                              onValueChange={(quantity) => setDraftBomOutputs((current) => current.map((draft) => (
-                                draft.clientId === output.clientId ? { ...draft, quantity } : draft
-                              )))}
-                              onUnitChange={(unit) => changeDraftOutputUnit(output.clientId, unit)}
-                            />
-                          </div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setDraftBomOutputs((current) => current.filter((draft) => draft.clientId !== output.clientId))}
-                          className="rounded-md px-2 py-2 text-xs text-red-600 hover:bg-red-50"
-                        >
-                          移除
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
-              </section>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-col gap-4 border-t border-gray-200 pt-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="min-w-0 flex-1 lg:max-w-xl">
-              <label className="block text-xs font-medium text-gray-700">
-                BOM 方案名称
-                <input
-                  value={draftBomName}
-                  onChange={(event) => setDraftBomName(event.target.value)}
-                  maxLength={80}
-                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="如：一模两件冲压方案"
-                />
-              </label>
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500">
-                <label className="inline-flex items-center gap-2 text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={draftBomIsDefault}
-                    onChange={(event) => setDraftBomIsDefault(event.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  默认 BOM
-                </label>
-                <span>{selectedBom ? `版本 ${selectedBom.version}` : '保存时自动生成版本'}</span>
-                <span className={draftBomDirty ? 'font-medium text-amber-700' : 'text-gray-400'}>
-                  {draftBomDirty ? '有未保存修改' : '已保存'}
-                </span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={saveSelectedBom}
-              disabled={bomSaving || !selectedMaterial || !draftBomDirty}
-              title={!selectedMaterial ? '请先添加产出物料' : !draftBomDirty ? '当前没有待保存修改' : undefined}
-              className="shrink-0 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {bomSaving ? '保存中...' : '保存 BOM'}
-            </button>
-          </div>
+          {renderBomDraftEditor(true)}
           </div>
         </div>
         )}
       </div>
+
+      {quickBomMaterialId && (
+        <ModalDialog
+          title="快速创建 BOM"
+          description={quickBomDraftReady && selectedMaterial
+            ? `${selectedMaterial.code} · ${selectedMaterial.name} 已作为主产出`
+            : '正在准备当前物料的 BOM 草稿...'}
+          headerActions={onOpenBomWorkspace && quickBomDraftReady ? (
+            <AppButton variant="secondary" onClick={openFullBomEditorFromQuickCreate} disabled={bomSaving}>
+              完整 BOM 设置
+            </AppButton>
+          ) : undefined}
+          onClose={closeQuickBomCreate}
+          closeDisabled={bomSaving}
+          size="wide"
+          bodyClassName="bg-gray-50/40"
+          footer={(
+            <ModalActions
+              onCancel={closeQuickBomCreate}
+              onConfirm={saveQuickBom}
+              cancelLabel="取消"
+              confirmLabel="保存 BOM"
+              disabled={!quickBomDraftReady || !selectedMaterial || !draftBomDirty}
+              busy={bomSaving}
+            />
+          )}
+        >
+          {quickBomDraftReady ? (
+            renderBomDraftEditor(false)
+          ) : (
+            <div className="flex min-h-56 items-center justify-center text-sm text-gray-500">正在加载 BOM 数据...</div>
+          )}
+        </ModalDialog>
+      )}
 
       {previewBomMaterial?.primaryImage && (
         <ModalDialog

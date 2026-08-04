@@ -2241,7 +2241,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             showBomWorkspace={false}
             canReadBom={canRead('bomCost')}
             canCreateBom={canUpdate('bomCost')}
-            onCreateBom={(materialId) => openBomEditor(materialId)}
+            onOpenBomWorkspace={(materialId) => openBomEditor(materialId)}
           />
         )}
         {tab === 'materials' && materialSection === 'bomWorkspace' && (
