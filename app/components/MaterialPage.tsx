@@ -1266,6 +1266,12 @@ export default function MaterialPage({
     setDetailMaterial((current) => current ? nextMaterials.find((item) => item.id === current.id) || current : null)
   }
 
+  const refreshMaterialSources = async () => {
+    const tasks: Promise<unknown>[] = [fetchMaterials()]
+    if (canUseBomData) tasks.push(fetchBomData())
+    await Promise.allSettled(tasks)
+  }
+
   const downloadFile = async (url: string) => {
     try {
       const res = await fetch(url)
@@ -1332,7 +1338,7 @@ export default function MaterialPage({
         setShowImportModal(false)
         setImportFile(null)
         setPage(1)
-        fetchMaterials()
+        await refreshMaterialSources()
       } else {
         setImportErrors(data.details || [data.error || '导入失败'])
       }
@@ -1420,8 +1426,7 @@ export default function MaterialPage({
         setForm(createEmptyMaterialForm())
         setEditingMaterial(null)
         setPage(1)
-        fetchMaterials()
-        if (showBomWorkspace) fetchBomData()
+        await refreshMaterialSources()
       }
     } catch (err) {
       onMessage('操作失败')
@@ -1436,7 +1441,7 @@ export default function MaterialPage({
       const data = await res.json()
       if (res.ok) {
         onMessage(data.message || '归档成功')
-        fetchMaterials()
+        await refreshMaterialSources()
       } else {
         onMessage(data.error || '归档失败')
       }
