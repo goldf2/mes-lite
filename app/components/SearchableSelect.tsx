@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
+import useSearchPopupPlacement from './useSearchPopupPlacement'
 import { appInputClassName } from './FormField'
 
 export interface SearchableSelectOption {
@@ -34,6 +35,7 @@ export default function SearchableSelect({
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
+  const { openUpward, popupMaxHeight, updatePopupPlacement } = useSearchPopupPlacement()
   const selected = options.find((option) => option.value === value)
   const keyword = query.trim().toLocaleLowerCase()
   const filtered = useMemo(() => options.filter((option) => {
@@ -69,12 +71,14 @@ export default function SearchableSelect({
         disabled={disabled}
         value={open ? query : (selected?.label || '')}
         placeholder={placeholder}
-        onFocus={() => {
+        onFocus={(event) => {
+          updatePopupPlacement(event.currentTarget)
           setOpen(true)
           setQuery('')
           setActiveIndex(-1)
         }}
         onChange={(event) => {
+          updatePopupPlacement(event.currentTarget)
           setQuery(event.target.value)
           setOpen(true)
           setActiveIndex(-1)
@@ -86,6 +90,7 @@ export default function SearchableSelect({
           }
           if (event.key === 'ArrowDown') {
             event.preventDefault()
+            updatePopupPlacement(event.currentTarget)
             setOpen(true)
             setActiveIndex((current) => Math.min(current + 1, filtered.length - 1))
           }
@@ -105,7 +110,12 @@ export default function SearchableSelect({
         <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => choose('')} className="absolute right-7 top-1/2 -translate-y-1/2 rounded px-1 text-xs text-gray-400 hover:text-gray-700" aria-label="清除选择">×</button>
       )}
       {open && !disabled && (
-        <div id={listboxId} role="listbox" className="absolute left-0 right-0 top-full z-[90] mt-1 max-h-64 overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
+        <div
+          id={listboxId}
+          role="listbox"
+          style={{ maxHeight: popupMaxHeight }}
+          className={`absolute left-0 right-0 z-[90] overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white p-1 shadow-lg ${openUpward ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+        >
           {filtered.length === 0 ? (
             <div className="px-3 py-3 text-sm text-gray-400">{emptyText}</div>
           ) : filtered.map((option, index) => (

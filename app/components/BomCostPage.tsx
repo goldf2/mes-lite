@@ -1,7 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import useDismissibleSearchPopup from './useDismissibleSearchPopup'
+import { useEffect, useMemo, useState } from 'react'
+import MaterialChoiceSearch, { MaterialChoiceOption } from './MaterialChoiceSearch'
+import MetricCard from './MetricCard'
+import NumberInputField from './NumberInputField'
 import SortableTableHeader from './SortableTableHeader'
 import useClientTableSort from './useClientTableSort'
 
@@ -213,113 +215,17 @@ function processCostPerThousand(item: {
   return { laborHours, machineHours, cost }
 }
 
-function NumberField({ label, value, unit, onChange }: { label: string; value: number; unit: string; onChange: (value: number) => void }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-sm font-medium text-gray-700">{label}</span>
-      <div className="flex overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
-        <input
-          type="number"
-          min="0"
-          step="any"
-          value={value || ''}
-          onChange={(event) => onChange(Math.max(0, Number(event.target.value)))}
-          className="min-w-0 flex-1 px-3 py-2 text-sm outline-none"
-        />
-        <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-sm text-gray-500">{unit}</span>
-      </div>
-    </label>
-  )
-}
-
-function SummaryCard({ label, value, hint, primary = false }: { label: string; value: string; hint?: string; primary?: boolean }) {
-  return (
-    <div className={`rounded-lg border p-4 ${primary ? 'border-blue-200 bg-blue-50' : 'border-gray-200 bg-white'}`}>
-      <div className="text-sm text-gray-500">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold ${primary ? 'text-blue-700' : 'text-gray-900'}`}>{value}</div>
-      {hint && <div className="mt-1 text-xs text-gray-500">{hint}</div>}
-    </div>
-  )
-}
-
-function ProductSearchSelect({
-  value,
-  products,
-  onChange,
-}: {
-  value: string
-  products: ProductOption[]
-  onChange: (value: string) => void
-}) {
-  const [query, setQuery] = useState('')
-  const [open, setOpen] = useState(false)
-  const closePopup = useCallback(() => {
-    setOpen(false)
-    setQuery('')
-  }, [])
-  const rootRef = useDismissibleSearchPopup<HTMLDivElement>(open, closePopup)
-  const selected = products.find((product) => product.id === value)
-  const filtered = products.filter((product) => {
-    const keyword = query.trim().toLowerCase()
-    if (!keyword) return true
-    return `${product.sku} ${product.name}`.toLowerCase().includes(keyword)
-  }).slice(0, 30)
-
-  return (
-    <div ref={rootRef} className="relative">
-      <input
-        value={open ? query : (selected ? `${selected.sku} · ${selected.name}` : query)}
-        onFocus={() => {
-          setOpen(true)
-          if (selected && !query) setQuery(`${selected.sku} ${selected.name}`)
-        }}
-        onChange={(event) => {
-          setQuery(event.target.value)
-          setOpen(true)
-          if (value) onChange('')
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') closePopup()
-        }}
-        placeholder="输入物料编码或名称"
-        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-      />
-      {open && (
-        <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
-          {filtered.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-gray-500">没有匹配物料</div>
-          ) : (
-            filtered.map((product) => (
-              <button
-                key={product.id}
-                type="button"
-                onClick={() => {
-                  onChange(product.id)
-                  closePopup()
-                }}
-                className={`block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-gray-50 ${value === product.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700'}`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span>
-                    <span className="font-mono text-xs text-gray-500">{product.sku}</span>
-                    <span className="ml-2">{product.name}</span>
-                  </span>
-                  <span className={`shrink-0 rounded px-2 py-0.5 text-xs ${product.bom ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {product.bom ? product.bom.version : '无BOM'}
-                  </span>
-                </div>
-              </button>
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function BomCostPage({ onMessage }: { onMessage: (msg: string) => void }) {
   const [activeTab, setActiveTab] = useState<'calculate' | 'data'>('calculate')
   const [products, setProducts] = useState<ProductOption[]>([])
+  const productChoices = useMemo<MaterialChoiceOption[]>(() => products.map((product) => ({
+    id: product.id,
+    sku: product.sku,
+    name: product.name,
+    unit: product.unit,
+    badge: product.bom?.version || '无BOM',
+    badgeTone: product.bom ? 'success' : 'neutral',
+  })), [products])
   const [runs, setRuns] = useState<BomCostRun[]>([])
   const [costData, setCostData] = useState<CostData | null>(null)
   const [costKeyword, setCostKeyword] = useState('')
@@ -549,10 +455,10 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
                   <label className="text-sm text-gray-700">名称<input value={costObjectForm.name} onChange={(event) => setCostObjectForm((current) => ({ ...current, name: event.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2" placeholder="如 包装人工" /></label>
                   <label className="text-sm text-gray-700">类型<input value={costObjectForm.objectType} onChange={(event) => setCostObjectForm((current) => ({ ...current, objectType: event.target.value || 'MANUAL' }))} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2" /></label>
                   <label className="text-sm text-gray-700">单位<input value={costObjectForm.unit} onChange={(event) => setCostObjectForm((current) => ({ ...current, unit: event.target.value || '件' }))} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2" /></label>
-                  <NumberField label="单位材料成本" value={costObjectForm.materialCostPerUnit} unit="元/单位" onChange={(value) => setCostObjectForm((current) => ({ ...current, materialCostPerUnit: value }))} />
-                  <NumberField label="单位人工工时" value={costObjectForm.laborHoursPerUnit} unit="小时/单位" onChange={(value) => setCostObjectForm((current) => ({ ...current, laborHoursPerUnit: value }))} />
-                  <NumberField label="单位机时" value={costObjectForm.machineHoursPerUnit} unit="小时/单位" onChange={(value) => setCostObjectForm((current) => ({ ...current, machineHoursPerUnit: value }))} />
-                  <NumberField label="其他直接费用" value={costObjectForm.directCostPerUnit} unit="元/单位" onChange={(value) => setCostObjectForm((current) => ({ ...current, directCostPerUnit: value }))} />
+                  <NumberInputField label="单位材料成本" value={costObjectForm.materialCostPerUnit} unit="元/单位" onChange={(value) => setCostObjectForm((current) => ({ ...current, materialCostPerUnit: value }))} />
+                  <NumberInputField label="单位人工工时" value={costObjectForm.laborHoursPerUnit} unit="小时/单位" onChange={(value) => setCostObjectForm((current) => ({ ...current, laborHoursPerUnit: value }))} />
+                  <NumberInputField label="单位机时" value={costObjectForm.machineHoursPerUnit} unit="小时/单位" onChange={(value) => setCostObjectForm((current) => ({ ...current, machineHoursPerUnit: value }))} />
+                  <NumberInputField label="其他直接费用" value={costObjectForm.directCostPerUnit} unit="元/单位" onChange={(value) => setCostObjectForm((current) => ({ ...current, directCostPerUnit: value }))} />
                 </div>
                 <button onClick={saveCostObject} disabled={savingCostObject} className="mt-4 w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{savingCostObject ? '保存中...' : '保存成本对象'}</button>
               </div>
@@ -576,9 +482,9 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
 
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <SummaryCard label="成本对象" value={`${costData?.costObjects.length || 0}`} hint="可加入 BOM 的非库存成本" primary />
-                <SummaryCard label="加工工艺" value={`${costData?.processTemplates.length || 0}`} hint="可计算工时机时模板" />
-                <SummaryCard label="有 BOM 物料" value={`${(costData?.products || []).filter((item) => item.bom).length}`} hint="可进行 BOM 成本计算" />
+                <MetricCard label="成本对象" value={`${costData?.costObjects.length || 0}`} hint="可加入 BOM 的非库存成本" tone="primary" />
+                <MetricCard label="加工工艺" value={`${costData?.processTemplates.length || 0}`} hint="可计算工时机时模板" />
+                <MetricCard label="有 BOM 物料" value={`${(costData?.products || []).filter((item) => item.bom).length}`} hint="可进行 BOM 成本计算" />
               </div>
 
               <div className="rounded-lg bg-white p-5 shadow-sm">
@@ -659,7 +565,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
         <div className="space-y-4">
           <div className="rounded-lg bg-white p-5 shadow-sm">
             <h3 className="mb-4 font-semibold text-gray-900">物料</h3>
-            <ProductSearchSelect value={selectedProductId} products={products} onChange={selectProduct} />
+            <MaterialChoiceSearch value={selectedProductId} options={productChoices} onChange={selectProduct} placeholder="输入物料编码或名称" />
             {selectedProduct && (
               <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm">
                 <div className="font-medium text-gray-900">{selectedProduct.name}</div>
@@ -671,10 +577,10 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
           <div className="rounded-lg bg-white p-5 shadow-sm">
             <h3 className="mb-4 font-semibold text-gray-900">计算参数</h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1">
-              <NumberField label="数量基准" value={form.quantityBasis} unit={selectedProduct?.unit || '件'} onChange={(value) => setForm((current) => ({ ...current, quantityBasis: value || 1 }))} />
-              <NumberField label="人工小时费率" value={form.laborRatePerHour} unit="元/小时" onChange={(value) => setForm((current) => ({ ...current, laborRatePerHour: value }))} />
-              <NumberField label="机时费率" value={form.machineRatePerHour} unit="元/小时" onChange={(value) => setForm((current) => ({ ...current, machineRatePerHour: value }))} />
-              <NumberField label="固定费用分摊" value={form.overheadCost} unit="元/次" onChange={(value) => setForm((current) => ({ ...current, overheadCost: value }))} />
+              <NumberInputField label="数量基准" value={form.quantityBasis} unit={selectedProduct?.unit || '件'} onChange={(value) => setForm((current) => ({ ...current, quantityBasis: value || 1 }))} />
+              <NumberInputField label="人工小时费率" value={form.laborRatePerHour} unit="元/小时" onChange={(value) => setForm((current) => ({ ...current, laborRatePerHour: value }))} />
+              <NumberInputField label="机时费率" value={form.machineRatePerHour} unit="元/小时" onChange={(value) => setForm((current) => ({ ...current, machineRatePerHour: value }))} />
+              <NumberInputField label="固定费用分摊" value={form.overheadCost} unit="元/次" onChange={(value) => setForm((current) => ({ ...current, overheadCost: value }))} />
             </div>
           </div>
 
@@ -743,16 +649,16 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
           ) : (
             <>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <SummaryCard label="单位成本" value={money(displayedRun.unitCost)} hint={runStats?.basisText} primary />
-                <SummaryCard label="总成本" value={money(displayedRun.totalCost)} hint={`BOM ${displayedRun.bomVersion || 'v1'}`} primary />
-                <SummaryCard label="材料成本" value={money(displayedRun.totalMaterialCost)} hint="库存单价" />
-                <SummaryCard label="加工成本" value={money(runStats?.processCost || 0)} hint={`人工 ${money(displayedRun.totalLaborCost)} · 机时 ${money(displayedRun.totalMachineCost)}`} />
+                <MetricCard label="单位成本" value={money(displayedRun.unitCost)} hint={runStats?.basisText} tone="primary" />
+                <MetricCard label="总成本" value={money(displayedRun.totalCost)} hint={`BOM ${displayedRun.bomVersion || 'v1'}`} tone="primary" />
+                <MetricCard label="材料成本" value={money(displayedRun.totalMaterialCost)} hint="库存单价" />
+                <MetricCard label="加工成本" value={money(runStats?.processCost || 0)} hint={`人工 ${money(displayedRun.totalLaborCost)} · 机时 ${money(displayedRun.totalMachineCost)}`} />
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <SummaryCard label="人工工时" value={`${qty(displayedRun.lines.reduce((sum, line) => sum + Number(line.laborHours || 0), 0), 3)} h`} />
-                <SummaryCard label="机时" value={`${qty(displayedRun.lines.reduce((sum, line) => sum + Number(line.machineHours || 0), 0), 3)} h`} />
-                <SummaryCard label="固定费用" value={money(runStats?.overhead || 0)} hint="本次快照分摊" />
+                <MetricCard label="人工工时" value={`${qty(displayedRun.lines.reduce((sum, line) => sum + Number(line.laborHours || 0), 0), 3)} h`} />
+                <MetricCard label="机时" value={`${qty(displayedRun.lines.reduce((sum, line) => sum + Number(line.machineHours || 0), 0), 3)} h`} />
+                <MetricCard label="固定费用" value={money(runStats?.overhead || 0)} hint="本次快照分摊" />
               </div>
 
               <div className="rounded-lg bg-white p-5 shadow-sm">

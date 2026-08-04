@@ -1,7 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import useDismissibleSearchPopup from './useDismissibleSearchPopup'
+import { useEffect, useMemo, useState } from 'react'
+import MaterialChoiceSearch from './MaterialChoiceSearch'
+import MetricCard from './MetricCard'
+import NumberInputField from './NumberInputField'
 
 interface ProcessOption { id: string; code: string; name: string; category: string }
 interface ProductOption { id: string; sku: string; name: string; unit: string }
@@ -36,91 +38,6 @@ interface MixRow {
   materialCostPerPiece: number
   laborHoursPerPiece: number
   machineHoursPerPiece: number
-}
-
-function NumberField({ label, value, unit, onChange }: { label: string; value: number; unit: string; onChange: (value: number) => void }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-sm font-medium text-gray-700">{label}</span>
-      <div className="flex overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500">
-        <input type="number" min="0" step="any" value={value || ''} onChange={(event) => onChange(Number(event.target.value))} className="min-w-0 flex-1 px-3 py-2 outline-none" />
-        <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-sm text-gray-500">{unit}</span>
-      </div>
-    </label>
-  )
-}
-
-function ResultCard({ label, value, hint, primary = false }: { label: string; value: string; hint?: string; primary?: boolean }) {
-  return (
-    <div className={`rounded-lg border p-4 ${primary ? 'border-blue-200 bg-blue-50' : 'border-gray-200 bg-white'}`}>
-      <div className="text-sm text-gray-500">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold ${primary ? 'text-blue-700' : 'text-gray-900'}`}>{value}</div>
-      {hint && <div className="mt-1 text-xs text-gray-500">{hint}</div>}
-    </div>
-  )
-}
-
-function ProductSearchSelect({
-  value,
-  onChange,
-  products,
-  placeholder,
-  emptyText = '暂无物料',
-}: {
-  value: string
-  onChange: (value: string) => void
-  products: ProductOption[]
-  placeholder: string
-  emptyText?: string
-}) {
-  const [query, setQuery] = useState('')
-  const [open, setOpen] = useState(false)
-  const closePopup = useCallback(() => {
-    setOpen(false)
-    setQuery('')
-  }, [])
-  const rootRef = useDismissibleSearchPopup<HTMLDivElement>(open, closePopup)
-  const selected = products.find((product) => product.id === value)
-  const displayValue = open ? query : (selected ? `${selected.sku} · ${selected.name}` : query)
-  const filtered = products.filter((product) => {
-    const text = `${product.sku} ${product.name}`.toLowerCase()
-    return text.includes(query.trim().toLowerCase())
-  }).slice(0, 20)
-
-  return (
-    <div ref={rootRef} className="space-y-2">
-      <input
-        value={displayValue}
-        onFocus={() => setOpen(true)}
-        onChange={(event) => { setQuery(event.target.value); setOpen(true); if (value) onChange('') }}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') closePopup()
-        }}
-        placeholder={placeholder}
-        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-      />
-      {open && <div className="max-h-44 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 p-1">
-        {products.length === 0 ? (
-          <div className="px-3 py-2 text-sm text-gray-500">{emptyText}</div>
-        ) : filtered.length === 0 ? (
-          <div className="px-3 py-2 text-sm text-gray-500">没有匹配物料</div>
-        ) : (
-          filtered.map((product) => (
-            <button
-              key={product.id}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => { onChange(product.id); closePopup() }}
-              className={`block w-full rounded px-3 py-2 text-left text-sm hover:bg-white ${value === product.id ? 'bg-white text-blue-700' : 'text-gray-700'}`}
-            >
-              <span className="font-mono text-xs text-gray-500">{product.sku}</span>
-              <span className="ml-2">{product.name}</span>
-            </button>
-          ))
-        )}
-      </div>}
-    </div>
-  )
 }
 
 function SaveProductCostPanel({
@@ -167,7 +84,7 @@ function SaveProductCostPanel({
           <option value="EXISTING">绑定已有物料</option>
         </select>
         {productKind === 'EXISTING' ? (
-          <ProductSearchSelect value={selectedProductId} onChange={setSelectedProductId} products={productOptions} placeholder="输入物料编码或名称筛选" />
+          <MaterialChoiceSearch value={selectedProductId} onChange={setSelectedProductId} options={productOptions} placeholder="输入物料编码或名称筛选" />
         ) : (
           <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-500">临时成本对象会保留单件材料成本、人工时和机时，后续可直接加入混合测算。</div>
         )}
@@ -176,7 +93,7 @@ function SaveProductCostPanel({
         <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-600">BOM 组成</div>
         <div className="space-y-2">
           <button type="button" onClick={() => setBomProductId('')} className={`rounded-lg border px-3 py-2 text-sm ${bomProductId ? 'border-gray-200 text-gray-600' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>不加入物料 BOM</button>
-          <ProductSearchSelect value={bomProductId} onChange={setBomProductId} products={productOptions} placeholder="输入物料编码或名称，选择要加入的 BOM" />
+          <MaterialChoiceSearch value={bomProductId} onChange={setBomProductId} options={productOptions} placeholder="输入物料编码或名称，选择要加入的 BOM" />
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">{processOptions.map((process) => <label key={process.id} className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs ${selectedProcessIds.includes(process.id) ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}><input type="checkbox" className="mr-1.5" checked={selectedProcessIds.includes(process.id)} onChange={(event) => setSelectedProcessIds(event.target.checked ? [...selectedProcessIds, process.id] : selectedProcessIds.filter((id) => id !== process.id))} />{process.name}</label>)}</div>
@@ -425,31 +342,31 @@ export default function SawingCostCalculatorPage() {
         <div className="rounded-lg bg-white p-5 shadow-sm">
           <h3 className="mb-4 font-semibold text-gray-900">材料与售价</h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1">
-            <NumberField label="材料长度" value={form.materialLength} unit="mm" onChange={(value) => update('materialLength', value)} />
-            <NumberField label="材料总重量" value={form.materialWeight} unit="kg" onChange={(value) => update('materialWeight', value)} />
-            <NumberField label="工件长度" value={form.workpieceLength} unit="mm" onChange={(value) => update('workpieceLength', value)} />
-            <NumberField label="锯片厚度 / 锯缝" value={form.bladeThickness} unit="mm" onChange={(value) => update('bladeThickness', value)} />
-            <NumberField label="原材料单价" value={form.rawMaterialPrice} unit="元/kg" onChange={(value) => update('rawMaterialPrice', value)} />
-            <NumberField label="废屑回收单价" value={form.sawdustPrice} unit="元/kg" onChange={(value) => update('sawdustPrice', value)} />
-            <NumberField label="剩余废料单价" value={form.scrapPrice} unit="元/kg" onChange={(value) => update('scrapPrice', value)} />
-            <NumberField label="销售单价" value={form.finishedPrice} unit="元/件" onChange={(value) => update('finishedPrice', value)} />
+            <NumberInputField label="材料长度" value={form.materialLength} unit="mm" onChange={(value) => update('materialLength', value)} />
+            <NumberInputField label="材料总重量" value={form.materialWeight} unit="kg" onChange={(value) => update('materialWeight', value)} />
+            <NumberInputField label="工件长度" value={form.workpieceLength} unit="mm" onChange={(value) => update('workpieceLength', value)} />
+            <NumberInputField label="锯片厚度 / 锯缝" value={form.bladeThickness} unit="mm" onChange={(value) => update('bladeThickness', value)} />
+            <NumberInputField label="原材料单价" value={form.rawMaterialPrice} unit="元/kg" onChange={(value) => update('rawMaterialPrice', value)} />
+            <NumberInputField label="废屑回收单价" value={form.sawdustPrice} unit="元/kg" onChange={(value) => update('sawdustPrice', value)} />
+            <NumberInputField label="剩余废料单价" value={form.scrapPrice} unit="元/kg" onChange={(value) => update('scrapPrice', value)} />
+            <NumberInputField label="销售单价" value={form.finishedPrice} unit="元/件" onChange={(value) => update('finishedPrice', value)} />
           </div>
         </div>
         <div className="space-y-4">
           {materialResult.quantity === 0 ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">当前材料长度不足以切出一件成品，请检查材料、工件长度和锯片厚度。</div> : <>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <ResultCard label="可加工数量" value={`${materialResult.quantity} 件`} hint={`每件占用 ${(form.workpieceLength + form.bladeThickness).toFixed(2)} mm`} primary />
-              <ResultCard label="材料利用率" value={`${materialResult.utilization.toFixed(2)}%`} hint="成品重量 ÷ 材料总重量" primary />
-              <ResultCard label="单件材料成本" value={money(materialResult.materialCostPerPiece)} hint="扣除废屑和边料回收" />
-              <ResultCard label="单件材料毛利" value={money(materialResult.profitPerPiece)} hint={`销售单价 ${money(form.finishedPrice)}`} primary />
+              <MetricCard label="可加工数量" value={`${materialResult.quantity} 件`} hint={`每件占用 ${(form.workpieceLength + form.bladeThickness).toFixed(2)} mm`} tone="primary" />
+              <MetricCard label="材料利用率" value={`${materialResult.utilization.toFixed(2)}%`} hint="成品重量 ÷ 材料总重量" tone="primary" />
+              <MetricCard label="单件材料成本" value={money(materialResult.materialCostPerPiece)} hint="扣除废屑和边料回收" />
+              <MetricCard label="单件材料毛利" value={money(materialResult.profitPerPiece)} hint={`销售单价 ${money(form.finishedPrice)}`} tone="primary" />
             </div>
             <div className="rounded-lg bg-white p-5 shadow-sm">
               <h3 className="mb-3 font-semibold text-gray-900">材料成本拆解</h3>
               <div className="grid grid-cols-2 gap-3 text-sm lg:grid-cols-4">
-                <ResultCard label="成品用料" value={weight(materialResult.productWeight)} hint={`${materialResult.productLength.toFixed(2)} mm`} />
-                <ResultCard label="锯缝废屑" value={weight(materialResult.sawdustWeight)} hint={`${materialResult.kerfLength.toFixed(2)} mm`} />
-                <ResultCard label="剩余边料" value={weight(materialResult.scrapWeight)} hint={`${materialResult.remainderLength.toFixed(2)} mm`} />
-                <ResultCard label="整根材料毛利" value={money(materialResult.totalProfit)} hint={`毛利率 ${materialResult.grossMargin.toFixed(2)}%`} />
+                <MetricCard label="成品用料" value={weight(materialResult.productWeight)} hint={`${materialResult.productLength.toFixed(2)} mm`} />
+                <MetricCard label="锯缝废屑" value={weight(materialResult.sawdustWeight)} hint={`${materialResult.kerfLength.toFixed(2)} mm`} />
+                <MetricCard label="剩余边料" value={weight(materialResult.scrapWeight)} hint={`${materialResult.remainderLength.toFixed(2)} mm`} />
+                <MetricCard label="整根材料毛利" value={money(materialResult.totalProfit)} hint={`毛利率 ${materialResult.grossMargin.toFixed(2)}%`} />
               </div>
               <div className="mt-4 space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-gray-600">原材料总成本</span><span>{money(materialResult.rawCost)}</span></div>
@@ -482,20 +399,20 @@ export default function SawingCostCalculatorPage() {
         <div className="rounded-lg bg-white p-5 shadow-sm">
           <h3 className="mb-4 font-semibold text-gray-900">班次产能参数</h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1">
-            <NumberField label="班次人数" value={shiftForm.workerCount} unit="人" onChange={(value) => updateShift('workerCount', value)} />
-            <NumberField label="每班时长" value={shiftForm.shiftHours} unit="小时" onChange={(value) => updateShift('shiftHours', value)} />
-            <NumberField label="人工小时成本" value={shiftForm.laborRatePerHour} unit="元/小时" onChange={(value) => updateShift('laborRatePerHour', value)} />
-            <NumberField label="生产效率" value={shiftForm.piecesPerLaborHour} unit="件/人工时" onChange={(value) => updateShift('piecesPerLaborHour', value)} />
-            <NumberField label="设备数量" value={shiftForm.machineCount} unit="台" onChange={(value) => updateShift('machineCount', value)} />
-            <NumberField label="机时成本" value={shiftForm.machineRatePerHour} unit="元/小时" onChange={(value) => updateShift('machineRatePerHour', value)} />
+            <NumberInputField label="班次人数" value={shiftForm.workerCount} unit="人" onChange={(value) => updateShift('workerCount', value)} />
+            <NumberInputField label="每班时长" value={shiftForm.shiftHours} unit="小时" onChange={(value) => updateShift('shiftHours', value)} />
+            <NumberInputField label="人工小时成本" value={shiftForm.laborRatePerHour} unit="元/小时" onChange={(value) => updateShift('laborRatePerHour', value)} />
+            <NumberInputField label="生产效率" value={shiftForm.piecesPerLaborHour} unit="件/人工时" onChange={(value) => updateShift('piecesPerLaborHour', value)} />
+            <NumberInputField label="设备数量" value={shiftForm.machineCount} unit="台" onChange={(value) => updateShift('machineCount', value)} />
+            <NumberInputField label="机时成本" value={shiftForm.machineRatePerHour} unit="元/小时" onChange={(value) => updateShift('machineRatePerHour', value)} />
           </div>
         </div>
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <ResultCard label="每班产量" value={`${shiftResult.quantity.toFixed(0)} 件`} hint={`${shiftResult.laborHours.toFixed(2)} 人工时`} primary />
-            <ResultCard label="每班营业收入" value={money(shiftResult.revenue)} hint={`${money(form.finishedPrice)} / 件`} primary />
-            <ResultCard label="每班总成本" value={money(shiftResult.totalCost)} hint={`材料 ${money(shiftResult.materialCost)}`} />
-            <ResultCard label="每班经营利润" value={money(shiftResult.profit)} hint={`利润率 ${shiftResult.margin.toFixed(2)}%`} primary />
+            <MetricCard label="每班产量" value={`${shiftResult.quantity.toFixed(0)} 件`} hint={`${shiftResult.laborHours.toFixed(2)} 人工时`} tone="primary" />
+            <MetricCard label="每班营业收入" value={money(shiftResult.revenue)} hint={`${money(form.finishedPrice)} / 件`} tone="primary" />
+            <MetricCard label="每班总成本" value={money(shiftResult.totalCost)} hint={`材料 ${money(shiftResult.materialCost)}`} />
+            <MetricCard label="每班经营利润" value={money(shiftResult.profit)} hint={`利润率 ${shiftResult.margin.toFixed(2)}%`} tone="primary" />
           </div>
           <div className="rounded-lg bg-white p-5 shadow-sm">
             <h3 className="mb-3 font-semibold text-gray-900">班次收入拆解</h3>
@@ -515,16 +432,16 @@ export default function SawingCostCalculatorPage() {
           <div className="rounded-lg bg-white p-5 shadow-sm">
             <h3 className="mb-4 font-semibold text-gray-900">规模跨度</h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1">
-              <NumberField label="计划班次数" value={scaleForm.plannedShifts} unit="班" onChange={(value) => updateScale('plannedShifts', value)} />
-              <NumberField label="每台每班机时" value={scaleForm.machineHoursPerShift} unit="小时" onChange={(value) => updateScale('machineHoursPerShift', value)} />
-              <NumberField label="其他期间费用" value={scaleForm.otherCost} unit="元" onChange={(value) => updateScale('otherCost', value)} />
+              <NumberInputField label="计划班次数" value={scaleForm.plannedShifts} unit="班" onChange={(value) => updateScale('plannedShifts', value)} />
+              <NumberInputField label="每台每班机时" value={scaleForm.machineHoursPerShift} unit="小时" onChange={(value) => updateScale('machineHoursPerShift', value)} />
+              <NumberInputField label="其他期间费用" value={scaleForm.otherCost} unit="元" onChange={(value) => updateScale('otherCost', value)} />
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <ResultCard label="规模营业收入" value={money(scaleResult.totalRevenue)} hint={`${mixRows.length} 个物料组合`} primary />
-            <ResultCard label="规模总成本" value={money(scaleResult.totalCost)} hint={`材料 ${money(scaleResult.materialCost)}`} />
-            <ResultCard label="规模经营利润" value={money(scaleResult.profit)} hint={`利润率 ${scaleResult.margin.toFixed(2)}%`} primary />
-            <ResultCard label="所需班次" value={`${scaleResult.requiredShifts.toFixed(1)} 班`} hint={`人工负荷 ${scaleResult.laborLoad.toFixed(1)}% · 机时负荷 ${scaleResult.machineLoad.toFixed(1)}%`} />
+            <MetricCard label="规模营业收入" value={money(scaleResult.totalRevenue)} hint={`${mixRows.length} 个物料组合`} tone="primary" />
+            <MetricCard label="规模总成本" value={money(scaleResult.totalCost)} hint={`材料 ${money(scaleResult.materialCost)}`} />
+            <MetricCard label="规模经营利润" value={money(scaleResult.profit)} hint={`利润率 ${scaleResult.margin.toFixed(2)}%`} tone="primary" />
+            <MetricCard label="所需班次" value={`${scaleResult.requiredShifts.toFixed(1)} 班`} hint={`人工负荷 ${scaleResult.laborLoad.toFixed(1)}% · 机时负荷 ${scaleResult.machineLoad.toFixed(1)}%`} />
           </div>
         </div>
 

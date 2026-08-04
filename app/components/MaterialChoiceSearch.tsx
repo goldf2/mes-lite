@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
+import useSearchPopupPlacement from './useSearchPopupPlacement'
 import { appInputClassName } from './FormField'
 
 export interface MaterialChoiceOption {
@@ -10,6 +11,8 @@ export interface MaterialChoiceOption {
   name: string
   category?: string
   unit?: string
+  badge?: string
+  badgeTone?: 'neutral' | 'success'
   customer?: { id: string; code?: string; name: string } | null
 }
 
@@ -18,16 +21,21 @@ export default function MaterialChoiceSearch({
   options,
   onChange,
   placeholder = '输入物料编码或名称筛选',
+  emptyText = '暂无物料',
+  maxOptions = 50,
 }: {
   value: string
   options: MaterialChoiceOption[]
   onChange: (value: string) => void
   placeholder?: string
+  emptyText?: string
+  maxOptions?: number
 }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
   const listboxId = useId()
+  const { openUpward, popupMaxHeight, updatePopupPlacement } = useSearchPopupPlacement()
   const closePopup = useCallback(() => {
     setOpen(false)
     setQuery('')
@@ -39,7 +47,7 @@ export default function MaterialChoiceSearch({
   const filtered = useMemo(() => options.filter((option) => {
     if (!keyword) return true
     return `${option.sku} ${option.name} ${option.category || ''} ${option.customer?.name || ''}`.toLowerCase().includes(keyword)
-  }).slice(0, 50), [keyword, options])
+  }).slice(0, maxOptions), [keyword, maxOptions, options])
 
   useEffect(() => {
     if (activeIndex >= filtered.length) setActiveIndex(filtered.length - 1)
@@ -60,11 +68,13 @@ export default function MaterialChoiceSearch({
         aria-expanded={open}
         aria-controls={listboxId}
         value={open ? query : (selected ? `${selected.sku} · ${selected.name}` : query)}
-        onFocus={() => {
+        onFocus={(event) => {
+          updatePopupPlacement(event.currentTarget)
           setOpen(true)
           setActiveIndex(-1)
         }}
         onChange={(event) => {
+          updatePopupPlacement(event.currentTarget)
           setQuery(event.target.value)
           setOpen(true)
           setActiveIndex(-1)
@@ -77,6 +87,7 @@ export default function MaterialChoiceSearch({
           }
           if (event.key === 'ArrowDown') {
             event.preventDefault()
+            updatePopupPlacement(event.currentTarget)
             setOpen(true)
             setActiveIndex((current) => Math.min(current + 1, filtered.length - 1))
           }
@@ -93,9 +104,14 @@ export default function MaterialChoiceSearch({
         className={appInputClassName}
       />
       {open && (
-        <div id={listboxId} role="listbox" className="absolute left-0 right-0 z-[90] mt-1 max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
+        <div
+          id={listboxId}
+          role="listbox"
+          style={{ maxHeight: popupMaxHeight }}
+          className={`absolute left-0 right-0 z-[90] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg ${openUpward ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+        >
           {filtered.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-gray-500">没有匹配物料</div>
+            <div className="px-3 py-2 text-sm text-gray-500">{options.length === 0 ? emptyText : '没有匹配物料'}</div>
           ) : (
             filtered.map((option, index) => (
               <button
@@ -114,7 +130,11 @@ export default function MaterialChoiceSearch({
                     <span className="ml-2">{option.name}</span>
                     {option.customer && <span className="ml-2 text-xs text-gray-500">{option.customer.name}</span>}
                   </span>
-                  {option.unit && <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{option.unit}</span>}
+                  {(option.badge || option.unit) && (
+                    <span className={`shrink-0 rounded px-2 py-0.5 text-xs ${option.badgeTone === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+                      {option.badge || option.unit}
+                    </span>
+                  )}
                 </div>
               </button>
             ))

@@ -9,6 +9,7 @@ import SearchableSelect from './SearchableSelect'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import TopBarPortal from './TopBarPortal'
 import { appTextareaClassName } from './FormField'
+import MetricCard from './MetricCard'
 
 interface LocationOption {
   id: string
@@ -297,10 +298,10 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
           <h2 className="text-xl font-semibold text-gray-900">流程转移</h2>
           <p className="mt-1 text-sm text-gray-500">同一物料、同一数量在不同库位或流程节点之间移动；不使用 BOM，不改变总库存和总成本。</p>
           <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Metric label="已确认" value={summary.confirmed} />
-            <Metric label="草稿" value={summary.draft} />
-            <Metric label="已冲销" value={summary.reversed} tone="text-red-700" />
-            <Metric label="涉及物料" value={summary.materialIds.size} tone="text-blue-700" />
+            <MetricCard label="已确认" value={summary.confirmed} compact />
+            <MetricCard label="草稿" value={summary.draft} compact />
+            <MetricCard label="已冲销" value={summary.reversed} tone="danger" compact />
+            <MetricCard label="涉及物料" value={summary.materialIds.size} tone="primary" compact />
           </div>
         </section>
 
@@ -514,15 +515,6 @@ function LocationMaterialCard({
       </div>
       <div className="mt-2 truncate rounded bg-gray-50 px-2 py-1 text-xs text-blue-700">{location ? locationLabel(location) : '未选择库位'}</div>
       {detail && <div className="mt-1 text-xs text-gray-500">{detail}</div>}
-    </div>
-  )
-}
-
-function Metric({ label, value, tone = 'text-gray-900' }: { label: string; value: string | number; tone?: string }) {
-  return (
-    <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className={`mt-1 text-xl font-semibold ${tone}`}>{value}</div>
     </div>
   )
 }

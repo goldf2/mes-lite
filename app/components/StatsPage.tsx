@@ -15,6 +15,8 @@ import EmployeeMultiSelect, { EmployeeChoice } from './EmployeeMultiSelect'
 import { calculateProductionConsumption, ProductionLossMode } from '@/lib/production-consumption'
 import SortableTableHeader from './SortableTableHeader'
 import useClientTableSort from './useClientTableSort'
+import MetricCard from './MetricCard'
+import NumberInputField from './NumberInputField'
 
 interface BomItem {
   id: string
@@ -479,10 +481,10 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
           <p className="mt-1 text-sm text-gray-500">按 BOM 每批投入和主产出批量折算原料耗用；产出状态由入库库位表达，不再固定区分合格、不良和报废</p>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Metric label="已确认记录" value={summary.confirmed} />
-          <Metric label="草稿记录" value={summary.draft} />
-          <Metric label="已冲销记录" value={summary.reversed} tone="text-red-700" />
-          <Metric label="产出使用库位" value={summary.locationIds.size} tone="text-blue-700" />
+          <MetricCard label="已确认记录" value={summary.confirmed} compact />
+          <MetricCard label="草稿记录" value={summary.draft} compact />
+          <MetricCard label="已冲销记录" value={summary.reversed} tone="danger" compact />
+          <MetricCard label="产出使用库位" value={summary.locationIds.size} tone="primary" compact />
         </div>
       </section>
 
@@ -701,7 +703,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
               )}
 
               <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <NumberField label="产出入库数量" value={form.outputQty} onChange={(outputQty) => setForm({ ...form, outputQty })} />
+                <NumberInputField label="产出入库数量" value={form.outputQty} onChange={(outputQty) => setForm({ ...form, outputQty })} />
                 <div className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800">
                   产出状态由所选库位决定；可在“配置 / 库位配置”中新增相应业务库位。
                 </div>
@@ -889,15 +891,6 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
   )
 }
 
-function Metric({ label, value, tone = 'text-gray-900' }: { label: string; value: string | number; tone?: string }) {
-  return (
-    <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className={`mt-1 text-xl font-semibold ${tone}`}>{value}</div>
-    </div>
-  )
-}
-
 function MaterialPreviewCard({
   label,
   material,
@@ -937,21 +930,5 @@ function QuantityCell({ label, value, tone }: { label: string; value: number; to
       <div className="text-xs text-gray-500">{label}</div>
       <div className={`mt-1 font-semibold ${tone}`}>{numberText(value)}</div>
     </div>
-  )
-}
-
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return (
-    <label className="text-sm text-gray-700">
-      {label}
-      <input
-        type="number"
-        min={0}
-        step="any"
-        value={value || ''}
-        onChange={(event) => onChange(Math.max(0, Number(event.target.value)))}
-        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2"
-      />
-    </label>
   )
 }
