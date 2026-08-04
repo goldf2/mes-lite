@@ -47,6 +47,7 @@ async function main() {
     ids.category = category.id
     const instruction = await prisma.workInstruction.create({
       data: {
+        title: '设备工作中心文档验证',
         materialId: material.id,
         categoryId: category.id,
         workCenters: { connect: { id: workCenter.id } },

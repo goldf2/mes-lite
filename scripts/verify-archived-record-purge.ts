@@ -300,6 +300,7 @@ async function main() {
     assert.ok(documentCategory, '缺少产品文档类别')
     const workInstruction = await prisma.workInstruction.create({
       data: {
+        title: '归档产品文档验证',
         materialId: documentMaterial.id,
         categoryId: documentCategory.id,
         deletedAt: new Date(),

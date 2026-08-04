@@ -5,13 +5,16 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { parseCsvFilter } from '@/lib/status-filter'
 import { withAttachmentUrls } from '@/lib/attachment-urls'
+import { DocumentContentValidationError, normalizeDocumentContent } from '@/lib/document-content'
 
 const workInstructionSchema = z.object({
-  materialId: z.string().min(1, '请选择关联产品'),
+  title: z.string().trim().min(1, '请输入文档标题').max(200, '文档标题不能超过 200 个字符'),
+  materialId: z.string().trim().optional().nullable(),
   categoryId: z.string().min(1, '请选择文档类别'),
   version: z.string().optional(),
   status: z.enum(['ACTIVE', 'DRAFT', 'ARCHIVED']).optional(),
   workCenterIds: z.array(z.string()).default([]),
+  contentJson: z.string().optional().nullable(),
   note: z.string().optional(),
 })
 
@@ -70,17 +73,19 @@ export async function GET(req: NextRequest) {
     if (statuses.length === 1) where.status = statuses[0]
     else if (statuses.length > 1) where.status = { in: statuses }
     if (customerId === '__UNASSIGNED__') {
-      andFilters.push({ material: { is: { customerId: null } } })
+      andFilters.push({ OR: [{ materialId: null }, { material: { is: { customerId: null } } }] })
     } else if (customerId) {
       andFilters.push({ material: { is: { customerId } } })
     }
-    if (materialId === '__UNASSIGNED__') where.id = { in: [] }
+    if (materialId === '__UNASSIGNED__') where.materialId = null
     else if (materialId) where.materialId = materialId
     if (fileOwnerIds) {
       where.id = fileOwnerIds.length > 0 ? { in: fileOwnerIds } : { in: [] }
     }
     if (keyword) {
       where.OR = [
+        { title: { contains: keyword } },
+        { contentText: { contains: keyword } },
         { note: { contains: keyword } },
         { category: { is: { name: { contains: keyword } } } },
         { material: { is: { code: { contains: keyword } } } },
@@ -188,11 +193,12 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const data = workInstructionSchema.parse(body)
-    const material = await prisma.material.findFirst({
-      where: { id: data.materialId, category: 'FINISHED', deletedAt: null },
+    const materialId = data.materialId || null
+    const material = materialId ? await prisma.material.findFirst({
+      where: { id: materialId, category: 'FINISHED', deletedAt: null },
       select: { id: true, code: true, name: true },
-    })
-    if (!material) {
+    }) : null
+    if (materialId && !material) {
       return NextResponse.json({ error: '关联产品不存在或已归档' }, { status: 400 })
     }
     const category = await prisma.documentCategory.findUnique({
@@ -209,13 +215,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '存在无效或已停用的工作中心' }, { status: 400 })
     }
 
+    const content = normalizeDocumentContent(data.contentJson)
     const instruction = await prisma.workInstruction.create({
       data: {
         categoryId: category.id,
+        title: data.title,
         version: data.version || 'v1',
         status: data.status || 'ACTIVE',
-        materialId: material.id,
+        materialId: material?.id || null,
         workCenters: { connect: Array.from(new Set(data.workCenterIds)).map((id) => ({ id })) },
+        ...content,
         note: data.note || null,
       },
       include: {
@@ -246,7 +255,7 @@ export async function POST(req: NextRequest) {
       action: 'CREATE',
       entityType: 'WORK_INSTRUCTION',
       entityId: instruction.id,
-      entityLabel: `${material.code} · ${material.name}`,
+      entityLabel: instruction.title,
       afterData: instruction,
     })
 
@@ -254,6 +263,9 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
+    }
+    if (error instanceof DocumentContentValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('Create work instruction error:', error)
     return NextResponse.json({ error: '创建产品文档失败' }, { status: 500 })
@@ -276,11 +288,12 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: '产品文档不存在或已归档' }, { status: 404 })
     }
 
-    const material = await prisma.material.findFirst({
-      where: { id: data.materialId, category: 'FINISHED', deletedAt: null },
+    const materialId = data.materialId || null
+    const material = materialId ? await prisma.material.findFirst({
+      where: { id: materialId, category: 'FINISHED', deletedAt: null },
       select: { id: true, code: true, name: true },
-    })
-    if (!material) {
+    }) : null
+    if (materialId && !material) {
       return NextResponse.json({ error: '关联产品不存在或已归档' }, { status: 400 })
     }
     const category = await prisma.documentCategory.findUnique({
@@ -297,14 +310,17 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: '存在无效或已停用的工作中心' }, { status: 400 })
     }
 
+    const content = normalizeDocumentContent(data.contentJson)
     const instruction = await prisma.workInstruction.update({
       where: { id: data.id },
       data: {
         categoryId: category.id,
+        title: data.title,
         version: data.version || 'v1',
         status: data.status || 'ACTIVE',
-        materialId: material.id,
+        materialId: material?.id || null,
         workCenters: { set: Array.from(new Set(data.workCenterIds)).map((id) => ({ id })) },
+        ...content,
         note: data.note || null,
       },
       include: {
@@ -335,7 +351,7 @@ export async function PUT(req: NextRequest) {
       action: 'UPDATE',
       entityType: 'WORK_INSTRUCTION',
       entityId: instruction.id,
-      entityLabel: `${material.code} · ${material.name}`,
+      entityLabel: instruction.title,
       beforeData: current,
       afterData: instruction,
     })
@@ -344,6 +360,9 @@ export async function PUT(req: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
+    }
+    if (error instanceof DocumentContentValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('Update work instruction error:', error)
     return NextResponse.json({ error: '更新产品文档失败' }, { status: 500 })
@@ -376,12 +395,12 @@ export async function DELETE(req: NextRequest) {
       action: 'ARCHIVE',
       entityType: 'WORK_INSTRUCTION',
       entityId: archived.id,
-      entityLabel: `${instruction.material.code} · ${instruction.material.name}`,
+      entityLabel: instruction.title,
       beforeData: instruction,
       afterData: archived,
     })
 
-    return NextResponse.json({ success: true, message: '产品文档已归档' })
+    return NextResponse.json({ success: true, message: '文档已归档' })
   } catch (error) {
     console.error('Archive work instruction error:', error)
     return NextResponse.json({ error: '归档产品文档失败' }, { status: 500 })

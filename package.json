@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.168",
+  "version": "0.1.169",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -30,6 +30,7 @@
     "verify:archived-record-purge": "tsx scripts/verify-archived-record-purge.ts",
     "verify:natural-code-sort": "tsx scripts/verify-natural-code-sort.ts",
     "verify:document-categories": "tsx scripts/verify-document-categories.ts",
+    "verify:online-documents": "tsx scripts/verify-online-documents.ts",
     "verify:material-measures": "tsx scripts/verify-material-measures.ts",
     "verify:production-consumption": "tsx scripts/verify-production-consumption.ts",
     "verify:production-order-actuals": "tsx scripts/verify-production-order-actuals.ts",
@@ -51,6 +52,9 @@
     "@napi-rs/canvas": "^1.0.3",
     "@prisma/client": "^5.13.0",
     "@radix-ui/react-collapsible": "^1.1.20",
+    "@tiptap/pm": "^3.29.2",
+    "@tiptap/react": "^3.29.2",
+    "@tiptap/starter-kit": "^3.29.2",
     "jsbarcode": "^3.12.3",
     "lucide-react": "^1.27.0",
     "next": "14.2.0",

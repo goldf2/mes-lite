@@ -51,6 +51,7 @@ async function main() {
 
     const document = await prisma.workInstruction.create({
       data: {
+        title: '产品文档类别验证',
         materialId: material.id,
         categoryId: child.id,
         note: '通用备注验证',

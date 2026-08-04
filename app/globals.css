@@ -10,6 +10,63 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
+.mes-online-document-content {
+  min-height: inherit;
+  color: rgb(31 41 55);
+  line-height: 1.7;
+}
+
+.mes-online-document-content > * + * {
+  margin-top: 0.75rem;
+}
+
+.mes-online-document-content h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.mes-online-document-content h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.mes-online-document-content ul,
+.mes-online-document-content ol {
+  padding-left: 1.5rem;
+}
+
+.mes-online-document-content ul {
+  list-style: disc;
+}
+
+.mes-online-document-content ol {
+  list-style: decimal;
+}
+
+.mes-online-document-content blockquote {
+  border-left: 3px solid rgb(147 197 253);
+  padding-left: 1rem;
+  color: rgb(75 85 99);
+}
+
+.mes-online-document-content pre {
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  background: rgb(15 23 42);
+  padding: 0.875rem;
+  color: white;
+}
+
+.mes-online-document-content p.is-editor-empty:first-child::before {
+  float: left;
+  height: 0;
+  color: rgb(156 163 175);
+  content: '输入作业步骤、参数、质量要求或注意事项…';
+  pointer-events: none;
+}
+
 @media (max-width: 1023px) {
   main.mes-mobile-main {
     padding-bottom: calc(var(--mes-mobile-nav-offset) + 1rem);

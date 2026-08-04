@@ -762,11 +762,15 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 | 模型 | 关键字段 | 含义 |
 | --- | --- | --- |
 | `DocumentCategory` | `name`、`parentId`、`sortOrder` | 文档类别；`parentId = null` 为一级类别，非空为二级类别，最多两级 |
-| `WorkInstruction` | `materialId`、`categoryId` | 产品文档必须关联成品物料和一个可用类别 |
+| `WorkInstruction` | `title`、`categoryId` | 文档必须有独立标题并关联一个可用类别 |
+| `WorkInstruction` | `materialId` | 可空的成品物料关联；为空表示跨产品通用文档，客户仅从非空关联产品读取 |
+| `WorkInstruction` | `contentJson`、`contentText` | `contentJson` 保存 Tiptap 结构化正文，`contentText` 是服务器提取的纯文本搜索投影 |
 | `WorkInstruction` | `version`、`status`、`note` | 保存版本、状态和通用备注；不保存具体工序实绩 |
 | `WorkInstruction.workCenters` | 多对多工作中心 | 工艺文件可声明一个或多个适用工作中心；空集合表示不限工作中心 |
 | `DocumentAttachment` | `ownerType = WORK_INSTRUCTION`、`ownerId` | 保存产品文档的图片或 PDF 文件 |
 | `DocumentAttachment` | `rotation` | 文件显示方向校正角度，只允许 `0 / 90 / 180 / 270`；不修改原文件 |
+
+正文 JSON 是可编辑事实源，纯文本只用于搜索，不允许由客户端单独写入。在线正文和附件可以独立存在，也可以同时维护；附件继续保存原始图片或 PDF，不嵌入正文 JSON。
 
 默认数据包含“作业指导书、图纸、工艺文件、检验文件、包装文件、设备文件、其他”等一级类别，但它们是可维护的数据库记录。“作业指导书”下可增加“机床作业、环境作业”等二级类别。已有文档引用或仍有子类别时禁止删除类别。
 

@@ -22,6 +22,8 @@ import useClientTableSort from './useClientTableSort'
 import ModalDialog, { ModalActions } from './ModalDialog'
 import { appInputClassName, appSelectClassName, appTextareaClassName } from './FormField'
 import AppButton from './AppButton'
+import OnlineDocumentEditor from './OnlineDocumentEditor'
+import { EMPTY_DOCUMENT_JSON } from '@/lib/document-content'
 
 interface Customer {
   id: string
@@ -64,11 +66,14 @@ interface WorkInstruction {
   id: string
   categoryId: string
   category: Pick<DocumentCategoryItem, 'id' | 'name' | 'parentId' | 'parent'>
+  title: string
   version: string
   status: string
-  materialId: string
-  material: MaterialOption
+  materialId?: string | null
+  material?: MaterialOption | null
   workCenters: WorkCenterOption[]
+  contentJson?: string | null
+  contentText?: string | null
   note?: string | null
   attachmentCount: number
   imageCount: number
@@ -86,11 +91,13 @@ interface PaginationState {
 }
 
 type WorkInstructionForm = {
+  title: string
   categoryId: string
   version: string
   status: string
   materialId: string
   workCenterIds: string[]
+  contentJson: string
   note: string
 }
 
@@ -110,11 +117,13 @@ const statusLabels = Object.fromEntries(instructionStatusOptions.map((item) => [
 
 function createEmptyForm(): WorkInstructionForm {
   return {
+    title: '',
     categoryId: '',
     version: 'v1',
     status: 'ACTIVE',
     materialId: '',
     workCenterIds: [],
+    contentJson: EMPTY_DOCUMENT_JSON,
     note: '',
   }
 }
@@ -207,7 +216,11 @@ function materialIncludesKeyword(material: MaterialOption, keyword: string) {
 }
 
 function getInstructionCustomerName(instruction: WorkInstruction) {
-  return instruction.material.customer?.name || '通用产品'
+  return instruction.material?.customer?.name || '通用/未绑定'
+}
+
+function getInstructionScopeLabel(instruction: WorkInstruction) {
+  return instruction.material ? `${instruction.material.code} · ${instruction.material.name}` : '通用文档'
 }
 
 function MaterialSearchSelect({
@@ -399,8 +412,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const availableCategoryOptions = useMemo(() => documentCategoryOptions(categories), [categories])
   const effectiveSelectedCategoryIds = selectedCategoryIds ?? availableCategoryOptions.map((option) => option.value)
   const instructionSort = useClientTableSort(items, {
-    code: (instruction) => instruction.material.code,
-    name: (instruction) => instruction.material.name,
+    code: (instruction) => instruction.material?.code || '',
+    name: (instruction) => instruction.title,
     category: (instruction) => documentCategoryLabel(instruction.category),
     status: (instruction) => statusLabels[instruction.status] || instruction.status,
     customer: (instruction) => getInstructionCustomerName(instruction),
@@ -587,11 +600,13 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     ensureMaterialOption(instruction.material)
     setEditing(instruction)
     setForm({
+      title: instruction.title,
       categoryId: instruction.categoryId,
       version: instruction.version || 'v1',
       status: instruction.status || 'ACTIVE',
-      materialId: instruction.materialId,
+      materialId: instruction.materialId || '',
       workCenterIds: instruction.workCenters.map((item) => item.id),
+      contentJson: instruction.contentJson || EMPTY_DOCUMENT_JSON,
       note: instruction.note || '',
     })
     setDetailEditing(true)
@@ -610,8 +625,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   }
 
   const submitForm = async () => {
-    if (!form.materialId) {
-      onMessage('请选择关联产品')
+    if (!form.title.trim()) {
+      onMessage('请输入文档标题')
       return
     }
     if (!form.categoryId) {
@@ -622,11 +637,13 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     setLoading(true)
     try {
       const payload = {
-        materialId: form.materialId,
+        title: form.title.trim(),
+        materialId: form.materialId || null,
         categoryId: form.categoryId,
         version: form.version.trim() || 'v1',
         status: form.status,
         workCenterIds: form.workCenterIds,
+        contentJson: form.contentJson,
         note: form.note.trim() || undefined,
       }
       const res = await fetch('/api/work-instructions', {
@@ -638,7 +655,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       if (res.ok) {
         const savedInstruction = data.data
         const wasEditing = Boolean(editing)
-        onMessage(editing ? '产品文档已更新' : '产品文档已创建，请上传图片或 PDF')
+        onMessage(editing ? '文档已更新' : '文档已创建，可继续上传图片或 PDF')
         setShowModal(false)
         setEditing(null)
         setDetailEditing(false)
@@ -669,7 +686,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   }
 
   const archiveInstruction = async (instruction: WorkInstruction) => {
-    if (!confirm(`确定归档产品 ${instruction.material.code} 的这条文档吗？`)) return
+    if (!confirm(`确定归档文档「${instruction.title}」吗？`)) return
     try {
       const res = await fetch(`/api/work-instructions?id=${instruction.id}`, { method: 'DELETE' })
       const data = await res.json()
@@ -739,33 +756,6 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     }
     setViewer({ instruction, attachments, index })
     setViewerZoom(1)
-  }
-
-  const openInstructionViewer = async (instruction: WorkInstruction) => {
-    if (instruction.attachmentCount === 0) {
-      onMessage('这条产品文档还没有上传图片或 PDF')
-      return
-    }
-    try {
-      const res = await fetch(`/api/attachments?ownerType=WORK_INSTRUCTION&ownerId=${encodeURIComponent(instruction.id)}`)
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '获取产品文档文件失败')
-        return
-      }
-      const attachments = (data.data || []) as AttachmentItem[]
-      if (attachments.length === 0) {
-        if (instruction.primaryAttachment) {
-          openViewer(instruction, [instruction.primaryAttachment])
-          return
-        }
-        onMessage('这条产品文档还没有上传图片或 PDF')
-        return
-      }
-      openViewer(instruction, attachments)
-    } catch (err) {
-      onMessage('获取产品文档文件失败')
-    }
   }
 
   const selectedViewerAttachment = viewer?.attachments[viewer.index]
@@ -844,7 +834,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           storageKey="mes-lite.searchPresets.documents"
           value={keyword}
           onChange={setKeyword}
-          placeholder="搜索产品、文档类别或备注"
+          placeholder="搜索标题、正文、产品或备注"
         />
       )}
       filterCount={activeFilterLabels.length}
@@ -928,13 +918,13 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       <div className="rounded-lg bg-transparent p-0 shadow-none sm:bg-white sm:p-6 sm:shadow">
         {items.length === 0 ? (
           <div className="rounded-lg bg-white py-10 text-center text-gray-500 shadow sm:bg-transparent sm:py-12 sm:shadow-none">
-            <p>暂无产品文档</p>
+            <p>暂无文档</p>
             <AppButton
               variant="create"
               onClick={openAddModal}
               className="mt-4"
             >
-              新增第一条产品文档
+              新增第一篇文档
             </AppButton>
           </div>
         ) : viewMode === 'card' ? (
@@ -944,37 +934,37 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                 <article key={instruction.id} className="flex flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:shadow-none">
                   <button
                     type="button"
-                    onClick={() => instruction.attachmentCount > 0 ? void openInstructionViewer(instruction) : openDetail(instruction, true)}
+                    onClick={() => openDetail(instruction)}
                     className="text-left"
                   >
-                    <DocumentPreviewThumb attachment={instruction.primaryAttachment} title={instruction.material.name} />
+                    <DocumentPreviewThumb attachment={instruction.primaryAttachment} title={instruction.title} />
                   </button>
                   <div className="mt-3 min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <InstructionBadge tone="blue">{instruction.material.code}</InstructionBadge>
+                      <InstructionBadge tone="blue">{instruction.material?.code || '通用'}</InstructionBadge>
                       <InstructionBadge>{documentCategoryLabel(instruction.category)}</InstructionBadge>
                       <InstructionBadge tone={instruction.status === 'ACTIVE' ? 'green' : instruction.status === 'DRAFT' ? 'amber' : 'gray'}>
                         {statusLabels[instruction.status] || instruction.status}
                       </InstructionBadge>
                     </div>
-                    <h3 className="mt-2 line-clamp-2 text-base font-semibold text-gray-900">{instruction.material.name}</h3>
+                    <h3 className="mt-2 line-clamp-2 text-base font-semibold text-gray-900">{instruction.title}</h3>
                     <div className="mt-1 space-y-0.5 text-xs text-gray-500">
                       <div className="truncate">版本：{instruction.version || '-'}</div>
-                      {instruction.material.spec && <div className="truncate">规格：{instruction.material.spec}</div>}
+                      <div className="truncate">产品：{instruction.material ? instruction.material.name : '未绑定'}</div>
+                      {instruction.material?.spec && <div className="truncate">规格：{instruction.material.spec}</div>}
                       <div className="truncate">客户：{getInstructionCustomerName(instruction)}</div>
                       <div className="line-clamp-2">工作中心：{instruction.workCenters.length > 0 ? instruction.workCenters.map((item) => item.name).join('、') : '不限'}</div>
-                      <div>文件：{instruction.imageCount} 图 / {instruction.pdfCount} PDF</div>
+                      <div>内容：{instruction.contentText ? '在线正文' : '无正文'} · {instruction.imageCount} 图 / {instruction.pdfCount} PDF</div>
                       {instruction.note && <div className="line-clamp-2">备注：{instruction.note}</div>}
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap justify-end gap-2">
                     <button
                       type="button"
-                      onClick={() => openInstructionViewer(instruction)}
-                      disabled={instruction.attachmentCount === 0}
-                      className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
+                      onClick={() => openDetail(instruction)}
+                      className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-700"
                     >
-                      全屏打开
+                      在线阅读
                     </button>
                     <button
                       type="button"
@@ -1003,8 +993,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="w-24 px-4 py-3 text-left text-sm font-semibold text-gray-600">预览</th>
-                    <SortableTableHeader column="code" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort} className="w-44">产品编码</SortableTableHeader>
-                    <SortableTableHeader column="name" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort}>产品名称</SortableTableHeader>
+                    <SortableTableHeader column="code" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort} className="w-44">关联产品</SortableTableHeader>
+                    <SortableTableHeader column="name" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort}>文档标题</SortableTableHeader>
                     <SortableTableHeader column="category" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort} className="w-28">文档类别</SortableTableHeader>
                     <SortableTableHeader column="status" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort} className="w-24">状态</SortableTableHeader>
                     <SortableTableHeader column="customer" activeColumn={instructionSort.sortColumn} direction={instructionSort.sortDirection} onSort={instructionSort.toggleSort} className="w-36">客户</SortableTableHeader>
@@ -1019,15 +1009,15 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       <td className="px-4 py-3">
                         <button
                           type="button"
-                          onClick={() => instruction.attachmentCount > 0 ? void openInstructionViewer(instruction) : openDetail(instruction, true)}
+                          onClick={() => openDetail(instruction)}
                           className="block h-14 w-20 overflow-hidden rounded"
                         >
-                          <DocumentPreviewThumb attachment={instruction.primaryAttachment} title={instruction.material.name} />
+                          <DocumentPreviewThumb attachment={instruction.primaryAttachment} title={instruction.title} />
                         </button>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-sm text-blue-700">{instruction.material.code}</td>
+                      <td className="px-4 py-3 text-sm text-blue-700">{getInstructionScopeLabel(instruction)}</td>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900">{instruction.material.name}</div>
+                        <div className="font-medium text-gray-900">{instruction.title}</div>
                         <div className="mt-1 text-xs text-gray-500">{instruction.version || '-'}</div>
                         {instruction.note && <div className="mt-1 line-clamp-2 text-xs text-gray-500">备注：{instruction.note}</div>}
                       </td>
@@ -1035,15 +1025,14 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       <td className="whitespace-nowrap px-4 py-3 text-sm">{statusLabels[instruction.status] || instruction.status}</td>
                       <td className="px-4 py-3 text-sm">{getInstructionCustomerName(instruction)}</td>
                       <td className="px-4 py-3 text-sm"><div className="line-clamp-2">{instruction.workCenters.length > 0 ? instruction.workCenters.map((item) => item.name).join('、') : '不限'}</div></td>
-                      <td className="whitespace-nowrap px-4 py-3 text-sm">{instruction.imageCount} 图 / {instruction.pdfCount} PDF</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-sm">{instruction.contentText ? '在线 · ' : ''}{instruction.imageCount} 图 / {instruction.pdfCount} PDF</td>
                       <td className="whitespace-nowrap px-4 py-3">
                         <div className="flex flex-wrap gap-2">
                           <button
-                            onClick={() => openInstructionViewer(instruction)}
-                            disabled={instruction.attachmentCount === 0}
-                            className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
+                            onClick={() => openDetail(instruction)}
+                            className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700"
                           >
-                            全屏打开
+                            在线阅读
                           </button>
                           <button onClick={() => openDetail(instruction)} className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50">详情</button>
                           <button onClick={() => archiveInstruction(instruction)} className="rounded border border-amber-300 px-3 py-1 text-xs text-amber-700 hover:bg-amber-50">归档</button>
@@ -1061,8 +1050,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
       {showModal && (
         <ModalDialog
-          title="新增产品文档"
-          description="关联产品后保存，再上传图片或 PDF 文件。"
+          title="新增在线文档"
+          description="可直接编辑正文，也可按需关联产品、工作中心和附件。"
           onClose={() => setShowModal(false)}
           closeDisabled={loading}
           size="xl"
@@ -1070,14 +1059,18 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
             <ModalActions
               onCancel={() => setShowModal(false)}
               onConfirm={submitForm}
-              confirmLabel="保存并上传文件"
+              confirmLabel="保存文档"
               busy={loading}
             />
           )}
         >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <div className="md:col-span-2 xl:col-span-3">
-                  <label className="mb-2 block text-sm font-medium text-gray-700">关联产品 *</label>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">文档标题 *</label>
+                  <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} className={appInputClassName} placeholder="例如：P12 切管机参数操作指导书" maxLength={200} />
+                </div>
+                <div className="md:col-span-2 xl:col-span-3">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">关联产品（可选）</label>
                   <MaterialSearchSelect
                     value={form.materialId}
                     options={materials}
@@ -1085,7 +1078,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                     onSearch={fetchMaterials}
                     onChange={(nextValue) => setForm({ ...form, materialId: nextValue })}
                     placeholder="输入产品编码、名称或规格搜索"
-                    emptyLabel="请选择产品"
+                    emptyLabel="不绑定产品（通用文档）"
                   />
                   {selectedMaterial?.spec && <div className="mt-1 text-xs text-gray-500">规格：{selectedMaterial.spec}</div>}
                 </div>
@@ -1111,9 +1104,13 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   <label className="mb-2 block text-sm font-medium text-gray-700">备注</label>
                   <textarea rows={4} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} className={appTextareaClassName} placeholder="记录适用范围、注意事项、变更说明等通用信息" />
                 </div>
+                <div className="md:col-span-2 xl:col-span-3">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">在线正文</label>
+                  <OnlineDocumentEditor value={form.contentJson} onChange={(contentJson) => setForm((current) => ({ ...current, contentJson }))} />
+                </div>
               </div>
               <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                选择产品并保存后，系统会自动打开图片或 PDF 上传区域。
+                保存后会打开文档详情；如需保留原始材料，可继续上传图片或 PDF。
               </div>
         </ModalDialog>
       )}
@@ -1123,8 +1120,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           <div className={`flex flex-col overflow-hidden bg-white shadow-xl ${detailFullscreen ? 'h-screen w-screen' : 'max-h-[92vh] w-full max-w-6xl rounded-lg'}`}>
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-6">
               <div className="min-w-0">
-                <div className="font-mono text-sm text-blue-700">{detail.material.code}</div>
-                <h3 className="truncate text-lg font-semibold text-gray-900">{detail.material.name}</h3>
+                <div className="text-sm text-blue-700">{getInstructionScopeLabel(detail)}</div>
+                <h3 className="truncate text-lg font-semibold text-gray-900">{detail.title}</h3>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <label className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700">
@@ -1142,7 +1139,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                     detailEditing ? 'border border-gray-300 text-gray-700 hover:bg-gray-50' : 'border border-blue-300 text-blue-700 hover:bg-blue-50'
                   }`}
                 >
-                  {detailEditing ? '退出编辑' : '编辑信息'}
+                  {detailEditing ? '退出编辑' : '编辑文档'}
                 </button>
                 <button onClick={closeDetail} className="h-9 w-9 text-2xl text-gray-400 hover:text-gray-700" aria-label="关闭详情">&times;</button>
               </div>
@@ -1155,7 +1152,11 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       <div className="mb-3 text-sm font-semibold text-gray-900">基础信息</div>
                       <div className="grid grid-cols-1 gap-3">
                         <div>
-                          <label className="mb-1 block text-xs font-medium text-gray-600">关联产品 *</label>
+                          <label className="mb-1 block text-xs font-medium text-gray-600">文档标题 *</label>
+                          <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" maxLength={200} />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-gray-600">关联产品（可选）</label>
                           <MaterialSearchSelect
                             value={form.materialId}
                             options={materials}
@@ -1163,7 +1164,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                             onSearch={fetchMaterials}
                             onChange={(nextValue) => setForm({ ...form, materialId: nextValue })}
                             placeholder="输入产品编码、名称或规格搜索"
-                            emptyLabel="请选择产品"
+                            emptyLabel="不绑定产品（通用文档）"
                           />
                         </div>
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-1">
@@ -1207,7 +1208,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       </div>
                       <div className="mt-4 space-y-2 text-sm text-gray-600">
                         <div>客户：{getInstructionCustomerName(detail)}</div>
-                        <div>产品：{detail.material.code} · {detail.material.name}</div>
+                        <div>产品：{detail.material ? `${detail.material.code} · ${detail.material.name}` : '未绑定'}</div>
                         {detail.material?.spec && <div>规格：{detail.material.spec}</div>}
                         <div>工作中心：{detail.workCenters.length > 0 ? detail.workCenters.map((item) => `${item.code} · ${item.name}`).join('、') : '不限'}</div>
                         <div>创建时间：{formatDate(detail.createdAt)}</div>
@@ -1219,7 +1220,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   <div ref={detailUploadRef} className="rounded-lg border-2 border-dashed border-green-300 bg-green-50/40 p-4">
                     <div className="mb-3 flex items-center justify-between">
                       <div>
-                        <h4 className="text-sm font-semibold text-gray-900">上传产品文档文件</h4>
+                        <h4 className="text-sm font-semibold text-gray-900">上传文档附件</h4>
                         <p className="mt-1 text-xs text-gray-500">支持图片和 PDF，可一次选择多个文件。</p>
                       </div>
                       <label className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700">
@@ -1271,13 +1272,26 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   </div>
                 </section>
 
-                <section className="min-w-0">
-                  <div className="mb-3 flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-gray-900">文件展示</h4>
-                    <span className="text-xs text-gray-500">{detailAttachments.length} 个文件</span>
+                <section className="min-w-0 space-y-5">
+                  <div>
+                    <div className="mb-3 flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-gray-900">在线正文</h4>
+                      <span className="text-xs text-gray-500">{detailEditing ? '编辑模式' : detail.contentText ? '可在线阅读' : '暂无正文'}</span>
+                    </div>
+                    <OnlineDocumentEditor
+                      value={detailEditing ? form.contentJson : detail.contentJson}
+                      onChange={detailEditing ? (contentJson) => setForm((current) => ({ ...current, contentJson })) : undefined}
+                      editable={detailEditing}
+                      minHeight={detailFullscreen ? '28rem' : '20rem'}
+                    />
                   </div>
+                  <div>
+                    <div className="mb-3 flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-gray-900">附件展示</h4>
+                      <span className="text-xs text-gray-500">{detailAttachments.length} 个文件</span>
+                    </div>
                   {detailAttachments.length === 0 ? (
-                    <div className="flex min-h-72 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500">暂无图片或 PDF</div>
+                    <div className="flex min-h-36 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500">暂无图片或 PDF</div>
                   ) : (
                     <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${detailFullscreen ? 'xl:grid-cols-3 2xl:grid-cols-4' : 'xl:grid-cols-3'}`}>
                       {detailAttachments.map((attachment, index) => (
@@ -1287,7 +1301,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                             onClick={() => openViewer(detail, detailAttachments, index)}
                             className="block w-full text-left"
                           >
-                            <DocumentPreviewThumb attachment={attachment} title={detail.material.name} />
+                            <DocumentPreviewThumb attachment={attachment} title={detail.title} />
                           </button>
                           <div className="p-3">
                             <div className="truncate text-sm font-medium text-gray-900">{attachment.originalName}</div>
@@ -1304,6 +1318,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       ))}
                     </div>
                   )}
+                  </div>
                 </section>
               </div>
             </div>
@@ -1326,7 +1341,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         <div className="fixed inset-0 z-[70] flex flex-col bg-slate-950 text-white">
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-white/10 px-3 py-2 sm:px-4">
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">{viewer.instruction.material.code} · {viewer.instruction.material.name}</div>
+              <div className="truncate text-sm font-semibold">{viewer.instruction.title}</div>
               <div className="truncate text-xs text-white/60">{selectedViewerAttachment.originalName} · {viewer.index + 1}/{viewer.attachments.length}</div>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">

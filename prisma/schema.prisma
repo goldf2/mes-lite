@@ -1215,11 +1215,14 @@ model WorkInstruction {
   id          String           @id @default(cuid())
   categoryId  String
   category    DocumentCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  title       String
   version     String           @default("v1")
   status      String           @default("ACTIVE")
-  materialId  String
-  material    Material         @relation(fields: [materialId], references: [id])
+  materialId  String?
+  material    Material?        @relation(fields: [materialId], references: [id], onDelete: Restrict)
   workCenters WorkCenter[]
+  contentJson String?
+  contentText String?
   note        String?
   deletedAt   DateTime?
   deletedBy   String?
