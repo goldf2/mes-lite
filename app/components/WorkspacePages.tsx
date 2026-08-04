@@ -147,11 +147,10 @@ export function WorkspaceLauncher({
   }
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div>
+    <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:p-4">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="shrink-0">
           <h2 className="text-base font-semibold text-gray-900">常用功能</h2>
-          <p className="mt-1 text-sm text-gray-500">默认、智能排序或自定义摆放；个人设置会跟随账号。</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-1">
@@ -181,7 +180,7 @@ export function WorkspaceLauncher({
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-5">
+      <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-8 min-[2000px]:grid-cols-10">
         {displayedItems.map((item, index) => {
           const usage = usageByKey.get(item.key)
           const pinned = preference.pinned.includes(item.key)
@@ -195,33 +194,31 @@ export function WorkspaceLauncher({
               }}
               onDrop={() => dropShortcut(item.key)}
               onDragEnd={() => setDraggedKey(null)}
-              className={`group rounded-lg border bg-gray-50/70 p-3 transition hover:border-blue-300 hover:bg-blue-50/50 ${
+              className={`group rounded-lg border bg-gray-50/70 p-2.5 transition hover:border-blue-300 hover:bg-blue-50/50 ${
                 draggedKey === item.key ? 'opacity-50' : 'border-gray-200'
               } ${preference.mode === 'CUSTOM' ? 'cursor-grab' : ''}`}
             >
               <button type="button" onClick={() => onOpen(item.key)} className="w-full text-left">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-sm font-semibold text-blue-700">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-blue-50 text-xs font-semibold text-blue-700">
                     {item.icon}
                   </span>
-                  {preference.mode === 'SMART' && pinned && <span className="text-xs font-medium text-blue-600">已固定</span>}
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">{item.label}</span>
+                  {preference.mode === 'SMART' && pinned && <span className="shrink-0 text-[11px] font-medium text-blue-600">固定</span>}
                 </div>
-                <div className="mt-3 truncate text-sm font-semibold text-gray-900">{item.label}</div>
-                <div className="mt-1 line-clamp-2 min-h-8 text-xs leading-4 text-gray-500">{item.description}</div>
-                {preference.mode === 'SMART' && (
-                  <div className="mt-2 text-[11px] text-gray-400">使用 {usage?.useCount || 0} 次</div>
-                )}
+                <div className="mt-1.5 truncate text-xs leading-4 text-gray-500" title={item.description}>{item.description}</div>
               </button>
               {preference.mode === 'CUSTOM' && (
-                <div className="mt-3 flex items-center justify-end gap-1 border-t border-gray-200 pt-2">
-                  <button type="button" disabled={index === 0 || saving} onClick={() => moveShortcut(item.key, -1)} className="h-7 rounded px-2 text-xs text-gray-500 hover:bg-white disabled:opacity-30" aria-label={`${item.label}上移`}>↑</button>
-                  <button type="button" disabled={index === displayedItems.length - 1 || saving} onClick={() => moveShortcut(item.key, 1)} className="h-7 rounded px-2 text-xs text-gray-500 hover:bg-white disabled:opacity-30" aria-label={`${item.label}下移`}>↓</button>
-                  <button type="button" disabled={displayedItems.length <= 1 || saving} onClick={() => removeShortcut(item.key)} className="h-7 rounded px-2 text-xs text-red-600 hover:bg-red-50 disabled:opacity-30">移除</button>
+                <div className="mt-1.5 flex items-center justify-end gap-1 border-t border-gray-200 pt-1.5">
+                  <button type="button" disabled={index === 0 || saving} onClick={() => moveShortcut(item.key, -1)} className="h-6 rounded px-1.5 text-xs text-gray-500 hover:bg-white disabled:opacity-30" aria-label={`${item.label}上移`}>↑</button>
+                  <button type="button" disabled={index === displayedItems.length - 1 || saving} onClick={() => moveShortcut(item.key, 1)} className="h-6 rounded px-1.5 text-xs text-gray-500 hover:bg-white disabled:opacity-30" aria-label={`${item.label}下移`}>↓</button>
+                  <button type="button" disabled={displayedItems.length <= 1 || saving} onClick={() => removeShortcut(item.key)} className="h-6 rounded px-1.5 text-[11px] text-red-600 hover:bg-red-50 disabled:opacity-30">移除</button>
                 </div>
               )}
               {preference.mode === 'SMART' && (
-                <div className="mt-3 border-t border-gray-200 pt-2 text-right">
-                  <button type="button" disabled={saving} onClick={() => togglePin(item.key)} className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-white">
+                <div className="mt-1.5 flex items-center justify-between border-t border-gray-200 pt-1.5">
+                  <span className="text-[11px] text-gray-400">使用 {usage?.useCount || 0} 次</span>
+                  <button type="button" disabled={saving} onClick={() => togglePin(item.key)} className="rounded px-1.5 py-0.5 text-[11px] text-blue-600 hover:bg-white">
                     {pinned ? '取消固定' : '固定在前'}
                   </button>
                 </div>

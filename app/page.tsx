@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic'
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import * as Collapsible from '@radix-ui/react-collapsible'
-import { Boxes, ChevronDown, Menu, PencilLine, Search, Settings2, X } from 'lucide-react'
+import { Boxes, ChevronDown, Menu, PencilLine, Search, Settings2, Sparkles, X } from 'lucide-react'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
 import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
@@ -47,6 +47,7 @@ const ProductionOrderActualPanel = dynamic(() => import('./components/Production
 const OperatorPage = dynamic(() => import('./components/OperatorPage'), { loading: FeaturePageLoading })
 const SystemPage = dynamic(() => import('./components/SystemPage'), { loading: FeaturePageLoading })
 const PermissionPage = dynamic(() => import('./components/PermissionPage'), { loading: FeaturePageLoading })
+const AiAssistantPanel = dynamic(() => import('./components/AiAssistantPanel'))
 
 // ==================== 类型定义 ====================
 
@@ -567,6 +568,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [systemMenuOpen, setSystemMenuOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
   const [desktopSidebarWidth, setDesktopSidebarWidth] = useState(defaultDesktopSidebarWidth)
   const [desktopSidebarReady, setDesktopSidebarReady] = useState(false)
   const [resizingDesktopSidebar, setResizingDesktopSidebar] = useState(false)
@@ -890,6 +892,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
   const clearBomEditorTarget = useCallback(() => {
     setBomEditorTarget(null)
+  }, [])
+
+  const closeAiAssistant = useCallback(() => {
+    setAiAssistantOpen(false)
   }, [])
 
   useEffect(() => {
@@ -1331,6 +1337,20 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           })}
         </nav>
         <div className="flex h-full shrink-0 items-center gap-2 border-l border-gray-100 px-4">
+          {canRead('aiAssistant') && (
+            <button
+              type="button"
+              onClick={() => {
+                setAiAssistantOpen(true)
+                setSystemMenuOpen(false)
+              }}
+              aria-label="打开 AI 协作助手"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-700 shadow-sm hover:border-blue-300 hover:bg-blue-100"
+            >
+              <Sparkles aria-hidden="true" className="h-4 w-4" />
+              AI 助手
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -2520,10 +2540,19 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         onMessage={showMessage}
       />
 
+      {canRead('aiAssistant') && (
+        <AiAssistantPanel
+          open={aiAssistantOpen}
+          onClose={closeAiAssistant}
+          pageContext={{ key: pageLocationKey, label: activeTabLabel }}
+          isAdmin={operator.role === 'ADMIN'}
+        />
+      )}
+
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
         <div
           className="grid gap-1"
-          style={{ gridTemplateColumns: `repeat(${Math.max(mobilePrimaryItems.length, 1)}, minmax(0, 1fr))` }}
+          style={{ gridTemplateColumns: `repeat(${Math.max(mobilePrimaryItems.length + (canRead('aiAssistant') ? 1 : 0), 1)}, minmax(0, 1fr))` }}
         >
           {mobilePrimaryItems.map((item) => (
             <button
@@ -2540,6 +2569,23 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <span className="max-w-full truncate">{compactNavLabel(item.label)}</span>
             </button>
           ))}
+          {canRead('aiAssistant') && (
+            <button
+              type="button"
+              onClick={() => {
+                setAiAssistantOpen(true)
+                setSystemMenuOpen(false)
+                setMobileNavOpen(false)
+              }}
+              aria-label="打开 AI 协作助手"
+              className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg bg-blue-50 px-1 py-2 text-[11px] font-medium text-blue-700 transition hover:bg-blue-100"
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-100 text-blue-700">
+                <Sparkles aria-hidden="true" className="h-4 w-4" />
+              </span>
+              <span className="max-w-full truncate">问 AI</span>
+            </button>
+          )}
         </div>
       </nav>
     </div>

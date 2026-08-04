@@ -47,6 +47,20 @@ NODE_ENV=production
 DATABASE_URL=file:/app/data/mes_lite.db
 ```
 
+启用全局 AI 协作助手时，在 Coolify 增加以下运行时变量。第一版默认使用阿里云百炼的 OpenAI 兼容接口，也可替换为其他国产兼容服务；密钥不得写入仓库或前端变量：
+
+```env
+AI_AGENT_ENABLED=true
+AI_AGENT_PROVIDER_NAME=通义千问
+AI_AGENT_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+AI_AGENT_MODEL=<百炼中已开通且支持工具调用的模型 ID>
+AI_AGENT_API_KEY=<服务端 API Key>
+AI_AGENT_TIMEOUT_MS=45000
+AI_AGENT_MAX_TOOL_ROUNDS=4
+```
+
+缺少 `AI_AGENT_MODEL` 或 `AI_AGENT_API_KEY` 时，全局入口仍可见但明确显示“AI 服务尚未配置”，不会向外部模型发送数据。设置 `AI_AGENT_ENABLED=false` 可以在不删除配置的情况下停用接口。
+
 也可以参考仓库内的 `.env.coolify.example`，在 Coolify 的 Environment Variables 页面逐项填写。不要把生产 `.env` 文件提交到 Git。
 
 主机先创建目录：

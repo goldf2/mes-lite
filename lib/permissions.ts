@@ -24,6 +24,7 @@ export const permissionActions = [
 
 export const permissionResources = [
   { key: 'dashboard', label: '仪表盘' },
+  { key: 'aiAssistant', label: 'AI 协作助手' },
   { key: 'orders', label: '生产订单' },
   { key: 'materials', label: '物料管理' },
   { key: 'workInstructions', label: '产品文档' },
@@ -68,6 +69,7 @@ const none: PermissionFlags = { canRead: false, canCreate: false, canUpdate: fal
 
 const operatorDefaults: PermissionMap = {
   dashboard: readOnly,
+  aiAssistant: readOnly,
   orders: readCreate,
   materials: readOnly,
   workInstructions: readOnly,
@@ -91,6 +93,7 @@ const operatorDefaults: PermissionMap = {
 
 const auditorDefaults: PermissionMap = {
   dashboard: readOnly,
+  aiAssistant: readOnly,
   orders: readCreateUpdate,
   materials: readOnly,
   workInstructions: readCreateUpdate,

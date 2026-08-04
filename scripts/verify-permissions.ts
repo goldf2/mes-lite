@@ -28,6 +28,7 @@ async function main() {
     operatorId = operator.id
 
     const basePermissions = await getEffectivePermissionMap(operator)
+    assertEqual(basePermissions.aiAssistant.canRead, true, '录入角色默认可以使用只读 AI 助手')
     assertEqual(basePermissions.system.canRead, false, '录入角色默认无系统管理查看权限')
     assertEqual(await hasResourcePermission(operator, 'system', 'read'), false, '录入角色默认无法查看系统管理')
 
