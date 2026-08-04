@@ -53,6 +53,7 @@ RUN --mount=type=cache,target=/app/.next/cache \
 FROM base AS runner
 
 WORKDIR /app
+ARG DEBIAN_MIRROR=http://mirrors.aliyun.com
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \
@@ -60,9 +61,11 @@ ENV NODE_ENV=production \
     DATABASE_URL=file:/app/data/mes_lite.db \
     PDF_FONT_PATH=/app/assets/fonts/NotoSansCJKsc-Regular.otf
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends poppler-utils \
-    && rm -rf /var/lib/apt/lists/* \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    sed -i "s|http://deb.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources \
+    && apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update \
+    && apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends poppler-utils \
     && command -v pdftoppm >/dev/null \
     && command -v setpriv >/dev/null \
     && mkdir -p /app/data /app/public/uploads \
