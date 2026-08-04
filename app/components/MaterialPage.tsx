@@ -2135,7 +2135,7 @@ export default function MaterialPage({
             {bomLoading && <span className="shrink-0 text-xs text-gray-500">同步中...</span>}
           </div>
 
-          <div className="overflow-hidden rounded-lg border border-gray-200">
+          <div className="rounded-lg border border-gray-200">
             <div className="grid grid-cols-1 divide-y divide-gray-200 lg:grid-cols-2 lg:divide-x lg:divide-y-0">
               <section className="min-w-0 p-3 sm:p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">

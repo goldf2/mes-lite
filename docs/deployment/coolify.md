@@ -97,12 +97,26 @@ npm run verify:docker-deps
 
 Docker 正式构建也会执行一致性校验，依赖清单过期时会中止构建并给出同步命令。页面显示的 `MES-lite v...` 仍来自根目录 `package.json`，不受缓存清单影响。
 
-镜像内置了 Docker `HEALTHCHECK`，使用 Node.js 内置 `fetch` 请求 `/api/health` 检查 Web 服务是否启动。首次启动会先执行 SQLite 迁移，健康检查有 60 秒启动宽限期。如果健康检查失败，优先检查：
+Prisma Client 生成和生产依赖裁剪使用独立缓存层，仅在 npm 依赖或 `prisma/` 发生变化时重建；普通页面与接口修改不会再重复执行 `npm prune`。Next.js 构建通过 BuildKit cache mount 复用 `.next/cache`，Coolify 必须保持 BuildKit 构建缓存，才能在连续部署中获得增量编译效果。启用新 Dockerfile 后的第一次构建需要建立冷缓存，主要收益会从后续代码更新开始体现。
+
+镜像内置了 Docker `HEALTHCHECK`，使用 Node.js 内置 `fetch` 请求 `/api/health` 检查 Web 服务是否启动。首次启动会先执行 SQLite 迁移，健康检查在 15 秒后开始，并允许最多 6 次、每 10 秒一次的重试。如果健康检查失败，优先检查：
 
 - `/app/data` 是否可写。
 - `DATABASE_URL` 是否为 `file:/app/data/mes_lite.db`。
 - Coolify 的 Persistent Storage 是否正确挂载。
 - 启动日志是否出现“持久存储权限已就绪”；若未出现，检查挂载是否允许容器 root 用户执行 `chown`。
+
+### 3.1 国内部署镜像加速
+
+只有 Coolify 的详细构建日志长时间停在拉取基础镜像、`load metadata`、`npm ci` 或下载 npm 包时，镜像站才是主要优化方向。若耗时集中在 `npm run build`，切换镜像站不会缩短编译时间。
+
+国内服务器可在 Coolify 的 Docker Build Arguments 中设置：
+
+```env
+NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+```
+
+未设置时继续使用 npm 官方源。Docker Hub 基础镜像加速应在部署服务器的 Docker daemon 中统一配置，不应把某个第三方镜像域名硬编码进项目 `Dockerfile`；修改 daemon 后先验证 `docker pull node:20-bookworm-slim` 和 `docker pull buildpack-deps:bookworm-curl`，再重新部署。
 
 ## 4. 部署与备份
 

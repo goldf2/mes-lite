@@ -18,6 +18,7 @@ RUN ldconfig
 FROM base AS dependencies
 
 WORKDIR /app
+ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org
 # 仅复制去除项目发布版本号的依赖清单。这样应用版本递增时仍可复用
 # node_modules 层，只有依赖或锁定结果变化时才重新执行 npm ci。
 COPY docker/dependencies/package.json docker/dependencies/package-lock.json ./
@@ -27,19 +28,27 @@ RUN --mount=type=cache,target=/root/.npm \
       --fetch-retry-mintimeout=20000 \
       --fetch-retry-maxtimeout=120000
 
+FROM dependencies AS generated-dependencies
+
+COPY prisma ./prisma
+RUN npx prisma generate
+
+FROM generated-dependencies AS production-dependencies
+
+RUN npm prune --omit=dev
+
 FROM base AS builder
 
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1 \
     DATABASE_URL=file:/tmp/mes-lite-build.db
 
-COPY --from=dependencies /app/node_modules ./node_modules
+COPY --from=generated-dependencies /app/node_modules ./node_modules
 COPY . .
 
-RUN node scripts/sync-docker-dependency-manifest.mjs --check \
-    && npx prisma generate \
-    && npm run build \
-    && npm prune --omit=dev
+RUN --mount=type=cache,target=/app/.next/cache \
+    node scripts/sync-docker-dependency-manifest.mjs --check \
+    && npm run build
 
 FROM base AS runner
 
@@ -56,7 +65,7 @@ RUN command -v setpriv >/dev/null \
     && chown -R node:node /app
 
 COPY --from=builder --chown=node:node /app/package.json /app/package-lock.json ./
-COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_modules
 COPY --from=builder --chown=node:node /app/.next ./.next
 COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/prisma ./prisma
@@ -67,7 +76,7 @@ COPY --from=builder --chown=node:node /app/next.config.js ./next.config.js
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=6 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
 
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
