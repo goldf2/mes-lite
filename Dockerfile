@@ -60,7 +60,11 @@ ENV NODE_ENV=production \
     DATABASE_URL=file:/app/data/mes_lite.db \
     PDF_FONT_PATH=/app/assets/fonts/NotoSansCJKsc-Regular.otf
 
-RUN command -v setpriv >/dev/null \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends poppler-utils \
+    && rm -rf /var/lib/apt/lists/* \
+    && command -v pdftoppm >/dev/null \
+    && command -v setpriv >/dev/null \
     && mkdir -p /app/data /app/public/uploads \
     && chown -R node:node /app
 

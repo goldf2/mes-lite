@@ -1,7 +1,8 @@
-import { mkdir, readFile, rename, writeFile } from 'fs/promises'
+import { spawn } from 'child_process'
+import { mkdir, rename, rm, writeFile } from 'fs/promises'
 import path from 'path'
 import { randomUUID } from 'crypto'
-import { createCanvas, DOMMatrix, ImageData, Path2D } from '@napi-rs/canvas'
+import { createCanvas, loadImage } from '@napi-rs/canvas'
 
 const [sourcePath, targetPath, savedRotationValue = '0'] = process.argv.slice(2)
 if (!sourcePath || !targetPath) throw new Error('Source and target paths are required')
@@ -20,36 +21,54 @@ function scaledSize(width, height) {
   }
 }
 
-Object.assign(globalThis, { DOMMatrix, ImageData, Path2D })
-const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
-const loadingTask = pdfjs.getDocument({
-  data: new Uint8Array(await readFile(sourcePath)),
-  useSystemFonts: true,
-})
+function renderFirstPage(source, outputPrefix) {
+  return new Promise((resolve, reject) => {
+    const renderer = spawn('pdftoppm', [
+      '-f', '1',
+      '-l', '1',
+      '-singlefile',
+      '-png',
+      '-scale-to', '640',
+      source,
+      outputPrefix,
+    ], { stdio: ['ignore', 'ignore', 'pipe'] })
+    let stderr = ''
+    renderer.stderr.setEncoding('utf8')
+    renderer.stderr.on('data', (chunk) => {
+      stderr = `${stderr}${chunk}`.slice(-4000)
+    })
+    renderer.on('error', reject)
+    renderer.on('exit', (code, signal) => {
+      if (code === 0) resolve()
+      else reject(new Error(`pdftoppm failed (${signal || code}): ${stderr.trim() || 'no details'}`))
+    })
+  })
+}
 
+await mkdir(path.dirname(targetPath), { recursive: true })
+const temporaryPrefix = `${targetPath}.pdf-${randomUUID()}`
+const renderedPath = `${temporaryPrefix}.png`
+const temporaryPath = `${targetPath}.tmp-${randomUUID()}`
 try {
-  const document = await loadingTask.promise
-  if (document.numPages < 1) throw new Error('PDF has no previewable pages')
-  const page = await document.getPage(1)
-  const rotation = normalizeRotation(Number(page.rotate || 0) + Number(savedRotationValue || 0))
-  const baseViewport = page.getViewport({ scale: 1, rotation })
-  const size = scaledSize(baseViewport.width, baseViewport.height)
-  const viewport = page.getViewport({ scale: size.scale, rotation })
-  const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height))
+  await renderFirstPage(sourcePath, temporaryPrefix)
+  const image = await loadImage(renderedPath)
+  const rotation = normalizeRotation(savedRotationValue)
+  const swapsDimensions = rotation === 90 || rotation === 270
+  const sourceWidth = swapsDimensions ? image.height : image.width
+  const sourceHeight = swapsDimensions ? image.width : image.height
+  const size = scaledSize(sourceWidth, sourceHeight)
+  const canvas = createCanvas(size.width, size.height)
   const context = canvas.getContext('2d')
-
-  await page.render({
-    canvas,
-    canvasContext: context,
-    viewport,
-    background: '#ffffff',
-  }).promise
-  page.cleanup()
-
-  await mkdir(path.dirname(targetPath), { recursive: true })
-  const temporaryPath = `${targetPath}.tmp-${randomUUID()}`
+  context.fillStyle = '#ffffff'
+  context.fillRect(0, 0, size.width, size.height)
+  context.translate(size.width / 2, size.height / 2)
+  context.rotate((rotation * Math.PI) / 180)
+  const drawWidth = image.width * size.scale
+  const drawHeight = image.height * size.scale
+  context.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight)
   await writeFile(temporaryPath, await canvas.encode('png'))
   await rename(temporaryPath, targetPath)
 } finally {
-  await loadingTask.destroy()
+  await rm(renderedPath, { force: true })
+  await rm(temporaryPath, { force: true })
 }
