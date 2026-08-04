@@ -1,7 +1,8 @@
 import { access, mkdir, readFile, readdir, rename, rm, writeFile } from 'fs/promises'
 import path from 'path'
 import { randomUUID } from 'crypto'
-import { createCanvas, DOMMatrix, ImageData, loadImage, Path2D } from '@napi-rs/canvas'
+import { spawn } from 'child_process'
+import { createCanvas, loadImage } from '@napi-rs/canvas'
 import { normalizeAttachmentRotation } from './attachment-rotation'
 
 const maxThumbnailWidth = 640
@@ -72,46 +73,41 @@ async function renderImageThumbnail(sourcePath: string, rotation: number) {
   return canvas.encode('png')
 }
 
-async function renderPdfThumbnail(sourcePath: string, savedRotation: number) {
-  Object.assign(globalThis, { DOMMatrix, ImageData, Path2D })
-  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  const loadingTask = pdfjs.getDocument({
-    data: new Uint8Array(await readFile(sourcePath)),
-    useSystemFonts: true,
+async function renderPdfThumbnail(sourcePath: string, targetPath: string, savedRotation: number) {
+  const workerPath = path.join(process.cwd(), 'scripts', 'render-pdf-thumbnail.mjs')
+  await new Promise<void>((resolve, reject) => {
+    const worker = spawn(process.execPath, [workerPath, sourcePath, targetPath, String(savedRotation)], {
+      stdio: ['ignore', 'ignore', 'pipe'],
+    })
+    let stderr = ''
+    worker.stderr.setEncoding('utf8')
+    worker.stderr.on('data', (chunk) => {
+      stderr = `${stderr}${chunk}`.slice(-4000)
+    })
+    const timeout = setTimeout(() => worker.kill('SIGKILL'), 30_000)
+    worker.on('error', (error) => {
+      clearTimeout(timeout)
+      reject(error)
+    })
+    worker.on('exit', (code, signal) => {
+      clearTimeout(timeout)
+      if (code === 0) resolve()
+      else reject(new Error(`PDF thumbnail worker failed (${signal || code}): ${stderr.trim() || 'no details'}`))
+    })
   })
-
-  try {
-    const document = await loadingTask.promise
-    if (document.numPages < 1) throw new Error('PDF 没有可预览页面')
-    const page = await document.getPage(1)
-    const rotation = normalizeAttachmentRotation(Number(page.rotate || 0) + savedRotation)
-    const baseViewport = page.getViewport({ scale: 1, rotation })
-    const size = scaledSize(baseViewport.width, baseViewport.height)
-    const viewport = page.getViewport({ scale: size.scale, rotation })
-    const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height))
-    const context = canvas.getContext('2d')
-
-    await page.render({
-      canvas: canvas as any,
-      canvasContext: context as any,
-      viewport,
-      background: '#ffffff',
-    }).promise
-    page.cleanup()
-    return canvas.encode('png')
-  } finally {
-    await loadingTask.destroy()
-  }
+  return targetPath
 }
 
 async function generateAttachmentThumbnail(source: ThumbnailSource, targetPath: string) {
   const sourcePath = resolveAttachmentStoragePath(source.storagePath)
   const rotation = normalizeAttachmentRotation(Number(source.rotation || 0))
-  const png = source.mimeType === 'application/pdf'
-    ? await renderPdfThumbnail(sourcePath, rotation)
-    : source.mimeType.startsWith('image/')
-      ? await renderImageThumbnail(sourcePath, rotation)
-      : null
+  if (source.mimeType === 'application/pdf') {
+    await mkdir(path.dirname(targetPath), { recursive: true })
+    return renderPdfThumbnail(sourcePath, targetPath, rotation)
+  }
+  const png = source.mimeType.startsWith('image/')
+    ? await renderImageThumbnail(sourcePath, rotation)
+    : null
 
   if (!png) throw new Error('该附件类型不支持缩略图')
   await mkdir(path.dirname(targetPath), { recursive: true })

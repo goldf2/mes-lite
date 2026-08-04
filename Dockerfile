@@ -71,6 +71,7 @@ COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/prisma ./prisma
 COPY --from=builder --chown=node:node /app/assets/fonts ./assets/fonts
 COPY --from=builder --chown=node:node /app/scripts/cleanup-legacy-work-instruction-files.mjs ./scripts/cleanup-legacy-work-instruction-files.mjs
+COPY --from=builder --chown=node:node /app/scripts/render-pdf-thumbnail.mjs ./scripts/render-pdf-thumbnail.mjs
 COPY --from=builder --chown=root:root --chmod=755 /app/scripts/fix-persistent-storage-permissions.sh /app/scripts/docker-entrypoint.sh ./scripts/
 COPY --from=builder --chown=node:node /app/next.config.js ./next.config.js
 

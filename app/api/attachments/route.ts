@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
         isCover: isMaterialImage && existingImageCount === 0,
       },
     })
-    if (attachment.mimeType === 'application/pdf' || attachment.mimeType.startsWith('image/')) {
+    if (attachment.mimeType.startsWith('image/')) {
       try {
         await ensureAttachmentThumbnail(attachment)
       } catch (error) {

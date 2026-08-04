@@ -709,6 +709,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
     setUploading(true)
     try {
+      let uploadedCount = 0
       for (const file of acceptedFiles) {
         const formData = new FormData()
         formData.append('ownerType', 'WORK_INSTRUCTION')
@@ -717,14 +718,18 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         formData.append('file', file)
 
         const res = await fetch('/api/attachments', { method: 'POST', body: formData })
-        const data = await res.json()
+        const data = await res.json().catch(() => ({}))
         if (!res.ok) {
           onMessage(data.error || `${file.name} 上传失败`)
+        } else {
+          uploadedCount += 1
         }
       }
-      onMessage('文件上传完成')
-      await fetchAttachments(detail.id)
-      await fetchInstructions()
+      if (uploadedCount > 0) {
+        onMessage(`已上传 ${uploadedCount} 个文件`)
+        await fetchAttachments(detail.id)
+        await fetchInstructions()
+      }
     } catch (err) {
       onMessage('文件上传失败')
     }

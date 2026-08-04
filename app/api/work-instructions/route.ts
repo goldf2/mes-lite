@@ -59,6 +59,23 @@ async function ownerIdsByFileType(fileType: string | null) {
   return rows.map((row) => row.ownerId)
 }
 
+async function ownerIdsByAttachmentKeyword(keyword: string | undefined) {
+  if (!keyword) return []
+  const rows = await prisma.documentAttachment.findMany({
+    where: {
+      ownerType: 'WORK_INSTRUCTION',
+      deletedAt: null,
+      OR: [
+        { originalName: { contains: keyword } },
+        { note: { contains: keyword } },
+      ],
+    },
+    select: { ownerId: true },
+    distinct: ['ownerId'],
+  })
+  return rows.map((row) => row.ownerId)
+}
+
 export async function GET(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('workInstructions', 'read')
@@ -76,6 +93,7 @@ export async function GET(req: NextRequest) {
     const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
     const pageSize = Number.isFinite(rawPageSize) && rawPageSize > 0 ? Math.min(rawPageSize, 200) : 20
     const fileOwnerIds = await ownerIdsByFileType(fileType)
+    const attachmentKeywordOwnerIds = await ownerIdsByAttachmentKeyword(keyword)
     const resolvedCategoryIds = categoryIds.length === 0 ? [] : (await prisma.documentCategory.findMany({
       where: {
         OR: [
@@ -111,6 +129,7 @@ export async function GET(req: NextRequest) {
         { material: { is: { name: { contains: keyword } } } },
         { material: { is: { customer: { is: { code: { contains: keyword } } } } } },
         { material: { is: { customer: { is: { name: { contains: keyword } } } } } },
+        ...(attachmentKeywordOwnerIds.length > 0 ? [{ id: { in: attachmentKeywordOwnerIds } }] : []),
       ]
     }
     if (andFilters.length > 0) where.AND = andFilters
