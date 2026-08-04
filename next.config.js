@@ -2,6 +2,7 @@
 const { version } = require('./package.json')
 
 const nextConfig = {
+  output: 'standalone',
   env: {
     NEXT_PUBLIC_APP_VERSION: version,
   },

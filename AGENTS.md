@@ -59,6 +59,7 @@ MES-lite 的生产环境使用 Coolify 和 Docker BuildKit。修改 `Dockerfile`
 - 所有网络下载步骤必须设置有限重试和超时，不允许单个镜像源不可用时无限阻塞整个部署。
 - APT 索引、APT 安装包、npm 缓存和 Next.js 构建缓存必须优先使用 BuildKit cache mount，并保留跨部署复用能力。
 - 系统依赖安装、npm 依赖安装和 Prisma Client 生成必须位于业务源码 `COPY` 之前的稳定分层中，普通代码或版本号修改不得让这些慢步骤重新执行。
+- 运行镜像必须优先使用 Next.js standalone 输出，不得因为启动脚本需要少量命令就复制整套 `node_modules`；独立子进程需要的 Prisma CLI、原生模块等必须显式列出并验证。
 - 新增系统包前必须先评估能否使用已有运行库或随项目发布的静态资源；确实需要 APT 时，必须同时实现镜像源、缓存、重试和超时。
 - 部署变慢或失败时，必须先根据 Coolify 详细日志区分基础镜像拉取、系统包下载、`npm ci`、`npm run build` 和健康检查，再针对真正耗时层修改，不得盲目更换全部镜像源。
 - 变更 Docker 构建逻辑后必须运行可用的本地生产构建；本机有 Docker CLI 时还必须构建运行镜像。本机无 Docker CLI 时，必须在发布说明中明确记录，并以 Coolify 详细构建日志完成最终验证。

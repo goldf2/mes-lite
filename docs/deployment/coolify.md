@@ -114,7 +114,7 @@ npm run verify:docker-deps
 
 Docker 正式构建也会执行一致性校验，依赖清单过期时会中止构建并给出同步命令。页面显示的 `MES-lite v...` 仍来自根目录 `package.json`，不受缓存清单影响。
 
-Prisma Client 生成和生产依赖裁剪使用独立缓存层，仅在 npm 依赖或 `prisma/` 发生变化时重建；普通页面与接口修改不会再重复执行 `npm prune`。Next.js 构建通过 BuildKit cache mount 复用 `.next/cache`，Coolify 必须保持 BuildKit 构建缓存，才能在连续部署中获得增量编译效果。启用新 Dockerfile 后的第一次构建需要建立冷缓存，主要收益会从后续代码更新开始体现。
+Prisma Client 生成使用独立缓存层，仅在 npm 依赖或 `prisma/` 发生变化时重建。运行镜像使用 Next.js standalone 输出，只带入服务器实际追踪到的依赖，并显式补充容器启动迁移所需的 Prisma CLI 和 PDF 缩略图所需的原生 Canvas 包；不再向最终镜像复制整套生产 `node_modules`。Next.js 构建通过 BuildKit cache mount 复用 `.next/cache`，Coolify 必须保持 BuildKit 构建缓存，才能在连续部署中获得增量编译效果。
 
 镜像内置了 Docker `HEALTHCHECK`，使用 Node.js 内置 `fetch` 请求 `/api/health` 检查 Web 服务是否启动。首次启动会先执行 SQLite 迁移，健康检查在 15 秒后开始，并允许最多 6 次、每 10 秒一次的重试。如果健康检查失败，优先检查：
 
@@ -137,6 +137,28 @@ DEBIAN_MIRROR=http://mirrors.aliyun.com
 `NPM_CONFIG_REGISTRY` 未设置时使用 npm 官方源。`DEBIAN_MIRROR` 在 Dockerfile 中默认为阿里云镜像，部署区域不同时可替换为当地稳定镜像。Docker Hub 基础镜像加速应在部署服务器的 Docker daemon 中统一配置，不应把某个第三方 Docker Hub 镜像域名硬编码进项目 `Dockerfile`；修改 daemon 后先验证 `docker pull node:20-bookworm-slim` 和 `docker pull buildpack-deps:bookworm-curl`，再重新部署。
 
 系统包下载、npm 依赖和 Next.js 编译均应使用 BuildKit cache mount。缓存目录不得在同一构建步骤末尾删除，否则失败重试和后续版本无法复用已下载内容。慢网络操作必须设置有限重试与超时；依赖安装层应位于业务源码 `COPY` 之前，避免每次应用修改都重新下载。
+
+### 3.2 构建成功但导出镜像失败
+
+如果日志已出现 `Compiled successfully`、静态页生成完成和完整路由表，却在 `exporting layers` 立即失败，说明应用代码已构建成功，应优先检查部署主机的 Docker 存储，而不是把 lint warning 当作失败原因。
+
+在 Coolify 部署服务器执行：
+
+```bash
+df -h
+docker system df -v
+docker ps -a --filter status=exited
+```
+
+确认旧容器和旧镜像不再需要回滚后，可先清理已停止容器、超过 24 小时的 BuildKit 缓存和超过 7 天的未使用镜像：
+
+```bash
+docker container prune -f
+docker builder prune -af --filter 'until=24h'
+docker image prune -af --filter 'until=168h'
+```
+
+不要执行 `docker volume prune`，也不要删除 `/opt/mes-lite/data` 和 `/opt/mes-lite/uploads`。清理后应再检查 `docker system df -v` 并重新部署；如果容量充足但仍在导出层时出现 Docker `exit code 255`，再重启 Docker 服务或 Coolify builder 后重试。
 
 ## 4. 部署与备份
 

@@ -33,10 +33,6 @@ FROM dependencies AS generated-dependencies
 COPY prisma ./prisma
 RUN npx prisma generate
 
-FROM generated-dependencies AS production-dependencies
-
-RUN npm prune --omit=dev
-
 FROM base AS builder
 
 WORKDIR /app
@@ -71,16 +67,21 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && mkdir -p /app/data /app/public/uploads \
     && chown -R node:node /app
 
-COPY --from=builder --chown=node:node /app/package.json /app/package-lock.json ./
-COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_modules
-COPY --from=builder --chown=node:node /app/.next ./.next
+COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+# Standalone 输出仅包含应用运行依赖。容器启动时仍需要 Prisma CLI 执行迁移，
+# 因此只额外复制 Prisma 命令及引擎，不再带入整套生产 node_modules。
+COPY --from=generated-dependencies --chown=node:node /app/node_modules/prisma ./node_modules/prisma
+COPY --from=generated-dependencies --chown=node:node /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=generated-dependencies --chown=node:node /app/node_modules/.prisma ./node_modules/.prisma
+# PDF 缩略图脚本以独立 Node 子进程运行，不在 Next.js 的文件追踪范围内。
+COPY --from=generated-dependencies --chown=node:node /app/node_modules/@napi-rs ./node_modules/@napi-rs
 COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/prisma ./prisma
 COPY --from=builder --chown=node:node /app/assets/fonts ./assets/fonts
 COPY --from=builder --chown=node:node /app/scripts/cleanup-legacy-work-instruction-files.mjs ./scripts/cleanup-legacy-work-instruction-files.mjs
 COPY --from=builder --chown=node:node /app/scripts/render-pdf-thumbnail.mjs ./scripts/render-pdf-thumbnail.mjs
 COPY --from=builder --chown=root:root --chmod=755 /app/scripts/fix-persistent-storage-permissions.sh /app/scripts/docker-entrypoint.sh ./scripts/
-COPY --from=builder --chown=node:node /app/next.config.js ./next.config.js
 
 EXPOSE 3000
 
@@ -89,4 +90,4 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=6 \
 
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 
-CMD ["sh", "-c", "touch /app/data/mes_lite.db && node scripts/cleanup-legacy-work-instruction-files.mjs && npx prisma migrate deploy && npm run start"]
+CMD ["sh", "-c", "touch /app/data/mes_lite.db && node scripts/cleanup-legacy-work-instruction-files.mjs && node node_modules/prisma/build/index.js migrate deploy && node server.js"]
