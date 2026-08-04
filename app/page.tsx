@@ -163,7 +163,7 @@ type MaterialSection = 'materials' | 'bomWorkspace' | 'bomUsage'
 
 interface BomEditorTarget {
   materialId: string
-  bomId: string
+  bomId?: string
   requestId: number
 }
 
@@ -873,7 +873,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setTimeout(() => setMessage(''), 5000)
   }, [])
 
-  const openBomEditor = useCallback((materialId: string, bomId: string) => {
+  const openBomEditor = useCallback((materialId: string, bomId?: string) => {
     setBomEditorTarget({ materialId, bomId, requestId: Date.now() })
     setMaterialSection('bomWorkspace')
     setTab('materials')
@@ -2236,7 +2236,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
         {/* 物料与 BOM */}
         {tab === 'materials' && materialSection === 'materials' && (
-          <MaterialPage onMessage={showMessage} showBomWorkspace={false} />
+          <MaterialPage
+            onMessage={showMessage}
+            showBomWorkspace={false}
+            canReadBom={canRead('bomCost')}
+            canCreateBom={canUpdate('bomCost')}
+            onCreateBom={(materialId) => openBomEditor(materialId)}
+          />
         )}
         {tab === 'materials' && materialSection === 'bomWorkspace' && (
           <MaterialPage

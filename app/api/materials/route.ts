@@ -8,6 +8,7 @@ import { parseCsvFilter } from '@/lib/status-filter'
 import { sortByNaturalText } from '@/lib/natural-sort'
 import { getSystemSettings } from '@/lib/system-settings'
 import { findCatalogUnit, getUnitCatalog } from '@/lib/unit-catalog'
+import { getBomStatusRelationFilters } from '@/lib/bom-status-filter'
 
 const materialSchema = z.object({
   code: z.string().min(1, '物料编码不能为空'),
@@ -70,6 +71,11 @@ export async function GET(req: NextRequest) {
     const category = searchParams.get('category')
     const categories = parseCsvFilter(searchParams.get('categories'))
     const customerId = searchParams.get('customerId')
+    const bomStatus = searchParams.get('bomStatus')
+    if (bomStatus) {
+      const bomDenied = await requireResourcePermission('bomCost', 'read')
+      if (bomDenied) return bomDenied
+    }
     const rawPage = parseInt(searchParams.get('page') || '1')
     const rawPageSize = parseInt(searchParams.get('pageSize') || '20')
     const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
@@ -88,11 +94,13 @@ export async function GET(req: NextRequest) {
           : { [sortBy]: sortDir }
 
     const where: any = { deletedAt: null }
+    const andFilters: any[] = []
     if (categories.length === 1) where.category = categories[0]
     else if (categories.length > 1) where.category = { in: categories }
     else if (category) where.category = category
     if (customerId === '__UNASSIGNED__') where.customerId = null
     else if (customerId) where.customerId = customerId
+    andFilters.push(...getBomStatusRelationFilters(bomStatus))
     if (keyword) {
       where.OR = [
         { name: { contains: keyword } },
@@ -100,6 +108,7 @@ export async function GET(req: NextRequest) {
         { spec: { contains: keyword } },
       ]
     }
+    if (andFilters.length > 0) where.AND = andFilters
 
     const [queriedMaterials, total] = await Promise.all([
       prisma.material.findMany({

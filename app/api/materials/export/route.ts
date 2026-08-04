@@ -5,6 +5,7 @@ import { parseCsvFilter } from '@/lib/status-filter'
 import { csvResponse, toCsv } from '@/lib/csv'
 import { sortByNaturalText } from '@/lib/natural-sort'
 import { getSystemSettings } from '@/lib/system-settings'
+import { getBomStatusRelationFilters } from '@/lib/bom-status-filter'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +42,11 @@ export async function GET(req: NextRequest) {
     const category = searchParams.get('category')
     const categories = parseCsvFilter(searchParams.get('categories'))
     const customerId = searchParams.get('customerId')
+    const bomStatus = searchParams.get('bomStatus')
+    if (bomStatus) {
+      const bomDenied = await requireResourcePermission('bomCost', 'read')
+      if (bomDenied) return bomDenied
+    }
     const requestedSortBy = searchParams.get('sortBy') || 'createdAt'
     const sortBy = materialSortFields.has(requestedSortBy) ? requestedSortBy : 'createdAt'
     const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc'
@@ -60,6 +66,8 @@ export async function GET(req: NextRequest) {
     else if (category) where.category = category
     if (customerId === '__UNASSIGNED__') where.customerId = null
     else if (customerId) where.customerId = customerId
+    const bomStatusFilters = getBomStatusRelationFilters(bomStatus)
+    if (bomStatusFilters.length > 0) where.AND = bomStatusFilters
     if (keyword) {
       where.OR = [
         { name: { contains: keyword } },

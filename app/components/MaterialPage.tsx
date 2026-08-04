@@ -172,6 +172,14 @@ const materialCategoryOptions = [
 ] as const
 
 const materialCategoryFilterOptions = materialCategoryOptions.map(([value, label]) => ({ value, label }))
+const bomStatusOptions = [
+  { value: 'all', label: '全部 BOM 状态' },
+  { value: 'NONE', label: '未建立产出 BOM' },
+  { value: 'NO_ACTIVE', label: '有 BOM 但无启用方案' },
+  { value: 'NO_DEFAULT', label: '有启用方案但无默认方案' },
+  { value: 'READY', label: '已有可用默认 BOM' },
+] as const
+type BomStatusFilter = (typeof bomStatusOptions)[number]['value']
 const primaryMeasureOptions = [
   ['LENGTH', '长度'],
   ['WEIGHT', '重量'],
@@ -775,12 +783,18 @@ export default function MaterialPage({
   showBomWorkspace = false,
   openBomRequest,
   onOpenBomRequestHandled,
+  onCreateBom,
+  canReadBom = false,
+  canCreateBom = false,
 }: {
   onMessage: (msg: string) => void
   onToolbarChange?: (actions: ReactNode | null) => void
   showBomWorkspace?: boolean
-  openBomRequest?: { materialId: string; bomId: string; requestId: number } | null
+  openBomRequest?: { materialId: string; bomId?: string; requestId: number } | null
   onOpenBomRequestHandled?: () => void
+  onCreateBom?: (materialId: string) => void
+  canReadBom?: boolean
+  canCreateBom?: boolean
 }) {
   const [materials, setMaterials] = useState<Material[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -803,6 +817,7 @@ export default function MaterialPage({
   const [bomKeyword, setBomKeyword] = useState('')
   const [keyword, setKeyword] = useState('')
   const [customerFilter, setCustomerFilter] = useState('')
+  const [bomStatusFilter, setBomStatusFilter] = useState<BomStatusFilter>('all')
   const [selectedCategories, setSelectedCategories] = useState<string[]>(materialCategoryFilterOptions.map((option) => option.value))
   const [sortBy, setSortBy] = useState<MaterialSortBy>('createdAt')
   const [sortDir, setSortDir] = useState<SortDirection>('desc')
@@ -829,6 +844,7 @@ export default function MaterialPage({
   const formStockUnitConfigured = formStockUnitOptions.some((unit) => unit.code === form.stockUnit)
   const formValuationUnitConfigured = formValuationUnitOptions.some((unit) => unit.code === form.valuationUnit)
   const showField = (field: MaterialVisibleField) => visibleFields.includes(field)
+  const canUseBomData = showBomWorkspace || canReadBom
   const [loading, setLoading] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importMode, setImportMode] = useState<'skip' | 'update'>('skip')
@@ -976,17 +992,17 @@ export default function MaterialPage({
 
   useEffect(() => {
     if (!showBomWorkspace) fetchMaterials()
-  }, [keyword, selectedCategories, customerFilter, sortBy, sortDir, page, pageSize, showBomWorkspace])
+  }, [keyword, selectedCategories, customerFilter, bomStatusFilter, sortBy, sortDir, page, pageSize, showBomWorkspace])
 
   useEffect(() => {
     setPage(1)
-  }, [keyword, selectedCategories, customerFilter, sortBy, sortDir, pageSize])
+  }, [keyword, selectedCategories, customerFilter, bomStatusFilter, sortBy, sortDir, pageSize])
 
   useEffect(() => {
     fetchCustomers()
     fetchUnitCatalog()
-    if (showBomWorkspace) fetchBomData()
-  }, [fetchBomData, showBomWorkspace])
+    if (canUseBomData && (showBomWorkspace || bomSummaryVisible)) fetchBomData()
+  }, [bomSummaryVisible, canUseBomData, fetchBomData, showBomWorkspace])
 
   useEffect(() => {
     if (!showBomWorkspace || bomLoading || !selectedMaterialId) return
@@ -1223,6 +1239,7 @@ export default function MaterialPage({
     params.set('sortDir', sortDir)
     if (keyword) params.set('keyword', keyword)
     if (customerFilter) params.set('customerId', customerFilter)
+    if (canUseBomData && bomStatusFilter !== 'all') params.set('bomStatus', bomStatusFilter)
     const categoryQuery = getMultiSelectQuery('categories', selectedCategories, materialCategoryFilterOptions)
     if (categoryQuery) {
       const categoryParams = new URLSearchParams(categoryQuery)
@@ -1686,6 +1703,16 @@ export default function MaterialPage({
     if (handledBomOpenRequestRef.current === openBomRequest.requestId) return
     handledBomOpenRequestRef.current = openBomRequest.requestId
     bomWorkspaceStateRestoredRef.current = true
+    if (!openBomRequest.bomId) {
+      if (!bomMaterialById.has(openBomRequest.materialId)) {
+        onMessage('目标物料不存在或已归档')
+        onOpenBomRequestHandled?.()
+        return
+      }
+      selectMaterialForBom(openBomRequest.materialId)
+      onOpenBomRequestHandled?.()
+      return
+    }
     const product = bomProductByMaterialId.get(openBomRequest.materialId)
     if (!product?.boms.some((bom) => bom.id === openBomRequest.bomId)) {
       onMessage('目标 BOM 不存在或已归档')
@@ -1694,7 +1721,7 @@ export default function MaterialPage({
     }
     selectExistingBom(openBomRequest.materialId, openBomRequest.bomId)
     onOpenBomRequestHandled?.()
-  }, [bomDataReady, bomProductByMaterialId, onMessage, onOpenBomRequestHandled, openBomRequest, selectExistingBom, showBomWorkspace])
+  }, [bomDataReady, bomMaterialById, bomProductByMaterialId, onMessage, onOpenBomRequestHandled, openBomRequest, selectExistingBom, selectMaterialForBom, showBomWorkspace])
 
   useEffect(() => {
     if (!showBomWorkspace || !bomDataReady || bomWorkspaceStateRestoredRef.current) return
@@ -1817,18 +1844,21 @@ export default function MaterialPage({
     if (customerFilter) {
       labels.push(customerFilter === '__UNASSIGNED__' ? '通用/未绑定' : customers.find((customer) => customer.id === customerFilter)?.name || '指定客户')
     }
+    if (canUseBomData && bomStatusFilter !== 'all') {
+      labels.push(bomStatusOptions.find((option) => option.value === bomStatusFilter)?.label || '指定 BOM 状态')
+    }
     if (sortBy !== 'createdAt' || sortDir !== 'desc') {
       labels.push(`排序 ${materialSortOptions.find((option) => option.value === sortBy)?.label || sortBy}/${sortDir === 'asc' ? '升序' : '降序'}`)
     }
     if (
       visibleFields.length !== defaultMaterialVisibleFields.length
       || visibleFields.some((field, index) => field !== defaultMaterialVisibleFields[index])
-      || (showBomWorkspace && !bomSummaryVisible)
+      || (canUseBomData && !bomSummaryVisible)
     ) {
       labels.push('字段显示')
     }
     return labels
-  }, [selectedCategories, customerFilter, customers, sortBy, sortDir, visibleFields, showBomWorkspace, bomSummaryVisible])
+  }, [selectedCategories, customerFilter, customers, bomStatusFilter, sortBy, sortDir, visibleFields, bomSummaryVisible, canUseBomData])
 
   useEffect(() => {
     if (!onToolbarChange) return
@@ -1887,6 +1917,15 @@ export default function MaterialPage({
               allowClear
               className="w-56"
             />
+            {canUseBomData && (
+              <select
+                value={bomStatusFilter}
+                onChange={(event) => setBomStatusFilter(event.target.value as BomStatusFilter)}
+                className="w-56 rounded-lg border border-gray-200 px-4 py-2 text-sm"
+              >
+                {bomStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            )}
             <div className="flex flex-nowrap items-center gap-2 whitespace-nowrap">
               <select
                 value={sortBy}
@@ -1909,7 +1948,7 @@ export default function MaterialPage({
               value={visibleFields}
               onChange={updateVisibleFields}
             />
-            {showBomWorkspace && (
+            {canUseBomData && (
               <BomSummaryVisibilityControl
                 visible={bomSummaryVisible}
                 value={bomSummaryFields}
@@ -1955,7 +1994,7 @@ export default function MaterialPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, sortBy, sortDir, viewMode, setViewMode, visibleFields, bomSummaryVisible, bomSummaryFields, activeFilterLabels, showBomWorkspace, columnWidths, resetAllColumnWidths, bomKeyword, selectMaterialForBom])
+  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, bomStatusFilter, sortBy, sortDir, viewMode, setViewMode, visibleFields, bomSummaryVisible, bomSummaryFields, activeFilterLabels, showBomWorkspace, columnWidths, resetAllColumnWidths, bomKeyword, selectMaterialForBom, canUseBomData])
 
   return (
     <>
@@ -2009,6 +2048,15 @@ export default function MaterialPage({
                 allowClear
                 className="w-56"
               />
+              {canUseBomData && (
+                <select
+                  value={bomStatusFilter}
+                  onChange={(event) => setBomStatusFilter(event.target.value as BomStatusFilter)}
+                  className="w-56 rounded-lg border border-gray-200 px-4 py-2 text-sm"
+                >
+                  {bomStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              )}
               <div className="flex flex-nowrap items-center gap-2 whitespace-nowrap">
                 <select
                   value={sortBy}
@@ -2031,7 +2079,7 @@ export default function MaterialPage({
                 value={visibleFields}
                 onChange={updateVisibleFields}
               />
-              {showBomWorkspace && (
+              {canUseBomData && (
                 <BomSummaryVisibilityControl
                   visible={bomSummaryVisible}
                   value={bomSummaryFields}
@@ -2095,7 +2143,7 @@ export default function MaterialPage({
           <>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] items-start gap-3">
               {materials.map((material) => {
-                const bomSummary = showBomWorkspace && bomSummaryVisible ? getBomSummary(material) : null
+                const bomSummary = canUseBomData && bomSummaryVisible ? getBomSummary(material) : null
                 const isSelected = showBomWorkspace && material.id === selectedMaterialId
                 return (
                 <div
@@ -2163,6 +2211,14 @@ export default function MaterialPage({
                   </div>
                 )}
                 <div className="mt-auto flex items-center justify-end gap-1.5 pt-3">
+                  {canCreateBom && onCreateBom && (
+                    <button
+                      onClick={() => onCreateBom(material.id)}
+                      className="rounded border border-emerald-300 px-2 py-1 text-xs text-emerald-700 transition hover:bg-emerald-50"
+                    >
+                      创建 BOM
+                    </button>
+                  )}
                   <button
                     onClick={() => handleOpenPanorama(material)}
                     className="rounded border border-blue-200 px-2 py-1 text-xs text-blue-700 transition hover:bg-blue-50"
@@ -2211,13 +2267,13 @@ export default function MaterialPage({
                   {showField('stock') && <MaterialSortableHeader columnKey="stock" field="stock" label="库存" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('stock')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
                   {showField('valuationStock') && <MaterialSortableHeader columnKey="valuationStock" field="valuationStock" label="参考数量" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('valuationStock')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
                   {showField('createdAt') && <MaterialSortableHeader columnKey="createdAt" field="createdAt" label="创建时间" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('createdAt')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
-                  {showBomWorkspace && bomSummaryVisible && <MaterialTableHeader columnKey="bomSummary" label="BOM 简况" style={columnStyle('bomSummary')} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
+                  {canUseBomData && bomSummaryVisible && <MaterialTableHeader columnKey="bomSummary" label="BOM 简况" style={columnStyle('bomSummary')} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
                   <MaterialTableHeader columnKey="actions" label="操作" style={columnStyle('actions')} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {materials.map((material) => {
-                  const bomSummary = showBomWorkspace && bomSummaryVisible ? getBomSummary(material) : null
+                  const bomSummary = canUseBomData && bomSummaryVisible ? getBomSummary(material) : null
                   const isSelected = showBomWorkspace && material.id === selectedMaterialId
                   return (
                   <tr
@@ -2271,6 +2327,14 @@ export default function MaterialPage({
                       </td>
                     )}
                     <td style={columnStyle('actions')} className="overflow-hidden whitespace-nowrap px-4 py-3">
+                      {canCreateBom && onCreateBom && (
+                        <button
+                          onClick={() => onCreateBom(material.id)}
+                          className="mr-2 rounded border border-emerald-300 px-3 py-1 text-xs text-emerald-700 transition hover:bg-emerald-50"
+                        >
+                          创建 BOM
+                        </button>
+                      )}
                       <button
                         onClick={() => handleOpenPanorama(material)}
                         className="px-3 py-1 text-blue-700 border border-blue-300 rounded text-xs hover:bg-blue-50 transition"
