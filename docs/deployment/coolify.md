@@ -86,7 +86,7 @@ docker exec -u root <容器名> npm run storage:fix
 
 `20260730163000_link_work_instructions_to_material` 是一次明确的破坏性迁移：首次执行前会删除旧指导书专属附件目录，迁移会删除旧指导书及对应附件元数据，然后启用产品必选的“产品文档”模型。迁移完成后，启动脚本通过迁移记录识别已执行状态，不会再次清理新产品文档。
 
-镜像构建不再执行 `apt-get`：Prisma 所需的 OpenSSL 3 运行库从 Docker 官方 `buildpack-deps:bookworm-curl` 镜像复制，送货单使用的 Noto Sans CJK SC 字体及其 SIL OFL 许可证随仓库发布。这样可避免部署机访问 Debian 软件源超时，同时保证 Prisma 构建和中文 PDF 使用相同、可验证的依赖。
+镜像构建仅在确有必要时执行 `apt-get`：PDF 缩略图需要 `poppler-utils`，安装阶段使用可配置的 Debian 镜像、BuildKit APT 缓存、有限重试和超时。Prisma 所需的 OpenSSL 3 运行库仍从 Docker 官方 `buildpack-deps:bookworm-curl` 镜像复制，送货单使用的 Noto Sans CJK SC 字体及其 SIL OFL 许可证随仓库发布。普通代码修改不会让系统依赖安装层重新执行。
 
 Docker 的 `dependencies` 阶段使用 `docker/dependencies/` 下去除项目发布版本号的依赖清单。正常递增 `package.json` 与 `package-lock.json` 的版本号不会再触发 `npm ci`；只有依赖或锁定结果变化时才会重建该层。新增、升级或删除 npm 依赖后必须运行并提交：
 
@@ -114,9 +114,12 @@ Prisma Client 生成和生产依赖裁剪使用独立缓存层，仅在 npm 依�
 
 ```env
 NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+DEBIAN_MIRROR=http://mirrors.aliyun.com
 ```
 
-未设置时继续使用 npm 官方源。Docker Hub 基础镜像加速应在部署服务器的 Docker daemon 中统一配置，不应把某个第三方镜像域名硬编码进项目 `Dockerfile`；修改 daemon 后先验证 `docker pull node:20-bookworm-slim` 和 `docker pull buildpack-deps:bookworm-curl`，再重新部署。
+`NPM_CONFIG_REGISTRY` 未设置时使用 npm 官方源。`DEBIAN_MIRROR` 在 Dockerfile 中默认为阿里云镜像，部署区域不同时可替换为当地稳定镜像。Docker Hub 基础镜像加速应在部署服务器的 Docker daemon 中统一配置，不应把某个第三方 Docker Hub 镜像域名硬编码进项目 `Dockerfile`；修改 daemon 后先验证 `docker pull node:20-bookworm-slim` 和 `docker pull buildpack-deps:bookworm-curl`，再重新部署。
+
+系统包下载、npm 依赖和 Next.js 编译均应使用 BuildKit cache mount。缓存目录不得在同一构建步骤末尾删除，否则失败重试和后续版本无法复用已下载内容。慢网络操作必须设置有限重试与超时；依赖安装层应位于业务源码 `COPY` 之前，避免每次应用修改都重新下载。
 
 ## 4. 部署与备份
 
