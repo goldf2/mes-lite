@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic'
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { Boxes, ChevronDown, Menu, PencilLine, Search, Settings2, X } from 'lucide-react'
+import { Boxes, Menu, PencilLine, Search, Settings2, X } from 'lucide-react'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
 import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
@@ -29,6 +29,10 @@ import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/works
 import { getPageModuleDefinition, resolvePageModuleKey } from '@/lib/page-modules'
 import PageModuleBoundary from './components/page-modules/PageModuleBoundary'
 import TopBarPortal from './components/TopBarPortal'
+import DesktopNavigation, {
+  type DesktopNavigationGroup,
+  type DesktopNavigationMode,
+} from './components/navigation/DesktopNavigation'
 
 function FeaturePageLoading() {
   return <AppLoadingIndicator label="正在加载页面..." />
@@ -437,9 +441,14 @@ const orderStatusOptions = [
 
 const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0'
 const desktopSidebarStorageKey = 'mes-lite.layout.desktopSidebarWidth'
+const desktopSplitSidebarStorageKey = 'mes-lite.layout.desktopSplitSidebarWidth'
+const desktopNavigationModeStorageKey = 'mes-lite.layout.desktopNavigationMode'
 const defaultDesktopSidebarWidth = 224
 const minDesktopSidebarWidth = 184
 const maxDesktopSidebarWidth = 320
+const defaultDesktopSplitSidebarWidth = 296
+const minDesktopSplitSidebarWidth = 264
+const maxDesktopSplitSidebarWidth = 384
 
 function SystemMenu({
   containerRef,
@@ -641,9 +650,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [systemMenuOpen, setSystemMenuOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
+  const [desktopNavigationMode, setDesktopNavigationMode] = useState<DesktopNavigationMode>('accordion')
   const [desktopSidebarWidth, setDesktopSidebarWidth] = useState(defaultDesktopSidebarWidth)
+  const [desktopSplitSidebarWidth, setDesktopSplitSidebarWidth] = useState(defaultDesktopSplitSidebarWidth)
   const [desktopSidebarReady, setDesktopSidebarReady] = useState(false)
-  const [resizingDesktopSidebar, setResizingDesktopSidebar] = useState(false)
+  const [wideDesktopNavigation, setWideDesktopNavigation] = useState(false)
+  const [resizingDesktopSidebar, setResizingDesktopSidebar] = useState<DesktopNavigationMode | null>(null)
   const systemMenuRef = useRef<HTMLDivElement>(null)
   const desktopSystemMenuRef = useRef<HTMLDivElement>(null)
   const pageContentRef = useRef<HTMLDivElement>(null)
@@ -856,6 +868,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
   useEffect(() => {
     const savedWidth = Number(window.localStorage.getItem(desktopSidebarStorageKey))
+    const savedSplitWidth = Number(window.localStorage.getItem(desktopSplitSidebarStorageKey))
+    const savedNavigationMode = window.localStorage.getItem(desktopNavigationModeStorageKey)
     if (
       Number.isFinite(savedWidth)
       && savedWidth >= minDesktopSidebarWidth
@@ -863,13 +877,33 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     ) {
       setDesktopSidebarWidth(savedWidth)
     }
+    if (
+      Number.isFinite(savedSplitWidth)
+      && savedSplitWidth >= minDesktopSplitSidebarWidth
+      && savedSplitWidth <= maxDesktopSplitSidebarWidth
+    ) {
+      setDesktopSplitSidebarWidth(savedSplitWidth)
+    }
+    if (savedNavigationMode === 'accordion' || savedNavigationMode === 'split') {
+      setDesktopNavigationMode(savedNavigationMode)
+    }
     setDesktopSidebarReady(true)
   }, [])
 
   useEffect(() => {
     if (!desktopSidebarReady) return
     window.localStorage.setItem(desktopSidebarStorageKey, String(desktopSidebarWidth))
-  }, [desktopSidebarReady, desktopSidebarWidth])
+    window.localStorage.setItem(desktopSplitSidebarStorageKey, String(desktopSplitSidebarWidth))
+    window.localStorage.setItem(desktopNavigationModeStorageKey, desktopNavigationMode)
+  }, [desktopNavigationMode, desktopSidebarReady, desktopSidebarWidth, desktopSplitSidebarWidth])
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 1280px)')
+    const sync = () => setWideDesktopNavigation(mediaQuery.matches)
+    sync()
+    mediaQuery.addEventListener('change', sync)
+    return () => mediaQuery.removeEventListener('change', sync)
+  }, [])
 
   useEffect(() => {
     if (!resizingDesktopSidebar) return
@@ -880,12 +914,19 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     document.body.style.userSelect = 'none'
 
     const resize = (event: PointerEvent) => {
+      if (resizingDesktopSidebar === 'split') {
+        setDesktopSplitSidebarWidth(Math.min(
+          maxDesktopSplitSidebarWidth,
+          Math.max(minDesktopSplitSidebarWidth, event.clientX),
+        ))
+        return
+      }
       setDesktopSidebarWidth(Math.min(
         maxDesktopSidebarWidth,
         Math.max(minDesktopSidebarWidth, event.clientX),
       ))
     }
-    const stop = () => setResizingDesktopSidebar(false)
+    const stop = () => setResizingDesktopSidebar(null)
 
     window.addEventListener('pointermove', resize)
     window.addEventListener('pointerup', stop, { once: true })
@@ -1404,15 +1445,80 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const selectedStockLocations = selectedStock?.locationBalances.filter((balance) => (
     Math.abs(Number(balance.qty)) > 0.000001 || Math.abs(Number(balance.reservedQty)) > 0.000001
   )) || []
+  const splitNavigationVisible = desktopNavigationMode === 'split' && wideDesktopNavigation
+
+  const desktopNavigationGroups: DesktopNavigationGroup[] = visibleBusinessGroups.map((group) => {
+    const firstItem = group.tabs.map((key) => group.items.find((item) => item.key === key)).find(Boolean)
+    const groupActive = !activeSystemTab && group.key === activeBusinessGroupKey
+    const items = group.key === 'materials'
+      ? materialSectionItems.map((section) => {
+          const SectionIcon = section.key === 'materials' ? Boxes : section.key === 'bomWorkspace' ? PencilLine : Search
+          return {
+            id: `materials:${section.key}`,
+            label: section.label,
+            active: tab === 'materials' && materialSection === section.key,
+            icon: <SectionIcon aria-hidden="true" className="h-4 w-4 shrink-0" />,
+            onClick: () => navigateToTab('materials', section.key),
+          }
+        })
+      : group.items.map((item) => {
+          const index = navItems.findIndex((navItem) => navItem.key === item.key)
+          return {
+            id: item.key,
+            label: item.label,
+            active: tab === item.key || (item.key === 'orders' && (tab === 'create' || tab === 'detail')),
+            draggable: true,
+            dragState: draggedIndex === index ? 'dragging' as const : dragOverIndex === index ? 'target' as const : 'idle' as const,
+            onDragStart: (event: React.DragEvent<HTMLButtonElement>) => handleDragStart(event, index),
+            onDragOver: (event: React.DragEvent<HTMLButtonElement>) => handleDragOver(event, index),
+            onDragLeave: handleDragLeave,
+            onDrop: (event: React.DragEvent<HTMLButtonElement>) => handleDrop(event, index),
+            onClick: () => navigateToTab(item.key),
+          }
+        })
+
+    return {
+      id: group.key,
+      label: group.label,
+      icon: <MenuIcon icon={firstItem?.key || group.key} />,
+      active: groupActive,
+      items,
+      onClick: () => {
+        if (firstItem) navigateToTab(firstItem.key)
+      },
+    }
+  })
+
+  if (readableSystemNavItems.length > 0) {
+    desktopNavigationGroups.push({
+      id: 'account',
+      label: '账号与权限',
+      icon: <MenuIcon icon="operators" />,
+      active: activeSystemTab,
+      items: readableSystemNavItems.map((item) => ({
+        id: item.key,
+        label: item.label,
+        active: tab === item.key,
+        onClick: () => navigateToTab(item.key),
+      })),
+      onClick: () => navigateToTab(readableSystemNavItems[0].key),
+    })
+  }
 
   return (
     <div
       className="min-h-screen overflow-x-hidden bg-gray-50"
-      style={{ '--mes-desktop-sidebar-width': `${desktopSidebarWidth}px` } as CSSProperties}
+      data-desktop-navigation={desktopNavigationMode}
+      style={{
+        '--mes-desktop-sidebar-width': `${desktopSidebarWidth}px`,
+        '--mes-desktop-split-sidebar-width': `${desktopSplitSidebarWidth}px`,
+      } as CSSProperties}
     >
       <InterfacePreferenceSync />
       <header className="fixed inset-x-0 top-0 z-50 hidden h-16 items-center border-b border-gray-200 bg-white lg:flex">
-        <div className="flex h-full w-[var(--mes-desktop-sidebar-width)] shrink-0 items-center gap-3 border-r border-gray-200 px-4">
+        <div className={`flex h-full w-[var(--mes-desktop-sidebar-width)] shrink-0 items-center gap-3 border-r border-gray-200 px-4 ${
+          desktopNavigationMode === 'split' ? 'xl:w-[var(--mes-desktop-split-sidebar-width)]' : ''
+        }`}>
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600">
             <span className="text-lg font-bold text-white">M</span>
           </div>
@@ -1478,114 +1584,36 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </div>
       </header>
 
-      <aside className="fixed bottom-0 left-0 top-16 z-30 hidden w-[var(--mes-desktop-sidebar-width)] flex-col border-r border-gray-200 bg-white lg:flex">
-        <nav aria-label="一级与二级功能菜单" className="min-h-0 flex-1 space-y-0 overflow-y-auto px-1.5 py-1">
-          {visibleBusinessGroups.map((group) => {
-            const selected = !activeSystemTab && group.key === activeBusinessGroupKey
-            const firstItem = group.tabs.map((key) => group.items.find((item) => item.key === key)).find(Boolean)
-            if (!firstItem) return null
-            return (
-              <div key={group.key} className="space-y-0">
-                <button
-                  type="button"
-                  aria-expanded={selected}
-                  onClick={() => navigateToTab(firstItem.key)}
-                  className={`flex min-h-9 w-full items-center justify-between rounded-lg px-2.5 py-1 text-sm font-semibold transition ${
-                    selected ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                  }`}
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <MenuIcon icon={firstItem.key} />
-                    <span className="truncate">{group.label}</span>
-                  </span>
-                  <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 transition-transform ${selected ? 'rotate-180' : '-rotate-90'}`} />
-                </button>
-                {selected && (
-                  <div className="ml-4 space-y-0 border-l border-gray-200 pl-2">
-                    {group.key === 'materials' ? materialSectionItems.map((section) => {
-                      const SectionIcon = section.key === 'materials' ? Boxes : section.key === 'bomWorkspace' ? PencilLine : Search
-                      const sectionSelected = tab === 'materials' && materialSection === section.key
-                      return (
-                        <button
-                          key={section.key}
-                          type="button"
-                          aria-current={sectionSelected ? 'page' : undefined}
-                          onClick={() => navigateToTab('materials', section.key)}
-                          className={`flex min-h-[30px] w-full items-center gap-2 rounded-md px-2.5 py-0.5 text-left text-sm transition ${
-                            sectionSelected ? 'bg-blue-50 font-semibold text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                          }`}
-                        >
-                          <SectionIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{section.label}</span>
-                        </button>
-                      )
-                    }) : group.items.map((item) => {
-                      const index = navItems.findIndex((navItem) => navItem.key === item.key)
-                      const itemSelected = tab === item.key || (item.key === 'orders' && (tab === 'create' || tab === 'detail'))
-                      return (
-                        <button
-                          key={item.key}
-                          type="button"
-                          draggable
-                          aria-current={itemSelected ? 'page' : undefined}
-                          onDragStart={(event) => handleDragStart(event, index)}
-                          onDragOver={(event) => handleDragOver(event, index)}
-                          onDragLeave={handleDragLeave}
-                          onDrop={(event) => handleDrop(event, index)}
-                          onClick={() => navigateToTab(item.key)}
-                          className={`flex min-h-[30px] w-full items-center justify-between rounded-md px-2.5 py-0.5 text-left text-sm transition ${
-                            draggedIndex === index ? 'opacity-50' : dragOverIndex === index ? 'ring-2 ring-blue-300' : ''
-                          } ${itemSelected ? 'bg-blue-50 font-semibold text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
-                        >
-                          <span className="truncate">{item.label}</span>
-                          <span aria-hidden="true" className="text-xs text-gray-300">⋮⋮</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-          {readableSystemNavItems.length > 0 && (
-            <div className="space-y-0 border-t border-gray-100 pt-1">
-              <button
-                type="button"
-                aria-expanded={activeSystemTab}
-                onClick={() => navigateToTab(readableSystemNavItems[0].key)}
-                className={`flex min-h-9 w-full items-center justify-between rounded-lg px-2.5 py-1 text-sm font-semibold transition ${
-                  activeSystemTab ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                }`}
-              >
-                <span className="flex min-w-0 items-center gap-2"><MenuIcon icon="operators" /><span className="truncate">账号与权限</span></span>
-                <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 transition-transform ${activeSystemTab ? 'rotate-180' : '-rotate-90'}`} />
-              </button>
-              {activeSystemTab && (
-                <div className="ml-4 space-y-0 border-l border-gray-200 pl-2">
-                  {readableSystemNavItems.map((item) => (
-                    <button key={item.key} type="button" aria-current={tab === item.key ? 'page' : undefined} onClick={() => navigateToTab(item.key)} className={`min-h-[30px] w-full rounded-md px-2.5 py-0.5 text-left text-sm transition ${tab === item.key ? 'bg-blue-50 font-semibold text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{item.label}</button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </nav>
+      <aside className={`fixed bottom-0 left-0 top-16 z-30 hidden w-[var(--mes-desktop-sidebar-width)] flex-col border-r border-gray-200 bg-white lg:flex ${
+        desktopNavigationMode === 'split' ? 'xl:w-[var(--mes-desktop-split-sidebar-width)]' : ''
+      }`}>
+        <DesktopNavigation mode={desktopNavigationMode} groups={desktopNavigationGroups} />
         <div
           role="separator"
           aria-label="调整左侧辅助功能区宽度"
           aria-orientation="vertical"
-          aria-valuemin={minDesktopSidebarWidth}
-          aria-valuemax={maxDesktopSidebarWidth}
-          aria-valuenow={Math.round(desktopSidebarWidth)}
+          aria-valuemin={splitNavigationVisible ? minDesktopSplitSidebarWidth : minDesktopSidebarWidth}
+          aria-valuemax={splitNavigationVisible ? maxDesktopSplitSidebarWidth : maxDesktopSidebarWidth}
+          aria-valuenow={Math.round(splitNavigationVisible ? desktopSplitSidebarWidth : desktopSidebarWidth)}
           tabIndex={0}
           onPointerDown={(event) => {
             event.preventDefault()
-            setResizingDesktopSidebar(true)
+            setResizingDesktopSidebar(splitNavigationVisible ? 'split' : 'accordion')
           }}
-          onDoubleClick={() => setDesktopSidebarWidth(defaultDesktopSidebarWidth)}
+          onDoubleClick={() => {
+            if (splitNavigationVisible) setDesktopSplitSidebarWidth(defaultDesktopSplitSidebarWidth)
+            else setDesktopSidebarWidth(defaultDesktopSidebarWidth)
+          }}
           onKeyDown={(event) => {
             if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
             event.preventDefault()
+            if (splitNavigationVisible) {
+              setDesktopSplitSidebarWidth((current) => Math.min(
+                maxDesktopSplitSidebarWidth,
+                Math.max(minDesktopSplitSidebarWidth, current + (event.key === 'ArrowRight' ? 8 : -8)),
+              ))
+              return
+            }
             setDesktopSidebarWidth((current) => Math.min(
               maxDesktopSidebarWidth,
               Math.max(minDesktopSidebarWidth, current + (event.key === 'ArrowRight' ? 8 : -8)),
@@ -1604,7 +1632,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </div>
       </aside>
 
-      <main className="mes-mobile-main min-w-0 p-3 sm:p-4 lg:ml-[var(--mes-desktop-sidebar-width)] lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20">
+      <main className={`mes-mobile-main min-w-0 p-3 sm:p-4 lg:ml-[var(--mes-desktop-sidebar-width)] lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20 ${
+        desktopNavigationMode === 'split' ? 'xl:ml-[var(--mes-desktop-split-sidebar-width)]' : ''
+      }`}>
         <div className={`sticky top-0 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:hidden ${
           systemMenuOpen ? 'z-[60] lg:z-30' : 'z-30'
         }`}>
@@ -2866,6 +2896,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         onClose={() => setShowPageOptions(false)}
         pageLabel={activeTabLabel}
         showBomUnitOptions={tab === 'materials' && materialSection === 'bomWorkspace'}
+        navigationMode={desktopNavigationMode}
+        onNavigationModeChange={setDesktopNavigationMode}
         onMessage={showMessage}
       />
 
