@@ -6,6 +6,8 @@ import { SearchFieldWithPresets } from './SavedSearchPresets'
 import SortableTableHeader from './SortableTableHeader'
 import useClientTableSort from './useClientTableSort'
 import AppButton from './AppButton'
+import ResponsiveToolbarActions from './ResponsiveToolbarActions'
+import TopBarPortal from './TopBarPortal'
 
 interface ResourceItem {
   key: string
@@ -286,37 +288,49 @@ export default function PermissionPage({
 
   return (
     <div className="space-y-4">
+      <TopBarPortal>
+        {mode === 'users' ? (
+          <ResponsiveToolbarActions
+            primaryFilters={(
+              <SearchFieldWithPresets
+                storageKey="mes-lite.searchPresets.permissionUsers"
+                value={searchKeyword}
+                onChange={setSearchKeyword}
+                placeholder="搜索账号、姓名或角色"
+              />
+            )}
+            actions={(
+              <>
+                <ViewModeToggle value={userViewMode} onChange={setUserViewMode} />
+                <AppButton variant="primary" onClick={saveAssignment} disabled={loading || !activeOperator || activeOperator.role === 'ADMIN'}>
+                  {loading ? '保存中...' : '保存当前人员'}
+                </AppButton>
+              </>
+            )}
+          />
+        ) : (
+          <ResponsiveToolbarActions
+            actions={(
+              <>
+                <ViewModeToggle value={groupViewMode} onChange={setGroupViewMode} />
+                <AppButton variant="create" onClick={() => setShowNewGroupForm((value) => !value)} disabled={loading}>新增权限组</AppButton>
+                <AppButton variant="primary" onClick={saveGroupSettings} disabled={loading || !activeGroup}>保存权限组赋权</AppButton>
+              </>
+            )}
+          />
+        )}
+      </TopBarPortal>
       {mode === 'users' && <div className="bg-white rounded-lg shadow p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-xl font-semibold">人员赋权</h2>
             <p className="text-sm text-gray-500 mt-1">选择人员后勾选权限组。人员可加入多个权限组，最终权限按权限组合并。</p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <ViewModeToggle value={userViewMode} onChange={setUserViewMode} />
-            <button
-              onClick={saveAssignment}
-              disabled={loading || !activeOperator || activeOperator.role === 'ADMIN'}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
-            >
-              {loading ? '保存中...' : '保存当前人员'}
-            </button>
-          </div>
         </div>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-[280px_1fr]">
           <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
             <div className="px-4 py-3 bg-gray-900 text-white text-sm font-medium">人员列表 ({operators.length})</div>
-            <div className="p-3 border-b border-gray-100">
-              <SearchFieldWithPresets
-                storageKey="mes-lite.searchPresets.permissionUsers"
-                value={searchKeyword}
-                onChange={setSearchKeyword}
-                placeholder="搜索账号、姓名或角色"
-                className="flex w-full items-center gap-2"
-                inputClassName="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm"
-              />
-            </div>
             <div className="max-h-[480px] overflow-y-auto">
               {filteredOperators.map((operator) => (
                 <button
@@ -453,23 +467,6 @@ export default function PermissionPage({
           <div>
             <h3 className="text-lg font-semibold">权限组赋权</h3>
             <p className="text-sm text-gray-500 mt-1">{activeGroup ? `${activeGroup.name}：${activeGroup.description || '配置这个权限组可访问的功能和操作。'}` : '新增或选择权限组后配置功能权限。'}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <ViewModeToggle value={groupViewMode} onChange={setGroupViewMode} />
-            <AppButton
-              variant="create"
-              onClick={() => setShowNewGroupForm((value) => !value)}
-              disabled={loading}
-            >
-              新增权限组
-            </AppButton>
-            <AppButton
-              variant="primary"
-              onClick={saveGroupSettings}
-              disabled={loading || !activeGroup}
-            >
-              保存权限组赋权
-            </AppButton>
           </div>
         </div>
 

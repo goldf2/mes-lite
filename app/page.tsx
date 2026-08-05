@@ -1771,6 +1771,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                       </>
                     )}
                   />
+                ) : tab === 'create' || tab === 'detail' ? (
+                  <ResponsiveToolbarActions
+                    actions={<AppButton onClick={() => setTab('orders')}>返回生产订单</AppButton>}
+                  />
                 ) : null}
             </TopBarPortal>
           </div>
@@ -1781,7 +1785,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           aria-label="页面内容区"
           className="mes-page-content-scroll min-w-0 lg:min-h-0 lg:flex-1 lg:overflow-y-scroll lg:overscroll-contain lg:pb-6 lg:[scrollbar-gutter:stable]"
         >
-        <PageModuleBoundary definition={activePageModule}>
+        <PageModuleBoundary
+          definition={activePageModule}
+          toolbarProvided={tab === 'orders' || tab === 'stocks' || tab === 'create' || tab === 'detail'}
+        >
         {tab === 'materials' && materialSectionItems.length > 1 && (
           <nav
             aria-label="物料与 BOM 二级菜单"
@@ -1980,7 +1987,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 <p className="text-sm text-gray-500">{orderDetail.groupNo || orderDetail.orderNo}{orderDetail.groupNo ? ` · 第 ${orderDetail.lineNo} 项` : ''}</p>
                 <p className="text-sm text-gray-500">凭据号：{orderDetail.voucherNo || '-'}</p>
               </div>
-              <button onClick={() => setTab('orders')} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">返回列表</button>
             </div>
             <div className="grid grid-cols-2 gap-4 mb-6 md:grid-cols-5">
               <div className="border border-gray-200 rounded-lg p-4">

@@ -9,6 +9,9 @@ import {
   rankWorkspaceFunctionKeys,
 } from '@/lib/workspace'
 import type { WorkspaceFunctionKey, WorkspaceMode, WorkspacePreferenceValue } from '@/lib/workspace'
+import ResponsiveToolbarActions from './ResponsiveToolbarActions'
+import { SearchFieldWithPresets } from './SavedSearchPresets'
+import TopBarPortal from './TopBarPortal'
 
 export interface WorkspaceFunctionItem {
   key: WorkspaceFunctionKey
@@ -294,20 +297,21 @@ export function AllFunctionsPage({
 
   return (
     <div className="space-y-5">
+      <TopBarPortal>
+        <ResponsiveToolbarActions
+          primaryFilters={(
+            <SearchFieldWithPresets
+              storageKey="mes-lite.searchPresets.allFunctions"
+              value={keyword}
+              onChange={setKeyword}
+              placeholder="输入功能名称或业务分组"
+            />
+          )}
+        />
+      </TopBarPortal>
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">所有功能</h2>
-            <p className="mt-1 text-sm text-gray-500">按一级业务入口分组，只显示当前账号有权限的页面。</p>
-          </div>
-          <input
-            type="search"
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            placeholder="输入功能名称或业务分组"
-            className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:w-80"
-          />
-        </div>
+        <h2 className="text-lg font-semibold text-gray-900">所有功能</h2>
+        <p className="mt-1 text-sm text-gray-500">按一级业务入口分组，只显示当前账号有权限的页面。</p>
       </section>
 
       {groups.length === 0 ? (

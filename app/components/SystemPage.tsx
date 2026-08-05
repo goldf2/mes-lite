@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react'
 import { Eye, EyeOff, PlugZap, Save, SlidersHorizontal } from 'lucide-react'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import { useModalGlassPreference } from './interfacePreferences'
@@ -19,6 +19,8 @@ import AppLoadingIndicator from './AppLoadingIndicator'
 import { useAiAssistantAppearance } from './AiAssistantAppearanceProvider'
 import ContrastModeSelector from './ContrastModeSelector'
 import { applyContrastMode, ContrastMode, normalizeContrastMode } from '@/lib/contrast-modes'
+import ResponsiveToolbarActions from './ResponsiveToolbarActions'
+import TopBarPortal from './TopBarPortal'
 
 interface Supplier {
   id: string
@@ -275,6 +277,42 @@ const systemSectionOrderConfig: Partial<Record<SystemSection, {
   workCenters: { entity: 'workCenters', label: '工作中心' },
 }
 
+const SystemToolbarExtraContext = createContext<ReactNode>(null)
+
+function SystemPageToolbar({
+  searchStorageKey,
+  searchValue,
+  onSearchChange,
+  searchPlaceholder,
+  viewMode,
+  onViewModeChange,
+  actions,
+}: {
+  searchStorageKey?: string
+  searchValue?: string
+  onSearchChange?: (value: string) => void
+  searchPlaceholder?: string
+  viewMode?: 'card' | 'list'
+  onViewModeChange?: (value: 'card' | 'list') => void
+  actions?: ReactNode
+}) {
+  const extraAction = useContext(SystemToolbarExtraContext)
+  const primaryFilters = searchStorageKey && searchValue !== undefined && onSearchChange && searchPlaceholder
+    ? <SearchFieldWithPresets storageKey={searchStorageKey} value={searchValue} onChange={onSearchChange} placeholder={searchPlaceholder} />
+    : undefined
+  const toolbarActions = viewMode && onViewModeChange || extraAction || actions
+    ? (
+        <>
+          {viewMode && onViewModeChange && <ViewModeToggle value={viewMode} onChange={onViewModeChange} />}
+          {extraAction}
+          {actions}
+        </>
+      )
+    : undefined
+
+  return <TopBarPortal><ResponsiveToolbarActions primaryFilters={primaryFilters} actions={toolbarActions} /></TopBarPortal>
+}
+
 export default function SystemPage({
   section,
   onMessage,
@@ -284,10 +322,12 @@ export default function SystemPage({
 }) {
   const [orderRevision, setOrderRevision] = useState(0)
   const orderConfig = systemSectionOrderConfig[section]
+  const manualOrderAction = orderConfig
+    ? <ConfigurationManualOrder {...orderConfig} onMessage={onMessage} onSaved={() => setOrderRevision((current) => current + 1)} />
+    : null
 
   return (
-    <>
-      {orderConfig && <div className="mb-4 flex justify-end"><ConfigurationManualOrder {...orderConfig} onMessage={onMessage} onSaved={() => setOrderRevision((current) => current + 1)} /></div>}
+    <SystemToolbarExtraContext.Provider value={manualOrderAction}>
       <div key={`${section}-${orderRevision}`}>
         {section === 'suppliers' && <SupplierManager onMessage={onMessage} />}
         {section === 'customers' && <CustomerManager onMessage={onMessage} />}
@@ -301,7 +341,7 @@ export default function SystemPage({
         {section === 'workCenters' && <WorkCenterManager onMessage={onMessage} />}
         {section === 'preferences' && <InterfacePreferenceManager onMessage={onMessage} />}
       </div>
-    </>
+    </SystemToolbarExtraContext.Provider>
   )
 }
 
@@ -387,17 +427,16 @@ function WorkCenterManager({ onMessage }: { onMessage: (msg: string) => void }) 
 
   return (
     <div className="space-y-4">
+      <SystemPageToolbar
+        searchStorageKey="mes-lite.searchPresets.workCenters"
+        searchValue={keyword}
+        onSearchChange={setKeyword}
+        searchPlaceholder="搜索编码、名称、类别或备注"
+        actions={<AppButton variant="create" onClick={openCreate}>新增工作中心</AppButton>}
+      />
       <section className="rounded-lg bg-white p-4 shadow sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h3 className="text-lg font-semibold">工作中心</h3>
-            <p className="mt-1 text-sm text-gray-500">工作中心表示锯切、钻孔、检验等生产能力区域；设备归属工作中心，工艺文档引用适用工作中心。</p>
-          </div>
-          <AppButton variant="create" onClick={openCreate}>新增</AppButton>
-        </div>
-        <div className="mt-4 max-w-xl">
-          <input value={keyword} onChange={(event) => setKeyword(event.target.value)} className={appInputClassName} placeholder="搜索编码、名称、类别或备注" />
-        </div>
+        <h3 className="text-lg font-semibold">工作中心</h3>
+        <p className="mt-1 text-sm text-gray-500">工作中心表示锯切、钻孔、检验等生产能力区域；设备归属工作中心，工艺文档引用适用工作中心。</p>
       </section>
 
       <section className="overflow-hidden rounded-lg bg-white shadow">
@@ -539,6 +578,7 @@ function InventoryLocationManager({ onMessage }: { onMessage: (msg: string) => v
 
   return (
     <div className="space-y-4">
+      <SystemPageToolbar />
       <section className="rounded-lg bg-white p-4 shadow sm:p-6">
         <h3 className="text-lg font-semibold">库位配置</h3>
         <p className="mt-1 text-sm text-gray-500">总库存继续统一核算；库位用于来料、生产订单实绩和发货的实物数量分布与校验。</p>
@@ -681,6 +721,7 @@ function UnitCatalogManager({ onMessage }: { onMessage: (msg: string) => void })
 
   return (
     <div className="space-y-4">
+      <SystemPageToolbar />
       <div className="rounded-lg bg-white p-4 shadow sm:p-6">
         <div className="mb-5">
           <h3 className="text-lg font-semibold">单位配置</h3>
@@ -1553,25 +1594,19 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
 
   return (
     <div className="rounded-lg bg-white p-4 shadow sm:p-6">
+      <SystemPageToolbar
+        searchStorageKey="mes-lite.searchPresets.suppliers"
+        searchValue={keyword}
+        onSearchChange={setKeyword}
+        searchPlaceholder="搜索名称、联系人、电话"
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        actions={<AppButton onClick={openAdd} variant="create">新增供应商</AppButton>}
+      />
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold">供应商管理</h3>
           <p className="text-sm text-gray-500 mt-1">用于来料单选择供应商，不再使用的供应商只能归档。</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-          <div className="hidden lg:block">
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
-          </div>
-          <SearchFieldWithPresets
-            storageKey="mes-lite.searchPresets.suppliers"
-            value={keyword}
-            onChange={setKeyword}
-            placeholder="搜索名称、联系人、电话"
-            className="flex w-full items-center gap-2 sm:w-[420px]"
-          />
-          <AppButton onClick={openAdd} variant="create" className="w-full sm:w-auto">
-            新增供应商
-          </AppButton>
         </div>
       </div>
 
@@ -1786,25 +1821,19 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
 
   return (
     <div className="rounded-lg bg-white p-4 shadow sm:p-6">
+      <SystemPageToolbar
+        searchStorageKey="mes-lite.searchPresets.customers"
+        searchValue={keyword}
+        onSearchChange={setKeyword}
+        searchPlaceholder="搜索名称、联系人、电话"
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        actions={<AppButton onClick={openAdd} variant="create">新增客户</AppButton>}
+      />
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold">客户管理</h3>
           <p className="text-sm text-gray-500 mt-1">用于按最终客户筛选物料、库存和发货记录。</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-          <div className="hidden lg:block">
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
-          </div>
-          <SearchFieldWithPresets
-            storageKey="mes-lite.searchPresets.customers"
-            value={keyword}
-            onChange={setKeyword}
-            placeholder="搜索名称、联系人、电话"
-            className="flex w-full items-center gap-2 sm:w-[420px]"
-          />
-          <AppButton onClick={openAdd} variant="create" className="w-full sm:w-auto">
-            新增客户
-          </AppButton>
         </div>
       </div>
 
@@ -1967,10 +1996,8 @@ function ProcessTemplateManager({ onMessage }: { onMessage: (msg: string) => voi
 
   return (
     <div className="rounded-lg bg-white p-6 shadow">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div><h3 className="text-lg font-semibold">加工工艺</h3><p className="mt-1 text-sm text-gray-500">按类别维护可复用工艺，并关联到物料全景。</p></div>
-        <AppButton onClick={openAdd} variant="create">新增</AppButton>
-      </div>
+      <SystemPageToolbar actions={<AppButton onClick={openAdd} variant="create">新增加工工艺</AppButton>} />
+      <div className="mb-5"><h3 className="text-lg font-semibold">加工工艺</h3><p className="mt-1 text-sm text-gray-500">按类别维护可复用工艺，并关联到物料全景。</p></div>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {templates.map((template) => {
           const thousand = processCostPerThousand(template)
@@ -2175,18 +2202,15 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
 
   return (
     <div className="rounded-lg bg-white p-4 shadow sm:p-6">
+      <SystemPageToolbar
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        actions={<AppButton onClick={openAdd} variant="create">新增工艺路线</AppButton>}
+      />
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold">BOM/工艺</h3>
           <p className="text-sm text-gray-500 mt-1">维护物料工艺路线和工序。已产生派工或报工的工序不建议直接修改。</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-          <div className="hidden lg:block">
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
-          </div>
-          <AppButton onClick={openAdd} variant="create" className="w-full sm:w-auto">
-            新增工艺路线
-          </AppButton>
         </div>
       </div>
 
@@ -2490,18 +2514,15 @@ function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
 
   return (
     <div className="rounded-lg bg-white p-4 shadow sm:p-6">
+      <SystemPageToolbar
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        actions={<AppButton onClick={fetchDeletedRecords}>刷新</AppButton>}
+      />
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold">归档记录</h3>
           <p className="text-sm text-gray-500 mt-1">归档记录可以恢复；没有有效库存和下游业务引用时可永久删除并释放编码，完整红冲且净影响为零的来料历史会一并清理。</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-          <div className="hidden lg:block">
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
-          </div>
-          <button onClick={fetchDeletedRecords} className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50 sm:w-auto">
-            刷新
-          </button>
         </div>
       </div>
       {effectiveViewMode === 'card' && records.length > 0 ? (
@@ -2600,18 +2621,15 @@ function AuditLogViewer({ onMessage }: { onMessage: (msg: string) => void }) {
 
   return (
     <div className="rounded-lg bg-white p-4 shadow sm:p-6">
+      <SystemPageToolbar
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        actions={<AppButton onClick={fetchLogs}>刷新</AppButton>}
+      />
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold">操作记录</h3>
           <p className="text-sm text-gray-500 mt-1">记录新增、修改、归档、恢复、收货、盘点等关键操作。</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-          <div className="hidden lg:block">
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
-          </div>
-          <button onClick={fetchLogs} className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50 sm:w-auto">
-            刷新
-          </button>
         </div>
       </div>
       {effectiveViewMode === 'card' && logs.length > 0 ? (

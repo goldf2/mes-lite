@@ -1,10 +1,14 @@
 'use client'
 
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode, useContext, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { PageToolbarRegistrationContext } from './page-modules/PageModuleBoundary'
 
 export default function TopBarPortal({ children }: { children: ReactNode }) {
   const [container, setContainer] = useState<HTMLElement | null>(null)
+  const registerToolbar = useContext(PageToolbarRegistrationContext)
+
+  useEffect(() => registerToolbar?.(), [registerToolbar])
 
   useEffect(() => {
     const desktopQuery = window.matchMedia('(min-width: 1024px)')
