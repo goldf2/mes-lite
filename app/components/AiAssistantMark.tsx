@@ -19,7 +19,7 @@ export default function AiAssistantMark({
         alt=""
         fill
         sizes="48px"
-        className={`${animated ? 'mes-ai-assistant-mark ' : ''}object-contain mix-blend-multiply`}
+        className={`${animated ? 'mes-ai-assistant-mark ' : ''}object-contain`}
         priority={priority}
       />
     </span>

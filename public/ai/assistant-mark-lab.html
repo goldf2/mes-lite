@@ -1,0 +1,1006 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI 图标参数实验室</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #172033;
+      background: #f3f5f8;
+    }
+
+    * { box-sizing: border-box; }
+    body { display: flex; height: 100vh; min-width: 320px; flex-direction: column; margin: 0; overflow: hidden; }
+    button, input, select, textarea { font: inherit; }
+
+    .topbar {
+      flex: none;
+      z-index: 10;
+      border-bottom: 1px solid #dce1e8;
+      background: rgba(255, 255, 255, 0.94);
+      padding: 9px 16px;
+      backdrop-filter: blur(12px);
+    }
+
+    .topbar h1 { margin: 0; font-size: 18px; letter-spacing: 0; }
+    .topbar p { margin: 2px 0 0; color: #687386; font-size: 12px; }
+    .title-row, .presetbar, .preset-actions { display: flex; align-items: center; }
+    .title-row { justify-content: space-between; gap: 16px; }
+    .presetbar { flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .preset-label { color: #687386; font-size: 12px; }
+    .preset-buttons { display: inline-flex; overflow: hidden; border: 1px solid #cfd6df; border-radius: 6px; background: #fff; }
+    .preset-buttons button { min-height: 32px; border: 0; border-right: 1px solid #dce1e8; background: transparent; padding: 0 11px; color: #465469; cursor: pointer; }
+    .preset-buttons button:last-child { border-right: 0; }
+    .preset-buttons button:hover, .preset-buttons button[aria-pressed="true"] { background: #e8f0ff; color: #1659c7; }
+    .preset-actions { min-width: 0; flex: 1; justify-content: flex-end; gap: 6px; }
+    .preset-actions input, .preset-actions select { height: 32px; border: 1px solid #cfd6df; border-radius: 6px; background: #fff; padding: 0 9px; color: #334155; font-size: 12px; }
+    .preset-actions input { width: 130px; }
+    .preset-actions select { width: 138px; }
+    .preset-actions .command { min-height: 32px; padding: 0 10px; font-size: 12px; }
+    .preset-status { min-width: 62px; color: #267052; font-size: 11px; }
+
+    .command {
+      min-height: 36px;
+      border: 1px solid #cfd6df;
+      border-radius: 6px;
+      background: #fff;
+      padding: 0 13px;
+      color: #334155;
+      cursor: pointer;
+    }
+
+    .command:hover { border-color: #8fa2ba; background: #f8fafc; }
+    .command:disabled { cursor: default; opacity: 0.42; }
+    .lab {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(230px, 280px) minmax(380px, 1fr) minmax(280px, 330px);
+      height: auto;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .preview-pane {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      padding: 20px;
+      overflow: hidden;
+    }
+
+    .preview-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #596579;
+      font-size: 13px;
+    }
+
+    .segments {
+      display: inline-flex;
+      overflow: hidden;
+      border: 1px solid #cfd6df;
+      border-radius: 6px;
+      background: #fff;
+    }
+
+    .segments button {
+      min-height: 32px;
+      border: 0;
+      border-right: 1px solid #dce1e8;
+      background: transparent;
+      padding: 0 12px;
+      color: #526075;
+      cursor: pointer;
+    }
+
+    .segments button:last-child { border-right: 0; }
+    .segments button[aria-pressed="true"] { background: #e8f0ff; color: #1659c7; font-weight: 600; }
+    .center-mode { width: 100%; margin-bottom: 8px; }
+    .center-mode button { flex: 1; padding: 0 8px; }
+
+    .stage {
+      display: grid;
+      width: min(62vh, 560px, 100%);
+      max-width: 100%;
+      aspect-ratio: 1;
+      place-items: center;
+      border: 1px solid rgba(115, 128, 148, 0.24);
+      border-radius: 8px;
+      background-color: #fff;
+      background-image:
+        linear-gradient(45deg, rgba(100, 116, 139, 0.07) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(100, 116, 139, 0.07) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(100, 116, 139, 0.07) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(100, 116, 139, 0.07) 75%);
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+      background-size: 16px 16px;
+      transition: background-color 180ms ease;
+    }
+
+    .stage[data-tone="gray"] { background-color: #d7dce4; }
+    .stage[data-tone="dark"] { background-color: #131722; }
+
+    .icon-shell {
+      --rotation-seconds: 28s;
+      --breathing-seconds: 5.2s;
+      --breath-scale: 1.035;
+      --shift-x: 0px;
+      --shift-y: 0px;
+      --pressed-scale: 0.9;
+      width: 58%;
+      aspect-ratio: 1;
+      cursor: pointer;
+      touch-action: manipulation;
+      user-select: none;
+    }
+
+    .icon-orbit {
+      width: 100%;
+      height: 100%;
+      animation: orbit var(--rotation-seconds) linear infinite;
+      transform-origin: center;
+    }
+
+    .icon-shell.interacting .icon-orbit { animation-play-state: paused; }
+
+    .icon-response {
+      width: 100%;
+      height: 100%;
+      transform: translate3d(var(--shift-x), var(--shift-y), 0);
+      transform-origin: center;
+      transition: transform 230ms cubic-bezier(0.2, 0.75, 0.2, 1);
+      will-change: transform;
+    }
+
+    .icon-scale {
+      width: 100%;
+      height: 100%;
+      transform: scale(var(--icon-scale, 1));
+      transform-origin: center;
+      transition: transform 180ms ease;
+    }
+
+    .icon-shell.interacting .icon-response { transition-duration: 70ms; }
+    .icon-shell.pressed .icon-response { transform: translate3d(var(--shift-x), var(--shift-y), 0) scale(var(--pressed-scale)); }
+
+    .assistant-svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      animation: breathe var(--breathing-seconds) ease-in-out infinite;
+      filter: saturate(1.02);
+      transform-origin: center;
+    }
+
+    .icon-shell.no-rotation .icon-orbit,
+    .icon-shell.no-breathing .assistant-svg { animation: none; }
+
+    @keyframes orbit { to { transform: rotate(360deg); } }
+    @keyframes breathe {
+      0%, 100% { transform: scale(0.97); filter: saturate(0.98) brightness(1); }
+      50% { transform: scale(var(--breath-scale)); filter: saturate(1.08) brightness(1.035); }
+    }
+
+    .hint { margin: 0; color: #697589; font-size: 13px; }
+
+    .settings-pane {
+      height: 100%;
+      background: #fff;
+      padding: 16px;
+      overflow-y: auto;
+    }
+
+    .settings-left { border-right: 1px solid #dce1e8; }
+    .settings-right { border-left: 1px solid #dce1e8; }
+    .settings-left .color-grid { grid-template-columns: repeat(2, 1fr); }
+
+    .settings-pane h2 { margin: 0 0 14px; font-size: 15px; }
+    .control-section { border-top: 1px solid #e5e9ef; padding: 16px 0; }
+    .control-section:first-of-type { border-top: 0; padding-top: 0; }
+    .control-section h3 { margin: 0 0 12px; font-size: 13px; color: #3b4658; }
+    .logic-note { margin: -4px 0 12px; color: #7a8597; font-size: 11px; line-height: 1.5; }
+
+    .control-row {
+      display: grid;
+      grid-template-columns: minmax(82px, 1fr) minmax(84px, 1.25fr) 46px;
+      align-items: center;
+      gap: 10px;
+      min-height: 38px;
+      color: #5b6678;
+      font-size: 13px;
+    }
+
+    .control-row input[type="range"] { width: 100%; accent-color: #2563eb; }
+    .value { text-align: right; color: #273447; font-variant-numeric: tabular-nums; }
+
+    .switch-row {
+      display: flex;
+      min-height: 38px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: #5b6678;
+      font-size: 13px;
+    }
+
+    .switch-row input { width: 18px; height: 18px; accent-color: #2563eb; }
+    .color-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+
+    .color-field {
+      display: flex;
+      height: 40px;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid #dce1e8;
+      border-radius: 6px;
+      padding: 5px 7px;
+      color: #657084;
+      font-size: 11px;
+    }
+
+    .color-field input { width: 26px; height: 26px; border: 0; background: none; padding: 0; }
+    .two-colors { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    .json-wrap { position: relative; }
+    #configOutput {
+      width: 100%;
+      min-height: 190px;
+      resize: vertical;
+      border: 1px solid #dce1e8;
+      border-radius: 6px;
+      background: #f8fafc;
+      padding: 11px;
+      color: #334155;
+      font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .copy-button { position: absolute; top: 7px; right: 7px; min-height: 30px; padding: 0 9px; font-size: 12px; }
+
+    @media (max-width: 840px) {
+      body { display: block; height: auto; overflow: auto; }
+      .topbar { position: sticky; top: 0; }
+      .preset-actions { flex-basis: 100%; justify-content: flex-start; }
+      .lab { grid-template-columns: 1fr; height: auto; min-height: calc(100vh - 58px); overflow: visible; }
+      .preview-pane { order: -1; }
+      .preview-pane { min-height: 65vh; padding: 20px 16px; }
+      .stage { width: min(84vw, 520px); }
+      .settings-pane { height: auto; border: 0; border-top: 1px solid #dce1e8; overflow: visible; }
+      .settings-left .color-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    @media (max-width: 480px) {
+      .topbar { padding: 10px 14px; }
+      .topbar p { display: none; }
+      .presetbar { align-items: flex-start; }
+      .preset-buttons { display: grid; width: 100%; grid-template-columns: repeat(2, 1fr); }
+      .preset-buttons button { border-bottom: 1px solid #dce1e8; }
+      .preset-actions { display: grid; grid-template-columns: 1fr 1fr auto; }
+      .preset-actions input, .preset-actions select { width: 100%; }
+      .preset-status { grid-column: 1 / -1; }
+      .preview-pane { min-height: 58vh; }
+      .control-row { grid-template-columns: 100px minmax(90px, 1fr) 48px; }
+      .color-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .icon-orbit, .assistant-svg { animation: none !important; }
+      .icon-response { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="title-row">
+      <div>
+        <h1>AI 图标参数实验室</h1>
+        <p>程序化 SVG · 鼠标与触屏交互预览</p>
+      </div>
+      <button id="resetButton" class="command" type="button">重置</button>
+    </div>
+    <div class="presetbar" aria-label="图标预设">
+      <span class="preset-label">预设</span>
+      <div id="builtInPresetButtons" class="preset-buttons">
+        <button type="button" data-built-in-preset="reference" aria-pressed="true">002 默认</button>
+        <button type="button" data-built-in-preset="clear" aria-pressed="false">轻薄通透</button>
+        <button type="button" data-built-in-preset="crystal" aria-pressed="false">厚玻璃</button>
+        <button type="button" data-built-in-preset="calm" aria-pressed="false">柔和呼吸</button>
+      </div>
+      <div class="preset-actions">
+        <select id="savedPresetSelect" aria-label="用户预设">
+          <option value="">用户预设</option>
+        </select>
+        <input id="presetName" type="text" maxlength="32" placeholder="预设名称" aria-label="预设名称">
+        <button id="savePresetButton" class="command" type="button">保存</button>
+        <button id="deletePresetButton" class="command" type="button" disabled>删除</button>
+        <span id="presetStatus" class="preset-status" role="status"></span>
+      </div>
+    </div>
+  </header>
+
+  <main class="lab">
+    <aside class="settings-pane settings-left" aria-label="叶片参数">
+      <h2>叶片与布局</h2>
+      <section class="control-section">
+        <p class="logic-note">叶片是长轴朝外的透明椭圆玻璃片；圆心轻微外移，内半部跨过中心叠合，每片尺寸和角度略有不同。</p>
+        <label class="control-row"><span>叶片数</span><input id="petalCount" type="range" min="4" max="16" step="1"><output class="value" for="petalCount"></output></label>
+        <label class="control-row"><span>长轴半径</span><input id="petalRadius" type="range" min="10" max="32" step="0.5"><output class="value" for="petalRadius"></output></label>
+        <label class="control-row"><span>叶片宽长比</span><input id="petalAspectRatio" type="range" min="0.45" max="1" step="0.01"><output class="value" for="petalAspectRatio"></output></label>
+        <label class="control-row"><span>圆心距离</span><input id="petalOffset" type="range" min="4" max="30" step="0.5"><output class="value" for="petalOffset"></output></label>
+        <label class="control-row"><span>尺寸差异</span><input id="petalSizeVariation" type="range" min="0" max="1.5" step="0.01"><output class="value" for="petalSizeVariation"></output></label>
+        <label class="control-row"><span>透明度</span><input id="petalOpacity" type="range" min="0.08" max="0.8" step="0.01"><output class="value" for="petalOpacity"></output></label>
+      </section>
+      <section class="control-section">
+        <h3>叶片颜色</h3>
+        <div id="petalColors" class="color-grid" aria-label="叶片颜色"></div>
+      </section>
+    </aside>
+
+    <section class="preview-pane" aria-label="图标预览">
+      <div class="preview-toolbar">
+        <span>背景</span>
+        <div class="segments" role="group" aria-label="预览背景">
+          <button type="button" data-tone="white" aria-pressed="true">透明格</button>
+          <button type="button" data-tone="gray" aria-pressed="false">浅灰</button>
+          <button type="button" data-tone="dark" aria-pressed="false">深色</button>
+        </div>
+      </div>
+
+      <div id="stage" class="stage" data-tone="white">
+        <div id="iconShell" class="icon-shell" aria-label="可交互 AI 图标">
+          <div class="icon-orbit">
+            <div class="icon-response">
+              <div class="icon-scale">
+                <svg id="assistantSvg" class="assistant-svg" viewBox="0 0 100 100" role="img" aria-label="程序化 AI 图标">
+                <defs>
+                  <radialGradient id="centerGradient">
+                    <stop id="centerStop1" offset="0%" stop-color="#ffffff" stop-opacity="0.98"></stop>
+                    <stop id="centerStop2" offset="30%" stop-color="#ffffff" stop-opacity="0.88"></stop>
+                    <stop id="glowStop1" offset="62%" stop-color="#8b5cf6" stop-opacity="0.34"></stop>
+                    <stop id="glowStop2" offset="100%" stop-color="#8b5cf6" stop-opacity="0"></stop>
+                  </radialGradient>
+                  <radialGradient id="sharedCenterLightGradient" gradientUnits="userSpaceOnUse" cx="50" cy="50" r="28">
+                    <stop id="sharedLightStop1" offset="0%" stop-color="#8b5cf6" stop-opacity="0.14"></stop>
+                    <stop id="sharedLightStop2" offset="42%" stop-color="#8b5cf6" stop-opacity="0.12"></stop>
+                    <stop id="sharedLightStop3" offset="78%" stop-color="#8b5cf6" stop-opacity="0.045"></stop>
+                    <stop id="sharedLightStop4" offset="100%" stop-color="#8b5cf6" stop-opacity="0"></stop>
+                  </radialGradient>
+                  <pattern id="glassTexturePattern" width="7" height="7" patternUnits="userSpaceOnUse">
+                    <circle cx="1.2" cy="1.6" r="0.38" fill="#ffffff" fill-opacity="0.32"></circle>
+                    <circle cx="5.4" cy="3.1" r="0.26" fill="#ffffff" fill-opacity="0.22"></circle>
+                    <circle cx="3.2" cy="6" r="0.32" fill="#5b4fcf" fill-opacity="0.12"></circle>
+                  </pattern>
+                  <filter id="softEdgeBlur" x="-12%" y="-12%" width="124%" height="124%">
+                    <feGaussianBlur stdDeviation="0.32"></feGaussianBlur>
+                  </filter>
+                  <filter id="sharedLightBlur" x="-30%" y="-30%" width="160%" height="160%">
+                    <feGaussianBlur stdDeviation="1.35"></feGaussianBlur>
+                  </filter>
+                  <filter id="centerSoftBlur" x="-35%" y="-35%" width="170%" height="170%">
+                    <feGaussianBlur stdDeviation="0.75"></feGaussianBlur>
+                  </filter>
+                  <radialGradient id="centerCutoutGradient">
+                    <stop offset="0%" stop-color="#000000"></stop>
+                    <stop offset="48%" stop-color="#000000"></stop>
+                    <stop offset="100%" stop-color="#ffffff"></stop>
+                  </radialGradient>
+                  <mask id="centerCutoutMask" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
+                    <rect x="0" y="0" width="100" height="100" fill="#ffffff"></rect>
+                    <circle id="centerCutout" cx="50" cy="50" r="14" fill="url(#centerCutoutGradient)"></circle>
+                  </mask>
+                  <mask id="petalCompositeMask" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
+                    <rect x="0" y="0" width="100" height="100" fill="#000000"></rect>
+                    <g id="petalMaskLayer"></g>
+                  </mask>
+                  <g id="petalGradientDefs"></g>
+                </defs>
+                <g id="petalComposite" style="isolation:isolate">
+                  <g id="petalLayer"></g>
+                  <circle id="sharedCenterLight" cx="50" cy="50" r="28" fill="url(#sharedCenterLightGradient)" mask="url(#petalCompositeMask)" filter="url(#sharedLightBlur)" style="mix-blend-mode:screen"></circle>
+                </g>
+                <circle id="centerGlow" cx="50" cy="50" r="18" fill="url(#centerGradient)" filter="url(#centerSoftBlur)" style="mix-blend-mode:screen"></circle>
+                <circle id="centerCore" cx="50" cy="50" r="6.5" fill="#ffffff" fill-opacity="0.48" filter="url(#centerSoftBlur)"></circle>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="hint">指针接触时停止旋转；移动、按压或触摸图标可查看响应。</p>
+    </section>
+
+    <aside class="settings-pane settings-right" aria-label="材质与动态参数">
+      <h2>材质与动态</h2>
+      <section class="control-section">
+        <h3>玻璃材质</h3>
+        <label class="control-row"><span>玻璃强度</span><input id="glassStrength" type="range" min="0" max="2" step="0.01"><output class="value" for="glassStrength"></output></label>
+        <label class="control-row"><span>玻璃厚度</span><input id="glassThickness" type="range" min="0" max="2" step="0.01"><output class="value" for="glassThickness"></output></label>
+        <label class="control-row"><span>表面质感</span><input id="glassTexture" type="range" min="0" max="2" step="0.01"><output class="value" for="glassTexture"></output></label>
+        <label class="control-row"><span>边缘高光</span><input id="edgeHighlight" type="range" min="0" max="2" step="0.01"><output class="value" for="edgeHighlight"></output></label>
+      </section>
+
+      <section class="control-section">
+        <h3>中心</h3>
+        <div class="segments center-mode" role="group" aria-label="中心模式">
+          <button type="button" data-center-mode="solid" aria-pressed="true">实心</button>
+          <button type="button" data-center-mode="transparent" aria-pressed="false">透明</button>
+          <button type="button" data-center-mode="none" aria-pressed="false">无中心</button>
+        </div>
+        <label class="control-row"><span>内圈尺寸</span><input id="centerSize" type="range" min="2" max="18" step="0.5"><output class="value" for="centerSize"></output></label>
+        <label class="control-row"><span>内圈透明度</span><input id="centerOpacity" type="range" min="0" max="1" step="0.01"><output class="value" for="centerOpacity"></output></label>
+        <label class="control-row"><span>外圈尺寸</span><input id="centerGlowSize" type="range" min="4" max="44" step="1"><output class="value" for="centerGlowSize"></output></label>
+        <label class="control-row"><span>外圈强度</span><input id="centerGlowStrength" type="range" min="0" max="2" step="0.01"><output class="value" for="centerGlowStrength"></output></label>
+        <div class="two-colors">
+          <label class="color-field"><input id="centerColor" type="color"><span>内圈</span></label>
+          <label class="color-field"><input id="centerGlowColor" type="color"><span>外圈</span></label>
+        </div>
+      </section>
+
+      <section class="control-section">
+        <h3>动态与交互</h3>
+        <label class="control-row"><span>整体缩放</span><input id="iconScale" type="range" min="0.5" max="1.5" step="0.01"><output class="value" for="iconScale"></output></label>
+        <label class="switch-row"><span>自动旋转</span><input id="rotationEnabled" type="checkbox"></label>
+        <label class="control-row"><span>旋转周期</span><input id="rotationSeconds" type="range" min="4" max="80" step="1"><output class="value" for="rotationSeconds"></output></label>
+        <label class="switch-row"><span>呼吸运动</span><input id="breathingEnabled" type="checkbox"></label>
+        <label class="control-row"><span>呼吸周期</span><input id="breathingSeconds" type="range" min="1.5" max="16" step="0.1"><output class="value" for="breathingSeconds"></output></label>
+        <label class="control-row"><span>呼吸幅度</span><input id="breathScale" type="range" min="1" max="1.12" step="0.005"><output class="value" for="breathScale"></output></label>
+        <label class="control-row"><span>跟随强度</span><input id="pointerShift" type="range" min="0" max="16" step="0.5"><output class="value" for="pointerShift"></output></label>
+        <label class="control-row"><span>按压缩放</span><input id="pressedScale" type="range" min="0.72" max="1" step="0.01"><output class="value" for="pressedScale"></output></label>
+      </section>
+
+      <section class="control-section">
+        <h3>当前配置</h3>
+        <div class="json-wrap">
+          <textarea id="configOutput" readonly aria-label="当前图标配置"></textarea>
+          <button id="copyButton" class="command copy-button" type="button">复制</button>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <script>
+    const defaults = {
+      petalCount: 6,
+      petalRadius: 22,
+      petalAspectRatio: 0.7,
+      petalOffset: 9,
+      petalSizeVariation: 1,
+      petalOpacity: 0.5,
+      glassStrength: 2,
+      glassThickness: 2,
+      glassTexture: 2,
+      edgeHighlight: 0.97,
+      petalColors: ['#f352b0', '#ff8b77', '#69d3a5', '#1fcfda', '#9685f4', '#7258e5', '#39b7ee', '#3c8feb'],
+      petalLayoutPattern: [
+        { radius: 1.02, width: 0.96, offset: 0.92, angle: -1 },
+        { radius: 0.96, width: 1.05, offset: 1.04, angle: 1.5 },
+        { radius: 1.04, width: 0.94, offset: 0.98, angle: -1.5 },
+        { radius: 0.98, width: 1.02, offset: 1.08, angle: 1 },
+        { radius: 1.06, width: 0.97, offset: 0.94, angle: -0.5 },
+        { radius: 0.95, width: 1.06, offset: 1.02, angle: 1.5 },
+        { radius: 1.01, width: 0.95, offset: 1.06, angle: -1 },
+        { radius: 0.99, width: 1.03, offset: 0.96, angle: 0.5 }
+      ],
+      centerSize: 5.04,
+      centerOpacity: 0.92,
+      centerGlowSize: 14,
+      centerGlowStrength: 1,
+      centerMode: 'solid',
+      centerColor: '#e1d6ff',
+      centerGlowColor: '#0d061e',
+      iconScale: 1,
+      rotationEnabled: true,
+      rotationSeconds: 48,
+      breathingEnabled: true,
+      breathingSeconds: 8,
+      breathScale: 1.022,
+      pointerShift: 3,
+      pressedScale: 0.94
+    };
+
+    const builtInPresets = {
+      reference: {},
+      clear: {
+        petalOpacity: 0.34,
+        glassStrength: 0.16,
+        glassThickness: 0.06,
+        glassTexture: 0,
+        edgeHighlight: 0.05,
+        centerSize: 5
+      },
+      crystal: {
+        petalOpacity: 0.5,
+        glassStrength: 0.52,
+        glassThickness: 0.52,
+        glassTexture: 0.08,
+        edgeHighlight: 0.18,
+        centerSize: 6.5,
+        centerGlowColor: '#7457e8'
+      },
+      calm: {
+        petalOpacity: 0.4,
+        glassStrength: 0.22,
+        glassThickness: 0.12,
+        edgeHighlight: 0.06,
+        rotationSeconds: 48,
+        breathingSeconds: 8,
+        breathScale: 1.022,
+        pointerShift: 3,
+        pressedScale: 0.94
+      }
+    };
+
+    const presetStorageKey = 'mes.ai-assistant-mark.presets.v1';
+
+    let config = structuredClone(defaults);
+    let userPresets = loadUserPresets();
+    const numberFields = ['petalCount', 'petalRadius', 'petalAspectRatio', 'petalOffset', 'petalSizeVariation', 'petalOpacity', 'glassStrength', 'glassThickness', 'glassTexture', 'edgeHighlight', 'centerSize', 'centerOpacity', 'centerGlowSize', 'centerGlowStrength', 'iconScale', 'rotationSeconds', 'breathingSeconds', 'breathScale', 'pointerShift', 'pressedScale'];
+    const booleanFields = ['rotationEnabled', 'breathingEnabled'];
+    const svgNamespace = 'http://www.w3.org/2000/svg';
+    const shell = document.querySelector('#iconShell');
+    const petalComposite = document.querySelector('#petalComposite');
+    const petalLayer = document.querySelector('#petalLayer');
+    const petalMaskLayer = document.querySelector('#petalMaskLayer');
+    const petalGradientDefs = document.querySelector('#petalGradientDefs');
+    const sharedCenterLight = document.querySelector('#sharedCenterLight');
+    const output = document.querySelector('#configOutput');
+
+    function loadUserPresets() {
+      try {
+        const value = JSON.parse(localStorage.getItem(presetStorageKey) || '{}');
+        return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+      } catch (error) {
+        return {};
+      }
+    }
+
+    function persistUserPresets() {
+      localStorage.setItem(presetStorageKey, JSON.stringify(userPresets));
+    }
+
+    function setPresetStatus(message) {
+      const status = document.querySelector('#presetStatus');
+      status.textContent = message;
+      window.clearTimeout(setPresetStatus.timer);
+      setPresetStatus.timer = window.setTimeout(() => { status.textContent = ''; }, 1800);
+    }
+
+    function renderSavedPresetOptions(selectedName = '') {
+      const select = document.querySelector('#savedPresetSelect');
+      select.replaceChildren(new Option('用户预设', ''));
+      Object.keys(userPresets).sort((a, b) => a.localeCompare(b, 'zh-CN')).forEach((name) => {
+        select.append(new Option(name, name));
+      });
+      select.value = selectedName;
+      document.querySelector('#deletePresetButton').disabled = !selectedName;
+    }
+
+    function applyConfig(nextConfig, builtInKey = '', savedName = '') {
+      config = { ...structuredClone(defaults), ...structuredClone(nextConfig) };
+      if (!Object.hasOwn(nextConfig, 'centerOpacity') && Number(nextConfig.centerSize) > 10) {
+        config.centerSize = Number(nextConfig.centerSize) * 0.36;
+      }
+      if (!nextConfig.centerMode && typeof nextConfig.centerTransparent === 'boolean') {
+        config.centerMode = nextConfig.centerTransparent ? 'transparent' : 'solid';
+      }
+      delete config.centerTransparent;
+      syncControls();
+      resetPointer();
+      render();
+      document.querySelectorAll('[data-built-in-preset]').forEach((button) => {
+        button.setAttribute('aria-pressed', String(button.dataset.builtInPreset === builtInKey));
+      });
+      renderSavedPresetOptions(savedName);
+    }
+
+    function markConfigAsCustom() {
+      document.querySelectorAll('[data-built-in-preset]').forEach((button) => {
+        button.setAttribute('aria-pressed', 'false');
+      });
+      const select = document.querySelector('#savedPresetSelect');
+      select.value = '';
+      document.querySelector('#deletePresetButton').disabled = true;
+    }
+
+    function buildColorInputs() {
+      const container = document.querySelector('#petalColors');
+      container.replaceChildren();
+      config.petalColors.forEach((color, index) => {
+        const label = document.createElement('label');
+        label.className = 'color-field';
+        const input = document.createElement('input');
+        input.type = 'color';
+        input.value = color;
+        input.setAttribute('aria-label', `叶片颜色 ${index + 1}`);
+        input.addEventListener('input', () => {
+          config.petalColors[index] = input.value;
+          markConfigAsCustom();
+          render();
+        });
+        const text = document.createElement('span');
+        text.textContent = String(index + 1).padStart(2, '0');
+        label.append(input, text);
+        container.append(label);
+      });
+    }
+
+    function syncControls() {
+      numberFields.forEach((name) => {
+        const input = document.querySelector(`#${name}`);
+        input.value = config[name];
+      });
+      booleanFields.forEach((name) => {
+        document.querySelector(`#${name}`).checked = config[name];
+      });
+      document.querySelector('#centerColor').value = config.centerColor;
+      document.querySelector('#centerGlowColor').value = config.centerGlowColor;
+      document.querySelectorAll('[data-center-mode]').forEach((button) => {
+        button.setAttribute('aria-pressed', String(button.dataset.centerMode === config.centerMode));
+      });
+      buildColorInputs();
+    }
+
+    function hexToRgb(hex) {
+      const value = hex.replace('#', '');
+      return {
+        r: parseInt(value.slice(0, 2), 16),
+        g: parseInt(value.slice(2, 4), 16),
+        b: parseInt(value.slice(4, 6), 16)
+      };
+    }
+
+    function mixColor(first, second, amount) {
+      const a = hexToRgb(first);
+      const b = hexToRgb(second);
+      const channel = (key) => Math.round(a[key] + (b[key] - a[key]) * amount).toString(16).padStart(2, '0');
+      return `#${channel('r')}${channel('g')}${channel('b')}`;
+    }
+
+    function paletteColor(index, count) {
+      const position = index / count * config.petalColors.length;
+      const start = Math.floor(position) % config.petalColors.length;
+      const end = (start + 1) % config.petalColors.length;
+      return mixColor(config.petalColors[start], config.petalColors[end], position - Math.floor(position));
+    }
+
+    function addGradientStop(gradient, offset, color, opacity) {
+      const stop = document.createElementNS(svgNamespace, 'stop');
+      stop.setAttribute('offset', offset);
+      stop.setAttribute('stop-color', color);
+      stop.setAttribute('stop-opacity', String(opacity));
+      gradient.append(stop);
+    }
+
+    function petalProfile(index) {
+      const position = index / config.petalCount * config.petalLayoutPattern.length;
+      const start = Math.floor(position) % config.petalLayoutPattern.length;
+      const end = (start + 1) % config.petalLayoutPattern.length;
+      const amount = position - Math.floor(position);
+      const interpolate = (key) => {
+        const startValue = config.petalLayoutPattern[start][key] ?? 1;
+        const endValue = config.petalLayoutPattern[end][key] ?? 1;
+        return startValue + (endValue - startValue) * amount;
+      };
+      return { radius: interpolate('radius'), width: interpolate('width'), offset: interpolate('offset'), angle: interpolate('angle') };
+    }
+
+    function applyVariation(value) {
+      return 1 + (value - 1) * config.petalSizeVariation;
+    }
+
+    function renderPetals() {
+      petalLayer.replaceChildren();
+      petalMaskLayer.replaceChildren();
+      petalGradientDefs.replaceChildren();
+      for (let index = 0; index < config.petalCount; index += 1) {
+        const profile = petalProfile(index);
+        const radiusX = config.petalRadius * applyVariation(profile.radius);
+        const radiusY = radiusX * config.petalAspectRatio * applyVariation(profile.width);
+        const offset = config.petalOffset * applyVariation(profile.offset);
+        const angle = -90 + index * 360 / config.petalCount + profile.angle * config.petalSizeVariation;
+        const radians = angle * Math.PI / 180;
+        const centerX = 50 + Math.cos(radians) * offset;
+        const centerY = 50 + Math.sin(radians) * offset;
+        const directionX = Math.cos(radians);
+        const directionY = Math.sin(radians);
+        const outerX = centerX + directionX * radiusX;
+        const outerY = centerY + directionY * radiusX;
+        const rotation = `rotate(${angle} ${centerX} ${centerY})`;
+        const startColor = paletteColor(index, config.petalCount);
+        const gradient = document.createElementNS(svgNamespace, 'linearGradient');
+        const gradientId = `petalGradient${index}`;
+        gradient.setAttribute('id', gradientId);
+        gradient.setAttribute('gradientUnits', 'userSpaceOnUse');
+        gradient.setAttribute('x1', String(outerX));
+        gradient.setAttribute('y1', String(outerY));
+        gradient.setAttribute('x2', '50');
+        gradient.setAttribute('y2', '50');
+        addGradientStop(gradient, '0%', startColor, 0.74);
+        addGradientStop(gradient, '36%', mixColor(startColor, '#ffffff', 0.08), 0.86);
+        addGradientStop(gradient, '72%', mixColor(startColor, '#ffffff', 0.04), 0.9);
+        addGradientStop(gradient, '100%', startColor, 0.82);
+        petalGradientDefs.append(gradient);
+
+        const glassGradient = document.createElementNS(svgNamespace, 'linearGradient');
+        const glassGradientId = `glassGradient${index}`;
+        glassGradient.setAttribute('id', glassGradientId);
+        glassGradient.setAttribute('x1', '0%');
+        glassGradient.setAttribute('y1', '0%');
+        glassGradient.setAttribute('x2', '100%');
+        glassGradient.setAttribute('y2', '100%');
+        addGradientStop(glassGradient, '0%', '#ffffff', 0.82);
+        addGradientStop(glassGradient, '16%', '#ffffff', 0.24);
+        addGradientStop(glassGradient, '42%', '#ffffff', 0);
+        addGradientStop(glassGradient, '76%', '#ffffff', 0.08);
+        addGradientStop(glassGradient, '100%', '#ffffff', 0.42);
+        petalGradientDefs.append(glassGradient);
+
+        const maskPetal = document.createElementNS(svgNamespace, 'ellipse');
+        maskPetal.setAttribute('cx', String(centerX));
+        maskPetal.setAttribute('cy', String(centerY));
+        maskPetal.setAttribute('rx', String(radiusX));
+        maskPetal.setAttribute('ry', String(radiusY));
+        maskPetal.setAttribute('transform', rotation);
+        maskPetal.setAttribute('fill', '#ffffff');
+        petalMaskLayer.append(maskPetal);
+
+        const depthRim = document.createElementNS(svgNamespace, 'ellipse');
+        depthRim.setAttribute('cx', String(centerX));
+        depthRim.setAttribute('cy', String(centerY));
+        depthRim.setAttribute('rx', String(radiusX));
+        depthRim.setAttribute('ry', String(radiusY));
+        depthRim.setAttribute('transform', rotation);
+        depthRim.setAttribute('fill', 'none');
+        depthRim.setAttribute('stroke', mixColor(startColor, '#ffffff', 0.22));
+        depthRim.setAttribute('stroke-opacity', String(config.glassThickness * 0.09));
+        depthRim.setAttribute('stroke-width', String(config.glassThickness * 0.8));
+        depthRim.setAttribute('stroke-linejoin', 'round');
+        depthRim.setAttribute('filter', 'url(#softEdgeBlur)');
+        depthRim.setAttribute('data-layer', 'depth');
+        petalLayer.append(depthRim);
+
+        const petal = document.createElementNS(svgNamespace, 'ellipse');
+        petal.setAttribute('cx', String(centerX));
+        petal.setAttribute('cy', String(centerY));
+        petal.setAttribute('rx', String(radiusX));
+        petal.setAttribute('ry', String(radiusY));
+        petal.setAttribute('transform', rotation);
+        petal.setAttribute('fill', `url(#${gradientId})`);
+        petal.setAttribute('fill-opacity', String(config.petalOpacity));
+        petal.setAttribute('stroke', '#ffffff');
+        petal.setAttribute('stroke-opacity', String(config.edgeHighlight * 0.045));
+        petal.setAttribute('stroke-width', String(config.edgeHighlight * 0.16));
+        petal.setAttribute('data-layer', 'base');
+        petalLayer.append(petal);
+
+        const reflection = document.createElementNS(svgNamespace, 'ellipse');
+        reflection.setAttribute('cx', String(centerX));
+        reflection.setAttribute('cy', String(centerY));
+        reflection.setAttribute('rx', String(radiusX));
+        reflection.setAttribute('ry', String(radiusY));
+        reflection.setAttribute('transform', rotation);
+        reflection.setAttribute('fill', `url(#${glassGradientId})`);
+        reflection.setAttribute('fill-opacity', String(config.glassStrength * 0.34));
+        reflection.setAttribute('pointer-events', 'none');
+        reflection.setAttribute('data-layer', 'reflection');
+        petalLayer.append(reflection);
+
+        const texture = document.createElementNS(svgNamespace, 'ellipse');
+        texture.setAttribute('cx', String(centerX));
+        texture.setAttribute('cy', String(centerY));
+        texture.setAttribute('rx', String(radiusX));
+        texture.setAttribute('ry', String(radiusY));
+        texture.setAttribute('transform', rotation);
+        texture.setAttribute('fill', 'url(#glassTexturePattern)');
+        texture.setAttribute('fill-opacity', String(config.glassTexture * 0.28));
+        texture.setAttribute('pointer-events', 'none');
+        texture.setAttribute('data-layer', 'texture');
+        petalLayer.append(texture);
+
+        const innerHighlight = document.createElementNS(svgNamespace, 'ellipse');
+        innerHighlight.setAttribute('cx', String(centerX));
+        innerHighlight.setAttribute('cy', String(centerY));
+        innerHighlight.setAttribute('rx', String(Math.max(1, radiusX - config.glassThickness * 0.55)));
+        innerHighlight.setAttribute('ry', String(Math.max(1, radiusY - config.glassThickness * 0.55)));
+        innerHighlight.setAttribute('transform', rotation);
+        innerHighlight.setAttribute('fill', 'none');
+        innerHighlight.setAttribute('stroke', '#ffffff');
+        innerHighlight.setAttribute('stroke-opacity', String(config.edgeHighlight * 0.18 + config.glassThickness * 0.025));
+        innerHighlight.setAttribute('stroke-width', String(config.edgeHighlight * 0.18 + config.glassThickness * 0.16));
+        innerHighlight.setAttribute('stroke-linecap', 'round');
+        innerHighlight.setAttribute('stroke-dasharray', '17 83');
+        innerHighlight.setAttribute('pathLength', '100');
+        innerHighlight.setAttribute('filter', 'url(#softEdgeBlur)');
+        innerHighlight.setAttribute('pointer-events', 'none');
+        innerHighlight.setAttribute('data-layer', 'highlight');
+        petalLayer.append(innerHighlight);
+      }
+    }
+
+    function render() {
+      renderPetals();
+      document.querySelector('#centerGlow').setAttribute('r', String(config.centerGlowSize));
+      sharedCenterLight.setAttribute('r', String(config.centerGlowSize * 1.7));
+      document.querySelector('#centerCutout').setAttribute('r', String(config.centerSize * 1.8));
+      document.querySelector('#centerCore').setAttribute('r', String(config.centerSize));
+      document.querySelector('#centerCore').setAttribute('fill', config.centerColor);
+      const centerIsTransparent = config.centerMode === 'transparent';
+      const centerIsHidden = config.centerMode === 'none';
+      document.querySelector('#centerGlow').style.display = centerIsHidden ? 'none' : '';
+      document.querySelector('#centerCore').style.display = centerIsHidden ? 'none' : '';
+      sharedCenterLight.style.display = centerIsHidden ? 'none' : '';
+      document.querySelector('#centerCore').setAttribute('fill-opacity', centerIsTransparent ? '0' : String(config.centerOpacity));
+      document.querySelector('#centerStop1').setAttribute('stop-color', config.centerColor);
+      document.querySelector('#centerStop2').setAttribute('stop-color', mixColor(config.centerColor, config.centerGlowColor, 0.14));
+      document.querySelector('#centerStop1').setAttribute('stop-opacity', String(Math.min(1, config.centerOpacity * 0.98)));
+      document.querySelector('#centerStop2').setAttribute('stop-opacity', String(Math.min(1, config.centerOpacity * 0.88)));
+      document.querySelector('#glowStop1').setAttribute('stop-color', config.centerGlowColor);
+      document.querySelector('#glowStop2').setAttribute('stop-color', config.centerGlowColor);
+      document.querySelector('#glowStop1').setAttribute('stop-opacity', String(Math.min(0.42, config.centerGlowStrength * 0.34)));
+      ['sharedLightStop1', 'sharedLightStop2', 'sharedLightStop3', 'sharedLightStop4'].forEach((id) => {
+        document.querySelector(`#${id}`).setAttribute('stop-color', config.centerGlowColor);
+      });
+      document.querySelector('#sharedLightStop1').setAttribute('stop-opacity', String(Math.min(0.2, config.centerGlowStrength * 0.14)));
+      document.querySelector('#sharedLightStop2').setAttribute('stop-opacity', String(Math.min(0.17, config.centerGlowStrength * 0.12)));
+      document.querySelector('#sharedLightStop3').setAttribute('stop-opacity', String(Math.min(0.08, config.centerGlowStrength * 0.045)));
+      if (centerIsTransparent) {
+        petalComposite.setAttribute('mask', 'url(#centerCutoutMask)');
+      } else {
+        petalComposite.removeAttribute('mask');
+      }
+
+      shell.style.setProperty('--rotation-seconds', `${config.rotationSeconds}s`);
+      shell.style.setProperty('--breathing-seconds', `${config.breathingSeconds}s`);
+      shell.style.setProperty('--breath-scale', String(config.breathScale));
+      shell.style.setProperty('--pressed-scale', String(config.pressedScale));
+      shell.style.setProperty('--icon-scale', String(config.iconScale));
+      shell.classList.toggle('no-rotation', !config.rotationEnabled);
+      shell.classList.toggle('no-breathing', !config.breathingEnabled);
+
+      numberFields.forEach((name) => {
+        const value = document.querySelector(`output[for="${name}"]`);
+        const suffix = name.includes('Seconds') ? 's' : name === 'petalOpacity' || name.includes('Scale') ? '' : '';
+        value.textContent = `${config[name]}${suffix}`;
+      });
+      output.value = JSON.stringify(config, null, 2);
+    }
+
+    numberFields.forEach((name) => {
+      document.querySelector(`#${name}`).addEventListener('input', (event) => {
+        config[name] = Number(event.target.value);
+        markConfigAsCustom();
+        render();
+      });
+    });
+
+    booleanFields.forEach((name) => {
+      document.querySelector(`#${name}`).addEventListener('change', (event) => {
+        config[name] = event.target.checked;
+        markConfigAsCustom();
+        render();
+      });
+    });
+
+    ['centerColor', 'centerGlowColor'].forEach((name) => {
+      document.querySelector(`#${name}`).addEventListener('input', (event) => {
+        config[name] = event.target.value;
+        markConfigAsCustom();
+        render();
+      });
+    });
+
+    document.querySelectorAll('[data-center-mode]').forEach((button) => {
+      button.addEventListener('click', () => {
+        config.centerMode = button.dataset.centerMode;
+        document.querySelectorAll('[data-center-mode]').forEach((item) => {
+          item.setAttribute('aria-pressed', String(item === button));
+        });
+        markConfigAsCustom();
+        render();
+      });
+    });
+
+    function updatePointer(event) {
+      const rect = shell.getBoundingClientRect();
+      const x = Math.max(-1, Math.min(1, (event.clientX - rect.left) / Math.max(rect.width, 1) * 2 - 1));
+      const y = Math.max(-1, Math.min(1, (event.clientY - rect.top) / Math.max(rect.height, 1) * 2 - 1));
+      shell.style.setProperty('--shift-x', `${x * config.pointerShift}px`);
+      shell.style.setProperty('--shift-y', `${y * config.pointerShift}px`);
+      shell.classList.add('interacting');
+    }
+
+    function resetPointer() {
+      shell.style.setProperty('--shift-x', '0px');
+      shell.style.setProperty('--shift-y', '0px');
+      shell.classList.remove('interacting', 'pressed');
+    }
+
+    shell.addEventListener('pointerenter', updatePointer);
+    shell.addEventListener('pointermove', updatePointer);
+    shell.addEventListener('pointerdown', (event) => {
+      updatePointer(event);
+      shell.classList.add('pressed');
+    });
+    shell.addEventListener('pointerup', (event) => {
+      shell.classList.remove('pressed');
+      if (event.pointerType !== 'mouse') resetPointer();
+    });
+    shell.addEventListener('pointerleave', resetPointer);
+    shell.addEventListener('pointercancel', resetPointer);
+
+    document.querySelectorAll('[data-tone]').forEach((button) => {
+      if (button.id === 'stage') return;
+      button.addEventListener('click', () => {
+        document.querySelector('#stage').dataset.tone = button.dataset.tone;
+        document.querySelectorAll('.segments button').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+      });
+    });
+
+    document.querySelectorAll('[data-built-in-preset]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const key = button.dataset.builtInPreset;
+        applyConfig(builtInPresets[key] || {}, key);
+        document.querySelector('#presetName').value = '';
+        setPresetStatus('已应用');
+      });
+    });
+
+    document.querySelector('#savedPresetSelect').addEventListener('change', (event) => {
+      const name = event.target.value;
+      document.querySelector('#deletePresetButton').disabled = !name;
+      if (!name || !userPresets[name]) return;
+      applyConfig(userPresets[name], '', name);
+      document.querySelector('#presetName').value = name;
+      setPresetStatus('已应用');
+    });
+
+    document.querySelector('#savePresetButton').addEventListener('click', () => {
+      const input = document.querySelector('#presetName');
+      const name = input.value.trim();
+      if (!name) {
+        setPresetStatus('请填写名称');
+        input.focus();
+        return;
+      }
+      userPresets[name] = structuredClone(config);
+      persistUserPresets();
+      renderSavedPresetOptions(name);
+      setPresetStatus('已保存');
+    });
+
+    document.querySelector('#deletePresetButton').addEventListener('click', () => {
+      const select = document.querySelector('#savedPresetSelect');
+      const name = select.value;
+      if (!name || !userPresets[name]) return;
+      delete userPresets[name];
+      persistUserPresets();
+      renderSavedPresetOptions();
+      document.querySelector('#presetName').value = '';
+      setPresetStatus('已删除');
+    });
+
+    document.querySelector('#resetButton').addEventListener('click', () => {
+      applyConfig(defaults, 'reference');
+      document.querySelector('#presetName').value = '';
+    });
+
+    document.querySelector('#copyButton').addEventListener('click', async (event) => {
+      await navigator.clipboard.writeText(output.value);
+      const button = event.currentTarget;
+      button.textContent = '已复制';
+      window.setTimeout(() => { button.textContent = '复制'; }, 1200);
+    });
+
+    syncControls();
+    render();
+    renderSavedPresetOptions();
+  </script>
+</body>
+</html>

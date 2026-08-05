@@ -21,12 +21,12 @@ body {
 
 @keyframes mes-ai-assistant-breathe {
   0%, 100% {
-    transform: scale(0.96);
-    filter: saturate(0.96) brightness(1);
+    transform: scale(0.97);
+    filter: saturate(0.98) brightness(1);
   }
   50% {
-    transform: scale(1.035);
-    filter: saturate(1.06) brightness(1.025);
+    transform: scale(1.022);
+    filter: saturate(1.08) brightness(1.035);
   }
 }
 
@@ -40,14 +40,14 @@ body {
 }
 
 .mes-ai-assistant-orbit {
-  animation: mes-ai-assistant-orbit 28s linear infinite;
+  animation: mes-ai-assistant-orbit 48s linear infinite;
   transform-origin: center;
 }
 
 .mes-ai-assistant-mark {
   height: 100% !important;
   width: 100% !important;
-  animation: mes-ai-assistant-breathe 5.2s ease-in-out infinite;
+  animation: mes-ai-assistant-breathe 8s ease-in-out infinite;
   object-fit: contain;
   transform-origin: center;
   transition: filter 180ms ease, transform 140ms ease;
@@ -67,7 +67,7 @@ body {
 
 .mes-ai-assistant-trigger:active .mes-ai-assistant-mark {
   animation: none;
-  transform: scale(0.88);
+  transform: scale(0.94);
   filter: saturate(1.18) brightness(1.05);
 }
 

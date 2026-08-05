@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Eye, EyeOff, PlugZap, Save } from 'lucide-react'
+import { Eye, EyeOff, PlugZap, Save, SlidersHorizontal } from 'lucide-react'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import { useModalGlassPreference } from './interfacePreferences'
 import MaterialChoiceSearch from './MaterialChoiceSearch'
@@ -1071,6 +1071,7 @@ function AiAgentSettings({ onMessage }: { onMessage: (msg: string) => void }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [showMarkLab, setShowMarkLab] = useState(false)
   const [showApiKey, setShowApiKey] = useState(false)
   const [clearStoredApiKey, setClearStoredApiKey] = useState(false)
   const [apiKey, setApiKey] = useState('')
@@ -1172,15 +1173,22 @@ function AiAgentSettings({ onMessage }: { onMessage: (msg: string) => void }) {
   }
 
   return (
+    <>
     <section className="mt-8 border-t border-gray-200 pt-6" aria-labelledby="ai-agent-settings-title">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h4 id="ai-agent-settings-title" className="text-base font-semibold text-gray-900">AI 助手配置</h4>
           <p className="mt-1 text-sm text-gray-500">配置国产 OpenAI 兼容模型。页面配置优先于 Coolify 环境变量。</p>
         </div>
-        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${config?.configured ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-          {loading ? '读取中' : config?.configured ? '已配置' : '未配置'}
-        </span>
+        <div className="flex items-center gap-2">
+          <AppButton variant="secondary" size="sm" onClick={() => setShowMarkLab(true)}>
+            <SlidersHorizontal aria-hidden="true" className="h-4 w-4" />
+            图标调参
+          </AppButton>
+          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${config?.configured ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+            {loading ? '读取中' : config?.configured ? '已配置' : '未配置'}
+          </span>
+        </div>
       </div>
 
       {!loading && config && (
@@ -1332,6 +1340,23 @@ function AiAgentSettings({ onMessage }: { onMessage: (msg: string) => void }) {
         </>
       )}
     </section>
+    {showMarkLab && (
+      <ModalDialog
+        title="AI 助手图标调参"
+        description="调整叶片、玻璃材质、中心和动态参数；002 为当前默认方案。"
+        onClose={() => setShowMarkLab(false)}
+        size="wide"
+        panelClassName="h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)]"
+        bodyClassName="overflow-hidden p-0 sm:p-0"
+      >
+        <iframe
+          title="AI 助手图标参数实验室"
+          src="/ai/assistant-mark-lab.html"
+          className="h-full min-h-[640px] w-full border-0"
+        />
+      </ModalDialog>
+    )}
+    </>
   )
 }
 
