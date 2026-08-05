@@ -7,6 +7,7 @@ import ModalDialog, { ModalActions } from './ModalDialog'
 import SearchableSelect from './SearchableSelect'
 import { appInputClassName, appTextareaClassName } from './FormField'
 import { calculateProductionConsumption, ProductionLossMode } from '@/lib/production-consumption'
+import AppLoadingIndicator from './AppLoadingIndicator'
 
 type BomSnapshot = {
   id: string
@@ -291,7 +292,9 @@ export default function ProductionOrderActualPanel({
     }
   }
 
-  if (!data) return <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">{loading ? '正在加载班后生产实绩…' : '暂无班后生产实绩数据'}</div>
+  if (!data) return loading
+    ? <AppLoadingIndicator compact label="正在加载班后生产实绩..." className="rounded-lg border border-gray-200 bg-gray-50" />
+    : <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">暂无班后生产实绩数据</div>
 
   return (
     <section className="mt-6 rounded-lg border border-gray-200 bg-white p-4 sm:p-5">

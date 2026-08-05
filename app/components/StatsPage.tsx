@@ -17,6 +17,7 @@ import SortableTableHeader from './SortableTableHeader'
 import useClientTableSort from './useClientTableSort'
 import MetricCard from './MetricCard'
 import NumberInputField from './NumberInputField'
+import AppLoadingIndicator from './AppLoadingIndicator'
 
 interface BomItem {
   id: string
@@ -489,7 +490,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
       </section>
 
       {loading ? (
-        <div className="rounded-lg bg-white py-16 text-center text-sm text-gray-500 shadow-sm">加载中...</div>
+        <AppLoadingIndicator label="正在加载生产记录..." className="rounded-lg bg-white shadow-sm" />
       ) : reports.length === 0 ? (
         <div className="rounded-lg bg-white py-16 text-center text-sm text-gray-500 shadow-sm">暂无生产记录</div>
       ) : viewMode === 'card' ? (

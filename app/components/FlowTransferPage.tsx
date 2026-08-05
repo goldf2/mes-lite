@@ -10,6 +10,7 @@ import { SearchFieldWithPresets } from './SavedSearchPresets'
 import TopBarPortal from './TopBarPortal'
 import { appTextareaClassName } from './FormField'
 import MetricCard from './MetricCard'
+import AppLoadingIndicator from './AppLoadingIndicator'
 
 interface LocationOption {
   id: string
@@ -306,7 +307,7 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
         </section>
 
         {loading ? (
-          <div className="rounded-lg bg-white py-16 text-center text-sm text-gray-500 shadow-sm">加载中...</div>
+          <AppLoadingIndicator label="正在加载流程转移..." className="rounded-lg bg-white shadow-sm" />
         ) : transfers.length === 0 ? (
           <div className="rounded-lg bg-white py-16 text-center text-sm text-gray-500 shadow-sm">暂无流程转移记录</div>
         ) : (

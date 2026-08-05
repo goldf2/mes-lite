@@ -9,6 +9,7 @@ import SearchableSelect from './SearchableSelect'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
 import TopBarPortal from './TopBarPortal'
+import AppLoadingIndicator from './AppLoadingIndicator'
 
 interface CustomerOption {
   id: string
@@ -270,7 +271,7 @@ export default function SalesOrderPage({
 
         <div className="bg-white shadow-sm">
           {loading && orders.length === 0 ? (
-            <div className="py-12 text-center text-sm text-gray-500">加载中...</div>
+            <AppLoadingIndicator label="正在加载销售订单..." />
           ) : orders.length === 0 ? (
             <div className="py-12 text-center text-sm text-gray-500">暂无销售订单</div>
           ) : (

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { ConfigurationOrderEntity } from '@/lib/configuration-order'
 import AppButton from './AppButton'
 import ModalDialog, { ModalActions } from './ModalDialog'
+import AppLoadingIndicator from './AppLoadingIndicator'
 
 interface OrderItem {
   id: string
@@ -97,7 +98,7 @@ export default function ConfigurationManualOrder({
           footer={<ModalActions onCancel={() => setOpen(false)} onConfirm={save} busy={saving} disabled={loading || items.length === 0} confirmLabel="保存顺序" />}
         >
           {loading ? (
-            <div className="py-12 text-center text-sm text-gray-500">加载中...</div>
+            <AppLoadingIndicator compact label="正在加载排序数据..." />
           ) : items.length === 0 ? (
             <div className="py-12 text-center text-sm text-gray-500">暂无可排序内容</div>
           ) : (

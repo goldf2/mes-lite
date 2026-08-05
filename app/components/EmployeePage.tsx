@@ -11,6 +11,7 @@ import TopBarPortal from './TopBarPortal'
 import useClientTableSort from './useClientTableSort'
 import SearchableSelect from './SearchableSelect'
 import ConfigurationManualOrder from './ConfigurationManualOrder'
+import AppLoadingIndicator from './AppLoadingIndicator'
 
 interface OperatorOption {
   id: string
@@ -191,7 +192,7 @@ export default function EmployeePage({
 
         <section className="rounded-lg bg-white p-3 shadow-sm sm:p-6">
           {loading ? (
-            <div className="py-16 text-center text-sm text-gray-500">加载中...</div>
+            <AppLoadingIndicator label="正在加载员工资料..." />
           ) : visibleEmployees.length === 0 ? (
             <div className="py-16 text-center text-sm text-gray-500">暂无员工资料</div>
           ) : (

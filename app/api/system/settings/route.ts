@@ -12,6 +12,7 @@ const updateSchema = z.object({
   companyContact: z.string().max(50).optional(),
   companyPhone: z.string().max(50).optional(),
   companyAddress: z.string().max(200).optional(),
+  aiLoadingIndicatorEnabled: z.boolean().optional(),
 })
 
 export async function GET() {

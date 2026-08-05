@@ -5,6 +5,7 @@ import { ArrowRight, PackageMinus, PackagePlus } from 'lucide-react'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
+import AppLoadingIndicator from './AppLoadingIndicator'
 
 interface MaterialOption {
   id: string
@@ -260,7 +261,7 @@ export default function BomOverviewPage({
           </div>
 
           {loading ? (
-            <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">正在加载 BOM...</div>
+            <AppLoadingIndicator compact label="正在加载 BOM..." className="rounded-lg border border-dashed border-gray-200" />
           ) : filteredMaterials.length === 0 ? (
             <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">没有匹配的物料</div>
           ) : (
@@ -439,9 +440,9 @@ export default function BomOverviewPage({
               </section>
             </>
           ) : (
-            <div className="border border-dashed border-gray-300 px-4 py-16 text-center text-sm text-gray-500">
-              {loading ? '正在加载 BOM...' : '请选择一个物料查看 BOM 关系'}
-            </div>
+            loading
+              ? <AppLoadingIndicator compact label="正在加载 BOM 关系..." className="border border-dashed border-gray-300" />
+              : <div className="border border-dashed border-gray-300 px-4 py-16 text-center text-sm text-gray-500">请选择一个物料查看 BOM 关系</div>
           )}
         </main>
       </div>

@@ -6,6 +6,7 @@ export const COMPANY_NAME_KEY = 'company.name'
 export const COMPANY_CONTACT_KEY = 'company.contact'
 export const COMPANY_PHONE_KEY = 'company.phone'
 export const COMPANY_ADDRESS_KEY = 'company.address'
+export const AI_LOADING_INDICATOR_ENABLED_KEY = 'ai.loadingIndicator.enabled'
 
 type SettingsClient = PrismaClient | Prisma.TransactionClient
 
@@ -15,11 +16,12 @@ export interface SystemSettings {
   companyContact: string
   companyPhone: string
   companyAddress: string
+  aiLoadingIndicatorEnabled: boolean
 }
 
 export async function getSystemSettings(client: SettingsClient = prisma): Promise<SystemSettings> {
   const rows = await client.systemSetting.findMany({
-    where: { key: { in: [NATURAL_MATERIAL_CODE_SORT_KEY, COMPANY_NAME_KEY, COMPANY_CONTACT_KEY, COMPANY_PHONE_KEY, COMPANY_ADDRESS_KEY] } },
+    where: { key: { in: [NATURAL_MATERIAL_CODE_SORT_KEY, COMPANY_NAME_KEY, COMPANY_CONTACT_KEY, COMPANY_PHONE_KEY, COMPANY_ADDRESS_KEY, AI_LOADING_INDICATOR_ENABLED_KEY] } },
     select: { key: true, value: true },
   })
   const values = new Map(rows.map((row) => [row.key, row.value]))
@@ -30,6 +32,7 @@ export async function getSystemSettings(client: SettingsClient = prisma): Promis
     companyContact: values.get(COMPANY_CONTACT_KEY) || '',
     companyPhone: values.get(COMPANY_PHONE_KEY) || '',
     companyAddress: values.get(COMPANY_ADDRESS_KEY) || '',
+    aiLoadingIndicatorEnabled: values.get(AI_LOADING_INDICATOR_ENABLED_KEY) !== 'false',
   }
 }
 
@@ -43,6 +46,7 @@ export async function updateSystemSettings(
   if (settings.companyContact !== undefined) entries.push([COMPANY_CONTACT_KEY, settings.companyContact.trim()])
   if (settings.companyPhone !== undefined) entries.push([COMPANY_PHONE_KEY, settings.companyPhone.trim()])
   if (settings.companyAddress !== undefined) entries.push([COMPANY_ADDRESS_KEY, settings.companyAddress.trim()])
+  if (settings.aiLoadingIndicatorEnabled !== undefined) entries.push([AI_LOADING_INDICATOR_ENABLED_KEY, String(settings.aiLoadingIndicatorEnabled)])
   for (const [key, value] of entries) {
     await client.systemSetting.upsert({
       where: { key },

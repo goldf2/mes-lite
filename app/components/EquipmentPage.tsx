@@ -10,6 +10,7 @@ import SortableTableHeader from './SortableTableHeader'
 import useClientTableSort from './useClientTableSort'
 import ModalDialog, { ModalActions } from './ModalDialog'
 import AppButton from './AppButton'
+import AppLoadingIndicator from './AppLoadingIndicator'
 import { appInputClassName, appSelectClassName, appTextareaClassName } from './FormField'
 
 interface WorkCenterOption {
@@ -175,7 +176,7 @@ export default function EquipmentPage({
     <>
       <TopBarPortal>{toolbar}</TopBarPortal>
       <section className="rounded-lg bg-white p-3 shadow sm:p-6">
-        {loading ? <div className="py-12 text-center text-sm text-gray-500">加载中...</div> : items.length === 0 ? (
+        {loading ? <AppLoadingIndicator label="正在加载设备..." /> : items.length === 0 ? (
           <div className="py-12 text-center text-sm text-gray-500">暂无设备{canCreate && <div className="mt-4"><AppButton variant="create" onClick={openCreate}>新增第一台设备</AppButton></div>}</div>
         ) : viewMode === 'card' ? (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">

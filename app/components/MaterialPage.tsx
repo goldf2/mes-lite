@@ -22,6 +22,7 @@ import {
 } from '@/lib/bom-entry-units'
 import { normalizeUnitCode } from '@/lib/unit-catalog'
 import { useBomPagePreferences } from './bomPagePreferences'
+import AppLoadingIndicator from './AppLoadingIndicator'
 
 interface Material {
   id: string
@@ -2665,7 +2666,7 @@ export default function MaterialPage({
             </div>
 
             {bomLoading ? (
-              <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">正在加载 BOM...</div>
+              <AppLoadingIndicator compact label="正在加载 BOM..." className="rounded-lg border border-dashed border-gray-200" />
             ) : existingBomRows.length === 0 ? (
               <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">
                 {bomKeyword.trim()
@@ -2769,7 +2770,7 @@ export default function MaterialPage({
           {quickBomDraftReady ? (
             renderBomDraftEditor(false)
           ) : (
-            <div className="flex min-h-56 items-center justify-center text-sm text-gray-500">正在加载 BOM 数据...</div>
+            <AppLoadingIndicator compact label="正在加载 BOM 数据..." />
           )}
         </ModalDialog>
       )}

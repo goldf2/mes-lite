@@ -1,12 +1,10 @@
 'use client'
 
-import { CSSProperties, PointerEvent, useEffect, useId, useMemo, useState } from 'react'
+import { CSSProperties, PointerEvent, useId, useMemo } from 'react'
 import {
-  AiAssistantMarkConfig,
-  defaultAiAssistantMarkConfig,
-  normalizeAiAssistantMarkConfig,
   renderAiAssistantMarkSvg,
 } from '@/lib/ai-assistant-mark'
+import { useAiAssistantAppearance } from './AiAssistantAppearanceProvider'
 
 type MarkStyle = CSSProperties & {
   '--mes-ai-rotation-seconds': string
@@ -15,43 +13,6 @@ type MarkStyle = CSSProperties & {
   '--mes-ai-pressed-scale': number
   '--mes-ai-shift-x': string
   '--mes-ai-shift-y': string
-}
-
-let cachedConfig = normalizeAiAssistantMarkConfig(defaultAiAssistantMarkConfig)
-let configRequest: Promise<void> | null = null
-let configLoaded = false
-let messageListenerReady = false
-const configSubscribers = new Set<(config: AiAssistantMarkConfig) => void>()
-
-function publishConfig(value: unknown) {
-  cachedConfig = normalizeAiAssistantMarkConfig(value)
-  configSubscribers.forEach((subscriber) => subscriber(cachedConfig))
-}
-
-function ensureMessageListener() {
-  if (messageListenerReady || typeof window === 'undefined') return
-  window.addEventListener('message', (event) => {
-    if (event.origin !== window.location.origin || event.data?.type !== 'mes-ai-mark-config-updated') return
-    publishConfig(event.data.config)
-  })
-  messageListenerReady = true
-}
-
-async function loadPublishedConfig() {
-  if (configLoaded) return
-  if (configRequest) return configRequest
-  configRequest = fetch('/api/ai/mark-config', { cache: 'no-store' })
-    .then(async (response) => {
-      if (!response.ok) return
-      const payload = await response.json()
-      publishConfig(payload.data?.config)
-      configLoaded = true
-    })
-    .catch(() => undefined)
-    .finally(() => {
-      configRequest = null
-    })
-  return configRequest
 }
 
 export default function AiAssistantMark({
@@ -63,7 +24,7 @@ export default function AiAssistantMark({
   animated?: boolean
   priority?: boolean
 }) {
-  const [config, setConfig] = useState(cachedConfig)
+  const { config } = useAiAssistantAppearance()
   const reactId = useId()
   const svg = useMemo(() => renderAiAssistantMarkSvg(config, `mes-ai-${reactId}`), [config, reactId])
   const style: MarkStyle = {
@@ -88,15 +49,6 @@ export default function AiAssistantMark({
     event.currentTarget.style.setProperty('--mes-ai-shift-x', '0px')
     event.currentTarget.style.setProperty('--mes-ai-shift-y', '0px')
   }
-
-  useEffect(() => {
-    ensureMessageListener()
-    configSubscribers.add(setConfig)
-    void loadPublishedConfig()
-    return () => {
-      configSubscribers.delete(setConfig)
-    }
-  }, [])
 
   void priority
 

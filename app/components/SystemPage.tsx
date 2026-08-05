@@ -15,6 +15,8 @@ import AppButton from './AppButton'
 import ModalDialog, { ModalActions } from './ModalDialog'
 import { appInputClassName, appTextareaClassName } from './FormField'
 import ConfigurationManualOrder from './ConfigurationManualOrder'
+import AppLoadingIndicator from './AppLoadingIndicator'
+import { useAiAssistantAppearance } from './AiAssistantAppearanceProvider'
 
 interface Supplier {
   id: string
@@ -397,7 +399,7 @@ function WorkCenterManager({ onMessage }: { onMessage: (msg: string) => void }) 
       </section>
 
       <section className="overflow-hidden rounded-lg bg-white shadow">
-        {loading ? <div className="py-12 text-center text-sm text-gray-500">加载中...</div> : (
+        {loading ? <AppLoadingIndicator label="正在加载工作中心..." /> : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[820px]">
               <thead className="bg-gray-50 text-left text-sm text-gray-600"><tr>
@@ -560,7 +562,7 @@ function InventoryLocationManager({ onMessage }: { onMessage: (msg: string) => v
       </section>
 
       <section className="overflow-hidden rounded-lg bg-white shadow">
-        {loading ? <div className="py-12 text-center text-sm text-gray-500">加载中...</div> : (
+        {loading ? <AppLoadingIndicator label="正在加载库位..." /> : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px]">
               <thead className="bg-gray-50 text-left text-sm text-gray-600"><tr><SortableTableHeader column="location" activeColumn={locationSort.sortColumn} direction={locationSort.sortDirection} onSort={locationSort.toggleSort}>库位</SortableTableHeader><SortableTableHeader column="status" activeColumn={locationSort.sortColumn} direction={locationSort.sortDirection} onSort={locationSort.toggleSort}>状态</SortableTableHeader><SortableTableHeader column="materialCount" activeColumn={locationSort.sortColumn} direction={locationSort.sortDirection} onSort={locationSort.toggleSort}>物料数</SortableTableHeader><SortableTableHeader column="qty" activeColumn={locationSort.sortColumn} direction={locationSort.sortDirection} onSort={locationSort.toggleSort}>库存 / 占用 / 可用</SortableTableHeader><th className="px-4 py-3 text-right">操作</th></tr></thead>
@@ -920,6 +922,7 @@ function DataToolManager({ onMessage }: { onMessage: (msg: string) => void }) {
 
 function InterfacePreferenceManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [modalGlassEnabled, setModalGlassEnabled] = useModalGlassPreference()
+  const { loadingIndicatorEnabled, setLoadingIndicatorEnabled } = useAiAssistantAppearance()
   const [naturalCodeSortEnabled, setNaturalCodeSortEnabled] = useState(false)
   const [companyProfile, setCompanyProfile] = useState({ companyName: '', companyContact: '', companyPhone: '', companyAddress: '' })
   const [settingLoading, setSettingLoading] = useState(true)
@@ -941,10 +944,11 @@ function InterfacePreferenceManager({ onMessage }: { onMessage: (msg: string) =>
         companyPhone: data.data?.companyPhone || '',
         companyAddress: data.data?.companyAddress || '',
       })
+      setLoadingIndicatorEnabled(data.data?.aiLoadingIndicatorEnabled !== false)
     } finally {
       setSettingLoading(false)
     }
-  }, [onMessage])
+  }, [onMessage, setLoadingIndicatorEnabled])
 
   useEffect(() => {
     loadSettings()
@@ -965,6 +969,26 @@ function InterfacePreferenceManager({ onMessage }: { onMessage: (msg: string) =>
       }
       setNaturalCodeSortEnabled(Boolean(data.data?.naturalMaterialCodeSortEnabled))
       onMessage(`物料编码数字自然排序已${enabled ? '开启' : '关闭'}`)
+    } finally {
+      setSettingSaving(false)
+    }
+  }
+
+  const saveLoadingIndicator = async (enabled: boolean) => {
+    setSettingSaving(true)
+    try {
+      const res = await fetch('/api/system/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aiLoadingIndicatorEnabled: enabled }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        onMessage(data.error || '保存页面加载图标设置失败')
+        return
+      }
+      setLoadingIndicatorEnabled(Boolean(data.data?.aiLoadingIndicatorEnabled))
+      onMessage(`页面加载图标已${enabled ? '开启' : '关闭'}`)
     } finally {
       setSettingSaving(false)
     }
@@ -1034,6 +1058,29 @@ function InterfacePreferenceManager({ onMessage }: { onMessage: (msg: string) =>
             />
             <span className={`relative h-7 w-12 rounded-full transition ${naturalCodeSortEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}>
               <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${naturalCodeSortEnabled ? 'left-6' : 'left-1'}`} />
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-gray-200 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="font-medium text-gray-900">页面加载 AI 图标</div>
+            <div className="mt-1 text-sm text-gray-500">开启后，刷新、鉴权和功能页等待时显示当前 AI 图标；关闭后仅显示加载文字。</div>
+            <div className="mt-2 text-xs text-gray-500">系统级设置，保存后对所有客户端生效。</div>
+          </div>
+          <label className={`inline-flex items-center gap-3 ${settingLoading || settingSaving ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}>
+            <span className="text-sm text-gray-600">{loadingIndicatorEnabled ? '已开启' : '已关闭'}</span>
+            <input
+              type="checkbox"
+              checked={loadingIndicatorEnabled}
+              disabled={settingLoading || settingSaving}
+              onChange={(event) => saveLoadingIndicator(event.target.checked)}
+              className="sr-only"
+            />
+            <span className={`relative h-7 w-12 rounded-full transition ${loadingIndicatorEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}>
+              <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${loadingIndicatorEnabled ? 'left-6' : 'left-1'}`} />
             </span>
           </label>
         </div>
