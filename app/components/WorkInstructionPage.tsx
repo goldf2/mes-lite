@@ -2,6 +2,7 @@
 
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
+import { FileText, Image as ImageIcon, Upload, X } from 'lucide-react'
 import TopBarPortal from './TopBarPortal'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import StatusCheckboxFilter, { getMultiSelectQuery } from './StatusCheckboxFilter'
@@ -132,6 +133,16 @@ function formatSize(size: number) {
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
   return `${(size / 1024 / 1024).toFixed(1)} MB`
+}
+
+function isSupportedDocumentFile(file: File) {
+  return file.type.startsWith('image/') || file.type === 'application/pdf'
+}
+
+function mergeSelectedFiles(current: File[], next: File[]) {
+  const merged = new Map(current.map((file) => [`${file.name}:${file.size}:${file.lastModified}`, file]))
+  next.forEach((file) => merged.set(`${file.name}:${file.size}:${file.lastModified}`, file))
+  return Array.from(merged.values())
 }
 
 function formatDate(value: string | null | undefined) {
@@ -403,11 +414,14 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const [detailAttachments, setDetailAttachments] = useState<AttachmentItem[]>([])
   const [uploading, setUploading] = useState(false)
   const [dragActive, setDragActive] = useState(false)
+  const [createFiles, setCreateFiles] = useState<File[]>([])
+  const [createDragActive, setCreateDragActive] = useState(false)
   const [viewer, setViewer] = useState<{ instruction: WorkInstruction; attachments: AttachmentItem[]; index: number } | null>(null)
   const [viewerZoom, setViewerZoom] = useState(1)
   const [rotationSaving, setRotationSaving] = useState(false)
   const [focusUploadOnOpen, setFocusUploadOnOpen] = useState(false)
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
+  const createUploadInputRef = useRef<HTMLInputElement | null>(null)
   const detailUploadRef = useRef<HTMLDivElement | null>(null)
   const availableCategoryOptions = useMemo(() => documentCategoryOptions(categories), [categories])
   const effectiveSelectedCategoryIds = selectedCategoryIds ?? availableCategoryOptions.map((option) => option.value)
@@ -585,7 +599,34 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       ...createEmptyForm(),
       categoryId: availableCategoryOptions[0]?.value || '',
     })
+    setCreateFiles([])
+    setCreateDragActive(false)
     setShowModal(true)
+  }
+
+  const closeAddModal = () => {
+    if (loading) return
+    setShowModal(false)
+    setCreateFiles([])
+    setCreateDragActive(false)
+    if (createUploadInputRef.current) createUploadInputRef.current.value = ''
+  }
+
+  const selectCreateFiles = (files: FileList | File[]) => {
+    const selectedFiles = Array.from(files)
+    const acceptedFiles = selectedFiles.filter(isSupportedDocumentFile)
+    const oversizedFiles = acceptedFiles.filter((file) => file.size > 10 * 1024 * 1024)
+    const readyFiles = acceptedFiles.filter((file) => file.size > 0 && file.size <= 10 * 1024 * 1024)
+
+    if (readyFiles.length > 0) {
+      setCreateFiles((current) => mergeSelectedFiles(current, readyFiles))
+    }
+    if (acceptedFiles.length !== selectedFiles.length) {
+      onMessage('仅支持图片或 PDF 文件')
+    } else if (oversizedFiles.length > 0) {
+      onMessage('单个文件不能超过 10 MB')
+    }
+    if (createUploadInputRef.current) createUploadInputRef.current.value = ''
   }
 
   const openDetail = (instruction: WorkInstruction, focusUpload = false) => {
@@ -624,6 +665,33 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     setEditing(null)
   }
 
+  const uploadInstructionFiles = async (instructionId: string, files: File[]) => {
+    const uploaded: AttachmentItem[] = []
+    const failedFiles: string[] = []
+
+    for (const file of files) {
+      try {
+        const formData = new FormData()
+        formData.append('ownerType', 'WORK_INSTRUCTION')
+        formData.append('ownerId', instructionId)
+        formData.append('documentType', 'WORK_INSTRUCTION')
+        formData.append('file', file)
+
+        const res = await fetch('/api/attachments', { method: 'POST', body: formData })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data.data) {
+          failedFiles.push(file.name)
+        } else {
+          uploaded.push(data.data)
+        }
+      } catch (error) {
+        failedFiles.push(file.name)
+      }
+    }
+
+    return { uploaded, failedFiles }
+  }
+
   const submitForm = async () => {
     if (!form.categoryId) {
       onMessage('请选择文档类别')
@@ -649,27 +717,44 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       })
       const data = await res.json()
       if (res.ok) {
-        const savedInstruction = data.data
         const wasEditing = Boolean(editing)
-        onMessage(editing ? '文档已更新' : '文档已创建，可继续上传图片或 PDF')
+        const savedInstruction = data.data
+        const filesToUpload = wasEditing ? [] : createFiles
+        const uploadResult = !wasEditing && savedInstruction && filesToUpload.length > 0
+          ? await uploadInstructionFiles(savedInstruction.id, filesToUpload)
+          : { uploaded: [] as AttachmentItem[], failedFiles: [] as string[] }
+
         setShowModal(false)
+        setCreateFiles([])
+        setCreateDragActive(false)
         setEditing(null)
         setDetailEditing(false)
         if (wasEditing && savedInstruction && detail?.id === savedInstruction.id) {
           setDetail({ ...detail, ...savedInstruction })
         }
-        if (!editing && data.data) {
+        if (!wasEditing && savedInstruction) {
+          const imageCount = uploadResult.uploaded.filter((attachment) => attachment.mimeType.startsWith('image/')).length
+          const pdfCount = uploadResult.uploaded.filter((attachment) => attachment.mimeType === 'application/pdf').length
           const createdInstruction: WorkInstruction = {
-            ...data.data,
-            attachmentCount: 0,
-            imageCount: 0,
-            pdfCount: 0,
-            primaryAttachment: null,
+            ...savedInstruction,
+            attachmentCount: uploadResult.uploaded.length,
+            imageCount,
+            pdfCount,
+            primaryAttachment: uploadResult.uploaded.find((attachment) => attachment.mimeType.startsWith('image/')) || uploadResult.uploaded[0] || null,
           }
           ensureMaterialOption(createdInstruction.material)
           setDetail(createdInstruction)
-          setDetailAttachments([])
-          setFocusUploadOnOpen(true)
+          setDetailAttachments(uploadResult.uploaded)
+          setFocusUploadOnOpen(uploadResult.failedFiles.length > 0)
+        }
+        if (wasEditing) {
+          onMessage('文档已更新')
+        } else if (filesToUpload.length === 0) {
+          onMessage('文档已创建')
+        } else if (uploadResult.failedFiles.length === 0) {
+          onMessage(`文档已创建并上传 ${uploadResult.uploaded.length} 个文件`)
+        } else {
+          onMessage(`文档已创建，已上传 ${uploadResult.uploaded.length} 个；失败：${uploadResult.failedFiles.join('、')}`)
         }
         await fetchInstructions()
       } else {
@@ -701,7 +786,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const handleFiles = async (files: FileList | File[]) => {
     if (!detail) return
     const selectedFiles = Array.from(files)
-    const acceptedFiles = selectedFiles.filter((file) => file.type.startsWith('image/') || file.type === 'application/pdf')
+    const acceptedFiles = selectedFiles.filter(isSupportedDocumentFile)
     if (acceptedFiles.length === 0) {
       onMessage('请上传图片或 PDF 文件')
       return
@@ -709,26 +794,15 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
     setUploading(true)
     try {
-      let uploadedCount = 0
-      for (const file of acceptedFiles) {
-        const formData = new FormData()
-        formData.append('ownerType', 'WORK_INSTRUCTION')
-        formData.append('ownerId', detail.id)
-        formData.append('documentType', 'WORK_INSTRUCTION')
-        formData.append('file', file)
-
-        const res = await fetch('/api/attachments', { method: 'POST', body: formData })
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok) {
-          onMessage(data.error || `${file.name} 上传失败`)
-        } else {
-          uploadedCount += 1
-        }
-      }
-      if (uploadedCount > 0) {
-        onMessage(`已上传 ${uploadedCount} 个文件`)
+      const uploadResult = await uploadInstructionFiles(detail.id, acceptedFiles)
+      if (uploadResult.uploaded.length > 0) {
         await fetchAttachments(detail.id)
         await fetchInstructions()
+      }
+      if (uploadResult.failedFiles.length === 0) {
+        onMessage(`已上传 ${uploadResult.uploaded.length} 个文件`)
+      } else {
+        onMessage(`已上传 ${uploadResult.uploaded.length} 个；失败：${uploadResult.failedFiles.join('、')}`)
       }
     } catch (err) {
       onMessage('文件上传失败')
@@ -1051,20 +1125,104 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
       {showModal && (
         <ModalDialog
-          title="新增在线文档"
-          description="可直接编辑正文，也可按需关联产品、工作中心和附件。"
-          onClose={() => setShowModal(false)}
+          title="新增文档"
+          description="上传原始文件或编辑在线正文。"
+          onClose={closeAddModal}
           closeDisabled={loading}
           size="xl"
           footer={(
             <ModalActions
-              onCancel={() => setShowModal(false)}
+              onCancel={closeAddModal}
               onConfirm={submitForm}
-              confirmLabel="保存文档"
+              confirmLabel={createFiles.length > 0 ? '保存并上传' : '保存文档'}
               busy={loading}
             />
           )}
         >
+              <section className="mb-5 rounded-lg border border-blue-200 bg-blue-50/40 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900">原始文件（可选）</h4>
+                    <p className="mt-1 text-xs text-gray-500">支持图片和 PDF，单个文件不超过 10 MB。</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => createUploadInputRef.current?.click()}
+                    disabled={loading}
+                    className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Upload className="h-4 w-4" />
+                    选择文件
+                  </button>
+                  <input
+                    ref={createUploadInputRef}
+                    type="file"
+                    accept="image/*,application/pdf"
+                    multiple
+                    disabled={loading}
+                    className="hidden"
+                    onChange={(event) => event.target.files && selectCreateFiles(event.target.files)}
+                  />
+                </div>
+                <div
+                  onDrop={(event: DragEvent<HTMLDivElement>) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    setCreateDragActive(false)
+                    if (!loading) selectCreateFiles(event.dataTransfer.files)
+                  }}
+                  onDragOver={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    if (!loading) setCreateDragActive(true)
+                  }}
+                  onDragEnter={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    if (!loading) setCreateDragActive(true)
+                  }}
+                  onDragLeave={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+                    setCreateDragActive(false)
+                  }}
+                  onClick={() => !loading && createUploadInputRef.current?.click()}
+                  className={`mt-3 flex min-h-24 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed px-4 py-4 text-center text-sm transition ${
+                    createDragActive ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-blue-200 bg-white text-gray-500 hover:border-blue-400 hover:bg-blue-50/60'
+                  } ${loading ? 'cursor-not-allowed opacity-60' : ''}`}
+                >
+                  <span className="inline-flex items-center gap-2"><Upload className="h-4 w-4" />拖放图片或 PDF 到这里</span>
+                </div>
+                {createFiles.length > 0 && (
+                  <div className="mt-3 max-h-40 space-y-2 overflow-y-auto" aria-label="待上传文件">
+                    {createFiles.map((file) => (
+                      <div key={`${file.name}:${file.size}:${file.lastModified}`} className="flex items-center gap-3 rounded-md border border-gray-200 bg-white px-3 py-2">
+                        {file.type === 'application/pdf'
+                          ? <FileText className="h-5 w-5 shrink-0 text-red-500" />
+                          : <ImageIcon className="h-5 w-5 shrink-0 text-blue-500" />}
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium text-gray-800">{file.name}</div>
+                          <div className="text-xs text-gray-400">{formatSize(file.size)}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setCreateFiles((current) => current.filter((item) => item !== file))
+                          }}
+                          disabled={loading}
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50"
+                          aria-label={`移除 ${file.name}`}
+                          title="移除"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <div className="md:col-span-2 xl:col-span-3">
                   <label className="mb-2 block text-sm font-medium text-gray-700">文档标题（可选）</label>
@@ -1111,7 +1269,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                 </div>
               </div>
               <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                保存后会打开文档详情；如需保留原始材料，可继续上传图片或 PDF。
+                {createFiles.length > 0 ? `保存时将同时上传 ${createFiles.length} 个文件。` : '未选择文件时，可单独创建在线文档。'}
               </div>
         </ModalDialog>
       )}

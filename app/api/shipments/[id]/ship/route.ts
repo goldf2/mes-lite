@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { resolveMaterialIdForProduct } from '@/lib/material-product'
 import { postInventoryIssue } from '@/lib/inventory'
+import { refreshSalesOrderStatus } from '@/lib/sales-orders'
 
 // PATCH: 确认发货（扣减库存）
 export async function PATCH(
@@ -33,6 +34,14 @@ export async function PATCH(
     if (!materialId) return NextResponse.json({ error: '发货对象未关联统一物料档案' }, { status: 400 })
 
     await prisma.$transaction(async (tx) => {
+      if (shipment.salesOrderItemId) {
+        const salesItem = await tx.salesOrderItem.findUnique({ where: { id: shipment.salesOrderItemId } })
+        if (!salesItem) throw new Error('关联的销售订单明细不存在')
+        if (Number(salesItem.shippedQty) + Number(shipment.qty) > Number(salesItem.qty) + 0.000001) {
+          throw new Error('累计发货数量超过销售订单数量')
+        }
+      }
+
       const issue = await postInventoryIssue(tx, {
         materialId,
         stockQty: Number(shipment.qty),
@@ -59,6 +68,14 @@ export async function PATCH(
           conversionSource: issue.conversionSource,
         },
       })
+
+      if (shipment.salesOrderItemId && shipment.salesOrderId) {
+        await tx.salesOrderItem.update({
+          where: { id: shipment.salesOrderItemId },
+          data: { shippedQty: { increment: Number(shipment.qty) } },
+        })
+        await refreshSalesOrderStatus(tx, shipment.salesOrderId)
+      }
     })
 
     return NextResponse.json({ success: true, message: '发货成功' })

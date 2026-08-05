@@ -33,6 +33,7 @@ function FeaturePageLoading() {
 
 const MaterialInPage = dynamic(() => import('./components/MaterialInPage'), { loading: FeaturePageLoading })
 const DispatchPage = dynamic(() => import('./components/DispatchPage'), { loading: FeaturePageLoading })
+const SalesOrderPage = dynamic(() => import('./components/SalesOrderPage'), { loading: FeaturePageLoading })
 const ShipmentPage = dynamic(() => import('./components/ShipmentPage'), { loading: FeaturePageLoading })
 const ReturnPage = dynamic(() => import('./components/ReturnPage'), { loading: FeaturePageLoading })
 const FlowTransferPage = dynamic(() => import('./components/FlowTransferPage'), { loading: FeaturePageLoading })
@@ -169,7 +170,7 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'shipment' | 'return' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'employees' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
+type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'salesOrders' | 'shipment' | 'return' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'employees' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
 type MaterialSection = 'materials' | 'bomWorkspace' | 'bomUsage'
 
 interface BomEditorTarget {
@@ -207,7 +208,7 @@ function writePageContinuity(storageKey: string, update: Partial<PageContinuityS
     // 浏览器禁用或限制本地存储时不应阻断业务页面。
   }
 }
-type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'documents' | 'equipment' | 'logistics' | 'inventory' | 'configuration' | 'tools'
+type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'documents' | 'equipment' | 'logistics' | 'sales' | 'inventory' | 'configuration' | 'tools'
 
 const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: TabType[] }> = [
   { key: 'workspace', label: '工作台', tabs: ['dashboard', 'allFunctions'] },
@@ -215,7 +216,8 @@ const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: 
   { key: 'production', label: '生产', tabs: ['orders', 'flowTransfers', 'dispatch'] },
   { key: 'documents', label: '文档', tabs: ['workInstructions'] },
   { key: 'equipment', label: '设备', tabs: ['equipment'] },
-  { key: 'logistics', label: '物流', tabs: ['materialIn', 'shipment', 'return'] },
+  { key: 'logistics', label: '物流', tabs: ['materialIn'] },
+  { key: 'sales', label: '销售', tabs: ['salesOrders', 'shipment', 'return'] },
   { key: 'inventory', label: '库存', tabs: ['stocks'] },
   { key: 'configuration', label: '配置', tabs: ['suppliers', 'customers', 'employees', 'locationSettings', 'unitSettings', 'workCenters', 'processTemplates', 'processRoutes', 'systemSettings'] },
   { key: 'tools', label: '工具', tabs: ['sawingCost', 'scanPrint', 'archive', 'auditLogs', 'dataTools'] },
@@ -238,8 +240,9 @@ const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
   { key: 'orders', label: '生产订单', groupKey: 'production', groupLabel: '生产', description: '先保存生产计划，班后再登记实际产量', icon: '工', tab: 'orders', resource: 'orders' },
   { key: 'flowTransfers', label: '流程转移', groupKey: 'production', groupLabel: '生产', description: '同一物料在库位或流程节点之间转移', icon: '转', tab: 'flowTransfers', resource: 'stats' },
   { key: 'materialIn', label: '来料管理', groupKey: 'logistics', groupLabel: '物流', description: '登记供应商来料、实测和采购计价', icon: '入', tab: 'materialIn', resource: 'materialIn' },
-  { key: 'shipment', label: '发货管理', groupKey: 'logistics', groupLabel: '物流', description: '创建发货单并扣减对应库位库存', icon: '发', tab: 'shipment', resource: 'shipment' },
-  { key: 'return', label: '退货管理', groupKey: 'logistics', groupLabel: '物流', description: '登记退货、审核并处理返库', icon: '退', tab: 'return', resource: 'return' },
+  { key: 'salesOrders', label: '销售订单', groupKey: 'sales', groupLabel: '销售', description: '登记客户需求并跟踪订单发货进度', icon: '销', tab: 'salesOrders', resource: 'salesOrder' },
+  { key: 'shipment', label: '发货管理', groupKey: 'sales', groupLabel: '销售', description: '从已确认销售订单生成发货单并扣减库存', icon: '发', tab: 'shipment', resource: 'shipment' },
+  { key: 'return', label: '退货管理', groupKey: 'sales', groupLabel: '销售', description: '登记退货、审核并处理返库', icon: '退', tab: 'return', resource: 'return' },
   { key: 'stocks', label: '库存管理', groupKey: 'inventory', groupLabel: '库存', description: '查看库存、库位余额和成本', icon: '库', tab: 'stocks', resource: 'stocks' },
   { key: 'suppliers', label: '供应商资料', groupKey: 'configuration', groupLabel: '配置', description: '维护供应商基础资料', icon: '供', tab: 'suppliers', resource: 'system' },
   { key: 'customers', label: '客户资料', groupKey: 'configuration', groupLabel: '配置', description: '维护客户基础资料', icon: '客', tab: 'customers', resource: 'system' },
@@ -291,6 +294,7 @@ function MenuIcon({ icon }: { icon: string }) {
     materialIn: '入',
     dispatch: '派',
     stocks: '库',
+    salesOrders: '销',
     shipment: '发',
     return: '退',
     stats: '报',
@@ -479,6 +483,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'materialIn', label: '来料管理', resource: 'materialIn' },
     { key: 'orders', label: '生产订单', resource: 'orders' },
     { key: 'dispatch', label: '派工管理', resource: 'dispatch' },
+    { key: 'salesOrders', label: '销售订单', resource: 'salesOrder' },
     { key: 'shipment', label: '发货管理', resource: 'shipment' },
     { key: 'return', label: '退货管理', resource: 'return' },
     { key: 'stocks', label: '库存管理', resource: 'stocks' },
@@ -2393,6 +2398,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             onMessage={showMessage}
           />
         )}
+
+        {/* 销售订单 */}
+        {tab === 'salesOrders' && <SalesOrderPage onMessage={showMessage} onOpenShipment={() => navigateToTab('shipment')} />}
 
         {/* 发货管理 */}
         {tab === 'shipment' && <ShipmentPage onMessage={showMessage} />}

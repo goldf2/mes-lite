@@ -4,19 +4,14 @@ import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
-import { resolveMaterialIdForProduct, resolveProductId } from '@/lib/material-product'
+import { resolveProductId } from '@/lib/material-product'
 import { assertInventoryIssueAvailability, resolveInventoryLocation } from '@/lib/inventory'
+import { getSalesOrderItemRemainingQty } from '@/lib/sales-orders'
 
 const createShipmentSchema = z.object({
-  voucherNo: z.string().optional(),
-  productId: z.string().min(1),
+  salesOrderItemId: z.string().min(1, '请选择销售订单明细'),
   locationId: z.string().min(1, '发货库位必填').optional(),
   qty: z.number().finite().positive(),
-  unitPrice: z.number().nonnegative(),
-  customerId: z.string().optional(),
-  customer: z.string().min(1),
-  customerPhone: z.string().optional(),
-  address: z.string().optional(),
   trackingNo: z.string().optional(),
   note: z.string().optional(),
   shippedBy: z.string().optional(),
@@ -52,6 +47,7 @@ export async function GET(req: NextRequest) {
         { trackingNo: { contains: keyword } },
         { shippedBy: { contains: keyword } },
         { note: { contains: keyword } },
+        { salesOrder: { is: { orderNo: { contains: keyword } } } },
         { product: { is: { sku: { contains: keyword } } } },
         { product: { is: { name: { contains: keyword } } } },
         { customerRef: { is: { code: { contains: keyword } } } },
@@ -67,6 +63,7 @@ export async function GET(req: NextRequest) {
           product: { select: { id: true, name: true, sku: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
           customerRef: { select: { id: true, code: true, name: true } },
           location: { select: { id: true, code: true, name: true } },
+          salesOrder: { select: { id: true, orderNo: true, voucherNo: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
@@ -93,59 +90,61 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const data = createShipmentSchema.parse(body)
-    const resolved = await prisma.$transaction(async (tx) => {
-      const materialId = await resolveMaterialIdForProduct(tx, data.productId)
-      if (!materialId) throw new Error('发货物料未关联统一物料档案')
-      const productId = await resolveProductId(tx, data.productId, { description: '由物料自动映射，用于发货兼容。' })
-      const location = await resolveInventoryLocation(tx, data.locationId)
-      await assertInventoryIssueAvailability(tx, {
-        materialId,
-        stockQty: data.qty,
-        locationId: location.id,
-      })
-      return { productId, materialId, location }
-    })
-    const { productId, materialId, location } = resolved
-    const product = await prisma.product.findUnique({ where: { id: productId } })
-
-    if (!product) {
-      return NextResponse.json({ error: '物料不存在' }, { status: 404 })
-    }
-
-    // 生成 shipmentNo: SH-YYYYMMDD-XXX
     const today = new Date()
     const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')
+    const dayStart = new Date(today)
+    dayStart.setHours(0, 0, 0, 0)
     const count = await prisma.shipment.count({
-      where: { createdAt: { gte: new Date(today.setHours(0, 0, 0, 0)) } },
+      where: { createdAt: { gte: dayStart } },
     })
     const shipmentNo = `SH-${dateStr}-${String(count + 1).padStart(3, '0')}`
 
-    const totalAmount = data.qty * data.unitPrice
+    const shipment = await prisma.$transaction(async (tx) => {
+      const { item, remainingQty } = await getSalesOrderItemRemainingQty(tx, data.salesOrderItemId)
+      if (!['CONFIRMED', 'PARTIAL'].includes(item.salesOrder.status)) {
+        throw new Error('销售订单尚未确认或已经结束')
+      }
+      if (item.salesOrder.customer.deletedAt) throw new Error('销售订单客户已归档')
+      if (item.material.deletedAt) throw new Error('销售订单物料已归档')
+      if (data.qty > remainingQty + 0.000001) {
+        throw new Error(`发货数量超过订单未发数量 ${remainingQty} ${item.unit}`)
+      }
 
-    const shipment = await prisma.shipment.create({
-      data: {
-        shipmentNo,
-        voucherNo: data.voucherNo?.trim() || null,
-        productId,
-        materialId,
+      const location = await resolveInventoryLocation(tx, data.locationId)
+      await assertInventoryIssueAvailability(tx, {
+        materialId: item.materialId,
+        stockQty: data.qty,
         locationId: location.id,
-        customerId: data.customerId || null,
-        qty: data.qty,
-        unitPrice: data.unitPrice,
-        totalAmount,
-        customer: data.customer,
-        customerPhone: data.customerPhone,
-        address: data.address,
-        trackingNo: data.trackingNo,
-        note: data.note,
-        shippedBy: data.shippedBy,
-        status: 'PENDING',
-      },
-      include: {
-        product: { select: { id: true, name: true, sku: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
-        customerRef: { select: { id: true, code: true, name: true } },
-        location: { select: { id: true, code: true, name: true } },
-      },
+      })
+      const productId = await resolveProductId(tx, item.materialId, { description: '由销售订单物料自动映射，用于发货兼容。' })
+      return tx.shipment.create({
+        data: {
+          shipmentNo,
+          voucherNo: item.salesOrder.voucherNo,
+          productId,
+          materialId: item.materialId,
+          locationId: location.id,
+          customerId: item.salesOrder.customerId,
+          salesOrderId: item.salesOrderId,
+          salesOrderItemId: item.id,
+          qty: data.qty,
+          unitPrice: item.unitPrice,
+          totalAmount: data.qty * Number(item.unitPrice),
+          customer: item.salesOrder.customer.name,
+          customerPhone: item.salesOrder.customer.phone,
+          address: item.salesOrder.customer.address,
+          trackingNo: data.trackingNo?.trim() || null,
+          note: data.note?.trim() || null,
+          shippedBy: data.shippedBy?.trim() || null,
+          status: 'PENDING',
+        },
+        include: {
+          product: { select: { id: true, name: true, sku: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
+          customerRef: { select: { id: true, code: true, name: true } },
+          location: { select: { id: true, code: true, name: true } },
+          salesOrder: { select: { id: true, orderNo: true, voucherNo: true } },
+        },
+      })
     })
 
     await writeAuditLog(req, {
@@ -161,7 +160,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
     }
-    if (error instanceof Error && /物料|库存|库位|出库数量|归档|关联/.test(error.message)) {
+    if (error instanceof Error && /物料|库存|库位|出库数量|归档|关联|销售订单|发货数量/.test(error.message)) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('Create shipment error:', error)

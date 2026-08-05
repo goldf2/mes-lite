@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import PDFDocument from 'pdfkit'
 import fs from 'fs'
 import { requireResourcePermission } from '@/lib/permissions'
+import { getSystemSettings, SystemSettings } from '@/lib/system-settings'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -39,7 +40,7 @@ function drawCell(
   doc.text(text, x + 6, y + 8, { width: width - 12, height: height - 12, ...options })
 }
 
-async function renderDeliveryNotePdf(shipment: any) {
+async function renderDeliveryNotePdf(shipment: any, settings: SystemSettings) {
   return new Promise<Buffer>((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 48 })
     const chunks: Buffer[] = []
@@ -59,19 +60,33 @@ async function renderDeliveryNotePdf(shipment: any) {
     const right = pageWidth - 48
     const tableWidth = right - left
 
-    doc.fontSize(22).text('送货单', left, 48, { align: 'center', width: tableWidth })
+    doc.fontSize(22).text('发货单', left, 48, { align: 'center', width: tableWidth })
     doc.moveDown(0.5)
-    doc.fontSize(10).text('MES-lite', left, 78, { align: 'center', width: tableWidth })
+    doc.fontSize(10).text(settings.companyName, left, 78, { align: 'center', width: tableWidth })
 
     doc.fontSize(10)
-    doc.text(`送货单号：${shipment.shipmentNo}`, left, 112)
+    doc.text(`发货单号：${shipment.shipmentNo}`, left, 108)
     doc.text(`发货时间：${formatDate(shipment.shippedAt)}`, left + 280, 112)
-    doc.text(`客户：${shipment.customer}`, left, 136)
-    doc.text(`电话：${shipment.customerPhone || '-'}`, left + 280, 136)
-    doc.text(`地址：${shipment.address || '-'}`, left, 160, { width: tableWidth })
-    doc.text(`发货库位：${shipment.location ? `${shipment.location.code} · ${shipment.location.name}` : '默认库位'}`, left + 280, 184)
 
-    const tableTop = 204
+    const partyTop = 136
+    const partyWidth = tableWidth / 2
+    doc.rect(left, partyTop, partyWidth, 92).stroke()
+    doc.rect(left + partyWidth, partyTop, partyWidth, 92).stroke()
+    doc.fontSize(11).text('甲方（收货方）', left + 8, partyTop + 8, { width: partyWidth - 16 })
+    doc.fontSize(9).text(`名称：${shipment.customer}`, left + 8, partyTop + 30, { width: partyWidth - 16 })
+    doc.text(`电话：${shipment.customerPhone || shipment.customerRef?.phone || '-'}`, left + 8, partyTop + 48, { width: partyWidth - 16 })
+    doc.text(`地址：${shipment.address || shipment.customerRef?.address || '-'}`, left + 8, partyTop + 66, { width: partyWidth - 16, ellipsis: true })
+    doc.fontSize(11).text('乙方（供货方）', left + partyWidth + 8, partyTop + 8, { width: partyWidth - 16 })
+    doc.fontSize(9).text(`名称：${settings.companyName}`, left + partyWidth + 8, partyTop + 30, { width: partyWidth - 16 })
+    doc.text(`联系人：${settings.companyContact || '-'}`, left + partyWidth + 8, partyTop + 48, { width: partyWidth - 16 })
+    doc.text(`电话/地址：${settings.companyPhone || '-'} / ${settings.companyAddress || '-'}`, left + partyWidth + 8, partyTop + 66, { width: partyWidth - 16, ellipsis: true })
+
+    doc.fontSize(9)
+    doc.text(`销售订单：${shipment.salesOrder?.orderNo || '历史单据'}`, left, 242)
+    doc.text(`客户订单号：${shipment.salesOrder?.voucherNo || shipment.voucherNo || '-'}`, left + 220, 242)
+    doc.text(`发货库位：${shipment.location ? `${shipment.location.code} · ${shipment.location.name}` : '默认库位'}`, left + 390, 242)
+
+    const tableTop = 264
     const headerHeight = 34
     const rowHeight = 44
     const widths = [48, 100, 150, 54, 66, 81]
@@ -86,9 +101,9 @@ async function renderDeliveryNotePdf(shipment: any) {
     x = left
     const values = [
       '1',
-      displayMaterialCode(shipment.product.sku),
-      shipment.product.name,
-      `${shipment.qty} ${shipment.product.unit || ''}`.trim(),
+      displayMaterialCode(shipment.material?.code || shipment.product.sku),
+      `${shipment.material?.name || shipment.product.name}${shipment.material?.spec ? ` ${shipment.material.spec}` : ''}`,
+      `${shipment.qty} ${shipment.material?.stockUnit || shipment.product.unit || ''}`.trim(),
       money(Number(shipment.unitPrice)),
       money(Number(shipment.totalAmount)),
     ]
@@ -108,12 +123,12 @@ async function renderDeliveryNotePdf(shipment: any) {
     doc.text(`备注：${shipment.note || '-'}`, left, noteY + 24, { width: tableWidth })
 
     const signY = noteY + 92
-    doc.text('发货人：________________', left, signY)
-    doc.text('收货人：________________', left + 210, signY)
+    doc.text('乙方发货人：____________', left, signY)
+    doc.text('甲方收货人：____________', left + 210, signY)
     doc.text('签收日期：______________', left + 390, signY)
 
     doc.fontSize(8).fillColor('#666666')
-    doc.text('本单据由 MES-lite 系统生成，用于发货交接和对账留存。', left, doc.page.height - 72, {
+    doc.text('本发货单由 MES-lite 系统生成，用于双方发货交接、签收和对账留存。', left, doc.page.height - 72, {
       align: 'center',
       width: tableWidth,
     })
@@ -130,24 +145,31 @@ export async function GET(
     const denied = await requireResourcePermission('shipment', 'read')
     if (denied) return denied
 
-    const shipment = await prisma.shipment.findUnique({
-      where: { id: params.id },
-      include: {
-        product: { select: { sku: true, name: true, unit: true } },
-        location: { select: { code: true, name: true } },
-      },
-    })
+    const [shipment, settings] = await Promise.all([
+      prisma.shipment.findUnique({
+        where: { id: params.id },
+        include: {
+          product: { select: { sku: true, name: true, unit: true } },
+          material: { select: { code: true, name: true, spec: true, stockUnit: true } },
+          location: { select: { code: true, name: true } },
+          customerRef: { select: { phone: true, address: true } },
+          salesOrder: { select: { orderNo: true, voucherNo: true } },
+        },
+      }),
+      getSystemSettings(),
+    ])
 
     if (!shipment) {
       return NextResponse.json({ error: '发货单不存在' }, { status: 404 })
     }
 
     if (!['SHIPPED', 'DELIVERED'].includes(shipment.status)) {
-      return NextResponse.json({ error: '确认发货后才能下载送货单 PDF' }, { status: 400 })
+      return NextResponse.json({ error: '确认发货后才能下载发货单 PDF' }, { status: 400 })
     }
+    if (!settings.companyName.trim()) return NextResponse.json({ error: '请先在系统设置填写发货单乙方企业名称' }, { status: 400 })
 
-    const pdf = await renderDeliveryNotePdf(shipment)
-    const filename = encodeURIComponent(`送货单-${shipment.shipmentNo}.pdf`)
+    const pdf = await renderDeliveryNotePdf(shipment, settings)
+    const filename = encodeURIComponent(`发货单-${shipment.shipmentNo}.pdf`)
 
     return new NextResponse(new Uint8Array(pdf), {
       headers: {
@@ -157,7 +179,7 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error('Generate delivery note PDF error:', error)
-    return NextResponse.json({ error: '生成送货单 PDF 失败' }, { status: 500 })
+    console.error('Generate shipment PDF error:', error)
+    return NextResponse.json({ error: '生成发货单 PDF 失败' }, { status: 500 })
   }
 }

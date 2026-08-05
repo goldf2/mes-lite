@@ -7,7 +7,11 @@ import { getSystemSettings, updateSystemSettings } from '@/lib/system-settings'
 export const dynamic = 'force-dynamic'
 
 const updateSchema = z.object({
-  naturalMaterialCodeSortEnabled: z.boolean(),
+  naturalMaterialCodeSortEnabled: z.boolean().optional(),
+  companyName: z.string().max(100).optional(),
+  companyContact: z.string().max(50).optional(),
+  companyPhone: z.string().max(50).optional(),
+  companyAddress: z.string().max(200).optional(),
 })
 
 export async function GET() {
@@ -33,7 +37,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const before = await getSystemSettings()
-    const after = await updateSystemSettings(body.data)
+    const after = await updateSystemSettings({ ...before, ...body.data })
 
     await writeAuditLog(req, {
       action: 'UPDATE_SETTINGS',
@@ -41,7 +45,7 @@ export async function PATCH(req: NextRequest) {
       entityLabel: '系统设置',
       beforeData: before,
       afterData: after,
-      note: `物料编码数字自然排序：${after.naturalMaterialCodeSortEnabled ? '开启' : '关闭'}`,
+      note: '更新系统设置及发货单供货方资料',
     })
 
     return NextResponse.json({ data: after })

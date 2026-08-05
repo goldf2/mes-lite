@@ -165,6 +165,7 @@ model Material {
   productionActualOutputs     ProductionOrderActualOutput[] @relation("ProductionOrderActualOutputMaterial")
   flowTransfers               FlowTransfer[]
   shipments                   Shipment[]
+  salesOrderItems             SalesOrderItem[]
   returnOrders                ReturnOrder[]
   createdAt                   DateTime                      @default(now())
 }
@@ -878,21 +879,65 @@ model StockIn {
 // ==================== 客户与供应商 ====================
 
 model Customer {
-  id        String     @id @default(cuid())
-  code      String     @unique
-  name      String
-  contact   String?
-  phone     String?
-  address   String?
-  deletedAt DateTime?
-  deletedBy String?
-  sortOrder Int        @default(0)
-  products  Product[]
-  materials Material[]
-  shipments Shipment[]
-  createdAt DateTime   @default(now())
+  id          String       @id @default(cuid())
+  code        String       @unique
+  name        String
+  contact     String?
+  phone       String?
+  address     String?
+  deletedAt   DateTime?
+  deletedBy   String?
+  sortOrder   Int          @default(0)
+  products    Product[]
+  materials   Material[]
+  shipments   Shipment[]
+  salesOrders SalesOrder[]
+  createdAt   DateTime     @default(now())
 
   @@index([sortOrder])
+}
+
+// ==================== 销售订单 ====================
+
+model SalesOrder {
+  id           String           @id @default(cuid())
+  orderNo      String           @unique
+  voucherNo    String?
+  customerId   String
+  customer     Customer         @relation(fields: [customerId], references: [id])
+  status       String           @default("DRAFT")
+  orderDate    DateTime         @default(now())
+  deliveryDate DateTime?
+  totalAmount  Float            @default(0)
+  note         String?
+  deletedAt    DateTime?
+  deletedBy    String?
+  items        SalesOrderItem[]
+  shipments    Shipment[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([customerId])
+  @@index([status, orderDate])
+}
+
+model SalesOrderItem {
+  id           String     @id @default(cuid())
+  salesOrderId String
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  materialId   String
+  material     Material   @relation(fields: [materialId], references: [id])
+  qty          Float
+  shippedQty   Float      @default(0)
+  unit         String
+  unitPrice    Float      @default(0)
+  totalAmount  Float      @default(0)
+  note         String?
+  shipments    Shipment[]
+  createdAt    DateTime   @default(now())
+
+  @@index([salesOrderId])
+  @@index([materialId])
 }
 
 model Supplier {
@@ -1036,6 +1081,10 @@ model Shipment {
   location              InventoryLocation? @relation(fields: [locationId], references: [id])
   customerId            String?
   customerRef           Customer?          @relation(fields: [customerId], references: [id])
+  salesOrderId          String?
+  salesOrder            SalesOrder?        @relation(fields: [salesOrderId], references: [id])
+  salesOrderItemId      String?
+  salesOrderItem        SalesOrderItem?    @relation(fields: [salesOrderItemId], references: [id])
   qty                   Float
   unitPrice             Float              @default(0)
   totalAmount           Float              @default(0)
@@ -1059,6 +1108,8 @@ model Shipment {
   createdAt             DateTime           @default(now())
 
   @@index([materialId])
+  @@index([salesOrderId])
+  @@index([salesOrderItemId])
 }
 
 // ==================== 扫码计数与标签打印 ====================

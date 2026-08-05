@@ -921,6 +921,7 @@ function DataToolManager({ onMessage }: { onMessage: (msg: string) => void }) {
 function InterfacePreferenceManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [modalGlassEnabled, setModalGlassEnabled] = useModalGlassPreference()
   const [naturalCodeSortEnabled, setNaturalCodeSortEnabled] = useState(false)
+  const [companyProfile, setCompanyProfile] = useState({ companyName: '', companyContact: '', companyPhone: '', companyAddress: '' })
   const [settingLoading, setSettingLoading] = useState(true)
   const [settingSaving, setSettingSaving] = useState(false)
 
@@ -934,6 +935,12 @@ function InterfacePreferenceManager({ onMessage }: { onMessage: (msg: string) =>
         return
       }
       setNaturalCodeSortEnabled(Boolean(data.data?.naturalMaterialCodeSortEnabled))
+      setCompanyProfile({
+        companyName: data.data?.companyName || '',
+        companyContact: data.data?.companyContact || '',
+        companyPhone: data.data?.companyPhone || '',
+        companyAddress: data.data?.companyAddress || '',
+      })
     } finally {
       setSettingLoading(false)
     }
@@ -963,11 +970,48 @@ function InterfacePreferenceManager({ onMessage }: { onMessage: (msg: string) =>
     }
   }
 
+  const saveCompanyProfile = async () => {
+    if (!companyProfile.companyName.trim()) return onMessage('请填写乙方企业名称')
+    setSettingSaving(true)
+    try {
+      const res = await fetch('/api/system/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(companyProfile),
+      })
+      const data = await res.json()
+      if (!res.ok) return onMessage(data.error || '保存企业资料失败')
+      setCompanyProfile({
+        companyName: data.data?.companyName || '',
+        companyContact: data.data?.companyContact || '',
+        companyPhone: data.data?.companyPhone || '',
+        companyAddress: data.data?.companyAddress || '',
+      })
+      onMessage('发货单乙方资料已保存')
+    } finally {
+      setSettingSaving(false)
+    }
+  }
+
   return (
     <div className="rounded-lg bg-white p-4 shadow sm:p-6">
       <div className="mb-5">
         <h3 className="text-lg font-semibold">系统设置</h3>
         <p className="mt-1 text-sm text-gray-500">业务规则对所有客户端生效；界面偏好只保存在当前浏览器。</p>
+      </div>
+
+      <div className="mb-4 rounded-lg border border-gray-200 p-4">
+        <div className="mb-4">
+          <div className="font-medium text-gray-900">发货单乙方资料</div>
+          <div className="mt-1 text-sm text-gray-500">作为供货方显示在发货单 PDF 中；甲方资料自动读取销售订单客户。</div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div><label className="mb-2 block text-sm font-medium text-gray-700">企业名称</label><input value={companyProfile.companyName} onChange={(event) => setCompanyProfile({ ...companyProfile, companyName: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
+          <div><label className="mb-2 block text-sm font-medium text-gray-700">联系人</label><input value={companyProfile.companyContact} onChange={(event) => setCompanyProfile({ ...companyProfile, companyContact: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
+          <div><label className="mb-2 block text-sm font-medium text-gray-700">联系电话</label><input value={companyProfile.companyPhone} onChange={(event) => setCompanyProfile({ ...companyProfile, companyPhone: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
+          <div><label className="mb-2 block text-sm font-medium text-gray-700">企业地址</label><input value={companyProfile.companyAddress} onChange={(event) => setCompanyProfile({ ...companyProfile, companyAddress: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
+        </div>
+        <div className="mt-4 flex justify-end"><AppButton variant="primary" onClick={saveCompanyProfile} disabled={settingLoading || settingSaving}>{settingSaving ? '保存中...' : '保存乙方资料'}</AppButton></div>
       </div>
 
       <div className="rounded-lg border border-gray-200 p-4">
