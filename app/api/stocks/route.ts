@@ -5,6 +5,7 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { parseCsvFilter } from '@/lib/status-filter'
 import { postStockLocationAdjustment, StockAdjustmentError } from '@/lib/stock-adjustment'
+import { buildPackagingInventoryAnalysis } from '@/lib/packaging-inventory'
 
 const STOCK_BALANCE_FIELDS = [
   'qty',
@@ -169,6 +170,7 @@ export async function GET(req: NextRequest) {
     const category = searchParams.get('category')
     const categories = parseCsvFilter(searchParams.get('categories'))
     const customerId = searchParams.get('customerId')
+    const locationId = searchParams.get('locationId')
     const includeInvalid = searchParams.get('includeInvalid') === '1'
     const integrityIssues = await findStockIntegrityIssues()
     if (integrityIssues.length > 0) {
@@ -199,6 +201,17 @@ export async function GET(req: NextRequest) {
     } else if (customerId) {
       materialWhere.customerId = customerId
       productWhere.customerId = customerId
+    }
+    if (locationId) {
+      where.locationBalances = {
+        some: {
+          locationId,
+          OR: [
+            { qty: { gt: BALANCE_TOLERANCE } },
+            { reservedQty: { gt: BALANCE_TOLERANCE } },
+          ],
+        },
+      }
     }
 
     const hasMaterialFilter = Object.keys(materialWhere).length > 0
@@ -234,27 +247,96 @@ export async function GET(req: NextRequest) {
     const materialIds = stocks
       .map((stock) => stock.materialId)
       .filter(Boolean) as string[]
-    const images = materialIds.length === 0 ? [] : await prisma.documentAttachment.findMany({
-      where: {
-        ownerType: 'MATERIAL',
-        ownerId: { in: materialIds },
-        documentType: 'MATERIAL_IMAGE',
-        mimeType: { startsWith: 'image/' },
-        deletedAt: null,
-      },
-      orderBy: [{ isCover: 'desc' }, { createdAt: 'desc' }],
-      select: { id: true, ownerId: true, note: true, mimeType: true, isCover: true },
-    })
+    const [images, packagingBoms] = await Promise.all([
+      materialIds.length === 0 ? [] : prisma.documentAttachment.findMany({
+        where: {
+          ownerType: 'MATERIAL',
+          ownerId: { in: materialIds },
+          documentType: 'MATERIAL_IMAGE',
+          mimeType: { startsWith: 'image/' },
+          deletedAt: null,
+        },
+        orderBy: [{ isCover: 'desc' }, { createdAt: 'desc' }],
+        select: { id: true, ownerId: true, note: true, mimeType: true, isCover: true },
+      }),
+      prisma.bOM.findMany({
+        where: { purpose: 'PACKAGING', isActive: true, isDefault: true },
+        select: {
+          id: true,
+          name: true,
+          version: true,
+          outputs: {
+            where: { isPrimary: true },
+            take: 1,
+            select: {
+              quantity: true,
+              material: { select: { id: true, code: true, name: true, category: true, stockUnit: true } },
+            },
+          },
+          items: {
+            where: { itemType: 'MATERIAL' },
+            select: {
+              quantity: true,
+              material: { select: { id: true, code: true, name: true, category: true, stockUnit: true } },
+            },
+          },
+        },
+      }),
+    ])
     const primaryImageByMaterial = new Map<string, (typeof images)[number]>()
     for (const image of images) {
       if (!primaryImageByMaterial.has(image.ownerId)) {
         primaryImageByMaterial.set(image.ownerId, image)
       }
     }
+    const packagingRelations = packagingBoms.flatMap((bom) => {
+      const output = bom.outputs[0]
+      const items = bom.items.filter((item) => item.material)
+      if (!output || items.length === 0) return []
+      return [{
+        id: bom.id,
+        name: bom.name,
+        version: bom.version,
+        output: { quantity: Number(output.quantity), material: output.material },
+        items: items.map((item) => ({ quantity: Number(item.quantity), material: item.material! })),
+      }]
+    })
+    const packagedMaterialIds = packagingRelations.map((relation) => relation.output.material.id)
+    const packagedStocks = packagedMaterialIds.length === 0 ? [] : await prisma.stock.findMany({
+      where: { materialId: { in: packagedMaterialIds } },
+      select: {
+        id: true,
+        qty: true,
+        material: { select: { id: true, code: true, name: true, category: true, stockUnit: true } },
+        locationBalances: {
+          select: {
+            qty: true,
+            location: { select: { id: true, code: true, name: true } },
+          },
+        },
+      },
+    })
+    const packagingAnalysis = buildPackagingInventoryAnalysis(
+      packagingRelations,
+      packagedStocks.flatMap((stock) => stock.material ? [{
+        stockId: stock.id,
+        material: stock.material,
+        qty: Number(stock.qty),
+        locations: stock.locationBalances.map((balance) => ({
+          locationId: balance.location.id,
+          code: balance.location.code,
+          name: balance.location.name,
+          qty: Number(balance.qty),
+        })),
+      }] : []),
+    )
+
     const stocksWithImages = stocks.map((stock) => {
       const image = stock.materialId ? primaryImageByMaterial.get(stock.materialId) : null
       return {
         ...stock,
+        packagingDefinition: stock.materialId ? packagingAnalysis.definitions.get(stock.materialId) || null : null,
+        packagingSummary: stock.materialId ? packagingAnalysis.summaries.get(stock.materialId) || null : null,
         material: stock.material ? {
           ...stock.material,
           primaryImage: image ? {
@@ -280,6 +362,7 @@ export async function GET(req: NextRequest) {
             s.material?.code,
             s.product?.name,
             s.product?.sku,
+            ...s.locationBalances.flatMap((balance) => [balance.location.code, balance.location.name]),
           ].some((value) => value?.toLocaleLowerCase('zh-CN').includes(normalizedKeyword))
         )
       : visibleStocks

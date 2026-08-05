@@ -84,6 +84,7 @@ interface BomItem {
 interface BomVersion {
   id: string
   name: string
+  purpose: 'PRODUCTION' | 'PACKAGING'
   version: string
   isDefault: boolean
   isActive: boolean
@@ -804,6 +805,7 @@ export default function MaterialPage({
   const [selectedMaterialId, setSelectedMaterialId] = useState('')
   const [selectedBomId, setSelectedBomId] = useState('')
   const [draftBomName, setDraftBomName] = useState('')
+  const [draftBomPurpose, setDraftBomPurpose] = useState<'PRODUCTION' | 'PACKAGING'>('PRODUCTION')
   const [draftBomOutputQuantity, setDraftBomOutputQuantity] = useState('1')
   const [draftBomOutputUnit, setDraftBomOutputUnit] = useState('件')
   const [draftBomOutputs, setDraftBomOutputs] = useState<DraftBomOutput[]>([])
@@ -958,6 +960,7 @@ export default function MaterialPage({
     })
     || selectedBomId === '__new__'
     || draftBomName !== (selectedBom?.name || '')
+    || draftBomPurpose !== (selectedBom?.purpose || 'PRODUCTION')
     || draftBomIsDefault !== (selectedBom?.isDefault ?? true)
     || bomRatiosDiffer(
       draftQuantityInStockUnit(selectedBomOutputQuantity, draftBomOutputUnit, selectedMaterial),
@@ -1032,6 +1035,7 @@ export default function MaterialPage({
       : JSON.stringify({
       bomId: selectedBom?.id || '',
       name: selectedBom?.name || '',
+      purpose: selectedBom?.purpose || 'PRODUCTION',
       isDefault: selectedBom?.isDefault ?? true,
       outputQuantity: Number(selectedBom?.outputQuantity || 1),
       outputs: (selectedBom?.outputs || []).map((output) => ({
@@ -1053,6 +1057,7 @@ export default function MaterialPage({
     loadedBomDraftSignatureRef.current = savedSignature
     if (selectedBomId === '__new__') {
       setDraftBomName(`BOM ${(selectedBomProduct?.boms.length || 0) + 1}`)
+      setDraftBomPurpose('PRODUCTION')
       setDraftBomOutputQuantity('1')
       setDraftBomOutputUnit(selectedMaterial ? preferredBomEntryUnit(selectedMaterial) : '件')
       setDraftBomOutputs([])
@@ -1061,6 +1066,7 @@ export default function MaterialPage({
       return
     }
     setDraftBomName(selectedBom?.name || '默认方案')
+    setDraftBomPurpose(selectedBom?.purpose || 'PRODUCTION')
     const primaryOutput = selectedBom?.outputs.find((output) => output.isPrimary)
     const primaryEntryUnit = primaryOutput?.entryUnit || primaryOutput?.unit || selectedMaterial?.stockUnit || selectedMaterial?.unit || '件'
     setDraftBomOutputUnit(primaryEntryUnit)
@@ -1804,6 +1810,7 @@ export default function MaterialPage({
           bomId: selectedBom?.id,
           createNew: selectedBomId === '__new__',
           name: draftBomName.trim(),
+          purpose: draftBomPurpose,
           isDefault: draftBomIsDefault,
           isActive: selectedBom?.isActive ?? true,
           outputQuantity: selectedBomOutputQuantity,
@@ -2223,6 +2230,19 @@ export default function MaterialPage({
             />
           </label>
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500">
+            <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5" role="group" aria-label="BOM 用途">
+              {([['PRODUCTION', '生产 BOM'], ['PACKAGING', '包装 BOM']] as const).map(([purpose, label]) => (
+                <button
+                  key={purpose}
+                  type="button"
+                  aria-pressed={draftBomPurpose === purpose}
+                  onClick={() => setDraftBomPurpose(purpose)}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${draftBomPurpose === purpose ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <label className="inline-flex items-center gap-2 text-gray-700">
               <input
                 type="checkbox"
@@ -2676,6 +2696,9 @@ export default function MaterialPage({
                           <span className="mt-0.5 block truncate text-sm font-semibold text-gray-900">{bom.name}</span>
                         </span>
                         <span className="flex shrink-0 items-center gap-1">
+                          <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${bom.purpose === 'PACKAGING' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>
+                            {bom.purpose === 'PACKAGING' ? '包装' : '生产'}
+                          </span>
                           {bom.isDefault && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700">默认</span>}
                           {!bom.isActive && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600">已停用</span>}
                         </span>

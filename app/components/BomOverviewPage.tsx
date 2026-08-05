@@ -38,6 +38,7 @@ interface BomOutput {
 interface BomVersion {
   id: string
   name: string
+  purpose: 'PRODUCTION' | 'PACKAGING'
   version: string
   isDefault: boolean
   isActive: boolean
@@ -97,6 +98,9 @@ function materialLabel(material: MaterialOption) {
 function BomStatus({ bom }: { bom: BomVersion }) {
   return (
     <span className="flex flex-wrap items-center gap-1.5">
+      <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${bom.purpose === 'PACKAGING' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>
+        {bom.purpose === 'PACKAGING' ? '包装' : '生产'}
+      </span>
       {bom.isDefault && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700">默认</span>}
       {!bom.isActive && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600">已停用</span>}
     </span>

@@ -181,6 +181,7 @@ model BOM {
   productionOrders ProductionOrder[]
   costRuns         BomCostRun[]
   name             String            @default("默认方案")
+  purpose          String            @default("PRODUCTION")
   version          String            @default("v1")
   isDefault        Boolean           @default(true)
   isActive         Boolean           @default(true)
@@ -190,6 +191,7 @@ model BOM {
 
   @@unique([productId, version])
   @@index([productId, isActive, isDefault])
+  @@index([purpose, isActive, isDefault])
 }
 
 model BOMOutput {

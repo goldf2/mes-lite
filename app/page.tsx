@@ -97,6 +97,43 @@ interface StockLocationBalance {
   location: InventoryLocationOption
 }
 
+interface PackagingMaterialRef {
+  id: string
+  code: string
+  name: string
+  category: string
+  stockUnit: string
+}
+
+interface PackagingDefinition {
+  bom: { id: string; name: string; version: string }
+  outputQuantity: number
+  outputUnit: string
+  contents: Array<{ material: PackagingMaterialRef; quantity: number }>
+}
+
+interface PackagingInventorySource {
+  stockId: string
+  material: PackagingMaterialRef
+  qty: number
+  equivalentQty: number
+  ratio: number
+  bom: { id: string; name: string; version: string }
+  locations: Array<{
+    locationId: string
+    code: string
+    name: string
+    qty: number
+    equivalentQty: number
+  }>
+}
+
+interface PackagingInventorySummary {
+  material: PackagingMaterialRef
+  packagedEquivalentQty: number
+  sources: PackagingInventorySource[]
+}
+
 interface Stock {
   id: string
   qty: number
@@ -109,8 +146,14 @@ interface Stock {
   valuationUnitCost: number
   stockUnitCost: number
   locationBalances: StockLocationBalance[]
+  packagingDefinition?: PackagingDefinition | null
+  packagingSummary?: PackagingInventorySummary | null
   material?: { id: string; code: string; name: string; spec: string; category?: string; customerId?: string | null; customer?: Customer | null; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number; deletedAt?: string | null; primaryImage?: { id: string; url: string; note?: string | null; mimeType: string; isCover: boolean } | null }
   product?: { id: string; sku: string; name: string; category: string; customerId?: string | null; customer?: Customer | null; unit: string }
+}
+
+function stockQuantityText(value: number) {
+  return Number(value || 0).toLocaleString('zh-CN', { maximumFractionDigits: 6 })
 }
 
 interface StockIntegrityIssue {
@@ -581,6 +624,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [stockFilter, setStockFilter] = useState<'all' | 'material' | 'product'>('all')
   const [stockViewMode, setStockViewMode] = usePersistedViewMode('mes-lite.stocks.viewMode', 'card')
   const [stockCustomerFilter, setStockCustomerFilter] = useState('')
+  const [stockLocationFilter, setStockLocationFilter] = useState('')
+  const [selectedStockId, setSelectedStockId] = useState('')
   const [inventoryLocations, setInventoryLocations] = useState<InventoryLocationOption[]>([])
   const [selectedStockCategories, setSelectedStockCategories] = useState<string[]>(materialCategoryFilterOptions.map((option) => option.value))
   const [showInvalidStocks, setShowInvalidStocks] = useState(false)
@@ -1018,7 +1063,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     if (tab === 'create') {
       fetchMaterialOptions()
     }
-  }, [tab, orderKeyword, selectedOrderStatuses, stockKeyword, selectedStockCategories, stockCustomerFilter, showInvalidStocks])
+  }, [tab, orderKeyword, selectedOrderStatuses, stockKeyword, selectedStockCategories, stockCustomerFilter, stockLocationFilter, showInvalidStocks])
 
   const fetchOrders = async () => {
     const params = new URLSearchParams(getStatusQuery(selectedOrderStatuses, orderStatusOptions))
@@ -1033,6 +1078,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     const params = new URLSearchParams()
     if (stockKeyword.trim()) params.set('keyword', stockKeyword.trim())
     if (stockCustomerFilter) params.set('customerId', stockCustomerFilter)
+    if (stockLocationFilter) params.set('locationId', stockLocationFilter)
     const categoryQuery = getMultiSelectQuery('categories', selectedStockCategories, materialCategoryFilterOptions)
     if (categoryQuery) {
       const categoryParams = new URLSearchParams(categoryQuery)
@@ -1118,13 +1164,14 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }
   }
 
-  const openStockAdjust = async (stock: Stock) => {
+  const openStockAdjust = async (stock: Stock, preferredLocationId?: string) => {
     const locations = inventoryLocations.length > 0 ? inventoryLocations : await fetchInventoryLocations()
     if (locations.length === 0) {
       showMessage('请先在“配置 → 库位配置”中建立启用库位')
       return
     }
-    const location = stock.locationBalances.find((balance) => (
+    const location = locations.find((item) => item.id === preferredLocationId)
+      || stock.locationBalances.find((balance) => (
       Number(balance.qty) > 0 && locations.some((item) => item.id === balance.locationId)
     ))?.location
       || locations.find((item) => item.isDefault)
@@ -1351,6 +1398,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     valuationQty: (stock) => stock.valuationQty,
     totalCost: (stock) => stock.totalCost,
   }, 'object', 'asc')
+  const selectedStock = stockSort.sortedRows.find((stock) => stock.id === selectedStockId)
+    || stockSort.sortedRows[0]
+    || null
+  const selectedStockLocations = selectedStock?.locationBalances.filter((balance) => (
+    Math.abs(Number(balance.qty)) > 0.000001 || Math.abs(Number(balance.reservedQty)) > 0.000001
+  )) || []
 
   return (
     <div
@@ -1706,6 +1759,17 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                           allowClear
                           className="w-56"
                         />
+                        <SearchableSelect
+                          value={stockLocationFilter}
+                          onChange={setStockLocationFilter}
+                          options={inventoryLocations.map((location) => ({
+                            value: location.id,
+                            label: `${location.code} · ${location.name}`,
+                          }))}
+                          placeholder="输入库位编码或名称筛选"
+                          allowClear
+                          className="w-56"
+                        />
                         {([['all', '全部库存'], ['material', '物料库存'], ['product', '成品库存']] as const).map(([key, label]) => (
                           <button
                             key={key}
@@ -1893,7 +1957,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1080px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">
+                <table className="w-full min-w-[1240px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">
                   <thead className="bg-gray-50">
                     <tr>
                       <SortableTableHeader column="orderNo" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>生产订单号</SortableTableHeader>
@@ -2152,6 +2216,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 </div>
               </div>
             )}
+            <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+              <div className="min-w-0">
             {stockViewMode === 'list' ? (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1080px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">
@@ -2164,14 +2230,22 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                       <SortableTableHeader column="qty" activeColumn={stockSort.sortColumn} direction={stockSort.sortDirection} onSort={stockSort.toggleSort}>库存</SortableTableHeader>
                       <SortableTableHeader column="reservedQty" activeColumn={stockSort.sortColumn} direction={stockSort.sortDirection} onSort={stockSort.toggleSort}>已预留</SortableTableHeader>
                       <SortableTableHeader column="availableQty" activeColumn={stockSort.sortColumn} direction={stockSort.sortDirection} onSort={stockSort.toggleSort}>可用</SortableTableHeader>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库位</th>
                       <SortableTableHeader column="valuationQty" activeColumn={stockSort.sortColumn} direction={stockSort.sortDirection} onSort={stockSort.toggleSort}>核算库存</SortableTableHeader>
                       <SortableTableHeader column="totalCost" activeColumn={stockSort.sortColumn} direction={stockSort.sortDirection} onSort={stockSort.toggleSort}>库存金额</SortableTableHeader>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {stockSort.sortedRows.map((stock) => (
-                      <tr key={stock.id} className="hover:bg-gray-50">
+                    {stockSort.sortedRows.map((stock) => {
+                      const occupiedLocations = stock.locationBalances.filter((balance) => Math.abs(Number(balance.qty)) > 0.000001)
+                      const stockUnit = stock.material?.stockUnit || stock.product?.unit || ''
+                      return (
+                      <tr
+                        key={stock.id}
+                        onClick={() => setSelectedStockId(stock.id)}
+                        className={`cursor-pointer transition ${selectedStock?.id === stock.id ? 'bg-blue-50/70' : 'hover:bg-gray-50'}`}
+                      >
                         <td className="px-4 py-3">
                           {stock.material?.primaryImage ? (
                             <a
@@ -2206,9 +2280,29 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-sm">{stock.qty} {stock.material?.stockUnit || stock.product?.unit}</td>
+                        <td className="px-4 py-3 text-sm">
+                          <div>{stockQuantityText(stock.qty)} {stockUnit}</div>
+                          {stock.packagingSummary && (
+                            <div className="mt-1 text-xs font-medium text-emerald-700">
+                              穿透 {stockQuantityText(Number(stock.qty) + Number(stock.packagingSummary.packagedEquivalentQty))} {stockUnit}
+                            </div>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-sm text-orange-600">{stock.reservedQty} {stock.material?.stockUnit || stock.product?.unit}</td>
                         <td className={`px-4 py-3 text-sm font-medium ${stock.availableQty < 10 ? 'text-red-600' : 'text-green-600'}`}>{stock.availableQty} {stock.material?.stockUnit || stock.product?.unit}</td>
+                        <td className="px-4 py-3 text-xs">
+                          {occupiedLocations.length > 0 ? (
+                            <div className="space-y-1">
+                              {occupiedLocations.slice(0, 2).map((balance) => (
+                                <div key={balance.id} className="flex max-w-44 justify-between gap-2 text-gray-600">
+                                  <span className="truncate" title={`${balance.location.code} · ${balance.location.name}`}>{balance.location.code}</span>
+                                  <span className="shrink-0 font-medium text-gray-900">{stockQuantityText(balance.qty)} {stockUnit}</span>
+                                </div>
+                              ))}
+                              {occupiedLocations.length > 2 && <div className="text-blue-600">另有 {occupiedLocations.length - 2} 个库位</div>}
+                            </div>
+                          ) : <span className="text-gray-400">无库位库存</span>}
+                        </td>
                         <td className="px-4 py-3 text-sm">
                           {stock.material ? `${stock.valuationQty} ${stock.material.valuationUnit}` : '-'}
                         </td>
@@ -2226,14 +2320,21 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                           )}
                         </td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {stockSort.sortedRows.map((stock) => (
-                  <div key={stock.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {stockSort.sortedRows.map((stock) => {
+                  const occupiedLocations = stock.locationBalances.filter((balance) => Math.abs(Number(balance.qty)) > 0.000001)
+                  const stockUnit = stock.material?.stockUnit || stock.product?.unit || ''
+                  return (
+                  <div
+                    key={stock.id}
+                    onClick={() => setSelectedStockId(stock.id)}
+                    className={`cursor-pointer border rounded-lg p-4 transition ${selectedStock?.id === stock.id ? 'border-blue-400 bg-blue-50/40 shadow-sm' : 'border-gray-200 hover:shadow-md'}`}
+                  >
 	                  <div className="flex items-start justify-between mb-3">
 	                    <div className="flex min-w-0 items-start gap-3">
                         {stock.material?.primaryImage ? (
@@ -2275,7 +2376,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div>
                       <div className="text-xs text-gray-500 mb-1">库存</div>
-                      <div className="text-lg font-semibold">{stock.qty}</div>
+                      <div className="text-lg font-semibold">{stockQuantityText(stock.qty)}</div>
                       <div className="text-[11px] text-gray-500">{stock.material?.stockUnit || stock.product?.unit}</div>
                     </div>
                     <div>
@@ -2289,6 +2390,36 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                       <div className="text-[11px] text-gray-500">{stock.material?.stockUnit || stock.product?.unit}</div>
                     </div>
                   </div>
+                  <div className="mt-3 border-t border-gray-100 pt-3">
+                    <div className="mb-2 flex items-center justify-between text-xs">
+                      <span className="font-medium text-gray-700">库位库存</span>
+                      <span className="text-gray-400">{occupiedLocations.length} 个库位</span>
+                    </div>
+                    {occupiedLocations.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {occupiedLocations.slice(0, 3).map((balance) => (
+                          <div key={balance.id} className="flex items-center justify-between gap-3 text-xs">
+                            <span className="min-w-0 truncate text-gray-500" title={`${balance.location.code} · ${balance.location.name}`}>
+                              {balance.location.code} · {balance.location.name}
+                            </span>
+                            <span className="shrink-0 font-medium text-gray-900">{stockQuantityText(balance.qty)} {stockUnit}</span>
+                          </div>
+                        ))}
+                        {occupiedLocations.length > 3 && <div className="text-xs text-blue-600">另有 {occupiedLocations.length - 3} 个库位，点击查看</div>}
+                      </div>
+                    ) : <div className="text-xs text-gray-400">当前没有库位库存</div>}
+                  </div>
+                  {stock.packagingSummary && (
+                    <div className="mt-3 border-t border-emerald-100 pt-3 text-xs">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-medium text-emerald-800">包装穿透合计</span>
+                        <span className="font-semibold text-emerald-800">
+                          {stockQuantityText(Number(stock.qty) + Number(stock.packagingSummary.packagedEquivalentQty))} {stockUnit}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-gray-500">散装 {stockQuantityText(stock.qty)} + 包装等效 {stockQuantityText(stock.packagingSummary.packagedEquivalentQty)}</div>
+                    </div>
+                  )}
                   {stock.material && (
                     <div className="mt-3 rounded bg-gray-50 p-3 text-xs text-gray-600">
                       <div>核算库存：<span className="font-semibold text-gray-900">{stock.valuationQty}</span> {stock.material.valuationUnit}</div>
@@ -2312,12 +2443,143 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     </button>
                   )}
                 </div>
-              ))}
+              )})}
               </div>
             )}
             {visibleStocks.length === 0 && (
               <div className="py-12 text-center text-gray-500">暂无库存记录</div>
             )}
+              </div>
+              {selectedStock && (
+                <aside className="min-w-0 border-t border-gray-200 pt-5 xl:sticky xl:top-0 xl:max-h-[calc(100dvh-10rem)] xl:overflow-y-auto xl:overscroll-contain xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-gray-900">{selectedStock.material?.name || selectedStock.product?.name}</div>
+                      <div className="mt-0.5 truncate text-xs text-gray-500">{selectedStock.material?.code || selectedStock.product?.sku}{selectedStock.material?.spec ? ` · ${selectedStock.material.spec}` : ''}</div>
+                    </div>
+                    {canUpdate('stocks') && (
+                      <button
+                        type="button"
+                        onClick={() => openStockAdjust(selectedStock)}
+                        className="shrink-0 rounded-md border border-blue-300 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                      >
+                        调整
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-3 divide-x divide-gray-100 border-y border-gray-100 py-3 text-center">
+                    <div>
+                      <div className="text-[11px] text-gray-500">总库存</div>
+                      <div className="mt-1 text-sm font-semibold text-gray-900">{stockQuantityText(selectedStock.qty)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-gray-500">预留</div>
+                      <div className="mt-1 text-sm font-semibold text-orange-600">{stockQuantityText(selectedStock.reservedQty)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-gray-500">可用</div>
+                      <div className="mt-1 text-sm font-semibold text-emerald-700">{stockQuantityText(selectedStock.availableQty)}</div>
+                    </div>
+                  </div>
+
+                  <section className="mt-5">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <h3 className="text-sm font-semibold text-gray-900">库位明细</h3>
+                      <span className="text-xs text-gray-400">{selectedStockLocations.length} 个有库存库位</span>
+                    </div>
+                    {selectedStockLocations.length > 0 ? (
+                      <div className="divide-y divide-gray-100 border-y border-gray-100">
+                        {selectedStockLocations.map((balance) => (
+                          <div key={balance.id} className="py-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="truncate text-xs font-medium text-gray-800">{balance.location.code} · {balance.location.name}</div>
+                                <div className="mt-1 text-[11px] text-gray-500">
+                                  预留 {stockQuantityText(balance.reservedQty)} · 可用 {stockQuantityText(balance.availableQty)}
+                                </div>
+                              </div>
+                              <div className="shrink-0 text-right">
+                                <div className="text-sm font-semibold text-gray-900">{stockQuantityText(balance.qty)} {selectedStock.material?.stockUnit || selectedStock.product?.unit}</div>
+                                {canUpdate('stocks') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openStockAdjust(selectedStock, balance.locationId)}
+                                    className="mt-1 text-[11px] font-medium text-blue-600 hover:text-blue-800"
+                                  >
+                                    调整此库位
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="border-y border-dashed border-gray-200 py-6 text-center text-xs text-gray-400">当前没有库位库存</div>
+                    )}
+                  </section>
+
+                  {selectedStock.packagingDefinition && (
+                    <section className="mt-5 border-t border-amber-100 pt-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="text-sm font-semibold text-amber-900">包装 BOM</h3>
+                        <span className="text-xs text-amber-700">{selectedStock.packagingDefinition.bom.version}</span>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-500">{selectedStock.packagingDefinition.bom.name}</div>
+                      <div className="mt-2 space-y-1.5">
+                        {selectedStock.packagingDefinition.contents.map((content) => (
+                          <div key={content.material.id} className="flex items-center justify-between gap-3 text-xs">
+                            <span className="min-w-0 truncate text-gray-600">{content.material.code} · {content.material.name}</span>
+                            <span className="shrink-0 font-medium text-gray-900">
+                              {stockQuantityText(content.quantity)} {content.material.stockUnit} / {stockQuantityText(selectedStock.packagingDefinition!.outputQuantity)} {selectedStock.packagingDefinition!.outputUnit}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  {selectedStock.packagingSummary && (
+                    <section className="mt-5 border-t border-emerald-100 pt-4">
+                      <div className="flex items-end justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-semibold text-emerald-900">包装穿透</h3>
+                          <div className="mt-1 text-xs text-gray-500">散装与包装库存等效汇总</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-semibold text-emerald-800">
+                            {stockQuantityText(Number(selectedStock.qty) + Number(selectedStock.packagingSummary.packagedEquivalentQty))}
+                          </div>
+                          <div className="text-[11px] text-gray-500">{selectedStock.material?.stockUnit || selectedStock.product?.unit}</div>
+                        </div>
+                      </div>
+                      <div className="mt-3 divide-y divide-emerald-100 border-y border-emerald-100">
+                        <div className="flex justify-between gap-3 py-2 text-xs">
+                          <span className="text-gray-600">散装实际库存</span>
+                          <span className="font-medium text-gray-900">{stockQuantityText(selectedStock.qty)} {selectedStock.material?.stockUnit}</span>
+                        </div>
+                        {selectedStock.packagingSummary.sources.map((source) => (
+                          <div key={source.stockId} className="py-2.5 text-xs">
+                            <div className="flex justify-between gap-3">
+                              <span className="min-w-0 truncate text-gray-700">{source.material.code} · {source.material.name}</span>
+                              <span className="shrink-0 font-medium text-emerald-800">等效 {stockQuantityText(source.equivalentQty)} {selectedStock.material?.stockUnit}</span>
+                            </div>
+                            <div className="mt-1 text-gray-500">实际 {stockQuantityText(source.qty)} {source.material.stockUnit} · {source.bom.name} {source.bom.version}</div>
+                            {source.locations.map((location) => (
+                              <div key={location.locationId} className="mt-1 flex justify-between gap-3 pl-2 text-[11px] text-gray-500">
+                                <span className="truncate">{location.code} · {location.name}</span>
+                                <span className="shrink-0">{stockQuantityText(location.qty)} {source.material.stockUnit} → {stockQuantityText(location.equivalentQty)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                </aside>
+              )}
+            </div>
           </div>
         )}
 

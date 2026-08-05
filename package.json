@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.190",
+  "version": "0.1.191",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -40,6 +40,7 @@
     "verify:daily-production-locations": "tsx scripts/verify-daily-production-bom-locations.ts",
     "verify:flow-transfer": "tsx scripts/verify-flow-transfer.ts",
     "verify:stock-location-adjustment": "tsx scripts/verify-stock-location-adjustment.ts",
+    "verify:packaging-inventory": "tsx scripts/verify-packaging-inventory.ts",
     "verify:employees": "tsx scripts/verify-employees.ts",
     "verify:daily-production-reset": "tsx scripts/verify-daily-production-reset-migration.ts",
     "verify:dashboard-production-flows": "tsx scripts/verify-dashboard-production-flows.ts",

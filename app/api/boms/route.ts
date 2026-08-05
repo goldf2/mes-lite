@@ -31,6 +31,7 @@ const saveBomSchema = z.object({
   bomId: z.string().min(1).optional(),
   createNew: z.boolean().optional().default(false),
   name: z.string().trim().min(1).max(80).optional(),
+  purpose: z.enum(['PRODUCTION', 'PACKAGING']).optional().default('PRODUCTION'),
   version: z.string().trim().min(1).max(30).optional(),
   isDefault: z.boolean().optional(),
   isActive: z.boolean().optional().default(true),
@@ -93,6 +94,7 @@ const bomItemSelect = {
 const bomSelect = {
   id: true,
   name: true,
+  purpose: true,
   version: true,
   isDefault: true,
   isActive: true,
@@ -280,6 +282,9 @@ export async function PUT(req: NextRequest) {
         ? [{ materialId: legacyOutputMaterial.id, quantity: input.outputQuantity, isPrimary: true }]
         : []
     if (normalizedOutputs.length === 0) return NextResponse.json({ error: 'BOM 产出物料不存在或已归档' }, { status: 400 })
+    if (input.purpose === 'PACKAGING' && normalizedOutputs.length !== 1) {
+      return NextResponse.json({ error: '包装 BOM 必须且只能设置一项产出' }, { status: 400 })
+    }
 
     const outputMaterialIds = normalizedOutputs.map((output) => output.materialId)
     const outputMaterials = await prisma.material.findMany({
@@ -378,6 +383,7 @@ export async function PUT(req: NextRequest) {
             where: { id: target.id },
             data: {
               name: input.name || '默认方案',
+              purpose: input.purpose,
               version,
               isDefault: shouldDefault,
               isActive: input.isActive,
@@ -390,6 +396,7 @@ export async function PUT(req: NextRequest) {
             data: {
               productId: product.id,
               name: input.name || `方案 ${version}`,
+              purpose: input.purpose,
               version,
               isDefault: shouldDefault,
               isActive: input.isActive,
