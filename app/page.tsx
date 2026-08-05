@@ -383,7 +383,7 @@ function MenuIcon({ icon }: { icon: string }) {
     permissions: '限',
   }
   return (
-    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-[13px] font-semibold text-slate-700">
+    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-slate-100 text-xs font-semibold text-slate-700">
       {icons[icon] || '单'}
     </span>
   )
@@ -1479,33 +1479,29 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       </header>
 
       <aside className="fixed bottom-0 left-0 top-16 z-30 hidden w-[var(--mes-desktop-sidebar-width)] flex-col border-r border-gray-200 bg-white lg:flex">
-        <div className="shrink-0 border-b border-gray-100 px-4 py-4">
-          <div className="text-xs font-semibold uppercase tracking-wider text-gray-400">功能导航</div>
-          <div className="mt-1 truncate text-sm font-semibold text-gray-800">{activeTabLabel}</div>
-        </div>
-        <nav aria-label="一级与二级功能菜单" className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
+        <nav aria-label="一级与二级功能菜单" className="min-h-0 flex-1 space-y-0 overflow-y-auto px-1.5 py-1">
           {visibleBusinessGroups.map((group) => {
             const selected = !activeSystemTab && group.key === activeBusinessGroupKey
             const firstItem = group.tabs.map((key) => group.items.find((item) => item.key === key)).find(Boolean)
             if (!firstItem) return null
             return (
-              <div key={group.key} className="space-y-1">
+              <div key={group.key} className="space-y-0">
                 <button
                   type="button"
                   aria-expanded={selected}
                   onClick={() => navigateToTab(firstItem.key)}
-                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+                  className={`flex min-h-9 w-full items-center justify-between rounded-lg px-2.5 py-1 text-sm font-semibold transition ${
                     selected ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                   }`}
                 >
-                  <span className="flex min-w-0 items-center gap-2.5">
+                  <span className="flex min-w-0 items-center gap-2">
                     <MenuIcon icon={firstItem.key} />
                     <span className="truncate">{group.label}</span>
                   </span>
                   <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 transition-transform ${selected ? 'rotate-180' : '-rotate-90'}`} />
                 </button>
                 {selected && (
-                  <div className="ml-5 space-y-1 border-l border-gray-200 py-1 pl-3">
+                  <div className="ml-4 space-y-0 border-l border-gray-200 pl-2">
                     {group.key === 'materials' ? materialSectionItems.map((section) => {
                       const SectionIcon = section.key === 'materials' ? Boxes : section.key === 'bomWorkspace' ? PencilLine : Search
                       const sectionSelected = tab === 'materials' && materialSection === section.key
@@ -1515,7 +1511,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                           type="button"
                           aria-current={sectionSelected ? 'page' : undefined}
                           onClick={() => navigateToTab('materials', section.key)}
-                          className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition ${
+                          className={`flex min-h-[30px] w-full items-center gap-2 rounded-md px-2.5 py-0.5 text-left text-sm transition ${
                             sectionSelected ? 'bg-blue-50 font-semibold text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                           }`}
                         >
@@ -1537,7 +1533,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                           onDragLeave={handleDragLeave}
                           onDrop={(event) => handleDrop(event, index)}
                           onClick={() => navigateToTab(item.key)}
-                          className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition ${
+                          className={`flex min-h-[30px] w-full items-center justify-between rounded-md px-2.5 py-0.5 text-left text-sm transition ${
                             draggedIndex === index ? 'opacity-50' : dragOverIndex === index ? 'ring-2 ring-blue-300' : ''
                           } ${itemSelected ? 'bg-blue-50 font-semibold text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
                         >
@@ -1552,22 +1548,22 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             )
           })}
           {readableSystemNavItems.length > 0 && (
-            <div className="space-y-1 border-t border-gray-100 pt-2">
+            <div className="space-y-0 border-t border-gray-100 pt-1">
               <button
                 type="button"
                 aria-expanded={activeSystemTab}
                 onClick={() => navigateToTab(readableSystemNavItems[0].key)}
-                className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+                className={`flex min-h-9 w-full items-center justify-between rounded-lg px-2.5 py-1 text-sm font-semibold transition ${
                   activeSystemTab ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
-                <span className="flex min-w-0 items-center gap-2.5"><MenuIcon icon="operators" /><span className="truncate">账号与权限</span></span>
+                <span className="flex min-w-0 items-center gap-2"><MenuIcon icon="operators" /><span className="truncate">账号与权限</span></span>
                 <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 transition-transform ${activeSystemTab ? 'rotate-180' : '-rotate-90'}`} />
               </button>
               {activeSystemTab && (
-                <div className="ml-5 space-y-1 border-l border-gray-200 py-1 pl-3">
+                <div className="ml-4 space-y-0 border-l border-gray-200 pl-2">
                   {readableSystemNavItems.map((item) => (
-                    <button key={item.key} type="button" aria-current={tab === item.key ? 'page' : undefined} onClick={() => navigateToTab(item.key)} className={`w-full rounded-md px-3 py-2 text-left text-sm transition ${tab === item.key ? 'bg-blue-50 font-semibold text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{item.label}</button>
+                    <button key={item.key} type="button" aria-current={tab === item.key ? 'page' : undefined} onClick={() => navigateToTab(item.key)} className={`min-h-[30px] w-full rounded-md px-2.5 py-0.5 text-left text-sm transition ${tab === item.key ? 'bg-blue-50 font-semibold text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{item.label}</button>
                   ))}
                 </div>
               )}
