@@ -21,7 +21,6 @@ export default function AppLoadingIndicator({
       ? 'relative z-20 min-h-0 cursor-wait py-6'
       : 'relative z-20 min-h-40 cursor-wait py-12'
   const markClassName = fullScreen ? 'h-20 w-20' : compact ? 'h-9 w-9' : 'h-14 w-14'
-
   return (
     <div
       role="status"
