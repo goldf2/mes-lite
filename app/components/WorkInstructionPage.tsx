@@ -25,6 +25,7 @@ import { appInputClassName, appSelectClassName, appTextareaClassName } from './F
 import AppButton from './AppButton'
 import OnlineDocumentEditor from './OnlineDocumentEditor'
 import { EMPTY_DOCUMENT_JSON } from '@/lib/document-content'
+import OneToManyRelationField from './relations/OneToManyRelationField'
 
 interface Customer {
   id: string
@@ -368,22 +369,22 @@ function WorkCenterPicker({
   }))
 
   return (
-    <div className="space-y-2">
-      <SearchableSelect
-        value=""
-        onChange={(id) => id && onChange([...value, id])}
-        options={available}
-        placeholder={available.length > 0 ? '输入工作中心筛选并添加' : '已选择全部工作中心'}
-      />
-      <div className="flex min-h-8 flex-wrap gap-2">
-        {selected.length === 0 ? <span className="text-xs text-gray-400">未指定时表示不限制工作中心</span> : selected.map((item) => (
-          <span key={item.id} className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">
-            {item.code} · {item.name}
-            <button type="button" onClick={() => onChange(value.filter((id) => id !== item.id))} className="ml-1 text-blue-400 hover:text-blue-800" aria-label={`移除${item.name}`}>×</button>
-          </span>
-        ))}
-      </div>
-    </div>
+    <OneToManyRelationField
+      title="已选工作中心"
+      items={selected}
+      getKey={(item) => item.id}
+      selector={(
+        <SearchableSelect
+          value=""
+          onChange={(id) => id && onChange([...value, id])}
+          options={available}
+          placeholder={available.length > 0 ? '输入工作中心筛选并添加' : '已选择全部工作中心'}
+        />
+      )}
+      renderIdentity={(item) => <><div className="text-sm font-medium text-gray-900">{item.name}</div><div className="font-mono text-xs text-gray-500">{item.code}</div></>}
+      onRemove={(item) => onChange(value.filter((id) => id !== item.id))}
+      emptyText="未指定时表示不限制工作中心"
+    />
   )
 }
 

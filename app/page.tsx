@@ -27,6 +27,8 @@ import {
   isWorkspaceFunctionKey,
 } from '@/lib/workspace'
 import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/workspace'
+import { getPageModuleDefinition, resolvePageModuleKey } from '@/lib/page-modules'
+import PageModuleBoundary from './components/page-modules/PageModuleBoundary'
 
 function FeaturePageLoading() {
   return <AppLoadingIndicator label="正在加载页面..." />
@@ -232,7 +234,7 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'salesOrders' | 'shipment' | 'return' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'employees' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'permissions' | 'create' | 'detail'
+type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'salesOrders' | 'shipment' | 'return' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'employees' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'create' | 'detail'
 type MaterialSection = 'materials' | 'bomWorkspace' | 'bomUsage'
 
 interface BomEditorTarget {
@@ -570,7 +572,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'permissionGroups', label: '组权限', resource: 'permissionGroups' },
   ]
   const hiddenResources = lightweightHiddenResources
-  const accountMenuKeys = new Set<TabType>(['operators', 'permissionUsers', 'permissionGroups', 'permissions'])
+  const accountMenuKeys = new Set<TabType>(['operators', 'permissionUsers', 'permissionGroups'])
   const canReadNavItem = (item: { key: TabType; resource: string }) => (
     item.key === 'materials'
       ? canRead('materials') || canRead('bomCost')
@@ -671,6 +673,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     ? materialSectionItems.find((item) => item.key === materialSection)?.label || '物料与 BOM'
     : tabLabels[tab] || 'MES-lite'
   const activeSystemSection = systemSectionByTab[tab]
+  const activePageModule = getPageModuleDefinition(resolvePageModuleKey(tab, materialSection))
   const activeSystemTab = readableSystemNavItems.some((item) => item.key === tab)
   const activeBusinessGroupKey: BusinessNavGroupKey = tab === 'create' || tab === 'detail'
     ? 'production'
@@ -1823,6 +1826,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           aria-label="页面内容区"
           className="mes-page-content-scroll min-w-0 lg:min-h-0 lg:flex-1 lg:overflow-y-scroll lg:overscroll-contain lg:pb-6 lg:[scrollbar-gutter:stable]"
         >
+        <PageModuleBoundary definition={activePageModule}>
         {tab === 'materials' && materialSectionItems.length > 1 && (
           <nav
             aria-label="物料与 BOM 二级菜单"
@@ -2778,6 +2782,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
         {/* 组权限控制 */}
         {tab === 'permissionGroups' && <PermissionPage mode="groups" onMessage={showMessage} />}
+        </PageModuleBoundary>
         </div>
       </main>
 

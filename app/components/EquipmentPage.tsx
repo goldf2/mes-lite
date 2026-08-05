@@ -1,17 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import TopBarPortal from './TopBarPortal'
-import ResponsiveToolbarActions from './ResponsiveToolbarActions'
-import { SearchFieldWithPresets } from './SavedSearchPresets'
 import SearchableSelect from './SearchableSelect'
-import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
-import SortableTableHeader from './SortableTableHeader'
+import { usePersistedViewMode } from './ViewModeToggle'
 import useClientTableSort from './useClientTableSort'
 import ModalDialog, { ModalActions } from './ModalDialog'
 import AppButton from './AppButton'
-import AppLoadingIndicator from './AppLoadingIndicator'
 import { appInputClassName, appSelectClassName, appTextareaClassName } from './FormField'
+import ResourcePage from './resource/ResourcePage'
+import ResourceSortButton from './resource/ResourceSortButton'
 
 interface WorkCenterOption {
   id: string
@@ -164,49 +161,56 @@ export default function EquipmentPage({
     await loadItems()
   }
 
-  const toolbar = (
-    <ResponsiveToolbarActions
-      primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.equipment" value={keyword} onChange={setKeyword} placeholder="搜索设备编码、名称、型号或工作中心" />}
-      filters={<SearchableSelect value={workCenterFilter} onChange={setWorkCenterFilter} options={workCenterOptions} placeholder="输入工作中心筛选（全部）" allowClear className="w-64" />}
-      actions={<><ViewModeToggle value={viewMode} onChange={setViewMode} />{canCreate && <AppButton variant="create" onClick={openCreate}>新增</AppButton>}</>}
-    />
-  )
+  const sortLabel = (column: string, label: string) => {
+    return (
+      <ResourceSortButton column={column} label={label} activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort} />
+    )
+  }
+
+  const columns = [
+    { key: 'code', label: sortLabel('code', '编码'), render: (item: EquipmentItem) => <span className="font-mono text-blue-700">{item.code}</span> },
+    { key: 'name', label: sortLabel('name', '设备名称'), render: (item: EquipmentItem) => <span className="font-medium text-gray-900">{item.name}</span> },
+    { key: 'type', label: sortLabel('type', '类型'), render: (item: EquipmentItem) => item.equipmentType, hideBelow: 'md' as const },
+    { key: 'workCenter', label: sortLabel('workCenter', '工作中心'), render: (item: EquipmentItem) => <><div>{item.workCenter.name}</div><div className="font-mono text-xs text-gray-400">{item.workCenter.code}</div></>, hideBelow: 'sm' as const },
+    { key: 'model', label: sortLabel('model', '厂商 / 型号'), render: (item: EquipmentItem) => [item.manufacturer, item.model].filter(Boolean).join(' · ') || '-', hideBelow: 'lg' as const },
+    { key: 'location', label: sortLabel('location', '位置'), render: (item: EquipmentItem) => item.location || '-', hideBelow: 'xl' as const },
+    { key: 'status', label: sortLabel('status', '状态'), render: (item: EquipmentItem) => <span className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">{statusLabels[item.status] || item.status}</span> },
+    { key: 'actions', label: <span className="block text-right">操作</span>, headerClassName: 'text-right', className: 'text-right whitespace-nowrap', render: (item: EquipmentItem) => <>{canUpdate && <AppButton size="sm" onClick={() => openEdit(item)}>编辑</AppButton>}{canDelete && <AppButton size="sm" variant="warning" className="ml-2" onClick={() => archive(item)}>归档</AppButton>}</> },
+  ]
 
   return (
     <>
-      <TopBarPortal>{toolbar}</TopBarPortal>
-      <section className="rounded-lg bg-white p-3 shadow sm:p-6">
-        {loading ? <AppLoadingIndicator label="正在加载设备..." /> : items.length === 0 ? (
-          <div className="py-12 text-center text-sm text-gray-500">暂无设备{canCreate && <div className="mt-4"><AppButton variant="create" onClick={openCreate}>新增第一台设备</AppButton></div>}</div>
-        ) : viewMode === 'card' ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {tableSort.sortedRows.map((item) => (
-              <article key={item.id} className="rounded-lg border border-gray-200 p-4">
-                <div className="flex items-start justify-between gap-3"><div><div className="font-mono text-sm font-semibold text-blue-700">{item.code}</div><h3 className="mt-1 font-semibold text-gray-900">{item.name}</h3></div><span className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">{statusLabels[item.status] || item.status}</span></div>
-                <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-gray-600"><div><span className="text-xs text-gray-400">类型</span><div>{item.equipmentType}</div></div><div><span className="text-xs text-gray-400">工作中心</span><div>{item.workCenter.name}</div></div><div><span className="text-xs text-gray-400">型号</span><div>{item.model || '-'}</div></div><div><span className="text-xs text-gray-400">位置</span><div>{item.location || '-'}</div></div></div>
-                {item.basicParameters && <div className="mt-3 line-clamp-3 whitespace-pre-wrap rounded bg-gray-50 p-3 text-xs text-gray-600">{item.basicParameters}</div>}
-                <div className="mt-4 flex justify-end gap-2">{canUpdate && <AppButton size="sm" onClick={() => openEdit(item)}>编辑</AppButton>}{canDelete && <AppButton size="sm" variant="warning" onClick={() => archive(item)}>归档</AppButton>}</div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <div className="overflow-x-auto rounded-lg border border-gray-100">
-            <table className="w-full min-w-[1040px]">
-              <thead className="bg-gray-50 text-sm text-gray-600"><tr>
-                <SortableTableHeader column="code" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>编码</SortableTableHeader>
-                <SortableTableHeader column="name" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>设备名称</SortableTableHeader>
-                <SortableTableHeader column="type" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>类型</SortableTableHeader>
-                <SortableTableHeader column="workCenter" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>工作中心</SortableTableHeader>
-                <SortableTableHeader column="model" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>厂商 / 型号</SortableTableHeader>
-                <SortableTableHeader column="location" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>位置</SortableTableHeader>
-                <SortableTableHeader column="status" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>状态</SortableTableHeader>
-                <th className="px-4 py-3 text-right">操作</th>
-              </tr></thead>
-              <tbody className="divide-y divide-gray-100">{tableSort.sortedRows.map((item) => <tr key={item.id} className="text-sm hover:bg-gray-50"><td className="px-4 py-3 font-mono text-blue-700">{item.code}</td><td className="px-4 py-3 font-medium">{item.name}</td><td className="px-4 py-3">{item.equipmentType}</td><td className="px-4 py-3"><div>{item.workCenter.name}</div><div className="font-mono text-xs text-gray-400">{item.workCenter.code}</div></td><td className="px-4 py-3">{[item.manufacturer, item.model].filter(Boolean).join(' · ') || '-'}</td><td className="px-4 py-3">{item.location || '-'}</td><td className="px-4 py-3">{statusLabels[item.status] || item.status}</td><td className="px-4 py-3 text-right">{canUpdate && <AppButton size="sm" onClick={() => openEdit(item)}>编辑</AppButton>}{canDelete && <AppButton size="sm" variant="warning" className="ml-2" onClick={() => archive(item)}>归档</AppButton>}</td></tr>)}</tbody>
-            </table>
-          </div>
+      <ResourcePage
+        resourceKey="equipment"
+        title="设备台账"
+        description="维护设备、状态、工作中心归属和基础能力参数。"
+        items={tableSort.sortedRows}
+        getKey={(item) => item.id}
+        columns={columns}
+        renderCard={({ item }) => (
+          <>
+            <div className="flex items-start justify-between gap-3"><div><div className="font-mono text-sm font-semibold text-blue-700">{item.code}</div><h3 className="mt-1 font-semibold text-gray-900">{item.name}</h3></div><span className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">{statusLabels[item.status] || item.status}</span></div>
+            <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-gray-600"><div><span className="text-xs text-gray-400">类型</span><div>{item.equipmentType}</div></div><div><span className="text-xs text-gray-400">工作中心</span><div>{item.workCenter.name}</div></div><div><span className="text-xs text-gray-400">型号</span><div>{item.model || '-'}</div></div><div><span className="text-xs text-gray-400">位置</span><div>{item.location || '-'}</div></div></div>
+            {item.basicParameters && <div className="mt-3 line-clamp-3 whitespace-pre-wrap rounded bg-gray-50 p-3 text-xs text-gray-600">{item.basicParameters}</div>}
+            <div className="mt-4 flex justify-end gap-2">{canUpdate && <AppButton size="sm" onClick={() => openEdit(item)}>编辑</AppButton>}{canDelete && <AppButton size="sm" variant="warning" onClick={() => archive(item)}>归档</AppButton>}</div>
+          </>
         )}
-      </section>
+        loading={loading}
+        loadingLabel="正在加载设备..."
+        emptyLabel="暂无设备"
+        emptyAction={canCreate ? <AppButton variant="create" onClick={openCreate}>新增第一台设备</AppButton> : undefined}
+        searchValue={keyword}
+        onSearchChange={setKeyword}
+        searchPlaceholder="搜索设备编码、名称、型号或工作中心"
+        filters={<SearchableSelect value={workCenterFilter} onChange={setWorkCenterFilter} options={workCenterOptions} placeholder="输入工作中心筛选（全部）" allowClear className="w-64" />}
+        filterCount={workCenterFilter ? 1 : 0}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        onCreate={canCreate ? openCreate : undefined}
+        createLabel="新增设备"
+        summary={<span className="text-sm text-gray-500">共 {items.length} 台</span>}
+        rowLabel={(item) => `${item.code} ${item.name}`}
+      />
 
       {showModal && (
         <ModalDialog title={editing ? '编辑设备' : '新增设备'} description="设备保存基础台账和能力参数；具体加工方法由工艺文档维护。" onClose={() => setShowModal(false)} closeDisabled={saving} size="xl" footer={<ModalActions onCancel={() => setShowModal(false)} onConfirm={save} busy={saving} />}>
