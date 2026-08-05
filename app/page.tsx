@@ -3,7 +3,6 @@
 import dynamic from 'next/dynamic'
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import * as Collapsible from '@radix-ui/react-collapsible'
 import { Boxes, ChevronDown, Menu, PencilLine, Search, Settings2, X } from 'lucide-react'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
 import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
@@ -29,6 +28,7 @@ import {
 import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/workspace'
 import { getPageModuleDefinition, resolvePageModuleKey } from '@/lib/page-modules'
 import PageModuleBoundary from './components/page-modules/PageModuleBoundary'
+import TopBarPortal from './components/TopBarPortal'
 
 function FeaturePageLoading() {
   return <AppLoadingIndicator label="正在加载页面..." />
@@ -606,7 +606,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     restoredMaterialSectionAllowed ? restoredMaterialSection as MaterialSection : defaultMaterialSection,
   )
   const [bomEditorTarget, setBomEditorTarget] = useState<BomEditorTarget | null>(null)
-  const [materialMenuOpen, setMaterialMenuOpen] = useState(true)
   const [orders, setOrders] = useState<Order[]>([])
   const [stocks, setStocks] = useState<Stock[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -684,9 +683,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       items: navItems.filter((item) => group.tabs.includes(item.key)),
     }))
     .filter((group) => group.items.length > 0)
-  const activeBusinessGroup = visibleBusinessGroups.find((group) => group.key === activeBusinessGroupKey)
-    || visibleBusinessGroups[0]
-  const sidebarNavItems = activeSystemTab ? readableSystemNavItems : activeBusinessGroup?.items || []
   const baseMobileNavItems = navItems.slice(0, 4)
   const mobilePrimaryItems = baseMobileNavItems
   const pageLocationKey = tab === 'materials' ? `${tab}:${materialSection}` : tab
@@ -1425,33 +1421,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             <p className="truncate text-[11px] text-gray-500">生产系统 · v{appVersion}</p>
           </div>
         </div>
-        <nav aria-label="主业务分类" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-4">
-          {visibleBusinessGroups.map((group) => {
-            const selected = !activeSystemTab && group.key === activeBusinessGroupKey
-            return (
-              <button
-                key={group.key}
-                type="button"
-                aria-current={selected ? 'page' : undefined}
-                onClick={() => {
-                  const firstItem = group.tabs
-                    .map((key) => group.items.find((item) => item.key === key))
-                    .find(Boolean)
-                  if (!firstItem) return
-                  navigateToTab(firstItem.key)
-                  if (firstItem.key === 'materials') setMaterialMenuOpen(true)
-                }}
-                className={`shrink-0 rounded-md px-3 py-2 text-sm font-medium transition ${
-                  selected
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }`}
-              >
-                {group.label}
-              </button>
-            )
-          })}
-        </nav>
+        <div
+          id="topbar-actions-desktop"
+          aria-label="页面搜索、筛选和工具"
+          className="flex min-w-0 flex-1 items-center gap-3 overflow-visible px-4 empty:before:content-['']"
+        />
         <div className="flex h-full shrink-0 items-center gap-2 border-l border-gray-100 px-4">
           {canRead('aiAssistant') && (
             <button
@@ -1506,113 +1480,99 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
       <aside className="fixed bottom-0 left-0 top-16 z-30 hidden w-[var(--mes-desktop-sidebar-width)] flex-col border-r border-gray-200 bg-white lg:flex">
         <div className="shrink-0 border-b border-gray-100 px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                {activeSystemTab ? '账号设置' : '当前模块'}
-              </div>
-              <div className="mt-1 text-sm font-semibold text-gray-800">
-                {activeSystemTab ? '人员与权限' : activeBusinessGroup?.label || '业务功能'}
-              </div>
-            </div>
-          </div>
+          <div className="text-xs font-semibold uppercase tracking-wider text-gray-400">功能导航</div>
+          <div className="mt-1 truncate text-sm font-semibold text-gray-800">{activeTabLabel}</div>
         </div>
-        <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
-          {sidebarNavItems.map((item) => {
-            const index = navItems.findIndex((navItem) => navItem.key === item.key)
-            const itemClassName = `w-full px-4 py-3 rounded-lg text-sm font-medium transition flex items-center justify-between ${
-              activeSystemTab ? 'cursor-default' : 'cursor-grab'
-            } ${
-              draggedIndex === index ? 'opacity-50 bg-gray-200' :
-              dragOverIndex === index ? 'ring-2 ring-blue-400 bg-blue-50' :
-              tab === item.key ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-            }`
-
-            if (item.key === 'materials') {
-              return (
-                <Collapsible.Root
-                  key={item.key}
-                  open={materialMenuOpen}
-                  onOpenChange={setMaterialMenuOpen}
-                  className="space-y-1"
-                >
-                  <Collapsible.Trigger asChild>
-                    <button
-                      draggable
-                      onDragStart={(event) => handleDragStart(event, index)}
-                      onDragOver={(event) => handleDragOver(event, index)}
-                      onDragLeave={handleDragLeave}
-                      onDrop={(event) => handleDrop(event, index)}
-                      onClick={() => {
-                        navigateToTab('materials', materialSection)
-                      }}
-                      className={itemClassName}
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <MenuIcon icon={item.key} />
-                        <span className="truncate">{item.label}</span>
-                      </span>
-                      <ChevronDown
-                        aria-hidden="true"
-                        className={`h-4 w-4 shrink-0 transition-transform ${materialMenuOpen ? 'rotate-180' : ''}`}
-                      />
-                    </button>
-                  </Collapsible.Trigger>
-                  <Collapsible.Content className="overflow-hidden">
-                    <div className="ml-5 space-y-1 border-l border-gray-200 py-1 pl-3">
-                      {materialSectionItems.map((section) => {
-                        const SectionIcon = section.key === 'materials'
-                          ? Boxes
-                          : section.key === 'bomWorkspace'
-                            ? PencilLine
-                            : Search
-                        const selected = tab === 'materials' && materialSection === section.key
-                        return (
-                          <button
-                            key={section.key}
-                            type="button"
-                            aria-current={selected ? 'page' : undefined}
-                            onClick={() => {
-                              navigateToTab('materials', section.key)
-                            }}
-                            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition ${
-                              selected
-                                ? 'bg-blue-50 font-semibold text-blue-700'
-                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                            }`}
-                          >
-                            <SectionIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
-                            <span>{section.label}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </Collapsible.Content>
-                </Collapsible.Root>
-              )
-            }
-
+        <nav aria-label="一级与二级功能菜单" className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
+          {visibleBusinessGroups.map((group) => {
+            const selected = !activeSystemTab && group.key === activeBusinessGroupKey
+            const firstItem = group.tabs.map((key) => group.items.find((item) => item.key === key)).find(Boolean)
+            if (!firstItem) return null
             return (
-              <button
-                key={item.key}
-                draggable={!activeSystemTab}
-                onDragStart={(event) => handleDragStart(event, index)}
-                onDragOver={(event) => handleDragOver(event, index)}
-                onDragLeave={handleDragLeave}
-                onDrop={(event) => handleDrop(event, index)}
-                onClick={() => {
-                  navigateToTab(item.key)
-                }}
-                className={itemClassName}
-              >
-                <span className="flex items-center gap-2">
-                  <MenuIcon icon={item.key} />
-                  {item.label}
-                </span>
-                <span aria-hidden="true" className="text-sm text-gray-400 opacity-0 transition hover:opacity-100">⋮⋮</span>
-              </button>
+              <div key={group.key} className="space-y-1">
+                <button
+                  type="button"
+                  aria-expanded={selected}
+                  onClick={() => navigateToTab(firstItem.key)}
+                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+                    selected ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                >
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <MenuIcon icon={firstItem.key} />
+                    <span className="truncate">{group.label}</span>
+                  </span>
+                  <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 transition-transform ${selected ? 'rotate-180' : '-rotate-90'}`} />
+                </button>
+                {selected && (
+                  <div className="ml-5 space-y-1 border-l border-gray-200 py-1 pl-3">
+                    {group.key === 'materials' ? materialSectionItems.map((section) => {
+                      const SectionIcon = section.key === 'materials' ? Boxes : section.key === 'bomWorkspace' ? PencilLine : Search
+                      const sectionSelected = tab === 'materials' && materialSection === section.key
+                      return (
+                        <button
+                          key={section.key}
+                          type="button"
+                          aria-current={sectionSelected ? 'page' : undefined}
+                          onClick={() => navigateToTab('materials', section.key)}
+                          className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition ${
+                            sectionSelected ? 'bg-blue-50 font-semibold text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                          }`}
+                        >
+                          <SectionIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{section.label}</span>
+                        </button>
+                      )
+                    }) : group.items.map((item) => {
+                      const index = navItems.findIndex((navItem) => navItem.key === item.key)
+                      const itemSelected = tab === item.key || (item.key === 'orders' && (tab === 'create' || tab === 'detail'))
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          draggable
+                          aria-current={itemSelected ? 'page' : undefined}
+                          onDragStart={(event) => handleDragStart(event, index)}
+                          onDragOver={(event) => handleDragOver(event, index)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(event) => handleDrop(event, index)}
+                          onClick={() => navigateToTab(item.key)}
+                          className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition ${
+                            draggedIndex === index ? 'opacity-50' : dragOverIndex === index ? 'ring-2 ring-blue-300' : ''
+                          } ${itemSelected ? 'bg-blue-50 font-semibold text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
+                        >
+                          <span className="truncate">{item.label}</span>
+                          <span aria-hidden="true" className="text-xs text-gray-300">⋮⋮</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             )
           })}
+          {readableSystemNavItems.length > 0 && (
+            <div className="space-y-1 border-t border-gray-100 pt-2">
+              <button
+                type="button"
+                aria-expanded={activeSystemTab}
+                onClick={() => navigateToTab(readableSystemNavItems[0].key)}
+                className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+                  activeSystemTab ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                }`}
+              >
+                <span className="flex min-w-0 items-center gap-2.5"><MenuIcon icon="operators" /><span className="truncate">账号与权限</span></span>
+                <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 transition-transform ${activeSystemTab ? 'rotate-180' : '-rotate-90'}`} />
+              </button>
+              {activeSystemTab && (
+                <div className="ml-5 space-y-1 border-l border-gray-200 py-1 pl-3">
+                  {readableSystemNavItems.map((item) => (
+                    <button key={item.key} type="button" aria-current={tab === item.key ? 'page' : undefined} onClick={() => navigateToTab(item.key)} className={`w-full rounded-md px-3 py-2 text-left text-sm transition ${tab === item.key ? 'bg-blue-50 font-semibold text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{item.label}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </nav>
         <div
           role="separator"
@@ -1649,9 +1609,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       </aside>
 
       <main className="mes-mobile-main min-w-0 p-3 sm:p-4 lg:ml-[var(--mes-desktop-sidebar-width)] lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20">
-        <div className={`sticky top-0 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:static lg:-mx-6 lg:px-6 ${
-          tab === 'dashboard' || tab === 'allFunctions' ? 'lg:hidden' : ''
-        } ${
+        <div className={`sticky top-0 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:hidden ${
           systemMenuOpen ? 'z-[60] lg:z-30' : 'z-30'
         }`}>
           <div className="flex min-w-0 flex-wrap items-center gap-2 lg:flex-nowrap">
@@ -1705,7 +1663,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 compact
               />
             </div>
-            <div id="topbar-actions" className="order-3 flex min-w-0 flex-[1_1_100%] items-center justify-start gap-2 overflow-visible empty:hidden lg:order-none lg:flex-1">
+            <div id="topbar-actions-mobile" className="order-3 flex min-w-0 flex-[1_1_100%] items-center justify-start gap-2 overflow-visible empty:hidden" />
+            <TopBarPortal>
                 {tab === 'orders' ? (
                   <ResponsiveToolbarActions
                     primaryFilters={(
@@ -1817,7 +1776,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     )}
                   />
                 ) : null}
-            </div>
+            </TopBarPortal>
           </div>
         </div>
 

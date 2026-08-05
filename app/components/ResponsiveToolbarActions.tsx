@@ -237,10 +237,10 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, fil
       )}
       {hasActions && (
         <>
-          <div className="hidden min-w-max shrink-0 flex-nowrap items-center justify-end gap-2 whitespace-nowrap lg:flex xl:gap-3">
+          <div className="hidden min-w-max shrink-0 flex-nowrap items-center justify-end gap-2 whitespace-nowrap xl:flex xl:gap-3">
             {actions}
           </div>
-          <div className="order-first hidden sm:block lg:order-none lg:hidden">
+          <div className="order-first hidden sm:block xl:order-none xl:hidden">
             <button
               type="button"
               aria-haspopup="dialog"
