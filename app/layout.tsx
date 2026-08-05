@@ -27,7 +27,7 @@ export default async function RootLayout({
   ])
 
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" data-mes-contrast={systemSettings.contrastMode}>
       <body className="bg-gray-50 text-gray-900">
         <AiAssistantAppearanceProvider
           initialConfig={markAppearance.config}

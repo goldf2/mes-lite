@@ -87,10 +87,10 @@ export default function SavedSearchPresets({
         aria-expanded={open}
         aria-haspopup="dialog"
         title="快捷搜索"
-        className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 sm:h-10 sm:px-3 sm:text-sm"
+        className="inline-flex h-9 w-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-200 bg-white p-0 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 sm:h-10 sm:w-auto sm:px-3 sm:text-sm"
       >
         <Bookmark aria-hidden="true" className="h-4 w-4 text-blue-600" />
-        <span>快捷搜索</span>
+        <span className="hidden sm:inline">快捷搜索</span>
         {presets.length > 0 && (
           <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] leading-none text-blue-700">
             {presets.length}
@@ -185,7 +185,7 @@ export function SearchFieldWithPresets({
   value,
   onChange,
   placeholder,
-  inputClassName = 'min-w-0 flex-1 rounded-lg border border-gray-200 px-4 py-2 text-sm',
+  inputClassName = 'h-9 min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm sm:h-10 sm:px-4 sm:py-2',
   className = 'flex w-full min-w-[260px] max-w-[450px] flex-[1_1_360px] items-center gap-2',
 }: {
   storageKey: string

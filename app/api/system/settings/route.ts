@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { getSystemSettings, updateSystemSettings } from '@/lib/system-settings'
+import { CONTRAST_MODE_VALUES } from '@/lib/contrast-modes'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +14,7 @@ const updateSchema = z.object({
   companyPhone: z.string().max(50).optional(),
   companyAddress: z.string().max(200).optional(),
   aiLoadingIndicatorEnabled: z.boolean().optional(),
+  contrastMode: z.enum(CONTRAST_MODE_VALUES).optional(),
 })
 
 export async function GET() {

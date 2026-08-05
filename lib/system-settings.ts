@@ -1,5 +1,6 @@
 import { Prisma, PrismaClient } from '@prisma/client'
 import { prisma } from './prisma'
+import { ContrastMode, DEFAULT_CONTRAST_MODE, normalizeContrastMode } from './contrast-modes'
 
 export const NATURAL_MATERIAL_CODE_SORT_KEY = 'sorting.materialCodeNatural'
 export const COMPANY_NAME_KEY = 'company.name'
@@ -7,6 +8,7 @@ export const COMPANY_CONTACT_KEY = 'company.contact'
 export const COMPANY_PHONE_KEY = 'company.phone'
 export const COMPANY_ADDRESS_KEY = 'company.address'
 export const AI_LOADING_INDICATOR_ENABLED_KEY = 'ai.loadingIndicator.enabled'
+export const CONTRAST_MODE_KEY = 'interface.contrastMode'
 
 type SettingsClient = PrismaClient | Prisma.TransactionClient
 
@@ -17,11 +19,12 @@ export interface SystemSettings {
   companyPhone: string
   companyAddress: string
   aiLoadingIndicatorEnabled: boolean
+  contrastMode: ContrastMode
 }
 
 export async function getSystemSettings(client: SettingsClient = prisma): Promise<SystemSettings> {
   const rows = await client.systemSetting.findMany({
-    where: { key: { in: [NATURAL_MATERIAL_CODE_SORT_KEY, COMPANY_NAME_KEY, COMPANY_CONTACT_KEY, COMPANY_PHONE_KEY, COMPANY_ADDRESS_KEY, AI_LOADING_INDICATOR_ENABLED_KEY] } },
+    where: { key: { in: [NATURAL_MATERIAL_CODE_SORT_KEY, COMPANY_NAME_KEY, COMPANY_CONTACT_KEY, COMPANY_PHONE_KEY, COMPANY_ADDRESS_KEY, AI_LOADING_INDICATOR_ENABLED_KEY, CONTRAST_MODE_KEY] } },
     select: { key: true, value: true },
   })
   const values = new Map(rows.map((row) => [row.key, row.value]))
@@ -33,6 +36,7 @@ export async function getSystemSettings(client: SettingsClient = prisma): Promis
     companyPhone: values.get(COMPANY_PHONE_KEY) || '',
     companyAddress: values.get(COMPANY_ADDRESS_KEY) || '',
     aiLoadingIndicatorEnabled: values.get(AI_LOADING_INDICATOR_ENABLED_KEY) !== 'false',
+    contrastMode: normalizeContrastMode(values.get(CONTRAST_MODE_KEY) || DEFAULT_CONTRAST_MODE),
   }
 }
 
@@ -47,6 +51,7 @@ export async function updateSystemSettings(
   if (settings.companyPhone !== undefined) entries.push([COMPANY_PHONE_KEY, settings.companyPhone.trim()])
   if (settings.companyAddress !== undefined) entries.push([COMPANY_ADDRESS_KEY, settings.companyAddress.trim()])
   if (settings.aiLoadingIndicatorEnabled !== undefined) entries.push([AI_LOADING_INDICATOR_ENABLED_KEY, String(settings.aiLoadingIndicatorEnabled)])
+  if (settings.contrastMode !== undefined) entries.push([CONTRAST_MODE_KEY, normalizeContrastMode(settings.contrastMode)])
   for (const [key, value] of entries) {
     await client.systemSetting.upsert({
       where: { key },

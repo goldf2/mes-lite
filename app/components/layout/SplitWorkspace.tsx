@@ -76,9 +76,10 @@ export default function SplitWorkspace({
         '--split-primary': `${primaryPercent}fr`,
         '--split-secondary': `${100 - primaryPercent}fr`,
       } as CSSProperties}
-      className={`grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,var(--split-primary))_12px_minmax(0,var(--split-secondary))] xl:items-stretch xl:gap-0 ${className}`}
+      aria-busy={!storageReady}
+      className={`grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,var(--split-primary))_12px_minmax(0,var(--split-secondary))] xl:items-stretch xl:gap-0 ${storageReady ? 'visible' : 'invisible pointer-events-none'} ${className}`}
     >
-      <div aria-label={primaryLabel} className="min-w-0 xl:pr-2">{panels[0]}</div>
+      <div aria-label={primaryLabel} className="min-w-0 xl:h-full xl:min-h-0 xl:pr-2">{panels[0]}</div>
       <div
         role="separator"
         aria-label={`调整${primaryLabel}与${secondaryLabel}宽度`}
@@ -92,13 +93,19 @@ export default function SplitWorkspace({
           setDragging(true)
         }}
         onKeyDown={adjustByKeyboard}
-        className={`group hidden cursor-col-resize items-stretch justify-center outline-none xl:flex ${
+        className={`group relative hidden cursor-col-resize items-stretch justify-center outline-none xl:flex ${
           dragging ? 'bg-blue-50' : ''
         }`}
       >
         <div className={`w-px transition group-hover:bg-blue-400 group-focus:bg-blue-500 ${dragging ? 'bg-blue-500' : 'bg-gray-200'}`} />
+        <span
+          aria-hidden="true"
+          className={`absolute top-1/2 flex h-9 w-3 -translate-y-1/2 items-center justify-center rounded-full border bg-white text-sm leading-none shadow-sm transition group-hover:border-blue-300 group-hover:text-blue-600 group-focus:border-blue-400 group-focus:text-blue-700 ${dragging ? 'border-blue-400 text-blue-700' : 'border-gray-200 text-gray-400'}`}
+        >
+          ⋮
+        </span>
       </div>
-      <div aria-label={secondaryLabel} className="min-w-0 xl:pl-2">{panels[1]}</div>
+      <div aria-label={secondaryLabel} className="min-w-0 xl:h-full xl:min-h-0 xl:pl-2">{panels[1]}</div>
     </div>
   )
 }

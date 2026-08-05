@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { ReactNode, useCallback, useEffect, useId, useMemo, useState } from 'react'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import useSearchPopupPlacement from './useSearchPopupPlacement'
 import { appInputClassName } from './FormField'
@@ -10,6 +10,7 @@ export interface SearchableSelectOption {
   label: string
   keywords?: string
   disabled?: boolean
+  [key: string]: unknown
 }
 
 export default function SearchableSelect({
@@ -21,6 +22,7 @@ export default function SearchableSelect({
   disabled = false,
   allowClear = false,
   className = '',
+  renderOption,
 }: {
   value: string
   options: SearchableSelectOption[]
@@ -30,6 +32,7 @@ export default function SearchableSelect({
   disabled?: boolean
   allowClear?: boolean
   className?: string
+  renderOption?: (option: SearchableSelectOption) => ReactNode
 }) {
   const listboxId = useId()
   const [query, setQuery] = useState('')
@@ -125,12 +128,20 @@ export default function SearchableSelect({
               role="option"
               aria-selected={option.value === value}
               disabled={option.disabled}
-              onMouseDown={(event) => event.preventDefault()}
+              onMouseDown={(event) => {
+                event.preventDefault()
+                choose(option.value)
+              }}
               onMouseEnter={() => setActiveIndex(index)}
-              onClick={() => choose(option.value)}
+              onClick={(event) => {
+                // Mouse selection is committed on mouse down so the popup cannot
+                // close on focus transfer first. Keyboard and assistive clicks
+                // have detail 0 and are committed here instead.
+                if (event.detail === 0) choose(option.value)
+              }}
               className={`block w-full rounded-md px-3 py-2 text-left text-sm disabled:text-gray-300 ${index === activeIndex || option.value === value ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}
             >
-              {option.label}
+              {renderOption ? renderOption(option) : option.label}
             </button>
           ))}
           <div className="border-t border-gray-100 px-3 py-2 text-xs text-gray-400">可输入关键词筛选</div>

@@ -4,10 +4,117 @@
 
 :root {
   --mes-mobile-nav-offset: calc(5rem + max(env(safe-area-inset-bottom), 0.5rem));
+  --mes-color-neutral-50: 249 250 251;
+  --mes-color-neutral-100: 243 244 246;
+  --mes-color-neutral-200: 229 231 235;
+  --mes-color-neutral-300: 209 213 219;
+  --mes-color-neutral-400: 156 163 175;
+  --mes-color-neutral-500: 107 114 128;
+  --mes-color-neutral-600: 75 85 99;
+  --mes-color-neutral-700: 55 65 81;
+  --mes-color-neutral-800: 31 41 55;
+  --mes-color-neutral-900: 17 24 39;
+  --mes-color-neutral-950: 3 7 18;
+  --mes-resource-detail-header-surface: rgb(248 250 252 / 90%);
+  --mes-resource-detail-body-surface: rgb(255 255 255);
+  --mes-resource-detail-muted-surface: rgb(248 250 252);
+  --mes-resource-detail-soft-surface: rgb(248 250 252 / 60%);
+  --mes-resource-detail-strong-border: rgb(226 232 240);
+  --mes-resource-detail-muted-border: rgb(241 245 249);
+  --mes-resource-detail-section-title: rgb(51 65 85);
+  --mes-resource-detail-section-accent: rgb(59 130 246);
+  --mes-resource-detail-label: rgb(100 116 139);
+  --mes-resource-detail-value: rgb(15 23 42);
+  --mes-resource-detail-meta: rgb(71 85 105);
+}
+
+:root[data-mes-contrast='soft'] {
+  --mes-color-neutral-50: 250 250 250;
+  --mes-color-neutral-100: 247 247 248;
+  --mes-color-neutral-200: 236 238 241;
+  --mes-color-neutral-300: 218 221 226;
+  --mes-color-neutral-400: 166 172 181;
+  --mes-color-neutral-500: 120 128 140;
+  --mes-color-neutral-600: 82 91 104;
+  --mes-color-neutral-700: 62 71 84;
+  --mes-color-neutral-800: 38 47 61;
+  --mes-color-neutral-900: 31 41 55;
+  --mes-color-neutral-950: 17 24 39;
+  --mes-resource-detail-header-surface: rgb(250 250 250 / 75%);
+  --mes-resource-detail-muted-surface: rgb(250 250 250);
+  --mes-resource-detail-soft-surface: rgb(250 250 250 / 45%);
+  --mes-resource-detail-strong-border: rgb(236 238 241);
+  --mes-resource-detail-muted-border: rgb(244 245 247);
+  --mes-resource-detail-section-title: rgb(62 71 84);
+  --mes-resource-detail-label: rgb(120 128 140);
+  --mes-resource-detail-value: rgb(31 41 55);
+  --mes-resource-detail-meta: rgb(82 91 104);
+}
+
+:root[data-mes-contrast='high'] {
+  --mes-color-neutral-50: 255 255 255;
+  --mes-color-neutral-100: 248 250 252;
+  --mes-color-neutral-200: 203 213 225;
+  --mes-color-neutral-300: 148 163 184;
+  --mes-color-neutral-400: 100 116 139;
+  --mes-color-neutral-500: 71 85 105;
+  --mes-color-neutral-600: 51 65 85;
+  --mes-color-neutral-700: 30 41 59;
+  --mes-color-neutral-800: 15 23 42;
+  --mes-color-neutral-900: 2 6 23;
+  --mes-color-neutral-950: 0 0 0;
+  --mes-resource-detail-header-surface: rgb(241 245 249);
+  --mes-resource-detail-muted-surface: rgb(248 250 252);
+  --mes-resource-detail-soft-surface: rgb(248 250 252);
+  --mes-resource-detail-strong-border: rgb(148 163 184);
+  --mes-resource-detail-muted-border: rgb(203 213 225);
+  --mes-resource-detail-section-title: rgb(15 23 42);
+  --mes-resource-detail-label: rgb(51 65 85);
+  --mes-resource-detail-value: rgb(0 0 0);
+  --mes-resource-detail-meta: rgb(30 41 59);
 }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.mes-resource-detail-header {
+  border-color: var(--mes-resource-detail-strong-border);
+  background: var(--mes-resource-detail-header-surface);
+}
+
+.mes-resource-detail-content {
+  background: var(--mes-resource-detail-body-surface);
+}
+
+.mes-resource-detail-content h3 {
+  border-left: 3px solid var(--mes-resource-detail-section-accent);
+  padding-left: 0.5rem;
+  color: var(--mes-resource-detail-section-title);
+}
+
+.mes-resource-detail-muted-card {
+  border-color: var(--mes-resource-detail-muted-border);
+  background: var(--mes-resource-detail-muted-surface);
+}
+
+.mes-resource-detail-soft-row {
+  border-color: var(--mes-resource-detail-muted-border);
+  background: var(--mes-resource-detail-soft-surface);
+  color: var(--mes-resource-detail-meta);
+}
+
+.mes-resource-detail-label {
+  color: var(--mes-resource-detail-label);
+}
+
+.mes-resource-detail-value {
+  color: var(--mes-resource-detail-value);
+}
+
+.mes-resource-detail-dividers,
+.mes-resource-detail-dividers > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--mes-resource-detail-muted-border);
 }
 
 @keyframes mes-ai-assistant-orbit {
@@ -181,6 +288,60 @@ body[data-modal-glass='off'] .mes-modal-overlay,
 body[data-modal-glass='off'] .mes-modal-overlay-dark {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+@keyframes mes-navigator-overlay-enter {
+  from {
+    opacity: 0.5;
+    transform: translateX(calc(-100% - 1rem)) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.mes-navigator-overlay-open {
+  transform-origin: left center;
+  animation: mes-navigator-overlay-enter 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes mes-dock-trigger-left-enter {
+  from {
+    opacity: 0;
+    transform: translate(-0.75rem, -50%) scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, -50%) scale(1);
+  }
+}
+
+@keyframes mes-dock-trigger-right-enter {
+  from {
+    opacity: 0;
+    transform: translate(0.75rem, -50%) scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, -50%) scale(1);
+  }
+}
+
+.mes-dock-trigger-left {
+  animation: mes-dock-trigger-left-enter 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mes-dock-trigger-right {
+  animation: mes-dock-trigger-right-enter 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mes-navigator-overlay-open,
+  .mes-dock-trigger-left,
+  .mes-dock-trigger-right {
+    animation: none;
+  }
 }
 
 @media (min-width: 1024px) {

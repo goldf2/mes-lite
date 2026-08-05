@@ -17,6 +17,8 @@ import { appInputClassName, appTextareaClassName } from './FormField'
 import ConfigurationManualOrder from './ConfigurationManualOrder'
 import AppLoadingIndicator from './AppLoadingIndicator'
 import { useAiAssistantAppearance } from './AiAssistantAppearanceProvider'
+import ContrastModeSelector from './ContrastModeSelector'
+import { applyContrastMode, ContrastMode, normalizeContrastMode } from '@/lib/contrast-modes'
 
 interface Supplier {
   id: string
@@ -923,6 +925,7 @@ function DataToolManager({ onMessage }: { onMessage: (msg: string) => void }) {
 function InterfacePreferenceManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [modalGlassEnabled, setModalGlassEnabled] = useModalGlassPreference()
   const { loadingIndicatorEnabled, setLoadingIndicatorEnabled } = useAiAssistantAppearance()
+  const [contrastMode, setContrastMode] = useState<ContrastMode>('standard')
   const [naturalCodeSortEnabled, setNaturalCodeSortEnabled] = useState(false)
   const [companyProfile, setCompanyProfile] = useState({ companyName: '', companyContact: '', companyPhone: '', companyAddress: '' })
   const [settingLoading, setSettingLoading] = useState(true)
@@ -938,6 +941,9 @@ function InterfacePreferenceManager({ onMessage }: { onMessage: (msg: string) =>
         return
       }
       setNaturalCodeSortEnabled(Boolean(data.data?.naturalMaterialCodeSortEnabled))
+      const nextContrastMode = normalizeContrastMode(data.data?.contrastMode)
+      setContrastMode(nextContrastMode)
+      applyContrastMode(nextContrastMode)
       setCompanyProfile({
         companyName: data.data?.companyName || '',
         companyContact: data.data?.companyContact || '',
@@ -969,6 +975,33 @@ function InterfacePreferenceManager({ onMessage }: { onMessage: (msg: string) =>
       }
       setNaturalCodeSortEnabled(Boolean(data.data?.naturalMaterialCodeSortEnabled))
       onMessage(`物料编码数字自然排序已${enabled ? '开启' : '关闭'}`)
+    } finally {
+      setSettingSaving(false)
+    }
+  }
+
+  const saveContrastMode = async (nextMode: ContrastMode) => {
+    const previousMode = contrastMode
+    setContrastMode(nextMode)
+    applyContrastMode(nextMode)
+    setSettingSaving(true)
+    try {
+      const res = await fetch('/api/system/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contrastMode: nextMode }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setContrastMode(previousMode)
+        applyContrastMode(previousMode)
+        onMessage(data.error || '保存页面对比度失败')
+        return
+      }
+      const savedMode = normalizeContrastMode(data.data?.contrastMode)
+      setContrastMode(savedMode)
+      applyContrastMode(savedMode)
+      onMessage('页面对比度已更新')
     } finally {
       setSettingSaving(false)
     }
@@ -1022,6 +1055,15 @@ function InterfacePreferenceManager({ onMessage }: { onMessage: (msg: string) =>
       <div className="mb-5">
         <h3 className="text-lg font-semibold">系统设置</h3>
         <p className="mt-1 text-sm text-gray-500">业务规则对所有客户端生效；界面偏好只保存在当前浏览器。</p>
+      </div>
+
+      <div className="mb-4 rounded-lg border border-gray-200 p-4">
+        <div className="mb-4">
+          <div className="font-medium text-gray-900">页面对比度配色</div>
+          <div className="mt-1 text-sm text-gray-500">统一调整页面背景、容器层级、边框清晰度、标题、正文和辅助文字的反差；按钮主色与业务状态色保持不变。</div>
+          <div className="mt-2 text-xs text-gray-500">系统级设置，保存后对所有客户端生效；当前页面会立即预览。</div>
+        </div>
+        <ContrastModeSelector value={contrastMode} onChange={saveContrastMode} disabled={settingLoading || settingSaving} />
       </div>
 
       <div className="mb-4 rounded-lg border border-gray-200 p-4">

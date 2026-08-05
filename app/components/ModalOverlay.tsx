@@ -84,7 +84,7 @@ export default function ModalOverlay({
         event.stopPropagation()
         if (event.target === event.currentTarget) onClose?.()
       }}
-      className={`fixed inset-0 z-50 flex items-center justify-center overflow-y-auto mes-modal-overlay p-4 ${className}`}
+      className={`fixed inset-0 z-[200] flex items-center justify-center overflow-y-auto mes-modal-overlay p-4 ${className}`}
     >
       {children}
     </div>,
