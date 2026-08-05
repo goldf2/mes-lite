@@ -18,6 +18,7 @@ import AppButton from './components/AppButton'
 import ModalDialog, { ModalActions } from './components/ModalDialog'
 import PageOptionsDialog from './components/PageOptionsDialog'
 import AiAssistantMark from './components/AiAssistantMark'
+import AppLoadingIndicator from './components/AppLoadingIndicator'
 import { AllFunctionsPage, WorkspaceLauncher } from './components/WorkspacePages'
 import type { WorkspaceFunctionItem } from './components/WorkspacePages'
 import type { SystemSection } from './components/SystemPage'
@@ -28,7 +29,7 @@ import {
 import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/workspace'
 
 function FeaturePageLoading() {
-  return <div className="py-12 text-center text-sm text-gray-500" role="status">加载中...</div>
+  return <AppLoadingIndicator label="正在加载页面..." />
 }
 
 const MaterialInPage = dynamic(() => import('./components/MaterialInPage'), { loading: FeaturePageLoading })
@@ -1889,7 +1890,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         )}
 
         {tab === 'dashboard' && !dashboard && (
-          <div className="text-center py-12 text-gray-500">加载中...</div>
+          <AppLoadingIndicator label="正在加载仪表盘..." />
         )}
 
         {/* 所有功能 */}

@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
+import AppLoadingIndicator from './AppLoadingIndicator'
 
 export interface CurrentOperator {
   id: string
@@ -82,7 +83,7 @@ export default function AuthGate({ children }: AuthGateProps) {
   }
 
   if (!checked) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-500">加载中...</div>
+    return <AppLoadingIndicator fullScreen label="正在加载 MES-lite..." />
   }
 
   if (operator) {
