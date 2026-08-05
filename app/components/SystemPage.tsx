@@ -1343,7 +1343,7 @@ function AiAgentSettings({ onMessage }: { onMessage: (msg: string) => void }) {
     {showMarkLab && (
       <ModalDialog
         title="AI 助手图标调参"
-        description="调整叶片、玻璃材质、中心和动态参数；002 为当前默认方案。"
+        description="“保存”仅保留当前浏览器预设；点击“应用到系统”后，配置将对所有用户生效。"
         onClose={() => setShowMarkLab(false)}
         size="wide"
         panelClassName="h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)]"

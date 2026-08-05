@@ -25,7 +25,7 @@ body {
     filter: saturate(0.98) brightness(1);
   }
   50% {
-    transform: scale(1.022);
+    transform: scale(var(--mes-ai-breath-scale, 1.022));
     filter: saturate(1.08) brightness(1.035);
   }
 }
@@ -40,18 +40,27 @@ body {
 }
 
 .mes-ai-assistant-orbit {
-  animation: mes-ai-assistant-orbit 48s linear infinite;
+  animation: mes-ai-assistant-orbit var(--mes-ai-rotation-seconds, 48s) linear infinite;
   transform-origin: center;
+}
+
+.mes-ai-assistant-pointer {
+  transform: translate(var(--mes-ai-shift-x, 0), var(--mes-ai-shift-y, 0));
+  transition: transform 180ms ease-out;
 }
 
 .mes-ai-assistant-mark {
   height: 100% !important;
   width: 100% !important;
-  animation: mes-ai-assistant-breathe 8s ease-in-out infinite;
+  animation: mes-ai-assistant-breathe var(--mes-ai-breathing-seconds, 8s) ease-in-out infinite;
   object-fit: contain;
   transform-origin: center;
   transition: filter 180ms ease, transform 140ms ease;
   will-change: filter, transform;
+}
+
+.mes-ai-assistant-mark[data-breathing="false"] {
+  animation: none;
 }
 
 .mes-ai-assistant-trigger:hover .mes-ai-assistant-orbit,
@@ -67,17 +76,19 @@ body {
 
 .mes-ai-assistant-trigger:active .mes-ai-assistant-mark {
   animation: none;
-  transform: scale(0.94);
+  transform: scale(var(--mes-ai-pressed-scale, 0.94));
   filter: saturate(1.18) brightness(1.05);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .mes-ai-assistant-orbit,
+  .mes-ai-assistant-pointer,
   .mes-ai-assistant-mark,
   .mes-ai-assistant-trigger:hover .mes-ai-assistant-mark,
   .mes-ai-assistant-trigger:focus-visible .mes-ai-assistant-mark {
     animation: none;
     transform: none;
+    transition: none;
   }
 
   .mes-ai-assistant-trigger:active .mes-ai-assistant-mark {

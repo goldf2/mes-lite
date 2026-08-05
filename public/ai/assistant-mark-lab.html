@@ -53,6 +53,8 @@
     }
 
     .command:hover { border-color: #8fa2ba; background: #f8fafc; }
+    .command.primary { border-color: #2563eb; background: #2563eb; color: #fff; }
+    .command.primary:hover { border-color: #1d4ed8; background: #1d4ed8; }
     .command:disabled { cursor: default; opacity: 0.42; }
     .lab {
       flex: 1;
@@ -320,6 +322,7 @@
         <input id="presetName" type="text" maxlength="32" placeholder="预设名称" aria-label="预设名称">
         <button id="savePresetButton" class="command" type="button">保存</button>
         <button id="deletePresetButton" class="command" type="button" disabled>删除</button>
+        <button id="applySystemButton" class="command primary" type="button">应用到系统</button>
         <span id="presetStatus" class="preset-status" role="status"></span>
       </div>
     </div>
@@ -986,6 +989,33 @@
       setPresetStatus('已删除');
     });
 
+    document.querySelector('#applySystemButton').addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      button.textContent = '应用中...';
+      try {
+        const response = await fetch('/api/ai/mark-config', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ config })
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || '应用失败');
+        applyConfig(payload.data.config);
+        window.parent.postMessage({ type: 'mes-ai-mark-config-updated', config: payload.data.config }, window.location.origin);
+        button.textContent = '已应用';
+        setPresetStatus('系统配置已更新');
+      } catch (error) {
+        button.textContent = '应用到系统';
+        setPresetStatus(error.message || '应用失败');
+      } finally {
+        window.setTimeout(() => {
+          button.disabled = false;
+          button.textContent = '应用到系统';
+        }, 1200);
+      }
+    });
+
     document.querySelector('#resetButton').addEventListener('click', () => {
       applyConfig(defaults, 'reference');
       document.querySelector('#presetName').value = '';
@@ -1001,6 +1031,14 @@
     syncControls();
     render();
     renderSavedPresetOptions();
+    fetch('/api/ai/mark-config', { cache: 'no-store' })
+      .then((response) => response.ok ? response.json() : null)
+      .then((payload) => {
+        if (!payload?.data?.configured) return;
+        applyConfig(payload.data.config);
+        setPresetStatus('已载入系统配置');
+      })
+      .catch(() => undefined);
   </script>
 </body>
 </html>
