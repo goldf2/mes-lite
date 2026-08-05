@@ -80,6 +80,23 @@ interface Customer {
   name: string
 }
 
+interface InventoryLocationOption {
+  id: string
+  code: string
+  name: string
+  isDefault: boolean
+  isActive: boolean
+}
+
+interface StockLocationBalance {
+  id: string
+  locationId: string
+  qty: number
+  reservedQty: number
+  availableQty: number
+  location: InventoryLocationOption
+}
+
 interface Stock {
   id: string
   qty: number
@@ -91,6 +108,7 @@ interface Stock {
   totalCost: number
   valuationUnitCost: number
   stockUnitCost: number
+  locationBalances: StockLocationBalance[]
   material?: { id: string; code: string; name: string; spec: string; category?: string; customerId?: string | null; customer?: Customer | null; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number; deletedAt?: string | null; primaryImage?: { id: string; url: string; note?: string | null; mimeType: string; isCover: boolean } | null }
   product?: { id: string; sku: string; name: string; category: string; customerId?: string | null; customer?: Customer | null; unit: string }
 }
@@ -563,6 +581,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [stockFilter, setStockFilter] = useState<'all' | 'material' | 'product'>('all')
   const [stockViewMode, setStockViewMode] = usePersistedViewMode('mes-lite.stocks.viewMode', 'card')
   const [stockCustomerFilter, setStockCustomerFilter] = useState('')
+  const [inventoryLocations, setInventoryLocations] = useState<InventoryLocationOption[]>([])
   const [selectedStockCategories, setSelectedStockCategories] = useState<string[]>(materialCategoryFilterOptions.map((option) => option.value))
   const [showInvalidStocks, setShowInvalidStocks] = useState(false)
   const [showStockHelp, setShowStockHelp] = useState(false)
@@ -584,7 +603,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const navOrderLoadedRef = useRef(false)
   const [adjustingStock, setAdjustingStock] = useState<Stock | null>(null)
   const [stockAdjustForm, setStockAdjustForm] = useState({
-    newQty: 0,
+    locationId: '',
+    newLocationQty: 0,
     newValuationQty: 0,
     newTotalCost: 0,
     reason: '',
@@ -993,6 +1013,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     if (tab === 'stocks') {
       fetchStocks()
       fetchCustomers()
+      fetchInventoryLocations()
     }
     if (tab === 'create') {
       fetchMaterialOptions()
@@ -1075,6 +1096,21 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }
   }
 
+  const fetchInventoryLocations = async () => {
+    try {
+      const res = await fetch('/api/inventory-locations')
+      if (res.ok) {
+        const data = await res.json()
+        const locations = (data.data || []) as InventoryLocationOption[]
+        setInventoryLocations(locations)
+        return locations
+      }
+    } catch (err) {
+      // 库位加载失败时由调整弹窗阻止提交并提示用户。
+    }
+    return [] as InventoryLocationOption[]
+  }
+
   const handleStockCategoryChange = (next: string[]) => {
     setSelectedStockCategories(next)
     if (next.length !== materialCategoryFilterOptions.length) {
@@ -1082,10 +1118,22 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }
   }
 
-  const openStockAdjust = (stock: Stock) => {
+  const openStockAdjust = async (stock: Stock) => {
+    const locations = inventoryLocations.length > 0 ? inventoryLocations : await fetchInventoryLocations()
+    if (locations.length === 0) {
+      showMessage('请先在“配置 → 库位配置”中建立启用库位')
+      return
+    }
+    const location = stock.locationBalances.find((balance) => (
+      Number(balance.qty) > 0 && locations.some((item) => item.id === balance.locationId)
+    ))?.location
+      || locations.find((item) => item.isDefault)
+      || locations[0]
+    const locationBalance = stock.locationBalances.find((balance) => balance.locationId === location.id)
     setAdjustingStock(stock)
     setStockAdjustForm({
-      newQty: Number(stock.qty || 0),
+      locationId: location.id,
+      newLocationQty: Number(locationBalance?.qty || 0),
       newValuationQty: Number(stock.valuationQty || 0),
       newTotalCost: Number(stock.totalCost || 0),
       reason: '',
@@ -1094,6 +1142,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
   const submitStockAdjust = async () => {
     if (!adjustingStock) return
+    if (!stockAdjustForm.locationId) {
+      showMessage('请选择本次调整对应的库位')
+      return
+    }
     if (!stockAdjustForm.reason.trim()) {
       showMessage('请输入存货调整原因')
       return
@@ -1105,7 +1157,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           stockId: adjustingStock.id,
-          newQty: Number(stockAdjustForm.newQty),
+          locationId: stockAdjustForm.locationId,
+          newLocationQty: Number(stockAdjustForm.newLocationQty),
           newValuationQty: Number(stockAdjustForm.newValuationQty),
           newTotalCost: Number(stockAdjustForm.newTotalCost),
           reason: stockAdjustForm.reason.trim(),
@@ -2285,19 +2338,41 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           >
               <div className="space-y-4">
                 <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-                  用于期初录入、盘点差异、损耗和早期数据尾差修正。来料单整单冲销仍使用“红冲”。
+                  调整只作用于所选库位，并同步更新物料总库存。用于期初录入、盘点差异、损耗和早期数据尾差修正；来料单整单冲销仍使用“红冲”。
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">调整库位</label>
+                  <SearchableSelect
+                    value={stockAdjustForm.locationId}
+                    onChange={(locationId) => {
+                      const balance = adjustingStock.locationBalances.find((item) => item.locationId === locationId)
+                      setStockAdjustForm({
+                        ...stockAdjustForm,
+                        locationId,
+                        newLocationQty: Number(balance?.qty || 0),
+                      })
+                    }}
+                    options={inventoryLocations.map((location) => {
+                      const balance = adjustingStock.locationBalances.find((item) => item.locationId === location.id)
+                      return {
+                        value: location.id,
+                        label: `${location.code} · ${location.name}（当前 ${Number(balance?.qty || 0)} ${adjustingStock.material?.stockUnit || adjustingStock.product?.unit}）`,
+                      }
+                    })}
+                    placeholder="输入库位编码或名称筛选"
+                  />
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      调整后库存 {adjustingStock.material ? `(${adjustingStock.material.stockUnit || adjustingStock.material.unit})` : `(${adjustingStock.product?.unit || ''})`}
+                      调整后库位库存 {adjustingStock.material ? `(${adjustingStock.material.stockUnit || adjustingStock.material.unit})` : `(${adjustingStock.product?.unit || ''})`}
                     </label>
                     <input
                       type="number"
                       step="0.0001"
                       min={0}
-                      value={stockAdjustForm.newQty || ''}
-                      onChange={(e) => setStockAdjustForm({ ...stockAdjustForm, newQty: Number(e.target.value) })}
+                      value={stockAdjustForm.newLocationQty || ''}
+                      onChange={(e) => setStockAdjustForm({ ...stockAdjustForm, newLocationQty: Number(e.target.value) })}
                       className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
@@ -2314,6 +2389,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                       className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
+                </div>
+                <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                  调整后物料总库存：{
+                    Number((
+                      Number(adjustingStock.qty)
+                      - Number(adjustingStock.locationBalances.find((item) => item.locationId === stockAdjustForm.locationId)?.qty || 0)
+                      + Number(stockAdjustForm.newLocationQty || 0)
+                    ).toFixed(6))
+                  } {adjustingStock.material?.stockUnit || adjustingStock.product?.unit}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">调整后库存金额</label>

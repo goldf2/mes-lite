@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
-import { resolveMaterialUnits, toValuationQty } from '@/lib/units'
 import { parseCsvFilter } from '@/lib/status-filter'
-import { changeStockLocationBalance } from '@/lib/inventory'
+import { postStockLocationAdjustment, StockAdjustmentError } from '@/lib/stock-adjustment'
 
 const STOCK_BALANCE_FIELDS = [
   'qty',
@@ -315,12 +315,11 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// POST: 存货调整（需要备注原因）
-import { z } from 'zod'
-
+// POST: 按库位进行存货调整（需要备注原因）
 const adjustSchema = z.object({
   stockId: z.string().min(1),
-  newQty: z.number().nonnegative(),
+  locationId: z.string().min(1, '库位必填'),
+  newLocationQty: z.number().nonnegative(),
   newValuationQty: z.number().nonnegative().optional(),
   newTotalCost: z.number().nonnegative().optional(),
   reason: z.string().min(1, '调整原因必填'),
@@ -333,100 +332,35 @@ export async function POST(req: NextRequest) {
     if (denied) return denied
 
     const body = await req.json()
-    const { stockId, newQty, newValuationQty, newTotalCost, reason, adjustedBy } = adjustSchema.parse(body)
-
-    const stock = await prisma.stock.findUnique({
-      where: { id: stockId },
-      include: { material: true },
-    })
-    if (!stock) {
-      return NextResponse.json({ error: '库存记录不存在' }, { status: 404 })
-    }
-    if (stock.material?.costingMethod === 'FIFO') {
-      return NextResponse.json(
-        { error: 'FIFO 物料不能直接修改库存余额，请使用来料、生产、退货或后续正式盘点单，避免库存与成本层不一致' },
-        { status: 400 },
-      )
-    }
-
-    const oldQty = Number(stock.qty)
-    const diff = newQty - oldQty
-    const oldValuationQty = Number(stock.valuationQty)
-    const conversionRate = stock.material ? resolveMaterialUnits(stock.material).conversionRate : 1
-    const targetValuationQty = newValuationQty ?? toValuationQty(newQty, conversionRate)
-    const valuationDiff = targetValuationQty - oldValuationQty
-    const oldTotalCost = Number(stock.totalCost)
-    const targetTotalCost = newTotalCost ?? oldTotalCost
-    const costDiff = Number((targetTotalCost - oldTotalCost).toFixed(6))
-
-    if (newQty < Number(stock.reservedQty)) {
-      return NextResponse.json({ error: '调整后库存不能小于已预留数量' }, { status: 400 })
-    }
-    if (targetValuationQty < Number(stock.reservedValuationQty)) {
-      return NextResponse.json({ error: '调整后核算库存不能小于已预留核算数量' }, { status: 400 })
-    }
-
-    const valuationUnitCost = targetValuationQty > 0 ? Number((targetTotalCost / targetValuationQty).toFixed(6)) : 0
-    const stockUnitCost = newQty > 0 ? Number((targetTotalCost / newQty).toFixed(6)) : 0
-
-    await prisma.$transaction(async (tx) => {
-      await tx.stock.update({
-        where: { id: stockId },
-        data: {
-          qty: newQty,
-          availableQty: newQty - Number(stock.reservedQty),
-          valuationQty: targetValuationQty,
-          availableValuationQty: targetValuationQty - Number(stock.reservedValuationQty),
-          totalCost: targetTotalCost,
-          valuationUnitCost,
-          stockUnitCost,
-        },
-      })
-      const { location } = await changeStockLocationBalance(tx, {
-        stockId,
-        qtyDelta: diff,
-        availableDelta: diff,
-      })
-
-      await tx.stockLog.create({
-        data: {
-          stockId,
-          locationId: location.id,
-          type: 'ADJUST',
-          qty: diff,
-          beforeQty: oldQty,
-          afterQty: newQty,
-          valuationQty: valuationDiff,
-          beforeValuationQty: oldValuationQty,
-          afterValuationQty: targetValuationQty,
-          costAmount: costDiff,
-          beforeCostAmount: oldTotalCost,
-          afterCostAmount: targetTotalCost,
-          stockUnitSnapshot: stock.material?.stockUnit || stock.material?.unit || '件',
-          valuationUnitSnapshot: stock.material?.valuationUnit || stock.material?.unit || '件',
-          conversionRateUsed: newQty > 0 ? Number((targetValuationQty / newQty).toFixed(6)) : 0,
-          conversionSource: 'DOCUMENT_ACTUAL',
-          costingMethodSnapshot: stock.material?.costingMethod || 'WEIGHTED_AVERAGE',
-          refType: 'ADJUST',
-          note: `存货调整: ${reason}`,
-          createdBy: adjustedBy,
-        },
-      })
-    })
+    const input = adjustSchema.parse(body)
+    const result = await prisma.$transaction((tx) => postStockLocationAdjustment(tx, input))
 
     await writeAuditLog(req, {
       action: 'ADJUST',
       entityType: 'STOCK',
-      entityId: stock.id,
-      entityLabel: stock.material?.code || stock.productId || stock.id,
-      beforeData: stock,
-      afterData: { newQty, newValuationQty: targetValuationQty, newTotalCost: targetTotalCost, reason, adjustedBy },
+      entityId: result.stock.id,
+      entityLabel: result.stock.material?.code || result.stock.product?.sku || result.stock.id,
+      beforeData: result.stock,
+      afterData: {
+        locationId: result.location.id,
+        location: `${result.location.code} ${result.location.name}`,
+        oldLocationQty: result.oldLocationQty,
+        newLocationQty: result.newLocationQty,
+        newQty: result.newQty,
+        newValuationQty: result.newValuationQty,
+        newTotalCost: result.newTotalCost,
+        reason: input.reason,
+        adjustedBy: input.adjustedBy,
+      },
     })
 
     return NextResponse.json({ success: true, message: '存货调整完成' })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
+    }
+    if (error instanceof StockAdjustmentError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('Adjust stock error:', error)
     return NextResponse.json({ error: '存货调整失败' }, { status: 500 })
