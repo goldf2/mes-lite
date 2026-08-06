@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { Columns2, Rows3 } from 'lucide-react'
 import { normalizeUnitCode } from '@/lib/unit-catalog'
 import ModalDialog, { ModalActions } from './ModalDialog'
 import {
@@ -108,8 +109,8 @@ export default function PageOptionsDialog({
             <p className="mt-1 text-xs text-gray-500">双列模式在宽屏固定一级菜单，二级菜单独立显示；窄桌面自动使用单列。</p>
             <div className="mt-3 grid grid-cols-2 gap-3">
               {([
-                { value: 'accordion' as const, label: '单列折叠', description: '占用空间更少' },
-                { value: 'split' as const, label: '双列导航', description: '切换功能更快' },
+                { value: 'accordion' as const, label: '单列折叠', description: '占用空间更少', icon: Rows3 },
+                { value: 'split' as const, label: '双列导航', description: '切换功能更快', icon: Columns2 },
               ]).map((option) => (
                 <label
                   key={option.value}
@@ -127,7 +128,10 @@ export default function PageOptionsDialog({
                     onChange={() => setDraftNavigationMode(option.value)}
                     className="sr-only"
                   />
-                  <span className="block text-sm font-semibold text-gray-900">{option.label}</span>
+                  <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                    <option.icon aria-hidden="true" className="h-4 w-4" />
+                    {option.label}
+                  </span>
                   <span className="mt-1 block text-xs text-gray-500">{option.description}</span>
                 </label>
               ))}
