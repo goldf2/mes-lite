@@ -13,6 +13,8 @@ interface AttachmentItem {
   size: number
   url: string
   thumbnailUrl?: string | null
+  displayUrl?: string | null
+  originalUrl?: string | null
   note?: string | null
   documentType: string
   isCover: boolean
@@ -601,7 +603,7 @@ function AttachmentList({ items }: { items: AttachmentItem[] }) {
       {items.slice(0, 8).map((item) => (
         <a
           key={item.id}
-          href={item.url}
+          href={item.originalUrl || item.url}
           target="_blank"
           rel="noreferrer"
           className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-gray-100 px-3 py-2 text-sm hover:bg-gray-50"
@@ -921,13 +923,13 @@ export default function MaterialPanoramaPage({
                 <Panel title="物料档案">
                   <div className="grid gap-4 md:grid-cols-[160px_minmax(0,1fr)]">
                     <a
-                      href={coverImage?.url}
+                      href={coverImage?.originalUrl || coverImage?.url}
                       target={coverImage ? '_blank' : undefined}
                       rel={coverImage ? 'noreferrer' : undefined}
                       className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md bg-gray-100"
                     >
                       {coverImage ? (
-                        <img src={coverImage.url} alt={coverImage.note || material.name} className="h-full w-full object-contain" />
+                        <img src={coverImage.thumbnailUrl || coverImage.url} alt={coverImage.note || material.name} className="h-full w-full object-contain" />
                       ) : (
                         <span className="text-sm text-gray-400">暂无图片</span>
                       )}

@@ -10,6 +10,7 @@ import { getSystemSettings } from '@/lib/system-settings'
 import { findCatalogUnit, getUnitCatalog } from '@/lib/unit-catalog'
 import { getBomStatusRelationFilters } from '@/lib/bom-status-filter'
 import { simpleProductSku } from '@/lib/material-product'
+import { withMaterialImageUrls } from '@/lib/attachment-urls'
 
 const materialSchema = z.object({
   code: z.string().min(1, '物料编码不能为空'),
@@ -226,7 +227,7 @@ export async function GET(req: NextRequest) {
         deletedAt: null,
       },
       orderBy: [{ isCover: 'desc' }, { createdAt: 'desc' }],
-      select: { id: true, ownerId: true, note: true, mimeType: true, isCover: true },
+      select: { id: true, ownerId: true, note: true, mimeType: true, isCover: true, size: true, rotation: true },
     })
     const primaryImageByMaterial = new Map<string, (typeof images)[number]>()
     for (const image of images) {
@@ -239,13 +240,7 @@ export async function GET(req: NextRequest) {
       const image = primaryImageByMaterial.get(material.id)
       return {
         ...material,
-        primaryImage: image ? {
-          id: image.id,
-          url: `/api/attachments/${image.id}/file`,
-          note: image.note,
-          mimeType: image.mimeType,
-          isCover: image.isCover,
-        } : null,
+        primaryImage: image ? withMaterialImageUrls(image) : null,
       }
     })
 

@@ -7,7 +7,8 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { isAttachmentRotation } from '@/lib/attachment-rotation'
 import { attachmentUploadRoot, ensureAttachmentThumbnail } from '@/lib/attachment-thumbnail'
-import { withAttachmentUrls } from '@/lib/attachment-urls'
+import { ensureAttachmentImageVariant } from '@/lib/attachment-image-variants'
+import { withAttachmentUrls, withMaterialImageUrls } from '@/lib/attachment-urls'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -56,7 +57,15 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     })
 
-    return NextResponse.json({ data: attachments.map(withAttachmentUrls) })
+    return NextResponse.json({
+      data: attachments.map((attachment) => (
+        attachment.ownerType === 'MATERIAL'
+        && attachment.documentType === 'MATERIAL_IMAGE'
+        && attachment.mimeType.startsWith('image/')
+          ? withMaterialImageUrls(attachment)
+          : withAttachmentUrls(attachment)
+      )),
+    })
   } catch (error) {
     console.error('Get attachments error:', error)
     return NextResponse.json({ error: '获取附件失败' }, { status: 500 })
@@ -131,13 +140,22 @@ export async function POST(req: NextRequest) {
     })
     if (attachment.mimeType.startsWith('image/')) {
       try {
-        await ensureAttachmentThumbnail(attachment)
+        if (isMaterialImage) {
+          await Promise.all([
+            ensureAttachmentImageVariant(attachment, 'thumbnail'),
+            ensureAttachmentImageVariant(attachment, 'display'),
+          ])
+        } else {
+          await ensureAttachmentThumbnail(attachment)
+        }
       } catch (error) {
-        console.error('Generate uploaded attachment thumbnail error:', error)
+        console.error('Generate uploaded attachment image preview error:', error)
       }
     }
 
-    return NextResponse.json({ data: withAttachmentUrls(attachment) }, { status: 201 })
+    return NextResponse.json({
+      data: isMaterialImage ? withMaterialImageUrls(attachment) : withAttachmentUrls(attachment),
+    }, { status: 201 })
   } catch (error) {
     console.error('Upload attachment error:', error)
     return NextResponse.json({ error: '上传附件失败' }, { status: 500 })
@@ -188,8 +206,11 @@ export async function PATCH(req: NextRequest) {
         afterData: { rotation: updated.rotation },
         note: `文件显示方向调整为 ${updated.rotation}°`,
       })
+      const isMaterialImage = updated.ownerType === 'MATERIAL'
+        && updated.documentType === 'MATERIAL_IMAGE'
+        && updated.mimeType.startsWith('image/')
       return NextResponse.json({
-        data: withAttachmentUrls(updated),
+        data: isMaterialImage ? withMaterialImageUrls(updated) : withAttachmentUrls(updated),
         message: '文件方向已保存',
       })
     }

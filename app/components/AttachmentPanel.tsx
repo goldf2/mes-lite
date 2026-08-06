@@ -9,6 +9,9 @@ interface Attachment {
   mimeType: string
   size: number
   url: string
+  originalUrl?: string
+  thumbnailUrl?: string
+  displayUrl?: string
   note?: string
   uploadedBy?: string
   isCover: boolean
@@ -187,14 +190,14 @@ export default function AttachmentPanel({
             {attachments.map((attachment) => (
               <a
                 key={attachment.id}
-                href={attachment.url}
+                href={attachment.originalUrl || attachment.url}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50 text-xs"
                 title={attachment.originalName}
               >
                 {attachment.mimeType.startsWith('image/') ? (
-                  <img src={attachment.url} alt={attachment.originalName} className="h-full w-full object-cover" />
+                  <img src={attachment.thumbnailUrl || attachment.url} alt={attachment.originalName} className="h-full w-full object-cover" />
                 ) : (
                   'PDF'
                 )}
@@ -276,7 +279,7 @@ export default function AttachmentPanel({
             {attachments.map((attachment) => (
               <article key={attachment.id} className={`overflow-hidden rounded-md border bg-white ${attachment.isCover ? 'border-blue-500' : 'border-gray-200'}`}>
                 <a
-                  href={attachment.url}
+                  href={attachment.originalUrl || attachment.url}
                   target="_blank"
                   rel="noreferrer"
                   className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-gray-100"
@@ -285,13 +288,13 @@ export default function AttachmentPanel({
                     <span className="absolute left-2 top-2 z-10 rounded bg-blue-600 px-2 py-1 text-xs text-white">封面</span>
                   )}
                   {attachment.mimeType.startsWith('image/') ? (
-                    <img src={attachment.url} alt={attachment.originalName} className="h-full w-full object-cover" />
+                    <img src={attachment.thumbnailUrl || attachment.url} alt={attachment.originalName} className="h-full w-full object-cover" />
                   ) : (
                     <span className="text-sm text-gray-500">PDF</span>
                   )}
                 </a>
                 <div className="p-3">
-                  <a href={attachment.url} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-gray-900">
+                  <a href={attachment.originalUrl || attachment.url} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-gray-900">
                     {attachment.note || attachment.originalName}
                   </a>
                   <div className="mt-1 flex items-center justify-between gap-2 text-xs text-gray-500">
@@ -373,15 +376,15 @@ export default function AttachmentPanel({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {attachments.map((attachment) => (
             <div key={attachment.id} className="flex gap-3 border border-gray-100 rounded-lg p-2">
-              <a href={attachment.url} target="_blank" rel="noreferrer" className="h-16 w-16 flex-shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50 text-xs flex items-center justify-center">
+              <a href={attachment.originalUrl || attachment.url} target="_blank" rel="noreferrer" className="h-16 w-16 flex-shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50 text-xs flex items-center justify-center">
                 {attachment.mimeType.startsWith('image/') ? (
-                  <img src={attachment.url} alt={attachment.originalName} className="h-full w-full object-cover" />
+                  <img src={attachment.thumbnailUrl || attachment.url} alt={attachment.originalName} className="h-full w-full object-cover" />
                 ) : (
                   'PDF'
                 )}
               </a>
               <div className="min-w-0 flex-1">
-                <a href={attachment.url} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-blue-700">
+                <a href={attachment.originalUrl || attachment.url} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-blue-700">
                   {attachment.originalName}
                 </a>
                 <div className="text-xs text-gray-500">{formatSize(attachment.size)}</div>

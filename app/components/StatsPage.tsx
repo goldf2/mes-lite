@@ -44,7 +44,7 @@ interface MaterialOption {
   stockUnit: string
   unit: string
   customer?: { id: string; code: string; name: string } | null
-  primaryImage?: { id: string; url: string; note?: string | null } | null
+  primaryImage?: { id: string; url: string; thumbnailUrl?: string; displayUrl?: string; originalUrl?: string; note?: string | null } | null
   bom?: BomOption | null
   boms?: BomOption[]
 }
@@ -898,14 +898,14 @@ function MaterialPreviewCard({
   detail,
 }: {
   label: string
-  material: { code: string; name: string; spec?: string | null; primaryImage?: { url: string; note?: string | null } | null }
+  material: { code: string; name: string; spec?: string | null; primaryImage?: { url: string; thumbnailUrl?: string; note?: string | null } | null }
   detail: string
 }) {
   return (
     <div className="flex min-h-24 items-center gap-3 rounded-lg border border-blue-100 bg-white p-3">
       {material.primaryImage ? (
         <Image
-          src={material.primaryImage.url}
+          src={material.primaryImage.thumbnailUrl || material.primaryImage.url}
           alt={material.primaryImage.note || material.name}
           width={64}
           height={64}

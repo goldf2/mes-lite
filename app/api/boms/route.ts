@@ -7,6 +7,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { materialAsProductOption, materialProductPrefix, resolveProductId, simpleProductSku } from '@/lib/material-product'
 import { normalizeBomEntryQuantity } from '@/lib/bom-entry-units'
 import { getUnitCatalog } from '@/lib/unit-catalog'
+import { withMaterialImageUrls } from '@/lib/attachment-urls'
 
 export const dynamic = 'force-dynamic'
 
@@ -213,7 +214,7 @@ export async function GET() {
             deletedAt: null,
           },
           orderBy: [{ isCover: 'desc' }, { createdAt: 'desc' }],
-          select: { id: true, ownerId: true, note: true, mimeType: true, isCover: true },
+          select: { id: true, ownerId: true, note: true, mimeType: true, isCover: true, size: true, rotation: true },
         }),
         prisma.stock.findMany({
           where: { materialId: { in: materialIds } },
@@ -230,13 +231,7 @@ export async function GET() {
     return {
       ...material,
       stockQty: stockQtyByMaterial.get(material.id) || 0,
-      primaryImage: image ? {
-        id: image.id,
-        url: `/api/attachments/${image.id}/file`,
-        note: image.note,
-        mimeType: image.mimeType,
-        isCover: image.isCover,
-      } : null,
+      primaryImage: image ? withMaterialImageUrls(image) : null,
     }
   })
 

@@ -52,7 +52,7 @@ interface Material {
     valuationUnitCost: number
     stockUnitCost: number
   }
-  primaryImage?: { id: string; url: string; note?: string; mimeType: string; isCover: boolean } | null
+  primaryImage?: { id: string; url: string; thumbnailUrl?: string; displayUrl?: string; originalUrl?: string; note?: string; mimeType: string; isCover: boolean } | null
   createdAt: string
 }
 
@@ -67,7 +67,7 @@ interface BomMaterialOption {
   valuationUnit: string
   primaryMeasure?: 'LENGTH' | 'WEIGHT' | 'QUANTITY' | 'OTHER'
   stockQty?: number
-  primaryImage?: { id: string; url: string; note?: string | null; mimeType: string; isCover: boolean } | null
+  primaryImage?: { id: string; url: string; thumbnailUrl?: string; displayUrl?: string; originalUrl?: string; note?: string | null; mimeType: string; isCover: boolean } | null
 }
 
 interface BomItem {
@@ -759,7 +759,7 @@ function BomMaterialIdentity({
           className="h-11 w-11 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-gray-50 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <img
-            src={material.primaryImage.url}
+            src={material.primaryImage.thumbnailUrl || material.primaryImage.url}
             alt={material.primaryImage.note || material.name}
             className="h-full w-full object-cover"
           />
@@ -2439,7 +2439,7 @@ export default function MaterialPage({
                       title={material.primaryImage?.note || '查看物料详情'}
                     >
                       {material.primaryImage ? (
-                        <img src={material.primaryImage.url} alt={material.primaryImage.note || material.name} className="h-full w-full object-cover" />
+                        <img src={material.primaryImage.thumbnailUrl || material.primaryImage.url} alt={material.primaryImage.note || material.name} className="h-full w-full object-cover" />
                       ) : (
                         <span className="flex h-full w-full items-center justify-center text-xs text-gray-400">暂无</span>
                       )}
@@ -2569,7 +2569,7 @@ export default function MaterialPage({
                           title={material.primaryImage?.note || '查看物料详情'}
                         >
                           {material.primaryImage ? (
-                            <img src={material.primaryImage.url} alt={material.primaryImage.note || material.name} className="h-full w-full object-cover" />
+                            <img src={material.primaryImage.thumbnailUrl || material.primaryImage.url} alt={material.primaryImage.note || material.name} className="h-full w-full object-cover" />
                           ) : (
                             <span className="text-xs text-gray-400">暂无</span>
                           )}
@@ -2785,7 +2785,7 @@ export default function MaterialPage({
         >
           <div className="flex min-h-64 items-center justify-center overflow-hidden rounded-lg bg-gray-50 p-3">
             <img
-              src={previewBomMaterial.primaryImage.url}
+              src={previewBomMaterial.primaryImage.displayUrl || previewBomMaterial.primaryImage.url}
               alt={previewBomMaterial.primaryImage.note || previewBomMaterial.name}
               className="max-h-[70dvh] max-w-full object-contain"
             />
@@ -3098,14 +3098,14 @@ export default function MaterialPage({
         >
               <div className="grid gap-6 md:grid-cols-[minmax(260px,0.9fr)_minmax(0,1.35fr)]">
                 <a
-                  href={detailMaterial.primaryImage?.url}
+                  href={detailMaterial.primaryImage?.originalUrl || detailMaterial.primaryImage?.url}
                   target={detailMaterial.primaryImage ? '_blank' : undefined}
                   rel={detailMaterial.primaryImage ? 'noreferrer' : undefined}
                   className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md bg-gray-100"
                 >
                   {detailMaterial.primaryImage ? (
                     <img
-                      src={detailMaterial.primaryImage.url}
+                      src={detailMaterial.primaryImage.displayUrl || detailMaterial.primaryImage.url}
                       alt={detailMaterial.primaryImage.note || detailMaterial.name}
                       className="h-full w-full object-contain"
                     />
