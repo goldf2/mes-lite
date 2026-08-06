@@ -16,6 +16,7 @@ const actionSchema = z.object({
   action: z.enum([
     'SYNC_BOM_ITEM_UNIT',
     'DELETE_BOM_ITEM',
+    'DELETE_ORPHAN_STOCK',
     'SYNC_BOM_OUTPUT_UNIT',
     'SYNC_PRODUCT_UNIT',
     'CLEAR_STALE_BOM_ITEM_REF',
@@ -26,6 +27,7 @@ const actionSchema = z.object({
 const actionMessages: Record<DataIntegrityActionKey, string> = {
   SYNC_BOM_ITEM_UNIT: 'BOM 原料单位已按当前主库存单位修复',
   DELETE_BOM_ITEM: '错误 BOM 明细已删除',
+  DELETE_ORPHAN_STOCK: '孤立的零余额库存记录已清理',
   SYNC_BOM_OUTPUT_UNIT: 'BOM 产出单位已同步',
   SYNC_PRODUCT_UNIT: '兼容产品单位已同步',
   CLEAR_STALE_BOM_ITEM_REF: '生产日报的失效 BOM 明细指针已清理',
@@ -46,10 +48,11 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const input = actionSchema.parse(await req.json())
-    const permissionAction = input.action === 'DELETE_BOM_ITEM' ? 'delete' : 'update'
+    const destructiveAction = input.action === 'DELETE_BOM_ITEM' || input.action === 'DELETE_ORPHAN_STOCK'
+    const permissionAction = destructiveAction ? 'delete' : 'update'
     const denied = await requireResourcePermission('system', permissionAction)
     if (denied) return denied
-    if (input.action === 'DELETE_BOM_ITEM' && input.confirmation !== 'DELETE_ERROR_DATA') {
+    if (destructiveAction && input.confirmation !== 'DELETE_ERROR_DATA') {
       return NextResponse.json({ error: '缺少删除确认' }, { status: 400 })
     }
 
@@ -65,8 +68,8 @@ export async function POST(req: NextRequest) {
         entityLabel: issue.entityLabel,
         beforeData,
         afterData,
-        note: input.action === 'DELETE_BOM_ITEM'
-          ? `通过数据关系检查工具删除错误记录；问题类型 ${issue.type}`
+        note: destructiveAction
+          ? `通过数据维护工具删除经事务复检的安全清理记录；问题类型 ${issue.type}`
           : `通过数据关系检查工具处理；问题类型 ${issue.type}；数值未换算`,
       })
 

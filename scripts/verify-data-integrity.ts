@@ -144,6 +144,16 @@ async function main() {
           remainingAmount: 10,
         },
       })
+      const safeOrphanStock = await tx.stock.create({ data: {} })
+      const riskyOrphanStock = await tx.stock.create({
+        data: {
+          qty: 2,
+          availableQty: 2,
+          valuationQty: 2,
+          availableValuationQty: 2,
+          totalCost: 20,
+        },
+      })
 
       let reportData = await getDataIntegrityReport(tx)
       const issueTypesByEntity = new Set(reportData.issues.map((issue) => `${issue.type}:${issue.entityId}`))
@@ -154,6 +164,18 @@ async function main() {
       assert.ok(issueTypesByEntity.has(`PRODUCT_UNIT_MISMATCH:${product.id}`), '应发现兼容产品单位不一致')
       assert.ok(issueTypesByEntity.has(`DAILY_BOM_ITEM_REFERENCE_STALE:${consumption.id}`), '应发现日报失效指针')
       assert.ok(issueTypesByEntity.has(`OPEN_COST_LAYER_UNIT_MISMATCH:${layer.id}`), '应发现有效成本层单位不一致')
+      assert.ok(issueTypesByEntity.has(`STOCK_OWNER_INVALID:${safeOrphanStock.id}`), '应发现可安全清理的孤立空库存')
+      assert.ok(issueTypesByEntity.has(`STOCK_OWNER_INVALID:${riskyOrphanStock.id}`), '应发现包含余额的孤立库存风险')
+      assert.equal(
+        reportData.issues.find((issue) => issue.id === `STOCK_OWNER_INVALID:${safeOrphanStock.id}`)?.actions[0]?.key,
+        'DELETE_ORPHAN_STOCK',
+        '零余额且无引用的孤立库存应提供安全清理操作',
+      )
+      assert.equal(
+        reportData.issues.find((issue) => issue.id === `STOCK_OWNER_INVALID:${riskyOrphanStock.id}`)?.actions.length,
+        0,
+        '仍有余额的孤立库存不得自动删除',
+      )
 
       await applyDataIntegrityAction(
         tx,
@@ -180,6 +202,11 @@ async function main() {
         `DAILY_BOM_ITEM_REFERENCE_STALE:${consumption.id}`,
         'CLEAR_STALE_BOM_ITEM_REF',
       )
+      await applyDataIntegrityAction(
+        tx,
+        `STOCK_OWNER_INVALID:${safeOrphanStock.id}`,
+        'DELETE_ORPHAN_STOCK',
+      )
 
       reportData = await getDataIntegrityReport(tx)
       const remainingIds = new Set(reportData.issues.map((issue) => issue.id))
@@ -189,6 +216,9 @@ async function main() {
       assert.equal(remainingIds.has(`PRODUCT_UNIT_MISMATCH:${product.id}`), false, '兼容产品单位修复后问题应消失')
       assert.equal(remainingIds.has(`DAILY_BOM_ITEM_REFERENCE_STALE:${consumption.id}`), false, '清理后失效指针问题应消失')
       assert.ok(remainingIds.has(`OPEN_COST_LAYER_UNIT_MISMATCH:${layer.id}`), '有效成本层风险必须保留为人工处理')
+      assert.equal(remainingIds.has(`STOCK_OWNER_INVALID:${safeOrphanStock.id}`), false, '安全清理后孤立空库存问题应消失')
+      assert.ok(remainingIds.has(`STOCK_OWNER_INVALID:${riskyOrphanStock.id}`), '包含余额的孤立库存风险必须保留为人工处理')
+      assert.equal(await tx.stock.findUnique({ where: { id: safeOrphanStock.id } }), null, '安全清理应删除孤立空库存记录')
       const detachedConsumption = await tx.dailyProductionConsumption.findUniqueOrThrow({
         where: { id: linkedConsumption.id },
       })

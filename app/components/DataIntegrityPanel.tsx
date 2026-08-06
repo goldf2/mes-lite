@@ -118,9 +118,9 @@ export default function DataIntegrityPanel({ onMessage }: { onMessage: (message:
     <div className="rounded-lg border border-gray-200 p-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className="font-medium text-gray-900">数据关系检查</div>
-          <div className="mt-1 text-sm text-gray-500">检查物料、BOM、生产耗用和库存成本层之间的关键关系。</div>
-          <div className="mt-2 text-xs text-gray-500">修复只同步关系或单位标签，不换算业务数值；涉及有效库存和成本流水的问题仅提示人工处理。</div>
+          <div className="font-medium text-gray-900">数据维护与关系检查</div>
+          <div className="mt-1 text-sm text-gray-500">检查库存归属、物料、BOM、生产耗用和库存成本层之间的关键关系。</div>
+          <div className="mt-2 text-xs text-gray-500">零余额、无库位、无流水的孤立库存可安全清理；涉及有效库存、成本或流水的问题仅提示人工处理。</div>
         </div>
         <button
           type="button"
@@ -154,7 +154,7 @@ export default function DataIntegrityPanel({ onMessage }: { onMessage: (message:
               <div className="mt-1 text-xl font-semibold text-blue-800">{report.summary.repairable}</div>
             </div>
             <div className="rounded-lg bg-rose-50 p-3">
-              <div className="text-xs text-rose-600">可删除明细</div>
+              <div className="text-xs text-rose-600">可安全清理</div>
               <div className="mt-1 text-xl font-semibold text-rose-800">{report.summary.deletable}</div>
             </div>
           </div>
@@ -208,7 +208,9 @@ export default function DataIntegrityPanel({ onMessage }: { onMessage: (message:
                       }`}>
                         <div>
                           {pendingAction.action.destructive
-                            ? '确认永久删除这条错误 BOM 明细？该操作不能恢复，但不会删除物料、库存流水或生产历史。'
+                            ? pendingAction.action.key === 'DELETE_ORPHAN_STOCK'
+                              ? '确认永久清理这条孤立库存记录？系统将在同一事务内重新确认余额为零且没有库位或库存流水；条件变化时会自动停止。'
+                              : '确认永久删除这条错误 BOM 明细？该操作不能恢复，但不会删除物料、库存流水或生产历史。'
                             : '确认执行此修复？系统只修改关系或单位标签，不换算任何数量和金额。'}
                         </div>
                         <div className="mt-3 flex justify-end gap-2">

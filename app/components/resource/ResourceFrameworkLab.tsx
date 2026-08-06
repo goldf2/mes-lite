@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import AppButton from '../AppButton'
 import FormField, { appInputClassName, appSelectClassName } from '../FormField'
 import ModalDialog, { ModalActions } from '../ModalDialog'
@@ -12,6 +12,7 @@ import ResourceDetailPanel from './ResourceDetailPanel'
 import ResourceFormDialog from './ResourceFormDialog'
 import ResourcePage from './ResourcePage'
 import { ResourceTableColumn } from './ResourceTable'
+import PageQrCodeButton from '../PageQrCodeButton'
 
 type LabState = 'ready' | 'loading' | 'empty' | 'error'
 type DocumentStatus = 'active' | 'archived'
@@ -114,6 +115,8 @@ export default function ResourceFrameworkLab() {
   const [createDraft, setCreateDraft] = useState<DocumentDraft>({ title: '', category: '装配指导书', materialIds: [] })
   const [archiveTarget, setArchiveTarget] = useState<LabDocument | null>(null)
   const [notice, setNotice] = useState('')
+  const [pageUrlReady, setPageUrlReady] = useState(false)
+  const pageUrlInitializedRef = useRef(false)
 
   const visibleDocuments = useMemo(() => {
     const keyword = query.trim().toLocaleLowerCase('zh-CN')
@@ -132,6 +135,37 @@ export default function ResourceFrameworkLab() {
   const displayedDocuments = labState === 'empty' ? [] : visibleDocuments
   const selected = documents.find((document) => document.id === selectedId) || null
   const selectedPosition = selected ? visibleDocuments.findIndex((document) => document.id === selected.id) : -1
+
+  useEffect(() => {
+    if (pageUrlInitializedRef.current) return
+    pageUrlInitializedRef.current = true
+    const url = new URL(window.location.href)
+    const requestedDocument = initialDocuments.find((document) => document.code === url.searchParams.get('document'))
+    if (requestedDocument) {
+      setSelectedId(requestedDocument.id)
+      setDraft(draftFrom(requestedDocument))
+    }
+    const requestedView = url.searchParams.get('view')
+    if (requestedView === 'card' || requestedView === 'list') setViewMode(requestedView)
+    const requestedStatuses = (url.searchParams.get('status') || '').split(',').filter((value): value is DocumentStatus => value === 'active' || value === 'archived')
+    if (requestedStatuses.length > 0) setStatusFilters(requestedStatuses)
+    setQuery(url.searchParams.get('q') || '')
+    const requestedLabState = url.searchParams.get('lab')
+    if (requestedLabState === 'ready' || requestedLabState === 'loading' || requestedLabState === 'empty' || requestedLabState === 'error') setLabState(requestedLabState)
+    setPageUrlReady(true)
+  }, [setViewMode])
+
+  useEffect(() => {
+    if (!pageUrlReady) return
+    const url = new URL(window.location.href)
+    for (const key of ['document', 'view', 'status', 'q', 'lab']) url.searchParams.delete(key)
+    if (selected) url.searchParams.set('document', selected.code)
+    url.searchParams.set('view', viewMode)
+    if (statusFilters.length !== 2) url.searchParams.set('status', statusFilters.join(','))
+    if (query.trim()) url.searchParams.set('q', query.trim())
+    if (labState !== 'ready') url.searchParams.set('lab', labState)
+    window.history.replaceState(window.history.state, '', url)
+  }, [labState, pageUrlReady, query, selected, statusFilters, viewMode])
 
   const selectDocument = (document: LabDocument) => {
     if (editing && selected && document.id !== selected.id && !window.confirm('当前修改尚未保存，确定切换到其他文档吗？')) return
@@ -335,7 +369,14 @@ export default function ResourceFrameworkLab() {
           <span className="truncate font-medium">公共资源页面框架</span>
           <span className="hidden truncate text-amber-700 lg:inline">内存模拟数据 · 不连接业务 API</span>
         </div>
-        <label className="sm:hidden">
+        <div className="flex shrink-0 items-center gap-2">
+          <PageQrCodeButton
+            pageTitle={selected?.title || '产品文档'}
+            functionPath="实验室 / 产品文档"
+            stateSummary={`视图：${viewMode === 'list' ? '列表' : '卡片'} · ${selected?.code || '未选择文档'}`}
+            compact
+          />
+          <label className="sm:hidden">
           <span className="sr-only">实验状态</span>
           <select
             aria-label="实验状态"
@@ -348,8 +389,8 @@ export default function ResourceFrameworkLab() {
             <option value="empty">空数据</option>
             <option value="error">错误</option>
           </select>
-        </label>
-        <div className="hidden flex-wrap gap-1.5 sm:flex" role="group" aria-label="切换页面状态">
+          </label>
+          <div className="hidden flex-wrap gap-1.5 sm:flex" role="group" aria-label="切换页面状态">
           {([
             ['ready', '正常'],
             ['loading', '加载'],
@@ -366,6 +407,7 @@ export default function ResourceFrameworkLab() {
               {label}
             </button>
           ))}
+          </div>
         </div>
       </section>
 

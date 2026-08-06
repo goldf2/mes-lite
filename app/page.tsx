@@ -33,6 +33,7 @@ import DesktopNavigation, {
   type DesktopNavigationGroup,
   type DesktopNavigationMode,
 } from './components/navigation/DesktopNavigation'
+import PageQrCodeButton from './components/PageQrCodeButton'
 
 function FeaturePageLoading() {
   return <AppLoadingIndicator label="正在加载页面..." />
@@ -665,9 +666,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [desktopSidebarReady, setDesktopSidebarReady] = useState(false)
   const [wideDesktopNavigation, setWideDesktopNavigation] = useState(false)
   const [resizingDesktopSidebar, setResizingDesktopSidebar] = useState<DesktopNavigationMode | null>(null)
+  const [pageUrlReady, setPageUrlReady] = useState(false)
   const systemMenuRef = useRef<HTMLDivElement>(null)
   const desktopSystemMenuRef = useRef<HTMLDivElement>(null)
   const pageContentRef = useRef<HTMLDivElement>(null)
+  const pageUrlInitializedRef = useRef(false)
   const navOrderLoadedRef = useRef(false)
   const [adjustingStock, setAdjustingStock] = useState<Stock | null>(null)
   const [stockAdjustForm, setStockAdjustForm] = useState({
@@ -707,6 +710,17 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const baseMobileNavItems = navItems.slice(0, 4)
   const mobilePrimaryItems = baseMobileNavItems
   const pageLocationKey = tab === 'materials' ? `${tab}:${materialSection}` : tab
+  const activeGroupLabel = activeSystemTab
+    ? '账号与权限'
+    : businessNavGroups.find((group) => group.key === activeBusinessGroupKey)?.label || 'MES-lite'
+  const activeFunctionPath = `${activeGroupLabel} / ${activeTabLabel}`
+  const activeStateSummary = tab === 'orders'
+    ? `视图：${orderViewMode === 'card' ? '卡片' : '列表'} · 状态筛选：${selectedOrderStatuses.length} 项`
+    : tab === 'stocks'
+      ? `视图：${stockViewMode === 'card' ? '卡片' : '列表'} · 类型：${stockFilter}`
+      : tab === 'materials'
+        ? `子页面：${activeTabLabel}`
+        : `页面：${activeTabLabel}`
   const selectedOrderMaterial = orderMaterialOptions.find((material) => material.id === selectedMaterialId) || null
   const selectedOrderBoms = useMemo(() => selectedOrderMaterial?.boms || [], [selectedOrderMaterial])
 
@@ -715,6 +729,71 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     const preferred = selectedOrderBoms.find((bom) => bom.isDefault) || selectedOrderBoms[0]
     setSelectedOrderBomId(preferred?.id || '')
   }, [selectedOrderBomId, selectedOrderBoms])
+
+  useEffect(() => {
+    if (pageUrlInitializedRef.current) return
+    pageUrlInitializedRef.current = true
+    const url = new URL(window.location.href)
+    const requestedPage = url.searchParams.get('page') as TabType | null
+    const allowedPages = [...readableBusinessNavItems, ...readableSystemNavItems]
+    if (requestedPage && allowedPages.some((item) => item.key === requestedPage)) {
+      setTab(requestedPage)
+    }
+    if (requestedPage === 'materials') {
+      const requestedSection = url.searchParams.get('section') as MaterialSection | null
+      if (requestedSection && materialSectionItems.some((item) => item.key === requestedSection)) {
+        setMaterialSection(requestedSection)
+      }
+    }
+    const requestedView = url.searchParams.get('view')
+    if (requestedPage === 'orders' && (requestedView === 'card' || requestedView === 'list')) setOrderViewMode(requestedView)
+    if (requestedPage === 'stocks' && (requestedView === 'card' || requestedView === 'list')) setStockViewMode(requestedView)
+    const requestedQuery = url.searchParams.get('q') || ''
+    if (requestedPage === 'orders') {
+      setOrderKeyword(requestedQuery)
+      const requestedStatuses = (url.searchParams.get('statuses') || '').split(',').filter((value) => orderStatusOptions.some((option) => option.value === value))
+      if (requestedStatuses.length > 0) setSelectedOrderStatuses(requestedStatuses)
+    }
+    if (requestedPage === 'stocks') {
+      setStockKeyword(requestedQuery)
+      const requestedStockType = url.searchParams.get('stockType')
+      if (requestedStockType === 'material' || requestedStockType === 'product') setStockFilter(requestedStockType)
+      setStockCustomerFilter(url.searchParams.get('customer') || '')
+      setStockLocationFilter(url.searchParams.get('location') || '')
+      const requestedCategories = (url.searchParams.get('categories') || '').split(',').filter((value) => materialCategoryFilterOptions.some((option) => option.value === value))
+      if (requestedCategories.length > 0) setSelectedStockCategories(requestedCategories)
+      setShowInvalidStocks(url.searchParams.get('invalid') === '1')
+      setSelectedStockId(url.searchParams.get('stock') || '')
+    }
+    setPageUrlReady(true)
+  }, [materialSectionItems, readableBusinessNavItems, readableSystemNavItems, setOrderViewMode, setStockViewMode])
+
+  useEffect(() => {
+    if (!pageUrlReady) return
+    const url = new URL(window.location.href)
+    const shareablePage = tab === 'create' || tab === 'detail' ? 'orders' : tab
+    url.searchParams.set('page', shareablePage)
+    for (const key of ['section', 'view', 'q', 'statuses', 'stockType', 'customer', 'location', 'categories', 'invalid', 'stock']) {
+      url.searchParams.delete(key)
+    }
+    if (shareablePage === 'materials') url.searchParams.set('section', materialSection)
+    if (shareablePage === 'orders') {
+      url.searchParams.set('view', orderViewMode)
+      if (orderKeyword.trim()) url.searchParams.set('q', orderKeyword.trim())
+      if (selectedOrderStatuses.length !== orderStatusOptions.length) url.searchParams.set('statuses', selectedOrderStatuses.join(','))
+    }
+    if (shareablePage === 'stocks') {
+      url.searchParams.set('view', stockViewMode)
+      if (stockKeyword.trim()) url.searchParams.set('q', stockKeyword.trim())
+      if (stockFilter !== 'all') url.searchParams.set('stockType', stockFilter)
+      if (stockCustomerFilter) url.searchParams.set('customer', stockCustomerFilter)
+      if (stockLocationFilter) url.searchParams.set('location', stockLocationFilter)
+      if (selectedStockCategories.length !== materialCategoryFilterOptions.length) url.searchParams.set('categories', selectedStockCategories.join(','))
+      if (showInvalidStocks) url.searchParams.set('invalid', '1')
+      if (selectedStockId) url.searchParams.set('stock', selectedStockId)
+    }
+    window.history.replaceState(window.history.state, '', url)
+  }, [materialSection, orderKeyword, orderViewMode, pageUrlReady, selectedOrderStatuses, selectedStockCategories, selectedStockId, showInvalidStocks, stockCustomerFilter, stockFilter, stockKeyword, stockLocationFilter, stockViewMode, tab])
 
   useEffect(() => {
     const savedOrder = window.localStorage.getItem('mes-lite.nav.order')
@@ -1563,6 +1642,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               </span>
             </button>
           )}
+          <PageQrCodeButton
+            pageTitle={activeTabLabel}
+            functionPath={activeFunctionPath}
+            stateSummary={activeStateSummary}
+            compact
+          />
           <button
             type="button"
             onClick={() => {
@@ -1666,6 +1751,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <div className="min-w-0 flex-1 truncate text-base font-semibold text-gray-900">
                 {activeTabLabel}
               </div>
+              <PageQrCodeButton
+                pageTitle={activeTabLabel}
+                functionPath={activeFunctionPath}
+                stateSummary={activeStateSummary}
+                compact
+              />
               <button
                 type="button"
                 onClick={() => {

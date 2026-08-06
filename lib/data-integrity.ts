@@ -7,6 +7,7 @@ export type DataIntegritySeverity = 'BLOCKING' | 'WARNING' | 'INFO'
 export type DataIntegrityActionKey =
   | 'SYNC_BOM_ITEM_UNIT'
   | 'DELETE_BOM_ITEM'
+  | 'DELETE_ORPHAN_STOCK'
   | 'SYNC_BOM_OUTPUT_UNIT'
   | 'SYNC_PRODUCT_UNIT'
   | 'CLEAR_STALE_BOM_ITEM_REF'
@@ -44,6 +45,21 @@ export type DataIntegrityReport = {
 
 type DataIntegrityClient = Prisma.TransactionClient | typeof prisma
 
+const STOCK_BALANCE_TOLERANCE = 0.000001
+const stockBalanceFields = [
+  'qty',
+  'reservedQty',
+  'availableQty',
+  'valuationQty',
+  'reservedValuationQty',
+  'availableValuationQty',
+  'totalCost',
+] as const
+
+function hasStockBalance(stock: Record<(typeof stockBalanceFields)[number], number>) {
+  return stockBalanceFields.some((field) => Math.abs(Number(stock[field] || 0)) > STOCK_BALANCE_TOLERANCE)
+}
+
 export type AppliedDataIntegrityAction = {
   issue: DataIntegrityIssue
   beforeData: unknown
@@ -70,7 +86,7 @@ export async function getDataIntegrityReport(
   client: DataIntegrityClient = prisma,
 ): Promise<DataIntegrityReport> {
   const db = client as typeof prisma
-  const [materials, boms, bomItems, consumptionRefs, openCostLayers] = await Promise.all([
+  const [materials, boms, bomItems, consumptionRefs, openCostLayers, invalidRelationStocks] = await Promise.all([
     db.material.findMany({
       select: {
         id: true,
@@ -156,6 +172,33 @@ export async function getDataIntegrityReport(
           },
         },
       },
+    }),
+    db.stock.findMany({
+      where: {
+        OR: [
+          { materialId: null, productId: null },
+          { materialId: { not: null }, productId: { not: null } },
+        ],
+      },
+      select: {
+        id: true,
+        materialId: true,
+        productId: true,
+        qty: true,
+        reservedQty: true,
+        availableQty: true,
+        valuationQty: true,
+        reservedValuationQty: true,
+        availableValuationQty: true,
+        totalCost: true,
+        _count: {
+          select: {
+            logs: true,
+            locationBalances: true,
+          },
+        },
+      },
+      orderBy: { id: 'asc' },
     }),
   ])
 
@@ -394,6 +437,41 @@ export async function getDataIntegrityReport(
     })
   }
 
+  for (const stock of invalidRelationStocks) {
+    const hasNeitherOwner = !stock.materialId && !stock.productId
+    const hasBusinessBalance = hasStockBalance(stock)
+    const hasReferences = stock._count.logs > 0 || stock._count.locationBalances > 0
+    const safeToDelete = hasNeitherOwner && !hasBusinessBalance && !hasReferences
+    const relationSummary = hasNeitherOwner
+      ? '没有关联物料或内部兼容物料'
+      : '同时关联了物料和内部兼容物料'
+    const riskSummary = [
+      hasBusinessBalance ? '仍包含库存数量或金额' : '',
+      stock._count.locationBalances > 0 ? `包含 ${stock._count.locationBalances} 条库位余额` : '',
+      stock._count.logs > 0 ? `包含 ${stock._count.logs} 条库存流水` : '',
+    ].filter(Boolean).join('，')
+
+    issues.push({
+      id: issueId('STOCK_OWNER_INVALID', stock.id),
+      type: 'STOCK_OWNER_INVALID',
+      severity: 'BLOCKING',
+      title: safeToDelete ? '孤立的零余额库存记录' : '库存记录归属关系异常',
+      detail: safeToDelete
+        ? `该库存记录${relationSummary}，全部余额为零且没有库位或流水引用，可由维护工具安全清理。`
+        : `该库存记录${relationSummary}${riskSummary ? `，${riskSummary}` : ''}。工具不会自动删除，请先核对业务数据。`,
+      entityType: 'STOCK',
+      entityId: stock.id,
+      entityLabel: `库存记录 ${stock.id}`,
+      currentValue: `${stock.materialId || '无物料'} / ${stock.productId || '无兼容物料'}`,
+      expectedValue: '必须且只能关联一个库存对象',
+      actions: safeToDelete ? [{
+        key: 'DELETE_ORPHAN_STOCK',
+        label: '清理孤立空库存',
+        destructive: true,
+      }] : [],
+    })
+  }
+
   const severityOrder: Record<DataIntegritySeverity, number> = {
     BLOCKING: 0,
     WARNING: 1,
@@ -459,6 +537,23 @@ export async function applyDataIntegrityAction(
       })
     }
     await db.bOMItem.delete({ where: { id: issue.entityId } })
+  } else if (action === 'DELETE_ORPHAN_STOCK') {
+    const stock = await db.stock.findUniqueOrThrow({
+      where: { id: issue.entityId },
+      include: {
+        _count: {
+          select: {
+            logs: true,
+            locationBalances: true,
+          },
+        },
+      },
+    })
+    if (stock.materialId || stock.productId || hasStockBalance(stock) || stock._count.logs > 0 || stock._count.locationBalances > 0) {
+      throw new Error('该库存记录已经变化或仍有业务数据，不能自动清理')
+    }
+    beforeData = stock
+    await db.stock.delete({ where: { id: stock.id } })
   } else if (action === 'SYNC_BOM_OUTPUT_UNIT') {
     const bom = await db.bOM.findUniqueOrThrow({
       where: { id: issue.entityId },

@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.213",
+  "version": "0.1.214",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -63,12 +63,14 @@
     "@tiptap/pm": "^3.29.2",
     "@tiptap/react": "^3.29.2",
     "@tiptap/starter-kit": "^3.29.2",
+    "@types/qrcode": "^1.5.6",
     "jsbarcode": "^3.12.3",
     "lucide-react": "^1.27.0",
     "next": "14.2.0",
     "pdfjs-dist": "^5.6.205",
     "pdfkit": "^0.19.1",
     "prisma": "^5.13.0",
+    "qrcode": "^1.5.4",
     "react": "^18",
     "react-dom": "^18",
     "zod": "^3.23.0"
