@@ -4,7 +4,7 @@ const expectedFunctionKeys = [
   'dashboard', 'allFunctions', 'materialManagement', 'bomWorkspace', 'bomUsage', 'workInstructions',
   'equipment', 'orders', 'flowTransfers', 'dispatch', 'materialIn', 'salesOrders', 'shipment', 'return',
   'stocks', 'suppliers', 'customers', 'employees', 'locationSettings', 'unitSettings', 'workCenters',
-  'processTemplates', 'processRoutes', 'systemSettings', 'sawingCost', 'scanPrint', 'archive', 'auditLogs',
+  'processTemplates', 'processRoutes', 'businessSettings', 'displaySettings', 'aiSettings', 'sawingCost', 'scanPrint', 'archive', 'auditLogs',
   'dataTools', 'operators', 'permissionUsers', 'permissionGroups', 'create', 'detail',
 ]
 
@@ -12,7 +12,7 @@ const keys = pageModuleDefinitions.map((definition) => definition.key)
 const duplicates = keys.filter((key, index) => keys.indexOf(key) !== index)
 const missing = expectedFunctionKeys.filter((key) => !keys.includes(key))
 const unexpected = keys.filter((key) => !expectedFunctionKeys.includes(key))
-const expectedToolbarExceptions = ['dashboard', 'systemSettings', 'sawingCost', 'scanPrint', 'dataTools']
+const expectedToolbarExceptions = ['dashboard', 'businessSettings', 'displaySettings', 'aiSettings', 'sawingCost', 'scanPrint', 'dataTools']
 const toolbarExceptions = pageModuleDefinitions.filter((definition) => definition.toolbar === 'none').map((definition) => definition.key)
 const missingToolbarExceptions = expectedToolbarExceptions.filter((key) => !toolbarExceptions.includes(key))
 const unexpectedToolbarExceptions = toolbarExceptions.filter((key) => !expectedToolbarExceptions.includes(key))

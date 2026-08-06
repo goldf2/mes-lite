@@ -238,7 +238,7 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'salesOrders' | 'shipment' | 'return' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'employees' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'systemSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'create' | 'detail'
+type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'salesOrders' | 'shipment' | 'return' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'employees' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'businessSettings' | 'displaySettings' | 'aiSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'create' | 'detail'
 type MaterialSection = 'materials' | 'bomWorkspace' | 'bomUsage'
 
 interface BomEditorTarget {
@@ -276,7 +276,7 @@ function writePageContinuity(storageKey: string, update: Partial<PageContinuityS
     // 浏览器禁用或限制本地存储时不应阻断业务页面。
   }
 }
-type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'documents' | 'equipment' | 'logistics' | 'sales' | 'inventory' | 'configuration' | 'tools'
+type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'documents' | 'equipment' | 'logistics' | 'sales' | 'inventory' | 'configuration' | 'system' | 'tools'
 
 const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: TabType[] }> = [
   { key: 'workspace', label: '工作台', tabs: ['dashboard', 'allFunctions'] },
@@ -287,7 +287,8 @@ const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: 
   { key: 'logistics', label: '物流', tabs: ['materialIn'] },
   { key: 'sales', label: '销售', tabs: ['salesOrders', 'shipment', 'return'] },
   { key: 'inventory', label: '库存', tabs: ['stocks'] },
-  { key: 'configuration', label: '配置', tabs: ['suppliers', 'customers', 'employees', 'locationSettings', 'unitSettings', 'workCenters', 'processTemplates', 'processRoutes', 'systemSettings'] },
+  { key: 'configuration', label: '业务配置', tabs: ['suppliers', 'customers', 'employees', 'locationSettings', 'unitSettings', 'workCenters', 'processTemplates', 'processRoutes', 'businessSettings'] },
+  { key: 'system', label: '系统设置', tabs: ['displaySettings', 'aiSettings'] },
   { key: 'tools', label: '工具', tabs: ['sawingCost', 'scanPrint', 'archive', 'auditLogs', 'dataTools'] },
 ]
 
@@ -312,15 +313,17 @@ const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
   { key: 'shipment', label: '发货管理', groupKey: 'sales', groupLabel: '销售', description: '从已确认销售订单生成发货单并扣减库存', icon: '发', tab: 'shipment', resource: 'shipment' },
   { key: 'return', label: '退货管理', groupKey: 'sales', groupLabel: '销售', description: '登记退货、审核并处理返库', icon: '退', tab: 'return', resource: 'return' },
   { key: 'stocks', label: '库存管理', groupKey: 'inventory', groupLabel: '库存', description: '查看库存、库位余额和成本', icon: '库', tab: 'stocks', resource: 'stocks' },
-  { key: 'suppliers', label: '供应商资料', groupKey: 'configuration', groupLabel: '配置', description: '维护供应商基础资料', icon: '供', tab: 'suppliers', resource: 'system' },
-  { key: 'customers', label: '客户资料', groupKey: 'configuration', groupLabel: '配置', description: '维护客户基础资料', icon: '客', tab: 'customers', resource: 'system' },
-  { key: 'employees', label: '员工资料', groupKey: 'configuration', groupLabel: '配置', description: '维护业务员工并供生产和转移单据选用', icon: '员', tab: 'employees', resource: 'system' },
-  { key: 'locationSettings', label: '库位配置', groupKey: 'configuration', groupLabel: '配置', description: '配置库位、用途和默认库位', icon: '位', tab: 'locationSettings', resource: 'system' },
-  { key: 'unitSettings', label: '单位配置', groupKey: 'configuration', groupLabel: '配置', description: '配置计量单位和同量纲换算', icon: '单', tab: 'unitSettings', resource: 'system' },
-  { key: 'workCenters', label: '工作中心', groupKey: 'configuration', groupLabel: '配置', description: '配置锯切、钻孔、检验等生产能力区域', icon: '中', tab: 'workCenters', resource: 'system' },
-  { key: 'processTemplates', label: '加工工艺', groupKey: 'configuration', groupLabel: '配置', description: '维护加工工艺模板和成本参数', icon: '艺', tab: 'processTemplates', resource: 'system' },
-  { key: 'processRoutes', label: '物料路线', groupKey: 'configuration', groupLabel: '配置', description: '维护产品加工路线和工步', icon: '线', tab: 'processRoutes', resource: 'system' },
-  { key: 'systemSettings', label: '系统设置', groupKey: 'configuration', groupLabel: '配置', description: '维护编码、排序和界面偏好', icon: '设', tab: 'systemSettings', resource: 'system' },
+  { key: 'suppliers', label: '供应商资料', groupKey: 'configuration', groupLabel: '业务配置', description: '维护供应商基础资料', icon: '供', tab: 'suppliers', resource: 'system' },
+  { key: 'customers', label: '客户资料', groupKey: 'configuration', groupLabel: '业务配置', description: '维护客户基础资料', icon: '客', tab: 'customers', resource: 'system' },
+  { key: 'employees', label: '员工资料', groupKey: 'configuration', groupLabel: '业务配置', description: '维护业务员工并供生产和转移单据选用', icon: '员', tab: 'employees', resource: 'system' },
+  { key: 'locationSettings', label: '库位配置', groupKey: 'configuration', groupLabel: '业务配置', description: '配置库位、用途和默认库位', icon: '位', tab: 'locationSettings', resource: 'system' },
+  { key: 'unitSettings', label: '单位配置', groupKey: 'configuration', groupLabel: '业务配置', description: '配置计量单位和同量纲换算', icon: '单', tab: 'unitSettings', resource: 'system' },
+  { key: 'workCenters', label: '工作中心', groupKey: 'configuration', groupLabel: '业务配置', description: '配置锯切、钻孔、检验等生产能力区域', icon: '中', tab: 'workCenters', resource: 'system' },
+  { key: 'processTemplates', label: '加工工艺', groupKey: 'configuration', groupLabel: '业务配置', description: '维护加工工艺模板和成本参数', icon: '艺', tab: 'processTemplates', resource: 'system' },
+  { key: 'processRoutes', label: '物料路线', groupKey: 'configuration', groupLabel: '业务配置', description: '维护产品加工路线和工步', icon: '线', tab: 'processRoutes', resource: 'system' },
+  { key: 'businessSettings', label: '企业与业务规则', groupKey: 'configuration', groupLabel: '业务配置', description: '维护企业资料和跨终端业务规则', icon: '业', tab: 'businessSettings', resource: 'system' },
+  { key: 'displaySettings', label: '显示设置', groupKey: 'system', groupLabel: '系统设置', description: '维护配色、对比度和界面显示效果', icon: '显', tab: 'displaySettings', resource: 'system' },
+  { key: 'aiSettings', label: 'AI 服务', groupKey: 'system', groupLabel: '系统设置', description: '维护 AI 模型、接口、密钥和助手外观', icon: '智', tab: 'aiSettings', resource: 'system' },
   { key: 'sawingCost', label: '锯切成本', groupKey: 'tools', groupLabel: '工具', description: '计算锯切、损耗和直接加工成本', icon: '锯', tab: 'sawingCost', resource: 'sawingCost' },
   { key: 'scanPrint', label: '硬件工具', groupKey: 'tools', groupLabel: '工具', description: '使用扫码计数和标签测试打印', icon: '扫', tab: 'scanPrint', resource: 'scanPrint' },
   { key: 'archive', label: '归档记录', groupKey: 'tools', groupLabel: '工具', description: '恢复或永久删除已归档记录', icon: '档', tab: 'archive', resource: 'system' },
@@ -342,7 +345,9 @@ const systemSectionByTab: Partial<Record<TabType, SystemSection>> = {
   unitSettings: 'units',
   locationSettings: 'locations',
   workCenters: 'workCenters',
-  systemSettings: 'preferences',
+  businessSettings: 'businessSettings',
+  displaySettings: 'displaySettings',
+  aiSettings: 'aiSettings',
 }
 
 const lightweightHiddenResources = new Set<string>([
@@ -380,7 +385,9 @@ function MenuIcon({ icon }: { icon: string }) {
     unitSettings: '单',
     locationSettings: '位',
     workCenters: '中',
-    systemSettings: '设',
+    businessSettings: '业',
+    displaySettings: '显',
+    aiSettings: '智',
     operators: '人',
     permissionUsers: '权',
     permissionGroups: '组',
@@ -574,7 +581,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'archive', label: '归档记录', resource: 'system' },
     { key: 'auditLogs', label: '操作记录', resource: 'system' },
     { key: 'dataTools', label: '数据工具', resource: 'system' },
-    { key: 'systemSettings', label: '系统设置', resource: 'system' },
+    { key: 'businessSettings', label: '企业与业务规则', resource: 'system' },
+    { key: 'displaySettings', label: '显示设置', resource: 'system' },
+    { key: 'aiSettings', label: 'AI 服务', resource: 'system' },
     { key: 'allFunctions', label: '所有功能', resource: 'dashboard' },
     { key: 'operators', label: '人员管理', resource: 'operators' },
     { key: 'permissionUsers', label: '人员权限', resource: 'permissionUsers' },
@@ -2909,7 +2918,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           onClose={closeAiAssistant}
           onOpenSettings={() => {
             setAiAssistantOpen(false)
-            navigateToTab('systemSettings')
+            navigateToTab('aiSettings')
           }}
           pageContext={{ key: pageLocationKey, label: activeTabLabel }}
           isAdmin={operator.role === 'ADMIN'}

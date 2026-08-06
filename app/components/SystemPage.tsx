@@ -262,7 +262,7 @@ function routeStepCostPerThousand(step: ProcessRoute['steps'][number] | ProcessS
   return { laborHours, machineHours, cost }
 }
 
-export type SystemSection = 'suppliers' | 'customers' | 'processTemplates' | 'process' | 'recycle' | 'audit' | 'dataTools' | 'units' | 'locations' | 'workCenters' | 'preferences'
+export type SystemSection = 'suppliers' | 'customers' | 'processTemplates' | 'process' | 'recycle' | 'audit' | 'dataTools' | 'units' | 'locations' | 'workCenters' | 'businessSettings' | 'displaySettings' | 'aiSettings'
 
 const systemSectionOrderConfig: Partial<Record<SystemSection, {
   entity: 'suppliers' | 'customers' | 'processTemplates' | 'processRoutes' | 'units' | 'locations' | 'workCenters'
@@ -339,7 +339,9 @@ export default function SystemPage({
         {section === 'units' && <UnitCatalogManager onMessage={onMessage} />}
         {section === 'locations' && <InventoryLocationManager onMessage={onMessage} />}
         {section === 'workCenters' && <WorkCenterManager onMessage={onMessage} />}
-        {section === 'preferences' && <InterfacePreferenceManager onMessage={onMessage} />}
+        {(section === 'businessSettings' || section === 'displaySettings' || section === 'aiSettings') && (
+          <SettingsManager section={section} onMessage={onMessage} />
+        )}
       </div>
     </SystemToolbarExtraContext.Provider>
   )
@@ -963,7 +965,13 @@ function DataToolManager({ onMessage }: { onMessage: (msg: string) => void }) {
   )
 }
 
-function InterfacePreferenceManager({ onMessage }: { onMessage: (msg: string) => void }) {
+function SettingsManager({
+  section,
+  onMessage,
+}: {
+  section: 'businessSettings' | 'displaySettings' | 'aiSettings'
+  onMessage: (msg: string) => void
+}) {
   const [modalGlassEnabled, setModalGlassEnabled] = useModalGlassPreference()
   const { loadingIndicatorEnabled, setLoadingIndicatorEnabled } = useAiAssistantAppearance()
   const [contrastMode, setContrastMode] = useState<ContrastMode>('standard')
@@ -1091,107 +1099,114 @@ function InterfacePreferenceManager({ onMessage }: { onMessage: (msg: string) =>
     }
   }
 
+  const pageCopy = {
+    businessSettings: {
+      title: '企业与业务规则',
+      description: '维护企业资料以及会影响业务数据、列表和导出的全局规则。',
+    },
+    displaySettings: {
+      title: '显示设置',
+      description: '维护系统配色与界面效果；个人页面布局仍从“页面选项”调整。',
+    },
+    aiSettings: {
+      title: 'AI 服务',
+      description: '维护 AI 助手服务、模型连接、密钥和系统级助手外观。',
+    },
+  }[section]
+
   return (
     <div className="rounded-lg bg-white p-4 shadow sm:p-6">
       <div className="mb-5">
-        <h3 className="text-lg font-semibold">系统设置</h3>
-        <p className="mt-1 text-sm text-gray-500">业务规则对所有客户端生效；界面偏好只保存在当前浏览器。</p>
+        <h3 className="text-lg font-semibold">{pageCopy.title}</h3>
+        <p className="mt-1 text-sm text-gray-500">{pageCopy.description}</p>
       </div>
 
-      <div className="mb-4 rounded-lg border border-gray-200 p-4">
-        <div className="mb-4">
-          <div className="font-medium text-gray-900">页面对比度配色</div>
-          <div className="mt-1 text-sm text-gray-500">统一调整页面背景、容器层级、边框清晰度、标题、正文和辅助文字的反差；按钮主色与业务状态色保持不变。</div>
-          <div className="mt-2 text-xs text-gray-500">系统级设置，保存后对所有客户端生效；当前页面会立即预览。</div>
-        </div>
-        <ContrastModeSelector value={contrastMode} onChange={saveContrastMode} disabled={settingLoading || settingSaving} />
-      </div>
-
-      <div className="mb-4 rounded-lg border border-gray-200 p-4">
-        <div className="mb-4">
-          <div className="font-medium text-gray-900">发货单乙方资料</div>
-          <div className="mt-1 text-sm text-gray-500">作为供货方显示在发货单 PDF 中；甲方资料自动读取销售订单客户。</div>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div><label className="mb-2 block text-sm font-medium text-gray-700">企业名称</label><input value={companyProfile.companyName} onChange={(event) => setCompanyProfile({ ...companyProfile, companyName: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
-          <div><label className="mb-2 block text-sm font-medium text-gray-700">联系人</label><input value={companyProfile.companyContact} onChange={(event) => setCompanyProfile({ ...companyProfile, companyContact: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
-          <div><label className="mb-2 block text-sm font-medium text-gray-700">联系电话</label><input value={companyProfile.companyPhone} onChange={(event) => setCompanyProfile({ ...companyProfile, companyPhone: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
-          <div><label className="mb-2 block text-sm font-medium text-gray-700">企业地址</label><input value={companyProfile.companyAddress} onChange={(event) => setCompanyProfile({ ...companyProfile, companyAddress: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
-        </div>
-        <div className="mt-4 flex justify-end"><AppButton variant="primary" onClick={saveCompanyProfile} disabled={settingLoading || settingSaving}>{settingSaving ? '保存中...' : '保存乙方资料'}</AppButton></div>
-      </div>
-
-      <div className="rounded-lg border border-gray-200 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div className="font-medium text-gray-900">物料编码数字自然排序</div>
-            <div className="mt-1 text-sm text-gray-500">开启后，物料列表和导出中的编码按数字片段排序，例如 2 排在 12 前、A2 排在 A10 前；不会修改编码内容。</div>
-            <div className="mt-2 text-xs text-gray-500">系统级设置，保存后对所有客户端生效。</div>
+      {section === 'displaySettings' && (
+        <>
+          <div className="mb-4 rounded-lg border border-gray-200 p-4">
+            <div className="mb-4">
+              <div className="font-medium text-gray-900">页面对比度配色</div>
+              <div className="mt-1 text-sm text-gray-500">统一调整页面背景、容器层级、边框清晰度、标题、正文和辅助文字的反差；按钮主色与业务状态色保持不变。</div>
+              <div className="mt-2 text-xs text-gray-500">系统级设置，保存后对所有客户端生效；当前页面会立即预览。</div>
+            </div>
+            <ContrastModeSelector value={contrastMode} onChange={saveContrastMode} disabled={settingLoading || settingSaving} />
           </div>
-          <label className={`inline-flex items-center gap-3 ${settingLoading || settingSaving ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}>
-            <span className="text-sm text-gray-600">
-              {settingLoading ? '读取中' : settingSaving ? '保存中' : naturalCodeSortEnabled ? '已开启' : '已关闭'}
-            </span>
-            <input
-              type="checkbox"
-              checked={naturalCodeSortEnabled}
-              disabled={settingLoading || settingSaving}
-              onChange={(event) => saveNaturalCodeSort(event.target.checked)}
-              className="sr-only"
-            />
-            <span className={`relative h-7 w-12 rounded-full transition ${naturalCodeSortEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}>
-              <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${naturalCodeSortEnabled ? 'left-6' : 'left-1'}`} />
-            </span>
-          </label>
-        </div>
-      </div>
 
-      <div className="mt-4 rounded-lg border border-gray-200 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div className="font-medium text-gray-900">页面加载 AI 图标</div>
-            <div className="mt-1 text-sm text-gray-500">开启后，刷新、鉴权和功能页等待时显示当前 AI 图标；关闭后仅显示加载文字。</div>
-            <div className="mt-2 text-xs text-gray-500">系统级设置，保存后对所有客户端生效。</div>
+          <div className="rounded-lg border border-gray-200 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="font-medium text-gray-900">弹窗背景磨砂玻璃</div>
+                <div className="mt-1 text-sm text-gray-500">开启后弹窗出现时背景会模糊并遮罩；关闭后仅保留半透明遮罩，仍会屏蔽底层按钮响应。</div>
+                <div className="mt-2 text-xs text-gray-500">个人显示偏好，只保存在当前浏览器。</div>
+              </div>
+              <label className="inline-flex cursor-pointer items-center gap-3">
+                <span className="text-sm text-gray-600">{modalGlassEnabled ? '已开启' : '已关闭'}</span>
+                <input type="checkbox" checked={modalGlassEnabled} onChange={(event) => setModalGlassEnabled(event.target.checked)} className="sr-only" />
+                <span className={`relative h-7 w-12 rounded-full transition ${modalGlassEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                  <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${modalGlassEnabled ? 'left-6' : 'left-1'}`} />
+                </span>
+              </label>
+            </div>
           </div>
-          <label className={`inline-flex items-center gap-3 ${settingLoading || settingSaving ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}>
-            <span className="text-sm text-gray-600">{loadingIndicatorEnabled ? '已开启' : '已关闭'}</span>
-            <input
-              type="checkbox"
-              checked={loadingIndicatorEnabled}
-              disabled={settingLoading || settingSaving}
-              onChange={(event) => saveLoadingIndicator(event.target.checked)}
-              className="sr-only"
-            />
-            <span className={`relative h-7 w-12 rounded-full transition ${loadingIndicatorEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}>
-              <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${loadingIndicatorEnabled ? 'left-6' : 'left-1'}`} />
-            </span>
-          </label>
-        </div>
-      </div>
+        </>
+      )}
 
-      <div className="mt-4 rounded-lg border border-gray-200 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div className="font-medium text-gray-900">弹窗背景磨砂玻璃</div>
-            <div className="mt-1 text-sm text-gray-500">开启后弹窗出现时背景会模糊并遮罩；关闭后仅保留半透明遮罩，仍会屏蔽底层按钮响应。</div>
-            <div className="mt-2 text-xs text-gray-500">界面偏好，只保存在当前浏览器。</div>
+      {section === 'businessSettings' && (
+        <>
+          <div className="mb-4 rounded-lg border border-gray-200 p-4">
+            <div className="mb-4">
+              <div className="font-medium text-gray-900">发货单乙方资料</div>
+              <div className="mt-1 text-sm text-gray-500">作为供货方显示在发货单 PDF 中；甲方资料自动读取销售订单客户。</div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div><label className="mb-2 block text-sm font-medium text-gray-700">企业名称</label><input value={companyProfile.companyName} onChange={(event) => setCompanyProfile({ ...companyProfile, companyName: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
+              <div><label className="mb-2 block text-sm font-medium text-gray-700">联系人</label><input value={companyProfile.companyContact} onChange={(event) => setCompanyProfile({ ...companyProfile, companyContact: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
+              <div><label className="mb-2 block text-sm font-medium text-gray-700">联系电话</label><input value={companyProfile.companyPhone} onChange={(event) => setCompanyProfile({ ...companyProfile, companyPhone: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
+              <div><label className="mb-2 block text-sm font-medium text-gray-700">企业地址</label><input value={companyProfile.companyAddress} onChange={(event) => setCompanyProfile({ ...companyProfile, companyAddress: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
+            </div>
+            <div className="mt-4 flex justify-end"><AppButton variant="primary" onClick={saveCompanyProfile} disabled={settingLoading || settingSaving}>{settingSaving ? '保存中...' : '保存乙方资料'}</AppButton></div>
           </div>
-          <label className="inline-flex cursor-pointer items-center gap-3">
-            <span className="text-sm text-gray-600">{modalGlassEnabled ? '已开启' : '已关闭'}</span>
-            <input
-              type="checkbox"
-              checked={modalGlassEnabled}
-              onChange={(event) => setModalGlassEnabled(event.target.checked)}
-              className="sr-only"
-            />
-            <span className={`relative h-7 w-12 rounded-full transition ${modalGlassEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}>
-              <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${modalGlassEnabled ? 'left-6' : 'left-1'}`} />
-            </span>
-          </label>
-        </div>
-      </div>
 
-      <AiAgentSettings onMessage={onMessage} />
+          <div className="rounded-lg border border-gray-200 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="font-medium text-gray-900">物料编码数字自然排序</div>
+                <div className="mt-1 text-sm text-gray-500">开启后，物料列表和导出中的编码按数字片段排序，例如 2 排在 12 前、A2 排在 A10 前；不会修改编码内容。</div>
+                <div className="mt-2 text-xs text-gray-500">业务配置，保存后对所有客户端生效。</div>
+              </div>
+              <label className={`inline-flex items-center gap-3 ${settingLoading || settingSaving ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}>
+                <span className="text-sm text-gray-600">{settingLoading ? '读取中' : settingSaving ? '保存中' : naturalCodeSortEnabled ? '已开启' : '已关闭'}</span>
+                <input type="checkbox" checked={naturalCodeSortEnabled} disabled={settingLoading || settingSaving} onChange={(event) => saveNaturalCodeSort(event.target.checked)} className="sr-only" />
+                <span className={`relative h-7 w-12 rounded-full transition ${naturalCodeSortEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                  <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${naturalCodeSortEnabled ? 'left-6' : 'left-1'}`} />
+                </span>
+              </label>
+            </div>
+          </div>
+        </>
+      )}
+
+      {section === 'aiSettings' && (
+        <>
+          <div className="rounded-lg border border-gray-200 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="font-medium text-gray-900">页面加载 AI 图标</div>
+                <div className="mt-1 text-sm text-gray-500">开启后，刷新、鉴权和功能页等待时显示当前 AI 图标；关闭后仅显示加载文字。</div>
+                <div className="mt-2 text-xs text-gray-500">系统级 AI 外观，保存后对所有客户端生效。</div>
+              </div>
+              <label className={`inline-flex items-center gap-3 ${settingLoading || settingSaving ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}>
+                <span className="text-sm text-gray-600">{loadingIndicatorEnabled ? '已开启' : '已关闭'}</span>
+                <input type="checkbox" checked={loadingIndicatorEnabled} disabled={settingLoading || settingSaving} onChange={(event) => saveLoadingIndicator(event.target.checked)} className="sr-only" />
+                <span className={`relative h-7 w-12 rounded-full transition ${loadingIndicatorEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                  <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${loadingIndicatorEnabled ? 'left-6' : 'left-1'}`} />
+                </span>
+              </label>
+            </div>
+          </div>
+          <AiAgentSettings onMessage={onMessage} />
+        </>
+      )}
     </div>
   )
 }

@@ -25,7 +25,9 @@ export const workspaceFunctionKeys = [
   'workCenters',
   'processTemplates',
   'processRoutes',
-  'systemSettings',
+  'businessSettings',
+  'displaySettings',
+  'aiSettings',
   'sawingCost',
   'scanPrint',
   'archive',
@@ -80,7 +82,8 @@ export function isWorkspaceFunctionKey(value: string): value is WorkspaceFunctio
 
 export function normalizeWorkspaceFunctionKeys(values: unknown): WorkspaceFunctionKey[] {
   if (!Array.isArray(values)) return []
-  return Array.from(new Set(values.filter((value): value is WorkspaceFunctionKey => (
+  const migratedValues = values.map((value) => value === 'systemSettings' ? 'businessSettings' : value)
+  return Array.from(new Set(migratedValues.filter((value): value is WorkspaceFunctionKey => (
     typeof value === 'string' && isWorkspaceFunctionKey(value)
   ))))
 }

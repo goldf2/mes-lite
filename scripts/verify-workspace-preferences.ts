@@ -9,6 +9,11 @@ assert.deepEqual(
   ['stats', 'materialIn'],
 )
 
+assert.deepEqual(
+  normalizeWorkspaceFunctionKeys(['systemSettings', 'displaySettings']),
+  ['businessSettings', 'displaySettings'],
+)
+
 const availableKeys = ['stats', 'materialIn', 'shipment', 'stocks', 'orders'] as const
 
 assert.deepEqual(rankWorkspaceFunctionKeys({
@@ -25,7 +30,7 @@ assert.equal(rankWorkspaceFunctionKeys({
   layout: [],
   pinned: [],
   usage: [],
-}).length, 8)
+}).length, 9)
 
 assert.deepEqual(rankWorkspaceFunctionKeys({
   mode: 'CUSTOM',
