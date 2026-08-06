@@ -6,7 +6,7 @@ import FormField, { appInputClassName, appSelectClassName } from '../FormField'
 import ModalDialog, { ModalActions } from '../ModalDialog'
 import { MaterialRelationIdentity, MaterialRelationOption, MaterialRelationSearch } from '../relations/MaterialRelation'
 import OneToManyRelationField from '../relations/OneToManyRelationField'
-import { ViewMode } from '../ViewModeToggle'
+import { usePersistedDisplayMode } from '../ViewModeToggle'
 import MultiSelectFilterMenu from './MultiSelectFilterMenu'
 import ResourceDetailPanel from './ResourceDetailPanel'
 import ResourceFormDialog from './ResourceFormDialog'
@@ -38,6 +38,8 @@ const materials: MaterialRelationOption[] = [
   { id: 'mat-3', code: 'MAT-003', name: '防护罩', spec: 'Q235 1.5mm', stockUnit: '件' },
   { id: 'mat-4', code: 'MAT-004', name: '定位套', spec: 'Φ32 × 45', stockUnit: '件' },
 ]
+
+const labDisplayModes = ['card', 'list', 'columns', 'gallery'] as const
 
 const initialDocuments: LabDocument[] = [
   {
@@ -98,7 +100,11 @@ export default function ResourceFrameworkLab() {
   const [documents, setDocuments] = useState(initialDocuments)
   const [query, setQuery] = useState('')
   const [statusFilters, setStatusFilters] = useState<DocumentStatus[]>(['active', 'archived'])
-  const [viewMode, setViewMode] = useState<ViewMode>('list')
+  const [viewMode, setViewMode] = usePersistedDisplayMode(
+    'mes-lite.resource.framework-lab-documents.display-mode.v1',
+    'list',
+    labDisplayModes,
+  )
   const [selectedId, setSelectedId] = useState<string | null>('doc-1')
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<DocumentDraft>(() => draftFrom(initialDocuments[0]))
@@ -410,6 +416,7 @@ export default function ResourceFrameworkLab() {
         )}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
+        displayModes={labDisplayModes}
         onCreate={() => setCreateOpen(true)}
         createLabel="新增文档"
         summary={<span className="text-sm text-gray-500">共 {visibleDocuments.length} 条</span>}

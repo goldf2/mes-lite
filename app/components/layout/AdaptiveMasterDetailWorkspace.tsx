@@ -172,6 +172,9 @@ export default function AdaptiveMasterDetailWorkspace({
   defaultCompactMode = 'overlay',
   compactMode,
   onCompactModeChange,
+  desktopPrimaryPercent = 58,
+  desktopMinPrimaryPercent = 38,
+  desktopMaxPrimaryPercent = 68,
 }: {
   storageKey: string
   primaryLabel: string
@@ -183,6 +186,9 @@ export default function AdaptiveMasterDetailWorkspace({
   defaultCompactMode?: CompactMasterDetailMode
   compactMode?: CompactMasterDetailMode
   onCompactModeChange?: (value: CompactMasterDetailMode) => void
+  desktopPrimaryPercent?: number
+  desktopMinPrimaryPercent?: number
+  desktopMaxPrimaryPercent?: number
 }) {
   const compact = useCompactViewport(1279)
   const [viewportReady, setViewportReady] = useState(false)
@@ -257,9 +263,9 @@ export default function AdaptiveMasterDetailWorkspace({
         storageKey={`${storageKey}.left-right.v1`}
         primaryLabel={primaryLabel}
         secondaryLabel={secondaryLabel}
-        defaultPrimaryPercent={58}
-        minPrimaryPercent={38}
-        maxPrimaryPercent={68}
+        defaultPrimaryPercent={desktopPrimaryPercent}
+        minPrimaryPercent={desktopMinPrimaryPercent}
+        maxPrimaryPercent={desktopMaxPrimaryPercent}
         className="xl:h-[clamp(30rem,calc(100dvh-12rem),60rem)]"
       >
         {primary}

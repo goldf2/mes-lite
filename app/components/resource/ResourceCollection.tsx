@@ -3,7 +3,7 @@
 import { ReactNode } from 'react'
 import AppButton from '../AppButton'
 import AppLoadingIndicator from '../AppLoadingIndicator'
-import { ViewMode } from '../ViewModeToggle'
+import { DisplayMode } from '../ViewModeToggle'
 
 export default function ResourceCollection({
   loading,
@@ -16,6 +16,8 @@ export default function ResourceCollection({
   viewMode = 'list',
   list,
   cards,
+  columns,
+  gallery,
   className = '',
 }: {
   loading: boolean
@@ -25,13 +27,15 @@ export default function ResourceCollection({
   itemCount: number
   emptyLabel: ReactNode
   emptyAction?: ReactNode
-  viewMode?: ViewMode
+  viewMode?: DisplayMode
   list: ReactNode
   cards?: ReactNode
+  columns?: ReactNode
+  gallery?: ReactNode
   className?: string
 }) {
   return (
-    <section className={`h-full min-h-0 overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white shadow-sm ${viewMode === 'card' ? 'p-3 sm:p-4' : ''} ${className}`}>
+    <section className={`h-full min-h-0 overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white shadow-sm ${viewMode !== 'list' ? 'p-3 sm:p-4' : ''} ${className}`}>
       {loading ? (
         <div className="flex min-h-80 items-center justify-center"><AppLoadingIndicator label={loadingLabel} /></div>
       ) : error ? (
@@ -45,7 +49,10 @@ export default function ResourceCollection({
           <div>{emptyLabel}</div>
           {emptyAction && <div className="mt-4">{emptyAction}</div>}
         </div>
-      ) : viewMode === 'card' && cards ? cards : list}
+      ) : viewMode === 'gallery' && gallery ? gallery
+        : viewMode === 'columns' && columns ? columns
+          : viewMode === 'card' && cards ? cards
+            : list}
     </section>
   )
 }

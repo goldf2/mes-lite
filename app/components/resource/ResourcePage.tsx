@@ -2,7 +2,7 @@
 
 import { ReactNode, useState } from 'react'
 import AdaptiveMasterDetailWorkspace, { CompactMasterDetailMode, CompactMasterDetailModeSelector } from '../layout/AdaptiveMasterDetailWorkspace'
-import { ViewMode } from '../ViewModeToggle'
+import { DisplayMode } from '../ViewModeToggle'
 import ResourceCardGrid from './ResourceCardGrid'
 import ResourceCollection from './ResourceCollection'
 import ResourceTable, { ResourceTableColumn } from './ResourceTable'
@@ -14,7 +14,7 @@ export interface ResourcePageRenderContext<T> {
   select: () => void
 }
 
-export default function ResourcePage<T>({
+export default function ResourcePage<T, M extends DisplayMode = DisplayMode>({
   resourceKey,
   title,
   description,
@@ -40,6 +40,7 @@ export default function ResourcePage<T>({
   actions,
   viewMode,
   onViewModeChange,
+  displayModes,
   onCreate,
   createLabel,
   summary,
@@ -69,8 +70,9 @@ export default function ResourcePage<T>({
   filterCount?: number
   filterSummary?: ReactNode
   actions?: ReactNode
-  viewMode: ViewMode
-  onViewModeChange: (value: ViewMode) => void
+  viewMode: M
+  onViewModeChange: (value: M) => void
+  displayModes?: readonly M[]
   onCreate?: () => void
   createLabel?: string
   summary?: ReactNode
@@ -112,6 +114,36 @@ export default function ResourcePage<T>({
           })}
         />
       ) : undefined}
+      columns={renderCard ? (
+        <ResourceCardGrid
+          items={items}
+          getKey={getKey}
+          selectedKey={selectedKey}
+          onSelect={onSelect}
+          itemLabel={rowLabel}
+          variant="columns"
+          renderCard={(item) => renderCard({
+            item,
+            selected: getKey(item) === selectedKey,
+            select: () => onSelect?.(item),
+          })}
+        />
+      ) : undefined}
+      gallery={renderCard ? (
+        <ResourceCardGrid
+          items={items}
+          getKey={getKey}
+          selectedKey={selectedKey}
+          onSelect={onSelect}
+          itemLabel={rowLabel}
+          variant="gallery"
+          renderCard={(item) => renderCard({
+            item,
+            selected: getKey(item) === selectedKey,
+            select: () => onSelect?.(item),
+          })}
+        />
+      ) : undefined}
     />
   )
 
@@ -136,6 +168,7 @@ export default function ResourcePage<T>({
         actions={actions}
         viewMode={renderCard ? viewMode : undefined}
         onViewModeChange={renderCard ? onViewModeChange : undefined}
+        displayModes={displayModes}
         onCreate={onCreate}
         createLabel={createLabel}
         placement={toolbarPlacement}
@@ -146,7 +179,7 @@ export default function ResourcePage<T>({
 
       {detail ? (
         <AdaptiveMasterDetailWorkspace
-          storageKey={`mes-lite.resource.${resourceKey}.workspace.v1`}
+          storageKey={`mes-lite.resource.${resourceKey}.workspace.${viewMode === 'columns' ? 'columns' : 'standard'}.v1`}
           primaryLabel={`${String(title)}列表`}
           secondaryLabel={`${String(title)}详情`}
           primaryCount={items.length}
@@ -155,6 +188,9 @@ export default function ResourcePage<T>({
           secondary={detail}
           compactMode={compactMode}
           onCompactModeChange={setCompactMode}
+          desktopPrimaryPercent={viewMode === 'columns' ? 34 : 58}
+          desktopMinPrimaryPercent={viewMode === 'columns' ? 26 : 38}
+          desktopMaxPrimaryPercent={viewMode === 'columns' ? 48 : 68}
         />
       ) : collection}
     </div>

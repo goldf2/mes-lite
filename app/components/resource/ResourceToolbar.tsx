@@ -5,9 +5,9 @@ import AppButton from '../AppButton'
 import ResponsiveToolbarActions from '../ResponsiveToolbarActions'
 import { SearchFieldWithPresets } from '../SavedSearchPresets'
 import TopBarPortal from '../TopBarPortal'
-import ViewModeToggle, { ViewMode } from '../ViewModeToggle'
+import ViewModeToggle, { DisplayMode } from '../ViewModeToggle'
 
-export default function ResourceToolbar({
+export default function ResourceToolbar<M extends DisplayMode = DisplayMode>({
   searchStorageKey,
   searchValue,
   onSearchChange,
@@ -16,6 +16,7 @@ export default function ResourceToolbar({
   actions,
   viewMode,
   onViewModeChange,
+  displayModes,
   onCreate,
   createLabel = '新增',
   filterCount = 0,
@@ -30,8 +31,9 @@ export default function ResourceToolbar({
   searchPlaceholder: string
   filters?: ReactNode
   actions?: ReactNode
-  viewMode?: ViewMode
-  onViewModeChange?: (value: ViewMode) => void
+  viewMode?: M
+  onViewModeChange?: (value: M) => void
+  displayModes?: readonly M[]
   onCreate?: () => void
   createLabel?: string
   filterCount?: number
@@ -43,7 +45,7 @@ export default function ResourceToolbar({
   const toolbarActions = viewMode && onViewModeChange || actions || onCreate
     ? (
         <>
-          {viewMode && onViewModeChange && <ViewModeToggle value={viewMode} onChange={onViewModeChange} />}
+          {viewMode && onViewModeChange && <ViewModeToggle value={viewMode} onChange={onViewModeChange} modes={displayModes} />}
           {actions}
           {onCreate && <AppButton variant="create" onClick={onCreate}>{createLabel}</AppButton>}
         </>
