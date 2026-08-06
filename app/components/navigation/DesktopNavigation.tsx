@@ -1,9 +1,14 @@
 'use client'
 
-import { useMemo, useState, type DragEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from 'react'
 import { ChevronDown, Search, X } from 'lucide-react'
 
 export type DesktopNavigationMode = 'accordion' | 'split'
+
+const primaryRailStorageKey = 'mes-lite.layout.desktopPrimaryRailWidth'
+const defaultPrimaryRailWidth = 84
+const minPrimaryRailWidth = 72
+const maxPrimaryRailWidth = 140
 
 export interface DesktopNavigationItem {
   id: string
@@ -153,17 +158,27 @@ function SplitNavigation({
   searchGroups,
   query,
   onQueryChange,
+  primaryRailWidth,
+  resizingPrimaryRail,
+  onPrimaryRailResizeStart,
+  onPrimaryRailResizeReset,
+  onPrimaryRailResizeBy,
 }: {
   groups: DesktopNavigationGroup[]
   searchGroups: DesktopNavigationGroup[]
   query: string
   onQueryChange: (value: string) => void
+  primaryRailWidth: number
+  resizingPrimaryRail: boolean
+  onPrimaryRailResizeStart: () => void
+  onPrimaryRailResizeReset: () => void
+  onPrimaryRailResizeBy: (delta: number) => void
 }) {
   const activeGroup = groups.find((group) => group.active) || groups[0]
 
   return (
     <nav aria-label="双列一级与二级功能菜单" className="flex min-h-0 flex-1 overflow-hidden">
-      <div className="w-[84px] shrink-0 overflow-y-auto border-r border-gray-200 bg-slate-50 px-1.5 py-2">
+      <div style={{ width: primaryRailWidth }} className="shrink-0 overflow-y-auto bg-slate-50 px-1.5 py-2">
         <div className="space-y-1">
           {groups.map((group) => (
             <button
@@ -180,6 +195,35 @@ function SplitNavigation({
             </button>
           ))}
         </div>
+      </div>
+      <div
+        role="separator"
+        aria-label="调整一级菜单列宽度"
+        aria-orientation="vertical"
+        aria-valuemin={minPrimaryRailWidth}
+        aria-valuemax={maxPrimaryRailWidth}
+        aria-valuenow={Math.round(primaryRailWidth)}
+        tabIndex={0}
+        onPointerDown={(event) => {
+          event.preventDefault()
+          onPrimaryRailResizeStart()
+        }}
+        onDoubleClick={onPrimaryRailResizeReset}
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+          event.preventDefault()
+          onPrimaryRailResizeBy(event.key === 'ArrowRight' ? 4 : -4)
+        }}
+        title="拖动调整一级菜单宽度，双击恢复默认"
+        className={`group relative z-10 flex w-2 shrink-0 -translate-x-1/2 cursor-col-resize touch-none items-center justify-center border-l border-gray-200 outline-none ${
+          resizingPrimaryRail ? 'bg-blue-50/80' : ''
+        }`}
+      >
+        <span className={`h-14 w-0.5 rounded-full transition ${
+          resizingPrimaryRail
+            ? 'bg-blue-500'
+            : 'bg-transparent group-hover:bg-blue-400 group-focus:bg-blue-500'
+        }`} />
       </div>
       <div className="flex min-w-0 flex-1 flex-col bg-white">
         <NavigationSearch value={query} onChange={onQueryChange} />
@@ -205,6 +249,9 @@ export default function DesktopNavigation({
   groups: DesktopNavigationGroup[]
 }) {
   const [query, setQuery] = useState('')
+  const [primaryRailWidth, setPrimaryRailWidth] = useState(defaultPrimaryRailWidth)
+  const [primaryRailReady, setPrimaryRailReady] = useState(false)
+  const [resizingPrimaryRail, setResizingPrimaryRail] = useState(false)
   const normalizedQuery = query.trim().toLocaleLowerCase('zh-CN')
   const filteredGroups = useMemo(() => {
     if (!normalizedQuery) return groups
@@ -219,6 +266,45 @@ export default function DesktopNavigation({
       .filter((group) => group.items.length > 0)
   }, [groups, normalizedQuery])
 
+  useEffect(() => {
+    const savedWidth = Number(window.localStorage.getItem(primaryRailStorageKey))
+    if (
+      Number.isFinite(savedWidth)
+      && savedWidth >= minPrimaryRailWidth
+      && savedWidth <= maxPrimaryRailWidth
+    ) {
+      setPrimaryRailWidth(savedWidth)
+    }
+    setPrimaryRailReady(true)
+  }, [])
+
+  useEffect(() => {
+    if (!primaryRailReady) return
+    window.localStorage.setItem(primaryRailStorageKey, String(primaryRailWidth))
+  }, [primaryRailReady, primaryRailWidth])
+
+  useEffect(() => {
+    if (!resizingPrimaryRail) return
+    const previousCursor = document.body.style.cursor
+    const previousUserSelect = document.body.style.userSelect
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const resize = (event: PointerEvent) => {
+      setPrimaryRailWidth(Math.min(maxPrimaryRailWidth, Math.max(minPrimaryRailWidth, event.clientX)))
+    }
+    const stop = () => setResizingPrimaryRail(false)
+
+    window.addEventListener('pointermove', resize)
+    window.addEventListener('pointerup', stop, { once: true })
+    return () => {
+      document.body.style.cursor = previousCursor
+      document.body.style.userSelect = previousUserSelect
+      window.removeEventListener('pointermove', resize)
+      window.removeEventListener('pointerup', stop)
+    }
+  }, [resizingPrimaryRail])
+
   if (mode === 'accordion') {
     return <AccordionNavigation groups={filteredGroups} query={normalizedQuery ? query : ''} onQueryChange={setQuery} />
   }
@@ -226,7 +312,21 @@ export default function DesktopNavigation({
   return (
     <>
       <div className="contents xl:hidden"><AccordionNavigation groups={filteredGroups} query={normalizedQuery ? query : ''} onQueryChange={setQuery} /></div>
-      <div className="hidden min-h-0 flex-1 xl:flex"><SplitNavigation groups={groups} searchGroups={filteredGroups} query={normalizedQuery ? query : ''} onQueryChange={setQuery} /></div>
+      <div className="hidden min-h-0 flex-1 xl:flex">
+        <SplitNavigation
+          groups={groups}
+          searchGroups={filteredGroups}
+          query={normalizedQuery ? query : ''}
+          onQueryChange={setQuery}
+          primaryRailWidth={primaryRailWidth}
+          resizingPrimaryRail={resizingPrimaryRail}
+          onPrimaryRailResizeStart={() => setResizingPrimaryRail(true)}
+          onPrimaryRailResizeReset={() => setPrimaryRailWidth(defaultPrimaryRailWidth)}
+          onPrimaryRailResizeBy={(delta) => setPrimaryRailWidth((current) => (
+            Math.min(maxPrimaryRailWidth, Math.max(minPrimaryRailWidth, current + delta))
+          ))}
+        />
+      </div>
     </>
   )
 }

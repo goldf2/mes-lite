@@ -1562,9 +1562,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             }}
             aria-label="页面选项"
             title="页面选项"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-900"
+            className="flex h-9 w-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-900 xl:w-auto xl:px-3"
           >
             <Settings2 aria-hidden="true" className="h-4 w-4" />
+            <span className="hidden whitespace-nowrap text-sm font-medium xl:inline">页面选项</span>
           </button>
           <SystemMenu
             containerRef={desktopSystemMenuRef}
@@ -1665,9 +1666,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 }}
                 aria-label="页面选项"
                 title="页面选项"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-900"
+                className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-900"
               >
                 <Settings2 aria-hidden="true" className="h-4 w-4" />
+                <span className="text-xs font-medium">选项</span>
               </button>
               <SystemMenu
                 containerRef={systemMenuRef}
