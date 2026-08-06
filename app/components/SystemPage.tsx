@@ -21,6 +21,7 @@ import ContrastModeSelector from './ContrastModeSelector'
 import { applyContrastMode, ContrastMode, normalizeContrastMode } from '@/lib/contrast-modes'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
+import ImageOptimizationPanel from './ImageOptimizationPanel'
 
 interface Supplier {
   id: string
@@ -892,6 +893,10 @@ function DataToolManager({ onMessage }: { onMessage: (msg: string) => void }) {
       <div className="mb-5">
         <h3 className="text-lg font-semibold">数据工具</h3>
         <p className="mt-1 text-sm text-gray-500">执行前先预检，修改与删除操作使用数据库事务并写入操作记录。</p>
+      </div>
+
+      <div className="mb-4">
+        <ImageOptimizationPanel onMessage={onMessage} />
       </div>
 
       <DataIntegrityPanel onMessage={onMessage} />

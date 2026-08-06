@@ -150,6 +150,7 @@ export async function removeAttachmentStoredFiles(storagePath: string) {
   const storedNames = entries.filter((name) => (
     name === baseName
     || (name.startsWith(`${baseName}.thumb-r`) && name.endsWith('.png'))
+    || (name.startsWith(`${baseName}.image-`) && name.endsWith('.webp'))
   ))
   await Promise.all(storedNames.map((name) => rm(path.join(directory, name), { force: true })))
 }

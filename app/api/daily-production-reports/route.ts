@@ -12,6 +12,7 @@ import {
 } from '@/lib/daily-production-request'
 import { resolveInventoryLocation } from '@/lib/inventory'
 import { employeeNamesSnapshot, resolveActiveEmployees } from '@/lib/employees'
+import { withMaterialImageUrls } from '@/lib/attachment-urls'
 
 export const dynamic = 'force-dynamic'
 
@@ -134,7 +135,7 @@ export async function GET(req: NextRequest) {
               deletedAt: null,
             },
             orderBy: [{ isCover: 'desc' }, { createdAt: 'desc' }],
-            select: { id: true, ownerId: true, note: true, mimeType: true, isCover: true },
+            select: { id: true, ownerId: true, note: true, mimeType: true, isCover: true, size: true, rotation: true },
           })
         : [],
     ])
@@ -154,13 +155,7 @@ export async function GET(req: NextRequest) {
         ...material,
         bom: compatibleBoms[0] || null,
         boms: compatibleBoms,
-        primaryImage: image ? {
-          id: image.id,
-          url: `/api/attachments/${image.id}/file`,
-          note: image.note,
-          mimeType: image.mimeType,
-          isCover: image.isCover,
-        } : null,
+        primaryImage: image ? withMaterialImageUrls(image) : null,
       }
     })
 

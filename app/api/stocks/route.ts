@@ -6,6 +6,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { parseCsvFilter } from '@/lib/status-filter'
 import { postStockLocationAdjustment, StockAdjustmentError } from '@/lib/stock-adjustment'
 import { buildPackagingInventoryAnalysis } from '@/lib/packaging-inventory'
+import { withMaterialImageUrls } from '@/lib/attachment-urls'
 
 const STOCK_BALANCE_FIELDS = [
   'qty',
@@ -257,7 +258,7 @@ export async function GET(req: NextRequest) {
           deletedAt: null,
         },
         orderBy: [{ isCover: 'desc' }, { createdAt: 'desc' }],
-        select: { id: true, ownerId: true, note: true, mimeType: true, isCover: true },
+        select: { id: true, ownerId: true, note: true, mimeType: true, isCover: true, size: true, rotation: true },
       }),
       prisma.bOM.findMany({
         where: { purpose: 'PACKAGING', isActive: true, isDefault: true },
@@ -339,13 +340,7 @@ export async function GET(req: NextRequest) {
         packagingSummary: stock.materialId ? packagingAnalysis.summaries.get(stock.materialId) || null : null,
         material: stock.material ? {
           ...stock.material,
-          primaryImage: image ? {
-            id: image.id,
-            url: `/api/attachments/${image.id}/file`,
-            note: image.note,
-            mimeType: image.mimeType,
-            isCover: image.isCover,
-          } : null,
+          primaryImage: image ? withMaterialImageUrls(image) : null,
         } : null,
       }
     })

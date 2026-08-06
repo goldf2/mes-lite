@@ -11,7 +11,7 @@ export interface MaterialRelationOption {
   category?: string
   unit?: string
   stockUnit?: string
-  primaryImage?: { url: string; note?: string | null } | null
+  primaryImage?: { url: string; thumbnailUrl?: string; note?: string | null } | null
 }
 
 export function MaterialRelationSearch({
@@ -75,7 +75,7 @@ export function MaterialRelationIdentity({
         >
           {/* Attachment URLs can be local or authenticated and are already thumbnail-optimized. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={material.primaryImage.url} alt={material.primaryImage.note || material.name} className="h-full w-full object-cover" />
+          <img src={material.primaryImage.thumbnailUrl || material.primaryImage.url} alt={material.primaryImage.note || material.name} className="h-full w-full object-cover" />
         </button>
       ) : (
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-dashed border-gray-200 bg-gray-50 text-[10px] text-gray-400">无图</div>

@@ -10,6 +10,7 @@ import {
   parseFlowTransferDate,
   resolveFlowTransferDraft,
 } from '@/lib/flow-transfer'
+import { withMaterialImageUrls } from '@/lib/attachment-urls'
 
 export const dynamic = 'force-dynamic'
 
@@ -103,7 +104,7 @@ export async function GET(req: NextRequest) {
         deletedAt: null,
       },
       orderBy: [{ isCover: 'desc' }, { createdAt: 'desc' }],
-      select: { id: true, ownerId: true, note: true, mimeType: true, isCover: true },
+      select: { id: true, ownerId: true, note: true, mimeType: true, isCover: true, size: true, rotation: true },
     })
     const primaryImageByMaterial = new Map<string, (typeof images)[number]>()
     for (const image of images) {
@@ -113,13 +114,7 @@ export async function GET(req: NextRequest) {
       const image = primaryImageByMaterial.get(material.id)
       return {
         ...material,
-        primaryImage: image ? {
-          id: image.id,
-          url: `/api/attachments/${image.id}/file`,
-          note: image.note,
-          mimeType: image.mimeType,
-          isCover: image.isCover,
-        } : null,
+        primaryImage: image ? withMaterialImageUrls(image) : null,
       }
     })
 

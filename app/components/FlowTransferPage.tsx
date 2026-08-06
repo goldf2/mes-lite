@@ -27,7 +27,7 @@ interface MaterialOption {
   category: string
   stockUnit: string
   unit: string
-  primaryImage?: { id: string; url: string; note?: string | null } | null
+  primaryImage?: { id: string; url: string; thumbnailUrl?: string; displayUrl?: string; originalUrl?: string; note?: string | null } | null
   stock?: {
     qty: number
     availableQty: number
@@ -498,7 +498,7 @@ function LocationMaterialCard({
       <div className={`flex min-w-0 items-center ${large ? 'gap-3' : 'gap-2'}`}>
         {material.primaryImage ? (
           <Image
-            src={material.primaryImage.url}
+            src={material.primaryImage.thumbnailUrl || material.primaryImage.url}
             alt={material.primaryImage.note || material.name}
             width={64}
             height={64}

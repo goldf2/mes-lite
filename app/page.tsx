@@ -155,7 +155,7 @@ interface Stock {
   locationBalances: StockLocationBalance[]
   packagingDefinition?: PackagingDefinition | null
   packagingSummary?: PackagingInventorySummary | null
-  material?: { id: string; code: string; name: string; spec: string; category?: string; customerId?: string | null; customer?: Customer | null; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number; deletedAt?: string | null; primaryImage?: { id: string; url: string; note?: string | null; mimeType: string; isCover: boolean } | null }
+  material?: { id: string; code: string; name: string; spec: string; category?: string; customerId?: string | null; customer?: Customer | null; unit: string; stockUnit: string; valuationUnit: string; conversionRate: number; deletedAt?: string | null; primaryImage?: { id: string; url: string; thumbnailUrl?: string; displayUrl?: string; originalUrl?: string; note?: string | null; mimeType: string; isCover: boolean } | null }
   product?: { id: string; sku: string; name: string; category: string; customerId?: string | null; customer?: Customer | null; unit: string }
 }
 
@@ -2247,14 +2247,14 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                         <td className="px-4 py-3">
                           {stock.material?.primaryImage ? (
                             <a
-                              href={stock.material.primaryImage.url}
+                              href={stock.material.primaryImage.originalUrl || stock.material.primaryImage.url}
                               target="_blank"
                               rel="noreferrer"
                               title={stock.material.primaryImage.note || '查看物料图片'}
                               className="block h-14 w-14 overflow-hidden rounded-md border border-gray-200 bg-gray-50"
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={stock.material.primaryImage.url} alt={stock.material.primaryImage.note || stock.material.name} className="h-full w-full object-cover" />
+                              <img src={stock.material.primaryImage.thumbnailUrl || stock.material.primaryImage.url} alt={stock.material.primaryImage.note || stock.material.name} className="h-full w-full object-cover" />
                             </a>
                           ) : (
                             <div className="flex h-14 w-14 items-center justify-center rounded-md border border-dashed border-gray-200 bg-gray-50 text-xs text-gray-400">
@@ -2337,14 +2337,14 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 	                    <div className="flex min-w-0 items-start gap-3">
                         {stock.material?.primaryImage ? (
                           <a
-                            href={stock.material.primaryImage.url}
+                            href={stock.material.primaryImage.originalUrl || stock.material.primaryImage.url}
                             target="_blank"
                             rel="noreferrer"
                             title={stock.material.primaryImage.note || '查看物料图片'}
                             className="block h-16 w-16 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-gray-50"
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={stock.material.primaryImage.url} alt={stock.material.primaryImage.note || stock.material.name} className="h-full w-full object-cover" />
+                            <img src={stock.material.primaryImage.thumbnailUrl || stock.material.primaryImage.url} alt={stock.material.primaryImage.note || stock.material.name} className="h-full w-full object-cover" />
                           </a>
                         ) : (
                           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-dashed border-gray-200 bg-gray-50 text-xs text-gray-400">
