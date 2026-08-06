@@ -192,68 +192,73 @@ function SplitNavigation({
   const railWidth = primaryRailWidthConfig[displayMode]
 
   return (
-    <nav aria-label="双列一级与二级功能菜单" className="flex min-h-0 flex-1 overflow-hidden">
-      <div style={{ width: primaryRailWidth }} className="shrink-0 overflow-y-auto bg-slate-50 px-1.5 py-2">
-        <div className="space-y-1">
-          {groups.map((group) => (
-            <button
-              key={group.id}
-              type="button"
-              aria-current={group.active ? 'true' : undefined}
-              aria-label={group.label}
-              title={displayMode === 'icon' ? group.label : undefined}
-              onClick={group.onClick}
-              className={`flex min-h-10 w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold leading-none transition ${
-                displayMode === 'icon' ? 'justify-center' : 'justify-start'
-              } ${
-                group.active ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-white hover:text-gray-900'
-              }`}
-            >
-              {displayMode !== 'label' && group.icon}
-              {displayMode !== 'icon' && <span className="min-w-0 truncate">{group.label}</span>}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div
-        role="separator"
-        aria-label="调整一级菜单列宽度"
-        aria-orientation="vertical"
-        aria-valuemin={railWidth.minWidth}
-        aria-valuemax={railWidth.maxWidth}
-        aria-valuenow={Math.round(primaryRailWidth)}
-        tabIndex={0}
-        onPointerDown={(event) => {
-          event.preventDefault()
-          onPrimaryRailResizeStart()
-        }}
-        onDoubleClick={onPrimaryRailResizeReset}
-        onKeyDown={(event) => {
-          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-          event.preventDefault()
-          onPrimaryRailResizeBy(event.key === 'ArrowRight' ? 4 : -4)
-        }}
-        title="拖动调整一级菜单宽度，双击恢复默认"
-        className={`group relative z-10 flex w-2 shrink-0 -translate-x-1/2 cursor-col-resize touch-none items-center justify-center border-l border-gray-200 outline-none ${
-          resizingPrimaryRail ? 'bg-blue-50/80' : ''
-        }`}
-      >
-        <span className={`h-14 w-0.5 rounded-full transition ${
-          resizingPrimaryRail
-            ? 'bg-blue-500'
-            : 'bg-transparent group-hover:bg-blue-400 group-focus:bg-blue-500'
-        }`} />
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col bg-white">
+    <nav aria-label="双列一级与二级功能菜单" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="shrink-0 border-b border-gray-200 bg-white">
         <NavigationSearch value={query} onChange={onQueryChange} />
-        <div className="shrink-0 border-y border-gray-100 px-3 py-2">
-          <div className="text-[11px] font-medium uppercase tracking-wide text-gray-400">功能菜单</div>
-          <div className="mt-0.5 truncate text-sm font-semibold text-gray-900">{query ? '搜索结果' : activeGroup?.label || '导航'}</div>
+      </div>
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div style={{ width: primaryRailWidth }} className="shrink-0 overflow-y-auto bg-slate-50 px-1.5 py-2">
+          <div className="space-y-1">
+            {groups.map((group) => (
+              <button
+                key={group.id}
+                type="button"
+                aria-current={group.active ? 'true' : undefined}
+                aria-label={group.label}
+                title={displayMode === 'icon' ? group.label : undefined}
+                onClick={group.onClick}
+                className={`flex min-h-10 w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold leading-none transition ${
+                  displayMode === 'icon' ? 'justify-center' : 'justify-start'
+                } ${
+                  group.active ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-white hover:text-gray-900'
+                }`}
+              >
+                {displayMode !== 'label' && group.icon}
+                {displayMode !== 'icon' && <span className="min-w-0 truncate">{group.label}</span>}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="min-h-0 flex-1 space-y-0 overflow-y-auto px-2 py-2">
-          {query
-            ? <NavigationSearchResults groups={searchGroups} />
-            : activeGroup?.items.map((item) => <NavigationItemButton key={item.id} item={item} showIcon={Boolean(item.icon)} />)}
+        <div
+          role="separator"
+          aria-label="调整一级菜单列宽度"
+          aria-orientation="vertical"
+          aria-valuemin={railWidth.minWidth}
+          aria-valuemax={railWidth.maxWidth}
+          aria-valuenow={Math.round(primaryRailWidth)}
+          tabIndex={0}
+          onPointerDown={(event) => {
+            event.preventDefault()
+            onPrimaryRailResizeStart()
+          }}
+          onDoubleClick={onPrimaryRailResizeReset}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+            event.preventDefault()
+            onPrimaryRailResizeBy(event.key === 'ArrowRight' ? 4 : -4)
+          }}
+          title="拖动调整一级菜单宽度，双击恢复默认"
+          className={`group relative z-10 flex w-2 shrink-0 -translate-x-1/2 cursor-col-resize touch-none items-center justify-center border-l border-gray-200 outline-none ${
+            resizingPrimaryRail ? 'bg-blue-50/80' : ''
+          }`}
+        >
+          <span className={`h-14 w-0.5 rounded-full transition ${
+            resizingPrimaryRail
+              ? 'bg-blue-500'
+              : 'bg-transparent group-hover:bg-blue-400 group-focus:bg-blue-500'
+          }`} />
+        </div>
+        <div
+          aria-label={query ? '功能搜索结果' : `${activeGroup?.label || '当前分类'}二级菜单`}
+          className="min-w-0 flex-1 overflow-y-auto bg-white px-2 py-2"
+        >
+          {query ? (
+            <NavigationSearchResults groups={searchGroups} />
+          ) : (
+            <div className="space-y-0.5">
+              {activeGroup?.items.map((item) => <NavigationItemButton key={item.id} item={item} showIcon={Boolean(item.icon)} />)}
+            </div>
+          )}
         </div>
       </div>
     </nav>
