@@ -39,7 +39,7 @@ const materials: MaterialRelationOption[] = [
   { id: 'mat-4', code: 'MAT-004', name: '定位套', spec: 'Φ32 × 45', stockUnit: '件' },
 ]
 
-const labDisplayModes = ['card', 'list', 'columns', 'gallery'] as const
+const labDisplayModes = ['icon', 'list', 'card', 'columns', 'gallery'] as const
 
 const initialDocuments: LabDocument[] = [
   {
@@ -384,6 +384,12 @@ export default function ResourceFrameworkLab() {
             </div>
             <h2 className="mt-3 line-clamp-2 font-medium text-gray-900">{item.title}</h2>
             <div className="mt-2 text-xs text-gray-500">{item.category} · 关联 {item.materialIds.length} 个物料</div>
+          </div>
+        )}
+        renderIcon={({ item }) => (
+          <div className="min-w-0">
+            <div className="truncate font-mono text-xs text-gray-500">{item.code}</div>
+            <div className="mt-1 line-clamp-2 text-sm font-medium text-gray-900">{item.title}</div>
           </div>
         )}
         selectedKey={selectedId}

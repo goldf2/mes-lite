@@ -15,6 +15,7 @@ export default function ResourceCollection({
   emptyAction,
   viewMode = 'list',
   list,
+  icons,
   cards,
   columns,
   gallery,
@@ -29,6 +30,7 @@ export default function ResourceCollection({
   emptyAction?: ReactNode
   viewMode?: DisplayMode
   list: ReactNode
+  icons?: ReactNode
   cards?: ReactNode
   columns?: ReactNode
   gallery?: ReactNode
@@ -49,7 +51,8 @@ export default function ResourceCollection({
           <div>{emptyLabel}</div>
           {emptyAction && <div className="mt-4">{emptyAction}</div>}
         </div>
-      ) : viewMode === 'gallery' && gallery ? gallery
+      ) : viewMode === 'icon' && icons ? icons
+        : viewMode === 'gallery' && gallery ? gallery
         : viewMode === 'columns' && columns ? columns
           : viewMode === 'card' && cards ? cards
             : list}

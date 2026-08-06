@@ -17,6 +17,8 @@ export default function ResourceToolbar<M extends DisplayMode = DisplayMode>({
   viewMode,
   onViewModeChange,
   displayModes,
+  iconSize,
+  onIconSizeChange,
   onCreate,
   createLabel = '新增',
   filterCount = 0,
@@ -34,6 +36,8 @@ export default function ResourceToolbar<M extends DisplayMode = DisplayMode>({
   viewMode?: M
   onViewModeChange?: (value: M) => void
   displayModes?: readonly M[]
+  iconSize?: number
+  onIconSizeChange?: (value: number) => void
   onCreate?: () => void
   createLabel?: string
   filterCount?: number
@@ -45,7 +49,15 @@ export default function ResourceToolbar<M extends DisplayMode = DisplayMode>({
   const toolbarActions = viewMode && onViewModeChange || actions || onCreate
     ? (
         <>
-          {viewMode && onViewModeChange && <ViewModeToggle value={viewMode} onChange={onViewModeChange} modes={displayModes} />}
+          {viewMode && onViewModeChange && (
+            <ViewModeToggle
+              value={viewMode}
+              onChange={onViewModeChange}
+              modes={displayModes}
+              iconSize={iconSize}
+              onIconSizeChange={onIconSizeChange}
+            />
+          )}
           {actions}
           {onCreate && <AppButton variant="create" onClick={onCreate}>{createLabel}</AppButton>}
         </>

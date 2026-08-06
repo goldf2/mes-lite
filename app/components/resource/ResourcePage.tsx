@@ -2,7 +2,7 @@
 
 import { ReactNode, useState } from 'react'
 import AdaptiveMasterDetailWorkspace, { CompactMasterDetailMode, CompactMasterDetailModeSelector } from '../layout/AdaptiveMasterDetailWorkspace'
-import { DisplayMode } from '../ViewModeToggle'
+import { DisplayMode, usePersistedIconSize } from '../ViewModeToggle'
 import ResourceCardGrid from './ResourceCardGrid'
 import ResourceCollection from './ResourceCollection'
 import ResourceTable, { ResourceTableColumn } from './ResourceTable'
@@ -22,6 +22,7 @@ export default function ResourcePage<T, M extends DisplayMode = DisplayMode>({
   getKey,
   columns,
   renderCard,
+  renderIcon,
   selectedKey,
   onSelect,
   detail,
@@ -54,6 +55,7 @@ export default function ResourcePage<T, M extends DisplayMode = DisplayMode>({
   getKey: (item: T) => string
   columns: ResourceTableColumn<T>[]
   renderCard?: (context: ResourcePageRenderContext<T>) => ReactNode
+  renderIcon?: (context: ResourcePageRenderContext<T>) => ReactNode
   selectedKey?: string | null
   onSelect?: (item: T) => void
   detail?: ReactNode
@@ -80,6 +82,7 @@ export default function ResourcePage<T, M extends DisplayMode = DisplayMode>({
   rowLabel?: (item: T) => string
 }) {
   const [compactMode, setCompactMode] = useState<CompactMasterDetailMode>('overlay')
+  const [iconSize, setIconSize] = usePersistedIconSize(`mes-lite.resource.${resourceKey}.icon-size.v1`)
   const collection = (
     <ResourceCollection
       loading={loading}
@@ -100,6 +103,22 @@ export default function ResourcePage<T, M extends DisplayMode = DisplayMode>({
           rowLabel={rowLabel}
         />
       )}
+      icons={renderCard ? (
+        <ResourceCardGrid
+          items={items}
+          getKey={getKey}
+          selectedKey={selectedKey}
+          onSelect={onSelect}
+          itemLabel={rowLabel}
+          variant="icon"
+          iconSize={iconSize}
+          renderCard={(item) => (renderIcon || renderCard)({
+            item,
+            selected: getKey(item) === selectedKey,
+            select: () => onSelect?.(item),
+          })}
+        />
+      ) : undefined}
       cards={renderCard ? (
         <ResourceCardGrid
           items={items}
@@ -169,6 +188,8 @@ export default function ResourcePage<T, M extends DisplayMode = DisplayMode>({
         viewMode={renderCard ? viewMode : undefined}
         onViewModeChange={renderCard ? onViewModeChange : undefined}
         displayModes={displayModes}
+        iconSize={iconSize}
+        onIconSizeChange={setIconSize}
         onCreate={onCreate}
         createLabel={createLabel}
         placement={toolbarPlacement}

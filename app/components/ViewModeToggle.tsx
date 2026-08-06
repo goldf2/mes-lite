@@ -1,15 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Check, ChevronDown, Columns3, GalleryHorizontal, LayoutGrid, List, type LucideIcon } from 'lucide-react'
+import { Check, ChevronDown, Columns3, GalleryHorizontal, LayoutGrid, List, Minus, PanelsTopLeft, Plus, type LucideIcon } from 'lucide-react'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 
 export type ViewMode = 'card' | 'list'
-export type DisplayMode = ViewMode | 'columns' | 'gallery'
+export type DisplayMode = ViewMode | 'icon' | 'columns' | 'gallery'
 
 const displayModeDefinitions: Record<DisplayMode, { label: string; icon: LucideIcon }> = {
-  card: { label: '图标', icon: LayoutGrid },
+  icon: { label: '图标', icon: LayoutGrid },
   list: { label: '列表', icon: List },
+  card: { label: '卡片', icon: PanelsTopLeft },
   columns: { label: '分栏', icon: Columns3 },
   gallery: { label: '画廊', icon: GalleryHorizontal },
 }
@@ -18,6 +19,8 @@ interface ViewModeToggleProps<T extends DisplayMode = ViewMode> {
   value: T
   onChange: (value: T) => void
   modes?: readonly T[]
+  iconSize?: number
+  onIconSizeChange?: (value: number) => void
 }
 
 export function usePersistedViewMode(storageKey: string, defaultValue: ViewMode = 'list') {
@@ -58,14 +61,35 @@ export function usePersistedDisplayMode<T extends DisplayMode>(
   return [value, update] as const
 }
 
+export function usePersistedIconSize(storageKey: string, defaultValue = 104) {
+  const [value, setValue] = useState(defaultValue)
+
+  useEffect(() => {
+    const saved = Number(window.localStorage.getItem(storageKey))
+    if (Number.isFinite(saved) && saved >= 72 && saved <= 160) setValue(saved)
+  }, [storageKey])
+
+  const update = useCallback((nextValue: number) => {
+    const normalized = Math.min(160, Math.max(72, Math.round(nextValue / 8) * 8))
+    setValue(normalized)
+    window.localStorage.setItem(storageKey, String(normalized))
+  }, [storageKey])
+
+  return [value, update] as const
+}
+
 export function DisplayModeToggle<T extends DisplayMode>({
   value,
   onChange,
   modes,
+  iconSize,
+  onIconSizeChange,
 }: {
   value: T
   onChange: (value: T) => void
   modes: readonly T[]
+  iconSize?: number
+  onIconSizeChange?: (value: number) => void
 }) {
   const [open, setOpen] = useState(false)
   const popupRef = useDismissibleSearchPopup<HTMLDivElement>(open, () => setOpen(false))
@@ -91,7 +115,7 @@ export function DisplayModeToggle<T extends DisplayMode>({
         <div
           role="menu"
           aria-label="选择显示模式"
-          className="absolute right-0 top-[calc(100%+6px)] z-[140] w-40 overflow-hidden rounded-xl border border-gray-200 bg-white p-1.5 shadow-xl ring-1 ring-black/5"
+          className="absolute right-0 top-[calc(100%+6px)] z-[140] w-44 overflow-hidden rounded-xl border border-gray-200 bg-white p-1.5 shadow-xl ring-1 ring-black/5"
         >
           {modes.map((mode) => {
             const definition = displayModeDefinitions[mode]
@@ -115,6 +139,44 @@ export function DisplayModeToggle<T extends DisplayMode>({
               </button>
             )
           })}
+          {value === 'icon' && iconSize !== undefined && onIconSizeChange && (
+            <div className="mt-1 border-t border-gray-100 px-2.5 pb-1.5 pt-2.5">
+              <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-500">
+                <span>图标大小</span>
+                <span>{iconSize}px</span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-400">
+                <button
+                  type="button"
+                  aria-label="缩小图标"
+                  disabled={iconSize <= 72}
+                  onClick={() => onIconSizeChange(iconSize - 8)}
+                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <Minus aria-hidden="true" className="h-3.5 w-3.5" />
+                </button>
+                <input
+                  type="range"
+                  min={72}
+                  max={160}
+                  step={8}
+                  value={iconSize}
+                  onChange={(event) => onIconSizeChange(Number(event.target.value))}
+                  aria-label="图标大小"
+                  className="h-1.5 min-w-0 flex-1 cursor-pointer accent-blue-600"
+                />
+                <button
+                  type="button"
+                  aria-label="放大图标"
+                  disabled={iconSize >= 160}
+                  onClick={() => onIconSizeChange(iconSize + 8)}
+                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -125,6 +187,16 @@ export default function ViewModeToggle<T extends DisplayMode = ViewMode>({
   value,
   onChange,
   modes,
+  iconSize,
+  onIconSizeChange,
 }: ViewModeToggleProps<T>) {
-  return <DisplayModeToggle value={value} onChange={onChange} modes={modes || (['card', 'list'] as unknown as readonly T[])} />
+  return (
+    <DisplayModeToggle
+      value={value}
+      onChange={onChange}
+      modes={modes || (['card', 'list'] as unknown as readonly T[])}
+      iconSize={iconSize}
+      onIconSizeChange={onIconSizeChange}
+    />
+  )
 }
