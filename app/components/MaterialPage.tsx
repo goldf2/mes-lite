@@ -25,7 +25,13 @@ import { useBomPagePreferences } from './bomPagePreferences'
 import AppLoadingIndicator from './AppLoadingIndicator'
 import PageOptionsDialog from './PageOptionsDialog'
 import { SearchCheck, Settings2, X } from 'lucide-react'
-import type { ResourceSearchCondition } from '@/lib/resource-search'
+import { ResourceAdvancedSearch } from './resource'
+import {
+  filterByResourceSearch,
+  type ResourceAdvancedSearchField,
+  type ResourceSearchCondition,
+  type ResourceSearchProfile,
+} from '@/lib/resource-search'
 
 interface Material {
   id: string
@@ -118,6 +124,33 @@ interface MaterialBom {
   bom?: BomVersion | null
   boms: BomVersion[]
 }
+
+interface BomSearchRow {
+  product: MaterialBom
+  bom: BomVersion
+  material: BomMaterialOption | null
+  materialId: string
+}
+
+const bomSearchProfile: ResourceSearchProfile<BomSearchRow> = {
+  key: 'boms',
+  keywordFields: [
+    { key: 'output', label: '产出物料', read: ({ product, bom, material }) => [product.sku, product.name, material?.code, material?.name, material?.spec, ...bom.outputs.flatMap((output) => [output.material.code, output.material.name, output.material.spec])].filter(Boolean).join(' ') },
+    { key: 'input', label: '投入物料', read: ({ bom }) => bom.items.flatMap((item) => [item.material?.code, item.material?.name, item.material?.spec]).filter(Boolean).join(' ') },
+    { key: 'name', label: 'BOM 名称', read: ({ product, bom }) => `${product.description || ''} ${bom.name}` },
+    { key: 'version', label: '版本', read: ({ bom }) => bom.version },
+  ],
+}
+
+const bomAdvancedSearchFields: readonly ResourceAdvancedSearchField<BomSearchRow>[] = [
+  { key: 'output', label: '产出物料', type: 'text', read: ({ product, bom, material }) => [product.sku, product.name, material?.code, material?.name, material?.spec, ...bom.outputs.flatMap((output) => [output.material.code, output.material.name, output.material.spec])].filter(Boolean).join(' ') },
+  { key: 'input', label: '投入物料', type: 'text', read: ({ bom }) => bom.items.flatMap((item) => [item.material?.code, item.material?.name, item.material?.spec]).filter(Boolean).join(' ') },
+  { key: 'name', label: 'BOM 名称', type: 'text', read: ({ bom }) => bom.name },
+  { key: 'version', label: '版本', type: 'text', read: ({ bom }) => bom.version },
+  { key: 'purpose', label: '用途', type: 'select', read: ({ bom }) => bom.purpose, options: [{ value: 'PRODUCTION', label: '生产 BOM' }, { value: 'PACKAGING', label: '包装 BOM' }] },
+  { key: 'status', label: '启用状态', type: 'select', read: ({ bom }) => bom.isActive ? 'active' : 'inactive', options: [{ value: 'active', label: '启用' }, { value: 'inactive', label: '停用' }] },
+  { key: 'default', label: '默认方案', type: 'select', read: ({ bom }) => bom.isDefault ? 'default' : 'other', options: [{ value: 'default', label: '默认 BOM' }, { value: 'other', label: '非默认 BOM' }] },
+]
 
 interface DraftBomItem {
   clientId: string
@@ -917,6 +950,7 @@ export default function MaterialPage({
   const [quickBomMaterialId, setQuickBomMaterialId] = useState<string | null>(null)
   const [quickBomDraftReady, setQuickBomDraftReady] = useState(false)
   const [bomKeyword, setBomKeyword] = useState('')
+  const [bomSearchConditions, setBomSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [keyword, setKeyword] = useState('')
   const [customerFilter, setCustomerFilter] = useState('')
   const [bomStatusFilter, setBomStatusFilter] = useState<BomStatusFilter>('all')
@@ -972,8 +1006,7 @@ export default function MaterialPage({
     return defaultBomEntryUnit(unitCatalog, material, preferredCode)
   }, [bomPagePreferences.lengthUnit, bomPagePreferences.weightUnit, unitCatalog])
   const existingBomRows = useMemo(() => {
-    const normalizedKeyword = bomKeyword.trim().toLocaleLowerCase()
-    return bomProducts.flatMap((product) => product.boms.map((bom) => {
+    const rows: BomSearchRow[] = bomProducts.flatMap((product) => product.boms.map((bom) => {
       const materialId = product.sourceMaterialId || product.id.replace(materialProductPrefix, '')
       return {
         product,
@@ -981,22 +1014,9 @@ export default function MaterialPage({
         materialId,
         material: bomMaterialById.get(materialId) || null,
       }
-    })).filter(({ product, bom, material }) => {
-      if (!normalizedKeyword) return true
-      return [
-        product.sku,
-        product.name,
-        product.description,
-        bom.name,
-        bom.version,
-        material?.code,
-        material?.name,
-        material?.spec,
-        ...bom.outputs.flatMap((output) => [output.material.code, output.material.name, output.material.spec]),
-        ...bom.items.flatMap((item) => [item.material?.code, item.material?.name, item.material?.spec]),
-      ].filter(Boolean).join(' ').toLocaleLowerCase().includes(normalizedKeyword)
-    })
-  }, [bomKeyword, bomMaterialById, bomProducts])
+    }))
+    return filterByResourceSearch(rows, bomKeyword, bomSearchProfile, bomAdvancedSearchFields, bomSearchConditions)
+  }, [bomKeyword, bomMaterialById, bomProducts, bomSearchConditions])
   const selectedBomProduct = selectedMaterial ? bomProductByMaterialId.get(selectedMaterial.id) || null : null
   const selectedBom = selectedBomId === '__new__'
     ? null
@@ -2035,6 +2055,10 @@ export default function MaterialPage({
               value={bomKeyword}
               onChange={setBomKeyword}
               placeholder="搜索产出、投入物料、BOM 或版本"
+              advancedSearch={<ResourceAdvancedSearch fields={bomAdvancedSearchFields} conditions={bomSearchConditions} onChange={setBomSearchConditions} />}
+              conditions={bomSearchConditions}
+              onConditionsChange={setBomSearchConditions}
+              conditionLabel={`${bomSearchConditions.length} 个 BOM 条件`}
             />
           )}
           actions={(
@@ -2101,7 +2125,7 @@ export default function MaterialPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, bomStatusFilter, viewMode, setViewMode, showBomWorkspace, bomKeyword, selectMaterialForBom, canUseBomData, materialSearchConditions, applyMaterialSearchConditions])
+  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, bomStatusFilter, viewMode, setViewMode, showBomWorkspace, bomKeyword, bomSearchConditions, selectMaterialForBom, canUseBomData, materialSearchConditions, applyMaterialSearchConditions])
 
   const renderBomDraftEditor = (showSaveAction: boolean) => (
     <>
@@ -2326,6 +2350,10 @@ export default function MaterialPage({
                 value={bomKeyword}
                 onChange={setBomKeyword}
                 placeholder="搜索产出、投入物料、BOM 或版本"
+                advancedSearch={<ResourceAdvancedSearch fields={bomAdvancedSearchFields} conditions={bomSearchConditions} onChange={setBomSearchConditions} />}
+                conditions={bomSearchConditions}
+                onConditionsChange={setBomSearchConditions}
+                conditionLabel={`${bomSearchConditions.length} 个 BOM 条件`}
               />
             )}
             actions={(
