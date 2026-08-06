@@ -55,23 +55,24 @@ export default function ResourceToolbar<M extends DisplayMode = DisplayMode>({
   placement?: 'portal' | 'inline'
   filterPresentation?: 'dialog' | 'popover'
 }) {
-  const toolbarActions = viewMode && onViewModeChange || actions || onCreate
+  const toolbarActions = actions || onCreate
     ? (
         <>
-          {viewMode && onViewModeChange && (
-            <ViewModeToggle
-              value={viewMode}
-              onChange={onViewModeChange}
-              modes={displayModes}
-              iconSize={iconSize}
-              onIconSizeChange={onIconSizeChange}
-            />
-          )}
           {actions}
           {onCreate && <AppButton variant="create" onClick={onCreate}>{createLabel}</AppButton>}
         </>
       )
     : null
+
+  const viewControl = viewMode && onViewModeChange ? (
+    <ViewModeToggle
+      value={viewMode}
+      onChange={onViewModeChange}
+      modes={displayModes}
+      iconSize={iconSize}
+      onIconSizeChange={onIconSizeChange}
+    />
+  ) : undefined
 
   const search = searchStorageKey && searchValue !== undefined && onSearchChange && searchPlaceholder
     ? (
@@ -80,7 +81,6 @@ export default function ResourceToolbar<M extends DisplayMode = DisplayMode>({
           value={searchValue}
           onChange={onSearchChange}
           placeholder={searchPlaceholder}
-          advancedSearch={advancedSearch}
           conditions={searchConditions}
           onConditionsChange={onSearchConditionsChange}
           conditionLabel={searchConditionLabel}
@@ -91,10 +91,12 @@ export default function ResourceToolbar<M extends DisplayMode = DisplayMode>({
   const toolbar = (
     <ResponsiveToolbarActions
       primaryFilters={search}
+      advancedSearch={advancedSearch}
       filters={filters}
       filterCount={filterCount}
       filterSummary={filterSummary}
       preferences={mobilePreferences}
+      viewControl={viewControl}
       filterPresentation={filterPresentation}
       actions={toolbarActions}
     />

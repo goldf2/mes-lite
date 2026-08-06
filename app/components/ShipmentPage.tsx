@@ -326,11 +326,9 @@ export default function ShipmentPage({
             />
           </>
         )}
+        viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
         actions={(
           <>
-            <div>
-              <ViewModeToggle value={viewMode} onChange={setViewMode} />
-            </div>
             <AppButton
               variant="create"
               onClick={openCreate}
@@ -378,11 +376,9 @@ export default function ShipmentPage({
               />
             </>
           )}
+          viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
           actions={(
             <>
-              <div>
-                <ViewModeToggle value={viewMode} onChange={setViewMode} />
-              </div>
               <AppButton
                 variant="create"
                 onClick={openCreate}

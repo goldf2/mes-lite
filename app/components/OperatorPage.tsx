@@ -124,9 +124,9 @@ export default function OperatorPage({
             storageKey="mes-lite.filters.operators.status.order"
           />
         )}
+        viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
         actions={(
           <>
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
             <button onClick={fetchOperators} disabled={loading} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50">
               刷新
             </button>
@@ -150,9 +150,9 @@ export default function OperatorPage({
               storageKey="mes-lite.filters.operators.status.order"
             />
           )}
+          viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
           actions={(
             <>
-              <ViewModeToggle value={viewMode} onChange={setViewMode} />
               <button onClick={fetchOperators} disabled={loading} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50">
                 刷新
               </button>

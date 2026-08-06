@@ -988,11 +988,9 @@ export default function MaterialInPage({
             />
           </>
         )}
+        viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
         actions={(
           <>
-            <div>
-              <ViewModeToggle value={viewMode} onChange={setViewMode} />
-            </div>
             <AppButton
               variant="create"
               onClick={() => {
@@ -1051,11 +1049,9 @@ export default function MaterialInPage({
               />
             </>
           )}
+          viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
           actions={(
             <>
-              <div>
-                <ViewModeToggle value={viewMode} onChange={setViewMode} />
-              </div>
               <AppButton
                 variant="create"
                 onClick={() => {

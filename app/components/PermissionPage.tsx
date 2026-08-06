@@ -299,9 +299,9 @@ export default function PermissionPage({
                 placeholder="搜索账号、姓名或角色"
               />
             )}
+            viewControl={<ViewModeToggle value={userViewMode} onChange={setUserViewMode} />}
             actions={(
               <>
-                <ViewModeToggle value={userViewMode} onChange={setUserViewMode} />
                 <AppButton variant="primary" onClick={saveAssignment} disabled={loading || !activeOperator || activeOperator.role === 'ADMIN'}>
                   {loading ? '保存中...' : '保存当前人员'}
                 </AppButton>
@@ -310,9 +310,9 @@ export default function PermissionPage({
           />
         ) : (
           <ResponsiveToolbarActions
+            viewControl={<ViewModeToggle value={groupViewMode} onChange={setGroupViewMode} />}
             actions={(
               <>
-                <ViewModeToggle value={groupViewMode} onChange={setGroupViewMode} />
                 <AppButton variant="create" onClick={() => setShowNewGroupForm((value) => !value)} disabled={loading}>新建权限组</AppButton>
                 <AppButton variant="primary" onClick={saveGroupSettings} disabled={loading || !activeGroup}>保存权限组赋权</AppButton>
               </>

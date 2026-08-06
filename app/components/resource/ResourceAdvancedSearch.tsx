@@ -64,12 +64,13 @@ export default function ResourceAdvancedSearch<T>({
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
         aria-haspopup="dialog"
+        aria-label="高级搜索"
         title="高级搜索"
-        className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 sm:h-10 sm:px-3 sm:text-sm"
+        className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50"
       >
         <SearchCheck aria-hidden="true" className="h-4 w-4 text-blue-600" />
-        <span className="hidden md:inline">高级搜索</span>
-        {conditions.length > 0 && <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700">{conditions.length}</span>}
+        <span className="sr-only">高级搜索</span>
+        {conditions.length > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-blue-600 px-1 text-center text-[10px] leading-4 text-white">{conditions.length}</span>}
       </button>
 
       {open && (

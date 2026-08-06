@@ -465,9 +465,9 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
               <option value="REVERSED">已冲销</option>
             </select>
           )}
+          viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
           actions={(
             <>
-              <ViewModeToggle value={viewMode} onChange={setViewMode} />
               <AppButton variant="create" onClick={openCreate}>
                 新建生产记录
               </AppButton>

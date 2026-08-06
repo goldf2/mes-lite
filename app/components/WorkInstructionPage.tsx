@@ -917,6 +917,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       filterSummary={activeFilterLabels.slice(0, 3).map((label) => (
         <span key={label} className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">{label}</span>
       ))}
+      viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
       filters={(
         <>
           <StatusCheckboxFilter
@@ -973,9 +974,6 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           >
             类别管理
           </button>
-          <div>
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
-          </div>
           <AppButton
             variant="create"
             onClick={openAddModal}

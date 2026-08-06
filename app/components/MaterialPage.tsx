@@ -24,7 +24,8 @@ import { normalizeUnitCode } from '@/lib/unit-catalog'
 import { useBomPagePreferences } from './bomPagePreferences'
 import AppLoadingIndicator from './AppLoadingIndicator'
 import PageOptionsDialog from './PageOptionsDialog'
-import { SearchCheck, Settings2, X } from 'lucide-react'
+import ToolbarOrderSettings from './ToolbarOrderSettings'
+import { SearchCheck, X } from 'lucide-react'
 import { ResourceAdvancedSearch } from './resource'
 import {
   filterByResourceSearch,
@@ -481,11 +482,12 @@ function MaterialAdvancedSearch({
         aria-expanded={open}
         aria-haspopup="dialog"
         title="高级搜索"
-        className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 sm:h-10 sm:px-3 sm:text-sm"
+        aria-label="高级搜索"
+        className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50"
       >
         <SearchCheck aria-hidden="true" className="h-4 w-4 text-blue-600" />
-        <span className="hidden md:inline">高级搜索</span>
-        {activeCount > 0 && <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700">{activeCount}</span>}
+        <span className="sr-only">高级搜索</span>
+        {activeCount > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-blue-600 px-1 text-center text-[10px] leading-4 text-white">{activeCount}</span>}
       </button>
 
       {open && (
@@ -2049,23 +2051,22 @@ export default function MaterialPage({
     if (showBomWorkspace) {
       onToolbarChange(
         <ResponsiveToolbarActions
+          pageKey="bomWorkspace"
           primaryFilters={(
             <SearchFieldWithPresets
               storageKey="mes-lite.searchPresets.boms"
               value={bomKeyword}
               onChange={setBomKeyword}
               placeholder="搜索产出、投入物料、BOM 或版本"
-              advancedSearch={<ResourceAdvancedSearch fields={bomAdvancedSearchFields} conditions={bomSearchConditions} onChange={setBomSearchConditions} />}
               conditions={bomSearchConditions}
               onConditionsChange={setBomSearchConditions}
               conditionLabel={`${bomSearchConditions.length} 个 BOM 条件`}
             />
           )}
+          advancedSearch={<ResourceAdvancedSearch fields={bomAdvancedSearchFields} conditions={bomSearchConditions} onChange={setBomSearchConditions} />}
+          onOpenPageOptions={() => setShowPageOptions(true)}
           actions={(
-            <>
-              <AppButton onClick={() => setShowPageOptions(true)}><Settings2 aria-hidden="true" className="h-4 w-4" />页内选项</AppButton>
-              <AppButton variant="create" onClick={() => selectMaterialForBom('')}>新建 BOM</AppButton>
-            </>
+            <AppButton variant="create" onClick={() => selectMaterialForBom('')}>新建 BOM</AppButton>
           )}
         />
       )
@@ -2074,35 +2075,34 @@ export default function MaterialPage({
 
     onToolbarChange(
       <ResponsiveToolbarActions
+        pageKey="materialManagement"
         primaryFilters={(
           <SearchFieldWithPresets
             storageKey="mes-lite.searchPresets.materials"
             value={keyword}
             onChange={setKeyword}
             placeholder="搜索物料名称或编码"
-            advancedSearch={(
-              <MaterialAdvancedSearch
-                selectedCategories={selectedCategories}
-                onCategoriesChange={setSelectedCategories}
-                customerFilter={customerFilter}
-                onCustomerChange={setCustomerFilter}
-                customers={customers}
-                bomStatusFilter={bomStatusFilter}
-                onBomStatusChange={setBomStatusFilter}
-                showBomStatus={canUseBomData}
-              />
-            )}
             conditions={materialSearchConditions}
             onConditionsChange={applyMaterialSearchConditions}
             conditionLabel={`${materialSearchConditions.length} 个精确条件`}
           />
         )}
+        advancedSearch={(
+          <MaterialAdvancedSearch
+            selectedCategories={selectedCategories}
+            onCategoriesChange={setSelectedCategories}
+            customerFilter={customerFilter}
+            onCustomerChange={setCustomerFilter}
+            customers={customers}
+            bomStatusFilter={bomStatusFilter}
+            onBomStatusChange={setBomStatusFilter}
+            showBomStatus={canUseBomData}
+          />
+        )}
+        viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
+        onOpenPageOptions={() => setShowPageOptions(true)}
         actions={(
           <>
-            <div>
-              <ViewModeToggle value={viewMode} onChange={setViewMode} />
-            </div>
-            <AppButton onClick={() => setShowPageOptions(true)}><Settings2 aria-hidden="true" className="h-4 w-4" />页内选项</AppButton>
             <AppButton
               variant="create"
               onClick={handleAdd}
@@ -2344,56 +2344,54 @@ export default function MaterialPage({
       <TopBarPortal>
         {showBomWorkspace ? (
           <ResponsiveToolbarActions
+            pageKey="bomWorkspace"
             primaryFilters={(
               <SearchFieldWithPresets
                 storageKey="mes-lite.searchPresets.boms"
                 value={bomKeyword}
                 onChange={setBomKeyword}
                 placeholder="搜索产出、投入物料、BOM 或版本"
-                advancedSearch={<ResourceAdvancedSearch fields={bomAdvancedSearchFields} conditions={bomSearchConditions} onChange={setBomSearchConditions} />}
                 conditions={bomSearchConditions}
                 onConditionsChange={setBomSearchConditions}
                 conditionLabel={`${bomSearchConditions.length} 个 BOM 条件`}
               />
             )}
+            advancedSearch={<ResourceAdvancedSearch fields={bomAdvancedSearchFields} conditions={bomSearchConditions} onChange={setBomSearchConditions} />}
+            onOpenPageOptions={() => setShowPageOptions(true)}
             actions={(
-              <>
-                <AppButton onClick={() => setShowPageOptions(true)}><Settings2 aria-hidden="true" className="h-4 w-4" />页内选项</AppButton>
-                <AppButton variant="create" onClick={() => selectMaterialForBom('')}>新建 BOM</AppButton>
-              </>
+              <AppButton variant="create" onClick={() => selectMaterialForBom('')}>新建 BOM</AppButton>
             )}
           />
         ) : (
           <ResponsiveToolbarActions
+          pageKey="materialManagement"
           primaryFilters={(
             <SearchFieldWithPresets
               storageKey="mes-lite.searchPresets.materials"
               value={keyword}
               onChange={setKeyword}
               placeholder="搜索物料名称或编码"
-              advancedSearch={(
-                <MaterialAdvancedSearch
-                  selectedCategories={selectedCategories}
-                  onCategoriesChange={setSelectedCategories}
-                  customerFilter={customerFilter}
-                  onCustomerChange={setCustomerFilter}
-                  customers={customers}
-                  bomStatusFilter={bomStatusFilter}
-                  onBomStatusChange={setBomStatusFilter}
-                  showBomStatus={canUseBomData}
-                />
-              )}
               conditions={materialSearchConditions}
               onConditionsChange={applyMaterialSearchConditions}
               conditionLabel={`${materialSearchConditions.length} 个精确条件`}
             />
           )}
+          advancedSearch={(
+            <MaterialAdvancedSearch
+              selectedCategories={selectedCategories}
+              onCategoriesChange={setSelectedCategories}
+              customerFilter={customerFilter}
+              onCustomerChange={setCustomerFilter}
+              customers={customers}
+              bomStatusFilter={bomStatusFilter}
+              onBomStatusChange={setBomStatusFilter}
+              showBomStatus={canUseBomData}
+            />
+          )}
+          viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
+          onOpenPageOptions={() => setShowPageOptions(true)}
           actions={(
             <>
-              <div>
-                <ViewModeToggle value={viewMode} onChange={setViewMode} />
-              </div>
-              <AppButton onClick={() => setShowPageOptions(true)}><Settings2 aria-hidden="true" className="h-4 w-4" />页内选项</AppButton>
               <AppButton
                 variant="create"
                 onClick={handleAdd}
@@ -2422,9 +2420,10 @@ export default function MaterialPage({
         showBomUnitOptions={showBomWorkspace}
         onMessage={onMessage}
       >
+        <ToolbarOrderSettings pageKey={showBomWorkspace ? 'bomWorkspace' : 'materialManagement'} />
         {!showBomWorkspace && (
           <>
-            <section>
+            <section className="border-t border-gray-100 pt-5">
               <div className="text-sm font-semibold text-gray-900">排序</div>
               <p className="mt-1 text-xs text-gray-500">只改变当前浏览器中的物料排列方式。</p>
               <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2">

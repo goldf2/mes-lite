@@ -486,17 +486,16 @@ function SystemPageToolbar({
   const primaryFilters = searchStorageKey && searchValue !== undefined && onSearchChange && searchPlaceholder
     ? <SearchFieldWithPresets storageKey={searchStorageKey} value={searchValue} onChange={onSearchChange} placeholder={searchPlaceholder} />
     : undefined
-  const toolbarActions = viewMode && onViewModeChange || extraAction || actions
+  const toolbarActions = extraAction || actions
     ? (
         <>
-          {viewMode && onViewModeChange && <ViewModeToggle value={viewMode} onChange={onViewModeChange} />}
           {extraAction}
           {actions}
         </>
       )
     : undefined
 
-  return <TopBarPortal><ResponsiveToolbarActions primaryFilters={primaryFilters} actions={toolbarActions} /></TopBarPortal>
+  return <TopBarPortal><ResponsiveToolbarActions primaryFilters={primaryFilters} viewControl={viewMode && onViewModeChange ? <ViewModeToggle value={viewMode} onChange={onViewModeChange} /> : undefined} actions={toolbarActions} /></TopBarPortal>
 }
 
 export default function SystemPage({

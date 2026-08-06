@@ -1774,6 +1774,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             <TopBarPortal>
                 {tab === 'orders' ? (
                   <ResponsiveToolbarActions
+                    pageKey="orders"
                     primaryFilters={(
                       <SearchFieldWithPresets
                         storageKey="mes-lite.searchPresets.orders"
@@ -1790,11 +1791,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                         storageKey="mes-lite.filters.orders.status.order"
                       />
                     )}
+                    viewControl={<ViewModeToggle value={orderViewMode} onChange={setOrderViewMode} />}
                     actions={(
                       <>
-                        <div>
-                          <ViewModeToggle value={orderViewMode} onChange={setOrderViewMode} />
-                        </div>
                         {canCreate('orders') && (
                           <AppButton
                             variant="create"
@@ -1808,6 +1807,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   />
                 ) : tab === 'stocks' ? (
                   <ResponsiveToolbarActions
+                    pageKey="stocks"
                     primaryFilters={(
                       <SearchFieldWithPresets
                         storageKey="mes-lite.searchPresets.stocks"
@@ -1868,11 +1868,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                         </label>
                       </>
                     )}
+                    viewControl={<ViewModeToggle value={stockViewMode} onChange={setStockViewMode} />}
                     actions={(
                       <>
-                        <div>
-                          <ViewModeToggle value={stockViewMode} onChange={setStockViewMode} />
-                        </div>
                         <button
                           onClick={() => setShowStockHelp(true)}
                           className="shrink-0 whitespace-nowrap px-3 py-1.5 border border-blue-300 text-blue-700 rounded-lg text-xs hover:bg-blue-50 sm:px-4 sm:py-2 sm:text-sm"
@@ -1884,8 +1882,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   />
                 ) : tab === 'create' || tab === 'detail' ? (
                   <ResponsiveToolbarActions
+                    pageKey={tab}
                     actions={<AppButton onClick={() => setTab('orders')}>返回生产订单</AppButton>}
                   />
+                ) : ['dashboard', 'sawingCost', 'scanPrint', 'dataTools'].includes(activePageModule.key) ? (
+                  <ResponsiveToolbarActions pageKey={activePageModule.key} />
                 ) : null}
             </TopBarPortal>
           </div>
@@ -1898,7 +1899,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         >
         <PageModuleBoundary
           definition={activePageModule}
-          toolbarProvided={tab === 'orders' || tab === 'stocks' || tab === 'create' || tab === 'detail'}
+          toolbarProvided={tab === 'orders' || tab === 'stocks' || tab === 'create' || tab === 'detail' || ['dashboard', 'sawingCost', 'scanPrint', 'dataTools'].includes(activePageModule.key)}
         >
         {tab === 'materials' && materialSectionItems.length > 1 && (
           <nav

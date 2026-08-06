@@ -12,7 +12,7 @@ const keys = pageModuleDefinitions.map((definition) => definition.key)
 const duplicates = keys.filter((key, index) => keys.indexOf(key) !== index)
 const missing = expectedFunctionKeys.filter((key) => !keys.includes(key))
 const unexpected = keys.filter((key) => !expectedFunctionKeys.includes(key))
-const expectedToolbarExceptions = ['dashboard', 'businessSettings', 'displaySettings', 'aiSettings', 'sawingCost', 'scanPrint', 'dataTools']
+const expectedToolbarExceptions: string[] = []
 const toolbarExceptions = pageModuleDefinitions.filter((definition) => definition.toolbar === 'none').map((definition) => definition.key)
 const missingToolbarExceptions = expectedToolbarExceptions.filter((key) => !toolbarExceptions.includes(key))
 const unexpectedToolbarExceptions = toolbarExceptions.filter((key) => !expectedToolbarExceptions.includes(key))

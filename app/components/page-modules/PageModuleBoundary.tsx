@@ -13,6 +13,7 @@ const moduleClassNames: Record<PageModuleKind, string> = {
 }
 
 export const PageToolbarRegistrationContext = createContext<(() => () => void) | null>(null)
+export const PageModuleKeyContext = createContext('shared')
 
 export default function PageModuleBoundary({
   definition,
@@ -49,9 +50,11 @@ export default function PageModuleBoundary({
       aria-label={`${definition.title}页面模块`}
       className={`mes-page-module min-h-0 min-w-0 ${moduleClassNames[definition.kind]}`}
     >
-      <PageToolbarRegistrationContext.Provider value={registration}>
-        {children}
-      </PageToolbarRegistrationContext.Provider>
+      <PageModuleKeyContext.Provider value={definition.key}>
+        <PageToolbarRegistrationContext.Provider value={registration}>
+          {children}
+        </PageToolbarRegistrationContext.Provider>
+      </PageModuleKeyContext.Provider>
     </section>
   )
 }

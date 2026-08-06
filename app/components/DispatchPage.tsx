@@ -289,11 +289,9 @@ export default function DispatchPage({
             />
           </>
         )}
+        viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
         actions={(
           <>
-            <div>
-              <ViewModeToggle value={viewMode} onChange={setViewMode} />
-            </div>
             {onCreateOrder && (
               <button
                 onClick={onCreateOrder}
@@ -344,11 +342,9 @@ export default function DispatchPage({
               />
             </>
           )}
+          viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
           actions={(
             <>
-              <div>
-                <ViewModeToggle value={viewMode} onChange={setViewMode} />
-              </div>
               {onCreateOrder && (
                 <button
                   onClick={onCreateOrder}
