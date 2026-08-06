@@ -9,19 +9,10 @@ import { isAttachmentRotation } from '@/lib/attachment-rotation'
 import { attachmentUploadRoot, ensureAttachmentThumbnail } from '@/lib/attachment-thumbnail'
 import { ensureAttachmentImageVariant } from '@/lib/attachment-image-variants'
 import { withAttachmentUrls, withMaterialImageUrls } from '@/lib/attachment-urls'
+import { MAX_ATTACHMENT_FILE_SIZE, attachmentPreviewKind, normalizeAttachmentMimeType } from '@/lib/attachment-file-types'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024
-const ALLOWED_MIME_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/heic',
-  'image/heif',
-  'application/pdf',
-])
 
 function safeSegment(value: string) {
   return value.replace(/[^a-zA-Z0-9_-]/g, '_')
@@ -93,12 +84,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '缺少上传文件' }, { status: 400 })
     }
 
-    if (file.size <= 0 || file.size > MAX_FILE_SIZE) {
-      return NextResponse.json({ error: '文件大小必须在 10MB 以内' }, { status: 400 })
+    if (file.size <= 0 || file.size > MAX_ATTACHMENT_FILE_SIZE) {
+      return NextResponse.json({ error: '文件大小必须在 50MB 以内' }, { status: 400 })
     }
 
-    if (!ALLOWED_MIME_TYPES.has(file.type)) {
-      return NextResponse.json({ error: '仅支持 JPG、PNG、WEBP、HEIC 或 PDF' }, { status: 400 })
+    const mimeType = normalizeAttachmentMimeType(file.name, file.type)
+    const safePreviewKind = attachmentPreviewKind(file.name, mimeType)
+    if (ownerType === 'MATERIAL' && documentType === 'MATERIAL_IMAGE' && safePreviewKind !== 'image') {
+      return NextResponse.json({ error: '物料图片只支持可安全预览的图片格式' }, { status: 400 })
     }
 
     const ownerTypeDir = safeSegment(ownerType)
@@ -106,13 +99,13 @@ export async function POST(req: NextRequest) {
     const uploadDir = path.join(attachmentUploadRoot(), ownerTypeDir, ownerIdDir)
     await mkdir(uploadDir, { recursive: true })
 
-    const fileName = `${Date.now()}-${randomUUID()}${extensionFrom(file.name, file.type)}`
+    const fileName = `${Date.now()}-${randomUUID()}${extensionFrom(file.name, mimeType)}`
     const storagePath = path.join(uploadDir, fileName)
     const buffer = Buffer.from(await file.arrayBuffer())
     await writeFile(storagePath, buffer)
 
     const url = `/uploads/${ownerTypeDir}/${ownerIdDir}/${fileName}`
-    const isMaterialImage = ownerType === 'MATERIAL' && documentType === 'MATERIAL_IMAGE' && file.type.startsWith('image/')
+    const isMaterialImage = ownerType === 'MATERIAL' && documentType === 'MATERIAL_IMAGE' && safePreviewKind === 'image'
     const existingImageCount = isMaterialImage ? await prisma.documentAttachment.count({
       where: {
         ownerType,
@@ -129,7 +122,7 @@ export async function POST(req: NextRequest) {
         documentType,
         originalName: file.name,
         fileName,
-        mimeType: file.type,
+        mimeType,
         size: file.size,
         url,
         storagePath,
@@ -138,7 +131,7 @@ export async function POST(req: NextRequest) {
         isCover: isMaterialImage && existingImageCount === 0,
       },
     })
-    if (attachment.mimeType.startsWith('image/')) {
+    if (safePreviewKind === 'image') {
       try {
         if (isMaterialImage) {
           await Promise.all([

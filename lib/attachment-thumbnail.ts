@@ -4,6 +4,11 @@ import { randomUUID } from 'crypto'
 import { spawn } from 'child_process'
 import { createCanvas, loadImage } from '@napi-rs/canvas'
 import { normalizeAttachmentRotation } from './attachment-rotation'
+import { ensureOfficeDocumentPreview } from './office-document-preview'
+import { attachmentPreviewKind } from './attachment-file-types'
+import { resolveAttachmentStoragePath } from './attachment-storage'
+
+export { attachmentUploadRoot, resolveAttachmentStoragePath } from './attachment-storage'
 
 const maxThumbnailWidth = 640
 const maxThumbnailHeight = 480
@@ -11,24 +16,9 @@ const generationTasks = new Map<string, Promise<string>>()
 
 type ThumbnailSource = {
   storagePath: string
+  originalName?: string | null
   mimeType: string
   rotation?: number | null
-}
-
-export function attachmentUploadRoot() {
-  return path.resolve(
-    process.env.MES_LITE_UPLOAD_DIR
-      || path.join(process.cwd(), 'public', 'uploads')
-  )
-}
-
-export function resolveAttachmentStoragePath(storagePath: string) {
-  const root = attachmentUploadRoot()
-  const resolved = path.resolve(storagePath)
-  if (!resolved.startsWith(`${root}${path.sep}`)) {
-    throw new Error('附件路径无效')
-  }
-  return resolved
 }
 
 export function attachmentThumbnailStoragePath(storagePath: string, rotation = 0) {
@@ -101,11 +91,15 @@ async function renderPdfThumbnail(sourcePath: string, targetPath: string, savedR
 async function generateAttachmentThumbnail(source: ThumbnailSource, targetPath: string) {
   const sourcePath = resolveAttachmentStoragePath(source.storagePath)
   const rotation = normalizeAttachmentRotation(Number(source.rotation || 0))
-  if (source.mimeType === 'application/pdf') {
+  const previewKind = attachmentPreviewKind(source.originalName || sourcePath, source.mimeType)
+  if (previewKind === 'pdf' || previewKind === 'office') {
     await mkdir(path.dirname(targetPath), { recursive: true })
-    return renderPdfThumbnail(sourcePath, targetPath, rotation)
+    const pdfPath = previewKind === 'office'
+      ? await ensureOfficeDocumentPreview(source)
+      : sourcePath
+    return renderPdfThumbnail(pdfPath, targetPath, rotation)
   }
-  const png = source.mimeType.startsWith('image/')
+  const png = previewKind === 'image'
     ? await renderImageThumbnail(sourcePath, rotation)
     : null
 
@@ -151,6 +145,7 @@ export async function removeAttachmentStoredFiles(storagePath: string) {
     name === baseName
     || (name.startsWith(`${baseName}.thumb-r`) && name.endsWith('.png'))
     || (name.startsWith(`${baseName}.image-`) && name.endsWith('.webp'))
+    || (name.startsWith(`${baseName}.preview-v`) && name.endsWith('.pdf'))
   ))
   await Promise.all(storedNames.map((name) => rm(path.join(directory, name), { force: true })))
 }

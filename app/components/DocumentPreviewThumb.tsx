@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { FileText } from 'lucide-react'
+import { attachmentPreviewKind, attachmentTypeLabel, type AttachmentPreviewKind } from '@/lib/attachment-file-types'
 
 export interface PreviewAttachment {
   id: string
@@ -8,6 +10,8 @@ export interface PreviewAttachment {
   mimeType: string
   url: string
   thumbnailUrl?: string | null
+  previewUrl?: string | null
+  previewKind?: AttachmentPreviewKind
   note?: string | null
   rotation?: number
 }
@@ -45,7 +49,7 @@ function StoredDocumentPreview({
       {state === 'error' && (
         <div className="flex flex-col items-center gap-1 text-red-700">
           <span className="text-base font-semibold">
-            {attachment.mimeType === 'application/pdf' ? 'PDF' : '图片'}
+            {attachmentTypeLabel(attachment.originalName, attachment.mimeType)}
           </span>
           <span className="text-xs">预览不可用</span>
         </div>
@@ -63,13 +67,20 @@ export default function DocumentPreviewThumb({
   title: string
   className?: string
 }) {
+  const previewKind = attachment
+    ? attachment.previewKind || attachmentPreviewKind(attachment.originalName, attachment.mimeType)
+    : 'none'
   return (
     <div className={`flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-gray-50 ${className}`}>
       {attachment ? (
-        attachment.mimeType.startsWith('image/') || attachment.mimeType === 'application/pdf' ? (
+        previewKind === 'image' || previewKind === 'pdf' || previewKind === 'office' ? (
           <StoredDocumentPreview attachment={attachment} title={title} />
         ) : (
-          <div className="text-sm text-gray-500">暂不支持预览</div>
+          <div className="flex flex-col items-center gap-2 px-3 text-center text-gray-500">
+            <FileText className="h-8 w-8 text-gray-400" />
+            <span className="text-sm font-medium">{attachmentTypeLabel(attachment.originalName, attachment.mimeType)}</span>
+            <span className="text-xs">{previewKind === 'text' ? '打开后可预览正文' : '可下载原文件'}</span>
+          </div>
         )
       ) : (
         <span className="text-sm text-gray-400">暂无文件</span>

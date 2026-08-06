@@ -6,6 +6,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { parseCsvFilter } from '@/lib/status-filter'
 import { withAttachmentUrls } from '@/lib/attachment-urls'
 import { DocumentContentValidationError, normalizeDocumentContent } from '@/lib/document-content'
+import { officeAttachmentMimeTypes } from '@/lib/attachment-file-types'
 
 const workInstructionSchema = z.object({
   title: z.string().trim().max(200, '文档标题不能超过 200 个字符').optional().default(''),
@@ -42,7 +43,7 @@ function createAutomaticTitle(
 }
 
 async function ownerIdsByFileType(fileType: string | null) {
-  if (fileType !== 'image' && fileType !== 'pdf') return null
+  if (fileType !== 'image' && fileType !== 'pdf' && fileType !== 'office') return null
 
   const rows = await prisma.documentAttachment.findMany({
     where: {
@@ -50,7 +51,9 @@ async function ownerIdsByFileType(fileType: string | null) {
       deletedAt: null,
       ...(fileType === 'image'
         ? { mimeType: { startsWith: 'image/' } }
-        : { mimeType: 'application/pdf' }),
+        : fileType === 'pdf'
+          ? { mimeType: 'application/pdf' }
+          : { mimeType: { in: [...officeAttachmentMimeTypes] } }),
     },
     select: { ownerId: true },
     distinct: ['ownerId'],

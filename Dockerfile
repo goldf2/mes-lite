@@ -57,12 +57,24 @@ ENV NODE_ENV=production \
     DATABASE_URL=file:/app/data/mes_lite.db \
     PDF_FONT_PATH=/app/assets/fonts/NotoSansCJKsc-Regular.otf
 
+COPY --from=builder --chown=node:node /app/assets/fonts ./assets/fonts
+
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     sed -i "s|http://deb.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources \
     && apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update \
-    && apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends poppler-utils \
+    && apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
+      poppler-utils \
+      libreoffice-core-nogui \
+      libreoffice-writer-nogui \
+      libreoffice-calc-nogui \
+      libreoffice-impress-nogui \
+      fontconfig \
     && command -v pdftoppm >/dev/null \
+    && command -v soffice >/dev/null \
+    && mkdir -p /usr/local/share/fonts/mes-lite \
+    && cp /app/assets/fonts/NotoSansCJKsc-Regular.otf /usr/local/share/fonts/mes-lite/ \
+    && fc-cache -f \
     && command -v setpriv >/dev/null \
     && mkdir -p /app/data /app/public/uploads \
     && chown -R node:node /app
@@ -78,7 +90,6 @@ COPY --from=generated-dependencies --chown=node:node /app/node_modules/.prisma .
 COPY --from=generated-dependencies --chown=node:node /app/node_modules/@napi-rs ./node_modules/@napi-rs
 COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/prisma ./prisma
-COPY --from=builder --chown=node:node /app/assets/fonts ./assets/fonts
 COPY --from=builder --chown=node:node /app/scripts/cleanup-legacy-work-instruction-files.mjs ./scripts/cleanup-legacy-work-instruction-files.mjs
 COPY --from=builder --chown=node:node /app/scripts/render-pdf-thumbnail.mjs ./scripts/render-pdf-thumbnail.mjs
 COPY --from=builder --chown=root:root --chmod=755 /app/scripts/fix-persistent-storage-permissions.sh /app/scripts/docker-entrypoint.sh ./scripts/

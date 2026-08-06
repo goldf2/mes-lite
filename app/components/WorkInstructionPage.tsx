@@ -9,7 +9,7 @@ import StatusCheckboxFilter, { getMultiSelectQuery } from './StatusCheckboxFilte
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import DocumentPreviewThumb from './DocumentPreviewThumb'
-import PdfDocumentViewer from './PdfDocumentViewer'
+import DocumentFileViewer from './DocumentFileViewer'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import SearchableSelect from './SearchableSelect'
 import { normalizeAttachmentRotation } from '@/lib/attachment-rotation'
@@ -26,6 +26,12 @@ import AppButton from './AppButton'
 import OnlineDocumentEditor from './OnlineDocumentEditor'
 import { EMPTY_DOCUMENT_JSON } from '@/lib/document-content'
 import OneToManyRelationField from './relations/OneToManyRelationField'
+import {
+  MAX_ATTACHMENT_FILE_SIZE,
+  attachmentPreviewKind,
+  attachmentTypeLabel,
+  type AttachmentPreviewKind,
+} from '@/lib/attachment-file-types'
 
 interface Customer {
   id: string
@@ -57,6 +63,8 @@ interface AttachmentItem {
   size: number
   url: string
   thumbnailUrl?: string | null
+  previewUrl?: string | null
+  previewKind?: AttachmentPreviewKind
   note?: string | null
   documentType: string
   isCover: boolean
@@ -113,6 +121,7 @@ const fileTypeOptions = [
   { value: 'all', label: '全部文件' },
   { value: 'image', label: '图片' },
   { value: 'pdf', label: 'PDF' },
+  { value: 'office', label: 'Office' },
 ] as const
 
 const statusLabels = Object.fromEntries(instructionStatusOptions.map((item) => [item.value, item.label]))
@@ -137,7 +146,7 @@ function formatSize(size: number) {
 }
 
 function isSupportedDocumentFile(file: File) {
-  return file.type.startsWith('image/') || file.type === 'application/pdf'
+  return file.size > 0 && file.size <= MAX_ATTACHMENT_FILE_SIZE
 }
 
 function mergeSelectedFiles(current: File[], next: File[]) {
@@ -399,7 +408,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const [selectedStatuses, setSelectedStatuses] = useState(instructionStatusOptions.map((item) => item.value))
   const [customerFilter, setCustomerFilter] = useState('')
   const [materialFilter, setMaterialFilter] = useState('')
-  const [fileType, setFileType] = useState<'all' | 'image' | 'pdf'>('all')
+  const [fileType, setFileType] = useState<'all' | 'image' | 'pdf' | 'office'>('all')
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.workInstructions.viewMode', 'card')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
@@ -616,16 +625,14 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const selectCreateFiles = (files: FileList | File[]) => {
     const selectedFiles = Array.from(files)
     const acceptedFiles = selectedFiles.filter(isSupportedDocumentFile)
-    const oversizedFiles = acceptedFiles.filter((file) => file.size > 10 * 1024 * 1024)
-    const readyFiles = acceptedFiles.filter((file) => file.size > 0 && file.size <= 10 * 1024 * 1024)
+    const oversizedFiles = selectedFiles.filter((file) => file.size > MAX_ATTACHMENT_FILE_SIZE)
+    const readyFiles = acceptedFiles
 
     if (readyFiles.length > 0) {
       setCreateFiles((current) => mergeSelectedFiles(current, readyFiles))
     }
-    if (acceptedFiles.length !== selectedFiles.length) {
-      onMessage('仅支持图片或 PDF 文件')
-    } else if (oversizedFiles.length > 0) {
-      onMessage('单个文件不能超过 10 MB')
+    if (oversizedFiles.length > 0) {
+      onMessage('单个文件不能超过 50 MB')
     }
     if (createUploadInputRef.current) createUploadInputRef.current.value = ''
   }
@@ -789,7 +796,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     const selectedFiles = Array.from(files)
     const acceptedFiles = selectedFiles.filter(isSupportedDocumentFile)
     if (acceptedFiles.length === 0) {
-      onMessage('请上传图片或 PDF 文件')
+      onMessage('请选择 50 MB 以内的文件')
       return
     }
 
@@ -934,7 +941,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           />
           <select
             value={fileType}
-            onChange={(event) => setFileType(event.target.value as 'all' | 'image' | 'pdf')}
+            onChange={(event) => setFileType(event.target.value as 'all' | 'image' | 'pdf' | 'office')}
             className="w-36 rounded-lg border border-gray-200 px-4 py-2 text-sm"
           >
             {fileTypeOptions.map((option) => (
@@ -1028,7 +1035,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       {instruction.material?.spec && <div className="truncate">规格：{instruction.material.spec}</div>}
                       <div className="truncate">客户：{getInstructionCustomerName(instruction)}</div>
                       <div className="line-clamp-2">工作中心：{instruction.workCenters.length > 0 ? instruction.workCenters.map((item) => item.name).join('、') : '不限'}</div>
-                      <div>内容：{instruction.contentText ? '在线正文' : '无正文'} · {instruction.imageCount} 图 / {instruction.pdfCount} PDF</div>
+                      <div>内容：{instruction.contentText ? '在线正文' : '无正文'} · {instruction.attachmentCount} 个附件</div>
                       {instruction.note && <div className="line-clamp-2">备注：{instruction.note}</div>}
                     </div>
                   </div>
@@ -1099,7 +1106,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       <td className="whitespace-nowrap px-4 py-3 text-sm">{statusLabels[instruction.status] || instruction.status}</td>
                       <td className="px-4 py-3 text-sm">{getInstructionCustomerName(instruction)}</td>
                       <td className="px-4 py-3 text-sm"><div className="line-clamp-2">{instruction.workCenters.length > 0 ? instruction.workCenters.map((item) => item.name).join('、') : '不限'}</div></td>
-                      <td className="whitespace-nowrap px-4 py-3 text-sm">{instruction.contentText ? '在线 · ' : ''}{instruction.imageCount} 图 / {instruction.pdfCount} PDF</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-sm">{instruction.contentText ? '在线 · ' : ''}{instruction.attachmentCount} 个附件</td>
                       <td className="whitespace-nowrap px-4 py-3">
                         <div className="flex flex-wrap gap-2">
                           <button
@@ -1142,7 +1149,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h4 className="text-sm font-semibold text-gray-900">原始文件（可选）</h4>
-                    <p className="mt-1 text-xs text-gray-500">支持图片和 PDF，单个文件不超过 10 MB。</p>
+                    <p className="mt-1 text-xs text-gray-500">支持 Word、Excel、PowerPoint、PDF、图片及其他附件，单个文件不超过 50 MB。</p>
                   </div>
                   <button
                     type="button"
@@ -1156,7 +1163,6 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   <input
                     ref={createUploadInputRef}
                     type="file"
-                    accept="image/*,application/pdf"
                     multiple
                     disabled={loading}
                     className="hidden"
@@ -1191,15 +1197,15 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                     createDragActive ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-blue-200 bg-white text-gray-500 hover:border-blue-400 hover:bg-blue-50/60'
                   } ${loading ? 'cursor-not-allowed opacity-60' : ''}`}
                 >
-                  <span className="inline-flex items-center gap-2"><Upload className="h-4 w-4" />拖放图片或 PDF 到这里</span>
+                  <span className="inline-flex items-center gap-2"><Upload className="h-4 w-4" />拖放文件到这里</span>
                 </div>
                 {createFiles.length > 0 && (
                   <div className="mt-3 max-h-40 space-y-2 overflow-y-auto" aria-label="待上传文件">
                     {createFiles.map((file) => (
                       <div key={`${file.name}:${file.size}:${file.lastModified}`} className="flex items-center gap-3 rounded-md border border-gray-200 bg-white px-3 py-2">
-                        {file.type === 'application/pdf'
-                          ? <FileText className="h-5 w-5 shrink-0 text-red-500" />
-                          : <ImageIcon className="h-5 w-5 shrink-0 text-blue-500" />}
+                        {file.type.startsWith('image/')
+                          ? <ImageIcon className="h-5 w-5 shrink-0 text-blue-500" />
+                          : <FileText className="h-5 w-5 shrink-0 text-slate-500" />}
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-medium text-gray-800">{file.name}</div>
                           <div className="text-xs text-gray-400">{formatSize(file.size)}</div>
@@ -1379,14 +1385,13 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                     <div className="mb-3 flex items-center justify-between">
                       <div>
                         <h4 className="text-sm font-semibold text-gray-900">上传文档附件</h4>
-                        <p className="mt-1 text-xs text-gray-500">支持图片和 PDF，可一次选择多个文件。</p>
+                        <p className="mt-1 text-xs text-gray-500">支持 Word、Excel、PowerPoint、PDF、图片及其他附件，可一次选择多个文件。</p>
                       </div>
                       <label className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700">
                         {uploading ? '上传中...' : '选择文件'}
                         <input
                           ref={uploadInputRef}
                           type="file"
-                          accept="image/*,application/pdf"
                           multiple
                           disabled={uploading}
                           className="hidden"
@@ -1425,7 +1430,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                         dragActive ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 bg-gray-50 text-gray-500 hover:border-blue-300 hover:bg-blue-50/50'
                       } ${uploading ? 'cursor-not-allowed opacity-60' : ''}`}
                     >
-                      {uploading ? '上传中...' : '拖放图片或 PDF 到这里，或点击选择文件'}
+                      {uploading ? '上传中...' : '拖放文件到这里，或点击选择文件'}
                     </div>
                   </div>
                 </section>
@@ -1449,7 +1454,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       <span className="text-xs text-gray-500">{detailAttachments.length} 个文件</span>
                     </div>
                   {detailAttachments.length === 0 ? (
-                    <div className="flex min-h-36 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500">暂无图片或 PDF</div>
+                    <div className="flex min-h-36 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500">暂无附件</div>
                   ) : (
                     <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${detailFullscreen ? 'xl:grid-cols-3 2xl:grid-cols-4' : 'xl:grid-cols-3'}`}>
                       {detailAttachments.map((attachment, index) => (
@@ -1464,7 +1469,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                           <div className="p-3">
                             <div className="truncate text-sm font-medium text-gray-900">{attachment.originalName}</div>
                             <div className="mt-1 flex items-center justify-between gap-2 text-xs text-gray-500">
-                              <span>{attachment.mimeType === 'application/pdf' ? 'PDF' : '图片'} · {formatSize(attachment.size)}</span>
+                              <span>{attachmentTypeLabel(attachment.originalName, attachment.mimeType)} · {formatSize(attachment.size)}</span>
                               <span>{formatDate(attachment.createdAt)}</span>
                             </div>
                             <div className="mt-3 flex justify-end gap-2">
@@ -1505,40 +1510,23 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
             <div className="flex flex-wrap items-center justify-end gap-2">
               <button onClick={() => setViewer({ ...viewer, index: Math.max(0, viewer.index - 1) })} disabled={viewer.index <= 0} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">上一份</button>
               <button onClick={() => setViewer({ ...viewer, index: Math.min(viewer.attachments.length - 1, viewer.index + 1) })} disabled={viewer.index >= viewer.attachments.length - 1} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">下一份</button>
-              <button onClick={() => setViewerZoom((value) => Math.max(0.25, Number((value - 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">缩小</button>
-              <button onClick={() => setViewerZoom((value) => Math.min(4, Number((value + 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">放大</button>
-              <button onClick={() => void saveSelectedAttachmentRotation(-90)} disabled={rotationSaving} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">左转并保存</button>
-              <button onClick={() => void saveSelectedAttachmentRotation(90)} disabled={rotationSaving} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">右转并保存</button>
-              <button onClick={() => setViewerZoom(1)} className="rounded border border-white/20 px-3 py-1.5 text-sm">适合页面</button>
-              <a href={selectedViewerAttachment.url} target="_blank" rel="noreferrer" className="rounded border border-white/20 px-3 py-1.5 text-sm">新窗口</a>
+              {attachmentPreviewKind(selectedViewerAttachment.originalName, selectedViewerAttachment.mimeType) !== 'text' && attachmentPreviewKind(selectedViewerAttachment.originalName, selectedViewerAttachment.mimeType) !== 'none' && <>
+                <button onClick={() => setViewerZoom((value) => Math.max(0.25, Number((value - 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">缩小</button>
+                <button onClick={() => setViewerZoom((value) => Math.min(4, Number((value + 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">放大</button>
+                <button onClick={() => void saveSelectedAttachmentRotation(-90)} disabled={rotationSaving} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">左转并保存</button>
+                <button onClick={() => void saveSelectedAttachmentRotation(90)} disabled={rotationSaving} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">右转并保存</button>
+                <button onClick={() => setViewerZoom(1)} className="rounded border border-white/20 px-3 py-1.5 text-sm">适合页面</button>
+              </>}
+              <a href={`${selectedViewerAttachment.url}?download=1`} className="rounded border border-white/20 px-3 py-1.5 text-sm">下载原文件</a>
               <button onClick={() => setViewer(null)} className="rounded bg-white px-3 py-1.5 text-sm text-slate-900">关闭</button>
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
-            {selectedViewerAttachment.mimeType.startsWith('image/') ? (
-              <div className="flex h-full w-full items-center justify-center overflow-auto p-4">
-                <img
-                  src={selectedViewerAttachment.url}
-                  alt={selectedViewerAttachment.originalName}
-                  className="max-h-full max-w-full object-contain"
-                  style={{
-                    transform: `rotate(${selectedViewerAttachment.rotation || 0}deg) scale(${viewerZoom})`,
-                    transformOrigin: 'center center',
-                  }}
-                />
-              </div>
-            ) : (
-              <PdfDocumentViewer
-                url={selectedViewerAttachment.url}
-                title={selectedViewerAttachment.originalName}
-                rotation={selectedViewerAttachment.rotation}
-                zoom={viewerZoom}
-              />
-            )}
+            <DocumentFileViewer attachment={selectedViewerAttachment} zoom={viewerZoom} />
           </div>
-          {selectedViewerAttachment.mimeType === 'application/pdf' && (
+          {['pdf', 'office'].includes(attachmentPreviewKind(selectedViewerAttachment.originalName, selectedViewerAttachment.mimeType)) && (
             <div className="shrink-0 border-t border-white/10 px-4 py-2 text-xs text-white/60">
-              PDF 多页可纵向滚动；方向调整会保存到当前文件，并同步用于卡片预览和产品全景图。
+              多页文档可纵向滚动；Office 文件首次打开时由服务器生成 PDF 预览，原文件保持不变。
             </div>
           )}
         </div>

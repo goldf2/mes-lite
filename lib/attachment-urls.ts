@@ -1,5 +1,8 @@
+import { attachmentPreviewKind, canGenerateAttachmentThumbnail } from './attachment-file-types'
+
 export type AttachmentWithPreviewFields = {
   id: string
+  originalName?: string | null
   mimeType?: string | null
   rotation?: number | null
 }
@@ -14,6 +17,10 @@ export function attachmentFileUrl(id: string) {
 
 export function attachmentThumbnailUrl(id: string, rotation = 0) {
   return `/api/attachments/${id}/thumbnail?v=${rotation}`
+}
+
+export function attachmentPreviewUrl(id: string) {
+  return `/api/attachments/${id}/preview`
 }
 
 export function attachmentImageVariantUrl(
@@ -39,13 +46,16 @@ export function withMaterialImageUrls<T extends MaterialImageWithPreviewFields>(
 }
 
 export function withAttachmentUrls<T extends AttachmentWithPreviewFields>(attachment: T) {
-  const previewable = attachment.mimeType === 'application/pdf'
-    || Boolean(attachment.mimeType?.startsWith('image/'))
+  const previewKind = attachmentPreviewKind(attachment.originalName || '', attachment.mimeType)
 
   return {
     ...attachment,
     url: attachmentFileUrl(attachment.id),
-    thumbnailUrl: previewable
+    previewKind,
+    previewUrl: previewKind === 'office' || previewKind === 'text'
+      ? attachmentPreviewUrl(attachment.id)
+      : attachmentFileUrl(attachment.id),
+    thumbnailUrl: canGenerateAttachmentThumbnail(attachment.originalName || '', attachment.mimeType)
       ? attachmentThumbnailUrl(attachment.id, Number(attachment.rotation || 0))
       : null,
   }

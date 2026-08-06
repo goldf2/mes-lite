@@ -3,8 +3,9 @@
 import { ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react'
 import ModalOverlay from './ModalOverlay'
 import DocumentPreviewThumb from './DocumentPreviewThumb'
-import PdfDocumentViewer from './PdfDocumentViewer'
+import DocumentFileViewer from './DocumentFileViewer'
 import { normalizeAttachmentRotation } from '@/lib/attachment-rotation'
+import { attachmentPreviewKind, attachmentTypeLabel, type AttachmentPreviewKind } from '@/lib/attachment-file-types'
 
 interface AttachmentItem {
   id: string
@@ -13,6 +14,8 @@ interface AttachmentItem {
   size: number
   url: string
   thumbnailUrl?: string | null
+  previewUrl?: string | null
+  previewKind?: AttachmentPreviewKind
   displayUrl?: string | null
   originalUrl?: string | null
   note?: string | null
@@ -609,7 +612,7 @@ function AttachmentList({ items }: { items: AttachmentItem[] }) {
           className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-gray-100 px-3 py-2 text-sm hover:bg-gray-50"
         >
           <span className="min-w-0 truncate text-gray-800">{item.originalName}</span>
-          <span className="shrink-0 text-xs text-gray-500">{item.mimeType.includes('pdf') ? 'PDF' : item.documentType}</span>
+          <span className="shrink-0 text-xs text-gray-500">{attachmentTypeLabel(item.originalName, item.mimeType)}</span>
         </a>
       ))}
     </div>
@@ -800,7 +803,7 @@ export default function MaterialPanoramaPage({
 
   const openWorkInstructionViewer = (instruction: WorkInstructionSummary) => {
     if (!instruction.attachments || instruction.attachments.length === 0) {
-      onMessage('这条产品文档还没有上传图片或 PDF')
+      onMessage('这条产品文档还没有上传附件')
       return
     }
     setViewer({ instruction, attachments: instruction.attachments, index: 0 })
@@ -1455,40 +1458,23 @@ export default function MaterialPanoramaPage({
             <div className="flex flex-wrap items-center justify-end gap-2">
               <button onClick={() => setViewer({ ...viewer, index: Math.max(0, viewer.index - 1) })} disabled={viewer.index <= 0} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">上一份</button>
               <button onClick={() => setViewer({ ...viewer, index: Math.min(viewer.attachments.length - 1, viewer.index + 1) })} disabled={viewer.index >= viewer.attachments.length - 1} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">下一份</button>
-              <button onClick={() => setViewerZoom((value) => Math.max(0.25, Number((value - 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">缩小</button>
-              <button onClick={() => setViewerZoom((value) => Math.min(4, Number((value + 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">放大</button>
-              <button onClick={() => void saveSelectedAttachmentRotation(-90)} disabled={rotationSaving} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">左转并保存</button>
-              <button onClick={() => void saveSelectedAttachmentRotation(90)} disabled={rotationSaving} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">右转并保存</button>
-              <button onClick={() => setViewerZoom(1)} className="rounded border border-white/20 px-3 py-1.5 text-sm">适合页面</button>
-              <a href={selectedViewerAttachment.url} target="_blank" rel="noreferrer" className="rounded border border-white/20 px-3 py-1.5 text-sm">新窗口</a>
+              {attachmentPreviewKind(selectedViewerAttachment.originalName, selectedViewerAttachment.mimeType) !== 'text' && attachmentPreviewKind(selectedViewerAttachment.originalName, selectedViewerAttachment.mimeType) !== 'none' && <>
+                <button onClick={() => setViewerZoom((value) => Math.max(0.25, Number((value - 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">缩小</button>
+                <button onClick={() => setViewerZoom((value) => Math.min(4, Number((value + 0.25).toFixed(2))))} className="rounded border border-white/20 px-3 py-1.5 text-sm">放大</button>
+                <button onClick={() => void saveSelectedAttachmentRotation(-90)} disabled={rotationSaving} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">左转并保存</button>
+                <button onClick={() => void saveSelectedAttachmentRotation(90)} disabled={rotationSaving} className="rounded border border-white/20 px-3 py-1.5 text-sm disabled:opacity-40">右转并保存</button>
+                <button onClick={() => setViewerZoom(1)} className="rounded border border-white/20 px-3 py-1.5 text-sm">适合页面</button>
+              </>}
+              <a href={`${selectedViewerAttachment.url}?download=1`} className="rounded border border-white/20 px-3 py-1.5 text-sm">下载原文件</a>
               <button onClick={() => setViewer(null)} className="rounded bg-white px-3 py-1.5 text-sm text-slate-900">关闭</button>
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
-            {selectedViewerAttachment.mimeType.startsWith('image/') ? (
-              <div className="flex h-full w-full items-center justify-center overflow-auto p-4">
-                <img
-                  src={selectedViewerAttachment.url}
-                  alt={selectedViewerAttachment.originalName}
-                  className="max-h-full max-w-full object-contain"
-                  style={{
-                    transform: `rotate(${selectedViewerAttachment.rotation || 0}deg) scale(${viewerZoom})`,
-                    transformOrigin: 'center center',
-                  }}
-                />
-              </div>
-            ) : (
-              <PdfDocumentViewer
-                url={selectedViewerAttachment.url}
-                title={selectedViewerAttachment.originalName}
-                rotation={selectedViewerAttachment.rotation}
-                zoom={viewerZoom}
-              />
-            )}
+            <DocumentFileViewer attachment={selectedViewerAttachment} zoom={viewerZoom} />
           </div>
-          {selectedViewerAttachment.mimeType === 'application/pdf' && (
+          {['pdf', 'office'].includes(attachmentPreviewKind(selectedViewerAttachment.originalName, selectedViewerAttachment.mimeType)) && (
             <div className="shrink-0 border-t border-white/10 px-4 py-2 text-xs text-white/60">
-              PDF 多页可纵向滚动；方向调整会保存到当前文件，并同步用于卡片预览和产品文档。
+              多页文档可纵向滚动；Office 文件首次打开时由服务器生成 PDF 预览，原文件保持不变。
             </div>
           )}
         </div>

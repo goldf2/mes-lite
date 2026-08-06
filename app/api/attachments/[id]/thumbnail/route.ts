@@ -3,6 +3,7 @@ import { readFile } from 'fs/promises'
 import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { ensureAttachmentThumbnail } from '@/lib/attachment-thumbnail'
+import { canGenerateAttachmentThumbnail } from '@/lib/attachment-file-types'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,6 +20,7 @@ export async function GET(
       where: { id: params.id },
       select: {
         id: true,
+        originalName: true,
         mimeType: true,
         storagePath: true,
         rotation: true,
@@ -28,10 +30,7 @@ export async function GET(
     if (!attachment || attachment.deletedAt) {
       return NextResponse.json({ error: '附件不存在' }, { status: 404 })
     }
-    if (
-      attachment.mimeType !== 'application/pdf'
-      && !attachment.mimeType.startsWith('image/')
-    ) {
+    if (!canGenerateAttachmentThumbnail(attachment.originalName, attachment.mimeType)) {
       return NextResponse.json({ error: '该附件类型不支持缩略图' }, { status: 415 })
     }
 

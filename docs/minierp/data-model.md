@@ -489,7 +489,7 @@ SKU，实际库存单位。
 
 - `owner_type + owner_id`
 
-附件预览不增加数据库字段：服务端根据 `storage_path + size + rotation + profileVersion` 计算确定性文件名并保存在同一持久化附件目录。通用图片/PDF 可生成 PNG 缩略图；物料图片另外生成 320px WebP 缩略图和 1600px WebP 展示图。原始文件始终作为不可变事实源保留，业务列表和详情只引用派生图，用户明确打开原图时才读取原文件。图片/PDF 原文件归档时保留派生图以支持恢复，永久删除附件所属业务记录时同时删除原文件及全部派生图。
+附件预览不增加数据库字段：服务端根据 `storage_path + size + rotation + profileVersion` 计算确定性文件名并保存在同一持久化附件目录。通用图片/PDF 可生成 PNG 缩略图，Office 文件先生成 PDF 预览再生成缩略图；物料图片另外生成 320px WebP 缩略图和 1600px WebP 展示图。原始文件始终作为不可变事实源保留，业务列表和详情只引用派生文件，用户明确下载时才读取原文件。原文件归档时保留派生缓存以支持恢复，永久删除附件所属业务记录时同时删除原文件及全部派生文件。
 
 ### sawing_cost_scenarios（当前 Prisma 已实现）
 
@@ -760,10 +760,10 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 | `WorkInstruction` | `contentJson`、`contentText` | `contentJson` 保存 Tiptap 结构化正文，`contentText` 是服务器提取的纯文本搜索投影 |
 | `WorkInstruction` | `version`、`status`、`note` | 保存版本、状态和通用备注；不保存具体工序实绩 |
 | `WorkInstruction.workCenters` | 多对多工作中心 | 工艺文件可声明一个或多个适用工作中心；空集合表示不限工作中心 |
-| `DocumentAttachment` | `ownerType = WORK_INSTRUCTION`、`ownerId` | 保存产品文档的图片或 PDF 文件 |
+| `DocumentAttachment` | `ownerType = WORK_INSTRUCTION`、`ownerId` | 保存产品文档的原始附件，包括图片、PDF、Office、文本和其他业务文件 |
 | `DocumentAttachment` | `rotation` | 文件显示方向校正角度，只允许 `0 / 90 / 180 / 270`；不修改原文件 |
 
-正文 JSON 是可编辑事实源，纯文本只用于搜索，不允许由客户端单独写入。在线正文和附件可以独立存在，也可以同时维护；附件继续保存原始图片或 PDF，不嵌入正文 JSON。
+正文 JSON 是可编辑事实源，纯文本只用于搜索，不允许由客户端单独写入。在线正文和附件可以独立存在，也可以同时维护；附件始终保留原文件，不嵌入正文 JSON。Office 预览是从原文件按需生成的 PDF 派生缓存，不是新的业务事实源。
 
 默认数据包含“作业指导书、图纸、工艺文件、检验文件、包装文件、设备文件、其他”等一级类别，但它们是可维护的数据库记录。“作业指导书”下可增加“机床作业、环境作业”等二级类别。已有文档引用或仍有子类别时禁止删除类别。
 

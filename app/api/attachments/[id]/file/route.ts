@@ -3,12 +3,13 @@ import { readFile } from 'fs/promises'
 import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { resolveAttachmentStoragePath } from '@/lib/attachment-thumbnail'
+import { shouldServeAttachmentInline } from '@/lib/attachment-file-types'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -25,11 +26,16 @@ export async function GET(
     const storagePath = resolveAttachmentStoragePath(attachment.storagePath)
 
     const file = await readFile(storagePath)
+    const forceDownload = new URL(req.url).searchParams.get('download') === '1'
+    const disposition = !forceDownload && shouldServeAttachmentInline(attachment.originalName, attachment.mimeType)
+      ? 'inline'
+      : 'attachment'
     return new NextResponse(new Uint8Array(file), {
       headers: {
         'Content-Type': attachment.mimeType,
         'Content-Length': String(file.length),
-        'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(attachment.originalName)}`,
+        'Content-Disposition': `${disposition}; filename*=UTF-8''${encodeURIComponent(attachment.originalName)}`,
+        'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'private, max-age=300',
       },
     })

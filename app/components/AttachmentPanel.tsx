@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
+import { MAX_ATTACHMENT_FILE_SIZE, attachmentTypeLabel } from '@/lib/attachment-file-types'
 
 interface Attachment {
   id: string
@@ -12,6 +13,7 @@ interface Attachment {
   originalUrl?: string
   thumbnailUrl?: string
   displayUrl?: string
+  previewUrl?: string | null
   note?: string
   uploadedBy?: string
   isCover: boolean
@@ -104,11 +106,11 @@ export default function AttachmentPanel({
     const selectedFiles = Array.from(files)
     const acceptedFiles = selectedFiles.filter((file) => {
       if (imageOnly) return file.type.startsWith('image/')
-      return file.type.startsWith('image/') || file.type === 'application/pdf'
+      return file.size > 0 && file.size <= MAX_ATTACHMENT_FILE_SIZE
     })
 
     if (acceptedFiles.length === 0) {
-      onMessage(imageOnly ? '请拖放图片文件' : '请拖放图片或 PDF 文件')
+      onMessage(imageOnly ? '请拖放图片文件' : '请选择 50 MB 以内的文件')
       return
     }
 
@@ -170,11 +172,11 @@ export default function AttachmentPanel({
       <div className="min-w-[150px] space-y-2">
         <div className="flex items-center gap-2">
           <label className="px-3 py-1 border border-blue-300 text-blue-700 rounded text-xs hover:bg-blue-50 cursor-pointer whitespace-nowrap">
-            {uploading ? '上传中' : imageOnly ? '上传图片' : '上传照片'}
+            {uploading ? '上传中' : imageOnly ? '上传图片' : '上传文件'}
             <input
               ref={inputRef}
               type="file"
-              accept={imageOnly ? 'image/*' : 'image/*,application/pdf'}
+              accept={imageOnly ? 'image/*' : undefined}
               className="hidden"
               disabled={uploading}
               onChange={(e) => {
@@ -190,7 +192,7 @@ export default function AttachmentPanel({
             {attachments.map((attachment) => (
               <a
                 key={attachment.id}
-                href={attachment.originalUrl || attachment.url}
+                href={attachment.previewUrl || attachment.originalUrl || attachment.url}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50 text-xs"
@@ -199,7 +201,7 @@ export default function AttachmentPanel({
                 {attachment.mimeType.startsWith('image/') ? (
                   <img src={attachment.thumbnailUrl || attachment.url} alt={attachment.originalName} className="h-full w-full object-cover" />
                 ) : (
-                  'PDF'
+                  attachmentTypeLabel(attachment.originalName, attachment.mimeType)
                 )}
               </a>
             ))}
@@ -233,7 +235,7 @@ export default function AttachmentPanel({
               <input
                 ref={inputRef}
                 type="file"
-                accept={imageOnly ? 'image/*' : 'image/*,application/pdf'}
+                accept={imageOnly ? 'image/*' : undefined}
                 multiple
                 className="hidden"
                 disabled={uploading}
@@ -267,7 +269,7 @@ export default function AttachmentPanel({
               : 'border-gray-300 bg-gray-50 text-gray-500 hover:border-blue-300 hover:bg-blue-50/50'
           } ${uploading ? 'cursor-not-allowed' : 'cursor-pointer'}`}
         >
-          {uploading ? '上传中...' : imageOnly ? '拖放图片到这里，或点击添加图片' : '拖放图片或 PDF 到这里，或点击添加附件'}
+          {uploading ? '上传中...' : imageOnly ? '拖放图片到这里，或点击添加图片' : '拖放文件到这里，或点击添加附件'}
         </div>
 
         {attachments.length === 0 ? (
@@ -279,7 +281,7 @@ export default function AttachmentPanel({
             {attachments.map((attachment) => (
               <article key={attachment.id} className={`overflow-hidden rounded-md border bg-white ${attachment.isCover ? 'border-blue-500' : 'border-gray-200'}`}>
                 <a
-                  href={attachment.originalUrl || attachment.url}
+                  href={attachment.previewUrl || attachment.originalUrl || attachment.url}
                   target="_blank"
                   rel="noreferrer"
                   className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-gray-100"
@@ -290,11 +292,11 @@ export default function AttachmentPanel({
                   {attachment.mimeType.startsWith('image/') ? (
                     <img src={attachment.thumbnailUrl || attachment.url} alt={attachment.originalName} className="h-full w-full object-cover" />
                   ) : (
-                    <span className="text-sm text-gray-500">PDF</span>
+                    <span className="text-sm text-gray-500">{attachmentTypeLabel(attachment.originalName, attachment.mimeType)}</span>
                   )}
                 </a>
                 <div className="p-3">
-                  <a href={attachment.originalUrl || attachment.url} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-gray-900">
+                  <a href={attachment.previewUrl || attachment.originalUrl || attachment.url} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-gray-900">
                     {attachment.note || attachment.originalName}
                   </a>
                   <div className="mt-1 flex items-center justify-between gap-2 text-xs text-gray-500">
@@ -331,11 +333,11 @@ export default function AttachmentPanel({
             />
           )}
           <label className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 cursor-pointer whitespace-nowrap">
-            {uploading ? '上传中...' : imageOnly ? '选择图片' : '上传照片/PDF'}
+            {uploading ? '上传中...' : imageOnly ? '选择图片' : '上传文件'}
             <input
               ref={inputRef}
               type="file"
-              accept={imageOnly ? 'image/*' : 'image/*,application/pdf'}
+              accept={imageOnly ? 'image/*' : undefined}
               multiple
               className="hidden"
               disabled={uploading}
@@ -368,7 +370,7 @@ export default function AttachmentPanel({
             : 'border-gray-300 bg-gray-50 text-gray-500 hover:border-blue-300 hover:bg-blue-50/50'
         } ${uploading ? 'cursor-not-allowed' : 'cursor-pointer'}`}
       >
-        {uploading ? '上传中...' : imageOnly ? '拖放图片到这里，或点击选择图片' : '拖放图片或 PDF 到这里，或点击上传'}
+        {uploading ? '上传中...' : imageOnly ? '拖放图片到这里，或点击选择图片' : '拖放文件到这里，或点击上传'}
       </div>
       {attachments.length === 0 ? (
         <div className="text-sm text-gray-500">{imageOnly ? '暂无物料图片' : '暂无原始单据照片'}</div>
@@ -376,15 +378,15 @@ export default function AttachmentPanel({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {attachments.map((attachment) => (
             <div key={attachment.id} className="flex gap-3 border border-gray-100 rounded-lg p-2">
-              <a href={attachment.originalUrl || attachment.url} target="_blank" rel="noreferrer" className="h-16 w-16 flex-shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50 text-xs flex items-center justify-center">
+              <a href={attachment.previewUrl || attachment.originalUrl || attachment.url} target="_blank" rel="noreferrer" className="h-16 w-16 flex-shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50 text-xs flex items-center justify-center">
                 {attachment.mimeType.startsWith('image/') ? (
                   <img src={attachment.thumbnailUrl || attachment.url} alt={attachment.originalName} className="h-full w-full object-cover" />
                 ) : (
-                  'PDF'
+                  attachmentTypeLabel(attachment.originalName, attachment.mimeType)
                 )}
               </a>
               <div className="min-w-0 flex-1">
-                <a href={attachment.originalUrl || attachment.url} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-blue-700">
+                <a href={attachment.previewUrl || attachment.originalUrl || attachment.url} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-blue-700">
                   {attachment.originalName}
                 </a>
                 <div className="text-xs text-gray-500">{formatSize(attachment.size)}</div>
