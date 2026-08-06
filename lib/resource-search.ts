@@ -1,0 +1,106 @@
+export type ResourceSearchValue = string | number | boolean | Date | null | undefined
+
+export interface ResourceKeywordField<T> {
+  key: string
+  label: string
+  read: (item: T) => ResourceSearchValue | ResourceSearchValue[]
+  weight?: number
+}
+
+export interface ResourceSearchProfile<T> {
+  key: string
+  keywordFields: readonly ResourceKeywordField<T>[]
+}
+
+export type ResourceSearchFieldType = 'text' | 'number' | 'date' | 'select'
+export type ResourceSearchOperator = 'equals' | 'contains' | 'startsWith' | 'gt' | 'gte' | 'lt' | 'lte'
+
+export interface ResourceAdvancedSearchField<T> {
+  key: string
+  label: string
+  type: ResourceSearchFieldType
+  read: (item: T) => ResourceSearchValue
+  options?: readonly { value: string; label: string }[]
+  operators?: readonly ResourceSearchOperator[]
+}
+
+export interface ResourceSearchCondition {
+  id: string
+  field: string
+  operator: ResourceSearchOperator
+  value: string
+}
+
+function normalizeSearchValue(value: ResourceSearchValue) {
+  if (value instanceof Date) return value.toISOString().toLocaleLowerCase('zh-CN')
+  return String(value ?? '').trim().toLocaleLowerCase('zh-CN')
+}
+
+export function tokenizeKeywordQuery(query: string) {
+  const tokens: string[] = []
+  const pattern = /"([^"]+)"|'([^']+)'|(\S+)/g
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(query)) !== null) {
+    const token = (match[1] || match[2] || match[3] || '').trim().toLocaleLowerCase('zh-CN')
+    if (token && !tokens.includes(token)) tokens.push(token)
+  }
+  return tokens
+}
+
+export function matchesKeywordQuery<T>(item: T, query: string, profile: ResourceSearchProfile<T>) {
+  const tokens = tokenizeKeywordQuery(query)
+  if (tokens.length === 0) return true
+
+  const fieldValues = profile.keywordFields.map((field) => {
+    const value = field.read(item)
+    return (Array.isArray(value) ? value : [value]).map(normalizeSearchValue)
+  })
+
+  return tokens.every((token) => fieldValues.some((values) => values.some((value) => value.includes(token))))
+}
+
+export function filterByKeywordQuery<T>(items: readonly T[], query: string, profile: ResourceSearchProfile<T>) {
+  return items.filter((item) => matchesKeywordQuery(item, query, profile))
+}
+
+function conditionMatches<T>(item: T, condition: ResourceSearchCondition, fields: readonly ResourceAdvancedSearchField<T>[]) {
+  const field = fields.find((candidate) => candidate.key === condition.field)
+  if (!field || !condition.value.trim()) return true
+  const actual = field.read(item)
+  const expectedText = normalizeSearchValue(condition.value)
+
+  if (field.type === 'number') {
+    const actualNumber = Number(actual)
+    const expectedNumber = Number(condition.value)
+    if (!Number.isFinite(actualNumber) || !Number.isFinite(expectedNumber)) return false
+    if (condition.operator === 'gt') return actualNumber > expectedNumber
+    if (condition.operator === 'gte') return actualNumber >= expectedNumber
+    if (condition.operator === 'lt') return actualNumber < expectedNumber
+    if (condition.operator === 'lte') return actualNumber <= expectedNumber
+    return actualNumber === expectedNumber
+  }
+
+  const actualText = normalizeSearchValue(actual)
+  if (condition.operator === 'contains') return actualText.includes(expectedText)
+  if (condition.operator === 'startsWith') return actualText.startsWith(expectedText)
+  if (condition.operator === 'gt' || condition.operator === 'gte' || condition.operator === 'lt' || condition.operator === 'lte') {
+    if (condition.operator === 'gt') return actualText > expectedText
+    if (condition.operator === 'gte') return actualText >= expectedText
+    if (condition.operator === 'lt') return actualText < expectedText
+    return actualText <= expectedText
+  }
+  return actualText === expectedText
+}
+
+export function filterByResourceSearch<T>(
+  items: readonly T[],
+  query: string,
+  profile: ResourceSearchProfile<T>,
+  fields: readonly ResourceAdvancedSearchField<T>[] = [],
+  conditions: readonly ResourceSearchCondition[] = [],
+) {
+  return items.filter((item) => (
+    matchesKeywordQuery(item, query, profile)
+    && conditions.every((condition) => conditionMatches(item, condition, fields))
+  ))
+}

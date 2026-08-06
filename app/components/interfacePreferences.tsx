@@ -1,9 +1,57 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import type { DesktopNavigationDisplayMode, DesktopNavigationMode } from './navigation/DesktopNavigation'
 
 export const modalGlassStorageKey = 'mes-lite.preferences.modalGlass'
 export const preferenceChangeEvent = 'mes-lite.preferences.changed'
+export const desktopNavigationModeStorageKey = 'mes-lite.layout.desktopNavigationMode'
+export const desktopNavigationDisplayModeStorageKey = 'mes-lite.layout.desktopNavigationDisplayMode'
+
+export function readDesktopNavigationPreference() {
+  const defaultValue: { mode: DesktopNavigationMode; displayMode: DesktopNavigationDisplayMode } = {
+    mode: 'accordion',
+    displayMode: 'icon-label',
+  }
+  if (typeof window === 'undefined') return defaultValue
+  const savedMode = window.localStorage.getItem(desktopNavigationModeStorageKey)
+  const savedDisplayMode = window.localStorage.getItem(desktopNavigationDisplayModeStorageKey)
+  return {
+    mode: savedMode === 'split' ? 'split' : 'accordion',
+    displayMode: savedDisplayMode === 'icon' || savedDisplayMode === 'label' ? savedDisplayMode : 'icon-label',
+  } as const
+}
+
+export function setDesktopNavigationPreference(mode: DesktopNavigationMode, displayMode: DesktopNavigationDisplayMode) {
+  window.localStorage.setItem(desktopNavigationModeStorageKey, mode)
+  window.localStorage.setItem(desktopNavigationDisplayModeStorageKey, displayMode)
+  window.dispatchEvent(new CustomEvent(preferenceChangeEvent, { detail: { navigationMode: mode, navigationDisplayMode: displayMode } }))
+}
+
+export function useDesktopNavigationPreference() {
+  const [value, setValue] = useState(readDesktopNavigationPreference)
+
+  useEffect(() => {
+    const sync = () => setValue(readDesktopNavigationPreference())
+    sync()
+    window.addEventListener('storage', sync)
+    window.addEventListener(preferenceChangeEvent, sync)
+    return () => {
+      window.removeEventListener('storage', sync)
+      window.removeEventListener(preferenceChangeEvent, sync)
+    }
+  }, [])
+
+  const update = useCallback((next: { mode?: DesktopNavigationMode; displayMode?: DesktopNavigationDisplayMode }) => {
+    setValue((current) => {
+      const resolved = { mode: next.mode || current.mode, displayMode: next.displayMode || current.displayMode }
+      setDesktopNavigationPreference(resolved.mode, resolved.displayMode)
+      return resolved
+    })
+  }, [])
+
+  return [value, update] as const
+}
 
 function readModalGlassPreference() {
   if (typeof window === 'undefined') return true

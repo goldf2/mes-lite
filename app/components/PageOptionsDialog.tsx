@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Columns2, Rows3 } from 'lucide-react'
 import { normalizeUnitCode } from '@/lib/unit-catalog'
 import ModalDialog, { ModalActions } from './ModalDialog'
 import {
@@ -9,8 +8,6 @@ import {
   setBomPagePreferences,
   type BomPagePreferences,
 } from './bomPagePreferences'
-import { useModalGlassPreference } from './interfacePreferences'
-import type { DesktopNavigationDisplayMode, DesktopNavigationMode } from './navigation/DesktopNavigation'
 
 interface ConfiguredUnit {
   code: string
@@ -23,26 +20,14 @@ export default function PageOptionsDialog({
   onClose,
   pageLabel,
   showBomUnitOptions,
-  navigationMode,
-  onNavigationModeChange,
-  navigationDisplayMode,
-  onNavigationDisplayModeChange,
   onMessage,
 }: {
   open: boolean
   onClose: () => void
   pageLabel: string
   showBomUnitOptions: boolean
-  navigationMode: DesktopNavigationMode
-  onNavigationModeChange: (mode: DesktopNavigationMode) => void
-  navigationDisplayMode: DesktopNavigationDisplayMode
-  onNavigationDisplayModeChange: (mode: DesktopNavigationDisplayMode) => void
   onMessage: (message: string) => void
 }) {
-  const [modalGlassEnabled, setModalGlassEnabled] = useModalGlassPreference()
-  const [draftModalGlassEnabled, setDraftModalGlassEnabled] = useState(modalGlassEnabled)
-  const [draftNavigationMode, setDraftNavigationMode] = useState<DesktopNavigationMode>(navigationMode)
-  const [draftNavigationDisplayMode, setDraftNavigationDisplayMode] = useState<DesktopNavigationDisplayMode>(navigationDisplayMode)
   const [draftBomPreferences, setDraftBomPreferences] = useState<BomPagePreferences>(readBomPagePreferences)
   const [unitCatalog, setUnitCatalog] = useState<ConfiguredUnit[]>([])
   const [unitLoading, setUnitLoading] = useState(false)
@@ -51,11 +36,8 @@ export default function PageOptionsDialog({
 
   useEffect(() => {
     if (!open) return
-    setDraftModalGlassEnabled(modalGlassEnabled)
-    setDraftNavigationMode(navigationMode)
-    setDraftNavigationDisplayMode(navigationDisplayMode)
     setDraftBomPreferences(readBomPagePreferences())
-  }, [modalGlassEnabled, navigationDisplayMode, navigationMode, open])
+  }, [open])
 
   useEffect(() => {
     if (!open || !showBomUnitOptions || unitCatalog.length > 0) return
@@ -87,9 +69,6 @@ export default function PageOptionsDialog({
       }
       setBomPagePreferences({ lengthUnit: lengthUnit.code, weightUnit: weightUnit.code })
     }
-    setModalGlassEnabled(draftModalGlassEnabled)
-    onNavigationModeChange(draftNavigationMode)
-    onNavigationDisplayModeChange(draftNavigationDisplayMode)
     onClose()
     onMessage('页面选项已保存')
   }
@@ -109,96 +88,10 @@ export default function PageOptionsDialog({
       )}
     >
       <div className="space-y-5">
-        <section>
-          <div className="text-sm font-semibold text-gray-900">界面</div>
-          <fieldset className="mt-3">
-            <legend className="text-sm font-medium text-gray-800">桌面导航布局</legend>
-            <p className="mt-1 text-xs text-gray-500">双列模式在宽屏固定一级菜单，二级菜单独立显示；窄桌面自动使用单列。</p>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              {([
-                { value: 'accordion' as const, label: '单列折叠', description: '占用空间更少', icon: Rows3 },
-                { value: 'split' as const, label: '双列导航', description: '切换功能更快', icon: Columns2 },
-              ]).map((option) => (
-                <label
-                  key={option.value}
-                  className={`cursor-pointer rounded-lg border p-3 transition ${
-                    draftNavigationMode === option.value
-                      ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500'
-                      : 'border-gray-200 bg-white hover:border-gray-300'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="desktop-navigation-mode"
-                    value={option.value}
-                    checked={draftNavigationMode === option.value}
-                    onChange={() => setDraftNavigationMode(option.value)}
-                    className="sr-only"
-                  />
-                  <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                    <option.icon aria-hidden="true" className="h-4 w-4" />
-                    {option.label}
-                  </span>
-                  <span className="mt-1 block text-xs text-gray-500">{option.description}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <fieldset className="mt-4 border-t border-gray-100 pt-4">
-            <legend className="text-sm font-medium text-gray-800">一级菜单显示</legend>
-            <p className="mt-1 text-xs text-gray-500">一级菜单保持单行排列，可按识别习惯选择图标与文字组合。</p>
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              {([
-                { value: 'icon' as const, label: '图标' },
-                { value: 'icon-label' as const, label: '图标＋文字' },
-                { value: 'label' as const, label: '文字' },
-              ]).map((option) => (
-                <label
-                  key={option.value}
-                  className={`cursor-pointer rounded-lg border px-2 py-3 text-center transition ${
-                    draftNavigationDisplayMode === option.value
-                      ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500'
-                      : 'border-gray-200 bg-white hover:border-gray-300'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="desktop-navigation-display-mode"
-                    value={option.value}
-                    checked={draftNavigationDisplayMode === option.value}
-                    onChange={() => setDraftNavigationDisplayMode(option.value)}
-                    className="sr-only"
-                  />
-                  <span className="flex min-h-6 items-center justify-center gap-1.5 text-xs font-semibold text-gray-900">
-                    {option.value !== 'label' && <span className="flex h-5 w-5 items-center justify-center rounded bg-slate-100 text-[10px] text-slate-700">仪</span>}
-                    {option.value !== 'icon' && <span>{option.value === 'label' ? '工作台' : '文字'}</span>}
-                  </span>
-                  <span className="mt-1.5 block text-[11px] text-gray-500">{option.label}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <label className="mt-3 flex cursor-pointer items-center justify-between gap-4 border-t border-gray-100 pt-3">
-            <span>
-              <span className="block text-sm font-medium text-gray-800">弹窗背景磨砂玻璃</span>
-              <span className="mt-1 block text-xs text-gray-500">关闭后仍保留遮罩并屏蔽底层操作。</span>
-            </span>
-            <input
-              type="checkbox"
-              checked={draftModalGlassEnabled}
-              onChange={(event) => setDraftModalGlassEnabled(event.target.checked)}
-              className="sr-only"
-            />
-            <span className={`relative h-7 w-12 shrink-0 rounded-full transition ${draftModalGlassEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}>
-              <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${draftModalGlassEnabled ? 'left-6' : 'left-1'}`} />
-            </span>
-          </label>
-        </section>
-
         {showBomUnitOptions && (
-          <section className="border-t border-gray-200 pt-5">
-            <div className="text-sm font-semibold text-gray-900">BOM 新增明细</div>
-            <p className="mt-1 text-xs text-gray-500">只影响之后新建 BOM 和新增的投入、产出行。</p>
+          <section>
+            <div className="text-sm font-semibold text-gray-900">BOM 新建默认值</div>
+            <p className="mt-1 text-xs text-gray-500">只影响之后新建 BOM 和添加的投入、产出行。</p>
             {unitLoading ? (
               <div className="py-6 text-center text-sm text-gray-500" role="status">正在读取单位目录...</div>
             ) : (
@@ -232,7 +125,7 @@ export default function PageOptionsDialog({
           </section>
         )}
 
-        <p className="border-t border-gray-100 pt-4 text-xs text-gray-500">这些选项只保存在当前浏览器，不修改业务数据或其他终端。</p>
+        <p className="border-t border-gray-100 pt-4 text-xs text-gray-500">这些页内选项只保存在当前浏览器，不修改业务数据或其他终端。</p>
       </div>
     </ModalDialog>
   )

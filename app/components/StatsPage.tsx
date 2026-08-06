@@ -469,7 +469,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
             <>
               <ViewModeToggle value={viewMode} onChange={setViewMode} />
               <AppButton variant="create" onClick={openCreate}>
-                新增
+                新建生产记录
               </AppButton>
             </>
           )}
@@ -585,7 +585,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
 
       {formOpen && (
         <ModalDialog
-          title={editingReport ? '编辑生产记录' : '新增生产记录'}
+          title={editingReport ? '编辑生产记录' : '新建生产记录'}
           description="生产记录必须选择 BOM；产出状态由实际入库库位表达"
           onClose={() => setFormOpen(false)}
           closeDisabled={saving}

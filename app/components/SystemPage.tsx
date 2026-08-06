@@ -1,9 +1,9 @@
 'use client'
 
-import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react'
-import { Eye, EyeOff, PlugZap, Save, SlidersHorizontal } from 'lucide-react'
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { Columns2, Eye, EyeOff, PlugZap, Rows3, Save, SlidersHorizontal } from 'lucide-react'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
-import { useModalGlassPreference } from './interfacePreferences'
+import { useDesktopNavigationPreference, useModalGlassPreference } from './interfacePreferences'
 import MaterialChoiceSearch from './MaterialChoiceSearch'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import useCompactViewport from './useCompactViewport'
@@ -22,6 +22,13 @@ import { applyContrastMode, ContrastMode, normalizeContrastMode } from '@/lib/co
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ImageOptimizationPanel from './ImageOptimizationPanel'
+import { ResourceAdvancedSearch, ResourcePageShell } from './resource'
+import {
+  filterByResourceSearch,
+  type ResourceAdvancedSearchField,
+  type ResourceSearchCondition,
+  type ResourceSearchProfile,
+} from '@/lib/resource-search'
 
 interface Supplier {
   id: string
@@ -278,7 +285,185 @@ const systemSectionOrderConfig: Partial<Record<SystemSection, {
   workCenters: { entity: 'workCenters', label: '工作中心' },
 }
 
+const supplierSearchProfile: ResourceSearchProfile<Supplier> = {
+  key: 'supplier.default',
+  keywordFields: [
+    { key: 'name', label: '名称', read: (item) => item.name, weight: 10 },
+    { key: 'contact', label: '联系人', read: (item) => item.contact },
+    { key: 'phone', label: '电话', read: (item) => item.phone },
+    { key: 'address', label: '地址', read: (item) => item.address },
+  ],
+}
+const supplierAdvancedFields: readonly ResourceAdvancedSearchField<Supplier>[] = [
+  { key: 'name', label: '名称', type: 'text', read: (item) => item.name },
+  { key: 'contact', label: '联系人', type: 'text', read: (item) => item.contact },
+  { key: 'phone', label: '电话', type: 'text', read: (item) => item.phone },
+  { key: 'address', label: '地址', type: 'text', read: (item) => item.address },
+]
+
+const customerSearchProfile: ResourceSearchProfile<Customer> = {
+  key: 'customer.default',
+  keywordFields: [
+    { key: 'name', label: '名称', read: (item) => item.name, weight: 10 },
+    { key: 'contact', label: '联系人', read: (item) => item.contact },
+    { key: 'phone', label: '电话', read: (item) => item.phone },
+    { key: 'address', label: '地址', read: (item) => item.address },
+  ],
+}
+const customerAdvancedFields: readonly ResourceAdvancedSearchField<Customer>[] = [
+  { key: 'name', label: '名称', type: 'text', read: (item) => item.name },
+  { key: 'contact', label: '联系人', type: 'text', read: (item) => item.contact },
+  { key: 'phone', label: '电话', type: 'text', read: (item) => item.phone },
+  { key: 'address', label: '地址', type: 'text', read: (item) => item.address },
+]
+
+const workCenterSearchProfile: ResourceSearchProfile<WorkCenterConfig> = {
+  key: 'work-center.default',
+  keywordFields: [
+    { key: 'code', label: '编码', read: (item) => item.code, weight: 10 },
+    { key: 'name', label: '名称', read: (item) => item.name, weight: 8 },
+    { key: 'category', label: '类别', read: (item) => item.category },
+    { key: 'note', label: '备注', read: (item) => item.note },
+  ],
+}
+const workCenterAdvancedFields: readonly ResourceAdvancedSearchField<WorkCenterConfig>[] = [
+  { key: 'code', label: '编码', type: 'text', read: (item) => item.code, operators: ['equals', 'startsWith'] },
+  { key: 'name', label: '名称', type: 'text', read: (item) => item.name },
+  { key: 'category', label: '类别', type: 'text', read: (item) => item.category },
+  { key: 'status', label: '状态', type: 'select', read: (item) => item.isActive ? 'active' : 'archived', options: [{ value: 'active', label: '启用' }, { value: 'archived', label: '已归档' }] },
+]
+
+const locationSearchProfile: ResourceSearchProfile<InventoryLocationConfig> = {
+  key: 'inventory-location.default',
+  keywordFields: [
+    { key: 'code', label: '编码', read: (item) => item.code, weight: 10 },
+    { key: 'name', label: '名称', read: (item) => item.name, weight: 8 },
+    { key: 'note', label: '备注', read: (item) => item.note },
+  ],
+}
+const locationAdvancedFields: readonly ResourceAdvancedSearchField<InventoryLocationConfig>[] = [
+  { key: 'code', label: '编码', type: 'text', read: (item) => item.code, operators: ['equals', 'startsWith'] },
+  { key: 'name', label: '名称', type: 'text', read: (item) => item.name },
+  { key: 'status', label: '状态', type: 'select', read: (item) => item.isDefault ? 'default' : item.isActive ? 'active' : 'archived', options: [{ value: 'default', label: '默认' }, { value: 'active', label: '启用' }, { value: 'archived', label: '已归档' }] },
+  { key: 'materialCount', label: '物料数', type: 'number', read: (item) => item.materialCount },
+]
+
+const unitSearchProfile: ResourceSearchProfile<ConfiguredUnit> = {
+  key: 'unit.default',
+  keywordFields: [
+    { key: 'code', label: '编码', read: (item) => item.code, weight: 10 },
+    { key: 'name', label: '名称', read: (item) => item.name, weight: 8 },
+    { key: 'measureType', label: '计量方式', read: (item) => measureTypeOptions.find(([value]) => value === item.measureType)?.[1] },
+  ],
+}
+const unitAdvancedFields: readonly ResourceAdvancedSearchField<ConfiguredUnit>[] = [
+  { key: 'code', label: '编码', type: 'text', read: (item) => item.code, operators: ['equals', 'startsWith'] },
+  { key: 'name', label: '名称', type: 'text', read: (item) => item.name },
+  { key: 'measureType', label: '计量方式', type: 'select', read: (item) => item.measureType, options: measureTypeOptions.map(([value, label]) => ({ value, label })) },
+  { key: 'usageCount', label: '使用次数', type: 'number', read: (item) => item.usageCount },
+]
+
+const processTemplateSearchProfile: ResourceSearchProfile<ProcessTemplate> = {
+  key: 'process-template.default',
+  keywordFields: [
+    { key: 'code', label: '编码', read: (item) => item.code, weight: 10 },
+    { key: 'name', label: '名称', read: (item) => item.name, weight: 8 },
+    { key: 'category', label: '类别', read: (item) => processCategoryLabel[item.category] || item.category },
+    { key: 'workstation', label: '工位', read: (item) => item.workstation },
+    { key: 'materials', label: '关联物料', read: (item) => item.materials.flatMap((material) => [material.code, material.name]) },
+  ],
+}
+const processTemplateAdvancedFields: readonly ResourceAdvancedSearchField<ProcessTemplate>[] = [
+  { key: 'code', label: '编码', type: 'text', read: (item) => item.code, operators: ['equals', 'startsWith'] },
+  { key: 'name', label: '名称', type: 'text', read: (item) => item.name },
+  { key: 'category', label: '类别', type: 'select', read: (item) => item.category, options: processCategoryOptions.map(([value, label]) => ({ value, label })) },
+  { key: 'workstation', label: '工位', type: 'text', read: (item) => item.workstation },
+]
+
+const processRouteSearchProfile: ResourceSearchProfile<ProcessRoute> = {
+  key: 'process-route.default',
+  keywordFields: [
+    { key: 'material', label: '物料', read: (item) => [item.product?.sku, item.product?.name], weight: 10 },
+    { key: 'name', label: '路线名称', read: (item) => item.name, weight: 8 },
+    { key: 'steps', label: '工序', read: (item) => item.steps.flatMap((step) => [step.name, step.workstation, step.description]) },
+  ],
+}
+const processRouteAdvancedFields: readonly ResourceAdvancedSearchField<ProcessRoute>[] = [
+  { key: 'material', label: '物料', type: 'text', read: (item) => `${item.product?.sku || ''} ${item.product?.name || ''}` },
+  { key: 'name', label: '路线名称', type: 'text', read: (item) => item.name },
+  { key: 'default', label: '默认路线', type: 'select', read: (item) => item.isDefault ? 'yes' : 'no', options: [{ value: 'yes', label: '是' }, { value: 'no', label: '否' }] },
+  { key: 'stepCount', label: '工序数量', type: 'number', read: (item) => item.steps.length },
+]
+
 const SystemToolbarExtraContext = createContext<ReactNode>(null)
+
+function SystemResourcePage<T>({
+  resourceKey,
+  title,
+  description,
+  summary,
+  keyword,
+  onKeywordChange,
+  searchPlaceholder,
+  advancedFields,
+  conditions,
+  onConditionsChange,
+  conditionLabel,
+  viewMode,
+  onViewModeChange,
+  onCreate,
+  resourceLabel,
+  actions,
+  children,
+  contentClassName,
+}: {
+  resourceKey: string
+  title: string
+  description: string
+  summary?: ReactNode
+  keyword?: string
+  onKeywordChange?: (value: string) => void
+  searchPlaceholder?: string
+  advancedFields?: readonly ResourceAdvancedSearchField<T>[]
+  conditions?: readonly ResourceSearchCondition[]
+  onConditionsChange?: (conditions: ResourceSearchCondition[]) => void
+  conditionLabel?: string
+  viewMode?: 'card' | 'list'
+  onViewModeChange?: (value: 'card' | 'list') => void
+  onCreate?: () => void
+  resourceLabel?: string
+  actions?: ReactNode
+  children: ReactNode
+  contentClassName?: string
+}) {
+  const manualOrderAction = useContext(SystemToolbarExtraContext)
+  return (
+    <ResourcePageShell
+      resourceKey={resourceKey}
+      title={title}
+      description={description}
+      summary={summary}
+      searchValue={keyword}
+      onSearchChange={onKeywordChange}
+      searchPlaceholder={searchPlaceholder}
+      advancedSearch={advancedFields && conditions && onConditionsChange ? (
+        <ResourceAdvancedSearch fields={advancedFields} conditions={conditions} onChange={onConditionsChange} />
+      ) : undefined}
+      searchConditions={conditions}
+      onSearchConditionsChange={onConditionsChange}
+      searchConditionLabel={conditionLabel}
+      viewMode={viewMode}
+      onViewModeChange={onViewModeChange}
+      displayModes={viewMode ? ['card', 'list'] : undefined}
+      onCreate={onCreate}
+      resourceLabel={resourceLabel}
+      actions={manualOrderAction || actions ? <>{manualOrderAction}{actions}</> : undefined}
+      contentClassName={contentClassName}
+    >
+      {children}
+    </ResourcePageShell>
+  )
+}
 
 function SystemPageToolbar({
   searchStorageKey,
@@ -357,8 +542,11 @@ function WorkCenterManager({ onMessage }: { onMessage: (msg: string) => void }) 
   const [showModal, setShowModal] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const filteredItems = items.filter((item) => [item.code, item.name, item.category || '', item.note || '']
-    .join(' ').toLowerCase().includes(keyword.trim().toLowerCase()))
+  const [conditions, setConditions] = useState<ResourceSearchCondition[]>([])
+  const filteredItems = useMemo(
+    () => filterByResourceSearch(items, keyword, workCenterSearchProfile, workCenterAdvancedFields, conditions),
+    [conditions, items, keyword],
+  )
   const tableSort = useClientTableSort(filteredItems, {
     manual: (item) => item.sortOrder,
     center: (item) => `${item.code} ${item.name}`,
@@ -429,20 +617,21 @@ function WorkCenterManager({ onMessage }: { onMessage: (msg: string) => void }) 
   }
 
   return (
-    <div className="space-y-4">
-      <SystemPageToolbar
-        searchStorageKey="mes-lite.searchPresets.workCenters"
-        searchValue={keyword}
-        onSearchChange={setKeyword}
-        searchPlaceholder="搜索编码、名称、类别或备注"
-        actions={<AppButton variant="create" onClick={openCreate}>新增工作中心</AppButton>}
-      />
-      <section className="rounded-lg bg-white p-4 shadow sm:p-6">
-        <h3 className="text-lg font-semibold">工作中心</h3>
-        <p className="mt-1 text-sm text-gray-500">工作中心表示锯切、钻孔、检验等生产能力区域；设备归属工作中心，工艺文档引用适用工作中心。</p>
-      </section>
-
-      <section className="overflow-hidden rounded-lg bg-white shadow">
+    <SystemResourcePage
+      resourceKey="work-centers"
+      title="工作中心"
+      description="工作中心表示锯切、钻孔、检验等生产能力区域；设备归属工作中心，工艺文档引用适用工作中心。"
+      summary={`共 ${filteredItems.length} 项`}
+      keyword={keyword}
+      onKeywordChange={setKeyword}
+      searchPlaceholder="输入编码、名称、类别或备注；空格分隔多个关键词"
+      advancedFields={workCenterAdvancedFields}
+      conditions={conditions}
+      onConditionsChange={setConditions}
+      conditionLabel="工作中心组合条件"
+      onCreate={openCreate}
+      resourceLabel="工作中心"
+    >
         {loading ? <AppLoadingIndicator label="正在加载工作中心..." /> : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[820px]">
@@ -470,11 +659,9 @@ function WorkCenterManager({ onMessage }: { onMessage: (msg: string) => void }) 
             {tableSort.sortedRows.length === 0 && <div className="py-12 text-center text-sm text-gray-500">暂无工作中心</div>}
           </div>
         )}
-      </section>
-
       {showModal && (
         <ModalDialog
-          title={editing ? '编辑工作中心' : '新增工作中心'}
+          title={editing ? '编辑工作中心' : '新建工作中心'}
           description="编码用于稳定引用，名称面向现场人员显示。"
           onClose={() => setShowModal(false)}
           closeDisabled={saving}
@@ -490,7 +677,7 @@ function WorkCenterManager({ onMessage }: { onMessage: (msg: string) => void }) 
           </div>
         </ModalDialog>
       )}
-    </div>
+    </SystemResourcePage>
   )
 }
 
@@ -499,9 +686,16 @@ function InventoryLocationManager({ onMessage }: { onMessage: (msg: string) => v
   const [locations, setLocations] = useState<InventoryLocationConfig[]>([])
   const [form, setForm] = useState(emptyForm)
   const [editing, setEditing] = useState<InventoryLocationConfig | null>(null)
+  const [showModal, setShowModal] = useState(false)
+  const [keyword, setKeyword] = useState('')
+  const [conditions, setConditions] = useState<ResourceSearchCondition[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const locationSort = useClientTableSort(locations, {
+  const filteredLocations = useMemo(
+    () => filterByResourceSearch(locations, keyword, locationSearchProfile, locationAdvancedFields, conditions),
+    [conditions, keyword, locations],
+  )
+  const locationSort = useClientTableSort(filteredLocations, {
     manual: (location) => location.sortOrder,
     location: (location) => `${location.code} ${location.name}`,
     status: (location) => location.isDefault ? '默认' : location.isActive ? '启用' : '已归档',
@@ -542,6 +736,7 @@ function InventoryLocationManager({ onMessage }: { onMessage: (msg: string) => v
       setLocations(data.data || [])
       onMessage(editing ? '库位已更新' : '库位已新增')
       reset()
+      setShowModal(false)
     } finally {
       setSaving(false)
     }
@@ -556,6 +751,12 @@ function InventoryLocationManager({ onMessage }: { onMessage: (msg: string) => v
       isDefault: location.isDefault,
       isActive: location.isActive,
     })
+    setShowModal(true)
+  }
+
+  const openCreate = () => {
+    reset()
+    setShowModal(true)
   }
 
   const archive = async (location: InventoryLocationConfig) => {
@@ -580,33 +781,21 @@ function InventoryLocationManager({ onMessage }: { onMessage: (msg: string) => v
   }
 
   return (
-    <div className="space-y-4">
-      <SystemPageToolbar />
-      <section className="rounded-lg bg-white p-4 shadow sm:p-6">
-        <h3 className="text-lg font-semibold">库位配置</h3>
-        <p className="mt-1 text-sm text-gray-500">总库存继续统一核算；库位用于来料、生产订单实绩和发货的实物数量分布与校验。</p>
-        <div className="mt-5 grid grid-cols-1 gap-3 rounded-lg border border-blue-100 bg-blue-50/40 p-4 md:grid-cols-2 xl:grid-cols-5">
-          <label className="text-sm text-gray-700">库位编码
-            <input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} className={`mt-1 ${appInputClassName}`} placeholder="如 A01" />
-          </label>
-          <label className="text-sm text-gray-700">库位名称
-            <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={`mt-1 ${appInputClassName}`} placeholder="如 成品区" />
-          </label>
-          <label className="text-sm text-gray-700 xl:col-span-2">备注
-            <input value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} className={`mt-1 ${appInputClassName}`} />
-          </label>
-          <div className="flex items-end gap-2">
-            <AppButton onClick={save} disabled={saving} variant={editing ? 'primary' : 'create'} fullWidth>{saving ? '保存中…' : editing ? '保存修改' : '新增库位'}</AppButton>
-            {editing && <AppButton onClick={reset}>取消</AppButton>}
-          </div>
-          <div className="flex flex-wrap gap-5 md:col-span-2 xl:col-span-5">
-            <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.isDefault} onChange={(event) => setForm({ ...form, isDefault: event.target.checked })} />设为默认库位</label>
-            {editing && <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.isActive} disabled={editing.isDefault || editing.isActive} onChange={(event) => setForm({ ...form, isActive: event.target.checked })} />{editing.isActive ? '已启用（请用归档操作停用）' : '恢复启用'}</label>}
-          </div>
-        </div>
-      </section>
-
-      <section className="overflow-hidden rounded-lg bg-white shadow">
+    <SystemResourcePage
+      resourceKey="inventory-locations"
+      title="库位配置"
+      description="总库存继续统一核算；库位用于来料、生产订单实绩和发货的实物数量分布与校验。"
+      summary={`共 ${filteredLocations.length} 项`}
+      keyword={keyword}
+      onKeywordChange={setKeyword}
+      searchPlaceholder="输入库位编码、名称或备注；空格分隔多个关键词"
+      advancedFields={locationAdvancedFields}
+      conditions={conditions}
+      onConditionsChange={setConditions}
+      conditionLabel="库位组合条件"
+      onCreate={openCreate}
+      resourceLabel="库位"
+    >
         {loading ? <AppLoadingIndicator label="正在加载库位..." /> : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px]">
@@ -625,8 +814,24 @@ function InventoryLocationManager({ onMessage }: { onMessage: (msg: string) => v
             </table>
           </div>
         )}
-      </section>
-    </div>
+      {showModal && (
+        <ModalDialog
+          title={editing ? '编辑库位' : '新建库位'}
+          description="库位编码用于业务单据和库存分布，默认库位必须保持启用。"
+          onClose={() => setShowModal(false)}
+          closeDisabled={saving}
+          footer={<ModalActions onCancel={() => setShowModal(false)} onConfirm={save} busy={saving} />}
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="库位编码 *" value={form.code} onChange={(code) => setForm({ ...form, code })} />
+            <Field label="库位名称 *" value={form.name} onChange={(name) => setForm({ ...form, name })} />
+            <label className="sm:col-span-2 text-sm font-medium text-gray-700">备注<textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} rows={3} className={`mt-2 ${appTextareaClassName}`} /></label>
+            <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.isDefault} onChange={(event) => setForm({ ...form, isDefault: event.target.checked })} />设为默认库位</label>
+            {editing && <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.isActive} disabled={editing.isDefault || editing.isActive} onChange={(event) => setForm({ ...form, isActive: event.target.checked })} />{editing.isActive ? '已启用（请使用归档操作停用）' : '恢复启用'}</label>}
+          </div>
+        </ModalDialog>
+      )}
+    </SystemResourcePage>
   )
 }
 
@@ -635,10 +840,17 @@ function UnitCatalogManager({ onMessage }: { onMessage: (msg: string) => void })
   const [units, setUnits] = useState<ConfiguredUnit[]>([])
   const [form, setForm] = useState(emptyForm)
   const [editing, setEditing] = useState<ConfiguredUnit | null>(null)
+  const [showModal, setShowModal] = useState(false)
+  const [keyword, setKeyword] = useState('')
+  const [conditions, setConditions] = useState<ResourceSearchCondition[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const baseUnit = measureTypeOptions.find(([measure]) => measure === form.measureType)?.[2] || '基准单位'
-  const unitSort = useClientTableSort(units, {
+  const filteredUnits = useMemo(
+    () => filterByResourceSearch(units, keyword, unitSearchProfile, unitAdvancedFields, conditions),
+    [conditions, keyword, units],
+  )
+  const unitSort = useClientTableSort(filteredUnits, {
     manual: (unit) => unit.sortOrder,
     unit: (unit) => `${unit.name} ${unit.code}`,
     factor: (unit) => unit.toBaseFactor,
@@ -691,8 +903,9 @@ function UnitCatalogManager({ onMessage }: { onMessage: (msg: string) => void })
         return
       }
       setUnits(data.data || [])
-      onMessage(editing ? '单位配置已更新' : '自定义单位已添加')
+      onMessage(editing ? '单位配置已更新' : '自定义单位已新建')
       resetForm()
+      setShowModal(false)
     } finally {
       setSaving(false)
     }
@@ -706,6 +919,12 @@ function UnitCatalogManager({ onMessage }: { onMessage: (msg: string) => void })
       measureType: unit.measureType,
       toBaseFactor: unit.toBaseFactor,
     })
+    setShowModal(true)
+  }
+
+  const openCreate = () => {
+    resetForm()
+    setShowModal(true)
   }
 
   const remove = async (unit: ConfiguredUnit) => {
@@ -723,84 +942,30 @@ function UnitCatalogManager({ onMessage }: { onMessage: (msg: string) => void })
   }
 
   return (
-    <div className="space-y-4">
-      <SystemPageToolbar />
-      <div className="rounded-lg bg-white p-4 shadow sm:p-6">
-        <div className="mb-5">
-          <h3 className="text-lg font-semibold">单位配置</h3>
-          <p className="mt-1 text-sm text-gray-500">物料只能选择已配置单位；自定义单位必须明确换算到所属计量方式的系统基准单位。</p>
-        </div>
-        <div className="grid grid-cols-1 gap-3 rounded-lg border border-blue-100 bg-blue-50/40 p-4 md:grid-cols-2 xl:grid-cols-5">
-          <label className="text-sm text-gray-700">
-            计量方式
-            <select
-              value={form.measureType}
-              disabled={Boolean(editing?.usageCount)}
-              onChange={(event) => setForm({ ...form, measureType: event.target.value as MeasureType })}
-              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2"
-            >
-              {measureTypeOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
-          </label>
-          <label className="text-sm text-gray-700">
-            单位编码
-            <input
-              value={form.code}
-              disabled={Boolean(editing?.usageCount)}
-              onChange={(event) => setForm({ ...form, code: event.target.value })}
-              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2"
-              placeholder="如：ft"
-            />
-          </label>
-          <label className="text-sm text-gray-700">
-            显示名称
-            <input
-              value={form.name}
-              onChange={(event) => setForm({ ...form, name: event.target.value })}
-              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2"
-              placeholder="如：英尺"
-            />
-          </label>
-          <label className="text-sm text-gray-700">
-            换算到 {baseUnit}
-            <span className="mt-1 flex overflow-hidden rounded-lg border border-gray-200 bg-white">
-              <input
-                type="number"
-                min="0"
-                step="any"
-                disabled={Boolean(editing?.usageCount)}
-                value={form.toBaseFactor || ''}
-                onChange={(event) => setForm({ ...form, toBaseFactor: Number(event.target.value) })}
-                className="min-w-0 flex-1 px-3 py-2 text-right outline-none"
-              />
-              <span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">{baseUnit}</span>
-            </span>
-          </label>
-          <div className="flex items-end gap-2">
-            <button
-              type="button"
-              disabled={saving}
-              onClick={save}
-              className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
-              {saving ? '保存中...' : editing ? '保存修改' : '添加单位'}
-            </button>
-            {editing && <button type="button" onClick={resetForm} className="rounded-lg border border-gray-200 px-4 py-2 text-sm">取消</button>}
-          </div>
-          <div className="md:col-span-2 xl:col-span-5 text-xs text-gray-500">
-            关系定义：1 自定义单位 = 换算系数 × {baseUnit}。单位一旦被物料或 BOM 使用，只允许修改显示名称。
-          </div>
-        </div>
-      </div>
-
+    <SystemResourcePage
+      resourceKey="units"
+      title="单位配置"
+      description="物料只能选择已配置单位；自定义单位必须明确换算到所属计量方式的系统基准单位。"
+      summary={`共 ${filteredUnits.length} 项`}
+      keyword={keyword}
+      onKeywordChange={setKeyword}
+      searchPlaceholder="输入单位编码、名称或计量方式；空格分隔多个关键词"
+      advancedFields={unitAdvancedFields}
+      conditions={conditions}
+      onConditionsChange={setConditions}
+      conditionLabel="单位组合条件"
+      onCreate={openCreate}
+      resourceLabel="单位"
+      contentClassName="rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-5"
+    >
       {loading ? (
-        <div className="rounded-lg bg-white p-6 text-sm text-gray-500 shadow">正在读取单位配置...</div>
+        <AppLoadingIndicator label="正在读取单位配置..." />
       ) : (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {measureTypeOptions.map(([measureType, label, base]) => {
             const rows = unitSort.sortedRows.filter((unit) => unit.measureType === measureType)
             return (
-              <div key={measureType} className="rounded-lg bg-white p-4 shadow sm:p-5">
+              <div key={measureType} className="rounded-lg border border-gray-200 bg-white p-4">
                 <div className="mb-3 flex items-center justify-between">
                   <h4 className="font-semibold text-gray-900">{label}单位</h4>
                   <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">基准：{base}</span>
@@ -834,7 +999,23 @@ function UnitCatalogManager({ onMessage }: { onMessage: (msg: string) => void })
           })}
         </div>
       )}
-    </div>
+      {showModal && (
+        <ModalDialog
+          title={editing ? '编辑单位' : '新建单位'}
+          description={`关系定义：1 自定义单位 = 换算系数 × ${baseUnit}。已使用单位只允许修改显示名称。`}
+          onClose={() => setShowModal(false)}
+          closeDisabled={saving}
+          footer={<ModalActions onCancel={() => setShowModal(false)} onConfirm={save} busy={saving} />}
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="text-sm font-medium text-gray-700">计量方式<select value={form.measureType} disabled={Boolean(editing?.usageCount)} onChange={(event) => setForm({ ...form, measureType: event.target.value as MeasureType })} className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5">{measureTypeOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label className="text-sm font-medium text-gray-700">单位编码<input value={form.code} disabled={Boolean(editing?.usageCount)} onChange={(event) => setForm({ ...form, code: event.target.value })} className={`mt-2 ${appInputClassName}`} placeholder="如：ft" /></label>
+            <label className="text-sm font-medium text-gray-700">显示名称<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={`mt-2 ${appInputClassName}`} placeholder="如：英尺" /></label>
+            <label className="text-sm font-medium text-gray-700">换算到 {baseUnit}<span className="mt-2 flex overflow-hidden rounded-lg border border-gray-200 bg-white"><input type="number" min="0" step="any" disabled={Boolean(editing?.usageCount)} value={form.toBaseFactor || ''} onChange={(event) => setForm({ ...form, toBaseFactor: Number(event.target.value) })} className="min-w-0 flex-1 px-3 py-2.5 text-right outline-none" /><span className="flex items-center border-l border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">{baseUnit}</span></span></label>
+          </div>
+        </ModalDialog>
+      )}
+    </SystemResourcePage>
   )
 }
 
@@ -978,6 +1159,7 @@ function SettingsManager({
   onMessage: (msg: string) => void
 }) {
   const [modalGlassEnabled, setModalGlassEnabled] = useModalGlassPreference()
+  const [navigationPreference, setNavigationPreference] = useDesktopNavigationPreference()
   const { loadingIndicatorEnabled, setLoadingIndicatorEnabled } = useAiAssistantAppearance()
   const [contrastMode, setContrastMode] = useState<ContrastMode>('standard')
   const [naturalCodeSortEnabled, setNaturalCodeSortEnabled] = useState(false)
@@ -1111,7 +1293,7 @@ function SettingsManager({
     },
     displaySettings: {
       title: '显示设置',
-      description: '维护系统配色与界面效果；个人页面布局仍从“页面选项”调整。',
+      description: '维护导航、配色与弹窗等全局界面偏好。',
     },
     aiSettings: {
       title: 'AI 服务',
@@ -1120,14 +1302,38 @@ function SettingsManager({
   }[section]
 
   return (
-    <div className="rounded-lg bg-white p-4 shadow sm:p-6">
-      <div className="mb-5">
-        <h3 className="text-lg font-semibold">{pageCopy.title}</h3>
-        <p className="mt-1 text-sm text-gray-500">{pageCopy.description}</p>
-      </div>
-
+    <SystemResourcePage
+      resourceKey={section}
+      title={pageCopy.title}
+      description={pageCopy.description}
+      contentClassName="rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-5"
+    >
       {section === 'displaySettings' && (
         <>
+          <div className="mb-4 rounded-lg border border-gray-200 p-4">
+            <div className="font-medium text-gray-900">桌面导航布局</div>
+            <div className="mt-1 text-sm text-gray-500">宽屏可选择单列折叠或固定双列导航；窄桌面仍自动使用单列。</div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {([
+                { value: 'accordion' as const, label: '单列折叠', description: '占用空间更少', icon: Rows3 },
+                { value: 'split' as const, label: '双列导航', description: '切换一级、二级功能更快', icon: Columns2 },
+              ]).map((option) => <button key={option.value} type="button" onClick={() => setNavigationPreference({ mode: option.value })} className={`rounded-lg border p-3 text-left transition ${navigationPreference.mode === option.value ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 hover:bg-gray-50'}`}><span className="flex items-center gap-2 text-sm font-semibold text-gray-900"><option.icon className="h-4 w-4" />{option.label}</span><span className="mt-1 block text-xs text-gray-500">{option.description}</span></button>)}
+            </div>
+          </div>
+
+          <div className="mb-4 rounded-lg border border-gray-200 p-4">
+            <div className="font-medium text-gray-900">一级菜单显示</div>
+            <div className="mt-1 text-sm text-gray-500">一级菜单保持单行排列，可按识别习惯选择图标与文字组合。</div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {([
+                { value: 'icon' as const, label: '图标' },
+                { value: 'icon-label' as const, label: '图标＋文字' },
+                { value: 'label' as const, label: '文字' },
+              ]).map((option) => <button key={option.value} type="button" onClick={() => setNavigationPreference({ displayMode: option.value })} className={`rounded-lg border px-2 py-3 text-center transition ${navigationPreference.displayMode === option.value ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 hover:bg-gray-50'}`}><span className="flex min-h-6 items-center justify-center gap-1.5 text-xs font-semibold text-gray-900">{option.value !== 'label' && <span className="flex h-5 w-5 items-center justify-center rounded bg-slate-100 text-[10px] text-slate-700">仪</span>}{option.value !== 'icon' && <span>{option.value === 'label' ? '工作台' : '文字'}</span>}</span><span className="mt-1.5 block text-[11px] text-gray-500">{option.label}</span></button>)}
+            </div>
+            <div className="mt-2 text-xs text-gray-500">个人显示偏好，只保存在当前浏览器。</div>
+          </div>
+
           <div className="mb-4 rounded-lg border border-gray-200 p-4">
             <div className="mb-4">
               <div className="font-medium text-gray-900">页面对比度配色</div>
@@ -1212,7 +1418,7 @@ function SettingsManager({
           <AiAgentSettings onMessage={onMessage} />
         </>
       )}
-    </div>
+    </SystemResourcePage>
   )
 }
 
@@ -1516,6 +1722,7 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [showModal, setShowModal] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
   const [loading, setLoading] = useState(false)
+  const [conditions, setConditions] = useState<ResourceSearchCondition[]>([])
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.suppliers.viewMode', 'list')
   const isCompactViewport = useCompactViewport(1023)
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
@@ -1525,7 +1732,11 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
     phone: '',
     address: '',
   })
-  const supplierSort = useClientTableSort(suppliers, {
+  const filteredSuppliers = useMemo(
+    () => filterByResourceSearch(suppliers, keyword, supplierSearchProfile, supplierAdvancedFields, conditions),
+    [conditions, keyword, suppliers],
+  )
+  const supplierSort = useClientTableSort(filteredSuppliers, {
     manual: (supplier) => supplier.sortOrder,
     name: (supplier) => supplier.name,
     contact: (supplier) => supplier.contact,
@@ -1534,13 +1745,10 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
     createdAt: (supplier) => new Date(supplier.createdAt),
   }, 'manual', 'asc')
 
-  useEffect(() => {
-    fetchSuppliers()
-  }, [keyword])
+  useEffect(() => { void fetchSuppliers() }, [])
 
   const fetchSuppliers = async () => {
-    const url = keyword ? `/api/suppliers?keyword=${encodeURIComponent(keyword)}` : '/api/suppliers'
-    const res = await fetch(url)
+    const res = await fetch('/api/suppliers')
     const data = await res.json()
     if (res.ok) {
       setSuppliers(data.data || [])
@@ -1613,25 +1821,25 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
   }
 
   return (
-    <div className="rounded-lg bg-white p-4 shadow sm:p-6">
-      <SystemPageToolbar
-        searchStorageKey="mes-lite.searchPresets.suppliers"
-        searchValue={keyword}
-        onSearchChange={setKeyword}
-        searchPlaceholder="搜索名称、联系人、电话"
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        actions={<AppButton onClick={openAdd} variant="create">新增供应商</AppButton>}
-      />
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">供应商管理</h3>
-          <p className="text-sm text-gray-500 mt-1">用于来料单选择供应商，不再使用的供应商只能归档。</p>
-        </div>
-      </div>
-
-      {effectiveViewMode === 'card' && suppliers.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <SystemResourcePage
+      resourceKey="suppliers"
+      title="供应商管理"
+      description="用于来料单选择供应商，不再使用的供应商只能归档。"
+      summary={`共 ${filteredSuppliers.length} 项`}
+      keyword={keyword}
+      onKeywordChange={setKeyword}
+      searchPlaceholder="输入名称、联系人、电话或地址；空格分隔多个关键词"
+      advancedFields={supplierAdvancedFields}
+      conditions={conditions}
+      onConditionsChange={setConditions}
+      conditionLabel="供应商组合条件"
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      onCreate={openAdd}
+      resourceLabel="供应商"
+    >
+      {effectiveViewMode === 'card' && filteredSuppliers.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
           {supplierSort.sortedRows.map((supplier) => (
             <div key={supplier.id} className="rounded-lg border border-gray-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
@@ -1698,11 +1906,11 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
       </div>
       )}
 
-      {suppliers.length === 0 && <div className="text-center py-12 text-gray-500">暂无供应商</div>}
+      {filteredSuppliers.length === 0 && <div className="text-center py-12 text-gray-500">暂无符合条件的供应商</div>}
 
       {showModal && (
         <ModalDialog
-          title={editingSupplier ? '编辑供应商' : '新增供应商'}
+          title={editingSupplier ? '编辑供应商' : '新建供应商'}
           description="供应商内部编码由系统自动维护。"
           onClose={() => setShowModal(false)}
           closeDisabled={loading}
@@ -1733,7 +1941,7 @@ function SupplierManager({ onMessage }: { onMessage: (msg: string) => void }) {
             </div>
         </ModalDialog>
       )}
-    </div>
+    </SystemResourcePage>
   )
 }
 
@@ -1743,6 +1951,7 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [showModal, setShowModal] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(false)
+  const [conditions, setConditions] = useState<ResourceSearchCondition[]>([])
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.customers.viewMode', 'list')
   const isCompactViewport = useCompactViewport(1023)
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
@@ -1752,7 +1961,11 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
     phone: '',
     address: '',
   })
-  const customerSort = useClientTableSort(customers, {
+  const filteredCustomers = useMemo(
+    () => filterByResourceSearch(customers, keyword, customerSearchProfile, customerAdvancedFields, conditions),
+    [conditions, customers, keyword],
+  )
+  const customerSort = useClientTableSort(filteredCustomers, {
     manual: (customer) => customer.sortOrder,
     name: (customer) => customer.name,
     contact: (customer) => customer.contact,
@@ -1761,13 +1974,10 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
     createdAt: (customer) => new Date(customer.createdAt),
   }, 'manual', 'asc')
 
-  useEffect(() => {
-    fetchCustomers()
-  }, [keyword])
+  useEffect(() => { void fetchCustomers() }, [])
 
   const fetchCustomers = async () => {
-    const url = keyword ? `/api/customers?keyword=${encodeURIComponent(keyword)}` : '/api/customers'
-    const res = await fetch(url)
+    const res = await fetch('/api/customers')
     const data = await res.json()
     if (res.ok) {
       setCustomers(data.data || [])
@@ -1840,25 +2050,25 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
   }
 
   return (
-    <div className="rounded-lg bg-white p-4 shadow sm:p-6">
-      <SystemPageToolbar
-        searchStorageKey="mes-lite.searchPresets.customers"
-        searchValue={keyword}
-        onSearchChange={setKeyword}
-        searchPlaceholder="搜索名称、联系人、电话"
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        actions={<AppButton onClick={openAdd} variant="create">新增客户</AppButton>}
-      />
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">客户管理</h3>
-          <p className="text-sm text-gray-500 mt-1">用于按最终客户筛选物料、库存和发货记录。</p>
-        </div>
-      </div>
-
-      {effectiveViewMode === 'card' && customers.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <SystemResourcePage
+      resourceKey="customers"
+      title="客户管理"
+      description="用于按最终客户筛选物料、库存和发货记录。"
+      summary={`共 ${filteredCustomers.length} 项`}
+      keyword={keyword}
+      onKeywordChange={setKeyword}
+      searchPlaceholder="输入名称、联系人、电话或地址；空格分隔多个关键词"
+      advancedFields={customerAdvancedFields}
+      conditions={conditions}
+      onConditionsChange={setConditions}
+      conditionLabel="客户组合条件"
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      onCreate={openAdd}
+      resourceLabel="客户"
+    >
+      {effectiveViewMode === 'card' && filteredCustomers.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
           {customerSort.sortedRows.map((customer) => (
             <div key={customer.id} className="rounded-lg border border-gray-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
@@ -1925,11 +2135,11 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
       </div>
       )}
 
-      {customers.length === 0 && <div className="text-center py-12 text-gray-500">暂无客户</div>}
+      {filteredCustomers.length === 0 && <div className="text-center py-12 text-gray-500">暂无符合条件的客户</div>}
 
       {showModal && (
         <ModalDialog
-          title={editingCustomer ? '编辑客户' : '新增客户'}
+          title={editingCustomer ? '编辑客户' : '新建客户'}
           description="客户资料用于物料归属、库存筛选和发货信息。"
           onClose={() => setShowModal(false)}
           closeDisabled={loading}
@@ -1962,7 +2172,7 @@ function CustomerManager({ onMessage }: { onMessage: (msg: string) => void }) {
             </div>
         </ModalDialog>
       )}
-    </div>
+    </SystemResourcePage>
   )
 }
 
@@ -1978,10 +2188,26 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
 function ProcessTemplateManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [templates, setTemplates] = useState<ProcessTemplate[]>([])
   const [materials, setMaterials] = useState<Array<{ id: string; code: string; name: string }>>([])
+  const [keyword, setKeyword] = useState('')
+  const [conditions, setConditions] = useState<ResourceSearchCondition[]>([])
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<ProcessTemplate | null>(null)
+  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.processTemplates.viewMode', 'card')
+  const isCompactViewport = useCompactViewport(1023)
+  const effectiveViewMode = isCompactViewport ? 'card' : viewMode
   const emptyForm = () => ({ code: '', name: '', category: 'SAWING', defaultTime: 0, workstation: '', description: '', materialIds: [] as string[], standardBatchQty: 1000, setupTimeMinutes: 0, cycleTimeSeconds: 0, peopleCount: 1, laborRatePerHour: 0, machineCount: 1, machineRatePerHour: 0, energyCostPerHour: 0, consumableCostPerBatch: 0, yieldRate: 100 })
   const [form, setForm] = useState(emptyForm())
+  const filteredTemplates = useMemo(
+    () => filterByResourceSearch(templates, keyword, processTemplateSearchProfile, processTemplateAdvancedFields, conditions),
+    [conditions, keyword, templates],
+  )
+  const templateSort = useClientTableSort(filteredTemplates, {
+    manual: (template) => template.sortOrder,
+    name: (template) => `${template.code} ${template.name}`,
+    category: (template) => processCategoryLabel[template.category] || template.category,
+    workstation: (template) => template.workstation,
+    materials: (template) => template.materials.length,
+  }, 'manual', 'asc')
 
   const load = async () => {
     const [templateRes, materialRes] = await Promise.all([fetch('/api/process-templates'), fetch('/api/materials?pageSize=200&sortBy=code&sortDir=asc')])
@@ -2015,11 +2241,25 @@ function ProcessTemplateManager({ onMessage }: { onMessage: (msg: string) => voi
   }
 
   return (
-    <div className="rounded-lg bg-white p-6 shadow">
-      <SystemPageToolbar actions={<AppButton onClick={openAdd} variant="create">新增加工工艺</AppButton>} />
-      <div className="mb-5"><h3 className="text-lg font-semibold">加工工艺</h3><p className="mt-1 text-sm text-gray-500">按类别维护可复用工艺，并关联到物料全景。</p></div>
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        {templates.map((template) => {
+    <SystemResourcePage
+      resourceKey="process-templates"
+      title="加工工艺"
+      description="按类别维护可复用工艺，并关联到物料全景。"
+      summary={`共 ${filteredTemplates.length} 项`}
+      keyword={keyword}
+      onKeywordChange={setKeyword}
+      searchPlaceholder="输入工艺编码、名称、类别、工位或关联物料"
+      advancedFields={processTemplateAdvancedFields}
+      conditions={conditions}
+      onConditionsChange={setConditions}
+      conditionLabel="加工工艺组合条件"
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      onCreate={openAdd}
+      resourceLabel="加工工艺"
+    >
+      {effectiveViewMode === 'card' ? <div className="grid grid-cols-1 gap-3 p-4 lg:grid-cols-2">
+        {templateSort.sortedRows.map((template) => {
           const thousand = processCostPerThousand(template)
           return (
           <div key={template.id} className="rounded-lg border border-gray-200 p-4">
@@ -2030,9 +2270,29 @@ function ProcessTemplateManager({ onMessage }: { onMessage: (msg: string) => voi
             <div className="mt-3 grid grid-cols-3 gap-2 rounded bg-blue-50 p-2 text-xs text-blue-800"><span>千件人工<br/><b>{thousand.laborHours.toFixed(2)} h</b></span><span>千件机时<br/><b>{thousand.machineHours.toFixed(2)} h</b></span><span>千件工艺成本<br/><b>¥{thousand.cost.toFixed(2)}</b></span></div>
           </div>
         )})}
-      </div>
+      </div> : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px]">
+            <thead className="bg-gray-50 text-left text-sm text-gray-600"><tr>
+              <SortableTableHeader column="name" activeColumn={templateSort.sortColumn} direction={templateSort.sortDirection} onSort={templateSort.toggleSort}>加工工艺</SortableTableHeader>
+              <SortableTableHeader column="category" activeColumn={templateSort.sortColumn} direction={templateSort.sortDirection} onSort={templateSort.toggleSort}>类别</SortableTableHeader>
+              <SortableTableHeader column="workstation" activeColumn={templateSort.sortColumn} direction={templateSort.sortDirection} onSort={templateSort.toggleSort}>工位</SortableTableHeader>
+              <SortableTableHeader column="materials" activeColumn={templateSort.sortColumn} direction={templateSort.sortDirection} onSort={templateSort.toggleSort}>关联物料</SortableTableHeader>
+              <th className="px-4 py-3 text-right">操作</th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-100">{templateSort.sortedRows.map((template) => <tr key={template.id}>
+              <td className="px-4 py-3"><div className="font-medium text-gray-900">{template.name}</div><div className="font-mono text-xs text-gray-500">{template.code}{template.isPreset ? ' · 预置' : ''}</div></td>
+              <td className="px-4 py-3 text-sm text-gray-600">{processCategoryLabel[template.category] || template.category}</td>
+              <td className="px-4 py-3 text-sm text-gray-600">{template.workstation || '-'}</td>
+              <td className="px-4 py-3 text-sm text-gray-600">{template.materials.length}</td>
+              <td className="px-4 py-3 text-right"><AppButton size="sm" onClick={() => openEdit(template)}>编辑</AppButton></td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+      )}
+      {filteredTemplates.length === 0 && <div className="py-12 text-center text-sm text-gray-500">暂无符合条件的加工工艺</div>}
       {showModal && <ModalDialog
-        title={editing ? '编辑加工工艺' : '新增加工工艺'}
+        title={editing ? '编辑加工工艺' : '新建加工工艺'}
         description="维护可复用工艺参数，并可关联适用物料。"
         onClose={() => setShowModal(false)}
         size="lg"
@@ -2055,7 +2315,7 @@ function ProcessTemplateManager({ onMessage }: { onMessage: (msg: string) => voi
         </div></div>
         <div className="mt-4"><div className="mb-2 text-sm font-medium">关联物料（可多选）</div><div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-gray-200 p-3">{materials.map((material) => <label key={material.id} className="flex gap-2 text-sm"><input type="checkbox" checked={form.materialIds.includes(material.id)} onChange={(event) => setForm({ ...form, materialIds: event.target.checked ? [...form.materialIds, material.id] : form.materialIds.filter((id) => id !== material.id) })} />{material.code} · {material.name}</label>)}</div></div>
       </ModalDialog>}
-    </div>
+    </SystemResourcePage>
   )
 }
 
@@ -2067,6 +2327,8 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
   const [showModal, setShowModal] = useState(false)
   const [editingRoute, setEditingRoute] = useState<ProcessRoute | null>(null)
   const [loading, setLoading] = useState(false)
+  const [keyword, setKeyword] = useState('')
+  const [conditions, setConditions] = useState<ResourceSearchCondition[]>([])
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.process.viewMode', 'list')
   const isCompactViewport = useCompactViewport(1023)
   const effectiveViewMode = isCompactViewport ? 'card' : viewMode
@@ -2077,7 +2339,11 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
     steps: [emptyStep()],
   })
   const displayMaterialCode = (sku?: string | null) => sku?.startsWith('MAT-') ? sku.slice(4) : sku || ''
-  const routeSort = useClientTableSort(routes, {
+  const filteredRoutes = useMemo(
+    () => filterByResourceSearch(routes, keyword, processRouteSearchProfile, processRouteAdvancedFields, conditions),
+    [conditions, keyword, routes],
+  )
+  const routeSort = useClientTableSort(filteredRoutes, {
     manual: (route) => route.sortOrder,
     material: (route) => `${displayMaterialCode(route.product?.sku)} ${route.product?.name || ''}`,
     name: (route) => route.name,
@@ -2221,21 +2487,25 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
   }
 
   return (
-    <div className="rounded-lg bg-white p-4 shadow sm:p-6">
-      <SystemPageToolbar
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        actions={<AppButton onClick={openAdd} variant="create">新增工艺路线</AppButton>}
-      />
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">BOM/工艺</h3>
-          <p className="text-sm text-gray-500 mt-1">维护物料工艺路线和工序。已产生派工或报工的工序不建议直接修改。</p>
-        </div>
-      </div>
-
-      {effectiveViewMode === 'card' && routes.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+    <SystemResourcePage
+      resourceKey="process-routes"
+      title="BOM／工艺路线"
+      description="维护物料工艺路线和工序。已产生派工或报工的工序不建议直接修改。"
+      summary={`共 ${filteredRoutes.length} 项`}
+      keyword={keyword}
+      onKeywordChange={setKeyword}
+      searchPlaceholder="输入物料编码、名称、路线或工序；空格分隔多个关键词"
+      advancedFields={processRouteAdvancedFields}
+      conditions={conditions}
+      onConditionsChange={setConditions}
+      conditionLabel="工艺路线组合条件"
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      onCreate={openAdd}
+      resourceLabel="工艺路线"
+    >
+      {effectiveViewMode === 'card' && filteredRoutes.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 p-4 xl:grid-cols-2">
           {routeSort.sortedRows.map((route) => (
             <div key={route.id} className="rounded-lg border border-gray-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
@@ -2310,11 +2580,11 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
       </div>
       )}
 
-      {routes.length === 0 && <div className="text-center py-12 text-gray-500">暂无工艺路线</div>}
+      {filteredRoutes.length === 0 && <div className="text-center py-12 text-gray-500">暂无符合条件的工艺路线</div>}
 
       {showModal && (
         <ModalDialog
-          title={editingRoute ? '编辑工艺路线' : '新增工艺路线'}
+          title={editingRoute ? '编辑工艺路线' : '新建工艺路线'}
           description="维护物料默认路线及其有序工序。"
           onClose={() => { setShowModal(false); resetForm() }}
           closeDisabled={loading}
@@ -2355,7 +2625,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-medium">工序列表</h4>
                   <button onClick={addStep} className="px-3 py-1 text-sm text-green-700 border border-green-300 rounded hover:bg-green-50">
-                    新增工序
+                    添加工序
                   </button>
                 </div>
                 <div className="space-y-3">
@@ -2431,7 +2701,7 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
             </div>
         </ModalDialog>
       )}
-    </div>
+    </SystemResourcePage>
   )
 }
 

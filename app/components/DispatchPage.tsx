@@ -309,7 +309,7 @@ export default function DispatchPage({
                 setShowModal(true)
               }}
             >
-              新增
+              新建派工单
             </AppButton>
           </>
         )}
@@ -364,7 +364,7 @@ export default function DispatchPage({
                   setShowModal(true)
                 }}
               >
-                新增
+                新建派工单
               </AppButton>
             </>
           )}
@@ -550,7 +550,7 @@ export default function DispatchPage({
 
       {showModal && (
         <ModalDialog
-          title="新增派工单"
+          title="新建派工单"
           description="选择工单和工序后安排人员、数量与优先级。"
           onClose={() => setShowModal(false)}
           closeDisabled={loading}

@@ -6,12 +6,17 @@ import ResponsiveToolbarActions from '../ResponsiveToolbarActions'
 import { SearchFieldWithPresets } from '../SavedSearchPresets'
 import TopBarPortal from '../TopBarPortal'
 import ViewModeToggle, { DisplayMode } from '../ViewModeToggle'
+import type { ResourceSearchCondition } from '@/lib/resource-search'
 
 export default function ResourceToolbar<M extends DisplayMode = DisplayMode>({
   searchStorageKey,
   searchValue,
   onSearchChange,
   searchPlaceholder,
+  advancedSearch,
+  searchConditions,
+  onSearchConditionsChange,
+  searchConditionLabel,
   filters,
   actions,
   viewMode,
@@ -20,17 +25,21 @@ export default function ResourceToolbar<M extends DisplayMode = DisplayMode>({
   iconSize,
   onIconSizeChange,
   onCreate,
-  createLabel = '新增',
+  createLabel = '新建',
   filterCount = 0,
   filterSummary,
   mobilePreferences,
   placement = 'portal',
   filterPresentation = 'popover',
 }: {
-  searchStorageKey: string
-  searchValue: string
-  onSearchChange: (value: string) => void
-  searchPlaceholder: string
+  searchStorageKey?: string
+  searchValue?: string
+  onSearchChange?: (value: string) => void
+  searchPlaceholder?: string
+  advancedSearch?: ReactNode
+  searchConditions?: readonly ResourceSearchCondition[]
+  onSearchConditionsChange?: (conditions: ResourceSearchCondition[]) => void
+  searchConditionLabel?: string
   filters?: ReactNode
   actions?: ReactNode
   viewMode?: M
@@ -64,16 +73,24 @@ export default function ResourceToolbar<M extends DisplayMode = DisplayMode>({
       )
     : null
 
-  const toolbar = (
-    <ResponsiveToolbarActions
-      primaryFilters={(
+  const search = searchStorageKey && searchValue !== undefined && onSearchChange && searchPlaceholder
+    ? (
         <SearchFieldWithPresets
           storageKey={searchStorageKey}
           value={searchValue}
           onChange={onSearchChange}
           placeholder={searchPlaceholder}
+          advancedSearch={advancedSearch}
+          conditions={searchConditions}
+          onConditionsChange={onSearchConditionsChange}
+          conditionLabel={searchConditionLabel}
         />
-      )}
+      )
+    : undefined
+
+  const toolbar = (
+    <ResponsiveToolbarActions
+      primaryFilters={search}
       filters={filters}
       filterCount={filterCount}
       filterSummary={filterSummary}

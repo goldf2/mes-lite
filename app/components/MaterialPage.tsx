@@ -2042,7 +2042,7 @@ export default function MaterialPage({
               variant="create"
               onClick={handleAdd}
             >
-              新增
+              新建物料
             </AppButton>
             <AppButton
               onClick={openImportModal}
@@ -2385,7 +2385,7 @@ export default function MaterialPage({
                 variant="create"
                 onClick={handleAdd}
               >
-                新增
+                新建物料
               </AppButton>
               <AppButton
                 onClick={openImportModal}
@@ -2795,7 +2795,7 @@ export default function MaterialPage({
 
       {showModal && (
         <ModalDialog
-          title={editingMaterial ? '编辑物料' : '新增物料'}
+          title={editingMaterial ? '编辑物料' : '新建物料'}
           description="维护物料基础资料、库存主单位和参考计价单位。"
           onClose={() => setShowModal(false)}
           closeDisabled={loading}

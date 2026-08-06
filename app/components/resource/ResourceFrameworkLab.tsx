@@ -441,7 +441,7 @@ export default function ResourceFrameworkLab() {
         error={labState === 'error' ? '这是用于验证失败反馈和重新加载入口的模拟错误。' : undefined}
         onRetry={() => setLabState('ready')}
         emptyLabel={query || statusFilters.length !== 2 ? '当前搜索或筛选没有结果' : '尚未创建产品文档'}
-        emptyAction={<AppButton variant="create" size="sm" onClick={() => setCreateOpen(true)}>新增文档</AppButton>}
+        emptyAction={<AppButton variant="create" size="sm" onClick={() => setCreateOpen(true)}>新建文档</AppButton>}
         searchValue={query}
         onSearchChange={setQuery}
         searchPlaceholder="搜索文档编码、标题、类别或关联物料"
@@ -466,7 +466,7 @@ export default function ResourceFrameworkLab() {
         onViewModeChange={setViewMode}
         displayModes={labDisplayModes}
         onCreate={() => setCreateOpen(true)}
-        createLabel="新增文档"
+        createLabel="新建文档"
         summary={<span className="text-sm text-gray-500">共 {visibleDocuments.length} 条</span>}
         toolbarPlacement="inline"
         rowLabel={(document) => `打开文档 ${document.code} ${document.title}`}
@@ -475,7 +475,7 @@ export default function ResourceFrameworkLab() {
       <ResourceFormDialog
         open={createOpen}
         editing={false}
-        createTitle="新增产品文档"
+        createTitle="新建产品文档"
         editTitle="编辑产品文档"
         description="这是公共新增弹窗的独立测试，不会调用真实接口。"
         onClose={() => setCreateOpen(false)}

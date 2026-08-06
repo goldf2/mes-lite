@@ -8,7 +8,7 @@ import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
 import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
 import ViewModeToggle, { usePersistedViewMode } from './components/ViewModeToggle'
-import { InterfacePreferenceSync } from './components/interfacePreferences'
+import { InterfacePreferenceSync, preferenceChangeEvent, readDesktopNavigationPreference } from './components/interfacePreferences'
 import { SearchFieldWithPresets } from './components/SavedSearchPresets'
 import SearchableSelect from './components/SearchableSelect'
 import SortableTableHeader from './components/SortableTableHeader'
@@ -960,8 +960,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   useEffect(() => {
     const savedWidth = Number(window.localStorage.getItem(desktopSidebarStorageKey))
     const savedSplitWidth = Number(window.localStorage.getItem(desktopSplitSidebarStorageKey))
-    const savedNavigationMode = window.localStorage.getItem(desktopNavigationModeStorageKey)
-    const savedNavigationDisplayMode = window.localStorage.getItem(desktopNavigationDisplayModeStorageKey)
+    const syncNavigationPreference = () => {
+      const savedNavigation = readDesktopNavigationPreference()
+      setDesktopNavigationMode(savedNavigation.mode)
+      setDesktopNavigationDisplayMode(savedNavigation.displayMode)
+    }
     if (
       Number.isFinite(savedWidth)
       && savedWidth >= minDesktopSidebarWidth
@@ -976,13 +979,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     ) {
       setDesktopSplitSidebarWidth(savedSplitWidth)
     }
-    if (savedNavigationMode === 'accordion' || savedNavigationMode === 'split') {
-      setDesktopNavigationMode(savedNavigationMode)
-    }
-    if (savedNavigationDisplayMode === 'icon' || savedNavigationDisplayMode === 'icon-label' || savedNavigationDisplayMode === 'label') {
-      setDesktopNavigationDisplayMode(savedNavigationDisplayMode)
-    }
+    syncNavigationPreference()
+    window.addEventListener(preferenceChangeEvent, syncNavigationPreference)
     setDesktopSidebarReady(true)
+    return () => window.removeEventListener(preferenceChangeEvent, syncNavigationPreference)
   }, [])
 
   useEffect(() => {
@@ -1656,7 +1656,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             stateSummary={activeStateSummary}
             compact
           />
-          <button
+          {tab === 'materials' && materialSection === 'bomWorkspace' && <button
             type="button"
             onClick={() => {
               setShowPageOptions(true)
@@ -1668,7 +1668,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           >
             <Settings2 aria-hidden="true" className="h-4 w-4" />
             <span className="hidden whitespace-nowrap text-sm font-medium xl:inline">页面选项</span>
-          </button>
+          </button>}
           <SystemMenu
             containerRef={desktopSystemMenuRef}
             operator={operator}
@@ -1765,7 +1765,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 stateSummary={activeStateSummary}
                 compact
               />
-              <button
+              {tab === 'materials' && materialSection === 'bomWorkspace' && <button
                 type="button"
                 onClick={() => {
                   setShowPageOptions(true)
@@ -1778,7 +1778,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               >
                 <Settings2 aria-hidden="true" className="h-4 w-4" />
                 <span className="text-xs font-medium">选项</span>
-              </button>
+              </button>}
               <SystemMenu
                 containerRef={systemMenuRef}
                 operator={operator}
@@ -1829,7 +1829,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                             variant="create"
                             onClick={() => setTab('create')}
                           >
-                            新增
+                            新建生产订单
                           </AppButton>
                         )}
                       </>
@@ -2019,7 +2019,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                     variant="create"
                     onClick={() => setTab('create')}
                   >
-                    新增生产订单
+                    新建生产订单
                   </AppButton>
                 )}
               </div>
@@ -3006,10 +3006,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         onClose={() => setShowPageOptions(false)}
         pageLabel={activeTabLabel}
         showBomUnitOptions={tab === 'materials' && materialSection === 'bomWorkspace'}
-        navigationMode={desktopNavigationMode}
-        onNavigationModeChange={setDesktopNavigationMode}
-        navigationDisplayMode={desktopNavigationDisplayMode}
-        onNavigationDisplayModeChange={setDesktopNavigationDisplayMode}
         onMessage={showMessage}
       />
 

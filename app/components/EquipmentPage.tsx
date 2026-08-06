@@ -198,7 +198,7 @@ export default function EquipmentPage({
         loading={loading}
         loadingLabel="正在加载设备..."
         emptyLabel="暂无设备"
-        emptyAction={canCreate ? <AppButton variant="create" onClick={openCreate}>新增第一台设备</AppButton> : undefined}
+        emptyAction={canCreate ? <AppButton variant="create" onClick={openCreate}>新建第一台设备</AppButton> : undefined}
         searchValue={keyword}
         onSearchChange={setKeyword}
         searchPlaceholder="搜索设备编码、名称、型号或工作中心"
@@ -207,13 +207,13 @@ export default function EquipmentPage({
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         onCreate={canCreate ? openCreate : undefined}
-        createLabel="新增设备"
+        createLabel="新建设备"
         summary={<span className="text-sm text-gray-500">共 {items.length} 台</span>}
         rowLabel={(item) => `${item.code} ${item.name}`}
       />
 
       {showModal && (
-        <ModalDialog title={editing ? '编辑设备' : '新增设备'} description="设备保存基础台账和能力参数；具体加工方法由工艺文档维护。" onClose={() => setShowModal(false)} closeDisabled={saving} size="xl" footer={<ModalActions onCancel={() => setShowModal(false)} onConfirm={save} busy={saving} />}>
+        <ModalDialog title={editing ? '编辑设备' : '新建设备'} description="设备保存基础台账和能力参数；具体加工方法由工艺文档维护。" onClose={() => setShowModal(false)} closeDisabled={saving} size="xl" footer={<ModalActions onCancel={() => setShowModal(false)} onConfirm={save} busy={saving} />}>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <label className="text-sm font-medium text-gray-700">设备编码 *<input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} className={`mt-2 ${appInputClassName}`} /></label>
             <label className="text-sm font-medium text-gray-700">设备名称 *<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={`mt-2 ${appInputClassName}`} /></label>

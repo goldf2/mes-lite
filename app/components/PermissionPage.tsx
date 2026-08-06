@@ -313,7 +313,7 @@ export default function PermissionPage({
             actions={(
               <>
                 <ViewModeToggle value={groupViewMode} onChange={setGroupViewMode} />
-                <AppButton variant="create" onClick={() => setShowNewGroupForm((value) => !value)} disabled={loading}>新增权限组</AppButton>
+                <AppButton variant="create" onClick={() => setShowNewGroupForm((value) => !value)} disabled={loading}>新建权限组</AppButton>
                 <AppButton variant="primary" onClick={saveGroupSettings} disabled={loading || !activeGroup}>保存权限组赋权</AppButton>
               </>
             )}

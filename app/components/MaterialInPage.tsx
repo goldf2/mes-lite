@@ -1000,7 +1000,7 @@ export default function MaterialInPage({
                 setShowModal(true)
               }}
             >
-              新增
+              新建来料单
             </AppButton>
           </>
         )}
@@ -1063,7 +1063,7 @@ export default function MaterialInPage({
                   setShowModal(true)
                 }}
               >
-                新增
+                新建来料单
               </AppButton>
             </>
           )}
@@ -1291,7 +1291,7 @@ export default function MaterialInPage({
 
       {showModal && (
         <ModalDialog
-          title={editingItem ? `编辑来料单 ${editingItem.inboundNo}` : '新增来料单'}
+          title={editingItem ? `编辑来料单 ${editingItem.inboundNo}` : '新建来料单'}
           description={editingItem ? '修改当前来料明细。' : '一张来料单可添加多种物料，每种物料分别记录数量、计价和库位。'}
           onClose={() => { setShowModal(false); resetForm() }}
           closeDisabled={loading}

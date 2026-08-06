@@ -87,10 +87,10 @@ export default function ConfigurationManualOrder({
 
   return (
     <>
-      <AppButton onClick={openDialog}>手动排序</AppButton>
+      <AppButton onClick={openDialog}>调整顺序</AppButton>
       {open && (
         <ModalDialog
-          title={`${label}手动排序`}
+          title={`${label}顺序调整`}
           description="保存后作为所有终端的默认顺序；点击列表表头产生的临时排序不会覆盖这里的设置。"
           onClose={() => setOpen(false)}
           closeDisabled={saving}

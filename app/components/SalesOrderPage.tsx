@@ -255,7 +255,7 @@ export default function SalesOrderPage({
           />
         </>
       )}
-      actions={<AppButton variant="create" onClick={() => { setForm(emptyForm()); setFormOpen(true) }}>新增销售订单</AppButton>}
+      actions={<AppButton variant="create" onClick={() => { setForm(emptyForm()); setFormOpen(true) }}>新建销售订单</AppButton>}
     />
   )
 
@@ -335,7 +335,7 @@ export default function SalesOrderPage({
 
       {formOpen && (
         <ModalDialog
-          title="新增销售订单"
+          title="新建销售订单"
           description="先保存销售需求，确认后才能在发货管理中生成发货单。"
           size="wide"
           onClose={() => setFormOpen(false)}

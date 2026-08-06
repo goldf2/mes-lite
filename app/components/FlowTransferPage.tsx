@@ -290,7 +290,7 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
               <option value="REVERSED">已冲销</option>
             </select>
           )}
-          actions={<AppButton variant="create" onClick={openCreate}>新增</AppButton>}
+          actions={<AppButton variant="create" onClick={openCreate}>新建流程转移</AppButton>}
         />
       </TopBarPortal>
 
@@ -353,7 +353,7 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
 
       {formOpen && (
         <ModalDialog
-          title={editingTransfer ? '编辑流程转移' : '新增流程转移'}
+          title={editingTransfer ? '编辑流程转移' : '新建流程转移'}
           description="输入与输出物料由系统固定为同一物料，数量严格 1:1"
           onClose={() => setFormOpen(false)}
           closeDisabled={saving}

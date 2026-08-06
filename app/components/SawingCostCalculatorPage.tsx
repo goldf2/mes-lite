@@ -450,7 +450,7 @@ export default function SawingCostCalculatorPage() {
             <h3 className="font-semibold text-gray-900">混合物料工时机时</h3>
             <div className="flex flex-wrap gap-2">
               <button onClick={syncCurrentProduct} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700">同步当前物料</button>
-              <button onClick={addMixRow} className="rounded-lg border border-blue-300 px-3 py-1.5 text-sm text-blue-700">新增物料</button>
+              <button onClick={addMixRow} className="rounded-lg border border-blue-300 px-3 py-1.5 text-sm text-blue-700">添加物料</button>
             </div>
           </div>
           <div className="mt-4 overflow-x-auto">

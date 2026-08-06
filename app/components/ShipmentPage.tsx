@@ -335,7 +335,7 @@ export default function ShipmentPage({
               variant="create"
               onClick={openCreate}
             >
-              新增
+              新建发货单
             </AppButton>
           </>
         )}
@@ -387,7 +387,7 @@ export default function ShipmentPage({
                 variant="create"
                 onClick={openCreate}
               >
-                新增
+                新建发货单
               </AppButton>
             </>
           )}
@@ -582,7 +582,7 @@ export default function ShipmentPage({
 
       {showModal && (
         <ModalDialog
-          title="新增发货单"
+          title="新建发货单"
           description="发货单必须来自已确认销售订单，可按订单未发数量分批出库。"
           onClose={() => setShowModal(false)}
           closeDisabled={loading}

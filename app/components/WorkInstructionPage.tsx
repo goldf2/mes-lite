@@ -980,7 +980,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
             variant="create"
             onClick={openAddModal}
           >
-            新增
+            新建文档
           </AppButton>
         </>
       )}
@@ -1000,7 +1000,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
               onClick={openAddModal}
               className="mt-4"
             >
-              新增第一篇文档
+              新建第一篇文档
             </AppButton>
           </div>
         ) : viewMode === 'card' ? (
@@ -1126,7 +1126,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
       {showModal && (
         <ModalDialog
-          title="新增文档"
+          title="新建文档"
           description="上传原始文件或编辑在线正文。"
           onClose={closeAddModal}
           closeDisabled={loading}

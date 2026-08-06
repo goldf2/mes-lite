@@ -285,7 +285,7 @@ export default function ReturnPage({
                 setShowModal(true)
               }}
             >
-              新增
+              新建退货单
             </AppButton>
           </>
         )}
@@ -340,7 +340,7 @@ export default function ReturnPage({
                   setShowModal(true)
                 }}
               >
-                新增
+                新建退货单
               </AppButton>
             </>
           )}
@@ -496,7 +496,7 @@ export default function ReturnPage({
 
       {showModal && (
         <ModalDialog
-          title="新增退货单"
+          title="新建退货单"
           description="登记退回物料、数量和实际接收库位。"
           onClose={() => setShowModal(false)}
           closeDisabled={loading}

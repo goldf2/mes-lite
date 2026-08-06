@@ -199,7 +199,7 @@ export default function EmployeePage({
         loading={loading}
         loadingLabel="正在加载员工资料..."
         emptyLabel="暂无员工资料"
-        emptyAction={canCreate ? <AppButton variant="create" onClick={openCreate}>新增第一位员工</AppButton> : undefined}
+        emptyAction={canCreate ? <AppButton variant="create" onClick={openCreate}>新建第一位员工</AppButton> : undefined}
         searchValue={keyword}
         onSearchChange={setKeyword}
         searchPlaceholder="搜索员工编码、姓名、部门、电话或登录账号"
@@ -209,14 +209,14 @@ export default function EmployeePage({
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         onCreate={canCreate ? openCreate : undefined}
-        createLabel="新增员工"
+        createLabel="新建员工"
         summary={<span className="text-sm text-gray-500">共 {employees.length} 人 · 在职 {activeCount} · 已绑定 {boundCount}</span>}
         rowLabel={(employee) => `${employee.code} ${employee.name}`}
       />
 
       {formOpen && (
         <ModalDialog
-          title={editing ? '编辑员工' : '新增员工'}
+          title={editing ? '编辑员工' : '新建员工'}
           description="员工编码由系统生成且保存后不可修改；注册账号绑定不会改变账号角色、审核状态或权限。"
           onClose={() => setFormOpen(false)}
           closeDisabled={saving}
