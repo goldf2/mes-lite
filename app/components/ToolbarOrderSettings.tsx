@@ -84,26 +84,27 @@ export function useShowUnavailableToolbarSlots(pageKey: string) {
 export default function ToolbarOrderSettings({ pageKey }: { pageKey: string }) {
   const order = useToolbarOrder(pageKey)
   const showUnavailable = useShowUnavailableToolbarSlots(pageKey)
+  const movableOrder = order.filter((slot) => slot !== 'search')
 
   const move = (index: number, direction: -1 | 1) => {
     const target = index + direction
-    if (target < 0 || target >= order.length) return
-    const next = [...order]
+    if (target < 0 || target >= movableOrder.length) return
+    const next = [...movableOrder]
     ;[next[index], next[target]] = [next[target], next[index]]
-    writeToolbarOrder(pageKey, next)
+    writeToolbarOrder(pageKey, ['search', ...next])
   }
 
   return (
     <section>
       <div className="text-sm font-semibold text-gray-900">顶部工具顺序</div>
-      <p className="mt-1 text-xs text-gray-500">调整只影响当前页面和当前浏览器；业务操作作为一组移动。</p>
+      <p className="mt-1 text-xs text-gray-500">关键词搜索固定在左侧；这里调整右侧工具，只影响当前页面和当前浏览器。</p>
       <div className="mt-3 divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200">
-        {order.map((slot, index) => (
+        {movableOrder.map((slot, index) => (
           <div key={slot} className="flex items-center gap-3 bg-white px-3 py-2.5">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-gray-500">{index + 1}</span>
             <span className="min-w-0 flex-1 text-sm text-gray-800">{slotLabels[slot]}</span>
             <button type="button" onClick={() => move(index, -1)} disabled={index === 0} aria-label={`上移${slotLabels[slot]}`} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-25"><ArrowUp className="h-4 w-4" /></button>
-            <button type="button" onClick={() => move(index, 1)} disabled={index === order.length - 1} aria-label={`下移${slotLabels[slot]}`} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-25"><ArrowDown className="h-4 w-4" /></button>
+            <button type="button" onClick={() => move(index, 1)} disabled={index === movableOrder.length - 1} aria-label={`下移${slotLabels[slot]}`} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-25"><ArrowDown className="h-4 w-4" /></button>
           </div>
         ))}
       </div>

@@ -63,12 +63,16 @@ export default function PageQrCodeButton({
   stateSummary,
   shareUrl,
   compact = false,
+  triggerClassName = '',
+  listenForGlobalOpen = false,
 }: {
   pageTitle: string
   functionPath: string
   stateSummary?: string
   shareUrl?: string
   compact?: boolean
+  triggerClassName?: string
+  listenForGlobalOpen?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState('')
@@ -84,6 +88,13 @@ export default function PageQrCodeButton({
     showGeneratedAt: true,
   })
   const resolvedUrl = shareUrl || (typeof window !== 'undefined' ? window.location.href : '')
+
+  useEffect(() => {
+    if (!listenForGlobalOpen) return
+    const handleOpen = () => setOpen(true)
+    window.addEventListener('mes:open-page-qr-code', handleOpen)
+    return () => window.removeEventListener('mes:open-page-qr-code', handleOpen)
+  }, [listenForGlobalOpen])
 
   useEffect(() => {
     if (!open) return
@@ -204,7 +215,7 @@ export default function PageQrCodeButton({
         type="button"
         onClick={() => setOpen(true)}
         aria-label="当前页面二维码"
-        className={`group relative flex shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 ${compact ? 'h-9 w-9' : 'h-9 gap-2 px-3 text-sm'}`}
+        className={`group relative flex shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 ${compact ? 'h-9 w-9' : 'h-9 gap-2 px-3 text-sm'} ${triggerClassName}`}
       >
         <QrCode aria-hidden="true" className="h-4 w-4" />
         {!compact && <span>二维码</span>}

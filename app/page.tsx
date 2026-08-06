@@ -1647,6 +1647,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             functionPath={activeFunctionPath}
             stateSummary={activeStateSummary}
             compact
+            triggerClassName="hidden xl:flex"
+            listenForGlobalOpen
           />
           <SystemMenu
             containerRef={desktopSystemMenuRef}
@@ -1720,7 +1722,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         <div className={`sticky top-0 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:hidden ${
           systemMenuOpen ? 'z-[60] lg:z-30' : 'z-30'
         }`}>
-          <div className="flex min-w-0 flex-wrap items-center gap-2 lg:flex-nowrap">
+          <div className="flex min-w-0 flex-nowrap items-center gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2 lg:hidden">
               <button
                 type="button"
@@ -1735,15 +1737,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               >
                 <Menu aria-hidden="true" className="h-5 w-5" />
               </button>
-              <div className="min-w-0 flex-1 truncate text-base font-semibold text-gray-900">
-                {activeTabLabel}
-              </div>
-              <PageQrCodeButton
-                pageTitle={activeTabLabel}
-                functionPath={activeFunctionPath}
-                stateSummary={activeStateSummary}
-                compact
-              />
+              <div id="topbar-actions-mobile" className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible empty:hidden" />
               <SystemMenu
                 containerRef={systemMenuRef}
                 operator={operator}
@@ -1764,7 +1758,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 compact
               />
             </div>
-            <div id="topbar-actions-mobile" className="order-3 flex min-w-0 flex-[1_1_100%] items-center justify-start gap-2 overflow-visible empty:hidden" />
             <TopBarPortal>
                 {tab === 'orders' ? (
                   <ResponsiveToolbarActions

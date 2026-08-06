@@ -1,6 +1,6 @@
 'use client'
 
-import { LayoutList, PanelRightOpen, SearchCheck, Settings2, X } from 'lucide-react'
+import { LayoutList, PanelRightOpen, QrCode, SearchCheck, Settings2, X } from 'lucide-react'
 import { ReactNode, useContext, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import MovableEdgeTrigger from './layout/MovableEdgeTrigger'
@@ -80,6 +80,12 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, adv
     }, 220)
   }
 
+  const openPageQrCode = () => {
+    setActionMenuOpen(false)
+    if (mobileToolsOpen) closeMobileTools()
+    window.dispatchEvent(new CustomEvent('mes:open-page-qr-code'))
+  }
+
   useEffect(() => {
     if (!mobileToolsOpen) return
 
@@ -148,7 +154,8 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, adv
   ) : disabledAdvanced)
 
   return (
-    <div className="relative flex w-full min-w-0 flex-wrap items-center justify-start gap-2 xl:flex-nowrap xl:gap-3">
+    <div className="relative flex w-full min-w-0 flex-nowrap items-center gap-2 xl:gap-3">
+      {(hasPrimaryFilters || showUnavailableSlots) && <div className="flex min-w-0 flex-1 items-center sm:hidden [&>*]:!min-w-0 [&>*]:!max-w-none">{hasPrimaryFilters ? primaryFilters : disabledSearch}</div>}
       {hasAnyTools && (
         <div className="ml-auto sm:hidden">
           <MovableEdgeTrigger edge="right" storageKey="mes-lite.edge-trigger.right.v1" label="呼出页面工具" active={mobileToolsOpen} onActivate={mobileToolsOpen ? closeMobileTools : openMobileTools} badge={filterCount > 0 ? filterCount : undefined} className="mes-dock-trigger-right"><PanelRightOpen aria-hidden="true" size={19} className={`transition-transform duration-200 ${mobileToolsOpen ? 'rotate-180' : ''}`} /></MovableEdgeTrigger>
@@ -156,11 +163,11 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, adv
             <aside ref={mobileToolsPanelRef} role="dialog" aria-label="页面工具" tabIndex={-1} className={`fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[200] flex h-auto max-h-[min(72dvh,40rem)] w-[min(88vw,24rem)] origin-right flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white/95 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-2xl backdrop-blur-xl transition-[transform,opacity] duration-200 ${mobileToolsVisible ? 'translate-x-0 opacity-100' : 'translate-x-[calc(100%+1rem)] opacity-0'}`}>
               <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2.5"><div><div className="text-sm font-semibold text-gray-900">页面工具</div><div className="mt-0.5 text-xs text-gray-500">搜索、视图与页面操作</div></div><button type="button" onClick={closeMobileTools} aria-label="关闭页面工具" className="rounded-md p-2 text-gray-500 hover:bg-gray-100"><X size={18} /></button></div>
               <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
-                {(hasPrimaryFilters || showUnavailableSlots) && <section><h3 className="mb-1.5 text-xs font-semibold text-gray-500">搜索</h3><div className="[&>*]:!w-full [&>*]:!min-w-0 [&>*]:!max-w-none">{hasPrimaryFilters ? primaryFilters : disabledSearch}</div></section>}
                 {(hasAdvancedSearch || showUnavailableSlots) && <section className="border-t border-gray-100 pt-3"><h3 className="mb-1.5 text-xs font-semibold text-gray-500">高级搜索</h3>{hasAdvancedSearch ? <div className="space-y-2">{directAdvancedSearch}{hasLegacyAdvancedSearch && filterContent}</div> : <div className="text-sm text-gray-400">当前页面无高级搜索</div>}</section>}
                 {(hasViewControl || showUnavailableSlots) && <section className="border-t border-gray-100 pt-3"><h3 className="mb-1.5 text-xs font-semibold text-gray-500">视图</h3>{hasViewControl ? viewControl : <div className="text-sm text-gray-400">当前页面无可切换视图</div>}</section>}
                 {hasPreferences && <section className="border-t border-gray-100 pt-3">{preferences}</section>}
                 <section className="border-t border-gray-100 pt-3"><button type="button" onClick={openPageOptions} className="flex w-full items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"><Settings2 className="h-4 w-4" />页内选项</button></section>
+                <section><button type="button" onClick={openPageQrCode} className="flex w-full items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"><QrCode className="h-4 w-4" />当前页面二维码</button></section>
               </div>
               {hasActions && <footer className="border-t border-gray-100 bg-gray-50/90 p-3"><div className="flex flex-wrap gap-2">{actions}</div></footer>}
             </aside>, document.body,
@@ -168,17 +175,17 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, adv
         </div>
       )}
 
-      {(hasPrimaryFilters || showUnavailableSlots) && <div style={{ order: slotOrder('search') }} className="hidden min-w-[220px] max-w-[620px] flex-[1_1_320px] items-center sm:flex">{hasPrimaryFilters ? primaryFilters : disabledSearch}</div>}
-      {(hasAdvancedSearch || showUnavailableSlots) && <div style={{ order: slotOrder('advanced') }} className="hidden shrink-0 sm:block">{advancedControl}</div>}
-      {(hasViewControl || showUnavailableSlots) && <div style={{ order: slotOrder('view') }} className="hidden shrink-0 sm:block">{hasViewControl ? viewControl : disabledView}</div>}
-      <div style={{ order: slotOrder('options') }} className="ml-auto hidden shrink-0 sm:block">{pageOptionsButton}</div>
+      {(hasPrimaryFilters || showUnavailableSlots) && <div className="mr-auto hidden min-w-0 max-w-[620px] flex-1 items-center sm:flex">{hasPrimaryFilters ? primaryFilters : disabledSearch}</div>}
+      {(hasAdvancedSearch || showUnavailableSlots) && <div style={{ order: slotOrder('advanced') }} className="hidden shrink-0 xl:block">{advancedControl}</div>}
+      {(hasViewControl || showUnavailableSlots) && <div style={{ order: slotOrder('view') }} className="hidden shrink-0 xl:block">{hasViewControl ? viewControl : disabledView}</div>}
+      <div style={{ order: slotOrder('options') }} className="hidden shrink-0 xl:block">{pageOptionsButton}</div>
 
-      {hasActions && (
+      {hasAnyTools && (
         <div style={{ order: slotOrder('actions') }} className="hidden min-w-max shrink-0 items-center gap-2 sm:flex">
-          <div className="hidden items-center gap-2 xl:flex">{actions}</div>
+          {hasActions && <div className="hidden items-center gap-2 xl:flex">{actions}</div>}
           <div className="xl:hidden">
             <button type="button" aria-haspopup="dialog" aria-expanded={actionMenuOpen} onClick={() => { setActionMenuOpen(true); setMenuOpen(false) }} className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 shadow-sm"><span>⋯</span>工具</button>
-            {actionMenuOpen && <ModalOverlay onClose={() => setActionMenuOpen(false)} className="items-end pb-[calc(var(--mes-mobile-nav-offset)+0.75rem)]"><div className="w-full max-w-sm overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"><div className="flex items-center justify-between border-b border-gray-100 px-4 py-3"><div className="text-sm font-semibold text-gray-900">业务操作</div><button type="button" onClick={() => setActionMenuOpen(false)} className="rounded p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button></div><div className="grid max-h-[60dvh] gap-2 overflow-y-auto p-3 [&>button]:w-full [&>button]:justify-center">{actions}</div></div></ModalOverlay>}
+            {actionMenuOpen && <ModalOverlay onClose={() => setActionMenuOpen(false)} className="items-end pb-[calc(var(--mes-mobile-nav-offset)+0.75rem)] lg:items-center lg:pb-0"><div className="w-full max-w-sm overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"><div className="flex items-center justify-between border-b border-gray-100 px-4 py-3"><div><div className="text-sm font-semibold text-gray-900">页面工具</div><div className="mt-0.5 text-xs text-gray-500">搜索、视图与页面操作</div></div><button type="button" onClick={() => setActionMenuOpen(false)} className="rounded p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button></div><div className="max-h-[60dvh] space-y-3 overflow-y-auto p-3"><div className="flex flex-wrap items-center gap-2">{(hasAdvancedSearch || showUnavailableSlots) && advancedControl}{(hasViewControl || showUnavailableSlots) && (hasViewControl ? viewControl : disabledView)}<button type="button" onClick={openPageOptions} className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 px-3 text-sm text-gray-700"><Settings2 className="h-4 w-4" />页内选项</button><button type="button" onClick={openPageQrCode} className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 px-3 text-sm text-gray-700"><QrCode className="h-4 w-4" />二维码</button></div>{hasPreferences && <div className="border-t border-gray-100 pt-3">{preferences}</div>}{hasActions && <div className="grid gap-2 border-t border-gray-100 pt-3 [&>button]:w-full [&>button]:justify-center">{actions}</div>}</div></div></ModalOverlay>}
           </div>
         </div>
       )}
