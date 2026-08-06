@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic'
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { Boxes, Menu, PencilLine, Search, Settings2, X } from 'lucide-react'
+import { Boxes, Menu, PencilLine, Search, X } from 'lucide-react'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
 import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
@@ -15,7 +15,6 @@ import SortableTableHeader from './components/SortableTableHeader'
 import useClientTableSort from './components/useClientTableSort'
 import AppButton from './components/AppButton'
 import ModalDialog, { ModalActions } from './components/ModalDialog'
-import PageOptionsDialog from './components/PageOptionsDialog'
 import AiAssistantMark from './components/AiAssistantMark'
 import AppLoadingIndicator from './components/AppLoadingIndicator'
 import { AllFunctionsPage, WorkspaceLauncher } from './components/WorkspacePages'
@@ -653,7 +652,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [selectedStockCategories, setSelectedStockCategories] = useState<string[]>(materialCategoryFilterOptions.map((option) => option.value))
   const [showInvalidStocks, setShowInvalidStocks] = useState(false)
   const [showStockHelp, setShowStockHelp] = useState(false)
-  const [showPageOptions, setShowPageOptions] = useState(false)
   const [stockDataError, setStockDataError] = useState<{ message: string; issues: StockIntegrityIssue[] } | null>(null)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -1656,19 +1654,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             stateSummary={activeStateSummary}
             compact
           />
-          {tab === 'materials' && materialSection === 'bomWorkspace' && <button
-            type="button"
-            onClick={() => {
-              setShowPageOptions(true)
-              setSystemMenuOpen(false)
-            }}
-            aria-label="页面选项"
-            title="页面选项"
-            className="flex h-9 w-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-900 xl:w-auto xl:px-3"
-          >
-            <Settings2 aria-hidden="true" className="h-4 w-4" />
-            <span className="hidden whitespace-nowrap text-sm font-medium xl:inline">页面选项</span>
-          </button>}
           <SystemMenu
             containerRef={desktopSystemMenuRef}
             operator={operator}
@@ -1765,20 +1750,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 stateSummary={activeStateSummary}
                 compact
               />
-              {tab === 'materials' && materialSection === 'bomWorkspace' && <button
-                type="button"
-                onClick={() => {
-                  setShowPageOptions(true)
-                  setSystemMenuOpen(false)
-                  setMobileNavOpen(false)
-                }}
-                aria-label="页面选项"
-                title="页面选项"
-                className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-900"
-              >
-                <Settings2 aria-hidden="true" className="h-4 w-4" />
-                <span className="text-xs font-medium">选项</span>
-              </button>}
               <SystemMenu
                 containerRef={systemMenuRef}
                 operator={operator}
@@ -3000,14 +2971,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           </aside>
         </div>
       )}
-
-      <PageOptionsDialog
-        open={showPageOptions}
-        onClose={() => setShowPageOptions(false)}
-        pageLabel={activeTabLabel}
-        showBomUnitOptions={tab === 'materials' && materialSection === 'bomWorkspace'}
-        onMessage={showMessage}
-      />
 
       {canRead('aiAssistant') && (
         <AiAssistantPanel

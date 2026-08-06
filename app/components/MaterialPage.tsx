@@ -23,6 +23,9 @@ import {
 import { normalizeUnitCode } from '@/lib/unit-catalog'
 import { useBomPagePreferences } from './bomPagePreferences'
 import AppLoadingIndicator from './AppLoadingIndicator'
+import PageOptionsDialog from './PageOptionsDialog'
+import { SearchCheck, Settings2, X } from 'lucide-react'
+import type { ResourceSearchCondition } from '@/lib/resource-search'
 
 interface Material {
   id: string
@@ -313,7 +316,7 @@ function MaterialFieldVisibilityControl({
   }
 
   return (
-    <div className="inline-flex max-w-none flex-nowrap items-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 sm:gap-2 sm:px-3 sm:py-2">
+    <div className="inline-flex max-w-none flex-wrap items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 sm:gap-2 sm:px-3 sm:py-2">
       <label className="flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md bg-white px-2 text-xs text-gray-700 ring-1 ring-gray-200 sm:h-8 sm:px-2.5 sm:text-sm">
         <input
           type="checkbox"
@@ -400,6 +403,99 @@ function BomSummaryVisibilityControl({
               ))}
             </>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MaterialAdvancedSearch({
+  selectedCategories,
+  onCategoriesChange,
+  customerFilter,
+  onCustomerChange,
+  customers,
+  bomStatusFilter,
+  onBomStatusChange,
+  showBomStatus,
+}: {
+  selectedCategories: string[]
+  onCategoriesChange: (value: string[]) => void
+  customerFilter: string
+  onCustomerChange: (value: string) => void
+  customers: Customer[]
+  bomStatusFilter: BomStatusFilter
+  onBomStatusChange: (value: BomStatusFilter) => void
+  showBomStatus: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useDismissibleSearchPopup<HTMLDivElement>(open, () => setOpen(false))
+  const activeCount = Number(selectedCategories.length !== materialCategoryFilterOptions.length)
+    + Number(Boolean(customerFilter))
+    + Number(showBomStatus && bomStatusFilter !== 'all')
+
+  const clear = () => {
+    onCategoriesChange(materialCategoryFilterOptions.map((option) => option.value))
+    onCustomerChange('')
+    onBomStatusChange('all')
+  }
+
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        title="高级搜索"
+        className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 sm:h-10 sm:px-3 sm:text-sm"
+      >
+        <SearchCheck aria-hidden="true" className="h-4 w-4 text-blue-600" />
+        <span className="hidden md:inline">高级搜索</span>
+        {activeCount > 0 && <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700">{activeCount}</span>}
+      </button>
+
+      {open && (
+        <div role="dialog" aria-label="物料高级搜索" className="absolute right-0 top-[calc(100%+8px)] z-[150] w-[min(520px,calc(100vw-24px))] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
+          <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+            <div>
+              <div className="text-sm font-semibold text-gray-900">高级搜索</div>
+              <div className="mt-0.5 text-xs text-gray-500">按分类、客户和 BOM 状态精确缩小范围。</div>
+            </div>
+            <button type="button" onClick={() => setOpen(false)} aria-label="关闭高级搜索" className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><X className="h-4 w-4" /></button>
+          </div>
+          <div className="space-y-4 p-4">
+            <div>
+              <div className="mb-2 text-xs font-semibold text-gray-500">物料分类</div>
+              <StatusCheckboxFilter options={materialCategoryFilterOptions} value={selectedCategories} onChange={onCategoriesChange} allLabel="全部分类" />
+            </div>
+            <div>
+              <div className="mb-2 text-xs font-semibold text-gray-500">归属客户</div>
+              <SearchableSelect
+                value={customerFilter}
+                onChange={onCustomerChange}
+                options={[
+                  { value: '__UNASSIGNED__', label: '通用/未绑定' },
+                  ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
+                ]}
+                placeholder="输入客户名称（全部客户）"
+                allowClear
+                className="w-full"
+              />
+            </div>
+            {showBomStatus && (
+              <label className="block">
+                <span className="mb-2 block text-xs font-semibold text-gray-500">BOM 状态</span>
+                <select value={bomStatusFilter} onChange={(event) => onBomStatusChange(event.target.value as BomStatusFilter)} className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm">
+                  {bomStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+            )}
+          </div>
+          <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50 px-4 py-3">
+            <button type="button" onClick={clear} disabled={activeCount === 0} className="text-sm text-gray-500 hover:text-gray-800 disabled:opacity-40">清空条件</button>
+            <button type="button" onClick={() => setOpen(false)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">完成</button>
+          </div>
         </div>
       )}
     </div>
@@ -831,6 +927,7 @@ export default function MaterialPage({
   const [pageSize, setPageSize] = useState(20)
   const [pagination, setPagination] = useState<PaginationState>({ page: 1, pageSize: 20, total: 0, totalPages: 1 })
   const [showModal, setShowModal] = useState(false)
+  const [showPageOptions, setShowPageOptions] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null)
   const [detailMaterial, setDetailMaterial] = useState<Material | null>(null)
@@ -1902,29 +1999,29 @@ export default function MaterialPage({
     setPage(1)
   }
 
-  const activeFilterLabels = useMemo(() => {
-    const labels: string[] = []
+  const materialSearchConditions = useMemo<ResourceSearchCondition[]>(() => {
+    const conditions: ResourceSearchCondition[] = []
     if (selectedCategories.length !== materialCategoryFilterOptions.length) {
-      labels.push(selectedCategories.length === 0 ? '无分类' : `${selectedCategories.length} 类`)
+      conditions.push({ id: 'material-categories', field: 'categories', operator: 'equals', value: selectedCategories.length > 0 ? selectedCategories.join(',') : '__NONE__' })
     }
-    if (customerFilter) {
-      labels.push(customerFilter === '__UNASSIGNED__' ? '通用/未绑定' : customers.find((customer) => customer.id === customerFilter)?.name || '指定客户')
-    }
-    if (canUseBomData && bomStatusFilter !== 'all') {
-      labels.push(bomStatusOptions.find((option) => option.value === bomStatusFilter)?.label || '指定 BOM 状态')
-    }
-    if (sortBy !== 'createdAt' || sortDir !== 'desc') {
-      labels.push(`排序 ${materialSortOptions.find((option) => option.value === sortBy)?.label || sortBy}/${sortDir === 'asc' ? '升序' : '降序'}`)
-    }
-    if (
-      visibleFields.length !== defaultMaterialVisibleFields.length
-      || visibleFields.some((field, index) => field !== defaultMaterialVisibleFields[index])
-      || (canUseBomData && !bomSummaryVisible)
-    ) {
-      labels.push('字段显示')
-    }
-    return labels
-  }, [selectedCategories, customerFilter, customers, bomStatusFilter, sortBy, sortDir, visibleFields, bomSummaryVisible, canUseBomData])
+    if (customerFilter) conditions.push({ id: 'material-customer', field: 'customer', operator: 'equals', value: customerFilter })
+    if (canUseBomData && bomStatusFilter !== 'all') conditions.push({ id: 'material-bom-status', field: 'bomStatus', operator: 'equals', value: bomStatusFilter })
+    return conditions
+  }, [bomStatusFilter, canUseBomData, customerFilter, selectedCategories])
+
+  const applyMaterialSearchConditions = useCallback((conditions: ResourceSearchCondition[]) => {
+    const categoryCondition = conditions.find((condition) => condition.field === 'categories')
+    const allowedCategories = new Set<string>(materialCategoryFilterOptions.map((option) => option.value))
+    setSelectedCategories(categoryCondition
+      ? categoryCondition.value === '__NONE__'
+        ? []
+        : categoryCondition.value.split(',').filter((value) => allowedCategories.has(value))
+      : materialCategoryFilterOptions.map((option) => option.value))
+    setCustomerFilter(conditions.find((condition) => condition.field === 'customer')?.value || '')
+    const nextBomStatus = conditions.find((condition) => condition.field === 'bomStatus')?.value
+    setBomStatusFilter(bomStatusOptions.some((option) => option.value === nextBomStatus) ? nextBomStatus as BomStatusFilter : 'all')
+    setPage(1)
+  }, [])
 
   useEffect(() => {
     if (!onToolbarChange) return
@@ -1941,9 +2038,10 @@ export default function MaterialPage({
             />
           )}
           actions={(
-            <AppButton variant="create" onClick={() => selectMaterialForBom('')}>
-              新建 BOM
-            </AppButton>
+            <>
+              <AppButton onClick={() => setShowPageOptions(true)}><Settings2 aria-hidden="true" className="h-4 w-4" />页内选项</AppButton>
+              <AppButton variant="create" onClick={() => selectMaterialForBom('')}>新建 BOM</AppButton>
+            </>
           )}
         />
       )
@@ -1958,86 +2056,29 @@ export default function MaterialPage({
             value={keyword}
             onChange={setKeyword}
             placeholder="搜索物料名称或编码"
-          />
-        )}
-        filterCount={activeFilterLabels.length}
-        filterSummary={activeFilterLabels.slice(0, 3).map((label) => (
-          <span key={label} className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">{label}</span>
-        ))}
-        filters={(
-          <>
-            <StatusCheckboxFilter
-              options={materialCategoryFilterOptions}
-              value={selectedCategories}
-              onChange={setSelectedCategories}
-              allLabel="全部分类"
-            />
-            <SearchableSelect
-              value={customerFilter}
-              onChange={setCustomerFilter}
-              options={[
-                { value: '__UNASSIGNED__', label: '通用/未绑定' },
-                ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
-              ]}
-              placeholder="输入客户名称筛选（全部客户）"
-              allowClear
-              className="w-56"
-            />
-            {canUseBomData && (
-              <select
-                value={bomStatusFilter}
-                onChange={(event) => setBomStatusFilter(event.target.value as BomStatusFilter)}
-                className="w-56 rounded-lg border border-gray-200 px-4 py-2 text-sm"
-              >
-                {bomStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            )}
-            <div className="flex flex-nowrap items-center gap-2 whitespace-nowrap">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as MaterialSortBy)}
-                className="w-40 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-              >
-                {materialSortOptions.filter((option) => option.value !== 'bomSummary' || canUseBomData).map((option) => (
-                  <option key={option.value} value={option.value}>按{option.label}</option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => setSortDir((current) => current === 'asc' ? 'desc' : 'asc')}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
-              >
-                {sortDir === 'asc' ? '升序' : '降序'}
-              </button>
-            </div>
-            <MaterialFieldVisibilityControl
-              value={visibleFields}
-              onChange={updateVisibleFields}
-            />
-            {canUseBomData && (
-              <BomSummaryVisibilityControl
-                visible={bomSummaryVisible}
-                value={bomSummaryFields}
-                onVisibleChange={updateBomSummaryVisible}
-                onChange={updateBomSummaryFields}
+            advancedSearch={(
+              <MaterialAdvancedSearch
+                selectedCategories={selectedCategories}
+                onCategoriesChange={setSelectedCategories}
+                customerFilter={customerFilter}
+                onCustomerChange={setCustomerFilter}
+                customers={customers}
+                bomStatusFilter={bomStatusFilter}
+                onBomStatusChange={setBomStatusFilter}
+                showBomStatus={canUseBomData}
               />
             )}
-            {viewMode === 'list' && Object.keys(columnWidths).length > 0 && (
-              <button
-                type="button"
-                onClick={resetAllColumnWidths}
-                className="h-9 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 hover:bg-gray-50"
-              >
-                恢复自动列宽
-              </button>
-            )}
-          </>
+            conditions={materialSearchConditions}
+            onConditionsChange={applyMaterialSearchConditions}
+            conditionLabel={`${materialSearchConditions.length} 个精确条件`}
+          />
         )}
         actions={(
           <>
             <div>
               <ViewModeToggle value={viewMode} onChange={setViewMode} />
             </div>
+            <AppButton onClick={() => setShowPageOptions(true)}><Settings2 aria-hidden="true" className="h-4 w-4" />页内选项</AppButton>
             <AppButton
               variant="create"
               onClick={handleAdd}
@@ -2060,7 +2101,7 @@ export default function MaterialPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, bomStatusFilter, sortBy, sortDir, viewMode, setViewMode, visibleFields, bomSummaryVisible, bomSummaryFields, activeFilterLabels, showBomWorkspace, columnWidths, resetAllColumnWidths, bomKeyword, selectMaterialForBom, canUseBomData])
+  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, bomStatusFilter, viewMode, setViewMode, showBomWorkspace, bomKeyword, selectMaterialForBom, canUseBomData, materialSearchConditions, applyMaterialSearchConditions])
 
   const renderBomDraftEditor = (showSaveAction: boolean) => (
     <>
@@ -2288,9 +2329,10 @@ export default function MaterialPage({
               />
             )}
             actions={(
-              <AppButton variant="create" onClick={() => selectMaterialForBom('')}>
-                新建 BOM
-              </AppButton>
+              <>
+                <AppButton onClick={() => setShowPageOptions(true)}><Settings2 aria-hidden="true" className="h-4 w-4" />页内选项</AppButton>
+                <AppButton variant="create" onClick={() => selectMaterialForBom('')}>新建 BOM</AppButton>
+              </>
             )}
           />
         ) : (
@@ -2301,86 +2343,29 @@ export default function MaterialPage({
               value={keyword}
               onChange={setKeyword}
               placeholder="搜索物料名称或编码"
-            />
-          )}
-          filterCount={activeFilterLabels.length}
-          filterSummary={activeFilterLabels.slice(0, 3).map((label) => (
-            <span key={label} className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">{label}</span>
-          ))}
-          filters={(
-            <>
-              <StatusCheckboxFilter
-                options={materialCategoryFilterOptions}
-                value={selectedCategories}
-                onChange={setSelectedCategories}
-                allLabel="全部分类"
-              />
-              <SearchableSelect
-                value={customerFilter}
-                onChange={setCustomerFilter}
-                options={[
-                  { value: '__UNASSIGNED__', label: '通用/未绑定' },
-                  ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
-                ]}
-                placeholder="输入客户名称筛选（全部客户）"
-                allowClear
-                className="w-56"
-              />
-              {canUseBomData && (
-                <select
-                  value={bomStatusFilter}
-                  onChange={(event) => setBomStatusFilter(event.target.value as BomStatusFilter)}
-                  className="w-56 rounded-lg border border-gray-200 px-4 py-2 text-sm"
-                >
-                  {bomStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
-              )}
-              <div className="flex flex-nowrap items-center gap-2 whitespace-nowrap">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as MaterialSortBy)}
-                  className="w-40 px-4 py-2 border border-gray-200 rounded-lg text-sm"
-                >
-                  {materialSortOptions.filter((option) => option.value !== 'bomSummary' || canUseBomData).map((option) => (
-                    <option key={option.value} value={option.value}>按{option.label}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => setSortDir((current) => current === 'asc' ? 'desc' : 'asc')}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  {sortDir === 'asc' ? '升序' : '降序'}
-                </button>
-              </div>
-              <MaterialFieldVisibilityControl
-                value={visibleFields}
-                onChange={updateVisibleFields}
-              />
-              {canUseBomData && (
-                <BomSummaryVisibilityControl
-                  visible={bomSummaryVisible}
-                  value={bomSummaryFields}
-                  onVisibleChange={updateBomSummaryVisible}
-                  onChange={updateBomSummaryFields}
+              advancedSearch={(
+                <MaterialAdvancedSearch
+                  selectedCategories={selectedCategories}
+                  onCategoriesChange={setSelectedCategories}
+                  customerFilter={customerFilter}
+                  onCustomerChange={setCustomerFilter}
+                  customers={customers}
+                  bomStatusFilter={bomStatusFilter}
+                  onBomStatusChange={setBomStatusFilter}
+                  showBomStatus={canUseBomData}
                 />
               )}
-              {viewMode === 'list' && Object.keys(columnWidths).length > 0 && (
-                <button
-                  type="button"
-                  onClick={resetAllColumnWidths}
-                  className="h-9 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  恢复自动列宽
-                </button>
-              )}
-            </>
+              conditions={materialSearchConditions}
+              onConditionsChange={applyMaterialSearchConditions}
+              conditionLabel={`${materialSearchConditions.length} 个精确条件`}
+            />
           )}
           actions={(
             <>
               <div>
                 <ViewModeToggle value={viewMode} onChange={setViewMode} />
               </div>
+              <AppButton onClick={() => setShowPageOptions(true)}><Settings2 aria-hidden="true" className="h-4 w-4" />页内选项</AppButton>
               <AppButton
                 variant="create"
                 onClick={handleAdd}
@@ -2402,6 +2387,50 @@ export default function MaterialPage({
           />
         )}
       </TopBarPortal>
+      <PageOptionsDialog
+        open={showPageOptions}
+        onClose={() => setShowPageOptions(false)}
+        pageLabel={showBomWorkspace ? 'BOM 设置' : '物料管理'}
+        showBomUnitOptions={showBomWorkspace}
+        onMessage={onMessage}
+      >
+        {!showBomWorkspace && (
+          <>
+            <section>
+              <div className="text-sm font-semibold text-gray-900">排序</div>
+              <p className="mt-1 text-xs text-gray-500">只改变当前浏览器中的物料排列方式。</p>
+              <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                <select value={sortBy} onChange={(event) => setSortBy(event.target.value as MaterialSortBy)} className="h-10 min-w-0 rounded-lg border border-gray-200 bg-white px-3 text-sm">
+                  {materialSortOptions.filter((option) => option.value !== 'bomSummary' || canUseBomData).map((option) => <option key={option.value} value={option.value}>按{option.label}</option>)}
+                </select>
+                <button type="button" onClick={() => setSortDir((current) => current === 'asc' ? 'desc' : 'asc')} className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-700 hover:bg-gray-50">{sortDir === 'asc' ? '升序' : '降序'}</button>
+              </div>
+            </section>
+
+            <section className="border-t border-gray-100 pt-5">
+              <div className="text-sm font-semibold text-gray-900">字段显示</div>
+              <p className="mt-1 text-xs text-gray-500">选择列表和卡片中需要显示的物料信息。</p>
+              <div className="mt-3 overflow-x-auto [&>div]:flex-wrap">
+                <MaterialFieldVisibilityControl value={visibleFields} onChange={updateVisibleFields} />
+              </div>
+            </section>
+
+            {canUseBomData && (
+              <section className="border-t border-gray-100 pt-5">
+                <div className="text-sm font-semibold text-gray-900">BOM 简况</div>
+                <p className="mt-1 text-xs text-gray-500">控制物料列表中 BOM 摘要的可见性和内容。</p>
+                <div className="mt-3"><BomSummaryVisibilityControl visible={bomSummaryVisible} value={bomSummaryFields} onVisibleChange={updateBomSummaryVisible} onChange={updateBomSummaryFields} /></div>
+              </section>
+            )}
+
+            {viewMode === 'list' && Object.keys(columnWidths).length > 0 && (
+              <section className="border-t border-gray-100 pt-5">
+                <AppButton onClick={resetAllColumnWidths}>恢复自动列宽</AppButton>
+              </section>
+            )}
+          </>
+        )}
+      </PageOptionsDialog>
       <div className="min-w-0">
         {!showBomWorkspace && (
         <div

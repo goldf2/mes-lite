@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { normalizeUnitCode } from '@/lib/unit-catalog'
 import ModalDialog, { ModalActions } from './ModalDialog'
 import {
@@ -21,12 +21,14 @@ export default function PageOptionsDialog({
   pageLabel,
   showBomUnitOptions,
   onMessage,
+  children,
 }: {
   open: boolean
   onClose: () => void
   pageLabel: string
   showBomUnitOptions: boolean
   onMessage: (message: string) => void
+  children?: ReactNode
 }) {
   const [draftBomPreferences, setDraftBomPreferences] = useState<BomPagePreferences>(readBomPagePreferences)
   const [unitCatalog, setUnitCatalog] = useState<ConfiguredUnit[]>([])
@@ -88,6 +90,8 @@ export default function PageOptionsDialog({
       )}
     >
       <div className="space-y-5">
+        {children}
+
         {showBomUnitOptions && (
           <section>
             <div className="text-sm font-semibold text-gray-900">BOM 新建默认值</div>
