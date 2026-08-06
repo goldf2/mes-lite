@@ -30,6 +30,7 @@ import { getPageModuleDefinition, resolvePageModuleKey } from '@/lib/page-module
 import PageModuleBoundary from './components/page-modules/PageModuleBoundary'
 import TopBarPortal from './components/TopBarPortal'
 import DesktopNavigation, {
+  type DesktopNavigationDisplayMode,
   type DesktopNavigationGroup,
   type DesktopNavigationMode,
 } from './components/navigation/DesktopNavigation'
@@ -451,6 +452,7 @@ const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0'
 const desktopSidebarStorageKey = 'mes-lite.layout.desktopSidebarWidth'
 const desktopSplitSidebarStorageKey = 'mes-lite.layout.desktopSplitSidebarWidth'
 const desktopNavigationModeStorageKey = 'mes-lite.layout.desktopNavigationMode'
+const desktopNavigationDisplayModeStorageKey = 'mes-lite.layout.desktopNavigationDisplayMode'
 const defaultDesktopSidebarWidth = 224
 const minDesktopSidebarWidth = 184
 const maxDesktopSidebarWidth = 320
@@ -661,6 +663,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
   const [desktopNavigationMode, setDesktopNavigationMode] = useState<DesktopNavigationMode>('accordion')
+  const [desktopNavigationDisplayMode, setDesktopNavigationDisplayMode] = useState<DesktopNavigationDisplayMode>('icon-label')
   const [desktopSidebarWidth, setDesktopSidebarWidth] = useState(defaultDesktopSidebarWidth)
   const [desktopSplitSidebarWidth, setDesktopSplitSidebarWidth] = useState(defaultDesktopSplitSidebarWidth)
   const [desktopSidebarReady, setDesktopSidebarReady] = useState(false)
@@ -958,6 +961,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     const savedWidth = Number(window.localStorage.getItem(desktopSidebarStorageKey))
     const savedSplitWidth = Number(window.localStorage.getItem(desktopSplitSidebarStorageKey))
     const savedNavigationMode = window.localStorage.getItem(desktopNavigationModeStorageKey)
+    const savedNavigationDisplayMode = window.localStorage.getItem(desktopNavigationDisplayModeStorageKey)
     if (
       Number.isFinite(savedWidth)
       && savedWidth >= minDesktopSidebarWidth
@@ -975,6 +979,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     if (savedNavigationMode === 'accordion' || savedNavigationMode === 'split') {
       setDesktopNavigationMode(savedNavigationMode)
     }
+    if (savedNavigationDisplayMode === 'icon' || savedNavigationDisplayMode === 'icon-label' || savedNavigationDisplayMode === 'label') {
+      setDesktopNavigationDisplayMode(savedNavigationDisplayMode)
+    }
     setDesktopSidebarReady(true)
   }, [])
 
@@ -983,7 +990,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     window.localStorage.setItem(desktopSidebarStorageKey, String(desktopSidebarWidth))
     window.localStorage.setItem(desktopSplitSidebarStorageKey, String(desktopSplitSidebarWidth))
     window.localStorage.setItem(desktopNavigationModeStorageKey, desktopNavigationMode)
-  }, [desktopNavigationMode, desktopSidebarReady, desktopSidebarWidth, desktopSplitSidebarWidth])
+    window.localStorage.setItem(desktopNavigationDisplayModeStorageKey, desktopNavigationDisplayMode)
+  }, [desktopNavigationDisplayMode, desktopNavigationMode, desktopSidebarReady, desktopSidebarWidth, desktopSplitSidebarWidth])
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(min-width: 1280px)')
@@ -1682,7 +1690,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       <aside className={`fixed bottom-0 left-0 top-16 z-30 hidden w-[var(--mes-desktop-sidebar-width)] flex-col border-r border-gray-200 bg-white lg:flex ${
         desktopNavigationMode === 'split' ? 'xl:w-[var(--mes-desktop-split-sidebar-width)]' : ''
       }`}>
-        <DesktopNavigation mode={desktopNavigationMode} groups={desktopNavigationGroups} />
+        <DesktopNavigation mode={desktopNavigationMode} groups={desktopNavigationGroups} displayMode={desktopNavigationDisplayMode} />
         <div
           role="separator"
           aria-label="调整左侧辅助功能区宽度"
@@ -3000,6 +3008,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         showBomUnitOptions={tab === 'materials' && materialSection === 'bomWorkspace'}
         navigationMode={desktopNavigationMode}
         onNavigationModeChange={setDesktopNavigationMode}
+        navigationDisplayMode={desktopNavigationDisplayMode}
+        onNavigationDisplayModeChange={setDesktopNavigationDisplayMode}
         onMessage={showMessage}
       />
 

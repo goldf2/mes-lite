@@ -10,7 +10,7 @@ import {
   type BomPagePreferences,
 } from './bomPagePreferences'
 import { useModalGlassPreference } from './interfacePreferences'
-import type { DesktopNavigationMode } from './navigation/DesktopNavigation'
+import type { DesktopNavigationDisplayMode, DesktopNavigationMode } from './navigation/DesktopNavigation'
 
 interface ConfiguredUnit {
   code: string
@@ -25,6 +25,8 @@ export default function PageOptionsDialog({
   showBomUnitOptions,
   navigationMode,
   onNavigationModeChange,
+  navigationDisplayMode,
+  onNavigationDisplayModeChange,
   onMessage,
 }: {
   open: boolean
@@ -33,11 +35,14 @@ export default function PageOptionsDialog({
   showBomUnitOptions: boolean
   navigationMode: DesktopNavigationMode
   onNavigationModeChange: (mode: DesktopNavigationMode) => void
+  navigationDisplayMode: DesktopNavigationDisplayMode
+  onNavigationDisplayModeChange: (mode: DesktopNavigationDisplayMode) => void
   onMessage: (message: string) => void
 }) {
   const [modalGlassEnabled, setModalGlassEnabled] = useModalGlassPreference()
   const [draftModalGlassEnabled, setDraftModalGlassEnabled] = useState(modalGlassEnabled)
   const [draftNavigationMode, setDraftNavigationMode] = useState<DesktopNavigationMode>(navigationMode)
+  const [draftNavigationDisplayMode, setDraftNavigationDisplayMode] = useState<DesktopNavigationDisplayMode>(navigationDisplayMode)
   const [draftBomPreferences, setDraftBomPreferences] = useState<BomPagePreferences>(readBomPagePreferences)
   const [unitCatalog, setUnitCatalog] = useState<ConfiguredUnit[]>([])
   const [unitLoading, setUnitLoading] = useState(false)
@@ -48,8 +53,9 @@ export default function PageOptionsDialog({
     if (!open) return
     setDraftModalGlassEnabled(modalGlassEnabled)
     setDraftNavigationMode(navigationMode)
+    setDraftNavigationDisplayMode(navigationDisplayMode)
     setDraftBomPreferences(readBomPagePreferences())
-  }, [modalGlassEnabled, navigationMode, open])
+  }, [modalGlassEnabled, navigationDisplayMode, navigationMode, open])
 
   useEffect(() => {
     if (!open || !showBomUnitOptions || unitCatalog.length > 0) return
@@ -83,6 +89,7 @@ export default function PageOptionsDialog({
     }
     setModalGlassEnabled(draftModalGlassEnabled)
     onNavigationModeChange(draftNavigationMode)
+    onNavigationDisplayModeChange(draftNavigationDisplayMode)
     onClose()
     onMessage('页面选项已保存')
   }
@@ -133,6 +140,40 @@ export default function PageOptionsDialog({
                     {option.label}
                   </span>
                   <span className="mt-1 block text-xs text-gray-500">{option.description}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset className="mt-4 border-t border-gray-100 pt-4">
+            <legend className="text-sm font-medium text-gray-800">一级菜单显示</legend>
+            <p className="mt-1 text-xs text-gray-500">一级菜单保持单行排列，可按识别习惯选择图标与文字组合。</p>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {([
+                { value: 'icon' as const, label: '图标' },
+                { value: 'icon-label' as const, label: '图标＋文字' },
+                { value: 'label' as const, label: '文字' },
+              ]).map((option) => (
+                <label
+                  key={option.value}
+                  className={`cursor-pointer rounded-lg border px-2 py-3 text-center transition ${
+                    draftNavigationDisplayMode === option.value
+                      ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500'
+                      : 'border-gray-200 bg-white hover:border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="desktop-navigation-display-mode"
+                    value={option.value}
+                    checked={draftNavigationDisplayMode === option.value}
+                    onChange={() => setDraftNavigationDisplayMode(option.value)}
+                    className="sr-only"
+                  />
+                  <span className="flex min-h-6 items-center justify-center gap-1.5 text-xs font-semibold text-gray-900">
+                    {option.value !== 'label' && <span className="flex h-5 w-5 items-center justify-center rounded bg-slate-100 text-[10px] text-slate-700">仪</span>}
+                    {option.value !== 'icon' && <span>{option.value === 'label' ? '工作台' : '文字'}</span>}
+                  </span>
+                  <span className="mt-1.5 block text-[11px] text-gray-500">{option.label}</span>
                 </label>
               ))}
             </div>

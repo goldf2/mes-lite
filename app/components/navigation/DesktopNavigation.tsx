@@ -4,11 +4,19 @@ import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from 're
 import { ChevronDown, Search, X } from 'lucide-react'
 
 export type DesktopNavigationMode = 'accordion' | 'split'
+export type DesktopNavigationDisplayMode = 'icon' | 'icon-label' | 'label'
 
 const primaryRailStorageKey = 'mes-lite.layout.desktopPrimaryRailWidth'
-const defaultPrimaryRailWidth = 84
-const minPrimaryRailWidth = 72
-const maxPrimaryRailWidth = 140
+const primaryRailWidthConfig: Record<DesktopNavigationDisplayMode, { defaultWidth: number; minWidth: number; maxWidth: number }> = {
+  icon: { defaultWidth: 64, minWidth: 56, maxWidth: 96 },
+  'icon-label': { defaultWidth: 136, minWidth: 120, maxWidth: 184 },
+  label: { defaultWidth: 112, minWidth: 88, maxWidth: 168 },
+}
+
+function clampPrimaryRailWidth(width: number, displayMode: DesktopNavigationDisplayMode) {
+  const config = primaryRailWidthConfig[displayMode]
+  return Math.min(config.maxWidth, Math.max(config.minWidth, width))
+}
 
 export interface DesktopNavigationItem {
   id: string
@@ -116,10 +124,12 @@ function AccordionNavigation({
   groups,
   query,
   onQueryChange,
+  displayMode,
 }: {
   groups: DesktopNavigationGroup[]
   query: string
   onQueryChange: (value: string) => void
+  displayMode: DesktopNavigationDisplayMode
 }) {
   return (
     <nav aria-label="一级与二级功能菜单" className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -130,14 +140,16 @@ function AccordionNavigation({
             <button
               type="button"
               aria-expanded={group.active}
+              aria-label={group.label}
+              title={displayMode === 'icon' ? group.label : undefined}
               onClick={group.onClick}
               className={`flex min-h-9 w-full items-center justify-between rounded-lg px-2.5 py-1 text-sm font-semibold transition ${
                 group.active ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
               }`}
             >
               <span className="flex min-w-0 items-center gap-2">
-                {group.icon}
-                <span className="truncate">{group.label}</span>
+                {displayMode !== 'label' && group.icon}
+                {displayMode !== 'icon' && <span className="truncate">{group.label}</span>}
               </span>
               <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 transition-transform ${group.active ? 'rotate-180' : '-rotate-90'}`} />
             </button>
@@ -163,6 +175,7 @@ function SplitNavigation({
   onPrimaryRailResizeStart,
   onPrimaryRailResizeReset,
   onPrimaryRailResizeBy,
+  displayMode,
 }: {
   groups: DesktopNavigationGroup[]
   searchGroups: DesktopNavigationGroup[]
@@ -173,8 +186,10 @@ function SplitNavigation({
   onPrimaryRailResizeStart: () => void
   onPrimaryRailResizeReset: () => void
   onPrimaryRailResizeBy: (delta: number) => void
+  displayMode: DesktopNavigationDisplayMode
 }) {
   const activeGroup = groups.find((group) => group.active) || groups[0]
+  const railWidth = primaryRailWidthConfig[displayMode]
 
   return (
     <nav aria-label="双列一级与二级功能菜单" className="flex min-h-0 flex-1 overflow-hidden">
@@ -185,13 +200,17 @@ function SplitNavigation({
               key={group.id}
               type="button"
               aria-current={group.active ? 'true' : undefined}
+              aria-label={group.label}
+              title={displayMode === 'icon' ? group.label : undefined}
               onClick={group.onClick}
-              className={`flex min-h-[48px] w-full flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-[11px] font-semibold leading-tight transition ${
+              className={`flex min-h-10 w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold leading-none transition ${
+                displayMode === 'icon' ? 'justify-center' : 'justify-start'
+              } ${
                 group.active ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-white hover:text-gray-900'
               }`}
             >
-              {group.icon}
-              <span className="max-w-full truncate">{group.label}</span>
+              {displayMode !== 'label' && group.icon}
+              {displayMode !== 'icon' && <span className="min-w-0 truncate">{group.label}</span>}
             </button>
           ))}
         </div>
@@ -200,8 +219,8 @@ function SplitNavigation({
         role="separator"
         aria-label="调整一级菜单列宽度"
         aria-orientation="vertical"
-        aria-valuemin={minPrimaryRailWidth}
-        aria-valuemax={maxPrimaryRailWidth}
+        aria-valuemin={railWidth.minWidth}
+        aria-valuemax={railWidth.maxWidth}
         aria-valuenow={Math.round(primaryRailWidth)}
         tabIndex={0}
         onPointerDown={(event) => {
@@ -244,12 +263,14 @@ function SplitNavigation({
 export default function DesktopNavigation({
   mode,
   groups,
+  displayMode,
 }: {
   mode: DesktopNavigationMode
   groups: DesktopNavigationGroup[]
+  displayMode: DesktopNavigationDisplayMode
 }) {
   const [query, setQuery] = useState('')
-  const [primaryRailWidth, setPrimaryRailWidth] = useState(defaultPrimaryRailWidth)
+  const [primaryRailWidth, setPrimaryRailWidth] = useState(primaryRailWidthConfig[displayMode].defaultWidth)
   const [primaryRailReady, setPrimaryRailReady] = useState(false)
   const [resizingPrimaryRail, setResizingPrimaryRail] = useState(false)
   const normalizedQuery = query.trim().toLocaleLowerCase('zh-CN')
@@ -267,21 +288,20 @@ export default function DesktopNavigation({
   }, [groups, normalizedQuery])
 
   useEffect(() => {
-    const savedWidth = Number(window.localStorage.getItem(primaryRailStorageKey))
-    if (
-      Number.isFinite(savedWidth)
-      && savedWidth >= minPrimaryRailWidth
-      && savedWidth <= maxPrimaryRailWidth
-    ) {
-      setPrimaryRailWidth(savedWidth)
-    }
+    const displayStorageKey = `${primaryRailStorageKey}.${displayMode}`
+    const savedValue = window.localStorage.getItem(displayStorageKey)
+      ?? (displayMode === 'icon-label' ? window.localStorage.getItem(primaryRailStorageKey) : null)
+    const savedWidth = Number(savedValue)
+    setPrimaryRailWidth(Number.isFinite(savedWidth) && savedValue !== null
+      ? clampPrimaryRailWidth(savedWidth, displayMode)
+      : primaryRailWidthConfig[displayMode].defaultWidth)
     setPrimaryRailReady(true)
-  }, [])
+  }, [displayMode])
 
   useEffect(() => {
     if (!primaryRailReady) return
-    window.localStorage.setItem(primaryRailStorageKey, String(primaryRailWidth))
-  }, [primaryRailReady, primaryRailWidth])
+    window.localStorage.setItem(`${primaryRailStorageKey}.${displayMode}`, String(primaryRailWidth))
+  }, [displayMode, primaryRailReady, primaryRailWidth])
 
   useEffect(() => {
     if (!resizingPrimaryRail) return
@@ -291,7 +311,7 @@ export default function DesktopNavigation({
     document.body.style.userSelect = 'none'
 
     const resize = (event: PointerEvent) => {
-      setPrimaryRailWidth(Math.min(maxPrimaryRailWidth, Math.max(minPrimaryRailWidth, event.clientX)))
+      setPrimaryRailWidth(clampPrimaryRailWidth(event.clientX, displayMode))
     }
     const stop = () => setResizingPrimaryRail(false)
 
@@ -303,15 +323,15 @@ export default function DesktopNavigation({
       window.removeEventListener('pointermove', resize)
       window.removeEventListener('pointerup', stop)
     }
-  }, [resizingPrimaryRail])
+  }, [displayMode, resizingPrimaryRail])
 
   if (mode === 'accordion') {
-    return <AccordionNavigation groups={filteredGroups} query={normalizedQuery ? query : ''} onQueryChange={setQuery} />
+    return <AccordionNavigation groups={filteredGroups} query={normalizedQuery ? query : ''} onQueryChange={setQuery} displayMode={displayMode} />
   }
 
   return (
     <>
-      <div className="contents xl:hidden"><AccordionNavigation groups={filteredGroups} query={normalizedQuery ? query : ''} onQueryChange={setQuery} /></div>
+      <div className="contents xl:hidden"><AccordionNavigation groups={filteredGroups} query={normalizedQuery ? query : ''} onQueryChange={setQuery} displayMode={displayMode} /></div>
       <div className="hidden min-h-0 flex-1 xl:flex">
         <SplitNavigation
           groups={groups}
@@ -320,10 +340,11 @@ export default function DesktopNavigation({
           onQueryChange={setQuery}
           primaryRailWidth={primaryRailWidth}
           resizingPrimaryRail={resizingPrimaryRail}
+          displayMode={displayMode}
           onPrimaryRailResizeStart={() => setResizingPrimaryRail(true)}
-          onPrimaryRailResizeReset={() => setPrimaryRailWidth(defaultPrimaryRailWidth)}
+          onPrimaryRailResizeReset={() => setPrimaryRailWidth(primaryRailWidthConfig[displayMode].defaultWidth)}
           onPrimaryRailResizeBy={(delta) => setPrimaryRailWidth((current) => (
-            Math.min(maxPrimaryRailWidth, Math.max(minPrimaryRailWidth, current + delta))
+            clampPrimaryRailWidth(current + delta, displayMode)
           ))}
         />
       </div>
