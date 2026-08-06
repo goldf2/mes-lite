@@ -11,6 +11,7 @@ import { findCatalogUnit, getUnitCatalog } from '@/lib/unit-catalog'
 import { getBomStatusRelationFilters } from '@/lib/bom-status-filter'
 import { simpleProductSku } from '@/lib/material-product'
 import { withMaterialImageUrls } from '@/lib/attachment-urls'
+import { tokenizeKeywordQuery } from '@/lib/resource-search'
 
 const materialSchema = z.object({
   code: z.string().min(1, '物料编码不能为空'),
@@ -105,13 +106,14 @@ export async function GET(req: NextRequest) {
     if (customerId === '__UNASSIGNED__') where.customerId = null
     else if (customerId) where.customerId = customerId
     andFilters.push(...getBomStatusRelationFilters(bomStatus))
-    if (keyword) {
-      where.OR = [
-        { name: { contains: keyword } },
-        { code: { contains: keyword } },
-        { spec: { contains: keyword } },
-      ]
-    }
+    andFilters.push(...tokenizeKeywordQuery(keyword || '').map((token) => ({ OR: [
+      { name: { contains: token } },
+      { code: { contains: token } },
+      { spec: { contains: token } },
+      { note: { contains: token } },
+      { customer: { is: { code: { contains: token } } } },
+      { customer: { is: { name: { contains: token } } } },
+    ] })))
     if (andFilters.length > 0) where.AND = andFilters
 
     const materialInclude = {

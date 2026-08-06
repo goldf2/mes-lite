@@ -7,6 +7,7 @@ import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 import { resolveProductId } from '@/lib/material-product'
 import { assertInventoryIssueAvailability, resolveInventoryLocation } from '@/lib/inventory'
 import { getSalesOrderItemRemainingQty } from '@/lib/sales-orders'
+import { tokenizeKeywordQuery } from '@/lib/resource-search'
 
 const createShipmentSchema = z.object({
   salesOrderItemId: z.string().min(1, '请选择销售订单明细'),
@@ -37,23 +38,21 @@ export async function GET(req: NextRequest) {
     if (customerId === '__UNASSIGNED__') where.customerId = null
     else if (customerId) where.customerId = customerId
     if (customer) andConditions.push({ customer: { contains: customer } })
-    if (keyword) {
-      andConditions.push({ OR: [
-        { shipmentNo: { contains: keyword } },
-        { voucherNo: { contains: keyword } },
-        { customer: { contains: keyword } },
-        { customerPhone: { contains: keyword } },
-        { address: { contains: keyword } },
-        { trackingNo: { contains: keyword } },
-        { shippedBy: { contains: keyword } },
-        { note: { contains: keyword } },
-        { salesOrder: { is: { orderNo: { contains: keyword } } } },
-        { product: { is: { sku: { contains: keyword } } } },
-        { product: { is: { name: { contains: keyword } } } },
-        { customerRef: { is: { code: { contains: keyword } } } },
-        { customerRef: { is: { name: { contains: keyword } } } },
-      ] })
-    }
+    andConditions.push(...tokenizeKeywordQuery(keyword || '').map((token) => ({ OR: [
+      { shipmentNo: { contains: token } },
+      { voucherNo: { contains: token } },
+      { customer: { contains: token } },
+      { customerPhone: { contains: token } },
+      { address: { contains: token } },
+      { trackingNo: { contains: token } },
+      { shippedBy: { contains: token } },
+      { note: { contains: token } },
+      { salesOrder: { is: { orderNo: { contains: token } } } },
+      { product: { is: { sku: { contains: token } } } },
+      { product: { is: { name: { contains: token } } } },
+      { customerRef: { is: { code: { contains: token } } } },
+      { customerRef: { is: { name: { contains: token } } } },
+    ] })))
     if (andConditions.length > 0) where.AND = andConditions
 
     const [shipments, total] = await Promise.all([

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
+import { tokenizeKeywordQuery } from '@/lib/resource-search'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,17 +44,16 @@ export async function GET(req: NextRequest) {
     const where: any = { deletedAt: null }
     applyStatusFilter(where, statuses)
     if (customerId) where.customerId = customerId
-    if (keyword) {
-      where.OR = [
-        { orderNo: { contains: keyword } },
-        { voucherNo: { contains: keyword } },
-        { note: { contains: keyword } },
-        { customer: { is: { name: { contains: keyword } } } },
-        { items: { some: { material: { is: { code: { contains: keyword } } } } } },
-        { items: { some: { material: { is: { name: { contains: keyword } } } } } },
-        { items: { some: { material: { is: { spec: { contains: keyword } } } } } },
-      ]
-    }
+    const keywordFilters = tokenizeKeywordQuery(keyword || '').map((token) => ({ OR: [
+      { orderNo: { contains: token } },
+      { voucherNo: { contains: token } },
+      { note: { contains: token } },
+      { customer: { is: { name: { contains: token } } } },
+      { items: { some: { material: { is: { code: { contains: token } } } } } },
+      { items: { some: { material: { is: { name: { contains: token } } } } } },
+      { items: { some: { material: { is: { spec: { contains: token } } } } } },
+    ] }))
+    if (keywordFilters.length > 0) where.AND = keywordFilters
 
     const [orders, total] = await Promise.all([
       prisma.salesOrder.findMany({

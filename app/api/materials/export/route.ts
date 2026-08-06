@@ -6,6 +6,7 @@ import { csvResponse, toCsv } from '@/lib/csv'
 import { sortByNaturalText } from '@/lib/natural-sort'
 import { getSystemSettings } from '@/lib/system-settings'
 import { getBomStatusRelationFilters } from '@/lib/bom-status-filter'
+import { tokenizeKeywordQuery } from '@/lib/resource-search'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,14 +67,16 @@ export async function GET(req: NextRequest) {
     else if (category) where.category = category
     if (customerId === '__UNASSIGNED__') where.customerId = null
     else if (customerId) where.customerId = customerId
-    const bomStatusFilters = getBomStatusRelationFilters(bomStatus)
-    if (bomStatusFilters.length > 0) where.AND = bomStatusFilters
-    if (keyword) {
-      where.OR = [
-        { name: { contains: keyword } },
-        { code: { contains: keyword } },
-      ]
-    }
+    const andFilters: any[] = [...getBomStatusRelationFilters(bomStatus)]
+    andFilters.push(...tokenizeKeywordQuery(keyword || '').map((token) => ({ OR: [
+      { name: { contains: token } },
+      { code: { contains: token } },
+      { spec: { contains: token } },
+      { note: { contains: token } },
+      { customer: { is: { code: { contains: token } } } },
+      { customer: { is: { name: { contains: token } } } },
+    ] })))
+    if (andFilters.length > 0) where.AND = andFilters
 
     const queriedMaterials = await prisma.material.findMany({
       where,

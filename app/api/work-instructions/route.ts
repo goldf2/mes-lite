@@ -7,6 +7,7 @@ import { parseCsvFilter } from '@/lib/status-filter'
 import { withAttachmentUrls } from '@/lib/attachment-urls'
 import { DocumentContentValidationError, normalizeDocumentContent } from '@/lib/document-content'
 import { officeAttachmentMimeTypes } from '@/lib/attachment-file-types'
+import { tokenizeKeywordQuery } from '@/lib/resource-search'
 
 const workInstructionSchema = z.object({
   title: z.string().trim().max(200, '文档标题不能超过 200 个字符').optional().default(''),
@@ -96,7 +97,8 @@ export async function GET(req: NextRequest) {
     const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
     const pageSize = Number.isFinite(rawPageSize) && rawPageSize > 0 ? Math.min(rawPageSize, 200) : 20
     const fileOwnerIds = await ownerIdsByFileType(fileType)
-    const attachmentKeywordOwnerIds = await ownerIdsByAttachmentKeyword(keyword)
+    const keywordTokens = tokenizeKeywordQuery(keyword || '')
+    const attachmentKeywordOwnerIdsByToken = await Promise.all(keywordTokens.map(ownerIdsByAttachmentKeyword))
     const resolvedCategoryIds = categoryIds.length === 0 ? [] : (await prisma.documentCategory.findMany({
       where: {
         OR: [
@@ -122,19 +124,17 @@ export async function GET(req: NextRequest) {
     if (fileOwnerIds) {
       where.id = fileOwnerIds.length > 0 ? { in: fileOwnerIds } : { in: [] }
     }
-    if (keyword) {
-      where.OR = [
-        { title: { contains: keyword } },
-        { contentText: { contains: keyword } },
-        { note: { contains: keyword } },
-        { category: { is: { name: { contains: keyword } } } },
-        { material: { is: { code: { contains: keyword } } } },
-        { material: { is: { name: { contains: keyword } } } },
-        { material: { is: { customer: { is: { code: { contains: keyword } } } } } },
-        { material: { is: { customer: { is: { name: { contains: keyword } } } } } },
-        ...(attachmentKeywordOwnerIds.length > 0 ? [{ id: { in: attachmentKeywordOwnerIds } }] : []),
-      ]
-    }
+    andFilters.push(...keywordTokens.map((token, index) => ({ OR: [
+      { title: { contains: token } },
+      { contentText: { contains: token } },
+      { note: { contains: token } },
+      { category: { is: { name: { contains: token } } } },
+      { material: { is: { code: { contains: token } } } },
+      { material: { is: { name: { contains: token } } } },
+      { material: { is: { customer: { is: { code: { contains: token } } } } } },
+      { material: { is: { customer: { is: { name: { contains: token } } } } } },
+      ...(attachmentKeywordOwnerIdsByToken[index].length > 0 ? [{ id: { in: attachmentKeywordOwnerIdsByToken[index] } }] : []),
+    ] })))
     if (andFilters.length > 0) where.AND = andFilters
 
     const [items, total] = await Promise.all([

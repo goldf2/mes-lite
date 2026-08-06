@@ -5,6 +5,7 @@ import QRCode from 'qrcode'
 import { useEffect, useMemo, useState } from 'react'
 import AppButton from './AppButton'
 import ModalDialog from './ModalDialog'
+import ControlTooltip from './ControlTooltip'
 
 interface QrCardTemplate {
   displayTitle: string
@@ -203,11 +204,11 @@ export default function PageQrCodeButton({
         type="button"
         onClick={() => setOpen(true)}
         aria-label="当前页面二维码"
-        title="当前页面二维码"
-        className={`flex shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 ${compact ? 'h-9 w-9' : 'h-9 gap-2 px-3 text-sm'}`}
+        className={`group relative flex shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 ${compact ? 'h-9 w-9' : 'h-9 gap-2 px-3 text-sm'}`}
       >
         <QrCode aria-hidden="true" className="h-4 w-4" />
         {!compact && <span>二维码</span>}
+        {compact && <ControlTooltip label="当前页面二维码" hidden={open} />}
       </button>
 
       {open && (

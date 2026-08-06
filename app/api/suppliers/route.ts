@@ -5,6 +5,7 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { randomUUID } from 'crypto'
 import { nextConfigurationSortOrder } from '@/lib/configuration-order'
+import { tokenizeKeywordQuery } from '@/lib/resource-search'
 
 const createSupplierSchema = z.object({
   name: z.string().min(1, '供应商名称必填'),
@@ -27,14 +28,14 @@ export async function GET(req: NextRequest) {
     const keyword = searchParams.get('keyword')
 
     const where: any = { deletedAt: null }
-    if (keyword) {
-      where.OR = [
-        { name: { contains: keyword } },
-        { code: { contains: keyword } },
-        { contact: { contains: keyword } },
-        { phone: { contains: keyword } },
-      ]
-    }
+    const keywordFilters = tokenizeKeywordQuery(keyword || '').map((token) => ({ OR: [
+      { name: { contains: token } },
+      { code: { contains: token } },
+      { contact: { contains: token } },
+      { phone: { contains: token } },
+      { address: { contains: token } },
+    ] }))
+    if (keywordFilters.length > 0) where.AND = keywordFilters
 
     const suppliers = await prisma.supplier.findMany({
       where,

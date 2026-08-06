@@ -6,6 +6,7 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { nextEmployeeCode } from '@/lib/employees'
 import { nextConfigurationSortOrder } from '@/lib/configuration-order'
+import { tokenizeKeywordQuery } from '@/lib/resource-search'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,18 +33,19 @@ function employeeData(input: z.infer<typeof employeeFields>) {
 }
 
 async function listEmployees(keyword?: string, includeInactive = false) {
+  const keywordFilters = tokenizeKeywordQuery(keyword || '').map((token) => ({
+    OR: [
+      { code: { contains: token } },
+      { name: { contains: token } },
+      { department: { contains: token } },
+      { phone: { contains: token } },
+      { operator: { is: { username: { contains: token } } } },
+      { operator: { is: { name: { contains: token } } } },
+    ],
+  }))
   const where: Prisma.EmployeeWhereInput = {
     ...(includeInactive ? {} : { isActive: true }),
-    ...(keyword ? {
-      OR: [
-        { code: { contains: keyword } },
-        { name: { contains: keyword } },
-        { department: { contains: keyword } },
-        { phone: { contains: keyword } },
-        { operator: { is: { username: { contains: keyword } } } },
-        { operator: { is: { name: { contains: keyword } } } },
-      ],
-    } : {}),
+    ...(keywordFilters.length > 0 ? { AND: keywordFilters } : {}),
   }
   return prisma.employee.findMany({
     where,

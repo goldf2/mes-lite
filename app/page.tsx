@@ -34,6 +34,7 @@ import DesktopNavigation, {
   type DesktopNavigationMode,
 } from './components/navigation/DesktopNavigation'
 import PageQrCodeButton from './components/PageQrCodeButton'
+import ControlTooltip from './components/ControlTooltip'
 
 function FeaturePageLoading() {
   return <AppLoadingIndicator label="正在加载页面..." />
@@ -1635,17 +1636,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 setSystemMenuOpen(false)
               }}
               aria-label="打开 AI 协作助手"
-              aria-describedby="ai-assistant-trigger-tooltip"
               className="mes-ai-assistant-trigger group relative flex h-12 w-12 items-center justify-center rounded-full bg-transparent p-0.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             >
               <AiAssistantMark animated priority className="h-11 w-11" />
-              <span
-                id="ai-assistant-trigger-tooltip"
-                role="tooltip"
-                className="pointer-events-none absolute left-1/2 top-full z-[70] mt-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
-              >
-                打开 AI 助手
-              </span>
+              <ControlTooltip label="打开 AI 助手" hidden={aiAssistantOpen} />
             </button>
           )}
           <PageQrCodeButton

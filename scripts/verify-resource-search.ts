@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import {
   filterByResourceSearch,
   matchesKeywordQuery,
+  matchesKeywordValues,
   tokenizeKeywordQuery,
   type ResourceAdvancedSearchField,
   type ResourceSearchProfile,
@@ -36,6 +37,10 @@ const fields: readonly ResourceAdvancedSearchField<Item>[] = [
 assert.deepEqual(tokenizeKeywordQuery(' 主动轴  上海 "MAT-001" '), ['主动轴', '上海', 'mat-001'])
 assert.equal(matchesKeywordQuery(items[0], '主动轴 active', profile), true)
 assert.equal(matchesKeywordQuery(items[0], '主动轴 archived', profile), false)
+assert.equal(matchesKeywordValues('主动轴 MAT-001', [items[0].name, items[0].code]), true)
+assert.equal(matchesKeywordValues('主动轴 苏州', [items[0].name, items[0].code]), false)
+assert.equal(matchesKeywordValues('"主动轴 上海"', [items[0].name, items[0].code]), true)
+assert.equal(matchesKeywordValues('"主动轴 MAT-001"', [items[0].name, items[0].code]), false)
 assert.deepEqual(filterByResourceSearch(items, 'mat', profile, fields, [{ id: '1', field: 'status', operator: 'equals', value: 'ACTIVE' }]), [items[0]])
 assert.deepEqual(filterByResourceSearch(items, '', profile, fields, [{ id: '2', field: 'qty', operator: 'lt', value: '5' }]), [items[1]])
 

@@ -47,6 +47,13 @@ export function tokenizeKeywordQuery(query: string) {
   return tokens
 }
 
+export function matchesKeywordValues(query: string, values: readonly ResourceSearchValue[]) {
+  const tokens = tokenizeKeywordQuery(query)
+  if (tokens.length === 0) return true
+  const normalizedValues = values.map(normalizeSearchValue)
+  return tokens.every((token) => normalizedValues.some((value) => value.includes(token)))
+}
+
 export function matchesKeywordQuery<T>(item: T, query: string, profile: ResourceSearchProfile<T>) {
   const tokens = tokenizeKeywordQuery(query)
   if (tokens.length === 0) return true

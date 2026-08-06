@@ -12,6 +12,7 @@ import type { WorkspaceFunctionKey, WorkspaceMode, WorkspacePreferenceValue } fr
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import TopBarPortal from './TopBarPortal'
+import { matchesKeywordValues } from '@/lib/resource-search'
 
 export interface WorkspaceFunctionItem {
   key: WorkspaceFunctionKey
@@ -289,9 +290,8 @@ export function AllFunctionsPage({
 }) {
   const [keyword, setKeyword] = useState('')
   const usageByKey = new Map(preference.usage.map((item) => [item.functionKey, item]))
-  const normalizedKeyword = keyword.trim().toLocaleLowerCase('zh-CN')
-  const visibleItems = normalizedKeyword
-    ? items.filter((item) => `${item.label} ${item.groupLabel} ${item.description}`.toLocaleLowerCase('zh-CN').includes(normalizedKeyword))
+  const visibleItems = keyword.trim()
+    ? items.filter((item) => matchesKeywordValues(keyword, [item.label, item.groupLabel, item.description]))
     : items
   const groups = groupItems(visibleItems)
 

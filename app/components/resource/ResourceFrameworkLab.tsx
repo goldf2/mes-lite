@@ -13,6 +13,7 @@ import ResourceFormDialog from './ResourceFormDialog'
 import ResourcePage from './ResourcePage'
 import { ResourceTableColumn } from './ResourceTable'
 import PageQrCodeButton from '../PageQrCodeButton'
+import { matchesKeywordValues } from '@/lib/resource-search'
 
 type LabState = 'ready' | 'loading' | 'empty' | 'error'
 type DocumentStatus = 'active' | 'archived'
@@ -119,16 +120,14 @@ export default function ResourceFrameworkLab() {
   const pageUrlInitializedRef = useRef(false)
 
   const visibleDocuments = useMemo(() => {
-    const keyword = query.trim().toLocaleLowerCase('zh-CN')
     return documents.filter((document) => {
       if (!statusFilters.includes(document.status)) return false
-      if (!keyword) return true
       const relatedMaterials = document.materialIds
         .map((id) => materials.find((material) => material.id === id))
         .filter(Boolean)
         .map((material) => `${material?.code} ${material?.name}`)
         .join(' ')
-      return `${document.code} ${document.title} ${document.category} ${relatedMaterials}`.toLocaleLowerCase('zh-CN').includes(keyword)
+      return matchesKeywordValues(query, [document.code, document.title, document.category, relatedMaterials])
     })
   }, [documents, query, statusFilters])
 

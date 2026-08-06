@@ -6,6 +6,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 import { resolveMaterialIdForProduct, resolveProductId } from '@/lib/material-product'
 import { resolveInventoryLocation } from '@/lib/inventory'
+import { tokenizeKeywordQuery } from '@/lib/resource-search'
 
 const createReturnSchema = z.object({
   voucherNo: z.string().optional(),
@@ -144,21 +145,19 @@ export async function GET(req: NextRequest) {
         { shipmentId: null, product: { is: { customerId } } },
       ] })
     }
-    if (keyword) {
-      andConditions.push({ OR: [
-        { returnNo: { contains: keyword } },
-        { voucherNo: { contains: keyword } },
-        { reason: { contains: keyword } },
-        { note: { contains: keyword } },
-        { product: { is: { sku: { contains: keyword } } } },
-        { product: { is: { name: { contains: keyword } } } },
-        { product: { is: { customer: { is: { code: { contains: keyword } } } } } },
-        { product: { is: { customer: { is: { name: { contains: keyword } } } } } },
-        { shipment: { is: { shipmentNo: { contains: keyword } } } },
-        { shipment: { is: { voucherNo: { contains: keyword } } } },
-        { shipment: { is: { customer: { contains: keyword } } } },
-      ] })
-    }
+    andConditions.push(...tokenizeKeywordQuery(keyword || '').map((token) => ({ OR: [
+      { returnNo: { contains: token } },
+      { voucherNo: { contains: token } },
+      { reason: { contains: token } },
+      { note: { contains: token } },
+      { product: { is: { sku: { contains: token } } } },
+      { product: { is: { name: { contains: token } } } },
+      { product: { is: { customer: { is: { code: { contains: token } } } } } },
+      { product: { is: { customer: { is: { name: { contains: token } } } } } },
+      { shipment: { is: { shipmentNo: { contains: token } } } },
+      { shipment: { is: { voucherNo: { contains: token } } } },
+      { shipment: { is: { customer: { contains: token } } } },
+    ] })))
     if (andConditions.length > 0) where.AND = andConditions
 
     const [returns, total] = await Promise.all([

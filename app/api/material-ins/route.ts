@@ -8,6 +8,7 @@ import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 import { materialInPriceUnits, normalizeMaterialInPriceUnit, resolveMaterialInPricing, resolveMaterialInStockQuantity } from '@/lib/material-in-quantity'
 import { resolveInventoryLocation } from '@/lib/inventory'
 import { Prisma } from '@prisma/client'
+import { tokenizeKeywordQuery } from '@/lib/resource-search'
 
 const materialInCommonShape = {
   voucherNo: z.string().optional(),
@@ -160,20 +161,18 @@ export async function GET(req: NextRequest) {
     if (supplierId) where.supplierId = supplierId
     if (customerId === '__UNASSIGNED__') andConditions.push({ material: { is: { customerId: null } } })
     else if (customerId) andConditions.push({ material: { is: { customerId } } })
-    if (keyword) {
-      andConditions.push({ OR: [
-        { inboundNo: { contains: keyword } },
-        { voucherNo: { contains: keyword } },
-        { batchNo: { contains: keyword } },
-        { receivedBy: { contains: keyword } },
-        { note: { contains: keyword } },
-        { supplier: { is: { code: { contains: keyword } } } },
-        { supplier: { is: { name: { contains: keyword } } } },
-        { material: { is: { code: { contains: keyword } } } },
-        { material: { is: { name: { contains: keyword } } } },
-        { material: { is: { spec: { contains: keyword } } } },
-      ] })
-    }
+    andConditions.push(...tokenizeKeywordQuery(keyword || '').map((token) => ({ OR: [
+      { inboundNo: { contains: token } },
+      { voucherNo: { contains: token } },
+      { batchNo: { contains: token } },
+      { receivedBy: { contains: token } },
+      { note: { contains: token } },
+      { supplier: { is: { code: { contains: token } } } },
+      { supplier: { is: { name: { contains: token } } } },
+      { material: { is: { code: { contains: token } } } },
+      { material: { is: { name: { contains: token } } } },
+      { material: { is: { spec: { contains: token } } } },
+    ] })))
     if (andConditions.length > 0) where.AND = andConditions
 
     const [items, total] = await Promise.all([

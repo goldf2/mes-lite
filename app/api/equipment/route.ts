@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
+import { tokenizeKeywordQuery } from '@/lib/resource-search'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,17 +42,16 @@ export async function GET(req: NextRequest) {
   const keyword = searchParams.get('keyword')?.trim()
   const workCenterId = searchParams.get('workCenterId')?.trim()
   const includeArchived = searchParams.get('includeArchived') === '1'
+  const keywordFilters = tokenizeKeywordQuery(keyword || '').map((token) => ({ OR: [
+    { code: { contains: token } }, { name: { contains: token } },
+    { equipmentType: { contains: token } }, { model: { contains: token } },
+    { manufacturer: { contains: token } }, { serialNumber: { contains: token } },
+    { workCenter: { is: { name: { contains: token } } } },
+  ] }))
   const where: Prisma.EquipmentWhereInput = {
     ...(includeArchived ? {} : { deletedAt: null }),
     ...(workCenterId ? { workCenterId } : {}),
-    ...(keyword ? {
-      OR: [
-        { code: { contains: keyword } }, { name: { contains: keyword } },
-        { equipmentType: { contains: keyword } }, { model: { contains: keyword } },
-        { manufacturer: { contains: keyword } }, { serialNumber: { contains: keyword } },
-        { workCenter: { is: { name: { contains: keyword } } } },
-      ],
-    } : {}),
+    ...(keywordFilters.length > 0 ? { AND: keywordFilters } : {}),
   }
   const items = await prisma.equipment.findMany({ where, include, orderBy: [{ deletedAt: 'asc' }, { code: 'asc' }] })
   return NextResponse.json({ data: items, statuses: equipmentStatuses })

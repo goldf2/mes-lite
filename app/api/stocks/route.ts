@@ -7,6 +7,7 @@ import { parseCsvFilter } from '@/lib/status-filter'
 import { postStockLocationAdjustment, StockAdjustmentError } from '@/lib/stock-adjustment'
 import { buildPackagingInventoryAnalysis } from '@/lib/packaging-inventory'
 import { withMaterialImageUrls } from '@/lib/attachment-urls'
+import { matchesKeywordValues } from '@/lib/resource-search'
 
 const STOCK_BALANCE_FIELDS = [
   'qty',
@@ -349,16 +350,18 @@ export async function GET(req: NextRequest) {
     const visibleStocks = (includeInvalid ? stocksWithImages : stocksWithImages.filter((stock) => !stock.material?.deletedAt || hasStockBalance(stock)))
       .filter((stock) => stock.material || hasStockBalance(stock))
 
-    const normalizedKeyword = keyword?.trim().toLocaleLowerCase('zh-CN')
-    const filtered = normalizedKeyword
+    const filtered = keyword?.trim()
       ? visibleStocks.filter(s =>
-          [
+          matchesKeywordValues(keyword, [
             s.material?.name,
             s.material?.code,
+            s.material?.spec,
+            s.material?.customer?.name,
             s.product?.name,
             s.product?.sku,
+            s.product?.customer?.name,
             ...s.locationBalances.flatMap((balance) => [balance.location.code, balance.location.name]),
-          ].some((value) => value?.toLocaleLowerCase('zh-CN').includes(normalizedKeyword))
+          ])
         )
       : visibleStocks
 

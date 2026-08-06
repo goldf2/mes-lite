@@ -12,6 +12,7 @@ import {
 } from '@/lib/daily-production-request'
 import { resolveInventoryLocation } from '@/lib/inventory'
 import { employeeNamesSnapshot, resolveActiveEmployees } from '@/lib/employees'
+import { tokenizeKeywordQuery } from '@/lib/resource-search'
 import { withMaterialImageUrls } from '@/lib/attachment-urls'
 
 export const dynamic = 'force-dynamic'
@@ -41,15 +42,14 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status')?.trim()
     const where: any = {}
     if (status && status !== 'ALL') where.status = status
-    if (keyword) {
-      where.OR = [
-        { reportNo: { contains: keyword } },
-        { workers: { contains: keyword } },
-        { note: { contains: keyword } },
-        { finishedMaterial: { is: { code: { contains: keyword } } } },
-        { finishedMaterial: { is: { name: { contains: keyword } } } },
-      ]
-    }
+    const keywordFilters = tokenizeKeywordQuery(keyword || '').map((token) => ({ OR: [
+      { reportNo: { contains: token } },
+      { workers: { contains: token } },
+      { note: { contains: token } },
+      { finishedMaterial: { is: { code: { contains: token } } } },
+      { finishedMaterial: { is: { name: { contains: token } } } },
+    ] }))
+    if (keywordFilters.length > 0) where.AND = keywordFilters
 
     const [reports, materials, employees] = await Promise.all([
       prisma.dailyProductionReport.findMany({

@@ -8,6 +8,7 @@ import useClientTableSort from './useClientTableSort'
 import AppButton from './AppButton'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
+import { matchesKeywordValues } from '@/lib/resource-search'
 
 interface ResourceItem {
   key: string
@@ -145,14 +146,13 @@ export default function PermissionPage({
     memberCount: (group) => groupMemberCounts[group.id] || 0,
   }, 'name', 'asc')
   const filteredOperators = useMemo(() => {
-    const keyword = searchKeyword.trim().toLowerCase()
-    if (!keyword) return operators
+    if (!searchKeyword.trim()) return operators
 
-    return operators.filter((operator) => {
-      return operator.name.toLowerCase().includes(keyword) ||
-        operator.username.toLowerCase().includes(keyword) ||
-        (roleLabels[operator.role] || operator.role).toLowerCase().includes(keyword)
-    })
+    return operators.filter((operator) => matchesKeywordValues(searchKeyword, [
+      operator.name,
+      operator.username,
+      roleLabels[operator.role] || operator.role,
+    ]))
   }, [operators, searchKeyword])
 
   const isAssigned = (operatorId: string, groupId: string) => {

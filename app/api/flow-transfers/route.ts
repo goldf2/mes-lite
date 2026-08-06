@@ -11,6 +11,7 @@ import {
   resolveFlowTransferDraft,
 } from '@/lib/flow-transfer'
 import { withMaterialImageUrls } from '@/lib/attachment-urls'
+import { tokenizeKeywordQuery } from '@/lib/resource-search'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,15 +38,14 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status')?.trim()
     const where: Prisma.FlowTransferWhereInput = {}
     if (status && status !== 'ALL') where.status = status
-    if (keyword) {
-      where.OR = [
-        { transferNo: { contains: keyword } },
-        { operator: { contains: keyword } },
-        { note: { contains: keyword } },
-        { material: { is: { code: { contains: keyword } } } },
-        { material: { is: { name: { contains: keyword } } } },
-      ]
-    }
+    const keywordFilters = tokenizeKeywordQuery(keyword || '').map((token) => ({ OR: [
+      { transferNo: { contains: token } },
+      { operator: { contains: token } },
+      { note: { contains: token } },
+      { material: { is: { code: { contains: token } } } },
+      { material: { is: { name: { contains: token } } } },
+    ] }))
+    if (keywordFilters.length > 0) where.AND = keywordFilters
 
     const [transfers, materials, locations, employees] = await Promise.all([
       prisma.flowTransfer.findMany({

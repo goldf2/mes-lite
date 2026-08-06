@@ -8,6 +8,7 @@ import ModalOverlay from './ModalOverlay'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import ToolbarOrderSettings, { useShowUnavailableToolbarSlots, useToolbarOrder, type ToolbarSlot } from './ToolbarOrderSettings'
 import { PageModuleKeyContext } from './page-modules/PageModuleBoundary'
+import ControlTooltip from './ControlTooltip'
 
 interface ResponsiveToolbarActionsProps {
   children?: ReactNode
@@ -117,20 +118,21 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, adv
     <input type="search" disabled aria-label="当前页面无可搜索列表" placeholder="当前页面无可搜索列表" className="h-10 w-full min-w-0 rounded-lg border border-gray-200 bg-gray-100 px-4 text-sm text-gray-400 disabled:cursor-not-allowed" />
   )
   const disabledAdvanced = (
-    <button type="button" disabled aria-label="当前页面无高级搜索" title="当前页面无高级搜索" className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-gray-100 text-gray-300 disabled:cursor-not-allowed"><SearchCheck className="h-4 w-4" /></button>
+    <button type="button" disabled aria-label="当前页面无高级搜索" className="group relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-gray-100 text-gray-300 disabled:cursor-not-allowed"><SearchCheck className="h-4 w-4" /><ControlTooltip label="当前页面无高级搜索" /></button>
   )
   const disabledView = (
-    <button type="button" disabled aria-label="当前页面无可切换视图" title="当前页面无可切换视图" className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-gray-100 text-gray-300 disabled:cursor-not-allowed"><LayoutList className="h-4 w-4" /></button>
+    <button type="button" disabled aria-label="当前页面无可切换视图" className="group relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-gray-100 text-gray-300 disabled:cursor-not-allowed"><LayoutList className="h-4 w-4" /><ControlTooltip label="当前页面无可切换视图" /></button>
   )
   const pageOptionsButton = (
-    <button type="button" onClick={openPageOptions} aria-label="页内选项" title="页内选项" className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-900"><Settings2 className="h-4 w-4" /></button>
+    <button type="button" onClick={openPageOptions} aria-label="页内选项" className="group relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-900"><Settings2 className="h-4 w-4" /><ControlTooltip label="页内选项" hidden={pageOptionsOpen} /></button>
   )
 
   const advancedControl = directAdvancedSearch || (hasLegacyAdvancedSearch ? (
     <div ref={filterRootRef} className="relative shrink-0">
-      <button type="button" onClick={() => { setMenuOpen((open) => !open); setActionMenuOpen(false) }} aria-label="高级搜索" title="高级搜索" className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-gray-50 hover:text-blue-700">
+      <button type="button" onClick={() => { setMenuOpen((open) => !open); setActionMenuOpen(false) }} aria-label="高级搜索" className="group relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-gray-50 hover:text-blue-700">
         <SearchCheck className="h-4 w-4" />
         {filterCount > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-blue-600 px-1 text-center text-[10px] leading-4 text-white">{filterCount}</span>}
+        <ControlTooltip label="高级搜索" hidden={menuOpen} />
       </button>
       {filterSummary && <div className="sr-only">{filterSummary}</div>}
       {menuOpen && filterPresentation === 'popover' && (

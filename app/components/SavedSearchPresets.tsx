@@ -1,12 +1,25 @@
 'use client'
 
-import { Bookmark, BookmarkPlus, X } from 'lucide-react'
+import { Bookmark, BookmarkPlus, Sparkles, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { ResourceSearchCondition } from '@/lib/resource-search'
+import ControlTooltip from './ControlTooltip'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 
 const searchPresetEventName = 'mes-lite:search-presets-updated'
 const maxPresetCount = 20
+const smartSearchStorageKey = 'mes-lite.smart-search.enabled.v1'
+
+function unwrapPhraseQuery(value: string) {
+  const trimmed = value.trim()
+  if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) return trimmed.slice(1, -1)
+  return value
+}
+
+function encodeSearchQuery(value: string, smartSearchEnabled: boolean) {
+  if (smartSearchEnabled || !value.trim()) return value
+  return `"${value.replace(/"/g, '').trim()}"`
+}
 
 type SavedSearchPreset = {
   id: string
@@ -153,10 +166,10 @@ export default function SavedSearchPresets({
 
   return (
     <div ref={rootRef} className={`relative shrink-0 ${open ? 'z-[100]' : ''}`}>
-      <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="dialog" title="快捷搜索" className="inline-flex h-9 w-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-200 bg-white p-0 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 sm:h-10 sm:w-auto sm:px-3 sm:text-sm">
+      <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="dialog" aria-label="快捷搜索" className="group relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white p-0 text-gray-700 shadow-sm hover:bg-gray-50 sm:h-10 sm:w-10">
         <Bookmark aria-hidden="true" className="h-4 w-4 text-blue-600" />
-        <span className="hidden sm:inline">快捷搜索</span>
-        {presets.length > 0 && <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] leading-none text-blue-700">{presets.length}</span>}
+        {presets.length > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-blue-600 px-1 text-center text-[10px] leading-4 text-white">{presets.length}</span>}
+        <ControlTooltip label="快捷搜索" hidden={open} />
       </button>
 
       {open && (
@@ -208,11 +221,41 @@ export function SearchFieldWithPresets({
   inputClassName?: string
   className?: string
 }) {
+  const [smartSearchEnabled, setSmartSearchEnabled] = useState(true)
+  const displayValue = smartSearchEnabled ? value : unwrapPhraseQuery(value)
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(smartSearchStorageKey)
+    if (saved !== 'false') return
+    setSmartSearchEnabled(false)
+    onChange(encodeSearchQuery(unwrapPhraseQuery(value), false))
+  // 只在控件首次挂载时读取当前浏览器偏好，避免输入过程中重复改写查询。
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const changeSearchValue = (nextValue: string) => {
+    onChange(encodeSearchQuery(nextValue, smartSearchEnabled))
+  }
+
+  const toggleSmartSearch = (enabled: boolean) => {
+    setSmartSearchEnabled(enabled)
+    window.localStorage.setItem(smartSearchStorageKey, String(enabled))
+    onChange(encodeSearchQuery(displayValue, enabled))
+  }
+
   return (
     <div className={className}>
-      <input type="search" value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-label={placeholder} className={inputClassName} />
+      <div className="relative min-w-0 flex-1">
+        <input type="search" value={displayValue} onChange={(event) => changeSearchValue(event.target.value)} placeholder={placeholder} aria-label={placeholder} className={`${inputClassName} w-full pr-24`} />
+        <label className={`group absolute right-2 top-1/2 inline-flex -translate-y-1/2 cursor-pointer items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium transition ${smartSearchEnabled ? 'bg-blue-50 text-blue-700' : 'text-gray-400 hover:bg-gray-100'}`}>
+          <input type="checkbox" checked={smartSearchEnabled} onChange={(event) => toggleSmartSearch(event.target.checked)} aria-label="智能搜索" className="sr-only" />
+          <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
+          <span>智能</span>
+          <ControlTooltip label={smartSearchEnabled ? '智能搜索：空格分隔多个关键词' : '开启智能搜索'} />
+        </label>
+      </div>
       {advancedSearch}
-      <SavedSearchPresets storageKey={storageKey} value={value} onApply={onChange} conditions={conditions} onApplyConditions={onConditionsChange} conditionLabel={conditionLabel} />
+      <SavedSearchPresets storageKey={storageKey} value={displayValue} onApply={changeSearchValue} conditions={conditions} onApplyConditions={onConditionsChange} conditionLabel={conditionLabel} />
     </div>
   )
 }

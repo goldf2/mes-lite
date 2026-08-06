@@ -6,6 +6,7 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
 import { ensureProductForMaterial, isMaterialProductId, materialProductPrefix } from '@/lib/material-product'
+import { tokenizeKeywordQuery } from '@/lib/resource-search'
 
 const orderLineSchema = z.object({
   targetId: z.string().min(1, '请选择物料'),
@@ -182,18 +183,16 @@ export async function GET(req: NextRequest) {
         { targetMaterial: { is: { customerId } } },
       ] })
     }
-    if (keyword) {
-      andConditions.push({ OR: [
-        { orderNo: { contains: keyword } },
-        { groupNo: { contains: keyword } },
-        { voucherNo: { contains: keyword } },
-        { product: { is: { sku: { contains: keyword } } } },
-        { product: { is: { name: { contains: keyword } } } },
-        { targetMaterial: { is: { code: { contains: keyword } } } },
-        { targetMaterial: { is: { name: { contains: keyword } } } },
-        { targetMaterial: { is: { spec: { contains: keyword } } } },
-      ] })
-    }
+    andConditions.push(...tokenizeKeywordQuery(keyword || '').map((token) => ({ OR: [
+      { orderNo: { contains: token } },
+      { groupNo: { contains: token } },
+      { voucherNo: { contains: token } },
+      { product: { is: { sku: { contains: token } } } },
+      { product: { is: { name: { contains: token } } } },
+      { targetMaterial: { is: { code: { contains: token } } } },
+      { targetMaterial: { is: { name: { contains: token } } } },
+      { targetMaterial: { is: { spec: { contains: token } } } },
+    ] })))
     if (andConditions.length > 0) where.AND = andConditions
 
     const [orders, total] = await Promise.all([

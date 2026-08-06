@@ -6,6 +6,7 @@ import { SearchFieldWithPresets } from './SavedSearchPresets'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import AppLoadingIndicator from './AppLoadingIndicator'
+import { matchesKeywordValues } from '@/lib/resource-search'
 
 interface MaterialOption {
   id: string
@@ -182,13 +183,8 @@ export default function BomOverviewPage({
   }, [keyword, materials, relationCounts, selectedMaterialId])
 
   const filteredMaterials = useMemo(() => {
-    const search = keyword.trim().toLocaleLowerCase()
     return materials
-      .filter((material) => !search || [material.code, material.name, material.spec, categoryLabels[material.category]]
-        .filter(Boolean)
-        .join(' ')
-        .toLocaleLowerCase()
-        .includes(search))
+      .filter((material) => matchesKeywordValues(keyword, [material.code, material.name, material.spec, categoryLabels[material.category]]))
       .sort((left, right) => {
         const leftCounts = relationCounts.get(left.id)
         const rightCounts = relationCounts.get(right.id)

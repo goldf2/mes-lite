@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Check, ChevronDown, Columns3, GalleryHorizontal, LayoutGrid, List, Minus, PanelsTopLeft, Plus, type LucideIcon } from 'lucide-react'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
+import ControlTooltip from './ControlTooltip'
 
 export type ViewMode = 'card' | 'list'
 export type DisplayMode = ViewMode | 'icon' | 'columns' | 'gallery'
@@ -103,12 +104,12 @@ export function DisplayModeToggle<T extends DisplayMode>({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`显示方式：${activeDefinition.label}`}
-        title={`显示方式：${activeDefinition.label}`}
         onClick={() => setOpen((current) => !current)}
-        className="inline-flex h-10 items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-gray-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+        className="group relative inline-flex h-10 items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-gray-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
       >
         <ActiveIcon aria-hidden="true" className="h-[18px] w-[18px]" strokeWidth={1.8} />
         <ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ControlTooltip label={`显示方式：${activeDefinition.label}`} hidden={open} />
       </button>
 
       {open && (
