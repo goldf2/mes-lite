@@ -422,6 +422,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const [loading, setLoading] = useState(false)
   const [detail, setDetail] = useState<WorkInstruction | null>(null)
   const [detailAttachments, setDetailAttachments] = useState<AttachmentItem[]>([])
+  const [selectedDetailAttachmentId, setSelectedDetailAttachmentId] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const [createFiles, setCreateFiles] = useState<File[]>([])
@@ -444,6 +445,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     files: (instruction) => instruction.attachmentCount,
     workCenters: (instruction) => instruction.workCenters.map((item) => `${item.code} ${item.name}`).join(' '),
   }, 'code', 'asc')
+  const selectedDetailAttachmentIndex = Math.max(0, detailAttachments.findIndex((attachment) => attachment.id === selectedDetailAttachmentId))
+  const selectedDetailAttachment = detailAttachments[selectedDetailAttachmentIndex] || null
 
   useEffect(() => {
     fetchInstructions()
@@ -587,6 +590,11 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         const data = await res.json()
         const attachments = (data.data || []) as AttachmentItem[]
         setDetailAttachments(attachments)
+        setSelectedDetailAttachmentId((current) => (
+          current && attachments.some((attachment) => attachment.id === current)
+            ? current
+            : attachments[0]?.id || null
+        ))
         return attachments
       }
     } catch (err) {
@@ -646,6 +654,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     setDetailEditing(false)
     setDetailFullscreen(false)
     setDetail(instruction)
+    setSelectedDetailAttachmentId(instruction.primaryAttachment?.id || null)
   }
 
   const startDetailEdit = (instruction: WorkInstruction) => {
@@ -671,6 +680,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
   const closeDetail = () => {
     setDetail(null)
+    setSelectedDetailAttachmentId(null)
     setDetailFullscreen(false)
     setDetailEditing(false)
     setEditing(null)
@@ -756,11 +766,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           ensureMaterialOption(createdInstruction.material)
           setDetail(createdInstruction)
           setDetailAttachments(uploadResult.uploaded)
+          setSelectedDetailAttachmentId(uploadResult.uploaded[0]?.id || null)
           setFocusUploadOnOpen(uploadResult.failedFiles.length > 0)
-          if (uploadResult.uploaded.length > 0) {
-            setViewer({ instruction: createdInstruction, attachments: uploadResult.uploaded, index: 0 })
-            setViewerZoom(1)
-          }
         }
         if (wasEditing) {
           onMessage('文档已更新')
@@ -811,18 +818,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     try {
       const uploadResult = await uploadInstructionFiles(detail.id, acceptedFiles)
       if (uploadResult.uploaded.length > 0) {
-        const refreshedAttachments = await fetchAttachments(detail.id)
-        const attachmentsForPreview = refreshedAttachments.length > 0
-          ? refreshedAttachments
-          : [...detailAttachments, ...uploadResult.uploaded]
-        const firstUploadedId = uploadResult.uploaded[0].id
-        const uploadedIndex = attachmentsForPreview.findIndex((attachment) => attachment.id === firstUploadedId)
-        setViewer({
-          instruction: detail,
-          attachments: attachmentsForPreview,
-          index: uploadedIndex >= 0 ? uploadedIndex : 0,
-        })
-        setViewerZoom(1)
+        await fetchAttachments(detail.id)
+        setSelectedDetailAttachmentId(uploadResult.uploaded[0].id)
         await fetchInstructions()
       }
       if (uploadResult.failedFiles.length === 0) {
@@ -1028,7 +1025,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           </div>
         ) : viewMode === 'card' ? (
           <>
-            <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))] items-start gap-3">
               {instructionSort.sortedRows.map((instruction) => (
                 <article key={instruction.id} className="flex flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:shadow-none">
                   <button
@@ -1036,7 +1033,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                     onClick={() => openDetail(instruction)}
                     className="text-left"
                   >
-                    <DocumentPreviewThumb attachment={instruction.primaryAttachment} title={instruction.title} />
+                    <DocumentPreviewThumb attachment={instruction.primaryAttachment} title={instruction.title} className="!aspect-auto h-[clamp(12rem,28vw,18rem)]" />
                   </button>
                   <div className="mt-3 min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -1299,7 +1296,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
       {detail && (
         <div className={`fixed inset-0 z-50 flex items-center justify-center ${detailFullscreen ? 'bg-white p-0' : 'mes-modal-overlay p-3 sm:p-4'}`}>
-          <div className={`flex flex-col overflow-hidden bg-white shadow-xl ${detailFullscreen ? 'h-screen w-screen' : 'max-h-[92vh] w-full max-w-6xl rounded-lg'}`}>
+          <div className={`flex flex-col overflow-hidden bg-white shadow-xl ${detailFullscreen ? 'h-screen w-screen' : 'max-h-[92vh] w-full max-w-[1440px] rounded-lg'}`}>
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-6">
               <div className="min-w-0">
                 <div className="text-sm text-blue-700">{getInstructionScopeLabel(detail)}</div>
@@ -1327,8 +1324,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-              <div className={`grid grid-cols-1 gap-5 ${detailFullscreen ? 'xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]' : 'lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]'}`}>
-                <section className="space-y-3">
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
+                <section className={`${detailEditing ? 'order-1' : 'order-2'} space-y-3 lg:order-1`}>
                   {detailEditing ? (
                     <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-4">
                       <div className="mb-3 text-sm font-semibold text-gray-900">基础信息</div>
@@ -1414,7 +1411,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                     <div ref={detailUploadRef} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
                       <div>
                         <div className="text-sm font-medium text-gray-900">已上传 {detailAttachments.length} 个附件</div>
-                        <div className="mt-1 text-xs text-gray-500">上传完成后自动打开新附件预览。</div>
+                        <div className="mt-1 text-xs text-gray-500">上传完成后在右侧展示新附件。</div>
                       </div>
                       <button
                         type="button"
@@ -1475,7 +1472,33 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   )}
                 </section>
 
-                <section className="min-w-0 space-y-5">
+                <section className={`${detailEditing ? 'order-2' : 'order-1'} min-w-0 space-y-5 lg:order-2`}>
+                  {selectedDetailAttachment ? (
+                    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
+                        <div className="min-w-0">
+                          <div className="text-xs font-medium text-gray-500">附件预览 · {selectedDetailAttachmentIndex + 1}/{detailAttachments.length}</div>
+                          <div className="mt-0.5 truncate text-sm font-semibold text-gray-900">{selectedDetailAttachment.originalName}</div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openViewer(detail, detailAttachments, selectedDetailAttachmentIndex)}
+                            className="rounded-md border border-blue-300 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-50"
+                          >
+                            全屏预览
+                          </button>
+                          <a href={`${selectedDetailAttachment.url}?download=1`} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">下载原文件</a>
+                        </div>
+                      </div>
+                      <div className="h-[min(58vh,640px)] min-h-[360px] bg-slate-950">
+                        <DocumentFileViewer attachment={selectedDetailAttachment} />
+                      </div>
+                    </div>
+                  ) : !detailEditing && !detail.contentText ? (
+                    <div className="flex min-h-72 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500">上传附件后将在这里直接预览</div>
+                  ) : null}
+
                   {(detailEditing || Boolean(detail.contentText)) && <div>
                     <div className="mb-3 flex items-center justify-between">
                       <h4 className="text-sm font-semibold text-gray-900">在线正文</h4>
@@ -1490,33 +1513,28 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   </div>}
                   <div>
                     <div className="mb-3 flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-gray-900">附件展示</h4>
+                      <h4 className="text-sm font-semibold text-gray-900">全部附件</h4>
                       <span className="text-xs text-gray-500">{detailAttachments.length} 个文件</span>
                     </div>
                   {detailAttachments.length === 0 ? (
                     <div className="flex min-h-36 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500">暂无附件</div>
                   ) : (
-                    <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${detailFullscreen ? 'xl:grid-cols-3 2xl:grid-cols-4' : 'xl:grid-cols-3'}`}>
+                    <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
                       {detailAttachments.map((attachment, index) => (
-                        <article key={attachment.id} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+                        <article key={attachment.id} className={`flex min-w-0 items-center gap-3 rounded-lg border p-2 transition ${attachment.id === selectedDetailAttachment?.id ? 'border-blue-400 bg-blue-50/60' : 'border-gray-200 bg-white hover:border-blue-200'}`}>
                           <button
                             type="button"
-                            onClick={() => openViewer(detail, detailAttachments, index)}
-                            className="block w-full text-left"
+                            onClick={() => setSelectedDetailAttachmentId(attachment.id)}
+                            aria-pressed={attachment.id === selectedDetailAttachment?.id}
+                            className="flex min-w-0 flex-1 items-center gap-3 text-left"
                           >
-                            <DocumentPreviewThumb attachment={attachment} title={detail.title} />
+                            <DocumentPreviewThumb attachment={attachment} title={detail.title} className="w-20 shrink-0" />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium text-gray-900">{attachment.originalName}</span>
+                              <span className="mt-1 block text-xs text-gray-500">{attachmentTypeLabel(attachment.originalName, attachment.mimeType)} · {formatSize(attachment.size)} · {formatDate(attachment.createdAt)}</span>
+                            </span>
                           </button>
-                          <div className="p-3">
-                            <div className="truncate text-sm font-medium text-gray-900">{attachment.originalName}</div>
-                            <div className="mt-1 flex items-center justify-between gap-2 text-xs text-gray-500">
-                              <span>{attachmentTypeLabel(attachment.originalName, attachment.mimeType)} · {formatSize(attachment.size)}</span>
-                              <span>{formatDate(attachment.createdAt)}</span>
-                            </div>
-                            <div className="mt-3 flex justify-end gap-2">
-                              <button onClick={() => openViewer(detail, detailAttachments, index)} className="rounded border border-blue-300 px-2.5 py-1 text-xs text-blue-700 hover:bg-blue-50">打开</button>
-                              <button onClick={() => archiveAttachment(attachment)} className="rounded border border-amber-300 px-2.5 py-1 text-xs text-amber-700 hover:bg-amber-50">归档</button>
-                            </div>
-                          </div>
+                          <button onClick={() => archiveAttachment(attachment)} className="shrink-0 rounded border border-amber-300 px-2.5 py-1 text-xs text-amber-700 hover:bg-amber-50">归档</button>
                         </article>
                       ))}
                     </div>

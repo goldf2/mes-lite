@@ -168,7 +168,7 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, adv
         </div>
       )}
 
-      {(hasPrimaryFilters || showUnavailableSlots) && <div style={{ order: slotOrder('search') }} className="hidden min-w-[220px] max-w-[620px] flex-[0_1_620px] items-center sm:flex">{hasPrimaryFilters ? primaryFilters : disabledSearch}</div>}
+      {(hasPrimaryFilters || showUnavailableSlots) && <div style={{ order: slotOrder('search') }} className="hidden min-w-[220px] max-w-[620px] flex-[1_1_320px] items-center sm:flex">{hasPrimaryFilters ? primaryFilters : disabledSearch}</div>}
       {(hasAdvancedSearch || showUnavailableSlots) && <div style={{ order: slotOrder('advanced') }} className="hidden shrink-0 sm:block">{advancedControl}</div>}
       {(hasViewControl || showUnavailableSlots) && <div style={{ order: slotOrder('view') }} className="hidden shrink-0 sm:block">{hasViewControl ? viewControl : disabledView}</div>}
       <div style={{ order: slotOrder('options') }} className="ml-auto hidden shrink-0 sm:block">{pageOptionsButton}</div>
