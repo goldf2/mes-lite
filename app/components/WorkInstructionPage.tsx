@@ -585,11 +585,14 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       const res = await fetch(`/api/attachments?ownerType=WORK_INSTRUCTION&ownerId=${encodeURIComponent(instructionId)}`)
       if (res.ok) {
         const data = await res.json()
-        setDetailAttachments(data.data || [])
+        const attachments = (data.data || []) as AttachmentItem[]
+        setDetailAttachments(attachments)
+        return attachments
       }
     } catch (err) {
       setDetailAttachments([])
     }
+    return [] as AttachmentItem[]
   }
 
   const fetchWorkCenters = async () => {
@@ -754,6 +757,10 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           setDetail(createdInstruction)
           setDetailAttachments(uploadResult.uploaded)
           setFocusUploadOnOpen(uploadResult.failedFiles.length > 0)
+          if (uploadResult.uploaded.length > 0) {
+            setViewer({ instruction: createdInstruction, attachments: uploadResult.uploaded, index: 0 })
+            setViewerZoom(1)
+          }
         }
         if (wasEditing) {
           onMessage('文档已更新')
@@ -804,7 +811,18 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     try {
       const uploadResult = await uploadInstructionFiles(detail.id, acceptedFiles)
       if (uploadResult.uploaded.length > 0) {
-        await fetchAttachments(detail.id)
+        const refreshedAttachments = await fetchAttachments(detail.id)
+        const attachmentsForPreview = refreshedAttachments.length > 0
+          ? refreshedAttachments
+          : [...detailAttachments, ...uploadResult.uploaded]
+        const firstUploadedId = uploadResult.uploaded[0].id
+        const uploadedIndex = attachmentsForPreview.findIndex((attachment) => attachment.id === firstUploadedId)
+        setViewer({
+          instruction: detail,
+          attachments: attachmentsForPreview,
+          index: uploadedIndex >= 0 ? uploadedIndex : 0,
+        })
+        setViewerZoom(1)
         await fetchInstructions()
       }
       if (uploadResult.failedFiles.length === 0) {
@@ -1381,62 +1399,84 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                     </div>
                   )}
 
-                  <div ref={detailUploadRef} className="rounded-lg border-2 border-dashed border-green-300 bg-green-50/40 p-4">
-                    <div className="mb-3 flex items-center justify-between">
+                  <input
+                    ref={uploadInputRef}
+                    type="file"
+                    multiple
+                    disabled={uploading}
+                    className="hidden"
+                    onChange={(event) => {
+                      const files = event.target.files
+                      if (files) handleFiles(files)
+                    }}
+                  />
+                  {detailAttachments.length > 0 && !focusUploadOnOpen ? (
+                    <div ref={detailUploadRef} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
                       <div>
-                        <h4 className="text-sm font-semibold text-gray-900">上传文档附件</h4>
-                        <p className="mt-1 text-xs text-gray-500">支持 Word、Excel、PowerPoint、PDF、图片及其他附件，可一次选择多个文件。</p>
+                        <div className="text-sm font-medium text-gray-900">已上传 {detailAttachments.length} 个附件</div>
+                        <div className="mt-1 text-xs text-gray-500">上传完成后自动打开新附件预览。</div>
                       </div>
-                      <label className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700">
-                        {uploading ? '上传中...' : '选择文件'}
-                        <input
-                          ref={uploadInputRef}
-                          type="file"
-                          multiple
+                      <button
+                        type="button"
+                        onClick={() => uploadInputRef.current?.click()}
+                        disabled={uploading}
+                        className="shrink-0 rounded-md border border-blue-300 bg-white px-3 py-2 text-sm text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {uploading ? '上传中...' : '添加附件'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div ref={detailUploadRef} className="rounded-lg border-2 border-dashed border-green-300 bg-green-50/40 p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-900">上传文档附件</h4>
+                          <p className="mt-1 text-xs text-gray-500">支持 Word、Excel、PowerPoint、PDF、图片及其他附件，可一次选择多个文件。</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => uploadInputRef.current?.click()}
                           disabled={uploading}
-                          className="hidden"
-                          onChange={(event) => {
-                            const files = event.target.files
-                            if (files) handleFiles(files)
-                          }}
-                        />
-                      </label>
+                          className="shrink-0 rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {uploading ? '上传中...' : '选择文件'}
+                        </button>
+                      </div>
+                      <div
+                        onDrop={(event: DragEvent<HTMLDivElement>) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          setDragActive(false)
+                          if (!uploading) handleFiles(event.dataTransfer.files)
+                        }}
+                        onDragOver={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          if (!uploading) setDragActive(true)
+                        }}
+                        onDragEnter={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          if (!uploading) setDragActive(true)
+                        }}
+                        onDragLeave={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+                          setDragActive(false)
+                        }}
+                        onClick={() => !uploading && uploadInputRef.current?.click()}
+                        className={`flex min-h-28 cursor-pointer items-center justify-center rounded-lg border border-dashed px-4 py-4 text-center text-sm transition ${
+                          dragActive ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 bg-gray-50 text-gray-500 hover:border-blue-300 hover:bg-blue-50/50'
+                        } ${uploading ? 'cursor-not-allowed opacity-60' : ''}`}
+                      >
+                        {uploading ? '上传中...' : '拖放文件到这里，或点击选择文件'}
+                      </div>
                     </div>
-                    <div
-                      onDrop={(event: DragEvent<HTMLDivElement>) => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        setDragActive(false)
-                        if (!uploading) handleFiles(event.dataTransfer.files)
-                      }}
-                      onDragOver={(event) => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        if (!uploading) setDragActive(true)
-                      }}
-                      onDragEnter={(event) => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        if (!uploading) setDragActive(true)
-                      }}
-                      onDragLeave={(event) => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-                        setDragActive(false)
-                      }}
-                      onClick={() => !uploading && uploadInputRef.current?.click()}
-                      className={`flex min-h-28 cursor-pointer items-center justify-center rounded-lg border border-dashed px-4 py-4 text-center text-sm transition ${
-                        dragActive ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 bg-gray-50 text-gray-500 hover:border-blue-300 hover:bg-blue-50/50'
-                      } ${uploading ? 'cursor-not-allowed opacity-60' : ''}`}
-                    >
-                      {uploading ? '上传中...' : '拖放文件到这里，或点击选择文件'}
-                    </div>
-                  </div>
+                  )}
                 </section>
 
                 <section className="min-w-0 space-y-5">
-                  <div>
+                  {(detailEditing || Boolean(detail.contentText)) && <div>
                     <div className="mb-3 flex items-center justify-between">
                       <h4 className="text-sm font-semibold text-gray-900">在线正文</h4>
                       <span className="text-xs text-gray-500">{detailEditing ? '编辑模式' : detail.contentText ? '可在线阅读' : '暂无正文'}</span>
@@ -1447,7 +1487,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       editable={detailEditing}
                       minHeight={detailFullscreen ? '28rem' : '20rem'}
                     />
-                  </div>
+                  </div>}
                   <div>
                     <div className="mb-3 flex items-center justify-between">
                       <h4 className="text-sm font-semibold text-gray-900">附件展示</h4>
