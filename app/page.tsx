@@ -466,21 +466,15 @@ const maxDesktopSplitSidebarWidth = 384
 function SystemMenu({
   containerRef,
   operator,
-  items,
-  activeTab,
   open,
   onToggle,
-  onNavigate,
   onLogout,
   compact = false,
 }: {
   containerRef: RefObject<HTMLDivElement>
   operator: CurrentOperator
-  items: Array<{ key: TabType; label: string }>
-  activeTab: TabType
   open: boolean
   onToggle: () => void
-  onNavigate: (tab: TabType) => void
   onLogout: () => void
   compact?: boolean
 }) {
@@ -512,22 +506,6 @@ function SystemMenu({
             <div className="mt-1 text-xs font-medium text-gray-400">MES-lite v{appVersion}</div>
           </div>
           <div className="p-2">
-            {items.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                role="menuitem"
-                onClick={() => onNavigate(item.key)}
-                className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition ${
-                  activeTab === item.key ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <MenuIcon icon={item.key} />
-                {item.label}
-              </button>
-            ))}
-          </div>
-          <div className="border-t border-gray-100 p-2">
             <button
               type="button"
               role="menuitem"
@@ -1657,13 +1635,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           <SystemMenu
             containerRef={desktopSystemMenuRef}
             operator={operator}
-            items={readableSystemNavItems}
-            activeTab={tab}
             open={systemMenuOpen}
             onToggle={() => setSystemMenuOpen((open) => !open)}
-            onNavigate={(nextTab) => {
-              navigateToTab(nextTab)
-            }}
             onLogout={() => {
               setSystemMenuOpen(false)
               onLogout()
@@ -1745,15 +1718,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <SystemMenu
                 containerRef={systemMenuRef}
                 operator={operator}
-                items={readableSystemNavItems}
-                activeTab={tab}
                 open={systemMenuOpen}
                 onToggle={() => {
                   setSystemMenuOpen((open) => !open)
                   setMobileNavOpen(false)
-                }}
-                onNavigate={(nextTab) => {
-                  navigateToTab(nextTab)
                 }}
                 onLogout={() => {
                   setSystemMenuOpen(false)
