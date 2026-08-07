@@ -3,7 +3,6 @@
 import { LayoutList, PanelRightOpen, QrCode, SearchCheck, Settings2, X } from 'lucide-react'
 import { ReactNode, useContext, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import MovableEdgeTrigger from './layout/MovableEdgeTrigger'
 import ModalOverlay from './ModalOverlay'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import ToolbarOrderSettings, { useShowUnavailableToolbarSlots, useToolbarOrder, type ToolbarSlot } from './ToolbarOrderSettings'
@@ -157,8 +156,12 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, adv
     <div className="relative flex w-full min-w-0 flex-nowrap items-center gap-2 xl:gap-3">
       {(hasPrimaryFilters || showUnavailableSlots) && <div className="flex min-w-0 flex-1 items-center sm:hidden [&>*]:!min-w-0 [&>*]:!max-w-none">{hasPrimaryFilters ? primaryFilters : disabledSearch}</div>}
       {hasAnyTools && (
-        <div className="ml-auto sm:hidden">
-          <MovableEdgeTrigger edge="right" storageKey="mes-lite.edge-trigger.right.v1" label="呼出页面工具" active={mobileToolsOpen} onActivate={mobileToolsOpen ? closeMobileTools : openMobileTools} badge={filterCount > 0 ? filterCount : undefined} className="mes-dock-trigger-right"><PanelRightOpen aria-hidden="true" size={19} className={`transition-transform duration-200 ${mobileToolsOpen ? 'rotate-180' : ''}`} /></MovableEdgeTrigger>
+        <div className="shrink-0 sm:hidden">
+          <button type="button" aria-haspopup="dialog" aria-expanded={mobileToolsOpen} aria-label="页面工具" onClick={mobileToolsOpen ? closeMobileTools : openMobileTools} className={`relative inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-sm shadow-sm transition ${mobileToolsOpen ? 'border-blue-500 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'}`}>
+            <PanelRightOpen aria-hidden="true" size={18} className={`transition-transform duration-200 ${mobileToolsOpen ? 'rotate-180' : ''}`} />
+            <span className="max-[420px]:sr-only">工具</span>
+            {filterCount > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-blue-600 px-1 text-center text-[10px] leading-4 text-white ring-2 ring-white">{filterCount}</span>}
+          </button>
           {mobileToolsOpen && createPortal(
             <aside ref={mobileToolsPanelRef} role="dialog" aria-label="页面工具" tabIndex={-1} className={`fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[200] flex h-auto max-h-[min(72dvh,40rem)] w-[min(88vw,24rem)] origin-right flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white/95 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-2xl backdrop-blur-xl transition-[transform,opacity] duration-200 ${mobileToolsVisible ? 'translate-x-0 opacity-100' : 'translate-x-[calc(100%+1rem)] opacity-0'}`}>
               <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2.5"><div><div className="text-sm font-semibold text-gray-900">页面工具</div><div className="mt-0.5 text-xs text-gray-500">搜索、视图与页面操作</div></div><button type="button" onClick={closeMobileTools} aria-label="关闭页面工具" className="rounded-md p-2 text-gray-500 hover:bg-gray-100"><X size={18} /></button></div>
