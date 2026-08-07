@@ -152,6 +152,45 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, adv
     </div>
   ) : disabledAdvanced)
 
+  const toolPanelFilterSection = (hasAdvancedSearch || showUnavailableSlots) && (
+    <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+      <div className="mb-2.5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+          <SearchCheck className="h-4 w-4 text-blue-600" />
+          筛选条件
+          {filterCount > 0 && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">{filterCount} 项</span>}
+        </div>
+        <span className="text-[11px] text-gray-400">实时更新</span>
+      </div>
+      {hasAdvancedSearch ? (
+        <div className="grid gap-2 [&>*]:!w-full [&>*]:!min-w-0 [&>*]:!max-w-none">
+          {directAdvancedSearch}
+          {hasLegacyAdvancedSearch && filterContent}
+        </div>
+      ) : <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-400">当前页面无高级搜索</div>}
+    </section>
+  )
+
+  const toolPanelViewSection = (hasViewControl || showUnavailableSlots) && (
+    <section className="flex min-h-14 items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5 shadow-sm">
+      <div className="flex min-w-0 items-center gap-2">
+        <LayoutList className="h-4 w-4 shrink-0 text-blue-600" />
+        <div><div className="text-sm font-semibold text-gray-900">显示方式</div><div className="text-[11px] text-gray-400">切换当前内容视图</div></div>
+      </div>
+      <div className="shrink-0">{hasViewControl ? viewControl : disabledView}</div>
+    </section>
+  )
+
+  const toolPanelUtilities = (
+    <section>
+      <div className="mb-2 text-xs font-semibold text-gray-500">页面功能</div>
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" onClick={() => { if (mobileToolsOpen) closeMobileTools(); openPageOptions() }} className="flex min-h-12 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-left text-sm font-medium text-gray-700 shadow-sm hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"><Settings2 className="h-4 w-4 shrink-0" />页内选项</button>
+        <button type="button" onClick={openPageQrCode} className="flex min-h-12 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-left text-sm font-medium text-gray-700 shadow-sm hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"><QrCode className="h-4 w-4 shrink-0" />页面二维码</button>
+      </div>
+    </section>
+  )
+
   return (
     <div className="relative flex w-full min-w-0 flex-nowrap items-center gap-2 xl:gap-3">
       {(hasPrimaryFilters || showUnavailableSlots) && <div className="flex min-w-0 flex-1 items-center sm:hidden [&>*]:!min-w-0 [&>*]:!max-w-none">{hasPrimaryFilters ? primaryFilters : disabledSearch}</div>}
@@ -163,16 +202,15 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, adv
             {filterCount > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-blue-600 px-1 text-center text-[10px] leading-4 text-white ring-2 ring-white">{filterCount}</span>}
           </button>
           {mobileToolsOpen && createPortal(
-            <aside ref={mobileToolsPanelRef} role="dialog" aria-label="页面工具" tabIndex={-1} className={`fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[200] flex h-auto max-h-[min(72dvh,40rem)] w-[min(88vw,24rem)] origin-right flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white/95 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-2xl backdrop-blur-xl transition-[transform,opacity] duration-200 ${mobileToolsVisible ? 'translate-x-0 opacity-100' : 'translate-x-[calc(100%+1rem)] opacity-0'}`}>
-              <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2.5"><div><div className="text-sm font-semibold text-gray-900">页面工具</div><div className="mt-0.5 text-xs text-gray-500">搜索、视图与页面操作</div></div><button type="button" onClick={closeMobileTools} aria-label="关闭页面工具" className="rounded-md p-2 text-gray-500 hover:bg-gray-100"><X size={18} /></button></div>
-              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
-                {(hasAdvancedSearch || showUnavailableSlots) && <section className="border-t border-gray-100 pt-3"><h3 className="mb-1.5 text-xs font-semibold text-gray-500">高级搜索</h3>{hasAdvancedSearch ? <div className="space-y-2">{directAdvancedSearch}{hasLegacyAdvancedSearch && filterContent}</div> : <div className="text-sm text-gray-400">当前页面无高级搜索</div>}</section>}
-                {(hasViewControl || showUnavailableSlots) && <section className="border-t border-gray-100 pt-3"><h3 className="mb-1.5 text-xs font-semibold text-gray-500">视图</h3>{hasViewControl ? viewControl : <div className="text-sm text-gray-400">当前页面无可切换视图</div>}</section>}
-                {hasPreferences && <section className="border-t border-gray-100 pt-3">{preferences}</section>}
-                <section className="border-t border-gray-100 pt-3"><button type="button" onClick={openPageOptions} className="flex w-full items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"><Settings2 className="h-4 w-4" />页内选项</button></section>
-                <section><button type="button" onClick={openPageQrCode} className="flex w-full items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"><QrCode className="h-4 w-4" />当前页面二维码</button></section>
+            <aside ref={mobileToolsPanelRef} role="dialog" aria-label="页面工具" tabIndex={-1} className={`fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[200] flex h-auto max-h-[calc(100dvh-1.5rem)] w-[min(92vw,28rem)] origin-right flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white/95 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-2xl backdrop-blur-xl transition-[transform,opacity] duration-200 ${mobileToolsVisible ? 'translate-x-0 opacity-100' : 'translate-x-[calc(100%+1rem)] opacity-0'}`}>
+              <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 py-3"><div><div className="text-base font-semibold text-gray-900">页面工具</div><div className="mt-0.5 text-xs text-gray-500">筛选、显示与页面操作</div></div><button type="button" onClick={closeMobileTools} aria-label="关闭页面工具" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"><X size={18} /></button></div>
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-gray-50/80 p-3 [scrollbar-width:thin]">
+                {toolPanelFilterSection}
+                {toolPanelViewSection}
+                {hasPreferences && <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">{preferences}</section>}
+                {toolPanelUtilities}
               </div>
-              {hasActions && <footer className="border-t border-gray-100 bg-gray-50/90 p-3"><div className="flex flex-wrap gap-2">{actions}</div></footer>}
+              {hasActions && <footer className="shrink-0 border-t border-gray-100 bg-white p-3"><div className="grid grid-cols-2 gap-2 [&>button]:w-full [&>button]:justify-center">{actions}</div></footer>}
             </aside>, document.body,
           )}
         </div>
@@ -188,7 +226,7 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, adv
           {hasActions && <div className="hidden items-center gap-2 xl:flex">{actions}</div>}
           <div className="xl:hidden">
             <button type="button" aria-haspopup="dialog" aria-expanded={actionMenuOpen} onClick={() => { setActionMenuOpen(true); setMenuOpen(false) }} className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 shadow-sm"><span>⋯</span>工具</button>
-            {actionMenuOpen && <ModalOverlay onClose={() => setActionMenuOpen(false)} className="items-end pb-[calc(var(--mes-mobile-nav-offset)+0.75rem)] lg:items-center lg:pb-0"><div className="w-full max-w-sm overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"><div className="flex items-center justify-between border-b border-gray-100 px-4 py-3"><div><div className="text-sm font-semibold text-gray-900">页面工具</div><div className="mt-0.5 text-xs text-gray-500">搜索、视图与页面操作</div></div><button type="button" onClick={() => setActionMenuOpen(false)} className="rounded p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button></div><div className="max-h-[60dvh] space-y-3 overflow-y-auto p-3"><div className="flex flex-wrap items-center gap-2">{(hasAdvancedSearch || showUnavailableSlots) && advancedControl}{(hasViewControl || showUnavailableSlots) && (hasViewControl ? viewControl : disabledView)}<button type="button" onClick={openPageOptions} className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 px-3 text-sm text-gray-700"><Settings2 className="h-4 w-4" />页内选项</button><button type="button" onClick={openPageQrCode} className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 px-3 text-sm text-gray-700"><QrCode className="h-4 w-4" />二维码</button></div>{hasPreferences && <div className="border-t border-gray-100 pt-3">{preferences}</div>}{hasActions && <div className="grid gap-2 border-t border-gray-100 pt-3 [&>button]:w-full [&>button]:justify-center">{actions}</div>}</div></div></ModalOverlay>}
+            {actionMenuOpen && <ModalOverlay onClose={() => setActionMenuOpen(false)} className="items-end pb-[calc(var(--mes-mobile-nav-offset)+0.75rem)] lg:items-center lg:pb-0"><div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"><div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 py-3"><div><div className="text-base font-semibold text-gray-900">页面工具</div><div className="mt-0.5 text-xs text-gray-500">筛选、显示与页面操作</div></div><button type="button" onClick={() => setActionMenuOpen(false)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button></div><div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-gray-50/80 p-3 [scrollbar-width:thin]">{toolPanelFilterSection}{toolPanelViewSection}{hasPreferences && <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">{preferences}</section>}{toolPanelUtilities}</div>{hasActions && <footer className="shrink-0 border-t border-gray-100 bg-white p-3"><div className="grid grid-cols-2 gap-2 [&>button]:w-full [&>button]:justify-center">{actions}</div></footer>}</div></ModalOverlay>}
           </div>
         </div>
       )}
