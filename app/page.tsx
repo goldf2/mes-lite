@@ -1,5 +1,19 @@
 'use client'
 
+/**
+ * MES-lite 单页应用入口与页面编排器。
+ *
+ * 当前文件承担五类职责：
+ * 1. 在 AuthGate 之后建立当前操作员的权限上下文；
+ * 2. 根据权限生成桌面端、移动端和账号菜单；
+ * 3. 维护跨页面导航、页面连续性、工作台偏好与全局弹层状态；
+ * 4. 直接承载仪表盘、生产订单和库存三个历史页面；
+ * 5. 把其余业务功能分发给按需加载的独立页面组件。
+ *
+ * 这是一份“应用壳 + 历史页面”的过渡实现。新增业务功能不应继续堆入本文件；
+ * 应优先放入对应领域模块，再由这里进行轻量注册和路由分发。
+ */
+
 import dynamic from 'next/dynamic'
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
@@ -32,6 +46,8 @@ function FeaturePageLoading() {
   return <AppLoadingIndicator label="正在加载页面..." />
 }
 
+// 大型业务页面按需加载，避免首次进入系统时把所有领域页面一并打入首屏包。
+// loading 统一使用同一个反馈组件，保证页面切换期间的视觉和可访问性一致。
 const MaterialInPage = dynamic(() => import('./components/MaterialInPage'), { loading: FeaturePageLoading })
 const DispatchPage = dynamic(() => import('./components/DispatchPage'), { loading: FeaturePageLoading })
 const SalesOrderPage = dynamic(() => import('./components/SalesOrderPage'), { loading: FeaturePageLoading })
@@ -52,7 +68,10 @@ const SystemPage = dynamic(() => import('./components/SystemPage'), { loading: F
 const PermissionPage = dynamic(() => import('./components/PermissionPage'), { loading: FeaturePageLoading })
 const AiAssistantPanel = dynamic(() => import('./components/AiAssistantPanel'))
 
-// ==================== 类型定义 ====================
+// ==================== 当前入口直接消费的接口数据类型 ====================
+
+// 这些类型描述的是页面从 API 获得的数据形状，并不是领域模型本身。
+// 当相关页面迁出本文件时，类型也应随页面进入对应模块的 contracts 目录。
 
 interface MaterialOption {
   id: string
@@ -247,6 +266,10 @@ interface PageContinuityState {
   scrollPositions?: Record<string, { contentTop: number; windowTop: number }>
 }
 
+/**
+ * 读取当前操作员上次停留的页面、物料子页面和滚动位置。
+ * localStorage 可能被禁用、清空或包含旧版本数据，因此读取失败时必须安全降级为空状态。
+ */
 function readPageContinuity(storageKey: string): PageContinuityState {
   if (typeof window === 'undefined') return {}
   try {
@@ -259,6 +282,10 @@ function readPageContinuity(storageKey: string): PageContinuityState {
   }
 }
 
+/**
+ * 增量写入页面连续性状态，而不是覆盖其它页面已经保存的滚动位置。
+ * 此信息只改善本机浏览体验，不属于需要提交服务器的业务数据。
+ */
 function writePageContinuity(storageKey: string, update: Partial<PageContinuityState>) {
   if (typeof window === 'undefined') return
   try {
@@ -270,8 +297,12 @@ function writePageContinuity(storageKey: string, update: Partial<PageContinuityS
     // 浏览器禁用或限制本地存储时不应阻断业务页面。
   }
 }
+
+// ==================== 导航注册表 ====================
+
 type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'documents' | 'equipment' | 'logistics' | 'sales' | 'inventory' | 'configuration' | 'tools'
 
+// 一级导航只描述业务分组与 Tab 的归属；显示顺序和权限会在 HomeApp 中进一步计算。
 const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: TabType[] }> = [
   { key: 'workspace', label: '工作台', tabs: ['dashboard', 'allFunctions'] },
   { key: 'materials', label: '物料', tabs: ['materials'] },
@@ -292,6 +323,9 @@ interface WorkspaceFunctionDefinition extends WorkspaceFunctionItem {
   extraResource?: string
 }
 
+// 工作台功能目录是“功能入口 -> 页面 Tab -> 权限资源”的唯一映射来源。
+// materialSection 用来区分共享 materials Tab 下的物料、BOM 编辑与 BOM 全览三个子页面。
+// extraResource 表示打开功能需要同时具备的第二项资源权限。
 const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
   { key: 'dashboard', label: '仪表盘', groupKey: 'workspace', groupLabel: '工作台', description: '查看业务、生产和库存总览', icon: '仪', tab: 'dashboard', resource: 'dashboard' },
   { key: 'materialManagement', label: '物料管理', groupKey: 'materials', groupLabel: '物料', description: '维护物料、单位、规格和库存基础', icon: '料', tab: 'materials', materialSection: 'materials', resource: 'materials' },
@@ -339,11 +373,12 @@ const systemSectionByTab: Partial<Record<TabType, SystemSection>> = {
   systemSettings: 'preferences',
 }
 
+// 已有实现但暂不向轻量版导航公开的资源仍保留在注册表中，方便恢复时不改页面契约。
 const lightweightHiddenResources = new Set<string>([
   'dispatch',
 ])
 
-// ==================== 菜单图标组件 ====================
+// ==================== 应用壳小型展示组件 ====================
 
 function MenuIcon({ icon }: { icon: string }) {
   const icons: Record<string, string> = {
@@ -460,6 +495,7 @@ function SystemMenu({
   onLogout: () => void
   compact?: boolean
 }) {
+  // compact 用于窄屏顶栏：按钮只显示“我”，菜单内容和桌面端保持同一套权限结果。
   return (
     <div ref={containerRef} className={compact ? 'static shrink-0' : 'relative shrink-0'}>
       <button
@@ -519,9 +555,11 @@ function SystemMenu({
   )
 }
 
-// ==================== 主组件 ====================
+// ==================== 鉴权入口 ====================
 
 export default function Home() {
+  // AuthGate 负责会话恢复与登录界面；只有拿到操作员后才创建业务应用状态，
+  // 避免匿名阶段发起受保护接口请求或短暂显示无权限页面。
   return (
     <AuthGate>
       {(operator, onLogout) => <HomeApp operator={operator} onLogout={onLogout} />}
@@ -529,7 +567,12 @@ export default function Home() {
   )
 }
 
+// ==================== 应用壳与页面编排 ====================
+
 function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: () => void }) {
+  // ---------- 权限投影 ----------
+  // 前端权限只负责隐藏/禁用入口，服务端 API 仍必须独立鉴权。
+  // 具有任一授权能力的人员可以进入权限分配页，但不因此获得其它资源的读写权限。
   const hasAnyGrant = Object.values(operator.permissions || {}).some((permission) => permission.canGrant)
   const canRead = (resource: string) =>
     operator.role === 'ADMIN' ||
@@ -537,6 +580,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     ((resource === 'permissionUsers' || resource === 'permissionGroups') && hasAnyGrant)
   const canCreate = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canCreate)
   const canUpdate = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canUpdate)
+
+  // baseNavItems 是应用壳认识的全部页面入口。resource 决定入口是否可见，
+  // 具体一级分组由 businessNavGroups 决定，工作台描述由 workspaceFunctionCatalog 提供。
   const baseNavItems: { key: TabType; label: string; resource: string }[] = [
     { key: 'dashboard', label: '仪表盘', resource: 'dashboard' },
     { key: 'materials', label: '物料与 BOM', resource: 'materials' },
@@ -578,6 +624,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   )
   const readableBusinessNavItems = baseNavItems.filter((item) => canReadNavItem(item) && !accountMenuKeys.has(item.key) && !hiddenResources.has(item.resource))
   const readableSystemNavItems = baseNavItems.filter((item) => canRead(item.resource) && accountMenuKeys.has(item.key) && !hiddenResources.has(item.resource))
+
+  // ---------- 首次导航恢复 ----------
+  // 连续性按操作员隔离；恢复前再次校验权限，防止权限被收回后仍进入旧页面。
   const pageContinuityStorageKey = `mes-lite.page-continuity.${operator.id}`
   const restoredPageContinuity = useMemo(
     () => readPageContinuity(pageContinuityStorageKey),
@@ -599,6 +648,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       : restoredMaterialSection === 'bomUsage'
         ? canRead('bomCost')
         : false
+
+  // ---------- 页面、业务数据与界面状态 ----------
+  // tab/materialSection 是页面路由状态；orders/stocks/dashboard 是本文件尚未迁出的页面数据；
+  // 其余布尔值主要控制应用壳菜单、弹窗和响应式交互，不应被当作业务数据持久化。
   const [tab, setTab] = useState<TabType>(initialTab)
   const [materialSection, setMaterialSection] = useState<MaterialSection>(
     restoredMaterialSectionAllowed ? restoredMaterialSection as MaterialSection : defaultMaterialSection,
@@ -656,6 +709,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     reason: '',
   })
   const [navItems, setNavItems] = useState<{ key: TabType; label: string }[]>(readableBusinessNavItems)
+
+  // ---------- 权限过滤后的派生导航 ----------
+  // 所有派生集合均从当前操作员权限与 navItems 计算，不建立第二份可独立修改的菜单真相源。
   const materialSectionItems = [
     { key: 'materials' as const, label: '物料管理', visible: canRead('materials') },
     { key: 'bomWorkspace' as const, label: 'BOM 设置', visible: canRead('materials') && canRead('bomCost') },
@@ -690,12 +746,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const selectedOrderMaterial = orderMaterialOptions.find((material) => material.id === selectedMaterialId) || null
   const selectedOrderBoms = useMemo(() => selectedOrderMaterial?.boms || [], [selectedOrderMaterial])
 
+  // 切换产品后自动选择默认 BOM；如果旧 BOM 不再属于新产品，则不能继续沿用旧值。
   useEffect(() => {
     if (selectedOrderBoms.some((bom) => bom.id === selectedOrderBomId)) return
     const preferred = selectedOrderBoms.find((bom) => bom.isDefault) || selectedOrderBoms[0]
     setSelectedOrderBomId(preferred?.id || '')
   }, [selectedOrderBomId, selectedOrderBoms])
 
+  // ---------- 本机导航偏好与页面连续性 ----------
+  // 首次挂载时恢复用户拖拽后的菜单顺序，并把新版本新增但旧偏好中不存在的入口补到末尾。
   useEffect(() => {
     const savedOrder = window.localStorage.getItem('mes-lite.nav.order')
     if (savedOrder) {
@@ -716,15 +775,20 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     navOrderLoadedRef.current = true
   }, [])
 
+  // 首次恢复结束后才回写，避免初始默认顺序覆盖用户已经保存的顺序。
   useEffect(() => {
     if (!navOrderLoadedRef.current) return
     window.localStorage.setItem('mes-lite.nav.order', JSON.stringify(navItems.map((item) => item.key)))
   }, [navItems])
 
+  // 页面和物料子页面切换时保存位置标识；滚动坐标由下一个副作用单独维护。
   useEffect(() => {
     writePageContinuity(pageContinuityStorageKey, { tab, materialSection })
   }, [materialSection, pageContinuityStorageKey, tab])
 
+  // 同时兼容桌面主内容容器滚动和移动端 window 滚动。
+  // requestAnimationFrame 合并高频滚动写入；500ms 延迟恢复用于等待动态页面完成首轮布局。
+  // 一旦用户主动滚动，就停止延迟恢复，避免界面把用户拉回旧位置。
   useEffect(() => {
     const content = pageContentRef.current
     if (!content) return
@@ -805,6 +869,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }
   }, [pageContinuityStorageKey, pageLocationKey])
 
+  // ---------- 全局菜单、滚动锁定与桌面侧栏尺寸 ----------
+  // 点击菜单外部或按 Escape 时关闭账号菜单；捕获阶段监听可覆盖 Portal/嵌套按钮场景。
   useEffect(() => {
     if (!systemMenuOpen) return
 
@@ -827,6 +893,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }
   }, [systemMenuOpen])
 
+  // 窄屏菜单是覆盖层，打开时锁定 body；桌面弹出菜单不锁定页面滚动。
   useEffect(() => {
     if (!systemMenuOpen) return
     if (window.matchMedia('(min-width: 1024px)').matches) return
@@ -839,6 +906,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }
   }, [systemMenuOpen])
 
+  // 移动端全部功能抽屉打开时禁止背景滚动，并提供 Escape 关闭能力。
   useEffect(() => {
     if (!mobileNavOpen) return
 
@@ -855,6 +923,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }
   }, [mobileNavOpen])
 
+  // 侧栏宽度属于设备级界面偏好。仅接受当前允许区间内的历史值，防止旧数据破坏布局。
   useEffect(() => {
     const savedWidth = Number(window.localStorage.getItem(desktopSidebarStorageKey))
     if (
@@ -867,11 +936,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setDesktopSidebarReady(true)
   }, [])
 
+  // ready 标志阻止默认宽度在读取 localStorage 前被立即写回。
   useEffect(() => {
     if (!desktopSidebarReady) return
     window.localStorage.setItem(desktopSidebarStorageKey, String(desktopSidebarWidth))
   }, [desktopSidebarReady, desktopSidebarWidth])
 
+  // 拖动期间在 window 上监听指针，以便指针离开分隔线后仍能持续调整并正确结束。
   useEffect(() => {
     if (!resizingDesktopSidebar) return
 
@@ -898,6 +969,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }
   }, [resizingDesktopSidebar])
 
+  // ---------- 菜单排序与常用入口 ----------
+  // 桌面端使用拖放排序；移动端用上移/下移及“设为常用”完成同一 navItems 顺序调整。
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index)
     e.dataTransfer.effectAllowed = 'move'
@@ -951,11 +1024,14 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     })
   }
 
+  // ---------- 跨页面公共动作 ----------
+  // 所有内嵌页面通过 showMessage 汇总到应用壳的全局状态提示，避免各页重复实现 Toast 容器。
   const showMessage = useCallback((msg: string) => {
     setMessage(msg)
     setTimeout(() => setMessage(''), 5000)
   }, [])
 
+  // BOM 编辑请求使用 requestId 区分连续打开同一 BOM 的操作，确保子组件也能识别为新请求。
   const openBomEditor = useCallback((materialId: string, bomId?: string) => {
     setBomEditorTarget({ materialId, bomId, requestId: Date.now() })
     setMaterialSection('bomWorkspace')
@@ -970,6 +1046,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setAiAssistantOpen(false)
   }, [])
 
+  // ---------- 工作台偏好与统一导航 ----------
+  // 服务端保存跨设备工作台布局；无效功能键会在客户端过滤，兼容功能下线或旧版本数据。
   useEffect(() => {
     let cancelled = false
     fetch('/api/workspace-preferences')
@@ -992,6 +1070,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }
   }, [])
 
+  // 保存成功后再更新本地状态，保证界面展示的是服务端已接受的布局。
   const saveWorkspacePreference = async (next: Pick<WorkspacePreferenceValue, 'mode' | 'layout' | 'pinned'>) => {
     const response = await fetch('/api/workspace-preferences', {
       method: 'PUT',
@@ -1006,6 +1085,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setWorkspacePreference((current) => ({ ...current, ...next }))
   }
 
+  // 使用次数采用乐观更新；统计请求失败不阻断页面跳转，因为它不属于核心业务事务。
   const recordWorkspaceUsage = (functionKey: WorkspaceFunctionKey) => {
     const usedAt = new Date().toISOString()
     setWorkspacePreference((current) => {
@@ -1024,6 +1104,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }).catch(() => undefined)
   }
 
+  // 工作台入口与侧栏入口最终都收敛到 Tab/子页面状态，并同步关闭可能遮挡内容的菜单。
   const openWorkspaceFunction = (functionKey: WorkspaceFunctionKey) => {
     const target = workspaceFunctionItems.find((item) => item.key === functionKey)
     if (!target) return
@@ -1053,6 +1134,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setSystemMenuOpen(false)
   }
 
+  // ---------- 仍由入口文件管理的页面数据加载 ----------
+  // 只有仪表盘、生产订单、库存和创建订单仍在这里请求数据；独立页面自行管理各自的数据生命周期。
+  // 筛选条件属于依赖项，因此用户修改搜索或筛选后会重新请求当前页面数据。
   useEffect(() => {
     if (tab === 'dashboard') fetchDashboard()
     if (tab === 'orders') fetchOrders()
@@ -1066,6 +1150,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }
   }, [tab, orderKeyword, selectedOrderStatuses, stockKeyword, selectedStockCategories, stockCustomerFilter, stockLocationFilter, showInvalidStocks])
 
+  /** 按状态与关键词读取生产订单列表。 */
   const fetchOrders = async () => {
     const params = new URLSearchParams(getStatusQuery(selectedOrderStatuses, orderStatusOptions))
     if (orderKeyword.trim()) params.set('keyword', orderKeyword.trim())
@@ -1075,6 +1160,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setOrders(data.data || [])
   }
 
+  /**
+   * 读取库存列表，并处理服务端返回的 409 一致性异常。
+   * 只有“缺少库存记录”这类可安全补齐问题才自动修复，且 skipAutoBackfill 防止修复失败后递归重试。
+   */
   const fetchStocks = async (options: { skipAutoBackfill?: boolean } = {}) => {
     const params = new URLSearchParams()
     if (stockKeyword.trim()) params.set('keyword', stockKeyword.trim())
@@ -1108,6 +1197,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setStocks(data.data || [])
   }
 
+  /** 调用库存 PATCH 接口补建缺失余额；它不会代替盘点或业务单据调整。 */
   const repairStockRecords = async (options: { refetch?: boolean; silent?: boolean } = {}) => {
     setLoading(true)
     try {
@@ -1131,6 +1221,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     return false
   }
 
+  // 客户和库位是库存筛选、调整弹窗所需的辅助选项；加载失败不清空核心库存数据。
   const fetchCustomers = async () => {
     try {
       const res = await fetch('/api/customers')
@@ -1165,6 +1256,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }
   }
 
+  // 打开调整弹窗时按“指定库位 -> 有余额库位 -> 默认库位 -> 首个库位”选择初始库位。
   const openStockAdjust = async (stock: Stock, preferredLocationId?: string) => {
     const locations = inventoryLocations.length > 0 ? inventoryLocations : await fetchInventoryLocations()
     if (locations.length === 0) {
@@ -1188,6 +1280,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     })
   }
 
+  // 存货调整由服务端负责最终校验、记账和审计；成功后刷新库存与仪表盘两个受影响视图。
   const submitStockAdjust = async () => {
     if (!adjustingStock) return
     if (!stockAdjustForm.locationId) {
@@ -1251,6 +1344,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setOrderDetail(data.data)
   }
 
+  // 创建订单允许先把多项产品加入本地草稿，再一次性提交为同一订单组。
+  // selectedMaterialId 中尚未加入草稿的“当前行”会在提交前临时合并，避免用户必须额外点一次添加。
   const createOrder = async () => {
     let lines = [...orderDraftLines]
     if (selectedMaterialId) {
@@ -1300,6 +1395,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setLoading(false)
   }
 
+  // 将当前选择转成本地草稿行，不访问服务端；正式写入只发生在 createOrder。
   const addOrderDraftLine = () => {
     if (!selectedMaterialId || !selectedOrderBomId || planQty <= 0) {
       showMessage('请选择产品、BOM 方案并输入有效计划数量')
@@ -1326,6 +1422,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setTab('detail')
   }
 
+  // ---------- 展示模型、筛选与排序 ----------
+  // dashboardView 兼容新旧统计接口字段名，便于后端字段迁移期间保持前端可用。
   const dashboardView = {
     todayOrderCount: dashboard?.todayOrderCount ?? dashboard?.todayOrders ?? 0,
     monthOrderCount: dashboard?.monthOrderCount ?? dashboard?.monthOrders ?? 0,
@@ -1406,6 +1504,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     Math.abs(Number(balance.qty)) > 0.000001 || Math.abs(Number(balance.reservedQty)) > 0.000001
   )) || []
 
+  // ==================== 应用壳与页面内容渲染 ====================
+  // 页面骨架顺序：桌面顶栏 -> 桌面侧栏 -> 移动顶栏 -> 页面工具栏 -> 可滚动内容
+  // -> 移动抽屉/页面选项/AI 面板 -> 移动底部常用导航。
   return (
     <div
       className="min-h-screen overflow-x-hidden bg-gray-50"
@@ -1861,7 +1962,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           )
         )}
 
-        {/* 仪表盘 */}
+        {/*
+          以下是页面分发区。仪表盘、生产订单和库存仍以内联 JSX 存在；
+          其余页面只在对应 Tab 激活时挂载独立组件，避免隐藏页面继续保留副作用和请求。
+        */}
+
+        {/* 仪表盘：工作台入口、业务指标、生产状态和库存预警。 */}
         {tab === 'dashboard' && dashboard && (
           <div className="space-y-6">
             <WorkspaceLauncher
@@ -1902,7 +2008,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           />
         )}
 
-        {/* 生产订单 */}
+        {/* 生产订单：列表/卡片浏览及进入订单详情。 */}
         {tab === 'orders' && (
           <div className="bg-white rounded-lg shadow p-3 sm:p-6">
             {orders.length === 0 ? (
@@ -2012,7 +2118,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           </div>
         )}
 
-        {/* 生产订单详情 */}
+        {/* 生产订单详情：领料、附件和班后实绩等订单级操作。 */}
         {tab === 'detail' && orderDetail && (
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between mb-6">
@@ -2085,7 +2191,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           </div>
         )}
 
-        {/* 创建生产订单 */}
+        {/* 创建生产订单：在客户端组织多产品草稿，最终批量提交。 */}
         {tab === 'create' && (
           <div className="bg-white rounded-lg shadow p-6 max-w-4xl">
             <h2 className="text-xl font-semibold mb-2">创建生产订单</h2>
@@ -2179,7 +2285,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           </div>
         )}
 
-        {/* 库存管理 */}
+        {/* 库存管理：库存对象、库位余额、包装等价量及存货调整入口。 */}
         {tab === 'stocks' && (
           <div className="bg-white rounded-lg shadow p-3 sm:p-6">
             {stockDataError && (
@@ -2703,7 +2809,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           </ModalDialog>
         )}
 
-        {/* 物料与 BOM */}
+        {/* 物料与 BOM 共用一个一级 Tab，通过 materialSection 切换三个独立工作区。 */}
         {tab === 'materials' && materialSection === 'materials' && (
           <MaterialPage
             onMessage={showMessage}
@@ -2781,6 +2887,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </div>
       </main>
 
+      {/* 移动端全部功能抽屉同时提供功能导航和底部常用入口排序。 */}
       {mobileNavOpen && (
         <div className="fixed inset-0 z-[70] mes-modal-overlay lg:hidden" onClick={() => setMobileNavOpen(false)}>
           <aside
@@ -2895,6 +3002,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </div>
       )}
 
+      {/* 页面选项由应用壳统一托管；各页面只通过参数声明自己支持的选项。 */}
       <PageOptionsDialog
         open={showPageOptions}
         onClose={() => setShowPageOptions(false)}
@@ -2903,6 +3011,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         onMessage={showMessage}
       />
 
+      {/* AI 助手只获得页面标识和标签作为上下文；数据访问仍由其服务端白名单工具控制。 */}
       {canRead('aiAssistant') && (
         <AiAssistantPanel
           open={aiAssistantOpen}
@@ -2916,6 +3025,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         />
       )}
 
+      {/* 移动底栏固定展示用户排序后的前四项，并在有权限时追加 AI 入口。 */}
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
         <div
           className="grid gap-1"
@@ -2956,6 +3066,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     </div>
   )
 }
+
+// ==================== 仪表盘纯展示组件 ====================
+// 这些组件只把已经归一化的统计数据绘制成卡片、条形图和状态环，不自行请求数据。
 
 const dashboardToneMap: Record<string, { border: string; bg: string; text: string; fill: string; soft: string }> = {
   blue: { border: 'border-blue-200', bg: 'bg-blue-50', text: 'text-blue-700', fill: 'bg-blue-500', soft: 'bg-blue-100' },
@@ -3106,6 +3219,7 @@ function DashboardStatusSection({
   const normalizedItems = [...items].sort((a, b) => (b.count || 0) - (a.count || 0))
   const total = normalizedItems.reduce((sum, item) => sum + (Number(item.count) || 0), 0)
   let cursor = 0
+  // 将每个状态的数量转换为圆环图中的起止百分比，随后拼接为 conic-gradient。
   const segments = normalizedItems.map((item) => {
     const share = total > 0 ? (Number(item.count) / total) * 100 : 0
     const start = cursor
@@ -3203,6 +3317,7 @@ function ProductionStatusOverview({
 }
 
 function StockAlertList({ stocks }: { stocks: any[] }) {
+  // 只展示可用量最低的八项，确保仪表盘保持摘要性质而不是复制完整库存列表。
   const sortedStocks = [...stocks].sort((a, b) => Number(a.availableQty ?? 0) - Number(b.availableQty ?? 0)).slice(0, 8)
 
   return (
