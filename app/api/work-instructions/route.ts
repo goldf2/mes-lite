@@ -9,6 +9,33 @@ import { DocumentContentValidationError, normalizeDocumentContent } from '@/lib/
 import { officeAttachmentMimeTypes } from '@/lib/attachment-file-types'
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
 
+const advancedSearchFieldSchema = z.enum([
+  'title',
+  'categoryId',
+  'status',
+  'version',
+  'materialCode',
+  'materialName',
+  'materialSpec',
+  'customerCode',
+  'customerName',
+  'workCenter',
+  'contentText',
+  'note',
+  'attachmentName',
+  'fileType',
+  'createdAt',
+  'updatedAt',
+])
+
+const advancedSearchConditionSchema = z.object({
+  field: advancedSearchFieldSchema,
+  operator: z.enum(['equals', 'contains', 'startsWith', 'gt', 'gte', 'lt', 'lte']),
+  value: z.string().trim().min(1).max(200),
+})
+
+type AdvancedSearchCondition = z.infer<typeof advancedSearchConditionSchema>
+
 const workInstructionSchema = z.object({
   title: z.string().trim().max(200, '文档标题不能超过 200 个字符').optional().default(''),
   materialId: z.string().trim().optional().nullable(),
@@ -80,6 +107,47 @@ async function ownerIdsByAttachmentKeyword(keyword: string | undefined) {
   return rows.map((row) => row.ownerId)
 }
 
+function stringCondition(condition: AdvancedSearchCondition) {
+  if (condition.operator === 'equals') return { equals: condition.value }
+  if (condition.operator === 'startsWith') return { startsWith: condition.value }
+  return { contains: condition.value }
+}
+
+function dateCondition(condition: AdvancedSearchCondition) {
+  const start = new Date(`${condition.value}T00:00:00+08:00`)
+  if (Number.isNaN(start.getTime())) return null
+  const next = new Date(start.getTime() + 24 * 60 * 60 * 1000)
+  if (condition.operator === 'equals') return { gte: start, lt: next }
+  if (condition.operator === 'gt') return { gte: next }
+  if (condition.operator === 'gte') return { gte: start }
+  if (condition.operator === 'lt') return { lt: start }
+  if (condition.operator === 'lte') return { lt: next }
+  return null
+}
+
+async function ownerIdsByAttachmentCondition(condition: AdvancedSearchCondition) {
+  const rows = await prisma.documentAttachment.findMany({
+    where: {
+      ownerType: 'WORK_INSTRUCTION',
+      deletedAt: null,
+      originalName: stringCondition(condition),
+    },
+    select: { ownerId: true },
+    distinct: ['ownerId'],
+  })
+  return rows.map((row) => row.ownerId)
+}
+
+function parseAdvancedSearch(value: string | null) {
+  if (!value) return { data: [] as AdvancedSearchCondition[] }
+  try {
+    const parsed = z.array(advancedSearchConditionSchema).max(30).safeParse(JSON.parse(value))
+    return parsed.success ? { data: parsed.data } : { error: '高级搜索条件无效' }
+  } catch {
+    return { error: '高级搜索条件格式错误' }
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('workInstructions', 'read')
@@ -92,6 +160,9 @@ export async function GET(req: NextRequest) {
     const customerId = searchParams.get('customerId')
     const materialId = searchParams.get('materialId')
     const fileType = searchParams.get('fileType')
+    const advancedSearch = parseAdvancedSearch(searchParams.get('advanced'))
+    if (advancedSearch.error) return NextResponse.json({ error: advancedSearch.error }, { status: 400 })
+    const advancedConditions = advancedSearch.data || []
     const rawPage = Number(searchParams.get('page') || '1')
     const rawPageSize = Number(searchParams.get('pageSize') || '20')
     const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
@@ -123,6 +194,35 @@ export async function GET(req: NextRequest) {
     else if (materialId) where.materialId = materialId
     if (fileOwnerIds) {
       where.id = fileOwnerIds.length > 0 ? { in: fileOwnerIds } : { in: [] }
+    }
+    for (const condition of advancedConditions) {
+      if (condition.field === 'title' || condition.field === 'version' || condition.field === 'contentText' || condition.field === 'note') {
+        andFilters.push({ [condition.field]: stringCondition(condition) })
+      } else if (condition.field === 'categoryId' || condition.field === 'status') {
+        andFilters.push({ [condition.field]: condition.value })
+      } else if (condition.field === 'materialCode') {
+        andFilters.push({ material: { is: { code: stringCondition(condition) } } })
+      } else if (condition.field === 'materialName') {
+        andFilters.push({ material: { is: { name: stringCondition(condition) } } })
+      } else if (condition.field === 'materialSpec') {
+        andFilters.push({ material: { is: { spec: stringCondition(condition) } } })
+      } else if (condition.field === 'customerCode') {
+        andFilters.push({ material: { is: { customer: { is: { code: stringCondition(condition) } } } } })
+      } else if (condition.field === 'customerName') {
+        andFilters.push({ material: { is: { customer: { is: { name: stringCondition(condition) } } } } })
+      } else if (condition.field === 'workCenter') {
+        const filter = stringCondition(condition)
+        andFilters.push({ workCenters: { some: { OR: [{ code: filter }, { name: filter }] } } })
+      } else if (condition.field === 'attachmentName') {
+        const ownerIds = await ownerIdsByAttachmentCondition(condition)
+        andFilters.push({ id: ownerIds.length > 0 ? { in: ownerIds } : { in: [] } })
+      } else if (condition.field === 'fileType') {
+        const ownerIds = await ownerIdsByFileType(condition.value)
+        andFilters.push({ id: ownerIds && ownerIds.length > 0 ? { in: ownerIds } : { in: [] } })
+      } else if (condition.field === 'createdAt' || condition.field === 'updatedAt') {
+        const filter = dateCondition(condition)
+        if (filter) andFilters.push({ [condition.field]: filter })
+      }
     }
     andFilters.push(...keywordTokens.map((token, index) => ({ OR: [
       { title: { contains: token } },

@@ -84,20 +84,20 @@ export function useShowUnavailableToolbarSlots(pageKey: string) {
 export default function ToolbarOrderSettings({ pageKey }: { pageKey: string }) {
   const order = useToolbarOrder(pageKey)
   const showUnavailable = useShowUnavailableToolbarSlots(pageKey)
-  const movableOrder = order.filter((slot) => slot !== 'search')
+  const movableOrder = order.filter((slot) => slot !== 'search' && slot !== 'advanced')
 
   const move = (index: number, direction: -1 | 1) => {
     const target = index + direction
     if (target < 0 || target >= movableOrder.length) return
     const next = [...movableOrder]
     ;[next[index], next[target]] = [next[target], next[index]]
-    writeToolbarOrder(pageKey, ['search', ...next])
+    writeToolbarOrder(pageKey, ['search', 'advanced', ...next])
   }
 
   return (
     <section>
       <div className="text-sm font-semibold text-gray-900">顶部工具顺序</div>
-      <p className="mt-1 text-xs text-gray-500">关键词搜索固定在左侧；这里调整右侧工具，只影响当前页面和当前浏览器。</p>
+      <p className="mt-1 text-xs text-gray-500">关键词搜索与高级搜索固定组成左侧检索区；这里调整其余右侧工具，只影响当前页面和当前浏览器。</p>
       <div className="mt-3 divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200">
         {movableOrder.map((slot, index) => (
           <div key={slot} className="flex items-center gap-3 bg-white px-3 py-2.5">
@@ -110,7 +110,7 @@ export default function ToolbarOrderSettings({ pageKey }: { pageKey: string }) {
       </div>
       <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
         <input type="checkbox" checked={showUnavailable} onChange={(event) => writeShowUnavailableToolbarSlots(pageKey, event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-        <span><span className="block text-sm text-gray-800">显示不可用工具占位</span><span className="mt-0.5 block text-xs text-gray-500">保持切换页面时搜索、高级搜索和视图按钮的位置稳定。</span></span>
+        <span><span className="block text-sm text-gray-800">显示不可用工具占位</span><span className="mt-0.5 block text-xs text-gray-500">保持切换页面时检索区和视图按钮的位置稳定。</span></span>
       </label>
       <button type="button" onClick={() => writeToolbarOrder(pageKey, defaultToolbarOrder)} className="mt-3 inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800"><RotateCcw className="h-4 w-4" />恢复默认顺序</button>
     </section>

@@ -216,8 +216,12 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, adv
         </div>
       )}
 
-      {(hasPrimaryFilters || showUnavailableSlots) && <div className="mr-auto hidden min-w-0 max-w-[620px] flex-1 items-center sm:flex">{hasPrimaryFilters ? primaryFilters : disabledSearch}</div>}
-      {(hasAdvancedSearch || showUnavailableSlots) && <div style={{ order: slotOrder('advanced') }} className="hidden shrink-0 xl:block">{advancedControl}</div>}
+      {((hasPrimaryFilters || showUnavailableSlots) || (hasAdvancedSearch || showUnavailableSlots)) && (
+        <div className="mr-auto hidden min-w-0 max-w-[680px] flex-1 items-center gap-2 sm:flex">
+          {(hasPrimaryFilters || showUnavailableSlots) && <div className="min-w-0 flex-1">{hasPrimaryFilters ? primaryFilters : disabledSearch}</div>}
+          {(hasAdvancedSearch || showUnavailableSlots) && <div className="hidden shrink-0 xl:block">{advancedControl}</div>}
+        </div>
+      )}
       {(hasViewControl || showUnavailableSlots) && <div style={{ order: slotOrder('view') }} className="hidden shrink-0 xl:block">{hasViewControl ? viewControl : disabledView}</div>}
       <div style={{ order: slotOrder('options') }} className="hidden shrink-0 xl:block">{pageOptionsButton}</div>
 

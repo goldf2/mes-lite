@@ -31,6 +31,29 @@ export interface ResourceSearchCondition {
   value: string
 }
 
+export function defaultResourceSearchOperators(type: ResourceSearchFieldType): readonly ResourceSearchOperator[] {
+  if (type === 'number' || type === 'date') return ['equals', 'gt', 'gte', 'lt', 'lte']
+  if (type === 'select') return ['equals']
+  return ['contains', 'equals', 'startsWith']
+}
+
+export function buildAdvancedSearchDraft<T>(
+  fields: readonly ResourceAdvancedSearchField<T>[],
+  conditions: readonly ResourceSearchCondition[],
+) {
+  const conditionByField = new Map(conditions.map((condition) => [condition.field, condition]))
+  return fields.map((field): ResourceSearchCondition => {
+    const existing = conditionByField.get(field.key)
+    const operators = field.operators || defaultResourceSearchOperators(field.type)
+    return {
+      id: existing?.id || `field-${field.key}`,
+      field: field.key,
+      operator: existing && operators.includes(existing.operator) ? existing.operator : operators[0],
+      value: existing?.value || '',
+    }
+  })
+}
+
 function normalizeSearchValue(value: ResourceSearchValue) {
   if (value instanceof Date) return value.toISOString().toLocaleLowerCase('zh-CN')
   return String(value ?? '').trim().toLocaleLowerCase('zh-CN')

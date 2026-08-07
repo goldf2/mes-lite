@@ -5,7 +5,6 @@ import type { DragEvent } from 'react'
 import { FileText, Image as ImageIcon, Upload, X } from 'lucide-react'
 import TopBarPortal from './TopBarPortal'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
-import StatusCheckboxFilter, { getMultiSelectQuery } from './StatusCheckboxFilter'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import DocumentPreviewThumb from './DocumentPreviewThumb'
@@ -26,6 +25,8 @@ import AppButton from './AppButton'
 import OnlineDocumentEditor from './OnlineDocumentEditor'
 import { EMPTY_DOCUMENT_JSON } from '@/lib/document-content'
 import OneToManyRelationField from './relations/OneToManyRelationField'
+import { ResourceAdvancedSearch } from './resource'
+import type { ResourceAdvancedSearchField, ResourceSearchCondition } from '@/lib/resource-search'
 import {
   MAX_ATTACHMENT_FILE_SIZE,
   attachmentPreviewKind,
@@ -404,11 +405,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const [materials, setMaterials] = useState<MaterialOption[]>([])
   const [workCenters, setWorkCenters] = useState<WorkCenterOption[]>([])
   const [keyword, setKeyword] = useState('')
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[] | null>(null)
-  const [selectedStatuses, setSelectedStatuses] = useState(instructionStatusOptions.map((item) => item.value))
-  const [customerFilter, setCustomerFilter] = useState('')
-  const [materialFilter, setMaterialFilter] = useState('')
-  const [fileType, setFileType] = useState<'all' | 'image' | 'pdf' | 'office'>('all')
+  const [advancedConditions, setAdvancedConditions] = useState<ResourceSearchCondition[]>([])
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.workInstructions.viewMode', 'card')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
@@ -434,7 +431,24 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const createUploadInputRef = useRef<HTMLInputElement | null>(null)
   const detailUploadRef = useRef<HTMLDivElement | null>(null)
   const availableCategoryOptions = useMemo(() => documentCategoryOptions(categories), [categories])
-  const effectiveSelectedCategoryIds = selectedCategoryIds ?? availableCategoryOptions.map((option) => option.value)
+  const advancedSearchFields = useMemo<readonly ResourceAdvancedSearchField<WorkInstruction>[]>(() => [
+    { key: 'title', label: '文档标题', type: 'text', read: (instruction) => instruction.title },
+    { key: 'categoryId', label: '文档类别', type: 'select', read: (instruction) => instruction.categoryId, options: availableCategoryOptions },
+    { key: 'status', label: '状态', type: 'select', read: (instruction) => instruction.status, options: instructionStatusOptions },
+    { key: 'version', label: '版本', type: 'text', read: (instruction) => instruction.version },
+    { key: 'materialCode', label: '产品编码', type: 'text', read: (instruction) => instruction.material?.code },
+    { key: 'materialName', label: '产品名称', type: 'text', read: (instruction) => instruction.material?.name },
+    { key: 'materialSpec', label: '产品规格', type: 'text', read: (instruction) => instruction.material?.spec },
+    { key: 'customerCode', label: '客户编码', type: 'text', read: (instruction) => instruction.material?.customer?.code },
+    { key: 'customerName', label: '客户名称', type: 'text', read: (instruction) => instruction.material?.customer?.name },
+    { key: 'workCenter', label: '工作中心', type: 'text', read: (instruction) => instruction.workCenters.map((item) => `${item.code} ${item.name}`).join(' ') },
+    { key: 'contentText', label: '在线正文', type: 'text', read: (instruction) => instruction.contentText },
+    { key: 'note', label: '备注', type: 'text', read: (instruction) => instruction.note },
+    { key: 'attachmentName', label: '附件名称', type: 'text', read: (instruction) => instruction.primaryAttachment?.originalName },
+    { key: 'fileType', label: '文件类型', type: 'select', read: () => '', options: fileTypeOptions.filter((option) => option.value !== 'all') },
+    { key: 'createdAt', label: '创建日期', type: 'date', read: (instruction) => instruction.createdAt },
+    { key: 'updatedAt', label: '更新日期', type: 'date', read: (instruction) => instruction.updatedAt },
+  ], [availableCategoryOptions])
   const instructionSort = useClientTableSort(items, {
     code: (instruction) => instruction.material?.code || '',
     name: (instruction) => instruction.title,
@@ -449,11 +463,11 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
   useEffect(() => {
     fetchInstructions()
-  }, [keyword, selectedCategoryIds, selectedStatuses, customerFilter, materialFilter, fileType, page, pageSize, availableCategoryOptions.length])
+  }, [keyword, advancedConditions, page, pageSize])
 
   useEffect(() => {
     setPage(1)
-  }, [keyword, selectedCategoryIds, selectedStatuses, customerFilter, materialFilter, fileType, pageSize])
+  }, [keyword, advancedConditions, pageSize])
 
   useEffect(() => {
     fetchCategories()
@@ -500,9 +514,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         return
       }
       const nextCategories = (data.data || []) as DocumentCategoryItem[]
-      const availableIds = new Set(nextCategories.map((category) => category.id))
       setCategories(nextCategories)
-      setSelectedCategoryIds((current) => current === null ? null : current.filter((id) => availableIds.has(id)))
     } catch (err) {
       onMessage('获取文档类别失败')
     }
@@ -513,19 +525,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     params.set('page', String(page))
     params.set('pageSize', String(pageSize))
     if (keyword.trim()) params.set('keyword', keyword.trim())
-    if (customerFilter) params.set('customerId', customerFilter)
-    if (materialFilter) params.set('materialId', materialFilter)
-    if (fileType !== 'all') params.set('fileType', fileType)
-    const categoryQuery = getMultiSelectQuery('categoryIds', effectiveSelectedCategoryIds, availableCategoryOptions)
-    if (categoryQuery) {
-      const categoryParams = new URLSearchParams(categoryQuery)
-      categoryParams.forEach((value, key) => params.set(key, value))
-    }
-    const statusQuery = getMultiSelectQuery('statuses', selectedStatuses, instructionStatusOptions)
-    if (statusQuery) {
-      const statusParams = new URLSearchParams(statusQuery)
-      statusParams.forEach((value, key) => params.set(key, value))
-    }
+    if (advancedConditions.length > 0) params.set('advanced', JSON.stringify(advancedConditions.map(({ field, operator, value }) => ({ field, operator, value }))))
     return params
   }
 
@@ -902,27 +902,11 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     () => materials.find((material) => material.id === form.materialId),
     [materials, form.materialId]
   )
-  const selectedFilterMaterial = useMemo(
-    () => materials.find((material) => material.id === materialFilter),
-    [materials, materialFilter]
-  )
-  const activeFilterLabels = useMemo(() => {
-    const labels: string[] = []
-    if (effectiveSelectedCategoryIds.length !== availableCategoryOptions.length) {
-      labels.push(effectiveSelectedCategoryIds.length === 0 ? '无类型' : `${effectiveSelectedCategoryIds.length} 类`)
-    }
-    if (selectedStatuses.length !== instructionStatusOptions.length) {
-      labels.push(selectedStatuses.length === 0 ? '无状态' : `${selectedStatuses.length} 状态`)
-    }
-    if (fileType !== 'all') labels.push(fileTypeOptions.find((option) => option.value === fileType)?.label || fileType)
-    if (customerFilter) {
-      labels.push(customerFilter === '__UNASSIGNED__' ? '通用/未绑定' : customers.find((customer) => customer.id === customerFilter)?.name || '指定客户')
-    }
-    if (materialFilter) {
-      labels.push(selectedFilterMaterial ? selectedFilterMaterial.name : '指定产品')
-    }
-    return labels
-  }, [effectiveSelectedCategoryIds, availableCategoryOptions.length, selectedStatuses, fileType, customerFilter, materialFilter, customers, selectedFilterMaterial])
+  const activeFilterLabels = useMemo(() => advancedConditions.map((condition) => {
+    const field = advancedSearchFields.find((candidate) => candidate.key === condition.field)
+    const option = field?.options?.find((candidate) => candidate.value === condition.value)
+    return `${field?.label || condition.field}：${option?.label || condition.value}`
+  }), [advancedConditions, advancedSearchFields])
 
   const toolbar = (
     <ResponsiveToolbarActions
@@ -932,60 +916,17 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           value={keyword}
           onChange={setKeyword}
           placeholder="搜索标题、正文、产品或备注"
+          conditions={advancedConditions}
+          onConditionsChange={setAdvancedConditions}
+          conditionLabel={`${advancedConditions.length} 个文档字段`}
         />
       )}
+      advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={advancedConditions} onChange={setAdvancedConditions} />}
       filterCount={activeFilterLabels.length}
       filterSummary={activeFilterLabels.slice(0, 3).map((label) => (
         <span key={label} className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">{label}</span>
       ))}
       viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
-      filters={(
-        <>
-          <StatusCheckboxFilter
-            options={availableCategoryOptions}
-            value={effectiveSelectedCategoryIds}
-            onChange={setSelectedCategoryIds}
-            allLabel="全部文档类别"
-          />
-          <StatusCheckboxFilter
-            options={instructionStatusOptions}
-            value={selectedStatuses}
-            onChange={setSelectedStatuses}
-            allLabel="全部状态"
-          />
-          <select
-            value={fileType}
-            onChange={(event) => setFileType(event.target.value as 'all' | 'image' | 'pdf' | 'office')}
-            className="w-36 rounded-lg border border-gray-200 px-4 py-2 text-sm"
-          >
-            {fileTypeOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-          <SearchableSelect
-            value={customerFilter}
-            onChange={setCustomerFilter}
-            options={[
-              { value: '__UNASSIGNED__', label: '通用/未绑定' },
-              ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
-            ]}
-            placeholder="输入客户名称筛选（全部客户）"
-            allowClear
-            className="w-56"
-          />
-          <div className="w-64">
-            <MaterialSearchSelect
-              value={materialFilter}
-              options={materials}
-              selectedOption={selectedFilterMaterial}
-              onChange={(nextValue) => setMaterialFilter(nextValue)}
-              onSearch={fetchMaterials}
-              placeholder="筛选关联产品"
-              emptyLabel="全部产品"
-            />
-          </div>
-        </>
-      )}
       actions={(
         <AppButton
           variant="create"
