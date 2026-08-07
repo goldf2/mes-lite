@@ -52,6 +52,7 @@ const ScanPrintPage = dynamic(() => import('./components/ScanPrintPage'), { load
 const BomOverviewPage = dynamic(() => import('./components/BomOverviewPage'), { loading: FeaturePageLoading })
 const MaterialPage = dynamic(() => import('./components/MaterialPage'), { loading: FeaturePageLoading })
 const WorkInstructionPage = dynamic(() => import('./components/WorkInstructionPage'), { loading: FeaturePageLoading })
+const DocumentCategorySettingsPage = dynamic(() => import('./components/DocumentCategorySettingsPage'), { loading: FeaturePageLoading })
 const EquipmentPage = dynamic(() => import('./components/EquipmentPage'), { loading: FeaturePageLoading })
 const AttachmentPanel = dynamic(() => import('./components/AttachmentPanel'), { loading: FeaturePageLoading })
 const ProductionOrderActualPanel = dynamic(() => import('./components/ProductionOrderActualPanel'), { loading: FeaturePageLoading })
@@ -240,7 +241,7 @@ interface ProcessStep {
   workstation: string | null
 }
 
-type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'salesOrders' | 'shipment' | 'return' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'employees' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'businessSettings' | 'displaySettings' | 'aiSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'create' | 'detail'
+type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'salesOrders' | 'shipment' | 'return' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'employees' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'documentCategories' | 'businessSettings' | 'displaySettings' | 'aiSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'create' | 'detail'
 type MaterialSection = 'materials' | 'bomWorkspace' | 'bomUsage'
 
 interface BomEditorTarget {
@@ -289,7 +290,7 @@ const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: 
   { key: 'logistics', label: '物流', tabs: ['materialIn'] },
   { key: 'sales', label: '销售', tabs: ['salesOrders', 'shipment', 'return'] },
   { key: 'inventory', label: '库存', tabs: ['stocks'] },
-  { key: 'configuration', label: '业务配置', tabs: ['suppliers', 'customers', 'employees', 'locationSettings', 'unitSettings', 'workCenters', 'processTemplates', 'processRoutes', 'businessSettings'] },
+  { key: 'configuration', label: '业务配置', tabs: ['suppliers', 'customers', 'employees', 'locationSettings', 'unitSettings', 'documentCategories', 'workCenters', 'processTemplates', 'processRoutes', 'businessSettings'] },
   { key: 'system', label: '系统设置', tabs: ['displaySettings', 'aiSettings'] },
   { key: 'tools', label: '工具', tabs: ['sawingCost', 'scanPrint', 'archive', 'auditLogs', 'dataTools'] },
 ]
@@ -320,6 +321,7 @@ const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
   { key: 'employees', label: '员工资料', groupKey: 'configuration', groupLabel: '业务配置', description: '维护业务员工并供生产和转移单据选用', icon: '员', tab: 'employees', resource: 'system' },
   { key: 'locationSettings', label: '库位配置', groupKey: 'configuration', groupLabel: '业务配置', description: '配置库位、用途和默认库位', icon: '位', tab: 'locationSettings', resource: 'system' },
   { key: 'unitSettings', label: '单位配置', groupKey: 'configuration', groupLabel: '业务配置', description: '配置计量单位和同量纲换算', icon: '单', tab: 'unitSettings', resource: 'system' },
+  { key: 'documentCategories', label: '文档类别', groupKey: 'configuration', groupLabel: '业务配置', description: '维护产品文档使用的一级、二级业务分类', icon: '类', tab: 'documentCategories', resource: 'workInstructions' },
   { key: 'workCenters', label: '工作中心', groupKey: 'configuration', groupLabel: '业务配置', description: '配置锯切、钻孔、检验等生产能力区域', icon: '中', tab: 'workCenters', resource: 'system' },
   { key: 'processTemplates', label: '加工工艺', groupKey: 'configuration', groupLabel: '业务配置', description: '维护加工工艺模板和成本参数', icon: '艺', tab: 'processTemplates', resource: 'system' },
   { key: 'processRoutes', label: '物料路线', groupKey: 'configuration', groupLabel: '业务配置', description: '维护产品加工路线和工步', icon: '线', tab: 'processRoutes', resource: 'system' },
@@ -385,6 +387,7 @@ function MenuIcon({ icon }: { icon: string }) {
     auditLogs: '记',
     dataTools: '数',
     unitSettings: '单',
+    documentCategories: '类',
     locationSettings: '位',
     workCenters: '中',
     businessSettings: '业',
@@ -576,6 +579,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'employees', label: '员工资料', resource: 'system' },
     { key: 'locationSettings', label: '库位配置', resource: 'system' },
     { key: 'unitSettings', label: '单位配置', resource: 'system' },
+    { key: 'documentCategories', label: '文档类别', resource: 'workInstructions' },
     { key: 'workCenters', label: '工作中心', resource: 'system' },
     { key: 'processTemplates', label: '加工工艺', resource: 'system' },
     { key: 'processRoutes', label: '物料路线', resource: 'system' },
@@ -2796,6 +2800,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
         {/* 产品文档 */}
         {tab === 'workInstructions' && <WorkInstructionPage onMessage={showMessage} />}
+
+        {/* 文档类别业务配置 */}
+        {tab === 'documentCategories' && (
+          <DocumentCategorySettingsPage
+            onMessage={showMessage}
+            canUpdate={canUpdate('workInstructions')}
+            canDelete={operator.role === 'ADMIN' || Boolean(operator.permissions?.workInstructions?.canDelete)}
+          />
+        )}
 
         {/* 设备台账 */}
         {tab === 'equipment' && <EquipmentPage onMessage={showMessage} canCreate={canCreate('equipment')} canUpdate={canUpdate('equipment')} canDelete={operator.role === 'ADMIN' || Boolean(operator.permissions?.equipment?.canDelete)} />}

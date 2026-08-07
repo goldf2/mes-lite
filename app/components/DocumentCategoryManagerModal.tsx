@@ -1,8 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import SearchableSelect from './SearchableSelect'
-import ModalDialog from './ModalDialog'
 import AppButton from './AppButton'
 
 export interface DocumentCategoryItem {
@@ -40,18 +39,18 @@ export function documentCategoryOptions(categories: DocumentCategoryItem[]) {
   ])
 }
 
-export default function DocumentCategoryManagerModal({
-  open,
+export function DocumentCategoryManagerPanel({
   categories,
-  onClose,
   onChanged,
   onMessage,
+  canUpdate = true,
+  canDelete = true,
 }: {
-  open: boolean
   categories: DocumentCategoryItem[]
-  onClose: () => void
   onChanged: () => Promise<void>
   onMessage: (message: string) => void
+  canUpdate?: boolean
+  canDelete?: boolean
 }) {
   const [editing, setEditing] = useState<DocumentCategoryItem | null>(null)
   const [name, setName] = useState('')
@@ -72,16 +71,6 @@ export default function DocumentCategoryManagerModal({
     }
     return result
   }, [categories])
-
-  useEffect(() => {
-    if (!open) {
-      setEditing(null)
-      setName('')
-      setParentId('')
-    }
-  }, [open])
-
-  if (!open) return null
 
   const resetForm = () => {
     setEditing(null)
@@ -144,59 +133,59 @@ export default function DocumentCategoryManagerModal({
   }
 
   return (
-    <ModalDialog
-      title="文档类别管理"
-      description="一级类别可直接使用，也可添加二级类别；最多支持两级。"
-      onClose={onClose}
-      closeDisabled={saving}
-      size="xl"
-      overlayClassName="z-[65]"
-    >
-          <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4">
-            <div className="mb-3 text-sm font-semibold text-gray-900">{editing ? '编辑类别' : '新增类别'}</div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(180px,0.7fr)_auto]">
-              <input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="类别名称，如机床作业"
-                maxLength={40}
-                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
-              />
-              <SearchableSelect
-                value={parentId}
-                onChange={setParentId}
-                options={[
-                  { value: '', label: '作为一级类别' },
-                  ...roots.filter((root) => root.id !== editing?.id).map((root) => ({ value: root.id, label: `归入：${root.name}` })),
-                ]}
-                placeholder="输入一级类别名称筛选"
-              />
-              <div className="flex gap-2">
-                {editing && (
-                  <AppButton type="button" onClick={resetForm} size="sm">
-                    取消
-                  </AppButton>
-                )}
-                <AppButton type="button" onClick={save} disabled={saving} variant="primary" size="sm">
-                  {saving ? '保存中...' : '保存'}
+    <>
+      {canUpdate && (
+        <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4">
+          <div className="mb-3 text-sm font-semibold text-gray-900">{editing ? '编辑类别' : '新增类别'}</div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(180px,0.7fr)_auto]">
+            <input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="类别名称，如机床作业"
+              maxLength={40}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+            />
+            <SearchableSelect
+              value={parentId}
+              onChange={setParentId}
+              options={[
+                { value: '', label: '作为一级类别' },
+                ...roots.filter((root) => root.id !== editing?.id).map((root) => ({ value: root.id, label: `归入：${root.name}` })),
+              ]}
+              placeholder="输入一级类别名称筛选"
+            />
+            <div className="flex gap-2">
+              {editing && (
+                <AppButton type="button" onClick={resetForm} size="sm">
+                  取消
                 </AppButton>
-              </div>
+              )}
+              <AppButton type="button" onClick={save} disabled={saving} variant="primary" size="sm">
+                {saving ? '保存中...' : '保存'}
+              </AppButton>
             </div>
           </div>
+        </div>
+      )}
 
-          <div className="mt-4 space-y-3">
-            {roots.map((root) => (
-              <div key={root.id} className="rounded-lg border border-gray-200">
-                <CategoryRow category={root} onEdit={startEdit} onRemove={remove} />
-                {(childrenByParent.get(root.id) || []).map((child) => (
-                  <div key={child.id} className="border-t border-gray-100 bg-gray-50/60 pl-6">
-                    <CategoryRow category={child} onEdit={startEdit} onRemove={remove} child />
-                  </div>
-                ))}
+      <div className={`${canUpdate ? 'mt-4' : ''} space-y-3`}>
+        {roots.map((root) => (
+          <div key={root.id} className="rounded-lg border border-gray-200">
+            <CategoryRow category={root} onEdit={startEdit} onRemove={remove} canUpdate={canUpdate} canDelete={canDelete} />
+            {(childrenByParent.get(root.id) || []).map((child) => (
+              <div key={child.id} className="border-t border-gray-100 bg-gray-50/60 pl-6">
+                <CategoryRow category={child} onEdit={startEdit} onRemove={remove} canUpdate={canUpdate} canDelete={canDelete} child />
               </div>
             ))}
           </div>
-    </ModalDialog>
+        ))}
+        {roots.length === 0 && (
+          <div className="rounded-lg border border-dashed border-gray-200 px-4 py-10 text-center text-sm text-gray-500">
+            暂无文档类别
+          </div>
+        )}
+      </div>
+    </>
   )
 }
 
@@ -205,11 +194,15 @@ function CategoryRow({
   child = false,
   onEdit,
   onRemove,
+  canUpdate,
+  canDelete,
 }: {
   category: DocumentCategoryItem
   child?: boolean
   onEdit: (category: DocumentCategoryItem) => void
   onRemove: (category: DocumentCategoryItem) => void
+  canUpdate: boolean
+  canDelete: boolean
 }) {
   const cannotDelete = category._count.children > 0 || category._count.workInstructions > 0
   const deleteReason = category._count.children > 0
@@ -226,20 +219,10 @@ function CategoryRow({
           {category._count.workInstructions} 条文档{!child ? ` · ${category._count.children} 个二级类别` : ''}
         </div>
       </div>
-      <div className="flex shrink-0 gap-2">
-        <button type="button" onClick={() => onEdit(category)} className="rounded border border-blue-300 px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-50">
-          编辑
-        </button>
-        <button
-          type="button"
-          onClick={() => onRemove(category)}
-          disabled={cannotDelete}
-          title={deleteReason}
-          className="rounded border border-red-300 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400"
-        >
-          删除
-        </button>
-      </div>
+      {(canUpdate || canDelete) && <div className="flex shrink-0 gap-2">
+        {canUpdate && <button type="button" onClick={() => onEdit(category)} className="rounded border border-blue-300 px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-50">编辑</button>}
+        {canDelete && <button type="button" onClick={() => onRemove(category)} disabled={cannotDelete} title={deleteReason} className="rounded border border-red-300 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400">删除</button>}
+      </div>}
     </div>
   )
 }

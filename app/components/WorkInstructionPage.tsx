@@ -13,7 +13,7 @@ import DocumentFileViewer from './DocumentFileViewer'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import SearchableSelect from './SearchableSelect'
 import { normalizeAttachmentRotation } from '@/lib/attachment-rotation'
-import DocumentCategoryManagerModal, {
+import {
   DocumentCategoryItem,
   documentCategoryLabel,
   documentCategoryOptions,
@@ -414,7 +414,6 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const [pageSize, setPageSize] = useState(20)
   const [pagination, setPagination] = useState<PaginationState>({ page: 1, pageSize: 20, total: 0, totalPages: 1 })
   const [showModal, setShowModal] = useState(false)
-  const [showCategoryManager, setShowCategoryManager] = useState(false)
   const [editing, setEditing] = useState<WorkInstruction | null>(null)
   const [detailEditing, setDetailEditing] = useState(false)
   const [detailFullscreen, setDetailFullscreen] = useState(false)
@@ -988,21 +987,12 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         </>
       )}
       actions={(
-        <>
-          <button
-            type="button"
-            onClick={() => setShowCategoryManager(true)}
-            className="shrink-0 whitespace-nowrap rounded-lg border border-blue-300 px-3 py-1.5 text-xs font-medium text-blue-700 transition hover:bg-blue-50 sm:px-4 sm:py-2 sm:text-sm"
-          >
-            类别管理
-          </button>
-          <AppButton
-            variant="create"
-            onClick={openAddModal}
-          >
-            新建文档
-          </AppButton>
-        </>
+        <AppButton
+          variant="create"
+          onClick={openAddModal}
+        >
+          新建文档
+        </AppButton>
       )}
     />
   )
@@ -1546,17 +1536,6 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           </div>
         </div>
       )}
-
-      <DocumentCategoryManagerModal
-        open={showCategoryManager}
-        categories={categories}
-        onClose={() => setShowCategoryManager(false)}
-        onChanged={async () => {
-          await fetchCategories()
-          await fetchInstructions()
-        }}
-        onMessage={onMessage}
-      />
 
       {viewer && selectedViewerAttachment && (
         <div className="fixed inset-0 z-[70] flex flex-col bg-slate-950 text-white">

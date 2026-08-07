@@ -29,6 +29,7 @@ const definitions = [
   { key: 'employees', kind: 'resource', title: '员工资料', description: '业务员工与账号关联', toolbar: 'required' },
   { key: 'locationSettings', kind: 'settings', title: '库位配置', description: '库位与用途配置', toolbar: 'required' },
   { key: 'unitSettings', kind: 'settings', title: '单位配置', description: '计量单位与换算配置', toolbar: 'required' },
+  { key: 'documentCategories', kind: 'settings', title: '文档类别', description: '产品文档一级与二级业务分类配置', toolbar: 'required' },
   { key: 'workCenters', kind: 'settings', title: '工作中心', description: '生产能力区域配置', toolbar: 'required' },
   { key: 'processTemplates', kind: 'settings', title: '加工工艺', description: '工艺模板与成本参数', toolbar: 'required' },
   { key: 'processRoutes', kind: 'settings', title: '物料路线', description: '产品路线与工步配置', toolbar: 'required' },

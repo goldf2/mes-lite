@@ -22,6 +22,7 @@ export const workspaceFunctionKeys = [
   'customers',
   'locationSettings',
   'unitSettings',
+  'documentCategories',
   'workCenters',
   'processTemplates',
   'processRoutes',
