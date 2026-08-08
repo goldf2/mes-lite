@@ -16,6 +16,7 @@ import FormField, { appInputClassName, appTextareaClassName } from './FormField'
 import AppButton from './AppButton'
 import { MappedResourceAdvancedSearch } from './resource'
 import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
+import BusinessDocumentDetailDialog from './BusinessDocumentDetailDialog'
 
 interface MaterialChoice {
   id: string
@@ -91,6 +92,7 @@ export default function ReturnPage({
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  const [detailItem, setDetailItem] = useState<ReturnOrder | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.return.viewMode', 'list')
   const advancedSearchFields = useMemo(() => [
     { key: 'status', label: '状态', value: selectedStatuses.length === 1 ? selectedStatuses[0] : '', onChange: (value: string) => setSelectedStatuses(value ? [value] : statusOptions.map((option) => option.value)), options: statusOptions },
@@ -359,8 +361,9 @@ export default function ReturnPage({
                   {item.note && <div className="mt-2 text-xs text-gray-500">备注：{item.note}</div>}
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                  <AttachmentPanel ownerType="RETURN_ORDER" ownerId={item.id} compact onMessage={onMessage} />
+                  <AttachmentPanel ownerType="RETURN_ORDER" ownerId={item.id} compact compactMode="summary" onMessage={onMessage} />
                   <div className="flex flex-wrap gap-2">
+                    <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
                     <BusinessDocumentPrintLink kind="return" id={item.id} />
                     {item.status === 'PENDING' && (
                       <>
@@ -433,31 +436,34 @@ export default function ReturnPage({
                       {new Date(item.createdAt).toLocaleString('zh-CN')}
                     </td>
                     <td className="px-4 py-3">
-                      <AttachmentPanel ownerType="RETURN_ORDER" ownerId={item.id} compact onMessage={onMessage} />
+                      <AttachmentPanel ownerType="RETURN_ORDER" ownerId={item.id} compact compactMode="summary" onMessage={onMessage} />
                     </td>
                     <td className="px-4 py-3">
-                      <BusinessDocumentPrintLink kind="return" id={item.id} compact />
-                      {item.status === 'PENDING' && (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleAction(item.id, 'process')}
-                            disabled={loading}
-                            className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition disabled:opacity-50"
-                          >
-                            处理
-                          </button>
-                          <button
-                            onClick={() => handleAction(item.id, 'reject')}
-                            disabled={loading}
-                            className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition disabled:opacity-50"
-                          >
-                            拒绝
-                          </button>
-                        </div>
-                      )}
-                      {item.status !== 'PENDING' && (
-                        <span className="text-xs text-gray-400">无操作</span>
-                      )}
+                      <div className="flex flex-wrap gap-2">
+                        <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
+                        <BusinessDocumentPrintLink kind="return" id={item.id} compact />
+                        {item.status === 'PENDING' && (
+                          <>
+                            <button
+                              onClick={() => handleAction(item.id, 'process')}
+                              disabled={loading}
+                              className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition disabled:opacity-50"
+                            >
+                              处理
+                            </button>
+                            <button
+                              onClick={() => handleAction(item.id, 'reject')}
+                              disabled={loading}
+                              className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition disabled:opacity-50"
+                            >
+                              拒绝
+                            </button>
+                          </>
+                        )}
+                        {item.status !== 'PENDING' && (
+                          <span className="text-xs text-gray-400">无操作</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -466,6 +472,28 @@ export default function ReturnPage({
           </div>
         )}
       </div>
+
+      {detailItem && (
+        <BusinessDocumentDetailDialog
+          title={`退货单 ${detailItem.returnNo}`}
+          description={`关联发货单：${detailItem.shipment?.shipmentNo || '-'} · ${statusLabels[detailItem.status] || detailItem.status}`}
+          ownerType="RETURN_ORDER"
+          ownerId={detailItem.id}
+          onClose={() => setDetailItem(null)}
+          onMessage={onMessage}
+          headerActions={<BusinessDocumentPrintLink kind="return" id={detailItem.id} />}
+        >
+          <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div><dt className="text-gray-500">物料</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.product?.name}</dd><dd className="text-xs text-gray-500">{detailItem.product?.sku}</dd></div>
+            <div><dt className="text-gray-500">客户</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.shipment?.customerRef?.name || detailItem.product?.customer?.name || '通用/未绑定'}</dd></div>
+            <div><dt className="text-gray-500">退回库位</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.location ? `${detailItem.location.code} · ${detailItem.location.name}` : '-'}</dd></div>
+            <div><dt className="text-gray-500">创建时间</dt><dd className="mt-1 font-medium text-gray-900">{new Date(detailItem.createdAt).toLocaleString('zh-CN')}</dd></div>
+            <div><dt className="text-gray-500">退货数量</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.qty}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-gray-500">退货原因</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.reason}</dd></div>
+            <div><dt className="text-gray-500">处理时间</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.processedAt ? new Date(detailItem.processedAt).toLocaleString('zh-CN') : '-'}</dd></div>
+          </dl>
+        </BusinessDocumentDetailDialog>
+      )}
 
       {showModal && (
         <ModalDialog

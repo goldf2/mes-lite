@@ -16,6 +16,7 @@ import ModalDialog, { ModalActions } from './ModalDialog'
 import AppButton from './AppButton'
 import { MappedResourceAdvancedSearch } from './resource'
 import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
+import BusinessDocumentDetailDialog from './BusinessDocumentDetailDialog'
 
 const displayPriceUnit = (unit: string | null | undefined) => unit === 'm' ? '米' : unit || '-'
 
@@ -446,6 +447,7 @@ export default function MaterialInPage({
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [editingItem, setEditingItem] = useState<MaterialIn | null>(null)
+  const [detailItem, setDetailItem] = useState<MaterialIn | null>(null)
   const [draftItems, setDraftItems] = useState<MaterialInDraftItem[]>([])
   const [linkedBatchRatios, setLinkedBatchRatios] = useState<{ lengthPerPiece: number; weightPerLength: number } | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.materialIn.viewMode', 'list')
@@ -1086,8 +1088,9 @@ export default function MaterialInPage({
                   · 按 {displayPriceUnit(item.priceUnit || item.valuationUnit)} 计价
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                  <AttachmentPanel ownerType="MATERIAL_IN" ownerId={item.id} compact onMessage={onMessage} />
+                  <AttachmentPanel ownerType="MATERIAL_IN" ownerId={item.id} compact compactMode="summary" onMessage={onMessage} />
                   <div className="flex flex-wrap gap-2">
+                    <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
                     <BusinessDocumentPrintLink kind="material-in" id={item.id} />
                     {item.status === 'PENDING' && (
                       <>
@@ -1195,10 +1198,11 @@ export default function MaterialInPage({
                       {new Date(item.inboundDate).toLocaleString('zh-CN')}
                     </td>
                     <td className="px-4 py-3">
-                      <AttachmentPanel ownerType="MATERIAL_IN" ownerId={item.id} compact onMessage={onMessage} />
+                      <AttachmentPanel ownerType="MATERIAL_IN" ownerId={item.id} compact compactMode="summary" onMessage={onMessage} />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
+                        <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
                         <BusinessDocumentPrintLink kind="material-in" id={item.id} compact />
                         {item.status === 'PENDING' && (
                           <>
@@ -1246,6 +1250,29 @@ export default function MaterialInPage({
           </div>
         )}
       </div>
+
+      {detailItem && (
+        <BusinessDocumentDetailDialog
+          title={`来料单 ${detailItem.inboundNo}`}
+          description={`凭据号：${detailItem.voucherNo || '-'} · ${statusLabels[detailItem.status] || detailItem.status}`}
+          ownerType="MATERIAL_IN"
+          ownerId={detailItem.id}
+          onClose={() => setDetailItem(null)}
+          onMessage={onMessage}
+          headerActions={<BusinessDocumentPrintLink kind="material-in" id={detailItem.id} />}
+        >
+          <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div><dt className="text-gray-500">供应商</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.supplier?.name || '-'}</dd></div>
+            <div><dt className="text-gray-500">物料</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.material?.name}</dd><dd className="text-xs text-gray-500">{detailItem.material?.code}</dd></div>
+            <div><dt className="text-gray-500">收货库位</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.location ? `${detailItem.location.code} · ${detailItem.location.name}` : '默认库位'}</dd></div>
+            <div><dt className="text-gray-500">入库日期</dt><dd className="mt-1 font-medium text-gray-900">{new Date(detailItem.inboundDate).toLocaleString('zh-CN')}</dd></div>
+            <div><dt className="text-gray-500">库存数量</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.qty} {detailItem.unit}</dd></div>
+            <div><dt className="text-gray-500">核算数量</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.valuationQty} {detailItem.valuationUnit}</dd></div>
+            <div><dt className="text-gray-500">批次</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.batchNo || '-'}</dd></div>
+            <div><dt className="text-gray-500">金额</dt><dd className="mt-1 font-medium text-gray-900">¥{detailItem.totalAmount.toFixed(2)}</dd></div>
+          </dl>
+        </BusinessDocumentDetailDialog>
+      )}
 
       {showModal && (
         <ModalDialog

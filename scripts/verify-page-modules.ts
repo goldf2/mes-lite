@@ -49,17 +49,23 @@ const requiredToolbarCount = pageModuleDefinitions.filter((definition) => defini
 
 const materialPageSource = readFileSync(join(root, 'app/components/MaterialPage.tsx'), 'utf8')
 const workInstructionPageSource = readFileSync(join(root, 'app/components/WorkInstructionPage.tsx'), 'utf8')
+const salesOrderPageSource = readFileSync(join(root, 'app/components/SalesOrderPage.tsx'), 'utf8')
+const flowTransferPageSource = readFileSync(join(root, 'app/components/FlowTransferPage.tsx'), 'utf8')
 const pageAuditSource = readFileSync(join(root, 'docs/minierp/页面模块分类与接入清单.md'), 'utf8')
 assert.doesNotMatch(materialPageSource, /repeat\(auto-fit/, '物料卡片不得在单条结果时拉伸占满整行')
 assert.doesNotMatch(workInstructionPageSource, /repeat\(auto-fit/, '文档卡片不得在单条结果时拉伸占满整行')
 assert.match(materialPageSource, /md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4/, '物料卡片必须使用最多四列的明确响应式网格')
 assert.match(workInstructionPageSource, /md:grid-cols-2 2xl:grid-cols-3/, '文档卡片必须使用最多三列的明确响应式网格')
+assert.match(salesOrderPageSource, /usePersistedViewMode\('mes-lite\.salesOrders\.viewMode'/, '销售订单必须保存卡片/列表偏好')
+assert.match(salesOrderPageSource, /viewMode === 'card'/, '销售订单必须提供卡片与列表两种显示形态')
+assert.match(flowTransferPageSource, /usePersistedViewMode\('mes-lite\.flowTransfers\.viewMode'/, '流程转移必须保存卡片/列表偏好')
+assert.match(flowTransferPageSource, /viewMode === 'card'/, '流程转移必须提供卡片与列表两种显示形态')
 
 for (const key of expectedFunctionKeys) {
   assert.match(pageAuditSource, new RegExp('\\| `' + key + '` \\|'), `页面标准化审计缺少 ${key}`)
 }
-assert.match(pageAuditSource, /已标准化多视图：17 个/, '页面标准化审计的多视图统计必须保持同步')
-assert.match(pageAuditSource, /应补多视图：2 个/, '页面标准化审计的待改造统计必须保持同步')
+assert.match(pageAuditSource, /已标准化多视图：19 个/, '页面标准化审计的多视图统计必须保持同步')
+assert.match(pageAuditSource, /应补多视图：0 个/, '页面标准化审计的待改造统计必须保持同步')
 assert.match(pageAuditSource, /固定形态合理：18 个/, '页面标准化审计的固定形态统计必须保持同步')
 
 console.log(`页面模块校验通过：${keys.length} 个页面入口，${new Set(pageModuleDefinitions.map((item) => item.kind)).size} 类公共骨架，${requiredToolbarCount} 个页面强制公共顶部工具栏，${toolbarExceptions.length} 个明确例外。`)

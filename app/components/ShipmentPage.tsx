@@ -14,6 +14,7 @@ import ModalDialog, { ModalActions } from './ModalDialog'
 import AppButton from './AppButton'
 import { MappedResourceAdvancedSearch } from './resource'
 import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
+import BusinessDocumentDetailDialog from './BusinessDocumentDetailDialog'
 
 interface ShippableSalesItem {
   id: string
@@ -122,6 +123,7 @@ export default function ShipmentPage({
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  const [detailItem, setDetailItem] = useState<Shipment | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.shipment.viewMode', 'list')
   const advancedSearchFields = useMemo(() => [
     { key: 'status', label: '状态', value: selectedStatuses.length === 1 ? selectedStatuses[0] : '', onChange: (value: string) => setSelectedStatuses(value ? [value] : statusOptions.map((option) => option.value)), options: statusOptions },
@@ -422,8 +424,9 @@ export default function ShipmentPage({
                   </div>
                 )}
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                  <AttachmentPanel ownerType="SHIPMENT" ownerId={item.id} compact onMessage={onMessage} />
+                  <AttachmentPanel ownerType="SHIPMENT" ownerId={item.id} compact compactMode="summary" onMessage={onMessage} />
                   <div className="flex flex-wrap gap-2">
+                    <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
                     <BusinessDocumentPrintLink kind="shipment" id={item.id} />
                     {item.status === 'PENDING' && (
                       <button
@@ -509,10 +512,11 @@ export default function ShipmentPage({
                       {item.shippedAt ? new Date(item.shippedAt).toLocaleString('zh-CN') : '-'}
                     </td>
                     <td className="px-4 py-3">
-                      <AttachmentPanel ownerType="SHIPMENT" ownerId={item.id} compact onMessage={onMessage} />
+                      <AttachmentPanel ownerType="SHIPMENT" ownerId={item.id} compact compactMode="summary" onMessage={onMessage} />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
+                        <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
                         <BusinessDocumentPrintLink kind="shipment" id={item.id} />
                         {item.status === 'PENDING' && (
                           <button
@@ -552,6 +556,29 @@ export default function ShipmentPage({
           </div>
         )}
       </div>
+
+      {detailItem && (
+        <BusinessDocumentDetailDialog
+          title={`发货单 ${detailItem.shipmentNo}`}
+          description={`销售订单：${detailItem.salesOrder?.orderNo || '历史单据'} · ${statusLabels[detailItem.status] || detailItem.status}`}
+          ownerType="SHIPMENT"
+          ownerId={detailItem.id}
+          onClose={() => setDetailItem(null)}
+          onMessage={onMessage}
+          headerActions={<BusinessDocumentPrintLink kind="shipment" id={detailItem.id} />}
+        >
+          <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div><dt className="text-gray-500">物料</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.product?.name}</dd><dd className="text-xs text-gray-500">{detailItem.product?.sku}</dd></div>
+            <div><dt className="text-gray-500">客户</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.customer}</dd><dd className="text-xs text-gray-500">{detailItem.customerPhone || '-'}</dd></div>
+            <div><dt className="text-gray-500">发货库位</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.location ? `${detailItem.location.code} · ${detailItem.location.name}` : '默认库位'}</dd></div>
+            <div><dt className="text-gray-500">物流单号</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.trackingNo || '-'}</dd></div>
+            <div><dt className="text-gray-500">数量</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.qty}</dd></div>
+            <div><dt className="text-gray-500">金额</dt><dd className="mt-1 font-medium text-gray-900">¥{detailItem.totalAmount.toFixed(2)}</dd></div>
+            <div><dt className="text-gray-500">发货时间</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.shippedAt ? new Date(detailItem.shippedAt).toLocaleString('zh-CN') : '-'}</dd></div>
+            <div><dt className="text-gray-500">收货地址</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.address || '-'}</dd></div>
+          </dl>
+        </BusinessDocumentDetailDialog>
+      )}
 
       {showModal && (
         <ModalDialog

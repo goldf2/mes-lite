@@ -13,6 +13,7 @@ import ModalDialog, { ModalActions } from './ModalDialog'
 import AppButton from './AppButton'
 import { MappedResourceAdvancedSearch } from './resource'
 import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
+import BusinessDocumentDetailDialog from './BusinessDocumentDetailDialog'
 
 interface Order {
   id: string
@@ -108,6 +109,7 @@ export default function DispatchPage({
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  const [detailItem, setDetailItem] = useState<Dispatch | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.dispatch.viewMode.v2', 'card')
   const advancedSearchFields = useMemo(() => [
     { key: 'status', label: '状态', value: selectedStatuses.length === 1 ? selectedStatuses[0] : '', onChange: (value: string) => setSelectedStatuses(value ? [value] : statusOptions.map((option) => option.value)), options: statusOptions },
@@ -387,8 +389,9 @@ export default function DispatchPage({
                 </div>
                 {item.note && <div className="mt-3 rounded bg-gray-50 p-3 text-sm text-gray-600">{item.note}</div>}
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                  <AttachmentPanel ownerType="DISPATCH" ownerId={item.id} compact onMessage={onMessage} />
+                  <AttachmentPanel ownerType="DISPATCH" ownerId={item.id} compact compactMode="summary" onMessage={onMessage} />
                   <div className="flex flex-wrap gap-2">
+                    <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
                     <BusinessDocumentPrintLink kind="dispatch" id={item.id} />
                     {item.status === 'PENDING' && (
                       <button
@@ -478,40 +481,43 @@ export default function DispatchPage({
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <AttachmentPanel ownerType="DISPATCH" ownerId={item.id} compact onMessage={onMessage} />
+                      <AttachmentPanel ownerType="DISPATCH" ownerId={item.id} compact compactMode="summary" onMessage={onMessage} />
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
-                      <BusinessDocumentPrintLink kind="dispatch" id={item.id} compact />
-                      {item.status === 'PENDING' && (
-                        <button
-                          onClick={() => handleAction(item.id, 'dispatch')}
-                          disabled={loading}
-                          className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition disabled:opacity-50"
-                        >
-                          派工
-                        </button>
-                      )}
-                      {item.status === 'DISPATCHED' && (
-                        <button
-                          onClick={() => handleAction(item.id, 'start')}
-                          disabled={loading}
-                          className="px-3 py-1 bg-orange-600 text-white rounded text-xs hover:bg-orange-700 transition disabled:opacity-50"
-                        >
-                          开始
-                        </button>
-                      )}
-                      {item.status === 'IN_PROGRESS' && (
-                        <button
-                          onClick={() => handleAction(item.id, 'complete')}
-                          disabled={loading}
-                          className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition disabled:opacity-50"
-                        >
-                          完成
-                        </button>
-                      )}
-                      {(item.status === 'COMPLETED' || item.status === 'CANCELLED') && (
-                        <span className="text-xs text-gray-400">无操作</span>
-                      )}
+                      <div className="flex flex-wrap gap-2">
+                        <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
+                        <BusinessDocumentPrintLink kind="dispatch" id={item.id} compact />
+                        {item.status === 'PENDING' && (
+                          <button
+                            onClick={() => handleAction(item.id, 'dispatch')}
+                            disabled={loading}
+                            className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition disabled:opacity-50"
+                          >
+                            派工
+                          </button>
+                        )}
+                        {item.status === 'DISPATCHED' && (
+                          <button
+                            onClick={() => handleAction(item.id, 'start')}
+                            disabled={loading}
+                            className="px-3 py-1 bg-orange-600 text-white rounded text-xs hover:bg-orange-700 transition disabled:opacity-50"
+                          >
+                            开始
+                          </button>
+                        )}
+                        {item.status === 'IN_PROGRESS' && (
+                          <button
+                            onClick={() => handleAction(item.id, 'complete')}
+                            disabled={loading}
+                            className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition disabled:opacity-50"
+                          >
+                            完成
+                          </button>
+                        )}
+                        {(item.status === 'COMPLETED' || item.status === 'CANCELLED') && (
+                          <span className="text-xs text-gray-400">无操作</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -520,6 +526,29 @@ export default function DispatchPage({
           </div>
         )}
       </div>
+
+      {detailItem && (
+        <BusinessDocumentDetailDialog
+          title={`派工单 ${detailItem.dispatchNo}`}
+          description={`凭据号：${detailItem.voucherNo || '-'} · ${statusLabels[detailItem.status] || detailItem.status}`}
+          ownerType="DISPATCH"
+          ownerId={detailItem.id}
+          onClose={() => setDetailItem(null)}
+          onMessage={onMessage}
+          headerActions={<BusinessDocumentPrintLink kind="dispatch" id={detailItem.id} />}
+        >
+          <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div><dt className="text-gray-500">工单</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.order?.orderNo || '-'}</dd></div>
+            <div><dt className="text-gray-500">生产目标</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.order?.targetMaterial?.name || detailItem.order?.product?.name}</dd><dd className="text-xs text-gray-500">{detailItem.order?.targetMaterial?.code || detailItem.order?.product?.sku}</dd></div>
+            <div><dt className="text-gray-500">工序</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.step?.stepNo} · {detailItem.step?.name}</dd><dd className="text-xs text-gray-500">{detailItem.step?.workstation || '未指定工作中心'}</dd></div>
+            <div><dt className="text-gray-500">工人</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.workerName}</dd><dd className="text-xs text-gray-500">{detailItem.workerId || '-'}</dd></div>
+            <div><dt className="text-gray-500">计划数量</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.planQty}</dd></div>
+            <div><dt className="text-gray-500">优先级</dt><dd className="mt-1 font-medium text-gray-900">{priorityLabels[detailItem.priority] || detailItem.priority}</dd></div>
+            <div><dt className="text-gray-500">创建时间</dt><dd className="mt-1 font-medium text-gray-900">{new Date(detailItem.createdAt).toLocaleString('zh-CN')}</dd></div>
+            <div><dt className="text-gray-500">备注</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.note || '-'}</dd></div>
+          </dl>
+        </BusinessDocumentDetailDialog>
+      )}
 
       {showModal && (
         <ModalDialog

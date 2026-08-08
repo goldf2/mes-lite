@@ -13,6 +13,9 @@ import AppLoadingIndicator from './AppLoadingIndicator'
 import AttachmentPanel from './AttachmentPanel'
 import { MappedResourceAdvancedSearch } from './resource'
 import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
+import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
+import SortableTableHeader from './SortableTableHeader'
+import useClientTableSort from './useClientTableSort'
 
 interface CustomerOption {
   id: string
@@ -127,6 +130,7 @@ export default function SalesOrderPage({
   const [saving, setSaving] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [detailOrder, setDetailOrder] = useState<SalesOrder | null>(null)
+  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.salesOrders.viewMode', 'card')
   const [form, setForm] = useState(emptyForm)
   const [pendingAction, setPendingAction] = useState<{ order: SalesOrder; action: 'confirm' | 'cancel' } | null>(null)
   const advancedSearchFields = useMemo(() => [
@@ -175,6 +179,16 @@ export default function SalesOrderPage({
     completed: orders.filter((order) => order.status === 'COMPLETED').length,
     amount: orders.filter((order) => order.status !== 'CANCELLED').reduce((sum, order) => sum + Number(order.totalAmount), 0),
   }), [orders])
+
+  const orderSort = useClientTableSort(orders, {
+    orderNo: (order) => order.orderNo,
+    customer: (order) => `${order.customer.code} ${order.customer.name}`,
+    orderDate: (order) => new Date(order.orderDate),
+    deliveryDate: (order) => order.deliveryDate ? new Date(order.deliveryDate) : null,
+    status: (order) => statusMeta[order.status]?.label || order.status,
+    amount: (order) => order.totalAmount,
+    shipments: (order) => order._count.shipments,
+  }, 'orderDate', 'desc')
 
   const formTotal = form.items.reduce((sum, item) => sum + Number(item.qty || 0) * Number(item.unitPrice || 0), 0)
 
@@ -257,8 +271,21 @@ export default function SalesOrderPage({
         />
       )}
       advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
+      viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
       actions={<AppButton variant="create" onClick={() => { setForm(emptyForm()); setFormOpen(true) }}>新建销售订单</AppButton>}
     />
+  )
+
+  const orderActions = (order: SalesOrder, compact = false) => (
+    <div className="flex flex-wrap gap-2">
+      <AppButton size="sm" variant="secondary" onClick={() => setDetailOrder(order)}>详情</AppButton>
+      <BusinessDocumentPrintLink kind="sales-order" id={order.id} compact={compact} />
+      {order.status === 'DRAFT' && <AppButton size="sm" variant="primary" onClick={() => setPendingAction({ order, action: 'confirm' })}>确认订单</AppButton>}
+      {['DRAFT', 'CONFIRMED'].includes(order.status) && <AppButton size="sm" variant="secondary" onClick={() => setPendingAction({ order, action: 'cancel' })}>取消订单</AppButton>}
+      {['CONFIRMED', 'PARTIAL'].includes(order.status) && order.items.some((item) => item.remainingQty > 0) && onOpenShipment && (
+        <AppButton size="sm" variant="create" onClick={onOpenShipment}>生成发货单</AppButton>
+      )}
+    </div>
   )
 
   return (
@@ -276,9 +303,9 @@ export default function SalesOrderPage({
             <AppLoadingIndicator label="正在加载销售订单..." />
           ) : orders.length === 0 ? (
             <div className="py-12 text-center text-sm text-gray-500">暂无销售订单</div>
-          ) : (
+          ) : viewMode === 'card' ? (
             <div className="divide-y divide-gray-200">
-              {orders.map((order) => {
+              {orderSort.sortedRows.map((order) => {
                 const meta = statusMeta[order.status] || { label: order.status, className: 'bg-gray-100 text-gray-700' }
                 return (
                   <article key={order.id} className="px-4 py-4 sm:px-6">
@@ -322,19 +349,47 @@ export default function SalesOrderPage({
                         <div className="text-xs text-gray-500">{order.note || `已生成 ${order._count.shipments} 张发货单`}</div>
                         <AttachmentPanel ownerType="SALES_ORDER" ownerId={order.id} compact compactMode="summary" onMessage={onMessage} />
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <AppButton size="sm" variant="secondary" onClick={() => setDetailOrder(order)}>详情</AppButton>
-                        <BusinessDocumentPrintLink kind="sales-order" id={order.id} />
-                        {order.status === 'DRAFT' && <AppButton size="sm" variant="primary" onClick={() => setPendingAction({ order, action: 'confirm' })}>确认订单</AppButton>}
-                        {['DRAFT', 'CONFIRMED'].includes(order.status) && <AppButton size="sm" variant="secondary" onClick={() => setPendingAction({ order, action: 'cancel' })}>取消订单</AppButton>}
-                        {['CONFIRMED', 'PARTIAL'].includes(order.status) && order.items.some((item) => item.remainingQty > 0) && onOpenShipment && (
-                          <AppButton size="sm" variant="create" onClick={onOpenShipment}>生成发货单</AppButton>
-                        )}
-                      </div>
+                      {orderActions(order)}
                     </div>
                   </article>
                 )
               })}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1120px] text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <SortableTableHeader column="orderNo" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>销售订单</SortableTableHeader>
+                    <SortableTableHeader column="customer" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>客户</SortableTableHeader>
+                    <SortableTableHeader column="orderDate" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>订单日期</SortableTableHeader>
+                    <SortableTableHeader column="deliveryDate" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>交付日期</SortableTableHeader>
+                    <SortableTableHeader column="status" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>状态</SortableTableHeader>
+                    <SortableTableHeader column="amount" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>金额</SortableTableHeader>
+                    <SortableTableHeader column="shipments" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>发货单</SortableTableHeader>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">附件</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {orderSort.sortedRows.map((order) => {
+                    const meta = statusMeta[order.status] || { label: order.status, className: 'bg-gray-100 text-gray-700' }
+                    return (
+                      <tr key={order.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3"><div className="font-mono font-semibold text-blue-700">{order.orderNo}</div><div className="text-xs text-gray-500">客户单号：{order.voucherNo || '-'}</div></td>
+                        <td className="px-4 py-3"><div className="font-medium text-gray-900">{order.customer.name}</div><div className="text-xs text-gray-500">{order.customer.code}</div></td>
+                        <td className="px-4 py-3 text-gray-700">{dateText(order.orderDate)}</td>
+                        <td className="px-4 py-3 text-gray-700">{dateText(order.deliveryDate)}</td>
+                        <td className="px-4 py-3"><span className={`rounded px-2 py-1 text-xs font-medium ${meta.className}`}>{meta.label}</span></td>
+                        <td className="px-4 py-3 font-medium text-gray-900">{money(order.totalAmount)}</td>
+                        <td className="px-4 py-3 text-gray-700">{order._count.shipments} 张</td>
+                        <td className="px-4 py-3"><AttachmentPanel ownerType="SALES_ORDER" ownerId={order.id} compact compactMode="summary" onMessage={onMessage} /></td>
+                        <td className="px-4 py-3">{orderActions(order, true)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

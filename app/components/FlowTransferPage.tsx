@@ -13,6 +13,9 @@ import MetricCard from './MetricCard'
 import AppLoadingIndicator from './AppLoadingIndicator'
 import { MappedResourceAdvancedSearch } from './resource'
 import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
+import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
+import SortableTableHeader from './SortableTableHeader'
+import useClientTableSort from './useClientTableSort'
 
 interface LocationOption {
   id: string
@@ -117,6 +120,7 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
+  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.flowTransfers.viewMode', 'card')
   const [editingTransfer, setEditingTransfer] = useState<FlowTransfer | null>(null)
   const [form, setForm] = useState<TransferForm>(emptyForm)
   const [confirmingTransfer, setConfirmingTransfer] = useState<FlowTransfer | null>(null)
@@ -171,6 +175,17 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
     result.materialIds.add(transfer.material.id)
     return result
   }, { draft: 0, confirmed: 0, reversed: 0, materialIds: new Set<string>() }), [transfers])
+
+  const transferSort = useClientTableSort(transfers, {
+    transferNo: (transfer) => transfer.transferNo,
+    material: (transfer) => `${transfer.material.code} ${transfer.material.name}`,
+    source: (transfer) => locationLabel(transfer.sourceLocation),
+    target: (transfer) => locationLabel(transfer.targetLocation),
+    quantity: (transfer) => transfer.quantity,
+    employee: (transfer) => transfer.employee ? `${transfer.employee.code} ${transfer.employee.name}` : transfer.operator,
+    status: (transfer) => statusMeta[transfer.status].label,
+    transferDate: (transfer) => new Date(transfer.transferDate),
+  }, 'transferDate', 'desc')
 
   const openCreate = () => {
     setEditingTransfer(null)
@@ -308,6 +323,7 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
             />
           )}
           advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
+          viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
           actions={<AppButton variant="create" onClick={openCreate}>新建流程转移</AppButton>}
         />
       </TopBarPortal>
@@ -328,9 +344,9 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
           <AppLoadingIndicator label="正在加载流程转移..." className="rounded-lg bg-white shadow-sm" />
         ) : transfers.length === 0 ? (
           <div className="rounded-lg bg-white py-16 text-center text-sm text-gray-500 shadow-sm">暂无流程转移记录</div>
-        ) : (
+        ) : viewMode === 'card' ? (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            {transfers.map((transfer) => {
+            {transferSort.sortedRows.map((transfer) => {
               const meta = statusMeta[transfer.status]
               const material = materials.find((item) => item.id === transfer.material.id)
               return (
@@ -365,6 +381,42 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
                 </article>
               )
             })}
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-lg bg-white shadow-sm">
+            <table className="w-full min-w-[1180px] text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <SortableTableHeader column="transferNo" activeColumn={transferSort.sortColumn} direction={transferSort.sortDirection} onSort={transferSort.toggleSort}>转移单号</SortableTableHeader>
+                  <SortableTableHeader column="material" activeColumn={transferSort.sortColumn} direction={transferSort.sortDirection} onSort={transferSort.toggleSort}>物料</SortableTableHeader>
+                  <SortableTableHeader column="source" activeColumn={transferSort.sortColumn} direction={transferSort.sortDirection} onSort={transferSort.toggleSort}>来源库位</SortableTableHeader>
+                  <SortableTableHeader column="target" activeColumn={transferSort.sortColumn} direction={transferSort.sortDirection} onSort={transferSort.toggleSort}>目标库位</SortableTableHeader>
+                  <SortableTableHeader column="quantity" activeColumn={transferSort.sortColumn} direction={transferSort.sortDirection} onSort={transferSort.toggleSort}>数量</SortableTableHeader>
+                  <SortableTableHeader column="employee" activeColumn={transferSort.sortColumn} direction={transferSort.sortDirection} onSort={transferSort.toggleSort}>操作员工</SortableTableHeader>
+                  <SortableTableHeader column="status" activeColumn={transferSort.sortColumn} direction={transferSort.sortDirection} onSort={transferSort.toggleSort}>状态</SortableTableHeader>
+                  <SortableTableHeader column="transferDate" activeColumn={transferSort.sortColumn} direction={transferSort.sortDirection} onSort={transferSort.toggleSort}>转移日期</SortableTableHeader>
+                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-600">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {transferSort.sortedRows.map((transfer) => {
+                  const meta = statusMeta[transfer.status]
+                  return (
+                    <tr key={transfer.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-mono font-semibold text-blue-700">{transfer.transferNo}</td>
+                      <td className="px-4 py-3"><div className="font-medium text-gray-900">{transfer.material.name}</div><div className="font-mono text-xs text-gray-500">{transfer.material.code}</div></td>
+                      <td className="px-4 py-3 text-gray-700">{locationLabel(transfer.sourceLocation)}</td>
+                      <td className="px-4 py-3 text-gray-700">{locationLabel(transfer.targetLocation)}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{numberText(transfer.quantity)} {transfer.unit}</td>
+                      <td className="px-4 py-3 text-gray-700">{transfer.employee ? `${transfer.employee.code} · ${transfer.employee.name}` : transfer.operator}</td>
+                      <td className="px-4 py-3"><span className={`rounded px-2 py-1 text-xs font-medium ${meta.className}`}>{meta.label}</span></td>
+                      <td className="px-4 py-3 text-gray-700">{new Date(transfer.transferDate).toLocaleDateString('zh-CN')}</td>
+                      <td className="px-4 py-3">{actions(transfer)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

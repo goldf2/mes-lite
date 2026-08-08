@@ -6,6 +6,13 @@ const root = process.cwd()
 const attachmentPanelSource = readFileSync(join(root, 'app/components/AttachmentPanel.tsx'), 'utf8')
 const productionModuleSource = readFileSync(join(root, 'modules/production/ui/ProductionOrderModule.tsx'), 'utf8')
 const salesOrderSource = readFileSync(join(root, 'app/components/SalesOrderPage.tsx'), 'utf8')
+const detailDialogSource = readFileSync(join(root, 'app/components/BusinessDocumentDetailDialog.tsx'), 'utf8')
+const detailManagedPages = [
+  ['来料', 'app/components/MaterialInPage.tsx'],
+  ['派工', 'app/components/DispatchPage.tsx'],
+  ['发货', 'app/components/ShipmentPage.tsx'],
+  ['退货', 'app/components/ReturnPage.tsx'],
+] as const
 
 assert.match(attachmentPanelSource, /title\s*=\s*'附件管理'/, '公共附件模块默认名称必须为附件管理')
 assert.match(attachmentPanelSource, /compactMode\?:\s*'manage'\s*\|\s*'summary'/, '附件模块必须提供列表摘要模式')
@@ -20,5 +27,13 @@ assert.match(productionModuleSource, /enableAiRecognition/, '生产订单详情�
 assert.match(salesOrderSource, /compactMode="summary"/, '销售订单列表必须只展示附件摘要')
 assert.match(salesOrderSource, /title="附件管理"/, '销售订单详情必须提供完整附件管理')
 assert.match(salesOrderSource, /系统生成单据/, '销售订单详情必须明确标识系统生成单据')
+assert.match(detailDialogSource, /系统生成单据/, '公共单据详情必须明确标识系统生成单据')
+assert.match(detailDialogSource, /title="附件管理"/, '公共单据详情必须提供完整附件管理')
+assert.match(detailDialogSource, /enableAiRecognition/, '公共单据详情必须启用 AI 识别占位入口')
+for (const [label, sourcePath] of detailManagedPages) {
+  const source = readFileSync(join(root, sourcePath), 'utf8')
+  assert.match(source, /compactMode="summary"/, `${label}列表必须只展示附件摘要`)
+  assert.match(source, /BusinessDocumentDetailDialog/, `${label}必须使用公共单据详情骨架`)
+}
 
 console.log('附件管理契约验证通过：单据来源标识、列表摘要、统一预览下载和 AI 识别入口均已接入。')
