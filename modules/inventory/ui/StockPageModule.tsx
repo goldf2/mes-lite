@@ -1,17 +1,17 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import AppButton from '../../components/AppButton'
-import ModalDialog, { ModalActions } from '../../components/ModalDialog'
-import ResponsiveToolbarActions from '../../components/ResponsiveToolbarActions'
-import { SearchFieldWithPresets } from '../../components/SavedSearchPresets'
-import SearchableSelect from '../../components/SearchableSelect'
-import SortableTableHeader from '../../components/SortableTableHeader'
-import { getMultiSelectQuery } from '../../components/StatusCheckboxFilter'
-import TopBarPortal from '../../components/TopBarPortal'
-import ViewModeToggle, { usePersistedViewMode } from '../../components/ViewModeToggle'
-import useClientTableSort from '../../components/useClientTableSort'
-import { MappedResourceAdvancedSearch } from '../../components/resource'
+import AppButton from '@/app/components/AppButton'
+import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
+import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
+import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
+import SearchableSelect from '@/app/components/SearchableSelect'
+import SortableTableHeader from '@/app/components/SortableTableHeader'
+import { getMultiSelectQuery } from '@/app/components/StatusCheckboxFilter'
+import TopBarPortal from '@/app/components/TopBarPortal'
+import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
+import useClientTableSort from '@/app/components/useClientTableSort'
+import { MappedResourceAdvancedSearch } from '@/app/components/resource'
 
 interface Customer {
   id: string

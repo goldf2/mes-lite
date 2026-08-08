@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import AppLoadingIndicator from '../../components/AppLoadingIndicator'
-import { WorkspaceLauncher } from '../../components/WorkspacePages'
-import type { WorkspaceFunctionItem } from '../../components/WorkspacePages'
+import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
+import { WorkspaceLauncher } from '@/app/components/WorkspacePages'
+import type { WorkspaceFunctionItem } from '@/app/components/WorkspacePages'
 import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/workspace'
 
 interface DashboardStatusItem {

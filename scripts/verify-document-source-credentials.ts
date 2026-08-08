@@ -21,7 +21,7 @@ assert.match(attachmentPanelSource, /识别与字段填充服务将在下一阶�
 
 const ownerPageFiles: Array<[string, string]> = [
   ['app/components/MaterialInPage.tsx', 'MATERIAL_IN'],
-  ['app/features/production-orders/ProductionOrderModule.tsx', 'PRODUCTION_ORDER'],
+  ['modules/production/ui/ProductionOrderModule.tsx', 'PRODUCTION_ORDER'],
   ['app/components/DispatchPage.tsx', 'DISPATCH'],
   ['app/components/SalesOrderPage.tsx', 'SALES_ORDER'],
   ['app/components/ShipmentPage.tsx', 'SHIPMENT'],

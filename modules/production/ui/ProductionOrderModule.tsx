@@ -2,24 +2,24 @@
 
 import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import AppButton from '../../components/AppButton'
-import AppLoadingIndicator from '../../components/AppLoadingIndicator'
-import { SearchFieldWithPresets } from '../../components/SavedSearchPresets'
-import SearchableSelect from '../../components/SearchableSelect'
-import ResponsiveToolbarActions from '../../components/ResponsiveToolbarActions'
-import SortableTableHeader from '../../components/SortableTableHeader'
-import TopBarPortal from '../../components/TopBarPortal'
-import ViewModeToggle, { usePersistedViewMode } from '../../components/ViewModeToggle'
-import useClientTableSort from '../../components/useClientTableSort'
-import { MappedResourceAdvancedSearch } from '../../components/resource'
-import { getStatusQuery } from '../../components/StatusCheckboxFilter'
+import AppButton from '@/app/components/AppButton'
+import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
+import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
+import SearchableSelect from '@/app/components/SearchableSelect'
+import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
+import SortableTableHeader from '@/app/components/SortableTableHeader'
+import TopBarPortal from '@/app/components/TopBarPortal'
+import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
+import useClientTableSort from '@/app/components/useClientTableSort'
+import { MappedResourceAdvancedSearch } from '@/app/components/resource'
+import { getStatusQuery } from '@/app/components/StatusCheckboxFilter'
 import BusinessDocumentPrintLink, {
   generateBusinessDocumentPdfArchives,
   reserveBusinessDocumentPrintWindow,
-} from '../../components/BusinessDocumentPrintLink'
+} from '@/app/components/BusinessDocumentPrintLink'
 
-const AttachmentPanel = dynamic(() => import('../../components/AttachmentPanel'), { loading: () => <AppLoadingIndicator label="正在加载附件..." /> })
-const ProductionOrderActualPanel = dynamic(() => import('../../components/ProductionOrderActualPanel'), { loading: () => <AppLoadingIndicator label="正在加载生产实绩..." /> })
+const AttachmentPanel = dynamic(() => import('@/app/components/AttachmentPanel'), { loading: () => <AppLoadingIndicator label="正在加载附件..." /> })
+const ProductionOrderActualPanel = dynamic(() => import('@/app/components/ProductionOrderActualPanel'), { loading: () => <AppLoadingIndicator label="正在加载生产实绩..." /> })
 
 export type ProductionOrderMode = 'orders' | 'create' | 'detail'
 

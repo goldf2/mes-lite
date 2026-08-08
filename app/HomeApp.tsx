@@ -1,6 +1,6 @@
 'use client'
 
-// 应用壳实现；业务垂直切片逐步迁移到独立 feature 模块。
+// 应用壳实现；业务垂直切片通过 modules/<domain> 的公开入口挂载。
 
 import dynamic from 'next/dynamic'
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, type RefObject } from 'react'
@@ -62,9 +62,9 @@ const OperatorPage = dynamic(() => import('./components/OperatorPage'), { loadin
 const SystemPage = dynamic(() => import('./components/SystemPage'), { loading: FeaturePageLoading })
 const PermissionPage = dynamic(() => import('./components/PermissionPage'), { loading: FeaturePageLoading })
 const AiAssistantPanel = dynamic(() => import('./components/AiAssistantPanel'))
-const DashboardPage = dynamic(() => import('./features/dashboard/DashboardPage'), { loading: FeaturePageLoading })
-const ProductionOrderModule = dynamic(() => import('./features/production-orders/ProductionOrderModule'), { loading: FeaturePageLoading })
-const StockPageModule = dynamic(() => import('./features/stocks/StockPageModule'), { loading: FeaturePageLoading })
+const DashboardPage = dynamic(() => import('@/modules/workspace'), { loading: FeaturePageLoading })
+const ProductionOrderModule = dynamic(() => import('@/modules/production'), { loading: FeaturePageLoading })
+const StockPageModule = dynamic(() => import('@/modules/inventory'), { loading: FeaturePageLoading })
 
 // ==================== 类型定义 ====================
 
