@@ -42,6 +42,7 @@ assert.doesNotMatch(topNavigationSource, /ChevronDown|group\.icon/, '画布工�
 assert.doesNotMatch(topNavigationSource, /onPointerEnter|onMouseEnter|scheduleGroupSwitch|HOVER_SWITCH_DELAY_MS/, '顶部一级菜单必须只响应点击，不得因鼠标经过打开或切换弹层')
 assert.match(topNavigationSource, /panelTriggerRef[\s\S]*?getBoundingClientRect\(\)\.left\s*-\s*rootRect\.left/, '顶部二级菜单必须跟随触发入口定位')
 assert.match(topNavigationSource, /COMPACT_PANEL_WIDTH_PX[\s\S]*?compactGroupPanel/, '少量功能的顶部二级菜单必须使用紧凑尺寸')
+assert.match(topNavigationSource, /GROUP_PANEL_WIDTH_PX\s*=\s*384[\s\S]*?openPanel\.type\s*===\s*'group'/, '普通顶部二级菜单必须使用 384px 紧凑宽度，不得沿用聚合菜单宽度')
 assert.match(topNavigationSource, /isOpenGroup[\s\S]*?bg-blue-600 text-white/, '当前打开的顶部一级菜单必须显示主高亮')
 assert.match(topNavigationSource, /group\.active[\s\S]*?bg-blue-50 text-blue-700 ring-1/, '当前页面所属一级菜单必须使用区别于选择状态的稳定弱高亮')
 assert.match(topNavigationSource, /showPanelHeading\s*=\s*openPanel\?\.type\s*===\s*'search'\s*\|\|\s*openPanel\?\.type\s*===\s*'more'/, '普通一级菜单弹层不得重复显示一级菜单名称')

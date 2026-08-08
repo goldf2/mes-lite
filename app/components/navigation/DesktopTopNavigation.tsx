@@ -9,6 +9,7 @@ import type { DesktopNavigationGroup } from './DesktopNavigation'
 type OpenPanel = { type: 'group'; id: string } | { type: 'more' } | { type: 'search' } | null
 
 const COMPACT_PANEL_WIDTH_PX = 288
+const GROUP_PANEL_WIDTH_PX = 384
 const WIDE_PANEL_WIDTH_PX = 544
 const PANEL_EDGE_GAP_PX = 8
 
@@ -70,7 +71,9 @@ export default function DesktopTopNavigation({ groups }: { groups: DesktopNaviga
     const root = rootRef.current
     if (!root) return
     const rootRect = root.getBoundingClientRect()
-    const requestedWidth = compactGroupPanel ? COMPACT_PANEL_WIDTH_PX : WIDE_PANEL_WIDTH_PX
+    const requestedWidth = openPanel.type === 'group'
+      ? compactGroupPanel ? COMPACT_PANEL_WIDTH_PX : GROUP_PANEL_WIDTH_PX
+      : WIDE_PANEL_WIDTH_PX
     const availablePanelWidth = Math.max(0, Math.min(rootRect.width - PANEL_EDGE_GAP_PX * 2, window.innerWidth - 24))
     const width = Math.min(requestedWidth, availablePanelWidth)
     const trigger = panelTriggerRef.current
