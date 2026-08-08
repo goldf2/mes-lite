@@ -126,6 +126,7 @@ export default function SalesOrderPage({
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
+  const [detailOrder, setDetailOrder] = useState<SalesOrder | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [pendingAction, setPendingAction] = useState<{ order: SalesOrder; action: 'confirm' | 'cancel' } | null>(null)
   const advancedSearchFields = useMemo(() => [
@@ -319,9 +320,10 @@ export default function SalesOrderPage({
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                       <div className="space-y-2">
                         <div className="text-xs text-gray-500">{order.note || `已生成 ${order._count.shipments} 张发货单`}</div>
-                        <AttachmentPanel ownerType="SALES_ORDER" ownerId={order.id} compact onMessage={onMessage} />
+                        <AttachmentPanel ownerType="SALES_ORDER" ownerId={order.id} compact compactMode="summary" onMessage={onMessage} />
                       </div>
                       <div className="flex flex-wrap gap-2">
+                        <AppButton size="sm" variant="secondary" onClick={() => setDetailOrder(order)}>详情</AppButton>
                         <BusinessDocumentPrintLink kind="sales-order" id={order.id} />
                         {order.status === 'DRAFT' && <AppButton size="sm" variant="primary" onClick={() => setPendingAction({ order, action: 'confirm' })}>确认订单</AppButton>}
                         {['DRAFT', 'CONFIRMED'].includes(order.status) && <AppButton size="sm" variant="secondary" onClick={() => setPendingAction({ order, action: 'cancel' })}>取消订单</AppButton>}
@@ -337,6 +339,59 @@ export default function SalesOrderPage({
           )}
         </div>
       </div>
+
+      {detailOrder && (
+        <ModalDialog
+          title="销售订单详情"
+          description={`${detailOrder.orderNo} · ${detailOrder.customer.name}`}
+          size="wide"
+          onClose={() => setDetailOrder(null)}
+          headerActions={<BusinessDocumentPrintLink kind="sales-order" id={detailOrder.id} />}
+        >
+          <div className="space-y-6">
+            <section>
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">系统生成单据</span>
+                <span className={`rounded px-2 py-1 text-xs font-medium ${(statusMeta[detailOrder.status] || { className: 'bg-gray-100 text-gray-700' }).className}`}>
+                  {(statusMeta[detailOrder.status] || { label: detailOrder.status }).label}
+                </span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <DetailValue label="客户" value={detailOrder.customer.name} />
+                <DetailValue label="客户单号" value={detailOrder.voucherNo || '-'} />
+                <DetailValue label="订单 / 交付日期" value={`${dateText(detailOrder.orderDate)} / ${dateText(detailOrder.deliveryDate)}`} />
+                <DetailValue label="订单金额" value={money(detailOrder.totalAmount)} />
+              </div>
+              {detailOrder.note && <div className="mt-3 rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-700">{detailOrder.note}</div>}
+            </section>
+
+            <section>
+              <h4 className="mb-3 text-sm font-semibold text-gray-900">订单明细</h4>
+              <div className="overflow-x-auto rounded-lg border border-gray-200">
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead className="bg-gray-50 text-left text-xs text-gray-500">
+                    <tr><th className="px-3 py-2 font-medium">物料</th><th className="px-3 py-2 font-medium">订购</th><th className="px-3 py-2 font-medium">待发单占用</th><th className="px-3 py-2 font-medium">已发</th><th className="px-3 py-2 font-medium">可生成发货</th><th className="px-3 py-2 text-right font-medium">金额</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {detailOrder.items.map((item) => (
+                      <tr key={item.id}>
+                        <td className="px-3 py-2"><div className="font-medium text-gray-900">{item.material.name}</div><div className="text-xs text-gray-500">{item.material.code}{item.material.spec ? ` · ${item.material.spec}` : ''}</div></td>
+                        <td className="px-3 py-2">{numberText(item.qty)} {item.unit}</td>
+                        <td className="px-3 py-2 text-amber-700">{numberText(item.pendingQty)} {item.unit}</td>
+                        <td className="px-3 py-2 text-emerald-700">{numberText(item.shippedQty)} {item.unit}</td>
+                        <td className="px-3 py-2 font-medium text-blue-700">{numberText(item.remainingQty)} {item.unit}</td>
+                        <td className="px-3 py-2 text-right">{money(item.totalAmount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <AttachmentPanel ownerType="SALES_ORDER" ownerId={detailOrder.id} title="附件管理" enableAiRecognition onMessage={onMessage} />
+          </div>
+        </ModalDialog>
+      )}
 
       {formOpen && (
         <ModalDialog
@@ -405,4 +460,8 @@ export default function SalesOrderPage({
       )}
     </>
   )
+}
+
+function DetailValue({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-lg border border-gray-200 px-4 py-3"><div className="text-xs text-gray-500">{label}</div><div className="mt-1 font-medium text-gray-900">{value}</div></div>
 }
