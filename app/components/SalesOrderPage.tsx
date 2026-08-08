@@ -16,6 +16,12 @@ import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserve
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import SortableTableHeader from './SortableTableHeader'
 import useClientTableSort from './useClientTableSort'
+import DraftDocumentAttachmentPanel, {
+  createDraftDocumentAttachmentId,
+  discardDraftDocumentAttachments,
+  finalizeDraftDocumentAttachments,
+} from './DraftDocumentAttachmentPanel'
+import { matchesRecognizedValue, recognizedDate, recognizedItems, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
 
 interface CustomerOption {
   id: string
@@ -129,6 +135,8 @@ export default function SalesOrderPage({
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
+  const [draftAttachmentOwnerId, setDraftAttachmentOwnerId] = useState('')
+  const [draftAttachmentBusy, setDraftAttachmentBusy] = useState(false)
   const [detailOrder, setDetailOrder] = useState<SalesOrder | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.salesOrders.viewMode', 'card')
   const [form, setForm] = useState(emptyForm)
@@ -199,7 +207,46 @@ export default function SalesOrderPage({
     }))
   }
 
+  const openCreateOrder = () => {
+    setForm(emptyForm())
+    setDraftAttachmentOwnerId(createDraftDocumentAttachmentId())
+    setFormOpen(true)
+  }
+
+  const closeCreateOrder = () => {
+    if (saving || draftAttachmentBusy) return
+    void discardDraftDocumentAttachments('SALES_ORDER', draftAttachmentOwnerId)
+    setDraftAttachmentOwnerId('')
+    setFormOpen(false)
+  }
+
+  const applyRecognizedOrder = (fields: Record<string, unknown>) => {
+    const customerValue = recognizedText(fields, 'customer')
+    const matchedCustomer = customers.find((customer) => matchesRecognizedValue(customerValue, [customer.code, customer.name]))
+    const recognizedLines = recognizedItems(fields).map((item) => {
+      const materialValue = recognizedText(item, 'material')
+      const material = materials.find((option) => matchesRecognizedValue(materialValue, [option.code, option.name, option.spec]))
+      return material ? {
+        key: newLine().key,
+        materialId: material.id,
+        qty: recognizedNumber(item, 'qty'),
+        unitPrice: recognizedNumber(item, 'unitPrice'),
+        note: recognizedText(item, 'note'),
+      } : null
+    }).filter((item): item is DraftLine => Boolean(item))
+    setForm((current) => ({
+      ...current,
+      voucherNo: recognizedText(fields, 'voucherNo') || current.voucherNo,
+      customerId: matchedCustomer?.id || current.customerId,
+      orderDate: recognizedDate(fields, 'orderDate') || current.orderDate,
+      deliveryDate: recognizedDate(fields, 'deliveryDate') || current.deliveryDate,
+      note: recognizedText(fields, 'note') || current.note,
+      items: recognizedLines.length > 0 ? recognizedLines : current.items,
+    }))
+  }
+
   const saveOrder = async () => {
+    if (draftAttachmentBusy) return onMessage('请等待附件上传或 AI 识别完成')
     if (!form.customerId) return onMessage('请选择客户')
     if (!form.orderDate) return onMessage('请选择订单日期')
     if (form.items.some((item) => !item.materialId || Number(item.qty) <= 0 || Number(item.unitPrice) < 0)) {
@@ -226,6 +273,11 @@ export default function SalesOrderPage({
         return onMessage(data.error || '创建销售订单失败')
       }
       onMessage(`销售订单已创建：${data.data.orderNo}`)
+      try {
+        await finalizeDraftDocumentAttachments({ ownerType: 'SALES_ORDER', draftOwnerId: draftAttachmentOwnerId, targetOwnerId: data.data.id })
+      } catch (error) {
+        onMessage(`销售订单已创建，但${error instanceof Error ? error.message : '附件绑定失败'}`)
+      }
       const pdfGenerated = await generateBusinessDocumentPdfArchives('sales-order', [data.data.id])
       if (pdfGenerated) printPreview.open('sales-order', data.data.id)
       else {
@@ -233,6 +285,7 @@ export default function SalesOrderPage({
         onMessage('销售订单已创建，但 PDF 生成失败，可在订单列表中重新打印')
       }
       setFormOpen(false)
+      setDraftAttachmentOwnerId('')
       setForm(emptyForm())
       await loadOrders()
     } catch {
@@ -272,7 +325,7 @@ export default function SalesOrderPage({
       )}
       advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
       viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
-      actions={<AppButton variant="create" onClick={() => { setForm(emptyForm()); setFormOpen(true) }}>新建销售订单</AppButton>}
+      actions={<AppButton variant="create" onClick={openCreateOrder}>新建销售订单</AppButton>}
     />
   )
 
@@ -453,9 +506,9 @@ export default function SalesOrderPage({
           title="新建销售订单"
           description="先保存销售需求，确认后才能在发货管理中生成发货单。"
           size="wide"
-          onClose={() => setFormOpen(false)}
-          closeDisabled={saving}
-          footer={<ModalActions onCancel={() => setFormOpen(false)} onConfirm={saveOrder} confirmLabel="创建并输出 PDF" busy={saving} />}
+          onClose={closeCreateOrder}
+          closeDisabled={saving || draftAttachmentBusy}
+          footer={<ModalActions onCancel={closeCreateOrder} onConfirm={saveOrder} confirmLabel="创建并输出 PDF" busy={saving || draftAttachmentBusy} />}
         >
           <div className="space-y-5">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -497,6 +550,13 @@ export default function SalesOrderPage({
               </div>
               <div className="mt-4 flex justify-end text-sm"><span className="text-gray-500">订单合计</span><strong className="ml-3 text-lg text-gray-900">{money(formTotal)}</strong></div>
             </div>
+            <DraftDocumentAttachmentPanel
+              ownerType="SALES_ORDER"
+              draftOwnerId={draftAttachmentOwnerId}
+              onRecognized={applyRecognizedOrder}
+              onBusyChange={setDraftAttachmentBusy}
+              onMessage={onMessage}
+            />
           </div>
         </ModalDialog>
       )}

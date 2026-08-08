@@ -17,6 +17,12 @@ import AppButton from './AppButton'
 import { MappedResourceAdvancedSearch } from './resource'
 import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
 import BusinessDocumentDetailDialog from './BusinessDocumentDetailDialog'
+import DraftDocumentAttachmentPanel, {
+  createDraftDocumentAttachmentId,
+  discardDraftDocumentAttachments,
+  finalizeDraftDocumentAttachments,
+} from './DraftDocumentAttachmentPanel'
+import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
 
 const displayPriceUnit = (unit: string | null | undefined) => unit === 'm' ? '米' : unit || '-'
 
@@ -446,6 +452,8 @@ export default function MaterialInPage({
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  const [draftAttachmentOwnerId, setDraftAttachmentOwnerId] = useState('')
+  const [draftAttachmentBusy, setDraftAttachmentBusy] = useState(false)
   const [editingItem, setEditingItem] = useState<MaterialIn | null>(null)
   const [detailItem, setDetailItem] = useState<MaterialIn | null>(null)
   const [draftItems, setDraftItems] = useState<MaterialInDraftItem[]>([])
@@ -629,6 +637,46 @@ export default function MaterialInPage({
     })
   }
 
+  const openCreateMaterialIn = () => {
+    resetForm()
+    setDraftAttachmentOwnerId(createDraftDocumentAttachmentId())
+    setShowModal(true)
+  }
+
+  const closeMaterialInForm = () => {
+    if (loading || draftAttachmentBusy) return
+    if (!editingItem) void discardDraftDocumentAttachments('MATERIAL_IN', draftAttachmentOwnerId)
+    setDraftAttachmentOwnerId('')
+    setShowModal(false)
+    resetForm()
+  }
+
+  const applyRecognizedMaterialIn = (fields: Record<string, unknown>) => {
+    const supplierValue = recognizedText(fields, 'supplier')
+    const materialValue = recognizedText(fields, 'material')
+    const supplier = suppliers.find((item) => matchesRecognizedValue(supplierValue, [item.code, item.name]))
+    const material = materials.find((item) => matchesRecognizedValue(materialValue, [item.code, item.name, item.spec]))
+    const qty = recognizedNumber(fields, 'qty')
+    const unitPrice = recognizedNumber(fields, 'unitPrice')
+    const totalAmount = recognizedNumber(fields, 'totalAmount')
+    setForm((current) => ({
+      ...current,
+      voucherNo: recognizedText(fields, 'voucherNo') || current.voucherNo,
+      supplierId: supplier?.id || current.supplierId,
+      materialId: material?.id || current.materialId,
+      qty: qty || current.qty,
+      pieceCount: material?.stockUnit === '件' && qty ? qty : current.pieceCount,
+      stockQtyInput: qty || current.stockQtyInput,
+      unitPrice: unitPrice || current.unitPrice,
+      totalAmount: totalAmount || current.totalAmount,
+      priceInputMode: totalAmount ? 'TOTAL' : current.priceInputMode,
+      priceUnit: material ? normalizeMaterialInPriceUnit(material.stockUnit || material.unit, material.primaryMeasure) : current.priceUnit,
+      batchNo: recognizedText(fields, 'batchNo') || current.batchNo,
+      receivedBy: recognizedText(fields, 'receivedBy') || current.receivedBy,
+      note: recognizedText(fields, 'note') || current.note,
+    }))
+  }
+
   const validateCurrentItem = () => {
     if (!form.materialId || !form.locationId || calculatedStockQty <= 0) {
       return '请选择物料和库位，并输入有效的主单位数量'
@@ -695,6 +743,10 @@ export default function MaterialInPage({
   }
 
   const handleSubmit = async () => {
+    if (draftAttachmentBusy) {
+      onMessage('请等待附件上传或 AI 识别完成')
+      return
+    }
     if (!form.supplierId) {
       onMessage('请选择供应商')
       return
@@ -742,6 +794,13 @@ export default function MaterialInPage({
         onMessage(editingItem
           ? `来料单已修改：${data.data.inboundNo}`
           : `来料单创建成功，共 ${data.count || items.length} 种物料`)
+        if (!editingItem) {
+          try {
+            await finalizeDraftDocumentAttachments({ ownerType: 'MATERIAL_IN', draftOwnerId: draftAttachmentOwnerId, targetOwnerId: data.data.id })
+          } catch (error) {
+            onMessage(`来料单已创建，但${error instanceof Error ? error.message : '附件绑定失败'}`)
+          }
+        }
         const pdfGenerated = await generateBusinessDocumentPdfArchives('material-in', (data.items || [data.data]).map((item: { id: string }) => item.id))
         if (pdfGenerated) printPreview.open('material-in', data.data.id)
         else {
@@ -749,6 +808,7 @@ export default function MaterialInPage({
           onMessage('来料单已保存，但部分 PDF 生成失败，可在来料列表中重新打印')
         }
         setShowModal(false)
+        setDraftAttachmentOwnerId('')
         resetForm()
         await fetchMaterialIns()
       } else {
@@ -899,6 +959,7 @@ export default function MaterialInPage({
       ? current
       : [...current, item.material])
     setEditingItem(item)
+    setDraftAttachmentOwnerId('')
     setDraftItems([])
     setLinkedBatchRatios(null)
     setForm({
@@ -983,10 +1044,7 @@ export default function MaterialInPage({
           <>
             <AppButton
               variant="create"
-              onClick={() => {
-                resetForm()
-                setShowModal(true)
-              }}
+              onClick={openCreateMaterialIn}
             >
               新建来料单
             </AppButton>
@@ -1016,10 +1074,7 @@ export default function MaterialInPage({
             <>
               <AppButton
                 variant="create"
-                onClick={() => {
-                  resetForm()
-                  setShowModal(true)
-                }}
+                onClick={openCreateMaterialIn}
               >
                 新建来料单
               </AppButton>
@@ -1278,18 +1333,18 @@ export default function MaterialInPage({
         <ModalDialog
           title={editingItem ? `编辑来料单 ${editingItem.inboundNo}` : '新建来料单'}
           description={editingItem ? '修改当前来料明细。' : '一张来料单可添加多种物料，每种物料分别记录数量、计价和库位。'}
-          onClose={() => { setShowModal(false); resetForm() }}
-          closeDisabled={loading}
+          onClose={closeMaterialInForm}
+          closeDisabled={loading || draftAttachmentBusy}
           size="wide"
           overlayClassName="z-[60]"
           panelClassName="!max-w-[min(96vw,1500px)]"
           bodyClassName="xl:overflow-hidden"
           footer={(
             <ModalActions
-              onCancel={() => { setShowModal(false); resetForm() }}
+              onCancel={closeMaterialInForm}
               onConfirm={handleSubmit}
               confirmLabel={editingItem ? '保存并输出 PDF' : `创建 ${draftItems.length + (form.materialId ? 1 : 0)} 项并输出 PDF`}
-              busy={loading}
+              busy={loading || draftAttachmentBusy}
             />
           )}
         >
@@ -1550,6 +1605,17 @@ export default function MaterialInPage({
               {!editingItem && selectedMaterial && (
                 <div className="flex justify-end lg:col-span-12">
                   <AppButton variant="secondary" onClick={addCurrentItem}>添加本项并继续</AppButton>
+                </div>
+              )}
+              {!editingItem && (
+                <div className="lg:col-span-12">
+                  <DraftDocumentAttachmentPanel
+                    ownerType="MATERIAL_IN"
+                    draftOwnerId={draftAttachmentOwnerId}
+                    onRecognized={applyRecognizedMaterialIn}
+                    onBusyChange={setDraftAttachmentBusy}
+                    onMessage={onMessage}
+                  />
                 </div>
               )}
             </div>

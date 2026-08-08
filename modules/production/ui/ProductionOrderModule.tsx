@@ -17,6 +17,12 @@ import BusinessDocumentPrintLink, {
   generateBusinessDocumentPdfArchives,
   reserveBusinessDocumentPrintWindow,
 } from '@/app/components/BusinessDocumentPrintLink'
+import DraftDocumentAttachmentPanel, {
+  createDraftDocumentAttachmentId,
+  discardDraftDocumentAttachments,
+  finalizeDraftDocumentAttachments,
+} from '@/app/components/DraftDocumentAttachmentPanel'
+import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
 
 const AttachmentPanel = dynamic(() => import('@/app/components/AttachmentPanel'), { loading: () => <AppLoadingIndicator label="正在加载附件..." /> })
 const ProductionOrderActualPanel = dynamic(() => import('@/app/components/ProductionOrderActualPanel'), { loading: () => <AppLoadingIndicator label="正在加载生产实绩..." /> })
@@ -140,6 +146,8 @@ export default function ProductionOrderModule({
   const [selectedOrderStatuses, setSelectedOrderStatuses] = useState<string[]>(readInitialStatuses)
   const [orderViewMode, setOrderViewMode] = usePersistedViewMode('mes-lite.orders.viewMode', 'card')
   const [loading, setLoading] = useState(false)
+  const [draftAttachmentOwnerId, setDraftAttachmentOwnerId] = useState('')
+  const [draftAttachmentBusy, setDraftAttachmentBusy] = useState(false)
 
   const selectedOrderMaterial = orderMaterialOptions.find((material) => material.id === selectedMaterialId) || null
   const selectedOrderBoms = useMemo(() => selectedOrderMaterial?.boms || [], [selectedOrderMaterial])
@@ -194,6 +202,17 @@ export default function ProductionOrderModule({
     void fetchMaterialOptions()
   }, [mode, orderMaterialOptions.length])
 
+  useEffect(() => {
+    if (mode === 'create') {
+      setDraftAttachmentOwnerId((current) => current || createDraftDocumentAttachmentId())
+      return
+    }
+    if (!draftAttachmentOwnerId) return
+    const staleDraftOwnerId = draftAttachmentOwnerId
+    void discardDraftDocumentAttachments('PRODUCTION_ORDER', staleDraftOwnerId)
+      .finally(() => setDraftAttachmentOwnerId((current) => current === staleDraftOwnerId ? '' : current))
+  }, [draftAttachmentOwnerId, mode])
+
   async function fetchMaterialOptions() {
     const response = await fetch('/api/orders/options')
     if (!response.ok) return
@@ -212,7 +231,26 @@ export default function ProductionOrderModule({
     onModeChange('detail')
   }
 
+  async function applyRecognizedProductionOrder(fields: Record<string, unknown>) {
+    const material = recognizedText(fields, 'material')
+    const matchedMaterial = orderMaterialOptions.find((option) => matchesRecognizedValue(material, [option.code, option.name]))
+    const matchedBomText = recognizedText(fields, 'bom')
+    const matchedBom = matchedMaterial?.boms.find((bom) => matchesRecognizedValue(matchedBomText, [bom.name, bom.version]))
+      || matchedMaterial?.boms.find((bom) => bom.isDefault)
+      || matchedMaterial?.boms[0]
+    const qty = recognizedNumber(fields, 'qty')
+    setOrderVoucherNo((current) => recognizedText(fields, 'voucherNo') || current)
+    setOrderNote((current) => recognizedText(fields, 'note') || current)
+    if (matchedMaterial) setSelectedMaterialId(matchedMaterial.id)
+    if (matchedBom) setSelectedOrderBomId(matchedBom.id)
+    if (qty > 0) setPlanQty(qty)
+  }
+
   async function createOrder() {
+    if (draftAttachmentBusy) {
+      onMessage('请等待附件上传或 AI 识别完成')
+      return
+    }
     let lines = [...orderDraftLines]
     if (selectedMaterialId) {
       if (!selectedOrderBomId || planQty <= 0) {
@@ -247,6 +285,15 @@ export default function ProductionOrderModule({
         onMessage(payload.error || '创建失败')
         return
       }
+      try {
+        await finalizeDraftDocumentAttachments({
+          ownerType: 'PRODUCTION_ORDER',
+          draftOwnerId: draftAttachmentOwnerId,
+          targetOwnerId: payload.data.id,
+        })
+      } catch (error) {
+        onMessage(error instanceof Error ? `生产订单已创建，但${error.message}` : '生产订单已创建，但附件绑定失败')
+      }
       onMessage(payload.count > 1 ? `生产订单已保存：${payload.groupNo}，共 ${payload.count} 个产品` : `生产订单已保存：${payload.data.orderNo}`)
       const pdfGenerated = await generateBusinessDocumentPdfArchives(
         'production-order',
@@ -263,6 +310,7 @@ export default function ProductionOrderModule({
       setSelectedMaterialId('')
       setSelectedOrderBomId('')
       setOrderDraftLines([])
+      setDraftAttachmentOwnerId('')
       await fetchOrders()
       onModeChange('orders')
     } catch {
@@ -467,7 +515,14 @@ export default function ProductionOrderModule({
             )}
             <label className="block text-sm font-medium text-gray-700">凭据号<input type="text" value={orderVoucherNo} onChange={(event) => setOrderVoucherNo(event.target.value)} placeholder="客户订单号、生产指令号或纸质单号" className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-3" /></label>
             <label className="block text-sm font-medium text-gray-700">备注<textarea value={orderNote} onChange={(event) => setOrderNote(event.target.value)} rows={3} placeholder="交期、班次、客户要求或其它生产说明" className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-3" /></label>
-            <button onClick={() => void createOrder()} disabled={loading} className="w-full rounded-lg bg-blue-600 px-4 py-3 font-medium text-white hover:bg-blue-700 disabled:opacity-50">{loading ? '创建并生成 PDF 中...' : `创建生产订单并输出 PDF${orderDraftLines.length > 0 ? `（${orderDraftLines.length + (selectedMaterialId ? 1 : 0)} 个产品）` : ''}`}</button>
+            <DraftDocumentAttachmentPanel
+              ownerType="PRODUCTION_ORDER"
+              draftOwnerId={draftAttachmentOwnerId}
+              onRecognized={applyRecognizedProductionOrder}
+              onBusyChange={setDraftAttachmentBusy}
+              onMessage={onMessage}
+            />
+            <button onClick={() => void createOrder()} disabled={loading || draftAttachmentBusy} className="w-full rounded-lg bg-blue-600 px-4 py-3 font-medium text-white hover:bg-blue-700 disabled:opacity-50">{loading || draftAttachmentBusy ? '处理中...' : `创建生产订单并输出 PDF${orderDraftLines.length > 0 ? `（${orderDraftLines.length + (selectedMaterialId ? 1 : 0)} 个产品）` : ''}`}</button>
           </div>
         </div>
       )}

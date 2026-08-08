@@ -15,6 +15,12 @@ import AppButton from './AppButton'
 import { MappedResourceAdvancedSearch } from './resource'
 import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
 import BusinessDocumentDetailDialog from './BusinessDocumentDetailDialog'
+import DraftDocumentAttachmentPanel, {
+  createDraftDocumentAttachmentId,
+  discardDraftDocumentAttachments,
+  finalizeDraftDocumentAttachments,
+} from './DraftDocumentAttachmentPanel'
+import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
 
 interface ShippableSalesItem {
   id: string
@@ -123,6 +129,8 @@ export default function ShipmentPage({
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  const [draftAttachmentOwnerId, setDraftAttachmentOwnerId] = useState('')
+  const [draftAttachmentBusy, setDraftAttachmentBusy] = useState(false)
   const [detailItem, setDetailItem] = useState<Shipment | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.shipment.viewMode', 'list')
   const advancedSearchFields = useMemo(() => [
@@ -231,10 +239,42 @@ export default function ShipmentPage({
   const openCreate = async () => {
     resetForm()
     await Promise.all([fetchShippableItems(), fetchLocations()])
+    setDraftAttachmentOwnerId(createDraftDocumentAttachmentId())
     setShowModal(true)
   }
 
+  const closeCreate = async () => {
+    if (loading || draftAttachmentBusy) return
+    await discardDraftDocumentAttachments('SHIPMENT', draftAttachmentOwnerId)
+    setDraftAttachmentOwnerId('')
+    setShowModal(false)
+    resetForm()
+  }
+
+  const applyRecognizedShipment = async (fields: Record<string, unknown>) => {
+    const salesOrderNo = recognizedText(fields, 'salesOrderNo')
+    const material = recognizedText(fields, 'material')
+    const matchedItem = shippableItems.find((item) => (
+      matchesRecognizedValue(salesOrderNo, [item.salesOrder.orderNo, item.salesOrder.voucherNo])
+      || matchesRecognizedValue(material, [item.material.code, item.material.name, item.material.spec])
+    ))
+    if (matchedItem) handleSalesItemChange(matchedItem.id)
+    const qty = recognizedNumber(fields, 'qty')
+    setForm((current) => ({
+      ...current,
+      salesOrderItemId: matchedItem?.id || current.salesOrderItemId,
+      qty: qty > 0 ? qty : (matchedItem ? Number(matchedItem.remainingQty) : current.qty),
+      trackingNo: recognizedText(fields, 'trackingNo') || current.trackingNo,
+      shippedBy: recognizedText(fields, 'shippedBy') || current.shippedBy,
+      note: recognizedText(fields, 'note') || current.note,
+    }))
+  }
+
   const handleSubmit = async () => {
+    if (draftAttachmentBusy) {
+      onMessage('请等待附件上传或 AI 识别完成')
+      return
+    }
     if (!form.salesOrderItemId || !form.locationId || form.qty <= 0) {
       onMessage('请选择销售订单明细和发货库位，并填写数量')
       return
@@ -256,6 +296,11 @@ export default function ShipmentPage({
       })
       const data = await res.json()
       if (res.ok) {
+        try {
+          await finalizeDraftDocumentAttachments({ ownerType: 'SHIPMENT', draftOwnerId: draftAttachmentOwnerId, targetOwnerId: data.data.id })
+        } catch (error) {
+          onMessage(error instanceof Error ? `发货单已创建，但${error.message}` : '发货单已创建，但附件绑定失败')
+        }
         onMessage(`发货单创建成功：${data.data.shipmentNo}`)
         const pdfGenerated = await generateBusinessDocumentPdfArchives('shipment', [data.data.id])
         if (pdfGenerated) printPreview.open('shipment', data.data.id)
@@ -264,6 +309,7 @@ export default function ShipmentPage({
           onMessage('发货单已创建，但 PDF 生成失败，可在发货列表中重新打印')
         }
         setShowModal(false)
+        setDraftAttachmentOwnerId('')
         resetForm()
         await Promise.all([fetchShipments(), fetchShippableItems()])
       } else {
@@ -584,14 +630,14 @@ export default function ShipmentPage({
         <ModalDialog
           title="新建发货单"
           description="发货单必须来自已确认销售订单，可按订单未发数量分批出库。"
-          onClose={() => setShowModal(false)}
-          closeDisabled={loading}
+          onClose={() => void closeCreate()}
+          closeDisabled={loading || draftAttachmentBusy}
           footer={(
             <ModalActions
-              onCancel={() => setShowModal(false)}
+              onCancel={() => void closeCreate()}
               onConfirm={handleSubmit}
               confirmLabel="创建并输出 PDF"
-              busy={loading}
+              busy={loading || draftAttachmentBusy}
             />
           )}
         >
@@ -668,6 +714,13 @@ export default function ShipmentPage({
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
+              <DraftDocumentAttachmentPanel
+                ownerType="SHIPMENT"
+                draftOwnerId={draftAttachmentOwnerId}
+                onRecognized={applyRecognizedShipment}
+                onBusyChange={setDraftAttachmentBusy}
+                onMessage={onMessage}
+              />
             </div>
         </ModalDialog>
       )}

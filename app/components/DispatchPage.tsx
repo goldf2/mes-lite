@@ -14,6 +14,12 @@ import AppButton from './AppButton'
 import { MappedResourceAdvancedSearch } from './resource'
 import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
 import BusinessDocumentDetailDialog from './BusinessDocumentDetailDialog'
+import DraftDocumentAttachmentPanel, {
+  createDraftDocumentAttachmentId,
+  discardDraftDocumentAttachments,
+  finalizeDraftDocumentAttachments,
+} from './DraftDocumentAttachmentPanel'
+import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
 
 interface Order {
   id: string
@@ -109,6 +115,8 @@ export default function DispatchPage({
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  const [draftAttachmentOwnerId, setDraftAttachmentOwnerId] = useState('')
+  const [draftAttachmentBusy, setDraftAttachmentBusy] = useState(false)
   const [detailItem, setDetailItem] = useState<Dispatch | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.dispatch.viewMode.v2', 'card')
   const advancedSearchFields = useMemo(() => [
@@ -218,7 +226,51 @@ export default function DispatchPage({
     setSteps([])
   }
 
+  const openCreateDispatch = () => {
+    resetForm()
+    setDraftAttachmentOwnerId(createDraftDocumentAttachmentId())
+    setShowModal(true)
+  }
+
+  const closeCreateDispatch = () => {
+    if (loading || draftAttachmentBusy) return
+    void discardDraftDocumentAttachments('DISPATCH', draftAttachmentOwnerId)
+    setDraftAttachmentOwnerId('')
+    setShowModal(false)
+    resetForm()
+  }
+
+  const applyRecognizedDispatch = async (fields: Record<string, unknown>) => {
+    const orderValue = recognizedText(fields, 'orderNo')
+    const matchedOrder = orders.find((order) => matchesRecognizedValue(orderValue, [order.orderNo, order.targetMaterial?.code, order.targetMaterial?.name, order.product.sku, order.product.name]))
+    let nextSteps = steps
+    if (matchedOrder) {
+      const response = await fetch(`/api/orders/${matchedOrder.id}`)
+      const data = await response.json()
+      nextSteps = response.ok ? data.data?.routeSteps || [] : []
+      setSteps(nextSteps)
+    }
+    const stepValue = recognizedText(fields, 'processStep')
+    const matchedStep = nextSteps.find((step) => matchesRecognizedValue(stepValue, [String(step.stepNo), step.name, step.workstation]))
+    const priorityValue = recognizedText(fields, 'priority').toUpperCase()
+    setForm((current) => ({
+      ...current,
+      voucherNo: recognizedText(fields, 'voucherNo') || current.voucherNo,
+      orderId: matchedOrder?.id || current.orderId,
+      stepId: matchedStep?.id || current.stepId,
+      workerName: recognizedText(fields, 'workerName') || current.workerName,
+      workerId: recognizedText(fields, 'workerId') || current.workerId,
+      planQty: recognizedNumber(fields, 'planQty') || current.planQty,
+      priority: ['LOW', 'NORMAL', 'HIGH', 'URGENT'].includes(priorityValue) ? priorityValue : current.priority,
+      note: recognizedText(fields, 'note') || current.note,
+    }))
+  }
+
   const handleSubmit = async () => {
+    if (draftAttachmentBusy) {
+      onMessage('请等待附件上传或 AI 识别完成')
+      return
+    }
     if (!form.orderId || !form.stepId || !form.workerName || form.planQty <= 0) {
       onMessage('请填写完整信息')
       return
@@ -243,6 +295,11 @@ export default function DispatchPage({
       const data = await res.json()
       if (res.ok) {
         onMessage(`派工单创建成功：${data.data.dispatchNo}`)
+        try {
+          await finalizeDraftDocumentAttachments({ ownerType: 'DISPATCH', draftOwnerId: draftAttachmentOwnerId, targetOwnerId: data.data.id })
+        } catch (error) {
+          onMessage(`派工单已创建，但${error instanceof Error ? error.message : '附件绑定失败'}`)
+        }
         const pdfGenerated = await generateBusinessDocumentPdfArchives('dispatch', [data.data.id])
         if (pdfGenerated) printPreview.open('dispatch', data.data.id)
         else {
@@ -250,6 +307,7 @@ export default function DispatchPage({
           onMessage('派工单已创建，但 PDF 生成失败，可在派工列表中重新打印')
         }
         setShowModal(false)
+        setDraftAttachmentOwnerId('')
         resetForm()
         await fetchDispatches()
       } else {
@@ -299,10 +357,7 @@ export default function DispatchPage({
             )}
             <AppButton
               variant="create"
-              onClick={() => {
-                resetForm()
-                setShowModal(true)
-              }}
+              onClick={openCreateDispatch}
             >
               新建派工单
             </AppButton>
@@ -332,10 +387,7 @@ export default function DispatchPage({
               )}
               <AppButton
                 variant="create"
-                onClick={() => {
-                  resetForm()
-                  setShowModal(true)
-                }}
+                onClick={openCreateDispatch}
               >
                 新建派工单
               </AppButton>
@@ -554,14 +606,14 @@ export default function DispatchPage({
         <ModalDialog
           title="新建派工单"
           description="选择工单和工序后安排人员、数量与优先级。"
-          onClose={() => setShowModal(false)}
-          closeDisabled={loading}
+          onClose={closeCreateDispatch}
+          closeDisabled={loading || draftAttachmentBusy}
           footer={(
             <ModalActions
-              onCancel={() => setShowModal(false)}
+              onCancel={closeCreateDispatch}
               onConfirm={handleSubmit}
               confirmLabel="创建并输出 PDF"
-              busy={loading}
+              busy={loading || draftAttachmentBusy}
             />
           )}
         >
@@ -662,6 +714,13 @@ export default function DispatchPage({
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
+              <DraftDocumentAttachmentPanel
+                ownerType="DISPATCH"
+                draftOwnerId={draftAttachmentOwnerId}
+                onRecognized={applyRecognizedDispatch}
+                onBusyChange={setDraftAttachmentBusy}
+                onMessage={onMessage}
+              />
             </div>
         </ModalDialog>
       )}

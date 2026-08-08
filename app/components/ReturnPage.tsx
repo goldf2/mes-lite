@@ -17,6 +17,12 @@ import AppButton from './AppButton'
 import { MappedResourceAdvancedSearch } from './resource'
 import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
 import BusinessDocumentDetailDialog from './BusinessDocumentDetailDialog'
+import DraftDocumentAttachmentPanel, {
+  createDraftDocumentAttachmentId,
+  discardDraftDocumentAttachments,
+  finalizeDraftDocumentAttachments,
+} from './DraftDocumentAttachmentPanel'
+import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
 
 interface MaterialChoice {
   id: string
@@ -92,6 +98,8 @@ export default function ReturnPage({
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  const [draftAttachmentOwnerId, setDraftAttachmentOwnerId] = useState('')
+  const [draftAttachmentBusy, setDraftAttachmentBusy] = useState(false)
   const [detailItem, setDetailItem] = useState<ReturnOrder | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.return.viewMode', 'list')
   const advancedSearchFields = useMemo(() => [
@@ -195,7 +203,39 @@ export default function ReturnPage({
     })
   }
 
+  const openCreate = () => {
+    resetForm()
+    setDraftAttachmentOwnerId(createDraftDocumentAttachmentId())
+    setShowModal(true)
+  }
+
+  const closeCreate = async () => {
+    if (loading || draftAttachmentBusy) return
+    await discardDraftDocumentAttachments('RETURN_ORDER', draftAttachmentOwnerId)
+    setDraftAttachmentOwnerId('')
+    setShowModal(false)
+    resetForm()
+  }
+
+  const applyRecognizedReturn = async (fields: Record<string, unknown>) => {
+    const material = recognizedText(fields, 'material')
+    const matchedProduct = products.find((product) => matchesRecognizedValue(material, [product.sku, product.name]))
+    const qty = recognizedNumber(fields, 'qty')
+    setForm((current) => ({
+      ...current,
+      voucherNo: recognizedText(fields, 'voucherNo') || recognizedText(fields, 'shipmentNo') || current.voucherNo,
+      productId: matchedProduct?.id || current.productId,
+      qty: qty > 0 ? qty : current.qty,
+      reason: recognizedText(fields, 'reason') || current.reason,
+      note: recognizedText(fields, 'note') || current.note,
+    }))
+  }
+
   const handleSubmit = async () => {
+    if (draftAttachmentBusy) {
+      onMessage('请等待附件上传或 AI 识别完成')
+      return
+    }
     if (!form.productId || !form.locationId || form.qty <= 0 || !form.reason) {
       onMessage('请选择物料和退回库位，并填写数量和退货原因')
       return
@@ -217,6 +257,11 @@ export default function ReturnPage({
       })
       const data = await res.json()
       if (res.ok) {
+        try {
+          await finalizeDraftDocumentAttachments({ ownerType: 'RETURN_ORDER', draftOwnerId: draftAttachmentOwnerId, targetOwnerId: data.data.id })
+        } catch (error) {
+          onMessage(error instanceof Error ? `退货单已创建，但${error.message}` : '退货单已创建，但附件绑定失败')
+        }
         onMessage(`退货单创建成功：${data.data.returnNo}`)
         const pdfGenerated = await generateBusinessDocumentPdfArchives('return', [data.data.id])
         if (pdfGenerated) printPreview.open('return', data.data.id)
@@ -225,6 +270,7 @@ export default function ReturnPage({
           onMessage('退货单已创建，但 PDF 生成失败，可在退货列表中重新打印')
         }
         setShowModal(false)
+        setDraftAttachmentOwnerId('')
         resetForm()
         await fetchReturns()
       } else {
@@ -275,10 +321,7 @@ export default function ReturnPage({
           <>
             <AppButton
               variant="create"
-              onClick={() => {
-                resetForm()
-                setShowModal(true)
-              }}
+              onClick={openCreate}
             >
               新建退货单
             </AppButton>
@@ -308,10 +351,7 @@ export default function ReturnPage({
             <>
               <AppButton
                 variant="create"
-                onClick={() => {
-                  resetForm()
-                  setShowModal(true)
-                }}
+                onClick={openCreate}
               >
                 新建退货单
               </AppButton>
@@ -499,14 +539,14 @@ export default function ReturnPage({
         <ModalDialog
           title="新建退货单"
           description="登记退回物料、数量和实际接收库位。"
-          onClose={() => setShowModal(false)}
-          closeDisabled={loading}
+          onClose={() => void closeCreate()}
+          closeDisabled={loading || draftAttachmentBusy}
           footer={(
             <ModalActions
-              onCancel={() => setShowModal(false)}
+              onCancel={() => void closeCreate()}
               onConfirm={handleSubmit}
               confirmLabel="创建并输出 PDF"
-              busy={loading}
+              busy={loading || draftAttachmentBusy}
             />
           )}
         >
@@ -566,6 +606,13 @@ export default function ReturnPage({
                   className={appTextareaClassName}
                 />
               </FormField>
+              <DraftDocumentAttachmentPanel
+                ownerType="RETURN_ORDER"
+                draftOwnerId={draftAttachmentOwnerId}
+                onRecognized={applyRecognizedReturn}
+                onBusyChange={setDraftAttachmentBusy}
+                onMessage={onMessage}
+              />
             </div>
         </ModalDialog>
       )}

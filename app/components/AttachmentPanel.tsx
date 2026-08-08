@@ -39,6 +39,7 @@ interface AttachmentPanelProps {
   compactMode?: 'manage' | 'summary'
   enableAiRecognition?: boolean
   onAiRecognize?: (attachment: ManagedAttachment) => void | Promise<void>
+  onBusyChange?: (busy: boolean) => void
   onMessage: (msg: string) => void
 }
 
@@ -60,6 +61,7 @@ export default function AttachmentPanel({
   compactMode = 'manage',
   enableAiRecognition = false,
   onAiRecognize,
+  onBusyChange,
   onMessage,
 }: AttachmentPanelProps) {
   const [attachments, setAttachments] = useState<ManagedAttachment[]>([])
@@ -86,6 +88,10 @@ export default function AttachmentPanel({
   useEffect(() => {
     fetchAttachments()
   }, [fetchAttachments])
+
+  useEffect(() => {
+    onBusyChange?.(uploading || Boolean(recognizingAttachmentId))
+  }, [onBusyChange, recognizingAttachmentId, uploading])
 
   const uploadFile = async (file: File) => {
     setUploading(true)
@@ -198,8 +204,8 @@ export default function AttachmentPanel({
     setRecognizingAttachmentId(sourceAttachment.id)
     try {
       await onAiRecognize(sourceAttachment)
-    } catch {
-      onMessage('AI 凭据识别失败，请稍后重试')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : 'AI 凭据识别失败，请稍后重试')
     } finally {
       setRecognizingAttachmentId(null)
     }
