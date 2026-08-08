@@ -37,9 +37,7 @@ const toolbarSource = readFileSync(join(root, 'app/components/ResponsiveToolbarA
 const resourcePageSource = readFileSync(join(root, 'app/components/resource/ResourcePage.tsx'), 'utf8')
 const advancedSearchSource = readFileSync(join(root, 'app/components/resource/ResourceAdvancedSearch.tsx'), 'utf8')
 const unifiedSearchPages = [
-  'app/page.tsx',
   'app/components/BomOverviewPage.tsx',
-  'app/components/DocumentCategorySettingsPage.tsx',
   'app/components/FlowTransferPage.tsx',
   'app/components/MaterialInPage.tsx',
   'app/components/MaterialPage.tsx',
@@ -51,6 +49,13 @@ const unifiedSearchPages = [
   'app/components/SystemPage.tsx',
   'app/components/WorkInstructionPage.tsx',
   'app/components/WorkspacePages.tsx',
+  'modules/configuration/ui/DocumentCategorySettingsPage.tsx',
+]
+const resourceSearchPages = [
+  'modules/configuration/ui/InventoryLocationSettingsPage.tsx',
+  'modules/configuration/ui/PartySettingsPage.tsx',
+  'modules/configuration/ui/UnitSettingsPage.tsx',
+  'modules/configuration/ui/WorkCenterSettingsPage.tsx',
 ]
 
 assert.doesNotMatch(toolbarSource, /hasLegacyAdvancedSearch|filterPresentation|filters\?: ReactNode/)
@@ -65,4 +70,10 @@ for (const file of unifiedSearchPages) {
   assert.doesNotMatch(source, /\bfilters=\{/, `${file} 不得继续使用旧筛选内容作为高级搜索`)
 }
 
-console.log(`高级搜索字段表单验证通过：${unifiedSearchPages.length} 个搜索页面统一使用公共字段式高级搜索。`)
+for (const file of resourceSearchPages) {
+  const source = readFileSync(join(root, file), 'utf8')
+  assert.match(source, /advancedSearchFields=/, `${file} 必须通过 ResourcePage 接入公共高级搜索`)
+  assert.doesNotMatch(source, /\bfilters=\{/, `${file} 不得继续使用旧筛选内容作为高级搜索`)
+}
+
+console.log(`高级搜索字段表单验证通过：${unifiedSearchPages.length + resourceSearchPages.length} 个搜索页面统一使用公共字段式高级搜索。`)
