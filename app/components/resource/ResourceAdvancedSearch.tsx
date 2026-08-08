@@ -14,6 +14,7 @@ import type {
 import useDismissibleSearchPopup from '../useDismissibleSearchPopup'
 import ControlTooltip from '../ControlTooltip'
 import ModalOverlay from '../ModalOverlay'
+import { useWorkspaceLayoutPreference } from '../interfacePreferences'
 
 const operatorLabels: Record<ResourceSearchOperator, string> = {
   equals: '等于',
@@ -36,8 +37,10 @@ export default function ResourceAdvancedSearch<T>({
 }) {
   const [open, setOpen] = useState(false)
   const [compact, setCompact] = useState(false)
+  const [workspaceLayoutPreference] = useWorkspaceLayoutPreference()
   const [draft, setDraft] = useState<ResourceSearchCondition[]>(() => buildAdvancedSearchDraft(fields, conditions))
-  const rootRef = useDismissibleSearchPopup<HTMLDivElement>(open && !compact, () => setOpen(false))
+  const modalPresentation = compact || workspaceLayoutPreference.layout === 'canvas'
+  const rootRef = useDismissibleSearchPopup<HTMLDivElement>(open && !modalPresentation, () => setOpen(false))
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 1279px)')
@@ -123,7 +126,7 @@ export default function ResourceAdvancedSearch<T>({
         <ControlTooltip label="高级搜索" hidden={open} />
       </button>
 
-      {open && (compact ? (
+      {open && (modalPresentation ? (
         <ModalOverlay onClose={() => setOpen(false)}>
           <div role="dialog" aria-modal="true" aria-label="高级搜索" tabIndex={-1} className="flex max-h-[calc(100dvh-2rem)] w-[min(92vw,42rem)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
             {panelContent}

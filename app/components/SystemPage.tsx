@@ -1,9 +1,9 @@
 'use client'
 
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { Columns2, Eye, EyeOff, PlugZap, Rows3, Save, SlidersHorizontal } from 'lucide-react'
+import { Columns2, Eye, EyeOff, LayoutPanelLeft, MousePointer2, PanelRightOpen, Pin, PlugZap, Rows3, Save, SlidersHorizontal } from 'lucide-react'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
-import { useDesktopNavigationPreference, useModalGlassPreference } from './interfacePreferences'
+import { useDesktopNavigationPreference, useModalGlassPreference, useWorkspaceLayoutPreference } from './interfacePreferences'
 import MaterialChoiceSearch from './MaterialChoiceSearch'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import useCompactViewport from './useCompactViewport'
@@ -1159,6 +1159,7 @@ function SettingsManager({
 }) {
   const [modalGlassEnabled, setModalGlassEnabled] = useModalGlassPreference()
   const [navigationPreference, setNavigationPreference] = useDesktopNavigationPreference()
+  const [workspaceLayoutPreference, setWorkspaceLayoutPreference] = useWorkspaceLayoutPreference()
   const { loadingIndicatorEnabled, setLoadingIndicatorEnabled } = useAiAssistantAppearance()
   const [contrastMode, setContrastMode] = useState<ContrastMode>('standard')
   const [naturalCodeSortEnabled, setNaturalCodeSortEnabled] = useState(false)
@@ -1310,8 +1311,54 @@ function SettingsManager({
       {section === 'displaySettings' && (
         <>
           <div className="mb-4 rounded-lg border border-gray-200 p-4">
+            <div className="font-medium text-gray-900">工作区布局</div>
+            <div className="mt-1 text-sm text-gray-500">切换整个应用的导航、工具与主内容区域排布；业务页面和数据不会改变。</div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {([
+                { value: 'sidebar' as const, label: '标准管理', description: '左侧导航与顶部页面工具，适合日常维护和列表操作', icon: LayoutPanelLeft },
+                { value: 'canvas' as const, label: '画布工作', description: '顶部导航与右侧页面工具，保留更连贯的主显示区域', icon: PanelRightOpen },
+              ]).map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setWorkspaceLayoutPreference({ layout: option.value })}
+                  className={`rounded-lg border p-3 text-left transition ${workspaceLayoutPreference.layout === option.value ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 hover:bg-gray-50'}`}
+                >
+                  <span className="flex items-center gap-2 text-sm font-semibold text-gray-900"><option.icon className="h-4 w-4" />{option.label}</span>
+                  <span className="mt-1 block text-xs text-gray-500">{option.description}</span>
+                </button>
+              ))}
+            </div>
+            <div className="mt-2 text-xs text-gray-500">个人工作区偏好，只保存在当前浏览器；也可通过全局布局按钮快速切换。</div>
+          </div>
+
+          {workspaceLayoutPreference.layout === 'sidebar' && (
+            <div className="mb-4 rounded-lg border border-gray-200 p-4">
+              <div className="font-medium text-gray-900">左侧导航行为</div>
+              <div className="mt-1 text-sm text-gray-500">标准管理布局下，可让导航持续占位，或在需要时从左侧响应呼出。</div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {([
+                  { value: 'persistent' as const, label: '常驻显示', description: '导航固定显示，主内容始终保留侧栏空间', icon: Pin },
+                  { value: 'auto-hide' as const, label: '自动隐藏', description: '收回后仅保留入口，鼠标靠近或点击时覆盖呼出', icon: MousePointer2 },
+                ]).map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setWorkspaceLayoutPreference({ navigationBehavior: option.value })}
+                    className={`rounded-lg border p-3 text-left transition ${workspaceLayoutPreference.navigationBehavior === option.value ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 hover:bg-gray-50'}`}
+                  >
+                    <span className="flex items-center gap-2 text-sm font-semibold text-gray-900"><option.icon className="h-4 w-4" />{option.label}</span>
+                    <span className="mt-1 block text-xs text-gray-500">{option.description}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-2 text-xs text-gray-500">导航面板内的固定按钮也可随时在两种行为之间切换。</div>
+            </div>
+          )}
+
+          <div className="mb-4 rounded-lg border border-gray-200 p-4">
             <div className="font-medium text-gray-900">桌面导航布局</div>
-            <div className="mt-1 text-sm text-gray-500">宽屏可选择单列折叠或固定双列导航；窄桌面仍自动使用单列。</div>
+            <div className="mt-1 text-sm text-gray-500">仅影响标准管理模式的左侧导航：宽屏可选择单列折叠或固定双列；窄桌面仍自动使用单列。</div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               {([
                 { value: 'accordion' as const, label: '单列折叠', description: '占用空间更少', icon: Rows3 },

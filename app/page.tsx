@@ -3,12 +3,12 @@
 import dynamic from 'next/dynamic'
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { Boxes, Menu, PencilLine, Search, X } from 'lucide-react'
+import { Boxes, Menu, PanelLeftOpen, PanelRightOpen, PencilLine, Pin, PinOff, Search, X } from 'lucide-react'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
 import { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
 import ViewModeToggle, { usePersistedViewMode } from './components/ViewModeToggle'
-import { InterfacePreferenceSync, preferenceChangeEvent, readDesktopNavigationPreference } from './components/interfacePreferences'
+import { InterfacePreferenceSync, preferenceChangeEvent, readDesktopNavigationPreference, useWorkspaceLayoutPreference } from './components/interfacePreferences'
 import { SearchFieldWithPresets } from './components/SavedSearchPresets'
 import SearchableSelect from './components/SearchableSelect'
 import SortableTableHeader from './components/SortableTableHeader'
@@ -34,6 +34,7 @@ import DesktopNavigation, {
   type DesktopNavigationGroup,
   type DesktopNavigationMode,
 } from './components/navigation/DesktopNavigation'
+import DesktopTopNavigation from './components/navigation/DesktopTopNavigation'
 import PageQrCodeButton from './components/PageQrCodeButton'
 import ControlTooltip from './components/ControlTooltip'
 
@@ -660,6 +661,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   ], [customers, inventoryLocations, selectedStockCategories, showInvalidStocks, stockCustomerFilter, stockFilter, stockLocationFilter])
   const [desktopNavigationMode, setDesktopNavigationMode] = useState<DesktopNavigationMode>('accordion')
   const [desktopNavigationDisplayMode, setDesktopNavigationDisplayMode] = useState<DesktopNavigationDisplayMode>('icon-label')
+  const [workspaceLayoutPreference, setWorkspaceLayoutPreference] = useWorkspaceLayoutPreference()
+  const [transientDesktopNavigationOpen, setTransientDesktopNavigationOpen] = useState(false)
   const [desktopSidebarWidth, setDesktopSidebarWidth] = useState(defaultDesktopSidebarWidth)
   const [desktopSplitSidebarWidth, setDesktopSplitSidebarWidth] = useState(defaultDesktopSplitSidebarWidth)
   const [desktopSidebarReady, setDesktopSidebarReady] = useState(false)
@@ -668,6 +671,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [pageUrlReady, setPageUrlReady] = useState(false)
   const systemMenuRef = useRef<HTMLDivElement>(null)
   const desktopSystemMenuRef = useRef<HTMLDivElement>(null)
+  const desktopNavigationPanelRef = useRef<HTMLElement>(null)
+  const desktopNavigationTriggerRef = useRef<HTMLButtonElement>(null)
+  const desktopNavigationOpenTimerRef = useRef<number | null>(null)
+  const desktopNavigationCloseTimerRef = useRef<number | null>(null)
   const pageContentRef = useRef<HTMLDivElement>(null)
   const pageUrlInitializedRef = useRef(false)
   const navOrderLoadedRef = useRef(false)
@@ -722,6 +729,80 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         : `页面：${activeTabLabel}`
   const selectedOrderMaterial = orderMaterialOptions.find((material) => material.id === selectedMaterialId) || null
   const selectedOrderBoms = useMemo(() => selectedOrderMaterial?.boms || [], [selectedOrderMaterial])
+  const standardWorkspaceLayout = workspaceLayoutPreference.layout === 'sidebar'
+  const autoHideDesktopNavigation = standardWorkspaceLayout && workspaceLayoutPreference.navigationBehavior === 'auto-hide'
+  const persistentDesktopNavigation = standardWorkspaceLayout && workspaceLayoutPreference.navigationBehavior === 'persistent'
+
+  const cancelDesktopNavigationClose = useCallback(() => {
+    if (desktopNavigationCloseTimerRef.current === null) return
+    window.clearTimeout(desktopNavigationCloseTimerRef.current)
+    desktopNavigationCloseTimerRef.current = null
+  }, [])
+
+  const cancelDesktopNavigationOpen = useCallback(() => {
+    if (desktopNavigationOpenTimerRef.current === null) return
+    window.clearTimeout(desktopNavigationOpenTimerRef.current)
+    desktopNavigationOpenTimerRef.current = null
+  }, [])
+
+  const openTransientDesktopNavigation = useCallback(() => {
+    if (!autoHideDesktopNavigation) return
+    cancelDesktopNavigationOpen()
+    cancelDesktopNavigationClose()
+    setTransientDesktopNavigationOpen(true)
+  }, [autoHideDesktopNavigation, cancelDesktopNavigationClose, cancelDesktopNavigationOpen])
+
+  const scheduleDesktopNavigationOpen = useCallback(() => {
+    if (!autoHideDesktopNavigation || transientDesktopNavigationOpen || desktopNavigationOpenTimerRef.current !== null) return
+    cancelDesktopNavigationClose()
+    desktopNavigationOpenTimerRef.current = window.setTimeout(() => {
+      setTransientDesktopNavigationOpen(true)
+      desktopNavigationOpenTimerRef.current = null
+    }, 120)
+  }, [autoHideDesktopNavigation, cancelDesktopNavigationClose, transientDesktopNavigationOpen])
+
+  const scheduleDesktopNavigationClose = useCallback(() => {
+    if (!autoHideDesktopNavigation || resizingDesktopSidebar) return
+    cancelDesktopNavigationClose()
+    desktopNavigationCloseTimerRef.current = window.setTimeout(() => {
+      setTransientDesktopNavigationOpen(false)
+      desktopNavigationCloseTimerRef.current = null
+    }, 350)
+  }, [autoHideDesktopNavigation, cancelDesktopNavigationClose, resizingDesktopSidebar])
+
+  useEffect(() => {
+    if (autoHideDesktopNavigation) return
+    cancelDesktopNavigationOpen()
+    cancelDesktopNavigationClose()
+    setTransientDesktopNavigationOpen(false)
+  }, [autoHideDesktopNavigation, cancelDesktopNavigationClose, cancelDesktopNavigationOpen])
+
+  useEffect(() => {
+    if (!autoHideDesktopNavigation || !transientDesktopNavigationOpen) return
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (desktopNavigationPanelRef.current?.contains(target) || desktopNavigationTriggerRef.current?.contains(target)) return
+      cancelDesktopNavigationClose()
+      setTransientDesktopNavigationOpen(false)
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      cancelDesktopNavigationClose()
+      setTransientDesktopNavigationOpen(false)
+      desktopNavigationTriggerRef.current?.focus()
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [autoHideDesktopNavigation, cancelDesktopNavigationClose, transientDesktopNavigationOpen])
+
+  useEffect(() => () => {
+    cancelDesktopNavigationOpen()
+    cancelDesktopNavigationClose()
+  }, [cancelDesktopNavigationClose, cancelDesktopNavigationOpen])
 
   useEffect(() => {
     if (selectedOrderBoms.some((bom) => bom.id === selectedOrderBomId)) return
@@ -1162,6 +1243,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     if (target.materialSection) setMaterialSection(target.materialSection)
     setTab(target.tab)
     setMobileNavOpen(false)
+    setTransientDesktopNavigationOpen(false)
     setSystemMenuOpen(false)
     recordWorkspaceUsage(functionKey)
   }
@@ -1170,6 +1252,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     if (nextTab === 'allFunctions') {
       setTab('allFunctions')
       setMobileNavOpen(false)
+      setTransientDesktopNavigationOpen(false)
       setSystemMenuOpen(false)
       return
     }
@@ -1182,6 +1265,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }
     setTab(nextTab)
     setMobileNavOpen(false)
+    setTransientDesktopNavigationOpen(false)
     setSystemMenuOpen(false)
   }
 
@@ -1594,30 +1678,77 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     <div
       className="min-h-screen overflow-x-hidden bg-gray-50"
       data-desktop-navigation={desktopNavigationMode}
+      data-workspace-layout={workspaceLayoutPreference.layout}
+      data-desktop-navigation-behavior={workspaceLayoutPreference.navigationBehavior}
       style={{
         '--mes-desktop-sidebar-width': `${desktopSidebarWidth}px`,
         '--mes-desktop-split-sidebar-width': `${desktopSplitSidebarWidth}px`,
+        '--mes-desktop-tools-width': '320px',
       } as CSSProperties}
     >
       <InterfacePreferenceSync />
       <header className="fixed inset-x-0 top-0 z-50 hidden h-16 items-center border-b border-gray-200 bg-white lg:flex">
-        <div className={`flex h-full w-[var(--mes-desktop-sidebar-width)] shrink-0 items-center gap-3 border-r border-gray-200 px-4 ${
-          desktopNavigationMode === 'split' ? 'xl:w-[var(--mes-desktop-split-sidebar-width)]' : ''
+        <div className={`flex h-full shrink-0 items-center border-r border-gray-200 ${
+          workspaceLayoutPreference.layout === 'canvas'
+            ? 'w-44 gap-3 px-4'
+            : persistentDesktopNavigation
+              ? `w-[var(--mes-desktop-sidebar-width)] gap-3 px-4 ${desktopNavigationMode === 'split' ? 'xl:w-[var(--mes-desktop-split-sidebar-width)]' : ''}`
+              : 'w-16 justify-center px-2'
         }`}>
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600">
-            <span className="text-lg font-bold text-white">M</span>
-          </div>
-          <div className="min-w-0">
-            <h1 className="truncate text-base font-bold text-gray-800">MES-lite</h1>
-            <p className="truncate text-[11px] text-gray-500">生产系统 · v{appVersion}</p>
-          </div>
+          {autoHideDesktopNavigation ? (
+            <button
+              ref={desktopNavigationTriggerRef}
+              type="button"
+              aria-label={transientDesktopNavigationOpen ? '收起功能导航' : '打开功能导航'}
+              aria-expanded={transientDesktopNavigationOpen}
+              onPointerEnter={scheduleDesktopNavigationOpen}
+              onPointerLeave={cancelDesktopNavigationOpen}
+              onFocus={scheduleDesktopNavigationOpen}
+              onClick={() => {
+                cancelDesktopNavigationOpen()
+                cancelDesktopNavigationClose()
+                setTransientDesktopNavigationOpen((open) => !open)
+              }}
+              className="group relative flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm transition hover:bg-blue-700"
+            >
+              <Menu aria-hidden="true" className="h-5 w-5" />
+              <ControlTooltip label={transientDesktopNavigationOpen ? '收起功能导航' : '打开功能导航'} hidden={transientDesktopNavigationOpen} />
+            </button>
+          ) : (
+            <>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600">
+                <span className="text-lg font-bold text-white">M</span>
+              </div>
+              <div className="min-w-0">
+                <h1 className="truncate text-base font-bold text-gray-800">MES-lite</h1>
+                <p className="truncate text-[11px] text-gray-500">生产系统 · v{appVersion}</p>
+              </div>
+            </>
+          )}
         </div>
+        {workspaceLayoutPreference.layout === 'canvas' && <DesktopTopNavigation groups={desktopNavigationGroups} />}
         <div
           id="topbar-actions-desktop"
           aria-label="页面搜索、筛选和工具"
-          className="flex min-w-0 flex-1 items-center gap-3 overflow-visible px-4 empty:before:content-['']"
+          className={`${workspaceLayoutPreference.layout === 'sidebar' ? 'flex' : 'hidden'} min-w-0 flex-1 items-center gap-3 overflow-visible px-4 empty:before:content-['']`}
         />
         <div className="flex h-full shrink-0 items-center gap-2 border-l border-gray-100 px-4">
+          <button
+            type="button"
+            aria-label={workspaceLayoutPreference.layout === 'canvas' ? '切换到标准管理布局' : '切换到画布工作布局'}
+            onClick={() => {
+              cancelDesktopNavigationOpen()
+              cancelDesktopNavigationClose()
+              setTransientDesktopNavigationOpen(false)
+              setWorkspaceLayoutPreference({ layout: workspaceLayoutPreference.layout === 'canvas' ? 'sidebar' : 'canvas' })
+            }}
+            className="group relative flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 hover:text-blue-700"
+          >
+            {workspaceLayoutPreference.layout === 'canvas'
+              ? <PanelLeftOpen aria-hidden="true" className="h-5 w-5" />
+              : <PanelRightOpen aria-hidden="true" className="h-5 w-5" />}
+            <ControlTooltip label={workspaceLayoutPreference.layout === 'canvas' ? '切换到标准管理布局' : '切换到画布工作布局'} />
+          </button>
           {canRead('aiAssistant') && (
             <button
               type="button"
@@ -1653,9 +1784,52 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </div>
       </header>
 
-      <aside className={`fixed bottom-0 left-0 top-16 z-30 hidden w-[var(--mes-desktop-sidebar-width)] flex-col border-r border-gray-200 bg-white lg:flex ${
-        desktopNavigationMode === 'split' ? 'xl:w-[var(--mes-desktop-split-sidebar-width)]' : ''
-      }`}>
+      <div
+        id="page-tools-desktop"
+        aria-label="右侧页面工具"
+        className={`fixed bottom-0 right-0 top-16 z-30 hidden w-[var(--mes-desktop-tools-width)] border-l border-gray-200 bg-white ${workspaceLayoutPreference.layout === 'canvas' ? 'lg:flex' : 'lg:hidden'}`}
+      />
+
+      {autoHideDesktopNavigation && !transientDesktopNavigationOpen && (
+        <div aria-hidden="true" onPointerEnter={scheduleDesktopNavigationOpen} onPointerLeave={cancelDesktopNavigationOpen} className="fixed bottom-0 left-0 top-16 z-30 hidden w-2 lg:block" />
+      )}
+
+      <aside
+        ref={desktopNavigationPanelRef}
+        onPointerEnter={autoHideDesktopNavigation ? openTransientDesktopNavigation : undefined}
+        onPointerLeave={autoHideDesktopNavigation ? scheduleDesktopNavigationClose : undefined}
+        onFocusCapture={autoHideDesktopNavigation ? openTransientDesktopNavigation : undefined}
+        onBlurCapture={autoHideDesktopNavigation ? scheduleDesktopNavigationClose : undefined}
+        className={`fixed bottom-0 left-0 top-16 hidden w-[var(--mes-desktop-sidebar-width)] flex-col border-r border-gray-200 bg-white transition-transform duration-200 motion-reduce:transition-none lg:flex ${
+          desktopNavigationMode === 'split' ? 'xl:w-[var(--mes-desktop-split-sidebar-width)]' : ''
+        } ${workspaceLayoutPreference.layout === 'canvas'
+          ? 'lg:hidden'
+          : autoHideDesktopNavigation
+            ? `z-40 shadow-2xl ${transientDesktopNavigationOpen ? 'translate-x-0' : '-translate-x-full'}`
+            : 'z-30 translate-x-0'
+        }`}
+      >
+        <div className="flex h-11 shrink-0 items-center justify-between border-b border-gray-100 px-3">
+          <span className="text-xs font-semibold text-gray-500">功能导航</span>
+          <button
+            type="button"
+            aria-label={autoHideDesktopNavigation ? '固定导航' : '改为自动隐藏'}
+            onClick={() => {
+              cancelDesktopNavigationOpen()
+              cancelDesktopNavigationClose()
+              if (autoHideDesktopNavigation) {
+                setWorkspaceLayoutPreference({ navigationBehavior: 'persistent' })
+                return
+              }
+              setWorkspaceLayoutPreference({ navigationBehavior: 'auto-hide' })
+              setTransientDesktopNavigationOpen(false)
+            }}
+            className="group relative flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition hover:bg-blue-50 hover:text-blue-700"
+          >
+            {autoHideDesktopNavigation ? <Pin aria-hidden="true" className="h-4 w-4" /> : <PinOff aria-hidden="true" className="h-4 w-4" />}
+            <ControlTooltip label={autoHideDesktopNavigation ? '固定导航' : '改为自动隐藏'} />
+          </button>
+        </div>
         <DesktopNavigation mode={desktopNavigationMode} groups={desktopNavigationGroups} displayMode={desktopNavigationDisplayMode} />
         <div
           role="separator"
@@ -1667,6 +1841,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           tabIndex={0}
           onPointerDown={(event) => {
             event.preventDefault()
+            cancelDesktopNavigationOpen()
+            cancelDesktopNavigationClose()
             setResizingDesktopSidebar(splitNavigationVisible ? 'split' : 'accordion')
           }}
           onDoubleClick={() => {
@@ -1701,9 +1877,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </div>
       </aside>
 
-      <main className={`mes-mobile-main min-w-0 p-3 sm:p-4 lg:ml-[var(--mes-desktop-sidebar-width)] lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20 ${
-        desktopNavigationMode === 'split' ? 'xl:ml-[var(--mes-desktop-split-sidebar-width)]' : ''
-      }`}>
+      <main className={`mes-mobile-main min-w-0 p-3 sm:p-4 lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20 ${
+        persistentDesktopNavigation
+          ? `lg:ml-[var(--mes-desktop-sidebar-width)] ${desktopNavigationMode === 'split' ? 'xl:ml-[var(--mes-desktop-split-sidebar-width)]' : ''}`
+          : 'lg:ml-0'
+      } ${workspaceLayoutPreference.layout === 'canvas' ? 'lg:mr-[var(--mes-desktop-tools-width)]' : 'lg:mr-0'}`}>
         <div className={`sticky top-0 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:hidden ${
           systemMenuOpen ? 'z-[60] lg:z-30' : 'z-30'
         }`}>

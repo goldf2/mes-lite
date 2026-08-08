@@ -7,6 +7,8 @@ import ModalOverlay from './ModalOverlay'
 import ToolbarOrderSettings, { useShowUnavailableToolbarSlots, useToolbarOrder, type ToolbarSlot } from './ToolbarOrderSettings'
 import { PageModuleKeyContext } from './page-modules/PageModuleBoundary'
 import ControlTooltip from './ControlTooltip'
+import useCompactViewport from './useCompactViewport'
+import { useWorkspaceLayoutPreference } from './interfacePreferences'
 
 interface ResponsiveToolbarActionsProps {
   primaryFilters?: ReactNode
@@ -22,6 +24,8 @@ interface ResponsiveToolbarActionsProps {
 
 export default function ResponsiveToolbarActions({ primaryFilters, advancedSearch, filterCount = 0, filterSummary, preferences, viewControl, actions, pageKey, onOpenPageOptions }: ResponsiveToolbarActionsProps) {
   const contextPageKey = useContext(PageModuleKeyContext)
+  const [workspaceLayoutPreference] = useWorkspaceLayoutPreference()
+  const compactViewport = useCompactViewport(1023)
   const resolvedPageKey = pageKey || contextPageKey
   const toolbarOrder = useToolbarOrder(resolvedPageKey)
   const showUnavailableSlots = useShowUnavailableToolbarSlots(resolvedPageKey)
@@ -160,7 +164,45 @@ export default function ResponsiveToolbarActions({ primaryFilters, advancedSearc
     </section>
   )
 
+  const pageOptionsDialog = pageOptionsOpen && createPortal(
+    <ModalOverlay onClose={() => setPageOptionsOpen(false)}>
+      <div role="dialog" aria-modal="true" aria-label="页内选项" className="w-[min(92vw,30rem)] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3"><div><div className="text-base font-semibold text-gray-900">页内选项</div><div className="mt-0.5 text-xs text-gray-500">调整当前页面顶部工具顺序</div></div><button type="button" onClick={() => setPageOptionsOpen(false)} aria-label="关闭页内选项" className="rounded p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button></div>
+        <div className="p-4"><ToolbarOrderSettings pageKey={resolvedPageKey} /></div>
+        <div className="flex justify-end border-t border-gray-100 bg-gray-50 px-4 py-3"><button type="button" onClick={() => setPageOptionsOpen(false)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white">完成</button></div>
+      </div>
+    </ModalOverlay>, document.body,
+  )
+
+  if (workspaceLayoutPreference.layout === 'canvas' && !compactViewport) {
+    return (
+      <>
+        <div className="flex h-full min-h-0 w-full flex-col bg-gray-50/80">
+          <div className="shrink-0 border-b border-gray-200 bg-white px-4 py-3">
+            <div className="text-base font-semibold text-gray-900">页面工具</div>
+            <div className="mt-0.5 text-xs text-gray-500">搜索、显示与当前页面操作</div>
+          </div>
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 [scrollbar-width:thin]">
+            {(hasPrimaryFilters || showUnavailableSlots) && (
+              <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                <div className="mb-2 text-xs font-semibold text-gray-500">页面搜索</div>
+                <div className="min-w-0 [&>*]:!w-full [&>*]:!max-w-none">{hasPrimaryFilters ? primaryFilters : disabledSearch}</div>
+              </section>
+            )}
+            {toolPanelFilterSection}
+            {toolPanelViewSection}
+            {hasPreferences && <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">{preferences}</section>}
+            {toolPanelUtilities}
+          </div>
+          {hasActions && <footer className="shrink-0 border-t border-gray-200 bg-white p-3"><div className="grid gap-2 [&>button]:w-full [&>button]:justify-center">{actions}</div></footer>}
+        </div>
+        {pageOptionsDialog}
+      </>
+    )
+  }
+
   return (
+    <>
     <div className="relative flex w-full min-w-0 flex-nowrap items-center gap-2 xl:gap-3">
       {(hasPrimaryFilters || showUnavailableSlots) && <div className="flex min-w-0 flex-1 items-center sm:hidden [&>*]:!min-w-0 [&>*]:!max-w-none">{hasPrimaryFilters ? primaryFilters : disabledSearch}</div>}
       {hasAnyTools && (
@@ -204,15 +246,8 @@ export default function ResponsiveToolbarActions({ primaryFilters, advancedSearc
         </div>
       )}
 
-      {pageOptionsOpen && createPortal(
-        <ModalOverlay onClose={() => setPageOptionsOpen(false)}>
-          <div role="dialog" aria-modal="true" aria-label="页内选项" className="w-[min(92vw,30rem)] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3"><div><div className="text-base font-semibold text-gray-900">页内选项</div><div className="mt-0.5 text-xs text-gray-500">调整当前页面顶部工具顺序</div></div><button type="button" onClick={() => setPageOptionsOpen(false)} aria-label="关闭页内选项" className="rounded p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button></div>
-            <div className="p-4"><ToolbarOrderSettings pageKey={resolvedPageKey} /></div>
-            <div className="flex justify-end border-t border-gray-100 bg-gray-50 px-4 py-3"><button type="button" onClick={() => setPageOptionsOpen(false)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white">完成</button></div>
-          </div>
-        </ModalOverlay>, document.body,
-      )}
     </div>
+    {pageOptionsDialog}
+    </>
   )
 }

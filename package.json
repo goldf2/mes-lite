@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.233",
+  "version": "0.1.234",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -48,6 +48,7 @@
     "verify:daily-production-reset": "tsx scripts/verify-daily-production-reset-migration.ts",
     "verify:dashboard-production-flows": "tsx scripts/verify-dashboard-production-flows.ts",
     "verify:workspace-preferences": "tsx scripts/verify-workspace-preferences.ts",
+    "verify:workspace-shell": "tsx scripts/verify-workspace-shell-layout.ts",
     "verify:equipment": "tsx scripts/verify-equipment-work-centers.ts",
     "verify:bom-ratio": "tsx scripts/verify-bom-ratio.ts",
     "verify:bom-versions": "tsx scripts/verify-bom-versions.ts",

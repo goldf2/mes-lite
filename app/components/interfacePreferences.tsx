@@ -7,6 +7,11 @@ export const modalGlassStorageKey = 'mes-lite.preferences.modalGlass'
 export const preferenceChangeEvent = 'mes-lite.preferences.changed'
 export const desktopNavigationModeStorageKey = 'mes-lite.layout.desktopNavigationMode'
 export const desktopNavigationDisplayModeStorageKey = 'mes-lite.layout.desktopNavigationDisplayMode'
+export const workspaceLayoutStorageKey = 'mes-lite.layout.workspaceMode'
+export const desktopNavigationBehaviorStorageKey = 'mes-lite.layout.desktopNavigationBehavior'
+
+export type WorkspaceLayoutMode = 'sidebar' | 'canvas'
+export type DesktopNavigationBehavior = 'persistent' | 'auto-hide'
 
 export function readDesktopNavigationPreference() {
   const defaultValue: { mode: DesktopNavigationMode; displayMode: DesktopNavigationDisplayMode } = {
@@ -46,6 +51,52 @@ export function useDesktopNavigationPreference() {
     setValue((current) => {
       const resolved = { mode: next.mode || current.mode, displayMode: next.displayMode || current.displayMode }
       setDesktopNavigationPreference(resolved.mode, resolved.displayMode)
+      return resolved
+    })
+  }, [])
+
+  return [value, update] as const
+}
+
+export function readWorkspaceLayoutPreference() {
+  const defaultValue: { layout: WorkspaceLayoutMode; navigationBehavior: DesktopNavigationBehavior } = {
+    layout: 'sidebar',
+    navigationBehavior: 'persistent',
+  }
+  if (typeof window === 'undefined') return defaultValue
+  return {
+    layout: window.localStorage.getItem(workspaceLayoutStorageKey) === 'canvas' ? 'canvas' : 'sidebar',
+    navigationBehavior: window.localStorage.getItem(desktopNavigationBehaviorStorageKey) === 'auto-hide' ? 'auto-hide' : 'persistent',
+  } as const
+}
+
+export function setWorkspaceLayoutPreference(layout: WorkspaceLayoutMode, navigationBehavior: DesktopNavigationBehavior) {
+  window.localStorage.setItem(workspaceLayoutStorageKey, layout)
+  window.localStorage.setItem(desktopNavigationBehaviorStorageKey, navigationBehavior)
+  window.dispatchEvent(new CustomEvent(preferenceChangeEvent, { detail: { workspaceLayout: layout, navigationBehavior } }))
+}
+
+export function useWorkspaceLayoutPreference() {
+  const [value, setValue] = useState(readWorkspaceLayoutPreference)
+
+  useEffect(() => {
+    const sync = () => setValue(readWorkspaceLayoutPreference())
+    sync()
+    window.addEventListener('storage', sync)
+    window.addEventListener(preferenceChangeEvent, sync)
+    return () => {
+      window.removeEventListener('storage', sync)
+      window.removeEventListener(preferenceChangeEvent, sync)
+    }
+  }, [])
+
+  const update = useCallback((next: { layout?: WorkspaceLayoutMode; navigationBehavior?: DesktopNavigationBehavior }) => {
+    setValue((current) => {
+      const resolved = {
+        layout: next.layout || current.layout,
+        navigationBehavior: next.navigationBehavior || current.navigationBehavior,
+      }
+      setWorkspaceLayoutPreference(resolved.layout, resolved.navigationBehavior)
       return resolved
     })
   }, [])
