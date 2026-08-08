@@ -14,13 +14,14 @@ export interface ResourceSearchProfile<T> {
 
 export type ResourceSearchFieldType = 'text' | 'number' | 'date' | 'select'
 export type ResourceSearchOperator = 'equals' | 'contains' | 'startsWith' | 'gt' | 'gte' | 'lt' | 'lte'
+export interface ResourceSearchOption { value: string; label: string }
 
 export interface ResourceAdvancedSearchField<T> {
   key: string
   label: string
   type: ResourceSearchFieldType
   read: (item: T) => ResourceSearchValue
-  options?: readonly { value: string; label: string }[]
+  options?: readonly ResourceSearchOption[]
   operators?: readonly ResourceSearchOperator[]
 }
 
@@ -35,6 +36,19 @@ export function defaultResourceSearchOperators(type: ResourceSearchFieldType): r
   if (type === 'number' || type === 'date') return ['equals', 'gt', 'gte', 'lt', 'lte']
   if (type === 'select') return ['equals']
   return ['contains', 'equals', 'startsWith']
+}
+
+export function displayAdvancedSearchOptionValue(options: readonly ResourceSearchOption[], value: string) {
+  return options.find((option) => option.value === value)?.label || value
+}
+
+export function resolveAdvancedSearchOptionInput(options: readonly ResourceSearchOption[], input: string) {
+  const normalizedInput = input.trim().toLocaleLowerCase('zh-CN')
+  const match = options.find((option) => (
+    option.value.toLocaleLowerCase('zh-CN') === normalizedInput
+    || option.label.toLocaleLowerCase('zh-CN') === normalizedInput
+  ))
+  return match?.value || input
 }
 
 export function buildAdvancedSearchDraft<T>(

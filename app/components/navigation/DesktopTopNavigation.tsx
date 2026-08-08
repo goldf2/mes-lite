@@ -8,7 +8,6 @@ import type { DesktopNavigationGroup } from './DesktopNavigation'
 
 type OpenPanel = { type: 'group'; id: string } | { type: 'more' } | { type: 'search' } | null
 
-const HOVER_SWITCH_DELAY_MS = 180
 const COMPACT_PANEL_WIDTH_PX = 288
 const WIDE_PANEL_WIDTH_PX = 544
 const PANEL_EDGE_GAP_PX = 8
@@ -19,25 +18,8 @@ export default function DesktopTopNavigation({ groups }: { groups: DesktopNaviga
   const [availableWidth, setAvailableWidth] = useState(720)
   const [panelGeometry, setPanelGeometry] = useState({ left: PANEL_EDGE_GAP_PX, width: WIDE_PANEL_WIDTH_PX })
   const capacityRef = useRef<HTMLDivElement | null>(null)
-  const hoverSwitchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const panelTriggerRef = useRef<HTMLButtonElement | null>(null)
   const rootRef = useDismissibleSearchPopup<HTMLDivElement>(Boolean(openPanel), () => setOpenPanel(null))
-
-  const cancelHoverSwitch = () => {
-    if (hoverSwitchTimerRef.current === null) return
-    clearTimeout(hoverSwitchTimerRef.current)
-    hoverSwitchTimerRef.current = null
-  }
-
-  const scheduleGroupSwitch = (groupId: string, trigger: HTMLButtonElement) => {
-    if (openPanel?.type !== 'group' || openPanel.id === groupId) return
-    cancelHoverSwitch()
-    hoverSwitchTimerRef.current = setTimeout(() => {
-      panelTriggerRef.current = trigger
-      setOpenPanel((current) => current?.type === 'group' ? { type: 'group', id: groupId } : current)
-      hoverSwitchTimerRef.current = null
-    }, HOVER_SWITCH_DELAY_MS)
-  }
 
   useEffect(() => {
     const container = capacityRef.current
@@ -52,8 +34,6 @@ export default function DesktopTopNavigation({ groups }: { groups: DesktopNaviga
   useEffect(() => {
     if (!openPanel) setQuery('')
   }, [openPanel])
-
-  useEffect(() => () => cancelHoverSwitch(), [])
 
   const visibleCount = Math.max(1, Math.min(groups.length, Math.floor((availableWidth - 84) / 72)))
   const visibleGroups = groups.slice(0, visibleCount)
@@ -130,10 +110,7 @@ export default function DesktopTopNavigation({ groups }: { groups: DesktopNaviga
               type="button"
               aria-current={group.active ? 'page' : undefined}
               aria-expanded={isOpenGroup}
-              onPointerEnter={(event) => scheduleGroupSwitch(group.id, event.currentTarget)}
-              onPointerLeave={cancelHoverSwitch}
               onClick={(event) => {
-                cancelHoverSwitch()
                 panelTriggerRef.current = event.currentTarget
                 setOpenPanel((current) => current?.type === 'group' && current.id === group.id ? null : { type: 'group', id: group.id })
               }}

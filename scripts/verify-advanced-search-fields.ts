@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   buildAdvancedSearchDraft,
+  displayAdvancedSearchOptionValue,
+  resolveAdvancedSearchOptionInput,
   type ResourceAdvancedSearchField,
 } from '../lib/resource-search'
 
@@ -26,10 +28,14 @@ assert.deepEqual(draft.map((condition) => condition.field), ['title', 'status', 
 assert.equal(draft.find((condition) => condition.field === 'status')?.value, 'ACTIVE')
 assert.equal(draft.find((condition) => condition.field === 'title')?.value, '')
 assert.equal(draft.find((condition) => condition.field === 'version')?.operator, 'contains')
+assert.equal(displayAdvancedSearchOptionValue(fields[1].options || [], 'ACTIVE'), '启用')
+assert.equal(resolveAdvancedSearchOptionInput(fields[1].options || [], '启用'), 'ACTIVE')
+assert.equal(resolveAdvancedSearchOptionInput(fields[1].options || [], '启'), '启')
 
 const root = process.cwd()
 const toolbarSource = readFileSync(join(root, 'app/components/ResponsiveToolbarActions.tsx'), 'utf8')
 const resourcePageSource = readFileSync(join(root, 'app/components/resource/ResourcePage.tsx'), 'utf8')
+const advancedSearchSource = readFileSync(join(root, 'app/components/resource/ResourceAdvancedSearch.tsx'), 'utf8')
 const unifiedSearchPages = [
   'app/page.tsx',
   'app/components/BomOverviewPage.tsx',
@@ -50,6 +56,8 @@ const unifiedSearchPages = [
 assert.doesNotMatch(toolbarSource, /hasLegacyAdvancedSearch|filterPresentation|filters\?: ReactNode/)
 assert.match(resourcePageSource, /advancedSearchFields\?: readonly ResourceAdvancedSearchField<T>\[\]/)
 assert.match(resourcePageSource, /filterByAdvancedSearch\(items, advancedSearchFields, searchConditions\)/)
+assert.match(advancedSearchSource, /<datalist[\s\S]*?option\.label/, '预置搜索条件必须提供按标签联想的公共候选列表')
+assert.match(advancedSearchSource, /resolveAdvancedSearchOptionInput/, '预置搜索条件必须允许手动输入并把完整标签映射到真实值')
 
 for (const file of unifiedSearchPages) {
   const source = readFileSync(join(root, file), 'utf8')

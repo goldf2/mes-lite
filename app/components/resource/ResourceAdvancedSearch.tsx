@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react'
 import {
   buildAdvancedSearchDraft,
   defaultResourceSearchOperators,
+  displayAdvancedSearchOptionValue,
+  resolveAdvancedSearchOptionInput,
 } from '@/lib/resource-search'
 import type {
   ResourceAdvancedSearchField,
@@ -65,7 +67,7 @@ export default function ResourceAdvancedSearch<T>({
       <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
         <div>
           <div className="text-sm font-semibold text-gray-900">高级搜索</div>
-          <div className="mt-0.5 text-xs text-gray-500">按明确字段输入条件；已填写的字段必须同时满足。</div>
+          <div className="mt-0.5 text-xs text-gray-500">按明确字段输入条件；预置值可直接键入并联想，已填写的字段必须同时满足。</div>
         </div>
         <button type="button" onClick={() => setOpen(false)} aria-label="关闭高级搜索" className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><X className="h-4 w-4" /></button>
       </div>
@@ -82,10 +84,21 @@ export default function ResourceAdvancedSearch<T>({
                 {operators.map((operator) => <option key={operator} value={operator}>{operatorLabels[operator]}</option>)}
               </select>
               {field.options ? (
-                <select value={condition.value} onChange={(event) => update(condition.id, { value: event.target.value })} className="h-9 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm">
-                  <option value="">请选择</option>
-                  {field.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
+                <>
+                  <input
+                    type="text"
+                    list={`advanced-search-options-${condition.id}`}
+                    value={displayAdvancedSearchOptionValue(field.options, condition.value)}
+                    onChange={(event) => update(condition.id, { value: resolveAdvancedSearchOptionInput(field.options || [], event.target.value) })}
+                    className="h-9 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm"
+                    placeholder={`输入或选择${field.label}`}
+                    autoComplete="off"
+                    aria-label={`${field.label}搜索条件`}
+                  />
+                  <datalist id={`advanced-search-options-${condition.id}`}>
+                    {field.options.map((option) => <option key={option.value} value={option.label}>{option.value !== option.label ? option.value : undefined}</option>)}
+                  </datalist>
+                </>
               ) : (
                 <input
                   type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
