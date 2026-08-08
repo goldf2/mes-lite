@@ -77,10 +77,10 @@ export default function PageOptionsDialog({
 
   return (
     <ModalDialog
-      title="页面选项"
-      description={`配置“${pageLabel}”及当前浏览器的页面偏好。`}
+      title={`页面选项 · ${pageLabel}`}
       onClose={onClose}
       size="sm"
+      bodyClassName="!py-4"
       footer={(
         <ModalActions
           onCancel={onClose}
@@ -89,23 +89,25 @@ export default function PageOptionsDialog({
         />
       )}
     >
-      <div className="space-y-5">
+      <div className="space-y-4">
         {children}
 
         {showBomUnitOptions && (
           <section>
-            <div className="text-sm font-semibold text-gray-900">BOM 新建默认值</div>
-            <p className="mt-1 text-xs text-gray-500">只影响之后新建 BOM 和添加的投入、产出行。</p>
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <div className="text-sm font-semibold text-gray-900">BOM 新建默认值</div>
+              <span className="text-xs text-gray-500">仅影响后续新增</span>
+            </div>
             {unitLoading ? (
-              <div className="py-6 text-center text-sm text-gray-500" role="status">正在读取单位目录...</div>
+              <div className="py-4 text-center text-sm text-gray-500" role="status">正在读取单位目录...</div>
             ) : (
-              <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="block text-sm font-medium text-gray-700">
                   默认长度单位
                   <select
                     value={draftBomPreferences.lengthUnit}
                     onChange={(event) => setDraftBomPreferences((current) => ({ ...current, lengthUnit: event.target.value }))}
-                    className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     {lengthUnits.map((unit) => (
                       <option key={`length:${unit.code}`} value={unit.code}>{unit.name}（{unit.code}）</option>
@@ -117,7 +119,7 @@ export default function PageOptionsDialog({
                   <select
                     value={draftBomPreferences.weightUnit}
                     onChange={(event) => setDraftBomPreferences((current) => ({ ...current, weightUnit: event.target.value }))}
-                    className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     {weightUnits.map((unit) => (
                       <option key={`weight:${unit.code}`} value={unit.code}>{unit.name}（{unit.code}）</option>
@@ -128,8 +130,6 @@ export default function PageOptionsDialog({
             )}
           </section>
         )}
-
-        <p className="border-t border-gray-100 pt-4 text-xs text-gray-500">这些页内选项只保存在当前浏览器，不修改业务数据或其他终端。</p>
       </div>
     </ModalDialog>
   )

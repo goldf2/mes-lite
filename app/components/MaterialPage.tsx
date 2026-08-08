@@ -410,7 +410,7 @@ function BomSummaryVisibilityControl({
       </button>
       {open && (
         <div className="absolute right-0 top-full z-40 mt-1 w-52 rounded-lg border border-gray-200 bg-white p-2 shadow-xl">
-          <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50">
+          <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50">
             <input
               type="checkbox"
               checked={visible}
@@ -422,9 +422,8 @@ function BomSummaryVisibilityControl({
           {visible && (
             <>
               <div className="mx-2 my-1 border-t border-gray-100" />
-              <div className="px-2 py-2 text-xs text-gray-500">选择简况中显示的内容</div>
               {bomSummaryFieldOptions.map((option) => (
-                <label key={option.key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                <label key={option.key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
                   <input
                     type="checkbox"
                     checked={selected.has(option.key)}
@@ -2315,10 +2314,9 @@ export default function MaterialPage({
         <ToolbarOrderSettings pageKey={showBomWorkspace ? 'bomWorkspace' : 'materialManagement'} />
         {!showBomWorkspace && (
           <>
-            <section className="border-t border-gray-100 pt-5">
+            <section className="border-t border-gray-100 pt-4">
               <div className="text-sm font-semibold text-gray-900">排序</div>
-              <p className="mt-1 text-xs text-gray-500">只改变当前浏览器中的物料排列方式。</p>
-              <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+              <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
                 <select value={sortBy} onChange={(event) => setSortBy(event.target.value as MaterialSortBy)} className="h-10 min-w-0 rounded-lg border border-gray-200 bg-white px-3 text-sm">
                   {materialSortOptions.filter((option) => option.value !== 'bomSummary' || canUseBomData).map((option) => <option key={option.value} value={option.value}>按{option.label}</option>)}
                 </select>
@@ -2326,24 +2324,22 @@ export default function MaterialPage({
               </div>
             </section>
 
-            <section className="border-t border-gray-100 pt-5">
+            <section className="border-t border-gray-100 pt-4">
               <div className="text-sm font-semibold text-gray-900">字段显示</div>
-              <p className="mt-1 text-xs text-gray-500">选择列表和卡片中需要显示的物料信息。</p>
-              <div className="mt-3 overflow-x-auto [&>div]:flex-wrap">
+              <div className="mt-2 overflow-x-auto [&>div]:flex-wrap">
                 <MaterialFieldVisibilityControl value={visibleFields} onChange={updateVisibleFields} />
               </div>
             </section>
 
             {canUseBomData && (
-              <section className="border-t border-gray-100 pt-5">
+              <section className="border-t border-gray-100 pt-4">
                 <div className="text-sm font-semibold text-gray-900">BOM 简况</div>
-                <p className="mt-1 text-xs text-gray-500">控制物料列表中 BOM 摘要的可见性和内容。</p>
-                <div className="mt-3"><BomSummaryVisibilityControl visible={bomSummaryVisible} value={bomSummaryFields} onVisibleChange={updateBomSummaryVisible} onChange={updateBomSummaryFields} /></div>
+                <div className="mt-2"><BomSummaryVisibilityControl visible={bomSummaryVisible} value={bomSummaryFields} onVisibleChange={updateBomSummaryVisible} onChange={updateBomSummaryFields} /></div>
               </section>
             )}
 
             {viewMode === 'list' && Object.keys(columnWidths).length > 0 && (
-              <section className="border-t border-gray-100 pt-5">
+              <section className="border-t border-gray-100 pt-4">
                 <AppButton onClick={resetAllColumnWidths}>恢复自动列宽</AppButton>
               </section>
             )}

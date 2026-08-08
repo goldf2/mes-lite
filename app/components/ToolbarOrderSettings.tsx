@@ -97,10 +97,9 @@ export default function ToolbarOrderSettings({ pageKey }: { pageKey: string }) {
   return (
     <section>
       <div className="text-sm font-semibold text-gray-900">顶部工具顺序</div>
-      <p className="mt-1 text-xs text-gray-500">关键词搜索与高级搜索固定组成左侧检索区；这里调整其余右侧工具，只影响当前页面和当前浏览器。</p>
-      <div className="mt-3 divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200">
+      <div className="mt-2 divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200">
         {movableOrder.map((slot, index) => (
-          <div key={slot} className="flex items-center gap-3 bg-white px-3 py-2.5">
+          <div key={slot} className="flex items-center gap-3 bg-white px-3 py-2">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-gray-500">{index + 1}</span>
             <span className="min-w-0 flex-1 text-sm text-gray-800">{slotLabels[slot]}</span>
             <button type="button" onClick={() => move(index, -1)} disabled={index === 0} aria-label={`上移${slotLabels[slot]}`} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-25"><ArrowUp className="h-4 w-4" /></button>
@@ -108,11 +107,11 @@ export default function ToolbarOrderSettings({ pageKey }: { pageKey: string }) {
           </div>
         ))}
       </div>
-      <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
-        <input type="checkbox" checked={showUnavailable} onChange={(event) => writeShowUnavailableToolbarSlots(pageKey, event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-        <span><span className="block text-sm text-gray-800">显示不可用工具占位</span><span className="mt-0.5 block text-xs text-gray-500">保持切换页面时检索区和视图按钮的位置稳定。</span></span>
+      <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+        <input type="checkbox" checked={showUnavailable} onChange={(event) => writeShowUnavailableToolbarSlots(pageKey, event.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+        <span className="text-sm text-gray-800">保留不可用工具占位</span>
       </label>
-      <button type="button" onClick={() => writeToolbarOrder(pageKey, defaultToolbarOrder)} className="mt-3 inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800"><RotateCcw className="h-4 w-4" />恢复默认顺序</button>
+      <button type="button" onClick={() => writeToolbarOrder(pageKey, defaultToolbarOrder)} className="mt-2 inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800"><RotateCcw className="h-4 w-4" />恢复默认顺序</button>
     </section>
   )
 }
