@@ -63,6 +63,7 @@ export default function DesktopTopNavigation({ groups }: { groups: DesktopNaviga
         ? groups.filter((group) => group.id === openPanel.id)
         : []
   const compactGroupPanel = openPanel?.type === 'group' && (panelGroups[0]?.items.length ?? 0) <= 2
+  const showPanelHeading = openPanel?.type === 'search' || openPanel?.type === 'more'
 
   useLayoutEffect(() => {
     if (!openPanel) return
@@ -139,14 +140,18 @@ export default function DesktopTopNavigation({ groups }: { groups: DesktopNaviga
       {openPanel && (
         <div
           role="dialog"
-          aria-label="顶部功能导航"
+          aria-label={openPanel.type === 'group' ? `${panelGroups[0]?.label || '当前'}功能菜单` : '顶部功能导航'}
           style={{ left: panelGeometry.left, width: panelGeometry.width }}
           className="absolute top-[calc(100%+8px)] z-[120] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
         >
-          <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2.5">
-            <div className="text-sm font-semibold text-gray-900">{openPanel.type === 'search' ? '搜索功能' : openPanel.type === 'more' ? '更多功能' : panelGroups[0]?.label}</div>
-            <button type="button" onClick={() => setOpenPanel(null)} aria-label="关闭功能导航" className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><X aria-hidden="true" className="h-4 w-4" /></button>
-          </div>
+          {showPanelHeading ? (
+            <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2.5">
+              <div className="text-sm font-semibold text-gray-900">{openPanel.type === 'search' ? '搜索功能' : '更多功能'}</div>
+              <button type="button" onClick={() => setOpenPanel(null)} aria-label="关闭功能导航" className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><X aria-hidden="true" className="h-4 w-4" /></button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setOpenPanel(null)} aria-label="关闭功能导航" className="absolute right-2 top-2 z-10 rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><X aria-hidden="true" className="h-4 w-4" /></button>
+          )}
           {openPanel.type === 'search' && (
             <div className="border-b border-gray-100 p-3">
               <div className="relative">
@@ -155,7 +160,7 @@ export default function DesktopTopNavigation({ groups }: { groups: DesktopNaviga
               </div>
             </div>
           )}
-          <div className="max-h-[min(65dvh,32rem)] space-y-3 overflow-y-auto p-3">
+          <div className={`max-h-[min(65dvh,32rem)] space-y-3 overflow-y-auto p-3 ${openPanel.type === 'group' ? 'pr-12' : ''}`}>
             {panelGroups.length === 0 ? (
               <div className="py-8 text-center text-sm text-gray-500">没有匹配的功能</div>
             ) : panelGroups.map((group) => (
