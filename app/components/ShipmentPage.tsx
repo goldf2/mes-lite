@@ -13,6 +13,7 @@ import useClientTableSort from './useClientTableSort'
 import ModalDialog, { ModalActions } from './ModalDialog'
 import AppButton from './AppButton'
 import { MappedResourceAdvancedSearch } from './resource'
+import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
 
 interface ShippableSalesItem {
   id: string
@@ -236,6 +237,7 @@ export default function ShipmentPage({
       onMessage('请选择销售订单明细和发货库位，并填写数量')
       return
     }
+    const printPreview = reserveBusinessDocumentPrintWindow()
     setLoading(true)
     try {
       const res = await fetch('/api/shipments', {
@@ -253,13 +255,21 @@ export default function ShipmentPage({
       const data = await res.json()
       if (res.ok) {
         onMessage(`发货单创建成功：${data.data.shipmentNo}`)
+        const pdfGenerated = await generateBusinessDocumentPdfArchives('shipment', [data.data.id])
+        if (pdfGenerated) printPreview.open('shipment', data.data.id)
+        else {
+          printPreview.close()
+          onMessage('发货单已创建，但 PDF 生成失败，可在发货列表中重新打印')
+        }
         setShowModal(false)
         resetForm()
         await Promise.all([fetchShipments(), fetchShippableItems()])
       } else {
+        printPreview.close()
         onMessage(data.error || '创建发货单失败')
       }
     } catch (err) {
+      printPreview.close()
       onMessage('创建发货单失败')
     }
     setLoading(false)
@@ -414,6 +424,7 @@ export default function ShipmentPage({
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                   <AttachmentPanel ownerType="SHIPMENT" ownerId={item.id} compact onMessage={onMessage} />
                   <div className="flex flex-wrap gap-2">
+                    <BusinessDocumentPrintLink kind="shipment" id={item.id} />
                     {item.status === 'PENDING' && (
                       <button
                         onClick={() => handleAction(item.id, 'ship')}
@@ -502,6 +513,7 @@ export default function ShipmentPage({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
+                        <BusinessDocumentPrintLink kind="shipment" id={item.id} />
                         {item.status === 'PENDING' && (
                           <button
                             onClick={() => handleAction(item.id, 'ship')}
@@ -551,7 +563,7 @@ export default function ShipmentPage({
             <ModalActions
               onCancel={() => setShowModal(false)}
               onConfirm={handleSubmit}
-              confirmLabel="创建待发货单"
+              confirmLabel="创建并输出 PDF"
               busy={loading}
             />
           )}

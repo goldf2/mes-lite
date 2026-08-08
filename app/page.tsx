@@ -37,6 +37,7 @@ import DesktopNavigation, {
 import DesktopTopNavigation from './components/navigation/DesktopTopNavigation'
 import PageQrCodeButton from './components/PageQrCodeButton'
 import ControlTooltip from './components/ControlTooltip'
+import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './components/BusinessDocumentPrintLink'
 
 function FeaturePageLoading() {
   return <AppLoadingIndicator label="正在加载页面..." />
@@ -1477,6 +1478,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       showMessage('请至少添加一个产品')
       return
     }
+    const printPreview = reserveBusinessDocumentPrintWindow()
     setLoading(true)
     try {
       const res = await fetch('/api/orders', {
@@ -1491,6 +1493,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       const data = await res.json()
       if (res.ok) {
         showMessage(data.count > 1 ? `生产订单已保存：${data.groupNo}，共 ${data.count} 个产品` : `生产订单已保存：${data.data.orderNo}`)
+        const pdfGenerated = await generateBusinessDocumentPdfArchives('production-order', (data.items || [data.data]).map((item: { id: string }) => item.id))
+        if (pdfGenerated) printPreview.open('production-order', data.data.id)
+        else {
+          printPreview.close()
+          showMessage('生产订单已保存，但部分 PDF 生成失败，可在订单列表中重新打印')
+        }
         setPlanQty(100)
         setOrderVoucherNo('')
         setOrderNote('')
@@ -1501,9 +1509,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         await fetchStocks()
         setTab('orders')
       } else {
+        printPreview.close()
         showMessage(data.error || '创建失败')
       }
     } catch (err) {
+      printPreview.close()
       showMessage('创建失败')
     }
     setLoading(false)
@@ -2113,6 +2123,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                           </div>
                           <div className="flex items-center gap-2">
                             <span className={`rounded px-2 py-1 text-xs font-medium ${statusColors[order.status]}`}>{statusLabels[order.status]}</span>
+                            <BusinessDocumentPrintLink kind="production-order" id={order.id} compact />
                             <button onClick={() => handleSelectOrder(order)} className="rounded border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50">详情 / 登记实绩</button>
                           </div>
                         </div>
@@ -2166,7 +2177,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                           <AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={order.id} compact onMessage={showMessage} />
                         </td>
                         <td className="px-4 py-3">
-                          <button onClick={(e) => { e.stopPropagation(); handleSelectOrder(order) }} className="px-3 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">详情 / 登记实绩</button>
+                          <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
+                            <BusinessDocumentPrintLink kind="production-order" id={order.id} compact />
+                            <button onClick={() => handleSelectOrder(order)} className="px-3 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">详情 / 登记实绩</button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -2186,6 +2200,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 <p className="text-sm text-gray-500">{orderDetail.groupNo || orderDetail.orderNo}{orderDetail.groupNo ? ` · 第 ${orderDetail.lineNo} 项` : ''}</p>
                 <p className="text-sm text-gray-500">凭据号：{orderDetail.voucherNo || '-'}</p>
               </div>
+              <BusinessDocumentPrintLink kind="production-order" id={orderDetail.id} />
             </div>
             <div className="grid grid-cols-2 gap-4 mb-6 md:grid-cols-5">
               <div className="border border-gray-200 rounded-lg p-4">
@@ -2337,7 +2352,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 />
               </div>
               <button onClick={createOrder} disabled={loading} className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
-                {loading ? '创建中...' : `保存生产订单${orderDraftLines.length > 0 ? `（${orderDraftLines.length + (selectedMaterialId ? 1 : 0)} 个产品）` : ''}`}
+                {loading ? '创建并生成 PDF 中...' : `创建生产订单并输出 PDF${orderDraftLines.length > 0 ? `（${orderDraftLines.length + (selectedMaterialId ? 1 : 0)} 个产品）` : ''}`}
               </button>
             </div>
           </div>

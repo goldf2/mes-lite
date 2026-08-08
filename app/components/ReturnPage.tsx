@@ -15,6 +15,7 @@ import ModalDialog, { ModalActions } from './ModalDialog'
 import FormField, { appInputClassName, appTextareaClassName } from './FormField'
 import AppButton from './AppButton'
 import { MappedResourceAdvancedSearch } from './resource'
+import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
 
 interface MaterialChoice {
   id: string
@@ -197,6 +198,7 @@ export default function ReturnPage({
       onMessage('请选择物料和退回库位，并填写数量和退货原因')
       return
     }
+    const printPreview = reserveBusinessDocumentPrintWindow()
     setLoading(true)
     try {
       const res = await fetch('/api/returns', {
@@ -214,13 +216,21 @@ export default function ReturnPage({
       const data = await res.json()
       if (res.ok) {
         onMessage(`退货单创建成功：${data.data.returnNo}`)
+        const pdfGenerated = await generateBusinessDocumentPdfArchives('return', [data.data.id])
+        if (pdfGenerated) printPreview.open('return', data.data.id)
+        else {
+          printPreview.close()
+          onMessage('退货单已创建，但 PDF 生成失败，可在退货列表中重新打印')
+        }
         setShowModal(false)
         resetForm()
         await fetchReturns()
       } else {
+        printPreview.close()
         onMessage(data.error || '创建退货单失败')
       }
     } catch (err) {
+      printPreview.close()
       onMessage('创建退货单失败')
     }
     setLoading(false)
@@ -351,6 +361,7 @@ export default function ReturnPage({
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                   <AttachmentPanel ownerType="RETURN_ORDER" ownerId={item.id} compact onMessage={onMessage} />
                   <div className="flex flex-wrap gap-2">
+                    <BusinessDocumentPrintLink kind="return" id={item.id} />
                     {item.status === 'PENDING' && (
                       <>
                         <button
@@ -425,6 +436,7 @@ export default function ReturnPage({
                       <AttachmentPanel ownerType="RETURN_ORDER" ownerId={item.id} compact onMessage={onMessage} />
                     </td>
                     <td className="px-4 py-3">
+                      <BusinessDocumentPrintLink kind="return" id={item.id} compact />
                       {item.status === 'PENDING' && (
                         <div className="flex gap-2">
                           <button
@@ -465,7 +477,7 @@ export default function ReturnPage({
             <ModalActions
               onCancel={() => setShowModal(false)}
               onConfirm={handleSubmit}
-              confirmLabel="提交"
+              confirmLabel="创建并输出 PDF"
               busy={loading}
             />
           )}

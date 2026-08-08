@@ -11,6 +11,7 @@ import { getStatusQuery } from './StatusCheckboxFilter'
 import TopBarPortal from './TopBarPortal'
 import AppLoadingIndicator from './AppLoadingIndicator'
 import { MappedResourceAdvancedSearch } from './resource'
+import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
 
 interface CustomerOption {
   id: string
@@ -192,6 +193,7 @@ export default function SalesOrderPage({
       return onMessage('同一物料请合并为一条明细')
     }
 
+    const printPreview = reserveBusinessDocumentPrintWindow()
     setSaving(true)
     try {
       const response = await fetch('/api/sales-orders', {
@@ -203,12 +205,22 @@ export default function SalesOrderPage({
         }),
       })
       const data = await response.json()
-      if (!response.ok) return onMessage(data.error || '创建销售订单失败')
+      if (!response.ok) {
+        printPreview.close()
+        return onMessage(data.error || '创建销售订单失败')
+      }
       onMessage(`销售订单已创建：${data.data.orderNo}`)
+      const pdfGenerated = await generateBusinessDocumentPdfArchives('sales-order', [data.data.id])
+      if (pdfGenerated) printPreview.open('sales-order', data.data.id)
+      else {
+        printPreview.close()
+        onMessage('销售订单已创建，但 PDF 生成失败，可在订单列表中重新打印')
+      }
       setFormOpen(false)
       setForm(emptyForm())
       await loadOrders()
     } catch {
+      printPreview.close()
       onMessage('创建销售订单失败')
     } finally {
       setSaving(false)
@@ -306,6 +318,7 @@ export default function SalesOrderPage({
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                       <div className="text-xs text-gray-500">{order.note || `已生成 ${order._count.shipments} 张发货单`}</div>
                       <div className="flex flex-wrap gap-2">
+                        <BusinessDocumentPrintLink kind="sales-order" id={order.id} />
                         {order.status === 'DRAFT' && <AppButton size="sm" variant="primary" onClick={() => setPendingAction({ order, action: 'confirm' })}>确认订单</AppButton>}
                         {['DRAFT', 'CONFIRMED'].includes(order.status) && <AppButton size="sm" variant="secondary" onClick={() => setPendingAction({ order, action: 'cancel' })}>取消订单</AppButton>}
                         {['CONFIRMED', 'PARTIAL'].includes(order.status) && order.items.some((item) => item.remainingQty > 0) && onOpenShipment && (
@@ -328,7 +341,7 @@ export default function SalesOrderPage({
           size="wide"
           onClose={() => setFormOpen(false)}
           closeDisabled={saving}
-          footer={<ModalActions onCancel={() => setFormOpen(false)} onConfirm={saveOrder} confirmLabel="保存草稿" busy={saving} />}
+          footer={<ModalActions onCancel={() => setFormOpen(false)} onConfirm={saveOrder} confirmLabel="创建并输出 PDF" busy={saving} />}
         >
           <div className="space-y-5">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
