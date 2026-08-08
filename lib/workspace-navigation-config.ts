@@ -9,6 +9,22 @@ export const navigationWorkspaceLabels: Record<NavigationWorkspaceId, string> = 
   erp: 'ERP',
 }
 
+export const workspaceNavigationGroupKeys = [
+  'workspace',
+  'materials',
+  'production',
+  'documents',
+  'equipment',
+  'logistics',
+  'sales',
+  'inventory',
+  'configuration',
+  'system',
+  'tools',
+  'account',
+] as const
+export type WorkspaceNavigationGroupKey = (typeof workspaceNavigationGroupKeys)[number]
+
 export interface WorkspaceNavigationItemConfig {
   functionKey: WorkspaceFunctionKey
   label?: string
@@ -16,6 +32,7 @@ export interface WorkspaceNavigationItemConfig {
 
 export interface NavigationWorkspaceConfig {
   enabled: boolean
+  groupOrder: WorkspaceNavigationGroupKey[]
   items: WorkspaceNavigationItemConfig[]
 }
 
@@ -65,14 +82,18 @@ function defaultWorkspaceItems(workspace: NavigationWorkspaceId) {
   return defaultItems[workspace].map((functionKey) => ({ functionKey }))
 }
 
+function defaultGroupOrder() {
+  return [...workspaceNavigationGroupKeys]
+}
+
 export function createDefaultWorkspaceNavigationConfig(): WorkspaceNavigationConfig {
   return {
     version: 1,
     defaultWorkspace: 'mes',
     workspaces: {
-      mes: { enabled: true, items: defaultWorkspaceItems('mes') },
-      mrp: { enabled: true, items: defaultWorkspaceItems('mrp') },
-      erp: { enabled: true, items: defaultWorkspaceItems('erp') },
+      mes: { enabled: true, groupOrder: defaultGroupOrder(), items: defaultWorkspaceItems('mes') },
+      mrp: { enabled: true, groupOrder: defaultGroupOrder(), items: defaultWorkspaceItems('mrp') },
+      erp: { enabled: true, groupOrder: defaultGroupOrder(), items: defaultWorkspaceItems('erp') },
     },
   }
 }
@@ -101,6 +122,19 @@ function normalizeItems(value: unknown): WorkspaceNavigationItemConfig[] {
   return items
 }
 
+function normalizeGroupOrder(value: unknown): WorkspaceNavigationGroupKey[] {
+  const configured = Array.isArray(value)
+    ? value.filter((candidate): candidate is WorkspaceNavigationGroupKey => (
+      typeof candidate === 'string'
+      && workspaceNavigationGroupKeys.includes(candidate as WorkspaceNavigationGroupKey)
+    ))
+    : []
+  return [
+    ...Array.from(new Set(configured)),
+    ...workspaceNavigationGroupKeys.filter((groupKey) => !configured.includes(groupKey)),
+  ]
+}
+
 function isWorkspaceId(value: unknown): value is NavigationWorkspaceId {
   return typeof value === 'string' && navigationWorkspaceIds.includes(value as NavigationWorkspaceId)
 }
@@ -116,10 +150,11 @@ export function normalizeWorkspaceNavigationConfig(value: unknown): WorkspaceNav
   const workspaces = Object.fromEntries(navigationWorkspaceIds.map((workspace) => {
     const raw = sourceWorkspaces[workspace]
     const rawWorkspace = raw && typeof raw === 'object' && !Array.isArray(raw)
-      ? raw as { enabled?: unknown; items?: unknown }
+      ? raw as { enabled?: unknown; groupOrder?: unknown; items?: unknown }
       : undefined
     return [workspace, {
       enabled: rawWorkspace ? rawWorkspace.enabled !== false : true,
+      groupOrder: normalizeGroupOrder(rawWorkspace?.groupOrder),
       items: rawWorkspace ? normalizeItems(rawWorkspace.items) : defaultWorkspaceItems(workspace),
     }]
   })) as Record<NavigationWorkspaceId, NavigationWorkspaceConfig>

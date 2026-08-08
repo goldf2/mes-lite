@@ -396,15 +396,14 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const activeBusinessGroupKey: BusinessNavGroupKey = tab === 'create' || tab === 'detail'
     ? 'production'
     : businessNavGroups.find((group) => group.tabs.includes(tab))?.key || 'workspace'
+  const configuredGroupOrder = new Map(
+    workspaceNavigationConfig.workspaces[activeWorkspace].groupOrder.map((groupKey, index) => [groupKey, index]),
+  )
   const visibleBusinessGroups = businessNavGroups
     .map((group) => ({
       ...group,
       items: navItems.filter((item) => group.tabs.includes(item.key)),
-      workspaceOrder: group.key === 'workspace'
-        ? -1
-        : group.key === 'system' || group.key === 'tools'
-          ? 10000 + businessNavGroups.indexOf(group)
-          : Math.min(...group.tabs.map(rankForTab)),
+      workspaceOrder: Number(configuredGroupOrder.get(group.key) ?? 10000 + businessNavGroups.indexOf(group)),
     }))
     .filter((group) => group.items.length > 0)
     .sort((left, right) => left.workspaceOrder - right.workspaceOrder)
@@ -1013,6 +1012,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       onClick: () => navigateToTab(readableSystemNavItems[0].key),
     })
   }
+  desktopNavigationGroups.sort((left, right) => (
+    Number(configuredGroupOrder.get(left.id as BusinessNavGroupKey) ?? 10000)
+    - Number(configuredGroupOrder.get(right.id as BusinessNavGroupKey) ?? 10000)
+  ))
 
   return (
     <div

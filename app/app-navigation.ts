@@ -1,5 +1,6 @@
 import type { WorkspaceFunctionItem } from './components/WorkspacePages'
 import type { SystemSection } from './components/SystemPage'
+import type { WorkspaceNavigationGroupKey } from '@/lib/workspace-navigation-config'
 
 export type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'salesOrders' | 'shipment' | 'return' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'employees' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'documentCategories' | 'businessSettings' | 'displaySettings' | 'navigationSettings' | 'aiSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'create' | 'detail'
 
@@ -35,7 +36,7 @@ export function writePageContinuity(storageKey: string, update: Partial<PageCont
   }
 }
 
-export type BusinessNavGroupKey = 'workspace' | 'materials' | 'production' | 'documents' | 'equipment' | 'logistics' | 'sales' | 'inventory' | 'configuration' | 'system' | 'tools'
+export type BusinessNavGroupKey = WorkspaceNavigationGroupKey
 
 export const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string; tabs: TabType[] }> = [
   { key: 'workspace', label: '工作台', tabs: ['dashboard', 'allFunctions'] },

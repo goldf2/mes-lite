@@ -25,6 +25,10 @@ async function main() {
     assert.equal(defaults.defaultWorkspace, 'mes')
 
     defaults.defaultWorkspace = 'mrp'
+    defaults.workspaces.mrp.groupOrder = [
+      'system',
+      ...defaults.workspaces.mrp.groupOrder.filter((groupKey) => groupKey !== 'system'),
+    ]
     defaults.workspaces.mes.items = defaults.workspaces.mes.items.filter((item) => item.functionKey !== 'orders')
     const order = defaults.workspaces.mrp.items
     defaults.workspaces.mrp.items = [
@@ -35,10 +39,11 @@ async function main() {
 
     const saved = await getWorkspaceNavigationConfig(prisma)
     assert.equal(saved.defaultWorkspace, 'mrp')
+    assert.equal(saved.workspaces.mrp.groupOrder[0], 'system')
     assert.deepEqual(saved.workspaces.mrp.items[0], { functionKey: 'orders', label: '计划订单' })
     assert.equal(saved.workspaces.mes.items.some((item) => item.functionKey === 'orders'), false)
     assert.equal(await prisma.systemSetting.count({ where: { key: 'interface.workspaceNavigation.v1' } }), 1)
-    console.log('工作区菜单唯一归属、别名和顺序数据库持久化验证通过')
+    console.log('工作区一级菜单顺序、页面唯一归属、别名和页面顺序数据库持久化验证通过')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

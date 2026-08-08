@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
 import { getCurrentOperator } from '@/lib/auth'
 import { requireResourcePermission } from '@/lib/permissions'
-import { navigationWorkspaceIds } from '@/lib/workspace-navigation-config'
+import { navigationWorkspaceIds, workspaceNavigationGroupKeys } from '@/lib/workspace-navigation-config'
 import { getWorkspaceNavigationConfig, saveWorkspaceNavigationConfig } from '@/lib/workspace-navigation-settings'
 
 export const dynamic = 'force-dynamic'
@@ -15,6 +15,7 @@ const itemSchema = z.object({
 
 const workspaceSchema = z.object({
   enabled: z.boolean(),
+  groupOrder: z.array(z.enum(workspaceNavigationGroupKeys)).max(workspaceNavigationGroupKeys.length).optional(),
   items: z.array(itemSchema).max(60),
 })
 
@@ -58,7 +59,7 @@ export async function PUT(req: Request) {
       entityLabel: 'MES/MRP/ERP 工作区菜单',
       beforeData: before,
       afterData: after,
-      note: '更新工作区启用状态、页面唯一归属、显示名称和顺序',
+      note: '更新工作区启用状态、一级菜单顺序、页面唯一归属、显示名称和顺序',
     })
     return NextResponse.json({ data: after, message: '工作区菜单配置已发布' })
   } catch (error) {
