@@ -10,6 +10,7 @@ import { SearchFieldWithPresets } from './SavedSearchPresets'
 import { getStatusQuery } from './StatusCheckboxFilter'
 import TopBarPortal from './TopBarPortal'
 import AppLoadingIndicator from './AppLoadingIndicator'
+import AttachmentPanel from './AttachmentPanel'
 import { MappedResourceAdvancedSearch } from './resource'
 
 interface CustomerOption {
@@ -304,7 +305,10 @@ export default function SalesOrderPage({
                     </div>
 
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                      <div className="text-xs text-gray-500">{order.note || `已生成 ${order._count.shipments} 张发货单`}</div>
+                      <div className="space-y-2">
+                        <div className="text-xs text-gray-500">{order.note || `已生成 ${order._count.shipments} 张发货单`}</div>
+                        <AttachmentPanel ownerType="SALES_ORDER" ownerId={order.id} compact onMessage={onMessage} />
+                      </div>
                       <div className="flex flex-wrap gap-2">
                         {order.status === 'DRAFT' && <AppButton size="sm" variant="primary" onClick={() => setPendingAction({ order, action: 'confirm' })}>确认订单</AppButton>}
                         {['DRAFT', 'CONFIRMED'].includes(order.status) && <AppButton size="sm" variant="secondary" onClick={() => setPendingAction({ order, action: 'cancel' })}>取消订单</AppButton>}

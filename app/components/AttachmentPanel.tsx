@@ -2,9 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
+import { Sparkles } from 'lucide-react'
 import { MAX_ATTACHMENT_FILE_SIZE, attachmentTypeLabel } from '@/lib/attachment-file-types'
+import { supportsDocumentSourceCredentialRecognition } from '@/lib/document-source-credentials'
+import AppButton from './AppButton'
 
-interface Attachment {
+export interface Attachment {
   id: string
   originalName: string
   mimeType: string
@@ -29,6 +32,11 @@ interface AttachmentPanelProps {
   documentType?: string
   layout?: 'default' | 'gallery'
   allowCover?: boolean
+  onAiRecognize?: (input: {
+    ownerType: string
+    ownerId: string
+    attachments: Attachment[]
+  }) => void | Promise<void>
   onMessage: (msg: string) => void
 }
 
@@ -47,15 +55,18 @@ export default function AttachmentPanel({
   documentType = 'ORIGINAL',
   layout = 'default',
   allowCover = false,
+  onAiRecognize,
   onMessage,
 }: AttachmentPanelProps) {
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [uploading, setUploading] = useState(false)
   const [dragActive, setDragActive] = useState(false)
+  const [recognizing, setRecognizing] = useState(false)
   const [note, setNote] = useState('')
   const inputRef = useRef<HTMLInputElement | null>(null)
   const imageOnly = variant === 'image'
   const itemLabel = imageOnly ? '物料图片' : '原始单据'
+  const showAiRecognition = !imageOnly && supportsDocumentSourceCredentialRecognition(ownerType, documentType)
 
   useEffect(() => {
     fetchAttachments()
@@ -167,6 +178,41 @@ export default function AttachmentPanel({
     }
   }
 
+  const recognizeAndFill = async () => {
+    if (attachments.length === 0) {
+      onMessage('请先上传原始凭据，再进行 AI 识别')
+      return
+    }
+    if (!onAiRecognize) {
+      onMessage('AI 凭据识别入口已准备，识别与字段填充服务将在下一阶段接入')
+      return
+    }
+    setRecognizing(true)
+    try {
+      await onAiRecognize({ ownerType, ownerId, attachments })
+    } catch {
+      onMessage('AI 凭据识别失败，请稍后重试')
+    } finally {
+      setRecognizing(false)
+    }
+  }
+
+  const aiRecognitionButton = showAiRecognition ? (
+    <AppButton
+      size="sm"
+      variant="secondary"
+      disabled={recognizing || attachments.length === 0}
+      onClick={(event) => {
+        event.stopPropagation()
+        void recognizeAndFill()
+      }}
+      title={attachments.length === 0 ? '请先上传原始凭据' : '识别凭据内容并填写当前单据'}
+    >
+      <Sparkles className="h-4 w-4 text-blue-600" />
+      {recognizing ? '识别中' : compact ? 'AI 识别' : 'AI 识别并填充'}
+    </AppButton>
+  ) : null
+
   if (compact) {
     return (
       <div className="min-w-[150px] space-y-2">
@@ -185,6 +231,7 @@ export default function AttachmentPanel({
               }}
             />
           </label>
+          {aiRecognitionButton}
           <span className="text-xs text-gray-500">{attachments.length} 张</span>
         </div>
         {attachments.length > 0 && (
@@ -245,6 +292,7 @@ export default function AttachmentPanel({
                 }}
               />
             </label>
+            {aiRecognitionButton}
           </div>
         </div>
 
@@ -347,6 +395,7 @@ export default function AttachmentPanel({
               }}
             />
           </label>
+          {aiRecognitionButton}
         </div>
       </div>
       <div
