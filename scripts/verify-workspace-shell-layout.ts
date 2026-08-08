@@ -6,7 +6,7 @@ const root = process.cwd()
 const readSource = (file: string) => readFileSync(join(root, file), 'utf8')
 
 const preferenceSource = readSource('app/components/interfacePreferences.tsx')
-const shellSource = readSource('app/page.tsx')
+const shellSource = readSource('app/HomeApp.tsx')
 const topNavigationSource = readSource('app/components/navigation/DesktopTopNavigation.tsx')
 const toolbarSource = readSource('app/components/ResponsiveToolbarActions.tsx')
 const displaySettingsSource = readSource('app/components/SystemPage.tsx')

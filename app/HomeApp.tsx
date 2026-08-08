@@ -37,8 +37,15 @@ import DesktopNavigation, {
   type DesktopNavigationMode,
 } from './components/navigation/DesktopNavigation'
 import DesktopTopNavigation from './components/navigation/DesktopTopNavigation'
+import WorkspaceDomainTabs from './components/navigation/WorkspaceDomainTabs'
+import useWorkspaceNavigation from './components/navigation/useWorkspaceNavigation'
 import PageQrCodeButton from './components/PageQrCodeButton'
 import ControlTooltip from './components/ControlTooltip'
+import {
+  workspaceContainsFunction,
+  workspaceFunctionLabel,
+  type NavigationWorkspaceId,
+} from '@/lib/workspace-navigation-config'
 
 function FeaturePageLoading() {
   return <AppLoadingIndicator label="正在加载页面..." />
@@ -108,6 +115,7 @@ function MenuIcon({ icon }: { icon: string }) {
     workCenters: '中',
     businessSettings: '业',
     displaySettings: '显',
+    navigationSettings: '导',
     aiSettings: '智',
     operators: '人',
     permissionUsers: '权',
@@ -222,6 +230,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     ((resource === 'permissionUsers' || resource === 'permissionGroups') && hasAnyGrant)
   const canCreate = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canCreate)
   const canUpdate = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canUpdate)
+  const { config: workspaceNavigationConfig, activeWorkspace, setActiveWorkspace } = useWorkspaceNavigation()
   const baseNavItems: { key: TabType; label: string; resource: string }[] = [
     { key: 'dashboard', label: '仪表盘', resource: 'dashboard' },
     { key: 'materials', label: '物料与 BOM', resource: 'materials' },
@@ -251,6 +260,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     { key: 'dataTools', label: '数据工具', resource: 'system' },
     { key: 'businessSettings', label: '企业与业务规则', resource: 'system' },
     { key: 'displaySettings', label: '显示设置', resource: 'system' },
+    { key: 'navigationSettings', label: '导航与工作区', resource: 'system' },
     { key: 'aiSettings', label: 'AI 服务', resource: 'system' },
     { key: 'allFunctions', label: '所有功能', resource: 'dashboard' },
     { key: 'operators', label: '人员管理', resource: 'operators' },
@@ -264,8 +274,42 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       ? canRead('materials') || canRead('bomCost')
       : canRead(item.resource)
   )
-  const readableBusinessNavItems = baseNavItems.filter((item) => canReadNavItem(item) && !accountMenuKeys.has(item.key) && !hiddenResources.has(item.resource))
-  const readableSystemNavItems = baseNavItems.filter((item) => canRead(item.resource) && accountMenuKeys.has(item.key) && !hiddenResources.has(item.resource))
+  const readableWorkspaceFunctionItems = workspaceFunctionCatalog.filter((item) => (
+    canRead(item.resource) && (!item.extraResource || canRead(item.extraResource))
+  ))
+  const configuredFunctionOrder = new Map(
+    workspaceNavigationConfig.workspaces[activeWorkspace].items.map((item, index) => [item.functionKey, index]),
+  )
+  const defaultFunctionOrder = new Map(workspaceFunctionCatalog.map((item, index) => [item.key, index]))
+  const workspaceFunctionItems = readableWorkspaceFunctionItems
+    .filter((item) => workspaceContainsFunction(workspaceNavigationConfig, activeWorkspace, item.key))
+    .map((item) => ({
+      ...item,
+      label: workspaceFunctionLabel(workspaceNavigationConfig, activeWorkspace, item.key, item.label),
+    }))
+    .sort((left, right) => (
+      Number(configuredFunctionOrder.get(left.key) ?? 1000 + Number(defaultFunctionOrder.get(left.key) ?? 999))
+      - Number(configuredFunctionOrder.get(right.key) ?? 1000 + Number(defaultFunctionOrder.get(right.key) ?? 999))
+    ))
+  const visibleWorkspaceTabs = new Set(workspaceFunctionItems.map((item) => item.tab))
+  const labelForTab = (item: { key: TabType; label: string }) => {
+    if (item.key === 'materials' || item.key === 'allFunctions') return item.label
+    return workspaceFunctionItems.find((functionItem) => functionItem.tab === item.key)?.label || item.label
+  }
+  const rankForTab = (key: TabType) => {
+    const ranks = workspaceFunctionItems
+      .filter((item) => item.tab === key)
+      .map((item) => Number(configuredFunctionOrder.get(item.key) ?? 1000 + Number(defaultFunctionOrder.get(item.key) ?? 999)))
+    return ranks.length > 0 ? Math.min(...ranks) : 9999
+  }
+  const readableBusinessNavItems = baseNavItems
+    .filter((item) => canReadNavItem(item) && !accountMenuKeys.has(item.key) && !hiddenResources.has(item.resource))
+    .filter((item) => item.key === 'allFunctions' || visibleWorkspaceTabs.has(item.key))
+    .map((item) => ({ ...item, label: labelForTab(item) }))
+    .sort((left, right) => rankForTab(left.key) - rankForTab(right.key))
+  const readableSystemNavItems = baseNavItems
+    .filter((item) => canRead(item.resource) && accountMenuKeys.has(item.key) && !hiddenResources.has(item.resource))
+    .map((item) => ({ ...item, label: labelForTab(item) }))
   const pageContinuityStorageKey = `mes-lite.page-continuity.${operator.id}`
   const restoredPageContinuity = useMemo(
     () => readPageContinuity(pageContinuityStorageKey),
@@ -320,16 +364,22 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const pageContentRef = useRef<HTMLDivElement>(null)
   const pageUrlInitializedRef = useRef(false)
   const navOrderLoadedRef = useRef(false)
+  const readableBusinessNavItemsRef = useRef(readableBusinessNavItems)
+  readableBusinessNavItemsRef.current = readableBusinessNavItems
   const [navItems, setNavItems] = useState<{ key: TabType; label: string }[]>(readableBusinessNavItems)
   const materialSectionItems = [
-    { key: 'materials' as const, label: '物料管理', visible: canRead('materials') },
-    { key: 'bomWorkspace' as const, label: 'BOM 设置', visible: canRead('materials') && canRead('bomCost') },
-    { key: 'bomUsage' as const, label: 'BOM 全览', visible: canRead('bomCost') },
+    { key: 'materials' as const, functionKey: 'materialManagement' as const, label: '物料管理', visible: canRead('materials') },
+    { key: 'bomWorkspace' as const, functionKey: 'bomWorkspace' as const, label: 'BOM 设置', visible: canRead('materials') && canRead('bomCost') },
+    { key: 'bomUsage' as const, functionKey: 'bomUsage' as const, label: 'BOM 全览', visible: canRead('bomCost') },
   ].filter((item) => item.visible)
-  const workspaceFunctionItems = workspaceFunctionCatalog.filter((item) => (
-    canRead(item.resource) && (!item.extraResource || canRead(item.extraResource))
-  ))
-  const tabLabels: Record<string, string> = Object.fromEntries(baseNavItems.map((item) => [item.key, item.label]))
+    .filter((item) => workspaceContainsFunction(workspaceNavigationConfig, activeWorkspace, item.functionKey))
+    .map((item) => ({
+      ...item,
+      label: workspaceFunctionLabel(workspaceNavigationConfig, activeWorkspace, item.functionKey, item.label),
+    }))
+  const tabLabels: Record<string, string> = Object.fromEntries(
+    [...baseNavItems, ...readableBusinessNavItems, ...readableSystemNavItems].map((item) => [item.key, item.label]),
+  )
   tabLabels.create = '创建生产订单'
   tabLabels.detail = '生产订单详情'
   const activeTabLabel = tab === 'materials'
@@ -337,6 +387,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     : tabLabels[tab] || 'MES-lite'
   const activeSystemSection = systemSectionByTab[tab]
   const activePageModule = getPageModuleDefinition(resolvePageModuleKey(tab, materialSection))
+  const activeFunctionKey: WorkspaceFunctionKey = tab === 'materials'
+    ? materialSection === 'bomWorkspace' ? 'bomWorkspace' : materialSection === 'bomUsage' ? 'bomUsage' : 'materialManagement'
+    : tab === 'create' || tab === 'detail'
+      ? 'orders'
+      : workspaceFunctionCatalog.find((item) => item.tab === tab)?.key || 'dashboard'
   const activeSystemTab = readableSystemNavItems.some((item) => item.key === tab)
   const activeBusinessGroupKey: BusinessNavGroupKey = tab === 'create' || tab === 'detail'
     ? 'production'
@@ -345,10 +400,20 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     .map((group) => ({
       ...group,
       items: navItems.filter((item) => group.tabs.includes(item.key)),
+      workspaceOrder: group.key === 'workspace'
+        ? -1
+        : group.key === 'system' || group.key === 'tools'
+          ? 10000 + businessNavGroups.indexOf(group)
+          : Math.min(...group.tabs.map(rankForTab)),
     }))
     .filter((group) => group.items.length > 0)
+    .sort((left, right) => left.workspaceOrder - right.workspaceOrder)
   const baseMobileNavItems = navItems.slice(0, 4)
   const mobilePrimaryItems = baseMobileNavItems
+  const navigationOrderStorageKey = `mes-lite.nav.order.${activeWorkspace}`
+  const readableNavigationSignature = readableBusinessNavItems.map((item) => `${item.key}:${item.label}`).join('|')
+  const activeMaterialSectionVisible = materialSectionItems.some((item) => item.key === materialSection)
+  const firstMaterialSectionKey = materialSectionItems[0]?.key
   const pageLocationKey = tab === 'materials' ? `${tab}:${materialSection}` : tab
   const activeGroupLabel = activeSystemTab
     ? '账号与权限'
@@ -473,29 +538,42 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   }, [materialSection, pageUrlReady, tab])
 
   useEffect(() => {
-    const savedOrder = window.localStorage.getItem('mes-lite.nav.order')
+    const currentReadableItems = readableBusinessNavItemsRef.current
+    const savedOrder = window.localStorage.getItem(navigationOrderStorageKey)
+      || (activeWorkspace === 'mes' ? window.localStorage.getItem('mes-lite.nav.order') : null)
     if (savedOrder) {
       try {
         const savedKeys = JSON.parse(savedOrder) as TabType[]
-        const itemByKey = new Map(readableBusinessNavItems.map((item) => [item.key, item]))
+        const itemByKey = new Map(currentReadableItems.map((item) => [item.key, item]))
         const ordered = savedKeys
           .map((key) => itemByKey.get(key))
           .filter(Boolean) as { key: TabType; label: string }[]
-        const missing = readableBusinessNavItems.filter((item) => !savedKeys.includes(item.key))
+        const missing = currentReadableItems.filter((item) => !savedKeys.includes(item.key))
         setNavItems([...ordered, ...missing])
       } catch (error) {
-        setNavItems(readableBusinessNavItems)
+        setNavItems(currentReadableItems)
       }
     } else {
-      setNavItems(readableBusinessNavItems)
+      setNavItems(currentReadableItems)
     }
     navOrderLoadedRef.current = true
-  }, [])
+  }, [activeWorkspace, navigationOrderStorageKey, readableNavigationSignature])
 
   useEffect(() => {
     if (!navOrderLoadedRef.current) return
-    window.localStorage.setItem('mes-lite.nav.order', JSON.stringify(navItems.map((item) => item.key)))
-  }, [navItems])
+    window.localStorage.setItem(navigationOrderStorageKey, JSON.stringify(navItems.map((item) => item.key)))
+  }, [navItems, navigationOrderStorageKey])
+
+  useEffect(() => {
+    if (tab !== 'materials' || activeMaterialSectionVisible) return
+    if (firstMaterialSectionKey) setMaterialSection(firstMaterialSectionKey)
+    else setTab('dashboard')
+  }, [activeMaterialSectionVisible, firstMaterialSectionKey, tab])
+
+  useEffect(() => {
+    if (workspaceContainsFunction(workspaceNavigationConfig, activeWorkspace, activeFunctionKey)) return
+    setTab('dashboard')
+  }, [activeFunctionKey, activeWorkspace, workspaceNavigationConfig])
 
   useEffect(() => {
     writePageContinuity(pageContinuityStorageKey, { tab, materialSection })
@@ -866,6 +944,16 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setSystemMenuOpen(false)
   }
 
+  const changeWorkspace = (nextWorkspace: NavigationWorkspaceId) => {
+    if (nextWorkspace === activeWorkspace) return
+    setActiveWorkspace(nextWorkspace)
+    setTransientDesktopNavigationOpen(false)
+    setMobileNavOpen(false)
+    if (!workspaceContainsFunction(workspaceNavigationConfig, nextWorkspace, activeFunctionKey)) {
+      setTab('dashboard')
+    }
+  }
+
   const splitNavigationVisible = desktopNavigationMode === 'split' && wideDesktopNavigation
 
   const desktopNavigationGroups: DesktopNavigationGroup[] = visibleBusinessGroups.map((group) => {
@@ -932,6 +1020,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       data-desktop-navigation={desktopNavigationMode}
       data-workspace-layout={workspaceLayoutPreference.layout}
       data-desktop-navigation-behavior={workspaceLayoutPreference.navigationBehavior}
+      data-navigation-workspace={activeWorkspace}
       style={{
         '--mes-desktop-sidebar-width': `${desktopSidebarWidth}px`,
         '--mes-desktop-split-sidebar-width': `${desktopSplitSidebarWidth}px`,
@@ -978,6 +1067,16 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             </>
           )}
         </div>
+        {workspaceLayoutPreference.layout === 'canvas' && (
+          <div className="w-48 shrink-0 border-r border-gray-100 px-2">
+            <WorkspaceDomainTabs
+              config={workspaceNavigationConfig}
+              value={activeWorkspace}
+              onChange={changeWorkspace}
+              compact
+            />
+          </div>
+        )}
         {workspaceLayoutPreference.layout === 'canvas' && <DesktopTopNavigation groups={desktopNavigationGroups} />}
         <div
           id="topbar-actions-desktop"
@@ -1061,8 +1160,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             : 'z-30 translate-x-0'
         }`}
       >
-        <div className="flex h-11 shrink-0 items-center justify-between border-b border-gray-100 px-3">
-          <span className="text-xs font-semibold text-gray-500">功能导航</span>
+        <div className="flex h-12 shrink-0 items-center gap-2 border-b border-gray-100 px-2">
+          <div className="min-w-0 flex-1">
+            <WorkspaceDomainTabs
+              config={workspaceNavigationConfig}
+              value={activeWorkspace}
+              onChange={changeWorkspace}
+              compact
+            />
+          </div>
           <button
             type="button"
             aria-label={autoHideDesktopNavigation ? '固定导航' : '改为自动隐藏'}
@@ -1076,7 +1182,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               setWorkspaceLayoutPreference({ navigationBehavior: 'auto-hide' })
               setTransientDesktopNavigationOpen(false)
             }}
-            className="group relative flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition hover:bg-blue-50 hover:text-blue-700"
+            className="group relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-blue-50 hover:text-blue-700"
           >
             {autoHideDesktopNavigation ? <Pin aria-hidden="true" className="h-4 w-4" /> : <PinOff aria-hidden="true" className="h-4 w-4" />}
             <ControlTooltip label={autoHideDesktopNavigation ? '固定导航' : '改为自动隐藏'} />
@@ -1371,6 +1477,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               >
                 <X aria-hidden="true" className="h-5 w-5" />
               </button>
+            </div>
+            <div className="shrink-0 border-b border-gray-200 px-4 py-3">
+              <WorkspaceDomainTabs
+                config={workspaceNavigationConfig}
+                value={activeWorkspace}
+                onChange={changeWorkspace}
+              />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
               <section aria-label="底部常用入口">

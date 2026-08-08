@@ -218,11 +218,11 @@
 </head>
 <body>
   <header class="hero">
-    <span class="eyebrow">MES-lite · 架构基线 · v0.1.252</span>
+    <span class="eyebrow">MES-lite · 架构基线 · v0.1.253</span>
     <h1>MES / MRP / ERP 功能矩阵</h1>
     <p>以 MES 为核心，明确 MRP-lite 与 ERP-lite 的有限支持范围，统一当前页面归属、数据所有权、模块开关和未来建设顺序。</p>
     <div class="metrics" aria-label="矩阵概览">
-      <div class="metric"><strong>4</strong><span>逻辑工作区</span></div>
+      <div class="metric"><strong>3</strong><span>业务工作区</span></div>
       <div class="metric"><strong>6</strong><span>主要能力域</span></div>
       <div class="metric"><strong>2</strong><span>部署与数据模式</span></div>
       <div class="metric"><strong>1</strong><span>统一业务事实源</span></div>
@@ -1142,33 +1142,29 @@
 <div class="table-scroll"><table>
 <thead>
 <tr>
-<th>工作区</th>
+<th>工作区选项卡</th>
 <th>包含能力</th>
 <th>默认状态</th>
 </tr>
 </thead>
 <tbody><tr>
-<td><strong>生产执行</strong></td>
+<td><strong>MES</strong></td>
 <td>物料、BOM、工艺、设备、生产订单、派工、报工、质量、追溯、生产库存、文档</td>
-<td>始终启用</td>
+<td>默认启用</td>
 </tr>
 <tr>
-<td><strong>物料计划</strong></td>
+<td><strong>MRP</strong></td>
 <td>需求、BOM 展开、缺料、齐套、建议生产、建议采购、负荷提示</td>
-<td>可选启用</td>
+<td>默认启用，可关闭</td>
 </tr>
 <tr>
-<td><strong>商业协同</strong></td>
+<td><strong>ERP</strong></td>
 <td>客户、供应商、销售订单、来料商业字段、发货、退货和参考计价</td>
-<td>可选启用</td>
-</tr>
-<tr>
-<td><strong>系统与工具</strong></td>
-<td>业务配置、系统设置、权限、AI、附件、审计、数据维护</td>
-<td>始终启用</td>
+<td>默认启用，可关闭</td>
 </tr>
 </tbody></table></div>
-<p>工作区切换只改变导航、工作台指标和允许使用的字段，不改变同一业务对象的 ID、附件、权限和审计链。</p>
+<p>系统设置、权限、AI、附件、审计和数据维护属于固定共享功能，在所有已启用工作区显示。工作区切换只改变导航、工作台指标和允许使用的字段，不改变同一业务对象的 ID、附件、权限和审计链。</p>
+<p>管理员可在“系统设置 → 导航与工作区”配置每个页面属于哪些工作区、默认顺序，以及同一页面在各工作区的独立显示名称。例如内部页面 <code>orders</code> 可在 MES 显示为“生产任务”、在 MRP 显示为“计划订单”、在 ERP 显示为“生产订单”。显示名称由企业自行判断；内部页面 ID、路由、权限资源和数据语义保持不变。</p>
 <h3>7.2 模块行为</h3>
 <ul>
 <li>关闭 <strong>MRP-lite</strong>：隐藏缺料、齐套、建议单和计划参数，不影响 BOM、生产订单和库存。</li>

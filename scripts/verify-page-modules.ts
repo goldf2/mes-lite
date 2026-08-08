@@ -9,7 +9,7 @@ const expectedFunctionKeys = [
   'dashboard', 'allFunctions', 'materialManagement', 'bomWorkspace', 'bomUsage', 'workInstructions',
   'equipment', 'orders', 'flowTransfers', 'dispatch', 'materialIn', 'salesOrders', 'shipment', 'return',
   'stocks', 'suppliers', 'customers', 'employees', 'locationSettings', 'unitSettings', 'workCenters',
-  'documentCategories', 'processTemplates', 'processRoutes', 'businessSettings', 'displaySettings', 'aiSettings', 'sawingCost', 'scanPrint', 'archive', 'auditLogs',
+  'documentCategories', 'processTemplates', 'processRoutes', 'businessSettings', 'displaySettings', 'navigationSettings', 'aiSettings', 'sawingCost', 'scanPrint', 'archive', 'auditLogs',
   'dataTools', 'operators', 'permissionUsers', 'permissionGroups', 'create', 'detail',
 ]
 
@@ -66,6 +66,6 @@ for (const key of expectedFunctionKeys) {
 }
 assert.match(pageAuditSource, /已标准化多视图：19 个/, '页面标准化审计的多视图统计必须保持同步')
 assert.match(pageAuditSource, /应补多视图：0 个/, '页面标准化审计的待改造统计必须保持同步')
-assert.match(pageAuditSource, /固定形态合理：18 个/, '页面标准化审计的固定形态统计必须保持同步')
+assert.match(pageAuditSource, /固定形态合理：19 个/, '页面标准化审计的固定形态统计必须保持同步')
 
 console.log(`页面模块校验通过：${keys.length} 个页面入口，${new Set(pageModuleDefinitions.map((item) => item.kind)).size} 类公共骨架，${requiredToolbarCount} 个页面强制公共顶部工具栏，${toolbarExceptions.length} 个明确例外。`)

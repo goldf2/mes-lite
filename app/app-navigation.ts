@@ -1,7 +1,7 @@
 import type { WorkspaceFunctionItem } from './components/WorkspacePages'
 import type { SystemSection } from './components/SystemPage'
 
-export type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'salesOrders' | 'shipment' | 'return' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'employees' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'documentCategories' | 'businessSettings' | 'displaySettings' | 'aiSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'create' | 'detail'
+export type TabType = 'dashboard' | 'allFunctions' | 'orders' | 'materials' | 'workInstructions' | 'equipment' | 'materialIn' | 'dispatch' | 'stocks' | 'salesOrders' | 'shipment' | 'return' | 'flowTransfers' | 'sawingCost' | 'scanPrint' | 'suppliers' | 'customers' | 'employees' | 'processTemplates' | 'processRoutes' | 'archive' | 'auditLogs' | 'dataTools' | 'unitSettings' | 'locationSettings' | 'workCenters' | 'documentCategories' | 'businessSettings' | 'displaySettings' | 'navigationSettings' | 'aiSettings' | 'operators' | 'permissionUsers' | 'permissionGroups' | 'create' | 'detail'
 
 export type MaterialSection = 'materials' | 'bomWorkspace' | 'bomUsage'
 
@@ -47,7 +47,7 @@ export const businessNavGroups: Array<{ key: BusinessNavGroupKey; label: string;
   { key: 'sales', label: '销售', tabs: ['salesOrders', 'shipment', 'return'] },
   { key: 'inventory', label: '库存', tabs: ['stocks'] },
   { key: 'configuration', label: '业务配置', tabs: ['suppliers', 'customers', 'employees', 'locationSettings', 'unitSettings', 'documentCategories', 'workCenters', 'processTemplates', 'processRoutes', 'businessSettings'] },
-  { key: 'system', label: '系统设置', tabs: ['displaySettings', 'aiSettings'] },
+  { key: 'system', label: '系统设置', tabs: ['displaySettings', 'navigationSettings', 'aiSettings'] },
   { key: 'tools', label: '工具', tabs: ['sawingCost', 'scanPrint', 'archive', 'auditLogs', 'dataTools'] },
 ]
 
@@ -66,6 +66,7 @@ export const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
   { key: 'workInstructions', label: '产品文档', groupKey: 'documents', groupLabel: '文档', description: '管理图纸、PDF 和作业指导文档', icon: '书', tab: 'workInstructions', resource: 'workInstructions' },
   { key: 'equipment', label: '设备台账', groupKey: 'equipment', groupLabel: '设备', description: '维护设备、状态、工作中心归属和基础参数', icon: '机', tab: 'equipment', resource: 'equipment' },
   { key: 'orders', label: '生产订单', groupKey: 'production', groupLabel: '生产', description: '先保存生产计划，班后再登记实际产量', icon: '工', tab: 'orders', resource: 'orders' },
+  { key: 'dispatch', label: '派工管理', groupKey: 'production', groupLabel: '生产', description: '将生产任务派发到人员与工作中心', icon: '派', tab: 'dispatch', resource: 'dispatch' },
   { key: 'flowTransfers', label: '流程转移', groupKey: 'production', groupLabel: '生产', description: '同一物料在库位或流程节点之间转移', icon: '转', tab: 'flowTransfers', resource: 'stats' },
   { key: 'materialIn', label: '来料管理', groupKey: 'logistics', groupLabel: '物流', description: '登记供应商来料、实测和采购计价', icon: '入', tab: 'materialIn', resource: 'materialIn' },
   { key: 'salesOrders', label: '销售订单', groupKey: 'sales', groupLabel: '销售', description: '登记客户需求并跟踪订单发货进度', icon: '销', tab: 'salesOrders', resource: 'salesOrder' },
@@ -83,6 +84,7 @@ export const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
   { key: 'processRoutes', label: '物料路线', groupKey: 'configuration', groupLabel: '业务配置', description: '维护产品加工路线和工步', icon: '线', tab: 'processRoutes', resource: 'system' },
   { key: 'businessSettings', label: '企业与业务规则', groupKey: 'configuration', groupLabel: '业务配置', description: '维护企业资料和跨终端业务规则', icon: '业', tab: 'businessSettings', resource: 'system' },
   { key: 'displaySettings', label: '显示设置', groupKey: 'system', groupLabel: '系统设置', description: '维护配色、对比度和界面显示效果', icon: '显', tab: 'displaySettings', resource: 'system' },
+  { key: 'navigationSettings', label: '导航与工作区', groupKey: 'system', groupLabel: '系统设置', description: '配置 MES、MRP、ERP 菜单归属、名称和顺序', icon: '导', tab: 'navigationSettings', resource: 'system' },
   { key: 'aiSettings', label: 'AI 服务', groupKey: 'system', groupLabel: '系统设置', description: '维护 AI 模型、接口、密钥和助手外观', icon: '智', tab: 'aiSettings', resource: 'system' },
   { key: 'sawingCost', label: '锯切成本', groupKey: 'tools', groupLabel: '工具', description: '计算锯切、损耗和直接加工成本', icon: '锯', tab: 'sawingCost', resource: 'sawingCost' },
   { key: 'scanPrint', label: '硬件工具', groupKey: 'tools', groupLabel: '工具', description: '使用扫码计数和标签测试打印', icon: '扫', tab: 'scanPrint', resource: 'scanPrint' },
@@ -107,6 +109,7 @@ export const systemSectionByTab: Partial<Record<TabType, SystemSection>> = {
   workCenters: 'workCenters',
   businessSettings: 'businessSettings',
   displaySettings: 'displaySettings',
+  navigationSettings: 'navigationSettings',
   aiSettings: 'aiSettings',
 }
 

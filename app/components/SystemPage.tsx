@@ -22,6 +22,7 @@ import { applyContrastMode, ContrastMode, normalizeContrastMode } from '@/lib/co
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ImageOptimizationPanel from './ImageOptimizationPanel'
+import WorkspaceNavigationSettings from './navigation/WorkspaceNavigationSettings'
 import { ResourceAdvancedSearch, ResourcePageShell } from './resource'
 import {
   filterByResourceSearch,
@@ -270,7 +271,7 @@ function routeStepCostPerThousand(step: ProcessRoute['steps'][number] | ProcessS
   return { laborHours, machineHours, cost }
 }
 
-export type SystemSection = 'suppliers' | 'customers' | 'processTemplates' | 'process' | 'recycle' | 'audit' | 'dataTools' | 'units' | 'locations' | 'workCenters' | 'businessSettings' | 'displaySettings' | 'aiSettings'
+export type SystemSection = 'suppliers' | 'customers' | 'processTemplates' | 'process' | 'recycle' | 'audit' | 'dataTools' | 'units' | 'locations' | 'workCenters' | 'businessSettings' | 'displaySettings' | 'navigationSettings' | 'aiSettings'
 
 const systemSectionOrderConfig: Partial<Record<SystemSection, {
   entity: 'suppliers' | 'customers' | 'processTemplates' | 'processRoutes' | 'units' | 'locations' | 'workCenters'
@@ -524,7 +525,7 @@ export default function SystemPage({
         {section === 'units' && <UnitCatalogManager onMessage={onMessage} />}
         {section === 'locations' && <InventoryLocationManager onMessage={onMessage} />}
         {section === 'workCenters' && <WorkCenterManager onMessage={onMessage} />}
-        {(section === 'businessSettings' || section === 'displaySettings' || section === 'aiSettings') && (
+        {(section === 'businessSettings' || section === 'displaySettings' || section === 'navigationSettings' || section === 'aiSettings') && (
           <SettingsManager section={section} onMessage={onMessage} />
         )}
       </div>
@@ -1154,7 +1155,7 @@ function SettingsManager({
   section,
   onMessage,
 }: {
-  section: 'businessSettings' | 'displaySettings' | 'aiSettings'
+  section: 'businessSettings' | 'displaySettings' | 'navigationSettings' | 'aiSettings'
   onMessage: (msg: string) => void
 }) {
   const [modalGlassEnabled, setModalGlassEnabled] = useModalGlassPreference()
@@ -1294,6 +1295,10 @@ function SettingsManager({
     displaySettings: {
       title: '显示设置',
       description: '维护导航、配色与弹窗等全局界面偏好。',
+    },
+    navigationSettings: {
+      title: '导航与工作区',
+      description: '配置 MES、MRP、ERP 菜单范围、页面显示名称与默认顺序。',
     },
     aiSettings: {
       title: 'AI 服务',
@@ -1442,6 +1447,8 @@ function SettingsManager({
           </div>
         </>
       )}
+
+      {section === 'navigationSettings' && <WorkspaceNavigationSettings onMessage={onMessage} />}
 
       {section === 'aiSettings' && (
         <>

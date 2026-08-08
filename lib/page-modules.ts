@@ -35,6 +35,7 @@ const definitions = [
   { key: 'processRoutes', kind: 'settings', title: '物料路线', description: '产品路线与工步配置', toolbar: 'required' },
   { key: 'businessSettings', kind: 'settings', title: '企业与业务规则', description: '企业资料与跨终端业务规则', toolbar: 'required' },
   { key: 'displaySettings', kind: 'settings', title: '显示设置', description: '配色、对比度与界面显示效果', toolbar: 'required' },
+  { key: 'navigationSettings', kind: 'settings', title: '导航与工作区', description: 'MES、MRP、ERP 菜单归属、名称与顺序', toolbar: 'required' },
   { key: 'aiSettings', kind: 'settings', title: 'AI 服务', description: 'AI 模型、接口、密钥与助手外观', toolbar: 'required' },
   { key: 'sawingCost', kind: 'utility', title: '锯切成本', description: '锯切损耗与加工成本计算', toolbar: 'required' },
   { key: 'scanPrint', kind: 'utility', title: '硬件工具', description: '扫码计数与标签测试', toolbar: 'required' },
