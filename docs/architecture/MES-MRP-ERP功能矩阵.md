@@ -3,6 +3,8 @@
 状态：架构基线，后续功能立项与页面归属必须遵循
 日期：2026-08-08
 
+HTML 展示版：[打开功能矩阵](../../public/mes-mrp-erp-function-matrix.html)
+
 ## 1. 决策摘要
 
 MES-lite 采用“**MES 为核心、MRP 与 ERP 有限支持**”的产品边界：
