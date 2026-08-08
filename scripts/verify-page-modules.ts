@@ -64,8 +64,8 @@ assert.match(flowTransferPageSource, /viewMode === 'card'/, '流程转移必须�
 for (const key of expectedFunctionKeys) {
   assert.match(pageAuditSource, new RegExp('\\| `' + key + '` \\|'), `页面标准化审计缺少 ${key}`)
 }
-assert.match(pageAuditSource, /已标准化多视图：19 个/, '页面标准化审计的多视图统计必须保持同步')
+assert.match(pageAuditSource, /已标准化多视图：22 个/, '页面标准化审计的多视图统计必须保持同步')
 assert.match(pageAuditSource, /应补多视图：0 个/, '页面标准化审计的待改造统计必须保持同步')
-assert.match(pageAuditSource, /固定形态合理：19 个/, '页面标准化审计的固定形态统计必须保持同步')
+assert.match(pageAuditSource, /固定形态合理：16 个/, '页面标准化审计的固定形态统计必须保持同步')
 
 console.log(`页面模块校验通过：${keys.length} 个页面入口，${new Set(pageModuleDefinitions.map((item) => item.kind)).size} 类公共骨架，${requiredToolbarCount} 个页面强制公共顶部工具栏，${toolbarExceptions.length} 个明确例外。`)

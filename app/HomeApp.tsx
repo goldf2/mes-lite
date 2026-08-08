@@ -63,7 +63,7 @@ const ScanPrintPage = dynamic(() => import('./components/ScanPrintPage'), { load
 const BomOverviewPage = dynamic(() => import('./components/BomOverviewPage'), { loading: FeaturePageLoading })
 const MaterialPage = dynamic(() => import('./components/MaterialPage'), { loading: FeaturePageLoading })
 const WorkInstructionPage = dynamic(() => import('./components/WorkInstructionPage'), { loading: FeaturePageLoading })
-const DocumentCategorySettingsPage = dynamic(() => import('./components/DocumentCategorySettingsPage'), { loading: FeaturePageLoading })
+const DocumentCategorySettingsPage = dynamic(() => import('@/modules/configuration').then((module) => module.DocumentCategorySettingsPage), { loading: FeaturePageLoading })
 const EquipmentPage = dynamic(() => import('./components/EquipmentPage'), { loading: FeaturePageLoading })
 const OperatorPage = dynamic(() => import('./components/OperatorPage'), { loading: FeaturePageLoading })
 const SystemPage = dynamic(() => import('./components/SystemPage'), { loading: FeaturePageLoading })
