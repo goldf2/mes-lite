@@ -1,8 +1,8 @@
 'use client'
 
-import { ReactNode, useState, useEffect } from 'react'
+import { ReactNode, useMemo, useState, useEffect } from 'react'
 import AttachmentPanel from './AttachmentPanel'
-import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
+import { getStatusQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
@@ -12,6 +12,7 @@ import SortableTableHeader from './SortableTableHeader'
 import useClientTableSort from './useClientTableSort'
 import ModalDialog, { ModalActions } from './ModalDialog'
 import AppButton from './AppButton'
+import { MappedResourceAdvancedSearch } from './resource'
 
 interface ShippableSalesItem {
   id: string
@@ -121,6 +122,10 @@ export default function ShipmentPage({
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.shipment.viewMode', 'list')
+  const advancedSearchFields = useMemo(() => [
+    { key: 'status', label: '状态', value: selectedStatuses.length === 1 ? selectedStatuses[0] : '', onChange: (value: string) => setSelectedStatuses(value ? [value] : statusOptions.map((option) => option.value)), options: statusOptions },
+    { key: 'customerId', label: '客户', value: selectedCustomerId, onChange: setSelectedCustomerId, options: [{ value: '__UNASSIGNED__', label: '通用/未绑定' }, ...customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` }))] },
+  ], [customers, selectedCustomerId, selectedStatuses])
 
   const [form, setForm] = useState({
     salesOrderItemId: '',
@@ -305,27 +310,7 @@ export default function ShipmentPage({
             placeholder="搜索发货单号、物料、客户或物流号"
           />
         )}
-        filters={(
-          <>
-            <StatusCheckboxFilter
-              options={statusOptions}
-              value={selectedStatuses}
-              onChange={setSelectedStatuses}
-              storageKey="mes-lite.filters.shipment.status.order"
-            />
-            <SearchableSelect
-              value={selectedCustomerId}
-              onChange={setSelectedCustomerId}
-              options={[
-                { value: '__UNASSIGNED__', label: '通用/未绑定' },
-                ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
-              ]}
-              placeholder="输入客户名称筛选（全部客户）"
-              allowClear
-              className="w-56"
-            />
-          </>
-        )}
+        advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
         viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
         actions={(
           <>
@@ -341,7 +326,7 @@ export default function ShipmentPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, keyword, selectedStatuses, selectedCustomerId, customers, viewMode, setViewMode])
+  }, [advancedSearchFields, onToolbarChange, keyword, selectedStatuses, selectedCustomerId, customers, viewMode, setViewMode])
 
   return (
     <>
@@ -355,27 +340,7 @@ export default function ShipmentPage({
               placeholder="搜索发货单号、物料、客户或物流号"
             />
           )}
-          filters={(
-            <>
-              <StatusCheckboxFilter
-                options={statusOptions}
-                value={selectedStatuses}
-                onChange={setSelectedStatuses}
-                storageKey="mes-lite.filters.shipment.status.order"
-              />
-              <SearchableSelect
-                value={selectedCustomerId}
-                onChange={setSelectedCustomerId}
-                options={[
-                  { value: '__UNASSIGNED__', label: '通用/未绑定' },
-                  ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
-                ]}
-                placeholder="输入客户名称筛选（全部客户）"
-                allowClear
-                className="w-56"
-              />
-            </>
-          )}
+          advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
           viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
           actions={(
             <>

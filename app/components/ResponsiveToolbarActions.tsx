@@ -4,47 +4,36 @@ import { LayoutList, PanelRightOpen, QrCode, SearchCheck, Settings2, X } from 'l
 import { ReactNode, useContext, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import ModalOverlay from './ModalOverlay'
-import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import ToolbarOrderSettings, { useShowUnavailableToolbarSlots, useToolbarOrder, type ToolbarSlot } from './ToolbarOrderSettings'
 import { PageModuleKeyContext } from './page-modules/PageModuleBoundary'
 import ControlTooltip from './ControlTooltip'
 
 interface ResponsiveToolbarActionsProps {
-  children?: ReactNode
   primaryFilters?: ReactNode
   advancedSearch?: ReactNode
-  filters?: ReactNode
   filterCount?: number
   filterSummary?: ReactNode
   preferences?: ReactNode
   viewControl?: ReactNode
   actions?: ReactNode
-  filterPresentation?: 'dialog' | 'popover'
   pageKey?: string
   onOpenPageOptions?: () => void
 }
 
-export default function ResponsiveToolbarActions({ children, primaryFilters, advancedSearch, filters, filterCount = 0, filterSummary, preferences, viewControl, actions, filterPresentation = 'dialog', pageKey, onOpenPageOptions }: ResponsiveToolbarActionsProps) {
+export default function ResponsiveToolbarActions({ primaryFilters, advancedSearch, filterCount = 0, filterSummary, preferences, viewControl, actions, pageKey, onOpenPageOptions }: ResponsiveToolbarActionsProps) {
   const contextPageKey = useContext(PageModuleKeyContext)
   const resolvedPageKey = pageKey || contextPageKey
   const toolbarOrder = useToolbarOrder(resolvedPageKey)
   const showUnavailableSlots = useShowUnavailableToolbarSlots(resolvedPageKey)
-  const [menuOpen, setMenuOpen] = useState(false)
   const [actionMenuOpen, setActionMenuOpen] = useState(false)
   const [pageOptionsOpen, setPageOptionsOpen] = useState(false)
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false)
   const [mobileToolsVisible, setMobileToolsVisible] = useState(false)
   const closeTimerRef = useRef<number | null>(null)
   const mobileToolsPanelRef = useRef<HTMLElement | null>(null)
-  const filterRootRef = useDismissibleSearchPopup<HTMLDivElement>(
-    menuOpen && filterPresentation === 'popover',
-    () => setMenuOpen(false)
-  )
   const directAdvancedSearch = advancedSearch !== null && advancedSearch !== undefined && advancedSearch !== false ? advancedSearch : null
-  const filterContent = filters ?? children
   const hasPrimaryFilters = primaryFilters !== null && primaryFilters !== undefined && primaryFilters !== false
-  const hasLegacyAdvancedSearch = filterContent !== null && filterContent !== undefined && filterContent !== false
-  const hasAdvancedSearch = Boolean(directAdvancedSearch) || hasLegacyAdvancedSearch
+  const hasAdvancedSearch = Boolean(directAdvancedSearch)
   const hasPreferences = preferences !== null && preferences !== undefined && preferences !== false
   const hasViewControl = viewControl !== null && viewControl !== undefined && viewControl !== false
   const hasActions = actions !== null && actions !== undefined && actions !== false
@@ -54,7 +43,6 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, adv
   const openPageOptions = () => {
     if (onOpenPageOptions) onOpenPageOptions()
     else setPageOptionsOpen(true)
-    setMenuOpen(false)
     setActionMenuOpen(false)
   }
 
@@ -67,7 +55,6 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, adv
     window.dispatchEvent(new CustomEvent('mes:side-dock-open', { detail: 'tools' }))
     setMobileToolsOpen(true)
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => setMobileToolsVisible(true)))
-    setMenuOpen(false)
     setActionMenuOpen(false)
   }
 
@@ -132,25 +119,7 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, adv
     <button type="button" onClick={openPageOptions} aria-label="页内选项" className="group relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-900"><Settings2 className="h-4 w-4" /><ControlTooltip label="页内选项" hidden={pageOptionsOpen} /></button>
   )
 
-  const advancedControl = directAdvancedSearch || (hasLegacyAdvancedSearch ? (
-    <div ref={filterRootRef} className="relative shrink-0">
-      <button type="button" onClick={() => { setMenuOpen((open) => !open); setActionMenuOpen(false) }} aria-label="高级搜索" className="group relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-gray-50 hover:text-blue-700">
-        <SearchCheck className="h-4 w-4" />
-        {filterCount > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-blue-600 px-1 text-center text-[10px] leading-4 text-white">{filterCount}</span>}
-        <ControlTooltip label="高级搜索" hidden={menuOpen} />
-      </button>
-      {filterSummary && <div className="sr-only">{filterSummary}</div>}
-      {menuOpen && filterPresentation === 'popover' && (
-        <div role="dialog" aria-label="高级搜索" className="absolute right-0 top-[calc(100%+8px)] z-[110] w-[min(420px,calc(100vw-24px))] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
-          <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3"><div><div className="text-sm font-semibold text-gray-900">高级搜索</div><div className="mt-0.5 text-xs text-gray-500">组合条件会立即更新结果</div></div><button type="button" onClick={() => setMenuOpen(false)} className="rounded p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button></div>
-          <div className="max-h-[min(420px,60dvh)] overflow-y-auto p-3">{filterContent}</div>
-        </div>
-      )}
-      {menuOpen && filterPresentation === 'dialog' && (
-        <ModalOverlay onClose={() => setMenuOpen(false)}><div className="max-h-[calc(100vh-32px)] w-[min(calc(100vw-24px),560px)] overflow-hidden rounded-xl border border-gray-200 bg-white p-3 shadow-xl"><div className="mb-3 flex items-center justify-between border-b border-gray-100 pb-2"><div className="text-sm font-semibold text-gray-900">高级搜索</div><button type="button" onClick={() => setMenuOpen(false)} className="rounded p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button></div><div className="flex max-h-[calc(100vh-112px)] flex-col gap-3 overflow-y-auto [&>*]:!max-w-full [&>*]:!flex-wrap">{filterContent}</div></div></ModalOverlay>
-      )}
-    </div>
-  ) : disabledAdvanced)
+  const advancedControl = directAdvancedSearch || disabledAdvanced
 
   const toolPanelFilterSection = (hasAdvancedSearch || showUnavailableSlots) && (
     <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
@@ -165,7 +134,7 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, adv
       {hasAdvancedSearch ? (
         <div className="grid gap-2 [&>*]:!w-full [&>*]:!min-w-0 [&>*]:!max-w-none">
           {directAdvancedSearch}
-          {hasLegacyAdvancedSearch && filterContent}
+          {filterSummary && <div className="sr-only">{filterSummary}</div>}
         </div>
       ) : <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-400">当前页面无高级搜索</div>}
     </section>
@@ -229,7 +198,7 @@ export default function ResponsiveToolbarActions({ children, primaryFilters, adv
         <div style={{ order: slotOrder('actions') }} className="hidden min-w-max shrink-0 items-center gap-2 sm:flex">
           {hasActions && <div className="hidden items-center gap-2 xl:flex">{actions}</div>}
           <div className="xl:hidden">
-            <button type="button" aria-haspopup="dialog" aria-expanded={actionMenuOpen} onClick={() => { setActionMenuOpen(true); setMenuOpen(false) }} className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 shadow-sm"><span>⋯</span>工具</button>
+            <button type="button" aria-haspopup="dialog" aria-expanded={actionMenuOpen} onClick={() => setActionMenuOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 shadow-sm"><span>⋯</span>工具</button>
             {actionMenuOpen && <ModalOverlay onClose={() => setActionMenuOpen(false)} className="items-end pb-[calc(var(--mes-mobile-nav-offset)+0.75rem)] lg:items-center lg:pb-0"><div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"><div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 py-3"><div><div className="text-base font-semibold text-gray-900">页面工具</div><div className="mt-0.5 text-xs text-gray-500">筛选、显示与页面操作</div></div><button type="button" onClick={() => setActionMenuOpen(false)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button></div><div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-gray-50/80 p-3 [scrollbar-width:thin]">{toolPanelFilterSection}{toolPanelViewSection}{hasPreferences && <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">{preferences}</section>}{toolPanelUtilities}</div>{hasActions && <footer className="shrink-0 border-t border-gray-100 bg-white p-3"><div className="grid grid-cols-2 gap-2 [&>button]:w-full [&>button]:justify-center">{actions}</div></footer>}</div></ModalOverlay>}
           </div>
         </div>

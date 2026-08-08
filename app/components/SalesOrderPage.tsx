@@ -7,9 +7,10 @@ import ModalDialog, { ModalActions } from './ModalDialog'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import SearchableSelect from './SearchableSelect'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
-import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
+import { getStatusQuery } from './StatusCheckboxFilter'
 import TopBarPortal from './TopBarPortal'
 import AppLoadingIndicator from './AppLoadingIndicator'
+import { MappedResourceAdvancedSearch } from './resource'
 
 interface CustomerOption {
   id: string
@@ -125,6 +126,10 @@ export default function SalesOrderPage({
   const [formOpen, setFormOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [pendingAction, setPendingAction] = useState<{ order: SalesOrder; action: 'confirm' | 'cancel' } | null>(null)
+  const advancedSearchFields = useMemo(() => [
+    { key: 'status', label: '状态', value: statuses.length === 1 ? statuses[0] : '', onChange: (value: string) => setStatuses(value ? [value] : statusOptions.map((option) => option.value)), options: statusOptions },
+    { key: 'customerId', label: '客户', value: customerId, onChange: setCustomerId, options: customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` })) },
+  ], [customerId, customers, statuses])
 
   const loadOrders = useCallback(async () => {
     setLoading(true)
@@ -237,24 +242,7 @@ export default function SalesOrderPage({
           placeholder="搜索订单号、客户、物料或规格"
         />
       )}
-      filters={(
-        <>
-          <StatusCheckboxFilter
-            options={statusOptions}
-            value={statuses}
-            onChange={setStatuses}
-            storageKey="mes-lite.filters.salesOrder.status.order"
-          />
-          <SearchableSelect
-            value={customerId}
-            onChange={setCustomerId}
-            options={customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: `${customer.code} ${customer.contact || ''} ${customer.phone || ''}` }))}
-            placeholder="输入客户筛选"
-            allowClear
-            className="w-56"
-          />
-        </>
-      )}
+      advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
       actions={<AppButton variant="create" onClick={() => { setForm(emptyForm()); setFormOpen(true) }}>新建销售订单</AppButton>}
     />
   )

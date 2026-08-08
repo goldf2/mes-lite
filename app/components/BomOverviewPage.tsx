@@ -6,7 +6,9 @@ import { SearchFieldWithPresets } from './SavedSearchPresets'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import AppLoadingIndicator from './AppLoadingIndicator'
-import { matchesKeywordValues } from '@/lib/resource-search'
+import { ResourceAdvancedSearch } from './resource'
+import { filterByAdvancedSearch, matchesKeywordValues } from '@/lib/resource-search'
+import type { ResourceAdvancedSearchField, ResourceSearchCondition } from '@/lib/resource-search'
 
 interface MaterialOption {
   id: string
@@ -89,6 +91,15 @@ const categoryLabels: Record<string, string> = {
   OTHER: '其他',
 }
 
+const materialAdvancedSearchFields: readonly ResourceAdvancedSearchField<MaterialOption>[] = [
+  { key: 'code', label: '物料编码', type: 'text', read: (item) => item.code },
+  { key: 'name', label: '物料名称', type: 'text', read: (item) => item.name },
+  { key: 'spec', label: '规格', type: 'text', read: (item) => item.spec || '' },
+  { key: 'category', label: '分类', type: 'select', read: (item) => item.category, options: Object.entries(categoryLabels).map(([value, label]) => ({ value, label })) },
+  { key: 'unit', label: '主单位', type: 'text', read: (item) => item.unit },
+  { key: 'stockUnit', label: '库存单位', type: 'text', read: (item) => item.stockUnit },
+]
+
 function quantity(value: number) {
   return Number(value || 0).toLocaleString('zh-CN', { maximumFractionDigits: 6 })
 }
@@ -119,6 +130,7 @@ export default function BomOverviewPage({
   const [owners, setOwners] = useState<BomOwner[]>([])
   const [materials, setMaterials] = useState<MaterialOption[]>([])
   const [keyword, setKeyword] = useState('')
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [selectedMaterialId, setSelectedMaterialId] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -183,7 +195,7 @@ export default function BomOverviewPage({
   }, [keyword, materials, relationCounts, selectedMaterialId])
 
   const filteredMaterials = useMemo(() => {
-    return materials
+    return filterByAdvancedSearch(materials, materialAdvancedSearchFields, searchConditions)
       .filter((material) => matchesKeywordValues(keyword, [material.code, material.name, material.spec, categoryLabels[material.category]]))
       .sort((left, right) => {
         const leftCounts = relationCounts.get(left.id)
@@ -192,7 +204,7 @@ export default function BomOverviewPage({
         const rightTotal = countDistinctRelations(rightCounts)
         return rightTotal - leftTotal || left.code.localeCompare(right.code, 'zh-CN', { numeric: true })
       })
-  }, [keyword, materials, relationCounts])
+  }, [keyword, materials, relationCounts, searchConditions])
 
   useEffect(() => {
     if (filteredMaterials.length === 0) {
@@ -238,8 +250,12 @@ export default function BomOverviewPage({
               value={keyword}
               onChange={setKeyword}
               placeholder="搜索物料名称、编码或规格"
+              conditions={searchConditions}
+              onConditionsChange={setSearchConditions}
+              conditionLabel="BOM 全览精确搜索"
             />
           )}
+          advancedSearch={<ResourceAdvancedSearch fields={materialAdvancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
         />
       </TopBarPortal>
 

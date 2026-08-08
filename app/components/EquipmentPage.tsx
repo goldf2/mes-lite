@@ -9,6 +9,7 @@ import AppButton from './AppButton'
 import { appInputClassName, appSelectClassName, appTextareaClassName } from './FormField'
 import ResourcePage from './resource/ResourcePage'
 import ResourceSortButton from './resource/ResourceSortButton'
+import type { ResourceAdvancedSearchField } from '@/lib/resource-search'
 
 interface WorkCenterOption {
   id: string
@@ -63,7 +64,6 @@ export default function EquipmentPage({
   const [items, setItems] = useState<EquipmentItem[]>([])
   const [workCenters, setWorkCenters] = useState<WorkCenterOption[]>([])
   const [keyword, setKeyword] = useState('')
-  const [workCenterFilter, setWorkCenterFilter] = useState('')
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.equipment.viewMode', 'list')
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<EquipmentItem | null>(null)
@@ -92,7 +92,6 @@ export default function EquipmentPage({
     try {
       const params = new URLSearchParams()
       if (keyword.trim()) params.set('keyword', keyword.trim())
-      if (workCenterFilter) params.set('workCenterId', workCenterFilter)
       const res = await fetch(`/api/equipment?${params.toString()}`)
       const data = await res.json()
       if (!res.ok) return onMessage(data.error || '获取设备失败')
@@ -100,7 +99,7 @@ export default function EquipmentPage({
     } finally {
       setLoading(false)
     }
-  }, [keyword, onMessage, workCenterFilter])
+  }, [keyword, onMessage])
 
   useEffect(() => { void loadWorkCenters() }, [loadWorkCenters])
   useEffect(() => {
@@ -113,6 +112,20 @@ export default function EquipmentPage({
     label: `${item.code} · ${item.name}`,
     keywords: item.name,
   })), [workCenters])
+  const advancedSearchFields = useMemo<readonly ResourceAdvancedSearchField<EquipmentItem>[]>(() => [
+    { key: 'code', label: '设备编码', type: 'text', read: (item) => item.code },
+    { key: 'name', label: '设备名称', type: 'text', read: (item) => item.name },
+    { key: 'equipmentType', label: '设备类型', type: 'text', read: (item) => item.equipmentType },
+    { key: 'workCenterId', label: '工作中心', type: 'select', read: (item) => item.workCenterId, options: workCenterOptions },
+    { key: 'status', label: '状态', type: 'select', read: (item) => item.status, options: statusOptions },
+    { key: 'manufacturer', label: '制造商', type: 'text', read: (item) => item.manufacturer },
+    { key: 'model', label: '型号', type: 'text', read: (item) => item.model },
+    { key: 'serialNumber', label: '出厂编号', type: 'text', read: (item) => item.serialNumber },
+    { key: 'location', label: '现场位置', type: 'text', read: (item) => item.location },
+    { key: 'basicParameters', label: '基础参数', type: 'text', read: (item) => item.basicParameters },
+    { key: 'note', label: '备注', type: 'text', read: (item) => item.note },
+    { key: 'createdAt', label: '创建日期', type: 'date', read: (item) => item.createdAt },
+  ], [workCenterOptions])
 
   const openCreate = () => {
     setEditing(null)
@@ -202,8 +215,7 @@ export default function EquipmentPage({
         searchValue={keyword}
         onSearchChange={setKeyword}
         searchPlaceholder="搜索设备编码、名称、型号或工作中心"
-        filters={<SearchableSelect value={workCenterFilter} onChange={setWorkCenterFilter} options={workCenterOptions} placeholder="输入工作中心筛选（全部）" allowClear className="w-64" />}
-        filterCount={workCenterFilter ? 1 : 0}
+        advancedSearchFields={advancedSearchFields}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         onCreate={canCreate ? openCreate : undefined}

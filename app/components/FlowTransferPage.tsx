@@ -11,6 +11,7 @@ import TopBarPortal from './TopBarPortal'
 import { appTextareaClassName } from './FormField'
 import MetricCard from './MetricCard'
 import AppLoadingIndicator from './AppLoadingIndicator'
+import { MappedResourceAdvancedSearch } from './resource'
 
 interface LocationOption {
   id: string
@@ -120,6 +121,17 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
   const [confirmingTransfer, setConfirmingTransfer] = useState<FlowTransfer | null>(null)
   const [reversingTransfer, setReversingTransfer] = useState<FlowTransfer | null>(null)
   const [reverseReason, setReverseReason] = useState('')
+  const advancedSearchFields = useMemo(() => [{
+    key: 'status',
+    label: '状态',
+    value: status === 'ALL' ? '' : status,
+    onChange: (value: string) => setStatus(value || 'ALL'),
+    options: [
+      { value: 'DRAFT', label: '草稿' },
+      { value: 'CONFIRMED', label: '已确认' },
+      { value: 'REVERSED', label: '已冲销' },
+    ],
+  }], [status])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -282,14 +294,7 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
               placeholder="搜索转移单号、物料、操作人或备注"
             />
           )}
-          filters={(
-            <select value={status} onChange={(event) => setStatus(event.target.value)} className="w-36 rounded-lg border border-gray-200 px-3 py-2 text-sm">
-              <option value="ALL">全部状态</option>
-              <option value="DRAFT">草稿</option>
-              <option value="CONFIRMED">已确认</option>
-              <option value="REVERSED">已冲销</option>
-            </select>
-          )}
+          advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
           actions={<AppButton variant="create" onClick={openCreate}>新建流程转移</AppButton>}
         />
       </TopBarPortal>

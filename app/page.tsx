@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, 
 import { createPortal } from 'react-dom'
 import { Boxes, Menu, PencilLine, Search, X } from 'lucide-react'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
-import StatusCheckboxFilter, { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
+import { getMultiSelectQuery, getStatusQuery } from './components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
 import ViewModeToggle, { usePersistedViewMode } from './components/ViewModeToggle'
 import { InterfacePreferenceSync, preferenceChangeEvent, readDesktopNavigationPreference } from './components/interfacePreferences'
@@ -28,6 +28,7 @@ import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/works
 import { getPageModuleDefinition, resolvePageModuleKey } from '@/lib/page-modules'
 import PageModuleBoundary from './components/page-modules/PageModuleBoundary'
 import TopBarPortal from './components/TopBarPortal'
+import { MappedResourceAdvancedSearch } from './components/resource'
 import DesktopNavigation, {
   type DesktopNavigationDisplayMode,
   type DesktopNavigationGroup,
@@ -643,6 +644,20 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [systemMenuOpen, setSystemMenuOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
+  const orderAdvancedSearchFields = useMemo(() => [{
+    key: 'status',
+    label: '订单状态',
+    value: selectedOrderStatuses.length === 1 ? selectedOrderStatuses[0] : '',
+    onChange: (value: string) => setSelectedOrderStatuses(value ? [value] : orderStatusOptions.map((option) => option.value)),
+    options: orderStatusOptions,
+  }], [selectedOrderStatuses])
+  const stockAdvancedSearchFields = useMemo(() => [
+    { key: 'customerId', label: '客户', value: stockCustomerFilter, onChange: setStockCustomerFilter, options: [{ value: '__UNASSIGNED__', label: '通用/未绑定' }, ...customers.map((customer) => ({ value: customer.id, label: customer.name }))] },
+    { key: 'locationId', label: '库位', value: stockLocationFilter, onChange: setStockLocationFilter, options: inventoryLocations.map((location) => ({ value: location.id, label: `${location.code} · ${location.name}` })) },
+    { key: 'stockType', label: '库存对象', value: stockFilter === 'all' ? '' : stockFilter, onChange: (value: string) => setStockFilter(value === 'material' || value === 'product' ? value : 'all'), options: [{ value: 'material', label: '物料库存' }, { value: 'product', label: '成品库存' }] },
+    { key: 'category', label: '物料分类', value: selectedStockCategories.length === 1 ? selectedStockCategories[0] : '', onChange: (value: string) => setSelectedStockCategories(value ? [value] : materialCategoryFilterOptions.map((option) => option.value)), options: materialCategoryFilterOptions },
+    { key: 'showInvalid', label: '归档无库存', value: showInvalidStocks ? 'true' : '', onChange: (value: string) => setShowInvalidStocks(value === 'true'), options: [{ value: 'true', label: '显示' }] },
+  ], [customers, inventoryLocations, selectedStockCategories, showInvalidStocks, stockCustomerFilter, stockFilter, stockLocationFilter])
   const [desktopNavigationMode, setDesktopNavigationMode] = useState<DesktopNavigationMode>('accordion')
   const [desktopNavigationDisplayMode, setDesktopNavigationDisplayMode] = useState<DesktopNavigationDisplayMode>('icon-label')
   const [desktopSidebarWidth, setDesktopSidebarWidth] = useState(defaultDesktopSidebarWidth)
@@ -1275,13 +1290,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     return [] as InventoryLocationOption[]
   }
 
-  const handleStockCategoryChange = (next: string[]) => {
-    setSelectedStockCategories(next)
-    if (next.length !== materialCategoryFilterOptions.length) {
-      setStockFilter('material')
-    }
-  }
-
   const openStockAdjust = async (stock: Stock, preferredLocationId?: string) => {
     const locations = inventoryLocations.length > 0 ? inventoryLocations : await fetchInventoryLocations()
     if (locations.length === 0) {
@@ -1742,14 +1750,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                         placeholder="搜索生产订单号、凭据号或物料"
                       />
                     )}
-                    filters={(
-                      <StatusCheckboxFilter
-                        options={orderStatusOptions}
-                        value={selectedOrderStatuses}
-                        onChange={setSelectedOrderStatuses}
-                        storageKey="mes-lite.filters.orders.status.order"
-                      />
-                    )}
+                    advancedSearch={<MappedResourceAdvancedSearch fields={orderAdvancedSearchFields} />}
                     viewControl={<ViewModeToggle value={orderViewMode} onChange={setOrderViewMode} />}
                     actions={(
                       <>
@@ -1775,58 +1776,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                         placeholder="搜索物料或编码"
                       />
                     )}
-                    filters={(
-                      <>
-                        <SearchableSelect
-                          value={stockCustomerFilter}
-                          onChange={setStockCustomerFilter}
-                          options={[
-                            { value: '__UNASSIGNED__', label: '通用/未绑定' },
-                            ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
-                          ]}
-                          placeholder="输入客户名称筛选（全部客户）"
-                          allowClear
-                          className="w-56"
-                        />
-                        <SearchableSelect
-                          value={stockLocationFilter}
-                          onChange={setStockLocationFilter}
-                          options={inventoryLocations.map((location) => ({
-                            value: location.id,
-                            label: `${location.code} · ${location.name}`,
-                          }))}
-                          placeholder="输入库位编码或名称筛选"
-                          allowClear
-                          className="w-56"
-                        />
-                        {([['all', '全部库存'], ['material', '物料库存'], ['product', '成品库存']] as const).map(([key, label]) => (
-                          <button
-                            key={key}
-                            onClick={() => setStockFilter(key)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                              stockFilter === key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                        <StatusCheckboxFilter
-                          options={materialCategoryFilterOptions}
-                          value={selectedStockCategories}
-                          onChange={handleStockCategoryChange}
-                          allLabel="全部物料分类"
-                          storageKey="mes-lite.filters.stocks.category.order"
-                        />
-                        <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">
-                          <input
-                            type="checkbox"
-                            checked={showInvalidStocks}
-                            onChange={(e) => setShowInvalidStocks(e.target.checked)}
-                          />
-                          显示归档无库存
-                        </label>
-                      </>
-                    )}
+                    advancedSearch={<MappedResourceAdvancedSearch fields={stockAdvancedSearchFields} />}
                     viewControl={<ViewModeToggle value={stockViewMode} onChange={setStockViewMode} />}
                     actions={(
                       <>

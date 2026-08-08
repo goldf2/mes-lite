@@ -8,6 +8,18 @@ import {
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import TopBarPortal from './TopBarPortal'
+import { ResourceAdvancedSearch } from './resource'
+import { filterByAdvancedSearch } from '@/lib/resource-search'
+import type { ResourceAdvancedSearchField, ResourceSearchCondition } from '@/lib/resource-search'
+
+const categoryAdvancedSearchFields: readonly ResourceAdvancedSearchField<DocumentCategoryItem>[] = [
+  { key: 'name', label: '类别名称', type: 'text', read: (item) => item.name },
+  { key: 'parent', label: '上级类别', type: 'text', read: (item) => item.parent?.name || '' },
+  { key: 'level', label: '类别层级', type: 'select', read: (item) => item.parentId ? 'CHILD' : 'ROOT', options: [{ value: 'ROOT', label: '一级类别' }, { value: 'CHILD', label: '二级类别' }] },
+  { key: 'sortOrder', label: '排序值', type: 'number', read: (item) => item.sortOrder },
+  { key: 'children', label: '子类别数', type: 'number', read: (item) => item._count.children },
+  { key: 'documents', label: '关联文档数', type: 'number', read: (item) => item._count.workInstructions },
+]
 
 export default function DocumentCategorySettingsPage({
   onMessage,
@@ -20,6 +32,7 @@ export default function DocumentCategorySettingsPage({
 }) {
   const [categories, setCategories] = useState<DocumentCategoryItem[]>([])
   const [keyword, setKeyword] = useState('')
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [loading, setLoading] = useState(true)
 
   const loadCategories = useCallback(async () => {
@@ -44,17 +57,18 @@ export default function DocumentCategorySettingsPage({
   }, [loadCategories])
 
   const visibleCategories = useMemo(() => {
+    const advancedCategories = filterByAdvancedSearch(categories, categoryAdvancedSearchFields, searchConditions)
     const query = keyword.trim().toLocaleLowerCase()
-    if (!query) return categories
+    if (!query) return advancedCategories
     const visibleIds = new Set<string>()
-    for (const category of categories) {
+    for (const category of advancedCategories) {
       if (!category.name.toLocaleLowerCase().includes(query)) continue
       visibleIds.add(category.id)
       if (category.parentId) visibleIds.add(category.parentId)
-      else categories.filter((item) => item.parentId === category.id).forEach((item) => visibleIds.add(item.id))
+      else advancedCategories.filter((item) => item.parentId === category.id).forEach((item) => visibleIds.add(item.id))
     }
-    return categories.filter((category) => visibleIds.has(category.id))
-  }, [categories, keyword])
+    return advancedCategories.filter((category) => visibleIds.has(category.id))
+  }, [categories, keyword, searchConditions])
 
   const rootCount = categories.filter((category) => !category.parentId).length
 
@@ -69,8 +83,12 @@ export default function DocumentCategorySettingsPage({
               value={keyword}
               onChange={setKeyword}
               placeholder="搜索文档类别"
+              conditions={searchConditions}
+              onConditionsChange={setSearchConditions}
+              conditionLabel="文档类别精确搜索"
             />
           )}
+          advancedSearch={<ResourceAdvancedSearch fields={categoryAdvancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
         />
       </TopBarPortal>
 

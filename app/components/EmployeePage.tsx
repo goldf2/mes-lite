@@ -11,6 +11,7 @@ import ResourcePage from './resource/ResourcePage'
 import { usePersistedViewMode } from './ViewModeToggle'
 import ManyToOneRelationField from './relations/ManyToOneRelationField'
 import ResourceSortButton from './resource/ResourceSortButton'
+import type { ResourceAdvancedSearchField } from '@/lib/resource-search'
 
 interface OperatorOption {
   id: string
@@ -58,6 +59,21 @@ const operatorRoleLabels: Record<string, string> = {
   ADMIN: '管理',
 }
 
+const employeeAdvancedSearchFields: readonly ResourceAdvancedSearchField<EmployeeItem>[] = [
+  { key: 'code', label: '员工编码', type: 'text', read: (employee) => employee.code },
+  { key: 'name', label: '姓名', type: 'text', read: (employee) => employee.name },
+  { key: 'department', label: '部门', type: 'text', read: (employee) => employee.department },
+  { key: 'phone', label: '联系电话', type: 'text', read: (employee) => employee.phone },
+  { key: 'operatorUsername', label: '登录账号', type: 'text', read: (employee) => employee.operator?.username },
+  { key: 'operatorName', label: '账号姓名', type: 'text', read: (employee) => employee.operator?.name },
+  { key: 'operatorRole', label: '账号角色', type: 'select', read: (employee) => employee.operator?.role, options: Object.entries(operatorRoleLabels).map(([value, label]) => ({ value, label })) },
+  { key: 'operatorStatus', label: '账号状态', type: 'select', read: (employee) => employee.operator?.status, options: Object.entries(operatorStatusLabels).map(([value, label]) => ({ value, label })) },
+  { key: 'isActive', label: '员工状态', type: 'select', read: (employee) => employee.isActive, options: [{ value: 'true', label: '在职' }, { value: 'false', label: '已停用' }] },
+  { key: 'note', label: '备注', type: 'text', read: (employee) => employee.note },
+  { key: 'createdAt', label: '创建日期', type: 'date', read: (employee) => employee.createdAt },
+  { key: 'updatedAt', label: '更新日期', type: 'date', read: (employee) => employee.updatedAt },
+]
+
 export default function EmployeePage({
   onMessage,
   canCreate,
@@ -70,7 +86,6 @@ export default function EmployeePage({
   const [employees, setEmployees] = useState<EmployeeItem[]>([])
   const [operators, setOperators] = useState<OperatorOption[]>([])
   const [keyword, setKeyword] = useState('')
-  const [status, setStatus] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState<EmployeeItem | null>(null)
@@ -100,10 +115,7 @@ export default function EmployeePage({
     return () => window.clearTimeout(timer)
   }, [loadData])
 
-  const visibleEmployees = useMemo(() => employees.filter((employee) => (
-    status === 'ALL' || (status === 'ACTIVE' ? employee.isActive : !employee.isActive)
-  )), [employees, status])
-  const tableSort = useClientTableSort(visibleEmployees, {
+  const tableSort = useClientTableSort(employees, {
     manual: (employee) => employee.sortOrder,
     code: (employee) => employee.code,
     name: (employee) => employee.name,
@@ -203,8 +215,7 @@ export default function EmployeePage({
         searchValue={keyword}
         onSearchChange={setKeyword}
         searchPlaceholder="搜索员工编码、姓名、部门、电话或登录账号"
-        filters={<select value={status} onChange={(event) => setStatus(event.target.value as typeof status)} className={`w-36 ${appSelectClassName}`}><option value="ALL">全部状态</option><option value="ACTIVE">在职</option><option value="INACTIVE">已停用</option></select>}
-        filterCount={status === 'ALL' ? 0 : 1}
+        advancedSearchFields={employeeAdvancedSearchFields}
         actions={canUpdate ? <ConfigurationManualOrder entity="employees" label="员工" onMessage={onMessage} onSaved={loadData} /> : undefined}
         viewMode={viewMode}
         onViewModeChange={setViewMode}

@@ -17,7 +17,6 @@ export default function ResourceToolbar<M extends DisplayMode = DisplayMode>({
   searchConditions,
   onSearchConditionsChange,
   searchConditionLabel,
-  filters,
   actions,
   viewMode,
   onViewModeChange,
@@ -30,7 +29,6 @@ export default function ResourceToolbar<M extends DisplayMode = DisplayMode>({
   filterSummary,
   mobilePreferences,
   placement = 'portal',
-  filterPresentation = 'popover',
 }: {
   searchStorageKey?: string
   searchValue?: string
@@ -40,7 +38,6 @@ export default function ResourceToolbar<M extends DisplayMode = DisplayMode>({
   searchConditions?: readonly ResourceSearchCondition[]
   onSearchConditionsChange?: (conditions: ResourceSearchCondition[]) => void
   searchConditionLabel?: string
-  filters?: ReactNode
   actions?: ReactNode
   viewMode?: M
   onViewModeChange?: (value: M) => void
@@ -53,7 +50,6 @@ export default function ResourceToolbar<M extends DisplayMode = DisplayMode>({
   filterSummary?: ReactNode
   mobilePreferences?: ReactNode
   placement?: 'portal' | 'inline'
-  filterPresentation?: 'dialog' | 'popover'
 }) {
   const toolbarActions = actions || onCreate
     ? (
@@ -92,12 +88,10 @@ export default function ResourceToolbar<M extends DisplayMode = DisplayMode>({
     <ResponsiveToolbarActions
       primaryFilters={search}
       advancedSearch={advancedSearch}
-      filters={filters}
       filterCount={filterCount}
       filterSummary={filterSummary}
       preferences={mobilePreferences}
       viewControl={viewControl}
-      filterPresentation={filterPresentation}
       actions={toolbarActions}
     />
   )

@@ -13,6 +13,42 @@ import { simpleProductSku } from '@/lib/material-product'
 import { withMaterialImageUrls } from '@/lib/attachment-urls'
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
 
+const materialAdvancedConditionSchema = z.object({
+  field: z.enum(['code', 'name', 'spec', 'category', 'customerId', 'primaryMeasure', 'stockUnit', 'valuationUnit', 'costingMethod', 'bomStatus', 'note', 'createdAt']),
+  operator: z.enum(['equals', 'contains', 'startsWith', 'gt', 'gte', 'lt', 'lte']),
+  value: z.string().trim().min(1).max(200),
+})
+
+type MaterialAdvancedCondition = z.infer<typeof materialAdvancedConditionSchema>
+
+function parseAdvancedSearch(value: string | null) {
+  if (!value) return { data: [] as MaterialAdvancedCondition[] }
+  try {
+    const parsed = z.array(materialAdvancedConditionSchema).max(30).safeParse(JSON.parse(value))
+    return parsed.success ? { data: parsed.data } : { error: '高级搜索条件无效' }
+  } catch {
+    return { error: '高级搜索条件格式错误' }
+  }
+}
+
+function stringCondition(condition: MaterialAdvancedCondition) {
+  if (condition.operator === 'equals') return { equals: condition.value }
+  if (condition.operator === 'startsWith') return { startsWith: condition.value }
+  return { contains: condition.value }
+}
+
+function dateCondition(condition: MaterialAdvancedCondition) {
+  const start = new Date(`${condition.value}T00:00:00+08:00`)
+  if (Number.isNaN(start.getTime())) return null
+  const next = new Date(start.getTime() + 24 * 60 * 60 * 1000)
+  if (condition.operator === 'equals') return { gte: start, lt: next }
+  if (condition.operator === 'gt') return { gte: next }
+  if (condition.operator === 'gte') return { gte: start }
+  if (condition.operator === 'lt') return { lt: start }
+  if (condition.operator === 'lte') return { lt: next }
+  return null
+}
+
 const materialSchema = z.object({
   code: z.string().min(1, '物料编码不能为空'),
   name: z.string().min(1, '物料名称不能为空'),
@@ -75,8 +111,11 @@ export async function GET(req: NextRequest) {
     const categories = parseCsvFilter(searchParams.get('categories'))
     const customerId = searchParams.get('customerId')
     const bomStatus = searchParams.get('bomStatus')
+    const advancedSearch = parseAdvancedSearch(searchParams.get('advanced'))
+    if (advancedSearch.error) return NextResponse.json({ error: advancedSearch.error }, { status: 400 })
+    const advancedConditions = advancedSearch.data || []
     const requestedSortBy = searchParams.get('sortBy') || 'createdAt'
-    if (bomStatus || requestedSortBy === 'bomSummary') {
+    if (bomStatus || requestedSortBy === 'bomSummary' || advancedConditions.some((condition) => condition.field === 'bomStatus')) {
       const bomDenied = await requireResourcePermission('bomCost', 'read')
       if (bomDenied) return bomDenied
     }
@@ -106,6 +145,20 @@ export async function GET(req: NextRequest) {
     if (customerId === '__UNASSIGNED__') where.customerId = null
     else if (customerId) where.customerId = customerId
     andFilters.push(...getBomStatusRelationFilters(bomStatus))
+    for (const condition of advancedConditions) {
+      if (['code', 'name', 'spec', 'stockUnit', 'valuationUnit', 'note'].includes(condition.field)) {
+        andFilters.push({ [condition.field]: stringCondition(condition) })
+      } else if (condition.field === 'category' || condition.field === 'primaryMeasure' || condition.field === 'costingMethod') {
+        andFilters.push({ [condition.field]: condition.value })
+      } else if (condition.field === 'customerId') {
+        andFilters.push({ customerId: condition.value === '__UNASSIGNED__' ? null : condition.value })
+      } else if (condition.field === 'bomStatus') {
+        andFilters.push(...getBomStatusRelationFilters(condition.value))
+      } else if (condition.field === 'createdAt') {
+        const filter = dateCondition(condition)
+        if (filter) andFilters.push({ createdAt: filter })
+      }
+    }
     andFilters.push(...tokenizeKeywordQuery(keyword || '').map((token) => ({ OR: [
       { name: { contains: token } },
       { code: { contains: token } },

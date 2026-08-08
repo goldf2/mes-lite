@@ -18,6 +18,7 @@ import useClientTableSort from './useClientTableSort'
 import MetricCard from './MetricCard'
 import NumberInputField from './NumberInputField'
 import AppLoadingIndicator from './AppLoadingIndicator'
+import { MappedResourceAdvancedSearch } from './resource'
 
 interface BomItem {
   id: string
@@ -192,6 +193,13 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
   const [confirmingReport, setConfirmingReport] = useState<DailyProductionReport | null>(null)
   const [reversingReport, setReversingReport] = useState<DailyProductionReport | null>(null)
   const [reverseReason, setReverseReason] = useState('')
+  const advancedSearchFields = useMemo(() => [{
+    key: 'status',
+    label: '状态',
+    value: status === 'ALL' ? '' : status,
+    onChange: (value: string) => setStatus(value || 'ALL'),
+    options: [{ value: 'DRAFT', label: '草稿' }, { value: 'CONFIRMED', label: '已确认' }, { value: 'REVERSED', label: '已冲销' }],
+  }], [status])
   const reportSort = useClientTableSort(reports, {
     reportDate: (report) => new Date(report.reportDate),
     material: (report) => `${report.finishedMaterial.code} ${report.finishedMaterial.name}`,
@@ -457,14 +465,7 @@ export default function StatsPage({ onMessage }: { onMessage: (msg: string) => v
               placeholder="搜索记录号、物料、人员或备注"
             />
           )}
-          filters={(
-            <select value={status} onChange={(event) => setStatus(event.target.value)} className="w-36 rounded-lg border border-gray-200 px-3 py-2 text-sm">
-              <option value="ALL">全部状态</option>
-              <option value="DRAFT">草稿</option>
-              <option value="CONFIRMED">已确认</option>
-              <option value="REVERSED">已冲销</option>
-            </select>
-          )}
+          advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
           viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
           actions={(
             <>

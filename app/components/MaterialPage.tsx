@@ -2,14 +2,14 @@
 
 import { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode, useCallback, useState, useEffect, useMemo, useRef } from 'react'
 import AttachmentPanel from './AttachmentPanel'
-import StatusCheckboxFilter, { getMultiSelectQuery } from './StatusCheckboxFilter'
+import { getMultiSelectQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import MaterialPanoramaPage from './MaterialPanoramaPage'
-import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import SearchableSelect from './SearchableSelect'
+import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import { bomRatiosDiffer } from '@/lib/bom-ratio'
 import ModalDialog, { ModalActions } from './ModalDialog'
 import AppButton from './AppButton'
@@ -25,7 +25,6 @@ import { useBomPagePreferences } from './bomPagePreferences'
 import AppLoadingIndicator from './AppLoadingIndicator'
 import PageOptionsDialog from './PageOptionsDialog'
 import ToolbarOrderSettings from './ToolbarOrderSettings'
-import { SearchCheck, X } from 'lucide-react'
 import { ResourceAdvancedSearch } from './resource'
 import {
   filterByResourceSearch,
@@ -437,100 +436,6 @@ function BomSummaryVisibilityControl({
               ))}
             </>
           )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function MaterialAdvancedSearch({
-  selectedCategories,
-  onCategoriesChange,
-  customerFilter,
-  onCustomerChange,
-  customers,
-  bomStatusFilter,
-  onBomStatusChange,
-  showBomStatus,
-}: {
-  selectedCategories: string[]
-  onCategoriesChange: (value: string[]) => void
-  customerFilter: string
-  onCustomerChange: (value: string) => void
-  customers: Customer[]
-  bomStatusFilter: BomStatusFilter
-  onBomStatusChange: (value: BomStatusFilter) => void
-  showBomStatus: boolean
-}) {
-  const [open, setOpen] = useState(false)
-  const rootRef = useDismissibleSearchPopup<HTMLDivElement>(open, () => setOpen(false))
-  const activeCount = Number(selectedCategories.length !== materialCategoryFilterOptions.length)
-    + Number(Boolean(customerFilter))
-    + Number(showBomStatus && bomStatusFilter !== 'all')
-
-  const clear = () => {
-    onCategoriesChange(materialCategoryFilterOptions.map((option) => option.value))
-    onCustomerChange('')
-    onBomStatusChange('all')
-  }
-
-  return (
-    <div ref={rootRef} className="relative shrink-0">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        title="高级搜索"
-        aria-label="高级搜索"
-        className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50"
-      >
-        <SearchCheck aria-hidden="true" className="h-4 w-4 text-blue-600" />
-        <span className="sr-only">高级搜索</span>
-        {activeCount > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-blue-600 px-1 text-center text-[10px] leading-4 text-white">{activeCount}</span>}
-      </button>
-
-      {open && (
-        <div role="dialog" aria-label="物料高级搜索" className="absolute right-0 top-[calc(100%+8px)] z-[150] w-[min(520px,calc(100vw-24px))] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
-          <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-            <div>
-              <div className="text-sm font-semibold text-gray-900">高级搜索</div>
-              <div className="mt-0.5 text-xs text-gray-500">按分类、客户和 BOM 状态精确缩小范围。</div>
-            </div>
-            <button type="button" onClick={() => setOpen(false)} aria-label="关闭高级搜索" className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><X className="h-4 w-4" /></button>
-          </div>
-          <div className="space-y-4 p-4">
-            <div>
-              <div className="mb-2 text-xs font-semibold text-gray-500">物料分类</div>
-              <StatusCheckboxFilter options={materialCategoryFilterOptions} value={selectedCategories} onChange={onCategoriesChange} allLabel="全部分类" />
-            </div>
-            <div>
-              <div className="mb-2 text-xs font-semibold text-gray-500">归属客户</div>
-              <SearchableSelect
-                value={customerFilter}
-                onChange={onCustomerChange}
-                options={[
-                  { value: '__UNASSIGNED__', label: '通用/未绑定' },
-                  ...customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: customer.code })),
-                ]}
-                placeholder="输入客户名称（全部客户）"
-                allowClear
-                className="w-full"
-              />
-            </div>
-            {showBomStatus && (
-              <label className="block">
-                <span className="mb-2 block text-xs font-semibold text-gray-500">BOM 状态</span>
-                <select value={bomStatusFilter} onChange={(event) => onBomStatusChange(event.target.value as BomStatusFilter)} className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm">
-                  {bomStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
-              </label>
-            )}
-          </div>
-          <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50 px-4 py-3">
-            <button type="button" onClick={clear} disabled={activeCount === 0} className="text-sm text-gray-500 hover:text-gray-800 disabled:opacity-40">清空条件</button>
-            <button type="button" onClick={() => setOpen(false)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">完成</button>
-          </div>
         </div>
       )}
     </div>
@@ -954,9 +859,7 @@ export default function MaterialPage({
   const [bomKeyword, setBomKeyword] = useState('')
   const [bomSearchConditions, setBomSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [keyword, setKeyword] = useState('')
-  const [customerFilter, setCustomerFilter] = useState('')
-  const [bomStatusFilter, setBomStatusFilter] = useState<BomStatusFilter>('all')
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(materialCategoryFilterOptions.map((option) => option.value))
+  const [materialSearchConditions, setMaterialSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [sortBy, setSortBy] = useState<MaterialSortBy>('createdAt')
   const [sortDir, setSortDir] = useState<SortDirection>('desc')
   const [page, setPage] = useState(1)
@@ -984,6 +887,16 @@ export default function MaterialPage({
   const formValuationUnitConfigured = formValuationUnitOptions.some((unit) => unit.code === form.valuationUnit)
   const showField = (field: MaterialVisibleField) => visibleFields.includes(field)
   const canUseBomData = showBomWorkspace || canReadBom
+  const selectedCategory = materialSearchConditions.find((condition) => condition.field === 'category')?.value || ''
+  const selectedCategories = useMemo(
+    () => selectedCategory ? [selectedCategory] : materialCategoryFilterOptions.map((option) => option.value),
+    [selectedCategory],
+  )
+  const customerFilter = materialSearchConditions.find((condition) => condition.field === 'customerId')?.value || ''
+  const selectedBomStatus = materialSearchConditions.find((condition) => condition.field === 'bomStatus')?.value || 'all'
+  const bomStatusFilter: BomStatusFilter = bomStatusOptions.some((option) => option.value === selectedBomStatus)
+    ? selectedBomStatus as BomStatusFilter
+    : 'all'
   const [loading, setLoading] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importMode, setImportMode] = useState<'skip' | 'update'>('skip')
@@ -994,6 +907,23 @@ export default function MaterialPage({
     label: materialOptionLabel(material),
     keywords: `${material.code} ${material.name} ${material.spec || ''} ${materialCategoryLabels[material.category] || material.category}`,
   })), [bomMaterialOptions])
+  const materialAdvancedSearchFields = useMemo<readonly ResourceAdvancedSearchField<Material>[]>(() => {
+    const fields: ResourceAdvancedSearchField<Material>[] = [
+      { key: 'code', label: '物料编码', type: 'text', read: (material) => material.code },
+      { key: 'name', label: '物料名称', type: 'text', read: (material) => material.name },
+      { key: 'spec', label: '规格', type: 'text', read: (material) => material.spec },
+      { key: 'category', label: '物料分类', type: 'select', read: (material) => material.category, options: materialCategoryFilterOptions },
+      { key: 'customerId', label: '归属客户', type: 'select', read: (material) => material.customerId || '__UNASSIGNED__', options: [{ value: '__UNASSIGNED__', label: '通用/未绑定' }, ...customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` }))] },
+      { key: 'primaryMeasure', label: '主计量方式', type: 'select', read: (material) => material.primaryMeasure, options: [{ value: 'LENGTH', label: '长度' }, { value: 'WEIGHT', label: '重量' }, { value: 'QUANTITY', label: '数量' }, { value: 'OTHER', label: '其他' }] },
+      { key: 'stockUnit', label: '库存单位', type: 'text', read: (material) => material.stockUnit },
+      { key: 'valuationUnit', label: '计价单位', type: 'text', read: (material) => material.valuationUnit },
+      { key: 'costingMethod', label: '计价方法', type: 'select', read: (material) => material.costingMethod, options: [{ value: 'WEIGHTED_AVERAGE', label: '加权平均' }, { value: 'FIFO', label: '先进先出' }] },
+      { key: 'note', label: '备注', type: 'text', read: (material) => material.note },
+      { key: 'createdAt', label: '创建日期', type: 'date', read: (material) => material.createdAt },
+    ]
+    if (canUseBomData) fields.splice(9, 0, { key: 'bomStatus', label: 'BOM 状态', type: 'select', read: () => '', options: bomStatusOptions.filter((option) => option.value !== 'all') })
+    return fields
+  }, [canUseBomData, customers])
   const selectedMaterial = showBomWorkspace
     ? bomMaterialOptions.find((material) => material.id === selectedMaterialId) || null
     : materials.find((material) => material.id === selectedMaterialId) || null
@@ -1118,11 +1048,11 @@ export default function MaterialPage({
 
   useEffect(() => {
     if (!showBomWorkspace) fetchMaterials()
-  }, [keyword, selectedCategories, customerFilter, bomStatusFilter, sortBy, sortDir, page, pageSize, showBomWorkspace])
+  }, [keyword, selectedCategories, customerFilter, bomStatusFilter, materialSearchConditions, sortBy, sortDir, page, pageSize, showBomWorkspace])
 
   useEffect(() => {
     setPage(1)
-  }, [keyword, selectedCategories, customerFilter, bomStatusFilter, sortBy, sortDir, pageSize])
+  }, [keyword, selectedCategories, customerFilter, bomStatusFilter, materialSearchConditions, sortBy, sortDir, pageSize])
 
   useEffect(() => {
     fetchCustomers()
@@ -1369,6 +1299,9 @@ export default function MaterialPage({
     if (keyword) params.set('keyword', keyword)
     if (customerFilter) params.set('customerId', customerFilter)
     if (canUseBomData && bomStatusFilter !== 'all') params.set('bomStatus', bomStatusFilter)
+    if (materialSearchConditions.length > 0) {
+      params.set('advanced', JSON.stringify(materialSearchConditions.map(({ field, operator, value }) => ({ field, operator, value }))))
+    }
     const categoryQuery = getMultiSelectQuery('categories', selectedCategories, materialCategoryFilterOptions)
     if (categoryQuery) {
       const categoryParams = new URLSearchParams(categoryQuery)
@@ -2021,27 +1954,8 @@ export default function MaterialPage({
     setPage(1)
   }
 
-  const materialSearchConditions = useMemo<ResourceSearchCondition[]>(() => {
-    const conditions: ResourceSearchCondition[] = []
-    if (selectedCategories.length !== materialCategoryFilterOptions.length) {
-      conditions.push({ id: 'material-categories', field: 'categories', operator: 'equals', value: selectedCategories.length > 0 ? selectedCategories.join(',') : '__NONE__' })
-    }
-    if (customerFilter) conditions.push({ id: 'material-customer', field: 'customer', operator: 'equals', value: customerFilter })
-    if (canUseBomData && bomStatusFilter !== 'all') conditions.push({ id: 'material-bom-status', field: 'bomStatus', operator: 'equals', value: bomStatusFilter })
-    return conditions
-  }, [bomStatusFilter, canUseBomData, customerFilter, selectedCategories])
-
   const applyMaterialSearchConditions = useCallback((conditions: ResourceSearchCondition[]) => {
-    const categoryCondition = conditions.find((condition) => condition.field === 'categories')
-    const allowedCategories = new Set<string>(materialCategoryFilterOptions.map((option) => option.value))
-    setSelectedCategories(categoryCondition
-      ? categoryCondition.value === '__NONE__'
-        ? []
-        : categoryCondition.value.split(',').filter((value) => allowedCategories.has(value))
-      : materialCategoryFilterOptions.map((option) => option.value))
-    setCustomerFilter(conditions.find((condition) => condition.field === 'customer')?.value || '')
-    const nextBomStatus = conditions.find((condition) => condition.field === 'bomStatus')?.value
-    setBomStatusFilter(bomStatusOptions.some((option) => option.value === nextBomStatus) ? nextBomStatus as BomStatusFilter : 'all')
+    setMaterialSearchConditions(conditions)
     setPage(1)
   }, [])
 
@@ -2087,18 +2001,7 @@ export default function MaterialPage({
             conditionLabel={`${materialSearchConditions.length} 个精确条件`}
           />
         )}
-        advancedSearch={(
-          <MaterialAdvancedSearch
-            selectedCategories={selectedCategories}
-            onCategoriesChange={setSelectedCategories}
-            customerFilter={customerFilter}
-            onCustomerChange={setCustomerFilter}
-            customers={customers}
-            bomStatusFilter={bomStatusFilter}
-            onBomStatusChange={setBomStatusFilter}
-            showBomStatus={canUseBomData}
-          />
-        )}
+        advancedSearch={<ResourceAdvancedSearch fields={materialAdvancedSearchFields} conditions={materialSearchConditions} onChange={applyMaterialSearchConditions} />}
         viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
         onOpenPageOptions={() => setShowPageOptions(true)}
         actions={(
@@ -2125,7 +2028,7 @@ export default function MaterialPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedCategories, keyword, customerFilter, customers, bomStatusFilter, viewMode, setViewMode, showBomWorkspace, bomKeyword, bomSearchConditions, selectMaterialForBom, canUseBomData, materialSearchConditions, applyMaterialSearchConditions])
+  }, [onToolbarChange, keyword, viewMode, setViewMode, showBomWorkspace, bomKeyword, bomSearchConditions, selectMaterialForBom, materialAdvancedSearchFields, materialSearchConditions, applyMaterialSearchConditions])
 
   const renderBomDraftEditor = (showSaveAction: boolean) => (
     <>
@@ -2376,18 +2279,7 @@ export default function MaterialPage({
               conditionLabel={`${materialSearchConditions.length} 个精确条件`}
             />
           )}
-          advancedSearch={(
-            <MaterialAdvancedSearch
-              selectedCategories={selectedCategories}
-              onCategoriesChange={setSelectedCategories}
-              customerFilter={customerFilter}
-              onCustomerChange={setCustomerFilter}
-              customers={customers}
-              bomStatusFilter={bomStatusFilter}
-              onBomStatusChange={setBomStatusFilter}
-              showBomStatus={canUseBomData}
-            />
-          )}
+          advancedSearch={<ResourceAdvancedSearch fields={materialAdvancedSearchFields} conditions={materialSearchConditions} onChange={applyMaterialSearchConditions} />}
           viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
           onOpenPageOptions={() => setShowPageOptions(true)}
           actions={(

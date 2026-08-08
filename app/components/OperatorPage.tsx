@@ -1,13 +1,14 @@
 'use client'
 
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode, useEffect, useMemo, useState } from 'react'
 import { CurrentOperator } from './AuthGate'
-import StatusCheckboxFilter, { getStatusQuery } from './StatusCheckboxFilter'
+import { getStatusQuery } from './StatusCheckboxFilter'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
 import SortableTableHeader from './SortableTableHeader'
 import useClientTableSort from './useClientTableSort'
+import { MappedResourceAdvancedSearch } from './resource'
 
 interface Operator {
   id: string
@@ -62,6 +63,13 @@ export default function OperatorPage({
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [loading, setLoading] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.operators.viewMode', 'list')
+  const advancedSearchFields = useMemo(() => [{
+    key: 'status',
+    label: '账号状态',
+    value: selectedStatuses.length === 1 ? selectedStatuses[0] : '',
+    onChange: (value: string) => setSelectedStatuses(value ? [value] : statusOptions.map((option) => option.value)),
+    options: statusOptions,
+  }], [selectedStatuses])
   const operatorSort = useClientTableSort(operators, {
     username: (operator) => operator.username,
     name: (operator) => operator.name,
@@ -116,14 +124,7 @@ export default function OperatorPage({
 
     onToolbarChange(
       <ResponsiveToolbarActions
-        filters={(
-          <StatusCheckboxFilter
-            options={statusOptions}
-            value={selectedStatuses}
-            onChange={setSelectedStatuses}
-            storageKey="mes-lite.filters.operators.status.order"
-          />
-        )}
+        advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
         viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
         actions={(
           <>
@@ -136,20 +137,13 @@ export default function OperatorPage({
     )
 
     return () => onToolbarChange(null)
-  }, [onToolbarChange, selectedStatuses, loading, viewMode, setViewMode])
+  }, [advancedSearchFields, onToolbarChange, selectedStatuses, loading, viewMode, setViewMode])
 
   return (
     <>
       <TopBarPortal>
         <ResponsiveToolbarActions
-          filters={(
-            <StatusCheckboxFilter
-              options={statusOptions}
-              value={selectedStatuses}
-              onChange={setSelectedStatuses}
-              storageKey="mes-lite.filters.operators.status.order"
-            />
-          )}
+          advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
           viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
           actions={(
             <>

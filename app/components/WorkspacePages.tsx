@@ -12,7 +12,9 @@ import type { WorkspaceFunctionKey, WorkspaceMode, WorkspacePreferenceValue } fr
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import TopBarPortal from './TopBarPortal'
-import { matchesKeywordValues } from '@/lib/resource-search'
+import { ResourceAdvancedSearch } from './resource'
+import { filterByAdvancedSearch, matchesKeywordValues } from '@/lib/resource-search'
+import type { ResourceAdvancedSearchField, ResourceSearchCondition } from '@/lib/resource-search'
 
 export interface WorkspaceFunctionItem {
   key: WorkspaceFunctionKey
@@ -22,6 +24,12 @@ export interface WorkspaceFunctionItem {
   description: string
   icon: string
 }
+
+const functionAdvancedSearchFields: readonly ResourceAdvancedSearchField<WorkspaceFunctionItem>[] = [
+  { key: 'label', label: '功能名称', type: 'text', read: (item) => item.label },
+  { key: 'group', label: '业务分组', type: 'text', read: (item) => item.groupLabel },
+  { key: 'description', label: '功能说明', type: 'text', read: (item) => item.description },
+]
 
 const modeOptions: Array<{ key: WorkspaceMode; label: string; description: string }> = [
   { key: 'DEFAULT', label: '系统默认', description: '使用系统预置的常用顺序' },
@@ -289,10 +297,12 @@ export function AllFunctionsPage({
   onOpen: (key: WorkspaceFunctionKey) => void
 }) {
   const [keyword, setKeyword] = useState('')
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const usageByKey = new Map(preference.usage.map((item) => [item.functionKey, item]))
+  const advancedItems = filterByAdvancedSearch(items, functionAdvancedSearchFields, searchConditions)
   const visibleItems = keyword.trim()
-    ? items.filter((item) => matchesKeywordValues(keyword, [item.label, item.groupLabel, item.description]))
-    : items
+    ? advancedItems.filter((item) => matchesKeywordValues(keyword, [item.label, item.groupLabel, item.description]))
+    : advancedItems
   const groups = groupItems(visibleItems)
 
   return (
@@ -305,8 +315,12 @@ export function AllFunctionsPage({
               value={keyword}
               onChange={setKeyword}
               placeholder="输入功能名称或业务分组"
+              conditions={searchConditions}
+              onConditionsChange={setSearchConditions}
+              conditionLabel="所有功能精确搜索"
             />
           )}
+          advancedSearch={<ResourceAdvancedSearch fields={functionAdvancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
         />
       </TopBarPortal>
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">

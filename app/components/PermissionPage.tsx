@@ -8,7 +8,9 @@ import useClientTableSort from './useClientTableSort'
 import AppButton from './AppButton'
 import ResponsiveToolbarActions from './ResponsiveToolbarActions'
 import TopBarPortal from './TopBarPortal'
-import { matchesKeywordValues } from '@/lib/resource-search'
+import { ResourceAdvancedSearch } from './resource'
+import { filterByAdvancedSearch, matchesKeywordValues } from '@/lib/resource-search'
+import type { ResourceAdvancedSearchField, ResourceSearchCondition } from '@/lib/resource-search'
 
 interface ResourceItem {
   key: string
@@ -78,6 +80,13 @@ const statusLabels: Record<string, string> = {
   DISABLED: '已停用',
 }
 
+const operatorAdvancedSearchFields: readonly ResourceAdvancedSearchField<OperatorItem>[] = [
+  { key: 'username', label: '登录账号', type: 'text', read: (item) => item.username },
+  { key: 'name', label: '姓名', type: 'text', read: (item) => item.name },
+  { key: 'role', label: '系统角色', type: 'select', read: (item) => item.role, options: Object.entries(roleLabels).map(([value, label]) => ({ value, label })) },
+  { key: 'status', label: '账号状态', type: 'select', read: (item) => item.status, options: Object.entries(statusLabels).map(([value, label]) => ({ value, label })) },
+]
+
 const blankFlags: PermissionFlags = {
   canRead: false,
   canCreate: false,
@@ -101,6 +110,7 @@ export default function PermissionPage({
   const [activeGroupId, setActiveGroupId] = useState('')
   const [activeOperatorId, setActiveOperatorId] = useState('')
   const [searchKeyword, setSearchKeyword] = useState('')
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [newGroup, setNewGroup] = useState({ name: '', code: '', description: '' })
   const [showNewGroupForm, setShowNewGroupForm] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -146,14 +156,15 @@ export default function PermissionPage({
     memberCount: (group) => groupMemberCounts[group.id] || 0,
   }, 'name', 'asc')
   const filteredOperators = useMemo(() => {
-    if (!searchKeyword.trim()) return operators
+    const advancedOperators = filterByAdvancedSearch(operators, operatorAdvancedSearchFields, searchConditions)
+    if (!searchKeyword.trim()) return advancedOperators
 
-    return operators.filter((operator) => matchesKeywordValues(searchKeyword, [
+    return advancedOperators.filter((operator) => matchesKeywordValues(searchKeyword, [
       operator.name,
       operator.username,
       roleLabels[operator.role] || operator.role,
     ]))
-  }, [operators, searchKeyword])
+  }, [operators, searchConditions, searchKeyword])
 
   const isAssigned = (operatorId: string, groupId: string) => {
     return operatorGroups.some((item) => item.operatorId === operatorId && item.groupId === groupId)
@@ -297,8 +308,12 @@ export default function PermissionPage({
                 value={searchKeyword}
                 onChange={setSearchKeyword}
                 placeholder="搜索账号、姓名或角色"
+                conditions={searchConditions}
+                onConditionsChange={setSearchConditions}
+                conditionLabel="人员权限精确搜索"
               />
             )}
+            advancedSearch={<ResourceAdvancedSearch fields={operatorAdvancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
             viewControl={<ViewModeToggle value={userViewMode} onChange={setUserViewMode} />}
             actions={(
               <>

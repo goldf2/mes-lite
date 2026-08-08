@@ -1,12 +1,15 @@
 'use client'
 
-import { ReactNode, useState } from 'react'
+import { ReactNode, useMemo, useState } from 'react'
+import { filterByAdvancedSearch } from '@/lib/resource-search'
+import type { ResourceAdvancedSearchField, ResourceSearchCondition } from '@/lib/resource-search'
 import AdaptiveMasterDetailWorkspace, { CompactMasterDetailMode, CompactMasterDetailModeSelector } from '../layout/AdaptiveMasterDetailWorkspace'
 import { DisplayMode, usePersistedIconSize } from '../ViewModeToggle'
 import ResourceCardGrid from './ResourceCardGrid'
 import ResourceCollection from './ResourceCollection'
 import ResourceTable, { ResourceTableColumn } from './ResourceTable'
 import ResourceToolbar from './ResourceToolbar'
+import ResourceAdvancedSearch from './ResourceAdvancedSearch'
 
 export interface ResourcePageRenderContext<T> {
   item: T
@@ -35,9 +38,7 @@ export default function ResourcePage<T, M extends DisplayMode = DisplayMode>({
   searchValue,
   onSearchChange,
   searchPlaceholder,
-  filters,
-  filterCount = 0,
-  filterSummary,
+  advancedSearchFields = [],
   actions,
   viewMode,
   onViewModeChange,
@@ -68,9 +69,7 @@ export default function ResourcePage<T, M extends DisplayMode = DisplayMode>({
   searchValue: string
   onSearchChange: (value: string) => void
   searchPlaceholder: string
-  filters?: ReactNode
-  filterCount?: number
-  filterSummary?: ReactNode
+  advancedSearchFields?: readonly ResourceAdvancedSearchField<T>[]
   actions?: ReactNode
   viewMode: M
   onViewModeChange: (value: M) => void
@@ -83,19 +82,24 @@ export default function ResourcePage<T, M extends DisplayMode = DisplayMode>({
 }) {
   const [compactMode, setCompactMode] = useState<CompactMasterDetailMode>('overlay')
   const [iconSize, setIconSize] = usePersistedIconSize(`mes-lite.resource.${resourceKey}.icon-size.v1`)
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
+  const visibleItems = useMemo(
+    () => filterByAdvancedSearch(items, advancedSearchFields, searchConditions),
+    [advancedSearchFields, items, searchConditions],
+  )
   const collection = (
     <ResourceCollection
       loading={loading}
       loadingLabel={loadingLabel}
       error={error}
       onRetry={onRetry}
-      itemCount={items.length}
+      itemCount={visibleItems.length}
       emptyLabel={emptyLabel}
       emptyAction={emptyAction}
       viewMode={viewMode}
       list={(
         <ResourceTable
-          items={items}
+          items={visibleItems}
           columns={columns}
           getKey={getKey}
           selectedKey={selectedKey}
@@ -105,7 +109,7 @@ export default function ResourcePage<T, M extends DisplayMode = DisplayMode>({
       )}
       icons={renderCard ? (
         <ResourceCardGrid
-          items={items}
+          items={visibleItems}
           getKey={getKey}
           selectedKey={selectedKey}
           onSelect={onSelect}
@@ -121,7 +125,7 @@ export default function ResourcePage<T, M extends DisplayMode = DisplayMode>({
       ) : undefined}
       cards={renderCard ? (
         <ResourceCardGrid
-          items={items}
+          items={visibleItems}
           getKey={getKey}
           selectedKey={selectedKey}
           onSelect={onSelect}
@@ -135,7 +139,7 @@ export default function ResourcePage<T, M extends DisplayMode = DisplayMode>({
       ) : undefined}
       columns={renderCard ? (
         <ResourceCardGrid
-          items={items}
+          items={visibleItems}
           getKey={getKey}
           selectedKey={selectedKey}
           onSelect={onSelect}
@@ -150,7 +154,7 @@ export default function ResourcePage<T, M extends DisplayMode = DisplayMode>({
       ) : undefined}
       gallery={renderCard ? (
         <ResourceCardGrid
-          items={items}
+          items={visibleItems}
           getKey={getKey}
           selectedKey={selectedKey}
           onSelect={onSelect}
@@ -181,9 +185,12 @@ export default function ResourcePage<T, M extends DisplayMode = DisplayMode>({
         searchValue={searchValue}
         onSearchChange={onSearchChange}
         searchPlaceholder={searchPlaceholder}
-        filters={filters}
-        filterCount={filterCount}
-        filterSummary={filterSummary}
+        advancedSearch={advancedSearchFields.length > 0 ? (
+          <ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />
+        ) : undefined}
+        searchConditions={searchConditions}
+        onSearchConditionsChange={setSearchConditions}
+        searchConditionLabel={`${String(title)}精确搜索`}
         actions={actions}
         viewMode={renderCard ? viewMode : undefined}
         onViewModeChange={renderCard ? onViewModeChange : undefined}
@@ -203,7 +210,7 @@ export default function ResourcePage<T, M extends DisplayMode = DisplayMode>({
           storageKey={`mes-lite.resource.${resourceKey}.workspace.${viewMode === 'columns' ? 'columns' : 'standard'}.v1`}
           primaryLabel={`${String(title)}列表`}
           secondaryLabel={`${String(title)}详情`}
-          primaryCount={items.length}
+          primaryCount={visibleItems.length}
           selectionKey={selectedKey}
           primary={collection}
           secondary={detail}

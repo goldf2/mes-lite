@@ -122,6 +122,15 @@ function conditionMatches<T>(item: T, condition: ResourceSearchCondition, fields
   return actualText === expectedText
 }
 
+export function filterByAdvancedSearch<T>(
+  items: readonly T[],
+  fields: readonly ResourceAdvancedSearchField<T>[],
+  conditions: readonly ResourceSearchCondition[],
+) {
+  if (conditions.length === 0) return items.slice()
+  return items.filter((item) => conditions.every((condition) => conditionMatches(item, condition, fields)))
+}
+
 export function filterByResourceSearch<T>(
   items: readonly T[],
   query: string,
@@ -129,8 +138,9 @@ export function filterByResourceSearch<T>(
   fields: readonly ResourceAdvancedSearchField<T>[] = [],
   conditions: readonly ResourceSearchCondition[] = [],
 ) {
-  return items.filter((item) => (
-    matchesKeywordQuery(item, query, profile)
-    && conditions.every((condition) => conditionMatches(item, condition, fields))
-  ))
+  return filterByAdvancedSearch(
+    items.filter((item) => matchesKeywordQuery(item, query, profile)),
+    fields,
+    conditions,
+  )
 }

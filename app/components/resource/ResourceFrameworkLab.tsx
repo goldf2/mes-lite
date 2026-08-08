@@ -7,13 +7,12 @@ import ModalDialog, { ModalActions } from '../ModalDialog'
 import { MaterialRelationIdentity, MaterialRelationOption, MaterialRelationSearch } from '../relations/MaterialRelation'
 import OneToManyRelationField from '../relations/OneToManyRelationField'
 import { usePersistedDisplayMode } from '../ViewModeToggle'
-import MultiSelectFilterMenu from './MultiSelectFilterMenu'
 import ResourceDetailPanel from './ResourceDetailPanel'
 import ResourceFormDialog from './ResourceFormDialog'
 import ResourcePage from './ResourcePage'
 import { ResourceTableColumn } from './ResourceTable'
 import PageQrCodeButton from '../PageQrCodeButton'
-import { matchesKeywordValues } from '@/lib/resource-search'
+import { matchesKeywordValues, type ResourceAdvancedSearchField } from '@/lib/resource-search'
 
 type LabState = 'ready' | 'loading' | 'empty' | 'error'
 type DocumentStatus = 'active' | 'archived'
@@ -42,6 +41,13 @@ const materials: MaterialRelationOption[] = [
 ]
 
 const labDisplayModes = ['icon', 'list', 'card', 'columns', 'gallery'] as const
+const labAdvancedSearchFields: readonly ResourceAdvancedSearchField<LabDocument>[] = [
+  { key: 'code', label: '文档编码', type: 'text', read: (document) => document.code },
+  { key: 'title', label: '文档标题', type: 'text', read: (document) => document.title },
+  { key: 'category', label: '类别', type: 'text', read: (document) => document.category },
+  { key: 'status', label: '状态', type: 'select', read: (document) => document.status, options: [{ value: 'active', label: '启用' }, { value: 'archived', label: '已归档' }] },
+  { key: 'updatedAt', label: '更新时间', type: 'date', read: (document) => document.updatedAt },
+]
 
 const initialDocuments: LabDocument[] = [
   {
@@ -101,7 +107,6 @@ function draftFrom(document: LabDocument): DocumentDraft {
 export default function ResourceFrameworkLab() {
   const [documents, setDocuments] = useState(initialDocuments)
   const [query, setQuery] = useState('')
-  const [statusFilters, setStatusFilters] = useState<DocumentStatus[]>(['active', 'archived'])
   const [viewMode, setViewMode] = usePersistedDisplayMode(
     'mes-lite.resource.framework-lab-documents.display-mode.v1',
     'list',
@@ -121,7 +126,6 @@ export default function ResourceFrameworkLab() {
 
   const visibleDocuments = useMemo(() => {
     return documents.filter((document) => {
-      if (!statusFilters.includes(document.status)) return false
       const relatedMaterials = document.materialIds
         .map((id) => materials.find((material) => material.id === id))
         .filter(Boolean)
@@ -129,7 +133,7 @@ export default function ResourceFrameworkLab() {
         .join(' ')
       return matchesKeywordValues(query, [document.code, document.title, document.category, relatedMaterials])
     })
-  }, [documents, query, statusFilters])
+  }, [documents, query])
 
   const displayedDocuments = labState === 'empty' ? [] : visibleDocuments
   const selected = documents.find((document) => document.id === selectedId) || null
@@ -146,8 +150,6 @@ export default function ResourceFrameworkLab() {
     }
     const requestedView = url.searchParams.get('view')
     if (requestedView === 'card' || requestedView === 'list') setViewMode(requestedView)
-    const requestedStatuses = (url.searchParams.get('status') || '').split(',').filter((value): value is DocumentStatus => value === 'active' || value === 'archived')
-    if (requestedStatuses.length > 0) setStatusFilters(requestedStatuses)
     setQuery(url.searchParams.get('q') || '')
     const requestedLabState = url.searchParams.get('lab')
     if (requestedLabState === 'ready' || requestedLabState === 'loading' || requestedLabState === 'empty' || requestedLabState === 'error') setLabState(requestedLabState)
@@ -160,11 +162,10 @@ export default function ResourceFrameworkLab() {
     for (const key of ['document', 'view', 'status', 'q', 'lab']) url.searchParams.delete(key)
     if (selected) url.searchParams.set('document', selected.code)
     url.searchParams.set('view', viewMode)
-    if (statusFilters.length !== 2) url.searchParams.set('status', statusFilters.join(','))
     if (query.trim()) url.searchParams.set('q', query.trim())
     if (labState !== 'ready') url.searchParams.set('lab', labState)
     window.history.replaceState(window.history.state, '', url)
-  }, [labState, pageUrlReady, query, selected, statusFilters, viewMode])
+  }, [labState, pageUrlReady, query, selected, viewMode])
 
   const selectDocument = (document: LabDocument) => {
     if (editing && selected && document.id !== selected.id && !window.confirm('当前修改尚未保存，确定切换到其他文档吗？')) return
@@ -439,28 +440,12 @@ export default function ResourceFrameworkLab() {
         loading={labState === 'loading'}
         error={labState === 'error' ? '这是用于验证失败反馈和重新加载入口的模拟错误。' : undefined}
         onRetry={() => setLabState('ready')}
-        emptyLabel={query || statusFilters.length !== 2 ? '当前搜索或筛选没有结果' : '尚未创建产品文档'}
+        emptyLabel={query ? '当前搜索没有结果' : '尚未创建产品文档'}
         emptyAction={<AppButton variant="create" size="sm" onClick={() => setCreateOpen(true)}>新建文档</AppButton>}
         searchValue={query}
         onSearchChange={setQuery}
         searchPlaceholder="搜索文档编码、标题、类别或关联物料"
-        filters={(
-          <MultiSelectFilterMenu
-            label="文档状态"
-            options={[
-              { value: 'active', label: '启用', description: '当前可用的正式文档', count: documents.filter((document) => document.status === 'active').length },
-              { value: 'archived', label: '已归档', description: '保留记录但不再默认使用', count: documents.filter((document) => document.status === 'archived').length },
-            ]}
-            selectedValues={statusFilters}
-            onChange={(values) => setStatusFilters(values as DocumentStatus[])}
-          />
-        )}
-        filterCount={statusFilters.length === 2 ? 0 : 1}
-        filterSummary={statusFilters.length === 2 ? undefined : (
-          <span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700">
-            {statusFilters.length === 0 ? '未选择状态' : statusFilters[0] === 'active' ? '启用' : '已归档'}
-          </span>
-        )}
+        advancedSearchFields={labAdvancedSearchFields}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         displayModes={labDisplayModes}
