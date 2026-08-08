@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronDown, MoreHorizontal, Search, X } from 'lucide-react'
+import { MoreHorizontal, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import useDismissibleSearchPopup from '../useDismissibleSearchPopup'
 import ControlTooltip from '../ControlTooltip'
@@ -29,7 +29,7 @@ export default function DesktopTopNavigation({ groups }: { groups: DesktopNaviga
     if (!openPanel) setQuery('')
   }, [openPanel])
 
-  const visibleCount = Math.max(1, Math.min(groups.length, Math.floor((availableWidth - 92) / 96)))
+  const visibleCount = Math.max(1, Math.min(groups.length, Math.floor((availableWidth - 84) / 72)))
   const visibleGroups = groups.slice(0, visibleCount)
   const hiddenGroups = groups.slice(visibleCount)
   const normalizedQuery = query.trim().toLocaleLowerCase('zh-CN')
@@ -79,11 +79,9 @@ export default function DesktopTopNavigation({ groups }: { groups: DesktopNaviga
               if (openPanel?.type === 'group') setOpenPanel({ type: 'group', id: group.id })
             }}
             onClick={() => setOpenPanel((current) => current?.type === 'group' && current.id === group.id ? null : { type: 'group', id: group.id })}
-            className={`flex h-9 min-w-0 max-w-[7.5rem] shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium transition ${group.active ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
+            className={`flex h-9 min-w-0 max-w-[6rem] shrink-0 items-center justify-center rounded-lg px-2.5 text-sm font-medium transition ${group.active ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
           >
-            <span className="shrink-0">{group.icon}</span>
             <span className="truncate">{group.label}</span>
-            <ChevronDown aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
           </button>
         ))}
         {hiddenGroups.length > 0 && (
