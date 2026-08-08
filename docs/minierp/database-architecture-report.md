@@ -1,6 +1,9 @@
 # MES-lite 数据库架构分析报告
 
 日期：2026-07-14
+商业化目标补充：2026-08-08
+
+> 本文前半部分描述当前 SQLite 数据模型。商业化 SaaS 的 PostgreSQL、租户隔离、OSS 和 DataCell 目标以 [MES-lite 商业化 SaaS 数据与存储架构](../architecture/saas-data-and-storage-architecture.md) 为准；`docs/minierp/data-model.md` 中的 `tenant_id` 表属于目标草案，不代表当前 Prisma Schema 已经完成多租户改造。
 
 ## 结论摘要
 
