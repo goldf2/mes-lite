@@ -225,6 +225,7 @@ SKU，实际库存单位。
 | status | draft, pending_review, approved, partial_received, completed, cancelled |
 | order_date | 订单日期 |
 | total_amount | 总金额 |
+| currency | 订单币种快照，当前默认为 `CNY` |
 | remark | 备注 |
 | created_at | 创建时间 |
 | updated_at | 更新时间 |
@@ -306,6 +307,10 @@ SKU，实际库存单位。
 | unit | 下单时物料库存单位快照 |
 | unit_price | 单价 |
 | total_amount | 金额 |
+| currency | 明细币种快照 |
+| price_source | `MATERIAL_DEFAULT / MANUAL`，说明价格来源 |
+| default_sale_price_snapshot | 下单时物料默认销售价快照 |
+| price_adjusted_at / by / reason | 后续手工调价时间、操作人和原因 |
 | note | 明细备注 |
 
 ### shipments
@@ -317,8 +322,8 @@ SKU，实际库存单位。
 | id | 出库单 ID |
 | tenant_id | 租户 ID |
 | shipment_no | 单号 |
-| sales_order_id | 来源销售订单 ID；历史发货单可为空，新建发货必须存在 |
-| sales_order_item_id | 来源销售订单明细 ID；用于控制未发数量和回写已发数量 |
+| sales_order_id | 可选来源销售订单 ID；独立发货为空 |
+| sales_order_item_id | 可选来源销售订单明细 ID；关联时用于控制未发数量和回写进度 |
 | customer_id | 客户 ID |
 | warehouse_id | 出库仓库 |
 | status | `PENDING / SHIPPED / DELIVERED / CANCELLED` |
@@ -327,7 +332,7 @@ SKU，实际库存单位。
 | customer / customer_phone / address | 创建发货单时冻结的甲方快照 |
 | shipped_at | 实际确认发货时间 |
 
-轻量版当前一张 `Shipment` 对应一条销售订单明细；同一销售订单可生成多张发货单。甲方来自订单客户，乙方企业资料存放在 `SystemSetting` 的 `company.*` 键中并用于 PDF。
+轻量版允许独立创建 `Shipment`，也允许显式关联一条销售订单明细；同一销售订单可关联多张发货单。关联时甲方来自订单客户，独立发货时由用户选择客户；乙方企业资料存放在 `SystemSetting` 的 `company.*` 键中并用于 PDF。销售订单页面不直接派生发货单。
 
 ### inventory_balances
 
@@ -825,7 +830,7 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 | `DailyProductionReport.outputLocationId` | 产出入库库位 | 表达产出的实际去向；成品、不良、报废等由可配置库位区分 |
 | `FlowTransfer.sourceLocationId / targetLocationId` | 转移来源/目标库位 | 确认时只在两个库位余额之间等量移动 |
 | `Shipment.locationId` | 发货库位 | 确认发货时同时校验并扣减该库位和总库存 |
-| `Shipment.salesOrderId / salesOrderItemId` | 销售来源 | 新建发货必须绑定已确认订单明细；历史数据允许为空 |
+| `Shipment.salesOrderId / salesOrderItemId` | 可选销售来源 | 关联时必须绑定已确认订单明细；独立发货允许为空 |
 | `ReturnOrder.locationId` | 退回库位 | 退货处理时恢复该库位和总库存 |
 
 生产、来料、发货、退货等正常过账和冲销在同一事务内更新 `Stock`、`StockLocationBalance`、成本层和 `StockLog`。流程转移是例外：它只更新库位余额并写入成对流水，不改变总库存或成本层。各库位的数量、占用和可用合计必须分别等于总库存对应字段；数据检查接口会把不一致视为库存完整性错误。

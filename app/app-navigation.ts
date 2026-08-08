@@ -71,7 +71,7 @@ export const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
   { key: 'flowTransfers', label: '流程转移', groupKey: 'production', groupLabel: '生产', description: '同一物料在库位或流程节点之间转移', icon: '转', tab: 'flowTransfers', resource: 'stats' },
   { key: 'materialIn', label: '来料管理', groupKey: 'logistics', groupLabel: '物流', description: '登记供应商来料、实测和采购计价', icon: '入', tab: 'materialIn', resource: 'materialIn' },
   { key: 'salesOrders', label: '销售订单', groupKey: 'sales', groupLabel: '销售', description: '登记客户需求并跟踪订单发货进度', icon: '销', tab: 'salesOrders', resource: 'salesOrder' },
-  { key: 'shipment', label: '发货管理', groupKey: 'sales', groupLabel: '销售', description: '从已确认销售订单生成发货单并扣减库存', icon: '发', tab: 'shipment', resource: 'shipment' },
+  { key: 'shipment', label: '发货管理', groupKey: 'sales', groupLabel: '销售', description: '独立登记发货，可选关联销售订单并在确认后扣减库存', icon: '发', tab: 'shipment', resource: 'shipment' },
   { key: 'return', label: '退货管理', groupKey: 'sales', groupLabel: '销售', description: '登记退货、审核并处理返库', icon: '退', tab: 'return', resource: 'return' },
   { key: 'stocks', label: '库存管理', groupKey: 'inventory', groupLabel: '库存', description: '查看库存、库位余额和成本', icon: '库', tab: 'stocks', resource: 'stocks' },
   { key: 'suppliers', label: '供应商资料', groupKey: 'configuration', groupLabel: '业务配置', description: '维护供应商基础资料', icon: '供', tab: 'suppliers', resource: 'system' },

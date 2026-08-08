@@ -147,6 +147,8 @@ model Material {
   unitMode                    String                        @default("DUAL")
   unitVersion                 Int                           @default(1)
   costingMethod               String                        @default("WEIGHTED_AVERAGE")
+  defaultSalePrice            Float?
+  salesCurrency               String                        @default("CNY")
   deletedAt                   DateTime?
   deletedBy                   String?
   stock                       Stock?
@@ -911,6 +913,7 @@ model SalesOrder {
   orderDate    DateTime         @default(now())
   deliveryDate DateTime?
   totalAmount  Float            @default(0)
+  currency     String           @default("CNY")
   note         String?
   deletedAt    DateTime?
   deletedBy    String?
@@ -924,19 +927,25 @@ model SalesOrder {
 }
 
 model SalesOrderItem {
-  id           String     @id @default(cuid())
-  salesOrderId String
-  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
-  materialId   String
-  material     Material   @relation(fields: [materialId], references: [id])
-  qty          Float
-  shippedQty   Float      @default(0)
-  unit         String
-  unitPrice    Float      @default(0)
-  totalAmount  Float      @default(0)
-  note         String?
-  shipments    Shipment[]
-  createdAt    DateTime   @default(now())
+  id                       String     @id @default(cuid())
+  salesOrderId             String
+  salesOrder               SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  materialId               String
+  material                 Material   @relation(fields: [materialId], references: [id])
+  qty                      Float
+  shippedQty               Float      @default(0)
+  unit                     String
+  unitPrice                Float      @default(0)
+  totalAmount              Float      @default(0)
+  currency                 String     @default("CNY")
+  priceSource              String     @default("MANUAL")
+  defaultSalePriceSnapshot Float?
+  priceAdjustedAt          DateTime?
+  priceAdjustedBy          String?
+  priceAdjustReason        String?
+  note                     String?
+  shipments                Shipment[]
+  createdAt                DateTime   @default(now())
 
   @@index([salesOrderId])
   @@index([materialId])

@@ -64,6 +64,8 @@ const materialSchema = z.object({
   conversionRate: z.number().positive().optional(),
   conversionNote: z.string().optional(),
   costingMethod: z.enum(['WEIGHTED_AVERAGE', 'FIFO']).optional(),
+  defaultSalePrice: z.number().finite().nonnegative().nullable().optional(),
+  salesCurrency: z.enum(['CNY']).optional(),
 })
 
 const materialSortFields = new Set(['createdAt', 'code', 'name', 'category', 'customer', 'spec', 'note', 'stockUnit', 'valuationUnit', 'costingMethod', 'stock', 'valuationStock', 'bomSummary'])
@@ -363,6 +365,8 @@ export async function POST(req: NextRequest) {
           unitMode: (body.stockUnit || body.unit) === (body.valuationUnit || body.unit)
             && normalizeConversionRate(body.conversionRate) === 1 ? 'SINGLE' : 'DUAL',
           costingMethod: body.costingMethod || 'WEIGHTED_AVERAGE',
+          defaultSalePrice: body.defaultSalePrice ?? null,
+          salesCurrency: body.salesCurrency || 'CNY',
         },
       })
 
@@ -411,6 +415,8 @@ export async function PUT(req: NextRequest) {
         conversionRate: z.number().positive().optional(),
         conversionNote: z.string().optional(),
         costingMethod: z.enum(['WEIGHTED_AVERAGE', 'FIFO']).optional(),
+        defaultSalePrice: z.number().finite().nonnegative().nullable().optional(),
+        salesCurrency: z.enum(['CNY']).optional(),
       })
       .safeParse(body)
 
@@ -476,6 +482,8 @@ export async function PUT(req: NextRequest) {
           unitMode: nextStockUnit === nextValuationUnit && normalizeConversionRate(body.conversionRate) === 1 ? 'SINGLE' : 'DUAL',
           unitVersion: unitsChanged ? { increment: 1 } : undefined,
           costingMethod: body.costingMethod || 'WEIGHTED_AVERAGE',
+          defaultSalePrice: body.defaultSalePrice ?? null,
+          salesCurrency: body.salesCurrency || 'CNY',
         },
       })
 

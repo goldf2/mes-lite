@@ -50,6 +50,8 @@ interface Material {
   conversionRate: number
   conversionNote?: string
   costingMethod: string
+  defaultSalePrice?: number | null
+  salesCurrency: string
   stock?: {
     qty: number
     reservedQty: number
@@ -323,6 +325,8 @@ function createEmptyMaterialForm() {
     conversionRate: 1,
     conversionNote: '',
     costingMethod: 'WEIGHTED_AVERAGE',
+    defaultSalePrice: '',
+    salesCurrency: 'CNY',
   }
 }
 
@@ -1451,6 +1455,8 @@ export default function MaterialPage({
         conversionRate: form.useDualUnit ? form.conversionRate : 1,
         conversionNote: form.conversionNote || undefined,
         costingMethod: form.costingMethod,
+        defaultSalePrice: form.defaultSalePrice === '' ? null : Number(form.defaultSalePrice),
+        salesCurrency: form.salesCurrency,
       }
       if (editingMaterial) {
         const res = await fetch('/api/materials', {
@@ -1529,6 +1535,8 @@ export default function MaterialPage({
       conversionRate: material.conversionRate || 1,
       conversionNote: material.conversionNote || '',
       costingMethod: material.costingMethod || 'WEIGHTED_AVERAGE',
+      defaultSalePrice: material.defaultSalePrice == null ? '' : String(material.defaultSalePrice),
+      salesCurrency: material.salesCurrency || 'CNY',
     })
     setShowModal(true)
   }
@@ -2831,6 +2839,32 @@ export default function MaterialPage({
                         <option value="FIFO">先入先出 FIFO</option>
                       </select>
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">默认销售价</label>
+                      <div className="flex rounded-lg border border-gray-200 bg-white focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
+                        <span className="flex items-center border-r border-gray-200 px-3 text-sm text-gray-500">¥</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={form.defaultSalePrice}
+                          onChange={(event) => setForm({ ...form, defaultSalePrice: event.target.value })}
+                          className="min-w-0 flex-1 rounded-r-lg px-3 py-2 outline-none"
+                          placeholder="未设置"
+                        />
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">新建销售订单时自动带入；订单保存后使用价格快照。</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">销售币种</label>
+                      <select
+                        value={form.salesCurrency}
+                        onChange={(event) => setForm({ ...form, salesCurrency: event.target.value })}
+                        className="w-full rounded-lg border border-gray-200 px-4 py-2"
+                      >
+                        <option value="CNY">人民币（CNY）</option>
+                      </select>
+                    </div>
                   </div>
                 </section>
 
@@ -3111,6 +3145,12 @@ export default function MaterialPage({
                       <dd className="mt-1 text-sm font-medium text-gray-900">
                         ¥{(detailMaterial.stock?.valuationUnitCost || 0).toFixed(4)} / {detailMaterial.valuationUnit}
                         <span className="ml-2 text-gray-500">¥{(detailMaterial.stock?.stockUnitCost || 0).toFixed(4)} / {detailMaterial.stockUnit || detailMaterial.unit}</span>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-gray-500">默认销售价</dt>
+                      <dd className="mt-1 text-sm font-medium text-gray-900">
+                        {detailMaterial.defaultSalePrice == null ? '未设置' : `¥${Number(detailMaterial.defaultSalePrice).toFixed(2)} · ${detailMaterial.salesCurrency || 'CNY'}`}
                       </dd>
                     </div>
                     <div>

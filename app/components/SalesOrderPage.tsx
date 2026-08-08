@@ -22,7 +22,6 @@ import DraftDocumentAttachmentPanel, {
   finalizeDraftDocumentAttachments,
 } from './DraftDocumentAttachmentPanel'
 import { matchesRecognizedValue, recognizedDate, recognizedItems, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
-import ShipmentCreateDialog from './ShipmentCreateDialog'
 
 interface CustomerOption {
   id: string
@@ -41,6 +40,8 @@ interface MaterialOption {
   category: string
   stockUnit: string
   unit: string
+  defaultSalePrice?: number | null
+  salesCurrency: string
 }
 
 interface SalesOrderItem {
@@ -52,6 +53,12 @@ interface SalesOrderItem {
   unit: string
   unitPrice: number
   totalAmount: number
+  currency: string
+  priceSource: string
+  defaultSalePriceSnapshot?: number | null
+  priceAdjustedAt?: string | null
+  priceAdjustedBy?: string | null
+  priceAdjustReason?: string | null
   note?: string | null
   material: MaterialOption
 }
@@ -64,6 +71,7 @@ interface SalesOrder {
   orderDate: string
   deliveryDate?: string | null
   totalAmount: number
+  currency: string
   note?: string | null
   customer: CustomerOption
   items: SalesOrderItem[]
@@ -76,6 +84,12 @@ interface DraftLine {
   qty: number
   unitPrice: number
   note: string
+}
+
+interface PriceEditState {
+  order: SalesOrder
+  items: Array<{ id: string; materialLabel: string; qty: number; unit: string; unitPrice: number }>
+  reason: string
 }
 
 const statusOptions = [
@@ -137,10 +151,10 @@ export default function SalesOrderPage({
   const [draftAttachmentOwnerId, setDraftAttachmentOwnerId] = useState('')
   const [draftAttachmentBusy, setDraftAttachmentBusy] = useState(false)
   const [detailOrder, setDetailOrder] = useState<SalesOrder | null>(null)
-  const [shipmentOrderId, setShipmentOrderId] = useState('')
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.salesOrders.viewMode', 'card')
   const [form, setForm] = useState(emptyForm)
   const [pendingAction, setPendingAction] = useState<{ order: SalesOrder; action: 'confirm' | 'cancel' } | null>(null)
+  const [priceEdit, setPriceEdit] = useState<PriceEditState | null>(null)
   const advancedSearchFields = useMemo(() => [
     { key: 'status', label: '状态', value: statuses.length === 1 ? statuses[0] : '', onChange: (value: string) => setStatuses(value ? [value] : statusOptions.map((option) => option.value)), options: statusOptions },
     { key: 'customerId', label: '客户', value: customerId, onChange: setCustomerId, options: customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` })) },
@@ -313,6 +327,51 @@ export default function SalesOrderPage({
     }
   }
 
+  const openPriceEdit = (order: SalesOrder) => {
+    setPriceEdit({
+      order,
+      reason: '',
+      items: order.items.map((item) => ({
+        id: item.id,
+        materialLabel: `${item.material.code} · ${item.material.name}`,
+        qty: Number(item.qty),
+        unit: item.unit,
+        unitPrice: Number(item.unitPrice),
+      })),
+    })
+  }
+
+  const savePrices = async () => {
+    if (!priceEdit) return
+    if (priceEdit.items.some((item) => !Number.isFinite(item.unitPrice) || item.unitPrice < 0)) {
+      return onMessage('单价不能小于 0')
+    }
+    if (priceEdit.order.status !== 'DRAFT' && !priceEdit.reason.trim()) {
+      return onMessage('已确认订单调价必须填写原因')
+    }
+    setSaving(true)
+    try {
+      const response = await fetch(`/api/sales-orders/${priceEdit.order.id}/prices`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason: priceEdit.reason.trim() || undefined,
+          items: priceEdit.items.map((item) => ({ id: item.id, unitPrice: item.unitPrice })),
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) return onMessage(data.error || '调整销售订单价格失败')
+      onMessage(data.message || '销售订单价格已更新')
+      setPriceEdit(null)
+      setDetailOrder(null)
+      await loadOrders()
+    } catch {
+      onMessage('调整销售订单价格失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const toolbar = (
     <ResponsiveToolbarActions
       primaryFilters={(
@@ -333,11 +392,9 @@ export default function SalesOrderPage({
     <div className="flex flex-wrap gap-2">
       <AppButton size="sm" variant="secondary" onClick={() => setDetailOrder(order)}>详情</AppButton>
       <BusinessDocumentPrintLink kind="sales-order" id={order.id} compact={compact} />
+      {['DRAFT', 'CONFIRMED'].includes(order.status) && <AppButton size="sm" variant="secondary" onClick={() => openPriceEdit(order)}>调整价格</AppButton>}
       {order.status === 'DRAFT' && <AppButton size="sm" variant="primary" onClick={() => setPendingAction({ order, action: 'confirm' })}>确认订单</AppButton>}
       {['DRAFT', 'CONFIRMED'].includes(order.status) && <AppButton size="sm" variant="secondary" onClick={() => setPendingAction({ order, action: 'cancel' })}>取消订单</AppButton>}
-      {['CONFIRMED', 'PARTIAL'].includes(order.status) && order.items.some((item) => item.remainingQty > 0) && (
-        <AppButton size="sm" variant="create" onClick={() => setShipmentOrderId(order.id)}>生成发货单</AppButton>
-      )}
     </div>
   )
 
@@ -380,7 +437,7 @@ export default function SalesOrderPage({
                     <div className="mt-4 overflow-x-auto border-y border-gray-100">
                       <table className="w-full min-w-[720px] text-sm">
                         <thead className="bg-gray-50 text-left text-xs text-gray-500">
-                          <tr><th className="px-3 py-2 font-medium">物料</th><th className="px-3 py-2 font-medium">订购</th><th className="px-3 py-2 font-medium">待发单占用</th><th className="px-3 py-2 font-medium">已发</th><th className="px-3 py-2 font-medium">可生成发货</th><th className="px-3 py-2 text-right font-medium">金额</th></tr>
+                          <tr><th className="px-3 py-2 font-medium">物料</th><th className="px-3 py-2 font-medium">订购</th><th className="px-3 py-2 font-medium">待发占用</th><th className="px-3 py-2 font-medium">已发</th><th className="px-3 py-2 font-medium">未发数量</th><th className="px-3 py-2 text-right font-medium">价格 / 金额</th></tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                           {order.items.map((item) => (
@@ -390,7 +447,7 @@ export default function SalesOrderPage({
                               <td className="px-3 py-2 text-amber-700">{numberText(item.pendingQty)} {item.unit}</td>
                               <td className="px-3 py-2 text-emerald-700">{numberText(item.shippedQty)} {item.unit}</td>
                               <td className="px-3 py-2 font-medium text-blue-700">{numberText(item.remainingQty)} {item.unit}</td>
-                              <td className="px-3 py-2 text-right">{money(item.totalAmount)}</td>
+                              <td className="px-3 py-2 text-right"><div>{money(item.totalAmount)}</div><div className="text-xs text-gray-500">{money(item.unitPrice)} / {item.unit} · {item.priceSource === 'MATERIAL_DEFAULT' ? '物料默认价' : '手工价'}</div></td>
                             </tr>
                           ))}
                         </tbody>
@@ -399,7 +456,7 @@ export default function SalesOrderPage({
 
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                       <div className="space-y-2">
-                        <div className="text-xs text-gray-500">{order.note || `已生成 ${order._count.shipments} 张发货单`}</div>
+                        <div className="text-xs text-gray-500">{order.note || `已关联 ${order._count.shipments} 张发货单`}</div>
                         <AttachmentPanel ownerType="SALES_ORDER" ownerId={order.id} compact compactMode="summary" onMessage={onMessage} />
                       </div>
                       {orderActions(order)}
@@ -478,7 +535,7 @@ export default function SalesOrderPage({
               <div className="overflow-x-auto rounded-lg border border-gray-200">
                 <table className="w-full min-w-[720px] text-sm">
                   <thead className="bg-gray-50 text-left text-xs text-gray-500">
-                    <tr><th className="px-3 py-2 font-medium">物料</th><th className="px-3 py-2 font-medium">订购</th><th className="px-3 py-2 font-medium">待发单占用</th><th className="px-3 py-2 font-medium">已发</th><th className="px-3 py-2 font-medium">可生成发货</th><th className="px-3 py-2 text-right font-medium">金额</th></tr>
+                    <tr><th className="px-3 py-2 font-medium">物料</th><th className="px-3 py-2 font-medium">订购</th><th className="px-3 py-2 font-medium">待发占用</th><th className="px-3 py-2 font-medium">已发</th><th className="px-3 py-2 font-medium">未发数量</th><th className="px-3 py-2 text-right font-medium">价格 / 金额</th></tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {detailOrder.items.map((item) => (
@@ -488,7 +545,7 @@ export default function SalesOrderPage({
                         <td className="px-3 py-2 text-amber-700">{numberText(item.pendingQty)} {item.unit}</td>
                         <td className="px-3 py-2 text-emerald-700">{numberText(item.shippedQty)} {item.unit}</td>
                         <td className="px-3 py-2 font-medium text-blue-700">{numberText(item.remainingQty)} {item.unit}</td>
-                        <td className="px-3 py-2 text-right">{money(item.totalAmount)}</td>
+                        <td className="px-3 py-2 text-right"><div>{money(item.totalAmount)}</div><div className="text-xs text-gray-500">{money(item.unitPrice)} / {item.unit} · {item.priceSource === 'MATERIAL_DEFAULT' ? '物料默认价' : '手工价'}</div></td>
                       </tr>
                     ))}
                   </tbody>
@@ -504,7 +561,7 @@ export default function SalesOrderPage({
       {formOpen && (
         <ModalDialog
           title="新建销售订单"
-          description="先保存销售需求，确认后才能在发货管理中生成发货单。"
+          description="记录客户需求和价格；销售订单与发货管理保持独立。"
           size="wide"
           onClose={closeCreateOrder}
           closeDisabled={saving || draftAttachmentBusy}
@@ -539,9 +596,9 @@ export default function SalesOrderPage({
                   const material = materials.find((item) => item.id === line.materialId)
                   return (
                     <div key={line.key} className="grid items-end gap-3 border-b border-gray-100 pb-3 md:grid-cols-[minmax(240px,1fr)_140px_140px_120px_40px]">
-                      <div><label className="mb-2 block text-xs font-medium text-gray-500">物料 {index + 1}</label><SearchableSelect value={line.materialId} onChange={(value) => updateLine(line.key, { materialId: value })} options={materials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}`, keywords: item.spec || '' }))} placeholder="输入编码、名称或规格" /></div>
+                      <div><label className="mb-2 block text-xs font-medium text-gray-500">物料 {index + 1}</label><SearchableSelect value={line.materialId} onChange={(value) => { const selected = materials.find((item) => item.id === value); updateLine(line.key, { materialId: value, unitPrice: selected?.defaultSalePrice == null ? 0 : Number(selected.defaultSalePrice) }) }} options={materials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}`, keywords: item.spec || '' }))} placeholder="输入编码、名称或规格" /></div>
                       <div><label className="mb-2 block text-xs font-medium text-gray-500">数量 {material ? `(${material.stockUnit || material.unit})` : ''}</label><input type="number" min={0} step="any" value={line.qty || ''} onChange={(event) => updateLine(line.key, { qty: Number(event.target.value) })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
-                      <div><label className="mb-2 block text-xs font-medium text-gray-500">单价</label><input type="number" min={0} step="0.01" value={line.unitPrice || ''} onChange={(event) => updateLine(line.key, { unitPrice: Number(event.target.value) })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
+                      <div><label className="mb-2 block text-xs font-medium text-gray-500">单价</label><input type="number" min={0} step="0.01" value={line.unitPrice || ''} onChange={(event) => updateLine(line.key, { unitPrice: Number(event.target.value) })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /><div className="mt-1 text-[11px] text-gray-500">{material?.defaultSalePrice == null ? '物料未设置默认价' : line.unitPrice === Number(material.defaultSalePrice) ? '来自物料默认价' : '已手工调整'}</div></div>
                       <div><label className="mb-2 block text-xs font-medium text-gray-500">金额</label><div className="flex h-10 items-center justify-end font-medium text-gray-900">{money(line.qty * line.unitPrice)}</div></div>
                       <button type="button" aria-label="移除销售明细" title="移除" disabled={form.items.length === 1} onClick={() => setForm((current) => ({ ...current, items: current.items.filter((item) => item.key !== line.key) }))} className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-25"><Trash2 className="h-4 w-4" /></button>
                     </div>
@@ -561,6 +618,53 @@ export default function SalesOrderPage({
         </ModalDialog>
       )}
 
+      {priceEdit && (
+        <ModalDialog
+          title="调整销售订单价格"
+          description={`${priceEdit.order.orderNo} · 已产生发货记录后价格将锁定`}
+          size="lg"
+          onClose={() => setPriceEdit(null)}
+          closeDisabled={saving}
+          footer={<ModalActions onCancel={() => setPriceEdit(null)} onConfirm={savePrices} confirmLabel="保存价格" busy={saving} />}
+        >
+          <div className="space-y-4">
+            <div className="divide-y divide-gray-100 rounded-lg border border-gray-200">
+              {priceEdit.items.map((item, index) => (
+                <div key={item.id} className="grid items-center gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_120px_150px]">
+                  <div>
+                    <div className="font-medium text-gray-900">{item.materialLabel}</div>
+                    <div className="text-xs text-gray-500">{numberText(item.qty)} {item.unit}</div>
+                  </div>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    aria-label={`${item.materialLabel} 单价`}
+                    value={item.unitPrice}
+                    onChange={(event) => setPriceEdit((current) => current ? {
+                      ...current,
+                      items: current.items.map((line, lineIndex) => lineIndex === index ? { ...line, unitPrice: Number(event.target.value) } : line),
+                    } : current)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2"
+                  />
+                  <div className="text-right font-medium text-gray-900">{money(item.qty * item.unitPrice)}</div>
+                </div>
+              ))}
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">调价原因{priceEdit.order.status === 'DRAFT' ? '（可选）' : ''}</label>
+              <textarea
+                rows={3}
+                value={priceEdit.reason}
+                onChange={(event) => setPriceEdit((current) => current ? { ...current, reason: event.target.value } : current)}
+                placeholder="说明报价变更、客户协商或其他调价原因"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2"
+              />
+            </div>
+          </div>
+        </ModalDialog>
+      )}
+
       {pendingAction && (
         <ModalDialog
           title={pendingAction.action === 'confirm' ? '确认销售订单' : '取消销售订单'}
@@ -570,17 +674,8 @@ export default function SalesOrderPage({
           closeDisabled={saving}
           footer={<ModalActions onCancel={() => setPendingAction(null)} onConfirm={runAction} confirmLabel={pendingAction.action === 'confirm' ? '确认订单' : '确认取消'} confirmVariant={pendingAction.action === 'confirm' ? 'primary' : 'danger'} busy={saving} />}
         >
-          <p className="text-sm text-gray-600">{pendingAction.action === 'confirm' ? '确认后订单明细将进入发货管理，销售订单本身不直接扣减库存。' : '取消后该订单不能再生成发货单。'}</p>
+          <p className="text-sm text-gray-600">{pendingAction.action === 'confirm' ? '确认后销售需求将锁定；发货业务仍在发货管理中独立维护。' : '取消后订单停止继续执行，历史关联记录仍保留。'}</p>
         </ModalDialog>
-      )}
-
-      {shipmentOrderId && (
-        <ShipmentCreateDialog
-          initialSalesOrderId={shipmentOrderId}
-          onClose={() => setShipmentOrderId('')}
-          onCreated={loadOrders}
-          onMessage={onMessage}
-        />
       )}
     </>
   )

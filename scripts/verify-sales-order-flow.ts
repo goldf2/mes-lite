@@ -22,19 +22,38 @@ async function main() {
     const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`
     const [customer, material, product] = await Promise.all([
       prisma.customer.create({ data: { code: `CUS-${suffix}`, name: '销售流程验证客户' } }),
-      prisma.material.create({ data: { code: `SALE-${suffix}`, name: '销售流程验证成品', category: 'FINISHED', unit: '件', stockUnit: '件' } }),
+      prisma.material.create({ data: { code: `SALE-${suffix}`, name: '销售流程验证成品', category: 'FINISHED', unit: '件', stockUnit: '件', defaultSalePrice: 12.5, salesCurrency: 'CNY' } }),
       prisma.product.create({ data: { sku: `SALE-${suffix}`, name: '销售流程验证成品', category: 'FINISHED', unit: '件' } }),
     ])
     const order = await prisma.salesOrder.create({
       data: {
         orderNo: `SO-${suffix}`,
         customerId: customer.id,
-        totalAmount: 1000,
-        items: { create: { materialId: material.id, qty: 100, unit: '件', unitPrice: 10, totalAmount: 1000 } },
+        totalAmount: 1250,
+        currency: 'CNY',
+        items: { create: { materialId: material.id, qty: 100, unit: '件', unitPrice: 12.5, totalAmount: 1250, currency: 'CNY', priceSource: 'MATERIAL_DEFAULT', defaultSalePriceSnapshot: 12.5 } },
       },
       include: { items: true },
     })
     const item = order.items[0]
+    assert.equal(material.defaultSalePrice, 12.5)
+    assert.equal(item.defaultSalePriceSnapshot, 12.5)
+    assert.equal(item.priceSource, 'MATERIAL_DEFAULT')
+
+    const independentShipment = await prisma.shipment.create({
+      data: {
+        shipmentNo: `SH-INDEPENDENT-${suffix}`,
+        productId: product.id,
+        materialId: material.id,
+        customerId: customer.id,
+        customer: customer.name,
+        qty: 1,
+        unitPrice: 12.5,
+        totalAmount: 12.5,
+      },
+    })
+    assert.equal(independentShipment.salesOrderId, null)
+    assert.equal(independentShipment.salesOrderItemId, null)
 
     await prisma.salesOrder.update({ where: { id: order.id }, data: { status: 'CONFIRMED' } })
     await prisma.shipment.create({

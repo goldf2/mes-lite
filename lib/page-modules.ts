@@ -8,6 +8,34 @@ export interface PageModuleDefinition {
   toolbar: 'required' | 'none'
 }
 
+export type PageOpenSource = 'navigation' | 'content' | 'command'
+export type PageOpenMode = 'page' | 'dialog' | 'inline'
+
+export interface PagePresentationDefinition {
+  navigation: 'page'
+  content: 'page' | 'dialog'
+  command: 'inline'
+  allowFullscreen: boolean
+  allowOpenAsPage: boolean
+}
+
+const defaultPagePresentation: PagePresentationDefinition = {
+  navigation: 'page',
+  content: 'dialog',
+  command: 'inline',
+  allowFullscreen: true,
+  allowOpenAsPage: true,
+}
+
+const pagePresentationOverrides: Record<string, Partial<PagePresentationDefinition>> = {
+  dashboard: { content: 'page', allowFullscreen: false },
+  allFunctions: { content: 'page', allowFullscreen: false },
+  bomWorkspace: { content: 'page' },
+  orders: { content: 'page' },
+  stocks: { content: 'page' },
+  dataTools: { content: 'page' },
+}
+
 const definitions = [
   { key: 'dashboard', kind: 'workspace', title: '仪表盘', description: '业务、生产与库存总览', toolbar: 'required' },
   { key: 'allFunctions', kind: 'workspace', title: '所有功能', description: '系统功能导航与个人工作台', toolbar: 'required' },
@@ -61,6 +89,14 @@ export function getPageModuleDefinition(key: string): PageModuleDefinition {
     description: '未分类功能页面',
     toolbar: 'required',
   }
+}
+
+export function getPagePresentationDefinition(key: string): PagePresentationDefinition {
+  return { ...defaultPagePresentation, ...(pagePresentationOverrides[key] || {}) }
+}
+
+export function resolvePageOpenMode(key: string, source: PageOpenSource): PageOpenMode {
+  return getPagePresentationDefinition(key)[source]
 }
 
 export function resolvePageModuleKey(tab: string, materialSection?: string) {

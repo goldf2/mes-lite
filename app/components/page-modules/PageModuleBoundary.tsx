@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-import type { PageModuleDefinition, PageModuleKind } from '@/lib/page-modules'
+import { getPagePresentationDefinition, type PageModuleDefinition, type PageModuleKind } from '@/lib/page-modules'
 
 const moduleClassNames: Record<PageModuleKind, string> = {
   workspace: 'mes-page-module-workspace',
@@ -40,6 +40,7 @@ export default function PageModuleBoundary({
   }, [definition.key, definition.toolbar, toolbarCount, toolbarProvided])
 
   const hasToolbar = toolbarProvided || toolbarCount > 0
+  const presentation = getPagePresentationDefinition(definition.key)
 
   return (
     <section
@@ -47,6 +48,9 @@ export default function PageModuleBoundary({
       data-page-key={definition.key}
       data-page-toolbar={definition.toolbar}
       data-page-toolbar-registered={hasToolbar ? 'true' : 'false'}
+      data-page-open-from-navigation={presentation.navigation}
+      data-page-open-from-content={presentation.content}
+      data-page-command-mode={presentation.command}
       aria-label={`${definition.title}页面模块`}
       className={`mes-page-module min-h-0 min-w-0 ${moduleClassNames[definition.kind]}`}
     >

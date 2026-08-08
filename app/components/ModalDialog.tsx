@@ -1,7 +1,9 @@
 'use client'
 
-import { ReactNode, useId } from 'react'
+import { ReactNode, useEffect, useId, useRef, useState } from 'react'
 import AppButton, { AppButtonVariant } from './AppButton'
+import FullscreenToggleButton from './FullscreenToggleButton'
+import PageModeToggleButton from './PageModeToggleButton'
 import ModalOverlay from './ModalOverlay'
 
 const widthClasses = {
@@ -24,6 +26,9 @@ export default function ModalDialog({
   bodyClassName = '',
   panelClassName = '',
   overlayClassName = '',
+  fullscreenable = true,
+  initialFullscreen = false,
+  pageable = true,
 }: {
   title: ReactNode
   description?: ReactNode
@@ -36,19 +41,65 @@ export default function ModalDialog({
   bodyClassName?: string
   panelClassName?: string
   overlayClassName?: string
+  fullscreenable?: boolean
+  initialFullscreen?: boolean
+  pageable?: boolean
 }) {
   const titleId = useId()
   const descriptionId = useId()
+  const [fullscreen, setFullscreen] = useState(fullscreenable && initialFullscreen)
+  const [pageMode, setPageMode] = useState(false)
+  const pageHistoryTokenRef = useRef('')
+  const dismiss = fullscreen ? () => setFullscreen(false) : closeDisabled ? undefined : onClose
+
+  const openAsPage = () => {
+    if (pageMode) return
+    const token = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    pageHistoryTokenRef.current = token
+    window.history.pushState({ ...window.history.state, mesPagePresentation: token }, '')
+    setFullscreen(false)
+    setPageMode(true)
+  }
+
+  const returnToDialog = () => {
+    const token = pageHistoryTokenRef.current
+    if (token && window.history.state?.mesPagePresentation === token) {
+      window.history.back()
+      return
+    }
+    setPageMode(false)
+  }
+
+  const close = () => {
+    const token = pageHistoryTokenRef.current
+    if (pageMode && token && window.history.state?.mesPagePresentation === token) {
+      window.history.back()
+    }
+    onClose()
+  }
+
+  useEffect(() => {
+    if (!pageMode) return
+    const handlePopState = () => setPageMode(false)
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [pageMode])
 
   return (
-    <ModalOverlay onClose={closeDisabled ? undefined : onClose} className={overlayClassName}>
+    <ModalOverlay
+      onClose={pageMode ? undefined : dismiss}
+      portalTargetId={pageMode ? 'mes-page-content-host' : undefined}
+      lockBody={!pageMode}
+      trapFocus={!pageMode}
+      className={`${pageMode ? '!absolute !inset-0 !z-40 !items-stretch !justify-stretch !overflow-hidden !bg-gray-50 !p-0' : fullscreen ? '!bg-white !p-0' : ''} ${overlayClassName}`}
+    >
       <section
-        role="dialog"
-        aria-modal="true"
+        role={pageMode ? 'region' : 'dialog'}
+        aria-modal={pageMode ? undefined : true}
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
-        className={`flex max-h-[min(92dvh,960px)] w-full ${widthClasses[size]} flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl ${panelClassName}`}
+        className={`flex w-full flex-col overflow-hidden bg-white ${pageMode ? 'h-full max-h-none max-w-none rounded-none border-0 shadow-none' : fullscreen ? 'h-[100dvh] max-h-none max-w-none rounded-none border-0 shadow-2xl' : `max-h-[min(92dvh,960px)] ${widthClasses[size]} rounded-xl border border-gray-200 shadow-2xl`} ${panelClassName}`}
       >
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-100 px-5 py-4 sm:px-6">
           <div className="min-w-0">
@@ -57,10 +108,19 @@ export default function ModalDialog({
           </div>
           <div className="-mr-2 -mt-2 flex shrink-0 items-center gap-2">
             {headerActions}
+            {fullscreenable && !pageMode && (
+              <FullscreenToggleButton fullscreen={fullscreen} onChange={setFullscreen} />
+            )}
+            {pageable && (
+              <PageModeToggleButton
+                pageMode={pageMode}
+                onChange={(nextPageMode) => nextPageMode ? openAsPage() : returnToDialog()}
+              />
+            )}
             <AppButton
               variant="ghost"
               size="icon"
-              onClick={onClose}
+              onClick={close}
               disabled={closeDisabled}
               aria-label="关闭弹窗"
               title="关闭"

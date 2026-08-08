@@ -413,7 +413,6 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<WorkInstruction | null>(null)
   const [detailEditing, setDetailEditing] = useState(false)
-  const [detailFullscreen, setDetailFullscreen] = useState(false)
   const [form, setForm] = useState<WorkInstructionForm>(createEmptyForm())
   const [loading, setLoading] = useState(false)
   const [detail, setDetail] = useState<WorkInstruction | null>(null)
@@ -651,7 +650,6 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     ensureMaterialOption(instruction.material)
     setFocusUploadOnOpen(focusUpload)
     setDetailEditing(false)
-    setDetailFullscreen(false)
     setDetail(instruction)
     setSelectedDetailAttachmentId(instruction.primaryAttachment?.id || null)
   }
@@ -680,7 +678,6 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const closeDetail = () => {
     setDetail(null)
     setSelectedDetailAttachmentId(null)
-    setDetailFullscreen(false)
     setDetailEditing(false)
     setEditing(null)
   }
@@ -1226,35 +1223,23 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       )}
 
       {detail && (
-        <div className={`fixed inset-0 z-50 flex items-center justify-center ${detailFullscreen ? 'bg-white p-0' : 'mes-modal-overlay p-3 sm:p-4'}`}>
-          <div className={`flex flex-col overflow-hidden bg-white shadow-xl ${detailFullscreen ? 'h-screen w-screen' : 'max-h-[92vh] w-full max-w-[1440px] rounded-lg'}`}>
-            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-6">
-              <div className="min-w-0">
-                <div className="text-sm text-blue-700">{getInstructionScopeLabel(detail)}</div>
-                <h3 className="truncate text-lg font-semibold text-gray-900">{detail.title}</h3>
-              </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <label className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={detailFullscreen}
-                    onChange={(event) => setDetailFullscreen(event.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600"
-                  />
-                  全屏显示
-                </label>
-                <button
-                  onClick={() => detailEditing ? cancelDetailEdit() : startDetailEdit(detail)}
-                  className={`rounded-md px-3 py-2 text-sm ${
-                    detailEditing ? 'border border-gray-300 text-gray-700 hover:bg-gray-50' : 'border border-blue-300 text-blue-700 hover:bg-blue-50'
-                  }`}
-                >
-                  {detailEditing ? '退出编辑' : '编辑文档'}
-                </button>
-                <button onClick={closeDetail} className="h-9 w-9 text-2xl text-gray-400 hover:text-gray-700" aria-label="关闭详情">&times;</button>
-              </div>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+        <ModalDialog
+          title={detail.title}
+          description={getInstructionScopeLabel(detail)}
+          size="wide"
+          panelClassName="lg:max-w-[1440px]"
+          bodyClassName="p-4 sm:p-6"
+          onClose={closeDetail}
+          headerActions={(
+            <AppButton
+              variant="secondary"
+              size="sm"
+              onClick={() => detailEditing ? cancelDetailEdit() : startDetailEdit(detail)}
+            >
+              {detailEditing ? '退出编辑' : '编辑文档'}
+            </AppButton>
+          )}
+        >
               <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
                 <section className={`${detailEditing ? 'order-1' : 'order-2'} space-y-3 lg:order-1`}>
                   {detailEditing ? (
@@ -1439,7 +1424,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                       value={detailEditing ? form.contentJson : detail.contentJson}
                       onChange={detailEditing ? (contentJson) => setForm((current) => ({ ...current, contentJson })) : undefined}
                       editable={detailEditing}
-                      minHeight={detailFullscreen ? '28rem' : '20rem'}
+                      minHeight="20rem"
                     />
                   </div>}
                   <div>
@@ -1473,9 +1458,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
                   </div>
                 </section>
               </div>
-            </div>
-          </div>
-        </div>
+        </ModalDialog>
       )}
 
       {viewer && selectedViewerAttachment && (

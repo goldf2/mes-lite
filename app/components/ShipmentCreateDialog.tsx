@@ -15,6 +15,22 @@ interface Customer {
   id: string
   code: string
   name: string
+  phone?: string | null
+  address?: string | null
+}
+
+interface MaterialOption {
+  id: string
+  code: string
+  name: string
+  spec?: string | null
+  stockUnit: string
+  unit: string
+  defaultSalePrice?: number | null
+  salesCurrency: string
+  stock?: {
+    locationBalances: Array<{ locationId: string; availableQty: number }>
+  } | null
 }
 
 interface ShippableSalesItem {
@@ -53,6 +69,10 @@ interface ShipmentCreated {
 
 interface ShipmentForm {
   salesOrderItemId: string
+  materialId: string
+  customerId: string
+  voucherNo: string
+  unitPrice: number
   locationId: string
   qty: number
   trackingNo: string
@@ -62,6 +82,10 @@ interface ShipmentForm {
 
 const emptyForm: ShipmentForm = {
   salesOrderItemId: '',
+  materialId: '',
+  customerId: '',
+  voucherNo: '',
+  unitPrice: 0,
   locationId: '',
   qty: 0,
   trackingNo: '',
@@ -81,6 +105,8 @@ export default function ShipmentCreateDialog({
   onMessage: (message: string) => void
 }) {
   const [shippableItems, setShippableItems] = useState<ShippableSalesItem[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [materials, setMaterials] = useState<MaterialOption[]>([])
   const [locations, setLocations] = useState<InventoryLocation[]>([])
   const [form, setForm] = useState<ShipmentForm>(emptyForm)
   const [preparing, setPreparing] = useState(true)
@@ -92,7 +118,9 @@ export default function ShipmentCreateDialog({
     () => shippableItems.find((item) => item.id === form.salesOrderItemId),
     [form.salesOrderItemId, shippableItems],
   )
-  const selectedLocationBalance = selectedSalesItem?.material.stock?.locationBalances.find(
+  const selectedMaterial = useMemo(() => materials.find((item) => item.id === form.materialId), [form.materialId, materials])
+  const activeMaterial = selectedSalesItem?.material || selectedMaterial
+  const selectedLocationBalance = activeMaterial?.stock?.locationBalances.find(
     (item) => item.locationId === form.locationId,
   )
 
@@ -108,12 +136,28 @@ export default function ShipmentCreateDialog({
     setForm((current) => ({
       ...current,
       salesOrderItemId,
+      materialId: '',
+      customerId: '',
+      voucherNo: '',
+      unitPrice: 0,
       locationId,
       qty: Number(item?.remainingQty || 0),
     }))
   }, [])
 
   const selectSalesItem = useCallback((salesOrderItemId: string) => {
+    if (!salesOrderItemId) {
+      setForm((current) => ({
+        ...current,
+        salesOrderItemId: '',
+        materialId: '',
+        customerId: '',
+        voucherNo: '',
+        unitPrice: 0,
+        qty: 0,
+      }))
+      return
+    }
     applySalesItemSelection(salesOrderItemId, shippableItems, locations)
   }, [applySalesItemSelection, locations, shippableItems])
 
@@ -132,6 +176,8 @@ export default function ShipmentCreateDialog({
         const nextLocations: InventoryLocation[] = locationData.data || []
         setShippableItems(nextItems)
         setLocations(nextLocations)
+        setCustomers(itemData.customers || [])
+        setMaterials(itemData.materials || [])
         const preferredItem = nextItems.find((item) => item.salesOrderId === initialSalesOrderId)
         if (preferredItem) applySalesItemSelection(preferredItem.id, nextItems, nextLocations)
         else setForm((current) => ({
@@ -139,7 +185,7 @@ export default function ShipmentCreateDialog({
           locationId: nextLocations.find((location) => location.isDefault)?.id || nextLocations[0]?.id || '',
         }))
       } catch {
-        if (active) onMessage('获取可发货订单或库位失败')
+        if (active) onMessage('获取发货选项或库位失败')
       } finally {
         if (active) setPreparing(false)
       }
@@ -162,11 +208,19 @@ export default function ShipmentCreateDialog({
       || matchesRecognizedValue(material, [item.material.code, item.material.name, item.material.spec])
     ))
     if (matchedItem) selectSalesItem(matchedItem.id)
+    const customer = recognizedText(fields, 'customer')
+    const matchedCustomer = customers.find((item) => matchesRecognizedValue(customer, [item.code, item.name]))
+    const matchedMaterial = materials.find((item) => matchesRecognizedValue(material, [item.code, item.name, item.spec]))
     const qty = recognizedNumber(fields, 'qty')
+    const unitPrice = recognizedNumber(fields, 'unitPrice')
     setForm((current) => ({
       ...current,
       salesOrderItemId: matchedItem?.id || current.salesOrderItemId,
+      customerId: matchedItem ? '' : (matchedCustomer?.id || current.customerId),
+      materialId: matchedItem ? '' : (matchedMaterial?.id || current.materialId),
       qty: qty > 0 ? qty : (matchedItem ? Number(matchedItem.remainingQty) : current.qty),
+      unitPrice: unitPrice > 0 ? unitPrice : current.unitPrice,
+      voucherNo: recognizedText(fields, 'voucherNo') || current.voucherNo,
       trackingNo: recognizedText(fields, 'trackingNo') || current.trackingNo,
       shippedBy: recognizedText(fields, 'shippedBy') || current.shippedBy,
       note: recognizedText(fields, 'note') || current.note,
@@ -175,8 +229,11 @@ export default function ShipmentCreateDialog({
 
   const handleSubmit = async () => {
     if (draftAttachmentBusy) return onMessage('请等待附件上传或 AI 识别完成')
-    if (!form.salesOrderItemId || !form.locationId || form.qty <= 0) {
-      return onMessage('请选择销售订单明细和发货库位，并填写数量')
+    if (!form.locationId || form.qty <= 0) {
+      return onMessage('请选择发货库位并填写数量')
+    }
+    if (!form.salesOrderItemId && (!form.customerId || !form.materialId)) {
+      return onMessage('独立发货时请选择客户和物料')
     }
     const printPreview = reserveBusinessDocumentPrintWindow()
     setSaving(true)
@@ -221,10 +278,11 @@ export default function ShipmentCreateDialog({
   return (
     <ModalDialog
       title="新建发货单"
-      description={initialSalesOrderId ? '已带入当前销售订单，可选择未发完的物料明细。' : '发货单必须来自已确认销售订单，可按订单未发数量分批出库。'}
+      description={initialSalesOrderId ? '已带入当前销售订单；也可以取消关联，改为独立发货。' : '独立登记发货，可按需关联已确认销售订单。'}
       onClose={() => void closeDialog()}
       closeDisabled={saving || draftAttachmentBusy}
       size="lg"
+      fullscreenable
       footer={(
         <ModalActions
           onCancel={() => void closeDialog()}
@@ -237,20 +295,23 @@ export default function ShipmentCreateDialog({
     >
       <div className="space-y-4">
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700">销售订单明细</label>
+          <label className="mb-2 block text-sm font-medium text-gray-700">来源销售订单（可选）</label>
           <SearchableSelect
             value={form.salesOrderItemId}
-            options={shippableItems.map((item) => ({
-              value: item.id,
-              label: `${item.salesOrder.orderNo} · ${item.salesOrder.customer.name} · ${item.material.name}`,
-              keywords: `${item.salesOrder.voucherNo || ''} ${item.material.code} ${item.material.spec || ''}`,
-            }))}
+            options={[
+              { value: '', label: '不关联销售订单（独立发货）', keywords: '独立 手工' },
+              ...shippableItems.map((item) => ({
+                value: item.id,
+                label: `${item.salesOrder.orderNo} · ${item.salesOrder.customer.name} · ${item.material.name}`,
+                keywords: `${item.salesOrder.voucherNo || ''} ${item.material.code} ${item.material.spec || ''}`,
+              })),
+            ]}
             onChange={selectSalesItem}
-            placeholder={preparing ? '正在读取可发货明细…' : '输入销售订单号、客户、物料或规格筛选'}
-            emptyText="没有可发货的销售订单明细"
+            placeholder={preparing ? '正在读取发货选项…' : '不关联，或输入订单号、客户、物料筛选'}
+            emptyText="没有可关联的销售订单明细，可继续独立发货"
           />
           {!preparing && shippableItems.length === 0 && (
-            <div className="mt-2 rounded bg-amber-50 px-3 py-2 text-xs text-amber-800">没有可发货明细，请先创建并确认销售订单。</div>
+            <div className="mt-2 rounded bg-blue-50 px-3 py-2 text-xs text-blue-800">没有可关联的销售订单明细，仍可独立登记发货。</div>
           )}
         </div>
 
@@ -259,6 +320,73 @@ export default function ShipmentCreateDialog({
             <div><span className="text-blue-600">客户</span><div className="mt-1 font-medium text-blue-950">{selectedSalesItem.salesOrder.customer.name}</div></div>
             <div><span className="text-blue-600">物料</span><div className="mt-1 font-medium text-blue-950">{selectedSalesItem.material.code} · {selectedSalesItem.material.name}</div></div>
             <div><span className="text-blue-600">未发数量</span><div className="mt-1 font-medium text-blue-950">{selectedSalesItem.remainingQty} {selectedSalesItem.unit}</div></div>
+          </div>
+        )}
+
+        {!selectedSalesItem && (
+          <div className="grid gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">客户</label>
+              <SearchableSelect
+                value={form.customerId}
+                options={customers.map((customer) => ({
+                  value: customer.id,
+                  label: `${customer.code} · ${customer.name}`,
+                  keywords: `${customer.phone || ''} ${customer.address || ''}`,
+                }))}
+                onChange={(customerId) => setForm((current) => ({ ...current, customerId }))}
+                placeholder="输入客户编码、名称、电话或地址"
+                emptyText="没有可用客户"
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">物料</label>
+              <SearchableSelect
+                value={form.materialId}
+                options={materials.map((materialOption) => ({
+                  value: materialOption.id,
+                  label: `${materialOption.code} · ${materialOption.name}`,
+                  keywords: materialOption.spec || '',
+                }))}
+                onChange={(materialId) => {
+                  const materialOption = materials.find((item) => item.id === materialId)
+                  const bestBalance = materialOption?.stock?.locationBalances
+                    .filter((balance) => locations.some((location) => location.id === balance.locationId))
+                    .sort((left, right) => Number(right.availableQty) - Number(left.availableQty))[0]
+                  setForm((current) => ({
+                    ...current,
+                    materialId,
+                    unitPrice: Number(materialOption?.defaultSalePrice || 0),
+                    locationId: bestBalance?.locationId || current.locationId,
+                  }))
+                }}
+                placeholder="输入物料编码、名称或规格"
+                emptyText="没有可用物料"
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">外部凭证号（可选）</label>
+              <input
+                type="text"
+                value={form.voucherNo}
+                onChange={(event) => setForm((current) => ({ ...current, voucherNo: event.target.value }))}
+                className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">销售单价（{selectedMaterial?.salesCurrency || 'CNY'}）</label>
+              <input
+                type="number"
+                step="0.01"
+                min={0}
+                value={form.unitPrice || ''}
+                onChange={(event) => setForm((current) => ({ ...current, unitPrice: Number(event.target.value) }))}
+                className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="mt-1 text-xs text-gray-500">
+                {selectedMaterial?.defaultSalePrice != null ? `已带入物料默认价 ${selectedMaterial.defaultSalePrice}` : '物料未设置默认销售价，可手工填写'}
+              </div>
+            </div>
           </div>
         )}
 
@@ -284,9 +412,10 @@ export default function ShipmentCreateDialog({
             />
           </div>
         </div>
-        {selectedSalesItem && (
+        {activeMaterial && (
           <div className={`rounded px-3 py-2 text-xs ${form.qty > Number(selectedLocationBalance?.availableQty || 0) ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>
-            当前可用：<strong>{selectedLocationBalance?.availableQty || 0} {selectedSalesItem.unit}</strong>；本次最多可按订单发出 {selectedSalesItem.remainingQty} {selectedSalesItem.unit}。
+            当前可用：<strong>{selectedLocationBalance?.availableQty || 0} {selectedSalesItem?.unit || selectedMaterial?.stockUnit}</strong>
+            {selectedSalesItem && <>；本次最多可按订单发出 {selectedSalesItem.remainingQty} {selectedSalesItem.unit}</>}。
             {form.qty > Number(selectedLocationBalance?.availableQty || 0) && ' 当前库位库存不足，不能生成发货单。'}
           </div>
         )}

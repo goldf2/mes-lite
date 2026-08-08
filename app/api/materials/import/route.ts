@@ -63,6 +63,8 @@ type ImportMaterial = {
   conversionRate: number
   conversionNote: string
   costingMethod: string
+  defaultSalePrice: number | null
+  salesCurrency: string
 }
 
 function normalizeHeader(value: string) {
@@ -178,6 +180,9 @@ export async function POST(req: NextRequest) {
       const rawConversionRate = cell(row, headerMap, ['换算系数', '换算率'])
       const conversionNote = cell(row, headerMap, ['换算说明'])
       const costingMethod = normalizeCostingMethod(cell(row, headerMap, ['成本方法', '成本核算方法']))
+      const rawDefaultSalePrice = cell(row, headerMap, ['默认销售价', '销售价'])
+      const defaultSalePrice = rawDefaultSalePrice === '' ? null : Number(rawDefaultSalePrice)
+      const salesCurrency = cell(row, headerMap, ['销售币种', '币种']) || 'CNY'
 
       if (!code) errors.push(`第 ${rowNumber} 行：物料编码不能为空`)
       if (!name) errors.push(`第 ${rowNumber} 行：物料名称不能为空`)
@@ -188,6 +193,8 @@ export async function POST(req: NextRequest) {
       if (!allowedPrimaryMeasures.has(primaryMeasure)) errors.push(`第 ${rowNumber} 行：主计量方式无效，应为 LENGTH/WEIGHT/QUANTITY/OTHER`)
       if (referenceMeasure && !allowedPrimaryMeasures.has(referenceMeasure)) errors.push(`第 ${rowNumber} 行：参考计量方式无效，应为 LENGTH/WEIGHT/QUANTITY/OTHER`)
       if (!allowedCostingMethods.has(costingMethod)) errors.push(`第 ${rowNumber} 行：成本方法无效，应为 WEIGHTED_AVERAGE 或 FIFO`)
+      if (defaultSalePrice !== null && (!Number.isFinite(defaultSalePrice) || defaultSalePrice < 0)) errors.push(`第 ${rowNumber} 行：默认销售价必须大于或等于 0`)
+      if (salesCurrency !== 'CNY') errors.push(`第 ${rowNumber} 行：当前仅支持 CNY 销售币种`)
       if (allowedPrimaryMeasures.has(primaryMeasure) && stockUnit && !findCatalogUnit(unitCatalog, primaryMeasure, stockUnit)) {
         errors.push(`第 ${rowNumber} 行：库存单位 ${stockUnit} 未在${primaryMeasure}计量方式下配置`)
       }
@@ -244,6 +251,8 @@ export async function POST(req: NextRequest) {
         conversionRate: normalizeConversionRate(conversionRate),
         conversionNote,
         costingMethod,
+        defaultSalePrice,
+        salesCurrency,
       })
     })
 
@@ -342,6 +351,8 @@ export async function POST(req: NextRequest) {
           conversionNote: item.conversionNote || null,
           unitMode: item.stockUnit === item.valuationUnit && item.conversionRate === 1 ? 'SINGLE' : 'DUAL',
           costingMethod: item.costingMethod,
+          defaultSalePrice: item.defaultSalePrice,
+          salesCurrency: item.salesCurrency,
         }
 
         if (existing) {

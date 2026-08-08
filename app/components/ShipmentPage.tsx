@@ -114,28 +114,16 @@ export default function ShipmentPage({
       const res = await fetch(url)
       const data = await res.json()
       setShipments(data.data || [])
+      setCustomers(data.customers || [])
     } catch (err) {
       onMessage('获取发货单列表失败')
     }
     setLoading(false)
   }, [keyword, onMessage, selectedCustomerId, selectedStatuses])
 
-  const fetchCustomers = useCallback(async () => {
-    try {
-      const res = await fetch('/api/sales-orders/options')
-      if (res.ok) {
-        const data = await res.json()
-        setCustomers(data.customers || [])
-      }
-    } catch (err) {
-      // ignore
-    }
-  }, [])
-
   useEffect(() => {
     void fetchShipments()
-    void fetchCustomers()
-  }, [fetchCustomers, fetchShipments])
+  }, [fetchShipments])
 
   const handleAction = async (id: string, action: 'ship' | 'deliver') => {
     setLoading(true)
@@ -226,7 +214,7 @@ export default function ShipmentPage({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="font-mono text-sm font-semibold text-blue-700">{item.shipmentNo}</div>
-                    <div className="mt-1 text-xs text-gray-500">销售订单：{item.salesOrder?.orderNo || '历史发货单'}</div>
+                    <div className="mt-1 text-xs text-gray-500">来源：{item.salesOrder?.orderNo || '独立发货'}</div>
                     <div className="mt-1 text-xs text-gray-500">凭据号：{item.voucherNo || '-'}</div>
                     <div className="mt-1 text-xs text-gray-500">{item.shippedAt ? new Date(item.shippedAt).toLocaleString('zh-CN') : '未发货'}</div>
                   </div>
@@ -314,7 +302,7 @@ export default function ShipmentPage({
               <thead className="bg-gray-50">
                 <tr>
                   <SortableTableHeader column="shipmentNo" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>发货单号</SortableTableHeader>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">销售订单</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">来源销售订单</th>
                   <SortableTableHeader column="voucherNo" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>凭据号</SortableTableHeader>
                   <SortableTableHeader column="material" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>物料</SortableTableHeader>
                   <SortableTableHeader column="location" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>发货库位</SortableTableHeader>
@@ -332,7 +320,7 @@ export default function ShipmentPage({
                 {shipmentSort.sortedRows.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono text-blue-600">{item.shipmentNo}</td>
-                    <td className="px-4 py-3 font-mono text-sm text-gray-700">{item.salesOrder?.orderNo || '历史单据'}</td>
+                    <td className="px-4 py-3 font-mono text-sm text-gray-700">{item.salesOrder?.orderNo || '独立发货'}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{item.voucherNo || '-'}</td>
                     <td className="px-4 py-3">
                       <div className="font-medium">{item.product?.name}</div>
@@ -406,7 +394,7 @@ export default function ShipmentPage({
       {detailItem && (
         <BusinessDocumentDetailDialog
           title={`发货单 ${detailItem.shipmentNo}`}
-          description={`销售订单：${detailItem.salesOrder?.orderNo || '历史单据'} · ${statusLabels[detailItem.status] || detailItem.status}`}
+          description={`来源：${detailItem.salesOrder?.orderNo || '独立发货'} · ${statusLabels[detailItem.status] || detailItem.status}`}
           ownerType="SHIPMENT"
           ownerId={detailItem.id}
           onClose={() => setDetailItem(null)}

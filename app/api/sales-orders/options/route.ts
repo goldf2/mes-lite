@@ -18,7 +18,18 @@ export async function GET() {
       prisma.material.findMany({
         where: { deletedAt: null },
         orderBy: { code: 'asc' },
-        select: { id: true, code: true, name: true, spec: true, category: true, stockUnit: true, unit: true },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          spec: true,
+          category: true,
+          stockUnit: true,
+          unit: true,
+          defaultSalePrice: true,
+          salesCurrency: true,
+          stock: { select: { locationBalances: { select: { locationId: true, availableQty: true } } } },
+        },
       }),
     ])
     return NextResponse.json({ customers, materials })

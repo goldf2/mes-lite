@@ -25,7 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       beforeData: order,
       afterData: updated,
     })
-    return NextResponse.json({ data: updated, message: '销售订单已确认，可以创建发货单' })
+    return NextResponse.json({ data: updated, message: '销售订单已确认' })
   } catch (error) {
     console.error('Confirm sales order error:', error)
     return NextResponse.json({ error: '确认销售订单失败' }, { status: 500 })

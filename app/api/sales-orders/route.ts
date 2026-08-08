@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 const salesOrderLineSchema = z.object({
   materialId: z.string().min(1, '请选择物料'),
   qty: z.number().finite().positive('销售数量必须大于 0'),
-  unitPrice: z.number().finite().nonnegative('单价不能小于 0'),
+  unitPrice: z.number().finite().nonnegative('单价不能小于 0').optional(),
   note: z.string().optional(),
 })
 
@@ -123,7 +123,23 @@ export async function POST(req: NextRequest) {
     dayStart.setHours(0, 0, 0, 0)
     const count = await prisma.salesOrder.count({ where: { createdAt: { gte: dayStart } } })
     const orderNo = `SO-${dateStr}-${String(count + 1).padStart(3, '0')}`
-    const totalAmount = input.items.reduce((sum, item) => sum + item.qty * item.unitPrice, 0)
+    const normalizedItems = input.items.map((item) => {
+      const material = materialById.get(item.materialId)!
+      const defaultSalePrice = material.defaultSalePrice == null ? null : Number(material.defaultSalePrice)
+      const unitPrice = item.unitPrice ?? defaultSalePrice ?? 0
+      return {
+        ...item,
+        material,
+        unitPrice,
+        defaultSalePrice,
+        currency: material.salesCurrency || 'CNY',
+        priceSource: defaultSalePrice !== null && Math.abs(unitPrice - defaultSalePrice) < 0.000001 ? 'MATERIAL_DEFAULT' : 'MANUAL',
+      }
+    })
+    const currencies = new Set(normalizedItems.map((item) => item.currency))
+    if (currencies.size > 1) return NextResponse.json({ error: '同一销售订单暂不支持混合币种' }, { status: 400 })
+    const currency = normalizedItems[0]?.currency || 'CNY'
+    const totalAmount = normalizedItems.reduce((sum, item) => sum + item.qty * item.unitPrice, 0)
 
     const order = await prisma.salesOrder.create({
       data: {
@@ -133,16 +149,20 @@ export async function POST(req: NextRequest) {
         orderDate: parseDate(input.orderDate, '订单日期'),
         deliveryDate: input.deliveryDate ? parseDate(input.deliveryDate, '交付日期') : null,
         totalAmount,
+        currency,
         note: input.note?.trim() || null,
         items: {
-          create: input.items.map((item) => {
-            const material = materialById.get(item.materialId)!
+          create: normalizedItems.map((item) => {
+            const material = item.material
             return {
               materialId: material.id,
               qty: item.qty,
               unit: material.stockUnit || material.unit,
               unitPrice: item.unitPrice,
               totalAmount: item.qty * item.unitPrice,
+              currency: item.currency,
+              priceSource: item.priceSource,
+              defaultSalePriceSnapshot: item.defaultSalePrice,
               note: item.note?.trim() || null,
             }
           }),

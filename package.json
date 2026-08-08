@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.256",
+  "version": "0.1.257",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -31,6 +31,7 @@
     "verify:scan-print": "tsx scripts/verify-scan-print.ts",
     "verify:business-document-print": "tsx scripts/verify-business-document-print.ts",
     "verify:related-document-dialogs": "tsx scripts/verify-related-document-dialogs.ts",
+    "verify:fullscreen-dialogs": "tsx scripts/verify-fullscreen-dialogs.ts",
     "verify:material-code-normalization": "tsx scripts/verify-material-code-normalization.ts",
     "verify:material-image-optimization": "tsx scripts/verify-material-image-optimization.ts",
     "verify:archived-record-purge": "tsx scripts/verify-archived-record-purge.ts",
@@ -39,6 +40,7 @@
     "verify:online-documents": "tsx scripts/verify-online-documents.ts",
     "verify:document-source-credentials": "tsx scripts/verify-document-source-credentials.ts",
     "verify:sales-order-flow": "tsx scripts/verify-sales-order-flow.ts",
+    "verify:sales-pricing-boundary": "tsx scripts/verify-sales-pricing-and-shipment-boundary.ts",
     "verify:material-measures": "tsx scripts/verify-material-measures.ts",
     "verify:production-consumption": "tsx scripts/verify-production-consumption.ts",
     "verify:production-order-actuals": "tsx scripts/verify-production-order-actuals.ts",
