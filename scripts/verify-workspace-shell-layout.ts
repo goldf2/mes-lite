@@ -41,6 +41,10 @@ assert.doesNotMatch(topNavigationSource, /flex-wrap/, '画布工作的顶部导�
 assert.doesNotMatch(topNavigationSource, /ChevronDown|group\.icon/, '画布工作的顶部一级导航必须使用紧凑纯文字按钮，不显示文字图标或箭头')
 assert.match(topNavigationSource, /HOVER_SWITCH_DELAY_MS\s*=\s*1\d\d/, '顶部二级菜单必须使用鼠标意图延迟，避免横向扫过时连续闪切')
 assert.match(topNavigationSource, /onPointerLeave=\{cancelHoverSwitch\}/, '鼠标离开一级入口后必须取消尚未触发的菜单切换')
+assert.match(topNavigationSource, /panelTriggerRef[\s\S]*?getBoundingClientRect\(\)\.left\s*-\s*rootRect\.left/, '顶部二级菜单必须跟随触发入口定位')
+assert.match(topNavigationSource, /COMPACT_PANEL_WIDTH_PX[\s\S]*?compactGroupPanel/, '少量功能的顶部二级菜单必须使用紧凑尺寸')
+assert.match(topNavigationSource, /isOpenGroup[\s\S]*?bg-blue-600 text-white/, '当前打开的顶部一级菜单必须显示主高亮')
+assert.match(topNavigationSource, /group\.active[\s\S]*?bg-blue-50 text-blue-700 ring-1/, '当前页面所属一级菜单必须使用区别于选择状态的稳定弱高亮')
 
 assert.match(toolbarSource, /useWorkspaceLayoutPreference/, '公共页面工具必须读取工作区布局')
 assert.match(toolbarSource, /layout\s*===\s*'canvas'/, '公共页面工具必须提供画布工作右侧呈现')
