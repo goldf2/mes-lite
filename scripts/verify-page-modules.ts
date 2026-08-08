@@ -1,4 +1,9 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { pageModuleDefinitions, resolvePageModuleKey } from '../lib/page-modules'
+
+const root = process.cwd()
 
 const expectedFunctionKeys = [
   'dashboard', 'allFunctions', 'materialManagement', 'bomWorkspace', 'bomUsage', 'workInstructions',
@@ -41,4 +46,12 @@ if (materialMappings.materials !== 'materialManagement'
 }
 
 const requiredToolbarCount = pageModuleDefinitions.filter((definition) => definition.toolbar === 'required').length
+
+const materialPageSource = readFileSync(join(root, 'app/components/MaterialPage.tsx'), 'utf8')
+const workInstructionPageSource = readFileSync(join(root, 'app/components/WorkInstructionPage.tsx'), 'utf8')
+assert.doesNotMatch(materialPageSource, /repeat\(auto-fit/, '物料卡片不得在单条结果时拉伸占满整行')
+assert.doesNotMatch(workInstructionPageSource, /repeat\(auto-fit/, '文档卡片不得在单条结果时拉伸占满整行')
+assert.match(materialPageSource, /md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4/, '物料卡片必须使用最多四列的明确响应式网格')
+assert.match(workInstructionPageSource, /md:grid-cols-2 2xl:grid-cols-3/, '文档卡片必须使用最多三列的明确响应式网格')
+
 console.log(`页面模块校验通过：${keys.length} 个页面入口，${new Set(pageModuleDefinitions.map((item) => item.kind)).size} 类公共骨架，${requiredToolbarCount} 个页面强制公共顶部工具栏，${toolbarExceptions.length} 个明确例外。`)

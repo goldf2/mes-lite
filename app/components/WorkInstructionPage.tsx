@@ -956,7 +956,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           </div>
         ) : viewMode === 'card' ? (
           <>
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))] items-start gap-3">
+            <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 2xl:grid-cols-3">
               {instructionSort.sortedRows.map((instruction) => (
                 <article key={instruction.id} className="flex flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:shadow-none">
                   <button

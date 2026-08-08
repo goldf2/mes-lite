@@ -2367,7 +2367,7 @@ export default function MaterialPage({
           </div>
         ) : viewMode === 'card' ? (
           <>
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] items-start gap-3">
+            <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {materials.map((material) => {
                 const bomSummary = canUseBomData && bomSummaryVisible ? getBomSummary(material) : null
                 const isSelected = showBomWorkspace && material.id === selectedMaterialId
