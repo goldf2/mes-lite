@@ -15,6 +15,7 @@ import useClientTableSort from './useClientTableSort'
 import ModalDialog, { ModalActions } from './ModalDialog'
 import AppButton from './AppButton'
 import { MappedResourceAdvancedSearch } from './resource'
+import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
 
 const displayPriceUnit = (unit: string | null | undefined) => unit === 'm' ? '米' : unit || '-'
 
@@ -713,6 +714,7 @@ export default function MaterialInPage({
       onMessage('请至少添加一种物料')
       return
     }
+    const printPreview = reserveBusinessDocumentPrintWindow()
     setLoading(true)
     try {
       const res = await fetch(editingItem ? `/api/material-ins/${editingItem.id}` : '/api/material-ins', {
@@ -738,13 +740,21 @@ export default function MaterialInPage({
         onMessage(editingItem
           ? `来料单已修改：${data.data.inboundNo}`
           : `来料单创建成功，共 ${data.count || items.length} 种物料`)
+        const pdfGenerated = await generateBusinessDocumentPdfArchives('material-in', (data.items || [data.data]).map((item: { id: string }) => item.id))
+        if (pdfGenerated) printPreview.open('material-in', data.data.id)
+        else {
+          printPreview.close()
+          onMessage('来料单已保存，但部分 PDF 生成失败，可在来料列表中重新打印')
+        }
         setShowModal(false)
         resetForm()
         await fetchMaterialIns()
       } else {
+        printPreview.close()
         onMessage(data.error || '创建来料单失败')
       }
     } catch (err) {
+      printPreview.close()
       onMessage('创建来料单失败')
     }
     setLoading(false)
@@ -1078,6 +1088,7 @@ export default function MaterialInPage({
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                   <AttachmentPanel ownerType="MATERIAL_IN" ownerId={item.id} compact onMessage={onMessage} />
                   <div className="flex flex-wrap gap-2">
+                    <BusinessDocumentPrintLink kind="material-in" id={item.id} />
                     {item.status === 'PENDING' && (
                       <>
                         <button
@@ -1188,6 +1199,7 @@ export default function MaterialInPage({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
+                        <BusinessDocumentPrintLink kind="material-in" id={item.id} compact />
                         {item.status === 'PENDING' && (
                           <>
                             <button
@@ -1249,7 +1261,7 @@ export default function MaterialInPage({
             <ModalActions
               onCancel={() => { setShowModal(false); resetForm() }}
               onConfirm={handleSubmit}
-              confirmLabel={editingItem ? '保存修改' : `提交 ${draftItems.length + (form.materialId ? 1 : 0)} 项`}
+              confirmLabel={editingItem ? '保存并输出 PDF' : `创建 ${draftItems.length + (form.materialId ? 1 : 0)} 项并输出 PDF`}
               busy={loading}
             />
           )}

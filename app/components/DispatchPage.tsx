@@ -12,6 +12,7 @@ import useClientTableSort from './useClientTableSort'
 import ModalDialog, { ModalActions } from './ModalDialog'
 import AppButton from './AppButton'
 import { MappedResourceAdvancedSearch } from './resource'
+import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
 
 interface Order {
   id: string
@@ -220,6 +221,7 @@ export default function DispatchPage({
       onMessage('请填写完整信息')
       return
     }
+    const printPreview = reserveBusinessDocumentPrintWindow()
     setLoading(true)
     try {
       const res = await fetch('/api/dispatches', {
@@ -239,13 +241,21 @@ export default function DispatchPage({
       const data = await res.json()
       if (res.ok) {
         onMessage(`派工单创建成功：${data.data.dispatchNo}`)
+        const pdfGenerated = await generateBusinessDocumentPdfArchives('dispatch', [data.data.id])
+        if (pdfGenerated) printPreview.open('dispatch', data.data.id)
+        else {
+          printPreview.close()
+          onMessage('派工单已创建，但 PDF 生成失败，可在派工列表中重新打印')
+        }
         setShowModal(false)
         resetForm()
         await fetchDispatches()
       } else {
+        printPreview.close()
         onMessage(data.error || '创建派工单失败')
       }
     } catch (err) {
+      printPreview.close()
       onMessage('创建派工单失败')
     }
     setLoading(false)
@@ -379,6 +389,7 @@ export default function DispatchPage({
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                   <AttachmentPanel ownerType="DISPATCH" ownerId={item.id} compact onMessage={onMessage} />
                   <div className="flex flex-wrap gap-2">
+                    <BusinessDocumentPrintLink kind="dispatch" id={item.id} />
                     {item.status === 'PENDING' && (
                       <button
                         onClick={() => handleAction(item.id, 'dispatch')}
@@ -470,6 +481,7 @@ export default function DispatchPage({
                       <AttachmentPanel ownerType="DISPATCH" ownerId={item.id} compact onMessage={onMessage} />
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
+                      <BusinessDocumentPrintLink kind="dispatch" id={item.id} compact />
                       {item.status === 'PENDING' && (
                         <button
                           onClick={() => handleAction(item.id, 'dispatch')}
@@ -519,7 +531,7 @@ export default function DispatchPage({
             <ModalActions
               onCancel={() => setShowModal(false)}
               onConfirm={handleSubmit}
-              confirmLabel="提交"
+              confirmLabel="创建并输出 PDF"
               busy={loading}
             />
           )}

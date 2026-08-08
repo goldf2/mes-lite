@@ -13,6 +13,10 @@ import ViewModeToggle, { usePersistedViewMode } from '../../components/ViewModeT
 import useClientTableSort from '../../components/useClientTableSort'
 import { MappedResourceAdvancedSearch } from '../../components/resource'
 import { getStatusQuery } from '../../components/StatusCheckboxFilter'
+import BusinessDocumentPrintLink, {
+  generateBusinessDocumentPdfArchives,
+  reserveBusinessDocumentPrintWindow,
+} from '../../components/BusinessDocumentPrintLink'
 
 const AttachmentPanel = dynamic(() => import('../../components/AttachmentPanel'), { loading: () => <AppLoadingIndicator label="正在加载附件..." /> })
 const ProductionOrderActualPanel = dynamic(() => import('../../components/ProductionOrderActualPanel'), { loading: () => <AppLoadingIndicator label="正在加载生产实绩..." /> })
@@ -225,6 +229,7 @@ export default function ProductionOrderModule({
       onMessage('请至少添加一个产品')
       return
     }
+    const printPreview = reserveBusinessDocumentPrintWindow()
     setLoading(true)
     try {
       const response = await fetch('/api/orders', {
@@ -238,10 +243,20 @@ export default function ProductionOrderModule({
       })
       const payload = await response.json()
       if (!response.ok) {
+        printPreview.close()
         onMessage(payload.error || '创建失败')
         return
       }
       onMessage(payload.count > 1 ? `生产订单已保存：${payload.groupNo}，共 ${payload.count} 个产品` : `生产订单已保存：${payload.data.orderNo}`)
+      const pdfGenerated = await generateBusinessDocumentPdfArchives(
+        'production-order',
+        (payload.items || [payload.data]).map((item: { id: string }) => item.id),
+      )
+      if (pdfGenerated) printPreview.open('production-order', payload.data.id)
+      else {
+        printPreview.close()
+        onMessage('生产订单已保存，但部分 PDF 生成失败，可在生产订单列表中重新打印')
+      }
       setPlanQty(100)
       setOrderVoucherNo('')
       setOrderNote('')
@@ -251,6 +266,7 @@ export default function ProductionOrderModule({
       await fetchOrders()
       onModeChange('orders')
     } catch {
+      printPreview.close()
       onMessage('创建失败')
     } finally {
       setLoading(false)
@@ -350,6 +366,7 @@ export default function ProductionOrderModule({
                           </div>
                           <div className="flex items-center gap-2">
                             <span className={`rounded px-2 py-1 text-xs font-medium ${statusColors[order.status]}`}>{statusLabels[order.status]}</span>
+                            <BusinessDocumentPrintLink kind="production-order" id={order.id} compact />
                             <button onClick={() => void openOrderDetail(order)} className="rounded border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50">详情 / 登记实绩</button>
                           </div>
                         </div>
@@ -384,7 +401,7 @@ export default function ProductionOrderModule({
                       <td className="px-4 py-3"><span className={`inline-block rounded px-2 py-1 text-xs font-medium ${statusColors[order.status]}`}>{statusLabels[order.status]}</span></td>
                       <td className="px-4 py-3 text-xs text-gray-500">{new Date(order.createdAt).toLocaleString('zh-CN')}</td>
                       <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}><AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={order.id} compact onMessage={onMessage} /></td>
-                      <td className="px-4 py-3"><button onClick={(event) => { event.stopPropagation(); void openOrderDetail(order) }} className="rounded border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50">详情 / 登记实绩</button></td>
+                      <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}><div className="flex items-center gap-2"><BusinessDocumentPrintLink kind="production-order" id={order.id} compact /><button onClick={() => void openOrderDetail(order)} className="rounded border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50">详情 / 登记实绩</button></div></td>
                     </tr>
                   ))}
                 </tbody>
@@ -396,7 +413,7 @@ export default function ProductionOrderModule({
 
       {mode === 'detail' && orderDetail && (
         <div className="rounded-lg bg-white p-6 shadow">
-          <div className="mb-6"><h2 className="text-xl font-semibold">生产订单详情</h2><p className="text-sm text-gray-500">{orderDetail.groupNo || orderDetail.orderNo}{orderDetail.groupNo ? ` · 第 ${orderDetail.lineNo} 项` : ''}</p><p className="text-sm text-gray-500">凭据号：{orderDetail.voucherNo || '-'}</p></div>
+          <div className="mb-6 flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold">生产订单详情</h2><p className="text-sm text-gray-500">{orderDetail.groupNo || orderDetail.orderNo}{orderDetail.groupNo ? ` · 第 ${orderDetail.lineNo} 项` : ''}</p><p className="text-sm text-gray-500">凭据号：{orderDetail.voucherNo || '-'}</p></div><BusinessDocumentPrintLink kind="production-order" id={orderDetail.id} /></div>
           <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
             <InfoCard label="目标"><div className="font-medium">{orderDetail.targetMaterial?.name || orderDetail.product.name}</div><div className="text-xs text-gray-400">物料 {orderDetail.targetMaterial?.code || displayMaterialCode(orderDetail.product.sku)}</div></InfoCard>
             <InfoCard label="BOM 方案"><div className="font-medium">{orderDetail.bomName || orderDetail.bom?.name || '-'}</div><div className="text-xs text-gray-400">{orderDetail.bomVersion || orderDetail.bom?.version || '-'}</div></InfoCard>
@@ -450,7 +467,7 @@ export default function ProductionOrderModule({
             )}
             <label className="block text-sm font-medium text-gray-700">凭据号<input type="text" value={orderVoucherNo} onChange={(event) => setOrderVoucherNo(event.target.value)} placeholder="客户订单号、生产指令号或纸质单号" className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-3" /></label>
             <label className="block text-sm font-medium text-gray-700">备注<textarea value={orderNote} onChange={(event) => setOrderNote(event.target.value)} rows={3} placeholder="交期、班次、客户要求或其它生产说明" className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-3" /></label>
-            <button onClick={() => void createOrder()} disabled={loading} className="w-full rounded-lg bg-blue-600 px-4 py-3 font-medium text-white hover:bg-blue-700 disabled:opacity-50">{loading ? '创建中...' : `保存生产订单${orderDraftLines.length > 0 ? `（${orderDraftLines.length + (selectedMaterialId ? 1 : 0)} 个产品）` : ''}`}</button>
+            <button onClick={() => void createOrder()} disabled={loading} className="w-full rounded-lg bg-blue-600 px-4 py-3 font-medium text-white hover:bg-blue-700 disabled:opacity-50">{loading ? '创建并生成 PDF 中...' : `创建生产订单并输出 PDF${orderDraftLines.length > 0 ? `（${orderDraftLines.length + (selectedMaterialId ? 1 : 0)} 个产品）` : ''}`}</button>
           </div>
         </div>
       )}

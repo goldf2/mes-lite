@@ -12,6 +12,7 @@ import { appTextareaClassName } from './FormField'
 import MetricCard from './MetricCard'
 import AppLoadingIndicator from './AppLoadingIndicator'
 import { MappedResourceAdvancedSearch } from './resource'
+import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
 
 interface LocationOption {
   id: string
@@ -199,6 +200,7 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
     if (Number(form.quantity) <= 0) return onMessage('转移数量必须大于 0')
     if (!form.employeeId) return onMessage('请选择操作员工')
 
+    const printPreview = reserveBusinessDocumentPrintWindow()
     setSaving(true)
     try {
       const response = await fetch(
@@ -210,11 +212,21 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
         },
       )
       const data = await response.json()
-      if (!response.ok) return onMessage(data.error || '保存流程转移失败')
+      if (!response.ok) {
+        printPreview.close()
+        return onMessage(data.error || '保存流程转移失败')
+      }
       onMessage(data.message || '流程转移草稿已保存')
+      const pdfGenerated = await generateBusinessDocumentPdfArchives('flow-transfer', [data.data.id])
+      if (pdfGenerated) printPreview.open('flow-transfer', data.data.id)
+      else {
+        printPreview.close()
+        onMessage('流程转移已保存，但 PDF 生成失败，可在列表中重新打印')
+      }
       setFormOpen(false)
       await loadData()
     } catch {
+      printPreview.close()
       onMessage('保存流程转移失败')
     } finally {
       setSaving(false)
@@ -267,6 +279,7 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
 
   const actions = (transfer: FlowTransfer) => (
     <div className="flex flex-wrap justify-end gap-2">
+      <BusinessDocumentPrintLink kind="flow-transfer" id={transfer.id} />
       {transfer.status === 'DRAFT' && (
         <>
           <AppButton size="sm" onClick={() => openEdit(transfer)}>编辑</AppButton>
@@ -363,7 +376,7 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
           onClose={() => setFormOpen(false)}
           closeDisabled={saving}
           size="xl"
-          footer={<ModalActions onCancel={() => setFormOpen(false)} onConfirm={saveDraft} confirmLabel="保存草稿" busy={saving} />}
+          footer={<ModalActions onCancel={() => setFormOpen(false)} onConfirm={saveDraft} confirmLabel={editingTransfer ? '保存并输出 PDF' : '创建并输出 PDF'} busy={saving} />}
         >
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <label className="text-sm text-gray-700">
