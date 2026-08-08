@@ -1423,7 +1423,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         )}
 
         {/* 销售订单 */}
-        {tab === 'salesOrders' && <SalesOrderPage onMessage={showMessage} onOpenShipment={() => navigateToTab('shipment')} />}
+        {tab === 'salesOrders' && <SalesOrderPage onMessage={showMessage} />}
 
         {/* 发货管理 */}
         {tab === 'shipment' && <ShipmentPage onMessage={showMessage} />}

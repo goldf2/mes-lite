@@ -22,6 +22,7 @@ import DraftDocumentAttachmentPanel, {
   finalizeDraftDocumentAttachments,
 } from './DraftDocumentAttachmentPanel'
 import { matchesRecognizedValue, recognizedDate, recognizedItems, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
+import ShipmentCreateDialog from './ShipmentCreateDialog'
 
 interface CustomerOption {
   id: string
@@ -121,10 +122,8 @@ const dateText = (value?: string | null) => value ? new Date(value).toLocaleDate
 
 export default function SalesOrderPage({
   onMessage,
-  onOpenShipment,
 }: {
   onMessage: (message: string) => void
-  onOpenShipment?: () => void
 }) {
   const [orders, setOrders] = useState<SalesOrder[]>([])
   const [customers, setCustomers] = useState<CustomerOption[]>([])
@@ -138,6 +137,7 @@ export default function SalesOrderPage({
   const [draftAttachmentOwnerId, setDraftAttachmentOwnerId] = useState('')
   const [draftAttachmentBusy, setDraftAttachmentBusy] = useState(false)
   const [detailOrder, setDetailOrder] = useState<SalesOrder | null>(null)
+  const [shipmentOrderId, setShipmentOrderId] = useState('')
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.salesOrders.viewMode', 'card')
   const [form, setForm] = useState(emptyForm)
   const [pendingAction, setPendingAction] = useState<{ order: SalesOrder; action: 'confirm' | 'cancel' } | null>(null)
@@ -335,8 +335,8 @@ export default function SalesOrderPage({
       <BusinessDocumentPrintLink kind="sales-order" id={order.id} compact={compact} />
       {order.status === 'DRAFT' && <AppButton size="sm" variant="primary" onClick={() => setPendingAction({ order, action: 'confirm' })}>确认订单</AppButton>}
       {['DRAFT', 'CONFIRMED'].includes(order.status) && <AppButton size="sm" variant="secondary" onClick={() => setPendingAction({ order, action: 'cancel' })}>取消订单</AppButton>}
-      {['CONFIRMED', 'PARTIAL'].includes(order.status) && order.items.some((item) => item.remainingQty > 0) && onOpenShipment && (
-        <AppButton size="sm" variant="create" onClick={onOpenShipment}>生成发货单</AppButton>
+      {['CONFIRMED', 'PARTIAL'].includes(order.status) && order.items.some((item) => item.remainingQty > 0) && (
+        <AppButton size="sm" variant="create" onClick={() => setShipmentOrderId(order.id)}>生成发货单</AppButton>
       )}
     </div>
   )
@@ -572,6 +572,15 @@ export default function SalesOrderPage({
         >
           <p className="text-sm text-gray-600">{pendingAction.action === 'confirm' ? '确认后订单明细将进入发货管理，销售订单本身不直接扣减库存。' : '取消后该订单不能再生成发货单。'}</p>
         </ModalDialog>
+      )}
+
+      {shipmentOrderId && (
+        <ShipmentCreateDialog
+          initialSalesOrderId={shipmentOrderId}
+          onClose={() => setShipmentOrderId('')}
+          onCreated={loadOrders}
+          onMessage={onMessage}
+        />
       )}
     </>
   )
