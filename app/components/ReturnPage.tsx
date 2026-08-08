@@ -402,7 +402,7 @@ export default function ReturnPage({
                   <SortableTableHeader column="reason" activeColumn={returnSort.sortColumn} direction={returnSort.sortDirection} onSort={returnSort.toggleSort}>退货原因</SortableTableHeader>
                   <SortableTableHeader column="status" activeColumn={returnSort.sortColumn} direction={returnSort.sortDirection} onSort={returnSort.toggleSort}>状态</SortableTableHeader>
                   <SortableTableHeader column="createdAt" activeColumn={returnSort.sortColumn} direction={returnSort.sortDirection} onSort={returnSort.toggleSort}>创建时间</SortableTableHeader>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">原始单据</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">附件</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr>
               </thead>

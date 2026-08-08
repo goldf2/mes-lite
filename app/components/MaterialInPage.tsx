@@ -1150,7 +1150,7 @@ export default function MaterialInPage({
                   <SortableTableHeader column="batchNo" activeColumn={materialInSort.sortColumn} direction={materialInSort.sortDirection} onSort={materialInSort.toggleSort}>批次</SortableTableHeader>
                   <SortableTableHeader column="status" activeColumn={materialInSort.sortColumn} direction={materialInSort.sortDirection} onSort={materialInSort.toggleSort}>状态</SortableTableHeader>
                   <SortableTableHeader column="inboundDate" activeColumn={materialInSort.sortColumn} direction={materialInSort.sortDirection} onSort={materialInSort.toggleSort}>入库日期</SortableTableHeader>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">原始单据</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">附件</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr>
               </thead>

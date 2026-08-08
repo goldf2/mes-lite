@@ -352,7 +352,7 @@ export default function ProductionOrderModule({
                       <div className="flex items-center gap-2">
                         <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{group.lines.length} 个产品</span>
                         <div onClick={(event) => event.stopPropagation()}>
-                          <AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={first.id} compact onMessage={onMessage} />
+                          <AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={first.id} compact compactMode="summary" onMessage={onMessage} />
                         </div>
                       </div>
                     </div>
@@ -387,7 +387,7 @@ export default function ProductionOrderModule({
                   <SortableTableHeader column="completed" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>完成/报废</SortableTableHeader>
                   <SortableTableHeader column="status" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>状态</SortableTableHeader>
                   <SortableTableHeader column="createdAt" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>时间</SortableTableHeader>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">原始单据</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">附件</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100">
@@ -400,7 +400,7 @@ export default function ProductionOrderModule({
                       <td className="px-4 py-3 text-sm"><span className="text-green-600">{order.completeQty}</span><span className="mx-1 text-gray-400">/</span><span className="text-red-500">{order.scrapQty}</span></td>
                       <td className="px-4 py-3"><span className={`inline-block rounded px-2 py-1 text-xs font-medium ${statusColors[order.status]}`}>{statusLabels[order.status]}</span></td>
                       <td className="px-4 py-3 text-xs text-gray-500">{new Date(order.createdAt).toLocaleString('zh-CN')}</td>
-                      <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}><AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={order.id} compact onMessage={onMessage} /></td>
+                      <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}><AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={order.id} compact compactMode="summary" onMessage={onMessage} /></td>
                       <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}><div className="flex items-center gap-2"><BusinessDocumentPrintLink kind="production-order" id={order.id} compact /><button onClick={() => void openOrderDetail(order)} className="rounded border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50">详情 / 登记实绩</button></div></td>
                     </tr>
                   ))}
@@ -413,7 +413,7 @@ export default function ProductionOrderModule({
 
       {mode === 'detail' && orderDetail && (
         <div className="rounded-lg bg-white p-6 shadow">
-          <div className="mb-6 flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold">生产订单详情</h2><p className="text-sm text-gray-500">{orderDetail.groupNo || orderDetail.orderNo}{orderDetail.groupNo ? ` · 第 ${orderDetail.lineNo} 项` : ''}</p><p className="text-sm text-gray-500">凭据号：{orderDetail.voucherNo || '-'}</p></div><BusinessDocumentPrintLink kind="production-order" id={orderDetail.id} /></div>
+          <div className="mb-6 flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold">生产订单详情</h2><span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">系统生成单据</span></div><p className="text-sm text-gray-500">{orderDetail.groupNo || orderDetail.orderNo}{orderDetail.groupNo ? ` · 第 ${orderDetail.lineNo} 项` : ''}</p><p className="text-sm text-gray-500">凭据号：{orderDetail.voucherNo || '-'}</p></div><BusinessDocumentPrintLink kind="production-order" id={orderDetail.id} /></div>
           <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
             <InfoCard label="目标"><div className="font-medium">{orderDetail.targetMaterial?.name || orderDetail.product.name}</div><div className="text-xs text-gray-400">物料 {orderDetail.targetMaterial?.code || displayMaterialCode(orderDetail.product.sku)}</div></InfoCard>
             <InfoCard label="BOM 方案"><div className="font-medium">{orderDetail.bomName || orderDetail.bom?.name || '-'}</div><div className="text-xs text-gray-400">{orderDetail.bomVersion || orderDetail.bom?.version || '-'}</div></InfoCard>
@@ -435,7 +435,7 @@ export default function ProductionOrderModule({
             </div>
           )}
           <ProductionOrderActualPanel orderId={orderDetail.id} onMessage={onMessage} onOrderChanged={async () => { await Promise.all([fetchOrderDetail(orderDetail.id), fetchOrders()]) }} />
-          <div className="mt-6"><AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={orderDetail.id} title="生产订单原始单据" onMessage={onMessage} /></div>
+          <div className="mt-6"><AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={orderDetail.id} title="附件管理" enableAiRecognition onMessage={onMessage} /></div>
         </div>
       )}
 

@@ -1,13 +1,15 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
-import { Sparkles } from 'lucide-react'
-import { MAX_ATTACHMENT_FILE_SIZE, attachmentTypeLabel } from '@/lib/attachment-file-types'
+import { Download, Eye, Sparkles } from 'lucide-react'
+import { MAX_ATTACHMENT_FILE_SIZE, attachmentTypeLabel, type AttachmentPreviewKind } from '@/lib/attachment-file-types'
 import { supportsDocumentSourceCredentialRecognition } from '@/lib/document-source-credentials'
-import AppButton from './AppButton'
+import DocumentFileViewer from './DocumentFileViewer'
+import DocumentPreviewThumb from './DocumentPreviewThumb'
+import ModalDialog from './ModalDialog'
 
-export interface Attachment {
+export interface ManagedAttachment {
   id: string
   originalName: string
   mimeType: string
@@ -17,9 +19,11 @@ export interface Attachment {
   thumbnailUrl?: string
   displayUrl?: string
   previewUrl?: string | null
+  previewKind?: AttachmentPreviewKind
   note?: string
   uploadedBy?: string
   isCover: boolean
+  rotation?: number
   createdAt: string
 }
 
@@ -32,11 +36,9 @@ interface AttachmentPanelProps {
   documentType?: string
   layout?: 'default' | 'gallery'
   allowCover?: boolean
-  onAiRecognize?: (input: {
-    ownerType: string
-    ownerId: string
-    attachments: Attachment[]
-  }) => void | Promise<void>
+  compactMode?: 'manage' | 'summary'
+  enableAiRecognition?: boolean
+  onAiRecognize?: (attachment: ManagedAttachment) => void | Promise<void>
   onMessage: (msg: string) => void
 }
 
@@ -49,36 +51,41 @@ function formatSize(size: number) {
 export default function AttachmentPanel({
   ownerType,
   ownerId,
-  title = '原始单据',
+  title = '附件管理',
   compact = false,
   variant = 'document',
   documentType = 'ORIGINAL',
   layout = 'default',
   allowCover = false,
+  compactMode = 'manage',
+  enableAiRecognition = false,
   onAiRecognize,
   onMessage,
 }: AttachmentPanelProps) {
-  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [attachments, setAttachments] = useState<ManagedAttachment[]>([])
   const [uploading, setUploading] = useState(false)
+  const [recognizingAttachmentId, setRecognizingAttachmentId] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
-  const [recognizing, setRecognizing] = useState(false)
   const [note, setNote] = useState('')
+  const [previewAttachment, setPreviewAttachment] = useState<ManagedAttachment | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const imageOnly = variant === 'image'
-  const itemLabel = imageOnly ? '物料图片' : '原始单据'
-  const showAiRecognition = !imageOnly && supportsDocumentSourceCredentialRecognition(ownerType, documentType)
+  const itemLabel = imageOnly ? '物料图片' : '附件'
+  const showAiRecognition = !imageOnly && (
+    enableAiRecognition || supportsDocumentSourceCredentialRecognition(ownerType, documentType)
+  )
 
-  useEffect(() => {
-    fetchAttachments()
-  }, [ownerType, ownerId])
-
-  const fetchAttachments = async () => {
+  const fetchAttachments = useCallback(async () => {
     const res = await fetch(`/api/attachments?ownerType=${encodeURIComponent(ownerType)}&ownerId=${encodeURIComponent(ownerId)}`)
     if (res.ok) {
       const data = await res.json()
       setAttachments(data.data || [])
     }
-  }
+  }, [ownerId, ownerType])
+
+  useEffect(() => {
+    fetchAttachments()
+  }, [fetchAttachments])
 
   const uploadFile = async (file: File) => {
     setUploading(true)
@@ -178,8 +185,9 @@ export default function AttachmentPanel({
     }
   }
 
-  const recognizeAndFill = async () => {
-    if (attachments.length === 0) {
+  const handleAiRecognition = async (attachment?: ManagedAttachment) => {
+    const sourceAttachment = attachment || attachments[0]
+    if (!sourceAttachment) {
       onMessage('请先上传原始凭据，再进行 AI 识别')
       return
     }
@@ -187,33 +195,25 @@ export default function AttachmentPanel({
       onMessage('AI 凭据识别入口已准备，识别与字段填充服务将在下一阶段接入')
       return
     }
-    setRecognizing(true)
+    setRecognizingAttachmentId(sourceAttachment.id)
     try {
-      await onAiRecognize({ ownerType, ownerId, attachments })
+      await onAiRecognize(sourceAttachment)
     } catch {
       onMessage('AI 凭据识别失败，请稍后重试')
     } finally {
-      setRecognizing(false)
+      setRecognizingAttachmentId(null)
     }
   }
 
-  const aiRecognitionButton = showAiRecognition ? (
-    <AppButton
-      size="sm"
-      variant="secondary"
-      disabled={recognizing || attachments.length === 0}
-      onClick={(event) => {
-        event.stopPropagation()
-        void recognizeAndFill()
-      }}
-      title={attachments.length === 0 ? '请先上传原始凭据' : '识别凭据内容并填写当前单据'}
-    >
-      <Sparkles className="h-4 w-4 text-blue-600" />
-      {recognizing ? '识别中' : compact ? 'AI 识别' : 'AI 识别并填充'}
-    </AppButton>
-  ) : null
-
   if (compact) {
+    if (compactMode === 'summary') {
+      return (
+        <div className="inline-flex min-w-[72px] items-center gap-2 text-xs text-gray-500" aria-label={`附件 ${attachments.length} 个`}>
+          <span className="font-medium text-gray-700">附件</span>
+          <span>{attachments.length} 个</span>
+        </div>
+      )
+    }
     return (
       <div className="min-w-[150px] space-y-2">
         <div className="flex items-center gap-2">
@@ -231,8 +231,7 @@ export default function AttachmentPanel({
               }}
             />
           </label>
-          {aiRecognitionButton}
-          <span className="text-xs text-gray-500">{attachments.length} 张</span>
+          <span className="text-xs text-gray-500">{attachments.length} 个</span>
         </div>
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-1">
@@ -292,7 +291,6 @@ export default function AttachmentPanel({
                 }}
               />
             </label>
-            {aiRecognitionButton}
           </div>
         </div>
 
@@ -366,10 +364,14 @@ export default function AttachmentPanel({
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-        <h3 className="font-semibold">{title}</h3>
-        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+    <>
+      <section className="rounded-lg border border-gray-200 p-4">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-gray-900">{title}</h3>
+            {!imageOnly && <p className="mt-1 text-xs text-gray-500">原始凭证及补充文件的上传、预览、下载和归档统一在此管理。</p>}
+          </div>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
           {imageOnly && (
             <input
               type="text"
@@ -380,8 +382,19 @@ export default function AttachmentPanel({
               className="min-w-[220px] flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm"
             />
           )}
-          <label className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 cursor-pointer whitespace-nowrap">
-            {uploading ? '上传中...' : imageOnly ? '选择图片' : '上传文件'}
+          {showAiRecognition && (
+            <button
+              type="button"
+              onClick={() => void handleAiRecognition()}
+              disabled={recognizingAttachmentId !== null}
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 text-sm font-medium text-violet-700 transition hover:border-violet-300 hover:bg-violet-100"
+            >
+              <Sparkles aria-hidden="true" className="h-4 w-4" />
+              {recognizingAttachmentId ? '识别中' : 'AI 识别并填充'}
+            </button>
+          )}
+          <label className="inline-flex h-10 cursor-pointer items-center rounded-lg bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700 whitespace-nowrap">
+            {uploading ? '上传中...' : imageOnly ? '选择图片' : '添加附件'}
             <input
               ref={inputRef}
               type="file"
@@ -395,7 +408,6 @@ export default function AttachmentPanel({
               }}
             />
           </label>
-          {aiRecognitionButton}
         </div>
       </div>
       <div
@@ -419,39 +431,63 @@ export default function AttachmentPanel({
             : 'border-gray-300 bg-gray-50 text-gray-500 hover:border-blue-300 hover:bg-blue-50/50'
         } ${uploading ? 'cursor-not-allowed' : 'cursor-pointer'}`}
       >
-        {uploading ? '上传中...' : imageOnly ? '拖放图片到这里，或点击选择图片' : '拖放文件到这里，或点击上传'}
+        {uploading ? '上传中...' : imageOnly ? '拖放图片到这里，或点击选择图片' : '拖放原始凭证或补充文件到这里，或点击添加附件'}
       </div>
       {attachments.length === 0 ? (
-        <div className="text-sm text-gray-500">{imageOnly ? '暂无物料图片' : '暂无原始单据照片'}</div>
+        <div className="rounded-lg bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">{imageOnly ? '暂无物料图片' : '暂无附件，可上传图片、PDF、Office 文档或其他业务文件'}</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {attachments.map((attachment) => (
-            <div key={attachment.id} className="flex gap-3 border border-gray-100 rounded-lg p-2">
-              <a href={attachment.previewUrl || attachment.originalUrl || attachment.url} target="_blank" rel="noreferrer" className="h-16 w-16 flex-shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50 text-xs flex items-center justify-center">
-                {attachment.mimeType.startsWith('image/') ? (
-                  <img src={attachment.thumbnailUrl || attachment.url} alt={attachment.originalName} className="h-full w-full object-cover" />
-                ) : (
-                  attachmentTypeLabel(attachment.originalName, attachment.mimeType)
-                )}
-              </a>
+            <article key={attachment.id} className="flex min-w-0 gap-3 rounded-lg border border-gray-200 p-3">
+              <button type="button" onClick={() => setPreviewAttachment(attachment)} className="w-24 flex-shrink-0" aria-label={`预览 ${attachment.originalName}`}>
+                <DocumentPreviewThumb attachment={attachment} title={attachment.originalName} className="w-full" />
+              </button>
               <div className="min-w-0 flex-1">
-                <a href={attachment.previewUrl || attachment.originalUrl || attachment.url} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-blue-700">
+                <button type="button" onClick={() => setPreviewAttachment(attachment)} className="block max-w-full truncate text-left text-sm font-medium text-blue-700 hover:text-blue-800">
                   {attachment.originalName}
-                </a>
-                <div className="text-xs text-gray-500">{formatSize(attachment.size)}</div>
-                {attachment.note && <div className="mt-1 text-sm text-gray-700 break-words">{attachment.note}</div>}
-                <div className="text-xs text-gray-400">{new Date(attachment.createdAt).toLocaleString('zh-CN')}</div>
-                <button
-                  onClick={() => deleteAttachment(attachment.id)}
-                  className="mt-1 text-xs text-red-600 hover:text-red-700"
-                >
-                  归档
                 </button>
+                <div className="mt-1 text-xs text-gray-500">{attachmentTypeLabel(attachment.originalName, attachment.mimeType)} · {formatSize(attachment.size)}</div>
+                {attachment.note && <div className="mt-1 text-sm text-gray-700 break-words">{attachment.note}</div>}
+                <div className="mt-1 text-xs text-gray-400">{new Date(attachment.createdAt).toLocaleString('zh-CN')}</div>
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+                  <button type="button" onClick={() => setPreviewAttachment(attachment)} className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-800"><Eye aria-hidden="true" className="h-3.5 w-3.5" />预览</button>
+                  <a href={`${attachment.originalUrl || attachment.url}?download=1`} className="inline-flex items-center gap-1 text-gray-700 hover:text-gray-900"><Download aria-hidden="true" className="h-3.5 w-3.5" />下载</a>
+                  {showAiRecognition && (
+                    <button
+                      type="button"
+                      disabled={recognizingAttachmentId !== null}
+                      onClick={() => void handleAiRecognition(attachment)}
+                      className="text-violet-700 hover:text-violet-800 disabled:text-gray-400"
+                    >
+                      {recognizingAttachmentId === attachment.id ? '识别中' : 'AI 识别'}
+                    </button>
+                  )}
+                  <button type="button" onClick={() => deleteAttachment(attachment.id)} className="text-red-600 hover:text-red-700">归档</button>
+                </div>
               </div>
-            </div>
+            </article>
           ))}
         </div>
       )}
-    </div>
+      </section>
+      {previewAttachment && (
+        <ModalDialog
+          title={previewAttachment.originalName}
+          description={`${attachmentTypeLabel(previewAttachment.originalName, previewAttachment.mimeType)} · ${formatSize(previewAttachment.size)}`}
+          onClose={() => setPreviewAttachment(null)}
+          size="wide"
+          bodyClassName="!p-0 bg-slate-950"
+          headerActions={(
+            <a href={`${previewAttachment.originalUrl || previewAttachment.url}?download=1`} className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              <Download aria-hidden="true" className="h-4 w-4" />下载
+            </a>
+          )}
+        >
+          <div className="h-[min(72dvh,760px)] bg-slate-950">
+            <DocumentFileViewer attachment={previewAttachment} />
+          </div>
+        </ModalDialog>
+      )}
+    </>
   )
 }

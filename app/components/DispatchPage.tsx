@@ -439,7 +439,7 @@ export default function DispatchPage({
                   <SortableTableHeader column="planQty" activeColumn={dispatchSort.sortColumn} direction={dispatchSort.sortDirection} onSort={dispatchSort.toggleSort} className="w-24 whitespace-nowrap text-center">计划数量</SortableTableHeader>
                   <SortableTableHeader column="priority" activeColumn={dispatchSort.sortColumn} direction={dispatchSort.sortDirection} onSort={dispatchSort.toggleSort} className="w-24 whitespace-nowrap">优先级</SortableTableHeader>
                   <SortableTableHeader column="status" activeColumn={dispatchSort.sortColumn} direction={dispatchSort.sortDirection} onSort={dispatchSort.toggleSort} className="w-24 whitespace-nowrap">状态</SortableTableHeader>
-                  <th className="w-44 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">原始单据</th>
+                  <th className="w-44 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">附件</th>
                   <th className="w-24 whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr>
               </thead>
