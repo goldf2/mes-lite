@@ -8,12 +8,30 @@ import type { DesktopNavigationGroup } from './DesktopNavigation'
 
 type OpenPanel = { type: 'group'; id: string } | { type: 'more' } | { type: 'search' } | null
 
+const HOVER_SWITCH_DELAY_MS = 180
+
 export default function DesktopTopNavigation({ groups }: { groups: DesktopNavigationGroup[] }) {
   const [openPanel, setOpenPanel] = useState<OpenPanel>(null)
   const [query, setQuery] = useState('')
   const [availableWidth, setAvailableWidth] = useState(720)
   const capacityRef = useRef<HTMLDivElement | null>(null)
+  const hoverSwitchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rootRef = useDismissibleSearchPopup<HTMLDivElement>(Boolean(openPanel), () => setOpenPanel(null))
+
+  const cancelHoverSwitch = () => {
+    if (hoverSwitchTimerRef.current === null) return
+    clearTimeout(hoverSwitchTimerRef.current)
+    hoverSwitchTimerRef.current = null
+  }
+
+  const scheduleGroupSwitch = (groupId: string) => {
+    if (openPanel?.type !== 'group' || openPanel.id === groupId) return
+    cancelHoverSwitch()
+    hoverSwitchTimerRef.current = setTimeout(() => {
+      setOpenPanel((current) => current?.type === 'group' ? { type: 'group', id: groupId } : current)
+      hoverSwitchTimerRef.current = null
+    }, HOVER_SWITCH_DELAY_MS)
+  }
 
   useEffect(() => {
     const container = capacityRef.current
@@ -28,6 +46,8 @@ export default function DesktopTopNavigation({ groups }: { groups: DesktopNaviga
   useEffect(() => {
     if (!openPanel) setQuery('')
   }, [openPanel])
+
+  useEffect(() => () => cancelHoverSwitch(), [])
 
   const visibleCount = Math.max(1, Math.min(groups.length, Math.floor((availableWidth - 84) / 72)))
   const visibleGroups = groups.slice(0, visibleCount)
@@ -75,10 +95,12 @@ export default function DesktopTopNavigation({ groups }: { groups: DesktopNaviga
             key={group.id}
             type="button"
             aria-expanded={openPanel?.type === 'group' && openPanel.id === group.id}
-            onPointerEnter={() => {
-              if (openPanel?.type === 'group') setOpenPanel({ type: 'group', id: group.id })
+            onPointerEnter={() => scheduleGroupSwitch(group.id)}
+            onPointerLeave={cancelHoverSwitch}
+            onClick={() => {
+              cancelHoverSwitch()
+              setOpenPanel((current) => current?.type === 'group' && current.id === group.id ? null : { type: 'group', id: group.id })
             }}
-            onClick={() => setOpenPanel((current) => current?.type === 'group' && current.id === group.id ? null : { type: 'group', id: group.id })}
             className={`flex h-9 min-w-0 max-w-[6rem] shrink-0 items-center justify-center rounded-lg px-2.5 text-sm font-medium transition ${group.active ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
           >
             <span className="truncate">{group.label}</span>

@@ -39,6 +39,8 @@ assert.match(topNavigationSource, /groups:\s*DesktopNavigationGroup\[\]/, '顶�
 assert.match(topNavigationSource, /更多/, '顶部导航宽度不足时必须提供单行溢出菜单')
 assert.doesNotMatch(topNavigationSource, /flex-wrap/, '画布工作的顶部导航不得换行')
 assert.doesNotMatch(topNavigationSource, /ChevronDown|group\.icon/, '画布工作的顶部一级导航必须使用紧凑纯文字按钮，不显示文字图标或箭头')
+assert.match(topNavigationSource, /HOVER_SWITCH_DELAY_MS\s*=\s*1\d\d/, '顶部二级菜单必须使用鼠标意图延迟，避免横向扫过时连续闪切')
+assert.match(topNavigationSource, /onPointerLeave=\{cancelHoverSwitch\}/, '鼠标离开一级入口后必须取消尚未触发的菜单切换')
 
 assert.match(toolbarSource, /useWorkspaceLayoutPreference/, '公共页面工具必须读取工作区布局')
 assert.match(toolbarSource, /layout\s*===\s*'canvas'/, '公共页面工具必须提供画布工作右侧呈现')
