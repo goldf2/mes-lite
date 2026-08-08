@@ -46,22 +46,20 @@ export const configurableWorkspaceFunctionKeys = workspaceFunctionKeys.filter((k
 
 const defaultItems: Record<NavigationWorkspaceId, WorkspaceFunctionKey[]> = {
   mes: [
-    'materialManagement', 'bomWorkspace', 'bomUsage', 'workInstructions', 'equipment',
+    'materialManagement', 'bomWorkspace', 'workInstructions', 'equipment',
     'orders', 'dispatch', 'flowTransfers', 'employees', 'materialIn', 'stocks', 'locationSettings',
     'unitSettings', 'documentCategories', 'workCenters', 'processTemplates', 'processRoutes',
-    'businessSettings', 'sawingCost', 'scanPrint',
+    'sawingCost', 'scanPrint',
   ],
-  mrp: [
-    'materialManagement', 'bomWorkspace', 'bomUsage', 'orders', 'materialIn', 'salesOrders',
-    'stocks', 'suppliers', 'customers', 'locationSettings', 'unitSettings', 'workCenters',
-    'processTemplates', 'processRoutes', 'businessSettings',
-  ],
+  mrp: ['bomUsage'],
   erp: [
-    'materialManagement', 'workInstructions', 'materialIn', 'salesOrders', 'shipment', 'return',
-    'stocks', 'suppliers', 'customers', 'employees', 'locationSettings', 'unitSettings',
-    'businessSettings',
+    'salesOrders', 'shipment', 'return', 'suppliers', 'customers', 'businessSettings',
   ],
 }
+
+const defaultWorkspaceByFunctionKey = new Map<WorkspaceFunctionKey, NavigationWorkspaceId>(
+  navigationWorkspaceIds.flatMap((workspace) => defaultItems[workspace].map((functionKey) => [functionKey, workspace] as const)),
+)
 
 function defaultWorkspaceItems(workspace: NavigationWorkspaceId) {
   return defaultItems[workspace].map((functionKey) => ({ functionKey }))
@@ -127,13 +125,23 @@ export function normalizeWorkspaceNavigationConfig(value: unknown): WorkspaceNav
   })) as Record<NavigationWorkspaceId, NavigationWorkspaceConfig>
 
   for (const functionKey of configurableWorkspaceFunctionKeys) {
-    const assigned = navigationWorkspaceIds.some((workspace) => (
+    const configuredOwners = navigationWorkspaceIds.filter((workspace) => (
       workspaces[workspace].items.some((item) => item.functionKey === functionKey)
     ))
-    if (assigned) continue
-    const defaults = navigationWorkspaceIds.filter((workspace) => defaultItems[workspace].includes(functionKey))
-    const targets = defaults.length > 0 ? defaults : ['mes'] as NavigationWorkspaceId[]
-    for (const workspace of targets) workspaces[workspace].items.push({ functionKey })
+    const defaultOwner = defaultWorkspaceByFunctionKey.get(functionKey) || 'mes'
+    const owner = configuredOwners.length === 1
+      ? configuredOwners[0]
+      : configuredOwners.includes(defaultOwner)
+        ? defaultOwner
+        : configuredOwners[0] || defaultOwner
+
+    for (const workspace of navigationWorkspaceIds) {
+      if (workspace === owner) continue
+      workspaces[workspace].items = workspaces[workspace].items.filter((item) => item.functionKey !== functionKey)
+    }
+    if (!workspaces[owner].items.some((item) => item.functionKey === functionKey)) {
+      workspaces[owner].items.push({ functionKey })
+    }
   }
 
   if (!navigationWorkspaceIds.some((workspace) => workspaces[workspace].enabled)) {
@@ -145,6 +153,16 @@ export function normalizeWorkspaceNavigationConfig(value: unknown): WorkspaceNav
     : navigationWorkspaceIds.find((workspace) => workspaces[workspace].enabled) || 'mes'
 
   return { version: 1, defaultWorkspace, workspaces }
+}
+
+export function workspaceOwnerOfFunction(
+  config: WorkspaceNavigationConfig,
+  functionKey: WorkspaceFunctionKey,
+): NavigationWorkspaceId | null {
+  if (sharedFunctionKeySet.has(functionKey)) return null
+  return navigationWorkspaceIds.find((workspace) => (
+    config.workspaces[workspace].items.some((item) => item.functionKey === functionKey)
+  )) || null
 }
 
 export function workspaceContainsFunction(

@@ -84,7 +84,7 @@ export const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
   { key: 'processRoutes', label: '物料路线', groupKey: 'configuration', groupLabel: '业务配置', description: '维护产品加工路线和工步', icon: '线', tab: 'processRoutes', resource: 'system' },
   { key: 'businessSettings', label: '企业与业务规则', groupKey: 'configuration', groupLabel: '业务配置', description: '维护企业资料和跨终端业务规则', icon: '业', tab: 'businessSettings', resource: 'system' },
   { key: 'displaySettings', label: '显示设置', groupKey: 'system', groupLabel: '系统设置', description: '维护配色、对比度和界面显示效果', icon: '显', tab: 'displaySettings', resource: 'system' },
-  { key: 'navigationSettings', label: '导航与工作区', groupKey: 'system', groupLabel: '系统设置', description: '配置 MES、MRP、ERP 菜单归属、名称和顺序', icon: '导', tab: 'navigationSettings', resource: 'system' },
+  { key: 'navigationSettings', label: '导航与工作区', groupKey: 'system', groupLabel: '系统设置', description: '配置 MES、MRP、ERP 菜单唯一归属、名称和顺序', icon: '导', tab: 'navigationSettings', resource: 'system' },
   { key: 'aiSettings', label: 'AI 服务', groupKey: 'system', groupLabel: '系统设置', description: '维护 AI 模型、接口、密钥和助手外观', icon: '智', tab: 'aiSettings', resource: 'system' },
   { key: 'sawingCost', label: '锯切成本', groupKey: 'tools', groupLabel: '工具', description: '计算锯切、损耗和直接加工成本', icon: '锯', tab: 'sawingCost', resource: 'sawingCost' },
   { key: 'scanPrint', label: '硬件工具', groupKey: 'tools', groupLabel: '工具', description: '使用扫码计数和标签测试打印', icon: '扫', tab: 'scanPrint', resource: 'scanPrint' },

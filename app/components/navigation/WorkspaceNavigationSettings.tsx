@@ -10,6 +10,7 @@ import {
   navigationWorkspaceIds,
   navigationWorkspaceLabels,
   sharedWorkspaceFunctionKeys,
+  workspaceOwnerOfFunction,
   type NavigationWorkspaceId,
   type WorkspaceNavigationConfig,
 } from '@/lib/workspace-navigation-config'
@@ -71,7 +72,6 @@ export default function WorkspaceNavigationSettings({ onMessage }: { onMessage: 
   }, [load])
 
   const activeItems = draft.workspaces[selectedWorkspace].items
-  const assignedKeys = new Set(activeItems.map((item) => item.functionKey))
   const orderedCatalog = useMemo(() => {
     const activeOrder = new Map(activeItems.map((item, index) => [item.functionKey, index]))
     return [...catalogItems].sort((left, right) => {
@@ -115,17 +115,17 @@ export default function WorkspaceNavigationSettings({ onMessage }: { onMessage: 
     }
   }
 
-  const toggleMembership = (functionKey: WorkspaceFunctionKey, enabled: boolean) => {
-    if (!enabled) {
-      const assignedCount = navigationWorkspaceIds.filter((workspace) => (
-        draft.workspaces[workspace].items.some((item) => item.functionKey === functionKey)
-      )).length
-      if (assignedCount <= 1) return onMessage('每个业务页面至少需要属于一个工作区')
-    }
-    updateWorkspace(selectedWorkspace, (workspace) => {
-      workspace.items = enabled
-        ? [...workspace.items, { functionKey }]
-        : workspace.items.filter((item) => item.functionKey !== functionKey)
+  const assignWorkspace = (functionKey: WorkspaceFunctionKey, owner: NavigationWorkspaceId) => {
+    setDraft((current) => {
+      const next = cloneConfig(current)
+      const existing = navigationWorkspaceIds
+        .flatMap((workspace) => next.workspaces[workspace].items)
+        .find((item) => item.functionKey === functionKey)
+      for (const workspace of navigationWorkspaceIds) {
+        next.workspaces[workspace].items = next.workspaces[workspace].items.filter((item) => item.functionKey !== functionKey)
+      }
+      next.workspaces[owner].items.push(existing?.label ? { functionKey, label: existing.label } : { functionKey })
+      return next
     })
   }
 
@@ -215,21 +215,26 @@ export default function WorkspaceNavigationSettings({ onMessage }: { onMessage: 
             <div className="w-full max-w-xs"><WorkspaceDomainTabs config={draft} value={selectedWorkspace} onChange={setSelectedWorkspace} /></div>
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索系统名称、内部页面或分组" className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 sm:max-w-sm" />
           </div>
-          <div className="mt-2 text-xs text-gray-500">显示名称留空时使用系统名称；同一页面可在三个工作区分别命名。内部页面 ID、路由和权限不会改变。</div>
+          <div className="mt-2 text-xs text-gray-500">每个业务页面只能属于一个工作区；显示名称留空时使用系统名称。调整归属或名称不会改变内部页面 ID、路由、权限和业务数据。</div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
             <thead className="bg-white text-left text-xs text-gray-500">
-              <tr><th className="px-4 py-3">显示</th><th className="px-4 py-3">系统页面</th><th className="px-4 py-3">当前工作区名称</th><th className="px-4 py-3">分组</th><th className="px-4 py-3 text-right">顺序</th></tr>
+              <tr><th className="px-4 py-3">所属工作区</th><th className="px-4 py-3">系统页面</th><th className="px-4 py-3">显示名称</th><th className="px-4 py-3">分组</th><th className="px-4 py-3 text-right">顺序</th></tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {visibleCatalog.map((catalog) => {
-                const assigned = assignedKeys.has(catalog.key)
+                const owner = workspaceOwnerOfFunction(draft, catalog.key) || 'mes'
+                const assigned = owner === selectedWorkspace
                 const itemIndex = activeItems.findIndex((item) => item.functionKey === catalog.key)
                 const item = itemIndex >= 0 ? activeItems[itemIndex] : undefined
                 return (
                   <tr key={catalog.key} className={assigned ? 'bg-white' : 'bg-gray-50/60 text-gray-400'}>
-                    <td className="px-4 py-3"><input type="checkbox" checked={assigned} onChange={(event) => toggleMembership(catalog.key, event.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600" /></td>
+                    <td className="px-4 py-3">
+                      <select value={owner} onChange={(event) => assignWorkspace(catalog.key, event.target.value as NavigationWorkspaceId)} className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
+                        {navigationWorkspaceIds.map((workspace) => <option key={workspace} value={workspace}>{navigationWorkspaceLabels[workspace]}</option>)}
+                      </select>
+                    </td>
                     <td className="px-4 py-3"><div className="font-medium text-gray-900">{catalog.label}</div><div className="font-mono text-[11px] text-gray-400">{catalog.key}</div></td>
                     <td className="px-4 py-3"><input disabled={!assigned} value={item?.label || ''} onChange={(event) => renameItem(catalog.key, event.target.value)} maxLength={20} placeholder={catalog.label} className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100" /></td>
                     <td className="px-4 py-3 text-gray-500">{catalog.groupLabel}</td>

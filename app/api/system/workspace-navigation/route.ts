@@ -58,7 +58,7 @@ export async function PUT(req: Request) {
       entityLabel: 'MES/MRP/ERP 工作区菜单',
       beforeData: before,
       afterData: after,
-      note: '更新工作区启用状态、菜单归属、显示名称和顺序',
+      note: '更新工作区启用状态、页面唯一归属、显示名称和顺序',
     })
     return NextResponse.json({ data: after, message: '工作区菜单配置已发布' })
   } catch (error) {
