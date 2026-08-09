@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowRight, PackageMinus, PackagePlus } from 'lucide-react'
-import { SearchFieldWithPresets } from './SavedSearchPresets'
-import ResponsiveToolbarActions from './ResponsiveToolbarActions'
-import TopBarPortal from './TopBarPortal'
-import AppLoadingIndicator from './AppLoadingIndicator'
-import { ResourceAdvancedSearch } from './resource'
+import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
+import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
+import TopBarPortal from '@/app/components/TopBarPortal'
+import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
 import { filterByAdvancedSearch, matchesKeywordValues } from '@/lib/resource-search'
 import type { ResourceAdvancedSearchField, ResourceSearchCondition } from '@/lib/resource-search'
+import { BomApiError, listBoms } from '../client'
 
 interface MaterialOption {
   id: string
@@ -137,16 +138,11 @@ export default function BomOverviewPage({
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/boms')
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '获取 BOM 全览数据失败')
-        return
-      }
-      setOwners(data.products || [])
-      setMaterials(data.materialOptions || [])
+      const result = await listBoms()
+      setOwners(result.products)
+      setMaterials(result.materialOptions)
     } catch (error) {
-      onMessage('获取 BOM 全览数据失败')
+      onMessage(error instanceof BomApiError ? error.message : '获取 BOM 全览数据失败')
     } finally {
       setLoading(false)
     }

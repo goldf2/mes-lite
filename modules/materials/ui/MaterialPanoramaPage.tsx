@@ -1,9 +1,9 @@
 'use client'
 
 import { ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react'
-import ModalOverlay from './ModalOverlay'
-import DocumentPreviewThumb from './DocumentPreviewThumb'
-import DocumentFileViewer from './DocumentFileViewer'
+import ModalOverlay from '@/app/components/ModalOverlay'
+import DocumentPreviewThumb from '@/app/components/DocumentPreviewThumb'
+import DocumentFileViewer from '@/app/components/DocumentFileViewer'
 import { normalizeAttachmentRotation } from '@/lib/attachment-rotation'
 import { attachmentPreviewKind, attachmentTypeLabel, type AttachmentPreviewKind } from '@/lib/attachment-file-types'
 

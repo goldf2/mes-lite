@@ -37,10 +37,10 @@ const toolbarSource = readFileSync(join(root, 'app/components/ResponsiveToolbarA
 const resourcePageSource = readFileSync(join(root, 'app/components/resource/ResourcePage.tsx'), 'utf8')
 const advancedSearchSource = readFileSync(join(root, 'app/components/resource/ResourceAdvancedSearch.tsx'), 'utf8')
 const unifiedSearchPages = [
-  'app/components/BomOverviewPage.tsx',
+  'modules/bom/ui/BomOverviewPage.tsx',
   'app/components/FlowTransferPage.tsx',
   'app/components/MaterialInPage.tsx',
-  'app/components/MaterialPage.tsx',
+  'modules/materials/ui/MaterialPage.tsx',
   'app/components/PermissionPage.tsx',
   'app/components/ReturnPage.tsx',
   'app/components/SalesOrderPage.tsx',

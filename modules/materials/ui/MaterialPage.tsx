@@ -1,18 +1,18 @@
 'use client'
 
 import { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode, useCallback, useState, useEffect, useMemo, useRef } from 'react'
-import AttachmentPanel from './AttachmentPanel'
-import { getMultiSelectQuery } from './StatusCheckboxFilter'
-import ResponsiveToolbarActions from './ResponsiveToolbarActions'
-import TopBarPortal from './TopBarPortal'
-import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
+import AttachmentPanel from '@/app/components/AttachmentPanel'
+import { getMultiSelectQuery } from '@/app/components/StatusCheckboxFilter'
+import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
+import TopBarPortal from '@/app/components/TopBarPortal'
+import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import MaterialPanoramaPage from './MaterialPanoramaPage'
-import { SearchFieldWithPresets } from './SavedSearchPresets'
-import SearchableSelect from './SearchableSelect'
-import useDismissibleSearchPopup from './useDismissibleSearchPopup'
+import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
+import SearchableSelect from '@/app/components/SearchableSelect'
+import useDismissibleSearchPopup from '@/app/components/useDismissibleSearchPopup'
 import { bomRatiosDiffer } from '@/lib/bom-ratio'
-import ModalDialog, { ModalActions } from './ModalDialog'
-import AppButton from './AppButton'
+import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
+import AppButton from '@/app/components/AppButton'
 import {
   bomEntryUnitOptions,
   bomStoredQuantityToEntry,
@@ -21,118 +21,40 @@ import {
   normalizeBomEntryQuantity,
 } from '@/lib/bom-entry-units'
 import { normalizeUnitCode } from '@/lib/unit-catalog'
-import { useBomPagePreferences } from './bomPagePreferences'
-import AppLoadingIndicator from './AppLoadingIndicator'
-import PageOptionsDialog from './PageOptionsDialog'
-import ToolbarOrderSettings from './ToolbarOrderSettings'
-import { ResourceAdvancedSearch } from './resource'
+import { useBomPagePreferences } from '@/app/components/bomPagePreferences'
+import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
+import PageOptionsDialog from '@/app/components/PageOptionsDialog'
+import ToolbarOrderSettings from '@/app/components/ToolbarOrderSettings'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
 import {
   filterByResourceSearch,
   type ResourceAdvancedSearchField,
   type ResourceSearchCondition,
   type ResourceSearchProfile,
 } from '@/lib/resource-search'
-
-interface Material {
-  id: string
-  code: string
-  name: string
-  spec: string
-  note?: string | null
-  category: string
-  customerId?: string | null
-  customer?: { id: string; code: string; name: string } | null
-  primaryMeasure: 'LENGTH' | 'WEIGHT' | 'QUANTITY' | 'OTHER'
-  referenceMeasure?: 'LENGTH' | 'WEIGHT' | 'QUANTITY' | 'OTHER' | null
-  unit: string
-  stockUnit: string
-  valuationUnit: string
-  conversionRate: number
-  conversionNote?: string
-  costingMethod: string
-  defaultSalePrice?: number | null
-  salesCurrency: string
-  stock?: {
-    qty: number
-    reservedQty: number
-    availableQty: number
-    valuationQty: number
-    reservedValuationQty: number
-    availableValuationQty: number
-    totalCost: number
-    valuationUnitCost: number
-    stockUnitCost: number
-  }
-  primaryImage?: { id: string; url: string; thumbnailUrl?: string; displayUrl?: string; originalUrl?: string; note?: string; mimeType: string; isCover: boolean } | null
-  createdAt: string
-}
-
-interface BomMaterialOption {
-  id: string
-  code: string
-  name: string
-  spec?: string | null
-  category: string
-  unit: string
-  stockUnit: string
-  valuationUnit: string
-  primaryMeasure?: 'LENGTH' | 'WEIGHT' | 'QUANTITY' | 'OTHER'
-  stockQty?: number
-  primaryImage?: { id: string; url: string; thumbnailUrl?: string; displayUrl?: string; originalUrl?: string; note?: string | null; mimeType: string; isCover: boolean } | null
-}
-
-interface BomItem {
-  id: string
-  itemType: string
-  quantity: number
-  unit: string
-  entryUnit?: string | null
-  wastageRate: number
-  material?: BomMaterialOption | null
-  outputMaterialId?: string | null
-  outputMaterial?: BomMaterialOption | null
-}
-
-interface BomVersion {
-  id: string
-  name: string
-  purpose: 'PRODUCTION' | 'PACKAGING'
-  version: string
-  isDefault: boolean
-  isActive: boolean
-  outputQuantity: number
-  outputUnit: string
-  outputs: BomOutput[]
-  items: BomItem[]
-}
-
-interface BomOutput {
-  id: string
-  quantity: number
-  unit: string
-  entryUnit?: string | null
-  isPrimary: boolean
-  material: BomMaterialOption
-}
-
-interface MaterialBom {
-  id: string
-  sku: string
-  name: string
-  description?: string | null
-  category: string
-  unit: string
-  sourceMaterialId?: string
-  bom?: BomVersion | null
-  boms: BomVersion[]
-}
-
-interface BomSearchRow {
-  product: MaterialBom
-  bom: BomVersion
-  material: BomMaterialOption | null
-  materialId: string
-}
+import type {
+  BomItem,
+  BomMaterialOption,
+  BomSearchRow,
+  BomVersion,
+  DraftBomItem,
+  DraftBomOutput,
+  MaterialBom,
+} from '@/modules/bom'
+import { BomApiError, listBoms, saveBom } from '@/modules/bom'
+import type { ConfiguredUnit, CustomerOption, Material, PaginationState } from '../contracts'
+import {
+  MaterialApiError,
+  archiveMaterial,
+  downloadMaterialFile,
+  findMaterialByCode,
+  importMaterials,
+  listConfiguredUnits,
+  listMaterialCustomers,
+  listMaterials,
+  saveMaterial,
+} from '../client'
+import type { MaterialUpsertInput } from '../client'
 
 const bomSearchProfile: ResourceSearchProfile<BomSearchRow> = {
   key: 'boms',
@@ -153,43 +75,6 @@ const bomAdvancedSearchFields: readonly ResourceAdvancedSearchField<BomSearchRow
   { key: 'status', label: '启用状态', type: 'select', read: ({ bom }) => bom.isActive ? 'active' : 'inactive', options: [{ value: 'active', label: '启用' }, { value: 'inactive', label: '停用' }] },
   { key: 'default', label: '默认方案', type: 'select', read: ({ bom }) => bom.isDefault ? 'default' : 'other', options: [{ value: 'default', label: '默认 BOM' }, { value: 'other', label: '非默认 BOM' }] },
 ]
-
-interface DraftBomItem {
-  clientId: string
-  materialId: string
-  quantity: number | string
-  unit: string
-  wastageRate: number
-}
-
-interface DraftBomOutput {
-  clientId: string
-  materialId: string
-  quantity: number | string
-  unit: string
-}
-
-interface Customer {
-  id: string
-  code: string
-  name: string
-}
-
-interface ConfiguredUnit {
-  code: string
-  name: string
-  measureType: 'LENGTH' | 'WEIGHT' | 'QUANTITY' | 'OTHER'
-  toBaseFactor: number
-  isBase: boolean
-  isPreset: boolean
-}
-
-interface PaginationState {
-  page: number
-  pageSize: number
-  total: number
-  totalPages: number
-}
 
 const materialCategoryLabels: Record<string, string> = {
   RAW: '原材料',
@@ -839,7 +724,7 @@ export default function MaterialPage({
   canCreateBom?: boolean
 }) {
   const [materials, setMaterials] = useState<Material[]>([])
-  const [customers, setCustomers] = useState<Customer[]>([])
+  const [customers, setCustomers] = useState<CustomerOption[]>([])
   const [bomProducts, setBomProducts] = useState<MaterialBom[]>([])
   const [bomMaterialOptions, setBomMaterialOptions] = useState<BomMaterialOption[]>([])
   const [selectedMaterialId, setSelectedMaterialId] = useState('')
@@ -1024,25 +909,19 @@ export default function MaterialPage({
     setBomLoading(true)
     setBomDataReady(false)
     try {
-      const res = await fetch('/api/boms')
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '获取 BOM 关系失败')
-        return
-      }
-      const nextProducts = data.products || []
-      setBomProducts(nextProducts)
-      setBomMaterialOptions(data.materialOptions || [])
+      const result = await listBoms()
+      setBomProducts(result.products)
+      setBomMaterialOptions(result.materialOptions)
       if (preferredBomId) {
-        const targetProduct = nextProducts.find((product: MaterialBom) => product.boms.some((bom) => bom.id === preferredBomId))
+        const targetProduct = result.products.find((product) => product.boms.some((bom) => bom.id === preferredBomId))
         if (targetProduct) {
           loadedBomDraftSignatureRef.current = ''
           setSelectedMaterialId(targetProduct.sourceMaterialId || targetProduct.id.replace(materialProductPrefix, ''))
           setSelectedBomId(preferredBomId)
         }
       }
-    } catch (err) {
-      onMessage('获取 BOM 关系失败')
+    } catch (error) {
+      onMessage(error instanceof BomApiError ? error.message : '获取 BOM 关系失败')
     } finally {
       setBomLoading(false)
       setBomDataReady(true)
@@ -1314,18 +1193,18 @@ export default function MaterialPage({
   }
 
   const fetchMaterials = async () => {
-    const params = buildMaterialParams()
-    const url = params.toString() ? `/api/materials?${params.toString()}` : '/api/materials'
-    const res = await fetch(url)
-    const data = await res.json()
-    const nextMaterials: Material[] = data.data || []
-    const nextPagination = data.pagination || { page, pageSize, total: nextMaterials.length, totalPages: 1 }
-    setMaterials(nextMaterials)
-    setPagination(nextPagination)
-    if (nextPagination.total > 0 && nextPagination.page > nextPagination.totalPages) {
-      setPage(nextPagination.totalPages)
+    try {
+      const result = await listMaterials(buildMaterialParams())
+      const nextPagination = result.pagination || { page, pageSize, total: result.materials.length, totalPages: 1 }
+      setMaterials(result.materials)
+      setPagination(nextPagination)
+      if (nextPagination.total > 0 && nextPagination.page > nextPagination.totalPages) {
+        setPage(nextPagination.totalPages)
+      }
+      setDetailMaterial((current) => current ? result.materials.find((item) => item.id === current.id) || current : null)
+    } catch (error) {
+      onMessage(error instanceof MaterialApiError ? error.message : '获取物料失败')
     }
-    setDetailMaterial((current) => current ? nextMaterials.find((item) => item.id === current.id) || current : null)
   }
 
   const refreshMaterialSources = async () => {
@@ -1336,26 +1215,9 @@ export default function MaterialPage({
 
   const downloadFile = async (url: string) => {
     try {
-      const res = await fetch(url)
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        onMessage(data.error || '下载失败')
-        return
-      }
-
-      const blob = await res.blob()
-      const href = URL.createObjectURL(blob)
-      const disposition = res.headers.get('Content-Disposition') || ''
-      const filename = disposition.match(/filename="([^"]+)"/)?.[1] || 'materials.csv'
-      const link = document.createElement('a')
-      link.href = href
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(href)
-    } catch (err) {
-      onMessage('下载失败')
+      await downloadMaterialFile(url)
+    } catch (error) {
+      onMessage(error instanceof MaterialApiError ? error.message : '下载失败')
     }
   }
 
@@ -1385,48 +1247,30 @@ export default function MaterialPage({
     setImportLoading(true)
     setImportErrors([])
     try {
-      const formData = new FormData()
-      formData.append('file', importFile)
-      const res = await fetch(`/api/materials/import?mode=${importMode}`, {
-        method: 'POST',
-        body: formData,
-      })
-      const data = await res.json()
-
-      if (res.ok) {
-        const summary = data.data || {}
-        const customerText = summary.customersCreated ? `，新建客户 ${summary.customersCreated}` : ''
-        onMessage(`导入完成：共 ${summary.total || 0} 行，新增 ${summary.created || 0}，更新 ${summary.updated || 0}，跳过 ${summary.skipped || 0}${customerText}`)
-        setShowImportModal(false)
-        setImportFile(null)
-        setPage(1)
-        await refreshMaterialSources()
-      } else {
-        setImportErrors(data.details || [data.error || '导入失败'])
-      }
-    } catch (err) {
-      setImportErrors(['导入失败'])
+      const summary = await importMaterials(importFile, importMode)
+      const customerText = summary.customersCreated ? `，新建客户 ${summary.customersCreated}` : ''
+      onMessage(`导入完成：共 ${summary.total || 0} 行，新增 ${summary.created || 0}，更新 ${summary.updated || 0}，跳过 ${summary.skipped || 0}${customerText}`)
+      setShowImportModal(false)
+      setImportFile(null)
+      setPage(1)
+      await refreshMaterialSources()
+    } catch (error) {
+      setImportErrors(error instanceof MaterialApiError && error.details.length > 0 ? error.details : [error instanceof Error ? error.message : '导入失败'])
     }
     setImportLoading(false)
   }
 
   const fetchCustomers = async () => {
     try {
-      const res = await fetch('/api/customers')
-      if (res.ok) {
-        const data = await res.json()
-        setCustomers(data.data || [])
-      }
-    } catch (err) {
+      setCustomers(await listMaterialCustomers())
+    } catch {
       // ignore
     }
   }
 
   const fetchUnitCatalog = async () => {
     try {
-      const res = await fetch('/api/system/units')
-      const data = await res.json()
-      if (res.ok) setUnitCatalog(data.data || [])
+      setUnitCatalog(await listConfiguredUnits())
     } catch {
       // 物料列表仍可读取；编辑时会保留现有旧单位。
     }
@@ -1438,17 +1282,16 @@ export default function MaterialPage({
       return
     }
     setLoading(true)
-    let succeeded = false
     try {
-      const payload = {
+      const payload: MaterialUpsertInput = {
         code: form.code,
         name: form.name,
         spec: form.spec,
         note: form.note,
         category: form.category,
         customerId: form.customerId || undefined,
-        primaryMeasure: form.primaryMeasure,
-        referenceMeasure: form.useDualUnit ? form.referenceMeasure : undefined,
+        primaryMeasure: form.primaryMeasure as MaterialUpsertInput['primaryMeasure'],
+        referenceMeasure: form.useDualUnit ? form.referenceMeasure as MaterialUpsertInput['referenceMeasure'] : undefined,
         unit: form.stockUnit,
         stockUnit: form.stockUnit,
         valuationUnit: form.useDualUnit ? form.valuationUnit : form.stockUnit,
@@ -1458,42 +1301,15 @@ export default function MaterialPage({
         defaultSalePrice: form.defaultSalePrice === '' ? null : Number(form.defaultSalePrice),
         salesCurrency: form.salesCurrency,
       }
-      if (editingMaterial) {
-        const res = await fetch('/api/materials', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...payload, id: editingMaterial.id }),
-        })
-        const data = await res.json()
-        if (res.ok) {
-          onMessage('物料更新成功')
-          succeeded = true
-        } else {
-          onMessage(data.error || '更新失败')
-        }
-      } else {
-        const res = await fetch('/api/materials', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-        const data = await res.json()
-        if (res.ok) {
-          onMessage('物料创建成功')
-          succeeded = true
-        } else {
-          onMessage(data.error || '创建失败')
-        }
-      }
-      if (succeeded) {
-        setShowModal(false)
-        setForm(createEmptyMaterialForm())
-        setEditingMaterial(null)
-        setPage(1)
-        await refreshMaterialSources()
-      }
-    } catch (err) {
-      onMessage('操作失败')
+      await saveMaterial(payload, editingMaterial?.id)
+      onMessage(editingMaterial ? '物料更新成功' : '物料创建成功')
+      setShowModal(false)
+      setForm(createEmptyMaterialForm())
+      setEditingMaterial(null)
+      setPage(1)
+      await refreshMaterialSources()
+    } catch (error) {
+      onMessage(error instanceof MaterialApiError ? error.message : '操作失败')
     }
     setLoading(false)
   }
@@ -1501,16 +1317,10 @@ export default function MaterialPage({
   const handleArchive = async (id: string) => {
     if (!confirm('确定要归档该物料吗？归档后不会在物料列表中显示，可在归档记录中恢复。')) return
     try {
-      const res = await fetch(`/api/materials/${id}/archive`, { method: 'PATCH' })
-      const data = await res.json()
-      if (res.ok) {
-        onMessage(data.message || '归档成功')
-        await refreshMaterialSources()
-      } else {
-        onMessage(data.error || '归档失败')
-      }
-    } catch (err) {
-      onMessage('归档失败')
+      onMessage(await archiveMaterial(id))
+      await refreshMaterialSources()
+    } catch (error) {
+      onMessage(error instanceof MaterialApiError ? error.message : '归档失败')
     }
   }
 
@@ -1549,11 +1359,8 @@ export default function MaterialPage({
 
   const handleViewDetail = async (material: Material) => {
     try {
-      const res = await fetch(`/api/materials?keyword=${encodeURIComponent(material.code)}&pageSize=20`)
-      const data = await res.json()
-      const freshMaterial = (data.data || []).find((item: Material) => item.id === material.id)
-      setDetailMaterial(freshMaterial || material)
-    } catch (error) {
+      setDetailMaterial(await findMaterialByCode(material.code, material.id) || material)
+    } catch {
       setDetailMaterial(material)
     }
   }
@@ -1862,50 +1669,41 @@ export default function MaterialPage({
     }
     setBomSaving(true)
     try {
-      const res = await fetch('/api/boms', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId,
-          bomId: selectedBom?.id,
-          createNew: selectedBomId === '__new__',
-          name: draftBomName.trim(),
-          purpose: draftBomPurpose,
-          isDefault: draftBomIsDefault,
-          isActive: selectedBom?.isActive ?? true,
-          outputQuantity: selectedBomOutputQuantity,
-          outputs: [
-            {
-              materialId: selectedMaterial?.id,
-              quantity: selectedBomOutputQuantity,
-              entryUnit: draftBomOutputUnit,
-              isPrimary: true,
-            },
-            ...draftBomOutputs.map((output) => ({
-              materialId: output.materialId,
-              quantity: Number(output.quantity),
-              entryUnit: output.unit,
-              isPrimary: false,
-            })),
-          ],
-          items: items.map((item) => ({
-            materialId: item.materialId,
-            quantity: Number(item.quantity),
-            entryUnit: item.unit,
-            wastageRate: 0,
+      const result = await saveBom({
+        productId,
+        bomId: selectedBom?.id,
+        createNew: selectedBomId === '__new__',
+        name: draftBomName.trim(),
+        purpose: draftBomPurpose,
+        isDefault: draftBomIsDefault,
+        isActive: selectedBom?.isActive ?? true,
+        outputQuantity: selectedBomOutputQuantity,
+        outputs: [
+          {
+            materialId: selectedMaterial?.id,
+            quantity: selectedBomOutputQuantity,
+            entryUnit: draftBomOutputUnit,
+            isPrimary: true,
+          },
+          ...draftBomOutputs.map((output) => ({
+            materialId: output.materialId,
+            quantity: Number(output.quantity),
+            entryUnit: output.unit,
+            isPrimary: false,
           })),
-        }),
+        ],
+        items: items.map((item) => ({
+          materialId: item.materialId,
+          quantity: Number(item.quantity),
+          entryUnit: item.unit,
+          wastageRate: 0,
+        })),
       })
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '保存 BOM 批次配方失败')
-        return false
-      }
-      onMessage(successMessage || data.message || 'BOM 批次配方已保存')
-      await fetchBomData(data.data?.id)
+      onMessage(successMessage || result.message)
+      await fetchBomData(result.id)
       return true
-    } catch (err) {
-      onMessage('保存 BOM 批次配方失败')
+    } catch (error) {
+      onMessage(error instanceof BomApiError ? error.message : '保存 BOM 批次配方失败')
       return false
     } finally {
       setBomSaving(false)

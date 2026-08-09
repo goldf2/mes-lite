@@ -23,15 +23,15 @@
 | `app/HomeApp.tsx` | 522 行 | 权限菜单、工作区过滤、页面连续性、偏好和桌面导航状态均已提取；当前只承担应用壳 JSX 装配与少量全局弹层状态 |
 | `app/components/shell/` | 9 个文件 | 已建立账号菜单、导航图标、页面宿主、渲染适配器和四类状态控制器的公共应用壳边界 |
 | `lib/page-registry.ts` | 38 个页面定义 | 页面元数据、权限资源、工作区入口、系统分区、打开方式和渲染键已集中为单一事实源 |
-| `app/components/` 根目录 | 67 个文件 | 公共原语、领域页面、业务弹窗和系统页面仍有混放，继续按“修改到哪里，迁移到哪里”收敛 |
-| `MaterialPage.tsx` | 3186 行 | 物料、BOM、附件和多种视图交织，应迁入物料领域并继续拆分 |
+| `app/components/` 根目录 | 64 个文件 | 物料、全景和 BOM 全览已迁出；其他领域页面、业务弹窗和系统页面仍继续按增量原则收敛 |
+| `modules/materials/ui/MaterialPage.tsx` | 2984 行 | 已拥有正式领域归属，数据契约和 HTTP client 已拆出；列表、编辑、导入导出和 BOM 编辑状态仍需继续分离 |
 | `SystemPage.tsx` | 1948 行 | 已完成部分配置模块拆分，剩余业务设置和维护工具继续迁出 |
 | `MaterialInPage.tsx` | 1679 行 | 来料页面和录入流程高度集中，应迁入来料领域 |
 | `WorkInstructionPage.tsx` | 1497 行 | 文档资源、编辑器、附件和关联编辑集中，应迁入文档领域 |
-| `MaterialPanoramaPage.tsx` | 1485 行 | 属于物料领域的专用展示，不应继续留在公共组件根目录 |
+| `modules/materials/ui/MaterialPanoramaPage.tsx` | 1485 行 | 已迁入物料领域；下一步按摘要、文档、BOM/工艺、成本和记录等稳定视图拆分 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 14 个文件 | 已有工作台、生产、库存和配置模块入口，但领域覆盖率仍低 |
+| `modules/` | 27 个文件 | 已有工作台、生产、库存、配置、物料和 BOM 模块；物料/BOM 已开始形成 `contracts/client/ui` 分层 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -374,7 +374,10 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `modules/workspace` 拥有工作台指标、负荷、状态分布与预警页面状态。
 - `modules/production` 拥有生产订单查询、创建、详情、实绩入口和单据 PDF 操作。
 - `modules/inventory` 拥有库存查询、筛选、视图、数据一致性提示和库存调整状态。
-- 三个模块均以根目录 `index.ts` 作为唯一公开出口，`app/HomeApp.tsx` 只负责动态挂载公开入口。
+- `modules/configuration` 拥有客户、供应商、单位、库位、工作中心和文档类别配置页。
+- `modules/materials` 拥有物料管理与物料全景，物料契约、HTTP client 和 UI 已分层。
+- `modules/bom` 拥有 BOM 全览、BOM 契约和 HTTP client；物料页对 BOM 的访问只经过该模块公开出口。
+- 六个模块均以根目录 `index.ts` 作为应用层公开出口，页面注册层不越过公开出口导入领域 UI。
 - 模块 UI 继续复用 `app/components` 中现有公共搜索、工具栏、视图、表格、弹窗、附件和打印能力；本阶段不复制公共框架。
 
 本次迁移只改变代码所有权和导入边界，不改变 API、Prisma 模型、权限资源、业务状态流转或页面布局。其余领域继续按增量原则迁移。
@@ -398,4 +401,4 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `HomeApp.tsx` 不再直接读写页面连续性、工作区偏好、桌面导航存储或权限菜单组装，行数从 1233 行降至 522 行。
 - `verify:shell-controllers`、`verify:page-modules`、`verify:workspace-navigation` 和 `verify:responsive-navigation` 阻止这些职责重新回流应用壳，并把 `HomeApp.tsx` 的当前规模上限固定为 600 行。
 
-下一步应进入物料与 BOM 领域迁移；页面注册与菜单分类仍只使用现有单一事实源。
+下一步应在既有 `materials` 和 `bom` 模块内继续拆分列表、编辑表单、导入导出、BOM 草稿状态和全景子视图；页面注册与菜单分类仍只使用现有单一事实源。

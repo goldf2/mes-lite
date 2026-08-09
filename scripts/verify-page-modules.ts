@@ -54,7 +54,7 @@ const missingWorkspaceKeys = workspaceKeys.filter((key) => !workspaceFunctionKey
 assert.deepEqual(missingWorkspaceKeys, [], '页面注册表的工作区功能键必须来自统一 WorkspaceFunctionKey')
 assert.equal(new Set(workspaceKeys).size, workspaceKeys.length, '页面注册表的工作区功能键不得重复')
 
-const materialPageSource = readFileSync(join(root, 'app/components/MaterialPage.tsx'), 'utf8')
+const materialPageSource = readFileSync(join(root, 'modules/materials/ui/MaterialPage.tsx'), 'utf8')
 const workInstructionPageSource = readFileSync(join(root, 'app/components/WorkInstructionPage.tsx'), 'utf8')
 const salesOrderPageSource = readFileSync(join(root, 'app/components/SalesOrderPage.tsx'), 'utf8')
 const flowTransferPageSource = readFileSync(join(root, 'app/components/FlowTransferPage.tsx'), 'utf8')
@@ -76,6 +76,9 @@ assert.match(navigationSource, /registeredPageDefinitions/, '菜单和工作区�
 assert.match(homeAppSource, /useApplicationNavigationController/, '应用壳必须通过公共应用导航控制器获取页面菜单')
 assert.doesNotMatch(homeAppSource, /primaryNavigationItems/, '应用壳不得继续直接装配基础页面菜单')
 assert.match(applicationNavigationSource, /primaryNavigationItems/, '公共应用导航控制器必须从统一导航目录派生页面菜单')
+assert.match(pageRendererRegistrySource, /import\('\@\/modules\/materials'\)/, '物料页面必须通过 materials 模块公开出口加载')
+assert.match(pageRendererRegistrySource, /import\('\@\/modules\/bom'\)/, 'BOM 全览必须通过 bom 模块公开出口加载')
+assert.doesNotMatch(pageRendererRegistrySource, /import\('\.\.\/(?:MaterialPage|MaterialPanoramaPage|BomOverviewPage)'\)/, '页面注册层不得越过领域公开出口加载物料或 BOM 页面')
 assert.match(workspacePageHostSource, /renderRegisteredWorkspacePage/, '页面宿主必须通过统一渲染注册表装配页面')
 for (const rendererKey of rendererKeys) {
   assert.match(pageRendererRegistrySource, new RegExp(`(?:['\"]${rendererKey}['\"]|${rendererKey})\\s*:`), `渲染注册表缺少 ${rendererKey}`)
