@@ -38,6 +38,7 @@ import DesktopNavigation, {
 import DesktopTopNavigation from './components/navigation/DesktopTopNavigation'
 import MobileSiblingNavigation from './components/navigation/MobileSiblingNavigation'
 import type { NavigationGroup, NavigationItem } from './components/navigation/NavigationModel'
+import UnifiedNavigationMenu from './components/navigation/UnifiedNavigationMenu'
 import WorkspaceDomainTabs from './components/navigation/WorkspaceDomainTabs'
 import useWorkspaceNavigation from './components/navigation/useWorkspaceNavigation'
 import PageQrCodeButton from './components/PageQrCodeButton'
@@ -976,6 +977,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             id: item.key,
             label: item.label,
             active: tab === item.key || (item.key === 'orders' && (tab === 'create' || tab === 'detail')),
+            icon: <MenuIcon icon={item.key} />,
             shortcutKey: item.key,
             draggable: true,
             dragState: draggedIndex === index ? 'dragging' as const : dragOverIndex === index ? 'target' as const : 'idle' as const,
@@ -1009,6 +1011,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         id: item.key,
         label: item.label,
         active: tab === item.key,
+        icon: <MenuIcon icon={item.key} />,
         shortcutKey: item.key,
         onClick: () => navigateToTab(item.key),
       })),
@@ -1532,47 +1535,29 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 </div>
               </section>
 
-              {navigationGroups.map((group) => (
-                <section key={group.id} aria-label={group.label} className="pt-2">
-                  <div className="border-b border-gray-200 py-3 text-sm font-semibold text-gray-900">
-                    {group.label}
-                  </div>
-                  <div>
-                    {group.items.map((item, itemIndex) => {
-                      const favoriteKey = item.shortcutKey as TabType | undefined
-                      const managesFavorite = Boolean(favoriteKey) && group.items.findIndex((candidate) => candidate.shortcutKey === favoriteKey) === itemIndex
-                      const isFavorite = Boolean(favoriteKey && baseMobileNavItems.some((favorite) => favorite.key === favoriteKey))
-                      return (
-                        <div key={item.id} className="flex min-h-12 items-center gap-2 border-b border-gray-100 py-1">
-                          <button
-                            type="button"
-                            onClick={item.onClick}
-                            className={`flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-2.5 text-left text-sm font-medium ${
-                              item.active ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
-                            }`}
-                          >
-                            {item.icon || <MenuIcon icon={favoriteKey || item.id} />}
-                            <span className="truncate">{item.label}</span>
-                          </button>
-                          {managesFavorite && isFavorite ? (
-                            <span className="shrink-0 px-2 py-1 text-xs font-medium text-blue-600">
-                              常用
-                            </span>
-                          ) : managesFavorite && favoriteKey ? (
-                            <button
-                              type="button"
-                              onClick={() => setMobileFavorite(favoriteKey)}
-                              className="shrink-0 rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100"
-                            >
-                              设为常用
-                            </button>
-                          ) : null}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </section>
-              ))}
+              <UnifiedNavigationMenu
+                groups={navigationGroups}
+                groupHeaderMode="static"
+                expandedGroupIds="all"
+                ariaLabel="全部功能"
+                className="space-y-2 pt-2"
+                renderItemTrailing={(item, itemIndex, group) => {
+                  const favoriteKey = item.shortcutKey as TabType | undefined
+                  const managesFavorite = Boolean(favoriteKey) && group.items.findIndex((candidate) => candidate.shortcutKey === favoriteKey) === itemIndex
+                  const isFavorite = Boolean(favoriteKey && baseMobileNavItems.some((favorite) => favorite.key === favoriteKey))
+                  if (!managesFavorite || !favoriteKey) return null
+                  if (isFavorite) return <span className="shrink-0 px-2 py-1 text-xs font-medium text-blue-600">常用</span>
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setMobileFavorite(favoriteKey)}
+                      className="shrink-0 rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100"
+                    >
+                      设为常用
+                    </button>
+                  )
+                }}
+              />
             </div>
           </aside>
         </div>
