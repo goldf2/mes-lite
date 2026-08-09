@@ -1,3 +1,38 @@
+import { z } from 'zod'
+
+export const createScanSessionSchema = z.object({
+  clientRequestId: z.string().min(1).max(100),
+  name: z.string().trim().max(100).optional(),
+  expectedCode: z.string().min(1),
+  expectedQty: z.number().finite().positive(),
+  purpose: z.string().trim().max(50).default('GENERAL_COUNT'),
+  referenceType: z.string().trim().max(50).default('GENERAL'),
+  referenceId: z.string().trim().max(100).optional(),
+  scannerModel: z.string().optional(),
+})
+
+export const recordScanEventSchema = z.object({
+  clientEventId: z.string().min(1).max(100),
+  rawValue: z.string().min(1),
+  quantity: z.number().finite().positive().max(100000).default(1),
+})
+
+export const createLabelPrintJobSchema = z.object({
+  clientRequestId: z.string().min(1).max(100),
+  templateType: z.string().trim().max(50).default('GENERIC_LABEL'),
+  referenceType: z.string().trim().max(50).default('GENERAL'),
+  referenceId: z.string().trim().max(100).optional(),
+  copies: z.number().int().min(1).max(100).default(1),
+  printerIp: z.string().trim().optional(),
+  labelWidthMm: z.number().finite().min(10).max(500).default(105),
+  labelHeightMm: z.number().finite().min(10).max(500).default(70),
+  payload: z.record(z.unknown()).optional(),
+})
+
+export type ParsedCreateScanSessionInput = z.infer<typeof createScanSessionSchema>
+export type ParsedRecordScanEventInput = z.infer<typeof recordScanEventSchema>
+export type ParsedCreateLabelPrintJobInput = z.infer<typeof createLabelPrintJobSchema>
+
 export type ScanResult = 'MATCHED' | 'UNKNOWN' | 'OVER'
 
 export interface ScanEvent {

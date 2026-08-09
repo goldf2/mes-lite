@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client'
-import { prisma } from './prisma'
-import { simpleProductSku } from './material-product'
+import { prisma } from '@/lib/prisma'
+import { simpleProductSku } from '@/lib/material-product'
 
 export type DataIntegritySeverity = 'BLOCKING' | 'WARNING' | 'INFO'
 

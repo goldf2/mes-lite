@@ -1,8 +1,22 @@
 import assert from 'node:assert/strict'
-import { prisma } from '../lib/prisma'
-import { ArchivedRecordPurgeError, purgeArchivedRecord } from '../lib/archived-record-purge'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+const root = process.cwd()
+const verifyRoot = mkdtempSync(join(tmpdir(), 'ml-archived-purge-'))
+const databaseUrl = `file:${join(verifyRoot, 'verify.db')}`
+execFileSync(join(root, 'node_modules', '.bin', 'prisma'), ['migrate', 'deploy'], {
+  cwd: root, env: { ...process.env, DATABASE_URL: databaseUrl, RUST_LOG: 'info' }, stdio: 'pipe',
+})
+process.env.DATABASE_URL = databaseUrl
 
 async function main() {
+  const [{ prisma }, { ArchivedRecordPurgeError, purgeArchivedRecord }] = await Promise.all([
+    import('../lib/prisma'),
+    import('../modules/operations-tools/server/archived-record-purge-service'),
+  ])
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`.toUpperCase()
   const purgeCode = `VERIFY-PURGE-${suffix}`
   const blockedCode = `VERIFY-BLOCKED-${suffix}`
@@ -390,11 +404,12 @@ async function main() {
       await prisma.supplier.deleteMany({ where: { id: supplierId } }).catch(() => undefined)
     }
     await prisma.$disconnect()
+    rmSync(verifyRoot, { recursive: true, force: true })
   }
 }
 
-main().catch(async (error) => {
+main().catch((error) => {
   console.error(error)
-  await prisma.$disconnect()
+  rmSync(verifyRoot, { recursive: true, force: true })
   process.exit(1)
 })

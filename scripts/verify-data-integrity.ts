@@ -7,7 +7,7 @@ import { PrismaClient } from '@prisma/client'
 import {
   applyDataIntegrityAction,
   getDataIntegrityReport,
-} from '../lib/data-integrity'
+} from '../modules/operations-tools/server/data-integrity-service'
 
 const verifyRoot = mkdtempSync(join(tmpdir(), 'ml-integrity-'))
 const databaseUrl = `file:${join(verifyRoot, 'verify.db')}`

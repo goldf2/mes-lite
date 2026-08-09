@@ -1,5 +1,5 @@
-import { prisma } from './prisma'
-import { SOFT_DELETE_MODELS, SoftDeleteModelKey } from './soft-delete'
+import { prisma } from '@/lib/prisma'
+import { SOFT_DELETE_MODELS, SoftDeleteModelKey } from './soft-delete-models'
 
 const attachmentOwnerTypes: Partial<Record<SoftDeleteModelKey, string>> = {
   material: 'MATERIAL',

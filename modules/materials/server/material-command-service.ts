@@ -12,6 +12,10 @@ export class MaterialNotFoundError extends Error {
   constructor() { super('物料不存在') }
 }
 
+export class MaterialArchiveError extends Error {
+  constructor() { super('物料不存在或已归档') }
+}
+
 async function validateConfiguredMaterialUnits(input: {
   primaryMeasure: string
   stockUnit: string
@@ -125,4 +129,11 @@ export async function updateMaterial(
     return updated
   })
   return { before, material, unitsChanged }
+}
+
+export async function archiveMaterialRecord(id: string) {
+  const before = await prisma.material.findUnique({ where: { id } })
+  if (!before || before.deletedAt) throw new MaterialArchiveError()
+  const material = await prisma.material.update({ where: { id }, data: { deletedAt: new Date() } })
+  return { before, material }
 }

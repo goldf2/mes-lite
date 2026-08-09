@@ -1,14 +1,22 @@
 import assert from 'node:assert/strict'
-import { prisma } from '../lib/prisma'
-import {
-  applyMaterialCodeNormalization,
-  buildMaterialCodeNormalizationPreview,
-  normalizeMaterialCode,
-} from '../lib/material-code-normalization'
-
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 const rollbackMarker = new Error('VERIFY_MATERIAL_CODE_NORMALIZATION_ROLLBACK')
+const root = process.cwd()
+const verifyRoot = mkdtempSync(join(tmpdir(), 'ml-material-code-'))
+const databaseUrl = `file:${join(verifyRoot, 'verify.db')}`
+execFileSync(join(root, 'node_modules', '.bin', 'prisma'), ['migrate', 'deploy'], {
+  cwd: root, env: { ...process.env, DATABASE_URL: databaseUrl, RUST_LOG: 'info' }, stdio: 'pipe',
+})
+process.env.DATABASE_URL = databaseUrl
 
 async function main() {
+  const [{ prisma }, { applyMaterialCodeNormalization, buildMaterialCodeNormalizationPreview, normalizeMaterialCode }] = await Promise.all([
+    import('../lib/prisma'),
+    import('../modules/operations-tools/server/material-code-normalization-service'),
+  ])
   assert.equal(normalizeMaterialCode(' p12- 34 a '), 'P12-34A')
   assert.equal(normalizeMaterialCode('\tp12\n34\r'), 'P1234')
   assert.equal(normalizeMaterialCode('Ｐ１２-a'), 'Ｐ１２-A')
@@ -81,12 +89,12 @@ async function main() {
   assert.equal(await prisma.product.count({ where: { sku: { in: [beforeSku, afterSku] } } }), 0)
 
   console.log('物料编码规范化验证通过：删除全部空白、统一大写、冲突拦截、关联产品编码同步和事务回滚均符合预期。')
+  await prisma.$disconnect()
+  rmSync(verifyRoot, { recursive: true, force: true })
 }
 
-main().catch(async (error) => {
+main().catch((error) => {
   console.error(error)
-  await prisma.$disconnect()
+  rmSync(verifyRoot, { recursive: true, force: true })
   process.exit(1)
-}).finally(async () => {
-  await prisma.$disconnect()
 })

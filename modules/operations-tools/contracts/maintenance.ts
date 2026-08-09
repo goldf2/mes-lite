@@ -1,4 +1,27 @@
+import { z } from 'zod'
+
 export type ArchiveModel = 'material' | 'supplier' | 'customer' | 'materialIn' | 'workInstruction' | 'order' | 'dispatch' | 'shipment' | 'return'
+
+export const archiveModelSchema = z.enum(['material', 'supplier', 'customer', 'materialIn', 'workInstruction', 'order', 'dispatch', 'shipment', 'return'])
+
+export const purgeArchivedRecordSchema = z.object({
+  model: archiveModelSchema,
+  id: z.string().min(1),
+  confirmation: z.literal('永久删除'),
+})
+
+export const dataIntegrityActionSchema = z.object({
+  issueId: z.string().min(1),
+  action: z.enum([
+    'SYNC_BOM_ITEM_UNIT', 'DELETE_BOM_ITEM', 'DELETE_ORPHAN_STOCK',
+    'SYNC_BOM_OUTPUT_UNIT', 'SYNC_PRODUCT_UNIT', 'CLEAR_STALE_BOM_ITEM_REF',
+  ]),
+  confirmation: z.string().optional(),
+})
+
+export const executeMaterialCodeNormalizationSchema = z.object({
+  confirmation: z.literal('NORMALIZE_MATERIAL_CODES'),
+})
 
 export interface RawArchivedRecord {
   id: string

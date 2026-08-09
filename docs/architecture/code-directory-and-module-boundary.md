@@ -796,3 +796,10 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `cost-objects`、`sawing-cost-scenarios` 与三条 `costs` Route Handler 不再持有 Prisma 查询、写入或事务；5 条路由合计均不超过 60 行，只保留权限、Schema、领域服务、审计和 HTTP 响应。
 - 锯切方案、分项成本和 BOM 可引用成本对象继续在同一数据库事务中创建；BOM 成本对象首版成本也由命令服务一次写入，页面仍通过原有领域 client 调用，不改变入口和交互。
 - 直接访问 Prisma 的 Route Handler 从 26 条降至 21 条；`verify:cost-domain-services` 使用运行后删除的临时完整 SQLite 覆盖成本对象首版、锯切事务、已有物料校验及生产成本列表/统计，不连接本机测试库或服务器正式库。
+
+## 66. 扫码、标签与系统维护能力归属
+
+- 扫码会话、事件、撤销、完成及标签打印任务的 Schema、编号/分类纯规则、查询和幂等事务统一归 `modules/operations-tools`；4 条 API 合计 120 行且不再直接访问 Prisma。
+- 归档列表、永久删除、恢复、审计查询、数据一致性修复和物料编码规范化也归运维工具领域；原 `lib/archived-record-purge.ts`、`data-integrity.ts`、`material-code-normalization.ts`、`scanning.ts` 与 `soft-delete.ts` 已迁移，不保留扁平兼容副本。
+- 归档/维护及物料归档相关 6 条 Route Handler 仅保留权限、Schema、领域服务、请求级审计和 HTTP 映射；直接访问 Prisma 的 Route Handler 从 21 条降至 12 条。
+- `verify:scan-print` 使用运行后删除的临时 SQLite 覆盖会话/事件/打印任务幂等、撤销和完成状态；归档删除与编码规范化验证也改用临时 SQLite，所有验证均不连接本机测试库或服务器正式库。
