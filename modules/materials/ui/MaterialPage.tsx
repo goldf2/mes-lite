@@ -2,16 +2,13 @@
 
 import { ReactNode, useCallback, useState, useEffect, useMemo, useRef } from 'react'
 import { getMultiSelectQuery } from '@/app/components/StatusCheckboxFilter'
-import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import TopBarPortal from '@/app/components/TopBarPortal'
-import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
+import { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import MaterialPanoramaPage from './MaterialPanoramaPage'
-import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import AppButton from '@/app/components/AppButton'
 import { useBomPagePreferences } from '@/app/components/bomPagePreferences'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
-import { ResourceAdvancedSearch } from '@/app/components/resource'
 import {
   filterByResourceSearch,
   type ResourceAdvancedSearchField,
@@ -47,6 +44,8 @@ import MaterialImportDialog from './MaterialImportDialog'
 import MaterialPageOptions from './MaterialPageOptions'
 import MaterialPagination from './MaterialPagination'
 import MaterialTableView from './MaterialTableView'
+import MaterialBomWorkspace from './MaterialBomWorkspace'
+import MaterialWorkspaceToolbar from './MaterialWorkspaceToolbar'
 import useMaterialViewPreferences from './useMaterialViewPreferences'
 import {
   materialCategoryFilterOptions,
@@ -496,139 +495,41 @@ export default function MaterialPage({
     setPage(1)
   }, [])
 
+  const renderToolbar = () => (
+    <MaterialWorkspaceToolbar
+      showBomWorkspace={showBomWorkspace}
+      bomKeyword={bomKeyword}
+      onBomKeywordChange={setBomKeyword}
+      bomConditions={bomSearchConditions}
+      onBomConditionsChange={setBomSearchConditions}
+      bomFields={bomAdvancedSearchFields}
+      materialKeyword={keyword}
+      onMaterialKeywordChange={setKeyword}
+      materialConditions={materialSearchConditions}
+      onMaterialConditionsChange={applyMaterialSearchConditions}
+      materialFields={materialAdvancedSearchFields}
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      onOpenPageOptions={() => setShowPageOptions(true)}
+      onNewBom={() => selectMaterialForBom('')}
+      onNewMaterial={handleAdd}
+      onImport={openImportModal}
+      onExport={handleExport}
+    />
+  )
+
   useEffect(() => {
     if (!onToolbarChange) return
-
-    if (showBomWorkspace) {
-      onToolbarChange(
-        <ResponsiveToolbarActions
-          pageKey="bomWorkspace"
-          primaryFilters={(
-            <SearchFieldWithPresets
-              storageKey="mes-lite.searchPresets.boms"
-              value={bomKeyword}
-              onChange={setBomKeyword}
-              placeholder="搜索产出、投入物料、BOM 或版本"
-              conditions={bomSearchConditions}
-              onConditionsChange={setBomSearchConditions}
-              conditionLabel={`${bomSearchConditions.length} 个 BOM 条件`}
-            />
-          )}
-          advancedSearch={<ResourceAdvancedSearch fields={bomAdvancedSearchFields} conditions={bomSearchConditions} onChange={setBomSearchConditions} />}
-          onOpenPageOptions={() => setShowPageOptions(true)}
-          actions={(
-            <AppButton variant="create" onClick={() => selectMaterialForBom('')}>新建 BOM</AppButton>
-          )}
-        />
-      )
-      return () => onToolbarChange(null)
-    }
-
-    onToolbarChange(
-      <ResponsiveToolbarActions
-        pageKey="materialManagement"
-        primaryFilters={(
-          <SearchFieldWithPresets
-            storageKey="mes-lite.searchPresets.materials"
-            value={keyword}
-            onChange={setKeyword}
-            placeholder="搜索物料名称或编码"
-            conditions={materialSearchConditions}
-            onConditionsChange={applyMaterialSearchConditions}
-            conditionLabel={`${materialSearchConditions.length} 个精确条件`}
-          />
-        )}
-        advancedSearch={<ResourceAdvancedSearch fields={materialAdvancedSearchFields} conditions={materialSearchConditions} onChange={applyMaterialSearchConditions} />}
-        viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
-        onOpenPageOptions={() => setShowPageOptions(true)}
-        actions={(
-          <>
-            <AppButton
-              variant="create"
-              onClick={handleAdd}
-            >
-              新建物料
-            </AppButton>
-            <AppButton
-              onClick={openImportModal}
-            >
-              导入
-            </AppButton>
-            <AppButton
-              onClick={handleExport}
-            >
-              导出
-            </AppButton>
-          </>
-        )}
-      />
-    )
-
+    onToolbarChange(renderToolbar())
     return () => onToolbarChange(null)
-  }, [onToolbarChange, keyword, viewMode, setViewMode, showBomWorkspace, bomKeyword, bomSearchConditions, selectMaterialForBom, materialAdvancedSearchFields, materialSearchConditions, applyMaterialSearchConditions])
+    // 工具栏由当前两种页面形态及其筛选状态驱动。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onToolbarChange, keyword, viewMode, showBomWorkspace, bomKeyword, bomSearchConditions, materialAdvancedSearchFields, materialSearchConditions])
 
   return (
     <>
       <TopBarPortal>
-        {showBomWorkspace ? (
-          <ResponsiveToolbarActions
-            pageKey="bomWorkspace"
-            primaryFilters={(
-              <SearchFieldWithPresets
-                storageKey="mes-lite.searchPresets.boms"
-                value={bomKeyword}
-                onChange={setBomKeyword}
-                placeholder="搜索产出、投入物料、BOM 或版本"
-                conditions={bomSearchConditions}
-                onConditionsChange={setBomSearchConditions}
-                conditionLabel={`${bomSearchConditions.length} 个 BOM 条件`}
-              />
-            )}
-            advancedSearch={<ResourceAdvancedSearch fields={bomAdvancedSearchFields} conditions={bomSearchConditions} onChange={setBomSearchConditions} />}
-            onOpenPageOptions={() => setShowPageOptions(true)}
-            actions={(
-              <AppButton variant="create" onClick={() => selectMaterialForBom('')}>新建 BOM</AppButton>
-            )}
-          />
-        ) : (
-          <ResponsiveToolbarActions
-          pageKey="materialManagement"
-          primaryFilters={(
-            <SearchFieldWithPresets
-              storageKey="mes-lite.searchPresets.materials"
-              value={keyword}
-              onChange={setKeyword}
-              placeholder="搜索物料名称或编码"
-              conditions={materialSearchConditions}
-              onConditionsChange={applyMaterialSearchConditions}
-              conditionLabel={`${materialSearchConditions.length} 个精确条件`}
-            />
-          )}
-          advancedSearch={<ResourceAdvancedSearch fields={materialAdvancedSearchFields} conditions={materialSearchConditions} onChange={applyMaterialSearchConditions} />}
-          viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
-          onOpenPageOptions={() => setShowPageOptions(true)}
-          actions={(
-            <>
-              <AppButton
-                variant="create"
-                onClick={handleAdd}
-              >
-                新建物料
-              </AppButton>
-              <AppButton
-                onClick={openImportModal}
-              >
-                导入
-              </AppButton>
-              <AppButton
-                onClick={handleExport}
-              >
-                导出
-              </AppButton>
-            </>
-          )}
-          />
-        )}
+        {renderToolbar()}
       </TopBarPortal>
       <MaterialPageOptions
         open={showPageOptions}
@@ -711,94 +612,15 @@ export default function MaterialPage({
         )}
 
         {showBomWorkspace && (
-        <div className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
-          <aside
-            aria-label="已有 BOM 列表"
-            className="min-w-0 rounded-lg bg-white p-3 shadow xl:sticky xl:top-0 xl:max-h-[calc(100dvh-10rem)] xl:overflow-y-auto xl:overscroll-contain"
-          >
-            <div className="mb-3 flex items-start justify-between gap-3 px-1">
-              <div className="min-w-0">
-                <h3 className="text-base font-semibold text-gray-900">BOM 列表</h3>
-                <p className="mt-0.5 text-xs text-gray-500">选择 BOM 后在右侧修改；可按产品或投入物料搜索</p>
-              </div>
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-                {existingBomRows.length}
-              </span>
-            </div>
-
-            {bomLoading ? (
-              <AppLoadingIndicator compact label="正在加载 BOM..." className="rounded-lg border border-dashed border-gray-200" />
-            ) : existingBomRows.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">
-                {bomKeyword.trim()
-                  ? '没有匹配的已有 BOM'
-                  : '暂无已有 BOM，可点击“新建 BOM”创建'}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {existingBomRows.map(({ product, bom, materialId, material }) => {
-                  const isSelected = selectedMaterialId === materialId && selectedBomId === bom.id
-                  const primaryOutput = bom.outputs.find((output) => output.isPrimary)?.material || material
-                  const inputMaterials = bom.items
-                    .filter((item) => item.itemType === 'MATERIAL' && item.material)
-                    .map((item) => item.material!)
-                  const inputSummary = inputMaterials.length > 0
-                    ? `${inputMaterials.slice(0, 2).map((item) => `${item.code} ${item.name}`).join('、')}${inputMaterials.length > 2 ? ` 等 ${inputMaterials.length} 项` : ''}`
-                    : '暂无投入物料'
-                  return (
-                    <button
-                      key={bom.id}
-                      type="button"
-                      onClick={() => selectExistingBom(materialId, bom.id)}
-                      className={`w-full rounded-lg border p-3 text-left transition ${isSelected ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-100' : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/30'}`}
-                    >
-                      <span className="flex items-start justify-between gap-2">
-                        <span className="min-w-0">
-                          <span className="block text-[11px] font-medium text-blue-600">BOM · {bom.version}</span>
-                          <span className="mt-0.5 block truncate text-sm font-semibold text-gray-900">{bom.name}</span>
-                        </span>
-                        <span className="flex shrink-0 items-center gap-1">
-                          <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${bom.purpose === 'PACKAGING' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>
-                            {bom.purpose === 'PACKAGING' ? '包装' : '生产'}
-                          </span>
-                          {bom.isDefault && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700">默认</span>}
-                          {!bom.isActive && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600">已停用</span>}
-                        </span>
-                      </span>
-                      <span className="my-2 block border-t border-gray-100" />
-                      <span className="block truncate text-xs text-gray-600">
-                        主产出：{primaryOutput?.code || product.sku} · {primaryOutput?.name || product.name}
-                      </span>
-                      <span className="mt-1 block truncate text-xs text-gray-500" title={inputSummary}>
-                        投入：{inputSummary}
-                      </span>
-                      <span className="mt-2 block text-[11px] text-gray-400">
-                        投入 {bom.items.length} 项 · 产出 {bom.outputs.length} 项
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </aside>
-
-          <div aria-label="BOM 创建与修改工作区" className="min-w-0 rounded-lg bg-white p-4 shadow sm:p-6">
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-semibold text-gray-900">创建 / 修改 BOM</h3>
-                {bomLoading && <span className="text-xs text-gray-500">同步中...</span>}
-              </div>
-              <div className="mt-1 truncate text-sm text-gray-500">
-                {selectedMaterial ? `${selectedMaterial.code} · ${selectedMaterial.name}` : '新建 BOM：分别添加每批投入和产出'}
-              </div>
-            </div>
-            {bomLoading && <span className="shrink-0 text-xs text-gray-500">同步中...</span>}
-          </div>
-
-          <BomDraftEditor controller={bomDraft} showSaveAction />
-          </div>
-        </div>
+          <MaterialBomWorkspace
+            rows={existingBomRows}
+            loading={bomLoading}
+            keyword={bomKeyword}
+            selectedMaterialId={selectedMaterialId}
+            selectedBomId={selectedBomId}
+            controller={bomDraft}
+            onSelectBom={selectExistingBom}
+          />
         )}
       </div>
 

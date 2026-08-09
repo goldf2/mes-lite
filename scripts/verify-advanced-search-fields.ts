@@ -40,7 +40,7 @@ const unifiedSearchPages = [
   'modules/bom/ui/BomOverviewPage.tsx',
   'app/components/FlowTransferPage.tsx',
   'modules/receiving/ui/MaterialInPage.tsx',
-  'modules/materials/ui/MaterialPage.tsx',
+  'modules/materials/ui/MaterialWorkspaceToolbar.tsx',
   'app/components/PermissionPage.tsx',
   'app/components/ReturnPage.tsx',
   'app/components/SalesOrderPage.tsx',

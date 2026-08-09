@@ -24,7 +24,7 @@
 | `app/components/shell/` | 9 个文件 | 已建立账号菜单、导航图标、页面宿主、渲染适配器和四类状态控制器的公共应用壳边界 |
 | `lib/page-registry.ts` | 38 个页面定义 | 页面元数据、权限资源、工作区入口、系统分区、打开方式和渲染键已集中为单一事实源 |
 | `app/components/` 根目录 | 61 个文件 | 物料、全景、BOM 全览和来料页已迁出；公共弹窗只保留一个全屏切换组件，其他领域页面、业务弹窗和系统页面仍继续按增量原则收敛 |
-| `modules/materials/ui/MaterialPage.tsx` | 887 行 | 数据契约、HTTP client、详情、编辑、导入、集合视图、页内选项、显示偏好和 BOM 草稿职责均已拆出；当前只保留物料/BOM 页面协调 |
+| `modules/materials/ui/MaterialPage.tsx` | 709 行 | 数据契约、HTTP client、详情、编辑、导入、集合视图、页内选项、显示偏好、双形态工具栏、BOM 工作区和草稿编辑均已拆出；当前只保留物料/BOM 页面协调 |
 | `SystemPage.tsx` | 31 行 | 已收敛为业务配置、系统设置、运维工具和生产工程的纯领域分派兼容层 |
 | `modules/receiving/ui/MaterialInPage.tsx` | 684 行 | 集合、编辑和详情任务已拆出；主页只协调查询、分页与任务弹窗 |
 | `modules/documents/ui/WorkInstructionPage.tsx` | 591 行 | 只保留文档读写、搜索、分页与子模块状态协调；集合、表单、详情/附件和全屏查看已分离 |
@@ -522,3 +522,11 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `StockCollectionView.tsx`、`StockDetailPanel.tsx`、`StockAdjustmentDialog.tsx` 与 `StockIntegrityAlert.tsx` 分别拥有集合、详情、调整和一致性处理任务。
 - `StockPageModule.tsx` 从 853 行降至 304 行，只保留筛选与 URL 状态、任务协调、自动补齐编排和选择态；库存页退出 800 行巨型页面基线。
 - `verify:inventory-module` 锁定 350 行协调层上限、无直接 HTTP、四个稳定任务和领域 client/model 边界；系统当前只剩 1 个超过 800 行的页面。
+
+## 31. 物料双形态页面任务拆分
+
+- `MaterialWorkspaceToolbar.tsx` 统一装配物料管理与 BOM 工作区的公共搜索、高级搜索、视图、页内选项和动作槽；门户工具栏与外部工具栏回调不再复制两套结构。
+- `MaterialBomWorkspace.tsx` 拥有已有 BOM 列表、选中态、投入/产出摘要和右侧草稿编辑器装配，仍通过 `BomDraftController` 接收状态与动作。
+- `MaterialPage.tsx` 从 887 行降至 709 行，保留物料查询、BOM 数据协调、URL/偏好、快速 BOM 和领域弹窗编排，退出巨型页面基线。
+- `verify:material-bom-modules` 将主页面上限收紧到 750 行，并锁定两个纯展示任务不得访问 HTTP 或承载草稿状态。
+- 模块边界统计当前为 0 个超过 800 行的页面；后续优化以职责与调用方为依据，不再为了行数机械切割。
