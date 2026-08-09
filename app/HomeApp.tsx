@@ -11,8 +11,8 @@ import AiAssistantMark from './components/AiAssistantMark'
 import {
   businessNavGroups,
   lightweightHiddenResources,
+  primaryNavigationItems,
   readPageContinuity,
-  systemSectionByTab,
   workspaceFunctionCatalog,
   writePageContinuity,
   type BusinessNavGroupKey,
@@ -87,42 +87,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const canUpdate = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canUpdate)
   const canDelete = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canDelete)
   const { config: workspaceNavigationConfig, activeWorkspace, setActiveWorkspace } = useWorkspaceNavigation()
-  const baseNavItems: { key: TabType; label: string; resource: string }[] = [
-    { key: 'dashboard', label: '仪表盘', resource: 'dashboard' },
-    { key: 'materials', label: '物料与 BOM', resource: 'materials' },
-    { key: 'workInstructions', label: '产品文档', resource: 'workInstructions' },
-    { key: 'equipment', label: '设备台账', resource: 'equipment' },
-    { key: 'materialIn', label: '来料管理', resource: 'materialIn' },
-    { key: 'orders', label: '生产订单', resource: 'orders' },
-    { key: 'dispatch', label: '派工管理', resource: 'dispatch' },
-    { key: 'salesOrders', label: '销售订单', resource: 'salesOrder' },
-    { key: 'shipment', label: '发货管理', resource: 'shipment' },
-    { key: 'return', label: '退货管理', resource: 'return' },
-    { key: 'stocks', label: '库存管理', resource: 'stocks' },
-    { key: 'flowTransfers', label: '流程转移', resource: 'stats' },
-    { key: 'suppliers', label: '供应商资料', resource: 'system' },
-    { key: 'customers', label: '客户资料', resource: 'system' },
-    { key: 'employees', label: '员工资料', resource: 'system' },
-    { key: 'locationSettings', label: '库位配置', resource: 'system' },
-    { key: 'unitSettings', label: '单位配置', resource: 'system' },
-    { key: 'documentCategories', label: '文档类别', resource: 'workInstructions' },
-    { key: 'workCenters', label: '工作中心', resource: 'system' },
-    { key: 'processTemplates', label: '加工工艺', resource: 'system' },
-    { key: 'processRoutes', label: '物料路线', resource: 'system' },
-    { key: 'sawingCost', label: '锯切成本', resource: 'sawingCost' },
-    { key: 'scanPrint', label: '硬件工具', resource: 'scanPrint' },
-    { key: 'archive', label: '归档记录', resource: 'system' },
-    { key: 'auditLogs', label: '操作记录', resource: 'system' },
-    { key: 'dataTools', label: '数据工具', resource: 'system' },
-    { key: 'businessSettings', label: '企业与业务规则', resource: 'system' },
-    { key: 'displaySettings', label: '显示设置', resource: 'system' },
-    { key: 'navigationSettings', label: '导航与工作区', resource: 'system' },
-    { key: 'aiSettings', label: 'AI 服务', resource: 'system' },
-    { key: 'allFunctions', label: '所有功能', resource: 'dashboard' },
-    { key: 'operators', label: '人员管理', resource: 'operators' },
-    { key: 'permissionUsers', label: '人员权限', resource: 'permissionUsers' },
-    { key: 'permissionGroups', label: '组权限', resource: 'permissionGroups' },
-  ]
+  const baseNavItems = primaryNavigationItems
   const hiddenResources = lightweightHiddenResources
   const accountMenuKeys = new Set<TabType>(['operators', 'permissionUsers', 'permissionGroups'])
   const canReadNavItem = (item: { key: TabType; resource: string }) => (
@@ -242,7 +207,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const activeTabLabel = tab === 'materials'
     ? materialSectionItems.find((item) => item.key === materialSection)?.label || '物料与 BOM'
     : tabLabels[tab] || 'MES-lite'
-  const activeSystemSection = systemSectionByTab[tab]
   const activePageModule = getPageModuleDefinition(resolvePageModuleKey(tab, materialSection))
   const activeFunctionKey: WorkspaceFunctionKey = tab === 'materials'
     ? materialSection === 'bomWorkspace' ? 'bomWorkspace' : materialSection === 'bomUsage' ? 'bomUsage' : 'materialManagement'
@@ -1137,7 +1101,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               />
             </div>
             <TopBarPortal>
-                {['dashboard', 'sawingCost', 'scanPrint', 'dataTools'].includes(activePageModule.key) ? (
+                {activePageModule.shellToolbarActions ? (
                   <ResponsiveToolbarActions pageKey={activePageModule.key} />
                 ) : null}
             </TopBarPortal>
@@ -1153,13 +1117,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           <WorkspacePageHost
             definition={activePageModule}
             tab={tab}
-            materialSection={materialSection}
             message={message}
             operator={operator}
             workspaceItems={workspaceFunctionItems}
             workspacePreference={workspacePreference}
             bomEditorTarget={bomEditorTarget}
-            activeSystemSection={activeSystemSection}
             canRead={canRead}
             canCreate={canCreate}
             canUpdate={canUpdate}

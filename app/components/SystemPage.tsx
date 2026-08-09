@@ -31,6 +31,7 @@ import {
   type ResourceSearchProfile,
 } from '@/lib/resource-search'
 import ConfigurationSectionPage, { isReferenceConfigurationSection } from '@/modules/configuration'
+import type { RegisteredSystemSection } from '@/lib/page-registry'
 
 interface AuditLog {
   id: string
@@ -202,7 +203,7 @@ function routeStepCostPerThousand(step: ProcessRoute['steps'][number] | ProcessS
   return { laborHours, machineHours, cost }
 }
 
-export type SystemSection = 'suppliers' | 'customers' | 'processTemplates' | 'process' | 'recycle' | 'audit' | 'dataTools' | 'units' | 'locations' | 'workCenters' | 'businessSettings' | 'displaySettings' | 'navigationSettings' | 'aiSettings'
+export type SystemSection = RegisteredSystemSection
 
 const systemSectionOrderConfig: Partial<Record<SystemSection, {
   entity: 'processTemplates' | 'processRoutes'
