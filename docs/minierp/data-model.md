@@ -334,6 +334,8 @@ SKU，实际库存单位。
 
 轻量版允许独立创建 `Shipment`，也允许显式关联一条销售订单明细；同一销售订单可关联多张发货单。关联时甲方来自订单客户，独立发货时由用户选择客户；乙方企业资料存放在 `SystemSetting` 的 `company.*` 键中并用于 PDF。销售订单页面不直接派生发货单。
 
+销售订单、发货与退货的读取、创建、状态流转和归档由 `modules/sales/server` 统一拥有。关联待发货数量从有效 `PENDING` 发货单汇总，确认发货才累计 `shipped_qty` 并原子扣减总库存、库位余额与成本；关联退货处理按原发货 `shippedValuationQty / shippedCostAmount` 比例恢复库存，库存流水幂等键阻止重复过账。
+
 ### inventory_balances
 
 库存余额。

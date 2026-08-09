@@ -1,4 +1,6 @@
-import { Prisma } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
+import { SalesDomainError } from '../domain/sales-errors'
+import { salesOrderFulfillmentStatus } from '../domain/sales-order-status'
 
 export async function getSalesOrderItemRemainingQty(
   tx: Prisma.TransactionClient,
@@ -9,25 +11,16 @@ export async function getSalesOrderItemRemainingQty(
     include: {
       material: {
         select: {
-          id: true,
-          code: true,
-          name: true,
-          spec: true,
-          category: true,
-          stockUnit: true,
-          unit: true,
-          deletedAt: true,
+          id: true, code: true, name: true, spec: true, category: true,
+          stockUnit: true, unit: true, deletedAt: true,
         },
       },
       salesOrder: {
-        include: {
-          customer: { select: { id: true, name: true, phone: true, address: true, deletedAt: true } },
-        },
+        include: { customer: { select: { id: true, name: true, phone: true, address: true, deletedAt: true } } },
       },
     },
   })
-  if (!item) throw new Error('销售订单明细不存在')
-
+  if (!item) throw new SalesDomainError('销售订单明细不存在', 404)
   const pending = await tx.shipment.aggregate({
     where: { salesOrderItemId, status: 'PENDING', deletedAt: null },
     _sum: { qty: true },
@@ -37,20 +30,13 @@ export async function getSalesOrderItemRemainingQty(
   return { item, pendingQty, remainingQty }
 }
 
-export async function refreshSalesOrderStatus(
-  tx: Prisma.TransactionClient,
-  salesOrderId: string,
-) {
+export async function refreshSalesOrderStatus(tx: Prisma.TransactionClient, salesOrderId: string) {
   const order = await tx.salesOrder.findUnique({
     where: { id: salesOrderId },
     include: { items: { select: { qty: true, shippedQty: true } } },
   })
   if (!order || order.status === 'CANCELLED') return order
-
-  const shippedQty = order.items.reduce((sum, item) => sum + Number(item.shippedQty), 0)
-  const completed = order.items.length > 0
-    && order.items.every((item) => Number(item.shippedQty) >= Number(item.qty) - 0.000001)
-  const status = completed ? 'COMPLETED' : shippedQty > 0 ? 'PARTIAL' : 'CONFIRMED'
+  const status = salesOrderFulfillmentStatus(order.items)
   if (status === order.status) return order
   return tx.salesOrder.update({ where: { id: salesOrderId }, data: { status } })
 }
