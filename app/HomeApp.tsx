@@ -38,7 +38,6 @@ import DesktopNavigation, {
 import DesktopTopNavigation from './components/navigation/DesktopTopNavigation'
 import MobileSiblingNavigation from './components/navigation/MobileSiblingNavigation'
 import type { NavigationGroup, NavigationItem } from './components/navigation/NavigationModel'
-import UnifiedNavigationMenu from './components/navigation/UnifiedNavigationMenu'
 import WorkspaceDomainTabs from './components/navigation/WorkspaceDomainTabs'
 import useWorkspaceNavigation from './components/navigation/useWorkspaceNavigation'
 import PageQrCodeButton from './components/PageQrCodeButton'
@@ -816,29 +815,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setDraggedIndex(null)
   }
 
-  const moveNavItem = (key: TabType, direction: -1 | 1) => {
-    setNavItems((current) => {
-      const index = current.findIndex((item) => item.key === key)
-      const nextIndex = index + direction
-      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current
-      const next = [...current]
-      const [item] = next.splice(index, 1)
-      next.splice(nextIndex, 0, item)
-      return next
-    })
-  }
-
-  const setMobileFavorite = (key: TabType) => {
-    setNavItems((current) => {
-      const index = current.findIndex((item) => item.key === key)
-      if (index < 0 || index < 4) return current
-      const next = [...current]
-      const [item] = next.splice(index, 1)
-      next.splice(Math.min(3, next.length), 0, item)
-      return next
-    })
-  }
-
   const showMessage = useCallback((msg: string) => {
     setMessage(msg)
     setTimeout(() => setMessage(''), 5000)
@@ -1492,71 +1468,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 onChange={changeWorkspace}
               />
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
-              <section aria-label="底部常用入口">
-                <div className="sticky top-0 z-10 border-b border-gray-100 bg-white py-3 text-xs font-semibold text-gray-500">
-                  底部常用入口
-                </div>
-                <div>
-                  {mobilePrimaryItems.map((item, index) => (
-                    <div key={item.key} className="flex min-h-12 items-center gap-2 border-b border-gray-100 py-1">
-                      <button
-                        type="button"
-                        onClick={item.onClick}
-                        className={`flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-2 text-left text-sm font-medium ${
-                          item.active ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        <MenuIcon icon={item.key} />
-                        <span className="truncate">{item.label}</span>
-                      </button>
-                      <div className="flex shrink-0 gap-1">
-                        <button
-                          type="button"
-                          aria-label={`${item.label} 在常用入口中上移`}
-                          disabled={index === 0}
-                          onClick={() => moveNavItem(item.key, -1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-md text-sm text-gray-500 hover:bg-gray-100 disabled:opacity-25"
-                        >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={`${item.label} 在常用入口中下移`}
-                          disabled={index === baseMobileNavItems.length - 1}
-                          onClick={() => moveNavItem(item.key, 1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-md text-sm text-gray-500 hover:bg-gray-100 disabled:opacity-25"
-                        >
-                          ↓
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <UnifiedNavigationMenu
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
+              <DesktopNavigation
+                mode="accordion"
                 groups={navigationGroups}
-                groupHeaderMode="static"
-                expandedGroupIds="all"
-                ariaLabel="全部功能"
-                className="space-y-2 pt-2"
-                renderItemTrailing={(item, itemIndex, group) => {
-                  const favoriteKey = item.shortcutKey as TabType | undefined
-                  const managesFavorite = Boolean(favoriteKey) && group.items.findIndex((candidate) => candidate.shortcutKey === favoriteKey) === itemIndex
-                  const isFavorite = Boolean(favoriteKey && baseMobileNavItems.some((favorite) => favorite.key === favoriteKey))
-                  if (!managesFavorite || !favoriteKey) return null
-                  if (isFavorite) return <span className="shrink-0 px-2 py-1 text-xs font-medium text-blue-600">常用</span>
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => setMobileFavorite(favoriteKey)}
-                      className="shrink-0 rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100"
-                    >
-                      设为常用
-                    </button>
-                  )
-                }}
+                displayMode={desktopNavigationDisplayMode}
               />
             </div>
           </aside>
