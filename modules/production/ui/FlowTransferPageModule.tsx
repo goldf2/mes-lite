@@ -2,129 +2,49 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
-import AppButton from './AppButton'
-import ModalDialog, { ModalActions } from './ModalDialog'
-import ResponsiveToolbarActions from './ResponsiveToolbarActions'
-import SearchableSelect from './SearchableSelect'
-import { SearchFieldWithPresets } from './SavedSearchPresets'
-import TopBarPortal from './TopBarPortal'
-import { appTextareaClassName } from './FormField'
-import MetricCard from './MetricCard'
-import AppLoadingIndicator from './AppLoadingIndicator'
-import { MappedResourceAdvancedSearch } from './resource'
-import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
-import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
-import SortableTableHeader from './SortableTableHeader'
-import useClientTableSort from './useClientTableSort'
+import AppButton from '@/app/components/AppButton'
+import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
+import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
+import SearchableSelect from '@/app/components/SearchableSelect'
+import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
+import TopBarPortal from '@/app/components/TopBarPortal'
+import { appTextareaClassName } from '@/app/components/FormField'
+import MetricCard from '@/app/components/MetricCard'
+import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
+import { MappedResourceAdvancedSearch } from '@/app/components/resource'
+import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/app/components/BusinessDocumentPrintLink'
+import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
+import SortableTableHeader from '@/app/components/SortableTableHeader'
+import useClientTableSort from '@/app/components/useClientTableSort'
+import { confirmFlowTransfer, loadFlowTransfers, reverseFlowTransfer, saveFlowTransfer } from '../client/flow-transfer-api'
+import type {
+  FlowTransferEmployeeOption,
+  FlowTransferLocationOption,
+  FlowTransferMaterialOption,
+  FlowTransferRecord,
+} from '../contracts/flow-transfer'
+import {
+  createEmptyFlowTransferForm,
+  flowTransferLocationLabel as locationLabel,
+  flowTransferNumberText as numberText,
+  flowTransferStatusMeta as statusMeta,
+} from '../model/flow-transfer-view'
 
-interface LocationOption {
-  id: string
-  code: string
-  name: string
-  isDefault: boolean
-}
-
-interface MaterialOption {
-  id: string
-  code: string
-  name: string
-  spec?: string | null
-  category: string
-  stockUnit: string
-  unit: string
-  primaryImage?: { id: string; url: string; thumbnailUrl?: string; displayUrl?: string; originalUrl?: string; note?: string | null } | null
-  stock?: {
-    qty: number
-    availableQty: number
-    locationBalances: Array<{
-      locationId: string
-      qty: number
-      reservedQty: number
-      availableQty: number
-    }>
-  } | null
-}
-
-interface EmployeeOption {
-  id: string
-  code: string
-  name: string
-  department?: string | null
-}
-
-interface FlowTransfer {
-  id: string
-  transferNo: string
-  transferDate: string
-  quantity: number
-  unit: string
-  operator: string
-  employeeId?: string | null
-  employee?: (EmployeeOption & { isActive: boolean }) | null
-  note?: string | null
-  status: 'DRAFT' | 'CONFIRMED' | 'REVERSED'
-  confirmedAt?: string | null
-  confirmedBy?: string | null
-  reversedAt?: string | null
-  reversedBy?: string | null
-  reverseReason?: string | null
-  material: Pick<MaterialOption, 'id' | 'code' | 'name' | 'spec' | 'category' | 'stockUnit' | 'unit'>
-  sourceLocation: Pick<LocationOption, 'id' | 'code' | 'name'>
-  targetLocation: Pick<LocationOption, 'id' | 'code' | 'name'>
-}
-
-interface TransferForm {
-  transferDate: string
-  materialId: string
-  sourceLocationId: string
-  targetLocationId: string
-  quantity: number
-  employeeId: string
-  note: string
-}
-
-const today = () => {
-  const now = new Date()
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
-  return local.toISOString().slice(0, 10)
-}
-
-const emptyForm = (): TransferForm => ({
-  transferDate: today(),
-  materialId: '',
-  sourceLocationId: '',
-  targetLocationId: '',
-  quantity: 0,
-  employeeId: '',
-  note: '',
-})
-
-const statusMeta = {
-  DRAFT: { label: '草稿', className: 'bg-gray-100 text-gray-700' },
-  CONFIRMED: { label: '已确认', className: 'bg-emerald-50 text-emerald-700' },
-  REVERSED: { label: '已冲销', className: 'bg-red-50 text-red-700' },
-} as const
-
-const numberText = (value: number, digits = 3) =>
-  Number(value || 0).toFixed(digits).replace(/\.?0+$/, '')
-
-const locationLabel = (location: Pick<LocationOption, 'code' | 'name'>) => `${location.code} · ${location.name}`
-
-export default function FlowTransferPage({ onMessage }: { onMessage: (message: string) => void }) {
-  const [transfers, setTransfers] = useState<FlowTransfer[]>([])
-  const [materials, setMaterials] = useState<MaterialOption[]>([])
-  const [locations, setLocations] = useState<LocationOption[]>([])
-  const [employees, setEmployees] = useState<EmployeeOption[]>([])
+export default function FlowTransferPageModule({ onMessage }: { onMessage: (message: string) => void }) {
+  const [transfers, setTransfers] = useState<FlowTransferRecord[]>([])
+  const [materials, setMaterials] = useState<FlowTransferMaterialOption[]>([])
+  const [locations, setLocations] = useState<FlowTransferLocationOption[]>([])
+  const [employees, setEmployees] = useState<FlowTransferEmployeeOption[]>([])
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState('ALL')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.flowTransfers.viewMode', 'card')
-  const [editingTransfer, setEditingTransfer] = useState<FlowTransfer | null>(null)
-  const [form, setForm] = useState<TransferForm>(emptyForm)
-  const [confirmingTransfer, setConfirmingTransfer] = useState<FlowTransfer | null>(null)
-  const [reversingTransfer, setReversingTransfer] = useState<FlowTransfer | null>(null)
+  const [editingTransfer, setEditingTransfer] = useState<FlowTransferRecord | null>(null)
+  const [form, setForm] = useState(createEmptyFlowTransferForm)
+  const [confirmingTransfer, setConfirmingTransfer] = useState<FlowTransferRecord | null>(null)
+  const [reversingTransfer, setReversingTransfer] = useState<FlowTransferRecord | null>(null)
   const [reverseReason, setReverseReason] = useState('')
   const advancedSearchFields = useMemo(() => [{
     key: 'status',
@@ -144,15 +64,13 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
       const params = new URLSearchParams()
       if (keyword.trim()) params.set('keyword', keyword.trim())
       if (status !== 'ALL') params.set('status', status)
-      const response = await fetch(`/api/flow-transfers?${params}`)
-      const data = await response.json()
-      if (!response.ok) return onMessage(data.error || '获取流程转移记录失败')
-      setTransfers(data.data || [])
-      setMaterials(data.materials || [])
-      setLocations(data.locations || [])
-      setEmployees(data.employees || [])
-    } catch {
-      onMessage('获取流程转移记录失败')
+      const data = await loadFlowTransfers(params)
+      setTransfers(data.transfers)
+      setMaterials(data.materials)
+      setLocations(data.locations)
+      setEmployees(data.employees)
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取流程转移记录失败')
     } finally {
       setLoading(false)
     }
@@ -190,11 +108,11 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
   const openCreate = () => {
     setEditingTransfer(null)
     const defaultLocationId = locations.find((location) => location.isDefault)?.id || locations[0]?.id || ''
-    setForm({ ...emptyForm(), sourceLocationId: defaultLocationId })
+    setForm({ ...createEmptyFlowTransferForm(), sourceLocationId: defaultLocationId })
     setFormOpen(true)
   }
 
-  const openEdit = (transfer: FlowTransfer) => {
+  const openEdit = (transfer: FlowTransferRecord) => {
     setEditingTransfer(transfer)
     setForm({
       transferDate: transfer.transferDate.slice(0, 10),
@@ -218,31 +136,19 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
     const printPreview = reserveBusinessDocumentPrintWindow()
     setSaving(true)
     try {
-      const response = await fetch(
-        editingTransfer ? `/api/flow-transfers/${editingTransfer.id}` : '/api/flow-transfers',
-        {
-          method: editingTransfer ? 'PATCH' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...form, quantity: Number(form.quantity) }),
-        },
-      )
-      const data = await response.json()
-      if (!response.ok) {
-        printPreview.close()
-        return onMessage(data.error || '保存流程转移失败')
-      }
-      onMessage(data.message || '流程转移草稿已保存')
-      const pdfGenerated = await generateBusinessDocumentPdfArchives('flow-transfer', [data.data.id])
-      if (pdfGenerated) printPreview.open('flow-transfer', data.data.id)
+      const result = await saveFlowTransfer(form, editingTransfer?.id)
+      onMessage(result.message || '流程转移草稿已保存')
+      const pdfGenerated = await generateBusinessDocumentPdfArchives('flow-transfer', [result.transfer.id])
+      if (pdfGenerated) printPreview.open('flow-transfer', result.transfer.id)
       else {
         printPreview.close()
         onMessage('流程转移已保存，但 PDF 生成失败，可在列表中重新打印')
       }
       setFormOpen(false)
       await loadData()
-    } catch {
+    } catch (error) {
       printPreview.close()
-      onMessage('保存流程转移失败')
+      onMessage(error instanceof Error ? error.message : '保存流程转移失败')
     } finally {
       setSaving(false)
     }
@@ -252,18 +158,12 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
     if (!confirmingTransfer) return
     setSaving(true)
     try {
-      const response = await fetch(`/api/flow-transfers/${confirmingTransfer.id}/confirm`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      })
-      const data = await response.json()
-      if (!response.ok) return onMessage(data.error || '确认流程转移失败')
-      onMessage(data.message || '流程转移已确认')
+      const message = await confirmFlowTransfer(confirmingTransfer.id)
+      onMessage(message || '流程转移已确认')
       setConfirmingTransfer(null)
       await loadData()
-    } catch {
-      onMessage('确认流程转移失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '确认流程转移失败')
     } finally {
       setSaving(false)
     }
@@ -274,25 +174,19 @@ export default function FlowTransferPage({ onMessage }: { onMessage: (message: s
     if (!reverseReason.trim()) return onMessage('请填写冲销原因')
     setSaving(true)
     try {
-      const response = await fetch(`/api/flow-transfers/${reversingTransfer.id}/reverse`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: reverseReason.trim() }),
-      })
-      const data = await response.json()
-      if (!response.ok) return onMessage(data.error || '冲销流程转移失败')
-      onMessage(data.message || '流程转移已冲销')
+      const message = await reverseFlowTransfer(reversingTransfer.id, reverseReason.trim())
+      onMessage(message || '流程转移已冲销')
       setReversingTransfer(null)
       setReverseReason('')
       await loadData()
-    } catch {
-      onMessage('冲销流程转移失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '冲销流程转移失败')
     } finally {
       setSaving(false)
     }
   }
 
-  const actions = (transfer: FlowTransfer) => (
+  const actions = (transfer: FlowTransferRecord) => (
     <div className="flex flex-wrap justify-end gap-2">
       <BusinessDocumentPrintLink kind="flow-transfer" id={transfer.id} />
       {transfer.status === 'DRAFT' && (
@@ -558,8 +452,8 @@ function LocationMaterialCard({
   large = false,
 }: {
   label: string
-  material: Pick<MaterialOption, 'code' | 'name' | 'spec'> & { primaryImage?: MaterialOption['primaryImage'] }
-  location: Pick<LocationOption, 'code' | 'name'> | null
+  material: Pick<FlowTransferMaterialOption, 'code' | 'name' | 'spec'> & { primaryImage?: FlowTransferMaterialOption['primaryImage'] }
+  location: Pick<FlowTransferLocationOption, 'code' | 'name'> | null
   detail?: string
   large?: boolean
 }) {

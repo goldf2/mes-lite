@@ -1,9 +1,24 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PrismaClient } from '@prisma/client'
+
+const sourceRoot = process.cwd()
+const requiredModuleFiles = [
+  'modules/production/client/flow-transfer-api.ts',
+  'modules/production/contracts/flow-transfer.ts',
+  'modules/production/model/flow-transfer-view.ts',
+  'modules/production/ui/FlowTransferPageModule.tsx',
+]
+for (const path of requiredModuleFiles) assert.ok(existsSync(join(sourceRoot, path)), `生产领域缺少流程转移模块文件：${path}`)
+const pageSource = readFileSync(join(sourceRoot, 'modules/production/ui/FlowTransferPageModule.tsx'), 'utf8')
+const registrySource = readFileSync(join(sourceRoot, 'app/components/shell/WorkspacePageRendererRegistry.tsx'), 'utf8')
+assert.ok(pageSource.split('\n').length <= 520, '流程转移协调页应保持在 520 行内')
+assert.doesNotMatch(pageSource, /\bfetch\(/, '流程转移页不得直接调用 fetch')
+assert.match(pageSource, /loadFlowTransfers\(/, '流程转移页必须通过生产领域 client 读取数据')
+assert.match(registrySource, /FlowTransferPageModule/, '流程转移页必须通过生产模块公开入口加载')
 
 const verifyRoot = mkdtempSync(join(tmpdir(), 'ml-flow-transfer-'))
 const databaseUrl = `file:${join(verifyRoot, 'verify.db')}`

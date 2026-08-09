@@ -46,7 +46,7 @@ const creationSources = [
   'modules/sales/ui/SalesOrderPageModule.tsx',
   'modules/sales/ui/ShipmentPageModule.tsx',
   'modules/sales/ui/ReturnPageModule.tsx',
-  'app/components/FlowTransferPage.tsx',
+  'modules/production/ui/FlowTransferPageModule.tsx',
   'modules/production/ui/DispatchPageModule.tsx',
   'app/page.tsx',
 ].map((file) => readFileSync(path.join(root, file), 'utf8')).join('\n')

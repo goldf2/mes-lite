@@ -23,7 +23,7 @@
 | `app/HomeApp.tsx` | 522 行 | 权限菜单、工作区过滤、页面连续性、偏好和桌面导航状态均已提取；当前只承担应用壳 JSX 装配与少量全局弹层状态 |
 | `app/components/shell/` | 9 个文件 | 已建立账号菜单、导航图标、页面宿主、渲染适配器和四类状态控制器的公共应用壳边界 |
 | `lib/page-registry.ts` | 38 个页面定义 | 页面元数据、权限资源、工作区入口、系统分区、打开方式和渲染键已集中为单一事实源 |
-| `app/components/` 根目录 | 52 个文件 | 物料、全景、BOM 全览/成本、来料、派工、人员、权限、销售订单、发货和退货页已迁出；公共弹窗只保留一个全屏切换组件，其他领域页面、业务弹窗和系统页面仍继续按增量原则收敛 |
+| `app/components/` 根目录 | 51 个文件 | 物料、全景、BOM 全览/成本、来料、派工、流程转移、人员、权限、销售订单、发货和退货页已迁出；公共弹窗只保留一个全屏切换组件，其他领域页面、业务弹窗和系统页面仍继续按增量原则收敛 |
 | `modules/materials/ui/MaterialPage.tsx` | 709 行 | 数据契约、HTTP client、详情、编辑、导入、集合视图、页内选项、显示偏好、双形态工具栏、BOM 工作区和草稿编辑均已拆出；当前只保留物料/BOM 页面协调 |
 | `SystemPage.tsx` | 31 行 | 已收敛为业务配置、系统设置、运维工具和生产工程的纯领域分派兼容层 |
 | `modules/receiving/ui/MaterialInPage.tsx` | 684 行 | 集合、编辑和详情任务已拆出；主页只协调查询、分页与任务弹窗 |
@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 160 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限和销售 12 个模块；生产工程与派工、物料、BOM、文档、来料、库存、身份权限与销售履约已形成垂直分层 |
+| `modules/` | 164 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限和销售 12 个模块；生产工程与派工/流程转移、物料、BOM、文档、来料、库存、身份权限与销售履约已形成垂直分层 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -612,3 +612,11 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `ui/ShipmentPageModule.tsx`、`ShipmentCreateDialog.tsx` 和 `ReturnPageModule.tsx` 从根组件迁入销售领域；页面与弹窗不再直接调用 `fetch`。
 - 页面注册表只通过 `modules/sales/index.ts` 加载销售订单、发货和退货，宽窄屏与弹窗继续复用相同注册入口。
 - `verify:sales-module` 扩展为销售履约边界守卫；根级存量领域页从 8 个降至 6 个。
+
+## 42. 流程转移前端归属
+
+- `contracts/flow-transfer.ts` 集中转移单、表单、物料、库位、员工和状态契约。
+- `client/flow-transfer-api.ts` 统一列表及候选项、草稿保存、确认和冲销 HTTP 调用；`model/flow-transfer-view.ts` 承接空表单、状态展示和格式化纯规则。
+- `ui/FlowTransferPageModule.tsx` 从根组件迁入生产领域，从 591 行降至 485 行且不再直接调用 `fetch`。
+- 页面注册表只通过 `modules/production/index.ts` 加载流程转移；`verify:flow-transfer` 同时锁定模块边界和同物料、同数量、跨库位、总库存/总成本不变及冲销原子性。
+- 根级存量页面从 6 个降至 5 个，其中 `SystemPage` 是刻意保留的 31 行兼容分派层。
