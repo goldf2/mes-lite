@@ -35,7 +35,7 @@ assert.match(shellSource, /translate-x/, '自动隐藏左栏必须使用不推�
 assert.match(shellSource, /固定导航|自动隐藏导航/, '左栏必须提供常驻与自动隐藏的显式切换')
 assert.match(shellSource, /切换到画布工作布局|切换到标准管理布局/, '全局应用壳必须提供工作区形态切换按钮')
 
-assert.match(topNavigationSource, /groups:\s*DesktopNavigationGroup\[\]/, '顶部导航必须复用公共导航分组类型')
+assert.match(topNavigationSource, /groups:\s*NavigationGroup\[\]/, '顶部导航必须复用公共导航分组类型')
 assert.match(topNavigationSource, /更多/, '顶部导航宽度不足时必须提供单行溢出菜单')
 assert.doesNotMatch(topNavigationSource, /flex-wrap/, '画布工作的顶部导航不得换行')
 assert.doesNotMatch(topNavigationSource, /ChevronDown|group\.icon/, '画布工作的顶部一级导航必须使用紧凑纯文字按钮，不显示文字图标或箭头')

@@ -2,16 +2,12 @@
 
 // 应用壳实现；业务垂直切片通过 modules/<domain> 的公开入口挂载。
 
-import dynamic from 'next/dynamic'
-import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, type RefObject } from 'react'
-import { createPortal } from 'react-dom'
+import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from 'react'
 import { Boxes, Menu, PanelLeftOpen, PanelRightOpen, PencilLine, Pin, PinOff, Search, X } from 'lucide-react'
-import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
+import AuthGate, { CurrentOperator } from './components/AuthGate'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
 import { InterfacePreferenceSync, preferenceChangeEvent, readDesktopNavigationPreference, useSiblingNavigationPreference, useWorkspaceLayoutPreference } from './components/interfacePreferences'
 import AiAssistantMark from './components/AiAssistantMark'
-import AppLoadingIndicator from './components/AppLoadingIndicator'
-import { AllFunctionsPage } from './components/WorkspacePages'
 import {
   businessNavGroups,
   lightweightHiddenResources,
@@ -29,7 +25,6 @@ import {
 } from '@/lib/workspace'
 import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/workspace'
 import { getPageModuleDefinition, resolvePageModuleKey } from '@/lib/page-modules'
-import PageModuleBoundary from './components/page-modules/PageModuleBoundary'
 import TopBarPortal from './components/TopBarPortal'
 import DesktopNavigation, {
   type DesktopNavigationDisplayMode,
@@ -47,99 +42,16 @@ import {
   workspaceFunctionLabel,
   type NavigationWorkspaceId,
 } from '@/lib/workspace-navigation-config'
+import dynamic from 'next/dynamic'
+import {
+  AccountMenu,
+  NavigationGlyph,
+  WorkspacePageHost,
+  compactNavigationLabel,
+  type BomEditorTarget,
+} from './components/shell'
 
-function FeaturePageLoading() {
-  return <AppLoadingIndicator label="正在加载页面..." />
-}
-
-const MaterialInPage = dynamic(() => import('./components/MaterialInPage'), { loading: FeaturePageLoading })
-const DispatchPage = dynamic(() => import('./components/DispatchPage'), { loading: FeaturePageLoading })
-const SalesOrderPage = dynamic(() => import('./components/SalesOrderPage'), { loading: FeaturePageLoading })
-const ShipmentPage = dynamic(() => import('./components/ShipmentPage'), { loading: FeaturePageLoading })
-const ReturnPage = dynamic(() => import('./components/ReturnPage'), { loading: FeaturePageLoading })
-const FlowTransferPage = dynamic(() => import('./components/FlowTransferPage'), { loading: FeaturePageLoading })
-const EmployeePage = dynamic(() => import('./components/EmployeePage'), { loading: FeaturePageLoading })
-const SawingCostCalculatorPage = dynamic(() => import('./components/SawingCostCalculatorPage'), { loading: FeaturePageLoading })
-const ScanPrintPage = dynamic(() => import('./components/ScanPrintPage'), { loading: FeaturePageLoading })
-const BomOverviewPage = dynamic(() => import('./components/BomOverviewPage'), { loading: FeaturePageLoading })
-const MaterialPage = dynamic(() => import('./components/MaterialPage'), { loading: FeaturePageLoading })
-const WorkInstructionPage = dynamic(() => import('./components/WorkInstructionPage'), { loading: FeaturePageLoading })
-const DocumentCategorySettingsPage = dynamic(() => import('@/modules/configuration').then((module) => module.DocumentCategorySettingsPage), { loading: FeaturePageLoading })
-const EquipmentPage = dynamic(() => import('./components/EquipmentPage'), { loading: FeaturePageLoading })
-const OperatorPage = dynamic(() => import('./components/OperatorPage'), { loading: FeaturePageLoading })
-const SystemPage = dynamic(() => import('./components/SystemPage'), { loading: FeaturePageLoading })
-const PermissionPage = dynamic(() => import('./components/PermissionPage'), { loading: FeaturePageLoading })
 const AiAssistantPanel = dynamic(() => import('./components/AiAssistantPanel'))
-const DashboardPage = dynamic(() => import('@/modules/workspace'), { loading: FeaturePageLoading })
-const ProductionOrderModule = dynamic(() => import('@/modules/production'), { loading: FeaturePageLoading })
-const StockPageModule = dynamic(() => import('@/modules/inventory'), { loading: FeaturePageLoading })
-
-// ==================== 类型定义 ====================
-
-interface BomEditorTarget {
-  materialId: string
-  bomId?: string
-  requestId: number
-}
-
-// ==================== 菜单图标组件 ====================
-
-function MenuIcon({ icon }: { icon: string }) {
-  const icons: Record<string, string> = {
-    dashboard: '仪',
-    allFunctions: '全',
-    orders: '工',
-    materials: '料',
-    workInstructions: '书',
-    equipment: '机',
-    materialIn: '入',
-    dispatch: '派',
-    stocks: '库',
-    salesOrders: '销',
-    shipment: '发',
-    return: '退',
-    stats: '报',
-    flowTransfers: '转',
-    sawingCost: '锯',
-    scanPrint: '扫',
-    suppliers: '供',
-    customers: '客',
-    employees: '员',
-    processTemplates: '艺',
-    processRoutes: '线',
-    archive: '档',
-    auditLogs: '记',
-    dataTools: '数',
-    unitSettings: '单',
-    documentCategories: '类',
-    locationSettings: '位',
-    workCenters: '中',
-    businessSettings: '业',
-    displaySettings: '显',
-    navigationSettings: '导',
-    aiSettings: '智',
-    operators: '人',
-    permissionUsers: '权',
-    permissionGroups: '组',
-    permissions: '限',
-  }
-  return (
-    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-slate-100 text-xs font-semibold text-slate-700">
-      {icons[icon] || '单'}
-    </span>
-  )
-}
-
-function compactNavLabel(label: string) {
-  return label
-    .replace('管理', '')
-    .replace('统计分析', '统计')
-    .replace('仪表盘', '仪表')
-}
-
-function displayMaterialCode(code?: string | null) {
-  return code?.startsWith('MAT-') ? code.slice(4) : code || ''
-}
 
 // ==================== 状态映射 ====================
 
@@ -154,64 +66,6 @@ const maxDesktopSidebarWidth = 320
 const defaultDesktopSplitSidebarWidth = 296
 const minDesktopSplitSidebarWidth = 264
 const maxDesktopSplitSidebarWidth = 384
-
-function SystemMenu({
-  containerRef,
-  operator,
-  open,
-  onToggle,
-  onLogout,
-  compact = false,
-}: {
-  containerRef: RefObject<HTMLDivElement>
-  operator: CurrentOperator
-  open: boolean
-  onToggle: () => void
-  onLogout: () => void
-  compact?: boolean
-}) {
-  return (
-    <div ref={containerRef} className={compact ? 'static shrink-0' : 'relative shrink-0'}>
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={onToggle}
-        className={`flex items-center rounded-lg border border-gray-200 bg-white font-medium text-gray-700 hover:bg-gray-50 ${
-          compact ? 'gap-1 px-2 py-1.5 text-xs' : 'gap-2 px-3 py-2 text-sm'
-        }`}
-      >
-        <span className={compact ? '' : 'max-w-32 truncate'}>{compact ? '我' : operator.name}</span>
-        <span aria-hidden="true" className="text-gray-400">▾</span>
-      </button>
-      {open && (
-        <div
-          role="menu"
-          className={`absolute top-full z-50 mt-2 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white shadow-lg ${
-            compact
-              ? 'inset-x-3 sm:left-auto sm:right-4 sm:w-64'
-              : 'right-0 w-64'
-          }`}
-        >
-          <div className="border-b border-gray-100 px-4 py-3">
-            <OperatorBadge operator={operator} />
-            <div className="mt-1 text-xs font-medium text-gray-400">MES-lite v{appVersion}</div>
-          </div>
-          <div className="p-2">
-            <button
-              type="button"
-              role="menuitem"
-              onClick={onLogout}
-              className="flex w-full items-center justify-center rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-            >
-              退出登录
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ==================== 主组件 ====================
 
@@ -231,6 +85,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     ((resource === 'permissionUsers' || resource === 'permissionGroups') && hasAnyGrant)
   const canCreate = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canCreate)
   const canUpdate = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canUpdate)
+  const canDelete = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canDelete)
   const { config: workspaceNavigationConfig, activeWorkspace, setActiveWorkspace } = useWorkspaceNavigation()
   const baseNavItems: { key: TabType; label: string; resource: string }[] = [
     { key: 'dashboard', label: '仪表盘', resource: 'dashboard' },
@@ -953,7 +808,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             id: item.key,
             label: item.label,
             active: tab === item.key || (item.key === 'orders' && (tab === 'create' || tab === 'detail')),
-            icon: <MenuIcon icon={item.key} />,
+            icon: <NavigationGlyph icon={item.key} />,
             shortcutKey: item.key,
             draggable: true,
             dragState: draggedIndex === index ? 'dragging' as const : dragOverIndex === index ? 'target' as const : 'idle' as const,
@@ -968,7 +823,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     return {
       id: group.key,
       label: group.label,
-      icon: <MenuIcon icon={firstItem?.key || group.key} />,
+      icon: <NavigationGlyph icon={firstItem?.key || group.key} />,
       active: groupActive,
       items,
       onClick: () => {
@@ -981,13 +836,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     navigationGroups.push({
       id: 'account',
       label: '账号与权限',
-      icon: <MenuIcon icon="operators" />,
+      icon: <NavigationGlyph icon="operators" />,
       active: activeSystemTab,
       items: readableSystemNavItems.map((item) => ({
         id: item.key,
         label: item.label,
         active: tab === item.key,
-        icon: <MenuIcon icon={item.key} />,
+        icon: <NavigationGlyph icon={item.key} />,
         shortcutKey: item.key,
         onClick: () => navigateToTab(item.key),
       })),
@@ -1126,9 +981,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             triggerClassName="hidden xl:flex"
             listenForGlobalOpen
           />
-          <SystemMenu
+          <AccountMenu
             containerRef={desktopSystemMenuRef}
             operator={operator}
+            appVersion={appVersion}
             open={systemMenuOpen}
             onToggle={() => setSystemMenuOpen((open) => !open)}
             onLogout={() => {
@@ -1264,9 +1120,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               </button>
               {siblingNavigationEnabled && <MobileSiblingNavigation group={activeNavigationGroup} />}
               <div id="topbar-actions-mobile" className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible empty:hidden" />
-              <SystemMenu
+              <AccountMenu
                 containerRef={systemMenuRef}
                 operator={operator}
+                appVersion={appVersion}
                 open={systemMenuOpen}
                 onToggle={() => {
                   setSystemMenuOpen((open) => !open)
@@ -1293,148 +1150,30 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           aria-label="页面内容区"
           className="mes-page-content-scroll relative min-w-0 lg:min-h-0 lg:flex-1 lg:overflow-y-scroll lg:overscroll-contain lg:pb-6 lg:[scrollbar-gutter:stable]"
         >
-        <PageModuleBoundary
-          definition={activePageModule}
-          toolbarProvided={tab === 'orders' || tab === 'stocks' || tab === 'create' || tab === 'detail' || ['dashboard', 'sawingCost', 'scanPrint', 'dataTools'].includes(activePageModule.key)}
-        >
-        {message && (
-          createPortal(
-            <div className="pointer-events-none fixed inset-x-0 top-4 z-[100] flex justify-center px-4 sm:left-auto sm:right-4 sm:top-20 sm:w-[min(32rem,calc(100vw-2rem))] sm:px-0">
-              <div role="status" aria-live="polite" className={`w-full rounded-lg border p-4 text-sm shadow-xl ${
-                message.includes('成功') || message.includes('完成') || message.includes('补齐')
-                  ? 'border-green-200 bg-green-100 text-green-700'
-                  : 'border-red-200 bg-red-100 text-red-700'
-              }`}>
-                {message}
-              </div>
-            </div>,
-            document.body,
-          )
-        )}
-
-        {/* 仪表盘 */}
-        {tab === 'dashboard' && (
-          <DashboardPage
-            items={workspaceFunctionItems}
-            preference={workspacePreference}
-            onOpen={openWorkspaceFunction}
+          <WorkspacePageHost
+            definition={activePageModule}
+            tab={tab}
+            materialSection={materialSection}
+            message={message}
+            operator={operator}
+            workspaceItems={workspaceFunctionItems}
+            workspacePreference={workspacePreference}
+            bomEditorTarget={bomEditorTarget}
+            activeSystemSection={activeSystemSection}
+            canRead={canRead}
+            canCreate={canCreate}
+            canUpdate={canUpdate}
+            canDelete={canDelete}
+            onMessage={showMessage}
+            onOpenWorkspaceFunction={openWorkspaceFunction}
             onOpenAllFunctions={() => navigateToTab('allFunctions')}
-            onSave={saveWorkspacePreference}
+            onSaveWorkspacePreference={saveWorkspacePreference}
+            onTabChange={setTab}
+            onProductionOrderStateSummaryChange={setProductionOrderStateSummary}
+            onStockStateSummaryChange={setStockStateSummary}
+            onOpenBomEditor={openBomEditor}
+            onBomEditorTargetHandled={clearBomEditorTarget}
           />
-        )}
-
-        {/* 所有功能 */}
-        {tab === 'allFunctions' && (
-          <AllFunctionsPage
-            items={workspaceFunctionItems}
-            preference={workspacePreference}
-            onOpen={openWorkspaceFunction}
-          />
-        )}
-
-        {(tab === "orders" || tab === "create" || tab === "detail") && (
-          <ProductionOrderModule
-            mode={tab}
-            canCreate={canCreate("orders")}
-            onModeChange={setTab}
-            onMessage={showMessage}
-            onStateSummaryChange={setProductionOrderStateSummary}
-          />
-        )}
-
-        {tab === 'stocks' && (
-          <StockPageModule
-            operatorName={operator.name || operator.username}
-            canUpdateStock={canUpdate('stocks')}
-            onMessage={showMessage}
-            onStateSummaryChange={setStockStateSummary}
-          />
-        )}
-
-        {tab === 'materials' && materialSection === 'materials' && (
-          <MaterialPage
-            onMessage={showMessage}
-            showBomWorkspace={false}
-            canReadBom={canRead('bomCost')}
-            canCreateBom={canUpdate('bomCost')}
-            onOpenBomWorkspace={(materialId) => openBomEditor(materialId)}
-          />
-        )}
-        {tab === 'materials' && materialSection === 'bomWorkspace' && (
-          <MaterialPage
-            onMessage={showMessage}
-            showBomWorkspace
-            openBomRequest={bomEditorTarget}
-            onOpenBomRequestHandled={clearBomEditorTarget}
-          />
-        )}
-        {tab === 'materials' && materialSection === 'bomUsage' && (
-          <div className="min-w-0">
-            <BomOverviewPage
-              onMessage={showMessage}
-              onOpenBom={openBomEditor}
-            />
-          </div>
-        )}
-
-        {/* 产品文档 */}
-        {tab === 'workInstructions' && <WorkInstructionPage onMessage={showMessage} />}
-
-        {/* 文档类别业务配置 */}
-        {tab === 'documentCategories' && (
-          <DocumentCategorySettingsPage
-            onMessage={showMessage}
-            canUpdate={canUpdate('workInstructions')}
-            canDelete={operator.role === 'ADMIN' || Boolean(operator.permissions?.workInstructions?.canDelete)}
-          />
-        )}
-
-        {/* 设备台账 */}
-        {tab === 'equipment' && <EquipmentPage onMessage={showMessage} canCreate={canCreate('equipment')} canUpdate={canUpdate('equipment')} canDelete={operator.role === 'ADMIN' || Boolean(operator.permissions?.equipment?.canDelete)} />}
-
-        {/* 来料管理 */}
-        {tab === 'materialIn' && <MaterialInPage onMessage={showMessage} />}
-
-        {/* 派工管理 */}
-        {tab === 'dispatch' && (
-          <DispatchPage
-            onMessage={showMessage}
-          />
-        )}
-
-        {/* 销售订单 */}
-        {tab === 'salesOrders' && <SalesOrderPage onMessage={showMessage} />}
-
-        {/* 发货管理 */}
-        {tab === 'shipment' && <ShipmentPage onMessage={showMessage} />}
-
-        {/* 退货管理 */}
-        {tab === 'return' && <ReturnPage onMessage={showMessage} />}
-
-        {/* 流程转移 */}
-        {tab === 'flowTransfers' && <FlowTransferPage onMessage={showMessage} />}
-
-        {/* 员工资料 */}
-        {tab === 'employees' && <EmployeePage onMessage={showMessage} canCreate={canCreate('system')} canUpdate={canUpdate('system')} />}
-
-        {/* 锯切加工成本计算 */}
-        {tab === 'sawingCost' && <SawingCostCalculatorPage />}
-
-        {/* 扫码计数与标签打印底座 */}
-        {tab === 'scanPrint' && <ScanPrintPage onMessage={showMessage} />}
-
-        {/* 人员管理 */}
-        {tab === 'operators' && <OperatorPage currentOperator={operator} onMessage={showMessage} />}
-
-        {/* 分布在生产、物流和工具菜单中的管理页面 */}
-        {activeSystemSection && <SystemPage section={activeSystemSection} onMessage={showMessage} />}
-
-        {/* 人员权限控制 */}
-        {tab === 'permissionUsers' && <PermissionPage mode="users" onMessage={showMessage} />}
-
-        {/* 组权限控制 */}
-        {tab === 'permissionGroups' && <PermissionPage mode="groups" onMessage={showMessage} />}
-        </PageModuleBoundary>
         </div>
       </main>
 
@@ -1506,8 +1245,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 item.active ? 'bg-blue-600 text-white shadow-sm [&_span:first-child]:bg-white/15 [&_span:first-child]:text-white' : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
-              <MenuIcon icon={item.key} />
-              <span className="max-w-full truncate">{compactNavLabel(item.label)}</span>
+              <NavigationGlyph icon={item.key} />
+              <span className="max-w-full truncate">{compactNavigationLabel(item.label)}</span>
             </button>
           ))}
           {canRead('aiAssistant') && (

@@ -6,6 +6,7 @@ const root = process.cwd()
 const read = (path: string) => readFileSync(join(root, path), 'utf8')
 const systemPage = read('app/components/SystemPage.tsx')
 const homeApp = read('app/HomeApp.tsx')
+const workspacePageHost = read('app/components/shell/WorkspacePageHost.tsx')
 const moduleIndex = read('modules/configuration/index.ts')
 
 const removedManagers = [
@@ -22,7 +23,8 @@ for (const manager of removedManagers) {
 
 assert.ok(systemPage.split('\n').length < 2200, 'SystemPage 必须保持在 2200 行以内')
 assert.match(systemPage, /from '@\/modules\/configuration'/, 'SystemPage 必须通过配置模块公开入口挂载')
-assert.match(homeApp, /import\('@\/modules\/configuration'\)/, '文档类别必须通过配置模块公开入口加载')
+assert.match(homeApp, /<WorkspacePageHost\b/, '应用壳必须通过公共页面宿主加载业务页面')
+assert.match(workspacePageHost, /import\('@\/modules\/configuration'\)/, '文档类别必须通过配置模块公开入口加载')
 assert.ok(!existsSync(join(root, 'app/components/DocumentCategorySettingsPage.tsx')), '旧文档类别页面不得保留并行实现')
 assert.match(moduleIndex, /DocumentCategorySettingsPage/, '配置模块必须公开文档类别页面')
 

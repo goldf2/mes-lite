@@ -3,12 +3,9 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const source = readFileSync(resolve(process.cwd(), 'app/HomeApp.tsx'), 'utf8')
-const menuStart = source.indexOf('function SystemMenu(')
-const menuEnd = source.indexOf('// ==================== 主组件', menuStart)
+const menuSource = readFileSync(resolve(process.cwd(), 'app/components/shell/AccountMenu.tsx'), 'utf8')
 
-assert.ok(menuStart >= 0 && menuEnd > menuStart, '必须保留公共账号菜单组件')
-
-const menuSource = source.slice(menuStart, menuEnd)
+assert.match(source, /<AccountMenu\b/, '应用壳必须使用公共账号菜单组件')
 assert.doesNotMatch(menuSource, /items\.map|items:\s*Array|onNavigate/, '账号菜单不得包含人员与权限管理入口')
 assert.match(menuSource, /OperatorBadge/, '账号菜单必须显示当前账号身份')
 assert.match(menuSource, /MES-lite v\{appVersion\}/, '账号菜单必须显示当前版本')
