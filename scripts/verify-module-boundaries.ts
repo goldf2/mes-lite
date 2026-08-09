@@ -98,7 +98,6 @@ const pageSizeBaselines: Record<string, number> = {
   'app/components/StatsPage.tsx': 936,
   'modules/inventory/ui/StockPageModule.tsx': 853,
   'modules/materials/ui/MaterialPage.tsx': 887,
-  'modules/materials/ui/MaterialPanoramaPage.tsx': 1485,
 }
 const pageFiles = [
   ...walk(join(root, 'app', 'components')),

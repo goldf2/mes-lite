@@ -28,10 +28,10 @@
 | `SystemPage.tsx` | 31 行 | 已收敛为业务配置、系统设置、运维工具和生产工程的纯领域分派兼容层 |
 | `modules/receiving/ui/MaterialInPage.tsx` | 684 行 | 集合、编辑和详情任务已拆出；主页只协调查询、分页与任务弹窗 |
 | `modules/documents/ui/WorkInstructionPage.tsx` | 591 行 | 只保留文档读写、搜索、分页与子模块状态协调；集合、表单、详情/附件和全屏查看已分离 |
-| `modules/materials/ui/MaterialPanoramaPage.tsx` | 1485 行 | 已迁入物料领域；下一步按摘要、文档、BOM/工艺、成本和记录等稳定视图拆分 |
+| `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 95 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档和来料 10 个模块；生产工程、物料、文档与来料已形成包含服务端规则的垂直分层 |
+| `modules/` | 103 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档和来料 10 个模块；生产工程、物料、文档与来料已形成包含服务端规则的垂直分层 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -405,7 +405,7 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `HomeApp.tsx` 不再直接读写页面连续性、工作区偏好、桌面导航存储或权限菜单组装，行数从 1233 行降至 522 行。
 - `verify:shell-controllers`、`verify:page-modules`、`verify:workspace-navigation` 和 `verify:responsive-navigation` 阻止这些职责重新回流应用壳，并把 `HomeApp.tsx` 的当前规模上限固定为 600 行。
 
-下一步应继续拆分物料全景、统计、库存和物料协调页的稳定业务视图，并逐步把剩余巨型 API 中的事务规则迁入领域服务；页面注册与菜单分类仍只使用现有单一事实源。
+下一步应继续拆分统计、库存和物料协调页的稳定业务视图，并逐步把剩余巨型 API 中的事务规则迁入领域服务；页面注册与菜单分类仍只使用现有单一事实源。
 
 ## 17. 物料编辑与导入状态归属
 
@@ -496,3 +496,12 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `server/material-in-service.ts` 拥有多关键词查询、多明细原子创建、数量/计量/计价换算和归档规则；`app/api/material-ins/route.ts` 只保留权限、HTTP 参数、审计与错误映射。
 - `MaterialInPage.tsx` 从 1,679 行降至 684 行，`app/api/material-ins/route.ts` 从 295 行降至 90 行；两者均已退出对应巨型基线。
 - `verify:receiving-module` 锁定薄 API、领域服务、公共异步选择器和页面规模，并能在临时完整 SQLite 库中验证创建、查询、归档和无效供应商规则，不读写服务器正式数据。
+
+## 28. 物料全景任务模块归属
+
+- `contracts/material-panorama.ts` 集中物料全景响应、附件查看和布局配置契约；展示模块不再各自猜测 API 数据结构。
+- `model/material-panorama-view.ts` 拥有模块顺序、宽度、密度、状态标签、格式化、工艺成本和关联路线归并等纯视图规则。
+- `material-panorama/` 按档案与库存、库位与文档、BOM 与工艺、成本、工单与领料、来料与库存记录六组稳定用户认知拆分，不按任意行数制造无语义小组件。
+- `MaterialPanoramaLayoutDialog.tsx` 与 `MaterialPanoramaViewer.tsx` 分别拥有显示偏好和文件查看任务，主页面只传递稳定动作契约。
+- 全景读取和附件方向保存统一进入 `client/materials-api.ts`，协调页和纯展示子模块均不得直接调用 `fetch`。
+- `MaterialPanoramaPage.tsx` 从 1,485 行降至 187 行并退出巨型页面基线；`verify:material-bom-modules` 将协调页上限固定为 250 行，并检查所有稳定任务持续存在。

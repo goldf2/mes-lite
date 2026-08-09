@@ -1,4 +1,5 @@
 import type { ConfiguredUnit, CustomerOption, Material, MeasureType, PaginationState } from '../contracts'
+import type { AttachmentItem, PanoramaData } from '../contracts/material-panorama'
 
 interface ApiEnvelope<T> {
   data?: T
@@ -105,6 +106,24 @@ export async function findMaterialByCode(code: string, materialId: string) {
   const params = new URLSearchParams({ keyword: code, pageSize: '20' })
   const { materials } = await listMaterials(params)
   return materials.find((material) => material.id === materialId) || null
+}
+
+export async function getMaterialPanorama(materialId: string, signal?: AbortSignal) {
+  const response = await fetch(`/api/materials/${materialId}/panorama`, { signal })
+  const body = await readApiEnvelope<PanoramaData>(response, '获取物料全景失败')
+  if (!body.data) throw new MaterialApiError('物料全景数据为空')
+  return body.data
+}
+
+export async function saveAttachmentRotation(id: string, rotation: number) {
+  const response = await fetch('/api/attachments', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, action: 'SET_ROTATION', rotation }),
+  })
+  const body = await readApiEnvelope<AttachmentItem>(response, '保存文件方向失败')
+  if (!body.data) throw new MaterialApiError('附件方向更新结果为空')
+  return { attachment: body.data, message: body.message || '文件方向已保存' }
 }
 
 export async function downloadMaterialFile(url: string, fallbackFilename = 'materials.csv') {
