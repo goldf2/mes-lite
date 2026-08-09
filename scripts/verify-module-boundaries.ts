@@ -76,7 +76,6 @@ const legacyRootPages = new Set([
   'EquipmentPage.tsx',
   'FlowTransferPage.tsx',
   'ReturnPage.tsx',
-  'SalesOrderPage.tsx',
   'SawingCostCalculatorPage.tsx',
   'ScanPrintPage.tsx',
   'ShipmentPage.tsx',

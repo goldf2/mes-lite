@@ -7,7 +7,7 @@ const read = (file: string) => readFileSync(path.join(root, file), 'utf8')
 
 const sharedDialog = read('app/components/ShipmentCreateDialog.tsx')
 const shipmentPage = read('app/components/ShipmentPage.tsx')
-const salesOrderPage = read('app/components/SalesOrderPage.tsx')
+const salesOrderPage = read('modules/sales/ui/SalesOrderPageModule.tsx')
 const homeApp = read('app/HomeApp.tsx')
 
 assert.match(sharedDialog, /<ModalDialog/, '发货单创建必须使用公共弹窗骨架')

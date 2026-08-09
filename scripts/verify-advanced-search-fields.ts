@@ -43,7 +43,7 @@ const unifiedSearchPages = [
   'modules/materials/ui/MaterialWorkspaceToolbar.tsx',
   'modules/identity-access/ui/PermissionPageModule.tsx',
   'app/components/ReturnPage.tsx',
-  'app/components/SalesOrderPage.tsx',
+  'modules/sales/ui/SalesOrderPageModule.tsx',
   'app/components/ShipmentPage.tsx',
   'modules/documents/ui/WorkInstructionPage.tsx',
   'app/components/WorkspacePages.tsx',

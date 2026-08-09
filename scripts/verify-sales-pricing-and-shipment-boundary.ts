@@ -10,7 +10,7 @@ const migration = read('prisma/migrations/20260809113000_add_material_sales_pric
 const salesApi = read('app/api/sales-orders/route.ts')
 const priceApi = read('app/api/sales-orders/[id]/prices/route.ts')
 const shipmentApi = read('app/api/shipments/route.ts')
-const salesPage = read('app/components/SalesOrderPage.tsx')
+const salesPage = read('modules/sales/ui/SalesOrderPageModule.tsx')
 const shipmentDialog = read('app/components/ShipmentCreateDialog.tsx')
 const shippableApi = read('app/api/sales-orders/shippable/route.ts')
 

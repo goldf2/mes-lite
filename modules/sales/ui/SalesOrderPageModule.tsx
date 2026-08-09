@@ -2,124 +2,49 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
-import AppButton from './AppButton'
-import ModalDialog, { ModalActions } from './ModalDialog'
-import ResponsiveToolbarActions from './ResponsiveToolbarActions'
-import SearchableSelect from './SearchableSelect'
-import { SearchFieldWithPresets } from './SavedSearchPresets'
-import { getStatusQuery } from './StatusCheckboxFilter'
-import TopBarPortal from './TopBarPortal'
-import AppLoadingIndicator from './AppLoadingIndicator'
-import AttachmentPanel from './AttachmentPanel'
-import { MappedResourceAdvancedSearch } from './resource'
-import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
-import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
-import SortableTableHeader from './SortableTableHeader'
-import useClientTableSort from './useClientTableSort'
+import AppButton from '@/app/components/AppButton'
+import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
+import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
+import SearchableSelect from '@/app/components/SearchableSelect'
+import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
+import { getStatusQuery } from '@/app/components/StatusCheckboxFilter'
+import TopBarPortal from '@/app/components/TopBarPortal'
+import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
+import AttachmentPanel from '@/app/components/AttachmentPanel'
+import { MappedResourceAdvancedSearch } from '@/app/components/resource'
+import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/app/components/BusinessDocumentPrintLink'
+import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
+import SortableTableHeader from '@/app/components/SortableTableHeader'
+import useClientTableSort from '@/app/components/useClientTableSort'
 import DraftDocumentAttachmentPanel, {
   createDraftDocumentAttachmentId,
   discardDraftDocumentAttachments,
   finalizeDraftDocumentAttachments,
-} from './DraftDocumentAttachmentPanel'
+} from '@/app/components/DraftDocumentAttachmentPanel'
 import { matchesRecognizedValue, recognizedDate, recognizedItems, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
-
-interface CustomerOption {
-  id: string
-  code: string
-  name: string
-  contact?: string | null
-  phone?: string | null
-  address?: string | null
-}
-
-interface MaterialOption {
-  id: string
-  code: string
-  name: string
-  spec?: string | null
-  category: string
-  stockUnit: string
-  unit: string
-  defaultSalePrice?: number | null
-  salesCurrency: string
-}
-
-interface SalesOrderItem {
-  id: string
-  qty: number
-  shippedQty: number
-  pendingQty: number
-  remainingQty: number
-  unit: string
-  unitPrice: number
-  totalAmount: number
-  currency: string
-  priceSource: string
-  defaultSalePriceSnapshot?: number | null
-  priceAdjustedAt?: string | null
-  priceAdjustedBy?: string | null
-  priceAdjustReason?: string | null
-  note?: string | null
-  material: MaterialOption
-}
-
-interface SalesOrder {
-  id: string
-  orderNo: string
-  voucherNo?: string | null
-  status: string
-  orderDate: string
-  deliveryDate?: string | null
-  totalAmount: number
-  currency: string
-  note?: string | null
-  customer: CustomerOption
-  items: SalesOrderItem[]
-  _count: { shipments: number }
-}
-
-interface DraftLine {
-  key: string
-  materialId: string
-  qty: number
-  unitPrice: number
-  note: string
-}
-
-interface PriceEditState {
-  order: SalesOrder
-  items: Array<{ id: string; materialLabel: string; qty: number; unit: string; unitPrice: number }>
-  reason: string
-}
-
-const statusOptions = [
-  { value: 'DRAFT', label: '草稿' },
-  { value: 'CONFIRMED', label: '已确认' },
-  { value: 'PARTIAL', label: '部分发货' },
-  { value: 'COMPLETED', label: '已完成' },
-  { value: 'CANCELLED', label: '已取消' },
-]
-
-const statusMeta: Record<string, { label: string; className: string }> = {
-  DRAFT: { label: '草稿', className: 'bg-gray-100 text-gray-700' },
-  CONFIRMED: { label: '已确认', className: 'bg-blue-50 text-blue-700' },
-  PARTIAL: { label: '部分发货', className: 'bg-amber-50 text-amber-700' },
-  COMPLETED: { label: '已完成', className: 'bg-emerald-50 text-emerald-700' },
-  CANCELLED: { label: '已取消', className: 'bg-red-50 text-red-700' },
-}
-
-const localDate = () => {
-  const now = new Date()
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
-}
-
-const newLine = (): DraftLine => ({
-  key: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-  materialId: '',
-  qty: 0,
-  unitPrice: 0,
-  note: '',
-})
+import {
+  createSalesOrder,
+  loadSalesOrderOptions,
+  loadSalesOrders,
+  updateSalesOrderPrices,
+  updateSalesOrderStatus,
+} from '../client/sales-order-api'
+import type {
+  SalesCustomerOption,
+  SalesMaterialOption,
+  SalesOrder,
+  SalesOrderDraftLine,
+  SalesOrderPriceEdit,
+} from '../contracts/sales-order'
+import {
+  createSalesOrderDraftLine as newLine,
+  dateText,
+  localDate,
+  money,
+  numberText,
+  salesOrderStatusMeta as statusMeta,
+  salesOrderStatusOptions as statusOptions,
+} from '../model/sales-order-view'
 
 const emptyForm = () => ({
   voucherNo: '',
@@ -130,18 +55,14 @@ const emptyForm = () => ({
   items: [newLine()],
 })
 
-const numberText = (value: number) => Number(value || 0).toFixed(3).replace(/\.?0+$/, '')
-const money = (value: number) => `¥${Number(value || 0).toFixed(2)}`
-const dateText = (value?: string | null) => value ? new Date(value).toLocaleDateString('zh-CN') : '-'
-
-export default function SalesOrderPage({
+export default function SalesOrderPageModule({
   onMessage,
 }: {
   onMessage: (message: string) => void
 }) {
   const [orders, setOrders] = useState<SalesOrder[]>([])
-  const [customers, setCustomers] = useState<CustomerOption[]>([])
-  const [materials, setMaterials] = useState<MaterialOption[]>([])
+  const [customers, setCustomers] = useState<SalesCustomerOption[]>([])
+  const [materials, setMaterials] = useState<SalesMaterialOption[]>([])
   const [keyword, setKeyword] = useState('')
   const [customerId, setCustomerId] = useState('')
   const [statuses, setStatuses] = useState(statusOptions.map((option) => option.value))
@@ -154,7 +75,7 @@ export default function SalesOrderPage({
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.salesOrders.viewMode', 'card')
   const [form, setForm] = useState(emptyForm)
   const [pendingAction, setPendingAction] = useState<{ order: SalesOrder; action: 'confirm' | 'cancel' } | null>(null)
-  const [priceEdit, setPriceEdit] = useState<PriceEditState | null>(null)
+  const [priceEdit, setPriceEdit] = useState<SalesOrderPriceEdit | null>(null)
   const advancedSearchFields = useMemo(() => [
     { key: 'status', label: '状态', value: statuses.length === 1 ? statuses[0] : '', onChange: (value: string) => setStatuses(value ? [value] : statusOptions.map((option) => option.value)), options: statusOptions },
     { key: 'customerId', label: '客户', value: customerId, onChange: setCustomerId, options: customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` })) },
@@ -166,12 +87,9 @@ export default function SalesOrderPage({
       const params = new URLSearchParams(getStatusQuery(statuses, statusOptions))
       if (keyword.trim()) params.set('keyword', keyword.trim())
       if (customerId) params.set('customerId', customerId)
-      const response = await fetch(`/api/sales-orders?${params}`)
-      const data = await response.json()
-      if (!response.ok) return onMessage(data.error || '获取销售订单失败')
-      setOrders(data.data || [])
-    } catch {
-      onMessage('获取销售订单失败')
+      setOrders(await loadSalesOrders(params))
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取销售订单失败')
     } finally {
       setLoading(false)
     }
@@ -179,13 +97,11 @@ export default function SalesOrderPage({
 
   const loadOptions = useCallback(async () => {
     try {
-      const response = await fetch('/api/sales-orders/options')
-      const data = await response.json()
-      if (!response.ok) return onMessage(data.error || '获取销售订单选项失败')
-      setCustomers(data.customers || [])
-      setMaterials(data.materials || [])
-    } catch {
-      onMessage('获取销售订单选项失败')
+      const data = await loadSalesOrderOptions()
+      setCustomers(data.customers)
+      setMaterials(data.materials)
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取销售订单选项失败')
     }
   }, [onMessage])
 
@@ -214,7 +130,7 @@ export default function SalesOrderPage({
 
   const formTotal = form.items.reduce((sum, item) => sum + Number(item.qty || 0) * Number(item.unitPrice || 0), 0)
 
-  const updateLine = (key: string, update: Partial<DraftLine>) => {
+  const updateLine = (key: string, update: Partial<SalesOrderDraftLine>) => {
     setForm((current) => ({
       ...current,
       items: current.items.map((line) => line.key === key ? { ...line, ...update } : line),
@@ -247,7 +163,7 @@ export default function SalesOrderPage({
         unitPrice: recognizedNumber(item, 'unitPrice'),
         note: recognizedText(item, 'note'),
       } : null
-    }).filter((item): item is DraftLine => Boolean(item))
+    }).filter((item): item is SalesOrderDraftLine => Boolean(item))
     setForm((current) => ({
       ...current,
       voucherNo: recognizedText(fields, 'voucherNo') || current.voucherNo,
@@ -273,27 +189,18 @@ export default function SalesOrderPage({
     const printPreview = reserveBusinessDocumentPrintWindow()
     setSaving(true)
     try {
-      const response = await fetch('/api/sales-orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          items: form.items.map(({ key, ...item }) => item),
-        }),
+      const order = await createSalesOrder({
+        ...form,
+        items: form.items.map(({ key, ...item }) => item),
       })
-      const data = await response.json()
-      if (!response.ok) {
-        printPreview.close()
-        return onMessage(data.error || '创建销售订单失败')
-      }
-      onMessage(`销售订单已创建：${data.data.orderNo}`)
+      onMessage(`销售订单已创建：${order.orderNo}`)
       try {
-        await finalizeDraftDocumentAttachments({ ownerType: 'SALES_ORDER', draftOwnerId: draftAttachmentOwnerId, targetOwnerId: data.data.id })
+        await finalizeDraftDocumentAttachments({ ownerType: 'SALES_ORDER', draftOwnerId: draftAttachmentOwnerId, targetOwnerId: order.id })
       } catch (error) {
         onMessage(`销售订单已创建，但${error instanceof Error ? error.message : '附件绑定失败'}`)
       }
-      const pdfGenerated = await generateBusinessDocumentPdfArchives('sales-order', [data.data.id])
-      if (pdfGenerated) printPreview.open('sales-order', data.data.id)
+      const pdfGenerated = await generateBusinessDocumentPdfArchives('sales-order', [order.id])
+      if (pdfGenerated) printPreview.open('sales-order', order.id)
       else {
         printPreview.close()
         onMessage('销售订单已创建，但 PDF 生成失败，可在订单列表中重新打印')
@@ -302,9 +209,9 @@ export default function SalesOrderPage({
       setDraftAttachmentOwnerId('')
       setForm(emptyForm())
       await loadOrders()
-    } catch {
+    } catch (error) {
       printPreview.close()
-      onMessage('创建销售订单失败')
+      onMessage(error instanceof Error ? error.message : '创建销售订单失败')
     } finally {
       setSaving(false)
     }
@@ -314,14 +221,12 @@ export default function SalesOrderPage({
     if (!pendingAction) return
     setSaving(true)
     try {
-      const response = await fetch(`/api/sales-orders/${pendingAction.order.id}/${pendingAction.action}`, { method: 'PATCH' })
-      const data = await response.json()
-      if (!response.ok) return onMessage(data.error || '操作失败')
+      const data = await updateSalesOrderStatus(pendingAction.order.id, pendingAction.action)
       onMessage(data.message || '操作成功')
       setPendingAction(null)
       await loadOrders()
-    } catch {
-      onMessage('操作失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '操作失败')
     } finally {
       setSaving(false)
     }
@@ -351,22 +256,16 @@ export default function SalesOrderPage({
     }
     setSaving(true)
     try {
-      const response = await fetch(`/api/sales-orders/${priceEdit.order.id}/prices`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reason: priceEdit.reason.trim() || undefined,
-          items: priceEdit.items.map((item) => ({ id: item.id, unitPrice: item.unitPrice })),
-        }),
+      const data = await updateSalesOrderPrices(priceEdit.order.id, {
+        reason: priceEdit.reason.trim() || undefined,
+        items: priceEdit.items.map((item) => ({ id: item.id, unitPrice: item.unitPrice })),
       })
-      const data = await response.json()
-      if (!response.ok) return onMessage(data.error || '调整销售订单价格失败')
       onMessage(data.message || '销售订单价格已更新')
       setPriceEdit(null)
       setDetailOrder(null)
       await loadOrders()
-    } catch {
-      onMessage('调整销售订单价格失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '调整销售订单价格失败')
     } finally {
       setSaving(false)
     }

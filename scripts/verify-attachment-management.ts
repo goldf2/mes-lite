@@ -5,7 +5,7 @@ import { join } from 'node:path'
 const root = process.cwd()
 const attachmentPanelSource = readFileSync(join(root, 'app/components/AttachmentPanel.tsx'), 'utf8')
 const productionModuleSource = readFileSync(join(root, 'modules/production/ui/ProductionOrderModule.tsx'), 'utf8')
-const salesOrderSource = readFileSync(join(root, 'app/components/SalesOrderPage.tsx'), 'utf8')
+const salesOrderSource = readFileSync(join(root, 'modules/sales/ui/SalesOrderPageModule.tsx'), 'utf8')
 const detailDialogSource = readFileSync(join(root, 'app/components/BusinessDocumentDetailDialog.tsx'), 'utf8')
 const detailManagedPages = [
   ['来料', 'modules/receiving/ui/MaterialInCollectionView.tsx', 'modules/receiving/ui/MaterialInDetailDialog.tsx'],

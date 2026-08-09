@@ -43,7 +43,7 @@ assert.match(routeSource, /SYSTEM_GENERATED_PDF/, '打印文件必须保存为�
 
 const creationSources = [
   'modules/receiving/ui/MaterialInPage.tsx',
-  'app/components/SalesOrderPage.tsx',
+  'modules/sales/ui/SalesOrderPageModule.tsx',
   'app/components/ShipmentPage.tsx',
   'app/components/ReturnPage.tsx',
   'app/components/FlowTransferPage.tsx',

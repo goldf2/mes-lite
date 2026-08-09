@@ -33,7 +33,7 @@ const ownerPageFiles: Array<[string[], string]> = [
   [['modules/receiving/ui/MaterialInPage.tsx', 'modules/receiving/ui/MaterialInEditorDialog.tsx'], 'MATERIAL_IN'],
   [['modules/production/ui/ProductionOrderModule.tsx'], 'PRODUCTION_ORDER'],
   [['modules/production/ui/DispatchPageModule.tsx'], 'DISPATCH'],
-  [['app/components/SalesOrderPage.tsx'], 'SALES_ORDER'],
+  [['modules/sales/ui/SalesOrderPageModule.tsx'], 'SALES_ORDER'],
   [['app/components/ShipmentCreateDialog.tsx'], 'SHIPMENT'],
   [['app/components/ReturnPage.tsx'], 'RETURN_ORDER'],
 ]

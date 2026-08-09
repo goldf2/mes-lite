@@ -14,7 +14,7 @@ function FeaturePageLoading() {
 
 const MaterialInPage = dynamic(() => import('@/modules/receiving'), { loading: FeaturePageLoading })
 const DispatchPage = dynamic(() => import('@/modules/production').then((module) => module.DispatchPageModule), { loading: FeaturePageLoading })
-const SalesOrderPage = dynamic(() => import('../SalesOrderPage'), { loading: FeaturePageLoading })
+const SalesOrderPage = dynamic(() => import('@/modules/sales'), { loading: FeaturePageLoading })
 const ShipmentPage = dynamic(() => import('../ShipmentPage'), { loading: FeaturePageLoading })
 const ReturnPage = dynamic(() => import('../ReturnPage'), { loading: FeaturePageLoading })
 const FlowTransferPage = dynamic(() => import('../FlowTransferPage'), { loading: FeaturePageLoading })
