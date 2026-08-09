@@ -1,71 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { prisma } from '@/lib/prisma'
-import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
-import { buildDailyProductionConsumption } from '@/lib/daily-production'
-import {
-  dailyProductionReportInclude,
-  dailyProductionReportInputSchema,
-  parseDailyProductionReportDate,
-} from '@/lib/daily-production-request'
-import { resolveInventoryLocation } from '@/lib/inventory'
-import { employeeNamesSnapshot, resolveActiveEmployees } from '@/lib/employees'
+import { requireResourcePermission } from '@/lib/permissions'
+import { legacyDailyProductionReportInputSchema } from '@/modules/production/contracts/legacy-daily-production-schema'
+import { legacyDailyProductionHttpError } from '@/modules/production/http/legacy-daily-production-http'
+import { updateLegacyDailyProductionReport } from '@/modules/production/server/legacy-daily-production-command-service'
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const denied = await requireResourcePermission('stats', 'update')
     if (denied) return denied
 
-    const input = dailyProductionReportInputSchema.parse(await req.json())
-    const existing = await prisma.dailyProductionReport.findUnique({ where: { id: params.id } })
-    if (!existing) return NextResponse.json({ error: '生产记录不存在' }, { status: 404 })
-    if (existing.status !== 'DRAFT') {
-      return NextResponse.json({ error: '只有草稿生产记录可以修改；已确认记录请先冲销' }, { status: 400 })
-    }
-
-    const report = await prisma.$transaction(async (tx) => {
-      const consumptionLocation = await resolveInventoryLocation(tx, input.consumptionLocationId || existing.consumptionLocationId)
-      const outputLocation = await resolveInventoryLocation(tx, input.outputLocationId || existing.outputLocationId)
-      const employees = await resolveActiveEmployees(tx, input.employeeIds)
-      const snapshot = await buildDailyProductionConsumption(
-        tx,
-        input.finishedMaterialId,
-        input.outputQty,
-        input.consumptions,
-        { bomId: input.bomId },
-      )
-      await tx.dailyProductionConsumption.deleteMany({ where: { reportId: existing.id } })
-      await tx.dailyProductionReportEmployee.deleteMany({ where: { reportId: existing.id } })
-      return tx.dailyProductionReport.update({
-        where: { id: existing.id },
-        data: {
-          reportDate: parseDailyProductionReportDate(input.reportDate),
-          finishedMaterialId: input.finishedMaterialId,
-          consumptionLocationId: consumptionLocation.id,
-          outputLocationId: outputLocation.id,
-          outputQty: input.outputQty,
-          workers: employeeNamesSnapshot(employees),
-          note: input.note || null,
-          bomId: snapshot.bom.id,
-          bomName: snapshot.bom.name,
-          bomVersion: snapshot.bom.version,
-          bomType: 'PRODUCTION',
-          bomOutputQuantity: snapshot.bom.outputQuantity,
-          bomOutputUnit: snapshot.bom.outputUnit,
-          employees: {
-            create: employees.map((employee) => ({
-              employeeId: employee.id,
-              employeeCode: employee.code,
-              employeeName: employee.name,
-            })),
-          },
-          consumptions: { create: snapshot.consumptions },
-        },
-        include: dailyProductionReportInclude,
-      })
-    })
-
+    const input = legacyDailyProductionReportInputSchema.parse(await req.json())
+    const { existing, report } = await updateLegacyDailyProductionReport(params.id, input)
     await writeAuditLog(req, {
       action: 'UPDATE',
       entityType: 'DAILY_PRODUCTION_REPORT',
@@ -76,11 +22,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     })
     return NextResponse.json({ data: report, message: '生产记录草稿已更新' })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors[0]?.message || '参数错误', details: error.errors }, { status: 400 })
-    }
-    if (error instanceof Error) return NextResponse.json({ error: error.message }, { status: 400 })
-    console.error('Update daily production report error:', error)
-    return NextResponse.json({ error: '更新生产记录失败' }, { status: 500 })
+    return legacyDailyProductionHttpError(error, '更新生产记录失败', true)
   }
 }

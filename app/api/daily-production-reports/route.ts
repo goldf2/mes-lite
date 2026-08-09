@@ -1,36 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Prisma } from '@prisma/client'
-import { z } from 'zod'
-import { prisma } from '@/lib/prisma'
-import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
-import { buildDailyProductionConsumption } from '@/lib/daily-production'
-import {
-  dailyProductionReportInclude,
-  dailyProductionReportInputSchema,
-  parseDailyProductionReportDate,
-} from '@/lib/daily-production-request'
-import { resolveInventoryLocation } from '@/lib/inventory'
-import { employeeNamesSnapshot, resolveActiveEmployees } from '@/lib/employees'
-import { tokenizeKeywordQuery } from '@/lib/resource-search'
-import { withMaterialImageUrls } from '@/lib/attachment-urls'
+import { requireResourcePermission } from '@/lib/permissions'
+import { legacyDailyProductionReportInputSchema } from '@/modules/production/contracts/legacy-daily-production-schema'
+import { legacyDailyProductionHttpError } from '@/modules/production/http/legacy-daily-production-http'
+import { createLegacyDailyProductionReport } from '@/modules/production/server/legacy-daily-production-command-service'
+import { listLegacyDailyProductionWorkspace } from '@/modules/production/server/legacy-daily-production-query-service'
 
 export const dynamic = 'force-dynamic'
-
-async function nextReportNo(tx: Prisma.TransactionClient, date: Date) {
-  const dateCode = [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-  ].join('')
-  const start = new Date(date)
-  const end = new Date(date)
-  end.setDate(end.getDate() + 1)
-  const count = await tx.dailyProductionReport.count({
-    where: { reportDate: { gte: start, lt: end } },
-  })
-  return `PR-${dateCode}-${String(count + 1).padStart(3, '0')}`
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -38,131 +14,17 @@ export async function GET(req: NextRequest) {
     if (denied) return denied
 
     const { searchParams } = new URL(req.url)
-    const keyword = searchParams.get('keyword')?.trim()
-    const status = searchParams.get('status')?.trim()
-    const where: any = {}
-    if (status && status !== 'ALL') where.status = status
-    const keywordFilters = tokenizeKeywordQuery(keyword || '').map((token) => ({ OR: [
-      { reportNo: { contains: token } },
-      { workers: { contains: token } },
-      { note: { contains: token } },
-      { finishedMaterial: { is: { code: { contains: token } } } },
-      { finishedMaterial: { is: { name: { contains: token } } } },
-    ] }))
-    if (keywordFilters.length > 0) where.AND = keywordFilters
-
-    const [reports, materials, employees] = await Promise.all([
-      prisma.dailyProductionReport.findMany({
-        where,
-        include: dailyProductionReportInclude,
-        orderBy: [{ reportDate: 'desc' }, { createdAt: 'desc' }],
-        take: 300,
-      }),
-      prisma.material.findMany({
-        where: { deletedAt: null },
-        select: {
-          id: true,
-          code: true,
-          name: true,
-          spec: true,
-          category: true,
-          primaryMeasure: true,
-          stockUnit: true,
-          unit: true,
-          customer: { select: { id: true, code: true, name: true } },
-        },
-        orderBy: [{ category: 'asc' }, { code: 'asc' }],
-        take: 1000,
-      }),
-      prisma.employee.findMany({
-        where: { isActive: true },
-        select: { id: true, code: true, name: true, department: true },
-        orderBy: [{ code: 'asc' }],
-      }),
-    ])
-    const materialCodes = materials.flatMap((material) => [material.code, `MAT-${material.code}`])
-    const materialIds = materials.map((material) => material.id)
-    const [compatibleProducts, images] = await Promise.all([
-      materialCodes.length > 0
-        ? prisma.product.findMany({
-          where: { sku: { in: materialCodes } },
-          select: {
-            sku: true,
-            boms: {
-              where: { isActive: true },
-              orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
-              select: {
-                id: true,
-                name: true,
-                version: true,
-                isDefault: true,
-                isActive: true,
-                outputQuantity: true,
-                outputUnit: true,
-                items: {
-                  where: { itemType: 'MATERIAL', materialId: { not: null } },
-                  select: {
-                    id: true,
-                    outputMaterialId: true,
-                    quantity: true,
-                    unit: true,
-                    wastageRate: true,
-                    material: {
-                      select: {
-                        id: true,
-                        code: true,
-                        name: true,
-                        spec: true,
-                        primaryMeasure: true,
-                        stockUnit: true,
-                        unit: true,
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-          })
-        : [],
-      materialIds.length > 0
-        ? prisma.documentAttachment.findMany({
-            where: {
-              ownerType: 'MATERIAL',
-              ownerId: { in: materialIds },
-              documentType: 'MATERIAL_IMAGE',
-              mimeType: { startsWith: 'image/' },
-              deletedAt: null,
-            },
-            orderBy: [{ isCover: 'desc' }, { createdAt: 'desc' }],
-            select: { id: true, ownerId: true, note: true, mimeType: true, isCover: true, size: true, rotation: true },
-          })
-        : [],
-    ])
-    const productBySku = new Map(compatibleProducts.map((product) => [product.sku, product]))
-    const primaryImageByMaterial = new Map<string, (typeof images)[number]>()
-    for (const image of images) {
-      if (!primaryImageByMaterial.has(image.ownerId)) primaryImageByMaterial.set(image.ownerId, image)
-    }
-    const materialsWithBom = materials.map((material) => {
-      const product = productBySku.get(material.code) || productBySku.get(`MAT-${material.code}`)
-      const image = primaryImageByMaterial.get(material.id)
-      const compatibleBoms = (product?.boms || []).map((bom) => ({
-        ...bom,
-        items: bom.items.filter((item) => !item.outputMaterialId || item.outputMaterialId === material.id),
-      }))
-      return {
-        ...material,
-        bom: compatibleBoms[0] || null,
-        boms: compatibleBoms,
-        primaryImage: image ? withMaterialImageUrls(image) : null,
-      }
+    const workspace = await listLegacyDailyProductionWorkspace({
+      keyword: searchParams.get('keyword'),
+      status: searchParams.get('status'),
     })
-
-    return NextResponse.json({ data: reports, materials: materialsWithBom, employees })
+    return NextResponse.json({
+      data: workspace.reports,
+      materials: workspace.materials,
+      employees: workspace.employees,
+    })
   } catch (error) {
-    console.error('Get daily production reports error:', error)
-    return NextResponse.json({ error: '获取生产记录失败' }, { status: 500 })
+    return legacyDailyProductionHttpError(error, '获取生产记录失败')
   }
 }
 
@@ -171,49 +33,8 @@ export async function POST(req: NextRequest) {
     const denied = await requireResourcePermission('stats', 'create')
     if (denied) return denied
 
-    const input = dailyProductionReportInputSchema.parse(await req.json())
-    const reportDate = parseDailyProductionReportDate(input.reportDate)
-    const report = await prisma.$transaction(async (tx) => {
-      const consumptionLocation = await resolveInventoryLocation(tx, input.consumptionLocationId)
-      const outputLocation = await resolveInventoryLocation(tx, input.outputLocationId)
-      const employees = await resolveActiveEmployees(tx, input.employeeIds)
-      const snapshot = await buildDailyProductionConsumption(
-        tx,
-        input.finishedMaterialId,
-        input.outputQty,
-        input.consumptions,
-        { bomId: input.bomId },
-      )
-      const reportNo = await nextReportNo(tx, reportDate)
-      return tx.dailyProductionReport.create({
-        data: {
-          reportNo,
-          reportDate,
-          finishedMaterialId: input.finishedMaterialId,
-          consumptionLocationId: consumptionLocation.id,
-          outputLocationId: outputLocation.id,
-          outputQty: input.outputQty,
-          workers: employeeNamesSnapshot(employees),
-          note: input.note || null,
-          bomId: snapshot.bom.id,
-          bomName: snapshot.bom.name,
-          bomVersion: snapshot.bom.version,
-          bomType: 'PRODUCTION',
-          bomOutputQuantity: snapshot.bom.outputQuantity,
-          bomOutputUnit: snapshot.bom.outputUnit,
-          employees: {
-            create: employees.map((employee) => ({
-              employeeId: employee.id,
-              employeeCode: employee.code,
-              employeeName: employee.name,
-            })),
-          },
-          consumptions: { create: snapshot.consumptions },
-        },
-        include: dailyProductionReportInclude,
-      })
-    })
-
+    const input = legacyDailyProductionReportInputSchema.parse(await req.json())
+    const report = await createLegacyDailyProductionReport(input)
     await writeAuditLog(req, {
       action: 'CREATE',
       entityType: 'DAILY_PRODUCTION_REPORT',
@@ -222,14 +43,8 @@ export async function POST(req: NextRequest) {
       afterData: report,
       note: '创建生产记录草稿及 BOM 耗料快照',
     })
-
     return NextResponse.json({ data: report, message: '生产记录草稿已创建' }, { status: 201 })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors[0]?.message || '参数错误', details: error.errors }, { status: 400 })
-    }
-    if (error instanceof Error) return NextResponse.json({ error: error.message }, { status: 400 })
-    console.error('Create daily production report error:', error)
-    return NextResponse.json({ error: '创建生产记录失败' }, { status: 500 })
+    return legacyDailyProductionHttpError(error, '创建生产记录失败', true)
   }
 }

@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 272 个 TypeScript 文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售、设备和附件 14 个模块；页面数据访问已统一进入领域 client，设备与工作中心也已形成前后端垂直切片 |
+| `modules/` | 281 个 TypeScript 文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售、设备和附件 14 个模块；页面数据访问已统一进入领域 client，旧生产日报兼容规则也已进入生产领域 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -741,3 +741,12 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 工作中心页面、搜索模型、契约和 client 从 `modules/configuration` 迁入 `modules/equipment`；业务配置菜单只通过设备模块 `index.ts` 挂载，菜单位置不再决定规则所有权。
 - 设备和工作中心 Route Handler 分别从 139/135 行降至 84/85 行，不再直接访问 Prisma，使直接访问 Prisma 的 API 从 39 条降至 37 条。
 - `verify:equipment` 使用运行后删除的临时完整 SQLite，覆盖公共 `ResourcePage`、输入清理、唯一编码、组合搜索、设备迁移、引用归档阻断、直接停用旁路封闭、设备归档和工作中心恢复。
+
+## 59. 旧生产日报兼容服务归属
+
+- `modules/production/contracts/legacy-daily-production-schema.ts` 统一旧日报创建、编辑、确认和冲销输入；`domain/legacy-daily-production-*` 集中日期解析、最大序号编号、状态约束、数量精度和可预期错误。
+- 查询、草稿命令、BOM 耗用快照、数据库异常翻译和确认/冲销事务分别进入 `server/legacy-daily-production-*`；领域规则不依赖 Prisma，扁平 `lib/daily-production.ts` 与 `lib/daily-production-request.ts` 已删除。
+- 4 条旧日报兼容 Route Handler 合计从 714 行降至 139 行，只保留权限、Schema、操作人、领域服务、审计与 HTTP 映射，不再直接访问 Prisma，使直接访问 Prisma 的 API 从 37 条降至 33 条。
+- 日报编号改为按业务日期读取现有最大序号后递增，避免删除中间草稿后再次生成重复编号；日期规则拒绝不存在的日历日期。
+- `verify:daily-production-locations` 使用运行后删除的临时完整 SQLite，通过真实领域服务覆盖输入规则、BOM/人员/库位快照、多关键词查询、草稿更新、确认过账、成本结转、冲销恢复和非法重复状态。
+- 该切片不恢复旧页面、不修改 Prisma Schema，也不触碰本机测试库或服务器正式数据；生产订单实绩仍是唯一正式入口。
