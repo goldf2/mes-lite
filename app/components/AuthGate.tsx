@@ -2,6 +2,13 @@
 
 import { FormEvent, useEffect, useState } from 'react'
 import AppLoadingIndicator from './AppLoadingIndicator'
+import {
+  loadCurrentOperator,
+  loadWeChatLoginEnabled,
+  loginOperator,
+  logoutOperator,
+  registerOperatorAccount,
+} from '@/modules/identity-access/client/authentication-api'
 
 export interface CurrentOperator {
   id: string
@@ -64,11 +71,7 @@ export default function AuthGate({ children }: AuthGateProps) {
 
   const fetchMe = async () => {
     try {
-      const res = await fetch('/api/auth/me')
-      if (res.ok) {
-        const data = await res.json()
-        setOperator(data.data)
-      }
+      setOperator(await loadCurrentOperator<CurrentOperator>())
     } catch (error) {
       setOperator(null)
     } finally {
@@ -77,7 +80,7 @@ export default function AuthGate({ children }: AuthGateProps) {
   }
 
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' })
+    await logoutOperator()
     setOperator(null)
     setMode('login')
   }
@@ -150,9 +153,8 @@ function LoginForm({ onSuccess, onMessage }: { onSuccess: () => void; onMessage:
   const [wechatChecked, setWechatChecked] = useState(false)
 
   useEffect(() => {
-    fetch('/api/auth/wechat/status')
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => setWechatEnabled(Boolean(data?.data?.enabled)))
+    loadWeChatLoginEnabled()
+      .then(setWechatEnabled)
       .catch(() => setWechatEnabled(false))
       .finally(() => setWechatChecked(true))
   }, [])
@@ -161,20 +163,11 @@ function LoginForm({ onSuccess, onMessage }: { onSuccess: () => void; onMessage:
     event.preventDefault()
     setLoading(true)
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok) {
-        onMessage('登录成功')
-        onSuccess()
-      } else {
-        onMessage(data.error || '登录失败')
-      }
+      await loginOperator({ username, password })
+      onMessage('登录成功')
+      onSuccess()
     } catch (error) {
-      onMessage('登录请求失败，请检查网络或服务器状态')
+      onMessage(error instanceof Error ? error.message : '登录请求失败，请检查网络或服务器状态')
     } finally {
       setLoading(false)
     }
@@ -231,21 +224,12 @@ function RegisterForm({ onRegistered, onMessage }: { onRegistered: () => void; o
     event.preventDefault()
     setLoading(true)
     try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok) {
-        onMessage(data.message || '注册已提交')
-        setForm({ username: '', password: '', name: '', phone: '' })
-        onRegistered()
-      } else {
-        onMessage(data.error || `注册失败（${res.status}）`)
-      }
+      const data = await registerOperatorAccount(form)
+      onMessage(data.message || '注册已提交')
+      setForm({ username: '', password: '', name: '', phone: '' })
+      onRegistered()
     } catch (error) {
-      onMessage('注册请求失败，请检查网络或服务器状态')
+      onMessage(error instanceof Error ? error.message : '注册请求失败，请检查网络或服务器状态')
     } finally {
       setLoading(false)
     }

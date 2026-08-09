@@ -1,6 +1,6 @@
 'use client'
 
-import MaterialChoiceSearch from '@/app/components/MaterialChoiceSearch'
+import { MaterialChoiceSearch } from '@/modules/materials'
 import type { SawingProcessOption, SawingProductOption } from '../contracts/sawing-cost'
 
 export default function SaveSawingCostPanel({

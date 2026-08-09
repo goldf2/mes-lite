@@ -1,6 +1,6 @@
 'use client'
 
-import { Download, FileText } from 'lucide-react'
+import { FileText, Download } from 'lucide-react'
 import { attachmentPreviewKind, attachmentTypeLabel, type AttachmentPreviewKind } from '@/lib/attachment-file-types'
 import PdfDocumentViewer from './PdfDocumentViewer'
 

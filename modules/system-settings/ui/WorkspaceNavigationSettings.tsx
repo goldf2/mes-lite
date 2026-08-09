@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import AppButton from '../AppButton'
+import AppButton from '@/app/components/AppButton'
 import { businessNavGroups, workspaceFunctionCatalog } from '@/app/app-navigation'
 import {
   configurableWorkspaceFunctionKeys,
@@ -16,8 +16,12 @@ import {
   type WorkspaceNavigationConfig,
 } from '@/lib/workspace-navigation-config'
 import type { WorkspaceFunctionKey } from '@/lib/workspace'
-import { announceWorkspaceNavigationConfig } from './useWorkspaceNavigation'
-import WorkspaceDomainTabs from './WorkspaceDomainTabs'
+import {
+  announceWorkspaceNavigationConfig,
+  loadWorkspaceNavigationConfig,
+  saveWorkspaceNavigationConfig,
+} from '@/modules/workspace'
+import WorkspaceDomainTabs from '@/app/components/navigation/WorkspaceDomainTabs'
 
 const catalogItems = workspaceFunctionCatalog.filter((item) => configurableWorkspaceFunctionKeys.includes(item.key))
 const catalogByKey = new Map(catalogItems.map((item) => [item.key, item]))
@@ -58,13 +62,11 @@ export default function WorkspaceNavigationSettings({ onMessage }: { onMessage: 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/system/workspace-navigation')
-      const body = await response.json()
-      if (!response.ok) return onMessage(body.error || '获取工作区菜单配置失败')
-      setDraft(cloneConfig(body.data))
-      setSelectedWorkspace((current) => body.data.workspaces[current]?.enabled ? current : body.data.defaultWorkspace)
-    } catch {
-      onMessage('获取工作区菜单配置失败')
+      const data = await loadWorkspaceNavigationConfig()
+      setDraft(cloneConfig(data))
+      setSelectedWorkspace((current) => data.workspaces[current]?.enabled ? current : data.defaultWorkspace)
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取工作区菜单配置失败')
     } finally {
       setLoading(false)
     }
@@ -176,22 +178,15 @@ export default function WorkspaceNavigationSettings({ onMessage }: { onMessage: 
     if (duplicate) return onMessage(duplicate)
     setSaving(true)
     try {
-      const response = await fetch('/api/system/workspace-navigation', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(draft),
-      })
-      const body = await response.json()
-      if (!response.ok) return onMessage(body.error || '保存工作区菜单配置失败')
-      const saved = cloneConfig(body.data)
+      const saved = cloneConfig(await saveWorkspaceNavigationConfig(draft))
       setDraft(saved)
       for (const workspace of navigationWorkspaceIds) {
         window.localStorage.removeItem(`mes-lite.nav.order.${workspace}`)
       }
       announceWorkspaceNavigationConfig(saved)
       onMessage('工作区菜单配置已发布')
-    } catch {
-      onMessage('保存工作区菜单配置失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '保存工作区菜单配置失败')
     } finally {
       setSaving(false)
     }

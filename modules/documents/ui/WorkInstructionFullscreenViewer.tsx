@@ -1,6 +1,6 @@
 'use client'
 
-import DocumentFileViewer from '@/app/components/DocumentFileViewer'
+import { DocumentFileViewer } from '@/modules/attachments'
 import { attachmentPreviewKind } from '@/lib/attachment-file-types'
 import type { AttachmentItem, WorkInstruction } from '../contracts/work-instruction'
 

@@ -4,6 +4,8 @@ export type { ConfigurationSection, ReferenceConfigurationSection } from './Conf
 export { default as EmployeePageModule } from './ui/EmployeePageModule'
 export { loadConfiguredUnits } from './client/reference-data-api'
 export type { ConfiguredUnit } from './contracts/reference-data'
+export type { ConfigurationOrderEntity, ConfigurationOrderItem } from './contracts/configuration-order'
+export { default as ConfigurationManualOrder } from './ui/ConfigurationManualOrder'
 export { employeeNamesSnapshot } from './domain/employee-rules'
 export { resolveActiveEmployees } from './server/employee-reference-service'
 export { nextConfigurationSortOrder } from './server/configuration-order-service'

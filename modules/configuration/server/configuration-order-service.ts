@@ -6,27 +6,9 @@ import {
   unitCatalogKey,
 } from '@/lib/unit-catalog'
 import { prisma } from '@/lib/prisma'
-
-export const configurationOrderEntities = [
-  'locations',
-  'suppliers',
-  'customers',
-  'employees',
-  'workCenters',
-  'processTemplates',
-  'processRoutes',
-  'units',
-] as const
-
-export type ConfigurationOrderEntity = (typeof configurationOrderEntities)[number]
-
-export interface ConfigurationOrderItem {
-  id: string
-  label: string
-  detail?: string
-  group?: string
-  sortOrder: number
-}
+import type { ConfigurationOrderEntity, ConfigurationOrderItem } from '../contracts/configuration-order'
+export { configurationOrderEntities } from '../contracts/configuration-order'
+export type { ConfigurationOrderEntity, ConfigurationOrderItem } from '../contracts/configuration-order'
 
 type ConfigurationClient = PrismaClient | Prisma.TransactionClient
 

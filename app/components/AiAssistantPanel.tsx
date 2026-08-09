@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Database, Send, Settings2, ShieldCheck, Sparkles, Square, Trash2, X } from 'lucide-react'
 import AiAssistantMark from './AiAssistantMark'
+import { loadAiAssistantStatus, sendAiAssistantQuestion } from '@/modules/system-settings/client/ai-assistant-api'
 
 interface AssistantMessage {
   id: string
@@ -66,11 +67,9 @@ export default function AiAssistantPanel({
     document.body.style.overflow = 'hidden'
     setStatus(null)
     setStatusError('')
-    fetch('/api/ai/status')
-      .then(async (response) => {
-        const payload = await response.json().catch(() => ({}))
-        if (!response.ok) throw new Error(payload.error || '无法检查 AI 服务状态')
-        if (!cancelled) setStatus(payload.data)
+    loadAiAssistantStatus<AssistantStatus>()
+      .then((value) => {
+        if (!cancelled) setStatus(value)
       })
       .catch((error) => {
         if (!cancelled) setStatusError(error instanceof Error ? error.message : '无法检查 AI 服务状态')
@@ -135,25 +134,18 @@ export default function AiAssistantPanel({
     abortRef.current = controller
 
     try {
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const payload = await sendAiAssistantQuestion<{ message: string; sources?: string[] }>({
           messages: nextMessages
             .filter((message) => !message.error)
             .slice(-16)
             .map(({ role, content: messageContent }) => ({ role, content: messageContent })),
           context: pageContext,
-        }),
-        signal: controller.signal,
-      })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(payload.error || 'AI 服务暂时不可用')
+      }, controller.signal)
       setMessages((current) => [...current, {
         id: messageId(),
         role: 'assistant',
-        content: payload.data.message,
-        sources: Array.isArray(payload.data.sources) ? payload.data.sources : [],
+        content: payload.message,
+        sources: Array.isArray(payload.sources) ? payload.sources : [],
       }])
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return

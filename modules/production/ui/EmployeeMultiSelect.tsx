@@ -1,6 +1,6 @@
 'use client'
 
-import SearchableSelect from './SearchableSelect'
+import SearchableSelect from '@/app/components/SearchableSelect'
 
 export interface EmployeeChoice {
   id: string

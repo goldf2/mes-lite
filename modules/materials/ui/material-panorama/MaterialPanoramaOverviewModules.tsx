@@ -1,6 +1,6 @@
 'use client'
 
-import DocumentPreviewThumb from '@/app/components/DocumentPreviewThumb'
+import { DocumentPreviewThumb } from '@/modules/attachments'
 import type { AttachmentItem, PanoramaData, WorkInstructionSummary } from '../../contracts/material-panorama'
 import { documentCategoryText, formatDate, formatMoney, formatNumber, materialCategoryLabels, statusText } from '../../model/material-panorama-view'
 import { AttachmentList, EmptyText, Metric, Panel } from './MaterialPanoramaPrimitives'

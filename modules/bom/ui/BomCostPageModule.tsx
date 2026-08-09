@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import MaterialChoiceSearch, { MaterialChoiceOption } from '@/app/components/MaterialChoiceSearch'
+import { MaterialChoiceSearch, type MaterialChoiceOption } from '@/modules/materials'
 import MetricCard from '@/app/components/MetricCard'
 import NumberInputField from '@/app/components/NumberInputField'
 import SortableTableHeader from '@/app/components/SortableTableHeader'

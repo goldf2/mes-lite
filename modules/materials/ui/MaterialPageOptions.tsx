@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import AppButton from '@/app/components/AppButton'
-import PageOptionsDialog from '@/app/components/PageOptionsDialog'
+import PageOptionsDialog from './MaterialPageOptionsDialog'
 import ToolbarOrderSettings from '@/app/components/ToolbarOrderSettings'
 import type { ViewMode } from '@/app/components/ViewModeToggle'
 import useDismissibleSearchPopup from '@/app/components/useDismissibleSearchPopup'

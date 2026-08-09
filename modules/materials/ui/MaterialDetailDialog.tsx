@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import AppButton from '@/app/components/AppButton'
-import AttachmentPanel from '@/app/components/AttachmentPanel'
+import { AttachmentPanel } from '@/modules/attachments'
 import ModalDialog from '@/app/components/ModalDialog'
 import type { Material } from '../contracts'
 import { findMaterialByCode } from '../client'

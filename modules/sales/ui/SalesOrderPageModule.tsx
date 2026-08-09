@@ -10,17 +10,18 @@ import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
 import { getStatusQuery } from '@/app/components/StatusCheckboxFilter'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
-import AttachmentPanel from '@/app/components/AttachmentPanel'
+import { AttachmentPanel } from '@/modules/attachments'
 import { MappedResourceAdvancedSearch } from '@/app/components/resource'
 import { BusinessDocumentPrintLink, generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/modules/business-documents'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import SortableTableHeader from '@/app/components/SortableTableHeader'
 import useClientTableSort from '@/app/components/useClientTableSort'
-import DraftDocumentAttachmentPanel, {
+import {
+  DraftDocumentAttachmentPanel,
   createDraftDocumentAttachmentId,
   discardDraftDocumentAttachments,
   finalizeDraftDocumentAttachments,
-} from '@/app/components/DraftDocumentAttachmentPanel'
+} from '@/modules/attachments'
 import { matchesRecognizedValue, recognizedDate, recognizedItems, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
 import {
   createSalesOrder,

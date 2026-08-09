@@ -1,7 +1,7 @@
 'use client'
 
 import { ReactNode, useCallback, useMemo, useState, useEffect } from 'react'
-import AttachmentPanel from '@/app/components/AttachmentPanel'
+import { AttachmentPanel } from '@/modules/attachments'
 import { getStatusQuery } from '@/app/components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import TopBarPortal from '@/app/components/TopBarPortal'

@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic'
 import type { ReactNode } from 'react'
 import type { CurrentOperator } from '../AuthGate'
 import AppLoadingIndicator from '../AppLoadingIndicator'
-import { AllFunctionsPage, type WorkspaceFunctionItem } from '../WorkspacePages'
+import { AllFunctionsPage, type WorkspaceFunctionItem } from '@/modules/workspace'
 import type { ApplicationTab, PageModuleDefinition, PageRendererKey } from '@/lib/page-registry'
 import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/workspace'
 

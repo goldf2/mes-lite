@@ -1,6 +1,6 @@
 'use client'
 
-import WorkspaceNavigationSettings from '@/app/components/navigation/WorkspaceNavigationSettings'
+import WorkspaceNavigationSettings from './WorkspaceNavigationSettings'
 import SystemSettingsPageShell from './SystemSettingsPageShell'
 
 export default function NavigationSettingsPage({ onMessage }: { onMessage: (message: string) => void }) {

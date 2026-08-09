@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import SearchableSelect from '@/app/components/SearchableSelect'
 import useDismissibleSearchPopup from '@/app/components/useDismissibleSearchPopup'
 import OneToManyRelationField from '@/app/components/relations/OneToManyRelationField'
-import OnlineDocumentEditor from '@/app/components/OnlineDocumentEditor'
+import OnlineDocumentEditor from './OnlineDocumentEditor'
 import { appInputClassName, appSelectClassName, appTextareaClassName } from '@/app/components/FormField'
 import type { MaterialOption, WorkCenterOption, WorkInstructionForm } from '../contracts/work-instruction'
 import {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import AppButton from '@/app/components/AppButton'
-import ConfigurationManualOrder from '@/app/components/ConfigurationManualOrder'
+import { ConfigurationManualOrder } from '@/modules/configuration'
 import FormField, { appInputClassName, appTextareaClassName } from '@/app/components/FormField'
 import { ResourceFormDialog, ResourcePage, ResourceSortLabel, type ResourceTableColumn } from '@/app/components/resource'
 import useClientTableSort from '@/app/components/useClientTableSort'

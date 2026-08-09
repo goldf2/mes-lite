@@ -15,7 +15,7 @@ import {
   createDraftDocumentAttachmentId,
   discardDraftDocumentAttachments,
   finalizeDraftDocumentAttachments,
-} from '@/app/components/DraftDocumentAttachmentPanel'
+} from '@/modules/attachments'
 import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
 
 import type {

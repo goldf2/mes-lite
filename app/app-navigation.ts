@@ -1,4 +1,4 @@
-import type { WorkspaceFunctionItem } from './components/WorkspacePages'
+import type { WorkspaceFunctionItem } from '@/modules/workspace'
 import type { SystemSection } from './components/SystemPage'
 import {
   pageNavigationGroups,

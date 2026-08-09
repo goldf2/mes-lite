@@ -38,8 +38,10 @@ assert.match(pageNavigationSource, /history\.replaceState/, '页面导航控制�
 assert.match(pageNavigationSource, /scrollPositions/, '页面导航控制器必须保存和恢复页面滚动位置')
 assert.match(pageNavigationSource, /openBomEditor/, '页面导航控制器必须保留跨物料与 BOM 的连续跳转')
 
-assert.match(workspacePreferenceSource, /fetch\('\/api\/workspace-preferences'/, '工作区偏好控制器必须读取和保存用户偏好')
-assert.match(workspacePreferenceSource, /fetch\('\/api\/workspace-usage'/, '工作区偏好控制器必须记录功能使用次数')
+assert.match(workspacePreferenceSource, /loadWorkspacePreference/, '工作区偏好控制器必须通过所属模块 client 读取用户偏好')
+assert.match(workspacePreferenceSource, /saveWorkspacePreferenceRequest/, '工作区偏好控制器必须通过所属模块 client 保存用户偏好')
+assert.match(workspacePreferenceSource, /recordWorkspaceUsageRequest/, '工作区偏好控制器必须通过所属模块 client 记录功能使用次数')
+assert.doesNotMatch(workspacePreferenceSource, /\bfetch\s*\(/, '工作区偏好控制器不得直接请求 API')
 assert.match(workspacePreferenceSource, /isWorkspaceFunctionKey/, '工作区偏好控制器必须过滤无效功能键')
 
 console.log('应用壳状控制器验证通过：权限菜单、页面连续性、URL、滚动恢复和工作区偏好均已脱离 HomeApp。')

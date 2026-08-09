@@ -9,6 +9,7 @@ import type {
 interface ApiPayload<T> {
   data?: T
   error?: string
+  message?: string
 }
 
 async function request<T>(input: RequestInfo | URL, init?: RequestInit) {
@@ -49,4 +50,36 @@ export async function createProductionOrders(input: CreateProductionOrdersInput)
     count: payload.count || 1,
     groupNo: payload.groupNo,
   }
+}
+
+export async function loadProductionOrderActuals<T>(orderId: string) {
+  const payload = await request<T>(`/api/orders/${encodeURIComponent(orderId)}/actuals`)
+  if (!payload.data) throw new Error('班后生产实绩未返回结果')
+  return payload.data
+}
+
+export async function createProductionOrderActual(orderId: string, input: unknown) {
+  return request<unknown>(`/api/orders/${encodeURIComponent(orderId)}/actuals`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export async function confirmProductionOrderActual(orderId: string, actualId: string) {
+  return request<unknown>(`/api/orders/${encodeURIComponent(orderId)}/actuals/${encodeURIComponent(actualId)}/confirm`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: '{}',
+  })
+}
+
+export async function deleteProductionOrderActual(orderId: string, actualId: string) {
+  return request<unknown>(`/api/orders/${encodeURIComponent(orderId)}/actuals/${encodeURIComponent(actualId)}`, { method: 'DELETE' })
+}
+
+export async function reverseProductionOrderActual(orderId: string, actualId: string, reason: string) {
+  return request<unknown>(`/api/orders/${encodeURIComponent(orderId)}/actuals/${encodeURIComponent(actualId)}/reverse`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  })
 }

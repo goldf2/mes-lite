@@ -30,7 +30,7 @@ for (const path of [
 }
 
 const productionPage = readFileSync(join(root, 'modules/production/ui/ProductionOrderModule.tsx'), 'utf8')
-const actualPanel = readFileSync(join(root, 'app/components/ProductionOrderActualPanel.tsx'), 'utf8')
+const actualPanel = readFileSync(join(root, 'modules/production/ui/ProductionOrderActualPanel.tsx'), 'utf8')
 assert.doesNotMatch(productionPage + actualPanel, /\/api\/orders\/[^'"`]+\/(pick|reports|stock-in)/, '当前生产页面不得重新调用旧领料、报工或入库兼容接口')
 
 assert.equal(legacyProductionOrderPickSchema.safeParse({ items: [] }).success, false, '兼容领料至少包含一项明细')

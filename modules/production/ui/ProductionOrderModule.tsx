@@ -17,11 +17,12 @@ import {
   generateBusinessDocumentPdfArchives,
   reserveBusinessDocumentPrintWindow,
 } from '@/modules/business-documents'
-import DraftDocumentAttachmentPanel, {
+import {
+  DraftDocumentAttachmentPanel,
   createDraftDocumentAttachmentId,
   discardDraftDocumentAttachments,
   finalizeDraftDocumentAttachments,
-} from '@/app/components/DraftDocumentAttachmentPanel'
+} from '@/modules/attachments'
 import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
 import { createProductionOrders, loadProductionOrderDetail, loadProductionOrderOptions, loadProductionOrders } from '../client/production-order-api'
 import type { ProductionOrder, ProductionOrderDetail, ProductionOrderDraftLine, ProductionOrderMaterialOption, ProductionOrderMode } from '../contracts/production-order'
@@ -35,8 +36,8 @@ import {
   productionOrderStatusOptions,
 } from '../model/production-order-view'
 
-const AttachmentPanel = dynamic(() => import('@/app/components/AttachmentPanel'), { loading: () => <AppLoadingIndicator label="正在加载附件..." /> })
-const ProductionOrderActualPanel = dynamic(() => import('@/app/components/ProductionOrderActualPanel'), { loading: () => <AppLoadingIndicator label="正在加载生产实绩..." /> })
+const AttachmentPanel = dynamic(() => import('@/modules/attachments').then((module) => module.AttachmentPanel), { loading: () => <AppLoadingIndicator label="正在加载附件..." /> })
+const ProductionOrderActualPanel = dynamic(() => import('./ProductionOrderActualPanel'), { loading: () => <AppLoadingIndicator label="正在加载生产实绩..." /> })
 
 interface ProductionOrderModuleProps {
   mode: ProductionOrderMode

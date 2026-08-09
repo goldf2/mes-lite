@@ -1,7 +1,8 @@
 'use client'
 
 import AttachmentPanel, { type ManagedAttachment } from './AttachmentPanel'
-import { discardDraftAttachments, finalizeDraftAttachments } from '@/modules/attachments'
+import { discardDraftAttachments, finalizeDraftAttachments } from '../client/attachment-api'
+import { recognizeDocument } from '../client/document-recognition-api'
 import {
   draftDocumentAttachmentOwnerType,
   type DocumentSourceCredentialOwnerType,
@@ -52,15 +53,9 @@ export default function DraftDocumentAttachmentPanel({
   }
 
   const recognize = async (attachment: ManagedAttachment) => {
-    const response = await fetch('/api/ai/document-recognition', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ attachmentId: attachment.id, ownerType, ownerId: draftOwnerId }),
-    })
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.error || 'AI 凭据识别失败')
-    await onRecognized?.(data.data?.fields || {})
-    onMessage(data.message || 'AI 识别完成，请人工核对回填字段')
+    const result = await recognizeDocument({ attachmentId: attachment.id, ownerType, ownerId: draftOwnerId })
+    await onRecognized?.(result.fields)
+    onMessage(result.message || 'AI 识别完成，请人工核对回填字段')
   }
 
   return (

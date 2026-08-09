@@ -1,13 +1,13 @@
 'use client'
 
 import { ReactNode, useCallback, useMemo, useState, useEffect } from 'react'
-import AttachmentPanel from '@/app/components/AttachmentPanel'
+import { AttachmentPanel } from '@/modules/attachments'
 import { getStatusQuery } from '@/app/components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
-import MaterialChoiceSearch from '@/app/components/MaterialChoiceSearch'
+import { MaterialChoiceSearch } from '@/modules/materials'
 import SearchableSelect from '@/app/components/SearchableSelect'
 import SortableTableHeader from '@/app/components/SortableTableHeader'
 import useClientTableSort from '@/app/components/useClientTableSort'
@@ -16,11 +16,12 @@ import FormField, { appInputClassName, appTextareaClassName } from '@/app/compon
 import AppButton from '@/app/components/AppButton'
 import { MappedResourceAdvancedSearch } from '@/app/components/resource'
 import { BusinessDocumentDetailDialog, BusinessDocumentPrintLink, generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/modules/business-documents'
-import DraftDocumentAttachmentPanel, {
+import {
+  DraftDocumentAttachmentPanel,
   createDraftDocumentAttachmentId,
   discardDraftDocumentAttachments,
   finalizeDraftDocumentAttachments,
-} from '@/app/components/DraftDocumentAttachmentPanel'
+} from '@/modules/attachments'
 import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
 import { createReturn, loadReturnOptions, loadReturns, transitionReturn } from '../client/fulfillment-api'
 import type {

@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import AppButton from '@/app/components/AppButton'
-import DataIntegrityPanel from '@/app/components/DataIntegrityPanel'
-import ImageOptimizationPanel from '@/app/components/ImageOptimizationPanel'
+import DataIntegrityPanel from './DataIntegrityPanel'
+import ImageOptimizationPanel from './ImageOptimizationPanel'
 import {
   executeMaterialCodeNormalization,
   loadMaterialCodeNormalizationPreview,

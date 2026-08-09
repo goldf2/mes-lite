@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import AppButton from './AppButton'
+import AppButton from '@/app/components/AppButton'
+import { executeImageOptimizationBatch, loadImageOptimizationPreview } from '../client/maintenance-api'
 
 type ImageOptimizationPreview = {
   scope: 'MATERIAL_IMAGES'
@@ -38,13 +39,9 @@ export default function ImageOptimizationPanel({ onMessage }: { onMessage: (mess
   const loadPreview = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/system/image-optimization?scope=MATERIAL_IMAGES')
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '检查图片优化状态失败')
-        return
-      }
-      setPreview(data.data)
+      setPreview(await loadImageOptimizationPreview<ImageOptimizationPreview>() || null)
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '检查图片优化状态失败')
     } finally {
       setLoading(false)
     }
@@ -66,17 +63,12 @@ export default function ImageOptimizationPanel({ onMessage }: { onMessage: (mess
     try {
       for (let index = 0; index < attachmentIds.length; index += 10) {
         const batch = attachmentIds.slice(index, index + 10)
-        const res = await fetch('/api/system/image-optimization', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ scope: 'MATERIAL_IMAGES', attachmentIds: batch }),
-        })
-        const data = await res.json()
-        if (!res.ok) {
+        try {
+          const data = await executeImageOptimizationBatch(batch)
+          failed += Number(data?.failed || 0)
+        } catch (error) {
           failed += batch.length
-          onMessage(data.error || '图片优化批次失败')
-        } else {
-          failed += Number(data.data.failed || 0)
+          onMessage(error instanceof Error ? error.message : '图片优化批次失败')
         }
         completed += batch.length
         setProgress({ completed, total: attachmentIds.length, failed })

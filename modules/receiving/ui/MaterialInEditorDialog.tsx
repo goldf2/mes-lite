@@ -2,7 +2,7 @@
 
 import type { Dispatch, SetStateAction } from 'react'
 import AppButton from '@/app/components/AppButton'
-import DraftDocumentAttachmentPanel from '@/app/components/DraftDocumentAttachmentPanel'
+import { DraftDocumentAttachmentPanel } from '@/modules/attachments'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import SearchableSelect from '@/app/components/SearchableSelect'
 import type { MaterialInPriceUnit } from '@/lib/material-in-quantity'

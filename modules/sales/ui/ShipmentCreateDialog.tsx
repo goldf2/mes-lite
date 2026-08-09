@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
-import DraftDocumentAttachmentPanel, {
+import {
+  DraftDocumentAttachmentPanel,
   createDraftDocumentAttachmentId,
   discardDraftDocumentAttachments,
   finalizeDraftDocumentAttachments,
-} from '@/app/components/DraftDocumentAttachmentPanel'
+} from '@/modules/attachments'
 import { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/modules/business-documents'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import SearchableSelect from '@/app/components/SearchableSelect'

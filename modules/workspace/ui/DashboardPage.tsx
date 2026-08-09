@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
-import { WorkspaceLauncher } from '@/app/components/WorkspacePages'
-import type { WorkspaceFunctionItem } from '@/app/components/WorkspacePages'
+import { WorkspaceLauncher, type WorkspaceFunctionItem } from './WorkspacePages'
 import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/workspace'
 import { loadDashboard } from '../client/dashboard-api'
 import type { DashboardData } from '../contracts/dashboard'

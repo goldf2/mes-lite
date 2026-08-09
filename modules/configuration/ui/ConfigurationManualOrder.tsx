@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import type { ConfigurationOrderEntity } from '@/modules/configuration/server'
-import AppButton from './AppButton'
-import ModalDialog, { ModalActions } from './ModalDialog'
-import AppLoadingIndicator from './AppLoadingIndicator'
+import type { ConfigurationOrderEntity } from '../contracts/configuration-order'
+import { loadConfigurationOrder, saveConfigurationOrderPreference } from '../client/configuration-order-api'
+import AppButton from '@/app/components/AppButton'
+import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
+import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
 
 interface OrderItem {
   id: string
@@ -34,16 +35,9 @@ export default function ConfigurationManualOrder({
     setOpen(true)
     setLoading(true)
     try {
-      const response = await fetch(`/api/system/configuration-order?entity=${encodeURIComponent(entity)}`)
-      const data = await response.json()
-      if (!response.ok) {
-        onMessage(data.error || `获取${label}顺序失败`)
-        setOpen(false)
-        return
-      }
-      setItems(data.data || [])
-    } catch {
-      onMessage(`获取${label}顺序失败`)
+      setItems(await loadConfigurationOrder(entity))
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : `获取${label}顺序失败`)
       setOpen(false)
     } finally {
       setLoading(false)
@@ -64,22 +58,13 @@ export default function ConfigurationManualOrder({
   const save = async () => {
     setSaving(true)
     try {
-      const response = await fetch('/api/system/configuration-order', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entity, orderedIds: items.map((item) => item.id) }),
-      })
-      const data = await response.json()
-      if (!response.ok) {
-        onMessage(data.error || `保存${label}顺序失败`)
-        return
-      }
+      const data = await saveConfigurationOrderPreference(entity, items.map((item) => item.id))
       setItems(data.data || [])
       setOpen(false)
       onMessage(data.message || `${label}默认顺序已保存`)
       await onSaved?.()
-    } catch {
-      onMessage(`保存${label}顺序失败`)
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : `保存${label}顺序失败`)
     } finally {
       setSaving(false)
     }

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Columns2, LayoutPanelLeft, MousePointer2, PanelRightOpen, Pin, Rows3 } from 'lucide-react'
-import ContrastModeSelector from '@/app/components/ContrastModeSelector'
+import ContrastModeSelector from './ContrastModeSelector'
 import {
   useDesktopNavigationPreference,
   useModalGlassPreference,

@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import AttachmentPanel from '@/app/components/AttachmentPanel'
+import { AttachmentPanel } from '@/modules/attachments'
 import ModalDialog from '@/app/components/ModalDialog'
 
 export default function BusinessDocumentDetailDialog({

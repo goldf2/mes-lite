@@ -7,7 +7,7 @@ import { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import MaterialPanoramaPage from './MaterialPanoramaPage'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import AppButton from '@/app/components/AppButton'
-import { useBomPagePreferences } from '@/app/components/bomPagePreferences'
+import { useBomPagePreferences } from '../client/bom-page-preferences'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
 import {
   filterByResourceSearch,

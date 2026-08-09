@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.330",
+  "version": "0.1.331",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -85,6 +85,7 @@
     "verify:production-engineering-server": "tsx scripts/verify-production-engineering-server.ts",
     "verify:dispatch-module": "tsx scripts/verify-dispatch-module.ts",
     "verify:module-boundaries": "tsx scripts/verify-module-boundaries.ts",
+    "verify:structural-goal": "tsx scripts/verify-structural-goal.ts",
     "verify:data-integrity": "tsx scripts/verify-data-integrity.ts",
     "verify:page-modules": "tsx scripts/verify-page-modules.ts",
     "verify:resource-search": "tsx scripts/verify-resource-search.ts",

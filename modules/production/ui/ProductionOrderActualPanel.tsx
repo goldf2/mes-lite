@@ -1,13 +1,20 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import AppButton from './AppButton'
+import AppButton from '@/app/components/AppButton'
 import EmployeeMultiSelect, { EmployeeChoice } from './EmployeeMultiSelect'
-import ModalDialog, { ModalActions } from './ModalDialog'
-import SearchableSelect from './SearchableSelect'
-import { appInputClassName, appTextareaClassName } from './FormField'
+import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
+import SearchableSelect from '@/app/components/SearchableSelect'
+import { appInputClassName, appTextareaClassName } from '@/app/components/FormField'
 import { calculateProductionConsumption, ProductionLossMode } from '@/lib/production-consumption'
-import AppLoadingIndicator from './AppLoadingIndicator'
+import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
+import {
+  confirmProductionOrderActual,
+  createProductionOrderActual,
+  deleteProductionOrderActual,
+  loadProductionOrderActuals,
+  reverseProductionOrderActual,
+} from '../client/production-order-api'
 
 type BomSnapshot = {
   id: string
@@ -113,15 +120,9 @@ export default function ProductionOrderActualPanel({
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/orders/${orderId}/actuals`)
-      const payload = await response.json()
-      if (!response.ok) {
-        onMessage(payload.error || '获取班后生产实绩失败')
-        return
-      }
-      setData(payload.data)
-    } catch {
-      onMessage('获取班后生产实绩失败')
+      setData(await loadProductionOrderActuals<ActualData>(orderId))
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取班后生产实绩失败')
     } finally {
       setLoading(false)
     }
@@ -198,10 +199,7 @@ export default function ProductionOrderActualPanel({
     if (calculatedInputs.some((line) => line.calculated.actualQty <= 0)) return onMessage('投入实际数量必须大于 0')
     setSaving(true)
     try {
-      const response = await fetch(`/api/orders/${orderId}/actuals`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const payload = await createProductionOrderActual(orderId, {
           actualDate,
           employeeIds,
           note,
@@ -217,15 +215,12 @@ export default function ProductionOrderActualPanel({
             lossValue: Number(draft.lossValue || 0),
             actualQty: Number(calculated.actualQty),
           })),
-        }),
       })
-      const payload = await response.json()
-      if (!response.ok) return onMessage(payload.error || '保存班后生产实绩失败')
       onMessage(payload.message || '班后生产实绩草稿已保存')
       setFormOpen(false)
       await load()
-    } catch {
-      onMessage('保存班后生产实绩失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '保存班后生产实绩失败')
     } finally {
       setSaving(false)
     }
@@ -235,19 +230,13 @@ export default function ProductionOrderActualPanel({
     if (!confirming) return
     setSaving(true)
     try {
-      const response = await fetch(`/api/orders/${orderId}/actuals/${confirming.id}/confirm`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      })
-      const payload = await response.json()
-      if (!response.ok) return onMessage(payload.error || '确认班后生产实绩失败')
+      const payload = await confirmProductionOrderActual(orderId, confirming.id)
       onMessage(payload.message || '班后生产实绩已确认')
       setConfirming(null)
       await load()
       await onOrderChanged()
-    } catch {
-      onMessage('确认班后生产实绩失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '确认班后生产实绩失败')
     } finally {
       setSaving(false)
     }
@@ -256,13 +245,11 @@ export default function ProductionOrderActualPanel({
   const deleteDraft = async (actual: ActualRecord) => {
     setSaving(true)
     try {
-      const response = await fetch(`/api/orders/${orderId}/actuals/${actual.id}`, { method: 'DELETE' })
-      const payload = await response.json()
-      if (!response.ok) return onMessage(payload.error || '删除草稿失败')
+      const payload = await deleteProductionOrderActual(orderId, actual.id)
       onMessage(payload.message || '草稿已删除')
       await load()
-    } catch {
-      onMessage('删除草稿失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '删除草稿失败')
     } finally {
       setSaving(false)
     }
@@ -273,20 +260,14 @@ export default function ProductionOrderActualPanel({
     if (!reverseReason.trim()) return onMessage('请填写冲销原因')
     setSaving(true)
     try {
-      const response = await fetch(`/api/orders/${orderId}/actuals/${reversing.id}/reverse`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: reverseReason.trim() }),
-      })
-      const payload = await response.json()
-      if (!response.ok) return onMessage(payload.error || '冲销班后生产实绩失败')
+      const payload = await reverseProductionOrderActual(orderId, reversing.id, reverseReason.trim())
       onMessage(payload.message || '班后生产实绩已冲销')
       setReversing(null)
       setReverseReason('')
       await load()
       await onOrderChanged()
-    } catch {
-      onMessage('冲销班后生产实绩失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '冲销班后生产实绩失败')
     } finally {
       setSaving(false)
     }

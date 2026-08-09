@@ -9,18 +9,13 @@ import {
   type NavigationWorkspaceId,
   type WorkspaceNavigationConfig,
 } from '@/lib/workspace-navigation-config'
-
-export const workspaceNavigationChangedEvent = 'mes-lite.workspace-navigation.changed'
+import { loadWorkspaceNavigationConfig, workspaceNavigationChangedEvent } from './workspace-navigation-api'
 const activeWorkspaceStorageKey = 'mes-lite.navigation.activeWorkspace'
 
 function readSavedWorkspace(): NavigationWorkspaceId | null {
   if (typeof window === 'undefined') return null
   const value = window.localStorage.getItem(activeWorkspaceStorageKey)
   return navigationWorkspaceIds.includes(value as NavigationWorkspaceId) ? value as NavigationWorkspaceId : null
-}
-
-export function announceWorkspaceNavigationConfig(config: WorkspaceNavigationConfig) {
-  window.dispatchEvent(new CustomEvent(workspaceNavigationChangedEvent, { detail: config }))
 }
 
 export default function useWorkspaceNavigation() {
@@ -43,9 +38,8 @@ export default function useWorkspaceNavigation() {
     let cancelled = false
     const load = async () => {
       try {
-        const response = await fetch('/api/system/workspace-navigation')
-        const body = await response.json()
-        if (!cancelled && response.ok) applyConfig(body.data)
+        const config = await loadWorkspaceNavigationConfig()
+        if (!cancelled) applyConfig(config)
       } finally {
         if (!cancelled) setReady(true)
       }

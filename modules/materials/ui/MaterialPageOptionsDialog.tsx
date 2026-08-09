@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { normalizeUnitCode } from '@/lib/unit-catalog'
-import ModalDialog, { ModalActions } from './ModalDialog'
+import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import {
   readBomPagePreferences,
   setBomPagePreferences,
   type BomPagePreferences,
-} from './bomPagePreferences'
+} from '../client/bom-page-preferences'
 
 interface ConfiguredUnit {
   code: string

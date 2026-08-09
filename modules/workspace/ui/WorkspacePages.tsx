@@ -1,18 +1,18 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import AppButton from './AppButton'
-import ModalDialog from './ModalDialog'
+import AppButton from '@/app/components/AppButton'
+import ModalDialog from '@/app/components/ModalDialog'
 import {
   defaultWorkspaceLayout,
   maxWorkspaceShortcuts,
   rankWorkspaceFunctionKeys,
 } from '@/lib/workspace'
 import type { WorkspaceFunctionKey, WorkspaceMode, WorkspacePreferenceValue } from '@/lib/workspace'
-import ResponsiveToolbarActions from './ResponsiveToolbarActions'
-import { SearchFieldWithPresets } from './SavedSearchPresets'
-import TopBarPortal from './TopBarPortal'
-import { ResourceAdvancedSearch } from './resource'
+import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
+import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
+import TopBarPortal from '@/app/components/TopBarPortal'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
 import { filterByAdvancedSearch, matchesKeywordValues } from '@/lib/resource-search'
 import type { ResourceAdvancedSearchField, ResourceSearchCondition } from '@/lib/resource-search'
 

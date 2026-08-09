@@ -10,10 +10,10 @@ import {
   listAttachments,
   setAttachmentCover,
   uploadAttachment,
-} from '@/modules/attachments'
+} from '../client/attachment-api'
 import DocumentFileViewer from './DocumentFileViewer'
 import DocumentPreviewThumb from './DocumentPreviewThumb'
-import ModalDialog from './ModalDialog'
+import ModalDialog from '@/app/components/ModalDialog'
 
 export interface ManagedAttachment {
   id: string

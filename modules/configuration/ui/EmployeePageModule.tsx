@@ -6,7 +6,7 @@ import { appInputClassName, appTextareaClassName } from '@/app/components/FormFi
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import useClientTableSort from '@/app/components/useClientTableSort'
 import SearchableSelect from '@/app/components/SearchableSelect'
-import ConfigurationManualOrder from '@/app/components/ConfigurationManualOrder'
+import ConfigurationManualOrder from './ConfigurationManualOrder'
 import ResourcePage from '@/app/components/resource/ResourcePage'
 import { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import ManyToOneRelationField from '@/app/components/relations/ManyToOneRelationField'

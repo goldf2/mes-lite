@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const root = process.cwd()
-const attachmentPanelSource = readFileSync(join(root, 'app/components/AttachmentPanel.tsx'), 'utf8')
+const attachmentPanelSource = readFileSync(join(root, 'modules/attachments/ui/AttachmentPanel.tsx'), 'utf8')
 const productionModuleSource = readFileSync(join(root, 'modules/production/ui/ProductionOrderModule.tsx'), 'utf8')
 const salesOrderSource = readFileSync(join(root, 'modules/sales/ui/SalesOrderPageModule.tsx'), 'utf8')
 const detailDialogSource = readFileSync(join(root, 'modules/business-documents/ui/BusinessDocumentDetailDialog.tsx'), 'utf8')
@@ -33,7 +33,7 @@ assert.match(attachmentPanelSource, /DocumentFileViewer/, '附件管理必须复
 assert.match(attachmentPanelSource, /AI 识别并填充/, '附件管理必须保留 AI 识别并填充入口')
 assert.match(attachmentPanelSource, /handleAiRecognition\(attachment\)/, '多个附件必须可以分别选择后进入 AI 识别流程')
 assert.match(attachmentPanelSource, /onAiRecognize\?:\s*\(attachment:\s*ManagedAttachment\)/, 'AI 识别入口必须暴露基于附件的回调契约')
-assert.match(attachmentPanelSource, /from '@\/modules\/attachments'/, '公共附件面板必须通过附件模块客户端访问 API')
+assert.match(attachmentPanelSource, /from '\.\.\/client\/attachment-api'/, '附件面板必须通过所属模块客户端访问 API')
 assert.doesNotMatch(attachmentPanelSource, /fetch\(['"]\/api\/attachments/, '公共附件面板不得重复实现附件请求')
 assert.match(attachmentClientSource, /export async function listAttachments/, '附件模块必须提供统一客户端契约')
 for (const modulePath of [

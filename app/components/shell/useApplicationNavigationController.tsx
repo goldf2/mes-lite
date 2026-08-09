@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { Boxes, PencilLine, Search } from 'lucide-react'
 import type { CurrentOperator } from '../AuthGate'
 import type { NavigationGroup, NavigationItem } from '../navigation/NavigationModel'
-import useWorkspaceNavigation from '../navigation/useWorkspaceNavigation'
+import { useWorkspaceNavigation } from '@/modules/workspace'
 import {
   businessNavGroups,
   lightweightHiddenResources,

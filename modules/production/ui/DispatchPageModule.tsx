@@ -1,7 +1,7 @@
 'use client'
 
 import { ReactNode, useMemo, useState, useEffect } from 'react'
-import AttachmentPanel from '@/app/components/AttachmentPanel'
+import { AttachmentPanel } from '@/modules/attachments'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
@@ -12,11 +12,12 @@ import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import AppButton from '@/app/components/AppButton'
 import { MappedResourceAdvancedSearch } from '@/app/components/resource'
 import { BusinessDocumentDetailDialog, BusinessDocumentPrintLink, generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/modules/business-documents'
-import DraftDocumentAttachmentPanel, {
+import {
+  DraftDocumentAttachmentPanel,
   createDraftDocumentAttachmentId,
   discardDraftDocumentAttachments,
   finalizeDraftDocumentAttachments,
-} from '@/app/components/DraftDocumentAttachmentPanel'
+} from '@/modules/attachments'
 import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
 import {
   createDispatch,

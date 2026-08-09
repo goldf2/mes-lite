@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useId, useMemo, useState } from 'react'
-import useDismissibleSearchPopup from './useDismissibleSearchPopup'
-import useSearchPopupPlacement from './useSearchPopupPlacement'
-import { appInputClassName } from './FormField'
+import useDismissibleSearchPopup from '@/app/components/useDismissibleSearchPopup'
+import useSearchPopupPlacement from '@/app/components/useSearchPopupPlacement'
+import { appInputClassName } from '@/app/components/FormField'
 
 export interface MaterialChoiceOption {
   id: string

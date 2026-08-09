@@ -1,6 +1,6 @@
 'use client'
 
-import DocumentFileViewer from '@/app/components/DocumentFileViewer'
+import { DocumentFileViewer } from '@/modules/attachments'
 import { attachmentPreviewKind } from '@/lib/attachment-file-types'
 import type { PanoramaViewerState } from '../../contracts/material-panorama'
 import { formatSize } from '../../model/material-panorama-view'

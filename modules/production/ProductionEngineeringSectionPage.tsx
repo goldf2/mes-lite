@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import ConfigurationManualOrder from '@/app/components/ConfigurationManualOrder'
+import { ConfigurationManualOrder } from '@/modules/configuration'
 import ProcessRoutePage from './ui/ProcessRoutePage'
 import ProcessTemplatePage from './ui/ProcessTemplatePage'
 

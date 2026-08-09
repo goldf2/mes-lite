@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { executeDataIntegrityAction, loadDataIntegrityReport } from '../client/maintenance-api'
 
 type IntegrityAction = {
   key: string
@@ -67,16 +68,10 @@ export default function DataIntegrityPanel({ onMessage }: { onMessage: (message:
   const loadReport = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/system/data-integrity')
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '数据关系检查失败')
-        return
-      }
-      setReport(data.data)
+      setReport(await loadDataIntegrityReport<IntegrityReport>() || null)
       setPendingAction(null)
-    } catch {
-      onMessage('数据关系检查失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '数据关系检查失败')
     } finally {
       setLoading(false)
     }
@@ -91,24 +86,15 @@ export default function DataIntegrityPanel({ onMessage }: { onMessage: (message:
     const { issue, action } = pendingAction
     setExecutingIssueId(issue.id)
     try {
-      const res = await fetch('/api/system/data-integrity', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const message = await executeDataIntegrityAction({
           issueId: issue.id,
           action: action.key,
           confirmation: action.destructive ? 'DELETE_ERROR_DATA' : undefined,
-        }),
       })
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '数据关系处理失败')
-        return
-      }
-      onMessage(data.message || '数据关系处理完成')
+      onMessage(message || '数据关系处理完成')
       await loadReport()
-    } catch {
-      onMessage('数据关系处理失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '数据关系处理失败')
     } finally {
       setExecutingIssueId(null)
     }

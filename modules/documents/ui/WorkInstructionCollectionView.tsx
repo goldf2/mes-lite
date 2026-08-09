@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import DocumentPreviewThumb from '@/app/components/DocumentPreviewThumb'
+import { DocumentPreviewThumb } from '@/modules/attachments'
 import SortableTableHeader, { type TableSortDirection } from '@/app/components/SortableTableHeader'
 import AppButton from '@/app/components/AppButton'
 import type { PaginationState, WorkInstruction } from '../contracts/work-instruction'

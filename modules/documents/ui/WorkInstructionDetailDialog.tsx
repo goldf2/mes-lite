@@ -3,9 +3,8 @@
 import type { DragEvent, RefObject } from 'react'
 import ModalDialog from '@/app/components/ModalDialog'
 import AppButton from '@/app/components/AppButton'
-import DocumentFileViewer from '@/app/components/DocumentFileViewer'
-import DocumentPreviewThumb from '@/app/components/DocumentPreviewThumb'
-import OnlineDocumentEditor from '@/app/components/OnlineDocumentEditor'
+import { DocumentFileViewer, DocumentPreviewThumb } from '@/modules/attachments'
+import OnlineDocumentEditor from './OnlineDocumentEditor'
 import { attachmentTypeLabel } from '@/lib/attachment-file-types'
 import type {
   AttachmentItem,
