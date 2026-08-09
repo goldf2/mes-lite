@@ -99,6 +99,8 @@ assert.doesNotMatch(materialPage, /mes-lite\.materials\.visibleFields|columnResi
 assert.doesNotMatch(materialPage, /setDraftBom|convertBomEntryQuantity|normalizeBomEntryQuantity/, '主物料页面不得重新承载 BOM 草稿状态或单位换算')
 assert.match(materialDetailDialog, /findMaterialByCode/, '物料详情切片必须拥有详情重新读取动作')
 assert.match(materialDetailDialog, /AttachmentPanel/, '物料详情切片必须拥有图片附件视图')
+assert.match(materialDetailDialog, /className="[^"]*\bh-64\b[^"]*\bsm:h-80\b[^"]*\bmd:h-96\b[^"]*\bxl:h-\[28rem\][^"]*"/, '物料详情主图必须限制响应式高度，完整原图交由全屏或新窗口查看')
+assert.doesNotMatch(materialDetailDialog, /aspect-\[4\/3\]/, '物料详情主图不得按全宽比例无限撑高弹窗')
 assert.match(materialEditDialog, /saveMaterial/, '物料编辑切片必须拥有保存动作')
 assert.match(materialEditDialog, /createMaterialForm/, '物料编辑切片必须拥有表单初始化')
 assert.match(materialImportDialog, /importMaterials/, '物料导入切片必须拥有导入动作')

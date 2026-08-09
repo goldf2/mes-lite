@@ -68,7 +68,7 @@ export default function MaterialDetailDialog({
           href={detail.primaryImage?.originalUrl || detail.primaryImage?.url}
           target={detail.primaryImage ? '_blank' : undefined}
           rel={detail.primaryImage ? 'noreferrer' : undefined}
-          className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md bg-gray-100"
+          className="flex h-64 w-full items-center justify-center overflow-hidden rounded-md bg-gray-100 sm:h-80 md:h-96 xl:h-[28rem]"
         >
           {detail.primaryImage ? (
             <img
