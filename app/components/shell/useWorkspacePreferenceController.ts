@@ -7,6 +7,11 @@ import {
   type WorkspaceFunctionKey,
   type WorkspacePreferenceValue,
 } from '@/lib/workspace'
+import {
+  loadWorkspacePreference,
+  recordWorkspaceUsage as recordWorkspaceUsageRequest,
+  saveWorkspacePreference as saveWorkspacePreferenceRequest,
+} from '@/modules/workspace/client/workspace-preferences-api'
 
 interface WorkspacePreferenceControllerOptions {
   onError: (message: string) => void
@@ -17,11 +22,9 @@ export default function useWorkspacePreferenceController({ onError }: WorkspaceP
 
   useEffect(() => {
     let cancelled = false
-    fetch('/api/workspace-preferences')
-      .then((response) => response.json())
-      .then((payload) => {
-        if (cancelled || !payload.data) return
-        const data = payload.data
+    loadWorkspacePreference()
+      .then((data) => {
+        if (cancelled || !data) return
         setWorkspacePreference({
           mode: data.mode === 'SMART' || data.mode === 'CUSTOM' ? data.mode : 'DEFAULT',
           layout: Array.isArray(data.layout) ? data.layout.filter(isWorkspaceFunctionKey) : defaultWorkspacePreference.layout,
@@ -40,14 +43,10 @@ export default function useWorkspacePreferenceController({ onError }: WorkspaceP
   const saveWorkspacePreference = useCallback(async (
     next: Pick<WorkspacePreferenceValue, 'mode' | 'layout' | 'pinned'>,
   ) => {
-    const response = await fetch('/api/workspace-preferences', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(next),
-    })
-    const payload = await response.json()
-    if (!response.ok) {
-      const message = payload.error || '保存工作台设置失败'
+    try {
+      await saveWorkspacePreferenceRequest(next)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '保存工作台设置失败'
       onError(message)
       throw new Error(message)
     }
@@ -65,11 +64,7 @@ export default function useWorkspacePreferenceController({ onError }: WorkspaceP
         : [...current.usage, { functionKey, useCount: 1, lastUsedAt: usedAt }]
       return { ...current, usage }
     })
-    void fetch('/api/workspace-usage', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ functionKey }),
-    }).catch(() => undefined)
+    void recordWorkspaceUsageRequest(functionKey).catch(() => undefined)
   }, [])
 
   return {

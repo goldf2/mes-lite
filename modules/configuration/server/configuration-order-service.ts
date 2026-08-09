@@ -4,7 +4,8 @@ import {
   measureTypeLabels,
   saveUnitCatalogOrder,
   unitCatalogKey,
-} from './unit-catalog'
+} from '@/lib/unit-catalog'
+import { prisma } from '@/lib/prisma'
 
 export const configurationOrderEntities = [
   'locations',
@@ -122,4 +123,12 @@ export async function nextConfigurationSortOrder(
     case 'processTemplates': return ((await client.processTemplate.aggregate({ _max: { sortOrder: true } }))._max.sortOrder ?? -1) + 1
     case 'processRoutes': return ((await client.processRoute.aggregate({ _max: { sortOrder: true } }))._max.sortOrder ?? -1) + 1
   }
+}
+
+export function getConfigurationOrder(entity: ConfigurationOrderEntity) {
+  return listConfigurationOrder(prisma, entity)
+}
+
+export function updateConfigurationOrder(entity: ConfigurationOrderEntity, orderedIds: string[]) {
+  return prisma.$transaction((tx) => saveConfigurationOrder(tx, entity, orderedIds))
 }

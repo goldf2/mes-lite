@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { nextConfigurationSortOrder } from '@/lib/configuration-order'
+import { nextConfigurationSortOrder } from '@/modules/configuration'
 import { resolveProductId } from '@/lib/material-product'
 import type { ProcessRouteInput, ProcessStepInput, ProcessTemplateInput } from '../contracts/production-engineering-schema'
 

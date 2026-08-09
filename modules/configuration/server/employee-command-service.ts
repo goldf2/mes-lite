@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client'
-import { nextConfigurationSortOrder } from '@/lib/configuration-order'
+import { nextConfigurationSortOrder } from './configuration-order-service'
 import { prisma } from '@/lib/prisma'
 import type { EmployeeFieldsInput, EmployeeUpdateInput } from '../contracts/employee-schema'
 import { EmployeeConfigurationError } from '../domain/employee-errors'

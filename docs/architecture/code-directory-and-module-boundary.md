@@ -803,3 +803,12 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 归档列表、永久删除、恢复、审计查询、数据一致性修复和物料编码规范化也归运维工具领域；原 `lib/archived-record-purge.ts`、`data-integrity.ts`、`material-code-normalization.ts`、`scanning.ts` 与 `soft-delete.ts` 已迁移，不保留扁平兼容副本。
 - 归档/维护及物料归档相关 6 条 Route Handler 仅保留权限、Schema、领域服务、请求级审计和 HTTP 映射；直接访问 Prisma 的 Route Handler 从 21 条降至 12 条。
 - `verify:scan-print` 使用运行后删除的临时 SQLite 覆盖会话/事件/打印任务幂等、撤销和完成状态；归档删除与编码规范化验证也改用临时 SQLite，所有验证均不连接本机测试库或服务器正式库。
+
+## 67. 平台 Route Handler 清零直连 Prisma
+
+- 密码认证、注销、首位管理员和微信账号绑定归 `modules/identity-access`；Route Handler 只负责请求解析、Cookie、重定向和 HTTP 错误映射。
+- AI 文档识别归 `modules/attachments`：附件所有权、可识别类型、Provider 超时、JSON 解析和高置信度结果规则不再由路由承载。
+- 工作区偏好、物料导出/兼容查询、生产与质量统计、配置人工排序分别归 `modules/workspace`、`modules/materials`、`modules/production` 与 `modules/configuration`。
+- 跨领域调用配置排序时必须经过 `modules/configuration/index.ts` 公开入口；禁止引用其他模块的 `server` 子路径。
+- 直接访问 Prisma 的 Route Handler 从 12 条降至 0 条。数据库事务继续存在于所属领域服务，而不是被隐藏在通用 HTTP 工具中。
+- 认证和 AI 识别新增局部契约验证；身份回归使用运行后删除的临时 SQLite，不连接本机测试库或服务器正式库。

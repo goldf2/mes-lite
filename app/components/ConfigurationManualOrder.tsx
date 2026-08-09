@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { ConfigurationOrderEntity } from '@/lib/configuration-order'
+import type { ConfigurationOrderEntity } from '@/modules/configuration/server'
 import AppButton from './AppButton'
 import ModalDialog, { ModalActions } from './ModalDialog'
 import AppLoadingIndicator from './AppLoadingIndicator'

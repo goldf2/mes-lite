@@ -22,7 +22,7 @@ async function main() {
       listConfigurationOrder,
       nextConfigurationSortOrder,
       saveConfigurationOrder,
-    } = await import('../lib/configuration-order')
+    } = await import('../modules/configuration/server/configuration-order-service')
     const suffix = Date.now().toString(36)
 
     const supplierOrder = await nextConfigurationSortOrder(prisma, 'suppliers')

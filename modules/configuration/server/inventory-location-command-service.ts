@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client'
-import { nextConfigurationSortOrder } from '@/lib/configuration-order'
+import { nextConfigurationSortOrder } from './configuration-order-service'
 import { prisma } from '@/lib/prisma'
 import type { InventoryLocationInput, InventoryLocationUpdateInput } from '../contracts/inventory-location-schema'
 import { InventoryLocationDomainError } from '../domain/inventory-location-errors'

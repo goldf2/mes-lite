@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client'
-import { nextConfigurationSortOrder } from '@/lib/configuration-order'
+import { nextConfigurationSortOrder } from '@/modules/configuration'
 import { prisma } from '@/lib/prisma'
 import type { WorkCenterInput, WorkCenterUpdateInput } from '../contracts/work-center-schema'
 import { EquipmentDomainError } from '../domain/equipment-errors'

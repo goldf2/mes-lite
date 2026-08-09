@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { Prisma } from '@prisma/client'
-import { nextConfigurationSortOrder } from '@/lib/configuration-order'
+import { nextConfigurationSortOrder } from './configuration-order-service'
 import { createInternalCode } from '@/lib/internal-codes'
 import { prisma } from '@/lib/prisma'
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
