@@ -22,7 +22,7 @@ for (const manager of removedManagers) {
   assert.doesNotMatch(systemPage, new RegExp(`function ${manager}\\b`), `${manager} 不得回流到 SystemPage`)
 }
 
-assert.ok(systemPage.split('\n').length <= 820, 'SystemPage 已迁出配置和设置职责，不得重新超过 820 行')
+assert.ok(systemPage.split('\n').length <= 40, 'SystemPage 已收敛为领域分派层，不得重新超过 40 行')
 assert.match(systemPage, /from '@\/modules\/configuration'/, 'SystemPage 必须通过配置模块公开入口挂载')
 assert.doesNotMatch(systemPage, /function SettingsManager\b|naturalMaterialCodeSortEnabled|companyProfile/, '企业资料和业务规则不得回流 SystemPage')
 assert.match(homeApp, /<WorkspacePageHost\b/, '应用壳必须通过公共页面宿主加载业务页面')

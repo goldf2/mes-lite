@@ -17,6 +17,7 @@ const aiClient = read('modules/system-settings/client/ai-agent-settings-api.ts')
 
 assert.match(systemPage, /from '@\/modules\/system-settings'/, 'SystemPage 必须只通过系统设置模块公开出口接入')
 assert.doesNotMatch(systemPage, /function SettingsManager\b|function AiAgentSettings\b/, '系统设置实现不得回流 SystemPage')
+assert.ok(systemPage.split('\n').length <= 40, 'SystemPage 必须保持为不超过 40 行的纯领域分派层')
 assert.match(moduleIndex, /SystemSettingsSectionPage/, '系统设置模块必须公开统一分区页面')
 assert.match(sectionPage, /displaySettings[\s\S]*navigationSettings[\s\S]*aiSettings/, '系统设置模块必须拥有三个设置分区')
 

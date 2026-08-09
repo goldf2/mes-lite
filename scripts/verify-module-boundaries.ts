@@ -96,7 +96,6 @@ for (const page of rootPages) {
 
 const pageSizeBaselines: Record<string, number> = {
   'app/components/MaterialInPage.tsx': 1679,
-  'app/components/SystemPage.tsx': 811,
   'app/components/WorkInstructionPage.tsx': 1497,
   'app/components/StatsPage.tsx': 936,
   'modules/inventory/ui/StockPageModule.tsx': 853,
@@ -142,6 +141,9 @@ assert.doesNotMatch(systemPage, /function (?:DataToolManager|RecycleBin|AuditLog
 assert.match(systemPage, /from '@\/modules\/operations-tools'/, 'SystemPage 必须通过 operations-tools 公开出口挂载维护工具')
 assert.doesNotMatch(systemPage, /function (?:SettingsManager|AiAgentSettings)\b/, '设置页职责不得回流 SystemPage')
 assert.match(systemPage, /from '@\/modules\/system-settings'/, 'SystemPage 必须通过 system-settings 公开出口挂载系统设置')
+assert.doesNotMatch(systemPage, /function (?:ProcessTemplateManager|ProcessManager)\b|processCostPerThousand|processRouteSearchProfile/, '生产工程职责不得回流 SystemPage')
+assert.match(systemPage, /from '@\/modules\/production'/, 'SystemPage 必须通过 production 公开出口挂载生产工程页面')
+assert.ok(systemPage.split('\n').length <= 40, 'SystemPage 必须保持为不超过 40 行的纯领域分派层')
 
 if (failures.length > 0) {
   throw new Error(`模块边界验证失败：\n- ${failures.join('\n- ')}`)

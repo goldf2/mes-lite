@@ -46,7 +46,6 @@ const unifiedSearchPages = [
   'app/components/SalesOrderPage.tsx',
   'app/components/ShipmentPage.tsx',
   'app/components/StatsPage.tsx',
-  'app/components/SystemPage.tsx',
   'app/components/WorkInstructionPage.tsx',
   'app/components/WorkspacePages.tsx',
   'modules/configuration/ui/DocumentCategorySettingsPage.tsx',
@@ -56,6 +55,10 @@ const resourceSearchPages = [
   'modules/configuration/ui/PartySettingsPage.tsx',
   'modules/configuration/ui/UnitSettingsPage.tsx',
   'modules/configuration/ui/WorkCenterSettingsPage.tsx',
+]
+const productionEngineeringPages = [
+  'modules/production/ui/ProcessTemplatePage.tsx',
+  'modules/production/ui/ProcessRoutePage.tsx',
 ]
 
 assert.doesNotMatch(toolbarSource, /hasLegacyAdvancedSearch|filterPresentation|filters\?: ReactNode/)
@@ -76,4 +79,10 @@ for (const file of resourceSearchPages) {
   assert.doesNotMatch(source, /\bfilters=\{/, `${file} 不得继续使用旧筛选内容作为高级搜索`)
 }
 
-console.log(`高级搜索字段表单验证通过：${unifiedSearchPages.length + resourceSearchPages.length} 个搜索页面统一使用公共字段式高级搜索。`)
+for (const file of productionEngineeringPages) {
+  const source = readFileSync(join(root, file), 'utf8')
+  assert.match(source, /advancedFields=/, `${file} 必须通过生产工程资源页壳接入公共高级搜索`)
+  assert.doesNotMatch(source, /\bfilters=\{/, `${file} 不得继续使用旧筛选内容作为高级搜索`)
+}
+
+console.log(`高级搜索字段表单验证通过：${unifiedSearchPages.length + resourceSearchPages.length + productionEngineeringPages.length} 个搜索页面统一使用公共字段式高级搜索。`)
