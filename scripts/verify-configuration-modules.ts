@@ -22,7 +22,7 @@ for (const manager of removedManagers) {
   assert.doesNotMatch(systemPage, new RegExp(`function ${manager}\\b`), `${manager} 不得回流到 SystemPage`)
 }
 
-assert.ok(systemPage.split('\n').length < 2200, 'SystemPage 必须保持在 2200 行以内')
+assert.ok(systemPage.split('\n').length <= 1500, 'SystemPage 已迁出维护工具职责，不得重新超过 1500 行')
 assert.match(systemPage, /from '@\/modules\/configuration'/, 'SystemPage 必须通过配置模块公开入口挂载')
 assert.match(homeApp, /<WorkspacePageHost\b/, '应用壳必须通过公共页面宿主加载业务页面')
 assert.match(workspacePageHost, /renderRegisteredWorkspacePage/, '公共页面宿主必须通过渲染注册表挂载页面')

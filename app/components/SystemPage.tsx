@@ -2,12 +2,10 @@
 
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { Columns2, Eye, EyeOff, LayoutPanelLeft, MousePointer2, PanelRightOpen, Pin, PlugZap, Rows3, Save, SlidersHorizontal } from 'lucide-react'
-import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
+import { usePersistedViewMode } from './ViewModeToggle'
 import { useDesktopNavigationPreference, useModalGlassPreference, useSiblingNavigationPreference, useWorkspaceLayoutPreference } from './interfacePreferences'
 import MaterialChoiceSearch from './MaterialChoiceSearch'
-import { SearchFieldWithPresets } from './SavedSearchPresets'
 import useCompactViewport from './useCompactViewport'
-import DataIntegrityPanel from './DataIntegrityPanel'
 import SearchableSelect from './SearchableSelect'
 import SortableTableHeader from './SortableTableHeader'
 import useClientTableSort from './useClientTableSort'
@@ -19,9 +17,6 @@ import AppLoadingIndicator from './AppLoadingIndicator'
 import { useAiAssistantAppearance } from './AiAssistantAppearanceProvider'
 import ContrastModeSelector from './ContrastModeSelector'
 import { applyContrastMode, ContrastMode, normalizeContrastMode } from '@/lib/contrast-modes'
-import ResponsiveToolbarActions from './ResponsiveToolbarActions'
-import TopBarPortal from './TopBarPortal'
-import ImageOptimizationPanel from './ImageOptimizationPanel'
 import WorkspaceNavigationSettings from './navigation/WorkspaceNavigationSettings'
 import { ResourceAdvancedSearch, ResourcePageShell } from './resource'
 import {
@@ -31,26 +26,8 @@ import {
   type ResourceSearchProfile,
 } from '@/lib/resource-search'
 import ConfigurationSectionPage, { isReferenceConfigurationSection } from '@/modules/configuration'
+import { isOperationsToolsSection, OperationsToolsSectionPage } from '@/modules/operations-tools'
 import type { RegisteredSystemSection } from '@/lib/page-registry'
-
-interface AuditLog {
-  id: string
-  operatorName?: string | null
-  action: string
-  entityType: string
-  entityId?: string | null
-  entityLabel?: string | null
-  note?: string | null
-  createdAt: string
-}
-
-interface DeletedRecord {
-  id: string
-  label: string
-  type: string
-  model: 'material' | 'supplier' | 'customer' | 'materialIn' | 'workInstruction' | 'order' | 'dispatch' | 'shipment' | 'return'
-  deletedAt?: string | null
-}
 
 interface AiAgentConfigView {
   enabled: boolean
@@ -156,24 +133,6 @@ interface ProcessTemplate {
   isPreset: boolean
   sortOrder: number
   materials: Array<{ id: string; code: string; name: string }>
-}
-
-interface MaterialCodeNormalizationPreview {
-  totalMaterials: number
-  pendingMaterialCount: number
-  pendingProductCount: number
-  invalidMaterials: Array<{ id: string; code: string; name: string; archived: boolean }>
-  materialConflicts: Array<{
-    normalizedCode: string
-    materials: Array<{ id: string; code: string; name: string; archived: boolean }>
-  }>
-  productConflicts: Array<{
-    normalizedSku: string
-    products: Array<{ id: string; sku: string }>
-  }>
-  ambiguousProducts: Array<{ productId: string; sku: string; materialCodes: string[] }>
-  changes: Array<{ id: string; name: string; archived: boolean; before: string; after: string }>
-  canExecute: boolean
 }
 
 const processCategoryOptions = [
@@ -315,39 +274,6 @@ function SystemResourcePage<T>({
   )
 }
 
-function SystemPageToolbar({
-  searchStorageKey,
-  searchValue,
-  onSearchChange,
-  searchPlaceholder,
-  viewMode,
-  onViewModeChange,
-  actions,
-}: {
-  searchStorageKey?: string
-  searchValue?: string
-  onSearchChange?: (value: string) => void
-  searchPlaceholder?: string
-  viewMode?: 'card' | 'list'
-  onViewModeChange?: (value: 'card' | 'list') => void
-  actions?: ReactNode
-}) {
-  const extraAction = useContext(SystemToolbarExtraContext)
-  const primaryFilters = searchStorageKey && searchValue !== undefined && onSearchChange && searchPlaceholder
-    ? <SearchFieldWithPresets storageKey={searchStorageKey} value={searchValue} onChange={onSearchChange} placeholder={searchPlaceholder} />
-    : undefined
-  const toolbarActions = extraAction || actions
-    ? (
-        <>
-          {extraAction}
-          {actions}
-        </>
-      )
-    : undefined
-
-  return <TopBarPortal><ResponsiveToolbarActions primaryFilters={primaryFilters} viewControl={viewMode && onViewModeChange ? <ViewModeToggle value={viewMode} onChange={onViewModeChange} /> : undefined} actions={toolbarActions} /></TopBarPortal>
-}
-
 export default function SystemPage({
   section,
   onMessage,
@@ -365,151 +291,20 @@ export default function SystemPage({
     return <ConfigurationSectionPage section={section} onMessage={onMessage} />
   }
 
+  if (isOperationsToolsSection(section)) {
+    return <OperationsToolsSectionPage section={section} onMessage={onMessage} />
+  }
+
   return (
     <SystemToolbarExtraContext.Provider value={manualOrderAction}>
       <div key={`${section}-${orderRevision}`}>
         {section === 'processTemplates' && <ProcessTemplateManager onMessage={onMessage} />}
         {section === 'process' && <ProcessManager onMessage={onMessage} />}
-        {section === 'recycle' && <RecycleBin onMessage={onMessage} />}
-        {section === 'audit' && <AuditLogViewer onMessage={onMessage} />}
-        {section === 'dataTools' && <DataToolManager onMessage={onMessage} />}
         {(section === 'businessSettings' || section === 'displaySettings' || section === 'navigationSettings' || section === 'aiSettings') && (
           <SettingsManager section={section} onMessage={onMessage} />
         )}
       </div>
     </SystemToolbarExtraContext.Provider>
-  )
-}
-
-function DataToolManager({ onMessage }: { onMessage: (msg: string) => void }) {
-  const [preview, setPreview] = useState<MaterialCodeNormalizationPreview | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [executing, setExecuting] = useState(false)
-
-  const loadPreview = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await fetch('/api/system/material-code-normalization')
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '检查物料编码失败')
-        return
-      }
-      setPreview(data.data)
-    } finally {
-      setLoading(false)
-    }
-  }, [onMessage])
-
-  useEffect(() => {
-    loadPreview()
-  }, [loadPreview])
-
-  const execute = async () => {
-    if (!preview || !preview.canExecute || preview.pendingMaterialCount === 0) return
-    if (!confirm(`将删除 ${preview.pendingMaterialCount} 条物料编码中的全部空白字符并转换为大写。该操作会同步关联产品编码，是否继续？`)) return
-
-    setExecuting(true)
-    try {
-      const res = await fetch('/api/system/material-code-normalization', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirmation: 'NORMALIZE_MATERIAL_CODES' }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '物料编码转换失败')
-        if (data.data) setPreview(data.data)
-        return
-      }
-      onMessage(`已转换 ${data.data.changedMaterials} 条物料编码，同步 ${data.data.changedProducts} 条关联产品编码`)
-      await loadPreview()
-    } finally {
-      setExecuting(false)
-    }
-  }
-
-  const blockerCount = preview
-    ? preview.invalidMaterials.length + preview.materialConflicts.length + preview.productConflicts.length + preview.ambiguousProducts.length
-    : 0
-
-  return (
-    <div className="rounded-lg bg-white p-4 shadow sm:p-6">
-      <div className="mb-5">
-        <h3 className="text-lg font-semibold">数据工具</h3>
-        <p className="mt-1 text-sm text-gray-500">执行前先预检，修改与删除操作使用数据库事务并写入操作记录。</p>
-      </div>
-
-      <div className="mb-4">
-        <ImageOptimizationPanel onMessage={onMessage} />
-      </div>
-
-      <DataIntegrityPanel onMessage={onMessage} />
-
-      <div className="mt-4 rounded-lg border border-gray-200 p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div className="font-medium text-gray-900">规范化物料编码</div>
-            <div className="mt-1 text-sm text-gray-500">删除编码中的全部空格、制表符和换行，再将英文字母转换为大写。</div>
-            <div className="mt-2 text-xs text-gray-500">物料关联的兼容产品编码会同步更新；名称、规格、历史单据快照不变。</div>
-          </div>
-          <button
-            onClick={execute}
-            disabled={loading || executing || !preview?.canExecute || preview.pendingMaterialCount === 0}
-            className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {executing ? '转换中...' : '转换为大写并删除空格'}
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="mt-4 rounded-lg bg-gray-50 p-4 text-sm text-gray-500">正在检查物料编码...</div>
-        ) : preview ? (
-          <>
-            <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <div className="rounded-lg bg-gray-50 p-3"><div className="text-xs text-gray-500">物料总数</div><div className="mt-1 text-xl font-semibold">{preview.totalMaterials}</div></div>
-              <div className="rounded-lg bg-blue-50 p-3"><div className="text-xs text-blue-600">待转换物料</div><div className="mt-1 text-xl font-semibold text-blue-800">{preview.pendingMaterialCount}</div></div>
-              <div className="rounded-lg bg-cyan-50 p-3"><div className="text-xs text-cyan-600">关联产品同步</div><div className="mt-1 text-xl font-semibold text-cyan-800">{preview.pendingProductCount}</div></div>
-              <div className={`rounded-lg p-3 ${blockerCount > 0 ? 'bg-red-50' : 'bg-green-50'}`}><div className={`text-xs ${blockerCount > 0 ? 'text-red-600' : 'text-green-600'}`}>阻塞问题</div><div className={`mt-1 text-xl font-semibold ${blockerCount > 0 ? 'text-red-800' : 'text-green-800'}`}>{blockerCount}</div></div>
-            </div>
-
-            {blockerCount > 0 && (
-              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-                <div className="font-medium">存在冲突，当前禁止转换</div>
-                {preview.invalidMaterials.map((item) => <div key={item.id} className="mt-2">空白编码：{item.name}（{JSON.stringify(item.code)}）</div>)}
-                {preview.materialConflicts.map((item) => (
-                  <div key={item.normalizedCode} className="mt-2">
-                    转换后重复为 {item.normalizedCode}：{item.materials.map((material) => `${material.code} · ${material.name}`).join('；')}
-                  </div>
-                ))}
-                {preview.productConflicts.map((item) => <div key={item.normalizedSku} className="mt-2">关联产品编码冲突：{item.normalizedSku}</div>)}
-                {preview.ambiguousProducts.map((item) => <div key={item.productId} className="mt-2">关联产品 {item.sku} 同时匹配物料：{item.materialCodes.join('、')}</div>)}
-              </div>
-            )}
-
-            {blockerCount === 0 && preview.pendingMaterialCount === 0 && (
-              <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">当前全部物料编码已经符合规范，无需转换。</div>
-            )}
-
-            {preview.pendingMaterialCount > 0 && (
-              <div className="mt-4">
-                <div className="mb-2 text-sm font-medium text-gray-700">转换预览（最多显示 20 条）</div>
-                <div className="overflow-x-auto rounded-lg border border-gray-200">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-left text-gray-600"><tr><th className="px-3 py-2">物料</th><th className="px-3 py-2">转换前</th><th className="px-3 py-2">转换后</th></tr></thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {preview.changes.slice(0, 20).map((change) => (
-                        <tr key={change.id}><td className="px-3 py-2">{change.name}{change.archived ? '（已归档）' : ''}</td><td className="px-3 py-2 font-mono text-gray-600">{change.before}</td><td className="px-3 py-2 font-mono font-medium text-blue-700">{change.after}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </>
-        ) : null}
-      </div>
-    </div>
   )
 }
 
@@ -1675,275 +1470,5 @@ function ProcessManager({ onMessage }: { onMessage: (msg: string) => void }) {
         </ModalDialog>
       )}
     </SystemResourcePage>
-  )
-}
-
-function Placeholder({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="bg-white rounded-lg shadow p-8">
-      <h3 className="text-lg font-semibold mb-2">{title}</h3>
-      <p className="text-sm text-gray-500">{text}</p>
-    </div>
-  )
-}
-
-function RecycleBin({ onMessage }: { onMessage: (msg: string) => void }) {
-  const [records, setRecords] = useState<DeletedRecord[]>([])
-  const [loading, setLoading] = useState(false)
-  const [purgingKey, setPurgingKey] = useState('')
-  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.recycle.viewMode', 'list')
-  const isCompactViewport = useCompactViewport(1023)
-  const effectiveViewMode = isCompactViewport ? 'card' : viewMode
-  const recordSort = useClientTableSort(records, {
-    type: (record) => record.type,
-    label: (record) => record.label,
-    deletedAt: (record) => record.deletedAt ? new Date(record.deletedAt) : null,
-  }, 'deletedAt', 'desc')
-
-  useEffect(() => {
-    fetchDeletedRecords()
-  }, [])
-
-  const flattenRecords = (data: any): DeletedRecord[] => {
-    const rows: DeletedRecord[] = []
-    ;(data.materials || []).forEach((item: any) => rows.push({ id: item.id, label: item.code, type: '物料', model: 'material', deletedAt: item.deletedAt }))
-    ;(data.suppliers || []).forEach((item: any) => rows.push({ id: item.id, label: item.name, type: '供应商', model: 'supplier', deletedAt: item.deletedAt }))
-    ;(data.customers || []).forEach((item: any) => rows.push({ id: item.id, label: item.name, type: '客户', model: 'customer', deletedAt: item.deletedAt }))
-    ;(data.materialIn || []).forEach((item: any) => rows.push({ id: item.id, label: item.inboundNo, type: '来料单', model: 'materialIn', deletedAt: item.deletedAt }))
-    ;(data.workInstructions || []).forEach((item: any) => rows.push({ id: item.id, label: `${item.material?.code || '-'} · ${item.material?.name || '未知产品'}`, type: '产品文档', model: 'workInstruction', deletedAt: item.deletedAt }))
-    ;(data.orders || []).forEach((item: any) => rows.push({ id: item.id, label: item.orderNo, type: '工单', model: 'order', deletedAt: item.deletedAt }))
-    ;(data.dispatches || []).forEach((item: any) => rows.push({ id: item.id, label: item.dispatchNo, type: '派工单', model: 'dispatch', deletedAt: item.deletedAt }))
-    ;(data.shipments || []).forEach((item: any) => rows.push({ id: item.id, label: item.shipmentNo, type: '发货单', model: 'shipment', deletedAt: item.deletedAt }))
-    ;(data.returns || []).forEach((item: any) => rows.push({ id: item.id, label: item.returnNo, type: '退货单', model: 'return', deletedAt: item.deletedAt }))
-    return rows.sort((a, b) => String(b.deletedAt || '').localeCompare(String(a.deletedAt || '')))
-  }
-
-  const fetchDeletedRecords = async () => {
-    setLoading(true)
-    const res = await fetch('/api/deleted-records')
-    const data = await res.json()
-    if (res.ok) {
-      setRecords(flattenRecords(data.data || {}))
-    } else {
-      onMessage(data.error || '获取归档记录失败')
-    }
-    setLoading(false)
-  }
-
-  const restore = async (record: DeletedRecord) => {
-    const res = await fetch('/api/restore', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: record.model, id: record.id }),
-    })
-    const data = await res.json()
-    if (res.ok) {
-      onMessage('记录已恢复归档')
-      await fetchDeletedRecords()
-    } else {
-      onMessage(data.error || '恢复归档失败')
-    }
-  }
-
-  const purge = async (record: DeletedRecord) => {
-    const confirmation = window.prompt(
-      `永久删除「${record.label}」后不能恢复。若确认继续，请输入“永久删除”：`,
-    )
-    if (confirmation === null) return
-    if (confirmation !== '永久删除') {
-      onMessage('输入内容不一致，已取消永久删除')
-      return
-    }
-
-    const key = `${record.model}-${record.id}`
-    setPurgingKey(key)
-    try {
-      const res = await fetch('/api/deleted-records', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: record.model, id: record.id, confirmation: '永久删除' }),
-      })
-      const data = await res.json()
-      if (res.ok) {
-        onMessage('归档记录已永久删除')
-        await fetchDeletedRecords()
-      } else {
-        onMessage(data.error || '永久删除失败')
-      }
-    } finally {
-      setPurgingKey('')
-    }
-  }
-
-  return (
-    <div className="rounded-lg bg-white p-4 shadow sm:p-6">
-      <SystemPageToolbar
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        actions={<AppButton onClick={fetchDeletedRecords}>刷新</AppButton>}
-      />
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">归档记录</h3>
-          <p className="text-sm text-gray-500 mt-1">归档记录可以恢复；没有有效库存和下游业务引用时可永久删除并释放编码，完整红冲且净影响为零的来料历史会一并清理。</p>
-        </div>
-      </div>
-      {effectiveViewMode === 'card' && records.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {recordSort.sortedRows.map((record) => (
-            <div key={`${record.model}-${record.id}`} className="rounded-lg border border-gray-200 bg-white p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="font-mono text-sm font-semibold text-blue-700">{record.label}</div>
-                  <div className="mt-1 text-sm text-gray-500">{record.type}</div>
-                </div>
-                <div className="flex shrink-0 flex-col gap-2">
-                  <button onClick={() => restore(record)} className="px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">恢复归档</button>
-                  <button
-                    onClick={() => purge(record)}
-                    disabled={purgingKey === `${record.model}-${record.id}`}
-                    className="rounded border border-red-300 px-3 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
-                  >
-                    {purgingKey === `${record.model}-${record.id}` ? '删除中...' : '永久删除'}
-                  </button>
-                </div>
-              </div>
-              <div className="mt-4 text-xs text-gray-500">归档时间：{record.deletedAt ? new Date(record.deletedAt).toLocaleString('zh-CN') : '-'}</div>
-            </div>
-          ))}
-        </div>
-      ) : (
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <SortableTableHeader column="type" activeColumn={recordSort.sortColumn} direction={recordSort.sortDirection} onSort={recordSort.toggleSort}>类型</SortableTableHeader>
-              <SortableTableHeader column="label" activeColumn={recordSort.sortColumn} direction={recordSort.sortDirection} onSort={recordSort.toggleSort}>编号</SortableTableHeader>
-              <SortableTableHeader column="deletedAt" activeColumn={recordSort.sortColumn} direction={recordSort.sortDirection} onSort={recordSort.toggleSort}>归档时间</SortableTableHeader>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {recordSort.sortedRows.map((record) => (
-              <tr key={`${record.model}-${record.id}`} className="hover:bg-gray-50">
-                <td className="px-4 py-3 text-sm">{record.type}</td>
-                <td className="px-4 py-3 font-mono text-sm text-blue-700">{record.label}</td>
-                <td className="px-4 py-3 text-xs text-gray-500">{record.deletedAt ? new Date(record.deletedAt).toLocaleString('zh-CN') : '-'}</td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-2">
-                    <button onClick={() => restore(record)} className="px-3 py-1 text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50">恢复归档</button>
-                    <button
-                      onClick={() => purge(record)}
-                      disabled={purgingKey === `${record.model}-${record.id}`}
-                      className="rounded border border-red-300 px-3 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
-                    >
-                      {purgingKey === `${record.model}-${record.id}` ? '删除中...' : '永久删除'}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      )}
-      {!loading && records.length === 0 && <div className="text-center py-12 text-gray-500">暂无归档记录</div>}
-    </div>
-  )
-}
-
-function AuditLogViewer({ onMessage }: { onMessage: (msg: string) => void }) {
-  const [logs, setLogs] = useState<AuditLog[]>([])
-  const [loading, setLoading] = useState(false)
-  const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.audit.viewMode', 'list')
-  const isCompactViewport = useCompactViewport(1023)
-  const effectiveViewMode = isCompactViewport ? 'card' : viewMode
-  const auditSort = useClientTableSort(logs, {
-    createdAt: (log) => new Date(log.createdAt),
-    operator: (log) => log.operatorName,
-    action: (log) => log.action,
-    entity: (log) => `${log.entityType} ${log.entityLabel || log.entityId || ''}`,
-    note: (log) => log.note,
-  }, 'createdAt', 'desc')
-
-  useEffect(() => {
-    fetchLogs()
-  }, [])
-
-  const fetchLogs = async () => {
-    setLoading(true)
-    const res = await fetch('/api/audit-logs?pageSize=100')
-    const data = await res.json()
-    if (res.ok) {
-      setLogs(data.data || [])
-    } else {
-      onMessage(data.error || '获取操作记录失败')
-    }
-    setLoading(false)
-  }
-
-  return (
-    <div className="rounded-lg bg-white p-4 shadow sm:p-6">
-      <SystemPageToolbar
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        actions={<AppButton onClick={fetchLogs}>刷新</AppButton>}
-      />
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">操作记录</h3>
-          <p className="text-sm text-gray-500 mt-1">记录新增、修改、归档、恢复、收货、盘点等关键操作。</p>
-        </div>
-      </div>
-      {effectiveViewMode === 'card' && logs.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {auditSort.sortedRows.map((log) => (
-            <div key={log.id} className="rounded-lg border border-gray-200 bg-white p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="font-semibold text-gray-900">{log.action}</div>
-                <div className="text-xs text-gray-500">{new Date(log.createdAt).toLocaleString('zh-CN')}</div>
-              </div>
-              <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
-                <div>
-                  <div className="text-xs text-gray-500">人员</div>
-                  <div className="mt-1">{log.operatorName || '-'}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500">对象</div>
-                  <div className="mt-1">{log.entityType} {log.entityLabel || log.entityId || ''}</div>
-                </div>
-              </div>
-              <div className="mt-3 rounded bg-gray-50 p-3 text-sm text-gray-600">{log.note || '-'}</div>
-            </div>
-          ))}
-        </div>
-      ) : (
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <SortableTableHeader column="createdAt" activeColumn={auditSort.sortColumn} direction={auditSort.sortDirection} onSort={auditSort.toggleSort}>时间</SortableTableHeader>
-              <SortableTableHeader column="operator" activeColumn={auditSort.sortColumn} direction={auditSort.sortDirection} onSort={auditSort.toggleSort}>人员</SortableTableHeader>
-              <SortableTableHeader column="action" activeColumn={auditSort.sortColumn} direction={auditSort.sortDirection} onSort={auditSort.toggleSort}>动作</SortableTableHeader>
-              <SortableTableHeader column="entity" activeColumn={auditSort.sortColumn} direction={auditSort.sortDirection} onSort={auditSort.toggleSort}>对象</SortableTableHeader>
-              <SortableTableHeader column="note" activeColumn={auditSort.sortColumn} direction={auditSort.sortDirection} onSort={auditSort.toggleSort}>备注</SortableTableHeader>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {auditSort.sortedRows.map((log) => (
-              <tr key={log.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 text-xs text-gray-500">{new Date(log.createdAt).toLocaleString('zh-CN')}</td>
-                <td className="px-4 py-3 text-sm">{log.operatorName || '-'}</td>
-                <td className="px-4 py-3 text-sm font-medium">{log.action}</td>
-                <td className="px-4 py-3 text-sm">{log.entityType} {log.entityLabel || log.entityId || ''}</td>
-                <td className="px-4 py-3 text-sm text-gray-500">{log.note || '-'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      )}
-      {!loading && logs.length === 0 && <div className="text-center py-12 text-gray-500">暂无操作记录</div>}
-    </div>
   )
 }
