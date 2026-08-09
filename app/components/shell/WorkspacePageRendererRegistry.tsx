@@ -23,7 +23,7 @@ const SawingCostCalculatorPage = dynamic(() => import('../SawingCostCalculatorPa
 const ScanPrintPage = dynamic(() => import('../ScanPrintPage'), { loading: FeaturePageLoading })
 const BomOverviewPage = dynamic(() => import('@/modules/bom'), { loading: FeaturePageLoading })
 const MaterialPage = dynamic(() => import('@/modules/materials'), { loading: FeaturePageLoading })
-const WorkInstructionPage = dynamic(() => import('../WorkInstructionPage'), { loading: FeaturePageLoading })
+const WorkInstructionPage = dynamic(() => import('@/modules/documents'), { loading: FeaturePageLoading })
 const DocumentCategorySettingsPage = dynamic(() => import('@/modules/configuration').then((module) => module.DocumentCategorySettingsPage), { loading: FeaturePageLoading })
 const EquipmentPage = dynamic(() => import('../EquipmentPage'), { loading: FeaturePageLoading })
 const OperatorPage = dynamic(() => import('../OperatorPage'), { loading: FeaturePageLoading })

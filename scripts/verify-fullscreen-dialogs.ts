@@ -8,7 +8,7 @@ const read = (file: string) => readFileSync(path.join(root, file), 'utf8')
 const fullscreenToggleSource = read('app/components/FullscreenToggleButton.tsx')
 const modalSource = read('app/components/ModalDialog.tsx')
 const overlaySource = read('app/components/ModalOverlay.tsx')
-const documentSource = read('app/components/WorkInstructionPage.tsx')
+const documentSource = read('modules/documents/ui/WorkInstructionPage.tsx')
 const pageRegistrySource = read('lib/page-registry.ts')
 const pageModulesSource = read('lib/page-modules.ts')
 

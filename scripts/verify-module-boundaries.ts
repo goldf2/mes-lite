@@ -87,7 +87,6 @@ const legacyRootPages = new Set([
   'ShipmentPage.tsx',
   'StatsPage.tsx',
   'SystemPage.tsx',
-  'WorkInstructionPage.tsx',
 ])
 const rootPages = readdirSync(join(root, 'app', 'components')).filter((name) => name.endsWith('Page.tsx'))
 for (const page of rootPages) {
@@ -96,7 +95,7 @@ for (const page of rootPages) {
 
 const pageSizeBaselines: Record<string, number> = {
   'app/components/MaterialInPage.tsx': 1679,
-  'app/components/WorkInstructionPage.tsx': 1497,
+  'modules/documents/ui/WorkInstructionPage.tsx': 1497,
   'app/components/StatsPage.tsx': 936,
   'modules/inventory/ui/StockPageModule.tsx': 853,
   'modules/materials/ui/MaterialPage.tsx': 887,
@@ -122,7 +121,6 @@ const routeSizeBaselines: Record<string, number> = {
   'app/api/materials/import/route.ts': 398,
   'app/api/permissions/route.ts': 350,
   'app/api/stocks/route.ts': 449,
-  'app/api/work-instructions/route.ts': 551,
 }
 const routeFiles = walk(join(root, 'app', 'api')).filter((path) => path.endsWith('/route.ts'))
 for (const path of routeFiles) {

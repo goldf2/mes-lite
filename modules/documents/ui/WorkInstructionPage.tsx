@@ -3,114 +3,41 @@
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import { FileText, Image as ImageIcon, Upload, X } from 'lucide-react'
-import TopBarPortal from './TopBarPortal'
-import ResponsiveToolbarActions from './ResponsiveToolbarActions'
-import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
-import useDismissibleSearchPopup from './useDismissibleSearchPopup'
-import DocumentPreviewThumb from './DocumentPreviewThumb'
-import DocumentFileViewer from './DocumentFileViewer'
-import { SearchFieldWithPresets } from './SavedSearchPresets'
-import SearchableSelect from './SearchableSelect'
+import TopBarPortal from '@/app/components/TopBarPortal'
+import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
+import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
+import useDismissibleSearchPopup from '@/app/components/useDismissibleSearchPopup'
+import DocumentPreviewThumb from '@/app/components/DocumentPreviewThumb'
+import DocumentFileViewer from '@/app/components/DocumentFileViewer'
+import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
+import SearchableSelect from '@/app/components/SearchableSelect'
 import { normalizeAttachmentRotation } from '@/lib/attachment-rotation'
-import {
-  DocumentCategoryItem,
-  documentCategoryLabel,
-  documentCategoryOptions,
-} from './DocumentCategoryManagerModal'
-import SortableTableHeader from './SortableTableHeader'
-import useClientTableSort from './useClientTableSort'
-import ModalDialog, { ModalActions } from './ModalDialog'
-import { appInputClassName, appSelectClassName, appTextareaClassName } from './FormField'
-import AppButton from './AppButton'
-import OnlineDocumentEditor from './OnlineDocumentEditor'
+import { documentCategoryLabel, documentCategoryOptions } from '@/app/components/DocumentCategoryManagerModal'
+import SortableTableHeader from '@/app/components/SortableTableHeader'
+import useClientTableSort from '@/app/components/useClientTableSort'
+import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
+import { appInputClassName, appSelectClassName, appTextareaClassName } from '@/app/components/FormField'
+import AppButton from '@/app/components/AppButton'
+import OnlineDocumentEditor from '@/app/components/OnlineDocumentEditor'
 import { EMPTY_DOCUMENT_JSON } from '@/lib/document-content'
-import OneToManyRelationField from './relations/OneToManyRelationField'
-import { ResourceAdvancedSearch } from './resource'
+import OneToManyRelationField from '@/app/components/relations/OneToManyRelationField'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
 import type { ResourceAdvancedSearchField, ResourceSearchCondition } from '@/lib/resource-search'
 import {
   MAX_ATTACHMENT_FILE_SIZE,
   attachmentPreviewKind,
   attachmentTypeLabel,
-  type AttachmentPreviewKind,
 } from '@/lib/attachment-file-types'
-
-interface Customer {
-  id: string
-  code: string
-  name: string
-}
-
-interface MaterialOption {
-  id: string
-  code: string
-  name: string
-  spec?: string | null
-  category?: string
-  customerId?: string | null
-  customer?: Customer | null
-}
-
-interface WorkCenterOption {
-  id: string
-  code: string
-  name: string
-  isActive: boolean
-}
-
-interface AttachmentItem {
-  id: string
-  originalName: string
-  mimeType: string
-  size: number
-  url: string
-  thumbnailUrl?: string | null
-  previewUrl?: string | null
-  previewKind?: AttachmentPreviewKind
-  note?: string | null
-  documentType: string
-  isCover: boolean
-  rotation: number
-  createdAt: string
-}
-
-interface WorkInstruction {
-  id: string
-  categoryId: string
-  category: Pick<DocumentCategoryItem, 'id' | 'name' | 'parentId' | 'parent'>
-  title: string
-  version: string
-  status: string
-  materialId?: string | null
-  material?: MaterialOption | null
-  workCenters: WorkCenterOption[]
-  contentJson?: string | null
-  contentText?: string | null
-  note?: string | null
-  attachmentCount: number
-  imageCount: number
-  pdfCount: number
-  primaryAttachment?: AttachmentItem | null
-  createdAt: string
-  updatedAt: string
-}
-
-interface PaginationState {
-  page: number
-  pageSize: number
-  total: number
-  totalPages: number
-}
-
-type WorkInstructionForm = {
-  title: string
-  categoryId: string
-  version: string
-  status: string
-  materialId: string
-  workCenterIds: string[]
-  contentJson: string
-  note: string
-}
+import type {
+  AttachmentItem, CustomerOption, DocumentCategoryRecord, MaterialOption, PaginationState,
+  WorkCenterOption, WorkInstruction, WorkInstructionForm,
+} from '../contracts/work-instruction'
+import {
+  archiveInstructionAttachment, archiveWorkInstructionRecord, listDocumentCategories,
+  listDocumentCustomers, listDocumentWorkCenters, listFinishedMaterialOptions,
+  listInstructionAttachments, listWorkInstructions, saveWorkInstruction,
+  setInstructionAttachmentRotation, uploadInstructionAttachment,
+} from '../client/documents-api'
 
 const instructionStatusOptions = [
   { value: 'ACTIVE', label: '启用' },
@@ -400,8 +327,8 @@ function WorkCenterPicker({
 
 export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: string) => void }) {
   const [items, setItems] = useState<WorkInstruction[]>([])
-  const [categories, setCategories] = useState<DocumentCategoryItem[]>([])
-  const [customers, setCustomers] = useState<Customer[]>([])
+  const [categories, setCategories] = useState<DocumentCategoryRecord[]>([])
+  const [customers, setCustomers] = useState<CustomerOption[]>([])
   const [materials, setMaterials] = useState<MaterialOption[]>([])
   const [workCenters, setWorkCenters] = useState<WorkCenterOption[]>([])
   const [keyword, setKeyword] = useState('')
@@ -506,16 +433,9 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch('/api/document-categories')
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '获取文档类别失败')
-        return
-      }
-      const nextCategories = (data.data || []) as DocumentCategoryItem[]
-      setCategories(nextCategories)
+      setCategories(await listDocumentCategories())
     } catch (err) {
-      onMessage('获取文档类别失败')
+      onMessage(err instanceof Error ? err.message : '获取文档类别失败')
     }
   }
 
@@ -530,16 +450,9 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
   const fetchInstructions = async () => {
     try {
-      const params = buildParams()
-      const res = await fetch(`/api/work-instructions?${params.toString()}`)
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '获取产品文档失败')
-        setItems([])
-        return
-      }
-      const nextItems = data.data || []
-      const nextPagination = data.pagination || { page, pageSize, total: nextItems.length, totalPages: 1 }
+      const result = await listWorkInstructions(buildParams())
+      const nextItems = result.items
+      const nextPagination = result.pagination || { page, pageSize, total: nextItems.length, totalPages: 1 }
       setItems(nextItems)
       setPagination(nextPagination)
       if (nextPagination.total > 0 && nextPagination.page > nextPagination.totalPages) {
@@ -547,18 +460,14 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
       }
       setDetail((current) => current ? nextItems.find((item: WorkInstruction) => item.id === current.id) || current : null)
     } catch (err) {
-      onMessage('获取产品文档失败')
+      onMessage(err instanceof Error ? err.message : '获取产品文档失败')
       setItems([])
     }
   }
 
   const fetchCustomers = async () => {
     try {
-      const res = await fetch('/api/customers')
-      if (res.ok) {
-        const data = await res.json()
-        setCustomers(data.data || [])
-      }
+      setCustomers(await listDocumentCustomers())
     } catch (err) {
       // ignore
     }
@@ -566,16 +475,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
   const fetchMaterials = useCallback(async (searchKeyword = '') => {
     try {
-      const params = new URLSearchParams()
-      params.set('pageSize', '50')
-      params.set('category', 'FINISHED')
-      const keyword = searchKeyword.trim()
-      if (keyword) params.set('keyword', keyword)
-      const res = await fetch(`/api/materials?${params.toString()}`)
-      if (res.ok) {
-        const data = await res.json()
-        mergeMaterialOptions(data.data || [])
-      }
+      mergeMaterialOptions(await listFinishedMaterialOptions(searchKeyword))
     } catch (err) {
       // ignore
     }
@@ -583,18 +483,14 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
   const fetchAttachments = async (instructionId: string) => {
     try {
-      const res = await fetch(`/api/attachments?ownerType=WORK_INSTRUCTION&ownerId=${encodeURIComponent(instructionId)}`)
-      if (res.ok) {
-        const data = await res.json()
-        const attachments = (data.data || []) as AttachmentItem[]
-        setDetailAttachments(attachments)
-        setSelectedDetailAttachmentId((current) => (
-          current && attachments.some((attachment) => attachment.id === current)
-            ? current
-            : attachments[0]?.id || null
-        ))
-        return attachments
-      }
+      const attachments = await listInstructionAttachments(instructionId)
+      setDetailAttachments(attachments)
+      setSelectedDetailAttachmentId((current) => (
+        current && attachments.some((attachment) => attachment.id === current)
+          ? current
+          : attachments[0]?.id || null
+      ))
+      return attachments
     } catch (err) {
       setDetailAttachments([])
     }
@@ -603,9 +499,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
   const fetchWorkCenters = async () => {
     try {
-      const res = await fetch('/api/work-centers')
-      const data = await res.json()
-      if (res.ok) setWorkCenters(data.data || [])
+      setWorkCenters(await listDocumentWorkCenters())
     } catch (err) {
       // 通用文档允许不限制工作中心，读取失败不阻塞其余内容。
     }
@@ -688,19 +582,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
     for (const file of files) {
       try {
-        const formData = new FormData()
-        formData.append('ownerType', 'WORK_INSTRUCTION')
-        formData.append('ownerId', instructionId)
-        formData.append('documentType', 'WORK_INSTRUCTION')
-        formData.append('file', file)
-
-        const res = await fetch('/api/attachments', { method: 'POST', body: formData })
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok || !data.data) {
-          failedFiles.push(file.name)
-        } else {
-          uploaded.push(data.data)
-        }
+        uploaded.push(await uploadInstructionAttachment(instructionId, file))
       } catch (error) {
         failedFiles.push(file.name)
       }
@@ -727,15 +609,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         contentJson: form.contentJson,
         note: form.note.trim() || undefined,
       }
-      const res = await fetch('/api/work-instructions', {
-        method: editing ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editing ? { ...payload, id: editing.id } : payload),
-      })
-      const data = await res.json()
-      if (res.ok) {
+      const savedInstruction = await saveWorkInstruction(payload, editing?.id)
         const wasEditing = Boolean(editing)
-        const savedInstruction = data.data
         const filesToUpload = wasEditing ? [] : createFiles
         const uploadResult = !wasEditing && savedInstruction && filesToUpload.length > 0
           ? await uploadInstructionFiles(savedInstruction.id, filesToUpload)
@@ -775,11 +650,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           onMessage(`文档已创建，已上传 ${uploadResult.uploaded.length} 个；失败：${uploadResult.failedFiles.join('、')}`)
         }
         await fetchInstructions()
-      } else {
-        onMessage(data.error || '保存失败')
-      }
     } catch (err) {
-      onMessage('保存失败')
+      onMessage(err instanceof Error ? err.message : '保存失败')
     }
     setLoading(false)
   }
@@ -787,17 +659,11 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
   const archiveInstruction = async (instruction: WorkInstruction) => {
     if (!confirm(`确定归档文档「${instruction.title}」吗？`)) return
     try {
-      const res = await fetch(`/api/work-instructions?id=${instruction.id}`, { method: 'DELETE' })
-      const data = await res.json()
-      if (res.ok) {
-        onMessage(data.message || '产品文档已归档')
-        if (detail?.id === instruction.id) closeDetail()
-        await fetchInstructions()
-      } else {
-        onMessage(data.error || '归档失败')
-      }
+      onMessage(await archiveWorkInstructionRecord(instruction.id))
+      if (detail?.id === instruction.id) closeDetail()
+      await fetchInstructions()
     } catch (err) {
-      onMessage('归档失败')
+      onMessage(err instanceof Error ? err.message : '归档失败')
     }
   }
 
@@ -832,14 +698,13 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
 
   const archiveAttachment = async (attachment: AttachmentItem) => {
     if (!confirm(`确定归档文件 ${attachment.originalName} 吗？`)) return
-    const res = await fetch(`/api/attachments?id=${attachment.id}`, { method: 'DELETE' })
-    const data = await res.json()
-    if (res.ok) {
+    try {
+      await archiveInstructionAttachment(attachment.id)
       onMessage('文件已归档')
       if (detail) await fetchAttachments(detail.id)
       await fetchInstructions()
-    } else {
-      onMessage(data.error || '归档文件失败')
+    } catch (err) {
+      onMessage(err instanceof Error ? err.message : '归档文件失败')
     }
   }
 
@@ -858,21 +723,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     const nextRotation = normalizeAttachmentRotation(Number(selectedViewerAttachment.rotation || 0) + delta)
     setRotationSaving(true)
     try {
-      const res = await fetch('/api/attachments', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: selectedViewerAttachment.id,
-          action: 'SET_ROTATION',
-          rotation: nextRotation,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '保存文件方向失败')
-        return
-      }
-      const updated = data.data as AttachmentItem
+      const result = await setInstructionAttachmentRotation(selectedViewerAttachment.id, nextRotation)
+      const updated = result.attachment
       setViewer((current) => current ? {
         ...current,
         attachments: current.attachments.map((attachment) => attachment.id === updated.id ? updated : attachment),
@@ -888,7 +740,7 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           ? { ...current, primaryAttachment: updated }
           : current
       ))
-      onMessage(data.message || '文件方向已保存')
+      onMessage(result.message)
     } catch (err) {
       onMessage('保存文件方向失败')
     } finally {
