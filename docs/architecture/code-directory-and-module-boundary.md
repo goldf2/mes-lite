@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 129 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档和来料 10 个模块；生产工程、物料、BOM、文档、来料与库存已形成包含服务端规则的垂直分层 |
+| `modules/` | 133 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料和身份权限 11 个模块；生产工程、物料、BOM、文档、来料、库存与身份权限已形成包含服务端规则的垂直分层 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -564,3 +564,11 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `server/material-import-service.ts` 拥有客户候选查询、已有编码/归档检查、单位变更锁定、缺失客户创建以及物料和零库存原子写入。
 - `app/api/materials/import/route.ts` 从 398 行降至 36 行，只保留创建/修改权限、文件尺寸、审计和 HTTP 错误映射。
 - `verify:material-bom-modules` 增加真实 CSV 行、中文别名、薄路由和事务服务守卫；系统超过 300 行的存量 API 从 6 个降至 2 个。
+
+## 36. 身份权限管理归属
+
+- `contracts/permission-admin.ts` 集中权限组设置、人员分组和创建权限组的输入契约，API 不再维护平行 Schema。
+- `domain/permission-admin.ts` 维护管理员判断、授权能力判断和权限组编码规范化纯规则。
+- `server/permission-admin-service.ts` 拥有权限管理查询、资源级授权校验、可分配权限组校验以及权限组/人员组原子写入；请求对象与审计日志仍留在 HTTP 层。
+- `app/api/permissions/route.ts` 从 350 行降至 79 行，只保留会话入口、请求解析、服务调用、审计和错误映射。
+- `verify:identity-access-module` 锁定薄路由、输入契约、授权规则、事务边界和请求级审计；系统超过 300 行的存量 API 从 6 个降至 1 个。

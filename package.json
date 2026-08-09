@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.295",
+  "version": "0.1.296",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -24,6 +24,7 @@
     "db:studio": "prisma studio",
     "storage:fix": "sh scripts/fix-persistent-storage-permissions.sh",
     "verify:permissions": "tsx scripts/verify-permissions.ts",
+    "verify:identity-access-module": "tsx scripts/verify-identity-access-module.ts",
     "verify:ai-agent": "tsx scripts/verify-ai-agent.ts",
     "verify:ai-mark": "tsx scripts/verify-ai-assistant-mark-config.ts",
     "verify:control-tooltips": "tsx scripts/verify-control-tooltips.tsx",
