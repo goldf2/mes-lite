@@ -11,6 +11,8 @@ const workspacePageRenderers = read('app/components/shell/WorkspacePageRendererR
 const moduleIndex = read('modules/configuration/index.ts')
 const referenceDataClient = read('modules/configuration/client/reference-data-api.ts')
 const referenceDataContracts = read('modules/configuration/contracts/reference-data.ts')
+const partyRouteHandler = read('modules/configuration/http/party-route-handlers.ts')
+const partyService = read('modules/configuration/server/party-service.ts')
 
 const removedManagers = [
   'SupplierManager',
@@ -55,6 +57,14 @@ assert.match(referenceDataClient, /\/api\/suppliers/, '配置领域 client 必�
 assert.match(referenceDataClient, /\/api\/customers/, '配置领域 client 必须包含客户接口')
 assert.match(referenceDataClient, /loadInventoryLocations|loadConfiguredUnits|loadWorkCenters|loadDocumentCategories/, '配置领域 client 必须集中资料读取')
 assert.match(referenceDataContracts, /interface PartyRecord|interface ConfiguredUnit|interface InventoryLocationConfig|interface WorkCenterConfig|interface DocumentCategoryConfig/, '配置领域必须集中参考资料契约')
+assert.match(partyRouteHandler, /createPartyRouteHandlers/, '供应商和客户 API 必须共用配置领域 HTTP 适配器')
+assert.doesNotMatch(partyRouteHandler, /@\/lib\/prisma|\bprisma\./, '配置领域 HTTP 适配器不得直接访问 Prisma')
+assert.doesNotMatch(partyService, /NextRequest|NextResponse|requireResourcePermission|writeAuditLog/, '配置领域服务必须与 HTTP、权限和请求审计解耦')
+for (const path of ['app/api/suppliers/route.ts', 'app/api/customers/route.ts']) {
+  const route = read(path)
+  assert.ok(route.split('\n').length <= 10, `${path} 必须保持为薄资源声明`)
+  assert.doesNotMatch(route, /@\/lib\/prisma|\bprisma\./, `${path} 不得直接访问 Prisma`)
+}
 assert.match(moduleIndex, /export \{ loadConfiguredUnits \}/, '配置模块必须通过公开出口提供单位目录读取能力')
 const categoryPage = read('modules/configuration/ui/DocumentCategorySettingsPage.tsx')
 assert.match(categoryPage, /<ResourcePageShell\b/, '树形文档类别必须使用公共 ResourcePageShell')
