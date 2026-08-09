@@ -31,8 +31,8 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 281 个 TypeScript 文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售、设备和附件 14 个模块；页面数据访问已统一进入领域 client，旧生产日报兼容规则也已进入生产领域 |
-| `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
+| `modules/` | 287 个 TypeScript 文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售、设备和附件 14 个模块；页面数据访问已统一进入领域 client，旧生产日报兼容规则和单位配置生命周期也已进入所属领域 |
+| `app/api/` | 114 个 `route.ts` | 路径结构基本合理；直接访问 Prisma 的路由已降至 32 条，其余存量按领域垂直切片继续收敛 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
 
@@ -750,3 +750,11 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 日报编号改为按业务日期读取现有最大序号后递增，避免删除中间草稿后再次生成重复编号；日期规则拒绝不存在的日历日期。
 - `verify:daily-production-locations` 使用运行后删除的临时完整 SQLite，通过真实领域服务覆盖输入规则、BOM/人员/库位快照、多关键词查询、草稿更新、确认过账、成本结转、冲销恢复和非法重复状态。
 - 该切片不恢复旧页面、不修改 Prisma Schema，也不触碰本机测试库或服务器正式数据；生产订单实绩仍是唯一正式入口。
+
+## 60. 单位配置生命周期归属
+
+- `modules/configuration/contracts/unit-schema.ts` 集中新增、修改和单位身份输入；`domain/unit-rules.ts` 以纯 TypeScript 表达单位身份判等、同量纲编码判重及语义变更判断。
+- `server/unit-query-service.ts` 统一装配预置/自定义单位目录和物料、BOM 使用量；`server/unit-command-service.ts` 在事务中执行自定义单位新增、修改和删除，并保护预置单位及已被引用单位的编码、量纲和换算系数。
+- `/api/system/units` 从 228 行降至 79 行，只保留登录/权限、Schema、领域服务、审计和 HTTP 错误映射，不再直接访问 Prisma 或承载单位生命周期规则，使直接访问 Prisma 的 API 从 33 条降至 32 条。
+- `lib/unit-catalog.ts` 暂保留跨物料、BOM 和排序服务共用的目录读取及换算基础能力；配置写入只允许通过配置领域命令服务进入，避免调用方自行改写 `SystemSetting` JSON。
+- `verify:unit-catalog` 使用运行后删除的临时完整 SQLite，覆盖单位换算、BOM 录入、输入校验、大小写判重、预置保护、已使用单位仅可改名、删除阻断和使用量汇总，不连接本机测试库或服务器正式库。
