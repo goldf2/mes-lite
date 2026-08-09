@@ -4,11 +4,11 @@ import { writeAuditLog } from '@/lib/audit'
 import { requireResourcePermission } from '@/lib/permissions'
 import { parseStatusFilter } from '@/lib/status-filter'
 import { createMaterialInSchema } from '@/modules/receiving/contracts/material-in-schema'
+import { MaterialInDomainError } from '@/modules/receiving/domain/material-in-errors'
 import {
   archiveMaterialIn,
   createMaterialIns,
   listMaterialIns,
-  MaterialInDomainError,
 } from '@/modules/receiving/server/material-in-service'
 
 export async function GET(req: NextRequest) {

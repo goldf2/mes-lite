@@ -29,6 +29,13 @@ export const materialInItemShape = {
 
 export const materialInItemSchema = z.object(materialInItemShape)
 
+export const updateMaterialInSchema = z.object({ ...materialInCommonShape, ...materialInItemShape })
+
+export const reverseMaterialInSchema = z.object({
+  reason: z.string().trim().min(1, '红冲原因必填'),
+  reversedBy: z.string().optional(),
+})
+
 export const createMaterialInSchema = z.union([
   z.object({ ...materialInCommonShape, ...materialInItemShape }),
   z.object({
@@ -39,3 +46,5 @@ export const createMaterialInSchema = z.union([
 
 export type CreateMaterialInInput = z.infer<typeof createMaterialInSchema>
 export type MaterialInItemInput = z.infer<typeof materialInItemSchema>
+export type UpdateMaterialInInput = z.infer<typeof updateMaterialInSchema>
+export type ReverseMaterialInInput = z.infer<typeof reverseMaterialInSchema>

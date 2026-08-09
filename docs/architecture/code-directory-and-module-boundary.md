@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 234 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售、设备和附件 14 个模块；页面数据访问已统一进入领域 client，工作台、生产订单、生产实绩、附件及销售履约已形成前后端垂直切片 |
+| `modules/` | 239 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售、设备和附件 14 个模块；页面数据访问已统一进入领域 client，工作台、生产订单、生产实绩、附件、销售履约及来料生命周期已形成前后端垂直切片 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -709,3 +709,11 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `server/sales-order-*` 拥有订单查询、候选项、创建、确认、取消、调价审计、待发占用和状态回写；`server/fulfillment-*` 拥有发货/退货查询、创建、归档、过账和状态事务，送货单 PDF 也不再由路由绘制。
 - 销售订单、发货和退货共 16 条 Route Handler 现为 16–62 行，只保留权限、Schema、领域服务、请求级审计和 HTTP 错误映射；扁平 `lib/sales-orders.ts` 已删除，直接访问 Prisma 的 API 从 72 条降至 56 条。
 - `verify:sales-order-flow` 使用运行后删除的临时完整 SQLite 覆盖默认价、受控调价、订单占用、分批发货、库存成本、送达/PDF、退货恢复、拒绝、独立发货、查询、归档和重复状态拒绝；`verify:sales-module` 防止 16 条路由重新承载 Prisma 或事务规则。
+
+## 55. 来料详情与状态事务归属
+
+- `domain/material-in-errors.ts`、`material-in-numbering.ts` 和 `material-in-reversal.ts` 分别拥有可预期领域错误、日期最大序号及整单红冲可逆性/反向数量纯规则。
+- `server/material-in-detail-service.ts` 拥有详情装配和待收货编辑；`material-in-status-service.ts` 拥有收货、拒收和整单红冲事务，总库存、库位余额、成本层和成对流水必须在同一事务内一致更新。
+- 来料主路由与详情、收货、拒收、红冲共 5 条 Route Handler 均不再直接访问 Prisma，只保留权限、Schema、服务调用、审计和 HTTP 错误映射；直接访问 Prisma 的 API 从 56 条降至 52 条。
+- 来料编号改为读取当日最大历史序号后递增，多明细创建在同一事务内连续分配且不会因归档或断号复用已有编号。
+- `verify:receiving-module` 使用运行后删除的临时完整 SQLite 覆盖多明细创建、断号、编辑、收货过账、重复状态拒绝、整单红冲恢复、成本层变更阻断、查询、归档和无效供应商，不连接本机测试库或服务器正式库。

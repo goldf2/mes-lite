@@ -5,6 +5,8 @@ import { normalizeMaterialInPriceUnit, resolveMaterialInPricing, resolveMaterial
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
 import { resolveMaterialUnits, toValuationQty } from '@/lib/units'
 import type { CreateMaterialInInput, MaterialInItemInput } from '../contracts/material-in-schema'
+import { MaterialInDomainError, runMaterialInDomainOperation } from '../domain/material-in-errors'
+import { materialInNumberPrefix, nextMaterialInNumber } from '../domain/material-in-numbering'
 
 export interface MaterialInListQuery {
   statuses: string[]
@@ -15,14 +17,7 @@ export interface MaterialInListQuery {
   pageSize: number
 }
 
-export class MaterialInDomainError extends Error {
-  constructor(message: string, public readonly status = 400) {
-    super(message)
-    this.name = 'MaterialInDomainError'
-  }
-}
-
-function materialInInclude() {
+export function materialInInclude() {
   return {
     supplier: true,
     location: true,
@@ -68,16 +63,15 @@ export async function listMaterialIns(query: MaterialInListQuery) {
   return { items, pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } }
 }
 
-async function createMaterialInLine(
+export async function buildMaterialInLineData(
   tx: Prisma.TransactionClient,
-  common: { supplierId: string; voucherNo?: string; receivedBy?: string; note?: string },
   input: MaterialInItemInput,
-  inboundNo: string,
+  fallbackLocationId?: string | null,
 ) {
   const material = await tx.material.findFirst({ where: { id: input.materialId, deletedAt: null } })
   if (!material) throw new MaterialInDomainError('物料不存在或已归档', 404)
 
-  const location = await resolveInventoryLocation(tx, input.locationId)
+  const location = await resolveInventoryLocation(tx, input.locationId || fallbackLocationId)
   const stockQuantity = resolveMaterialInStockQuantity({
     primaryMeasure: material.primaryMeasure,
     qty: input.qty,
@@ -120,11 +114,9 @@ async function createMaterialInLine(
   const valuationUnitCost = effectiveValuationQty > 0 ? Number((pricing.totalAmount / effectiveValuationQty).toFixed(6)) : 0
   const stockUnitCost = qty > 0 ? Number((pricing.totalAmount / qty).toFixed(6)) : 0
 
-  return tx.materialIn.create({
+  return {
+    material,
     data: {
-      inboundNo,
-      voucherNo: common.voucherNo?.trim() || null,
-      supplierId: common.supplierId,
       materialId: input.materialId,
       locationId: location.id,
       qty,
@@ -144,35 +136,55 @@ async function createMaterialInLine(
       valuationUnitCost,
       stockUnitCost,
       totalAmount: pricing.totalAmount,
-      batchNo: input.batchNo,
-      receivedBy: common.receivedBy,
-      note: common.note,
+      batchNo: input.batchNo?.trim() || null,
+    },
+  }
+}
+
+async function createMaterialInLine(
+  tx: Prisma.TransactionClient,
+  common: { supplierId: string; voucherNo?: string; receivedBy?: string; note?: string },
+  input: MaterialInItemInput,
+  inboundNo: string,
+) {
+  const { data } = await buildMaterialInLineData(tx, input)
+  return tx.materialIn.create({
+    data: {
+      inboundNo,
+      voucherNo: common.voucherNo?.trim() || null,
+      supplierId: common.supplierId,
+      ...data,
+      receivedBy: common.receivedBy?.trim() || null,
+      note: common.note?.trim() || null,
       status: 'PENDING',
     },
     include: materialInInclude(),
   })
 }
 
-export async function createMaterialIns(input: CreateMaterialInInput) {
-  const { supplierId, voucherNo, receivedBy, note } = input
-  const requestedItems = 'items' in input ? input.items : [input]
-  const supplier = await prisma.supplier.findFirst({ where: { id: supplierId, deletedAt: null } })
-  if (!supplier) throw new MaterialInDomainError('供应商不存在或已归档', 404)
-
-  const today = new Date()
-  const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')
-  const dayStart = new Date(today)
-  dayStart.setHours(0, 0, 0, 0)
-  const count = await prisma.materialIn.count({ where: { createdAt: { gte: dayStart } } })
-  const items = await prisma.$transaction(async (tx) => {
-    const created = []
+export async function createMaterialIns(input: CreateMaterialInInput, now = new Date()) {
+  return runMaterialInDomainOperation(() => prisma.$transaction(async (tx) => {
+    const { supplierId, voucherNo, receivedBy, note } = input
+    const requestedItems = 'items' in input ? input.items : [input]
+    const [supplier, latest] = await Promise.all([
+      tx.supplier.findFirst({ where: { id: supplierId, deletedAt: null } }),
+      tx.materialIn.findFirst({
+        where: { inboundNo: { startsWith: materialInNumberPrefix(now) } },
+        orderBy: { inboundNo: 'desc' }, select: { inboundNo: true },
+      }),
+    ])
+    if (!supplier) throw new MaterialInDomainError('供应商不存在或已归档', 404)
+    const items = []
     for (let index = 0; index < requestedItems.length; index += 1) {
-      const inboundNo = `IN-${dateStr}-${String(count + index + 1).padStart(3, '0')}`
-      created.push(await createMaterialInLine(tx, { supplierId, voucherNo, receivedBy, note }, requestedItems[index], inboundNo))
+      items.push(await createMaterialInLine(
+        tx,
+        { supplierId, voucherNo, receivedBy, note },
+        requestedItems[index],
+        nextMaterialInNumber(now, latest?.inboundNo, index),
+      ))
     }
-    return created
-  })
-  return { first: items[0], items }
+    return { first: items[0], items }
+  }))
 }
 
 export async function archiveMaterialIn(id: string) {
@@ -181,3 +193,5 @@ export async function archiveMaterialIn(id: string) {
   const updated = await prisma.materialIn.update({ where: { id }, data: { deletedAt: new Date() } })
   return { current, updated }
 }
+
+export { MaterialInDomainError } from '../domain/material-in-errors'
