@@ -9,6 +9,9 @@ const route = read('app/api/bom-costs/route.ts')
 const commandService = read('modules/bom/server/bom-cost-command-service.ts')
 const queryService = read('modules/bom/server/bom-cost-query-service.ts')
 const domain = read('modules/bom/domain/bom-cost.ts')
+const page = read('modules/bom/ui/BomCostPageModule.tsx')
+const client = read('modules/bom/client/bom-cost-api.ts')
+const publicEntry = read('modules/bom/index.ts')
 
 assert.ok(route.split('\n').length <= 80, 'BOM 成本 API 必须保持为不超过 80 行的 HTTP 适配层')
 assert.doesNotMatch(route, /prisma\.|findMany\(|\.create\(/, 'BOM 成本 API 不得直接查询或写入数据库')
@@ -19,6 +22,12 @@ assert.match(commandService, /calculateBomCostSnapshot\(/, 'BOM 成本命令服�
 assert.match(commandService, /prisma\.bomCostRun\.create\(/, 'BOM 成本快照必须由命令服务写入')
 assert.match(queryService, /materialAsProductOption\(/, 'BOM 成本查询服务必须统一装配物料产品选项')
 assert.doesNotMatch(domain, /@prisma|prisma\.|fetch\(/, 'BOM 成本领域规则不得依赖 HTTP 或 Prisma')
+assert.ok(page.split('\n').length <= 560, 'BOM 成本页面必须保持为不超过 560 行的协调层')
+assert.doesNotMatch(page, /\bfetch\(/, 'BOM 成本页面不得直接发起 HTTP 请求')
+assert.match(page, /from '\.\.\/client\/bom-cost-api'/, 'BOM 成本页面必须通过领域客户端访问 HTTP')
+assert.match(client, /export async function loadBomCostWorkspace/, 'BOM 成本客户端必须提供工作区查询')
+assert.match(client, /export async function calculateBomCost/, 'BOM 成本客户端必须提供快照计算命令')
+assert.match(publicEntry, /BomCostPageModule/, 'BOM 模块公开出口必须保留成本页面模块')
 
 const material = {
   id: 'material-1', code: 'MAT-1', name: '铝材', stockUnit: 'kg', unit: 'kg',
@@ -55,4 +64,4 @@ assert.throws(() => calculateBomCostSnapshot({
   items: [{ itemType: 'MATERIAL', quantity: 0, material }],
 }), BomCostRuleError)
 
-console.log(`BOM 成本模块验证通过：API ${route.split('\n').length} 行，查询、快照事务与成本纯规则边界完整。`)
+console.log(`BOM 成本模块验证通过：页面 ${page.split('\n').length} 行，API ${route.split('\n').length} 行，前后端与成本纯规则边界完整。`)

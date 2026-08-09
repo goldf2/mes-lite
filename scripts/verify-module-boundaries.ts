@@ -72,7 +72,6 @@ for (const directory of frameworkDirectories) {
 }
 
 const legacyRootPages = new Set([
-  'BomCostPage.tsx',
   'EmployeePage.tsx',
   'EquipmentPage.tsx',
   'FlowTransferPage.tsx',

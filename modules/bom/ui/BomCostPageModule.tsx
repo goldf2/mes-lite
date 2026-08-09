@@ -1,219 +1,21 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import MaterialChoiceSearch, { MaterialChoiceOption } from './MaterialChoiceSearch'
-import MetricCard from './MetricCard'
-import NumberInputField from './NumberInputField'
-import SortableTableHeader from './SortableTableHeader'
-import useClientTableSort from './useClientTableSort'
-
-interface ProductOption {
-  id: string
-  sku: string
-  name: string
-  unit: string
-  bom?: {
-    id: string
-    version: string
-    isActive: boolean
-    outputQuantity: number
-    items: Array<{
-      id: string
-      quantity: number
-      unit: string
-      material: { id: string; code: string; name: string; stockUnit: string; unit: string } | null
-    }>
-  } | null
-}
-
-interface BomCostLine {
-  id: string
-  lineType: string
-  sourceId?: string | null
-  code?: string | null
-  name: string
-  quantity: number
-  unit: string
-  unitCost: number
-  materialCost: number
-  laborHours: number
-  machineHours: number
-  laborCost: number
-  machineCost: number
-  directCost: number
-  totalCost: number
-  note?: string | null
-}
-
-interface BomCostRun {
-  id: string
-  productId: string
-  bomVersion?: string | null
-  quantityBasis: number
-  laborRatePerHour: number
-  machineRatePerHour: number
-  overheadCost: number
-  totalMaterialCost: number
-  totalLaborCost: number
-  totalMachineCost: number
-  totalDirectCost: number
-  totalCost: number
-  unitCost: number
-  createdBy?: string | null
-  createdAt: string
-  product?: { id: string; sku: string; name: string; unit: string }
-  lines: BomCostLine[]
-}
-
-interface CostObjectItem {
-  id: string
-  code: string
-  name: string
-  objectType: string
-  sourceType?: string | null
-  unit: string
-  status: string
-  createdAt: string
-  costs: Array<{
-    id: string
-    version: string
-    materialCostPerUnit: number
-    laborHoursPerUnit: number
-    machineHoursPerUnit: number
-    directCostPerUnit: number
-    effectiveFrom: string
-  }>
-  bomItems: Array<{
-    id: string
-    quantity: number
-    unit: string
-    bom: { id: string; version: string; product: { id: string; sku: string; name: string; unit: string } }
-  }>
-}
-
-interface ProcessTemplateItem {
-  id: string
-  code: string
-  name: string
-  category: string
-  standardBatchQty: number
-  setupTimeMinutes: number
-  cycleTimeSeconds: number
-  peopleCount: number
-  laborRatePerHour: number
-  machineCount: number
-  machineRatePerHour: number
-  energyCostPerHour: number
-  consumableCostPerBatch: number
-  yieldRate: number
-  materials: Array<{ id: string; code: string; name: string }>
-}
-
-interface CostDataProduct {
-  id: string
-  sku: string
-  name: string
-  unit: string
-  bom?: {
-    id: string
-    version: string
-    isActive: boolean
-    items: Array<{
-      id: string
-      itemType: string
-      quantity: number
-      unit: string
-      wastageRate: number
-      material?: { id: string; code: string; name: string; stockUnit: string; valuationUnit: string } | null
-      costObject?: { id: string; code: string; name: string; objectType: string; unit: string } | null
-      sawingScenario?: { id: string; name: string } | null
-    }>
-  } | null
-  processRoutes: Array<{
-    id: string
-    name: string
-    isDefault: boolean
-    steps: Array<{
-      id: string
-      stepNo: number
-      name: string
-      standardBatchQty: number
-      setupTimeMinutes: number
-      cycleTimeSeconds: number
-      peopleCount: number
-      laborRatePerHour: number
-      machineCount: number
-      machineRatePerHour: number
-      energyCostPerHour: number
-      consumableCostPerBatch: number
-      yieldRate: number
-    }>
-  }>
-  bomCostRuns: Array<{ id: string; unitCost: number; totalCost: number; quantityBasis: number; createdAt: string }>
-}
-
-interface CostData {
-  costObjects: CostObjectItem[]
-  processTemplates: ProcessTemplateItem[]
-  products: CostDataProduct[]
-  recentRuns: BomCostRun[]
-}
-
-const lineTypeLabels: Record<string, string> = {
-  BOM_MATERIAL: '物料',
-  BOM_COST_OBJECT: '成本对象',
-  OVERHEAD: '固定费用',
-}
-
-const processCategoryLabels: Record<string, string> = {
-  SAWING: '锯切',
-  DRILLING: '钻孔',
-  TURNING: '车削',
-  MILLING: '铣削',
-  GRINDING: '磨削',
-  HEAT_TREATMENT: '热处理',
-  SURFACE_TREATMENT: '表面处理',
-  ASSEMBLY: '装配',
-  INSPECTION: '检验',
-  OTHER: '其他',
-}
-
-function money(value: number) {
-  return `¥${Number(value || 0).toFixed(2)}`
-}
-
-function qty(value: number, digits = 3) {
-  return Number(value || 0).toFixed(digits).replace(/\.?0+$/, '')
-}
-
-function dateText(value: string) {
-  return new Date(value).toLocaleString('zh-CN', { hour12: false })
-}
-
-function processCostPerThousand(item: {
-  standardBatchQty: number
-  setupTimeMinutes: number
-  cycleTimeSeconds: number
-  peopleCount: number
-  laborRatePerHour: number
-  machineCount: number
-  machineRatePerHour: number
-  energyCostPerHour: number
-  consumableCostPerBatch: number
-  yieldRate: number
-}) {
-  const yieldRate = Math.max(0.0001, Number(item.yieldRate || 1))
-  const batchQty = Math.max(1, Number(item.standardBatchQty || 1000))
-  const runtimeHours = (1000 / yieldRate) * Number(item.cycleTimeSeconds || 0) / 3600
-  const setupHours = Number(item.setupTimeMinutes || 0) / 60 * (1000 / batchQty)
-  const baseHours = runtimeHours + setupHours
-  const laborHours = baseHours * Number(item.peopleCount || 0)
-  const machineHours = baseHours * Number(item.machineCount || 0)
-  const cost = laborHours * Number(item.laborRatePerHour || 0)
-    + machineHours * (Number(item.machineRatePerHour || 0) + Number(item.energyCostPerHour || 0))
-    + Number(item.consumableCostPerBatch || 0) * (1000 / batchQty)
-  return { laborHours, machineHours, cost }
-}
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import MaterialChoiceSearch, { MaterialChoiceOption } from '@/app/components/MaterialChoiceSearch'
+import MetricCard from '@/app/components/MetricCard'
+import NumberInputField from '@/app/components/NumberInputField'
+import SortableTableHeader from '@/app/components/SortableTableHeader'
+import useClientTableSort from '@/app/components/useClientTableSort'
+import { calculateBomCost, createBomCostObject, loadBomCostData, loadBomCostWorkspace } from '../client/bom-cost-api'
+import type { BomCostData, BomCostProductOption as ProductOption, BomCostRun } from '../contracts/bom-cost'
+import {
+  bomCostLineTypeLabels as lineTypeLabels,
+  formatBomCostDate as dateText,
+  formatBomCostMoney as money,
+  formatBomCostQuantity as qty,
+  processCategoryLabels,
+  processCostPerThousand,
+} from '../model/bom-cost-view'
 
 export default function BomCostPage({ onMessage }: { onMessage: (msg: string) => void }) {
   const [activeTab, setActiveTab] = useState<'calculate' | 'data'>('calculate')
@@ -227,7 +29,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
     badgeTone: product.bom ? 'success' : 'neutral',
   })), [products])
   const [runs, setRuns] = useState<BomCostRun[]>([])
-  const [costData, setCostData] = useState<CostData | null>(null)
+  const [costData, setCostData] = useState<BomCostData | null>(null)
   const [costKeyword, setCostKeyword] = useState('')
   const [savingCostObject, setSavingCostObject] = useState(false)
   const [costObjectForm, setCostObjectForm] = useState({
@@ -267,16 +69,10 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
     totalCost: (line) => line.totalCost,
   }, 'type', 'asc')
 
-  const loadData = async (productId = selectedProductId) => {
+  const loadData = useCallback(async (productId: string) => {
     setLoading(true)
     try {
-      const url = productId ? `/api/bom-costs?productId=${encodeURIComponent(productId)}` : '/api/bom-costs'
-      const res = await fetch(url)
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '获取 BOM 成本数据失败')
-        return
-      }
+      const data = await loadBomCostWorkspace(productId)
       setProducts(data.products || [])
       setRuns(data.runs || [])
       setSelectedRun((current) => {
@@ -284,30 +80,24 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
         return (data.runs || [])[0] || null
       })
     } catch (error) {
-      onMessage('获取 BOM 成本数据失败')
+      onMessage(error instanceof Error ? error.message : '获取 BOM 成本数据失败')
     } finally {
       setLoading(false)
     }
-  }
+  }, [onMessage])
+
+  const loadCostData = useCallback(async () => {
+    try {
+      setCostData(await loadBomCostData())
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取成本数据失败')
+    }
+  }, [onMessage])
 
   useEffect(() => {
-    loadData('')
-    loadCostData()
-  }, [])
-
-  const loadCostData = async () => {
-    try {
-      const res = await fetch('/api/cost-objects')
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '获取成本数据失败')
-        return
-      }
-      setCostData(data)
-    } catch (error) {
-      onMessage('获取成本数据失败')
-    }
-  }
+    void loadData('')
+    void loadCostData()
+  }, [loadCostData, loadData])
 
   const selectProduct = async (productId: string) => {
     setSelectedProductId(productId)
@@ -323,24 +113,12 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
     }
     setCalculating(true)
     try {
-      const res = await fetch('/api/bom-costs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId: selectedProductId,
-          ...form,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || 'BOM 成本计算失败')
-        return
-      }
+      const run = await calculateBomCost({ productId: selectedProductId, ...form })
       onMessage('BOM 成本快照已保存')
-      setSelectedRun(data.data)
+      setSelectedRun(run)
       await loadData(selectedProductId)
     } catch (error) {
-      onMessage('BOM 成本计算失败')
+      onMessage(error instanceof Error ? error.message : 'BOM 成本计算失败')
     } finally {
       setCalculating(false)
     }
@@ -350,16 +128,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
     if (!costObjectForm.code.trim() || !costObjectForm.name.trim()) return onMessage('成本对象编码和名称必填')
     setSavingCostObject(true)
     try {
-      const res = await fetch('/api/cost-objects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(costObjectForm),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '保存成本对象失败')
-        return
-      }
+      await createBomCostObject(costObjectForm)
       setCostObjectForm({
         code: '',
         name: '',
@@ -373,7 +142,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
       onMessage('成本对象已保存')
       await loadCostData()
     } catch (error) {
-      onMessage('保存成本对象失败')
+      onMessage(error instanceof Error ? error.message : '保存成本对象失败')
     } finally {
       setSavingCostObject(false)
     }
