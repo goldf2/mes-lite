@@ -1,27 +1,16 @@
 'use client'
 
-import { ReactNode, useEffect, useMemo, useState } from 'react'
-import { CurrentOperator } from './AuthGate'
-import { getStatusQuery } from './StatusCheckboxFilter'
-import ResponsiveToolbarActions from './ResponsiveToolbarActions'
-import TopBarPortal from './TopBarPortal'
-import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
-import SortableTableHeader from './SortableTableHeader'
-import useClientTableSort from './useClientTableSort'
-import { MappedResourceAdvancedSearch } from './resource'
-
-interface Operator {
-  id: string
-  username: string
-  name: string
-  phone?: string
-  role: 'OPERATOR' | 'AUDITOR' | 'ADMIN'
-  status: 'PENDING' | 'ACTIVE' | 'REJECTED' | 'DISABLED'
-  approvedAt?: string
-  approvedBy?: string
-  lastLoginAt?: string
-  createdAt: string
-}
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import type { CurrentOperator } from '@/app/components/AuthGate'
+import { getStatusQuery } from '@/app/components/StatusCheckboxFilter'
+import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
+import TopBarPortal from '@/app/components/TopBarPortal'
+import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
+import SortableTableHeader from '@/app/components/SortableTableHeader'
+import useClientTableSort from '@/app/components/useClientTableSort'
+import { MappedResourceAdvancedSearch } from '@/app/components/resource'
+import { loadOperators, updateOperator as updateOperatorRequest } from '../client/identity-access-api'
+import type { OperatorAdminItem, OperatorRole, UpdateOperatorInput } from '../contracts/operator-admin'
 
 const roleLabels: Record<string, string> = {
   OPERATOR: '提交',
@@ -50,7 +39,7 @@ const statusOptions = [
   { value: 'DISABLED', label: '已停用' },
 ]
 
-export default function OperatorPage({
+export default function OperatorPageModule({
   currentOperator,
   onMessage,
   onToolbarChange,
@@ -59,7 +48,7 @@ export default function OperatorPage({
   onMessage: (msg: string) => void
   onToolbarChange?: (actions: ReactNode | null) => void
 }) {
-  const [operators, setOperators] = useState<Operator[]>([])
+  const [operators, setOperators] = useState<OperatorAdminItem[]>([])
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [loading, setLoading] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.operators.viewMode', 'list')
@@ -85,38 +74,33 @@ export default function OperatorPage({
   const pendingCount = operators.filter((operator) => operator.status === 'PENDING').length
   const disabledCount = operators.filter((operator) => operator.status === 'DISABLED').length
 
-  useEffect(() => {
-    fetchOperators()
-  }, [selectedStatuses])
-
-  const fetchOperators = async () => {
+  const fetchOperators = useCallback(async () => {
     setLoading(true)
-    const query = getStatusQuery(selectedStatuses, statusOptions)
-    const res = await fetch(query ? `/api/operators?${query}` : '/api/operators')
-    const data = await res.json()
-    if (res.ok) {
-      setOperators(data.data || [])
-    } else {
-      onMessage(data.error || '获取操作人员失败')
+    try {
+      const query = getStatusQuery(selectedStatuses, statusOptions)
+      setOperators(await loadOperators(query))
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取操作人员失败')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }
+  }, [onMessage, selectedStatuses])
 
-  const updateOperator = async (payload: { id: string; status?: string; role?: string }) => {
+  useEffect(() => {
+    void fetchOperators()
+  }, [fetchOperators])
+
+  const updateOperator = async (payload: UpdateOperatorInput) => {
     setLoading(true)
-    const res = await fetch('/api/operators', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    const data = await res.json()
-    if (res.ok) {
+    try {
+      await updateOperatorRequest(payload)
       onMessage('操作人员已更新')
       await fetchOperators()
-    } else {
-      onMessage(data.error || '更新失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '更新失败')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   useEffect(() => {
@@ -137,7 +121,7 @@ export default function OperatorPage({
     )
 
     return () => onToolbarChange(null)
-  }, [advancedSearchFields, onToolbarChange, selectedStatuses, loading, viewMode, setViewMode])
+  }, [advancedSearchFields, fetchOperators, onToolbarChange, loading, viewMode, setViewMode])
 
   return (
     <>
@@ -198,7 +182,7 @@ export default function OperatorPage({
                   <select
                     value={operator.role}
                     disabled={loading}
-                    onChange={(e) => updateOperator({ id: operator.id, role: e.target.value })}
+                    onChange={(e) => updateOperator({ id: operator.id, role: e.target.value as OperatorRole })}
                     className="mt-1 w-full px-3 py-2 border border-gray-200 rounded text-sm"
                   >
                     <option value="OPERATOR">提交</option>
@@ -266,7 +250,7 @@ export default function OperatorPage({
                       <select
                         value={operator.role}
                         disabled={loading}
-                        onChange={(e) => updateOperator({ id: operator.id, role: e.target.value })}
+                        onChange={(e) => updateOperator({ id: operator.id, role: e.target.value as OperatorRole })}
                         className="px-2 py-1 border border-gray-200 rounded text-sm"
                       >
                         <option value="OPERATOR">提交</option>

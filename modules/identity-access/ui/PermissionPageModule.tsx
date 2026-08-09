@@ -1,63 +1,30 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
-import { SearchFieldWithPresets } from './SavedSearchPresets'
-import SortableTableHeader from './SortableTableHeader'
-import useClientTableSort from './useClientTableSort'
-import AppButton from './AppButton'
-import ResponsiveToolbarActions from './ResponsiveToolbarActions'
-import TopBarPortal from './TopBarPortal'
-import { ResourceAdvancedSearch } from './resource'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
+import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
+import SortableTableHeader from '@/app/components/SortableTableHeader'
+import useClientTableSort from '@/app/components/useClientTableSort'
+import AppButton from '@/app/components/AppButton'
+import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
+import TopBarPortal from '@/app/components/TopBarPortal'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
 import { filterByAdvancedSearch, matchesKeywordValues } from '@/lib/resource-search'
 import type { ResourceAdvancedSearchField, ResourceSearchCondition } from '@/lib/resource-search'
-
-interface ResourceItem {
-  key: string
-  label: string
-}
-
-interface ActionItem {
-  key: keyof PermissionFlags
-  label: string
-}
-
-interface PermissionFlags {
-  canRead: boolean
-  canCreate: boolean
-  canUpdate: boolean
-  canDelete: boolean
-  canGrant: boolean
-}
-
-interface PermissionGroupSetting extends PermissionFlags {
-  id?: string
-  groupId: string
-  resource: string
-}
-
-interface PermissionGroup {
-  id: string
-  code: string
-  name: string
-  description?: string | null
-  isSystem: boolean
-  settings: PermissionGroupSetting[]
-}
-
-interface OperatorItem {
-  id: string
-  username: string
-  name: string
-  role: 'OPERATOR' | 'AUDITOR' | 'ADMIN'
-  status: 'PENDING' | 'ACTIVE' | 'REJECTED' | 'DISABLED'
-}
-
-interface OperatorPermissionGroup {
-  id?: string
-  operatorId: string
-  groupId: string
-}
+import {
+  createPermissionGroup,
+  loadPermissionAdministration,
+  savePermissionAdministration,
+} from '../client/identity-access-api'
+import type {
+  OperatorPermissionGroup,
+  PermissionActionItem,
+  PermissionFlags,
+  PermissionGroup,
+  PermissionGroupSetting,
+  PermissionOperator,
+  PermissionResourceItem,
+} from '../contracts/permission-admin'
 
 const actionHelp: Record<string, string> = {
   canRead: '查看页面和列表',
@@ -80,7 +47,7 @@ const statusLabels: Record<string, string> = {
   DISABLED: '已停用',
 }
 
-const operatorAdvancedSearchFields: readonly ResourceAdvancedSearchField<OperatorItem>[] = [
+const operatorAdvancedSearchFields: readonly ResourceAdvancedSearchField<PermissionOperator>[] = [
   { key: 'username', label: '登录账号', type: 'text', read: (item) => item.username },
   { key: 'name', label: '姓名', type: 'text', read: (item) => item.name },
   { key: 'role', label: '系统角色', type: 'select', read: (item) => item.role, options: Object.entries(roleLabels).map(([value, label]) => ({ value, label })) },
@@ -95,16 +62,16 @@ const blankFlags: PermissionFlags = {
   canGrant: false,
 }
 
-export default function PermissionPage({
+export default function PermissionPageModule({
   mode = 'users',
   onMessage,
 }: {
   mode?: 'users' | 'groups'
   onMessage: (msg: string) => void
 }) {
-  const [resources, setResources] = useState<ResourceItem[]>([])
-  const [actions, setActions] = useState<ActionItem[]>([])
-  const [operators, setOperators] = useState<OperatorItem[]>([])
+  const [resources, setResources] = useState<PermissionResourceItem[]>([])
+  const [actions, setActions] = useState<PermissionActionItem[]>([])
+  const [operators, setOperators] = useState<PermissionOperator[]>([])
   const [groups, setGroups] = useState<PermissionGroup[]>([])
   const [operatorGroups, setOperatorGroups] = useState<OperatorPermissionGroup[]>([])
   const [activeGroupId, setActiveGroupId] = useState('')
@@ -117,28 +84,28 @@ export default function PermissionPage({
   const [userViewMode, setUserViewMode] = usePersistedViewMode('mes-lite.permissions.users.viewMode', 'card')
   const [groupViewMode, setGroupViewMode] = usePersistedViewMode('mes-lite.permissions.groups.viewMode', 'list')
 
-  useEffect(() => {
-    fetchPermissions()
-  }, [])
-
-  const fetchPermissions = async () => {
+  const fetchPermissions = useCallback(async () => {
     setLoading(true)
-    const res = await fetch('/api/permissions')
-    const data = await res.json()
-    if (res.ok) {
-      const fetchedGroups = data.data.groups || []
-      setResources(data.data.resources || [])
-      setActions(data.data.actions || [])
-      setOperators(data.data.operators || [])
+    try {
+      const data = await loadPermissionAdministration()
+      const fetchedGroups = data.groups || []
+      setResources(data.resources || [])
+      setActions(data.actions || [])
+      setOperators(data.operators || [])
       setGroups(fetchedGroups)
-      setOperatorGroups(data.data.operatorGroups || [])
+      setOperatorGroups(data.operatorGroups || [])
       setActiveGroupId((current) => current || fetchedGroups[0]?.id || '')
-      setActiveOperatorId((current) => current || data.data.operators?.[0]?.id || '')
-    } else {
-      onMessage(data.error || '获取权限失败')
+      setActiveOperatorId((current) => current || data.operators?.[0]?.id || '')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取权限失败')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }
+  }, [onMessage])
+
+  useEffect(() => {
+    void fetchPermissions()
+  }, [fetchPermissions])
 
   const activeGroup = groups.find((group) => group.id === activeGroupId)
   const activeOperator = operators.find((operator) => operator.id === activeOperatorId)
@@ -238,63 +205,51 @@ export default function PermissionPage({
         .map((item) => item.groupId),
     }
 
-    const res = await fetch('/api/permissions', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ operatorGroups: [selectedAssignment] }),
-    })
-    const data = await res.json()
-    if (res.ok) {
+    try {
+      const data = await savePermissionAdministration({ operatorGroups: [selectedAssignment] })
       onMessage(data.message || '权限组分配已保存')
       await fetchPermissions()
-    } else {
-      onMessage(data.error || '保存权限组分配失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '保存权限组分配失败')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const saveGroupSettings = async () => {
     if (!activeGroup) return
 
     setLoading(true)
-    const res = await fetch('/api/permissions', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    try {
+      const data = await savePermissionAdministration({
         groupId: activeGroup.id,
         groupSettings: activeGroup.settings.map(({ id, groupId, ...setting }) => setting),
-      }),
-    })
-    const data = await res.json()
-    if (res.ok) {
+      })
       onMessage(data.message || '权限组明细已保存')
       await fetchPermissions()
-    } else {
-      onMessage(data.error || '保存权限组明细失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '保存权限组明细失败')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const createGroup = async () => {
     if (!newGroup.name.trim()) return
 
     setLoading(true)
-    const res = await fetch('/api/permissions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newGroup),
-    })
-    const data = await res.json()
-    if (res.ok) {
+    try {
+      const data = await createPermissionGroup(newGroup)
       onMessage(data.message || '权限组已创建')
       setNewGroup({ name: '', code: '', description: '' })
       setShowNewGroupForm(false)
       await fetchPermissions()
       if (data.data?.id) setActiveGroupId(data.data.id)
-    } else {
-      onMessage(data.error || '创建权限组失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '创建权限组失败')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
