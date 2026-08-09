@@ -7,16 +7,10 @@ export default function ModalOverlay({
   children,
   onClose,
   className = '',
-  portalTargetId,
-  lockBody = true,
-  trapFocus = true,
 }: {
   children: ReactNode
   onClose?: () => void
   className?: string
-  portalTargetId?: string
-  lockBody?: boolean
-  trapFocus?: boolean
 }) {
   const [mounted, setMounted] = useState(false)
   const onCloseRef = useRef(onClose)
@@ -34,20 +28,20 @@ export default function ModalOverlay({
 
     const previousOverflow = document.body.style.overflow
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    if (lockBody) document.body.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
 
-    const focusTimer = trapFocus ? window.setTimeout(() => {
+    const focusTimer = window.setTimeout(() => {
       const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')
       const activeDialog = dialogs.item(dialogs.length - 1)
       activeDialog?.focus()
-    }, 0) : null
+    }, 0)
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onCloseRef.current?.()
         return
       }
-      if (!trapFocus || event.key !== 'Tab') return
+      if (event.key !== 'Tab') return
 
       const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')
       const activeDialog = dialogs.item(dialogs.length - 1)
@@ -74,16 +68,14 @@ export default function ModalOverlay({
     document.addEventListener('keydown', handleKeyDown)
 
     return () => {
-      if (focusTimer !== null) window.clearTimeout(focusTimer)
-      if (lockBody) document.body.style.overflow = previousOverflow
+      window.clearTimeout(focusTimer)
+      document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', handleKeyDown)
       previouslyFocused?.focus()
     }
-  }, [lockBody, mounted, trapFocus])
+  }, [mounted])
 
   if (!mounted) return null
-
-  const portalTarget = portalTargetId ? document.getElementById(portalTargetId) : document.body
 
   return createPortal(
     <div
@@ -96,6 +88,6 @@ export default function ModalOverlay({
     >
       {children}
     </div>,
-    portalTarget || document.body,
+    document.body,
   )
 }

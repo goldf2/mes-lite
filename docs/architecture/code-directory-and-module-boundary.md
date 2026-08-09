@@ -23,15 +23,15 @@
 | `app/HomeApp.tsx` | 522 行 | 权限菜单、工作区过滤、页面连续性、偏好和桌面导航状态均已提取；当前只承担应用壳 JSX 装配与少量全局弹层状态 |
 | `app/components/shell/` | 9 个文件 | 已建立账号菜单、导航图标、页面宿主、渲染适配器和四类状态控制器的公共应用壳边界 |
 | `lib/page-registry.ts` | 38 个页面定义 | 页面元数据、权限资源、工作区入口、系统分区、打开方式和渲染键已集中为单一事实源 |
-| `app/components/` 根目录 | 64 个文件 | 物料、全景和 BOM 全览已迁出；其他领域页面、业务弹窗和系统页面仍继续按增量原则收敛 |
-| `modules/materials/ui/MaterialPage.tsx` | 1704 行 | 数据契约、HTTP client、详情、编辑、导入、集合视图、页内选项和显示偏好均已拆出；BOM 编辑状态仍需继续分离 |
+| `app/components/` 根目录 | 63 个文件 | 物料、全景和 BOM 全览已迁出；公共弹窗只保留一个全屏切换组件，其他领域页面、业务弹窗和系统页面仍继续按增量原则收敛 |
+| `modules/materials/ui/MaterialPage.tsx` | 887 行 | 数据契约、HTTP client、详情、编辑、导入、集合视图、页内选项、显示偏好和 BOM 草稿职责均已拆出；当前只保留物料/BOM 页面协调 |
 | `SystemPage.tsx` | 1948 行 | 已完成部分配置模块拆分，剩余业务设置和维护工具继续迁出 |
 | `MaterialInPage.tsx` | 1679 行 | 来料页面和录入流程高度集中，应迁入来料领域 |
 | `WorkInstructionPage.tsx` | 1497 行 | 文档资源、编辑器、附件和关联编辑集中，应迁入文档领域 |
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 1485 行 | 已迁入物料领域；下一步按摘要、文档、BOM/工艺、成本和记录等稳定视图拆分 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 38 个文件 | 已有工作台、生产、库存、配置、物料和 BOM 模块；物料/BOM 已形成 `contracts/client/model/ui` 分层 |
+| `modules/` | 41 个文件 | 已有工作台、生产、库存、配置、物料和 BOM 模块；BOM 草稿状态、规则、编辑器和数据访问已形成 `contracts/client/model/ui` 分层 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。

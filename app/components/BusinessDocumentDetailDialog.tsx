@@ -30,7 +30,6 @@ export default function BusinessDocumentDetailDialog({
       headerActions={headerActions}
       onClose={onClose}
       size="wide"
-      fullscreenable
       bodyClassName="space-y-6"
     >
       <section>

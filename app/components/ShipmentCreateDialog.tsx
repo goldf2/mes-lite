@@ -282,7 +282,6 @@ export default function ShipmentCreateDialog({
       onClose={() => void closeDialog()}
       closeDisabled={saving || draftAttachmentBusy}
       size="lg"
-      fullscreenable
       footer={(
         <ModalActions
           onCancel={() => void closeDialog()}

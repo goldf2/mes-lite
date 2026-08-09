@@ -398,7 +398,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </div>
 
         <div
-          id="mes-page-content-host"
           ref={pageContentRef}
           aria-label="页面内容区"
           className="mes-page-content-scroll relative min-w-0 lg:min-h-0 lg:flex-1 lg:overflow-y-scroll lg:overscroll-contain lg:pb-6 lg:[scrollbar-gutter:stable]"

@@ -1,4 +1,24 @@
-import type { MaterialImage, MeasureType } from '@/modules/materials'
+export type BomMeasureType = 'LENGTH' | 'WEIGHT' | 'QUANTITY' | 'OTHER'
+
+export interface BomMaterialImage {
+  id: string
+  url: string
+  thumbnailUrl?: string
+  displayUrl?: string
+  originalUrl?: string
+  note?: string | null
+  mimeType: string
+  isCover: boolean
+}
+
+export interface BomUnitCatalogItem {
+  code: string
+  name: string
+  measureType: BomMeasureType
+  toBaseFactor: number
+  isBase?: boolean
+  isPreset?: boolean
+}
 
 export interface BomMaterialOption {
   id: string
@@ -9,9 +29,9 @@ export interface BomMaterialOption {
   unit: string
   stockUnit: string
   valuationUnit: string
-  primaryMeasure?: MeasureType
+  primaryMeasure?: BomMeasureType
   stockQty?: number
-  primaryImage?: MaterialImage | null
+  primaryImage?: BomMaterialImage | null
 }
 
 export interface BomItem {
