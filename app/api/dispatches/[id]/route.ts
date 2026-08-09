@@ -1,29 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
+import { DispatchDomainError } from '@/modules/production/domain/dispatch-errors'
+import { getManagedDispatch } from '@/modules/production/server/dispatch-query-service'
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const denied = await requireResourcePermission('dispatch', 'read')
     if (denied) return denied
-
-    const dispatch = await prisma.dispatch.findUnique({
-      where: { id: params.id },
-      include: {
-        order: { include: { product: true, targetMaterial: true } },
-        step: true,
-      },
-    })
-
-    if (!dispatch) {
-      return NextResponse.json({ error: '派工单不存在' }, { status: 404 })
-    }
-
-    return NextResponse.json({ data: dispatch })
+    return NextResponse.json({ data: await getManagedDispatch(params.id) })
   } catch (error) {
+    if (error instanceof DispatchDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Get dispatch detail error:', error)
     return NextResponse.json({ error: '获取派工单详情失败' }, { status: 500 })
   }

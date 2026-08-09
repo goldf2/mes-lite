@@ -741,6 +741,12 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 - 重新选择模板时，才会用最新模板覆盖当前工序快照。
 - 路线的千件人工工时、机时和工艺成本由所有未归档工序快照汇总。
 
+### Dispatch（当前 Prisma 已实现）
+
+派工单绑定一张 `ProductionOrder` 和所属产品工艺路线中的一个 `ProcessStep`，保存负责人、计划数量、优先级和外部凭据号。状态固定按 `PENDING → DISPATCHED → IN_PROGRESS → COMPLETED` 正向流转；`PENDING / DISPATCHED` 可取消为 `CANCELLED`，已开工或完工不可直接取消。
+
+派工列表、详情、创建、归档和状态流转由 `modules/production/server/dispatch-*` 统一拥有。创建时校验生产订单处于 `PICKED / RUNNING` 且工序确实属于该订单产品路线；日期编号从当日最大历史序号递增。Route Handler 不复制编号、工序归属或状态规则。
+
 ### scan_count_sessions / scan_count_events
 
 扫码计数使用通用会话和追加事件建模，不直接外键绑定发货单。

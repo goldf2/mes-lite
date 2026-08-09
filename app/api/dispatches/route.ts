@@ -1,169 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
-import { applyStatusFilter, parseStatusFilter } from '@/lib/status-filter'
-
-const createDispatchSchema = z.object({
-  voucherNo: z.string().optional(),
-  orderId: z.string().min(1),
-  stepId: z.string().min(1),
-  workerName: z.string().min(1),
-  workerId: z.string().optional(),
-  planQty: z.number().int().positive(),
-  priority: z.string().optional(),
-  note: z.string().optional(),
-})
+import { requireResourcePermission } from '@/lib/permissions'
+import { parseStatusFilter } from '@/lib/status-filter'
+import { createDispatchSchema } from '@/modules/production/contracts/dispatch-schema'
+import { DispatchDomainError } from '@/modules/production/domain/dispatch-errors'
+import { archiveManagedDispatch, createManagedDispatch } from '@/modules/production/server/dispatch-command-service'
+import { listManagedDispatches } from '@/modules/production/server/dispatch-query-service'
 
 export async function GET(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('dispatch', 'read')
     if (denied) return denied
-
     const { searchParams } = new URL(req.url)
-    const statuses = parseStatusFilter(searchParams)
-    const workerName = searchParams.get('workerName')
-    const orderId = searchParams.get('orderId')
-    const customerId = searchParams.get('customerId')
-    const page = Number(searchParams.get('page') ?? '1')
-    const pageSize = Number(searchParams.get('pageSize') ?? '20')
-
-    const where: any = { deletedAt: null }
-    applyStatusFilter(where, statuses)
-    if (workerName) where.workerName = { contains: workerName }
-    if (orderId) where.orderId = orderId
-    if (customerId === '__UNASSIGNED__') {
-      where.order = {
-        is: {
-          OR: [
-            { product: { is: { customerId: null } } },
-            { targetMaterial: { is: { customerId: null } } },
-          ],
-        },
-      }
-    } else if (customerId) {
-      where.order = {
-        is: {
-          OR: [
-            { product: { is: { customerId } } },
-            { targetMaterial: { is: { customerId } } },
-          ],
-        },
-      }
-    }
-
-    const [dispatches, total] = await Promise.all([
-      prisma.dispatch.findMany({
-        where,
-        include: {
-          order: {
-            include: {
-              product: { select: { id: true, name: true, sku: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
-              targetMaterial: { select: { id: true, name: true, code: true, category: true, customerId: true, customer: { select: { id: true, code: true, name: true } }, unit: true, stockUnit: true } },
-            },
-          },
-          step: true,
-        },
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      prisma.dispatch.count({ where }),
-    ])
-
-    return NextResponse.json({
-      data: dispatches,
-      pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+    const result = await listManagedDispatches({
+      statuses: parseStatusFilter(searchParams),
+      workerName: searchParams.get('workerName'),
+      orderId: searchParams.get('orderId'),
+      customerId: searchParams.get('customerId'),
+      page: Number(searchParams.get('page') ?? 1) || 1,
+      pageSize: Number(searchParams.get('pageSize') ?? 20) || 20,
     })
+    return NextResponse.json({ data: result.items, pagination: result.pagination })
   } catch (error) {
     console.error('Get dispatches error:', error)
     return NextResponse.json({ error: '获取派工单列表失败' }, { status: 500 })
   }
 }
-
 export async function POST(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('dispatch', 'create')
     if (denied) return denied
-
-    const body = await req.json()
-    const data = createDispatchSchema.parse(body)
-
-    const order = await prisma.productionOrder.findUnique({
-      where: { id: data.orderId },
-      include: {
-        product: {
-          include: {
-            processRoutes: { include: { steps: true } },
-          },
-        },
-        targetMaterial: true,
-      },
-    })
-
-    if (!order) {
-      return NextResponse.json({ error: '工单不存在' }, { status: 404 })
-    }
-
-    if (order.status !== 'PICKED' && order.status !== 'RUNNING') {
-      return NextResponse.json(
-        { error: '工单状态不允许派工，需为 PICKED 或 RUNNING' },
-        { status: 400 }
-      )
-    }
-
-    // 校验工序属于该工单物料的工艺路线
-    const stepIds = order.product.processRoutes.flatMap((r) =>
-      r.steps.map((s) => s.id)
-    )
-    if (!stepIds.includes(data.stepId)) {
-      return NextResponse.json(
-        { error: '工序不属于该工单物料的工艺路线' },
-        { status: 400 }
-      )
-    }
-
-    // 生成派工单号 DP-YYYYMMDD-XXX
-    const today = new Date()
-    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')
-    const count = await prisma.dispatch.count({
-      where: { createdAt: { gte: new Date(today.setHours(0, 0, 0, 0)) } },
-    })
-    const dispatchNo = `DP-${dateStr}-${String(count + 1).padStart(3, '0')}`
-
-    const dispatch = await prisma.dispatch.create({
-      data: {
-        dispatchNo,
-        voucherNo: data.voucherNo?.trim() || null,
-        orderId: data.orderId,
-        stepId: data.stepId,
-        workerName: data.workerName,
-        workerId: data.workerId,
-        planQty: data.planQty,
-        priority: data.priority ?? 'NORMAL',
-        status: 'PENDING',
-        note: data.note,
-      },
-      include: {
-        order: { include: { product: true, targetMaterial: true } },
-        step: true,
-      },
-    })
-
+    const dispatch = await createManagedDispatch(createDispatchSchema.parse(await req.json()))
     await writeAuditLog(req, {
-      action: 'CREATE',
-      entityType: 'DISPATCH',
-      entityId: dispatch.id,
-      entityLabel: dispatch.dispatchNo,
-      afterData: dispatch,
+      action: 'CREATE', entityType: 'DISPATCH', entityId: dispatch.id,
+      entityLabel: dispatch.dispatchNo, afterData: dispatch,
     })
-
     return NextResponse.json({ data: dispatch }, { status: 201 })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
-    }
+    if (error instanceof z.ZodError) return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
+    if (error instanceof DispatchDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Create dispatch error:', error)
     return NextResponse.json({ error: '创建派工单失败' }, { status: 500 })
   }
@@ -173,32 +49,16 @@ export async function DELETE(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('dispatch', 'delete')
     if (denied) return denied
-
-    const { searchParams } = new URL(req.url)
-    const id = searchParams.get('id')
+    const id = new URL(req.url).searchParams.get('id')
     if (!id) return NextResponse.json({ error: '缺少派工单 ID' }, { status: 400 })
-
-    const dispatch = await prisma.dispatch.findUnique({ where: { id } })
-    if (!dispatch || dispatch.deletedAt) {
-      return NextResponse.json({ error: '派工单不存在或已归档' }, { status: 404 })
-    }
-
-    const updated = await prisma.dispatch.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    })
-
+    const { current, updated } = await archiveManagedDispatch(id)
     await writeAuditLog(req, {
-      action: 'ARCHIVE',
-      entityType: 'DISPATCH',
-      entityId: updated.id,
-      entityLabel: updated.dispatchNo,
-      beforeData: dispatch,
-      afterData: updated,
+      action: 'ARCHIVE', entityType: 'DISPATCH', entityId: updated.id,
+      entityLabel: updated.dispatchNo, beforeData: current, afterData: updated,
     })
-
     return NextResponse.json({ success: true, message: '派工单已归档，可在归档记录中恢复' })
   } catch (error) {
+    if (error instanceof DispatchDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Archive dispatch error:', error)
     return NextResponse.json({ error: '归档派工单失败' }, { status: 500 })
   }

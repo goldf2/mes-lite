@@ -1,44 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
+import { DispatchDomainError } from '@/modules/production/domain/dispatch-errors'
+import { transitionManagedDispatch } from '@/modules/production/server/dispatch-status-service'
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const denied = await requireResourcePermission('dispatch', 'update')
     if (denied) return denied
-
-    const dispatch = await prisma.dispatch.findUnique({
-      where: { id: params.id },
-    })
-
-    if (!dispatch) {
-      return NextResponse.json({ error: '派工单不存在' }, { status: 404 })
-    }
-
-    if (dispatch.status !== 'DISPATCHED') {
-      return NextResponse.json(
-        { error: '只能开始已派工状态的派工单' },
-        { status: 400 }
-      )
-    }
-
-    const updated = await prisma.dispatch.update({
-      where: { id: params.id },
-      data: {
-        status: 'IN_PROGRESS',
-        startedAt: new Date(),
-      },
-    })
-
-    return NextResponse.json({
-      success: true,
-      message: `派工单 ${updated.dispatchNo} 已开始生产`,
-      data: updated,
-    })
+    const { updated } = await transitionManagedDispatch(params.id, 'start')
+    return NextResponse.json({ success: true, message: `派工单 ${updated.dispatchNo} 已开始生产`, data: updated })
   } catch (error) {
+    if (error instanceof DispatchDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Start dispatch error:', error)
     return NextResponse.json({ error: '开始生产失败' }, { status: 500 })
   }
