@@ -18,7 +18,7 @@ const SalesOrderPage = dynamic(() => import('@/modules/sales'), { loading: Featu
 const ShipmentPage = dynamic(() => import('@/modules/sales').then((module) => module.ShipmentPageModule), { loading: FeaturePageLoading })
 const ReturnPage = dynamic(() => import('@/modules/sales').then((module) => module.ReturnPageModule), { loading: FeaturePageLoading })
 const FlowTransferPage = dynamic(() => import('@/modules/production').then((module) => module.FlowTransferPageModule), { loading: FeaturePageLoading })
-const EmployeePage = dynamic(() => import('../EmployeePage'), { loading: FeaturePageLoading })
+const EmployeePage = dynamic(() => import('@/modules/configuration').then((module) => module.EmployeePageModule), { loading: FeaturePageLoading })
 const SawingCostCalculatorPage = dynamic(() => import('../SawingCostCalculatorPage'), { loading: FeaturePageLoading })
 const ScanPrintPage = dynamic(() => import('../ScanPrintPage'), { loading: FeaturePageLoading })
 const BomOverviewPage = dynamic(() => import('@/modules/bom'), { loading: FeaturePageLoading })

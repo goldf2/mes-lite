@@ -1,9 +1,24 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PrismaClient } from '@prisma/client'
+
+const sourceRoot = process.cwd()
+const requiredModuleFiles = [
+  'modules/configuration/client/employee-api.ts',
+  'modules/configuration/contracts/employee.ts',
+  'modules/configuration/model/employee-view.ts',
+  'modules/configuration/ui/EmployeePageModule.tsx',
+]
+for (const path of requiredModuleFiles) assert.ok(existsSync(join(sourceRoot, path)), `业务配置缺少员工模块文件：${path}`)
+const pageSource = readFileSync(join(sourceRoot, 'modules/configuration/ui/EmployeePageModule.tsx'), 'utf8')
+const registrySource = readFileSync(join(sourceRoot, 'app/components/shell/WorkspacePageRendererRegistry.tsx'), 'utf8')
+assert.ok(pageSource.split('\n').length <= 230, '员工协调页应保持在 230 行内')
+assert.doesNotMatch(pageSource, /\bfetch\(/, '员工页不得直接调用 fetch')
+assert.match(pageSource, /loadEmployees\(/, '员工页必须通过业务配置 client 读取数据')
+assert.match(registrySource, /EmployeePageModule/, '员工页必须通过业务配置模块公开入口加载')
 
 const verifyRoot = mkdtempSync(join(tmpdir(), 'mes-lite-employees-'))
 const databaseUrl = `file:${join(verifyRoot, 'verify.db')}`

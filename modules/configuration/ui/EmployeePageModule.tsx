@@ -1,63 +1,24 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import AppButton from './AppButton'
-import { appInputClassName, appSelectClassName, appTextareaClassName } from './FormField'
-import ModalDialog, { ModalActions } from './ModalDialog'
-import useClientTableSort from './useClientTableSort'
-import SearchableSelect from './SearchableSelect'
-import ConfigurationManualOrder from './ConfigurationManualOrder'
-import ResourcePage from './resource/ResourcePage'
-import { usePersistedViewMode } from './ViewModeToggle'
-import ManyToOneRelationField from './relations/ManyToOneRelationField'
-import ResourceSortButton from './resource/ResourceSortButton'
+import AppButton from '@/app/components/AppButton'
+import { appInputClassName, appTextareaClassName } from '@/app/components/FormField'
+import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
+import useClientTableSort from '@/app/components/useClientTableSort'
+import SearchableSelect from '@/app/components/SearchableSelect'
+import ConfigurationManualOrder from '@/app/components/ConfigurationManualOrder'
+import ResourcePage from '@/app/components/resource/ResourcePage'
+import { usePersistedViewMode } from '@/app/components/ViewModeToggle'
+import ManyToOneRelationField from '@/app/components/relations/ManyToOneRelationField'
+import ResourceSortButton from '@/app/components/resource/ResourceSortButton'
 import type { ResourceAdvancedSearchField } from '@/lib/resource-search'
-
-interface OperatorOption {
-  id: string
-  username: string
-  name: string
-  role: string
-  status: string
-  employee?: { id: string; code: string; name: string } | null
-}
-
-interface EmployeeItem {
-  id: string
-  code: string
-  name: string
-  department?: string | null
-  phone?: string | null
-  note?: string | null
-  isActive: boolean
-  operatorId?: string | null
-  operator?: Omit<OperatorOption, 'employee'> | null
-  createdAt: string
-  updatedAt: string
-  sortOrder: number
-}
-
-const emptyForm = () => ({
-  name: '',
-  department: '',
-  phone: '',
-  note: '',
-  isActive: true,
-  operatorId: '',
-})
-
-const operatorStatusLabels: Record<string, string> = {
-  PENDING: '待审核',
-  ACTIVE: '已启用',
-  REJECTED: '已拒绝',
-  DISABLED: '已停用',
-}
-
-const operatorRoleLabels: Record<string, string> = {
-  OPERATOR: '录入',
-  AUDITOR: '审核',
-  ADMIN: '管理',
-}
+import { loadEmployees, saveEmployee } from '../client/employee-api'
+import type { EmployeeItem, EmployeeOperatorOption } from '../contracts/employee'
+import {
+  createEmptyEmployeeForm,
+  employeeOperatorRoleLabels as operatorRoleLabels,
+  employeeOperatorStatusLabels as operatorStatusLabels,
+} from '../model/employee-view'
 
 const employeeAdvancedSearchFields: readonly ResourceAdvancedSearchField<EmployeeItem>[] = [
   { key: 'code', label: '员工编码', type: 'text', read: (employee) => employee.code },
@@ -74,7 +35,7 @@ const employeeAdvancedSearchFields: readonly ResourceAdvancedSearchField<Employe
   { key: 'updatedAt', label: '更新日期', type: 'date', read: (employee) => employee.updatedAt },
 ]
 
-export default function EmployeePage({
+export default function EmployeePageModule({
   onMessage,
   canCreate,
   canUpdate,
@@ -84,27 +45,23 @@ export default function EmployeePage({
   canUpdate: boolean
 }) {
   const [employees, setEmployees] = useState<EmployeeItem[]>([])
-  const [operators, setOperators] = useState<OperatorOption[]>([])
+  const [operators, setOperators] = useState<EmployeeOperatorOption[]>([])
   const [keyword, setKeyword] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState<EmployeeItem | null>(null)
   const [formOpen, setFormOpen] = useState(false)
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState(createEmptyEmployeeForm)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.employees.viewMode', 'list')
 
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ includeInactive: '1' })
-      if (keyword.trim()) params.set('keyword', keyword.trim())
-      const response = await fetch(`/api/employees?${params}`)
-      const data = await response.json()
-      if (!response.ok) return onMessage(data.error || '获取员工资料失败')
-      setEmployees(data.data || [])
-      setOperators(data.operators || [])
-    } catch {
-      onMessage('获取员工资料失败')
+      const data = await loadEmployees(keyword)
+      setEmployees(data.employees)
+      setOperators(data.operators)
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取员工资料失败')
     } finally {
       setLoading(false)
     }
@@ -127,7 +84,7 @@ export default function EmployeePage({
 
   const openCreate = () => {
     setEditing(null)
-    setForm(emptyForm())
+    setForm(createEmptyEmployeeForm())
     setFormOpen(true)
   }
 
@@ -148,18 +105,12 @@ export default function EmployeePage({
     if (!form.name.trim()) return onMessage('请填写员工姓名')
     setSaving(true)
     try {
-      const response = await fetch('/api/employees', {
-        method: editing ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editing ? { ...form, id: editing.id } : form),
-      })
-      const data = await response.json()
-      if (!response.ok) return onMessage(data.error || '保存员工资料失败')
+      const data = await saveEmployee(form, editing?.id)
       onMessage(data.message || '员工资料已保存')
       setFormOpen(false)
       await loadData()
-    } catch {
-      onMessage('保存员工资料失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '保存员工资料失败')
     } finally {
       setSaving(false)
     }
