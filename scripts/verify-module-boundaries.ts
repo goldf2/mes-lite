@@ -95,7 +95,7 @@ for (const page of rootPages) {
 
 const pageSizeBaselines: Record<string, number> = {
   'app/components/MaterialInPage.tsx': 1679,
-  'modules/documents/ui/WorkInstructionPage.tsx': 1497,
+  'modules/documents/ui/WorkInstructionPage.tsx': 650,
   'app/components/StatsPage.tsx': 936,
   'modules/inventory/ui/StockPageModule.tsx': 853,
   'modules/materials/ui/MaterialPage.tsx': 887,

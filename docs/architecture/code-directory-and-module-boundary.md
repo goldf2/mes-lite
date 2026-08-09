@@ -27,11 +27,11 @@
 | `modules/materials/ui/MaterialPage.tsx` | 887 行 | 数据契约、HTTP client、详情、编辑、导入、集合视图、页内选项、显示偏好和 BOM 草稿职责均已拆出；当前只保留物料/BOM 页面协调 |
 | `SystemPage.tsx` | 31 行 | 已收敛为业务配置、系统设置、运维工具和生产工程的纯领域分派兼容层 |
 | `MaterialInPage.tsx` | 1679 行 | 来料页面和录入流程高度集中，应迁入来料领域 |
-| `modules/documents/ui/WorkInstructionPage.tsx` | 1349 行 | 已迁入文档领域并提取契约、client 与服务端；下一步拆分表单、集合视图和详情/附件工作区 |
+| `modules/documents/ui/WorkInstructionPage.tsx` | 591 行 | 只保留文档读写、搜索、分页与子模块状态协调；集合、表单、详情/附件和全屏查看已分离 |
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 1485 行 | 已迁入物料领域；下一步按摘要、文档、BOM/工艺、成本和记录等稳定视图拆分 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 79 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具和文档 9 个模块；生产工程、物料与文档已形成包含服务端规则的垂直分层 |
+| `modules/` | 85 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具和文档 9 个模块；生产工程、物料与文档已形成包含服务端规则的垂直分层 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -479,6 +479,10 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `modules/documents` 通过唯一 `index.ts` 向页面注册层公开作业文档页；根级领域页面从 16 个降至 15 个。
 - `contracts/work-instruction-schema.ts` 与 `contracts/work-instruction.ts` 分别拥有服务端请求约束和前端数据契约。
 - `client/documents-api.ts` 封装文档、类别、产品、工作中心和附件请求，`WorkInstructionPage.tsx` 不再直接调用 `fetch`。
+- `model/work-instruction-view.ts` 集中状态、文件类型、空表单、显示标签与本地格式化规则，同类视图不再重复定义。
+- `WorkInstructionCollectionView.tsx`、`WorkInstructionCreateDialog.tsx`、`WorkInstructionDetailDialog.tsx` 与 `WorkInstructionFullscreenViewer.tsx` 分别拥有集合展示、新建、详情/附件和全屏查看用户任务。
+- 新建与详情编辑共用 `WorkInstructionFormFields.tsx`，并继续调用公共弹窗、一对多关联、在线正文、附件预览和排序表头。
 - `server/work-instruction-query-service.ts` 拥有分类层级、智能多关键词、附件名称/类型、高级字段搜索和列表附件摘要装配。
 - `server/work-instruction-command-service.ts` 拥有上海时区自动标题、结构化正文规范化、成品/类别/工作中心校验、关联替换和归档事务。
-- `app/api/work-instructions/route.ts` 从 551 行降至 78 行并移出巨型路由基线；文档主页面从 1497 行降至 1349 行，仍保留递减线等待继续拆分。
+- `app/api/work-instructions/route.ts` 从 551 行降至 78 行并移出巨型路由基线；文档主页面从 1497 行降至 591 行，已移出 800 行巨型页面基线。
+- `verify:document-server` 要求主页不超过 650 行且必须编排上述四个子模块，同时在完整临时 SQLite 库中验证文档交易规则，不读写服务器正式数据。
