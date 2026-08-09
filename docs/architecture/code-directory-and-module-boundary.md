@@ -15,13 +15,13 @@
 
 ## 2. 当前代码扫描结论
 
-首次扫描基线：`origin/main`，提交 `5c78233`。当前增量复核已包含应用壳状态控制器第三阶段拆分。
+首次扫描基线：`origin/main`，提交 `5c78233`。当前增量复核已包含应用壳状控制器第四阶段拆分。
 
 | 现状 | 扫描结果 | 判断 |
 | --- | ---: | --- |
 | `app/page.tsx` | 5 行 | 已收敛为应用入口；应用壳继续由 `HomeApp.tsx` 承担 |
-| `app/HomeApp.tsx` | 854 行 | 已提取账号菜单、页面宿主、页面连续性、工作区偏好和桌面导航控制器；继续只承担应用壳装配 |
-| `app/components/shell/` | 8 个文件 | 已建立账号菜单、导航图标、页面宿主、渲染适配器和三类状态控制器的公共应用壳边界 |
+| `app/HomeApp.tsx` | 522 行 | 权限菜单、工作区过滤、页面连续性、偏好和桌面导航状态均已提取；当前只承担应用壳 JSX 装配与少量全局弹层状态 |
+| `app/components/shell/` | 9 个文件 | 已建立账号菜单、导航图标、页面宿主、渲染适配器和四类状态控制器的公共应用壳边界 |
 | `lib/page-registry.ts` | 38 个页面定义 | 页面元数据、权限资源、工作区入口、系统分区、打开方式和渲染键已集中为单一事实源 |
 | `app/components/` 根目录 | 67 个文件 | 公共原语、领域页面、业务弹窗和系统页面仍有混放，继续按“修改到哪里，迁移到哪里”收敛 |
 | `MaterialPage.tsx` | 3186 行 | 物料、BOM、附件和多种视图交织，应迁入物料领域并继续拆分 |
@@ -389,12 +389,13 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `app/app-navigation.ts`、`lib/page-modules.ts` 和 `HomeApp.tsx` 只从注册表派生菜单、页面定义和当前页面，不再维护平行页面清单。
 - React 动态加载留在客户端渲染适配层，避免基础注册表依赖 React 或 Next.js；适配器键由注册表约束并通过脚本检查完整性。
 
-应用壳状态控制器第三步已经落地：
+应用壳状态控制器第四步已经落地：
 
 - `usePageNavigationController.ts` 统一管理当前页面、物料子页、BOM 编辑目标、URL 同步、页面连续性和滚动位置恢复。
 - `useWorkspacePreferenceController.ts` 统一管理工作台布局偏好、固定入口和功能使用次数上报。
 - `useDesktopNavigationController.ts` 统一管理导航显示偏好、工作区形态、自动隐藏、侧栏尺寸、拖动和键盘调整。
-- `HomeApp.tsx` 不再直接读写页面连续性、工作区偏好和桌面导航存储，行数从 1233 行降至 854 行。
-- `verify:shell-controllers` 阻止上述职责重新回流应用壳，并把 `HomeApp.tsx` 的当前规模上限固定为 900 行。
+- `useApplicationNavigationController.tsx` 统一管理权限过滤、工作区菜单、一级顺序、页面跳转和移动端快捷入口；宽屏、窄屏和画布导航从同一分组模型派生。
+- `HomeApp.tsx` 不再直接读写页面连续性、工作区偏好、桌面导航存储或权限菜单组装，行数从 1233 行降至 522 行。
+- `verify:shell-controllers`、`verify:page-modules`、`verify:workspace-navigation` 和 `verify:responsive-navigation` 阻止这些职责重新回流应用壳，并把 `HomeApp.tsx` 的当前规模上限固定为 600 行。
 
 下一步应进入物料与 BOM 领域迁移；页面注册与菜单分类仍只使用现有单一事实源。

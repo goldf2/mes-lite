@@ -60,6 +60,7 @@ const salesOrderPageSource = readFileSync(join(root, 'app/components/SalesOrderP
 const flowTransferPageSource = readFileSync(join(root, 'app/components/FlowTransferPage.tsx'), 'utf8')
 const navigationSource = readFileSync(join(root, 'app/app-navigation.ts'), 'utf8')
 const homeAppSource = readFileSync(join(root, 'app/HomeApp.tsx'), 'utf8')
+const applicationNavigationSource = readFileSync(join(root, 'app/components/shell/useApplicationNavigationController.tsx'), 'utf8')
 const workspacePageHostSource = readFileSync(join(root, 'app/components/shell/WorkspacePageHost.tsx'), 'utf8')
 const pageRendererRegistrySource = readFileSync(join(root, 'app/components/shell/WorkspacePageRendererRegistry.tsx'), 'utf8')
 const pageAuditSource = readFileSync(join(root, 'docs/minierp/页面模块分类与接入清单.md'), 'utf8')
@@ -72,7 +73,9 @@ assert.match(salesOrderPageSource, /viewMode === 'card'/, '销售订单必须提
 assert.match(flowTransferPageSource, /usePersistedViewMode\('mes-lite\.flowTransfers\.viewMode'/, '流程转移必须保存卡片/列表偏好')
 assert.match(flowTransferPageSource, /viewMode === 'card'/, '流程转移必须提供卡片与列表两种显示形态')
 assert.match(navigationSource, /registeredPageDefinitions/, '菜单和工作区目录必须从统一页面注册表派生')
-assert.match(homeAppSource, /primaryNavigationItems/, '应用壳不得继续手工维护基础页面菜单')
+assert.match(homeAppSource, /useApplicationNavigationController/, '应用壳必须通过公共应用导航控制器获取页面菜单')
+assert.doesNotMatch(homeAppSource, /primaryNavigationItems/, '应用壳不得继续直接装配基础页面菜单')
+assert.match(applicationNavigationSource, /primaryNavigationItems/, '公共应用导航控制器必须从统一导航目录派生页面菜单')
 assert.match(workspacePageHostSource, /renderRegisteredWorkspacePage/, '页面宿主必须通过统一渲染注册表装配页面')
 for (const rendererKey of rendererKeys) {
   assert.match(pageRendererRegistrySource, new RegExp(`(?:['\"]${rendererKey}['\"]|${rendererKey})\\s*:`), `渲染注册表缺少 ${rendererKey}`)
