@@ -8,6 +8,12 @@ import type {
   WorkInstruction,
   WorkInstructionSaveInput,
 } from '../contracts/work-instruction'
+import {
+  archiveAttachment,
+  listAttachments,
+  setAttachmentRotation,
+  uploadAttachment,
+} from '@/modules/attachments'
 
 interface ApiEnvelope<T> {
   data?: T
@@ -48,8 +54,7 @@ export async function listFinishedMaterialOptions(keyword = '') {
 }
 
 export async function listInstructionAttachments(instructionId: string) {
-  const response = await fetch(`/api/attachments?ownerType=WORK_INSTRUCTION&ownerId=${encodeURIComponent(instructionId)}`)
-  return (await readEnvelope<AttachmentItem[]>(response, '获取附件失败')).data || []
+  return listAttachments<AttachmentItem>('WORK_INSTRUCTION', instructionId)
 }
 
 export async function listDocumentWorkCenters() {
@@ -58,13 +63,12 @@ export async function listDocumentWorkCenters() {
 }
 
 export async function uploadInstructionAttachment(instructionId: string, file: File) {
-  const formData = new FormData()
-  formData.append('ownerType', 'WORK_INSTRUCTION')
-  formData.append('ownerId', instructionId)
-  formData.append('documentType', 'WORK_INSTRUCTION')
-  formData.append('file', file)
-  const response = await fetch('/api/attachments', { method: 'POST', body: formData })
-  return (await readEnvelope<AttachmentItem>(response, `上传 ${file.name} 失败`)).data!
+  return uploadAttachment<AttachmentItem>({
+    ownerType: 'WORK_INSTRUCTION',
+    ownerId: instructionId,
+    documentType: 'WORK_INSTRUCTION',
+    file,
+  })
 }
 
 export async function saveWorkInstruction(input: WorkInstructionSaveInput, id?: string) {
@@ -82,16 +86,9 @@ export async function archiveWorkInstructionRecord(id: string) {
 }
 
 export async function archiveInstructionAttachment(id: string) {
-  const response = await fetch(`/api/attachments?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
-  await readEnvelope<never>(response, '归档文件失败')
+  await archiveAttachment(id)
 }
 
 export async function setInstructionAttachmentRotation(id: string, rotation: number) {
-  const response = await fetch('/api/attachments', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, action: 'SET_ROTATION', rotation }),
-  })
-  const body = await readEnvelope<AttachmentItem>(response, '保存文件方向失败')
-  return { attachment: body.data!, message: body.message || '文件方向已保存' }
+  return setAttachmentRotation<AttachmentItem>(id, rotation)
 }

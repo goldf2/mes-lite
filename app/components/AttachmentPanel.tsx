@@ -5,6 +5,12 @@ import type { DragEvent } from 'react'
 import { Download, Eye, Sparkles } from 'lucide-react'
 import { MAX_ATTACHMENT_FILE_SIZE, attachmentTypeLabel, type AttachmentPreviewKind } from '@/lib/attachment-file-types'
 import { supportsDocumentSourceCredentialRecognition } from '@/lib/document-source-credentials'
+import {
+  archiveAttachment,
+  listAttachments,
+  setAttachmentCover,
+  uploadAttachment,
+} from '@/modules/attachments'
 import DocumentFileViewer from './DocumentFileViewer'
 import DocumentPreviewThumb from './DocumentPreviewThumb'
 import ModalDialog from './ModalDialog'
@@ -78,10 +84,10 @@ export default function AttachmentPanel({
   )
 
   const fetchAttachments = useCallback(async () => {
-    const res = await fetch(`/api/attachments?ownerType=${encodeURIComponent(ownerType)}&ownerId=${encodeURIComponent(ownerId)}`)
-    if (res.ok) {
-      const data = await res.json()
-      setAttachments(data.data || [])
+    try {
+      setAttachments(await listAttachments<ManagedAttachment>(ownerType, ownerId))
+    } catch {
+      setAttachments([])
     }
   }, [ownerId, ownerType])
 
@@ -96,27 +102,12 @@ export default function AttachmentPanel({
   const uploadFile = async (file: File) => {
     setUploading(true)
     try {
-      const form = new FormData()
-      form.append('ownerType', ownerType)
-      form.append('ownerId', ownerId)
-      form.append('documentType', documentType)
-      if (note.trim()) form.append('note', note.trim())
-      form.append('file', file)
-
-      const res = await fetch('/api/attachments', {
-        method: 'POST',
-        body: form,
-      })
-      const data = await res.json()
-      if (res.ok) {
-        onMessage(`${itemLabel}上传成功`)
-        setNote('')
-        await fetchAttachments()
-      } else {
-        onMessage(data.error || '上传失败')
-      }
+      await uploadAttachment<ManagedAttachment>({ ownerType, ownerId, documentType, note, file })
+      onMessage(`${itemLabel}上传成功`)
+      setNote('')
+      await fetchAttachments()
     } catch (error) {
-      onMessage('上传失败')
+      onMessage(error instanceof Error ? error.message : '上传失败')
     }
     setUploading(false)
     if (inputRef.current) inputRef.current.value = ''
@@ -166,28 +157,22 @@ export default function AttachmentPanel({
 
   const deleteAttachment = async (id: string) => {
     if (!confirm(`确定归档这张${itemLabel}吗？归档后文件仍会保留。`)) return
-    const res = await fetch(`/api/attachments?id=${id}`, { method: 'DELETE' })
-    const data = await res.json()
-    if (res.ok) {
+    try {
+      await archiveAttachment(id)
       onMessage(`${itemLabel}已归档`)
       await fetchAttachments()
-    } else {
-      onMessage(data.error || '归档失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '归档失败')
     }
   }
 
   const setCover = async (id: string) => {
-    const res = await fetch('/api/attachments', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, action: 'SET_COVER' }),
-    })
-    const data = await res.json()
-    if (res.ok) {
+    try {
+      await setAttachmentCover(id)
       onMessage('物料封面已更新')
       await fetchAttachments()
-    } else {
-      onMessage(data.error || '设置封面失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '设置封面失败')
     }
   }
 

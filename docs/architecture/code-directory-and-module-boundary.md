@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 214 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售和设备 13 个模块；页面数据访问已统一进入领域 client，工作台、生产订单及生产实绩已形成前后端垂直切片 |
+| `modules/` | 221 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售、设备和附件 14 个模块；页面数据访问已统一进入领域 client，工作台、生产订单、生产实绩及附件生命周期已形成前后端垂直切片 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -693,3 +693,11 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `server/production-order-actual-service.ts` 拥有工作区查询、草稿创建和删除；`production-order-actual-status-service.ts` 拥有确认投入/产出过账、成本快照、冲销库存/成本层恢复及状态事务。
 - 四条实绩 Route Handler 现为 26–43 行，只保留权限、Schema、操作人、领域服务调用、审计和 HTTP 错误映射；扁平 `lib/production-order-actual.ts` 已删除，直接访问 Prisma 的 API 从 82 个降至 78 个。
 - 实绩编号改为读取当日最大历史序号，删除中间草稿后不会复用已存在编号。`verify:production-order-module` 锁定边界与纯规则，`verify:production-order-actuals` 在运行后删除的临时完整 SQLite 中覆盖工作区、草稿、确认、冲销、删除、断号、多产出和库存成本一致性。
+
+## 53. 通用附件生命周期模块归属
+
+- `modules/attachments/contracts` 集中附件所有者、上传、封面/旋转动作和草稿附件输入契约；`domain` 拥有存储片段、扩展名、物料图片判断、权限资源映射及领域错误。
+- `server/attachment-query-service.ts` 统一有效附件查询和展示 URL 装配；`attachment-command-service.ts` 统一上传落盘、缩略图/展示图生成、旋转、封面切换、归档后封面接替以及草稿绑定/丢弃。
+- `client/attachment-api.ts` 是页面和文档、物料领域访问附件 API 的唯一 CRUD 入口；`AttachmentPanel`、草稿附件面板及相邻领域 client 不再重复拼接附件请求。
+- 附件主路由从 291 行降至 102 行，草稿路由从 88 行降至 53 行；六条附件路由均不再直接访问 Prisma，使直接访问 Prisma 的 API 从 78 个降至 72 个。
+- `verify:attachment-management` 使用运行后删除的临时完整 SQLite 和临时上传目录验证上传、旋转、封面切换、归档接替、草稿绑定及文件清理，同时锁定公共 client 和薄路由边界。

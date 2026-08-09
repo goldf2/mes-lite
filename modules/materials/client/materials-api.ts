@@ -1,5 +1,6 @@
 import type { ConfiguredUnit, CustomerOption, Material, MeasureType, PaginationState } from '../contracts'
 import type { AttachmentItem, PanoramaData } from '../contracts/material-panorama'
+import { setAttachmentRotation } from '@/modules/attachments'
 
 interface ApiEnvelope<T> {
   data?: T
@@ -116,14 +117,7 @@ export async function getMaterialPanorama(materialId: string, signal?: AbortSign
 }
 
 export async function saveAttachmentRotation(id: string, rotation: number) {
-  const response = await fetch('/api/attachments', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, action: 'SET_ROTATION', rotation }),
-  })
-  const body = await readApiEnvelope<AttachmentItem>(response, '保存文件方向失败')
-  if (!body.data) throw new MaterialApiError('附件方向更新结果为空')
-  return { attachment: body.data, message: body.message || '文件方向已保存' }
+  return setAttachmentRotation<AttachmentItem>(id, rotation)
 }
 
 export async function downloadMaterialFile(url: string, fallbackFilename = 'materials.csv') {

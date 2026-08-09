@@ -1,12 +1,13 @@
 import { readFile } from 'fs/promises'
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import {
   attachmentImageVariantVersion,
   ensureAttachmentImageVariant,
   isAttachmentImageVariant,
 } from '@/lib/attachment-image-variants'
+import { AttachmentDomainError } from '@/modules/attachments/domain/attachment-errors'
+import { requireActiveAttachment } from '@/modules/attachments/server/attachment-query-service'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -23,21 +24,7 @@ export async function GET(
       return NextResponse.json({ error: '图片规格不存在' }, { status: 404 })
     }
 
-    const attachment = await prisma.documentAttachment.findUnique({
-      where: { id: params.id },
-      select: {
-        id: true,
-        originalName: true,
-        mimeType: true,
-        size: true,
-        storagePath: true,
-        rotation: true,
-        deletedAt: true,
-      },
-    })
-    if (!attachment || attachment.deletedAt) {
-      return NextResponse.json({ error: '附件不存在' }, { status: 404 })
-    }
+    const attachment = await requireActiveAttachment(params.id)
     if (!attachment.mimeType.startsWith('image/')) {
       return NextResponse.json({ error: '该附件类型不支持图片优化' }, { status: 415 })
     }
@@ -63,6 +50,9 @@ export async function GET(
       },
     })
   } catch (error: any) {
+    if (error instanceof AttachmentDomainError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     if (error?.code === 'ENOENT') {
       return NextResponse.json({ error: '附件文件不存在' }, { status: 404 })
     }

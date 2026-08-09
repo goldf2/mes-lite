@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
 import { readFile } from 'fs/promises'
-import { prisma } from '@/lib/prisma'
 import { requireResourcePermission } from '@/lib/permissions'
 import { attachmentPreviewKind } from '@/lib/attachment-file-types'
 import { resolveAttachmentStoragePath } from '@/lib/attachment-storage'
 import { ensureOfficeDocumentPreview } from '@/lib/office-document-preview'
+import { AttachmentDomainError } from '@/modules/attachments/domain/attachment-errors'
+import { requireActiveAttachment } from '@/modules/attachments/server/attachment-query-service'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,10 +18,7 @@ export async function GET(
     const denied = await requireResourcePermission('attachments', 'read')
     if (denied) return denied
 
-    const attachment = await prisma.documentAttachment.findUnique({ where: { id: params.id } })
-    if (!attachment || attachment.deletedAt) {
-      return NextResponse.json({ error: '附件不存在' }, { status: 404 })
-    }
+    const attachment = await requireActiveAttachment(params.id)
 
     const kind = attachmentPreviewKind(attachment.originalName, attachment.mimeType)
     if (kind !== 'office' && kind !== 'text') {
@@ -41,6 +39,9 @@ export async function GET(
       },
     })
   } catch (error: any) {
+    if (error instanceof AttachmentDomainError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     if (error?.code === 'ENOENT') {
       return NextResponse.json({ error: '附件文件不存在' }, { status: 404 })
     }

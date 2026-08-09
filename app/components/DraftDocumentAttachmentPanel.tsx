@@ -1,6 +1,7 @@
 'use client'
 
 import AttachmentPanel, { type ManagedAttachment } from './AttachmentPanel'
+import { discardDraftAttachments, finalizeDraftAttachments } from '@/modules/attachments'
 import {
   draftDocumentAttachmentOwnerType,
   type DocumentSourceCredentialOwnerType,
@@ -22,14 +23,7 @@ export async function finalizeDraftDocumentAttachments({
   targetOwnerId: string
 }) {
   if (!draftOwnerId) return 0
-  const response = await fetch('/api/attachments/drafts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ownerType, draftOwnerId, targetOwnerId }),
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error || '暂存附件绑定失败')
-  return Number(data.count || 0)
+  return finalizeDraftAttachments({ ownerType, draftOwnerId, targetOwnerId })
 }
 
 export async function discardDraftDocumentAttachments(
@@ -37,8 +31,7 @@ export async function discardDraftDocumentAttachments(
   draftOwnerId: string,
 ) {
   if (!draftOwnerId) return
-  const params = new URLSearchParams({ ownerType, draftOwnerId })
-  await fetch(`/api/attachments/drafts?${params}`, { method: 'DELETE' })
+  await discardDraftAttachments(ownerType, draftOwnerId)
 }
 
 export default function DraftDocumentAttachmentPanel({
