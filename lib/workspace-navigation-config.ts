@@ -58,7 +58,7 @@ export const sharedWorkspaceFunctionKeys = [
 const sharedFunctionKeySet = new Set<WorkspaceFunctionKey>(sharedWorkspaceFunctionKeys)
 
 export const configurableWorkspaceFunctionKeys = workspaceFunctionKeys.filter((key) => (
-  key !== 'stats' && !sharedFunctionKeySet.has(key)
+  !sharedFunctionKeySet.has(key)
 ))
 
 const defaultItems: Record<NavigationWorkspaceId, WorkspaceFunctionKey[]> = {

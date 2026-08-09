@@ -6,7 +6,7 @@ import {
 
 assert.deepEqual(
   normalizeWorkspaceFunctionKeys(['stats', 'stats', 'unknown', 'materialIn']),
-  ['stats', 'materialIn'],
+  ['materialIn'],
 )
 
 assert.deepEqual(
@@ -14,7 +14,7 @@ assert.deepEqual(
   ['businessSettings', 'displaySettings'],
 )
 
-const availableKeys = ['stats', 'materialIn', 'shipment', 'stocks', 'orders'] as const
+const availableKeys = ['dashboard', 'materialIn', 'shipment', 'stocks', 'orders'] as const
 
 assert.deepEqual(rankWorkspaceFunctionKeys({
   mode: 'DEFAULT',
@@ -22,11 +22,11 @@ assert.deepEqual(rankWorkspaceFunctionKeys({
   layout: [],
   pinned: [],
   usage: [],
-}), ['stats', 'materialIn', 'shipment', 'stocks', 'orders'])
+}), ['dashboard', 'materialIn', 'shipment', 'stocks', 'orders'])
 
 assert.equal(rankWorkspaceFunctionKeys({
   mode: 'DEFAULT',
-  availableKeys: ['stats', 'materialIn', 'shipment', 'materialManagement', 'bomWorkspace', 'stocks', 'workInstructions', 'orders', 'bomUsage', 'return'],
+  availableKeys: ['dashboard', 'materialIn', 'shipment', 'materialManagement', 'bomWorkspace', 'stocks', 'workInstructions', 'orders', 'bomUsage', 'return'],
   layout: [],
   pinned: [],
   usage: [],
@@ -49,6 +49,6 @@ assert.deepEqual(rankWorkspaceFunctionKeys({
     { functionKey: 'orders', useCount: 12, lastUsedAt: '2026-08-01T08:00:00.000Z' },
     { functionKey: 'shipment', useCount: 5, lastUsedAt: '2026-08-02T08:00:00.000Z' },
   ],
-}), ['stocks', 'orders', 'shipment', 'stats', 'materialIn'])
+}), ['stocks', 'orders', 'shipment', 'dashboard', 'materialIn'])
 
 console.log('工作台默认、智能与自定义排序验证通过')

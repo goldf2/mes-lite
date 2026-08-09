@@ -11,7 +11,6 @@ export const workspaceFunctionKeys = [
   'equipment',
   'orders',
   'dispatch',
-  'stats',
   'flowTransfers',
   'employees',
   'materialIn',
@@ -57,7 +56,7 @@ export interface WorkspacePreferenceValue {
 }
 
 export const defaultWorkspaceLayout: WorkspaceFunctionKey[] = [
-  'stats',
+  'dashboard',
   'materialIn',
   'salesOrders',
   'shipment',

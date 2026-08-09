@@ -84,7 +84,6 @@ const legacyRootPages = new Set([
   'SawingCostCalculatorPage.tsx',
   'ScanPrintPage.tsx',
   'ShipmentPage.tsx',
-  'StatsPage.tsx',
   'SystemPage.tsx',
 ])
 const rootPages = readdirSync(join(root, 'app', 'components')).filter((name) => name.endsWith('Page.tsx'))
@@ -95,7 +94,6 @@ for (const page of rootPages) {
 const pageSizeBaselines: Record<string, number> = {
   'modules/receiving/ui/MaterialInPage.tsx': 800,
   'modules/documents/ui/WorkInstructionPage.tsx': 650,
-  'app/components/StatsPage.tsx': 936,
   'modules/inventory/ui/StockPageModule.tsx': 853,
   'modules/materials/ui/MaterialPage.tsx': 887,
 }
