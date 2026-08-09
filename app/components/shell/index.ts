@@ -1,4 +1,6 @@
 export { default as AccountMenu } from './AccountMenu'
 export { default as NavigationGlyph, compactNavigationLabel } from './NavigationGlyph'
 export { default as WorkspacePageHost } from './WorkspacePageHost'
+export { default as usePageNavigationController } from './usePageNavigationController'
+export { default as useWorkspacePreferenceController } from './useWorkspacePreferenceController'
 export type { BomEditorTarget } from './WorkspacePageRendererRegistry'

@@ -2,7 +2,7 @@
 
 // 应用壳实现；业务垂直切片通过 modules/<domain> 的公开入口挂载。
 
-import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from 'react'
+import { useState, useEffect, useRef, useCallback, type CSSProperties } from 'react'
 import { Boxes, Menu, PanelLeftOpen, PanelRightOpen, PencilLine, Pin, PinOff, Search, X } from 'lucide-react'
 import AuthGate, { CurrentOperator } from './components/AuthGate'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
@@ -12,18 +12,12 @@ import {
   businessNavGroups,
   lightweightHiddenResources,
   primaryNavigationItems,
-  readPageContinuity,
   workspaceFunctionCatalog,
-  writePageContinuity,
   type BusinessNavGroupKey,
   type MaterialSection,
   type TabType,
 } from './app-navigation'
-import {
-  defaultWorkspacePreference,
-  isWorkspaceFunctionKey,
-} from '@/lib/workspace'
-import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/workspace'
+import type { WorkspaceFunctionKey } from '@/lib/workspace'
 import { getPageModuleDefinition, resolvePageModuleKey } from '@/lib/page-modules'
 import TopBarPortal from './components/TopBarPortal'
 import DesktopNavigation, {
@@ -48,7 +42,8 @@ import {
   NavigationGlyph,
   WorkspacePageHost,
   compactNavigationLabel,
-  type BomEditorTarget,
+  usePageNavigationController,
+  useWorkspacePreferenceController,
 } from './components/shell'
 
 const AiAssistantPanel = dynamic(() => import('./components/AiAssistantPanel'))
@@ -131,36 +126,56 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const readableSystemNavItems = baseNavItems
     .filter((item) => canRead(item.resource) && accountMenuKeys.has(item.key) && !hiddenResources.has(item.resource))
     .map((item) => ({ ...item, label: labelForTab(item) }))
-  const pageContinuityStorageKey = `mes-lite.page-continuity.${operator.id}`
-  const restoredPageContinuity = useMemo(
-    () => readPageContinuity(pageContinuityStorageKey),
-    [pageContinuityStorageKey],
-  )
+  const materialSectionItems = [
+    { key: 'materials' as const, functionKey: 'materialManagement' as const, label: '物料管理', visible: canRead('materials') },
+    { key: 'bomWorkspace' as const, functionKey: 'bomWorkspace' as const, label: 'BOM 设置', visible: canRead('materials') && canRead('bomCost') },
+    { key: 'bomUsage' as const, functionKey: 'bomUsage' as const, label: 'BOM 全览', visible: canRead('bomCost') },
+  ].filter((item) => item.visible)
+    .filter((item) => workspaceContainsFunction(workspaceNavigationConfig, activeWorkspace, item.functionKey))
+    .map((item) => ({
+      ...item,
+      label: workspaceFunctionLabel(workspaceNavigationConfig, activeWorkspace, item.functionKey, item.label),
+    }))
   const fallbackInitialTab = readableBusinessNavItems.find((item) => item.key === 'dashboard')?.key
     ?? readableBusinessNavItems[0]?.key
     ?? readableSystemNavItems[0]?.key
     ?? 'dashboard'
-  const restoredTabAllowed = [...readableBusinessNavItems, ...readableSystemNavItems]
-    .some((item) => item.key === restoredPageContinuity.tab)
-  const initialTab = restoredTabAllowed ? restoredPageContinuity.tab as TabType : fallbackInitialTab
   const defaultMaterialSection: MaterialSection = canRead('materials') ? 'materials' : 'bomUsage'
-  const restoredMaterialSection = restoredPageContinuity.materialSection
-  const restoredMaterialSectionAllowed = restoredMaterialSection === 'materials'
-    ? canRead('materials')
-    : restoredMaterialSection === 'bomWorkspace'
-      ? canRead('materials') && canRead('bomCost')
-      : restoredMaterialSection === 'bomUsage'
-        ? canRead('bomCost')
-        : false
-  const [tab, setTab] = useState<TabType>(initialTab)
-  const [materialSection, setMaterialSection] = useState<MaterialSection>(
-    restoredMaterialSectionAllowed ? restoredMaterialSection as MaterialSection : defaultMaterialSection,
-  )
-  const [bomEditorTarget, setBomEditorTarget] = useState<BomEditorTarget | null>(null)
-  const [workspacePreference, setWorkspacePreference] = useState<WorkspacePreferenceValue>(defaultWorkspacePreference)
+  const restorableMaterialSections = [
+    canRead('materials') ? 'materials' : null,
+    canRead('materials') && canRead('bomCost') ? 'bomWorkspace' : null,
+    canRead('bomCost') ? 'bomUsage' : null,
+  ].filter((section): section is MaterialSection => section !== null)
+  const [message, setMessage] = useState('')
+  const showMessage = useCallback((msg: string) => {
+    setMessage(msg)
+    setTimeout(() => setMessage(''), 5000)
+  }, [])
+  const {
+    tab,
+    setTab,
+    materialSection,
+    setMaterialSection,
+    bomEditorTarget,
+    openBomEditor,
+    clearBomEditorTarget,
+    pageContentRef,
+    pageLocationKey,
+  } = usePageNavigationController({
+    operatorId: operator.id,
+    allowedTabs: [...readableBusinessNavItems, ...readableSystemNavItems].map((item) => item.key),
+    fallbackTab: fallbackInitialTab,
+    defaultMaterialSection,
+    restorableMaterialSections,
+    urlMaterialSections: materialSectionItems.map((item) => item.key),
+  })
+  const {
+    workspacePreference,
+    saveWorkspacePreference,
+    recordWorkspaceUsage,
+  } = useWorkspacePreferenceController({ onError: showMessage })
   const [productionOrderStateSummary, setProductionOrderStateSummary] = useState('页面：生产订单')
   const [stockStateSummary, setStockStateSummary] = useState('页面：库存管理')
-  const [message, setMessage] = useState('')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [systemMenuOpen, setSystemMenuOpen] = useState(false)
@@ -176,29 +191,16 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [desktopSidebarReady, setDesktopSidebarReady] = useState(false)
   const [wideDesktopNavigation, setWideDesktopNavigation] = useState(false)
   const [resizingDesktopSidebar, setResizingDesktopSidebar] = useState<DesktopNavigationMode | null>(null)
-  const [pageUrlReady, setPageUrlReady] = useState(false)
   const systemMenuRef = useRef<HTMLDivElement>(null)
   const desktopSystemMenuRef = useRef<HTMLDivElement>(null)
   const desktopNavigationPanelRef = useRef<HTMLElement>(null)
   const desktopNavigationTriggerRef = useRef<HTMLButtonElement>(null)
   const desktopNavigationOpenTimerRef = useRef<number | null>(null)
   const desktopNavigationCloseTimerRef = useRef<number | null>(null)
-  const pageContentRef = useRef<HTMLDivElement>(null)
-  const pageUrlInitializedRef = useRef(false)
   const navOrderLoadedRef = useRef(false)
   const readableBusinessNavItemsRef = useRef(readableBusinessNavItems)
   readableBusinessNavItemsRef.current = readableBusinessNavItems
   const [navItems, setNavItems] = useState<{ key: TabType; label: string }[]>(readableBusinessNavItems)
-  const materialSectionItems = [
-    { key: 'materials' as const, functionKey: 'materialManagement' as const, label: '物料管理', visible: canRead('materials') },
-    { key: 'bomWorkspace' as const, functionKey: 'bomWorkspace' as const, label: 'BOM 设置', visible: canRead('materials') && canRead('bomCost') },
-    { key: 'bomUsage' as const, functionKey: 'bomUsage' as const, label: 'BOM 全览', visible: canRead('bomCost') },
-  ].filter((item) => item.visible)
-    .filter((item) => workspaceContainsFunction(workspaceNavigationConfig, activeWorkspace, item.functionKey))
-    .map((item) => ({
-      ...item,
-      label: workspaceFunctionLabel(workspaceNavigationConfig, activeWorkspace, item.functionKey, item.label),
-    }))
   const tabLabels: Record<string, string> = Object.fromEntries(
     [...baseNavItems, ...readableBusinessNavItems, ...readableSystemNavItems].map((item) => [item.key, item.label]),
   )
@@ -232,7 +234,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const readableNavigationSignature = readableBusinessNavItems.map((item) => `${item.key}:${item.label}`).join('|')
   const activeMaterialSectionVisible = materialSectionItems.some((item) => item.key === materialSection)
   const firstMaterialSectionKey = materialSectionItems[0]?.key
-  const pageLocationKey = tab === 'materials' ? `${tab}:${materialSection}` : tab
   const activeGroupLabel = activeSystemTab
     ? '账号与权限'
     : businessNavGroups.find((group) => group.key === activeBusinessGroupKey)?.label || 'MES-lite'
@@ -320,42 +321,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   }, [cancelDesktopNavigationClose, cancelDesktopNavigationOpen])
 
   useEffect(() => {
-    if (pageUrlInitializedRef.current) return
-    pageUrlInitializedRef.current = true
-    const url = new URL(window.location.href)
-    const requestedPage = url.searchParams.get('page') as TabType | null
-    const allowedPages = [...readableBusinessNavItems, ...readableSystemNavItems]
-    if (requestedPage && allowedPages.some((item) => item.key === requestedPage)) {
-      setTab(requestedPage)
-    }
-    if (requestedPage === 'materials') {
-      const requestedSection = url.searchParams.get('section') as MaterialSection | null
-      if (requestedSection && materialSectionItems.some((item) => item.key === requestedSection)) {
-        setMaterialSection(requestedSection)
-      }
-    }
-    setPageUrlReady(true)
-  }, [materialSectionItems, readableBusinessNavItems, readableSystemNavItems])
-
-  useEffect(() => {
-    if (!pageUrlReady) return
-    const url = new URL(window.location.href)
-    const shareablePage = tab === 'create' || tab === 'detail' ? 'orders' : tab
-    url.searchParams.set('page', shareablePage)
-    url.searchParams.delete('section')
-    if (shareablePage !== 'orders' && shareablePage !== 'stocks') {
-      url.searchParams.delete('view')
-      url.searchParams.delete('q')
-    }
-    if (shareablePage !== 'orders') url.searchParams.delete('statuses')
-    if (shareablePage !== 'stocks') {
-      for (const key of ['stockType', 'customer', 'location', 'categories', 'invalid', 'stock']) url.searchParams.delete(key)
-    }
-    if (shareablePage === 'materials') url.searchParams.set('section', materialSection)
-    window.history.replaceState(window.history.state, '', url)
-  }, [materialSection, pageUrlReady, tab])
-
-  useEffect(() => {
     const currentReadableItems = readableBusinessNavItemsRef.current
     const savedOrder = window.localStorage.getItem(navigationOrderStorageKey)
       || (activeWorkspace === 'mes' ? window.localStorage.getItem('mes-lite.nav.order') : null)
@@ -386,96 +351,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     if (tab !== 'materials' || activeMaterialSectionVisible) return
     if (firstMaterialSectionKey) setMaterialSection(firstMaterialSectionKey)
     else setTab('dashboard')
-  }, [activeMaterialSectionVisible, firstMaterialSectionKey, tab])
+  }, [activeMaterialSectionVisible, firstMaterialSectionKey, setMaterialSection, setTab, tab])
 
   useEffect(() => {
     if (workspaceContainsFunction(workspaceNavigationConfig, activeWorkspace, activeFunctionKey)) return
     setTab('dashboard')
-  }, [activeFunctionKey, activeWorkspace, workspaceNavigationConfig])
-
-  useEffect(() => {
-    writePageContinuity(pageContinuityStorageKey, { tab, materialSection })
-  }, [materialSection, pageContinuityStorageKey, tab])
-
-  useEffect(() => {
-    const content = pageContentRef.current
-    if (!content) return
-
-    const saved = readPageContinuity(pageContinuityStorageKey).scrollPositions?.[pageLocationKey]
-    let restoring = false
-    let userMoved = false
-    let saveFrame = 0
-    let latestCheckpoint = {
-      contentTop: content.scrollTop,
-      windowTop: window.scrollY,
-    }
-
-    const saveCheckpoint = () => {
-      const current = readPageContinuity(pageContinuityStorageKey)
-      writePageContinuity(pageContinuityStorageKey, {
-        scrollPositions: {
-          ...(current.scrollPositions || {}),
-          [pageLocationKey]: latestCheckpoint,
-        },
-      })
-    }
-    const scheduleSave = () => {
-      if (restoring) return
-      latestCheckpoint = {
-        contentTop: content.scrollTop,
-        windowTop: window.scrollY,
-      }
-      if (saveFrame) return
-      saveFrame = window.requestAnimationFrame(() => {
-        saveFrame = 0
-        saveCheckpoint()
-      })
-    }
-    const saveBeforePageHide = () => {
-      latestCheckpoint = {
-        contentTop: content.scrollTop,
-        windowTop: window.scrollY,
-      }
-      saveCheckpoint()
-    }
-    const markUserMoved = () => {
-      if (!restoring) userMoved = true
-    }
-    const restoreCheckpoint = () => {
-      if (!saved || userMoved) return
-      restoring = true
-      const contentTop = Number.isFinite(Number(saved.contentTop)) ? Math.max(0, Number(saved.contentTop)) : 0
-      const windowTop = Number.isFinite(Number(saved.windowTop)) ? Math.max(0, Number(saved.windowTop)) : 0
-      content.scrollTop = contentTop
-      window.scrollTo({ top: windowTop, behavior: 'auto' })
-      latestCheckpoint = { contentTop, windowTop }
-      window.requestAnimationFrame(() => { restoring = false })
-    }
-
-    content.addEventListener('scroll', scheduleSave, { passive: true })
-    content.addEventListener('wheel', markUserMoved, { passive: true })
-    content.addEventListener('touchstart', markUserMoved, { passive: true })
-    window.addEventListener('scroll', scheduleSave, { passive: true })
-    window.addEventListener('wheel', markUserMoved, { passive: true })
-    window.addEventListener('touchstart', markUserMoved, { passive: true })
-    window.addEventListener('pagehide', saveBeforePageHide)
-
-    const firstRestoreFrame = window.requestAnimationFrame(restoreCheckpoint)
-    const delayedRestore = window.setTimeout(restoreCheckpoint, 500)
-    return () => {
-      if (saveFrame) saveCheckpoint()
-      window.cancelAnimationFrame(firstRestoreFrame)
-      if (saveFrame) window.cancelAnimationFrame(saveFrame)
-      window.clearTimeout(delayedRestore)
-      content.removeEventListener('scroll', scheduleSave)
-      content.removeEventListener('wheel', markUserMoved)
-      content.removeEventListener('touchstart', markUserMoved)
-      window.removeEventListener('scroll', scheduleSave)
-      window.removeEventListener('wheel', markUserMoved)
-      window.removeEventListener('touchstart', markUserMoved)
-      window.removeEventListener('pagehide', saveBeforePageHide)
-    }
-  }, [pageContinuityStorageKey, pageLocationKey])
+  }, [activeFunctionKey, activeWorkspace, setTab, workspaceNavigationConfig])
 
   useEffect(() => {
     if (!systemMenuOpen) return
@@ -634,78 +515,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setDraggedIndex(null)
   }
 
-  const showMessage = useCallback((msg: string) => {
-    setMessage(msg)
-    setTimeout(() => setMessage(''), 5000)
-  }, [])
-
-  const openBomEditor = useCallback((materialId: string, bomId?: string) => {
-    setBomEditorTarget({ materialId, bomId, requestId: Date.now() })
-    setMaterialSection('bomWorkspace')
-    setTab('materials')
-  }, [])
-
-  const clearBomEditorTarget = useCallback(() => {
-    setBomEditorTarget(null)
-  }, [])
-
   const closeAiAssistant = useCallback(() => {
     setAiAssistantOpen(false)
   }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    fetch('/api/workspace-preferences')
-      .then((response) => response.json())
-      .then((payload) => {
-        if (cancelled || !payload.data) return
-        const data = payload.data
-        setWorkspacePreference({
-          mode: data.mode === 'SMART' || data.mode === 'CUSTOM' ? data.mode : 'DEFAULT',
-          layout: Array.isArray(data.layout) ? data.layout.filter(isWorkspaceFunctionKey) : defaultWorkspacePreference.layout,
-          pinned: Array.isArray(data.pinned) ? data.pinned.filter(isWorkspaceFunctionKey) : [],
-          usage: Array.isArray(data.usage)
-            ? data.usage.filter((item: { functionKey?: string }) => item.functionKey && isWorkspaceFunctionKey(item.functionKey))
-            : [],
-        })
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  const saveWorkspacePreference = async (next: Pick<WorkspacePreferenceValue, 'mode' | 'layout' | 'pinned'>) => {
-    const response = await fetch('/api/workspace-preferences', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(next),
-    })
-    const payload = await response.json()
-    if (!response.ok) {
-      showMessage(payload.error || '保存工作台设置失败')
-      throw new Error(payload.error || '保存工作台设置失败')
-    }
-    setWorkspacePreference((current) => ({ ...current, ...next }))
-  }
-
-  const recordWorkspaceUsage = (functionKey: WorkspaceFunctionKey) => {
-    const usedAt = new Date().toISOString()
-    setWorkspacePreference((current) => {
-      const existing = current.usage.find((item) => item.functionKey === functionKey)
-      const usage = existing
-        ? current.usage.map((item) => item.functionKey === functionKey
-          ? { ...item, useCount: item.useCount + 1, lastUsedAt: usedAt }
-          : item)
-        : [...current.usage, { functionKey, useCount: 1, lastUsedAt: usedAt }]
-      return { ...current, usage }
-    })
-    void fetch('/api/workspace-usage', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ functionKey }),
-    }).catch(() => undefined)
-  }
 
   const openWorkspaceFunction = (functionKey: WorkspaceFunctionKey) => {
     const target = workspaceFunctionItems.find((item) => item.key === functionKey)
