@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import useDismissibleSearchPopup from '../useDismissibleSearchPopup'
 import ControlTooltip from '../ControlTooltip'
 import type { NavigationGroup } from './NavigationModel'
+import UnifiedNavigationMenu from './UnifiedNavigationMenu'
 
 type OpenPanel = { type: 'group'; id: string } | { type: 'more' } | { type: 'search' } | null
 
@@ -50,11 +51,6 @@ export default function DesktopTopNavigation({ groups }: { groups: NavigationGro
       )),
     })).filter((group) => group.items.length > 0)
   }, [groups, normalizedQuery])
-
-  const selectItem = (onClick: () => void) => {
-    setOpenPanel(null)
-    onClick()
-  }
 
   const panelGroups = openPanel?.type === 'more'
     ? hiddenGroups
@@ -166,19 +162,20 @@ export default function DesktopTopNavigation({ groups }: { groups: NavigationGro
           <div className={`max-h-[min(65dvh,32rem)] space-y-3 overflow-y-auto p-3 ${openPanel.type === 'group' ? 'pr-12' : ''}`}>
             {panelGroups.length === 0 ? (
               <div className="py-8 text-center text-sm text-gray-500">没有匹配的功能</div>
-            ) : panelGroups.map((group) => (
-              <section key={group.id} aria-label={`${group.label}功能`}>
-                {(openPanel.type === 'more' || openPanel.type === 'search') && <div className="mb-1 px-2 text-xs font-semibold text-gray-400">{group.label}</div>}
-                <div className={`grid grid-cols-1 gap-1 ${compactGroupPanel ? '' : 'sm:grid-cols-2'}`}>
-                  {group.items.map((item) => (
-                    <button key={item.id} type="button" aria-current={item.active ? 'page' : undefined} onClick={() => selectItem(item.onClick)} className={`flex min-h-10 items-center gap-2 rounded-lg px-3 text-left text-sm transition ${item.active ? 'bg-blue-50 font-semibold text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}>
-                      {item.icon}
-                      <span className="truncate">{item.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ))}
+            ) : (
+              <UnifiedNavigationMenu
+                groups={panelGroups}
+                groupHeaderMode={openPanel.type === 'group' ? 'hidden' : 'static'}
+                expandedGroupIds="all"
+                itemLayout={compactGroupPanel ? 'list' : 'grid'}
+                ariaLabel={openPanel.type === 'group' ? `${panelGroups[0]?.label || '当前'}功能` : '顶部功能导航'}
+                className="space-y-3"
+                onItemSelect={(item) => {
+                  setOpenPanel(null)
+                  item.onClick()
+                }}
+              />
+            )}
           </div>
         </div>
       )}

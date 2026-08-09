@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, Search, X } from 'lucide-react'
-import type { NavigationGroup, NavigationItem } from './NavigationModel'
+import { Search, X } from 'lucide-react'
+import type { NavigationGroup } from './NavigationModel'
+import UnifiedNavigationMenu, { type NavigationDisplayMode } from './UnifiedNavigationMenu'
 
 export type DesktopNavigationMode = 'accordion' | 'split'
-export type DesktopNavigationDisplayMode = 'icon' | 'icon-label' | 'label'
+export type DesktopNavigationDisplayMode = NavigationDisplayMode
 
 const primaryRailStorageKey = 'mes-lite.layout.desktopPrimaryRailWidth'
 const primaryRailWidthConfig: Record<DesktopNavigationDisplayMode, { defaultWidth: number; minWidth: number; maxWidth: number }> = {
@@ -17,30 +18,6 @@ const primaryRailWidthConfig: Record<DesktopNavigationDisplayMode, { defaultWidt
 function clampPrimaryRailWidth(width: number, displayMode: DesktopNavigationDisplayMode) {
   const config = primaryRailWidthConfig[displayMode]
   return Math.min(config.maxWidth, Math.max(config.minWidth, width))
-}
-
-function NavigationItemButton({ item, showIcon = false }: { item: NavigationItem; showIcon?: boolean }) {
-  return (
-    <button
-      type="button"
-      draggable={item.draggable}
-      aria-current={item.active ? 'page' : undefined}
-      onClick={item.onClick}
-      onDragStart={item.onDragStart}
-      onDragOver={item.onDragOver}
-      onDragLeave={item.onDragLeave}
-      onDrop={item.onDrop}
-      className={`flex min-h-[32px] w-full items-center justify-between gap-2 rounded-md px-2.5 py-1 text-left text-sm transition ${
-        item.dragState === 'dragging' ? 'opacity-50' : item.dragState === 'target' ? 'ring-2 ring-blue-300' : ''
-      } ${item.active ? 'bg-blue-50 font-semibold text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
-    >
-      <span className="flex min-w-0 items-center gap-2">
-        {showIcon && item.icon}
-        <span className="truncate">{item.label}</span>
-      </span>
-      {item.draggable && <span aria-hidden="true" className="shrink-0 text-xs text-gray-300">⋮⋮</span>}
-    </button>
-  )
 }
 
 function NavigationSearch({
@@ -84,18 +61,7 @@ function NavigationSearchResults({ groups }: { groups: NavigationGroup[] }) {
     return <div className="px-3 py-8 text-center text-sm text-gray-500" role="status">没有匹配的功能</div>
   }
 
-  return (
-    <div className="space-y-3 py-1">
-      {groups.map((group) => (
-        <section key={group.id} aria-label={`${group.label}搜索结果`}>
-          <div className="px-2.5 pb-1 text-[11px] font-semibold text-gray-400">{group.label}</div>
-          <div className="space-y-0.5">
-            {group.items.map((item) => <NavigationItemButton key={`${group.id}:${item.id}`} item={item} showIcon={Boolean(item.icon)} />)}
-          </div>
-        </section>
-      ))}
-    </div>
-  )
+  return <UnifiedNavigationMenu groups={groups} groupHeaderMode="static" expandedGroupIds="all" ariaLabel="功能搜索结果" className="space-y-3 py-1" />
 }
 
 function AccordionNavigation({
@@ -112,32 +78,18 @@ function AccordionNavigation({
   return (
     <nav aria-label="一级与二级功能菜单" className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <NavigationSearch value={query} onChange={onQueryChange} />
-      <div className="min-h-0 flex-1 space-y-0 overflow-y-auto px-1.5 pb-1">
-        {query ? <NavigationSearchResults groups={groups} /> : groups.map((group, index) => (
-          <div key={group.id} className={index === groups.length - 1 && group.id === 'account' ? 'border-t border-gray-100 pt-1' : ''}>
-            <button
-              type="button"
-              aria-expanded={group.active}
-              aria-label={group.label}
-              title={displayMode === 'icon' ? group.label : undefined}
-              onClick={group.onClick}
-              className={`flex min-h-9 w-full items-center justify-between rounded-lg px-2.5 py-1 text-sm font-semibold transition ${
-                group.active ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-              }`}
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                {displayMode !== 'label' && group.icon}
-                {displayMode !== 'icon' && <span className="truncate">{group.label}</span>}
-              </span>
-              <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 transition-transform ${group.active ? 'rotate-180' : '-rotate-90'}`} />
-            </button>
-            {group.active && (
-              <div className="ml-4 space-y-0 border-l border-gray-200 pl-2">
-                {group.items.map((item) => <NavigationItemButton key={item.id} item={item} showIcon={Boolean(item.icon)} />)}
-              </div>
-            )}
-          </div>
-        ))}
+      <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-1">
+        {query ? (
+          <NavigationSearchResults groups={groups} />
+        ) : (
+          <UnifiedNavigationMenu
+            groups={groups}
+            groupHeaderMode="button"
+            expandedGroupIds={new Set(groups.filter((group) => group.active).map((group) => group.id))}
+            displayMode={displayMode}
+            ariaLabel="一级与二级功能菜单"
+          />
+        )}
       </div>
     </nav>
   )
@@ -233,9 +185,12 @@ function SplitNavigation({
           {query ? (
             <NavigationSearchResults groups={searchGroups} />
           ) : (
-            <div className="space-y-0.5">
-              {activeGroup?.items.map((item) => <NavigationItemButton key={item.id} item={item} showIcon={Boolean(item.icon)} />)}
-            </div>
+            <UnifiedNavigationMenu
+              groups={activeGroup ? [activeGroup] : []}
+              groupHeaderMode="hidden"
+              expandedGroupIds="all"
+              ariaLabel={`${activeGroup?.label || '当前分类'}二级菜单`}
+            />
           )}
         </div>
       </div>

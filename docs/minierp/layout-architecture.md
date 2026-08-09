@@ -122,7 +122,7 @@ MES-lite 使用“一级业务入口 + 最多两级页面”的稳定层级、�
 ## 组件实现
 
 - `app/components/interfacePreferences.tsx` 统一保存工作区形态和左栏行为；默认值保持“标准管理 + 常驻”，避免升级后改变现有用户布局。
-- `DesktopNavigation` 和 `DesktopTopNavigation` 必须接收同一份 `DesktopNavigationGroup[]`，不得复制菜单常量或权限过滤。
+- `DesktopNavigation`、`DesktopTopNavigation` 和移动功能抽屉必须接收同一份 `NavigationGroup[]`，并通过 `UnifiedNavigationMenu` 渲染一级分组与二级条目；不得复制菜单常量、权限过滤或菜单层级结构。桌面侧栏、顶部弹层和移动抽屉只负责各自的容器与交互方式。
 - `ResponsiveToolbarActions` 同时提供标准管理的横向工具和画布工作的右侧纵向工具，两者复用相同 props、弹窗和业务动作节点。
 - 自动隐藏左栏只保存“自动隐藏 / 常驻”偏好，不保存临时展开状态；临时展开由应用壳内存状态和鼠标/键盘事件管理。
 - 左侧“物料与 BOM”分级菜单使用 Radix UI `Collapsible`，由组件原语负责展开状态、键盘交互和 ARIA 语义。
