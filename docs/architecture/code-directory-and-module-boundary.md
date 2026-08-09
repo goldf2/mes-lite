@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 197 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售和设备 13 个模块；页面数据访问已统一进入领域 client，公共框架通过能力注入避免反向依赖 |
+| `modules/` | 199 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售和设备 13 个模块；页面数据访问已统一进入领域 client，工作台已形成前后端垂直切片 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -662,3 +662,10 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 生产订单新增 `contracts/production-order.ts`、`client/production-order-api.ts` 和 `model/production-order-view.ts`；列表、候选、详情和创建请求集中到 client，订单分组和创建输入成为纯规则，协调页从 535 行降至 448 行。
 - 工作台新增统计契约、client 和归一化/指标装配模型，并把五类稳定展示面板提取到 `DashboardPanels.tsx`；协调页从 397 行降至 74 行。
 - 所有 `*Page` / `*PageModule` 已清除直接 `fetch`；`verify:module-boundaries` 现在把页面请求回流作为全局失败条件。
+
+## 49. 工作台查询服务归属
+
+- `domain/dashboard-production.ts` 拥有生产订单/班后实绩数量和确认主产出值的确定性装配与舍入规则，替代扁平 `lib/dashboard.ts`。
+- `server/dashboard-query-service.ts` 拥有日/月时间窗口、并行统计、状态分布、待处理事项和库存预警过滤。
+- `app/api/stats/dashboard/route.ts` 从 141 行降至 17 行，只保留权限、查询服务调用和 HTTP 错误映射，不再直接导入 Prisma。
+- `verify:dashboard-production-flows` 同时锁定前端页面/client、纯统计规则、查询服务和薄路由边界。

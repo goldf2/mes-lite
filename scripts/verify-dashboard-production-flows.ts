@@ -1,24 +1,32 @@
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { buildProductionFlowDashboard } from '../lib/dashboard'
+import { buildProductionFlowDashboard } from '../modules/workspace/domain/dashboard-production'
 import { buildDashboardMetricItems, normalizeDashboard } from '../modules/workspace/model/dashboard-view'
 
 const root = process.cwd()
 const requiredFiles = [
   'modules/workspace/client/dashboard-api.ts',
   'modules/workspace/contracts/dashboard.ts',
+  'modules/workspace/domain/dashboard-production.ts',
   'modules/workspace/model/dashboard-view.ts',
+  'modules/workspace/server/dashboard-query-service.ts',
   'modules/workspace/ui/DashboardPanels.tsx',
   'modules/workspace/ui/DashboardPage.tsx',
 ]
 for (const path of requiredFiles) assert.ok(existsSync(join(root, path)), `工作台模块缺少文件：${path}`)
 const pageSource = readFileSync(join(root, 'modules/workspace/ui/DashboardPage.tsx'), 'utf8')
 const clientSource = readFileSync(join(root, 'modules/workspace/client/dashboard-api.ts'), 'utf8')
+const routeSource = readFileSync(join(root, 'app/api/stats/dashboard/route.ts'), 'utf8')
+const serviceSource = readFileSync(join(root, 'modules/workspace/server/dashboard-query-service.ts'), 'utf8')
 assert.ok(pageSource.split('\n').length <= 100, '工作台协调页应保持在 100 行内')
 assert.doesNotMatch(pageSource, /\bfetch\(/, '工作台页面不得直接调用 fetch')
 assert.match(pageSource, /loadDashboard\(/, '工作台页面必须通过领域 client 读取统计')
 assert.match(clientSource, /fetch\('\/api\/stats\/dashboard'/, '仪表盘接口必须集中在 workspace client')
+assert.ok(routeSource.split('\n').length <= 35, '仪表盘 API 必须保持为 35 行内的 HTTP 适配层')
+assert.doesNotMatch(routeSource, /prisma\.|Promise\.all|hasStockBalance/, '仪表盘 API 不得直接查询或装配业务统计')
+assert.match(routeSource, /getDashboardData\(/, '仪表盘 API 必须调用工作台查询服务')
+assert.match(serviceSource, /Promise\.all/, '工作台查询服务必须并行读取独立统计')
 
 const orderActualFlow = buildProductionFlowDashboard({
   todayOrderCount: 2,

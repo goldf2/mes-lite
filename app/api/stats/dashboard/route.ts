@@ -1,139 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { NextResponse } from 'next/server'
 import { requireResourcePermission } from '@/lib/permissions'
-import { buildProductionFlowDashboard } from '@/lib/dashboard'
+import { getDashboardData } from '@/modules/workspace/server/dashboard-query-service'
 
 export const dynamic = 'force-dynamic'
 
-const STOCK_BALANCE_FIELDS = [
-  'qty',
-  'reservedQty',
-  'availableQty',
-  'valuationQty',
-  'reservedValuationQty',
-  'availableValuationQty',
-  'totalCost',
-] as const
-
-function hasStockBalance(stock: Record<string, unknown>) {
-  return STOCK_BALANCE_FIELDS.some((field) => Math.abs(Number(stock[field] || 0)) > 0.000001)
-}
-
-// GET: 仪表盘汇总
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const denied = await requireResourcePermission('dashboard', 'read')
     if (denied) return denied
 
-    const now = new Date()
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-
-    const [
-      todayOrderCount,
-      monthOrderCount,
-      statusDistribution,
-      todayProductionActualCount,
-      monthProductionActualCount,
-      productionActualStatusDistribution,
-      todayProductionActualOutputAgg,
-      monthProductionActualOutputAgg,
-      pendingProductionActualCount,
-      pendingMaterialInCount,
-      pendingShipmentCount,
-      pendingReturnCount,
-      lowStocks,
-    ] = await Promise.all([
-      prisma.productionOrder.count({
-        where: { createdAt: { gte: todayStart } },
-      }),
-      prisma.productionOrder.count({
-        where: { createdAt: { gte: monthStart } },
-      }),
-      prisma.productionOrder.groupBy({
-        by: ['status'],
-        _count: true,
-      }),
-      prisma.productionOrderActual.count({
-        where: {
-          actualDate: { gte: todayStart, lt: tomorrowStart },
-          status: { in: ['DRAFT', 'CONFIRMED'] },
-        },
-      }),
-      prisma.productionOrderActual.count({
-        where: {
-          actualDate: { gte: monthStart, lt: nextMonthStart },
-          status: { in: ['DRAFT', 'CONFIRMED'] },
-        },
-      }),
-      prisma.productionOrderActual.groupBy({
-        by: ['status'],
-        _count: true,
-      }),
-      prisma.productionOrderActualOutput.aggregate({
-        where: {
-          isPrimary: true,
-          actual: { is: { actualDate: { gte: todayStart, lt: tomorrowStart }, status: 'CONFIRMED' } },
-        },
-        _sum: { actualQty: true },
-      }),
-      prisma.productionOrderActualOutput.aggregate({
-        where: {
-          isPrimary: true,
-          actual: { is: { actualDate: { gte: monthStart, lt: nextMonthStart }, status: 'CONFIRMED' } },
-        },
-        _sum: { actualQty: true },
-      }),
-      prisma.productionOrderActual.count({
-        where: { status: 'DRAFT' },
-      }),
-      prisma.materialIn.count({
-        where: { status: 'PENDING' },
-      }),
-      prisma.shipment.count({
-        where: { status: 'PENDING' },
-      }),
-      prisma.returnOrder.count({
-        where: { status: 'PENDING' },
-      }),
-      prisma.stock.findMany({
-        where: { availableQty: { lt: 10 } },
-        include: {
-          material: { select: { id: true, code: true, name: true, spec: true, unit: true, deletedAt: true } },
-          product: { select: { id: true, sku: true, name: true, category: true, unit: true } },
-        },
-      }),
-    ])
-
-    const productionFlow = buildProductionFlowDashboard({
-      todayOrderCount,
-      monthOrderCount,
-      todayProductionActualCount,
-      monthProductionActualCount,
-      todayProductionActualOutput: todayProductionActualOutputAgg._sum.actualQty ?? 0,
-      monthProductionActualOutput: monthProductionActualOutputAgg._sum.actualQty ?? 0,
-    })
-
-    return NextResponse.json({
-      data: {
-        ...productionFlow,
-        statusDistribution: statusDistribution.map((s) => ({
-          status: s.status,
-          count: s._count,
-        })),
-        productionActualStatusDistribution: productionActualStatusDistribution.map((item) => ({
-          status: item.status,
-          count: item._count,
-        })),
-        pendingProductionActualCount,
-        pendingMaterialInCount,
-        pendingShipmentCount,
-        pendingReturnCount,
-        lowStocks: lowStocks.filter((stock) => !stock.material?.deletedAt || hasStockBalance(stock)),
-      },
-    })
+    return NextResponse.json({ data: await getDashboardData() })
   } catch (error) {
     console.error('Get dashboard error:', error)
     return NextResponse.json({ error: '获取仪表盘数据失败' }, { status: 500 })
