@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 117 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档和来料 10 个模块；生产工程、物料、文档、来料与库存已形成包含服务端规则的垂直分层 |
+| `modules/` | 123 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档和来料 10 个模块；生产工程、物料、BOM、文档、来料与库存已形成包含服务端规则的垂直分层 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -539,3 +539,12 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `server/stock-integrity-service.ts` 负责读取异常记录和受控补齐缺失的零余额；`server/stock-command-service.ts` 统一修复与原子库存调整入口。
 - `app/api/stocks/route.ts` 从 449 行降至 79 行，只保留权限、HTTP 解析、审计和错误映射，并退出巨型路由递减基线。
 - `verify:inventory-module` 同时锁定前端协调层、薄 API、服务调用和库存不变式样例；系统超过 300 行的存量 API 从 6 个降至 5 个。
+
+## 33. BOM 服务端垂直模块归属
+
+- `contracts/bom-schema.ts` 集中投入、产出和方案保存请求约束；`server/bom-select.ts` 统一列表与保存返回选择集。
+- `domain/bom-structure.ts` 以纯函数约束唯一主产出、投入/产出不重复、包装单产出和投入产出互斥，`domain/bom-version.ts` 负责默认版本递增。
+- `server/bom-query-service.ts` 拥有兼容产品映射、默认 BOM 选择、主图与库存摘要装配。
+- `server/bom-command-service.ts` 拥有单位换算、产出映射、版本唯一性、默认方案切换以及投入/产出的原子替换事务。
+- `app/api/boms/route.ts` 从 464 行降至 45 行，只保留权限、请求解析、审计和错误映射，并退出巨型路由递减基线。
+- `verify:material-bom-modules` 增加薄 API、服务边界、版本递增和 BOM 结构不变式样例；系统超过 300 行的存量 API从 6 个降至 4 个。

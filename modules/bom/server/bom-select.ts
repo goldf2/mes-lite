@@ -1,0 +1,46 @@
+import type { Prisma } from '@prisma/client'
+
+export const bomItemSelect = {
+  id: true,
+  itemType: true,
+  quantity: true,
+  unit: true,
+  entryUnit: true,
+  wastageRate: true,
+  outputMaterialId: true,
+  outputMaterial: { select: {
+    id: true, code: true, name: true, spec: true, category: true,
+    unit: true, stockUnit: true, valuationUnit: true, primaryMeasure: true,
+  } },
+  material: { select: {
+    id: true, code: true, name: true, spec: true, category: true,
+    unit: true, stockUnit: true, valuationUnit: true, primaryMeasure: true,
+  } },
+  costObject: { select: { id: true, code: true, name: true, objectType: true, unit: true } },
+  sawingScenario: { select: { id: true, name: true } },
+} as const
+
+export const bomSelect = {
+  id: true,
+  name: true,
+  purpose: true,
+  version: true,
+  isDefault: true,
+  isActive: true,
+  outputQuantity: true,
+  outputUnit: true,
+  createdAt: true,
+  outputs: {
+    orderBy: { isPrimary: 'desc' as const },
+    select: {
+      id: true, quantity: true, unit: true, entryUnit: true, isPrimary: true,
+      material: { select: {
+        id: true, code: true, name: true, spec: true, category: true,
+        unit: true, stockUnit: true, valuationUnit: true, primaryMeasure: true,
+      } },
+    },
+  },
+  items: { orderBy: { id: 'asc' as const }, select: bomItemSelect },
+} as const
+
+export type ListedBom = Prisma.BOMGetPayload<{ select: typeof bomSelect }>

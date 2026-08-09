@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { validateBomStructure } from '../modules/bom/domain/bom-structure'
+import { nextBomVersion } from '../modules/bom/domain/bom-version'
 
 const root = process.cwd()
 const read = (path: string) => readFileSync(join(root, path), 'utf8')
@@ -37,6 +39,10 @@ const bomDraftController = read('modules/bom/ui/useBomDraftController.ts')
 const bomDraftModel = read('modules/bom/model/bom-draft.ts')
 const bomClient = read('modules/bom/client/bom-api.ts')
 const bomContracts = read('modules/bom/contracts/bom.ts')
+const bomRoute = read('app/api/boms/route.ts')
+const bomQueryService = read('modules/bom/server/bom-query-service.ts')
+const bomCommandService = read('modules/bom/server/bom-command-service.ts')
+const bomSchema = read('modules/bom/contracts/bom-schema.ts')
 
 assert.equal(existsSync(join(root, 'app/components/MaterialPage.tsx')), false, '物料领域页面不得回流公共 components 根目录')
 assert.equal(existsSync(join(root, 'app/components/MaterialPanoramaPage.tsx')), false, '物料全景页面不得回流公共 components 根目录')
@@ -114,6 +120,24 @@ assert.match(bomClient, /fetch\('\/api\/boms/, 'BOM HTTP 访问必须集中在 b
 assert.match(materialContracts, /export interface Material/, '物料数据结构必须集中为领域契约')
 assert.match(bomContracts, /export interface BomVersion/, 'BOM 数据结构必须集中为领域契约')
 assert.doesNotMatch(bomContracts, /modules\/materials/, 'BOM 契约不得反向依赖 materials 模块形成类型环')
+assert.ok(bomRoute.split('\n').length <= 70, 'BOM API 必须保持为不超过 70 行的 HTTP 适配层')
+assert.doesNotMatch(bomRoute, /prisma\.|normalizeBomEntryQuantity|resolveProductId/, 'BOM API 不得直接执行查询、单位换算或写入事务')
+assert.match(bomRoute, /listBoms\(/, 'BOM API 必须通过查询服务读取列表')
+assert.match(bomRoute, /saveBom\(/, 'BOM API 必须通过命令服务保存方案')
+assert.match(bomQueryService, /withMaterialImageUrls/, 'BOM 查询服务必须拥有主图与库存摘要装配')
+assert.match(bomCommandService, /validateBomStructure\(/, 'BOM 命令服务必须调用纯结构规则')
+assert.match(bomCommandService, /prisma\.\$transaction/, 'BOM 命令服务必须原子替换投入与产出')
+assert.match(bomSchema, /export const saveBomSchema/, 'BOM 写入 Schema 必须归属领域契约')
+assert.equal(nextBomVersion(['v1', 'V3', 'draft']), 'v4')
+assert.equal(validateBomStructure({
+  purpose: 'PRODUCTION', outputs: [{ materialId: 'out', isPrimary: true }], inputMaterialIds: ['in'],
+}), null)
+assert.equal(validateBomStructure({
+  purpose: 'PRODUCTION', outputs: [{ materialId: 'same', isPrimary: true }], inputMaterialIds: ['same'],
+}), 'BOM 投入与产出不能使用同一物料；同物料跨库位请使用流程转移')
+assert.equal(validateBomStructure({
+  purpose: 'PACKAGING', outputs: [{ materialId: 'a', isPrimary: true }, { materialId: 'b' }], inputMaterialIds: ['in'],
+}), '包装 BOM 必须且只能设置一项产出')
 
 assert.ok(materialPage.split('\n').length <= 750, '物料页面已拆出工具栏和 BOM 工作区，不得再超过 750 行')
 assert.ok(materialWorkspaceToolbar.split('\n').length <= 120, '物料双形态工具栏应保持纯装配职责')
@@ -135,5 +159,7 @@ assert.ok(bomOverview.split('\n').length <= 500, 'BOM 全览页面不得超过 5
 assert.ok(bomDraftEditor.split('\n').length <= 450, 'BOM 草稿编辑器只能维护编辑交互和展示')
 assert.ok(bomDraftController.split('\n').length <= 500, 'BOM 草稿控制器不得膨胀为新的页面组件')
 assert.ok(bomDraftModel.split('\n').length <= 120, 'BOM 草稿纯规则必须保持聚焦')
+assert.ok(bomCommandService.split('\n').length <= 220, 'BOM 命令服务应聚焦校验、换算和原子替换')
+assert.ok(bomQueryService.split('\n').length <= 100, 'BOM 查询服务应聚焦资料与摘要装配')
 
 console.log('物料/BOM 模块边界验证通过：数据访问、物料切片、全景任务、BOM 草稿控制器、领域规则和编辑器职责已分离。')
