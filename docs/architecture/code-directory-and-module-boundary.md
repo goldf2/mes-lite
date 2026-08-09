@@ -789,3 +789,10 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 三条 Route Handler 合计从 501 行降至 80 行，只保留 `orders` 权限、Schema、领域服务、领料审计和 HTTP 映射，不再直接访问 Prisma，使直接访问 Prisma 的 API 从 29 条降至 26 条。
 - `verify:production-order-execution` 在运行后删除的临时完整 SQLite 中覆盖领料、非连续工序号的上一工序防呆、报工状态、质检后入库、首次库存流水和重复入库拒绝；不连接本机测试库或服务器正式库。
 - 后续只有在服务器旧记录盘点、备份及可回滚迁移完成后才可删除这些兼容模型或 URL；不得把本机测试数据作为下线依据。
+
+## 65. 成本能力按既有领域边界归属
+
+- 成本不是独立的大领域：BOM 可引用成本对象及其版本归 `modules/bom`，锯切试算方案及同步生成成本对象的事务归 `modules/operations-tools`，生产工单的成本记录、分页和统计归 `modules/production`。
+- `cost-objects`、`sawing-cost-scenarios` 与三条 `costs` Route Handler 不再持有 Prisma 查询、写入或事务；5 条路由合计均不超过 60 行，只保留权限、Schema、领域服务、审计和 HTTP 响应。
+- 锯切方案、分项成本和 BOM 可引用成本对象继续在同一数据库事务中创建；BOM 成本对象首版成本也由命令服务一次写入，页面仍通过原有领域 client 调用，不改变入口和交互。
+- 直接访问 Prisma 的 Route Handler 从 26 条降至 21 条；`verify:cost-domain-services` 使用运行后删除的临时完整 SQLite 覆盖成本对象首版、锯切事务、已有物料校验及生产成本列表/统计，不连接本机测试库或服务器正式库。

@@ -1,3 +1,30 @@
+import { z } from 'zod'
+
+const nonnegativeNumber = z.number().finite().nonnegative()
+
+export const saveSawingScenarioSchema = z.object({
+  name: z.string().trim().max(100).optional(),
+  materialLength: nonnegativeNumber.positive(), materialWeight: nonnegativeNumber.positive(), workpieceLength: nonnegativeNumber.positive(), bladeThickness: nonnegativeNumber,
+  rawMaterialPrice: nonnegativeNumber, sawdustPrice: nonnegativeNumber, scrapPrice: nonnegativeNumber, finishedPrice: nonnegativeNumber,
+  quantity: z.number().int().positive(), utilization: nonnegativeNumber, productWeight: nonnegativeNumber, sawdustWeight: nonnegativeNumber, scrapWeight: nonnegativeNumber,
+  netMaterialCost: nonnegativeNumber, materialCostPerPiece: nonnegativeNumber, profitPerPiece: z.number().finite(), totalRevenue: nonnegativeNumber, totalProfit: z.number().finite(), grossMargin: z.number().finite(),
+  additionalDirectCost: z.number().finite(), laborCost: nonnegativeNumber, fixedCost: nonnegativeNumber, directStageCost: z.number().finite(), manufacturingCost: z.number().finite(), fullCost: z.number().finite(),
+  directProfit: z.number().finite(), manufacturingProfit: z.number().finite(), fullProfit: z.number().finite(), directMargin: z.number().finite(), manufacturingMargin: z.number().finite(), fullMargin: z.number().finite(),
+  productKind: z.enum(['EXISTING', 'TEMPORARY']).default('TEMPORARY'),
+  productId: z.string().optional(),
+  bomProductId: z.string().optional(),
+  laborHoursPerPiece: nonnegativeNumber,
+  machineHoursPerPiece: nonnegativeNumber,
+  processTemplateIds: z.array(z.string()).default([]),
+  costItems: z.array(z.object({
+    stage: z.enum(['DIRECT', 'LABOR', 'FIXED']), name: z.string().trim().min(1), method: z.string().min(1),
+    inputA: nonnegativeNumber, inputB: nonnegativeNumber, inputC: nonnegativeNumber, amount: z.number().finite(),
+    isDeduction: z.boolean(), note: z.string().optional(), sortOrder: z.number().int().nonnegative(),
+  })).default([]),
+})
+
+export type ParsedSawingScenarioInput = z.infer<typeof saveSawingScenarioSchema>
+
 export interface SawingProcessOption {
   id: string
   code: string

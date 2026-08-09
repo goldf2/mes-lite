@@ -1,0 +1,113 @@
+import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { costObjectInputSchema } from '../modules/bom/contracts/cost-object-schema'
+import { productionCostRecordInputSchema } from '../modules/production/contracts/production-cost-record-schema'
+import { saveSawingScenarioSchema } from '../modules/operations-tools/contracts/sawing-cost'
+
+const root = process.cwd()
+for (const path of [
+  'app/api/cost-objects/route.ts',
+  'app/api/sawing-cost-scenarios/route.ts',
+  'app/api/costs/route.ts',
+  'app/api/costs/stats/route.ts',
+  'app/api/costs/order/[orderId]/route.ts',
+]) {
+  const source = readFileSync(join(root, path), 'utf8')
+  assert.doesNotMatch(source, /@\/lib\/prisma|\bprisma\.|\$transaction/, `${path} 不得直接访问数据库`)
+  assert.ok(source.split('\n').length <= 60, `${path} 必须保持为不超过 60 行的 HTTP 适配层`)
+}
+
+assert.equal(costObjectInputSchema.safeParse({ code: '', name: '工序' }).success, false)
+assert.equal(productionCostRecordInputSchema.safeParse({ costType: 'LABOR', category: '人工', amount: -1, date: '2026-08-10' }).success, false)
+
+const scenarioInput = saveSawingScenarioSchema.parse({
+  name: '验证锯切方案',
+  materialLength: 6000, materialWeight: 10, workpieceLength: 250, bladeThickness: 2,
+  rawMaterialPrice: 100, sawdustPrice: 1, scrapPrice: 2, finishedPrice: 10,
+  quantity: 23, utilization: 95, productWeight: 9, sawdustWeight: 0.2, scrapWeight: 0.8,
+  netMaterialCost: 97, materialCostPerPiece: 4.2, profitPerPiece: 5.8,
+  totalRevenue: 230, totalProfit: 133, grossMargin: 57.8,
+  additionalDirectCost: 0.5, laborCost: 20, fixedCost: 5, directStageCost: 117.5,
+  manufacturingCost: 122.5, fullCost: 127.5, directProfit: 112.5,
+  manufacturingProfit: 107.5, fullProfit: 102.5, directMargin: 48.9,
+  manufacturingMargin: 46.7, fullMargin: 44.6,
+  productKind: 'TEMPORARY', laborHoursPerPiece: 0.1, machineHoursPerPiece: 0.2,
+  processTemplateIds: [],
+  costItems: [{
+    stage: 'DIRECT', name: '材料', method: '按件', inputA: 4.2, inputB: 1, inputC: 1,
+    amount: 4.2, isDeduction: false, sortOrder: 0,
+  }],
+})
+
+const verifyRoot = mkdtempSync(join(tmpdir(), 'ml-cost-domain-'))
+const databaseUrl = `file:${join(verifyRoot, 'verify.db')}`
+execFileSync(join(root, 'node_modules', '.bin', 'prisma'), ['migrate', 'deploy'], {
+  cwd: root,
+  env: { ...process.env, DATABASE_URL: databaseUrl, RUST_LOG: 'info' },
+  stdio: 'pipe',
+})
+process.env.DATABASE_URL = databaseUrl
+
+async function main() {
+  const [
+    { prisma },
+    { createCostObject },
+    { listCostObjectWorkspace },
+    { createSawingCostScenario, SawingCostServiceError },
+    { listSawingCostWorkspace },
+    { createProductionCostRecord },
+    { listProductionCostRecords, summarizeProductionCosts },
+  ] = await Promise.all([
+    import('../lib/prisma'),
+    import('../modules/bom/server/cost-object-command-service'),
+    import('../modules/bom/server/cost-object-query-service'),
+    import('../modules/operations-tools/server/sawing-cost-command-service'),
+    import('../modules/operations-tools/server/sawing-cost-query-service'),
+    import('../modules/production/server/production-cost-record-command-service'),
+    import('../modules/production/server/production-cost-record-query-service'),
+  ])
+
+  try {
+    const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    const costObject = await createCostObject(costObjectInputSchema.parse({
+      code: `VERIFY-${suffix}`, name: '验证成本对象', objectType: 'MANUAL', unit: '件',
+      materialCostPerUnit: 2, laborHoursPerUnit: 0.1, machineHoursPerUnit: 0.2, directCostPerUnit: 1,
+    }))
+    assert.equal(costObject.costs.length, 1, '成本对象与首版成本必须一次写入')
+    assert.equal((await listCostObjectWorkspace()).costObjects.length, 1)
+
+    await assert.rejects(
+      () => createSawingCostScenario({ ...scenarioInput, productKind: 'EXISTING' }, '验证员'),
+      SawingCostServiceError,
+      '已有物料方案缺少物料时必须在领域服务拒绝',
+    )
+    const scenario = await createSawingCostScenario(scenarioInput, '验证员')
+    const [linkedCostObject, savedItems] = await Promise.all([
+      prisma.costObject.findFirst({ where: { sourceType: 'SAWING_COST_SCENARIO', sourceId: scenario.id } }),
+      prisma.productionCostItem.count({ where: { scenarioId: scenario.id } }),
+    ])
+    assert.ok(linkedCostObject, '锯切方案事务必须同步生成 BOM 可引用的成本对象')
+    assert.equal(savedItems, 1, '锯切方案事务必须同步保存分项成本')
+    assert.equal((await listSawingCostWorkspace()).data.length, 1)
+
+    await createProductionCostRecord(productionCostRecordInputSchema.parse({
+      costType: 'LABOR', category: '验证人工', amount: 12.5, date: '2026-08-10', createdBy: '验证员',
+    }))
+    const list = await listProductionCostRecords({ page: 1, pageSize: 20 })
+    const stats = await summarizeProductionCosts({})
+    assert.deepEqual([list.pagination.total, stats.totalCost], [1, 12.5])
+
+    console.log('成本领域服务验证通过：BOM 成本对象、锯切方案事务及生产成本记录均已脱离 HTTP 层并通过临时数据库回归。')
+  } finally {
+    await prisma.$disconnect()
+    rmSync(verifyRoot, { recursive: true, force: true })
+  }
+}
+
+main().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
