@@ -1,56 +1,24 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import SearchableSelect from './SearchableSelect'
-import { usePersistedViewMode } from './ViewModeToggle'
-import useClientTableSort from './useClientTableSort'
-import ModalDialog, { ModalActions } from './ModalDialog'
-import AppButton from './AppButton'
-import { appInputClassName, appSelectClassName, appTextareaClassName } from './FormField'
-import ResourcePage from './resource/ResourcePage'
-import ResourceSortButton from './resource/ResourceSortButton'
+import SearchableSelect from '@/app/components/SearchableSelect'
+import { usePersistedViewMode } from '@/app/components/ViewModeToggle'
+import useClientTableSort from '@/app/components/useClientTableSort'
+import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
+import AppButton from '@/app/components/AppButton'
+import { appInputClassName, appSelectClassName, appTextareaClassName } from '@/app/components/FormField'
+import ResourcePage from '@/app/components/resource/ResourcePage'
+import ResourceSortButton from '@/app/components/resource/ResourceSortButton'
 import type { ResourceAdvancedSearchField } from '@/lib/resource-search'
+import { archiveEquipment, loadEquipment, loadEquipmentWorkCenters, saveEquipment } from '../client/equipment-api'
+import type { EquipmentItem, EquipmentWorkCenterOption } from '../contracts/equipment'
+import {
+  createEmptyEquipmentForm,
+  equipmentStatusLabels as statusLabels,
+  equipmentStatusOptions as statusOptions,
+} from '../model/equipment-view'
 
-interface WorkCenterOption {
-  id: string
-  code: string
-  name: string
-  isActive: boolean
-}
-
-interface EquipmentItem {
-  id: string
-  code: string
-  name: string
-  equipmentType: string
-  model?: string | null
-  manufacturer?: string | null
-  serialNumber?: string | null
-  status: string
-  location?: string | null
-  basicParameters?: string | null
-  note?: string | null
-  workCenterId: string
-  workCenter: WorkCenterOption
-  createdAt: string
-}
-
-const statusOptions = [
-  { value: 'AVAILABLE', label: '可用' },
-  { value: 'IN_USE', label: '使用中' },
-  { value: 'MAINTENANCE', label: '维护中' },
-  { value: 'STOPPED', label: '停用' },
-]
-const statusLabels = Object.fromEntries(statusOptions.map((item) => [item.value, item.label]))
-
-function createEmptyForm() {
-  return {
-    code: '', name: '', equipmentType: '', workCenterId: '', model: '', manufacturer: '',
-    serialNumber: '', status: 'AVAILABLE', location: '', basicParameters: '', note: '',
-  }
-}
-
-export default function EquipmentPage({
+export default function EquipmentPageModule({
   onMessage,
   canCreate,
   canUpdate,
@@ -62,12 +30,12 @@ export default function EquipmentPage({
   canDelete: boolean
 }) {
   const [items, setItems] = useState<EquipmentItem[]>([])
-  const [workCenters, setWorkCenters] = useState<WorkCenterOption[]>([])
+  const [workCenters, setWorkCenters] = useState<EquipmentWorkCenterOption[]>([])
   const [keyword, setKeyword] = useState('')
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.equipment.viewMode', 'list')
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<EquipmentItem | null>(null)
-  const [form, setForm] = useState(createEmptyForm())
+  const [form, setForm] = useState(createEmptyEquipmentForm)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const tableSort = useClientTableSort(items, {
@@ -81,21 +49,19 @@ export default function EquipmentPage({
   }, 'code', 'asc')
 
   const loadWorkCenters = useCallback(async () => {
-    const res = await fetch('/api/work-centers')
-    const data = await res.json()
-    if (!res.ok) return onMessage(data.error || '获取工作中心失败')
-    setWorkCenters(data.data || [])
+    try {
+      setWorkCenters(await loadEquipmentWorkCenters())
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取工作中心失败')
+    }
   }, [onMessage])
 
   const loadItems = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams()
-      if (keyword.trim()) params.set('keyword', keyword.trim())
-      const res = await fetch(`/api/equipment?${params.toString()}`)
-      const data = await res.json()
-      if (!res.ok) return onMessage(data.error || '获取设备失败')
-      setItems(data.data || [])
+      setItems(await loadEquipment(keyword))
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取设备失败')
     } finally {
       setLoading(false)
     }
@@ -129,7 +95,7 @@ export default function EquipmentPage({
 
   const openCreate = () => {
     setEditing(null)
-    setForm({ ...createEmptyForm(), workCenterId: workCenters[0]?.id || '' })
+    setForm({ ...createEmptyEquipmentForm(), workCenterId: workCenters[0]?.id || '' })
     setShowModal(true)
   }
 
@@ -150,16 +116,12 @@ export default function EquipmentPage({
     }
     setSaving(true)
     try {
-      const res = await fetch('/api/equipment', {
-        method: editing ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editing ? { ...form, id: editing.id } : form),
-      })
-      const data = await res.json()
-      if (!res.ok) return onMessage(data.error || '保存设备失败')
+      await saveEquipment(form, editing?.id)
       setShowModal(false)
       onMessage(editing ? '设备已更新' : '设备已新增')
       await loadItems()
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '保存设备失败')
     } finally {
       setSaving(false)
     }
@@ -167,11 +129,13 @@ export default function EquipmentPage({
 
   const archive = async (item: EquipmentItem) => {
     if (!confirm(`确认归档设备“${item.code} · ${item.name}”吗？`)) return
-    const res = await fetch(`/api/equipment?id=${encodeURIComponent(item.id)}`, { method: 'DELETE' })
-    const data = await res.json()
-    if (!res.ok) return onMessage(data.error || '归档设备失败')
-    onMessage(data.message || '设备已归档')
-    await loadItems()
+    try {
+      const message = await archiveEquipment(item.id)
+      onMessage(message || '设备已归档')
+      await loadItems()
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '归档设备失败')
+    }
   }
 
   const sortLabel = (column: string, label: string) => {

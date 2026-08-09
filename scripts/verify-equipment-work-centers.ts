@@ -1,9 +1,25 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PrismaClient } from '@prisma/client'
+
+const sourceRoot = process.cwd()
+const requiredModuleFiles = [
+  'modules/equipment/index.ts',
+  'modules/equipment/client/equipment-api.ts',
+  'modules/equipment/contracts/equipment.ts',
+  'modules/equipment/model/equipment-view.ts',
+  'modules/equipment/ui/EquipmentPageModule.tsx',
+]
+for (const path of requiredModuleFiles) assert.ok(existsSync(join(sourceRoot, path)), `设备领域缺少模块文件：${path}`)
+const pageSource = readFileSync(join(sourceRoot, 'modules/equipment/ui/EquipmentPageModule.tsx'), 'utf8')
+const registrySource = readFileSync(join(sourceRoot, 'app/components/shell/WorkspacePageRendererRegistry.tsx'), 'utf8')
+assert.ok(pageSource.split('\n').length <= 230, '设备协调页应保持在 230 行内')
+assert.doesNotMatch(pageSource, /\bfetch\(/, '设备页不得直接调用 fetch')
+assert.match(pageSource, /loadEquipment\(/, '设备页必须通过领域 client 读取数据')
+assert.match(registrySource, /import\('@\/modules\/equipment'\)/, '设备页必须通过设备模块公开入口加载')
 
 const verifyRoot = mkdtempSync(join(tmpdir(), 'mes-lite-equipment-'))
 const databaseUrl = `file:${join(verifyRoot, 'verify.db')}`
