@@ -620,6 +620,8 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 `DailyProductionReport` 是旧生产过账模型，其中 `bomType` 仅为旧快照字段，不再来自 BOM 方案类型。其业务入口已移除，新的生产过账统一使用 `ProductionOrderActual`；考虑服务器可能存在历史正式记录，旧表和 4 条兼容 API 暂时保留。兼容输入、日期编号、BOM/人员/耗用快照、查询、确认过账和冲销恢复统一归 `modules/production`，不再由 Route Handler 或扁平 `lib` 维护。下线前必须先盘点、备份并提供可回滚迁移，不得把本机测试数据结论直接套用到服务器。
 
+`PickItem`、`WorkReport` 和 `StockIn` 是更早的生产订单执行记录。当前页面不再调用 `/api/orders/:id/pick`、`reports` 或 `stock-in`，正式过账由 `ProductionOrderActual` 一次表达实际投入和全部产出；三条 URL 暂为服务器历史数据兼容保留。兼容输入、状态/工序顺序规则、领料成本、库存及库位事务统一归 `modules/production`，Route Handler 只做权限、校验和响应映射。旧入库在首次创建库存余额时也必须写入 `StockLog`，避免只有余额而没有流水。
+
 旧生产记录通过 `DailyProductionReportEmployee` 保留多名员工快照，仅用于清理前的历史数据解释。新流程的员工快照由 `ProductionOrderActualEmployee` 保存。
 
 `DailyProductionConsumption` 的损耗与耗用字段：

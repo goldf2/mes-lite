@@ -19,6 +19,8 @@ const requiredFiles = [
   'modules/production/contracts/production-order.ts',
   'modules/production/contracts/production-order-schema.ts',
   'modules/production/contracts/production-order-actual-schema.ts',
+  'modules/production/contracts/legacy-production-order-execution-schema.ts',
+  'modules/production/domain/legacy-production-order-execution-rules.ts',
   'modules/production/domain/production-order-actual-cost-snapshot.ts',
   'modules/production/domain/production-order-actual-numbering.ts',
   'modules/production/domain/production-order-bom-snapshot.ts',
@@ -32,6 +34,9 @@ const requiredFiles = [
   'modules/production/server/production-order-actual-service.ts',
   'modules/production/server/production-order-actual-status-service.ts',
   'modules/production/server/production-order-actual-totals.ts',
+  'modules/production/server/legacy-production-order-pick-service.ts',
+  'modules/production/server/legacy-production-order-report-service.ts',
+  'modules/production/server/legacy-production-order-stock-in-service.ts',
   'modules/production/ui/ProductionOrderModule.tsx',
 ]
 for (const path of requiredFiles) assert.ok(existsSync(join(root, path)), `生产订单模块缺少文件：${path}`)
@@ -72,6 +77,15 @@ for (const path of [
   const source = readFileSync(join(root, path), 'utf8')
   assert.doesNotMatch(source, /@\/lib\/prisma|\bprisma\.|\$transaction|changeStockLocationBalance|restoreMaterialCost/, `${path} 不得保留数据库或状态事务规则`)
   assert.ok(source.split('\n').length <= 45, `${path} 必须保持为不超过 45 行的 HTTP 适配层`)
+}
+for (const path of [
+  'app/api/orders/[id]/pick/route.ts',
+  'app/api/orders/[id]/reports/route.ts',
+  'app/api/orders/[id]/stock-in/route.ts',
+]) {
+  const source = readFileSync(join(root, path), 'utf8')
+  assert.doesNotMatch(source, /@\/lib\/prisma|\bprisma\.|\$transaction|consumeMaterialCost|changeStockLocationBalance/, `${path} 不得保留旧执行数据库、成本或库存事务`)
+  assert.ok(source.split('\n').length <= 40, `${path} 必须保持为不超过 40 行的 HTTP 兼容层`)
 }
 assert.match(querySource, /getProductionOrderDetail[\s\S]*currentStepId/, '生产订单查询服务必须装配详情与当前工序')
 assert.match(querySource, /listProductionOrderOptions[\s\S]*byMaterial/, '生产订单查询服务必须集中 BOM 候选项归组')

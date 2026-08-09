@@ -1,132 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
-import { changeStockLocationBalance } from '@/lib/inventory'
+import { legacyProductionOrderStockInSchema } from '@/modules/production/contracts/legacy-production-order-execution-schema'
+import { productionOrderHttpError } from '@/modules/production/http/production-order-http'
+import { stockInLegacyProductionOrder } from '@/modules/production/server/legacy-production-order-stock-in-service'
 
-const stockInSchema = z.object({
-  qty: z.number().int().positive(),
-  batchNo: z.string().optional(),
-  inBy: z.string().min(1),
-  note: z.string().optional(),
-})
-
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const denied = await requireResourcePermission('orders', 'update')
     if (denied) return denied
-
-    const body = await req.json()
-    const { qty, batchNo, inBy, note } = stockInSchema.parse(body)
-
-    const orderId = params.id
-
-    const order = await prisma.productionOrder.findUnique({
-      where: { id: orderId },
-      include: { product: true, targetMaterial: true },
-    })
-
-    if (!order) {
-      return NextResponse.json({ error: '工单不存在' }, { status: 404 })
-    }
-
-    if (order.status !== 'QC_DONE') {
-      return NextResponse.json(
-        { error: `工单状态为 ${order.status}，未质检通过不可入库` },
-        { status: 400 }
-      )
-    }
-
-    await prisma.$transaction(async (tx) => {
-      // 1. 创建入库记录
-      await tx.stockIn.create({
-        data: {
-          orderId,
-          productId: order.productId,
-          qty,
-          batchNo,
-          inBy,
-          note,
-        },
-      })
-
-      // 2. 更新目标库存：标准工单入成品库存，简易物料工单入物料库存。
-      const targetMaterial = order.targetMaterial
-      const valuationQty = targetMaterial
-        ? Number((qty * Number(targetMaterial.conversionRate || 1)).toFixed(6))
-        : 0
-      const stock = targetMaterial
-        ? await tx.stock.findUnique({ where: { materialId: targetMaterial.id } })
-        : await tx.stock.findUnique({ where: { productId: order.productId } })
-
-      if (stock) {
-        await tx.stock.update({
-          where: { id: stock.id },
-          data: {
-            qty: { increment: qty },
-            availableQty: { increment: qty },
-            ...(targetMaterial ? {
-              valuationQty: { increment: valuationQty },
-              availableValuationQty: { increment: valuationQty },
-            } : {}),
-          },
-        })
-        const { location } = await changeStockLocationBalance(tx, { stockId: stock.id, qtyDelta: qty })
-
-        await tx.stockLog.create({
-          data: {
-            stockId: stock.id,
-            locationId: location.id,
-            type: 'STOCK_IN',
-            qty,
-            beforeQty: stock.qty,
-            afterQty: stock.qty + qty,
-            ...(targetMaterial ? {
-              valuationQty,
-              beforeValuationQty: stock.valuationQty,
-              afterValuationQty: Number(stock.valuationQty) + valuationQty,
-            } : {}),
-            refType: 'STOCK_IN',
-            refId: orderId,
-            note: targetMaterial ? `工单 ${order.orderNo} 物料入库` : `工单 ${order.orderNo} 成品入库`,
-            createdBy: inBy,
-          },
-        })
-      } else {
-        // 新建库存记录
-        const createdStock = await tx.stock.create({
-          data: {
-            ...(targetMaterial ? { materialId: targetMaterial.id } : { productId: order.productId }),
-            qty,
-            availableQty: qty,
-            valuationQty,
-            availableValuationQty: valuationQty,
-            reservedQty: 0,
-          },
-        })
-        await changeStockLocationBalance(tx, { stockId: createdStock.id, qtyDelta: qty })
-      }
-
-      // 3. 更新工单状态
-      await tx.productionOrder.update({
-        where: { id: orderId },
-        data: {
-          status: 'COMPLETED',
-          completeQty: qty,
-          completeTime: new Date(),
-        },
-      })
-    })
-
+    await stockInLegacyProductionOrder(
+      params.id,
+      legacyProductionOrderStockInSchema.parse(await req.json()),
+    )
     return NextResponse.json({ success: true, message: '入库成功' })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
-    }
-    console.error('Stock in error:', error)
-    return NextResponse.json({ error: '入库失败' }, { status: 500 })
+    return productionOrderHttpError(error, '入库失败')
   }
 }

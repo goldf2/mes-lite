@@ -31,8 +31,8 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 50 个根文件 | 平台基础设施、格式化工具和少量跨领域兼容能力仍有混放；业务单据 PDF 引擎已迁出 |
-| `modules/` | 314 个 TypeScript 文件 | 已有 13 个业务领域模块以及附件、业务单据 2 个横切平台模块；7 类交易单据统一通过 `modules/business-documents` 使用打印与详情能力 |
-| `app/api/` | 114 个 `route.ts` | 路径结构基本合理；直接访问 Prisma 的路由已降至 29 条，其余存量按领域垂直切片继续收敛 |
+| `modules/` | 320 个 TypeScript 文件 | 已有 13 个业务领域模块以及附件、业务单据 2 个横切平台模块；旧工单执行兼容契约、规则和事务也已归入生产领域 |
+| `app/api/` | 114 个 `route.ts` | 路径结构基本合理；直接访问 Prisma 的路由已降至 26 条，其余存量按领域垂直切片继续收敛 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
 
@@ -780,3 +780,12 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 业务单据打印链接、预生成 client 和“系统生成单据 + 附件管理”详情骨架从根级 `app/components` 迁入模块；各调用页面只通过 `modules/business-documents/index.ts` 使用公开能力，详情内部继续复用公共 `ModalDialog` 和 `AttachmentPanel`。
 - 打印 Route Handler 从 211 行降至 42 行，只保留单据类型识别、资源权限、生成权限、领域服务调用和 PDF HTTP 响应；旧 `lib/business-document-pdf.ts` 已删除，使直接访问 Prisma 的 API 从 30 条降至 29 条。
 - `verify:business-document-print` 使用运行后删除的临时完整 SQLite 和上传目录，覆盖 7 类定义、流程转移打印投影、A4 PDF、首次归档、普通补打缓存复用、强制重生成新版本和缺失单据；不会触碰本机测试库、上传目录或服务器数据。
+
+## 64. 旧生产订单执行接口兼容归属
+
+- 当前页面唯一生产过账入口仍是生产订单详情中的 `ProductionOrderActualPanel`；生产页面和其 client 均不调用 `/api/orders/:id/pick`、`reports` 或 `stock-in`。
+- 服务器可能仍保存 `PickItem`、`WorkReport` 和 `StockIn` 历史记录，因此三个 URL 不直接删除。`contracts/legacy-production-order-execution-schema.ts` 集中兼容输入，`domain/legacy-production-order-execution-rules.ts` 以纯规则表达状态、工序顺序和报工完成状态。
+- 三个 `server/legacy-production-order-*` 服务分别拥有领料成本/预留事务、报工查询与状态事务、旧入库余额与流水事务；首次创建产出库存时同样写 `StockLog`，避免余额与流水断裂。
+- 三条 Route Handler 合计从 501 行降至 80 行，只保留 `orders` 权限、Schema、领域服务、领料审计和 HTTP 映射，不再直接访问 Prisma，使直接访问 Prisma 的 API 从 29 条降至 26 条。
+- `verify:production-order-execution` 在运行后删除的临时完整 SQLite 中覆盖领料、非连续工序号的上一工序防呆、报工状态、质检后入库、首次库存流水和重复入库拒绝；不连接本机测试库或服务器正式库。
+- 后续只有在服务器旧记录盘点、备份及可回滚迁移完成后才可删除这些兼容模型或 URL；不得把本机测试数据作为下线依据。
