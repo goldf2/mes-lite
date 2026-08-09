@@ -1,13 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { DocumentCategoryManagerPanel } from '@/app/components/DocumentCategoryManagerModal'
 import { ResourceAdvancedSearch, ResourcePageShell } from '@/app/components/resource'
 import { filterByAdvancedSearch, type ResourceAdvancedSearchField, type ResourceSearchCondition } from '@/lib/resource-search'
-import { loadDocumentCategories } from '../client/reference-data-api'
-import type { DocumentCategoryConfig } from '../contracts/reference-data'
+import { listDocumentCategories } from '../client/documents-api'
+import type { DocumentCategoryRecord } from '../contracts/work-instruction'
+import DocumentCategoryManagerPanel from './DocumentCategoryManagerPanel'
 
-const categoryAdvancedSearchFields: readonly ResourceAdvancedSearchField<DocumentCategoryConfig>[] = [
+const categoryAdvancedSearchFields: readonly ResourceAdvancedSearchField<DocumentCategoryRecord>[] = [
   { key: 'name', label: '类别名称', type: 'text', read: (item) => item.name },
   { key: 'parent', label: '上级类别', type: 'text', read: (item) => item.parent?.name || '' },
   { key: 'level', label: '类别层级', type: 'select', read: (item) => item.parentId ? 'CHILD' : 'ROOT', options: [{ value: 'ROOT', label: '一级类别' }, { value: 'CHILD', label: '二级类别' }] },
@@ -17,7 +17,7 @@ const categoryAdvancedSearchFields: readonly ResourceAdvancedSearchField<Documen
 ]
 
 export default function DocumentCategorySettingsPage({ onMessage, canUpdate, canDelete }: { onMessage: (message: string) => void; canUpdate: boolean; canDelete: boolean }) {
-  const [categories, setCategories] = useState<DocumentCategoryConfig[]>([])
+  const [categories, setCategories] = useState<DocumentCategoryRecord[]>([])
   const [keyword, setKeyword] = useState('')
   const [conditions, setConditions] = useState<ResourceSearchCondition[]>([])
   const [loading, setLoading] = useState(true)
@@ -25,7 +25,7 @@ export default function DocumentCategorySettingsPage({ onMessage, canUpdate, can
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      setCategories(await loadDocumentCategories())
+      setCategories(await listDocumentCategories())
     } catch (error) {
       onMessage(error instanceof Error ? error.message : '获取文档类别失败')
     } finally {
@@ -65,7 +65,9 @@ export default function DocumentCategorySettingsPage({ onMessage, canUpdate, can
       searchConditionLabel="文档类别精确搜索"
       contentClassName="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5"
     >
-      {loading ? <div className="py-12 text-center text-sm text-gray-500">正在读取文档类别…</div> : <DocumentCategoryManagerPanel categories={visibleCategories} onChanged={load} onMessage={onMessage} canUpdate={canUpdate} canDelete={canDelete} />}
+      {loading
+        ? <div className="py-12 text-center text-sm text-gray-500">正在读取文档类别…</div>
+        : <DocumentCategoryManagerPanel categories={visibleCategories} onChanged={load} onMessage={onMessage} canUpdate={canUpdate} canDelete={canDelete} />}
     </ResourcePageShell>
   )
 }

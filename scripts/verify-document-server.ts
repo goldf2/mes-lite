@@ -64,7 +64,8 @@ function verifyBoundaries() {
   assert.match(detailDialog, /DocumentFileViewer[\s\S]*OnlineDocumentEditor[\s\S]*WorkInstructionFormFields/, '详情工作区必须复用公共文件预览、正文编辑与文档表单')
   assert.match(fullscreenViewer, /DocumentFileViewer[\s\S]*attachmentPreviewKind/, '全屏查看器必须复用公共文件预览与类型判定')
   assert.match(formFields, /OneToManyRelationField[\s\S]*OnlineDocumentEditor/, '文档表单必须复用公共一对多关联与在线正文组件')
-  assert.match(client, /\/api\/work-instructions[\s\S]*\/api\/attachments/, '文档 client 必须封装主数据与附件请求')
+  assert.match(client, /from '@\/modules\/attachments'[\s\S]*\/api\/work-instructions/, '文档 client 必须通过附件领域公开能力和文档 API 封装请求')
+  assert.doesNotMatch(client, /\/api\/attachments/, '文档 client 不得绕过附件领域公开 client')
   assert.match(renderer, /import\('\@\/modules\/documents'\)/, '页面注册层必须从 documents 公开出口加载文档页面')
 }
 

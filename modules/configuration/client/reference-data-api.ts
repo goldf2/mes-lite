@@ -1,6 +1,5 @@
 import type {
   ConfiguredUnit,
-  DocumentCategoryConfig,
   InventoryLocationConfig,
   InventoryLocationForm,
   PartyForm,
@@ -78,8 +77,4 @@ export async function saveConfiguredUnit(form: UnitForm, original?: Pick<Configu
 export async function removeConfiguredUnit(unit: Pick<ConfiguredUnit, 'code' | 'measureType'>) {
   const params = new URLSearchParams({ code: unit.code, measureType: unit.measureType })
   return await request<ConfiguredUnit[]>(`/api/system/units?${params.toString()}`, { method: 'DELETE' }) || []
-}
-
-export async function loadDocumentCategories() {
-  return await request<DocumentCategoryConfig[]>('/api/document-categories') || []
 }

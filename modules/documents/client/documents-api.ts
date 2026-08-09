@@ -8,6 +8,7 @@ import type {
   WorkInstruction,
   WorkInstructionSaveInput,
 } from '../contracts/work-instruction'
+import type { DocumentCategoryFieldsInput } from '../contracts/document-category-schema'
 import {
   archiveAttachment,
   listAttachments,
@@ -33,6 +34,20 @@ async function readEnvelope<T>(response: Response, fallback: string) {
 export async function listDocumentCategories() {
   const response = await fetch('/api/document-categories')
   return (await readEnvelope<DocumentCategoryRecord[]>(response, '获取文档类别失败')).data || []
+}
+
+export async function saveDocumentCategory(input: DocumentCategoryFieldsInput, id?: string) {
+  const response = await fetch('/api/document-categories', {
+    method: id ? 'PUT' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(id ? { ...input, id } : input),
+  })
+  return (await readEnvelope<DocumentCategoryRecord>(response, '保存文档类别失败')).data!
+}
+
+export async function removeDocumentCategory(id: string) {
+  const response = await fetch(`/api/document-categories?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+  return (await readEnvelope<never>(response, '删除文档类别失败')).message || '文档类别已删除'
 }
 
 export async function listWorkInstructions(params: URLSearchParams) {

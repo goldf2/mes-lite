@@ -61,12 +61,3 @@ export interface InventoryLocationForm {
   isDefault: boolean
   isActive: boolean
 }
-
-export interface DocumentCategoryConfig {
-  id: string
-  name: string
-  parentId?: string | null
-  parent?: { id: string; name: string } | null
-  sortOrder: number
-  _count: { children: number; workInstructions: number }
-}

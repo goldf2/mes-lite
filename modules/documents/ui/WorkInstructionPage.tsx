@@ -6,7 +6,6 @@ import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
 import { normalizeAttachmentRotation } from '@/lib/attachment-rotation'
-import { documentCategoryOptions } from '@/app/components/DocumentCategoryManagerModal'
 import useClientTableSort from '@/app/components/useClientTableSort'
 import AppButton from '@/app/components/AppButton'
 import { EMPTY_DOCUMENT_JSON } from '@/lib/document-content'
@@ -33,6 +32,7 @@ import {
   mergeSelectedFiles,
   statusLabels,
 } from '../model/work-instruction-view'
+import { documentCategoryOptions } from '../domain/document-category-rules'
 import WorkInstructionCollectionView from './WorkInstructionCollectionView'
 import WorkInstructionCreateDialog from './WorkInstructionCreateDialog'
 import WorkInstructionDetailDialog from './WorkInstructionDetailDialog'

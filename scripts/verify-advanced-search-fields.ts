@@ -47,7 +47,7 @@ const unifiedSearchPages = [
   'modules/sales/ui/ShipmentPageModule.tsx',
   'modules/documents/ui/WorkInstructionPage.tsx',
   'app/components/WorkspacePages.tsx',
-  'modules/configuration/ui/DocumentCategorySettingsPage.tsx',
+  'modules/documents/ui/DocumentCategorySettingsPage.tsx',
 ]
 const resourceSearchPages = [
   'modules/configuration/ui/InventoryLocationSettingsPage.tsx',

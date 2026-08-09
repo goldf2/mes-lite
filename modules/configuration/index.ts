@@ -1,7 +1,6 @@
 export { default } from './ConfigurationSectionPage'
 export { configurationSections, isConfigurationSection, isReferenceConfigurationSection, referenceConfigurationSections } from './ConfigurationSectionPage'
 export type { ConfigurationSection, ReferenceConfigurationSection } from './ConfigurationSectionPage'
-export { default as DocumentCategorySettingsPage } from './ui/DocumentCategorySettingsPage'
 export { default as EmployeePageModule } from './ui/EmployeePageModule'
 export { loadConfiguredUnits } from './client/reference-data-api'
 export type { ConfiguredUnit } from './contracts/reference-data'

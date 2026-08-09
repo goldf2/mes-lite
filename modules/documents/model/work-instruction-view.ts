@@ -1,6 +1,6 @@
 import { MAX_ATTACHMENT_FILE_SIZE } from '@/lib/attachment-file-types'
 import { EMPTY_DOCUMENT_JSON } from '@/lib/document-content'
-import { documentCategoryLabel } from '@/app/components/DocumentCategoryManagerModal'
+import { documentCategoryLabel } from '../domain/document-category-rules'
 import type { MaterialOption, WorkInstruction, WorkInstructionForm } from '../contracts/work-instruction'
 
 export const instructionStatusOptions = [

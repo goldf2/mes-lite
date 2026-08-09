@@ -23,16 +23,16 @@
 | `app/HomeApp.tsx` | 522 行 | 权限菜单、工作区过滤、页面连续性、偏好和桌面导航状态均已提取；当前只承担应用壳 JSX 装配与少量全局弹层状态 |
 | `app/components/shell/` | 9 个文件 | 已建立账号菜单、导航图标、页面宿主、渲染适配器和四类状态控制器的公共应用壳边界 |
 | `lib/page-registry.ts` | 38 个页面定义 | 页面元数据、权限资源、工作区入口、系统分区、打开方式和渲染键已集中为单一事实源 |
-| `app/components/` 根目录 | 47 个文件 | 根级 `*Page.tsx` 只剩 31 行的 `SystemPage` 兼容分派层；扫码打印、锯切成本及此前领域页均已迁入对应模块，根目录继续只承载跨领域公共组件和应用壳兼容入口 |
+| `app/components/` 根目录 | 46 个文件 | 根级 `*Page.tsx` 只剩 31 行的 `SystemPage` 兼容分派层；文档类别管理面板及此前领域页均已迁入对应模块，根目录继续只承载跨领域公共组件和应用壳兼容入口 |
 | `modules/materials/ui/MaterialPage.tsx` | 709 行 | 数据契约、HTTP client、详情、编辑、导入、集合视图、页内选项、显示偏好、双形态工具栏、BOM 工作区和草稿编辑均已拆出；当前只保留物料/BOM 页面协调 |
 | `SystemPage.tsx` | 31 行 | 已收敛为业务配置、系统设置、运维工具和生产工程的纯领域分派兼容层 |
 | `modules/receiving/ui/MaterialInPage.tsx` | 684 行 | 集合、编辑和详情任务已拆出；主页只协调查询、分页与任务弹窗 |
 | `modules/documents/ui/WorkInstructionPage.tsx` | 591 行 | 只保留文档读写、搜索、分页与子模块状态协调；集合、表单、详情/附件和全屏查看已分离 |
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
-| `lib/` | 52 个根文件 | 平台基础设施、格式化工具和少量跨领域兼容能力仍有混放；员工规则已迁出 |
-| `modules/` | 295 个 TypeScript 文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售、设备和附件 14 个模块；页面数据访问已统一进入领域 client，员工档案前后端及跨生产引用也已进入配置领域 |
-| `app/api/` | 114 个 `route.ts` | 路径结构基本合理；直接访问 Prisma 的路由已降至 31 条，其余存量按领域垂直切片继续收敛 |
+| `lib/` | 51 个根文件 | 平台基础设施、格式化工具和少量跨领域兼容能力仍有混放；员工与文档类别规则已迁出 |
+| `modules/` | 302 个 TypeScript 文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售、设备和附件 14 个模块；页面数据访问已统一进入领域 client，文档类别前后端也由文档领域单一拥有 |
+| `app/api/` | 114 个 `route.ts` | 路径结构基本合理；直接访问 Prisma 的路由已降至 30 条，其余存量按领域垂直切片继续收敛 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
 
@@ -766,3 +766,10 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `resolveActiveEmployees` 与 `employeeNamesSnapshot` 通过配置模块唯一公开出口提供给生产领域；生产实绩只消费员工引用和姓名快照，不再从扁平 `lib/employees.ts` 复制或拥有员工规则。账号审核、角色和权限仍由 `modules/identity-access` 独立管理。
 - `/api/employees` 从 185 行降至 61 行，只保留权限、查询参数/Schema、配置领域服务、审计和 HTTP 映射，不再直接访问 Prisma，使直接访问 Prisma 的 API 从 32 条降至 31 条；旧 `lib/employees.ts` 已删除。
 - `verify:employees` 使用运行后删除的临时完整 SQLite，覆盖薄路由、编号断档、人工顺序、部门/账号搜索、账号一对一绑定、有效员工解析、停用阻断、生产历史姓名快照和账号删除后自动解绑。
+
+## 62. 文档类别完整领域归属
+
+- 文档类别仍从“业务配置 / 文档类别”进入，但页面位置不决定代码所有权；页面、管理面板、浏览器 client、输入 Schema、层级纯规则、查询和写入事务统一归 `modules/documents`。
+- 文档类别页面继续复用公共 `ResourcePageShell`、`ResourceAdvancedSearch`、`AppButton` 和 `SearchableSelect`，渲染注册表只通过文档模块公开入口挂载，不建立配置领域或根级组件副本。
+- `/api/document-categories` 从 100 行降至 73 行，只保留权限、Schema、文档领域服务、审计和 HTTP 映射；旧 `lib/document-categories.ts` 已删除，使直接访问 Prisma 的 API 从 31 条降至 30 条。
+- `verify:document-categories` 使用运行后删除的临时完整 SQLite，覆盖名称规范化、两级层次、同层判重、父级变更、引用保护和删除；静态边界同时阻止路由、配置模块或根级组件重新拥有文档类别规则。

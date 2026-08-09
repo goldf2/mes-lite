@@ -15,3 +15,4 @@ export type {
   WorkInstructionForm,
 } from './contracts/work-instruction'
 export { default } from './ui/WorkInstructionPage'
+export { default as DocumentCategorySettingsPage } from './ui/DocumentCategorySettingsPage'

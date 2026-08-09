@@ -24,7 +24,7 @@ const ScanPrintPage = dynamic(() => import('@/modules/operations-tools').then((m
 const BomOverviewPage = dynamic(() => import('@/modules/bom'), { loading: FeaturePageLoading })
 const MaterialPage = dynamic(() => import('@/modules/materials'), { loading: FeaturePageLoading })
 const WorkInstructionPage = dynamic(() => import('@/modules/documents'), { loading: FeaturePageLoading })
-const DocumentCategorySettingsPage = dynamic(() => import('@/modules/configuration').then((module) => module.DocumentCategorySettingsPage), { loading: FeaturePageLoading })
+const DocumentCategorySettingsPage = dynamic(() => import('@/modules/documents').then((module) => module.DocumentCategorySettingsPage), { loading: FeaturePageLoading })
 const EquipmentPage = dynamic(() => import('@/modules/equipment'), { loading: FeaturePageLoading })
 const OperatorPage = dynamic(() => import('@/modules/identity-access').then((module) => module.OperatorPageModule), { loading: FeaturePageLoading })
 const SystemPage = dynamic(() => import('../SystemPage'), { loading: FeaturePageLoading })
