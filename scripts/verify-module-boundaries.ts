@@ -108,9 +108,7 @@ for (const path of pageFiles) {
   if (baseline !== undefined && lines > baseline) failures.push(`${projectPath} 从 ${baseline} 行增长到 ${lines} 行；应先提取稳定职责`)
 }
 
-const routeSizeBaselines: Record<string, number> = {
-  'app/api/bom-costs/route.ts': 340,
-}
+const routeSizeBaselines: Record<string, number> = {}
 const routeFiles = walk(join(root, 'app', 'api')).filter((path) => path.endsWith('/route.ts'))
 for (const path of routeFiles) {
   const projectPath = toProjectPath(path)

@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 133 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料和身份权限 11 个模块；生产工程、物料、BOM、文档、来料、库存与身份权限已形成包含服务端规则的垂直分层 |
+| `modules/` | 138 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料和身份权限 11 个模块；生产工程、物料、BOM、文档、来料、库存与身份权限已形成包含服务端规则的垂直分层 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -572,3 +572,11 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `server/permission-admin-service.ts` 拥有权限管理查询、资源级授权校验、可分配权限组校验以及权限组/人员组原子写入；请求对象与审计日志仍留在 HTTP 层。
 - `app/api/permissions/route.ts` 从 350 行降至 79 行，只保留会话入口、请求解析、服务调用、审计和错误映射。
 - `verify:identity-access-module` 锁定薄路由、输入契约、授权规则、事务边界和请求级审计；系统超过 300 行的存量 API 从 6 个降至 1 个。
+
+## 37. BOM 成本计算归属
+
+- `contracts/bom-cost.ts` 集中成本快照输入和成本明细写入契约。
+- `domain/bom-cost.ts` 以纯函数处理库存/计价单位成本、BOM 产出折算、损耗、成本对象、锯切方案、固定分摊和总成本汇总。
+- `server/bom-cost-query-service.ts` 装配可计算物料、默认 BOM 与最近成本快照；`bom-cost-command-service.ts` 负责物料映射、有效 BOM 校验和成本快照写入。
+- `app/api/bom-costs/route.ts` 从 340 行降至 45 行，只保留权限、请求解析、服务调用、审计和错误映射。
+- `verify:bom-cost-module` 锁定薄路由、查询/命令服务和材料、人工、机时、直接费用、固定分摊纯计算样例；系统超过 300 行的页面与 API 均已清零。
