@@ -653,6 +653,8 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 转移确认时只原子更新两个 `StockLocationBalance`：来源扣减、目标增加。`Stock.qty`、计价数量、总成本、单价和 `InventoryCostLayer` 全部不变。系统保存一出一入两条 `StockLog`，两条流水的总量/总成本前后值相同、成本变动为零。冲销按相反库位方向执行，目标库位可用数量不足时拒绝冲销。
 
+流程转移工作区查询、草稿创建/编辑以及确认/冲销由 `modules/production/server/flow-transfer-*` 统一拥有。创建时从业务日期最大历史序号生成单号，保存草稿即校验来源库位可用量；确认和冲销在事务内重新校验状态与库位库存。Route Handler 不复制候选装配、编号或库存规则。
+
 ### 物料主计量与长度型来料
 
 `Material.primaryMeasure` 取 `LENGTH`、`WEIGHT`、`QUANTITY` 或 `OTHER`。`stockUnit` 是主库存单位，库存、领料和生产耗用都以它为准。`referenceMeasure`、`valuationUnit` 和 `conversionRate` 是可选参考/计价口径，默认换算只在来料未填写实测值时使用；物料不保存标准长度。

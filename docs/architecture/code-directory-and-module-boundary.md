@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 246 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售、设备和附件 14 个模块；页面数据访问已统一进入领域 client，工作台、生产订单、生产实绩、派工、附件、销售履约及来料生命周期已形成前后端垂直切片 |
+| `modules/` | 253 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售、设备和附件 14 个模块；页面数据访问已统一进入领域 client，工作台、生产订单、生产实绩、派工、流程转移、附件、销售履约及来料生命周期已形成前后端垂直切片 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -725,3 +725,11 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 派工主路由、详情和 4 条状态路由共 6 条 Route Handler 现为 17–67 行，只保留权限、Schema、服务调用、请求级审计与 HTTP 错误映射；直接访问 Prisma 的 API 从 52 条降至 46 条。
 - 派工编号改为读取当日最大历史序号后递增，归档、取消或中间断号不会导致编号复用。
 - `verify:dispatch-module` 使用运行后删除的临时完整 SQLite 覆盖工序归属、客户/工人/状态组合查询、创建、派工、开工、完工、取消、归档、编号断号和非法重复流转，不连接本机测试库或服务器正式库。
+
+## 57. 流程转移服务端垂直模块归属
+
+- `contracts/flow-transfer-schema.ts` 集中草稿、确认和冲销输入；`domain/flow-transfer-numbering.ts`、`flow-transfer-status.ts` 与 `flow-transfer-errors.ts` 分别拥有日期最大序号、状态约束和可预期领域错误。
+- `server/flow-transfer-query-service.ts` 统一记录、物料图片、库位和员工工作区装配；`flow-transfer-command-service.ts` 拥有草稿解析、来源库存校验、创建和编辑；`flow-transfer-status-service.ts` 原子执行确认与冲销。
+- 流程转移主路由、编辑、确认和冲销共 4 条 Route Handler 现为 29–48 行，只保留权限、Schema、操作人、服务调用、审计和 HTTP 错误映射；扁平 `lib/flow-transfer.ts` 已删除，直接访问 Prisma 的 API 从 46 条降至 42 条。
+- 流程转移编号改为读取业务日期最大历史序号后递增；确认和冲销只改变来源/目标库位余额并写一出一入流水，总库存、计价数量、成本和成本层保持不变。
+- `verify:flow-transfer` 使用运行后删除的临时完整 SQLite，通过真实领域服务覆盖工作区查询、编号断号、草稿创建/编辑、来源库存不足、确认、重复状态拒绝、冲销失败原子性及成功恢复，不连接本机测试库或服务器正式库。
