@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 103 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档和来料 10 个模块；生产工程、物料、文档与来料已形成包含服务端规则的垂直分层 |
+| `modules/` | 117 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档和来料 10 个模块；生产工程、物料、文档、来料与库存已形成包含服务端规则的垂直分层 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -530,3 +530,12 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `MaterialPage.tsx` 从 887 行降至 709 行，保留物料查询、BOM 数据协调、URL/偏好、快速 BOM 和领域弹窗编排，退出巨型页面基线。
 - `verify:material-bom-modules` 将主页面上限收紧到 750 行，并锁定两个纯展示任务不得访问 HTTP 或承载草稿状态。
 - 模块边界统计当前为 0 个超过 800 行的页面；后续优化以职责与调用方为依据，不再为了行数机械切割。
+
+## 32. 库存服务端垂直模块归属
+
+- `contracts/stock-route.ts` 统一库存查询参数与库位调整请求校验，HTTP 路由不再手工解释筛选字段。
+- `domain/stock-integrity.ts` 以纯函数表达总量、预留、可用量、核算量和库位合计不变式，可在不连接数据库时回归验证。
+- `server/stock-query-service.ts` 拥有库存筛选、主图、包装 BOM 穿透、库位关键词和归档零余额显示规则。
+- `server/stock-integrity-service.ts` 负责读取异常记录和受控补齐缺失的零余额；`server/stock-command-service.ts` 统一修复与原子库存调整入口。
+- `app/api/stocks/route.ts` 从 449 行降至 79 行，只保留权限、HTTP 解析、审计和错误映射，并退出巨型路由递减基线。
+- `verify:inventory-module` 同时锁定前端协调层、薄 API、服务调用和库存不变式样例；系统超过 300 行的存量 API 从 6 个降至 5 个。
