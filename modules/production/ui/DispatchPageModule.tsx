@@ -1,102 +1,43 @@
 'use client'
 
 import { ReactNode, useMemo, useState, useEffect } from 'react'
-import AttachmentPanel from './AttachmentPanel'
-import { getStatusQuery } from './StatusCheckboxFilter'
-import ResponsiveToolbarActions from './ResponsiveToolbarActions'
-import TopBarPortal from './TopBarPortal'
-import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
-import SearchableSelect from './SearchableSelect'
-import SortableTableHeader from './SortableTableHeader'
-import useClientTableSort from './useClientTableSort'
-import ModalDialog, { ModalActions } from './ModalDialog'
-import AppButton from './AppButton'
-import { MappedResourceAdvancedSearch } from './resource'
-import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
-import BusinessDocumentDetailDialog from './BusinessDocumentDetailDialog'
+import AttachmentPanel from '@/app/components/AttachmentPanel'
+import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
+import TopBarPortal from '@/app/components/TopBarPortal'
+import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
+import SearchableSelect from '@/app/components/SearchableSelect'
+import SortableTableHeader from '@/app/components/SortableTableHeader'
+import useClientTableSort from '@/app/components/useClientTableSort'
+import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
+import AppButton from '@/app/components/AppButton'
+import { MappedResourceAdvancedSearch } from '@/app/components/resource'
+import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/app/components/BusinessDocumentPrintLink'
+import BusinessDocumentDetailDialog from '@/app/components/BusinessDocumentDetailDialog'
 import DraftDocumentAttachmentPanel, {
   createDraftDocumentAttachmentId,
   discardDraftDocumentAttachments,
   finalizeDraftDocumentAttachments,
-} from './DraftDocumentAttachmentPanel'
+} from '@/app/components/DraftDocumentAttachmentPanel'
 import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
-
-interface Order {
-  id: string
-  orderNo: string
-  status: string
-  planQty: number
-  product: { id: string; name: string; sku: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null }
-  targetMaterial?: { id: string; name: string; code: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null } | null
-}
-
-interface Customer {
-  id: string
-  code: string
-  name: string
-}
-
-interface ProcessStep {
-  id: string
-  stepNo: number
-  name: string
-  workstation: string | null
-}
-
-interface Dispatch {
-  id: string
-  dispatchNo: string
-  voucherNo?: string | null
-  orderId: string
-  stepId: string
-  workerName: string
-  workerId?: string
-  planQty: number
-  priority: string
-  status: string
-  note?: string
-  createdAt: string
-  order: { id: string; orderNo: string; product: { id: string; name: string; sku: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null }; targetMaterial?: { id: string; name: string; code: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null } | null }
-  step: { id: string; stepNo: number; name: string; workstation?: string | null }
-}
-
-const statusColors: Record<string, string> = {
-  PENDING: 'bg-gray-100 text-gray-700',
-  DISPATCHED: 'bg-blue-100 text-blue-700',
-  IN_PROGRESS: 'bg-orange-100 text-orange-700',
-  COMPLETED: 'bg-green-100 text-green-700',
-  CANCELLED: 'bg-red-100 text-red-700',
-}
-
-const statusLabels: Record<string, string> = {
-  PENDING: '待派工',
-  DISPATCHED: '已派工',
-  IN_PROGRESS: '进行中',
-  COMPLETED: '已完成',
-  CANCELLED: '已取消',
-}
-
-const statusOptions = [
-  { value: 'PENDING', label: '待派工' },
-  { value: 'DISPATCHED', label: '已派工' },
-  { value: 'IN_PROGRESS', label: '进行中' },
-  { value: 'COMPLETED', label: '已完成' },
-  { value: 'CANCELLED', label: '已取消' },
-]
-
-const priorityColors: Record<string, string> = {
-  LOW: 'bg-gray-100 text-gray-700',
-  NORMAL: 'bg-blue-100 text-blue-700',
-  HIGH: 'bg-orange-100 text-orange-700',
-  URGENT: 'bg-red-100 text-red-700',
-}
-
-const priorityLabels: Record<string, string> = {
-  LOW: '低',
-  NORMAL: '正常',
-  HIGH: '高',
-  URGENT: '紧急',
-}
+import {
+  createDispatch,
+  listDispatchCustomers,
+  listDispatches,
+  listDispatchOrders,
+  listDispatchOrderSteps,
+  transitionDispatch,
+} from '../client/dispatch-api'
+import {
+  dispatchPriorityColors as priorityColors,
+  dispatchPriorityLabels as priorityLabels,
+  dispatchStatusColors as statusColors,
+  dispatchStatusLabels as statusLabels,
+  dispatchStatusOptions as statusOptions,
+  type DispatchCustomer as Customer,
+  type DispatchOrder as Order,
+  type DispatchProcessStep as ProcessStep,
+  type DispatchRecord as Dispatch,
+} from '../contracts/dispatch'
 
 export default function DispatchPage({
   onMessage,
@@ -155,13 +96,7 @@ export default function DispatchPage({
   const fetchDispatches = async () => {
     setLoading(true)
     try {
-      const query = getStatusQuery(selectedStatuses, statusOptions)
-      const params = new URLSearchParams(query)
-      if (selectedCustomerId) params.set('customerId', selectedCustomerId)
-      const url = params.toString() ? `/api/dispatches?${params.toString()}` : '/api/dispatches'
-      const res = await fetch(url)
-      const data = await res.json()
-      setDispatches(data.data || [])
+      setDispatches(await listDispatches(selectedStatuses, statusOptions.map((option) => option.value), selectedCustomerId))
     } catch (err) {
       onMessage('获取派工单列表失败')
     }
@@ -170,13 +105,7 @@ export default function DispatchPage({
 
   const fetchOrders = async () => {
     try {
-      const params = new URLSearchParams({ status: 'PICKED' })
-      if (selectedCustomerId) params.set('customerId', selectedCustomerId)
-      const res = await fetch(`/api/orders?${params.toString()}`)
-      if (res.ok) {
-        const data = await res.json()
-        setOrders(data.data || [])
-      }
+      setOrders(await listDispatchOrders(selectedCustomerId))
     } catch (err) {
       // ignore
     }
@@ -184,11 +113,7 @@ export default function DispatchPage({
 
   const fetchCustomers = async () => {
     try {
-      const res = await fetch('/api/customers')
-      if (res.ok) {
-        const data = await res.json()
-        setCustomers(data.data || [])
-      }
+      setCustomers(await listDispatchCustomers())
     } catch (err) {
       // ignore
     }
@@ -200,13 +125,7 @@ export default function DispatchPage({
       return
     }
     try {
-      const res = await fetch(`/api/orders/${orderId}`)
-      if (res.ok) {
-        const data = await res.json()
-        setSteps(data.data?.routeSteps || [])
-      } else {
-        setSteps([])
-      }
+      setSteps(await listDispatchOrderSteps(orderId))
     } catch (err) {
       setSteps([])
     }
@@ -245,9 +164,11 @@ export default function DispatchPage({
     const matchedOrder = orders.find((order) => matchesRecognizedValue(orderValue, [order.orderNo, order.targetMaterial?.code, order.targetMaterial?.name, order.product.sku, order.product.name]))
     let nextSteps = steps
     if (matchedOrder) {
-      const response = await fetch(`/api/orders/${matchedOrder.id}`)
-      const data = await response.json()
-      nextSteps = response.ok ? data.data?.routeSteps || [] : []
+      try {
+        nextSteps = await listDispatchOrderSteps(matchedOrder.id)
+      } catch {
+        nextSteps = []
+      }
       setSteps(nextSteps)
     }
     const stepValue = recognizedText(fields, 'processStep')
@@ -278,30 +199,25 @@ export default function DispatchPage({
     const printPreview = reserveBusinessDocumentPrintWindow()
     setLoading(true)
     try {
-      const res = await fetch('/api/dispatches', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: form.orderId,
-          voucherNo: form.voucherNo || undefined,
-          stepId: form.stepId,
-          workerName: form.workerName,
-          workerId: form.workerId || undefined,
-          planQty: form.planQty,
-          priority: form.priority,
-          note: form.note || undefined,
-        }),
+      const result = await createDispatch({
+        orderId: form.orderId,
+        voucherNo: form.voucherNo || undefined,
+        stepId: form.stepId,
+        workerName: form.workerName,
+        workerId: form.workerId || undefined,
+        planQty: form.planQty,
+        priority: form.priority,
+        note: form.note || undefined,
       })
-      const data = await res.json()
-      if (res.ok) {
-        onMessage(`派工单创建成功：${data.data.dispatchNo}`)
+      if (result.ok && result.data) {
+        onMessage(`派工单创建成功：${result.data.dispatchNo}`)
         try {
-          await finalizeDraftDocumentAttachments({ ownerType: 'DISPATCH', draftOwnerId: draftAttachmentOwnerId, targetOwnerId: data.data.id })
+          await finalizeDraftDocumentAttachments({ ownerType: 'DISPATCH', draftOwnerId: draftAttachmentOwnerId, targetOwnerId: result.data.id })
         } catch (error) {
           onMessage(`派工单已创建，但${error instanceof Error ? error.message : '附件绑定失败'}`)
         }
-        const pdfGenerated = await generateBusinessDocumentPdfArchives('dispatch', [data.data.id])
-        if (pdfGenerated) printPreview.open('dispatch', data.data.id)
+        const pdfGenerated = await generateBusinessDocumentPdfArchives('dispatch', [result.data.id])
+        if (pdfGenerated) printPreview.open('dispatch', result.data.id)
         else {
           printPreview.close()
           onMessage('派工单已创建，但 PDF 生成失败，可在派工列表中重新打印')
@@ -312,7 +228,7 @@ export default function DispatchPage({
         await fetchDispatches()
       } else {
         printPreview.close()
-        onMessage(data.error || '创建派工单失败')
+        onMessage(result.error || '创建派工单失败')
       }
     } catch (err) {
       printPreview.close()
@@ -324,13 +240,12 @@ export default function DispatchPage({
   const handleAction = async (id: string, action: 'dispatch' | 'start' | 'complete') => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/dispatches/${id}/${action}`, { method: 'PATCH' })
-      const data = await res.json()
-      if (res.ok) {
-        onMessage(data.message || '操作成功')
+      const result = await transitionDispatch(id, action)
+      if (result.ok) {
+        onMessage(result.message || '操作成功')
         await fetchDispatches()
       } else {
-        onMessage(data.error || '操作失败')
+        onMessage(result.error || '操作失败')
       }
     } catch (err) {
       onMessage('操作失败')

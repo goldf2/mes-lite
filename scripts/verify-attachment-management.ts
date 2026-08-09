@@ -9,7 +9,7 @@ const salesOrderSource = readFileSync(join(root, 'app/components/SalesOrderPage.
 const detailDialogSource = readFileSync(join(root, 'app/components/BusinessDocumentDetailDialog.tsx'), 'utf8')
 const detailManagedPages = [
   ['来料', 'modules/receiving/ui/MaterialInCollectionView.tsx', 'modules/receiving/ui/MaterialInDetailDialog.tsx'],
-  ['派工', 'app/components/DispatchPage.tsx', 'app/components/DispatchPage.tsx'],
+  ['派工', 'modules/production/ui/DispatchPageModule.tsx', 'modules/production/ui/DispatchPageModule.tsx'],
   ['发货', 'app/components/ShipmentPage.tsx', 'app/components/ShipmentPage.tsx'],
   ['退货', 'app/components/ReturnPage.tsx', 'app/components/ReturnPage.tsx'],
 ] as const

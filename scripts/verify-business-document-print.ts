@@ -47,7 +47,7 @@ const creationSources = [
   'app/components/ShipmentPage.tsx',
   'app/components/ReturnPage.tsx',
   'app/components/FlowTransferPage.tsx',
-  'app/components/DispatchPage.tsx',
+  'modules/production/ui/DispatchPageModule.tsx',
   'app/page.tsx',
 ].map((file) => readFileSync(path.join(root, file), 'utf8')).join('\n')
 assert.match(creationSources, /创建并输出 PDF/, '新建单据必须明确提示会输出 PDF')
