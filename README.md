@@ -2,7 +2,7 @@
 
 MES-lite 是面向小微制造企业的轻量化复合系统：以 MES 为主体，提供有限的 MRP-lite 和 ERP-lite 能力。当前技术核心为 Next.js + TypeScript + Prisma + SQLite，默认使用 Docker/Coolify 单实例部署。
 
-> 本 README 只是快速入口。要理解业务边界、38 个页面模块、数据模型、权限、公共页面骨架、开发流程和已知缺口，请从 [系统开发与理解手册](./docs/开发文档.md) 开始。
+> 本 README 只是快速入口。要理解业务边界、38 个页面模块、数据模型、权限、公共页面骨架、开发流程和已知缺口，请从 [文档中心](./docs/README.md) 或 [系统开发与理解手册](./docs/开发文档.md) 开始。
 
 ## 当前能力边界
 
@@ -68,7 +68,9 @@ npm run verify:data-integrity # 关键数据一致性
 
 ## 架构入口
 
+- [文档中心](./docs/README.md)
 - [系统开发与理解手册](./docs/开发文档.md)
+- [功能、页面、权限与接口矩阵](./docs/architecture/功能页面权限接口矩阵.md)
 - [系统结构图](./docs/architecture/系统结构图.md)
 - [系统时序图](./docs/architecture/系统时序图.md)
 - [数据库结构](./docs/architecture/数据库结构.md)
