@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { validateBomStructure } from '../modules/bom/domain/bom-structure'
 import { nextBomVersion } from '../modules/bom/domain/bom-version'
+import { classifyMaterialAttachments } from '../modules/materials/server/material-panorama-attachments'
 
 const root = process.cwd()
 const read = (path: string) => readFileSync(join(root, path), 'utf8')
@@ -32,6 +33,9 @@ const materialOptions = read('modules/materials/model/material-options.ts')
 const materialViewModel = read('modules/materials/model/material-view.ts')
 const materialClient = read('modules/materials/client/materials-api.ts')
 const materialContracts = read('modules/materials/contracts/material.ts')
+const materialPanoramaRoute = read('app/api/materials/[id]/panorama/route.ts')
+const materialPanoramaQueryService = read('modules/materials/server/material-panorama-query-service.ts')
+const materialPanoramaAttachmentService = read('modules/materials/server/material-panorama-attachments.ts')
 const bomIndex = read('modules/bom/index.ts')
 const bomOverview = read('modules/bom/ui/BomOverviewPage.tsx')
 const bomDraftEditor = read('modules/bom/ui/BomDraftEditor.tsx')
@@ -118,6 +122,19 @@ assert.match(bomDraftModel, /isBomDraftDirty/, 'BOM 草稿脏状态必须由纯�
 assert.match(materialClient, /fetch\('\/api\/materials/, '物料 HTTP 访问必须集中在 materials client')
 assert.match(bomClient, /fetch\('\/api\/boms/, 'BOM HTTP 访问必须集中在 bom client')
 assert.match(materialContracts, /export interface Material/, '物料数据结构必须集中为领域契约')
+assert.ok(materialPanoramaRoute.split('\n').length <= 40, '物料全景 API 必须保持为不超过 40 行的 HTTP 适配层')
+assert.doesNotMatch(materialPanoramaRoute, /prisma\.|findMany\(|withAttachmentUrls/, '物料全景 API 不得直接查询或装配附件')
+assert.match(materialPanoramaRoute, /getMaterialPanorama\(/, '物料全景 API 必须通过领域查询服务读取')
+assert.match(materialPanoramaQueryService, /Promise\.all/, '物料全景查询服务必须统一编排关联聚合')
+assert.match(materialPanoramaQueryService, /classifyMaterialAttachments/, '物料全景查询服务必须复用附件分类器')
+assert.match(materialPanoramaAttachmentService, /attachWorkInstructionFiles/, '物料全景附件服务必须统一装配正式作业文档附件')
+const classifiedAttachments = classifyMaterialAttachments([
+  { id: 'image', size: 1, rotation: 0, documentType: 'MATERIAL_IMAGE', originalName: 'part.png', note: null, mimeType: 'image/png' },
+  { id: 'sop', size: 1, rotation: 0, documentType: 'OTHER', originalName: 'SOP.pdf', note: null, mimeType: 'application/pdf' },
+])
+assert.equal(classifiedAttachments.images.length, 1)
+assert.equal(classifiedAttachments.workInstructions.length, 1)
+assert.equal(classifiedAttachments.documents.length, 1)
 assert.match(bomContracts, /export interface BomVersion/, 'BOM 数据结构必须集中为领域契约')
 assert.doesNotMatch(bomContracts, /modules\/materials/, 'BOM 契约不得反向依赖 materials 模块形成类型环')
 assert.ok(bomRoute.split('\n').length <= 70, 'BOM API 必须保持为不超过 70 行的 HTTP 适配层')
@@ -152,6 +169,8 @@ assert.ok(materialPagination.split('\n').length <= 80, '物料分页视图应保
 assert.ok(materialPageOptions.split('\n').length <= 220, '物料页内选项不得承载业务查询或页面导航状态')
 assert.ok(materialViewPreferences.split('\n').length <= 230, '物料视图偏好控制器应只维护本地显示状态')
 assert.ok(materialViewModel.split('\n').length <= 130, '物料视图模型只能维护稳定选项和类型')
+assert.ok(materialPanoramaQueryService.split('\n').length <= 220, '物料全景查询服务不得膨胀为第二个巨型路由')
+assert.ok(materialPanoramaAttachmentService.split('\n').length <= 80, '物料全景附件分类与装配应保持聚焦')
 assert.ok(materialDetailDialog.split('\n').length <= 180, '物料详情切片不得重新膨胀为页面级巨型组件')
 assert.ok(materialEditDialog.split('\n').length <= 450, '物料编辑切片不得重新膨胀为页面级巨型组件')
 assert.ok(materialImportDialog.split('\n').length <= 160, '物料导入切片应保持单一职责')

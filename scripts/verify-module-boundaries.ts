@@ -110,7 +110,6 @@ for (const path of pageFiles) {
 
 const routeSizeBaselines: Record<string, number> = {
   'app/api/bom-costs/route.ts': 340,
-  'app/api/materials/[id]/panorama/route.ts': 412,
   'app/api/materials/import/route.ts': 398,
   'app/api/permissions/route.ts': 350,
 }
