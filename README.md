@@ -1,174 +1,94 @@
-# MES-lite 轻量生产业务与物料库存系统
+# MES-lite 轻量制造管理系统
 
-可直接运行的 Next.js + Prisma + SQLite 轻量生产管理系统。当前主线收敛为“小微企业先把日常生产和库存流转记准”：仪表盘、生产日报、物料档案、来料、工单、库存、发货、退货是默认核心；派工和 BOM 成本保留为隐藏高级模块，待流程稳定后再打开。
+MES-lite 是面向小微制造企业的轻量化复合系统：以 MES 为主体，提供有限的 MRP-lite 和 ERP-lite 能力。当前技术核心为 Next.js + TypeScript + Prisma + SQLite，默认使用 Docker/Coolify 单实例部署。
 
-> 当前仓库是实际工程目录。MiniERP 作为后续产品方向和管理端模型，建模文档已放在 `docs/minierp/`。
+> 本 README 只是快速入口。要理解业务边界、38 个页面模块、数据模型、权限、公共页面骨架、开发流程和已知缺口，请从 [系统开发与理解手册](./docs/开发文档.md) 开始。
 
-## MiniERP 建模文档
+## 当前能力边界
 
-- [项目上下文](./docs/minierp/CONTEXT.md)
-- [领域模型](./docs/minierp/domain-model.md)
-- [功能模型](./docs/minierp/feature-model.md)
-- [数据模型](./docs/minierp/data-model.md)
-- [双单位库存与成本核算说明](./docs/minierp/双单位库存与成本核算说明.md)
-- [双单位全流程改造规划](./docs/minierp/双单位全流程改造规划.md)
-- [微信小程序接入模型](./docs/minierp/wechat-mini-program-model.md)
-- [功能验收清单](./docs/minierp/功能验收清单.md)
-- [ADR 0001：小程序第一版作为移动管理入口](./docs/adr/0001-mini-program-as-management-entry.md)
-
----
+| 范围 | 当前支持 | 暂不支持 |
+| --- | --- | --- |
+| MES | 物料、BOM、生产订单与实绩、库存库位、设备、文档、派工和流程转移 | APS 高级排程、完整质量闭环 |
+| MRP-lite | BOM 用量与计划基础 | 净需求、短缺展开和自动建议 |
+| ERP-lite | 客户、供应商、销售订单、销售价快照、发货和退货 | 财务、税务、应收应付和完整采购 |
 
 ## 快速启动
 
-### 1. 环境准备
+### 1. 准备环境
 
-```bash
-# 需要 Node.js 20+
-node -v
+- Node.js 20+
+- npm
+- 本地开发不需要单独安装数据库服务
 
-# 当前版本使用本地 SQLite，无需单独安装数据库服务
-```
-
-### 2. 安装依赖
-
-```bash
-npm install
-```
-
-### 3. 配置环境变量
+### 2. 安装和初始化
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填入 DATABASE_URL
+npm install
+npm run db:generate
+npm run db:deploy
+npm run db:seed
 ```
 
-### 4. 初始化数据库
-
-```bash
-# 生成 Prisma Client
-npx prisma generate
-
-# 应用已有数据库迁移
-npx prisma migrate deploy
-
-# 插入种子数据（产品、原材料、BOM、工艺路线）
-npx prisma db seed
-```
-
-### 5. 启动开发服务器
+### 3. 启动
 
 ```bash
 npm run dev
-# 打开 http://localhost:3000
 ```
 
-### 6. 开发管理员
+打开 `http://localhost:3000`。另有 `npm run dev:3001` 和 `npm run dev:3002` 可用于固定端口。
 
-开发阶段固定管理员账号：
-
-- 账号：`admin`
-- 密码：`admin123`
-
-该账号由开发初始化脚本写入数据库，密码以哈希保存。脚本在 `NODE_ENV=production` 时拒绝执行，不属于生产登录后门。
-
-如需重置开发管理员：
+### 4. 创建开发管理员
 
 ```bash
+DEV_ADMIN_USERNAME=admin \
+DEV_ADMIN_PASSWORD='replace-this-password' \
+DEV_ADMIN_NAME='开发管理员' \
 npm run dev:admin
 ```
 
-也可以临时指定：
+`dev:admin` 在 `NODE_ENV=production` 时会拒绝执行，不是生产后门。
+
+## 常用命令
 
 ```bash
-DEV_ADMIN_USERNAME=admin DEV_ADMIN_PASSWORD=admin123 DEV_ADMIN_NAME=开发管理员 npm run dev:admin
+npm run dev                  # 开发服务器
+npm run build                # 生产构建
+npm run lint                 # ESLint
+npx tsc --noEmit             # TypeScript 检查
+npm run db:migrate           # 开发迁移
+npm run db:deploy            # 应用已发布迁移
+npm run db:studio            # Prisma Studio
+npm run verify:page-modules  # 页面注册与模块契约
+npm run verify:permissions   # 权限契约
+npm run verify:data-integrity # 关键数据一致性
 ```
 
-### 权限分级
+更多领域验证见 `package.json` 中的 `verify:*` 脚本。
 
-| 角色 | 系统值 | 主要权限 |
-|------|--------|----------|
-| 录入 | `OPERATOR` | 创建业务单据、报工、上传原始单据 |
-| 审核 | `AUDITOR` | 包含录入权限，可确认/拒绝/取消单据、确认收货、确认发货、成品入库 |
-| 管理 | `ADMIN` | 包含审核权限，可管理人员、基础资料、删除附件和基础资料 |
+## 架构入口
 
-管理员登录后可进入“权限管理”，按角色为每个功能页配置“查、增、改、删”权限。管理员角色默认全开，避免误关权限管理入口。
+- [系统开发与理解手册](./docs/开发文档.md)
+- [系统结构图](./docs/architecture/系统结构图.md)
+- [系统时序图](./docs/architecture/系统时序图.md)
+- [数据库结构](./docs/architecture/数据库结构.md)
+- [MES-MRP-ERP 功能矩阵](./docs/architecture/MES-MRP-ERP功能矩阵.md)
+- [人员权限组与页面矩阵](./docs/architecture/人员权限组与页面矩阵.md)
+- [公共前端模块使用指南](./docs/minierp/公共前端模块使用指南.md)
+- [版本更新记录](./docs/releases/README.md)
 
----
+## AI 和附件
 
-## API 接口清单
-
-### 当前核心
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/api/stats/production` | 生产日报/产量统计 |
-| `GET` | `/api/materials?keyword=...` | 物料档案查询 |
-| `POST` | `/api/materials` | 创建物料档案 |
-| `GET` | `/api/stocks?keyword=...&type=material\|product` | 库存查询，物料库存会返回物料封面图片 |
-| `POST` | `/api/stocks` | 盘点调整（必须备注原因） |
-| `GET` | `/api/material-ins?keyword=...` | 来料记录查询 |
-| `GET` | `/api/orders?keyword=...` | 工单记录查询 |
-| `GET` | `/api/shipments?keyword=...` | 发货记录查询 |
-| `GET` | `/api/returns?keyword=...` | 退货记录查询 |
-
-### 隐藏高级模块
-
-派工和 BOM 成本 API 仍保留在代码中，用于后续恢复完整派工追踪和产品结构成本计算；当前轻量模式默认不在业务菜单中展示。
-
-### AI 分析
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `POST` | `/api/ai/analyze` | AI 分析占位接口，当前未启用 |
-
----
-
-## 核心设计原则
-
-1. **日报优先**：默认入口是生产日报，用于看每日产量、报废和生产批次。
-2. **库存准确**：物料档案、来料、发货、退货和库存余额是第一核心，库存调整必须备注原因并写入记录。
-3. **派工可隐藏**：工单可以记录生产计划和结果，但派工不作为轻量模式必走流程。
-4. **逐步扩展**：当日常流转稳定后，再打开派工、BOM 成本等更细的制造管理能力。
-
----
-
-## 工单流程测试
-
-```bash
-# 1. 创建工单
-curl -X POST http://localhost:3000/api/orders \
-  -H "Content-Type: application/json" \
-  -d '{"productId":"<产品ID>","planQty":100}'
-
-# 2. 确认工单（需要自行实现 PATCH /confirm，或在数据库改 status=CONFIRMED）
-
-# 3. 领料
-curl -X POST http://localhost:3000/api/orders/<工单ID>/pick \
-  -H "Content-Type: application/json" \
-  -d '{"items":[{"pickItemId":"<领料项ID>","actualQty":35,"pickedBy":"张三"}]}'
-
-# 4. 报工（按返回的 currentStepId）
-curl -X POST http://localhost:3000/api/orders/<工单ID>/reports \
-  -H "Content-Type: application/json" \
-  -d '{"stepId":"<工序ID>","workerName":"张三","goodQty":98,"badQty":2}'
-
-# 5. 取消工单（测试回退）
-curl -X PATCH http://localhost:3000/api/orders/<工单ID>/cancel \
-  -H "Content-Type: application/json" \
-  -d '{"reason":"客户取消订单"}'
-```
-
----
+- 系统内置应用级只读 AI 协作助手，工具受白名单和后端权限约束。
+- 单据可在新建时上传附件，AI 识别只生成字段建议/草稿回填，不自动确认业务事务。
+- PDF、图片和常用 Office 文件可使用自托管预览链路；其他文件仍可下载原件。
 
 ## 部署
 
-当前推荐使用单实例 Docker + SQLite 持久卷部署到 Coolify。数据库目录和上传附件目录必须挂载到主机，详细步骤见 [Coolify 部署说明](./docs/deployment/coolify.md)。
+当前推荐单实例 Docker + SQLite 持久卷部署到 Coolify：
 
----
+- `/app/data`：SQLite 数据库
+- `/app/public/uploads`：原始附件和派生预览
+- `/api/health`：健康检查
 
-## 下一步（Week 2）
-
-- 生产日报：补充按日期、产品、人员维度的日报录入和查询。
-- 物料库存：补齐库存流水查看、盘点和低库存预警。
-
-详见 `/开发文档/生产全流程ERP系统开发文档.md`。
+详见 [Coolify 部署说明](./docs/deployment/coolify.md)。PostgreSQL、对象存储和多租户是规划中的演进方向，不是当前运行事实。
