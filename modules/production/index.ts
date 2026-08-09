@@ -1,5 +1,7 @@
 export { default } from './ui/ProductionOrderModule'
 export type { ProductionOrderMode } from './contracts/production-order'
+export type { CreateProductionOrderInput, ProductionOrderLineInput } from './contracts/production-order-schema'
+export { buildProductionOrderGroupNo, buildProductionOrderNo } from './domain/production-order-numbering'
 export { default as DispatchPageModule } from './ui/DispatchPageModule'
 export { default as FlowTransferPageModule } from './ui/FlowTransferPageModule'
 export { default as ProductionEngineeringSectionPage, isProductionEngineeringSection, productionEngineeringSections } from './ProductionEngineeringSectionPage'
