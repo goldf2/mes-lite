@@ -1,121 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { prisma } from '@/lib/prisma'
+import { ZodError } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
-import { nextConfigurationSortOrder } from '@/lib/configuration-order'
+import { processCategories, processTemplateInputSchema } from '@/modules/production/contracts/production-engineering-schema'
+import {
+  createProcessTemplate,
+  listProcessTemplates,
+  ProductionEngineeringNotFoundError,
+  updateProcessTemplate,
+} from '@/modules/production/server/production-engineering-service'
 
 export const dynamic = 'force-dynamic'
-
-const categories = ['SAWING', 'DRILLING', 'TURNING', 'MILLING', 'GRINDING', 'HEAT_TREATMENT', 'SURFACE_TREATMENT', 'ASSEMBLY', 'INSPECTION', 'OTHER'] as const
-
-const templateSchema = z.object({
-  id: z.string().optional(),
-  code: z.string().min(1, '模板编码必填'),
-  name: z.string().min(1, '工艺名称必填'),
-  category: z.enum(categories),
-  defaultTime: z.number().int().nonnegative().optional(),
-  workstation: z.string().optional(),
-  description: z.string().optional(),
-  standardBatchQty: z.number().int().positive().default(1000),
-  setupTimeMinutes: z.number().nonnegative().default(0),
-  cycleTimeSeconds: z.number().nonnegative().default(0),
-  peopleCount: z.number().nonnegative().default(1),
-  laborRatePerHour: z.number().nonnegative().default(0),
-  machineCount: z.number().nonnegative().default(1),
-  machineRatePerHour: z.number().nonnegative().default(0),
-  energyCostPerHour: z.number().nonnegative().default(0),
-  consumableCostPerBatch: z.number().nonnegative().default(0),
-  yieldRate: z.number().positive().max(1).default(1),
-  materialIds: z.array(z.string()).default([]),
-})
-
-const include = {
-  materials: { select: { id: true, code: true, name: true } },
-} as const
 
 export async function GET() {
   const denied = await requireResourcePermission('system', 'read')
   if (denied) return denied
-  const templates = await prisma.processTemplate.findMany({
-    include,
-    orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
-  })
-  return NextResponse.json({ data: templates, categories })
+  return NextResponse.json({ data: await listProcessTemplates(), categories: processCategories })
 }
 
 export async function POST(req: NextRequest) {
+  const denied = await requireResourcePermission('system', 'create')
+  if (denied) return denied
   try {
-    const denied = await requireResourcePermission('system', 'create')
-    if (denied) return denied
-    const data = templateSchema.parse(await req.json())
-    const template = await prisma.$transaction(async (tx) => tx.processTemplate.create({
-      data: {
-        code: data.code,
-        name: data.name,
-        category: data.category,
-        defaultTime: data.defaultTime ?? null,
-        workstation: data.workstation || null,
-        description: data.description || null,
-        standardBatchQty: data.standardBatchQty,
-        setupTimeMinutes: data.setupTimeMinutes,
-        cycleTimeSeconds: data.cycleTimeSeconds,
-        peopleCount: data.peopleCount,
-        laborRatePerHour: data.laborRatePerHour,
-        machineCount: data.machineCount,
-        machineRatePerHour: data.machineRatePerHour,
-        energyCostPerHour: data.energyCostPerHour,
-        consumableCostPerBatch: data.consumableCostPerBatch,
-        yieldRate: data.yieldRate,
-        sortOrder: await nextConfigurationSortOrder(tx, 'processTemplates'),
-        materials: { connect: data.materialIds.map((id) => ({ id })) },
-      },
-      include,
-    }))
+    const template = await createProcessTemplate(processTemplateInputSchema.parse(await req.json()))
     await writeAuditLog(req, { action: 'CREATE', entityType: 'PROCESS_TEMPLATE', entityId: template.id, entityLabel: `${template.code} ${template.name}`, afterData: template })
     return NextResponse.json({ data: template }, { status: 201 })
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
-    console.error('Create process template error:', error)
-    return NextResponse.json({ error: '新增加工工艺模板失败，请检查编码是否重复' }, { status: 500 })
+    return processTemplateError(error, 'create')
   }
 }
 
 export async function PUT(req: NextRequest) {
+  const denied = await requireResourcePermission('system', 'update')
+  if (denied) return denied
   try {
-    const denied = await requireResourcePermission('system', 'update')
-    if (denied) return denied
-    const data = templateSchema.extend({ id: z.string().min(1) }).parse(await req.json())
-    const before = await prisma.processTemplate.findUnique({ where: { id: data.id }, include })
-    if (!before) return NextResponse.json({ error: '加工工艺模板不存在' }, { status: 404 })
-    const template = await prisma.processTemplate.update({
-      where: { id: data.id },
-      data: {
-        code: data.code,
-        name: data.name,
-        category: data.category,
-        defaultTime: data.defaultTime ?? null,
-        workstation: data.workstation || null,
-        description: data.description || null,
-        standardBatchQty: data.standardBatchQty,
-        setupTimeMinutes: data.setupTimeMinutes,
-        cycleTimeSeconds: data.cycleTimeSeconds,
-        peopleCount: data.peopleCount,
-        laborRatePerHour: data.laborRatePerHour,
-        machineCount: data.machineCount,
-        machineRatePerHour: data.machineRatePerHour,
-        energyCostPerHour: data.energyCostPerHour,
-        consumableCostPerBatch: data.consumableCostPerBatch,
-        yieldRate: data.yieldRate,
-        materials: { set: data.materialIds.map((id) => ({ id })) },
-      },
-      include,
-    })
+    const body = await req.json()
+    const id = typeof body.id === 'string' ? body.id : ''
+    if (!id) return NextResponse.json({ error: '参数错误', details: [{ message: '缺少加工工艺模板 ID' }] }, { status: 400 })
+    const { before, template } = await updateProcessTemplate(id, processTemplateInputSchema.parse(body))
     await writeAuditLog(req, { action: 'UPDATE', entityType: 'PROCESS_TEMPLATE', entityId: template.id, entityLabel: `${template.code} ${template.name}`, beforeData: before, afterData: template })
     return NextResponse.json({ data: template })
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
-    console.error('Update process template error:', error)
-    return NextResponse.json({ error: '更新加工工艺模板失败' }, { status: 500 })
+    return processTemplateError(error, 'update')
   }
+}
+
+function processTemplateError(error: unknown, operation: 'create' | 'update') {
+  if (error instanceof ZodError) return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
+  if (error instanceof ProductionEngineeringNotFoundError) return NextResponse.json({ error: error.message }, { status: 404 })
+  console.error(`${operation === 'create' ? 'Create' : 'Update'} process template error:`, error)
+  return NextResponse.json({ error: operation === 'create' ? '新增加工工艺模板失败，请检查编码是否重复' : '更新加工工艺模板失败' }, { status: 500 })
 }

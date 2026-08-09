@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 1485 行 | 已迁入物料领域；下一步按摘要、文档、BOM/工艺、成本和记录等稳定视图拆分 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 67 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置和运维工具 8 个模块；生产工程已形成 `contracts/client/model/ui` 分层 |
+| `modules/` | 69 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置和运维工具 8 个模块；生产工程已形成 `contracts/client/model/server/ui` 分层 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -455,7 +455,9 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `contracts/production-engineering.ts` 统一工艺模板、路线、工序与编辑表单契约；`client/production-engineering-api.ts` 封装工程主数据接口。
 - `model/production-engineering.ts` 集中工艺类别、默认表单、千件成本计算和两类搜索配置，页面不再复制工程规则。
 - `ProcessTemplatePage.tsx` 与 `ProcessRoutePage.tsx` 共用 `ProductionEngineeringPageShell`，继续复用公共资源页、高级搜索、卡片/列表、物料选择和弹窗。
-- `verify:production-engineering-modules` 阻止请求、成本模型和页面实现重新回流 `SystemPage.tsx`。
+- `contracts/production-engineering-schema.ts` 集中写入校验和默认值；`server/production-engineering-service.ts` 拥有事务、排序、物料兼容映射、单一默认路线和工序软删除规则。
+- `app/api/process-templates/route.ts` 与 `app/api/process-routes/route.ts` 分别收敛至 53 行和 58 行，只处理权限、请求解析、审计、错误与 HTTP 响应。
+- `verify:production-engineering-modules` 阻止请求、成本模型和页面实现重新回流 `SystemPage.tsx`；`verify:production-engineering-server` 同时校验 Schema、薄 API 边界，并支持在临时完整数据库中验证事务规则。
 
 ## 24. 自动模块边界守卫
 
