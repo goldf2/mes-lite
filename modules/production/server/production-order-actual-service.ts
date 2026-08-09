@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { employeeNamesSnapshot, resolveActiveEmployees } from '@/lib/employees'
+import { employeeNamesSnapshot, resolveActiveEmployees } from '@/modules/configuration'
 import type { CreateProductionOrderActualInput } from '../contracts/production-order-actual-schema'
 import {
   buildProductionActualNo,

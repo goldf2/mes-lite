@@ -5,3 +5,5 @@ export { default as DocumentCategorySettingsPage } from './ui/DocumentCategorySe
 export { default as EmployeePageModule } from './ui/EmployeePageModule'
 export { loadConfiguredUnits } from './client/reference-data-api'
 export type { ConfiguredUnit } from './contracts/reference-data'
+export { employeeNamesSnapshot } from './domain/employee-rules'
+export { resolveActiveEmployees } from './server/employee-reference-service'

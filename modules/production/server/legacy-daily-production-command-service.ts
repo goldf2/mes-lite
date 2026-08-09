@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { resolveInventoryLocation } from '@/lib/inventory'
-import { employeeNamesSnapshot, resolveActiveEmployees } from '@/lib/employees'
+import { employeeNamesSnapshot, resolveActiveEmployees } from '@/modules/configuration'
 import type { LegacyDailyProductionReportInput } from '../contracts/legacy-daily-production-schema'
 import { LegacyDailyProductionError } from '../domain/legacy-daily-production-errors'
 import {
