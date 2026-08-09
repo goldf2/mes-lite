@@ -82,7 +82,8 @@ assert.match(applicationNavigationSource, /primaryNavigationItems/, '公共应�
 assert.match(pageRendererRegistrySource, /import\('\@\/modules\/materials'\)/, '物料页面必须通过 materials 模块公开出口加载')
 assert.match(pageRendererRegistrySource, /import\('\@\/modules\/bom'\)/, 'BOM 全览必须通过 bom 模块公开出口加载')
 assert.match(pageRendererRegistrySource, /import\('\@\/modules\/documents'\)/, '作业文档必须通过 documents 模块公开出口加载')
-assert.doesNotMatch(pageRendererRegistrySource, /import\('\.\.\/(?:MaterialPage|MaterialPanoramaPage|BomOverviewPage|WorkInstructionPage)'\)/, '页面注册层不得越过领域公开出口加载领域页面')
+assert.match(pageRendererRegistrySource, /import\('\@\/modules\/receiving'\)/, '来料管理必须通过 receiving 模块公开出口加载')
+assert.doesNotMatch(pageRendererRegistrySource, /import\('\.\.\/(?:MaterialPage|MaterialPanoramaPage|BomOverviewPage|WorkInstructionPage|MaterialInPage)'\)/, '页面注册层不得越过领域公开出口加载领域页面')
 assert.match(workspacePageHostSource, /renderRegisteredWorkspacePage/, '页面宿主必须通过统一渲染注册表装配页面')
 for (const rendererKey of rendererKeys) {
   assert.match(pageRendererRegistrySource, new RegExp(`(?:['\"]${rendererKey}['\"]|${rendererKey})\\s*:`), `渲染注册表缺少 ${rendererKey}`)

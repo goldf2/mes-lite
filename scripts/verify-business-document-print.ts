@@ -42,7 +42,7 @@ for (const kind of ['material-in', 'sales-order', 'shipment', 'return', 'flow-tr
 assert.match(routeSource, /SYSTEM_GENERATED_PDF/, '打印文件必须保存为系统生成附件')
 
 const creationSources = [
-  'app/components/MaterialInPage.tsx',
+  'modules/receiving/ui/MaterialInPage.tsx',
   'app/components/SalesOrderPage.tsx',
   'app/components/ShipmentPage.tsx',
   'app/components/ReturnPage.tsx',

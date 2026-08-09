@@ -12,7 +12,7 @@ function FeaturePageLoading() {
   return <AppLoadingIndicator label="正在加载页面..." />
 }
 
-const MaterialInPage = dynamic(() => import('../MaterialInPage'), { loading: FeaturePageLoading })
+const MaterialInPage = dynamic(() => import('@/modules/receiving'), { loading: FeaturePageLoading })
 const DispatchPage = dynamic(() => import('../DispatchPage'), { loading: FeaturePageLoading })
 const SalesOrderPage = dynamic(() => import('../SalesOrderPage'), { loading: FeaturePageLoading })
 const ShipmentPage = dynamic(() => import('../ShipmentPage'), { loading: FeaturePageLoading })

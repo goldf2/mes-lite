@@ -23,6 +23,8 @@ export default function SearchableSelect({
   allowClear = false,
   className = '',
   renderOption,
+  onSearch,
+  searchHint = '可输入关键词筛选',
 }: {
   value: string
   options: SearchableSelectOption[]
@@ -33,6 +35,8 @@ export default function SearchableSelect({
   allowClear?: boolean
   className?: string
   renderOption?: (option: SearchableSelectOption) => ReactNode
+  onSearch?: (keyword: string) => void | Promise<void>
+  searchHint?: string
 }) {
   const listboxId = useId()
   const [query, setQuery] = useState('')
@@ -56,6 +60,14 @@ export default function SearchableSelect({
   useEffect(() => {
     if (activeIndex >= filtered.length) setActiveIndex(filtered.length - 1)
   }, [activeIndex, filtered.length])
+
+  useEffect(() => {
+    if (!open || !onSearch) return
+    const timer = window.setTimeout(() => {
+      void onSearch(query.trim())
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [onSearch, open, query])
 
   const choose = (nextValue: string) => {
     onChange(nextValue)
@@ -144,7 +156,7 @@ export default function SearchableSelect({
               {renderOption ? renderOption(option) : option.label}
             </button>
           ))}
-          <div className="border-t border-gray-100 px-3 py-2 text-xs text-gray-400">可输入关键词筛选</div>
+          <div className="border-t border-gray-100 px-3 py-2 text-xs text-gray-400">{searchHint}</div>
         </div>
       )}
     </div>

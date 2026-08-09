@@ -77,7 +77,6 @@ const legacyRootPages = new Set([
   'EmployeePage.tsx',
   'EquipmentPage.tsx',
   'FlowTransferPage.tsx',
-  'MaterialInPage.tsx',
   'OperatorPage.tsx',
   'PermissionPage.tsx',
   'ReturnPage.tsx',
@@ -94,7 +93,7 @@ for (const page of rootPages) {
 }
 
 const pageSizeBaselines: Record<string, number> = {
-  'app/components/MaterialInPage.tsx': 1679,
+  'modules/receiving/ui/MaterialInPage.tsx': 800,
   'modules/documents/ui/WorkInstructionPage.tsx': 650,
   'app/components/StatsPage.tsx': 936,
   'modules/inventory/ui/StockPageModule.tsx': 853,

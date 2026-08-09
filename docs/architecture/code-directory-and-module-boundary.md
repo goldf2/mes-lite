@@ -15,7 +15,7 @@
 
 ## 2. 当前代码扫描结论
 
-首次扫描基线：`origin/main`，提交 `5c78233`。当前增量复核已包含应用壳状控制器第四阶段拆分。
+首次扫描基线：`origin/main`，提交 `5c78233`。当前增量复核已包含来料领域垂直拆分。
 
 | 现状 | 扫描结果 | 判断 |
 | --- | ---: | --- |
@@ -23,15 +23,15 @@
 | `app/HomeApp.tsx` | 522 行 | 权限菜单、工作区过滤、页面连续性、偏好和桌面导航状态均已提取；当前只承担应用壳 JSX 装配与少量全局弹层状态 |
 | `app/components/shell/` | 9 个文件 | 已建立账号菜单、导航图标、页面宿主、渲染适配器和四类状态控制器的公共应用壳边界 |
 | `lib/page-registry.ts` | 38 个页面定义 | 页面元数据、权限资源、工作区入口、系统分区、打开方式和渲染键已集中为单一事实源 |
-| `app/components/` 根目录 | 63 个文件 | 物料、全景和 BOM 全览已迁出；公共弹窗只保留一个全屏切换组件，其他领域页面、业务弹窗和系统页面仍继续按增量原则收敛 |
+| `app/components/` 根目录 | 61 个文件 | 物料、全景、BOM 全览和来料页已迁出；公共弹窗只保留一个全屏切换组件，其他领域页面、业务弹窗和系统页面仍继续按增量原则收敛 |
 | `modules/materials/ui/MaterialPage.tsx` | 887 行 | 数据契约、HTTP client、详情、编辑、导入、集合视图、页内选项、显示偏好和 BOM 草稿职责均已拆出；当前只保留物料/BOM 页面协调 |
 | `SystemPage.tsx` | 31 行 | 已收敛为业务配置、系统设置、运维工具和生产工程的纯领域分派兼容层 |
-| `MaterialInPage.tsx` | 1679 行 | 来料页面和录入流程高度集中，应迁入来料领域 |
+| `modules/receiving/ui/MaterialInPage.tsx` | 684 行 | 集合、编辑和详情任务已拆出；主页只协调查询、分页与任务弹窗 |
 | `modules/documents/ui/WorkInstructionPage.tsx` | 591 行 | 只保留文档读写、搜索、分页与子模块状态协调；集合、表单、详情/附件和全屏查看已分离 |
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 1485 行 | 已迁入物料领域；下一步按摘要、文档、BOM/工艺、成本和记录等稳定视图拆分 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 85 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具和文档 9 个模块；生产工程、物料与文档已形成包含服务端规则的垂直分层 |
+| `modules/` | 95 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档和来料 10 个模块；生产工程、物料、文档与来料已形成包含服务端规则的垂直分层 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -196,7 +196,7 @@ modules/<domain>/domain
 | --- | --- |
 | `MaterialPage.tsx`、`MaterialPanoramaPage.tsx`、`app/api/materials` | `modules/materials` |
 | `BomOverviewPage.tsx`、BOM 编辑区、`app/api/boms`、`bom-*` | `modules/bom` |
-| `MaterialInPage.tsx`、`app/api/material-ins`、`material-in-*` | `modules/inbound` |
+| `MaterialInPage.tsx`、`app/api/material-ins`、`material-in-*` | `modules/receiving` |
 | 生产订单、派工、班后实绩、流程转移 | `modules/production` |
 | `WorkInstructionPage.tsx`、文档类别、在线正文 | `modules/documents` |
 | 附件上传、缩略图、Office/PDF 预览、存储适配 | `modules/attachments`；通用文件底座可下沉 `lib/files` |
@@ -405,7 +405,7 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `HomeApp.tsx` 不再直接读写页面连续性、工作区偏好、桌面导航存储或权限菜单组装，行数从 1233 行降至 522 行。
 - `verify:shell-controllers`、`verify:page-modules`、`verify:workspace-navigation` 和 `verify:responsive-navigation` 阻止这些职责重新回流应用壳，并把 `HomeApp.tsx` 的当前规模上限固定为 600 行。
 
-下一步应继续把大型来料、文档和物料全景页面按稳定业务视图拆分，并逐步把巨型 API 中的事务规则迁入领域服务；页面注册与菜单分类仍只使用现有单一事实源。
+下一步应继续拆分物料全景、统计、库存和物料协调页的稳定业务视图，并逐步把剩余巨型 API 中的事务规则迁入领域服务；页面注册与菜单分类仍只使用现有单一事实源。
 
 ## 17. 物料编辑与导入状态归属
 
@@ -464,7 +464,7 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `verify:module-boundaries` 检查所有领域模块都有公开 `index.ts`，跨模块调用不得导入其他模块内部路径。
 - 模块 UI 禁止导入 Prisma 或 `server/`，公共框架禁止反向导入领域模块，API 路由禁止导入 UI。
 - 现有超过 800 行的页面和超过 300 行的路由作为递减基线：允许拆小，不允许继续增长；新增文件一旦越过触发线直接失败。
-- `app/components/` 根目录的 16 个领域页面被登记为待迁移存量，不允许再新增根级 `*Page.tsx`。
+- `app/components/` 根目录的 14 个领域页面被登记为待迁移存量，不允许再新增根级 `*Page.tsx`。
 
 ## 25. 物料服务端模块归属
 
@@ -486,3 +486,13 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `server/work-instruction-command-service.ts` 拥有上海时区自动标题、结构化正文规范化、成品/类别/工作中心校验、关联替换和归档事务。
 - `app/api/work-instructions/route.ts` 从 551 行降至 78 行并移出巨型路由基线；文档主页面从 1497 行降至 591 行，已移出 800 行巨型页面基线。
 - `verify:document-server` 要求主页不超过 650 行且必须编排上述四个子模块，同时在完整临时 SQLite 库中验证文档交易规则，不读写服务器正式数据。
+
+## 27. 来料垂直模块归属
+
+- `modules/receiving` 通过唯一 `index.ts` 向页面注册层公开来料页；根级领域页面从 15 个降至 14 个。
+- `contracts/material-in.ts` 与 `contracts/material-in-schema.ts` 分别拥有前端数据契约和服务端请求约束，页面与路由不再重复声明来料结构。
+- `client/material-in-api.ts` 封装来料查询、创建、归档以及供应商、物料和库位请求，来料页面不再直接调用 `fetch`。
+- `MaterialInCollectionView.tsx`、`MaterialInEditorDialog.tsx` 与 `MaterialInDetailDialog.tsx` 分别拥有集合、编辑和详情用户任务，并继续调用公共页面骨架、弹窗、附件、业务单据详情与异步可搜索选择器。
+- `server/material-in-service.ts` 拥有多关键词查询、多明细原子创建、数量/计量/计价换算和归档规则；`app/api/material-ins/route.ts` 只保留权限、HTTP 参数、审计与错误映射。
+- `MaterialInPage.tsx` 从 1,679 行降至 684 行，`app/api/material-ins/route.ts` 从 295 行降至 90 行；两者均已退出对应巨型基线。
+- `verify:receiving-module` 锁定薄 API、领域服务、公共异步选择器和页面规模，并能在临时完整 SQLite 库中验证创建、查询、归档和无效供应商规则，不读写服务器正式数据。

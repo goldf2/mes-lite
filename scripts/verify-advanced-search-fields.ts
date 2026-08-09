@@ -39,7 +39,7 @@ const advancedSearchSource = readFileSync(join(root, 'app/components/resource/Re
 const unifiedSearchPages = [
   'modules/bom/ui/BomOverviewPage.tsx',
   'app/components/FlowTransferPage.tsx',
-  'app/components/MaterialInPage.tsx',
+  'modules/receiving/ui/MaterialInPage.tsx',
   'modules/materials/ui/MaterialPage.tsx',
   'app/components/PermissionPage.tsx',
   'app/components/ReturnPage.tsx',

@@ -29,20 +29,21 @@ assert.match(recognitionRouteSource, /attachment\.ownerId !== input\.ownerId/, '
 assert.match(recognitionRouteSource, /score >= 0\.7/, '低置信度字段不得自动回填')
 assert.match(recognitionRouteSource, /note: '未记录凭据正文和识别字段内容'/, 'AI 识别审计不得保存凭据正文或识别字段')
 
-const ownerPageFiles: Array<[string, string]> = [
-  ['app/components/MaterialInPage.tsx', 'MATERIAL_IN'],
-  ['modules/production/ui/ProductionOrderModule.tsx', 'PRODUCTION_ORDER'],
-  ['app/components/DispatchPage.tsx', 'DISPATCH'],
-  ['app/components/SalesOrderPage.tsx', 'SALES_ORDER'],
-  ['app/components/ShipmentPage.tsx', 'SHIPMENT'],
-  ['app/components/ReturnPage.tsx', 'RETURN_ORDER'],
+const ownerPageFiles: Array<[string[], string]> = [
+  [['modules/receiving/ui/MaterialInPage.tsx', 'modules/receiving/ui/MaterialInEditorDialog.tsx'], 'MATERIAL_IN'],
+  [['modules/production/ui/ProductionOrderModule.tsx'], 'PRODUCTION_ORDER'],
+  [['app/components/DispatchPage.tsx'], 'DISPATCH'],
+  [['app/components/SalesOrderPage.tsx'], 'SALES_ORDER'],
+  [['app/components/ShipmentCreateDialog.tsx'], 'SHIPMENT'],
+  [['app/components/ReturnPage.tsx'], 'RETURN_ORDER'],
 ]
 
-for (const [file, ownerType] of ownerPageFiles) {
-  const source = readFileSync(join(root, file), 'utf8')
-  assert.match(source, /DraftDocumentAttachmentPanel/, `${file} 新建流程必须复用公共暂存附件面板`)
-  assert.match(source, new RegExp(`ownerType=["']${ownerType}["']`), `${file} 必须声明正确的原始凭据归属类型`)
-  assert.match(source, new RegExp(`finalizeDraftDocumentAttachments\\(\\{[\\s\\S]*?ownerType: ["']${ownerType}["']`), `${file} 创建成功后必须绑定暂存附件`)
+for (const [files, ownerType] of ownerPageFiles) {
+  const source = files.map((file) => readFileSync(join(root, file), 'utf8')).join('\n')
+  const label = files.join(' + ')
+  assert.match(source, /DraftDocumentAttachmentPanel/, `${label} 新建流程必须复用公共暂存附件面板`)
+  assert.match(source, new RegExp(`ownerType=["']${ownerType}["']`), `${label} 必须声明正确的原始凭据归属类型`)
+  assert.match(source, new RegExp(`finalizeDraftDocumentAttachments\\(\\{[\\s\\S]*?ownerType: ["']${ownerType}["']`), `${label} 创建成功后必须绑定暂存附件`)
 }
 
 console.log(`单据原始凭据校验通过：${ownerPageFiles.length} 类核心单据支持新建时上传、AI 高置信度回填、创建后绑定和取消清理。`)
