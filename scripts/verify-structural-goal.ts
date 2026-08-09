@@ -60,4 +60,11 @@ for (const moduleName of moduleDirectories) {
   assert.ok(existsSync(join(root, 'modules', moduleName, 'index.ts')), `modules/${moduleName} 缺少公开入口`)
 }
 
+const tailwindConfig = source(join(root, 'tailwind.config.ts'))
+assert.match(
+  tailwindConfig,
+  /['"]\.\/modules\/\*\*\/\*\.\{js,ts,jsx,tsx,mdx\}['"]/,
+  'Tailwind 必须扫描 modules 目录，否则领域 UI 迁移后会丢失样式',
+)
+
 console.log(`结构目标验收通过：${moduleDirectories.length} 个模块、${routeFiles.length} 条薄 API、0 条路由直连 Prisma、0 个 UI 直接请求、0 个超限页面/路由。`)
