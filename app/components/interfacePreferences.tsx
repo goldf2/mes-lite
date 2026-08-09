@@ -9,6 +9,7 @@ export const desktopNavigationModeStorageKey = 'mes-lite.layout.desktopNavigatio
 export const desktopNavigationDisplayModeStorageKey = 'mes-lite.layout.desktopNavigationDisplayMode'
 export const workspaceLayoutStorageKey = 'mes-lite.layout.workspaceMode'
 export const desktopNavigationBehaviorStorageKey = 'mes-lite.layout.desktopNavigationBehavior'
+export const siblingNavigationStorageKey = 'mes-lite.preferences.siblingNavigation'
 
 export type WorkspaceLayoutMode = 'sidebar' | 'canvas'
 export type DesktopNavigationBehavior = 'persistent' | 'auto-hide'
@@ -102,6 +103,38 @@ export function useWorkspaceLayoutPreference() {
   }, [])
 
   return [value, update] as const
+}
+
+function readSiblingNavigationPreference() {
+  if (typeof window === 'undefined') return true
+  return window.localStorage.getItem(siblingNavigationStorageKey) !== 'off'
+}
+
+export function setSiblingNavigationPreference(enabled: boolean) {
+  window.localStorage.setItem(siblingNavigationStorageKey, enabled ? 'on' : 'off')
+  window.dispatchEvent(new CustomEvent(preferenceChangeEvent, { detail: { siblingNavigation: enabled } }))
+}
+
+export function useSiblingNavigationPreference() {
+  const [enabled, setEnabled] = useState(readSiblingNavigationPreference)
+
+  useEffect(() => {
+    const sync = () => setEnabled(readSiblingNavigationPreference())
+    sync()
+    window.addEventListener('storage', sync)
+    window.addEventListener(preferenceChangeEvent, sync)
+    return () => {
+      window.removeEventListener('storage', sync)
+      window.removeEventListener(preferenceChangeEvent, sync)
+    }
+  }, [])
+
+  const update = useCallback((nextValue: boolean) => {
+    setEnabled(nextValue)
+    setSiblingNavigationPreference(nextValue)
+  }, [])
+
+  return [enabled, update] as const
 }
 
 function readModalGlassPreference() {

@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom'
 import { Boxes, Menu, PanelLeftOpen, PanelRightOpen, PencilLine, Pin, PinOff, Search, X } from 'lucide-react'
 import AuthGate, { CurrentOperator, OperatorBadge } from './components/AuthGate'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
-import { InterfacePreferenceSync, preferenceChangeEvent, readDesktopNavigationPreference, useWorkspaceLayoutPreference } from './components/interfacePreferences'
+import { InterfacePreferenceSync, preferenceChangeEvent, readDesktopNavigationPreference, useSiblingNavigationPreference, useWorkspaceLayoutPreference } from './components/interfacePreferences'
 import AiAssistantMark from './components/AiAssistantMark'
 import AppLoadingIndicator from './components/AppLoadingIndicator'
 import { AllFunctionsPage } from './components/WorkspacePages'
@@ -33,10 +33,11 @@ import PageModuleBoundary from './components/page-modules/PageModuleBoundary'
 import TopBarPortal from './components/TopBarPortal'
 import DesktopNavigation, {
   type DesktopNavigationDisplayMode,
-  type DesktopNavigationGroup,
   type DesktopNavigationMode,
 } from './components/navigation/DesktopNavigation'
 import DesktopTopNavigation from './components/navigation/DesktopTopNavigation'
+import MobileSiblingNavigation from './components/navigation/MobileSiblingNavigation'
+import type { NavigationGroup, NavigationItem } from './components/navigation/NavigationModel'
 import WorkspaceDomainTabs from './components/navigation/WorkspaceDomainTabs'
 import useWorkspaceNavigation from './components/navigation/useWorkspaceNavigation'
 import PageQrCodeButton from './components/PageQrCodeButton'
@@ -348,6 +349,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [desktopNavigationMode, setDesktopNavigationMode] = useState<DesktopNavigationMode>('accordion')
   const [desktopNavigationDisplayMode, setDesktopNavigationDisplayMode] = useState<DesktopNavigationDisplayMode>('icon-label')
   const [workspaceLayoutPreference, setWorkspaceLayoutPreference] = useWorkspaceLayoutPreference()
+  const [siblingNavigationEnabled] = useSiblingNavigationPreference()
   const [transientDesktopNavigationOpen, setTransientDesktopNavigationOpen] = useState(false)
   const [desktopSidebarWidth, setDesktopSidebarWidth] = useState(defaultDesktopSidebarWidth)
   const [desktopSplitSidebarWidth, setDesktopSplitSidebarWidth] = useState(defaultDesktopSplitSidebarWidth)
@@ -407,8 +409,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }))
     .filter((group) => group.items.length > 0)
     .sort((left, right) => left.workspaceOrder - right.workspaceOrder)
-  const baseMobileNavItems = navItems.slice(0, 4)
-  const mobilePrimaryItems = baseMobileNavItems
   const navigationOrderStorageKey = `mes-lite.nav.order.${activeWorkspace}`
   const readableNavigationSignature = readableBusinessNavItems.map((item) => `${item.key}:${item.label}`).join('|')
   const activeMaterialSectionVisible = materialSectionItems.some((item) => item.key === materialSection)
@@ -955,7 +955,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
 
   const splitNavigationVisible = desktopNavigationMode === 'split' && wideDesktopNavigation
 
-  const desktopNavigationGroups: DesktopNavigationGroup[] = visibleBusinessGroups.map((group) => {
+  const navigationGroups: NavigationGroup[] = visibleBusinessGroups.map((group) => {
     const firstItem = group.tabs.map((key) => group.items.find((item) => item.key === key)).find(Boolean)
     const groupActive = !activeSystemTab && group.key === activeBusinessGroupKey
     const items = group.key === 'materials'
@@ -966,6 +966,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             label: section.label,
             active: tab === 'materials' && materialSection === section.key,
             icon: <SectionIcon aria-hidden="true" className="h-4 w-4 shrink-0" />,
+            shortcutKey: 'materials',
             onClick: () => navigateToTab('materials', section.key),
           }
         })
@@ -975,6 +976,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             id: item.key,
             label: item.label,
             active: tab === item.key || (item.key === 'orders' && (tab === 'create' || tab === 'detail')),
+            shortcutKey: item.key,
             draggable: true,
             dragState: draggedIndex === index ? 'dragging' as const : dragOverIndex === index ? 'target' as const : 'idle' as const,
             onDragStart: (event: React.DragEvent<HTMLButtonElement>) => handleDragStart(event, index),
@@ -998,7 +1000,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   })
 
   if (readableSystemNavItems.length > 0) {
-    desktopNavigationGroups.push({
+    navigationGroups.push({
       id: 'account',
       label: '账号与权限',
       icon: <MenuIcon icon="operators" />,
@@ -1007,15 +1009,35 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         id: item.key,
         label: item.label,
         active: tab === item.key,
+        shortcutKey: item.key,
         onClick: () => navigateToTab(item.key),
       })),
       onClick: () => navigateToTab(readableSystemNavItems[0].key),
     })
   }
-  desktopNavigationGroups.sort((left, right) => (
+  navigationGroups.sort((left, right) => (
     Number(configuredGroupOrder.get(left.id as BusinessNavGroupKey) ?? 10000)
     - Number(configuredGroupOrder.get(right.id as BusinessNavGroupKey) ?? 10000)
   ))
+  const activeNavigationGroup = navigationGroups.find((group) => group.active)
+  const navigationItemByShortcutKey = new Map<string, NavigationItem>()
+  for (const group of navigationGroups) {
+    for (const item of group.items) {
+      if (item.shortcutKey && !navigationItemByShortcutKey.has(item.shortcutKey)) {
+        navigationItemByShortcutKey.set(item.shortcutKey, item)
+      }
+    }
+  }
+  const baseMobileNavItems = navItems.slice(0, 4)
+  const mobilePrimaryItems = baseMobileNavItems.map((favorite) => {
+    const navigationItem = navigationItemByShortcutKey.get(favorite.key)
+    return {
+      key: favorite.key,
+      label: navigationItem?.label || favorite.label,
+      active: navigationItem?.active ?? tab === favorite.key,
+      onClick: navigationItem?.onClick || (() => navigateToTab(favorite.key)),
+    }
+  })
 
   return (
     <div
@@ -1080,7 +1102,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             />
           </div>
         )}
-        {workspaceLayoutPreference.layout === 'canvas' && <DesktopTopNavigation groups={desktopNavigationGroups} />}
+        {workspaceLayoutPreference.layout === 'canvas' && <DesktopTopNavigation groups={navigationGroups} />}
         <div
           id="topbar-actions-desktop"
           aria-label="页面搜索、筛选和工具"
@@ -1191,7 +1213,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             <ControlTooltip label={autoHideDesktopNavigation ? '固定导航' : '改为自动隐藏'} />
           </button>
         </div>
-        <DesktopNavigation mode={desktopNavigationMode} groups={desktopNavigationGroups} displayMode={desktopNavigationDisplayMode} />
+        <DesktopNavigation mode={desktopNavigationMode} groups={navigationGroups} displayMode={desktopNavigationDisplayMode} />
         <div
           role="separator"
           aria-label="调整左侧辅助功能区宽度"
@@ -1295,28 +1317,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           definition={activePageModule}
           toolbarProvided={tab === 'orders' || tab === 'stocks' || tab === 'create' || tab === 'detail' || ['dashboard', 'sawingCost', 'scanPrint', 'dataTools'].includes(activePageModule.key)}
         >
-        {tab === 'materials' && materialSectionItems.length > 1 && (
-          <nav
-            aria-label="物料与 BOM 二级菜单"
-            className="mb-4 flex shrink-0 gap-1 overflow-x-auto border-b border-gray-200 lg:hidden"
-          >
-            {materialSectionItems.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                aria-current={materialSection === item.key ? 'page' : undefined}
-                onClick={() => setMaterialSection(item.key)}
-                className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-medium transition ${
-                  materialSection === item.key
-                    ? 'border-blue-600 text-blue-700'
-                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-800'
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </nav>
-        )}
+        {siblingNavigationEnabled && <MobileSiblingNavigation group={activeNavigationGroup} />}
 
         {message && (
           createPortal(
@@ -1495,15 +1496,13 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                   底部常用入口
                 </div>
                 <div>
-                  {baseMobileNavItems.map((item, index) => (
+                  {mobilePrimaryItems.map((item, index) => (
                     <div key={item.key} className="flex min-h-12 items-center gap-2 border-b border-gray-100 py-1">
                       <button
                         type="button"
-                        onClick={() => {
-                          navigateToTab(item.key)
-                        }}
+                        onClick={item.onClick}
                         className={`flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-2 text-left text-sm font-medium ${
-                          tab === item.key ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
+                          item.active ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
                         }`}
                       >
                         <MenuIcon icon={item.key} />
@@ -1534,41 +1533,41 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 </div>
               </section>
 
-              {visibleBusinessGroups.map((group) => (
-                <section key={group.key} aria-label={group.label} className="pt-2">
+              {navigationGroups.map((group) => (
+                <section key={group.id} aria-label={group.label} className="pt-2">
                   <div className="border-b border-gray-200 py-3 text-sm font-semibold text-gray-900">
                     {group.label}
                   </div>
                   <div>
-                    {group.items.map((item) => {
-                      const isFavorite = baseMobileNavItems.some((favorite) => favorite.key === item.key)
+                    {group.items.map((item, itemIndex) => {
+                      const favoriteKey = item.shortcutKey as TabType | undefined
+                      const managesFavorite = Boolean(favoriteKey) && group.items.findIndex((candidate) => candidate.shortcutKey === favoriteKey) === itemIndex
+                      const isFavorite = Boolean(favoriteKey && baseMobileNavItems.some((favorite) => favorite.key === favoriteKey))
                       return (
-                        <div key={item.key} className="flex min-h-12 items-center gap-2 border-b border-gray-100 py-1">
+                        <div key={item.id} className="flex min-h-12 items-center gap-2 border-b border-gray-100 py-1">
                           <button
                             type="button"
-                            onClick={() => {
-                              navigateToTab(item.key)
-                            }}
+                            onClick={item.onClick}
                             className={`flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-2.5 text-left text-sm font-medium ${
-                              tab === item.key ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
+                              item.active ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
                             }`}
                           >
-                            <MenuIcon icon={item.key} />
+                            {item.icon || <MenuIcon icon={favoriteKey || item.id} />}
                             <span className="truncate">{item.label}</span>
                           </button>
-                          {isFavorite ? (
+                          {managesFavorite && isFavorite ? (
                             <span className="shrink-0 px-2 py-1 text-xs font-medium text-blue-600">
                               常用
                             </span>
-                          ) : (
+                          ) : managesFavorite && favoriteKey ? (
                             <button
                               type="button"
-                              onClick={() => setMobileFavorite(item.key)}
+                              onClick={() => setMobileFavorite(favoriteKey)}
                               className="shrink-0 rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100"
                             >
                               设为常用
                             </button>
-                          )}
+                          ) : null}
                         </div>
                       )
                     })}
@@ -1602,11 +1601,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             <button
               key={item.key}
               type="button"
-              onClick={() => {
-                navigateToTab(item.key)
-              }}
+              onClick={item.onClick}
               className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-medium transition ${
-                tab === item.key ? 'bg-blue-600 text-white shadow-sm [&_span:first-child]:bg-white/15 [&_span:first-child]:text-white' : 'text-gray-600 hover:bg-gray-100'
+                item.active ? 'bg-blue-600 text-white shadow-sm [&_span:first-child]:bg-white/15 [&_span:first-child]:text-white' : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
               <MenuIcon icon={item.key} />

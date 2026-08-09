@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, Search, X } from 'lucide-react'
+import type { NavigationGroup, NavigationItem } from './NavigationModel'
 
 export type DesktopNavigationMode = 'accordion' | 'split'
 export type DesktopNavigationDisplayMode = 'icon' | 'icon-label' | 'label'
@@ -18,30 +19,7 @@ function clampPrimaryRailWidth(width: number, displayMode: DesktopNavigationDisp
   return Math.min(config.maxWidth, Math.max(config.minWidth, width))
 }
 
-export interface DesktopNavigationItem {
-  id: string
-  label: string
-  active: boolean
-  icon?: ReactNode
-  draggable?: boolean
-  dragState?: 'idle' | 'dragging' | 'target'
-  onClick: () => void
-  onDragStart?: (event: DragEvent<HTMLButtonElement>) => void
-  onDragOver?: (event: DragEvent<HTMLButtonElement>) => void
-  onDragLeave?: () => void
-  onDrop?: (event: DragEvent<HTMLButtonElement>) => void
-}
-
-export interface DesktopNavigationGroup {
-  id: string
-  label: string
-  icon: ReactNode
-  active: boolean
-  items: DesktopNavigationItem[]
-  onClick: () => void
-}
-
-function NavigationItemButton({ item, showIcon = false }: { item: DesktopNavigationItem; showIcon?: boolean }) {
+function NavigationItemButton({ item, showIcon = false }: { item: NavigationItem; showIcon?: boolean }) {
   return (
     <button
       type="button"
@@ -101,7 +79,7 @@ function NavigationSearch({
   )
 }
 
-function NavigationSearchResults({ groups }: { groups: DesktopNavigationGroup[] }) {
+function NavigationSearchResults({ groups }: { groups: NavigationGroup[] }) {
   if (groups.length === 0) {
     return <div className="px-3 py-8 text-center text-sm text-gray-500" role="status">没有匹配的功能</div>
   }
@@ -126,7 +104,7 @@ function AccordionNavigation({
   onQueryChange,
   displayMode,
 }: {
-  groups: DesktopNavigationGroup[]
+  groups: NavigationGroup[]
   query: string
   onQueryChange: (value: string) => void
   displayMode: DesktopNavigationDisplayMode
@@ -177,8 +155,8 @@ function SplitNavigation({
   onPrimaryRailResizeBy,
   displayMode,
 }: {
-  groups: DesktopNavigationGroup[]
-  searchGroups: DesktopNavigationGroup[]
+  groups: NavigationGroup[]
+  searchGroups: NavigationGroup[]
   query: string
   onQueryChange: (value: string) => void
   primaryRailWidth: number
@@ -271,7 +249,7 @@ export default function DesktopNavigation({
   displayMode,
 }: {
   mode: DesktopNavigationMode
-  groups: DesktopNavigationGroup[]
+  groups: NavigationGroup[]
   displayMode: DesktopNavigationDisplayMode
 }) {
   const [query, setQuery] = useState('')
