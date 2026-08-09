@@ -4,7 +4,7 @@ import { MoreHorizontal, Search, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import useDismissibleSearchPopup from '../useDismissibleSearchPopup'
 import ControlTooltip from '../ControlTooltip'
-import type { DesktopNavigationGroup } from './DesktopNavigation'
+import type { NavigationGroup } from './NavigationModel'
 
 type OpenPanel = { type: 'group'; id: string } | { type: 'more' } | { type: 'search' } | null
 
@@ -13,7 +13,7 @@ const GROUP_PANEL_WIDTH_PX = 384
 const WIDE_PANEL_WIDTH_PX = 544
 const PANEL_EDGE_GAP_PX = 8
 
-export default function DesktopTopNavigation({ groups }: { groups: DesktopNavigationGroup[] }) {
+export default function DesktopTopNavigation({ groups }: { groups: NavigationGroup[] }) {
   const [openPanel, setOpenPanel] = useState<OpenPanel>(null)
   const [query, setQuery] = useState('')
   const [availableWidth, setAvailableWidth] = useState(720)

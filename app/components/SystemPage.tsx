@@ -3,7 +3,7 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { Columns2, Eye, EyeOff, LayoutPanelLeft, MousePointer2, PanelRightOpen, Pin, PlugZap, Rows3, Save, SlidersHorizontal } from 'lucide-react'
 import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
-import { useDesktopNavigationPreference, useModalGlassPreference, useWorkspaceLayoutPreference } from './interfacePreferences'
+import { useDesktopNavigationPreference, useModalGlassPreference, useSiblingNavigationPreference, useWorkspaceLayoutPreference } from './interfacePreferences'
 import MaterialChoiceSearch from './MaterialChoiceSearch'
 import { SearchFieldWithPresets } from './SavedSearchPresets'
 import useCompactViewport from './useCompactViewport'
@@ -522,6 +522,7 @@ function SettingsManager({
   const [modalGlassEnabled, setModalGlassEnabled] = useModalGlassPreference()
   const [navigationPreference, setNavigationPreference] = useDesktopNavigationPreference()
   const [workspaceLayoutPreference, setWorkspaceLayoutPreference] = useWorkspaceLayoutPreference()
+  const [siblingNavigationEnabled, setSiblingNavigationEnabled] = useSiblingNavigationPreference()
   const { loadingIndicatorEnabled, setLoadingIndicatorEnabled } = useAiAssistantAppearance()
   const [contrastMode, setContrastMode] = useState<ContrastMode>('standard')
   const [naturalCodeSortEnabled, setNaturalCodeSortEnabled] = useState(false)
@@ -744,6 +745,23 @@ function SettingsManager({
               ]).map((option) => <button key={option.value} type="button" onClick={() => setNavigationPreference({ displayMode: option.value })} className={`rounded-lg border px-2 py-3 text-center transition ${navigationPreference.displayMode === option.value ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 hover:bg-gray-50'}`}><span className="flex min-h-6 items-center justify-center gap-1.5 text-xs font-semibold text-gray-900">{option.value !== 'label' && <span className="flex h-5 w-5 items-center justify-center rounded bg-slate-100 text-[10px] text-slate-700">仪</span>}{option.value !== 'icon' && <span>{option.value === 'label' ? '工作台' : '文字'}</span>}</span><span className="mt-1.5 block text-[11px] text-gray-500">{option.label}</span></button>)}
             </div>
             <div className="mt-2 text-xs text-gray-500">个人显示偏好，只保存在当前浏览器。</div>
+          </div>
+
+          <div className="mb-4 rounded-lg border border-gray-200 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="font-medium text-gray-900">显示同级菜单按钮</div>
+                <div className="mt-1 text-sm text-gray-500">在窄屏页面顶部显示当前一级菜单下的同级功能，便于在物料、生产、销售和配置页面之间连续切换。</div>
+                <div className="mt-2 text-xs text-gray-500">个人显示偏好，只保存在当前浏览器；菜单名称、顺序和权限仍来自统一菜单配置。</div>
+              </div>
+              <label className="inline-flex cursor-pointer items-center gap-3">
+                <span className="text-sm text-gray-600">{siblingNavigationEnabled ? '已开启' : '已关闭'}</span>
+                <input type="checkbox" checked={siblingNavigationEnabled} onChange={(event) => setSiblingNavigationEnabled(event.target.checked)} className="sr-only" />
+                <span className={`relative h-7 w-12 rounded-full transition ${siblingNavigationEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                  <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${siblingNavigationEnabled ? 'left-6' : 'left-1'}`} />
+                </span>
+              </label>
+            </div>
           </div>
 
           <div className="mb-4 rounded-lg border border-gray-200 p-4">

@@ -64,7 +64,7 @@ const routeSource = readFileSync(join(root, 'app/api/system/workspace-navigation
 assert.equal((shellSource.match(/<WorkspaceDomainTabs/g) || []).length, 3, '桌面画布、桌面侧栏和移动菜单都必须提供工作区切换')
 assert.match(shellSource, /data-navigation-workspace=\{activeWorkspace\}/, '应用壳必须暴露当前工作区状态')
 assert.match(shellSource, /configuredGroupOrder/, '桌面侧栏、顶部导航和移动菜单必须读取工作区一级菜单顺序')
-assert.match(shellSource, /desktopNavigationGroups\.sort/, '账号与权限必须与其他桌面一级菜单一起参与排序')
+assert.match(shellSource, /navigationGroups\.sort/, '账号与权限必须与其他统一一级菜单一起参与排序')
 assert.match(settingsSource, /所属工作区/, '配置页必须提供页面唯一归属选择')
 assert.match(settingsSource, /一级菜单顺序/, '配置页必须允许调整当前工作区一级菜单顺序')
 assert.match(settingsSource, /账号与权限/, '一级菜单顺序必须覆盖账号与权限入口')

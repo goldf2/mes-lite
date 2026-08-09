@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const source = readFileSync(resolve(process.cwd(), 'app/page.tsx'), 'utf8')
+const source = readFileSync(resolve(process.cwd(), 'app/HomeApp.tsx'), 'utf8')
 const menuStart = source.indexOf('function SystemMenu(')
 const menuEnd = source.indexOf('// ==================== 主组件', menuStart)
 
