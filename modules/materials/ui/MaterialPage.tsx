@@ -48,13 +48,17 @@ import {
   archiveMaterial,
   downloadMaterialFile,
   findMaterialByCode,
-  importMaterials,
   listConfiguredUnits,
   listMaterialCustomers,
   listMaterials,
-  saveMaterial,
 } from '../client'
-import type { MaterialUpsertInput } from '../client'
+import MaterialEditDialog from './MaterialEditDialog'
+import MaterialImportDialog from './MaterialImportDialog'
+import {
+  materialCategoryFilterOptions,
+  materialCategoryLabels,
+  primaryMeasureLabels,
+} from '../model/material-options'
 
 const bomSearchProfile: ResourceSearchProfile<BomSearchRow> = {
   key: 'boms',
@@ -76,27 +80,6 @@ const bomAdvancedSearchFields: readonly ResourceAdvancedSearchField<BomSearchRow
   { key: 'default', label: '默认方案', type: 'select', read: ({ bom }) => bom.isDefault ? 'default' : 'other', options: [{ value: 'default', label: '默认 BOM' }, { value: 'other', label: '非默认 BOM' }] },
 ]
 
-const materialCategoryLabels: Record<string, string> = {
-  RAW: '原材料',
-  FINISHED: '成品',
-  AUXILIARY: '辅材',
-  SCRAP: '废料',
-  DEFECTIVE: '废品',
-  PACKAGING: '包装物',
-  OTHER: '其他',
-}
-
-const materialCategoryOptions = [
-  ['RAW', '原材料'],
-  ['FINISHED', '成品'],
-  ['AUXILIARY', '辅材'],
-  ['SCRAP', '废料'],
-  ['DEFECTIVE', '废品'],
-  ['PACKAGING', '包装物'],
-  ['OTHER', '其他'],
-] as const
-
-const materialCategoryFilterOptions = materialCategoryOptions.map(([value, label]) => ({ value, label }))
 const bomStatusOptions = [
   { value: 'all', label: '全部 BOM 状态' },
   { value: 'NONE', label: '未建立产出 BOM' },
@@ -105,13 +88,6 @@ const bomStatusOptions = [
   { value: 'READY', label: '已有可用默认 BOM' },
 ] as const
 type BomStatusFilter = (typeof bomStatusOptions)[number]['value']
-const primaryMeasureOptions = [
-  ['LENGTH', '长度'],
-  ['WEIGHT', '重量'],
-  ['QUANTITY', '数量'],
-  ['OTHER', '其他'],
-] as const
-const primaryMeasureLabels = Object.fromEntries(primaryMeasureOptions) as Record<string, string>
 const materialProductPrefix = 'material:'
 const bomWorkspaceStateStorageKey = 'mes-lite.boms.workspaceState'
 const bomSummaryVisibleStorageKey = 'mes-lite.materials.bomSummaryVisible'
@@ -192,28 +168,6 @@ const defaultMaterialVisibleFields: MaterialVisibleField[] = [
   'valuationStock',
   'createdAt',
 ]
-
-function createEmptyMaterialForm() {
-  return {
-    code: '',
-    name: '',
-    spec: '',
-    note: '',
-    category: 'RAW',
-    customerId: '',
-    primaryMeasure: 'QUANTITY',
-    referenceMeasure: 'WEIGHT',
-    unit: '件',
-    stockUnit: '件',
-    useDualUnit: false,
-    valuationUnit: '',
-    conversionRate: 1,
-    conversionNote: '',
-    costingMethod: 'WEIGHTED_AVERAGE',
-    defaultSalePrice: '',
-    salesCurrency: 'CNY',
-  }
-}
 
 function MaterialFieldVisibilityControl({
   value,
@@ -768,11 +722,6 @@ export default function MaterialPage({
   const loadedBomDraftSignatureRef = useRef('')
   const bomWorkspaceStateRestoredRef = useRef(false)
   const handledBomOpenRequestRef = useRef<number | null>(null)
-  const [form, setForm] = useState(createEmptyMaterialForm())
-  const formStockUnitOptions = unitCatalog.filter((unit) => unit.measureType === form.primaryMeasure)
-  const formValuationUnitOptions = unitCatalog.filter((unit) => unit.measureType === form.referenceMeasure)
-  const formStockUnitConfigured = formStockUnitOptions.some((unit) => unit.code === form.stockUnit)
-  const formValuationUnitConfigured = formValuationUnitOptions.some((unit) => unit.code === form.valuationUnit)
   const showField = (field: MaterialVisibleField) => visibleFields.includes(field)
   const canUseBomData = showBomWorkspace || canReadBom
   const selectedCategory = materialSearchConditions.find((condition) => condition.field === 'category')?.value || ''
@@ -785,11 +734,6 @@ export default function MaterialPage({
   const bomStatusFilter: BomStatusFilter = bomStatusOptions.some((option) => option.value === selectedBomStatus)
     ? selectedBomStatus as BomStatusFilter
     : 'all'
-  const [loading, setLoading] = useState(false)
-  const [importFile, setImportFile] = useState<File | null>(null)
-  const [importMode, setImportMode] = useState<'skip' | 'update'>('skip')
-  const [importLoading, setImportLoading] = useState(false)
-  const [importErrors, setImportErrors] = useState<string[]>([])
   const bomOutputMaterialOptions = useMemo(() => bomMaterialOptions.map((material) => ({
     value: material.id,
     label: materialOptionLabel(material),
@@ -1232,32 +1176,7 @@ export default function MaterialPage({
   }
 
   const openImportModal = () => {
-    setImportFile(null)
-    setImportMode('skip')
-    setImportErrors([])
     setShowImportModal(true)
-  }
-
-  const handleImportSubmit = async () => {
-    if (!importFile) {
-      onMessage('请先选择 CSV 文件')
-      return
-    }
-
-    setImportLoading(true)
-    setImportErrors([])
-    try {
-      const summary = await importMaterials(importFile, importMode)
-      const customerText = summary.customersCreated ? `，新建客户 ${summary.customersCreated}` : ''
-      onMessage(`导入完成：共 ${summary.total || 0} 行，新增 ${summary.created || 0}，更新 ${summary.updated || 0}，跳过 ${summary.skipped || 0}${customerText}`)
-      setShowImportModal(false)
-      setImportFile(null)
-      setPage(1)
-      await refreshMaterialSources()
-    } catch (error) {
-      setImportErrors(error instanceof MaterialApiError && error.details.length > 0 ? error.details : [error instanceof Error ? error.message : '导入失败'])
-    }
-    setImportLoading(false)
   }
 
   const fetchCustomers = async () => {
@@ -1276,44 +1195,6 @@ export default function MaterialPage({
     }
   }
 
-  const handleSubmit = async () => {
-    if (!form.code || !form.name || !form.stockUnit || (form.useDualUnit && (!form.valuationUnit || form.conversionRate <= 0))) {
-      onMessage('请填写完整信息')
-      return
-    }
-    setLoading(true)
-    try {
-      const payload: MaterialUpsertInput = {
-        code: form.code,
-        name: form.name,
-        spec: form.spec,
-        note: form.note,
-        category: form.category,
-        customerId: form.customerId || undefined,
-        primaryMeasure: form.primaryMeasure as MaterialUpsertInput['primaryMeasure'],
-        referenceMeasure: form.useDualUnit ? form.referenceMeasure as MaterialUpsertInput['referenceMeasure'] : undefined,
-        unit: form.stockUnit,
-        stockUnit: form.stockUnit,
-        valuationUnit: form.useDualUnit ? form.valuationUnit : form.stockUnit,
-        conversionRate: form.useDualUnit ? form.conversionRate : 1,
-        conversionNote: form.conversionNote || undefined,
-        costingMethod: form.costingMethod,
-        defaultSalePrice: form.defaultSalePrice === '' ? null : Number(form.defaultSalePrice),
-        salesCurrency: form.salesCurrency,
-      }
-      await saveMaterial(payload, editingMaterial?.id)
-      onMessage(editingMaterial ? '物料更新成功' : '物料创建成功')
-      setShowModal(false)
-      setForm(createEmptyMaterialForm())
-      setEditingMaterial(null)
-      setPage(1)
-      await refreshMaterialSources()
-    } catch (error) {
-      onMessage(error instanceof MaterialApiError ? error.message : '操作失败')
-    }
-    setLoading(false)
-  }
-
   const handleArchive = async (id: string) => {
     if (!confirm('确定要归档该物料吗？归档后不会在物料列表中显示，可在归档记录中恢复。')) return
     try {
@@ -1325,35 +1206,12 @@ export default function MaterialPage({
   }
 
   const handleEdit = (material: Material) => {
-    const stockUnit = material.stockUnit || material.unit
-    const valuationUnit = material.valuationUnit || material.unit
-    const useDualUnit = valuationUnit !== stockUnit || Number(material.conversionRate || 1) !== 1
     setEditingMaterial(material)
-    setForm({
-      code: material.code,
-      name: material.name,
-      spec: material.spec,
-      note: material.note || '',
-      category: material.category || 'RAW',
-      customerId: material.customerId || '',
-      primaryMeasure: material.primaryMeasure || 'QUANTITY',
-      referenceMeasure: material.referenceMeasure || 'WEIGHT',
-      unit: stockUnit,
-      stockUnit,
-      useDualUnit,
-      valuationUnit: useDualUnit ? valuationUnit : '',
-      conversionRate: material.conversionRate || 1,
-      conversionNote: material.conversionNote || '',
-      costingMethod: material.costingMethod || 'WEIGHTED_AVERAGE',
-      defaultSalePrice: material.defaultSalePrice == null ? '' : String(material.defaultSalePrice),
-      salesCurrency: material.salesCurrency || 'CNY',
-    })
     setShowModal(true)
   }
 
   const handleAdd = () => {
     setEditingMaterial(null)
-    setForm(createEmptyMaterialForm())
     setShowModal(true)
   }
 
@@ -2543,310 +2401,32 @@ export default function MaterialPage({
         </ModalDialog>
       )}
 
-      {showModal && (
-        <ModalDialog
-          title={editingMaterial ? '编辑物料' : '新建物料'}
-          description="维护物料基础资料、库存主单位和参考计价单位。"
-          onClose={() => setShowModal(false)}
-          closeDisabled={loading}
-          size="wide"
-          footer={(
-            <ModalActions
-              onCancel={() => setShowModal(false)}
-              onConfirm={handleSubmit}
-              confirmLabel="保存"
-              busy={loading}
-            />
-          )}
-        >
-              <div className="space-y-5">
-                <section className="space-y-3">
-                  <h4 className="border-b border-gray-100 pb-2 text-sm font-semibold text-gray-900">基础信息</h4>
-                  <div className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">物料编码 *</label>
-                      <input
-                        type="text"
-                        value={form.code}
-                        onChange={(e) => setForm({ ...form, code: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                        placeholder="如：MAT-001"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">物料名称 *</label>
-                      <input
-                        type="text"
-                        value={form.name}
-                        onChange={(e) => setForm({ ...form, name: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                        placeholder="如：GCr15 轴承钢"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">规格</label>
-                      <input
-                        type="text"
-                        value={form.spec}
-                        onChange={(e) => setForm({ ...form, spec: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                        placeholder="如：Φ30mm 圆钢"
-                      />
-                    </div>
-                    <div className="md:col-span-2 xl:col-span-3">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">备注</label>
-                      <textarea
-                        value={form.note}
-                        onChange={(e) => setForm({ ...form, note: e.target.value })}
-                        className="min-h-20 w-full resize-y px-4 py-2 border border-gray-200 rounded-lg"
-                        placeholder="可记录客户零件号说明、图纸版本、特殊检验要求等"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">物料分类</label>
-                      <select
-                        value={form.category}
-                        onChange={(e) => setForm({ ...form, category: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                      >
-                        {materialCategoryOptions.map(([key, label]) => (
-                          <option key={key} value={key}>{label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">归属客户</label>
-                      <SearchableSelect
-                        value={form.customerId}
-                        onChange={(customerId) => setForm({ ...form, customerId })}
-                        options={[
-                          { value: '', label: '通用/未绑定客户' },
-                          ...customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` })),
-                        ]}
-                        placeholder="输入客户编码或名称筛选"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">成本核算方法</label>
-                      <select
-                        value={form.costingMethod}
-                        onChange={(e) => setForm({ ...form, costingMethod: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                      >
-                        <option value="WEIGHTED_AVERAGE">移动加权平均</option>
-                        <option value="FIFO">先入先出 FIFO</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">默认销售价</label>
-                      <div className="flex rounded-lg border border-gray-200 bg-white focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
-                        <span className="flex items-center border-r border-gray-200 px-3 text-sm text-gray-500">¥</span>
-                        <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={form.defaultSalePrice}
-                          onChange={(event) => setForm({ ...form, defaultSalePrice: event.target.value })}
-                          className="min-w-0 flex-1 rounded-r-lg px-3 py-2 outline-none"
-                          placeholder="未设置"
-                        />
-                      </div>
-                      <p className="mt-1 text-xs text-gray-500">新建销售订单时自动带入；订单保存后使用价格快照。</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">销售币种</label>
-                      <select
-                        value={form.salesCurrency}
-                        onChange={(event) => setForm({ ...form, salesCurrency: event.target.value })}
-                        className="w-full rounded-lg border border-gray-200 px-4 py-2"
-                      >
-                        <option value="CNY">人民币（CNY）</option>
-                      </select>
-                    </div>
-                  </div>
-                </section>
+      <MaterialEditDialog
+        open={showModal}
+        material={editingMaterial}
+        customers={customers}
+        unitCatalog={unitCatalog}
+        onClose={() => {
+          setShowModal(false)
+          setEditingMaterial(null)
+        }}
+        onMessage={onMessage}
+        onSaved={async () => {
+          setPage(1)
+          await refreshMaterialSources()
+        }}
+      />
 
-                <section className="space-y-3">
-                  <h4 className="border-b border-gray-100 pb-2 text-sm font-semibold text-gray-900">单位与换算</h4>
-                  <div className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">主计量方式 *</label>
-                      <select
-                        value={form.primaryMeasure}
-                        onChange={(event) => {
-                          const primaryMeasure = event.target.value
-                          const defaultUnit = unitCatalog.find((unit) => unit.measureType === primaryMeasure && unit.isBase)?.code
-                            || (primaryMeasure === 'LENGTH' ? 'm' : primaryMeasure === 'WEIGHT' ? 'kg' : primaryMeasure === 'QUANTITY' ? '件' : '项')
-                          setForm({ ...form, primaryMeasure, stockUnit: defaultUnit, unit: defaultUnit })
-                        }}
-                        className="w-full rounded-lg border border-gray-200 px-4 py-2"
-                      >
-                        {primaryMeasureOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                      </select>
-                      <p className="mt-1 text-xs text-gray-500">库存、领料和生产耗用均按主计量方式记账。</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">主库存单位 *</label>
-                      <SearchableSelect
-                        value={form.stockUnit}
-                        onChange={(stockUnit) => setForm({ ...form, stockUnit, unit: stockUnit })}
-                        options={[
-                          ...(!formStockUnitConfigured && form.stockUnit ? [{ value: form.stockUnit, label: `旧单位：${form.stockUnit}（待配置）` }] : []),
-                          ...formStockUnitOptions.map((unit) => ({
-                            value: unit.code,
-                            label: `${unit.name}（${unit.code}） · 1 ${unit.code} = ${unit.toBaseFactor} ${formStockUnitOptions.find((item) => item.isBase)?.code || '基准单位'}`,
-                          })),
-                        ]}
-                        placeholder="输入单位名称或编码筛选"
-                      />
-                      <p className="mt-1 text-xs text-gray-500">只能选择系统单位目录中的单位；新增单位请到“配置 → 单位配置”。</p>
-                      {editingMaterial && (editingMaterial.stockUnit || editingMaterial.unit) !== form.stockUnit && (
-                        <p className="mt-1 rounded bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
-                          将从 {editingMaterial.stockUnit || editingMaterial.unit} 改为 {form.stockUnit || '空'}。系统只修改物料主数据并记录审计，不换算数值，也不改写历史业务记录和既有 BOM。
-                        </p>
-                      )}
-                    </div>
-                    <label className="flex min-h-[42px] items-center gap-2 self-end rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={form.useDualUnit}
-                        onChange={(e) => setForm({
-                          ...form,
-                          useDualUnit: e.target.checked,
-                          valuationUnit: e.target.checked
-                            ? form.valuationUnit || unitCatalog.find((unit) => unit.measureType === form.referenceMeasure && unit.isBase)?.code || ''
-                            : '',
-                          conversionRate: e.target.checked ? form.conversionRate : 1,
-                          conversionNote: e.target.checked ? form.conversionNote : '',
-                        })}
-                        className="h-4 w-4"
-                      />
-                      记录参考/计价单位
-                    </label>
-                  </div>
-                  {form.useDualUnit && (
-                    <div className="grid grid-cols-1 gap-x-4 gap-y-3 rounded-lg border border-blue-100 bg-blue-50/40 p-4 md:grid-cols-2 xl:grid-cols-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">参考计量方式 *</label>
-                        <select
-                          value={form.referenceMeasure}
-                          onChange={(event) => {
-                            const referenceMeasure = event.target.value
-                            const valuationUnit = unitCatalog.find((unit) => unit.measureType === referenceMeasure && unit.isBase)?.code || ''
-                            setForm({ ...form, referenceMeasure, valuationUnit })
-                          }}
-                          className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2"
-                        >
-                          {primaryMeasureOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">参考/计价单位 *</label>
-                        <SearchableSelect
-                          value={form.valuationUnit}
-                          onChange={(valuationUnit) => setForm({ ...form, valuationUnit })}
-                          options={[
-                            ...(!formValuationUnitConfigured && form.valuationUnit ? [{ value: form.valuationUnit, label: `旧单位：${form.valuationUnit}（待配置）` }] : []),
-                            ...formValuationUnitOptions.map((unit) => ({ value: unit.code, label: `${unit.name}（${unit.code}）` })),
-                          ]}
-                          placeholder="输入单位名称或编码筛选"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">默认参考换算 *</label>
-                        <input
-                          type="number"
-                          step="0.0001"
-                          min={0}
-                          value={form.conversionRate || ''}
-                          onChange={(e) => setForm({ ...form, conversionRate: Number(e.target.value) })}
-                          className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-white"
-                          placeholder="例如：2.35"
-                        />
-                        <p className="mt-1 text-xs text-gray-500">仅在来料未填实测值时参考：1 {form.stockUnit || '主单位'} = {form.conversionRate || 0} {form.valuationUnit || '参考单位'}</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">换算说明</label>
-                        <input
-                          type="text"
-                          value={form.conversionNote}
-                          onChange={(e) => setForm({ ...form, conversionNote: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-white"
-                          placeholder="如：仅作缺少实测时的参考，来料实际值优先"
-                        />
-                      </div>
-                    </div>
-                  )}
-                  <p className="text-xs text-gray-500">物料不保存标准长度。长度型原料在每张来料单按根数及总长度/单根长度录入本批实际长度。</p>
-                </section>
-              </div>
-        </ModalDialog>
-      )}
-
-      {showImportModal && (
-        <ModalDialog
-          title="批量导入物料"
-          description="仅导入物料主数据，不导入库存数量和成本。"
-          onClose={() => setShowImportModal(false)}
-          closeDisabled={importLoading}
-          size="lg"
-          footer={(
-            <ModalActions
-              onCancel={() => setShowImportModal(false)}
-              onConfirm={handleImportSubmit}
-              confirmLabel="开始导入"
-              busy={importLoading}
-            />
-          )}
-        >
-            <div className="space-y-5">
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                物料编码是业务可视化编码，必须唯一；规格用于记录尺寸、材质、版本等描述。库存初始化请到库存管理做存货调整。
-              </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">CSV 文件</label>
-                  <input
-                    type="file"
-                    accept=".csv,text/csv"
-                    onChange={(event) => setImportFile(event.target.files?.[0] || null)}
-                    className="w-full rounded-lg border border-gray-200 px-4 py-2 text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleDownloadTemplate}
-                    className="mt-2 text-sm font-medium text-blue-700 hover:text-blue-800"
-                  >
-                    下载导入模板
-                  </button>
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">遇到已有物料编码</label>
-                  <select
-                    value={importMode}
-                    onChange={(event) => setImportMode(event.target.value as 'skip' | 'update')}
-                    className="w-full rounded-lg border border-gray-200 px-4 py-2 text-sm"
-                  >
-                    <option value="skip">跳过已有物料</option>
-                    <option value="update">更新已有物料资料</option>
-                  </select>
-                  <p className="mt-2 text-xs text-gray-500">更新模式只覆盖名称、规格、分类、客户、单位和成本方法，不修改库存余额。</p>
-                </div>
-              </div>
-              {importErrors.length > 0 && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-                  <div className="text-sm font-semibold text-red-700">导入失败</div>
-                  <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-sm text-red-700">
-                    {importErrors.map((error, index) => (
-                      <li key={`${error}-${index}`}>{error}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-        </ModalDialog>
-      )}
-
+      <MaterialImportDialog
+        open={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onMessage={onMessage}
+        onDownloadTemplate={handleDownloadTemplate}
+        onImported={async () => {
+          setPage(1)
+          await refreshMaterialSources()
+        }}
+      />
       {detailMaterial && (
         <ModalDialog
           title="物料详情"
