@@ -4,24 +4,12 @@ import { useCallback, useEffect, useState } from 'react'
 import AppButton from '@/app/components/AppButton'
 import DataIntegrityPanel from '@/app/components/DataIntegrityPanel'
 import ImageOptimizationPanel from '@/app/components/ImageOptimizationPanel'
-
-interface MaterialCodeNormalizationPreview {
-  totalMaterials: number
-  pendingMaterialCount: number
-  pendingProductCount: number
-  invalidMaterials: Array<{ id: string; code: string; name: string; archived: boolean }>
-  materialConflicts: Array<{
-    normalizedCode: string
-    materials: Array<{ id: string; code: string; name: string; archived: boolean }>
-  }>
-  productConflicts: Array<{
-    normalizedSku: string
-    products: Array<{ id: string; sku: string }>
-  }>
-  ambiguousProducts: Array<{ productId: string; sku: string; materialCodes: string[] }>
-  changes: Array<{ id: string; name: string; archived: boolean; before: string; after: string }>
-  canExecute: boolean
-}
+import {
+  executeMaterialCodeNormalization,
+  loadMaterialCodeNormalizationPreview,
+  OperationsToolsRequestError,
+} from '../client/maintenance-api'
+import type { MaterialCodeNormalizationPreview } from '../contracts/maintenance'
 
 export default function DataToolsPage({ onMessage }: { onMessage: (message: string) => void }) {
   const [preview, setPreview] = useState<MaterialCodeNormalizationPreview | null>(null)
@@ -31,13 +19,9 @@ export default function DataToolsPage({ onMessage }: { onMessage: (message: stri
   const loadPreview = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/system/material-code-normalization')
-      const data = await response.json()
-      if (!response.ok) {
-        onMessage(data.error || '检查物料编码失败')
-        return
-      }
-      setPreview(data.data)
+      setPreview(await loadMaterialCodeNormalizationPreview() || null)
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '检查物料编码失败')
     } finally {
       setLoading(false)
     }
@@ -53,19 +37,15 @@ export default function DataToolsPage({ onMessage }: { onMessage: (message: stri
 
     setExecuting(true)
     try {
-      const response = await fetch('/api/system/material-code-normalization', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirmation: 'NORMALIZE_MATERIAL_CODES' }),
-      })
-      const data = await response.json()
-      if (!response.ok) {
-        onMessage(data.error || '物料编码转换失败')
-        if (data.data) setPreview(data.data)
-        return
-      }
-      onMessage(`已转换 ${data.data.changedMaterials} 条物料编码，同步 ${data.data.changedProducts} 条关联产品编码`)
+      const result = await executeMaterialCodeNormalization()
+      if (!result) throw new Error('物料编码转换未返回结果')
+      onMessage(`已转换 ${result.changedMaterials} 条物料编码，同步 ${result.changedProducts} 条关联产品编码`)
       await loadPreview()
+    } catch (error) {
+      if (error instanceof OperationsToolsRequestError && error.data) {
+        setPreview(error.data as MaterialCodeNormalizationPreview)
+      }
+      onMessage(error instanceof Error ? error.message : '物料编码转换失败')
     } finally {
       setExecuting(false)
     }

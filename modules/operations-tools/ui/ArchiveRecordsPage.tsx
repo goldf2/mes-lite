@@ -6,29 +6,10 @@ import SortableTableHeader from '@/app/components/SortableTableHeader'
 import { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import useClientTableSort from '@/app/components/useClientTableSort'
 import useCompactViewport from '@/app/components/useCompactViewport'
+import { loadArchivedRecords, purgeArchivedRecord, restoreArchivedRecord } from '../client/maintenance-api'
+import type { ArchivedRecord } from '../contracts/maintenance'
+import { flattenArchivedRecords } from '../model/archive-records'
 import OperationsToolsToolbar from './OperationsToolsToolbar'
-
-interface ArchivedRecord {
-  id: string
-  label: string
-  type: string
-  model: 'material' | 'supplier' | 'customer' | 'materialIn' | 'workInstruction' | 'order' | 'dispatch' | 'shipment' | 'return'
-  deletedAt?: string | null
-}
-
-function flattenArchivedRecords(data: Record<string, any[]>): ArchivedRecord[] {
-  const records: ArchivedRecord[] = []
-  ;(data.materials || []).forEach((item) => records.push({ id: item.id, label: item.code, type: '物料', model: 'material', deletedAt: item.deletedAt }))
-  ;(data.suppliers || []).forEach((item) => records.push({ id: item.id, label: item.name, type: '供应商', model: 'supplier', deletedAt: item.deletedAt }))
-  ;(data.customers || []).forEach((item) => records.push({ id: item.id, label: item.name, type: '客户', model: 'customer', deletedAt: item.deletedAt }))
-  ;(data.materialIn || []).forEach((item) => records.push({ id: item.id, label: item.inboundNo, type: '来料单', model: 'materialIn', deletedAt: item.deletedAt }))
-  ;(data.workInstructions || []).forEach((item) => records.push({ id: item.id, label: `${item.material?.code || '-'} · ${item.material?.name || '未知产品'}`, type: '产品文档', model: 'workInstruction', deletedAt: item.deletedAt }))
-  ;(data.orders || []).forEach((item) => records.push({ id: item.id, label: item.orderNo, type: '工单', model: 'order', deletedAt: item.deletedAt }))
-  ;(data.dispatches || []).forEach((item) => records.push({ id: item.id, label: item.dispatchNo, type: '派工单', model: 'dispatch', deletedAt: item.deletedAt }))
-  ;(data.shipments || []).forEach((item) => records.push({ id: item.id, label: item.shipmentNo, type: '发货单', model: 'shipment', deletedAt: item.deletedAt }))
-  ;(data.returns || []).forEach((item) => records.push({ id: item.id, label: item.returnNo, type: '退货单', model: 'return', deletedAt: item.deletedAt }))
-  return records.sort((a, b) => String(b.deletedAt || '').localeCompare(String(a.deletedAt || '')))
-}
 
 export default function ArchiveRecordsPage({ onMessage }: { onMessage: (message: string) => void }) {
   const [records, setRecords] = useState<ArchivedRecord[]>([])
@@ -46,10 +27,9 @@ export default function ArchiveRecordsPage({ onMessage }: { onMessage: (message:
   const fetchRecords = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/deleted-records')
-      const data = await response.json()
-      if (response.ok) setRecords(flattenArchivedRecords(data.data || {}))
-      else onMessage(data.error || '获取归档记录失败')
+      setRecords(flattenArchivedRecords(await loadArchivedRecords()))
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取归档记录失败')
     } finally {
       setLoading(false)
     }
@@ -62,16 +42,13 @@ export default function ArchiveRecordsPage({ onMessage }: { onMessage: (message:
   }, [])
 
   const restore = async (record: ArchivedRecord) => {
-    const response = await fetch('/api/restore', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: record.model, id: record.id }),
-    })
-    const data = await response.json()
-    if (response.ok) {
+    try {
+      await restoreArchivedRecord(record.model, record.id)
       onMessage('记录已恢复归档')
       await fetchRecords()
-    } else onMessage(data.error || '恢复归档失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '恢复归档失败')
+    }
   }
 
   const purge = async (record: ArchivedRecord) => {
@@ -85,16 +62,11 @@ export default function ArchiveRecordsPage({ onMessage }: { onMessage: (message:
     const key = `${record.model}-${record.id}`
     setPurgingKey(key)
     try {
-      const response = await fetch('/api/deleted-records', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: record.model, id: record.id, confirmation: '永久删除' }),
-      })
-      const data = await response.json()
-      if (response.ok) {
-        onMessage('归档记录已永久删除')
-        await fetchRecords()
-      } else onMessage(data.error || '永久删除失败')
+      await purgeArchivedRecord(record.model, record.id)
+      onMessage('归档记录已永久删除')
+      await fetchRecords()
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '永久删除失败')
     } finally {
       setPurgingKey('')
     }

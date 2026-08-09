@@ -6,21 +6,12 @@ import SortableTableHeader from '@/app/components/SortableTableHeader'
 import { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import useClientTableSort from '@/app/components/useClientTableSort'
 import useCompactViewport from '@/app/components/useCompactViewport'
+import { loadAuditLogs } from '../client/maintenance-api'
+import type { AuditLogRecord } from '../contracts/maintenance'
 import OperationsToolsToolbar from './OperationsToolsToolbar'
 
-interface AuditLog {
-  id: string
-  operatorName?: string | null
-  action: string
-  entityType: string
-  entityId?: string | null
-  entityLabel?: string | null
-  note?: string | null
-  createdAt: string
-}
-
 export default function AuditLogPage({ onMessage }: { onMessage: (message: string) => void }) {
-  const [logs, setLogs] = useState<AuditLog[]>([])
+  const [logs, setLogs] = useState<AuditLogRecord[]>([])
   const [loading, setLoading] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.audit.viewMode', 'list')
   const effectiveViewMode = useCompactViewport(1023) ? 'card' : viewMode
@@ -35,10 +26,9 @@ export default function AuditLogPage({ onMessage }: { onMessage: (message: strin
   const fetchLogs = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/audit-logs?pageSize=100')
-      const data = await response.json()
-      if (response.ok) setLogs(data.data || [])
-      else onMessage(data.error || '获取操作记录失败')
+      setLogs(await loadAuditLogs())
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取操作记录失败')
     } finally {
       setLoading(false)
     }
