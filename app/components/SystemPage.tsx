@@ -751,7 +751,7 @@ function SettingsManager({
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <div className="font-medium text-gray-900">显示同级菜单按钮</div>
-                <div className="mt-1 text-sm text-gray-500">在窄屏页面顶部显示当前一级菜单下的同级功能，便于在物料、生产、销售和配置页面之间连续切换。</div>
+                <div className="mt-1 text-sm text-gray-500">在窄屏固定顶部工具条显示同级菜单呼出按钮；菜单默认收起，点击后可在物料、生产、销售和配置的同组页面间切换。</div>
                 <div className="mt-2 text-xs text-gray-500">个人显示偏好，只保存在当前浏览器；菜单名称、顺序和权限仍来自统一菜单配置。</div>
               </div>
               <label className="inline-flex cursor-pointer items-center gap-3">

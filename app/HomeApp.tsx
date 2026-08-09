@@ -1265,7 +1265,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           ? `lg:ml-[var(--mes-desktop-sidebar-width)] ${desktopNavigationMode === 'split' ? 'xl:ml-[var(--mes-desktop-split-sidebar-width)]' : ''}`
           : 'lg:ml-0'
       } ${workspaceLayoutPreference.layout === 'canvas' ? 'lg:mr-[var(--mes-desktop-tools-width)]' : 'lg:mr-0'}`}>
-        <div className={`sticky top-0 -mx-3 mb-3 shrink-0 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:mb-4 sm:px-4 lg:hidden ${
+        <div className={`fixed inset-x-0 top-0 border-b border-gray-200 bg-gray-50/95 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.5rem)] shadow-sm backdrop-blur sm:px-4 lg:hidden ${
           systemMenuOpen ? 'z-[60] lg:z-30' : 'z-30'
         }`}>
           <div className="flex min-w-0 flex-nowrap items-center gap-2">
@@ -1283,6 +1283,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               >
                 <Menu aria-hidden="true" className="h-5 w-5" />
               </button>
+              {siblingNavigationEnabled && <MobileSiblingNavigation group={activeNavigationGroup} />}
               <div id="topbar-actions-mobile" className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible empty:hidden" />
               <SystemMenu
                 containerRef={systemMenuRef}
@@ -1317,8 +1318,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           definition={activePageModule}
           toolbarProvided={tab === 'orders' || tab === 'stocks' || tab === 'create' || tab === 'detail' || ['dashboard', 'sawingCost', 'scanPrint', 'dataTools'].includes(activePageModule.key)}
         >
-        {siblingNavigationEnabled && <MobileSiblingNavigation group={activeNavigationGroup} />}
-
         {message && (
           createPortal(
             <div className="pointer-events-none fixed inset-x-0 top-4 z-[100] flex justify-center px-4 sm:left-auto sm:right-4 sm:top-20 sm:w-[min(32rem,calc(100vw-2rem))] sm:px-0">

@@ -4,6 +4,7 @@
 
 :root {
   --mes-mobile-nav-offset: calc(5rem + max(env(safe-area-inset-bottom), 0.5rem));
+  --mes-mobile-topbar-height: calc(2.75rem + max(env(safe-area-inset-top), 0.5rem));
   --mes-color-neutral-50: 249 250 251;
   --mes-color-neutral-100: 243 244 246;
   --mes-color-neutral-200: 229 231 235;
@@ -262,6 +263,7 @@ body {
 
 @media (max-width: 1023px) {
   main.mes-mobile-main {
+    padding-top: calc(var(--mes-mobile-topbar-height) + 0.75rem);
     padding-bottom: calc(var(--mes-mobile-nav-offset) + 1rem);
   }
 
