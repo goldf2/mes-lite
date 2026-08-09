@@ -10,7 +10,7 @@ const shellSource = readSource('app/HomeApp.tsx')
 const desktopNavigationControllerSource = readSource('app/components/shell/useDesktopNavigationController.ts')
 const topNavigationSource = readSource('app/components/navigation/DesktopTopNavigation.tsx')
 const toolbarSource = readSource('app/components/ResponsiveToolbarActions.tsx')
-const displaySettingsSource = readSource('app/components/SystemPage.tsx')
+const displaySettingsSource = readSource('modules/system-settings/ui/DisplaySettingsPage.tsx')
 
 assert.match(
   preferenceSource,

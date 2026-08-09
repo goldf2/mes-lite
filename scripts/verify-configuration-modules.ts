@@ -22,13 +22,17 @@ for (const manager of removedManagers) {
   assert.doesNotMatch(systemPage, new RegExp(`function ${manager}\\b`), `${manager} 不得回流到 SystemPage`)
 }
 
-assert.ok(systemPage.split('\n').length <= 1500, 'SystemPage 已迁出维护工具职责，不得重新超过 1500 行')
+assert.ok(systemPage.split('\n').length <= 820, 'SystemPage 已迁出配置和设置职责，不得重新超过 820 行')
 assert.match(systemPage, /from '@\/modules\/configuration'/, 'SystemPage 必须通过配置模块公开入口挂载')
+assert.doesNotMatch(systemPage, /function SettingsManager\b|naturalMaterialCodeSortEnabled|companyProfile/, '企业资料和业务规则不得回流 SystemPage')
 assert.match(homeApp, /<WorkspacePageHost\b/, '应用壳必须通过公共页面宿主加载业务页面')
 assert.match(workspacePageHost, /renderRegisteredWorkspacePage/, '公共页面宿主必须通过渲染注册表挂载页面')
 assert.match(workspacePageRenderers, /import\('@\/modules\/configuration'\)/, '文档类别必须通过配置模块公开入口加载')
 assert.ok(!existsSync(join(root, 'app/components/DocumentCategorySettingsPage.tsx')), '旧文档类别页面不得保留并行实现')
 assert.match(moduleIndex, /DocumentCategorySettingsPage/, '配置模块必须公开文档类别页面')
+assert.match(moduleIndex, /isConfigurationSection/, '配置模块必须公开包含业务设置的统一分区守卫')
+assert.match(read('modules/configuration/ui/BusinessSettingsPage.tsx'), /<ResourcePageShell\b/, '企业与业务规则必须使用公共 ResourcePageShell')
+assert.doesNotMatch(read('modules/configuration/ui/BusinessSettingsPage.tsx'), /fetch\(/, '业务设置 UI 必须通过模块 client 调用 API')
 
 const resourcePages = [
   'modules/configuration/ui/PartySettingsPage.tsx',

@@ -11,7 +11,7 @@ const desktopTopNavigation = read('app/components/navigation/DesktopTopNavigatio
 const unifiedNavigationMenu = read('app/components/navigation/UnifiedNavigationMenu.tsx')
 const siblingNavigation = read('app/components/navigation/MobileSiblingNavigation.tsx')
 const preferences = read('app/components/interfacePreferences.tsx')
-const systemPage = read('app/components/SystemPage.tsx')
+const displaySettingsPage = read('modules/system-settings/ui/DisplaySettingsPage.tsx')
 
 assert.match(applicationNavigation, /const navigationGroups: NavigationGroup\[\]/, '公共应用导航控制器必须只构建一份导航分组模型')
 assert.match(homeApp, /<DesktopTopNavigation groups=\{navigationGroups\}/, '桌面顶部导航必须使用统一导航模型')
@@ -40,6 +40,6 @@ assert.match(siblingNavigation, /const \[open, setOpen\] = useState\(false\)/, '
 assert.match(siblingNavigation, /aria-expanded=\{open\}/, '窄屏同级菜单必须通过按钮呼出')
 assert.match(homeApp, /fixed inset-x-0 top-0 border-b/, '窄屏顶部导航工具条必须固定在视口顶部')
 assert.match(preferences, /siblingNavigationStorageKey/, '必须持久化同级菜单显示偏好')
-assert.match(systemPage, />显示同级菜单按钮</, '显示设置必须提供同级菜单开关')
+assert.match(displaySettingsPage, /title="显示同级菜单按钮"/, '显示设置必须提供同级菜单开关')
 
 console.log('响应式菜单校验通过：移动抽屉直接复用桌面单列折叠菜单；桌面顶部继续复用同一菜单骨架。')

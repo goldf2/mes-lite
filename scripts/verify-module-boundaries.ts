@@ -96,7 +96,7 @@ for (const page of rootPages) {
 
 const pageSizeBaselines: Record<string, number> = {
   'app/components/MaterialInPage.tsx': 1679,
-  'app/components/SystemPage.tsx': 1474,
+  'app/components/SystemPage.tsx': 811,
   'app/components/WorkInstructionPage.tsx': 1497,
   'app/components/StatsPage.tsx': 936,
   'modules/inventory/ui/StockPageModule.tsx': 853,
@@ -140,6 +140,8 @@ for (const path of routeFiles) {
 const systemPage = read('app/components/SystemPage.tsx')
 assert.doesNotMatch(systemPage, /function (?:DataToolManager|RecycleBin|AuditLogViewer)\b/, '维护工具职责不得回流 SystemPage')
 assert.match(systemPage, /from '@\/modules\/operations-tools'/, 'SystemPage 必须通过 operations-tools 公开出口挂载维护工具')
+assert.doesNotMatch(systemPage, /function (?:SettingsManager|AiAgentSettings)\b/, '设置页职责不得回流 SystemPage')
+assert.match(systemPage, /from '@\/modules\/system-settings'/, 'SystemPage 必须通过 system-settings 公开出口挂载系统设置')
 
 if (failures.length > 0) {
   throw new Error(`模块边界验证失败：\n- ${failures.join('\n- ')}`)

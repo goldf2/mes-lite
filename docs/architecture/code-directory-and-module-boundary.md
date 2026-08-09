@@ -25,13 +25,13 @@
 | `lib/page-registry.ts` | 38 个页面定义 | 页面元数据、权限资源、工作区入口、系统分区、打开方式和渲染键已集中为单一事实源 |
 | `app/components/` 根目录 | 63 个文件 | 物料、全景和 BOM 全览已迁出；公共弹窗只保留一个全屏切换组件，其他领域页面、业务弹窗和系统页面仍继续按增量原则收敛 |
 | `modules/materials/ui/MaterialPage.tsx` | 887 行 | 数据契约、HTTP client、详情、编辑、导入、集合视图、页内选项、显示偏好和 BOM 草稿职责均已拆出；当前只保留物料/BOM 页面协调 |
-| `SystemPage.tsx` | 1474 行 | 归档、审计和数据工具已迁入 `operations-tools`；剩余系统设置和生产工艺配置继续按稳定职责迁出 |
+| `SystemPage.tsx` | 811 行 | 业务设置、系统设置和运维工具均已迁入领域模块；当前只保留领域分派及生产工艺配置 |
 | `MaterialInPage.tsx` | 1679 行 | 来料页面和录入流程高度集中，应迁入来料领域 |
 | `WorkInstructionPage.tsx` | 1497 行 | 文档资源、编辑器、附件和关联编辑集中，应迁入文档领域 |
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 1485 行 | 已迁入物料领域；下一步按摘要、文档、BOM/工艺、成本和记录等稳定视图拆分 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 47 个文件 | 已有工作台、生产、库存、配置、物料、BOM 和运维工具 7 个模块；BOM 已形成 `contracts/client/model/ui` 分层，运维工具已形成独立 UI 垂直切片 |
+| `modules/` | 60 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置和运维工具 8 个模块；设置页已形成 `contracts/client/ui` 分层 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -376,11 +376,12 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `modules/workspace` 拥有工作台指标、负荷、状态分布与预警页面状态。
 - `modules/production` 拥有生产订单查询、创建、详情、实绩入口和单据 PDF 操作。
 - `modules/inventory` 拥有库存查询、筛选、视图、数据一致性提示和库存调整状态。
-- `modules/configuration` 拥有客户、供应商、单位、库位、工作中心和文档类别配置页。
+- `modules/configuration` 拥有客户、供应商、单位、库位、工作中心、文档类别以及企业与业务规则配置页。
 - `modules/materials` 拥有物料管理与物料全景，物料契约、HTTP client 和 UI 已分层。
 - `modules/bom` 拥有 BOM 全览、BOM 契约和 HTTP client；物料页对 BOM 的访问只经过该模块公开出口。
 - `modules/operations-tools` 拥有数据检查、图片优化、物料编码规范化、归档恢复/永久删除和审计记录页面。
-- 七个模块均以根目录 `index.ts` 作为应用层公开出口，页面注册层不越过公开出口导入领域 UI。
+- `modules/system-settings` 拥有显示、导航和 AI 设置页；各页面只读取自身所需设置，并通过模块 client 访问 API。
+- 八个模块均以根目录 `index.ts` 作为应用层公开出口，页面注册层不越过公开出口导入领域 UI。
 - 模块 UI 继续复用 `app/components` 中现有公共搜索、工具栏、视图、表格、弹窗、附件和打印能力；本阶段不复制公共框架。
 
 本次迁移只改变代码所有权和导入边界，不改变 API、Prisma 模型、权限资源、业务状态流转或页面布局。其余领域继续按增量原则迁移。
@@ -404,7 +405,7 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `HomeApp.tsx` 不再直接读写页面连续性、工作区偏好、桌面导航存储或权限菜单组装，行数从 1233 行降至 522 行。
 - `verify:shell-controllers`、`verify:page-modules`、`verify:workspace-navigation` 和 `verify:responsive-navigation` 阻止这些职责重新回流应用壳，并把 `HomeApp.tsx` 的当前规模上限固定为 600 行。
 
-下一步应继续把 `SystemPage` 中显示/AI 设置迁入 `system-settings`，把工艺模板与物料路线迁入生产工程领域；页面注册与菜单分类仍只使用现有单一事实源。
+下一步应把 `SystemPage` 中工艺模板与物料路线迁入生产工程领域，并继续把大型来料、文档页面按稳定业务视图拆分；页面注册与菜单分类仍只使用现有单一事实源。
 
 ## 17. 物料编辑与导入状态归属
 
@@ -438,9 +439,17 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `modules/operations-tools` 是数据工具、归档记录和操作记录的唯一前端所有者，通过根目录 `index.ts` 向应用层公开 `OperationsToolsSectionPage`。
 - `DataToolsPage.tsx` 组合既有 `DataIntegrityPanel`、`ImageOptimizationPanel` 和公共 `AppButton`，不复制数据检查、图片优化或按钮骨架。
 - `ArchiveRecordsPage.tsx` 与 `AuditLogPage.tsx` 共用模块内工具栏适配器，并继续复用公共顶部工具栏、视图切换、排序表头和响应式断点能力。
-- `SystemPage.tsx` 只负责把系统分区委派给配置、运维工具或剩余设置/工艺职责，不再实现归档、审计和数据维护页面。
+- `SystemPage.tsx` 只负责把系统分区委派给业务配置、系统设置、运维工具或剩余工艺职责，不再实现配置、设置、归档、审计和数据维护页面。
 
-## 22. 自动模块边界守卫
+## 22. 系统设置模块归属
+
+- `modules/configuration/ui/BusinessSettingsPage.tsx` 拥有企业资料和物料编码自然排序，明确归入会影响业务数据与导出的业务配置。
+- `modules/system-settings` 拥有显示、导航和 AI 三个设置分区，并通过统一 `SystemSettingsPageShell` 保持页面层级与布局一致。
+- `DisplaySettingsPage.tsx` 只读取对比度服务端设置；浏览器级工作区、导航与弹窗偏好继续复用公共偏好 Hook。
+- `AiSettingsPage.tsx` 只读取 AI 外观，AI 连接表单通过独立 client 封装 `/api/ai/config`，UI 不直接调用 `fetch`。
+- `verify:configuration-modules` 与 `verify:system-settings-modules` 阻止业务设置和系统设置重新回流 `SystemPage.tsx`。
+
+## 23. 自动模块边界守卫
 
 - `verify:module-boundaries` 检查所有领域模块都有公开 `index.ts`，跨模块调用不得导入其他模块内部路径。
 - 模块 UI 禁止导入 Prisma 或 `server/`，公共框架禁止反向导入领域模块，API 路由禁止导入 UI。
