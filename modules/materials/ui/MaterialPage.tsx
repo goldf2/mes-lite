@@ -1,7 +1,6 @@
 'use client'
 
 import { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode, useCallback, useState, useEffect, useMemo, useRef } from 'react'
-import AttachmentPanel from '@/app/components/AttachmentPanel'
 import { getMultiSelectQuery } from '@/app/components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import TopBarPortal from '@/app/components/TopBarPortal'
@@ -47,17 +46,16 @@ import {
   MaterialApiError,
   archiveMaterial,
   downloadMaterialFile,
-  findMaterialByCode,
   listConfiguredUnits,
   listMaterialCustomers,
   listMaterials,
 } from '../client'
 import MaterialEditDialog from './MaterialEditDialog'
+import MaterialDetailDialog from './MaterialDetailDialog'
 import MaterialImportDialog from './MaterialImportDialog'
 import {
   materialCategoryFilterOptions,
   materialCategoryLabels,
-  primaryMeasureLabels,
 } from '../model/material-options'
 
 const bomSearchProfile: ResourceSearchProfile<BomSearchRow> = {
@@ -1215,28 +1213,10 @@ export default function MaterialPage({
     setShowModal(true)
   }
 
-  const handleViewDetail = async (material: Material) => {
-    try {
-      setDetailMaterial(await findMaterialByCode(material.code, material.id) || material)
-    } catch {
-      setDetailMaterial(material)
-    }
-  }
+  const handleViewDetail = (material: Material) => setDetailMaterial(material)
 
   const handleOpenPanorama = (material: Material) => {
     setPanoramaMaterialId(material.id)
-  }
-
-  const handleEditFromDetail = () => {
-    if (!detailMaterial) return
-    const material = detailMaterial
-    setDetailMaterial(null)
-    handleEdit(material)
-  }
-
-  const handleAttachmentMessage = (message: string) => {
-    onMessage(message)
-    fetchMaterials()
   }
 
   const getMaterialBomProduct = (material: Material) => bomProductByMaterialId.get(material.id) || null
@@ -2427,130 +2407,18 @@ export default function MaterialPage({
           await refreshMaterialSources()
         }}
       />
-      {detailMaterial && (
-        <ModalDialog
-          title="物料详情"
-          description={`${detailMaterial.code} · ${detailMaterial.name}`}
-          onClose={() => setDetailMaterial(null)}
-          size="xl"
-          headerActions={(
-            <>
-                <AppButton
-                  onClick={() => handleOpenPanorama(detailMaterial)}
-                  variant="create"
-                  size="sm"
-                >
-                  全景
-                </AppButton>
-                <AppButton
-                  onClick={handleEditFromDetail}
-                  size="sm"
-                >
-                  编辑资料
-                </AppButton>
-            </>
-          )}
-          bodyClassName="space-y-6"
-        >
-              <div className="grid gap-6 md:grid-cols-[minmax(260px,0.9fr)_minmax(0,1.35fr)]">
-                <a
-                  href={detailMaterial.primaryImage?.originalUrl || detailMaterial.primaryImage?.url}
-                  target={detailMaterial.primaryImage ? '_blank' : undefined}
-                  rel={detailMaterial.primaryImage ? 'noreferrer' : undefined}
-                  className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md bg-gray-100"
-                >
-                  {detailMaterial.primaryImage ? (
-                    <img
-                      src={detailMaterial.primaryImage.displayUrl || detailMaterial.primaryImage.url}
-                      alt={detailMaterial.primaryImage.note || detailMaterial.name}
-                      className="h-full w-full object-contain"
-                    />
-                  ) : (
-                    <span className="text-sm text-gray-400">暂无物料图片</span>
-                  )}
-                </a>
-
-                <div className="min-w-0">
-                  <div className="border-b border-gray-200 pb-5">
-                    <div className="font-mono text-sm text-blue-700">{detailMaterial.code}</div>
-                    <h2 className="mt-2 text-2xl font-semibold text-gray-900">{detailMaterial.name}</h2>
-                    <p className="mt-2 text-sm text-gray-600">规格：{detailMaterial.spec || '-'}</p>
-                    {detailMaterial.note && <p className="mt-1 whitespace-pre-wrap text-sm text-gray-600">备注：{detailMaterial.note}</p>}
-                    <p className="mt-1 text-sm text-gray-600">分类：{materialCategoryLabels[detailMaterial.category || 'RAW'] || '其他'}</p>
-                    <p className="mt-1 text-sm text-gray-600">归属客户：{detailMaterial.customer?.name || '通用/未绑定'}</p>
-                  </div>
-
-                  <dl className="grid grid-cols-3 border-b border-gray-200 py-5">
-                    <div>
-                      <dt className="text-xs text-gray-500">当前库存</dt>
-                      <dd className="mt-2 text-xl font-semibold text-gray-900">{detailMaterial.stock?.qty || 0} {detailMaterial.stockUnit || detailMaterial.unit}</dd>
-                    </div>
-                    <div className="border-l border-gray-200 pl-5">
-                      <dt className="text-xs text-gray-500">已占用</dt>
-                      <dd className="mt-2 text-xl font-semibold text-gray-900">{detailMaterial.stock?.reservedQty || 0} {detailMaterial.stockUnit || detailMaterial.unit}</dd>
-                    </div>
-                    <div className="border-l border-gray-200 pl-5">
-                      <dt className="text-xs text-gray-500">可用库存</dt>
-                      <dd className="mt-2 text-xl font-semibold text-green-700">{detailMaterial.stock?.availableQty || 0} {detailMaterial.stockUnit || detailMaterial.unit}</dd>
-                    </div>
-                  </dl>
-
-                  <dl className="grid grid-cols-2 gap-5 pt-5">
-                    <div>
-                      <dt className="text-xs text-gray-500">主计量方式</dt>
-                      <dd className="mt-1 text-sm font-medium text-gray-900">{primaryMeasureLabels[detailMaterial.primaryMeasure] || '其他'}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-gray-500">参考/计价单位</dt>
-                      <dd className="mt-1 text-sm font-medium text-gray-900">
-                        {detailMaterial.referenceMeasure ? `${primaryMeasureLabels[detailMaterial.referenceMeasure]} · ` : ''}{detailMaterial.valuationUnit}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-gray-500">参考数量</dt>
-                      <dd className="mt-1 text-sm font-medium text-gray-900">{detailMaterial.stock?.valuationQty || 0} {detailMaterial.valuationUnit}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-gray-500">默认参考换算</dt>
-                      <dd className="mt-1 text-sm font-medium text-gray-900">1 {detailMaterial.stockUnit || detailMaterial.unit} = {detailMaterial.conversionRate || 1} {detailMaterial.valuationUnit}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-gray-500">成本方法</dt>
-                      <dd className="mt-1 text-sm font-medium text-gray-900">{detailMaterial.costingMethod === 'FIFO' ? '先入先出 FIFO' : '移动加权平均'}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-gray-500">当前平均成本</dt>
-                      <dd className="mt-1 text-sm font-medium text-gray-900">
-                        ¥{(detailMaterial.stock?.valuationUnitCost || 0).toFixed(4)} / {detailMaterial.valuationUnit}
-                        <span className="ml-2 text-gray-500">¥{(detailMaterial.stock?.stockUnitCost || 0).toFixed(4)} / {detailMaterial.stockUnit || detailMaterial.unit}</span>
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-gray-500">默认销售价</dt>
-                      <dd className="mt-1 text-sm font-medium text-gray-900">
-                        {detailMaterial.defaultSalePrice == null ? '未设置' : `¥${Number(detailMaterial.defaultSalePrice).toFixed(2)} · ${detailMaterial.salesCurrency || 'CNY'}`}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-gray-500">创建时间</dt>
-                      <dd className="mt-1 text-sm text-gray-900">{new Date(detailMaterial.createdAt).toLocaleString('zh-CN')}</dd>
-                    </div>
-                  </dl>
-                </div>
-              </div>
-
-              <AttachmentPanel
-                ownerType="MATERIAL"
-                ownerId={detailMaterial.id}
-                title="图片资料"
-                variant="image"
-                documentType="MATERIAL_IMAGE"
-                layout="gallery"
-                allowCover
-                onMessage={handleAttachmentMessage}
-              />
-        </ModalDialog>
-      )}
+      <MaterialDetailDialog
+        key={detailMaterial?.id || 'closed'}
+        material={detailMaterial}
+        onClose={() => setDetailMaterial(null)}
+        onEdit={(material) => {
+          setDetailMaterial(null)
+          handleEdit(material)
+        }}
+        onOpenPanorama={handleOpenPanorama}
+        onMessage={onMessage}
+        onAttachmentsChanged={fetchMaterials}
+      />
 
       {panoramaMaterialId && (
         <MaterialPanoramaPage
