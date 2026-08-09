@@ -1,11 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { DocumentCategoryManagerPanel, type DocumentCategoryItem } from '@/app/components/DocumentCategoryManagerModal'
+import { DocumentCategoryManagerPanel } from '@/app/components/DocumentCategoryManagerModal'
 import { ResourceAdvancedSearch, ResourcePageShell } from '@/app/components/resource'
 import { filterByAdvancedSearch, type ResourceAdvancedSearchField, type ResourceSearchCondition } from '@/lib/resource-search'
+import { loadDocumentCategories } from '../client/reference-data-api'
+import type { DocumentCategoryConfig } from '../contracts/reference-data'
 
-const categoryAdvancedSearchFields: readonly ResourceAdvancedSearchField<DocumentCategoryItem>[] = [
+const categoryAdvancedSearchFields: readonly ResourceAdvancedSearchField<DocumentCategoryConfig>[] = [
   { key: 'name', label: '类别名称', type: 'text', read: (item) => item.name },
   { key: 'parent', label: '上级类别', type: 'text', read: (item) => item.parent?.name || '' },
   { key: 'level', label: '类别层级', type: 'select', read: (item) => item.parentId ? 'CHILD' : 'ROOT', options: [{ value: 'ROOT', label: '一级类别' }, { value: 'CHILD', label: '二级类别' }] },
@@ -15,7 +17,7 @@ const categoryAdvancedSearchFields: readonly ResourceAdvancedSearchField<Documen
 ]
 
 export default function DocumentCategorySettingsPage({ onMessage, canUpdate, canDelete }: { onMessage: (message: string) => void; canUpdate: boolean; canDelete: boolean }) {
-  const [categories, setCategories] = useState<DocumentCategoryItem[]>([])
+  const [categories, setCategories] = useState<DocumentCategoryConfig[]>([])
   const [keyword, setKeyword] = useState('')
   const [conditions, setConditions] = useState<ResourceSearchCondition[]>([])
   const [loading, setLoading] = useState(true)
@@ -23,12 +25,9 @@ export default function DocumentCategorySettingsPage({ onMessage, canUpdate, can
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/document-categories')
-      const data = await response.json()
-      if (!response.ok) return onMessage(data.error || '获取文档类别失败')
-      setCategories(data.data || [])
-    } catch {
-      onMessage('获取文档类别失败')
+      setCategories(await loadDocumentCategories())
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取文档类别失败')
     } finally {
       setLoading(false)
     }

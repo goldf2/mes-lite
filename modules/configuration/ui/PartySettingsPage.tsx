@@ -8,13 +8,12 @@ import { ResourceFormDialog, ResourcePage, ResourceSortLabel, type ResourceTable
 import useClientTableSort from '@/app/components/useClientTableSort'
 import { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import { filterByKeywordQuery } from '@/lib/resource-search'
-import { partyAdvancedFields, partySearchProfile, type PartyRecord } from '../model/reference-data'
-
-type PartyKind = 'supplier' | 'customer'
+import { archiveParty, loadParties, saveParty } from '../client/reference-data-api'
+import type { PartyKind, PartyRecord } from '../contracts/reference-data'
+import { partyAdvancedFields, partySearchProfile } from '../model/reference-data'
 
 const partyDefinitions = {
   supplier: {
-    endpoint: '/api/suppliers',
     resourceKey: 'suppliers',
     entity: 'suppliers' as const,
     label: '供应商',
@@ -23,7 +22,6 @@ const partyDefinitions = {
     formDescription: '供应商内部编码由系统自动维护。',
   },
   customer: {
-    endpoint: '/api/customers',
     resourceKey: 'customers',
     entity: 'customers' as const,
     label: '客户',
@@ -58,16 +56,13 @@ export default function PartySettingsPage({ kind, onMessage }: { kind: PartyKind
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch(definition.endpoint)
-      const data = await response.json()
-      if (!response.ok) return onMessage(data.error || `获取${definition.label}失败`)
-      setItems(data.data || [])
-    } catch {
-      onMessage(`获取${definition.label}失败`)
+      setItems(await loadParties(kind))
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : `获取${definition.label}失败`)
     } finally {
       setLoading(false)
     }
-  }, [definition.endpoint, definition.label, onMessage])
+  }, [definition.label, kind, onMessage])
 
   useEffect(() => { void load() }, [load])
 
@@ -87,18 +82,12 @@ export default function PartySettingsPage({ kind, onMessage }: { kind: PartyKind
     if (!form.name.trim()) return onMessage(`${definition.label}名称必填`)
     setSaving(true)
     try {
-      const response = await fetch(definition.endpoint, {
-        method: editing ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, id: editing?.id, contact: form.contact || undefined, phone: form.phone || undefined, address: form.address || undefined }),
-      })
-      const data = await response.json()
-      if (!response.ok) return onMessage(data.error || '操作失败')
+      await saveParty(kind, form, editing?.id)
       setDialogOpen(false)
       onMessage(editing ? `${definition.label}已更新` : `${definition.label}已创建`)
       await load()
-    } catch {
-      onMessage(`保存${definition.label}失败`)
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : `保存${definition.label}失败`)
     } finally {
       setSaving(false)
     }
@@ -106,11 +95,13 @@ export default function PartySettingsPage({ kind, onMessage }: { kind: PartyKind
 
   const archive = async (item: PartyRecord) => {
     if (!confirm(`确定归档${definition.label}「${item.name}」吗？归档后可在归档记录中恢复。`)) return
-    const response = await fetch(`${definition.endpoint}?id=${encodeURIComponent(item.id)}`, { method: 'DELETE' })
-    const data = await response.json()
-    if (!response.ok) return onMessage(data.error || '归档失败')
-    onMessage(`${definition.label}已归档`)
-    await load()
+    try {
+      await archiveParty(kind, item.id)
+      onMessage(`${definition.label}已归档`)
+      await load()
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : `归档${definition.label}失败`)
+    }
   }
 
   const columns: ResourceTableColumn<PartyRecord>[] = [

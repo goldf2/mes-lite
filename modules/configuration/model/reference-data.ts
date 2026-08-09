@@ -1,56 +1,7 @@
 import type { ResourceAdvancedSearchField, ResourceSearchProfile } from '@/lib/resource-search'
+import type { ConfiguredUnit, InventoryLocationConfig, MeasureType, PartyRecord, WorkCenterConfig } from '../contracts/reference-data'
 
-export interface PartyRecord {
-  id: string
-  code: string
-  name: string
-  contact?: string | null
-  phone?: string | null
-  address?: string | null
-  createdAt: string
-  sortOrder: number
-}
-
-export type MeasureType = 'LENGTH' | 'WEIGHT' | 'QUANTITY' | 'OTHER'
-
-export interface ConfiguredUnit {
-  code: string
-  name: string
-  measureType: MeasureType
-  toBaseFactor: number
-  isBase: boolean
-  isPreset: boolean
-  usedByMaterialCount: number
-  usedByBomCount: number
-  usageCount: number
-  sortOrder: number
-}
-
-export interface InventoryLocationConfig {
-  id: string
-  code: string
-  name: string
-  note?: string | null
-  isDefault: boolean
-  isActive: boolean
-  materialCount: number
-  qty: number
-  reservedQty: number
-  availableQty: number
-  sortOrder: number
-}
-
-export interface WorkCenterConfig {
-  id: string
-  code: string
-  name: string
-  category?: string | null
-  note?: string | null
-  isActive: boolean
-  deletedAt?: string | null
-  _count: { equipment: number; workInstructions: number }
-  sortOrder: number
-}
+export type { ConfiguredUnit, InventoryLocationConfig, MeasureType, PartyRecord, WorkCenterConfig } from '../contracts/reference-data'
 
 export const measureTypeOptions: Array<[MeasureType, string, string]> = [
   ['LENGTH', '长度', 'm'],

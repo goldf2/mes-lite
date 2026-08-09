@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 185 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售和设备 13 个模块；运维工具已包含数据维护、归档、审计、扫码打印和锯切成本的 UI/client/contracts/model 垂直分层 |
+| `modules/` | 187 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售和设备 13 个模块；业务配置参考资料与运维工具均形成 UI/client/contracts/model 垂直分层 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -641,3 +641,10 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 锯切成本的页面、保存面板、请求契约和 HTTP client 统一进入运维工具领域；协调页从 558 行降至 363 行且不再直接调用 `fetch`。
 - 材料利用率、锯缝损耗、班次产能、混合规模、负荷和保存快照输入从 React 页面提取为纯计算规则，由 `verify:sawing-cost-module` 使用确定样例验证。
 - `verify:scan-print` 增加页面边界、公开入口和根目录回流守卫；模块边界校验现只允许根目录保留 31 行的 `SystemPage` 兼容分派层，不再存在待迁移根级领域页。
+
+## 46. 业务配置参考资料访问层
+
+- `contracts/reference-data.ts` 集中供应商/客户、库位、单位、工作中心和文档类别的读取与编辑契约，配置视图模型不再重复定义接口响应。
+- `client/reference-data-api.ts` 统一参考资料读取、保存、归档、删除和设为默认等 HTTP 调用，并集中处理 JSON 响应与服务端错误。
+- 供应商和客户继续复用一个参数化 `PartySettingsPage`；库位、单位和工作中心复用公共 `ResourcePage`；树形文档类别复用 `ResourcePageShell`。
+- 5 个配置页面均不再直接调用 `fetch`，API 路径只存在于领域 client；`verify:configuration-modules` 阻止页面请求和接口常量重新回流 UI。

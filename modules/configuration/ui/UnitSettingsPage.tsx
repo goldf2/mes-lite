@@ -8,7 +8,9 @@ import { ResourceFormDialog, ResourcePage, ResourceSortLabel, type ResourceTable
 import useClientTableSort from '@/app/components/useClientTableSort'
 import { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import { filterByKeywordQuery } from '@/lib/resource-search'
-import { measureTypeOptions, unitAdvancedFields, unitSearchProfile, type ConfiguredUnit, type MeasureType } from '../model/reference-data'
+import { loadConfiguredUnits, removeConfiguredUnit, saveConfiguredUnit } from '../client/reference-data-api'
+import type { ConfiguredUnit, MeasureType } from '../contracts/reference-data'
+import { measureTypeOptions, unitAdvancedFields, unitSearchProfile } from '../model/reference-data'
 
 const emptyForm = { code: '', name: '', measureType: 'LENGTH' as MeasureType, toBaseFactor: 1 }
 
@@ -28,12 +30,9 @@ export default function UnitSettingsPage({ onMessage }: { onMessage: (message: s
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/system/units')
-      const data = await response.json()
-      if (!response.ok) return onMessage(data.error || '获取单位配置失败')
-      setItems(data.data || [])
-    } catch {
-      onMessage('获取单位配置失败')
+      setItems(await loadConfiguredUnits())
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取单位配置失败')
     } finally {
       setLoading(false)
     }
@@ -48,14 +47,11 @@ export default function UnitSettingsPage({ onMessage }: { onMessage: (message: s
     if (!form.code.trim() || !form.name.trim() || !Number.isFinite(form.toBaseFactor) || form.toBaseFactor <= 0) return onMessage('请填写有效的单位编码、名称和换算系数')
     setSaving(true)
     try {
-      const response = await fetch('/api/system/units', { method: editing ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editing ? { ...form, originalCode: editing.code, originalMeasureType: editing.measureType } : form) })
-      const data = await response.json()
-      if (!response.ok) return onMessage(data.error || '保存单位失败')
-      setItems(data.data || [])
+      setItems(await saveConfiguredUnit(form, editing || undefined))
       setDialogOpen(false)
       onMessage(editing ? '单位配置已更新' : '自定义单位已新建')
-    } catch {
-      onMessage('保存单位失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '保存单位失败')
     } finally {
       setSaving(false)
     }
@@ -63,12 +59,12 @@ export default function UnitSettingsPage({ onMessage }: { onMessage: (message: s
 
   const remove = async (item: ConfiguredUnit) => {
     if (!confirm(`确认删除自定义单位“${item.name}（${item.code}）”吗？`)) return
-    const params = new URLSearchParams({ code: item.code, measureType: item.measureType })
-    const response = await fetch(`/api/system/units?${params.toString()}`, { method: 'DELETE' })
-    const data = await response.json()
-    if (!response.ok) return onMessage(data.error || '删除单位失败')
-    setItems(data.data || [])
-    onMessage('自定义单位已删除')
+    try {
+      setItems(await removeConfiguredUnit(item))
+      onMessage('自定义单位已删除')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '删除单位失败')
+    }
   }
 
   const measureLabel = (item: ConfiguredUnit) => measureTypeOptions.find(([value]) => value === item.measureType)?.[1] || item.measureType

@@ -8,7 +8,9 @@ import { ResourceFormDialog, ResourcePage, ResourceSortLabel, type ResourceTable
 import useClientTableSort from '@/app/components/useClientTableSort'
 import { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import { filterByKeywordQuery } from '@/lib/resource-search'
-import { locationAdvancedFields, locationSearchProfile, type InventoryLocationConfig } from '../model/reference-data'
+import { archiveInventoryLocation, loadInventoryLocations, makeDefaultInventoryLocation, saveInventoryLocation } from '../client/reference-data-api'
+import type { InventoryLocationConfig } from '../contracts/reference-data'
+import { locationAdvancedFields, locationSearchProfile } from '../model/reference-data'
 
 const emptyForm = { code: '', name: '', note: '', isDefault: false, isActive: true }
 
@@ -33,12 +35,9 @@ export default function InventoryLocationSettingsPage({ onMessage }: { onMessage
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/inventory-locations?includeInactive=1')
-      const data = await response.json()
-      if (!response.ok) return onMessage(data.error || '获取库位失败')
-      setItems(data.data || [])
-    } catch {
-      onMessage('获取库位失败')
+      setItems(await loadInventoryLocations())
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取库位失败')
     } finally {
       setLoading(false)
     }
@@ -62,14 +61,11 @@ export default function InventoryLocationSettingsPage({ onMessage }: { onMessage
     if (!form.code.trim() || !form.name.trim()) return onMessage('请填写库位编码和名称')
     setSaving(true)
     try {
-      const response = await fetch('/api/inventory-locations', { method: editing ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editing ? { ...form, id: editing.id } : form) })
-      const data = await response.json()
-      if (!response.ok) return onMessage(data.error || '保存库位失败')
-      setItems(data.data || [])
+      setItems(await saveInventoryLocation(form, editing?.id))
       setDialogOpen(false)
       onMessage(editing ? '库位已更新' : '库位已新增')
-    } catch {
-      onMessage('保存库位失败')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '保存库位失败')
     } finally {
       setSaving(false)
     }
@@ -77,19 +73,21 @@ export default function InventoryLocationSettingsPage({ onMessage }: { onMessage
 
   const archive = async (item: InventoryLocationConfig) => {
     if (!confirm(`确认归档库位“${item.code} · ${item.name}”吗？`)) return
-    const response = await fetch(`/api/inventory-locations?id=${encodeURIComponent(item.id)}`, { method: 'DELETE' })
-    const data = await response.json()
-    if (!response.ok) return onMessage(data.error || '归档库位失败')
-    setItems(data.data || [])
-    onMessage('库位已归档')
+    try {
+      setItems(await archiveInventoryLocation(item.id))
+      onMessage('库位已归档')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '归档库位失败')
+    }
   }
 
   const makeDefault = async (item: InventoryLocationConfig) => {
-    const response = await fetch('/api/inventory-locations', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id, isDefault: true, isActive: true }) })
-    const data = await response.json()
-    if (!response.ok) return onMessage(data.error || '设置默认库位失败')
-    setItems(data.data || [])
-    onMessage(`默认库位已设为 ${item.code}`)
+    try {
+      setItems(await makeDefaultInventoryLocation(item.id))
+      onMessage(`默认库位已设为 ${item.code}`)
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '设置默认库位失败')
+    }
   }
 
   const statusBadge = (item: InventoryLocationConfig) => item.isDefault
