@@ -62,26 +62,6 @@ export interface InventoryLocationForm {
   isActive: boolean
 }
 
-export interface WorkCenterConfig {
-  id: string
-  code: string
-  name: string
-  category?: string | null
-  note?: string | null
-  isActive: boolean
-  deletedAt?: string | null
-  _count: { equipment: number; workInstructions: number }
-  sortOrder: number
-}
-
-export interface WorkCenterForm {
-  code: string
-  name: string
-  category: string
-  note: string
-  isActive: boolean
-}
-
 export interface DocumentCategoryConfig {
   id: string
   name: string

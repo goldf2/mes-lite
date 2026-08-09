@@ -8,9 +8,9 @@ import { ResourceFormDialog, ResourcePage, ResourceSortLabel, type ResourceTable
 import useClientTableSort from '@/app/components/useClientTableSort'
 import { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import { filterByKeywordQuery } from '@/lib/resource-search'
-import { archiveWorkCenter, loadWorkCenters, saveWorkCenter } from '../client/reference-data-api'
-import type { WorkCenterConfig } from '../contracts/reference-data'
-import { workCenterAdvancedFields, workCenterSearchProfile } from '../model/reference-data'
+import { archiveWorkCenter, loadManagedWorkCenters, saveWorkCenter } from '../client/equipment-api'
+import type { WorkCenterConfig } from '../contracts/equipment'
+import { workCenterAdvancedFields, workCenterSearchProfile } from '../model/work-center-view'
 
 const emptyForm = { code: '', name: '', category: '', note: '', isActive: true }
 
@@ -36,7 +36,7 @@ export default function WorkCenterSettingsPage({ onMessage }: { onMessage: (mess
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      setItems(await loadWorkCenters())
+      setItems(await loadManagedWorkCenters())
     } catch (error) {
       onMessage(error instanceof Error ? error.message : '获取工作中心失败')
     } finally {
@@ -122,7 +122,7 @@ export default function WorkCenterSettingsPage({ onMessage }: { onMessage: (mess
           <FormField label="工作中心编码" required><input className={appInputClassName} value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} /></FormField>
           <FormField label="工作中心名称" required><input className={appInputClassName} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></FormField>
           <FormField label="类别"><input className={appInputClassName} value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} /></FormField>
-          {editing && <label className="flex items-center gap-2 self-end rounded-lg border border-gray-200 px-3 py-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm({ ...form, isActive: event.target.checked })} />启用</label>}
+          {editing && !editing.isActive && <label className="flex items-center gap-2 self-end rounded-lg border border-gray-200 px-3 py-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm({ ...form, isActive: event.target.checked })} />恢复启用</label>}
           <FormField label="备注" className="sm:col-span-2"><textarea className={appTextareaClassName} rows={4} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} /></FormField>
         </div>
       </ResourceFormDialog>

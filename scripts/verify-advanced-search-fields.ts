@@ -53,7 +53,7 @@ const resourceSearchPages = [
   'modules/configuration/ui/InventoryLocationSettingsPage.tsx',
   'modules/configuration/ui/PartySettingsPage.tsx',
   'modules/configuration/ui/UnitSettingsPage.tsx',
-  'modules/configuration/ui/WorkCenterSettingsPage.tsx',
+  'modules/equipment/ui/WorkCenterSettingsPage.tsx',
 ]
 const productionEngineeringPages = [
   'modules/production/ui/ProcessTemplatePage.tsx',

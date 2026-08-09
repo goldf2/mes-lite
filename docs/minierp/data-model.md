@@ -792,12 +792,12 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 | 模型 | 关键字段 | 含义 |
 | --- | --- | --- |
-| `WorkCenter` | `code`、`name`、`category`、`isActive`、`sortOrder` | 锯切、钻孔、检验等逻辑能力区域，由“配置 / 工作中心”维护；`sortOrder` 保存共享默认顺序 |
+| `WorkCenter` | `code`、`name`、`category`、`isActive`、`sortOrder` | 锯切、钻孔、检验等逻辑能力区域，由“业务配置 / 工作中心”进入、`modules/equipment` 实现；`sortOrder` 保存共享默认顺序 |
 | `Equipment` | `code`、`name`、`equipmentType`、`workCenterId` | 实际生产设备及其工作中心归属 |
 | `Equipment` | `manufacturer`、`model`、`serialNumber` | 设备厂商、型号和出厂编号 |
 | `Equipment` | `status`、`location`、`basicParameters` | 可用、使用中、维护、停用状态及基础能力参数 |
 
-工作中心归档前必须先调整其全部设备归属。设备归档保留审计记录，不影响既有工艺文档关系；工艺文档后续修改适用工作中心时使用显式保存。
+工作中心归档前必须先调整其全部设备归属，普通更新不得绕过引用检查直接停用。设备只能归属启用且未归档的工作中心；设备归档同时进入 `STOPPED` 状态并保留审计记录。工艺文档后续修改适用工作中心时使用显式保存。
 
 ### system_settings
 

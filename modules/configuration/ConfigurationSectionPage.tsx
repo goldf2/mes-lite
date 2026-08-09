@@ -1,9 +1,9 @@
 'use client'
 
+import { WorkCenterSettingsPage } from '@/modules/equipment'
 import InventoryLocationSettingsPage from './ui/InventoryLocationSettingsPage'
 import PartySettingsPage from './ui/PartySettingsPage'
 import UnitSettingsPage from './ui/UnitSettingsPage'
-import WorkCenterSettingsPage from './ui/WorkCenterSettingsPage'
 import BusinessSettingsPage from './ui/BusinessSettingsPage'
 
 export const referenceConfigurationSections = ['suppliers', 'customers', 'units', 'locations', 'workCenters'] as const

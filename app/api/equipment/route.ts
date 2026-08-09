@@ -1,88 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Prisma } from '@prisma/client'
 import { z } from 'zod'
-import { prisma } from '@/lib/prisma'
-import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
-import { tokenizeKeywordQuery } from '@/lib/resource-search'
+import { requireResourcePermission } from '@/lib/permissions'
+import { equipmentIdSchema, equipmentInputSchema, equipmentUpdateSchema } from '@/modules/equipment/contracts/equipment-schema'
+import { EquipmentDomainError } from '@/modules/equipment/domain/equipment-errors'
+import { archiveManagedEquipment, createManagedEquipment, updateManagedEquipment } from '@/modules/equipment/server/equipment-command-service'
+import { getEquipmentStatuses, listManagedEquipment } from '@/modules/equipment/server/equipment-query-service'
 
 export const dynamic = 'force-dynamic'
 
-const equipmentStatuses = ['AVAILABLE', 'IN_USE', 'MAINTENANCE', 'STOPPED'] as const
-
-const fields = z.object({
-  code: z.string().min(1, '设备编码必填').max(40),
-  name: z.string().min(1, '设备名称必填').max(100),
-  equipmentType: z.string().min(1, '设备类型必填').max(80),
-  workCenterId: z.string().min(1, '请选择工作中心'),
-  model: z.string().max(100).optional().nullable(),
-  manufacturer: z.string().max(100).optional().nullable(),
-  serialNumber: z.string().max(100).optional().nullable(),
-  status: z.enum(equipmentStatuses).optional(),
-  location: z.string().max(100).optional().nullable(),
-  basicParameters: z.string().max(4000).optional().nullable(),
-  note: z.string().max(1000).optional().nullable(),
-})
-
-const updateSchema = fields.extend({ id: z.string().min(1) })
-const include = { workCenter: { select: { id: true, code: true, name: true, isActive: true } } } as const
-
-function normalizeCode(value: string) {
-  return value.trim().replace(/\s+/g, '').toUpperCase()
-}
-
-async function validateWorkCenter(id: string) {
-  return prisma.workCenter.findFirst({ where: { id, isActive: true, deletedAt: null }, select: { id: true } })
+function equipmentHttpError(error: unknown, fallback: string) {
+  if (error instanceof z.ZodError) {
+    return NextResponse.json({ error: error.errors[0]?.message || '参数错误' }, { status: 400 })
+  }
+  if (error instanceof EquipmentDomainError) {
+    return NextResponse.json({ error: error.message }, { status: error.status })
+  }
+  console.error(`${fallback}:`, error)
+  return NextResponse.json({ error: fallback }, { status: 500 })
 }
 
 export async function GET(req: NextRequest) {
-  const denied = await requireResourcePermission('equipment', 'read')
-  if (denied) return denied
-  const { searchParams } = new URL(req.url)
-  const keyword = searchParams.get('keyword')?.trim()
-  const workCenterId = searchParams.get('workCenterId')?.trim()
-  const includeArchived = searchParams.get('includeArchived') === '1'
-  const keywordFilters = tokenizeKeywordQuery(keyword || '').map((token) => ({ OR: [
-    { code: { contains: token } }, { name: { contains: token } },
-    { equipmentType: { contains: token } }, { model: { contains: token } },
-    { manufacturer: { contains: token } }, { serialNumber: { contains: token } },
-    { workCenter: { is: { name: { contains: token } } } },
-  ] }))
-  const where: Prisma.EquipmentWhereInput = {
-    ...(includeArchived ? {} : { deletedAt: null }),
-    ...(workCenterId ? { workCenterId } : {}),
-    ...(keywordFilters.length > 0 ? { AND: keywordFilters } : {}),
+  try {
+    const denied = await requireResourcePermission('equipment', 'read')
+    if (denied) return denied
+    const { searchParams } = new URL(req.url)
+    const items = await listManagedEquipment({
+      keyword: searchParams.get('keyword'),
+      workCenterId: searchParams.get('workCenterId'),
+      includeArchived: searchParams.get('includeArchived') === '1',
+    })
+    return NextResponse.json({ data: items, statuses: getEquipmentStatuses() })
+  } catch (error) {
+    return equipmentHttpError(error, '获取设备失败')
   }
-  const items = await prisma.equipment.findMany({ where, include, orderBy: [{ deletedAt: 'asc' }, { code: 'asc' }] })
-  return NextResponse.json({ data: items, statuses: equipmentStatuses })
 }
 
 export async function POST(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('equipment', 'create')
     if (denied) return denied
-    const body = fields.parse(await req.json())
-    if (!await validateWorkCenter(body.workCenterId)) return NextResponse.json({ error: '工作中心不存在或已停用' }, { status: 400 })
-    const saved = await prisma.equipment.create({
-      data: {
-        code: normalizeCode(body.code), name: body.name.trim(), equipmentType: body.equipmentType.trim(),
-        workCenterId: body.workCenterId, model: body.model?.trim() || null,
-        manufacturer: body.manufacturer?.trim() || null, serialNumber: body.serialNumber?.trim() || null,
-        status: body.status || 'AVAILABLE', location: body.location?.trim() || null,
-        basicParameters: body.basicParameters?.trim() || null, note: body.note?.trim() || null,
-      },
-      include,
-    })
+    const saved = await createManagedEquipment(equipmentInputSchema.parse(await req.json()))
     await writeAuditLog(req, {
       action: 'CREATE', entityType: 'EQUIPMENT', entityId: saved.id,
       entityLabel: `${saved.code} ${saved.name}`, afterData: saved,
     })
     return NextResponse.json({ data: saved }, { status: 201 })
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors[0]?.message || '参数错误' }, { status: 400 })
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return NextResponse.json({ error: '设备编码已存在' }, { status: 409 })
-    console.error('Create equipment error:', error)
-    return NextResponse.json({ error: '新增设备失败' }, { status: 500 })
+    return equipmentHttpError(error, '新增设备失败')
   }
 }
 
@@ -90,31 +55,15 @@ export async function PUT(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('equipment', 'update')
     if (denied) return denied
-    const body = updateSchema.parse(await req.json())
-    const before = await prisma.equipment.findUnique({ where: { id: body.id }, include })
-    if (!before || before.deletedAt) return NextResponse.json({ error: '设备不存在或已归档' }, { status: 404 })
-    if (!await validateWorkCenter(body.workCenterId)) return NextResponse.json({ error: '工作中心不存在或已停用' }, { status: 400 })
-    const saved = await prisma.equipment.update({
-      where: { id: body.id },
-      data: {
-        code: normalizeCode(body.code), name: body.name.trim(), equipmentType: body.equipmentType.trim(),
-        workCenterId: body.workCenterId, model: body.model?.trim() || null,
-        manufacturer: body.manufacturer?.trim() || null, serialNumber: body.serialNumber?.trim() || null,
-        status: body.status || 'AVAILABLE', location: body.location?.trim() || null,
-        basicParameters: body.basicParameters?.trim() || null, note: body.note?.trim() || null,
-      },
-      include,
-    })
+    const { id, ...input } = equipmentUpdateSchema.parse(await req.json())
+    const { existing, saved } = await updateManagedEquipment(id, input)
     await writeAuditLog(req, {
       action: 'UPDATE', entityType: 'EQUIPMENT', entityId: saved.id,
-      entityLabel: `${saved.code} ${saved.name}`, beforeData: before, afterData: saved,
+      entityLabel: `${saved.code} ${saved.name}`, beforeData: existing, afterData: saved,
     })
     return NextResponse.json({ data: saved })
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors[0]?.message || '参数错误' }, { status: 400 })
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return NextResponse.json({ error: '设备编码已存在' }, { status: 409 })
-    console.error('Update equipment error:', error)
-    return NextResponse.json({ error: '更新设备失败' }, { status: 500 })
+    return equipmentHttpError(error, '更新设备失败')
   }
 }
 
@@ -122,18 +71,14 @@ export async function DELETE(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('equipment', 'delete')
     if (denied) return denied
-    const id = new URL(req.url).searchParams.get('id')
-    if (!id) return NextResponse.json({ error: '缺少设备 ID' }, { status: 400 })
-    const before = await prisma.equipment.findUnique({ where: { id }, include })
-    if (!before || before.deletedAt) return NextResponse.json({ error: '设备不存在或已归档' }, { status: 404 })
-    const saved = await prisma.equipment.update({ where: { id }, data: { deletedAt: new Date(), status: 'STOPPED' }, include })
+    const id = equipmentIdSchema.parse(new URL(req.url).searchParams.get('id'))
+    const { existing, saved } = await archiveManagedEquipment(id)
     await writeAuditLog(req, {
       action: 'ARCHIVE', entityType: 'EQUIPMENT', entityId: saved.id,
-      entityLabel: `${saved.code} ${saved.name}`, beforeData: before, afterData: saved,
+      entityLabel: `${saved.code} ${saved.name}`, beforeData: existing, afterData: saved,
     })
     return NextResponse.json({ data: saved, message: '设备已归档' })
   } catch (error) {
-    console.error('Archive equipment error:', error)
-    return NextResponse.json({ error: '归档设备失败' }, { status: 500 })
+    return equipmentHttpError(error, '归档设备失败')
   }
 }

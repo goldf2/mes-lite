@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 253 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售、设备和附件 14 个模块；页面数据访问已统一进入领域 client，工作台、生产订单、生产实绩、派工、流程转移、附件、销售履约及来料生命周期已形成前后端垂直切片 |
+| `modules/` | 272 个 TypeScript 文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售、设备和附件 14 个模块；页面数据访问已统一进入领域 client，设备与工作中心也已形成前后端垂直切片 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -376,7 +376,7 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `modules/workspace` 拥有工作台指标、负荷、状态分布与预警页面状态。
 - `modules/production` 拥有生产订单查询、创建、详情、实绩入口、单据 PDF，以及加工工艺和物料路线工程主数据。
 - `modules/inventory` 拥有库存查询、筛选、视图、数据一致性提示和库存调整状态。
-- `modules/configuration` 拥有客户、供应商、单位、库位、工作中心、文档类别以及企业与业务规则配置页。
+- `modules/configuration` 拥有客户、供应商、单位、库位、文档类别以及企业与业务规则配置页；工作中心仅保留菜单分派，页面与规则归 `modules/equipment`。
 - `modules/materials` 拥有物料管理与物料全景，物料契约、HTTP client 和 UI 已分层。
 - `modules/bom` 拥有 BOM 全览、BOM 契约和 HTTP client；物料页对 BOM 的访问只经过该模块公开出口。
 - `modules/operations-tools` 拥有数据检查、图片优化、物料编码规范化、归档恢复/永久删除和审计记录页面。
@@ -644,10 +644,10 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 
 ## 46. 业务配置参考资料访问层
 
-- `contracts/reference-data.ts` 集中供应商/客户、库位、单位、工作中心和文档类别的读取与编辑契约，配置视图模型不再重复定义接口响应。
+- `contracts/reference-data.ts` 集中供应商/客户、库位、单位和文档类别的读取与编辑契约；工作中心契约已迁入设备领域。
 - `client/reference-data-api.ts` 统一参考资料读取、保存、归档、删除和设为默认等 HTTP 调用，并集中处理 JSON 响应与服务端错误。
-- 供应商和客户继续复用一个参数化 `PartySettingsPage`；库位、单位和工作中心复用公共 `ResourcePage`；树形文档类别复用 `ResourcePageShell`。
-- 5 个配置页面均不再直接调用 `fetch`，API 路径只存在于领域 client；`verify:configuration-modules` 阻止页面请求和接口常量重新回流 UI。
+- 供应商和客户继续复用一个参数化 `PartySettingsPage`；库位和单位复用公共 `ResourcePage`；树形文档类别复用 `ResourcePageShell`；工作中心由配置分派层通过设备模块公开入口挂载。
+- 配置自有页面与工作中心页面均不直接调用 `fetch`，API 路径只存在于各自领域 client；`verify:configuration-modules` 阻止工作中心实现重新回流配置领域。
 
 ## 47. 运维维护工具访问层
 
@@ -733,3 +733,11 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 流程转移主路由、编辑、确认和冲销共 4 条 Route Handler 现为 29–48 行，只保留权限、Schema、操作人、服务调用、审计和 HTTP 错误映射；扁平 `lib/flow-transfer.ts` 已删除，直接访问 Prisma 的 API 从 46 条降至 42 条。
 - 流程转移编号改为读取业务日期最大历史序号后递增；确认和冲销只改变来源/目标库位余额并写一出一入流水，总库存、计价数量、成本和成本层保持不变。
 - `verify:flow-transfer` 使用运行后删除的临时完整 SQLite，通过真实领域服务覆盖工作区查询、编号断号、草稿创建/编辑、来源库存不足、确认、重复状态拒绝、冲销失败原子性及成功恢复，不连接本机测试库或服务器正式库。
+
+## 58. 设备与工作中心完整领域归属
+
+- `modules/equipment/contracts` 集中设备、工作中心和 HTTP 输入 Schema；`domain` 统一编码、写入映射、可预期错误以及禁止普通更新绕过归档校验的规则。
+- `server/equipment-*` 与 `work-center-*` 分别拥有组合查询、工作中心有效性校验、新增、迁移、归档和恢复事务。设备只能归属启用且未归档工作中心，归档设备同步进入 `STOPPED`。
+- 工作中心页面、搜索模型、契约和 client 从 `modules/configuration` 迁入 `modules/equipment`；业务配置菜单只通过设备模块 `index.ts` 挂载，菜单位置不再决定规则所有权。
+- 设备和工作中心 Route Handler 分别从 139/135 行降至 84/85 行，不再直接访问 Prisma，使直接访问 Prisma 的 API 从 39 条降至 37 条。
+- `verify:equipment` 使用运行后删除的临时完整 SQLite，覆盖公共 `ResourcePage`、输入清理、唯一编码、组合搜索、设备迁移、引用归档阻断、直接停用旁路封闭、设备归档和工作中心恢复。

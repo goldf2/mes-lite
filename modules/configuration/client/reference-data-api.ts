@@ -7,8 +7,6 @@ import type {
   PartyKind,
   PartyRecord,
   UnitForm,
-  WorkCenterConfig,
-  WorkCenterForm,
 } from '../contracts/reference-data'
 
 interface ApiPayload<T> {
@@ -80,18 +78,6 @@ export async function saveConfiguredUnit(form: UnitForm, original?: Pick<Configu
 export async function removeConfiguredUnit(unit: Pick<ConfiguredUnit, 'code' | 'measureType'>) {
   const params = new URLSearchParams({ code: unit.code, measureType: unit.measureType })
   return await request<ConfiguredUnit[]>(`/api/system/units?${params.toString()}`, { method: 'DELETE' }) || []
-}
-
-export async function loadWorkCenters() {
-  return await request<WorkCenterConfig[]>('/api/work-centers?includeInactive=1') || []
-}
-
-export async function saveWorkCenter(form: WorkCenterForm, id?: string) {
-  return await request<WorkCenterConfig[]>('/api/work-centers', jsonRequest(id ? 'PATCH' : 'POST', id ? { ...form, id } : form)) || []
-}
-
-export async function archiveWorkCenter(id: string) {
-  return await request<WorkCenterConfig[]>(`/api/work-centers?id=${encodeURIComponent(id)}`, { method: 'DELETE' }) || []
 }
 
 export async function loadDocumentCategories() {

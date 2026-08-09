@@ -15,6 +15,7 @@ const partyRouteHandler = read('modules/configuration/http/party-route-handlers.
 const partyService = read('modules/configuration/server/party-service.ts')
 const locationRoute = read('app/api/inventory-locations/route.ts')
 const locationCommandService = read('modules/configuration/server/inventory-location-command-service.ts')
+const configurationSection = read('modules/configuration/ConfigurationSectionPage.tsx')
 
 const removedManagers = [
   'SupplierManager',
@@ -44,7 +45,6 @@ const resourcePages = [
   'modules/configuration/ui/PartySettingsPage.tsx',
   'modules/configuration/ui/InventoryLocationSettingsPage.tsx',
   'modules/configuration/ui/UnitSettingsPage.tsx',
-  'modules/configuration/ui/WorkCenterSettingsPage.tsx',
 ]
 
 for (const path of resourcePages) {
@@ -57,8 +57,12 @@ assert.match(partyPage, /kind: PartyKind/, '供应商和客户必须共用参数
 assert.doesNotMatch(partyPage, /\bfetch\(/, '供应商和客户参数化资料页不得直接调用 fetch')
 assert.match(referenceDataClient, /\/api\/suppliers/, '配置领域 client 必须包含供应商接口')
 assert.match(referenceDataClient, /\/api\/customers/, '配置领域 client 必须包含客户接口')
-assert.match(referenceDataClient, /loadInventoryLocations|loadConfiguredUnits|loadWorkCenters|loadDocumentCategories/, '配置领域 client 必须集中资料读取')
-assert.match(referenceDataContracts, /interface PartyRecord|interface ConfiguredUnit|interface InventoryLocationConfig|interface WorkCenterConfig|interface DocumentCategoryConfig/, '配置领域必须集中参考资料契约')
+assert.match(referenceDataClient, /loadInventoryLocations|loadConfiguredUnits|loadDocumentCategories/, '配置领域 client 必须集中自身资料读取')
+assert.doesNotMatch(referenceDataClient, /loadWorkCenters|saveWorkCenter|archiveWorkCenter/, '工作中心请求必须归属设备领域')
+assert.match(referenceDataContracts, /interface PartyRecord|interface ConfiguredUnit|interface InventoryLocationConfig|interface DocumentCategoryConfig/, '配置领域必须集中自身参考资料契约')
+assert.doesNotMatch(referenceDataContracts, /interface WorkCenterConfig|interface WorkCenterForm/, '工作中心契约必须归属设备领域')
+assert.match(configurationSection, /from '@\/modules\/equipment'/, '业务配置只通过设备领域公开入口挂载工作中心')
+assert.ok(!existsSync(join(root, 'modules/configuration/ui/WorkCenterSettingsPage.tsx')), '配置领域不得保留工作中心页面副本')
 assert.match(partyRouteHandler, /createPartyRouteHandlers/, '供应商和客户 API 必须共用配置领域 HTTP 适配器')
 assert.doesNotMatch(partyRouteHandler, /@\/lib\/prisma|\bprisma\./, '配置领域 HTTP 适配器不得直接访问 Prisma')
 assert.doesNotMatch(partyService, /NextRequest|NextResponse|requireResourcePermission|writeAuditLog/, '配置领域服务必须与 HTTP、权限和请求审计解耦')
@@ -75,4 +79,4 @@ const categoryPage = read('modules/configuration/ui/DocumentCategorySettingsPage
 assert.match(categoryPage, /<ResourcePageShell\b/, '树形文档类别必须使用公共 ResourcePageShell')
 assert.doesNotMatch(categoryPage, /\bfetch\(/, '文档类别页不得直接调用 fetch')
 
-console.log(`配置模块校验通过：${resourcePages.length} 个 ResourcePage、1 个树形 ResourcePageShell、0 个页面级 fetch，SystemPage ${systemPage.split('\n').length} 行。`)
+console.log(`配置模块校验通过：${resourcePages.length} 个自有 ResourcePage、1 个树形 ResourcePageShell，工作中心经设备领域公开入口挂载，SystemPage ${systemPage.split('\n').length} 行。`)

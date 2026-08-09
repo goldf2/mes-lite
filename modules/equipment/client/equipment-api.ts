@@ -1,4 +1,10 @@
-import type { EquipmentForm, EquipmentItem, EquipmentWorkCenterOption } from '../contracts/equipment'
+import type {
+  EquipmentForm,
+  EquipmentItem,
+  EquipmentWorkCenterOption,
+  WorkCenterConfig,
+  WorkCenterForm,
+} from '../contracts/equipment'
 
 interface ApiPayload<T> {
   data?: T
@@ -38,4 +44,25 @@ export async function saveEquipment(form: EquipmentForm, id?: string) {
 export async function archiveEquipment(id: string) {
   const payload = await request<never>(`/api/equipment?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
   return payload.message
+}
+
+export async function loadManagedWorkCenters() {
+  const payload = await request<WorkCenterConfig[]>('/api/work-centers?includeInactive=1')
+  return payload.data || []
+}
+
+export async function saveWorkCenter(form: WorkCenterForm, id?: string) {
+  const payload = await request<WorkCenterConfig[]>('/api/work-centers', {
+    method: id ? 'PATCH' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(id ? { ...form, id } : form),
+  })
+  return payload.data || []
+}
+
+export async function archiveWorkCenter(id: string) {
+  const payload = await request<WorkCenterConfig[]>(`/api/work-centers?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+  return payload.data || []
 }
