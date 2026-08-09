@@ -24,14 +24,14 @@
 | `app/components/shell/` | 9 个文件 | 已建立账号菜单、导航图标、页面宿主、渲染适配器和四类状态控制器的公共应用壳边界 |
 | `lib/page-registry.ts` | 38 个页面定义 | 页面元数据、权限资源、工作区入口、系统分区、打开方式和渲染键已集中为单一事实源 |
 | `app/components/` 根目录 | 64 个文件 | 物料、全景和 BOM 全览已迁出；其他领域页面、业务弹窗和系统页面仍继续按增量原则收敛 |
-| `modules/materials/ui/MaterialPage.tsx` | 2005 行 | 数据契约、HTTP client、详情、编辑、导入、卡片、表格和分页均已拆出；BOM 编辑状态仍需继续分离 |
+| `modules/materials/ui/MaterialPage.tsx` | 1704 行 | 数据契约、HTTP client、详情、编辑、导入、集合视图、页内选项和显示偏好均已拆出；BOM 编辑状态仍需继续分离 |
 | `SystemPage.tsx` | 1948 行 | 已完成部分配置模块拆分，剩余业务设置和维护工具继续迁出 |
 | `MaterialInPage.tsx` | 1679 行 | 来料页面和录入流程高度集中，应迁入来料领域 |
 | `WorkInstructionPage.tsx` | 1497 行 | 文档资源、编辑器、附件和关联编辑集中，应迁入文档领域 |
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 1485 行 | 已迁入物料领域；下一步按摘要、文档、BOM/工艺、成本和记录等稳定视图拆分 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 36 个文件 | 已有工作台、生产、库存、配置、物料和 BOM 模块；物料/BOM 已形成 `contracts/client/model/ui` 分层 |
+| `modules/` | 38 个文件 | 已有工作台、生产、库存、配置、物料和 BOM 模块；物料/BOM 已形成 `contracts/client/model/ui` 分层 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -401,7 +401,7 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `HomeApp.tsx` 不再直接读写页面连续性、工作区偏好、桌面导航存储或权限菜单组装，行数从 1233 行降至 522 行。
 - `verify:shell-controllers`、`verify:page-modules`、`verify:workspace-navigation` 和 `verify:responsive-navigation` 阻止这些职责重新回流应用壳，并把 `HomeApp.tsx` 的当前规模上限固定为 600 行。
 
-下一步应在既有 `materials` 和 `bom` 模块内继续拆分 BOM 草稿状态、物料视图偏好和全景子视图；页面注册与菜单分类仍只使用现有单一事实源。
+下一步应在既有 `materials` 和 `bom` 模块内继续拆分 BOM 草稿状态和全景子视图；页面注册与菜单分类仍只使用现有单一事实源。
 
 ## 17. 物料编辑与导入状态归属
 
@@ -422,3 +422,10 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `MaterialPagination.tsx` 统一物料集合的分页摘要和翻页控件，卡片与表格不再复制分页实现。
 - `model/material-view.ts` 集中视图字段、排序、列宽、BOM 摘要和动作类型，页内选项与两个视图共享同一事实源。
 - 原先位于不可达分支中的 BOM 工作区行选中判断已删除；BOM 工作区继续使用自己的专用列表，不再与物料集合视图混合。
+
+## 20. 物料页内选项与显示偏好归属
+
+- `useMaterialViewPreferences.ts` 统一拥有可见字段、BOM 简况字段、列宽持久化、拖动监听和卸载清理，表格只消费稳定的 `MaterialColumnControls` 契约。
+- `MaterialPageOptions.tsx` 组合公共 `PageOptionsDialog` 与 `ToolbarOrderSettings`，负责物料排序、字段显示和 BOM 简况配置，不读取业务 API 或控制页面导航。
+- `MaterialPage.tsx` 不再读写物料视图的 `localStorage`，只把偏好结果传给卡片和表格，并继续拥有查询、业务动作与页面级弹窗协调。
+- `verify:material-bom-modules` 固定上述职责边界和文件规模，防止偏好状态、列宽拖动或页内选项重新回流主页面。
