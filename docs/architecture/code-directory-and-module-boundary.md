@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 206 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售和设备 13 个模块；页面数据访问已统一进入领域 client，工作台及生产订单创建、详情、候选、确认、取消和归档已形成前后端垂直切片 |
+| `modules/` | 214 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售和设备 13 个模块；页面数据访问已统一进入领域 client，工作台、生产订单及生产实绩已形成前后端垂直切片 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -685,3 +685,11 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `server/production-order-status-service.ts` 拥有确认和取消事务。取消时原子恢复已领料成本与库位余额，或释放未领料的总库存/库位预留，同时作废报工并写入取消原因。
 - 确认与取消 API 分别降至 23 行和 22 行，只保留权限、Schema、服务调用和错误映射；四个相邻路由均不再直接访问 Prisma。
 - 临时完整 SQLite 回归验证详情、候选、确认、重复确认、取消、总库存与库位预留释放、重复取消和追溯保留。
+
+## 52. 生产实绩服务端垂直模块归属
+
+- `contracts/production-order-actual-schema.ts` 集中草稿、确认和冲销输入契约；`domain/production-order-bom-snapshot.ts`、`production-order-actual-cost-snapshot.ts` 与 `production-order-actual-numbering.ts` 分别拥有 BOM 快照、成本层快照和日期编号纯规则。
+- `server/production-order-actual-lines.ts` 根据订单冻结 BOM 计算共同投入、多产出、损耗和库位可用量；`production-order-actual-totals.ts` 统一重算订单完工、废料和状态。
+- `server/production-order-actual-service.ts` 拥有工作区查询、草稿创建和删除；`production-order-actual-status-service.ts` 拥有确认投入/产出过账、成本快照、冲销库存/成本层恢复及状态事务。
+- 四条实绩 Route Handler 现为 26–43 行，只保留权限、Schema、操作人、领域服务调用、审计和 HTTP 错误映射；扁平 `lib/production-order-actual.ts` 已删除，直接访问 Prisma 的 API 从 82 个降至 78 个。
+- 实绩编号改为读取当日最大历史序号，删除中间草稿后不会复用已存在编号。`verify:production-order-module` 锁定边界与纯规则，`verify:production-order-actuals` 在运行后删除的临时完整 SQLite 中覆盖工作区、草稿、确认、冲销、删除、断号、多产出和库存成本一致性。

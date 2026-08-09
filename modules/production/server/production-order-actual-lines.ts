@@ -1,76 +1,9 @@
-import { Prisma } from '@prisma/client'
-import { calculateProductionConsumption, ProductionLossMode } from './production-consumption'
-import { assertInventoryIssueAvailability, resolveInventoryLocation } from './inventory'
+import type { Prisma } from '@prisma/client'
+import { calculateProductionConsumption, type ProductionLossMode } from '@/lib/production-consumption'
+import { assertInventoryIssueAvailability, resolveInventoryLocation } from '@/lib/inventory'
+import { parseProductionOrderBomSnapshot } from '../domain/production-order-bom-snapshot'
 
 const roundQty = (value: number) => Number(value.toFixed(6))
-
-export type ProductionOrderBomSnapshot = {
-  id: string
-  name: string
-  version: string
-  outputQuantity: number
-  outputUnit: string
-  outputs: Array<{
-    id: string
-    materialId: string
-    quantity: number
-    unit: string
-    isPrimary: boolean
-    material: { code: string; name: string; stockUnit: string; unit: string }
-  }>
-  items: Array<{
-    id: string
-    materialId: string
-    outputMaterialId?: string | null
-    quantity: number
-    unit: string
-    material: { code: string; name: string; stockUnit: string; unit: string }
-  }>
-}
-
-export function parseProductionOrderBomSnapshot(value?: string | null): ProductionOrderBomSnapshot {
-  if (!value) throw new Error('生产订单没有 BOM 快照，请重新创建生产订单')
-  const snapshot = JSON.parse(value) as ProductionOrderBomSnapshot
-  if (!snapshot.id || !Array.isArray(snapshot.outputs) || !Array.isArray(snapshot.items)) {
-    throw new Error('生产订单 BOM 快照损坏，请重新创建生产订单')
-  }
-  if (snapshot.outputs.filter((output) => output.isPrimary).length !== 1) {
-    throw new Error('生产订单 BOM 快照必须且只能包含一项主产出')
-  }
-  if (snapshot.items.length === 0) throw new Error('生产订单 BOM 快照没有投入明细')
-  return snapshot
-}
-
-export async function recalculateProductionOrderTotals(tx: Prisma.TransactionClient, orderId: string) {
-  const order = await tx.productionOrder.findUnique({ where: { id: orderId } })
-  if (!order) throw new Error('生产订单不存在')
-  const actuals = await tx.productionOrderActual.findMany({
-    where: { orderId, status: 'CONFIRMED' },
-    include: { outputs: { include: { material: { select: { category: true } } } } },
-  })
-  let completeQty = 0
-  let scrapQty = 0
-  for (const actual of actuals) {
-    for (const output of actual.outputs) {
-      if (output.isPrimary) completeQty += Number(output.actualQty)
-      if (['SCRAP', 'DEFECTIVE'].includes(output.material.category)) scrapQty += Number(output.actualQty)
-    }
-  }
-  completeQty = roundQty(completeQty)
-  scrapQty = roundQty(scrapQty)
-  const completed = completeQty + 0.000001 >= Number(order.planQty)
-  const hasConfirmedActual = actuals.length > 0
-  await tx.productionOrder.update({
-    where: { id: orderId },
-    data: {
-      completeQty,
-      scrapQty,
-      status: completed ? 'COMPLETED' : hasConfirmedActual ? 'RUNNING' : 'DRAFT',
-      startTime: hasConfirmedActual ? order.startTime || new Date() : null,
-      completeTime: completed ? order.completeTime || new Date() : null,
-    },
-  })
-}
 
 export async function buildProductionOrderActualLines(
   tx: Prisma.TransactionClient,
@@ -82,11 +15,7 @@ export async function buildProductionOrderActualLines(
     lossValue: number
     actualQty?: number
   }>,
-  requestedOutputs: Array<{
-    materialId: string
-    locationId: string
-    actualQty: number
-  }>,
+  requestedOutputs: Array<{ materialId: string; locationId: string; actualQty: number }>,
 ) {
   const snapshot = parseProductionOrderBomSnapshot(bomSnapshotValue)
   const primaryOutput = snapshot.outputs.find((output) => output.isPrimary)!
@@ -162,11 +91,7 @@ export async function buildProductionOrderActualLines(
       lossValue: requested.lossValue,
       actualQty: requested.actualQty,
     })
-    await assertInventoryIssueAvailability(tx, {
-      materialId,
-      stockQty: calculated.actualQty,
-      locationId: location.id,
-    })
+    await assertInventoryIssueAvailability(tx, { materialId, stockQty: calculated.actualQty, locationId: location.id })
     inputs.push({
       materialId,
       locationId: location.id,

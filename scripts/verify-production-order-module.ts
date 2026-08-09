@@ -4,6 +4,11 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { cancelProductionOrderSchema, createProductionOrderSchema } from '../modules/production/contracts/production-order-schema'
+import { createProductionOrderActualSchema } from '../modules/production/contracts/production-order-actual-schema'
+import { parseProductionActualCostLayerSnapshot } from '../modules/production/domain/production-order-actual-cost-snapshot'
+import { buildProductionActualNo, parseProductionActualDate, parseProductionActualSequence, productionActualDayRange } from '../modules/production/domain/production-order-actual-numbering'
+import { parseProductionOrderBomSnapshot } from '../modules/production/domain/production-order-bom-snapshot'
+import { ProductionOrderDomainError } from '../modules/production/domain/production-order-errors'
 import { buildProductionOrderGroupNo, buildProductionOrderNo } from '../modules/production/domain/production-order-numbering'
 import { confirmedProductionOrderStatus, productionOrderCancellationError, productionOrderConfirmationError } from '../modules/production/domain/production-order-status'
 import { buildProductionOrderCreateInput, groupProductionOrders } from '../modules/production/model/production-order-view'
@@ -13,15 +18,24 @@ const requiredFiles = [
   'modules/production/client/production-order-api.ts',
   'modules/production/contracts/production-order.ts',
   'modules/production/contracts/production-order-schema.ts',
+  'modules/production/contracts/production-order-actual-schema.ts',
+  'modules/production/domain/production-order-actual-cost-snapshot.ts',
+  'modules/production/domain/production-order-actual-numbering.ts',
+  'modules/production/domain/production-order-bom-snapshot.ts',
   'modules/production/domain/production-order-numbering.ts',
   'modules/production/domain/production-order-status.ts',
   'modules/production/model/production-order-view.ts',
   'modules/production/server/production-order-command-service.ts',
   'modules/production/server/production-order-query-service.ts',
   'modules/production/server/production-order-status-service.ts',
+  'modules/production/server/production-order-actual-lines.ts',
+  'modules/production/server/production-order-actual-service.ts',
+  'modules/production/server/production-order-actual-status-service.ts',
+  'modules/production/server/production-order-actual-totals.ts',
   'modules/production/ui/ProductionOrderModule.tsx',
 ]
 for (const path of requiredFiles) assert.ok(existsSync(join(root, path)), `生产订单模块缺少文件：${path}`)
+assert.equal(existsSync(join(root, 'lib/production-order-actual.ts')), false, '生产实绩规则不得继续留在扁平 lib 目录')
 
 const pageSource = readFileSync(join(root, 'modules/production/ui/ProductionOrderModule.tsx'), 'utf8')
 const clientSource = readFileSync(join(root, 'modules/production/client/production-order-api.ts'), 'utf8')
@@ -30,6 +44,8 @@ const routeSource = readFileSync(join(root, 'app/api/orders/route.ts'), 'utf8')
 const commandSource = readFileSync(join(root, 'modules/production/server/production-order-command-service.ts'), 'utf8')
 const querySource = readFileSync(join(root, 'modules/production/server/production-order-query-service.ts'), 'utf8')
 const statusSource = readFileSync(join(root, 'modules/production/server/production-order-status-service.ts'), 'utf8')
+const actualServiceSource = readFileSync(join(root, 'modules/production/server/production-order-actual-service.ts'), 'utf8')
+const actualStatusSource = readFileSync(join(root, 'modules/production/server/production-order-actual-status-service.ts'), 'utf8')
 assert.ok(pageSource.split('\n').length <= 480, '生产订单协调页应保持在 480 行内')
 assert.doesNotMatch(pageSource, /\bfetch\(/, '生产订单页面不得直接调用 fetch')
 assert.match(pageSource, /loadProductionOrders\(/, '生产订单页面必须通过领域 client 读取列表')
@@ -63,6 +79,23 @@ assert.match(statusSource, /\$transaction/, '生产订单取消必须由状态�
 assert.match(statusSource, /restoreMaterialCost[\s\S]*changeStockLocationBalance/, '取消已领料订单必须恢复成本与库位余额')
 assert.doesNotMatch(statusSource, /NextRequest|NextResponse|requireResourcePermission|writeAuditLog/, '生产订单状态服务不得依赖 HTTP、权限或请求审计')
 
+for (const path of [
+  'app/api/orders/[id]/actuals/route.ts',
+  'app/api/orders/[id]/actuals/[actualId]/route.ts',
+  'app/api/orders/[id]/actuals/[actualId]/confirm/route.ts',
+  'app/api/orders/[id]/actuals/[actualId]/reverse/route.ts',
+]) {
+  const source = readFileSync(join(root, path), 'utf8')
+  assert.doesNotMatch(source, /@\/lib\/prisma|\bprisma\.|\$transaction|postInventoryIssue|postInventoryReceipt|changeStockLocationBalance/, `${path} 不得保留数据库、事务或库存过账规则`)
+  assert.ok(source.split('\n').length <= 50, `${path} 必须保持为不超过 50 行的 HTTP 适配层`)
+}
+assert.match(actualServiceSource, /getProductionOrderActualWorkspace[\s\S]*createProductionOrderActual[\s\S]*deleteProductionOrderActualDraft/, '生产实绩服务必须集中查询、创建和草稿删除')
+assert.match(actualServiceSource, /\$transaction/, '生产实绩创建必须由领域服务拥有事务边界')
+assert.match(actualStatusSource, /confirmProductionOrderActual[\s\S]*reverseProductionOrderActual/, '生产实绩状态服务必须集中确认与冲销')
+assert.match(actualStatusSource, /postInventoryIssue[\s\S]*postInventoryReceipt/, '生产实绩确认必须在状态服务完成投入与产出过账')
+assert.match(actualStatusSource, /parseProductionActualCostLayerSnapshot[\s\S]*PRODUCTION_REVERSE_CONSUME/, '生产实绩冲销必须恢复历史成本层和投入库存')
+assert.doesNotMatch(actualServiceSource + actualStatusSource, /NextRequest|NextResponse|requireResourcePermission|writeAuditLog/, '生产实绩服务不得依赖 HTTP、权限或请求审计')
+
 assert.equal(createProductionOrderSchema.safeParse({ items: [] }).success, false, '生产订单必须包含至少一项物料')
 assert.equal(createProductionOrderSchema.safeParse({ targetId: 'material', bomId: 'bom', planQty: 1 }).success, true, '旧单行请求契约必须继续兼容')
 assert.equal(createProductionOrderSchema.safeParse({ items: Array.from({ length: 51 }, () => ({ targetId: 'material', bomId: 'bom', planQty: 1 })) }).success, false, '单张生产订单最多允许 50 项')
@@ -77,6 +110,24 @@ assert.equal(productionOrderConfirmationError('PICKED'), '只能确认草稿状�
 assert.equal(productionOrderCancellationError('COMPLETED', 0), '已入库工单不可取消，请先创建退货单')
 assert.equal(productionOrderCancellationError('DRAFT', 1), '工单已有成品入库记录，不可取消')
 assert.equal(cancelProductionOrderSchema.safeParse({ reason: '' }).success, false, '取消生产订单必须填写原因')
+assert.equal(createProductionOrderActualSchema.safeParse({ actualDate: '', employeeIds: [], inputs: [], outputs: [] }).success, false, '生产实绩必须包含日期、员工、投入和产出')
+const actualDate = parseProductionActualDate('2026-08-09')
+assert.equal(buildProductionActualNo(actualDate, 0), 'PA-20260809-001', '首条生产实绩必须使用三位日序号')
+assert.equal(buildProductionActualNo(actualDate, 11), 'PA-20260809-012', '生产实绩日序号必须稳定递增')
+assert.equal(parseProductionActualSequence('PA-20260809-012', actualDate), 12, '生产实绩必须能从历史编号恢复日序号')
+assert.throws(() => parseProductionActualSequence('PA-BROKEN', actualDate), ProductionOrderDomainError, '损坏历史编号必须阻止生成冲突编号')
+assert.equal(productionActualDayRange(actualDate).end.getTime() - productionActualDayRange(actualDate).start.getTime(), 24 * 60 * 60 * 1000, '生产实绩编号查询必须限制在同一自然日')
+assert.throws(() => parseProductionActualDate('invalid'), ProductionOrderDomainError, '非法生产日期必须返回领域错误')
+const validBomSnapshot = JSON.stringify({
+  id: 'bom', name: '验证 BOM', version: 'v1', outputQuantity: 1, outputUnit: '件',
+  outputs: [{ id: 'out', materialId: 'm-out', quantity: 1, unit: '件', isPrimary: true, material: { code: 'OUT', name: '产出', stockUnit: '件', unit: '件' } }],
+  items: [{ id: 'in', materialId: 'm-in', quantity: 2, unit: '件', material: { code: 'IN', name: '投入', stockUnit: '件', unit: '件' } }],
+})
+assert.equal(parseProductionOrderBomSnapshot(validBomSnapshot).id, 'bom', '有效 BOM 快照必须可解析')
+assert.throws(() => parseProductionOrderBomSnapshot('{'), ProductionOrderDomainError, '损坏 BOM 快照必须返回领域错误')
+assert.deepEqual(parseProductionActualCostLayerSnapshot(null), [], '无成本层快照时必须返回空集合')
+assert.equal(parseProductionActualCostLayerSnapshot('[{"costLayerId":"layer","stockQty":1,"valuationQty":2,"costAmount":3}]')[0].costLayerId, 'layer')
+assert.throws(() => parseProductionActualCostLayerSnapshot('[{"costLayerId":""}]'), ProductionOrderDomainError, '损坏成本层快照必须阻止冲销')
 
 const orders = [
   { id: 'line-2', orderNo: 'WO-1-02', groupNo: 'WO-1', lineNo: 2, status: 'DRAFT', planQty: 2, completeQty: 0, scrapQty: 0, createdAt: '', product: { id: 'p2', name: 'B', sku: 'B' }, _count: { actuals: 0 } },
