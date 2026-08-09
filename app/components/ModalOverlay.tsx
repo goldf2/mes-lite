@@ -14,6 +14,7 @@ export default function ModalOverlay({
 }) {
   const [mounted, setMounted] = useState(false)
   const onCloseRef = useRef(onClose)
+  const rootRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     onCloseRef.current = onClose
@@ -33,19 +34,20 @@ export default function ModalOverlay({
     const focusTimer = window.setTimeout(() => {
       const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')
       const activeDialog = dialogs.item(dialogs.length - 1)
-      activeDialog?.focus()
+      if (activeDialog && rootRef.current?.contains(activeDialog)) activeDialog.focus()
     }, 0)
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')
+      const activeDialog = dialogs.item(dialogs.length - 1)
+      if (!activeDialog || !rootRef.current?.contains(activeDialog)) return
+
       if (event.key === 'Escape') {
         onCloseRef.current?.()
         return
       }
       if (event.key !== 'Tab') return
 
-      const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')
-      const activeDialog = dialogs.item(dialogs.length - 1)
-      if (!activeDialog) return
       const focusable = Array.from(activeDialog.querySelectorAll<HTMLElement>(
         'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
       )).filter((element) => !element.hasAttribute('hidden'))
@@ -79,6 +81,7 @@ export default function ModalOverlay({
 
   return createPortal(
     <div
+      ref={rootRef}
       role="presentation"
       onClick={(event) => {
         event.stopPropagation()
