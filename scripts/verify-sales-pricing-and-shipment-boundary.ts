@@ -11,7 +11,7 @@ const salesApi = read('app/api/sales-orders/route.ts')
 const priceApi = read('app/api/sales-orders/[id]/prices/route.ts')
 const shipmentApi = read('app/api/shipments/route.ts')
 const salesPage = read('modules/sales/ui/SalesOrderPageModule.tsx')
-const shipmentDialog = read('app/components/ShipmentCreateDialog.tsx')
+const shipmentDialog = read('modules/sales/ui/ShipmentCreateDialog.tsx')
 const shippableApi = read('app/api/sales-orders/shippable/route.ts')
 
 assert.match(schema, /defaultSalePrice\s+Float\?/, '物料必须提供可空默认销售价')

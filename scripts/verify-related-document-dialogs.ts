@@ -5,8 +5,8 @@ import path from 'node:path'
 const root = process.cwd()
 const read = (file: string) => readFileSync(path.join(root, file), 'utf8')
 
-const sharedDialog = read('app/components/ShipmentCreateDialog.tsx')
-const shipmentPage = read('app/components/ShipmentPage.tsx')
+const sharedDialog = read('modules/sales/ui/ShipmentCreateDialog.tsx')
+const shipmentPage = read('modules/sales/ui/ShipmentPageModule.tsx')
 const salesOrderPage = read('modules/sales/ui/SalesOrderPageModule.tsx')
 const homeApp = read('app/HomeApp.tsx')
 

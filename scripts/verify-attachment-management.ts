@@ -10,8 +10,8 @@ const detailDialogSource = readFileSync(join(root, 'app/components/BusinessDocum
 const detailManagedPages = [
   ['来料', 'modules/receiving/ui/MaterialInCollectionView.tsx', 'modules/receiving/ui/MaterialInDetailDialog.tsx'],
   ['派工', 'modules/production/ui/DispatchPageModule.tsx', 'modules/production/ui/DispatchPageModule.tsx'],
-  ['发货', 'app/components/ShipmentPage.tsx', 'app/components/ShipmentPage.tsx'],
-  ['退货', 'app/components/ReturnPage.tsx', 'app/components/ReturnPage.tsx'],
+  ['发货', 'modules/sales/ui/ShipmentPageModule.tsx', 'modules/sales/ui/ShipmentPageModule.tsx'],
+  ['退货', 'modules/sales/ui/ReturnPageModule.tsx', 'modules/sales/ui/ReturnPageModule.tsx'],
 ] as const
 
 assert.match(attachmentPanelSource, /title\s*=\s*'附件管理'/, '公共附件模块默认名称必须为附件管理')

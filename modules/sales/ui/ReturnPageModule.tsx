@@ -1,88 +1,42 @@
 'use client'
 
-import { ReactNode, useMemo, useState, useEffect } from 'react'
-import AttachmentPanel from './AttachmentPanel'
-import { getStatusQuery } from './StatusCheckboxFilter'
-import ResponsiveToolbarActions from './ResponsiveToolbarActions'
-import TopBarPortal from './TopBarPortal'
-import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
-import { SearchFieldWithPresets } from './SavedSearchPresets'
-import MaterialChoiceSearch from './MaterialChoiceSearch'
-import SearchableSelect from './SearchableSelect'
-import SortableTableHeader from './SortableTableHeader'
-import useClientTableSort from './useClientTableSort'
-import ModalDialog, { ModalActions } from './ModalDialog'
-import FormField, { appInputClassName, appTextareaClassName } from './FormField'
-import AppButton from './AppButton'
-import { MappedResourceAdvancedSearch } from './resource'
-import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
-import BusinessDocumentDetailDialog from './BusinessDocumentDetailDialog'
+import { ReactNode, useCallback, useMemo, useState, useEffect } from 'react'
+import AttachmentPanel from '@/app/components/AttachmentPanel'
+import { getStatusQuery } from '@/app/components/StatusCheckboxFilter'
+import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
+import TopBarPortal from '@/app/components/TopBarPortal'
+import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
+import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
+import MaterialChoiceSearch from '@/app/components/MaterialChoiceSearch'
+import SearchableSelect from '@/app/components/SearchableSelect'
+import SortableTableHeader from '@/app/components/SortableTableHeader'
+import useClientTableSort from '@/app/components/useClientTableSort'
+import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
+import FormField, { appInputClassName, appTextareaClassName } from '@/app/components/FormField'
+import AppButton from '@/app/components/AppButton'
+import { MappedResourceAdvancedSearch } from '@/app/components/resource'
+import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/app/components/BusinessDocumentPrintLink'
+import BusinessDocumentDetailDialog from '@/app/components/BusinessDocumentDetailDialog'
 import DraftDocumentAttachmentPanel, {
   createDraftDocumentAttachmentId,
   discardDraftDocumentAttachments,
   finalizeDraftDocumentAttachments,
-} from './DraftDocumentAttachmentPanel'
+} from '@/app/components/DraftDocumentAttachmentPanel'
 import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
+import { createReturn, loadReturnOptions, loadReturns, transitionReturn } from '../client/fulfillment-api'
+import type {
+  FulfillmentCustomer,
+  InventoryLocationOption,
+  ReturnMaterialOption,
+  ReturnOrder,
+} from '../contracts/fulfillment'
+import {
+  returnStatusColors as statusColors,
+  returnStatusLabels as statusLabels,
+  returnStatusOptions as statusOptions,
+} from '../model/fulfillment-view'
 
-interface MaterialChoice {
-  id: string
-  sku: string
-  name: string
-  category: string
-  customerId?: string | null
-  customer?: { id: string; code: string; name: string } | null
-  unit: string
-}
-
-interface Customer {
-  id: string
-  code: string
-  name: string
-}
-
-interface InventoryLocation {
-  id: string
-  code: string
-  name: string
-  isDefault: boolean
-}
-
-interface ReturnOrder {
-  id: string
-  returnNo: string
-  voucherNo?: string | null
-  shipmentId?: string
-  productId: string
-  qty: number
-  reason: string
-  status: string
-  note?: string
-  createdAt: string
-  processedAt?: string
-  product: { id: string; name: string; sku: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null }
-  shipment?: { id: string; shipmentNo: string; customerId?: string | null; customerRef?: { id: string; code: string; name: string } | null } | null
-  location?: InventoryLocation | null
-}
-
-const statusColors: Record<string, string> = {
-  PENDING: 'bg-gray-100 text-gray-700',
-  PROCESSED: 'bg-green-100 text-green-700',
-  REJECTED: 'bg-red-100 text-red-700',
-}
-
-const statusLabels: Record<string, string> = {
-  PENDING: '待处理',
-  PROCESSED: '已处理',
-  REJECTED: '已拒绝',
-}
-
-const statusOptions = [
-  { value: 'PENDING', label: '待处理' },
-  { value: 'PROCESSED', label: '已处理' },
-  { value: 'REJECTED', label: '已拒绝' },
-]
-
-export default function ReturnPage({
+export default function ReturnPageModule({
   onMessage,
   onToolbarChange,
 }: {
@@ -90,9 +44,9 @@ export default function ReturnPage({
   onToolbarChange?: (actions: ReactNode | null) => void
 }) {
   const [returns, setReturns] = useState<ReturnOrder[]>([])
-  const [products, setProducts] = useState<MaterialChoice[]>([])
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [locations, setLocations] = useState<InventoryLocation[]>([])
+  const [products, setProducts] = useState<ReturnMaterialOption[]>([])
+  const [customers, setCustomers] = useState<FulfillmentCustomer[]>([])
+  const [locations, setLocations] = useState<InventoryLocationOption[]>([])
   const [keyword, setKeyword] = useState('')
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
@@ -128,71 +82,45 @@ export default function ReturnPage({
   }, 'createdAt', 'desc')
   const selectedProduct = products.find((item) => item.id === form.productId)
 
-  useEffect(() => {
-    fetchReturns()
-    fetchProducts()
-    fetchCustomers()
-    fetchLocations()
-  }, [keyword, selectedStatuses, selectedCustomerId])
-
-  const fetchReturns = async () => {
+  const fetchReturns = useCallback(async () => {
     setLoading(true)
     try {
       const query = getStatusQuery(selectedStatuses, statusOptions)
       const params = new URLSearchParams(query)
       if (keyword.trim()) params.set('keyword', keyword.trim())
       if (selectedCustomerId) params.set('customerId', selectedCustomerId)
-      const url = params.toString() ? `/api/returns?${params.toString()}` : '/api/returns'
-      const res = await fetch(url)
-      const data = await res.json()
-      setReturns(data.data || [])
-    } catch (err) {
-      onMessage('获取退货单列表失败')
+      setReturns(await loadReturns(params))
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取退货单列表失败')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }
+  }, [keyword, onMessage, selectedCustomerId, selectedStatuses])
 
-  const fetchCustomers = async () => {
+  const fetchOptions = useCallback(async () => {
     try {
-      const res = await fetch('/api/customers')
-      if (res.ok) {
-        const data = await res.json()
-        setCustomers(data.data || [])
-      }
-    } catch (err) {
-      // ignore
-    }
-  }
-
-  const fetchProducts = async () => {
-    try {
-      const res = await fetch('/api/products')
-      if (res.ok) {
-        const data = await res.json()
-        setProducts(data.data || [])
-      }
-    } catch (err) {
-      // ignore
-    }
-  }
-
-  const fetchLocations = async () => {
-    try {
-      const res = await fetch('/api/inventory-locations')
-      if (!res.ok) return
-      const data = await res.json()
-      const nextLocations = data.data || []
-      setLocations(nextLocations)
+      const data = await loadReturnOptions()
+      setCustomers(data.customers)
+      setProducts(data.products)
+      setLocations(data.locations)
       setForm((current) => current.locationId ? current : {
         ...current,
-        locationId: nextLocations.find((location: InventoryLocation) => location.isDefault)?.id || nextLocations[0]?.id || '',
+        locationId: data.locations.find((location) => location.isDefault)?.id || data.locations[0]?.id || '',
       })
-    } catch (err) {
-      // ignore
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取退货选项失败')
     }
-  }
+  }, [onMessage])
 
-  const resetForm = () => {
+  useEffect(() => {
+    void fetchReturns()
+  }, [fetchReturns])
+
+  useEffect(() => {
+    void fetchOptions()
+  }, [fetchOptions])
+
+  const resetForm = useCallback(() => {
     setForm({
       voucherNo: '',
       productId: '',
@@ -201,13 +129,13 @@ export default function ReturnPage({
       reason: '',
       note: '',
     })
-  }
+  }, [locations])
 
-  const openCreate = () => {
+  const openCreate = useCallback(() => {
     resetForm()
     setDraftAttachmentOwnerId(createDraftDocumentAttachmentId())
     setShowModal(true)
-  }
+  }, [resetForm])
 
   const closeCreate = async () => {
     if (loading || draftAttachmentBusy) return
@@ -243,62 +171,42 @@ export default function ReturnPage({
     const printPreview = reserveBusinessDocumentPrintWindow()
     setLoading(true)
     try {
-      const res = await fetch('/api/returns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId: form.productId,
-          locationId: form.locationId,
-          voucherNo: form.voucherNo || undefined,
-          qty: form.qty,
-          reason: form.reason,
-          note: form.note || undefined,
-        }),
-      })
-      const data = await res.json()
-      if (res.ok) {
-        try {
-          await finalizeDraftDocumentAttachments({ ownerType: 'RETURN_ORDER', draftOwnerId: draftAttachmentOwnerId, targetOwnerId: data.data.id })
-        } catch (error) {
-          onMessage(error instanceof Error ? `退货单已创建，但${error.message}` : '退货单已创建，但附件绑定失败')
-        }
-        onMessage(`退货单创建成功：${data.data.returnNo}`)
-        const pdfGenerated = await generateBusinessDocumentPdfArchives('return', [data.data.id])
-        if (pdfGenerated) printPreview.open('return', data.data.id)
-        else {
-          printPreview.close()
-          onMessage('退货单已创建，但 PDF 生成失败，可在退货列表中重新打印')
-        }
-        setShowModal(false)
-        setDraftAttachmentOwnerId('')
-        resetForm()
-        await fetchReturns()
-      } else {
-        printPreview.close()
-        onMessage(data.error || '创建退货单失败')
+      const returnOrder = await createReturn(form)
+      try {
+        await finalizeDraftDocumentAttachments({ ownerType: 'RETURN_ORDER', draftOwnerId: draftAttachmentOwnerId, targetOwnerId: returnOrder.id })
+      } catch (error) {
+        onMessage(error instanceof Error ? `退货单已创建，但${error.message}` : '退货单已创建，但附件绑定失败')
       }
-    } catch (err) {
+      onMessage(`退货单创建成功：${returnOrder.returnNo}`)
+      const pdfGenerated = await generateBusinessDocumentPdfArchives('return', [returnOrder.id])
+      if (pdfGenerated) printPreview.open('return', returnOrder.id)
+      else {
+        printPreview.close()
+        onMessage('退货单已创建，但 PDF 生成失败，可在退货列表中重新打印')
+      }
+      setShowModal(false)
+      setDraftAttachmentOwnerId('')
+      resetForm()
+      await fetchReturns()
+    } catch (error) {
       printPreview.close()
-      onMessage('创建退货单失败')
+      onMessage(error instanceof Error ? error.message : '创建退货单失败')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const handleAction = async (id: string, action: 'process' | 'reject') => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/returns/${id}/${action}`, { method: 'PATCH' })
-      const data = await res.json()
-      if (res.ok) {
-        onMessage(data.message || '操作成功')
-        await fetchReturns()
-      } else {
-        onMessage(data.error || '操作失败')
-      }
-    } catch (err) {
-      onMessage('操作失败')
+      const data = await transitionReturn(id, action)
+      onMessage(data.message || '操作成功')
+      await fetchReturns()
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '操作失败')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
 
@@ -331,7 +239,7 @@ export default function ReturnPage({
     )
 
     return () => onToolbarChange(null)
-  }, [advancedSearchFields, onToolbarChange, keyword, selectedStatuses, selectedCustomerId, customers, viewMode, setViewMode])
+  }, [advancedSearchFields, onToolbarChange, openCreate, viewMode, setViewMode])
 
   return (
     <>

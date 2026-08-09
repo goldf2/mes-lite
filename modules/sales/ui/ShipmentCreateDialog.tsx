@@ -6,79 +6,19 @@ import DraftDocumentAttachmentPanel, {
   createDraftDocumentAttachmentId,
   discardDraftDocumentAttachments,
   finalizeDraftDocumentAttachments,
-} from './DraftDocumentAttachmentPanel'
-import { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from './BusinessDocumentPrintLink'
-import ModalDialog, { ModalActions } from './ModalDialog'
-import SearchableSelect from './SearchableSelect'
-
-interface Customer {
-  id: string
-  code: string
-  name: string
-  phone?: string | null
-  address?: string | null
-}
-
-interface MaterialOption {
-  id: string
-  code: string
-  name: string
-  spec?: string | null
-  stockUnit: string
-  unit: string
-  defaultSalePrice?: number | null
-  salesCurrency: string
-  stock?: {
-    locationBalances: Array<{ locationId: string; availableQty: number }>
-  } | null
-}
-
-interface ShippableSalesItem {
-  id: string
-  salesOrderId: string
-  remainingQty: number
-  unit: string
-  salesOrder: {
-    id: string
-    orderNo: string
-    voucherNo?: string | null
-    customer: Customer
-  }
-  material: {
-    id: string
-    code: string
-    name: string
-    spec?: string | null
-    stock?: {
-      locationBalances: Array<{ locationId: string; availableQty: number }>
-    } | null
-  }
-}
-
-interface InventoryLocation {
-  id: string
-  code: string
-  name: string
-  isDefault: boolean
-}
-
-interface ShipmentCreated {
-  id: string
-  shipmentNo: string
-}
-
-interface ShipmentForm {
-  salesOrderItemId: string
-  materialId: string
-  customerId: string
-  voucherNo: string
-  unitPrice: number
-  locationId: string
-  qty: number
-  trackingNo: string
-  shippedBy: string
-  note: string
-}
+} from '@/app/components/DraftDocumentAttachmentPanel'
+import { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/app/components/BusinessDocumentPrintLink'
+import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
+import SearchableSelect from '@/app/components/SearchableSelect'
+import { createShipment, loadShipmentCreateOptions } from '../client/fulfillment-api'
+import type {
+  FulfillmentCustomer,
+  ShipmentMaterialOption,
+  InventoryLocationOption,
+  ShipmentCreated,
+  ShipmentForm,
+  ShippableSalesItem,
+} from '../contracts/fulfillment'
 
 const emptyForm: ShipmentForm = {
   salesOrderItemId: '',
@@ -105,9 +45,9 @@ export default function ShipmentCreateDialog({
   onMessage: (message: string) => void
 }) {
   const [shippableItems, setShippableItems] = useState<ShippableSalesItem[]>([])
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [materials, setMaterials] = useState<MaterialOption[]>([])
-  const [locations, setLocations] = useState<InventoryLocation[]>([])
+  const [customers, setCustomers] = useState<FulfillmentCustomer[]>([])
+  const [materials, setMaterials] = useState<ShipmentMaterialOption[]>([])
+  const [locations, setLocations] = useState<InventoryLocationOption[]>([])
   const [form, setForm] = useState<ShipmentForm>(emptyForm)
   const [preparing, setPreparing] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -124,7 +64,7 @@ export default function ShipmentCreateDialog({
     (item) => item.locationId === form.locationId,
   )
 
-  const applySalesItemSelection = useCallback((salesOrderItemId: string, items: ShippableSalesItem[], locationOptions: InventoryLocation[]) => {
+  const applySalesItemSelection = useCallback((salesOrderItemId: string, items: ShippableSalesItem[], locationOptions: InventoryLocationOption[]) => {
     const item = items.find((option) => option.id === salesOrderItemId)
     const bestBalance = item?.material.stock?.locationBalances
       .filter((balance) => locationOptions.some((location) => location.id === balance.locationId))
@@ -165,19 +105,14 @@ export default function ShipmentCreateDialog({
     let active = true
     const prepare = async () => {
       try {
-        const [itemResponse, locationResponse] = await Promise.all([
-          fetch('/api/sales-orders/shippable'),
-          fetch('/api/inventory-locations'),
-        ])
-        const itemData = itemResponse.ok ? await itemResponse.json() : { data: [] }
-        const locationData = locationResponse.ok ? await locationResponse.json() : { data: [] }
+        const data = await loadShipmentCreateOptions()
         if (!active) return
-        const nextItems: ShippableSalesItem[] = itemData.data || []
-        const nextLocations: InventoryLocation[] = locationData.data || []
+        const nextItems = data.items
+        const nextLocations = data.locations
         setShippableItems(nextItems)
         setLocations(nextLocations)
-        setCustomers(itemData.customers || [])
-        setMaterials(itemData.materials || [])
+        setCustomers(data.customers)
+        setMaterials(data.materials)
         const preferredItem = nextItems.find((item) => item.salesOrderId === initialSalesOrderId)
         if (preferredItem) applySalesItemSelection(preferredItem.id, nextItems, nextLocations)
         else setForm((current) => ({
@@ -238,38 +173,24 @@ export default function ShipmentCreateDialog({
     const printPreview = reserveBusinessDocumentPrintWindow()
     setSaving(true)
     try {
-      const response = await fetch('/api/shipments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          trackingNo: form.trackingNo || undefined,
-          shippedBy: form.shippedBy || undefined,
-          note: form.note || undefined,
-        }),
-      })
-      const data = await response.json()
-      if (!response.ok) {
-        printPreview.close()
-        return onMessage(data.error || '创建发货单失败')
-      }
+      const shipment = await createShipment(form)
       try {
-        await finalizeDraftDocumentAttachments({ ownerType: 'SHIPMENT', draftOwnerId: draftAttachmentOwnerId, targetOwnerId: data.data.id })
+        await finalizeDraftDocumentAttachments({ ownerType: 'SHIPMENT', draftOwnerId: draftAttachmentOwnerId, targetOwnerId: shipment.id })
       } catch (error) {
         onMessage(error instanceof Error ? `发货单已创建，但${error.message}` : '发货单已创建，但附件绑定失败')
       }
-      onMessage(`发货单创建成功：${data.data.shipmentNo}`)
-      const pdfGenerated = await generateBusinessDocumentPdfArchives('shipment', [data.data.id])
-      if (pdfGenerated) printPreview.open('shipment', data.data.id)
+      onMessage(`发货单创建成功：${shipment.shipmentNo}`)
+      const pdfGenerated = await generateBusinessDocumentPdfArchives('shipment', [shipment.id])
+      if (pdfGenerated) printPreview.open('shipment', shipment.id)
       else {
         printPreview.close()
         onMessage('发货单已创建，但 PDF 生成失败，可在发货列表中重新打印')
       }
-      await onCreated?.(data.data)
+      await onCreated?.(shipment)
       onClose()
-    } catch {
+    } catch (error) {
       printPreview.close()
-      onMessage('创建发货单失败')
+      onMessage(error instanceof Error ? error.message : '创建发货单失败')
     } finally {
       setSaving(false)
     }

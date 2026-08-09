@@ -34,8 +34,8 @@ const ownerPageFiles: Array<[string[], string]> = [
   [['modules/production/ui/ProductionOrderModule.tsx'], 'PRODUCTION_ORDER'],
   [['modules/production/ui/DispatchPageModule.tsx'], 'DISPATCH'],
   [['modules/sales/ui/SalesOrderPageModule.tsx'], 'SALES_ORDER'],
-  [['app/components/ShipmentCreateDialog.tsx'], 'SHIPMENT'],
-  [['app/components/ReturnPage.tsx'], 'RETURN_ORDER'],
+  [['modules/sales/ui/ShipmentCreateDialog.tsx'], 'SHIPMENT'],
+  [['modules/sales/ui/ReturnPageModule.tsx'], 'RETURN_ORDER'],
 ]
 
 for (const [files, ownerType] of ownerPageFiles) {

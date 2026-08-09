@@ -1,76 +1,28 @@
 'use client'
 
 import { ReactNode, useCallback, useMemo, useState, useEffect } from 'react'
-import AttachmentPanel from './AttachmentPanel'
-import { getStatusQuery } from './StatusCheckboxFilter'
-import ResponsiveToolbarActions from './ResponsiveToolbarActions'
-import TopBarPortal from './TopBarPortal'
-import ViewModeToggle, { usePersistedViewMode } from './ViewModeToggle'
-import { SearchFieldWithPresets } from './SavedSearchPresets'
-import SortableTableHeader from './SortableTableHeader'
-import useClientTableSort from './useClientTableSort'
-import AppButton from './AppButton'
-import { MappedResourceAdvancedSearch } from './resource'
-import BusinessDocumentPrintLink from './BusinessDocumentPrintLink'
-import BusinessDocumentDetailDialog from './BusinessDocumentDetailDialog'
+import AttachmentPanel from '@/app/components/AttachmentPanel'
+import { getStatusQuery } from '@/app/components/StatusCheckboxFilter'
+import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
+import TopBarPortal from '@/app/components/TopBarPortal'
+import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
+import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
+import SortableTableHeader from '@/app/components/SortableTableHeader'
+import useClientTableSort from '@/app/components/useClientTableSort'
+import AppButton from '@/app/components/AppButton'
+import { MappedResourceAdvancedSearch } from '@/app/components/resource'
+import BusinessDocumentPrintLink from '@/app/components/BusinessDocumentPrintLink'
+import BusinessDocumentDetailDialog from '@/app/components/BusinessDocumentDetailDialog'
 import ShipmentCreateDialog from './ShipmentCreateDialog'
+import { loadShipments, transitionShipment } from '../client/fulfillment-api'
+import type { FulfillmentCustomer, Shipment } from '../contracts/fulfillment'
+import {
+  shipmentStatusColors as statusColors,
+  shipmentStatusLabels as statusLabels,
+  shipmentStatusOptions as statusOptions,
+} from '../model/fulfillment-view'
 
-interface Customer {
-  id: string
-  code: string
-  name: string
-  contact?: string | null
-  phone?: string | null
-  address?: string | null
-}
-
-interface Shipment {
-  id: string
-  shipmentNo: string
-  voucherNo?: string | null
-  productId: string
-  locationId?: string | null
-  customerId?: string | null
-  qty: number
-  unitPrice: number
-  totalAmount: number
-  customer: string
-  customerPhone?: string
-  address?: string
-  status: string
-  shippedAt?: string
-  shippedBy?: string
-  trackingNo?: string
-  note?: string
-  createdAt: string
-  product: { id: string; name: string; sku: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null }
-  customerRef?: { id: string; code: string; name: string } | null
-  location?: { id: string; code: string; name: string } | null
-  salesOrder?: { id: string; orderNo: string; voucherNo?: string | null } | null
-}
-
-const statusColors: Record<string, string> = {
-  PENDING: 'bg-gray-100 text-gray-700',
-  SHIPPED: 'bg-blue-100 text-blue-700',
-  DELIVERED: 'bg-green-100 text-green-700',
-  CANCELLED: 'bg-red-100 text-red-700',
-}
-
-const statusLabels: Record<string, string> = {
-  PENDING: '待发货',
-  SHIPPED: '已发货',
-  DELIVERED: '已签收',
-  CANCELLED: '已取消',
-}
-
-const statusOptions = [
-  { value: 'PENDING', label: '待发货' },
-  { value: 'SHIPPED', label: '已发货' },
-  { value: 'DELIVERED', label: '已签收' },
-  { value: 'CANCELLED', label: '已取消' },
-]
-
-export default function ShipmentPage({
+export default function ShipmentPageModule({
   onMessage,
   onToolbarChange,
 }: {
@@ -78,7 +30,7 @@ export default function ShipmentPage({
   onToolbarChange?: (actions: ReactNode | null) => void
 }) {
   const [shipments, setShipments] = useState<Shipment[]>([])
-  const [customers, setCustomers] = useState<Customer[]>([])
+  const [customers, setCustomers] = useState<FulfillmentCustomer[]>([])
   const [keyword, setKeyword] = useState('')
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
@@ -110,15 +62,14 @@ export default function ShipmentPage({
       const params = new URLSearchParams(query)
       if (keyword.trim()) params.set('keyword', keyword.trim())
       if (selectedCustomerId) params.set('customerId', selectedCustomerId)
-      const url = params.toString() ? `/api/shipments?${params.toString()}` : '/api/shipments'
-      const res = await fetch(url)
-      const data = await res.json()
-      setShipments(data.data || [])
-      setCustomers(data.customers || [])
-    } catch (err) {
-      onMessage('获取发货单列表失败')
+      const data = await loadShipments(params)
+      setShipments(data.shipments)
+      setCustomers(data.customers)
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取发货单列表失败')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [keyword, onMessage, selectedCustomerId, selectedStatuses])
 
   useEffect(() => {
@@ -128,18 +79,14 @@ export default function ShipmentPage({
   const handleAction = async (id: string, action: 'ship' | 'deliver') => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/shipments/${id}/${action}`, { method: 'PATCH' })
-      const data = await res.json()
-      if (res.ok) {
-        onMessage(data.message || '操作成功')
-        await fetchShipments()
-      } else {
-        onMessage(data.error || '操作失败')
-      }
-    } catch (err) {
-      onMessage('操作失败')
+      const data = await transitionShipment(id, action)
+      onMessage(data.message || '操作成功')
+      await fetchShipments()
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '操作失败')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
 
