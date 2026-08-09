@@ -32,7 +32,7 @@ export default function UnifiedNavigationMenu({
   expandedGroupIds = 'all',
   displayMode = 'icon-label',
   itemLayout = 'list',
-  showItemIcons = true,
+  showItemIcons = false,
   ariaLabel = '功能菜单',
   className = '',
   onGroupSelect,

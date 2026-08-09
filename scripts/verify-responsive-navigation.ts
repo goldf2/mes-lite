@@ -28,6 +28,7 @@ assert.match(desktopNavigation, /placeholder="搜索功能"/, '桌面与移动�
 assert.match(desktopNavigation, /onGroupSelect=\{\(group\) => \{[\s\S]*?setExpandedGroupId/, '单列一级菜单点击必须只切换展开状态')
 assert.match(desktopNavigation, /expandedGroupIds=\{new Set\(expandedGroupId \? \[expandedGroupId\] : \[\]\)\}/, '单列菜单必须独立维护当前展开分组')
 assert.match(desktopTopNavigation, /<UnifiedNavigationMenu/, '桌面顶部弹层必须使用公共菜单骨架')
+assert.match(unifiedNavigationMenu, /showItemIcons\s*=\s*false/, '二级菜单必须默认使用纯文字，图标仅由显式场景启用')
 assert.match(unifiedNavigationMenu, /groups\.map\(\(group, groupIndex\) =>/, '公共菜单骨架必须负责一级分组结构')
 assert.match(unifiedNavigationMenu, /group\.items\.map\(\(item, itemIndex\) =>/, '公共菜单骨架必须负责二级条目结构')
 assert.match(unifiedNavigationMenu, /data-unified-navigation-menu/, '公共菜单骨架必须提供稳定的结构标识')
