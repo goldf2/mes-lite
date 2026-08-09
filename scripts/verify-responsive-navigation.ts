@@ -25,6 +25,8 @@ assert.match(desktopNavigation, /from '\.\/NavigationModel'/, '桌面侧栏必�
 assert.match(desktopTopNavigation, /from '\.\/NavigationModel'/, '桌面顶部导航必须复用公共导航类型')
 assert.match(desktopNavigation, /<UnifiedNavigationMenu/, '桌面侧栏必须使用公共菜单骨架')
 assert.match(desktopNavigation, /placeholder="搜索功能"/, '桌面与移动端共用的单列菜单必须提供功能搜索')
+assert.match(desktopNavigation, /onGroupSelect=\{\(group\) => \{[\s\S]*?setExpandedGroupId/, '单列一级菜单点击必须只切换展开状态')
+assert.match(desktopNavigation, /expandedGroupIds=\{new Set\(expandedGroupId \? \[expandedGroupId\] : \[\]\)\}/, '单列菜单必须独立维护当前展开分组')
 assert.match(desktopTopNavigation, /<UnifiedNavigationMenu/, '桌面顶部弹层必须使用公共菜单骨架')
 assert.match(unifiedNavigationMenu, /groups\.map\(\(group, groupIndex\) =>/, '公共菜单骨架必须负责一级分组结构')
 assert.match(unifiedNavigationMenu, /group\.items\.map\(\(item, itemIndex\) =>/, '公共菜单骨架必须负责二级条目结构')

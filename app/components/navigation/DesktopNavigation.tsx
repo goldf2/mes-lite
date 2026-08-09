@@ -75,6 +75,13 @@ function AccordionNavigation({
   onQueryChange: (value: string) => void
   displayMode: DesktopNavigationDisplayMode
 }) {
+  const activeGroupId = groups.find((group) => group.active)?.id ?? null
+  const [expandedGroupId, setExpandedGroupId] = useState<string | null>(activeGroupId)
+
+  useEffect(() => {
+    if (activeGroupId) setExpandedGroupId(activeGroupId)
+  }, [activeGroupId])
+
   return (
     <nav aria-label="一级与二级功能菜单" className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <NavigationSearch value={query} onChange={onQueryChange} />
@@ -85,9 +92,12 @@ function AccordionNavigation({
           <UnifiedNavigationMenu
             groups={groups}
             groupHeaderMode="button"
-            expandedGroupIds={new Set(groups.filter((group) => group.active).map((group) => group.id))}
+            expandedGroupIds={new Set(expandedGroupId ? [expandedGroupId] : [])}
             displayMode={displayMode}
             ariaLabel="一级与二级功能菜单"
+            onGroupSelect={(group) => {
+              setExpandedGroupId((current) => current === group.id ? null : group.id)
+            }}
           />
         )}
       </div>
