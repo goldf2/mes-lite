@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 126 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档和来料 10 个模块；生产工程、物料、BOM、文档、来料与库存已形成包含服务端规则的垂直分层 |
+| `modules/` | 129 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档和来料 10 个模块；生产工程、物料、BOM、文档、来料与库存已形成包含服务端规则的垂直分层 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -556,3 +556,11 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `server/material-panorama-query-service.ts` 统一编排物料、库存/库位、BOM/成本、工单/领料、来料/流水、工艺和文档聚合，并保持在 220 行守卫内。
 - `app/api/materials/[id]/panorama/route.ts` 从 412 行降至 20 行，只保留物料读取权限、404 和 HTTP 错误映射。
 - `verify:material-bom-modules` 增加薄全景 API、查询服务、附件分类与规模回归；系统超过 300 行的存量 API 从 6 个降至 3 个。
+
+## 35. 物料批量导入归属
+
+- `contracts/material-import.ts` 集中导入模式、客户候选、行数据和汇总契约。
+- `domain/material-import-parser.ts` 以纯函数处理 CSV 表头、中文分类/计量/成本别名、双单位、销售价、客户匹配和逐行错误，不连接数据库。
+- `server/material-import-service.ts` 拥有客户候选查询、已有编码/归档检查、单位变更锁定、缺失客户创建以及物料和零库存原子写入。
+- `app/api/materials/import/route.ts` 从 398 行降至 36 行，只保留创建/修改权限、文件尺寸、审计和 HTTP 错误映射。
+- `verify:material-bom-modules` 增加真实 CSV 行、中文别名、薄路由和事务服务守卫；系统超过 300 行的存量 API 从 6 个降至 2 个。

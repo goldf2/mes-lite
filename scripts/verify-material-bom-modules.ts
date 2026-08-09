@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { validateBomStructure } from '../modules/bom/domain/bom-structure'
 import { nextBomVersion } from '../modules/bom/domain/bom-version'
 import { classifyMaterialAttachments } from '../modules/materials/server/material-panorama-attachments'
+import { parseMaterialImportRows, readMaterialImportSheet } from '../modules/materials/domain/material-import-parser'
+import { presetUnitCatalog } from '../lib/unit-catalog'
 
 const root = process.cwd()
 const read = (path: string) => readFileSync(join(root, path), 'utf8')
@@ -36,6 +38,9 @@ const materialContracts = read('modules/materials/contracts/material.ts')
 const materialPanoramaRoute = read('app/api/materials/[id]/panorama/route.ts')
 const materialPanoramaQueryService = read('modules/materials/server/material-panorama-query-service.ts')
 const materialPanoramaAttachmentService = read('modules/materials/server/material-panorama-attachments.ts')
+const materialImportRoute = read('app/api/materials/import/route.ts')
+const materialImportService = read('modules/materials/server/material-import-service.ts')
+const materialImportParser = read('modules/materials/domain/material-import-parser.ts')
 const bomIndex = read('modules/bom/index.ts')
 const bomOverview = read('modules/bom/ui/BomOverviewPage.tsx')
 const bomDraftEditor = read('modules/bom/ui/BomDraftEditor.tsx')
@@ -135,6 +140,24 @@ const classifiedAttachments = classifyMaterialAttachments([
 assert.equal(classifiedAttachments.images.length, 1)
 assert.equal(classifiedAttachments.workInstructions.length, 1)
 assert.equal(classifiedAttachments.documents.length, 1)
+assert.ok(materialImportRoute.split('\n').length <= 55, '物料导入 API 必须保持为不超过 55 行的 HTTP 适配层')
+assert.doesNotMatch(materialImportRoute, /prisma\.|parseCsv|findCatalogUnit/, '物料导入 API 不得直接解析 CSV、校验单位或写数据库')
+assert.match(materialImportRoute, /importMaterialsCsv\(/, '物料导入 API 必须通过领域导入服务执行')
+assert.match(materialImportService, /prisma\.\$transaction/, '物料导入服务必须原子创建客户、物料和库存')
+assert.match(materialImportService, /parseMaterialImportRows/, '物料导入服务必须复用纯解析规则')
+assert.match(materialImportParser, /readMaterialImportSheet/, '物料导入解析器必须拥有表头与客户线索读取')
+const importSheet = readMaterialImportSheet('物料编码,物料名称,库存单位,分类,主计量方式\nMAT-1,测试物料,件,成品,数量')
+assert.ok(!('error' in importSheet), '有效物料 CSV 必须通过表头解析')
+if (!('error' in importSheet)) {
+  const importRows = parseMaterialImportRows({
+    ...importSheet,
+    customers: [],
+    unitCatalog: presetUnitCatalog.map((unit, index) => ({ ...unit, sortOrder: index })),
+  })
+  assert.deepEqual(importRows.errors, [])
+  assert.equal(importRows.materials[0].category, 'FINISHED')
+  assert.equal(importRows.materials[0].primaryMeasure, 'QUANTITY')
+}
 assert.match(bomContracts, /export interface BomVersion/, 'BOM 数据结构必须集中为领域契约')
 assert.doesNotMatch(bomContracts, /modules\/materials/, 'BOM 契约不得反向依赖 materials 模块形成类型环')
 assert.ok(bomRoute.split('\n').length <= 70, 'BOM API 必须保持为不超过 70 行的 HTTP 适配层')
@@ -171,6 +194,8 @@ assert.ok(materialViewPreferences.split('\n').length <= 230, '物料视图偏好
 assert.ok(materialViewModel.split('\n').length <= 130, '物料视图模型只能维护稳定选项和类型')
 assert.ok(materialPanoramaQueryService.split('\n').length <= 220, '物料全景查询服务不得膨胀为第二个巨型路由')
 assert.ok(materialPanoramaAttachmentService.split('\n').length <= 80, '物料全景附件分类与装配应保持聚焦')
+assert.ok(materialImportParser.split('\n').length <= 180, '物料导入解析规则应保持为可测试的纯领域逻辑')
+assert.ok(materialImportService.split('\n').length <= 160, '物料导入服务应聚焦客户匹配、单位锁定和原子写入')
 assert.ok(materialDetailDialog.split('\n').length <= 180, '物料详情切片不得重新膨胀为页面级巨型组件')
 assert.ok(materialEditDialog.split('\n').length <= 450, '物料编辑切片不得重新膨胀为页面级巨型组件')
 assert.ok(materialImportDialog.split('\n').length <= 160, '物料导入切片应保持单一职责')
