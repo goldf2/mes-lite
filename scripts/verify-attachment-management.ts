@@ -9,7 +9,7 @@ const root = process.cwd()
 const attachmentPanelSource = readFileSync(join(root, 'app/components/AttachmentPanel.tsx'), 'utf8')
 const productionModuleSource = readFileSync(join(root, 'modules/production/ui/ProductionOrderModule.tsx'), 'utf8')
 const salesOrderSource = readFileSync(join(root, 'modules/sales/ui/SalesOrderPageModule.tsx'), 'utf8')
-const detailDialogSource = readFileSync(join(root, 'app/components/BusinessDocumentDetailDialog.tsx'), 'utf8')
+const detailDialogSource = readFileSync(join(root, 'modules/business-documents/ui/BusinessDocumentDetailDialog.tsx'), 'utf8')
 const attachmentClientSource = readFileSync(join(root, 'modules/attachments/client/attachment-api.ts'), 'utf8')
 const attachmentRoutePaths = [
   'app/api/attachments/route.ts',

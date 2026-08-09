@@ -1,32 +1,9 @@
 import fs from 'node:fs'
 import PDFDocument from 'pdfkit'
 import type { SystemSettings } from '@/lib/system-settings'
+import type { BusinessDocumentPrintData } from '../contracts/business-document'
 
-export interface BusinessDocumentColumn {
-  label: string
-  key: string
-  width: number
-  align?: 'left' | 'center' | 'right'
-}
-
-export interface BusinessDocumentPrintData {
-  title: string
-  documentNo: string
-  status: string
-  documentDate: string
-  referenceNo?: string | null
-  partyLabel?: string
-  partyName?: string | null
-  summaryFields?: Array<{ label: string; value: string }>
-  columns: BusinessDocumentColumn[]
-  rows: Array<Record<string, string>>
-  totalLabel?: string
-  totalValue?: string
-  note?: string | null
-  signatures?: string[]
-}
-
-const FONT_PATHS = [
+const fontPaths = [
   process.env.PDF_FONT_PATH,
   '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
   '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
@@ -61,7 +38,7 @@ export function renderBusinessDocumentPdf(
     pdf.on('end', () => resolve(Buffer.concat(chunks)))
     pdf.on('error', reject)
 
-    const fontPath = FONT_PATHS.find((candidate) => fs.existsSync(candidate))
+    const fontPath = fontPaths.find((candidate) => fs.existsSync(candidate))
     if (fontPath) {
       pdf.registerFont('main', fontPath)
       pdf.font('main')

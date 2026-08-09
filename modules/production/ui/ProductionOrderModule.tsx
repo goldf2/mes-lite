@@ -12,10 +12,11 @@ import TopBarPortal from '@/app/components/TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import useClientTableSort from '@/app/components/useClientTableSort'
 import { MappedResourceAdvancedSearch } from '@/app/components/resource'
-import BusinessDocumentPrintLink, {
+import {
+  BusinessDocumentPrintLink,
   generateBusinessDocumentPdfArchives,
   reserveBusinessDocumentPrintWindow,
-} from '@/app/components/BusinessDocumentPrintLink'
+} from '@/modules/business-documents'
 import DraftDocumentAttachmentPanel, {
   createDraftDocumentAttachmentId,
   discardDraftDocumentAttachments,

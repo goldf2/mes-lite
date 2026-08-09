@@ -1,7 +1,6 @@
 'use client'
 
-import BusinessDocumentDetailDialog from '@/app/components/BusinessDocumentDetailDialog'
-import BusinessDocumentPrintLink from '@/app/components/BusinessDocumentPrintLink'
+import { BusinessDocumentDetailDialog, BusinessDocumentPrintLink } from '@/modules/business-documents'
 import type { MaterialInRecord } from '../contracts/material-in'
 import { materialInStatusLabels } from '../model/material-in-view'
 

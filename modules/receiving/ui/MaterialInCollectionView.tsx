@@ -2,7 +2,7 @@
 
 import AppButton from '@/app/components/AppButton'
 import AttachmentPanel from '@/app/components/AttachmentPanel'
-import BusinessDocumentPrintLink from '@/app/components/BusinessDocumentPrintLink'
+import { BusinessDocumentPrintLink } from '@/modules/business-documents'
 import SortableTableHeader, { type TableSortDirection } from '@/app/components/SortableTableHeader'
 import type { MaterialInRecord } from '../contracts/material-in'
 import {

@@ -11,8 +11,7 @@ import useClientTableSort from '@/app/components/useClientTableSort'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import AppButton from '@/app/components/AppButton'
 import { MappedResourceAdvancedSearch } from '@/app/components/resource'
-import BusinessDocumentPrintLink, { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/app/components/BusinessDocumentPrintLink'
-import BusinessDocumentDetailDialog from '@/app/components/BusinessDocumentDetailDialog'
+import { BusinessDocumentDetailDialog, BusinessDocumentPrintLink, generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/modules/business-documents'
 import DraftDocumentAttachmentPanel, {
   createDraftDocumentAttachmentId,
   discardDraftDocumentAttachments,

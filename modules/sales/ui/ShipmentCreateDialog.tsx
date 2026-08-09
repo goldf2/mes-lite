@@ -7,7 +7,7 @@ import DraftDocumentAttachmentPanel, {
   discardDraftDocumentAttachments,
   finalizeDraftDocumentAttachments,
 } from '@/app/components/DraftDocumentAttachmentPanel'
-import { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/app/components/BusinessDocumentPrintLink'
+import { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/modules/business-documents'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import SearchableSelect from '@/app/components/SearchableSelect'
 import { createShipment, loadShipmentCreateOptions } from '../client/fulfillment-api'

@@ -23,16 +23,16 @@
 | `app/HomeApp.tsx` | 522 行 | 权限菜单、工作区过滤、页面连续性、偏好和桌面导航状态均已提取；当前只承担应用壳 JSX 装配与少量全局弹层状态 |
 | `app/components/shell/` | 9 个文件 | 已建立账号菜单、导航图标、页面宿主、渲染适配器和四类状态控制器的公共应用壳边界 |
 | `lib/page-registry.ts` | 38 个页面定义 | 页面元数据、权限资源、工作区入口、系统分区、打开方式和渲染键已集中为单一事实源 |
-| `app/components/` 根目录 | 46 个文件 | 根级 `*Page.tsx` 只剩 31 行的 `SystemPage` 兼容分派层；文档类别管理面板及此前领域页均已迁入对应模块，根目录继续只承载跨领域公共组件和应用壳兼容入口 |
+| `app/components/` 根目录 | 44 个文件 | 根级 `*Page.tsx` 只剩 31 行的 `SystemPage` 兼容分派层；业务单据打印/详情及此前领域实现均已迁入对应模块，根目录继续只承载无领域含义的公共组件和应用壳兼容入口 |
 | `modules/materials/ui/MaterialPage.tsx` | 709 行 | 数据契约、HTTP client、详情、编辑、导入、集合视图、页内选项、显示偏好、双形态工具栏、BOM 工作区和草稿编辑均已拆出；当前只保留物料/BOM 页面协调 |
 | `SystemPage.tsx` | 31 行 | 已收敛为业务配置、系统设置、运维工具和生产工程的纯领域分派兼容层 |
 | `modules/receiving/ui/MaterialInPage.tsx` | 684 行 | 集合、编辑和详情任务已拆出；主页只协调查询、分页与任务弹窗 |
 | `modules/documents/ui/WorkInstructionPage.tsx` | 591 行 | 只保留文档读写、搜索、分页与子模块状态协调；集合、表单、详情/附件和全屏查看已分离 |
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
-| `lib/` | 51 个根文件 | 平台基础设施、格式化工具和少量跨领域兼容能力仍有混放；员工与文档类别规则已迁出 |
-| `modules/` | 302 个 TypeScript 文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售、设备和附件 14 个模块；页面数据访问已统一进入领域 client，文档类别前后端也由文档领域单一拥有 |
-| `app/api/` | 114 个 `route.ts` | 路径结构基本合理；直接访问 Prisma 的路由已降至 30 条，其余存量按领域垂直切片继续收敛 |
+| `lib/` | 50 个根文件 | 平台基础设施、格式化工具和少量跨领域兼容能力仍有混放；业务单据 PDF 引擎已迁出 |
+| `modules/` | 314 个 TypeScript 文件 | 已有 13 个业务领域模块以及附件、业务单据 2 个横切平台模块；7 类交易单据统一通过 `modules/business-documents` 使用打印与详情能力 |
+| `app/api/` | 114 个 `route.ts` | 路径结构基本合理；直接访问 Prisma 的路由已降至 29 条，其余存量按领域垂直切片继续收敛 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
 
@@ -773,3 +773,10 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 文档类别页面继续复用公共 `ResourcePageShell`、`ResourceAdvancedSearch`、`AppButton` 和 `SearchableSelect`，渲染注册表只通过文档模块公开入口挂载，不建立配置领域或根级组件副本。
 - `/api/document-categories` 从 100 行降至 73 行，只保留权限、Schema、文档领域服务、审计和 HTTP 映射；旧 `lib/document-categories.ts` 已删除，使直接访问 Prisma 的 API 从 31 条降至 30 条。
 - `verify:document-categories` 使用运行后删除的临时完整 SQLite，覆盖名称规范化、两级层次、同层判重、父级变更、引用保护和删除；静态边界同时阻止路由、配置模块或根级组件重新拥有文档类别规则。
+
+## 63. 业务单据打印横切模块归属
+
+- 新增 `modules/business-documents` 作为跨销售、来料和生产领域的单据展示平台：`contracts` 集中 7 类单据和打印投影，`domain` 拥有类型/权限/附件所有者映射与格式化纯规则，`server` 拥有查询投影、A4 PDF 渲染、归档缓存和强制重生成。
+- 业务单据打印链接、预生成 client 和“系统生成单据 + 附件管理”详情骨架从根级 `app/components` 迁入模块；各调用页面只通过 `modules/business-documents/index.ts` 使用公开能力，详情内部继续复用公共 `ModalDialog` 和 `AttachmentPanel`。
+- 打印 Route Handler 从 211 行降至 42 行，只保留单据类型识别、资源权限、生成权限、领域服务调用和 PDF HTTP 响应；旧 `lib/business-document-pdf.ts` 已删除，使直接访问 Prisma 的 API 从 30 条降至 29 条。
+- `verify:business-document-print` 使用运行后删除的临时完整 SQLite 和上传目录，覆盖 7 类定义、流程转移打印投影、A4 PDF、首次归档、普通补打缓存复用、强制重生成新版本和缺失单据；不会触碰本机测试库、上传目录或服务器数据。
