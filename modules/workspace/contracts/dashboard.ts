@@ -1,0 +1,57 @@
+export interface DashboardStatusItem {
+  status: string
+  count: number
+}
+
+export interface DashboardStockAlert {
+  id: string
+  availableQty?: number
+  material?: { name?: string; code?: string } | null
+  product?: { name?: string; sku?: string } | null
+}
+
+export interface DashboardData {
+  todayOrderCount?: number
+  todayOrders?: number
+  monthOrderCount?: number
+  monthOrders?: number
+  todayProductionActualCount?: number
+  monthProductionActualCount?: number
+  todayProduction?: number
+  monthProduction?: number
+  pendingProductionActualCount?: number
+  pendingMaterialInCount?: number
+  pendingMaterialIns?: number
+  pendingShipmentCount?: number
+  pendingShipments?: number
+  pendingReturnCount?: number
+  pendingReturns?: number
+  lowStocks?: DashboardStockAlert[]
+  alertStocks?: DashboardStockAlert[]
+  statusDistribution?: DashboardStatusItem[]
+  orderStatusDist?: DashboardStatusItem[]
+  productionActualStatusDistribution?: DashboardStatusItem[]
+}
+
+export interface DashboardView {
+  todayOrderCount: number
+  monthOrderCount: number
+  todayProductionActualCount: number
+  monthProductionActualCount: number
+  todayProduction: number
+  monthProduction: number
+  pendingProductionActualCount: number
+  pendingMaterialInCount: number
+  pendingShipmentCount: number
+  pendingReturnCount: number
+  lowStocks: DashboardStockAlert[]
+  statusDistribution: DashboardStatusItem[]
+  productionActualStatusDistribution: DashboardStatusItem[]
+}
+
+export interface DashboardMetricItem {
+  label: string
+  value: number
+  tone: string
+  hint: string
+}

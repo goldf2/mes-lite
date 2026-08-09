@@ -107,6 +107,7 @@ assert.match(materialViewModel, /MaterialCollectionActions/, '物料集合视图
 assert.match(materialCardView, /materials\.map/, '物料卡片视图必须拥有卡片集合渲染')
 assert.match(materialTableView, /<table/, '物料表格视图必须拥有表格和列头渲染')
 assert.match(materialPageOptions, /PageOptionsDialog/, '物料页内选项必须复用公共页面选项弹窗')
+assert.match(materialPageOptions, /loadConfiguredUnits[\s\S]*from '@\/modules\/configuration'/, 'BOM 页内选项必须通过业务配置公开出口读取单位目录')
 assert.match(materialPageOptions, /ToolbarOrderSettings/, '物料页内选项必须保留公共工具栏排序能力')
 assert.match(materialViewPreferences, /window\.localStorage/, '物料视图偏好控制器必须拥有浏览器偏好持久化')
 assert.match(materialViewPreferences, /MaterialColumnControls/, '物料视图偏好控制器必须提供稳定列宽控制契约')

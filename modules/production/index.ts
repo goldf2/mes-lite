@@ -1,5 +1,5 @@
 export { default } from './ui/ProductionOrderModule'
-export type { ProductionOrderMode } from './ui/ProductionOrderModule'
+export type { ProductionOrderMode } from './contracts/production-order'
 export { default as DispatchPageModule } from './ui/DispatchPageModule'
 export { default as FlowTransferPageModule } from './ui/FlowTransferPageModule'
 export { default as ProductionEngineeringSectionPage, isProductionEngineeringSection, productionEngineeringSections } from './ProductionEngineeringSectionPage'

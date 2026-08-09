@@ -6,6 +6,7 @@ import PageOptionsDialog from '@/app/components/PageOptionsDialog'
 import ToolbarOrderSettings from '@/app/components/ToolbarOrderSettings'
 import type { ViewMode } from '@/app/components/ViewModeToggle'
 import useDismissibleSearchPopup from '@/app/components/useDismissibleSearchPopup'
+import { loadConfiguredUnits } from '@/modules/configuration'
 import {
   bomSummaryFieldOptions,
   materialSortOptions,
@@ -131,6 +132,7 @@ export default function MaterialPageOptions({
       onClose={onClose}
       pageLabel={showBomWorkspace ? 'BOM 设置' : '物料管理'}
       showBomUnitOptions={showBomWorkspace}
+      loadUnitCatalog={loadConfiguredUnits}
       onMessage={onMessage}
     >
       <ToolbarOrderSettings pageKey={showBomWorkspace ? 'bomWorkspace' : 'materialManagement'} />

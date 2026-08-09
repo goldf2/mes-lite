@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 190 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售和设备 13 个模块；业务配置参考资料与运维工具均形成 UI/client/contracts/model 垂直分层 |
+| `modules/` | 197 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置、运维工具、文档、来料、身份权限、销售和设备 13 个模块；页面数据访问已统一进入领域 client，公共框架通过能力注入避免反向依赖 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -655,3 +655,10 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `client/maintenance-api.ts` 统一归档读取/恢复/永久删除、审计读取和编码规范化请求，并保留冲突响应中的预检结果。
 - `model/archive-records.ts` 将九类归档数据映射为统一记录并按归档时间排序，映射逻辑脱离 React 后由确定样例验证。
 - 归档、审计和数据工具 3 个页面不再直接调用 `fetch`；页面级直连请求现只剩公共页内选项、生产订单和工作台。
+
+## 48. 页面访问层清零
+
+- 公共 `PageOptionsDialog` 不再自行访问业务单位目录；物料/BOM 页内选项从 `modules/configuration` 公开出口注入读取能力，公共框架继续不依赖任何领域模块。
+- 生产订单新增 `contracts/production-order.ts`、`client/production-order-api.ts` 和 `model/production-order-view.ts`；列表、候选、详情和创建请求集中到 client，订单分组和创建输入成为纯规则，协调页从 535 行降至 448 行。
+- 工作台新增统计契约、client 和归一化/指标装配模型，并把五类稳定展示面板提取到 `DashboardPanels.tsx`；协调页从 397 行降至 74 行。
+- 所有 `*Page` / `*PageModule` 已清除直接 `fetch`；`verify:module-boundaries` 现在把页面请求回流作为全局失败条件。

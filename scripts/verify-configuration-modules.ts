@@ -55,6 +55,7 @@ assert.match(referenceDataClient, /\/api\/suppliers/, '配置领域 client 必�
 assert.match(referenceDataClient, /\/api\/customers/, '配置领域 client 必须包含客户接口')
 assert.match(referenceDataClient, /loadInventoryLocations|loadConfiguredUnits|loadWorkCenters|loadDocumentCategories/, '配置领域 client 必须集中资料读取')
 assert.match(referenceDataContracts, /interface PartyRecord|interface ConfiguredUnit|interface InventoryLocationConfig|interface WorkCenterConfig|interface DocumentCategoryConfig/, '配置领域必须集中参考资料契约')
+assert.match(moduleIndex, /export \{ loadConfiguredUnits \}/, '配置模块必须通过公开出口提供单位目录读取能力')
 const categoryPage = read('modules/configuration/ui/DocumentCategorySettingsPage.tsx')
 assert.match(categoryPage, /<ResourcePageShell\b/, '树形文档类别必须使用公共 ResourcePageShell')
 assert.doesNotMatch(categoryPage, /\bfetch\(/, '文档类别页不得直接调用 fetch')

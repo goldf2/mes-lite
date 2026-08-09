@@ -20,6 +20,7 @@ export default function PageOptionsDialog({
   onClose,
   pageLabel,
   showBomUnitOptions,
+  loadUnitCatalog,
   onMessage,
   children,
 }: {
@@ -27,6 +28,7 @@ export default function PageOptionsDialog({
   onClose: () => void
   pageLabel: string
   showBomUnitOptions: boolean
+  loadUnitCatalog?: (signal: AbortSignal) => Promise<ConfiguredUnit[]>
   onMessage: (message: string) => void
   children?: ReactNode
 }) {
@@ -45,19 +47,20 @@ export default function PageOptionsDialog({
     if (!open || !showBomUnitOptions || unitCatalog.length > 0) return
     const controller = new AbortController()
     setUnitLoading(true)
-    fetch('/api/system/units', { signal: controller.signal })
-      .then(async (response) => {
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.error || '读取单位目录失败')
-        setUnitCatalog(data.data || [])
-      })
+    if (!loadUnitCatalog) {
+      onMessage('当前页面没有配置单位目录读取能力')
+      setUnitLoading(false)
+      return
+    }
+    loadUnitCatalog(controller.signal)
+      .then(setUnitCatalog)
       .catch((error) => {
         if (error instanceof DOMException && error.name === 'AbortError') return
         onMessage(error instanceof Error ? error.message : '读取单位目录失败')
       })
       .finally(() => setUnitLoading(false))
     return () => controller.abort()
-  }, [onMessage, open, showBomUnitOptions, unitCatalog.length])
+  }, [loadUnitCatalog, onMessage, open, showBomUnitOptions, unitCatalog.length])
 
   if (!open) return null
 

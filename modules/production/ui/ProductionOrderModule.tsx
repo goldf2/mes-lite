@@ -12,7 +12,6 @@ import TopBarPortal from '@/app/components/TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import useClientTableSort from '@/app/components/useClientTableSort'
 import { MappedResourceAdvancedSearch } from '@/app/components/resource'
-import { getStatusQuery } from '@/app/components/StatusCheckboxFilter'
 import BusinessDocumentPrintLink, {
   generateBusinessDocumentPdfArchives,
   reserveBusinessDocumentPrintWindow,
@@ -23,59 +22,20 @@ import DraftDocumentAttachmentPanel, {
   finalizeDraftDocumentAttachments,
 } from '@/app/components/DraftDocumentAttachmentPanel'
 import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
+import { createProductionOrders, loadProductionOrderDetail, loadProductionOrderOptions, loadProductionOrders } from '../client/production-order-api'
+import type { ProductionOrder, ProductionOrderDetail, ProductionOrderDraftLine, ProductionOrderMaterialOption, ProductionOrderMode } from '../contracts/production-order'
+import {
+  buildProductionOrderCreateInput,
+  displayProductionMaterialCode,
+  groupProductionOrders,
+  productionMaterialCategoryLabels,
+  productionOrderStatusColors,
+  productionOrderStatusLabels,
+  productionOrderStatusOptions,
+} from '../model/production-order-view'
 
 const AttachmentPanel = dynamic(() => import('@/app/components/AttachmentPanel'), { loading: () => <AppLoadingIndicator label="正在加载附件..." /> })
 const ProductionOrderActualPanel = dynamic(() => import('@/app/components/ProductionOrderActualPanel'), { loading: () => <AppLoadingIndicator label="正在加载生产实绩..." /> })
-
-export type ProductionOrderMode = 'orders' | 'create' | 'detail'
-
-interface MaterialOption {
-  id: string
-  code: string
-  name: string
-  category: string
-}
-
-interface OrderBomOption {
-  id: string
-  name: string
-  version: string
-  isDefault: boolean
-}
-
-interface OrderMaterialOption extends MaterialOption {
-  boms: OrderBomOption[]
-}
-
-interface ProductionOrder {
-  id: string
-  orderNo: string
-  groupNo?: string | null
-  lineNo?: number
-  voucherNo?: string | null
-  status: string
-  planQty: number
-  completeQty: number
-  scrapQty: number
-  createdAt: string
-  product: { id: string; name: string; sku: string }
-  targetMaterial?: { id: string; name: string; code: string; category?: string; stockUnit?: string; unit?: string } | null
-  bom?: { id: string; name: string; version: string } | null
-  bomName?: string | null
-  bomVersion?: string | null
-  _count: { reports: number; picks: number; actuals: number }
-}
-
-interface ProductionOrderDetail extends ProductionOrder {
-  groupLines?: ProductionOrder[]
-}
-
-interface OrderDraftLine {
-  id: string
-  targetId: string
-  bomId: string
-  planQty: number
-}
 
 interface ProductionOrderModuleProps {
   mode: ProductionOrderMode
@@ -85,45 +45,18 @@ interface ProductionOrderModuleProps {
   onStateSummaryChange?: (summary: string) => void
 }
 
-const materialCategoryLabels: Record<string, string> = {
-  RAW: '原材料', FINISHED: '成品', AUXILIARY: '辅材', SCRAP: '废料',
-  DEFECTIVE: '废品', PACKAGING: '包装物', OTHER: '其他',
-}
-
-const statusColors: Record<string, string> = {
-  DRAFT: 'bg-gray-100 text-gray-700',
-  CONFIRMED: 'bg-blue-100 text-blue-700',
-  PICKED: 'bg-yellow-100 text-yellow-700',
-  RUNNING: 'bg-orange-100 text-orange-700',
-  QC_WAITING: 'bg-purple-100 text-purple-700',
-  QC_DONE: 'bg-indigo-100 text-indigo-700',
-  COMPLETED: 'bg-green-100 text-green-700',
-  CANCELLED: 'bg-red-100 text-red-700',
-}
-
-const statusLabels: Record<string, string> = {
-  DRAFT: '草稿', CONFIRMED: '已确认', PICKED: '已领料', RUNNING: '生产中',
-  QC_WAITING: '待质检', QC_DONE: '质检完成', COMPLETED: '已完成', CANCELLED: '已取消',
-}
-
-const orderStatusOptions = Object.entries(statusLabels).map(([value, label]) => ({ value, label }))
-
-function displayMaterialCode(code?: string | null) {
-  return code?.startsWith('MAT-') ? code.slice(4) : code || ''
-}
-
 function readInitialQuery() {
   if (typeof window === 'undefined') return ''
   return new URL(window.location.href).searchParams.get('q') || ''
 }
 
 function readInitialStatuses() {
-  if (typeof window === 'undefined') return orderStatusOptions.map((option) => option.value)
+  if (typeof window === 'undefined') return productionOrderStatusOptions.map((option) => option.value)
   const url = new URL(window.location.href)
   const requested = (url.searchParams.get('statuses') || '')
     .split(',')
-    .filter((value) => orderStatusOptions.some((option) => option.value === value))
-  return requested.length > 0 ? requested : orderStatusOptions.map((option) => option.value)
+    .filter((value) => productionOrderStatusOptions.some((option) => option.value === value))
+  return requested.length > 0 ? requested : productionOrderStatusOptions.map((option) => option.value)
 }
 
 export default function ProductionOrderModule({
@@ -135,13 +68,13 @@ export default function ProductionOrderModule({
 }: ProductionOrderModuleProps) {
   const [orders, setOrders] = useState<ProductionOrder[]>([])
   const [orderDetail, setOrderDetail] = useState<ProductionOrderDetail | null>(null)
-  const [orderMaterialOptions, setOrderMaterialOptions] = useState<OrderMaterialOption[]>([])
+  const [orderMaterialOptions, setOrderMaterialOptions] = useState<ProductionOrderMaterialOption[]>([])
   const [planQty, setPlanQty] = useState(100)
   const [orderVoucherNo, setOrderVoucherNo] = useState('')
   const [orderNote, setOrderNote] = useState('')
   const [selectedMaterialId, setSelectedMaterialId] = useState('')
   const [selectedOrderBomId, setSelectedOrderBomId] = useState('')
-  const [orderDraftLines, setOrderDraftLines] = useState<OrderDraftLine[]>([])
+  const [orderDraftLines, setOrderDraftLines] = useState<ProductionOrderDraftLine[]>([])
   const [orderKeyword, setOrderKeyword] = useState(readInitialQuery)
   const [selectedOrderStatuses, setSelectedOrderStatuses] = useState<string[]>(readInitialStatuses)
   const [orderViewMode, setOrderViewMode] = usePersistedViewMode('mes-lite.orders.viewMode', 'card')
@@ -155,17 +88,17 @@ export default function ProductionOrderModule({
     key: 'status',
     label: '订单状态',
     value: selectedOrderStatuses.length === 1 ? selectedOrderStatuses[0] : '',
-    onChange: (value: string) => setSelectedOrderStatuses(value ? [value] : orderStatusOptions.map((option) => option.value)),
-    options: orderStatusOptions,
+    onChange: (value: string) => setSelectedOrderStatuses(value ? [value] : productionOrderStatusOptions.map((option) => option.value)),
+    options: productionOrderStatusOptions,
   }], [selectedOrderStatuses])
 
   const fetchOrders = useCallback(async () => {
-    const params = new URLSearchParams(getStatusQuery(selectedOrderStatuses, orderStatusOptions))
-    if (orderKeyword.trim()) params.set('keyword', orderKeyword.trim())
-    const response = await fetch(`/api/orders${params.toString() ? `?${params.toString()}` : ''}`)
-    const payload = await response.json()
-    setOrders(payload.data || [])
-  }, [orderKeyword, selectedOrderStatuses])
+    try {
+      setOrders(await loadProductionOrders(orderKeyword, selectedOrderStatuses, productionOrderStatusOptions.length))
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取生产订单列表失败')
+    }
+  }, [onMessage, orderKeyword, selectedOrderStatuses])
 
   useEffect(() => {
     const requestedView = new URL(window.location.href).searchParams.get('view')
@@ -187,7 +120,7 @@ export default function ProductionOrderModule({
     url.searchParams.set('view', orderViewMode)
     if (orderKeyword.trim()) url.searchParams.set('q', orderKeyword.trim())
     else url.searchParams.delete('q')
-    if (selectedOrderStatuses.length !== orderStatusOptions.length) url.searchParams.set('statuses', selectedOrderStatuses.join(','))
+    if (selectedOrderStatuses.length !== productionOrderStatusOptions.length) url.searchParams.set('statuses', selectedOrderStatuses.join(','))
     else url.searchParams.delete('statuses')
     window.history.replaceState(window.history.state, '', url)
   }, [orderKeyword, orderViewMode, selectedOrderStatuses])
@@ -214,16 +147,19 @@ export default function ProductionOrderModule({
   }, [draftAttachmentOwnerId, mode])
 
   async function fetchMaterialOptions() {
-    const response = await fetch('/api/orders/options')
-    if (!response.ok) return
-    const payload = await response.json()
-    setOrderMaterialOptions(payload.data || [])
+    try {
+      setOrderMaterialOptions(await loadProductionOrderOptions())
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取生产订单选项失败')
+    }
   }
 
   async function fetchOrderDetail(orderId: string) {
-    const response = await fetch(`/api/orders/${orderId}`)
-    const payload = await response.json()
-    setOrderDetail(payload.data || null)
+    try {
+      setOrderDetail(await loadProductionOrderDetail(orderId))
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取生产订单详情失败')
+    }
   }
 
   async function openOrderDetail(order: ProductionOrder) {
@@ -270,21 +206,7 @@ export default function ProductionOrderModule({
     const printPreview = reserveBusinessDocumentPrintWindow()
     setLoading(true)
     try {
-      const response = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: lines.map(({ id: _id, ...line }) => line),
-          voucherNo: orderVoucherNo || undefined,
-          note: orderNote || undefined,
-        }),
-      })
-      const payload = await response.json()
-      if (!response.ok) {
-        printPreview.close()
-        onMessage(payload.error || '创建失败')
-        return
-      }
+      const payload = await createProductionOrders(buildProductionOrderCreateInput(lines, orderVoucherNo, orderNote))
       try {
         await finalizeDraftDocumentAttachments({
           ownerType: 'PRODUCTION_ORDER',
@@ -313,9 +235,9 @@ export default function ProductionOrderModule({
       setDraftAttachmentOwnerId('')
       await fetchOrders()
       onModeChange('orders')
-    } catch {
+    } catch (error) {
       printPreview.close()
-      onMessage('创建失败')
+      onMessage(error instanceof Error ? error.message : '创建失败')
     } finally {
       setLoading(false)
     }
@@ -348,19 +270,10 @@ export default function ProductionOrderModule({
     target: (order) => `${order.targetMaterial?.code || order.product.sku} ${order.targetMaterial?.name || order.product.name}`,
     planQty: (order) => order.planQty,
     completed: (order) => order.completeQty,
-    status: (order) => statusLabels[order.status] || order.status,
+    status: (order) => productionOrderStatusLabels[order.status] || order.status,
     createdAt: (order) => new Date(order.createdAt),
   }, 'createdAt', 'desc')
-  const orderCardGroups = Array.from(orderSort.sortedRows.reduce((groups, order) => {
-    const key = order.groupNo || order.orderNo
-    const current = groups.get(key) || []
-    current.push(order)
-    groups.set(key, current)
-    return groups
-  }, new Map<string, ProductionOrder[]>())).map(([groupNo, lines]) => ({
-    groupNo,
-    lines: [...lines].sort((left, right) => Number(left.lineNo || 1) - Number(right.lineNo || 1)),
-  }))
+  const orderCardGroups = groupProductionOrders(orderSort.sortedRows)
 
   return (
     <>
@@ -409,11 +322,11 @@ export default function ProductionOrderModule({
                         <div key={order.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                           <div className="min-w-0">
                             <div className="font-medium text-gray-900">{order.targetMaterial?.name || order.product.name}</div>
-                            <div className="mt-0.5 text-xs text-gray-500">{order.targetMaterial?.code || displayMaterialCode(order.product.sku)} · BOM {order.bom?.name || order.bomName || '-'} {order.bom?.version || order.bomVersion || ''}</div>
+                            <div className="mt-0.5 text-xs text-gray-500">{order.targetMaterial?.code || displayProductionMaterialCode(order.product.sku)} · BOM {order.bom?.name || order.bomName || '-'} {order.bom?.version || order.bomVersion || ''}</div>
                             <div className="mt-1 text-xs text-gray-500">计划 {order.planQty} · 完成 {order.completeQty} · 报废 {order.scrapQty}</div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className={`rounded px-2 py-1 text-xs font-medium ${statusColors[order.status]}`}>{statusLabels[order.status]}</span>
+                            <span className={`rounded px-2 py-1 text-xs font-medium ${productionOrderStatusColors[order.status]}`}>{productionOrderStatusLabels[order.status]}</span>
                             <BusinessDocumentPrintLink kind="production-order" id={order.id} compact />
                             <button onClick={() => void openOrderDetail(order)} className="rounded border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50">详情 / 登记实绩</button>
                           </div>
@@ -443,10 +356,10 @@ export default function ProductionOrderModule({
                     <tr key={order.id} className="cursor-pointer hover:bg-gray-50" onClick={() => void openOrderDetail(order)}>
                       <td className="px-4 py-3 font-mono text-sm text-blue-600">{order.groupNo || order.orderNo}{order.groupNo ? <span className="ml-1 text-xs text-gray-400">第 {order.lineNo} 项</span> : null}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{order.voucherNo || '-'}</td>
-                      <td className="px-4 py-3"><div className="text-sm font-medium">{order.targetMaterial?.name || order.product.name}</div><div className="text-xs text-gray-500">物料 {order.targetMaterial?.code || displayMaterialCode(order.product.sku)}</div></td>
+                      <td className="px-4 py-3"><div className="text-sm font-medium">{order.targetMaterial?.name || order.product.name}</div><div className="text-xs text-gray-500">物料 {order.targetMaterial?.code || displayProductionMaterialCode(order.product.sku)}</div></td>
                       <td className="px-4 py-3 text-sm">{order.planQty}</td>
                       <td className="px-4 py-3 text-sm"><span className="text-green-600">{order.completeQty}</span><span className="mx-1 text-gray-400">/</span><span className="text-red-500">{order.scrapQty}</span></td>
-                      <td className="px-4 py-3"><span className={`inline-block rounded px-2 py-1 text-xs font-medium ${statusColors[order.status]}`}>{statusLabels[order.status]}</span></td>
+                      <td className="px-4 py-3"><span className={`inline-block rounded px-2 py-1 text-xs font-medium ${productionOrderStatusColors[order.status]}`}>{productionOrderStatusLabels[order.status]}</span></td>
                       <td className="px-4 py-3 text-xs text-gray-500">{new Date(order.createdAt).toLocaleString('zh-CN')}</td>
                       <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}><AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={order.id} compact compactMode="summary" onMessage={onMessage} /></td>
                       <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}><div className="flex items-center gap-2"><BusinessDocumentPrintLink kind="production-order" id={order.id} compact /><button onClick={() => void openOrderDetail(order)} className="rounded border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50">详情 / 登记实绩</button></div></td>
@@ -463,9 +376,9 @@ export default function ProductionOrderModule({
         <div className="rounded-lg bg-white p-6 shadow">
           <div className="mb-6 flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold">生产订单详情</h2><span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">系统生成单据</span></div><p className="text-sm text-gray-500">{orderDetail.groupNo || orderDetail.orderNo}{orderDetail.groupNo ? ` · 第 ${orderDetail.lineNo} 项` : ''}</p><p className="text-sm text-gray-500">凭据号：{orderDetail.voucherNo || '-'}</p></div><BusinessDocumentPrintLink kind="production-order" id={orderDetail.id} /></div>
           <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
-            <InfoCard label="目标"><div className="font-medium">{orderDetail.targetMaterial?.name || orderDetail.product.name}</div><div className="text-xs text-gray-400">物料 {orderDetail.targetMaterial?.code || displayMaterialCode(orderDetail.product.sku)}</div></InfoCard>
+            <InfoCard label="目标"><div className="font-medium">{orderDetail.targetMaterial?.name || orderDetail.product.name}</div><div className="text-xs text-gray-400">物料 {orderDetail.targetMaterial?.code || displayProductionMaterialCode(orderDetail.product.sku)}</div></InfoCard>
             <InfoCard label="BOM 方案"><div className="font-medium">{orderDetail.bomName || orderDetail.bom?.name || '-'}</div><div className="text-xs text-gray-400">{orderDetail.bomVersion || orderDetail.bom?.version || '-'}</div></InfoCard>
-            <InfoCard label="状态"><span className={`inline-block rounded px-2 py-1 text-xs font-medium ${statusColors[orderDetail.status]}`}>{statusLabels[orderDetail.status]}</span></InfoCard>
+            <InfoCard label="状态"><span className={`inline-block rounded px-2 py-1 text-xs font-medium ${productionOrderStatusColors[orderDetail.status]}`}>{productionOrderStatusLabels[orderDetail.status]}</span></InfoCard>
             <InfoCard label="计划/完成"><div className="font-medium">{orderDetail.planQty} / {orderDetail.completeQty}</div></InfoCard>
             <InfoCard label="报废"><div className="font-medium text-red-600">{orderDetail.scrapQty}</div></InfoCard>
           </div>
@@ -497,7 +410,7 @@ export default function ProductionOrderModule({
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="mb-4 text-sm font-semibold text-gray-900">添加产品明细</div>
               <div className="grid gap-4 md:grid-cols-3">
-                <label className="block text-sm font-medium text-gray-700">主产出物料<SearchableSelect value={selectedMaterialId} onChange={setSelectedMaterialId} options={orderMaterialOptions.map((material) => ({ value: material.id, label: `${material.code} · ${material.name} · ${materialCategoryLabels[material.category] || material.category}` }))} placeholder="输入可生产物料的编码、名称或分类筛选" /><span className="mt-1 block text-xs font-normal text-gray-500">仅显示已有启用 BOM 的物料；BOM 投入可包含原材料、半成品或已有产品。</span></label>
+                <label className="block text-sm font-medium text-gray-700">主产出物料<SearchableSelect value={selectedMaterialId} onChange={setSelectedMaterialId} options={orderMaterialOptions.map((material) => ({ value: material.id, label: `${material.code} · ${material.name} · ${productionMaterialCategoryLabels[material.category] || material.category}` }))} placeholder="输入可生产物料的编码、名称或分类筛选" /><span className="mt-1 block text-xs font-normal text-gray-500">仅显示已有启用 BOM 的物料；BOM 投入可包含原材料、半成品或已有产品。</span></label>
                 <label className="block text-sm font-medium text-gray-700">BOM 方案<SearchableSelect value={selectedOrderBomId} onChange={setSelectedOrderBomId} options={selectedOrderBoms.map((bom) => ({ value: bom.id, label: `${bom.name} · ${bom.version}${bom.isDefault ? ' · 默认' : ''}` }))} placeholder={selectedMaterialId ? '输入方案名称或版本筛选' : '请先选择主产出物料'} /></label>
                 <label className="block text-sm font-medium text-gray-700">计划产量<input type="number" value={planQty} onChange={(event) => setPlanQty(Number(event.target.value))} min="0.000001" step="0.000001" className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-3" /></label>
               </div>

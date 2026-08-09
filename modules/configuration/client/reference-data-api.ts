@@ -65,8 +65,8 @@ export async function makeDefaultInventoryLocation(id: string) {
   return await request<InventoryLocationConfig[]>('/api/inventory-locations', jsonRequest('PATCH', { id, isDefault: true, isActive: true })) || []
 }
 
-export async function loadConfiguredUnits() {
-  return await request<ConfiguredUnit[]>('/api/system/units') || []
+export async function loadConfiguredUnits(signal?: AbortSignal) {
+  return await request<ConfiguredUnit[]>('/api/system/units', { signal }) || []
 }
 
 export async function saveConfiguredUnit(form: UnitForm, original?: Pick<ConfiguredUnit, 'code' | 'measureType'>) {

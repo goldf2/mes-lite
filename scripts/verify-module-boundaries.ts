@@ -90,10 +90,12 @@ const pageFiles = [
 
 for (const path of pageFiles) {
   const projectPath = toProjectPath(path)
+  const source = readFileSync(path, 'utf8')
   const lines = lineCount(path)
   const baseline = pageSizeBaselines[projectPath]
   if (lines > 800 && baseline === undefined) failures.push(`${projectPath} 新增为 ${lines} 行巨型页面，超过 800 行强制评审线`)
   if (baseline !== undefined && lines > baseline) failures.push(`${projectPath} 从 ${baseline} 行增长到 ${lines} 行；应先提取稳定职责`)
+  if (/\bfetch\(/.test(source)) failures.push(`${projectPath} 直接调用 fetch；页面必须通过所属领域 client 访问接口`)
 }
 
 const routeSizeBaselines: Record<string, number> = {}
