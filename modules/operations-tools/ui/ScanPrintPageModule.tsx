@@ -1,135 +1,31 @@
 'use client'
 
-import JsBarcode from 'jsbarcode'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, Printer, RotateCcw, ScanLine, Settings2, TriangleAlert } from 'lucide-react'
-import { honeywell1900Profile, cleanScannerValue, scannerSubmitKey } from './scan-print/scannerAdapter'
+import SplitWorkspace from '@/app/components/layout/SplitWorkspace'
+import AppButton from '@/app/components/AppButton'
 import {
-  LabelMediaProfile,
+  completeScanSession,
+  createLabelPrintJob,
+  createScanSession,
+  loadGeneralScanSessions,
+  recordScanEvent,
+  undoLastScanEvent,
+} from '../client/scan-print-api'
+import type { LabelData, ScanEvent, ScanSession } from '../contracts/scan-print'
+import { honeywell1900Profile, cleanScannerValue, scannerSubmitKey } from '../model/scanner-adapter'
+import {
+  type LabelMediaProfile,
   labelCanvasDots,
   labelPrintPageStyle,
   pc310t203Profile,
   pc310tDefaultLabelMedia,
   pc310tLabelMediaProfiles,
-} from './scan-print/labelProfiles'
-import SplitWorkspace from './layout/SplitWorkspace'
-import AppButton from './AppButton'
+} from '../model/label-profiles'
+import { createClientRequestId, createDefaultLabelData, formatScanQuantity, scanResultLabels } from '../model/scan-print-view'
+import GenericLabel from './GenericLabel'
 
-interface ScanEvent {
-  id: string
-  rawValue: string
-  code: string
-  quantity: number
-  result: 'MATCHED' | 'UNKNOWN' | 'OVER'
-  createdAt: string
-}
-
-interface ScanSession {
-  id: string
-  sessionNo: string
-  name?: string | null
-  expectedCode: string
-  expectedQty: number
-  countedQty: number
-  status: 'OPEN' | 'COMPLETED' | 'CANCELLED'
-  scannerModel?: string | null
-  createdAt: string
-  events: ScanEvent[]
-}
-
-interface LabelData {
-  title: string
-  code: string
-  name: string
-  spec: string
-  quantity: number
-  unit: string
-  note: string
-}
-
-const resultLabels = {
-  MATCHED: '计数成功',
-  UNKNOWN: '条码不匹配',
-  OVER: '超过目标数量',
-}
-
-function formatQty(value: number) {
-  return Number(value || 0).toFixed(6).replace(/\.?0+$/, '')
-}
-
-function requestId(prefix: string) {
-  return `${prefix}-${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`}`
-}
-
-function GenericLabel({ data, media }: { data: LabelData; media: LabelMediaProfile }) {
-  const barcodeRef = useRef<SVGSVGElement | null>(null)
-  const compact = media.heightMm <= 80
-
-  useEffect(() => {
-    if (!barcodeRef.current || !data.code.trim()) return
-    JsBarcode(barcodeRef.current, data.code.trim(), {
-      format: 'CODE128',
-      width: compact ? 1.5 : 2,
-      height: compact ? 48 : 76,
-      displayValue: false,
-      margin: 0,
-    })
-  }, [compact, data.code])
-
-  return (
-    <section
-      className="shipment-label-sheet"
-      style={{
-        width: `${media.widthMm}mm`,
-        height: `${media.heightMm}mm`,
-        padding: compact ? '4mm' : '6mm',
-      }}
-    >
-      <div className={`border-b-2 border-black ${compact ? 'pb-2' : 'pb-3'}`}>
-        <div className={`${compact ? 'text-[10px]' : 'text-[12px]'} font-semibold tracking-[0.18em]`}>{data.title || 'MES-lite 标签'}</div>
-        <div className={`${compact ? 'mt-1 text-[16px]' : 'mt-2 text-[19px]'} font-mono font-bold`}>{data.code || 'NO-CODE'}</div>
-      </div>
-      {compact ? (
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_44mm] gap-4 pt-3">
-          <div className="flex min-w-0 flex-col">
-            <div className="text-[9px] text-gray-600">名称</div>
-            <div className="mt-0.5 line-clamp-2 text-[18px] font-black leading-tight">{data.name || '标签打印校准'}</div>
-            {data.spec && <div className="mt-1 line-clamp-2 text-[11px]">{data.spec}</div>}
-            <div className="mt-2 border-y border-black py-1.5">
-              <span className="text-[9px] text-gray-600">数量 </span>
-              <span className="text-[22px] font-black">{formatQty(data.quantity)} </span>
-              <span className="text-[12px]">{data.unit}</span>
-            </div>
-            <div className="mt-1.5 line-clamp-2 text-[9px] leading-tight">{data.note || `PC310T 203 dpi · ${media.label}`}</div>
-          </div>
-          <div className="flex min-w-0 flex-col justify-end text-center">
-            {data.code.trim() ? <svg ref={barcodeRef} className="mx-auto max-h-[18mm] max-w-full" /> : <div className="h-[18mm]" />}
-            <div className="mt-1 truncate font-mono text-[10px] font-semibold tracking-wide">{data.code || 'NO-CODE'}</div>
-          </div>
-        </div>
-      ) : (
-        <div className="grid flex-1 grid-rows-[auto_auto_1fr_auto] gap-4 py-4">
-          <div>
-            <div className="text-[10px] text-gray-600">名称</div>
-            <div className="mt-1 text-[22px] font-black leading-tight">{data.name || '标签打印校准'}</div>
-            {data.spec && <div className="mt-2 text-[13px]">{data.spec}</div>}
-          </div>
-          <div className="border-y border-black py-4">
-            <div className="text-[10px] text-gray-600">数量</div>
-            <div className="mt-1 text-[32px] font-black">{formatQty(data.quantity)} <span className="text-[16px]">{data.unit}</span></div>
-          </div>
-          <div className="text-[13px] leading-relaxed">{data.note || `PC310T 203 dpi · ${media.label}`}</div>
-          <div className="text-center">
-            {data.code.trim() ? <svg ref={barcodeRef} className="mx-auto max-h-[26mm] max-w-full" /> : <div className="h-[26mm]" />}
-            <div className="mt-2 font-mono text-[13px] font-semibold tracking-wider">{data.code || 'NO-CODE'}</div>
-          </div>
-        </div>
-      )}
-    </section>
-  )
-}
-
-export default function ScanPrintPage({ onMessage }: { onMessage: (message: string) => void }) {
+export default function ScanPrintPageModule({ onMessage }: { onMessage: (message: string) => void }) {
   const [recentSessions, setRecentSessions] = useState<ScanSession[]>([])
   const [session, setSession] = useState<ScanSession | null>(null)
   const [sessionName, setSessionName] = useState('')
@@ -143,15 +39,7 @@ export default function ScanPrintPage({ onMessage }: { onMessage: (message: stri
   const [mediaPresetId, setMediaPresetId] = useState(pc310tDefaultLabelMedia.id)
   const [customMediaWidthMm, setCustomMediaWidthMm] = useState(pc310tDefaultLabelMedia.widthMm)
   const [customMediaHeightMm, setCustomMediaHeightMm] = useState(pc310tDefaultLabelMedia.heightMm)
-  const [labelData, setLabelData] = useState<LabelData>({
-    title: 'MES-lite 标签',
-    code: 'TEST-001',
-    name: 'PC310T 打印校准',
-    spec: '',
-    quantity: 1,
-    unit: '件',
-    note: '扫码与标签业务联动将在后续阶段接入',
-  })
+  const [labelData, setLabelData] = useState<LabelData>(createDefaultLabelData)
   const [loading, setLoading] = useState(false)
   const scanInputRef = useRef<HTMLInputElement | null>(null)
   const startSubmittingRef = useRef(false)
@@ -168,7 +56,7 @@ export default function ScanPrintPage({ onMessage }: { onMessage: (message: stri
     const heightMm = Number(customMediaHeightMm)
     return {
       id: 'CUSTOM',
-      label: `${formatQty(widthMm)} × ${formatQty(heightMm)} mm`,
+      label: `${formatScanQuantity(widthMm)} × ${formatScanQuantity(heightMm)} mm`,
       widthMm,
       heightMm,
     }
@@ -180,9 +68,7 @@ export default function ScanPrintPage({ onMessage }: { onMessage: (message: stri
 
   const loadRecentSessions = useCallback(async () => {
     try {
-      const res = await fetch('/api/scan-count-sessions?purpose=GENERAL_COUNT')
-      const data = await res.json()
-      if (res.ok) setRecentSessions(data.data || [])
+      setRecentSessions(await loadGeneralScanSessions())
     } catch {
       // 页面核心输入仍可使用，历史列表失败时不阻断。
     }
@@ -227,27 +113,20 @@ export default function ScanPrintPage({ onMessage }: { onMessage: (message: stri
     startSubmittingRef.current = true
     setLoading(true)
     try {
-      const res = await fetch('/api/scan-count-sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientRequestId: requestId('SESSION'),
-          name: sessionName || undefined,
-          expectedCode,
-          expectedQty,
-          purpose: 'GENERAL_COUNT',
-          referenceType: 'GENERAL',
-          scannerModel: honeywell1900Profile.model,
-        }),
+      const created = await createScanSession({
+        clientRequestId: createClientRequestId('SESSION'),
+        name: sessionName || undefined,
+        expectedCode,
+        expectedQty,
+        purpose: 'GENERAL_COUNT',
+        referenceType: 'GENERAL',
+        scannerModel: honeywell1900Profile.model,
       })
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '创建扫码会话失败')
-        return
-      }
-      setSession(data.data)
+      setSession(created)
       setFeedback(null)
       await loadRecentSessions()
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '创建扫码会话失败')
     } finally {
       startSubmittingRef.current = false
       setLoading(false)
@@ -261,22 +140,15 @@ export default function ScanPrintPage({ onMessage }: { onMessage: (message: stri
     setScanValue('')
     setLoading(true)
     try {
-      const res = await fetch(`/api/scan-count-sessions/${session.id}/events`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientEventId: requestId('SCAN'),
-          rawValue,
-          quantity: Number(scanQuantity || 1),
-        }),
+      const recorded = await recordScanEvent(session.id, {
+        clientEventId: createClientRequestId('SCAN'),
+        rawValue,
+        quantity: Number(scanQuantity || 1),
       })
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '记录扫码失败')
-        return
-      }
-      setSession(data.data)
-      setFeedback({ result: data.scanResult, message: resultLabels[data.scanResult as ScanEvent['result']] })
+      setSession(recorded.session)
+      setFeedback({ result: recorded.scanResult, message: scanResultLabels[recorded.scanResult] })
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '记录扫码失败')
     } finally {
       scanSubmittingRef.current = false
       setLoading(false)
@@ -286,27 +158,24 @@ export default function ScanPrintPage({ onMessage }: { onMessage: (message: stri
 
   const undoLastScan = async () => {
     if (!session) return
-    const res = await fetch(`/api/scan-count-sessions/${session.id}/events`, { method: 'DELETE' })
-    const data = await res.json()
-    if (!res.ok) {
-      onMessage(data.error || '撤销扫码失败')
-      return
+    try {
+      setSession(await undoLastScanEvent(session.id))
+      setFeedback(null)
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '撤销扫码失败')
     }
-    setSession(data.data)
-    setFeedback(null)
   }
 
   const completeSession = async () => {
     if (!session) return
-    const res = await fetch(`/api/scan-count-sessions/${session.id}/complete`, { method: 'POST' })
-    const data = await res.json()
-    if (!res.ok) {
-      onMessage(data.error || '完成扫码计数失败')
-      return
+    try {
+      const completed = await completeScanSession(session.id)
+      setSession(completed.session)
+      onMessage(completed.message)
+      await loadRecentSessions()
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '完成扫码计数失败')
     }
-    setSession(data.data)
-    onMessage(data.message || '扫码计数已完成')
-    await loadRecentSessions()
   }
 
   const requestPrint = async () => {
@@ -330,32 +199,23 @@ export default function ScanPrintPage({ onMessage }: { onMessage: (message: stri
     const ip = printerIp.trim()
     window.localStorage.setItem('mes-lite.scanPrint.pc310tIp', ip)
     try {
-      const res = await fetch('/api/label-print-jobs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientRequestId: requestId('PRINT'),
-          templateType: 'GENERIC_LABEL',
-          referenceType: 'GENERAL',
-          referenceId: labelData.code,
-          copies,
-          printerIp: ip || undefined,
-          labelWidthMm: selectedMedia.widthMm,
-          labelHeightMm: selectedMedia.heightMm,
-          payload: {
-            ...labelData,
-            media: {
-              widthMm: selectedMedia.widthMm,
-              heightMm: selectedMedia.heightMm,
-            },
+      await createLabelPrintJob({
+        clientRequestId: createClientRequestId('PRINT'),
+        templateType: 'GENERIC_LABEL',
+        referenceType: 'GENERAL',
+        referenceId: labelData.code,
+        copies,
+        printerIp: ip || undefined,
+        labelWidthMm: selectedMedia.widthMm,
+        labelHeightMm: selectedMedia.heightMm,
+        payload: {
+          ...labelData,
+          media: {
+            widthMm: selectedMedia.widthMm,
+            heightMm: selectedMedia.heightMm,
           },
-        }),
+        },
       })
-      const data = await res.json()
-      if (!res.ok) {
-        onMessage(data.error || '记录打印任务失败')
-        return
-      }
       const printStyle = document.createElement('style')
       printStyle.dataset.mesLabelMedia = 'true'
       printStyle.textContent = labelPrintPageStyle(selectedMedia)
@@ -368,6 +228,8 @@ export default function ScanPrintPage({ onMessage }: { onMessage: (message: stri
       window.addEventListener('afterprint', cleanup, { once: true })
       window.print()
       window.setTimeout(cleanup, 1000)
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '记录打印任务失败')
     } finally {
       printSubmittingRef.current = false
     }
@@ -412,7 +274,7 @@ export default function ScanPrintPage({ onMessage }: { onMessage: (message: stri
                     {openSessions.slice(0, 5).map((item) => (
                       <button key={item.id} type="button" onClick={() => setSession(item)} className="flex w-full items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-left text-sm hover:border-blue-300 hover:bg-blue-50">
                         <span className="min-w-0 truncate">{item.name || item.sessionNo} · <span className="font-mono">{item.expectedCode}</span></span>
-                        <span className="shrink-0 text-gray-500">{formatQty(item.countedQty)}/{formatQty(item.expectedQty)}</span>
+                        <span className="shrink-0 text-gray-500">{formatScanQuantity(item.countedQty)}/{formatScanQuantity(item.expectedQty)}</span>
                       </button>
                     ))}
                   </div>
@@ -425,9 +287,9 @@ export default function ScanPrintPage({ onMessage }: { onMessage: (message: stri
                 <div className="mb-2 flex items-center justify-between text-sm"><span className="font-medium">{session.name || session.sessionNo}</span><span className="font-mono text-blue-700">{session.expectedCode}</span></div>
                 <div className="h-3 overflow-hidden rounded-full bg-gray-100"><div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${progress}%` }} /></div>
                 <div className="mt-3 grid grid-cols-3 text-center">
-                  <div><div className="text-xs text-gray-500">已扫</div><div className="mt-1 text-2xl font-bold text-blue-700">{formatQty(session.countedQty)}</div></div>
-                  <div><div className="text-xs text-gray-500">目标</div><div className="mt-1 text-2xl font-bold">{formatQty(session.expectedQty)}</div></div>
-                  <div><div className="text-xs text-gray-500">剩余</div><div className="mt-1 text-2xl font-bold text-orange-600">{formatQty(remainingQty)}</div></div>
+                  <div><div className="text-xs text-gray-500">已扫</div><div className="mt-1 text-2xl font-bold text-blue-700">{formatScanQuantity(session.countedQty)}</div></div>
+                  <div><div className="text-xs text-gray-500">目标</div><div className="mt-1 text-2xl font-bold">{formatScanQuantity(session.expectedQty)}</div></div>
+                  <div><div className="text-xs text-gray-500">剩余</div><div className="mt-1 text-2xl font-bold text-orange-600">{formatScanQuantity(remainingQty)}</div></div>
                 </div>
               </div>
               <div className="rounded-lg border-2 border-blue-300 bg-blue-50 p-4">
@@ -463,7 +325,7 @@ export default function ScanPrintPage({ onMessage }: { onMessage: (message: stri
                 {session.events.length === 0 ? <div className="p-4 text-center text-sm text-gray-500">尚未扫码</div> : session.events.map((event) => (
                   <div key={event.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
                     <span className="min-w-0 truncate font-mono">{event.code}</span>
-                    <span className={event.result === 'MATCHED' ? 'text-green-700' : 'text-red-700'}>+{formatQty(event.quantity)} · {resultLabels[event.result]}</span>
+                    <span className={event.result === 'MATCHED' ? 'text-green-700' : 'text-red-700'}>+{formatScanQuantity(event.quantity)} · {scanResultLabels[event.result]}</span>
                   </div>
                 ))}
               </div>

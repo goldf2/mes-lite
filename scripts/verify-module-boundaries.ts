@@ -72,8 +72,6 @@ for (const directory of frameworkDirectories) {
 }
 
 const legacyRootPages = new Set([
-  'SawingCostCalculatorPage.tsx',
-  'ScanPrintPage.tsx',
   'SystemPage.tsx',
 ])
 const rootPages = readdirSync(join(root, 'app', 'components')).filter((name) => name.endsWith('Page.tsx'))

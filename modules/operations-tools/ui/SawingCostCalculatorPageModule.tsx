@@ -1,323 +1,119 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import MaterialChoiceSearch from './MaterialChoiceSearch'
-import MetricCard from './MetricCard'
-import NumberInputField from './NumberInputField'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import MetricCard from '@/app/components/MetricCard'
+import NumberInputField from '@/app/components/NumberInputField'
+import { loadSawingCostWorkspace, saveSawingCostScenario } from '../client/sawing-cost-api'
+import type { SavedSawingScenario, SawingMixRow, SawingProcessOption, SawingProductOption } from '../contracts/sawing-cost'
+import {
+  buildSawingScenarioInput,
+  calculateSawingMaterial,
+  calculateSawingScale,
+  calculateSawingShift,
+  createCurrentSawingMixRow,
+  createScenarioMixRow,
+  defaultSawingMaterialForm,
+  defaultSawingScaleForm,
+  defaultSawingShiftForm,
+  formatSawingMoney,
+  formatSawingWeight,
+  mergeSawingProductOptions,
+  resolveSawingScenarioName,
+} from '../model/sawing-cost'
+import SaveSawingCostPanel from './SaveSawingCostPanel'
 
-interface ProcessOption { id: string; code: string; name: string; category: string }
-interface ProductOption { id: string; sku: string; name: string; unit: string }
-interface SavedScenario {
-  id: string
-  name: string
-  quantity: number
-  utilization: number
-  materialCostPerPiece: number
-  totalRevenue: number
-  totalProfit: number
-  grossMargin: number
-  bladeThickness: number
-  finishedPrice: number
-  laborCost: number
-  fullCost: number
-  fullProfit: number
-  fullMargin: number
-  productKind: 'EXISTING' | 'TEMPORARY'
-  laborHoursPerPiece: number
-  machineHoursPerPiece: number
-  product?: ProductOption | null
-  bomItems?: Array<{ bom: { product: { id: string; sku: string; name: string } } }>
-  processTemplates: ProcessOption[]
-}
-
-interface MixRow {
-  id: string
-  name: string
-  quantity: number
-  sellingPrice: number
-  materialCostPerPiece: number
-  laborHoursPerPiece: number
-  machineHoursPerPiece: number
-}
-
-function SaveProductCostPanel({
-  scenarioName,
-  setScenarioName,
-  productKind,
-  setProductKind,
-  selectedProductId,
-  setSelectedProductId,
-  bomProductId,
-  setBomProductId,
-  productOptions,
-  processOptions,
-  selectedProcessIds,
-  setSelectedProcessIds,
-  saving,
-  onSave,
-}: {
-  scenarioName: string
-  setScenarioName: (value: string) => void
-  productKind: 'TEMPORARY' | 'EXISTING'
-  setProductKind: (value: 'TEMPORARY' | 'EXISTING') => void
-  selectedProductId: string
-  setSelectedProductId: (value: string) => void
-  bomProductId: string
-  setBomProductId: (value: string) => void
-  productOptions: ProductOption[]
-  processOptions: ProcessOption[]
-  selectedProcessIds: string[]
-  setSelectedProcessIds: (value: string[]) => void
-  saving: boolean
-  onSave: () => void
-}) {
-  return (
-    <div className="rounded-lg bg-white p-5 shadow-sm">
-      <h3 className="font-semibold text-gray-900">保存为成本对象</h3>
-      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-        <input value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} placeholder="自定义名称（可选，默认自动命名）" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" />
-        <button onClick={onSave} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{saving ? '保存中...' : '保存成本对象'}</button>
-      </div>
-      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[180px_minmax(0,1fr)]">
-        <select value={productKind} onChange={(event) => setProductKind(event.target.value as 'TEMPORARY' | 'EXISTING')} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
-          <option value="TEMPORARY">保存为临时成本对象</option>
-          <option value="EXISTING">绑定已有物料</option>
-        </select>
-        {productKind === 'EXISTING' ? (
-          <MaterialChoiceSearch value={selectedProductId} onChange={setSelectedProductId} options={productOptions} placeholder="输入物料编码或名称筛选" />
-        ) : (
-          <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-500">临时成本对象会保留单件材料成本、人工时和机时，后续可直接加入混合测算。</div>
-        )}
-      </div>
-      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[180px_minmax(0,1fr)]">
-        <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-600">BOM 组成</div>
-        <div className="space-y-2">
-          <button type="button" onClick={() => setBomProductId('')} className={`rounded-lg border px-3 py-2 text-sm ${bomProductId ? 'border-gray-200 text-gray-600' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>不加入物料 BOM</button>
-          <MaterialChoiceSearch value={bomProductId} onChange={setBomProductId} options={productOptions} placeholder="输入物料编码或名称，选择要加入的 BOM" />
-        </div>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">{processOptions.map((process) => <label key={process.id} className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs ${selectedProcessIds.includes(process.id) ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}><input type="checkbox" className="mr-1.5" checked={selectedProcessIds.includes(process.id)} onChange={(event) => setSelectedProcessIds(event.target.checked ? [...selectedProcessIds, process.id] : selectedProcessIds.filter((id) => id !== process.id))} />{process.name}</label>)}</div>
-    </div>
-  )
-}
-
-export default function SawingCostCalculatorPage() {
-  const [form, setForm] = useState({
-    materialLength: 6000,
-    materialWeight: 48,
-    workpieceLength: 250,
-    bladeThickness: 2.5,
-    rawMaterialPrice: 6.8,
-    sawdustPrice: 0.8,
-    scrapPrice: 3.2,
-    finishedPrice: 18,
-  })
-  const [shiftForm, setShiftForm] = useState({
-    workerCount: 2,
-    shiftHours: 8,
-    laborRatePerHour: 28,
-    piecesPerLaborHour: 10,
-    machineCount: 1,
-    machineRatePerHour: 35,
-  })
-  const [scaleForm, setScaleForm] = useState({
-    plannedShifts: 20,
-    machineHoursPerShift: 8,
-    otherCost: 0,
-  })
-  const [mixRows, setMixRows] = useState<MixRow[]>([])
+export default function SawingCostCalculatorPageModule() {
+  const [form, setForm] = useState(defaultSawingMaterialForm)
+  const [shiftForm, setShiftForm] = useState(defaultSawingShiftForm)
+  const [scaleForm, setScaleForm] = useState(defaultSawingScaleForm)
+  const [mixRows, setMixRows] = useState<SawingMixRow[]>([])
   const [scenarioName, setScenarioName] = useState('')
   const [productKind, setProductKind] = useState<'TEMPORARY' | 'EXISTING'>('TEMPORARY')
   const [selectedProductId, setSelectedProductId] = useState('')
   const [bomProductId, setBomProductId] = useState('')
-  const [processOptions, setProcessOptions] = useState<ProcessOption[]>([])
-  const [productOptions, setProductOptions] = useState<ProductOption[]>([])
+  const [processOptions, setProcessOptions] = useState<SawingProcessOption[]>([])
+  const [productOptions, setProductOptions] = useState<SawingProductOption[]>([])
   const [selectedProcessIds, setSelectedProcessIds] = useState<string[]>([])
-  const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>([])
+  const [savedScenarios, setSavedScenarios] = useState<SavedSawingScenario[]>([])
   const [comparisonIds, setComparisonIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [activeStep, setActiveStep] = useState(1)
+  const money = formatSawingMoney
+  const weight = formatSawingWeight
 
-  const money = (value: number) => `¥${value.toFixed(2)}`
-  const weight = (value: number) => `${value.toFixed(3)} kg`
   const update = (key: keyof typeof form, value: number) => setForm((current) => ({ ...current, [key]: Math.max(0, value) }))
   const updateShift = (key: keyof typeof shiftForm, value: number) => setShiftForm((current) => ({ ...current, [key]: Math.max(0, value) }))
   const updateScale = (key: keyof typeof scaleForm, value: number) => setScaleForm((current) => ({ ...current, [key]: Math.max(0, value) }))
-  const mergeProductOptions = (items: ProductOption[]) => setProductOptions((current) => {
-    const map = new Map<string, ProductOption>()
-    ;[...current, ...items].forEach((item) => map.set(item.id, item))
-    return Array.from(map.values())
-  })
-
-  const loadScenarios = async () => {
-    const res = await fetch('/api/sawing-cost-scenarios')
-    const data = await res.json()
-    if (res.ok) {
-      setSavedScenarios(data.data || [])
-      setProcessOptions(data.processTemplates || [])
-      if (data.products?.length) mergeProductOptions(data.products)
-    } else setMessage(data.error || '获取已保存方案失败')
-  }
-
-  const loadProducts = async () => {
-    const res = await fetch('/api/products')
-    const data = await res.json()
-    if (res.ok && data.data?.length) mergeProductOptions(data.data)
-  }
-
-  useEffect(() => {
-    loadScenarios()
-    loadProducts()
+  const mergeProductOptions = useCallback((items: SawingProductOption[]) => {
+    setProductOptions((current) => mergeSawingProductOptions(current, items))
   }, [])
 
-  const materialResult = useMemo(() => {
-    const { materialLength, materialWeight, workpieceLength, bladeThickness, rawMaterialPrice, sawdustPrice, scrapPrice, finishedPrice } = form
-    const valid = materialLength > 0 && materialWeight > 0 && workpieceLength > 0 && workpieceLength + bladeThickness > 0
-    const quantity = valid ? Math.floor((materialLength + bladeThickness) / (workpieceLength + bladeThickness)) : 0
-    const productLength = quantity * workpieceLength
-    const kerfLength = quantity * bladeThickness
-    const remainderLength = Math.max(0, materialLength - productLength - kerfLength)
-    const weightPerLength = valid ? materialWeight / materialLength : 0
-    const productWeight = productLength * weightPerLength
-    const sawdustWeight = kerfLength * weightPerLength
-    const scrapWeight = remainderLength * weightPerLength
-    const rawCost = materialWeight * rawMaterialPrice
-    const sawdustRecovery = sawdustWeight * sawdustPrice
-    const scrapRecovery = scrapWeight * scrapPrice
-    const netMaterialCost = Math.max(0, rawCost - sawdustRecovery - scrapRecovery)
-    const materialCostPerPiece = quantity > 0 ? netMaterialCost / quantity : 0
-    const totalRevenue = quantity * finishedPrice
-    const totalProfit = totalRevenue - netMaterialCost
-    const grossMargin = totalRevenue > 0 ? totalProfit / totalRevenue * 100 : 0
-    const utilization = materialWeight > 0 ? productWeight / materialWeight * 100 : 0
-    const profitPerPiece = finishedPrice - materialCostPerPiece
-    return { quantity, productLength, kerfLength, remainderLength, productWeight, sawdustWeight, scrapWeight, rawCost, sawdustRecovery, scrapRecovery, netMaterialCost, materialCostPerPiece, profitPerPiece, totalRevenue, totalProfit, grossMargin, utilization }
-  }, [form])
+  const loadScenarios = useCallback(async () => {
+    try {
+      const workspace = await loadSawingCostWorkspace()
+      setSavedScenarios(workspace.scenarios)
+      setProcessOptions(workspace.processOptions)
+      mergeProductOptions(workspace.productOptions)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '获取已保存方案失败')
+    }
+  }, [mergeProductOptions])
 
-  const shiftResult = useMemo(() => {
-    const laborHours = shiftForm.workerCount * shiftForm.shiftHours
-    const quantity = laborHours * shiftForm.piecesPerLaborHour
-    const revenue = quantity * form.finishedPrice
-    const materialCost = quantity * materialResult.materialCostPerPiece
-    const laborCost = laborHours * shiftForm.laborRatePerHour
-    const machineHours = shiftForm.machineCount * shiftForm.shiftHours
-    const machineCost = machineHours * shiftForm.machineRatePerHour
-    const totalCost = materialCost + laborCost + machineCost
-    const profit = revenue - totalCost
-    const margin = revenue > 0 ? profit / revenue * 100 : 0
-    return { laborHours, quantity, revenue, materialCost, laborCost, machineHours, machineCost, totalCost, profit, margin }
-  }, [form.finishedPrice, materialResult.materialCostPerPiece, shiftForm])
+  useEffect(() => {
+    void loadScenarios()
+  }, [loadScenarios])
+
+  const materialResult = useMemo(() => calculateSawingMaterial(form), [form])
+  const shiftResult = useMemo(() => calculateSawingShift(form, materialResult, shiftForm), [form, materialResult, shiftForm])
 
   useEffect(() => {
     setMixRows((current) => {
       if (current.length > 0) return current
-      return [{
-        id: `mix-${Date.now()}`,
-        name: '当前锯切物料',
-        quantity: Math.max(0, Math.round(shiftResult.quantity * 20)),
-        sellingPrice: form.finishedPrice,
-        materialCostPerPiece: materialResult.materialCostPerPiece,
-        laborHoursPerPiece: shiftForm.piecesPerLaborHour > 0 ? 1 / shiftForm.piecesPerLaborHour : 0,
-        machineHoursPerPiece: shiftResult.quantity > 0 ? shiftResult.machineHours / shiftResult.quantity : 0,
-      }]
+      return [createCurrentSawingMixRow(form, materialResult, shiftForm, shiftResult, scaleForm.plannedShifts)]
     })
-  }, [form.finishedPrice, materialResult.materialCostPerPiece, shiftForm.piecesPerLaborHour, shiftResult.machineHours, shiftResult.quantity])
+  }, [form, materialResult, scaleForm.plannedShifts, shiftForm, shiftResult])
 
-  const scaleResult = useMemo(() => {
-    const totalRevenue = mixRows.reduce((sum, row) => sum + row.quantity * row.sellingPrice, 0)
-    const materialCost = mixRows.reduce((sum, row) => sum + row.quantity * row.materialCostPerPiece, 0)
-    const laborHours = mixRows.reduce((sum, row) => sum + row.quantity * row.laborHoursPerPiece, 0)
-    const machineHours = mixRows.reduce((sum, row) => sum + row.quantity * row.machineHoursPerPiece, 0)
-    const laborCost = laborHours * shiftForm.laborRatePerHour
-    const machineCost = machineHours * shiftForm.machineRatePerHour
-    const totalCost = materialCost + laborCost + machineCost + scaleForm.otherCost
-    const profit = totalRevenue - totalCost
-    const margin = totalRevenue > 0 ? profit / totalRevenue * 100 : 0
-    const laborCapacity = shiftForm.workerCount * shiftForm.shiftHours * scaleForm.plannedShifts
-    const machineCapacity = shiftForm.machineCount * scaleForm.machineHoursPerShift * scaleForm.plannedShifts
-    const laborLoad = laborCapacity > 0 ? laborHours / laborCapacity * 100 : 0
-    const machineLoad = machineCapacity > 0 ? machineHours / machineCapacity * 100 : 0
-    const requiredShifts = Math.max(
-      laborCapacity > 0 ? laborHours / (shiftForm.workerCount * shiftForm.shiftHours || 1) : 0,
-      machineCapacity > 0 ? machineHours / (shiftForm.machineCount * scaleForm.machineHoursPerShift || 1) : 0,
-    )
-    return { totalRevenue, materialCost, laborHours, machineHours, laborCost, machineCost, totalCost, profit, margin, laborCapacity, machineCapacity, laborLoad, machineLoad, requiredShifts }
-  }, [mixRows, scaleForm, shiftForm])
+  const scaleResult = useMemo(() => calculateSawingScale(mixRows, scaleForm, shiftForm), [mixRows, scaleForm, shiftForm])
 
-  const patchMixRow = (id: string, values: Partial<MixRow>) => setMixRows((rows) => rows.map((row) => row.id === id ? { ...row, ...values } : row))
+  const patchMixRow = (id: string, values: Partial<SawingMixRow>) => setMixRows((rows) => rows.map((row) => row.id === id ? { ...row, ...values } : row))
   const addMixRow = () => setMixRows((rows) => [...rows, { id: `mix-${Date.now()}-${rows.length}`, name: `物料 ${rows.length + 1}`, quantity: 0, sellingPrice: 0, materialCostPerPiece: 0, laborHoursPerPiece: 0, machineHoursPerPiece: 0 }])
-  const addScenarioToMix = (scenario: SavedScenario) => setMixRows((rows) => [...rows, {
-    id: `mix-scenario-${scenario.id}-${Date.now()}`,
-    name: scenario.product ? `${scenario.product.sku} ${scenario.product.name}` : scenario.name,
-    quantity: Math.max(0, scenario.quantity),
-    sellingPrice: scenario.finishedPrice,
-    materialCostPerPiece: scenario.materialCostPerPiece,
-    laborHoursPerPiece: scenario.laborHoursPerPiece,
-    machineHoursPerPiece: scenario.machineHoursPerPiece,
-  }])
-  const currentProductMixRow = (): MixRow => ({
-    id: `mix-${Date.now()}`,
-    name: '当前锯切物料',
-    quantity: Math.max(0, Math.round(shiftResult.quantity * scaleForm.plannedShifts)),
-    sellingPrice: form.finishedPrice,
-    materialCostPerPiece: materialResult.materialCostPerPiece,
-    laborHoursPerPiece: shiftForm.piecesPerLaborHour > 0 ? 1 / shiftForm.piecesPerLaborHour : 0,
-    machineHoursPerPiece: shiftResult.quantity > 0 ? shiftResult.machineHours / shiftResult.quantity : 0,
-  })
+  const addScenarioToMix = (scenario: SavedSawingScenario) => setMixRows((rows) => [...rows, createScenarioMixRow(scenario)])
   const syncCurrentProduct = () => setMixRows((rows) => {
-    const next = currentProductMixRow()
+    const next = createCurrentSawingMixRow(form, materialResult, shiftForm, shiftResult, scaleForm.plannedShifts)
     const index = rows.findIndex((row) => row.name === '当前锯切物料')
     if (index < 0) return [next, ...rows]
     return rows.map((row, rowIndex) => rowIndex === index ? { ...next, id: row.id } : row)
   })
   const comparedScenarios = savedScenarios.filter((scenario) => comparisonIds.includes(scenario.id))
-  const defaultScenarioName = () => {
-    const selectedProduct = productOptions.find((product) => product.id === selectedProductId)
-    if (productKind === 'EXISTING' && selectedProduct) return `${selectedProduct.sku} ${selectedProduct.name} 锯切成本`
-    return `临时锯切 ${form.workpieceLength}mm ${form.bladeThickness}mm缝 ${materialResult.materialCostPerPiece.toFixed(2)}元/件`
-  }
 
   const saveScenario = async () => {
     if (productKind === 'EXISTING' && !selectedProductId) return setMessage('请选择要绑定的物料')
     if (materialResult.quantity <= 0) return setMessage('当前参数无法加工出成品')
-    const resolvedScenarioName = scenarioName.trim() || defaultScenarioName()
+    const resolvedScenarioName = resolveSawingScenarioName(scenarioName, productKind, selectedProductId, productOptions, form, materialResult)
     setSaving(true)
-    const payload = {
-      ...form,
-      ...materialResult,
-      name: resolvedScenarioName,
-      productKind,
-      productId: productKind === 'EXISTING' ? selectedProductId : undefined,
-      bomProductId: bomProductId || undefined,
-      laborHoursPerPiece: shiftForm.piecesPerLaborHour > 0 ? 1 / shiftForm.piecesPerLaborHour : 0,
-      machineHoursPerPiece: shiftResult.quantity > 0 ? shiftResult.machineHours / shiftResult.quantity : 0,
-      processTemplateIds: selectedProcessIds,
-      additionalDirectCost: 0,
-      laborCost: scaleResult.laborCost,
-      fixedCost: scaleResult.machineCost + scaleForm.otherCost,
-      directStageCost: scaleResult.materialCost,
-      manufacturingCost: scaleResult.materialCost + scaleResult.laborCost,
-      fullCost: scaleResult.totalCost,
-      directProfit: scaleResult.totalRevenue - scaleResult.materialCost,
-      manufacturingProfit: scaleResult.totalRevenue - scaleResult.materialCost - scaleResult.laborCost,
-      fullProfit: scaleResult.profit,
-      directMargin: scaleResult.totalRevenue > 0 ? (scaleResult.totalRevenue - scaleResult.materialCost) / scaleResult.totalRevenue * 100 : 0,
-      manufacturingMargin: scaleResult.totalRevenue > 0 ? (scaleResult.totalRevenue - scaleResult.materialCost - scaleResult.laborCost) / scaleResult.totalRevenue * 100 : 0,
-      fullMargin: scaleResult.margin,
-      costItems: [
-        { stage: 'LABOR', name: '规模测算人工工时', method: 'LABOR_HOURS', inputA: 1, inputB: scaleResult.laborHours, inputC: shiftForm.laborRatePerHour, amount: scaleResult.laborCost, isDeduction: false, sortOrder: 0 },
-        { stage: 'FIXED', name: '规模测算机时费用', method: 'LABOR_HOURS', inputA: 1, inputB: scaleResult.machineHours, inputC: shiftForm.machineRatePerHour, amount: scaleResult.machineCost, isDeduction: false, sortOrder: 1 },
-        { stage: 'FIXED', name: '其他期间费用', method: 'MANUAL', inputA: scaleForm.otherCost, inputB: 0, inputC: 0, amount: scaleForm.otherCost, isDeduction: false, sortOrder: 2 },
-      ],
+    try {
+      await saveSawingCostScenario(buildSawingScenarioInput({
+        name: resolvedScenarioName,
+        productKind,
+        selectedProductId,
+        bomProductId,
+        selectedProcessIds,
+        form,
+        material: materialResult,
+        shift: shiftForm,
+        shiftResult,
+        scale: scaleForm,
+        scaleResult,
+      }))
+      setScenarioName('')
+      setMessage('方案已保存，可在下方勾选对比')
+      await loadScenarios()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '保存方案失败')
+    } finally {
+      setSaving(false)
     }
-    const res = await fetch('/api/sawing-cost-scenarios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-    const data = await res.json()
-    setSaving(false)
-    if (!res.ok) return setMessage(data.error || '保存方案失败')
-    setScenarioName('')
-    setMessage('方案已保存，可在下方勾选对比')
-    await loadScenarios()
   }
 
   return (
@@ -375,7 +171,7 @@ export default function SawingCostCalculatorPage() {
                 <div className="flex justify-between border-t pt-2 font-semibold"><span>净材料成本</span><span>{money(materialResult.netMaterialCost)}</span></div>
               </div>
             </div>
-            <SaveProductCostPanel
+            <SaveSawingCostPanel
               scenarioName={scenarioName}
               setScenarioName={setScenarioName}
               productKind={productKind}
@@ -489,7 +285,7 @@ export default function SawingCostCalculatorPage() {
           </div>
         </div>
 
-        <SaveProductCostPanel
+        <SaveSawingCostPanel
           scenarioName={scenarioName}
           setScenarioName={setScenarioName}
           productKind={productKind}
@@ -534,16 +330,16 @@ export default function SawingCostCalculatorPage() {
           {savedScenarios.length === 0 ? <div className="mt-4 rounded-lg border border-dashed p-6 text-center text-sm text-gray-500">暂无已保存方案</div> : <>
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">{savedScenarios.map((scenario) => <label key={scenario.id} className={`cursor-pointer rounded-lg border p-4 ${comparisonIds.includes(scenario.id) ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}><div className="flex items-start gap-2"><input type="checkbox" checked={comparisonIds.includes(scenario.id)} onChange={(event) => setComparisonIds(event.target.checked ? [...comparisonIds, scenario.id] : comparisonIds.filter((id) => id !== scenario.id))} /><div><div className="font-medium text-gray-900">{scenario.name}</div><div className="mt-1 text-xs text-gray-500">{scenario.processTemplates.map((item) => item.name).join(' + ') || '仅锯切'}</div><div className="mt-2 text-xs text-gray-600">{scenario.quantity} 件 · 利用率 {scenario.utilization.toFixed(2)}% · 总收入 {money(scenario.totalRevenue)}</div><div className="mt-1 text-xs font-medium text-blue-700">经营利润 {money(scenario.fullProfit)} · {scenario.fullMargin.toFixed(2)}%</div></div></div></label>)}</div>
             {comparedScenarios.length >= 2 && <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead className="bg-gray-50"><tr><th className="px-3 py-2 text-left">指标</th>{comparedScenarios.map((item) => <th key={item.id} className="px-3 py-2 text-right">{item.name}</th>)}</tr></thead><tbody className="divide-y">{[
-              ['锯片厚度', (item: SavedScenario) => `${item.bladeThickness.toFixed(2)} mm`],
-              ['可加工数量', (item: SavedScenario) => `${item.quantity} 件`],
-              ['材料利用率', (item: SavedScenario) => `${item.utilization.toFixed(2)}%`],
-              ['单件材料成本', (item: SavedScenario) => money(item.materialCostPerPiece)],
-              ['营业收入', (item: SavedScenario) => money(item.totalRevenue)],
-              ['人工费用', (item: SavedScenario) => money(item.laborCost)],
-              ['总成本', (item: SavedScenario) => money(item.fullCost)],
-              ['经营利润', (item: SavedScenario) => money(item.fullProfit)],
-              ['经营利润率', (item: SavedScenario) => `${item.fullMargin.toFixed(2)}%`],
-            ].map(([label, formatter]) => <tr key={label as string}><td className="px-3 py-2 font-medium text-gray-600">{label as string}</td>{comparedScenarios.map((item) => <td key={item.id} className="px-3 py-2 text-right">{(formatter as (value: SavedScenario) => string)(item)}</td>)}</tr>)}</tbody></table></div>}
+              ['锯片厚度', (item: SavedSawingScenario) => `${item.bladeThickness.toFixed(2)} mm`],
+              ['可加工数量', (item: SavedSawingScenario) => `${item.quantity} 件`],
+              ['材料利用率', (item: SavedSawingScenario) => `${item.utilization.toFixed(2)}%`],
+              ['单件材料成本', (item: SavedSawingScenario) => money(item.materialCostPerPiece)],
+              ['营业收入', (item: SavedSawingScenario) => money(item.totalRevenue)],
+              ['人工费用', (item: SavedSawingScenario) => money(item.laborCost)],
+              ['总成本', (item: SavedSawingScenario) => money(item.fullCost)],
+              ['经营利润', (item: SavedSawingScenario) => money(item.fullProfit)],
+              ['经营利润率', (item: SavedSawingScenario) => `${item.fullMargin.toFixed(2)}%`],
+            ].map(([label, formatter]) => <tr key={label as string}><td className="px-3 py-2 font-medium text-gray-600">{label as string}</td>{comparedScenarios.map((item) => <td key={item.id} className="px-3 py-2 text-right">{(formatter as (value: SavedSawingScenario) => string)(item)}</td>)}</tr>)}</tbody></table></div>}
           </>}
         </div>
       </div>}

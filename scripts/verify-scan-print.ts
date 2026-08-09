@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { prisma } from '../lib/prisma'
 import { classifyScan, normalizeScanCode } from '../lib/scanning'
 import {
@@ -7,8 +9,28 @@ import {
   pc310t203Profile,
   pc310tDefaultLabelMedia,
   pc310tLabelMediaProfiles,
-} from '../app/components/scan-print/labelProfiles'
-import { honeywell1900Profile } from '../app/components/scan-print/scannerAdapter'
+} from '../modules/operations-tools/model/label-profiles'
+import { honeywell1900Profile } from '../modules/operations-tools/model/scanner-adapter'
+import { createDefaultLabelData, formatScanQuantity } from '../modules/operations-tools/model/scan-print-view'
+
+const sourceRoot = process.cwd()
+const requiredModuleFiles = [
+  'modules/operations-tools/client/scan-print-api.ts',
+  'modules/operations-tools/contracts/scan-print.ts',
+  'modules/operations-tools/model/label-profiles.ts',
+  'modules/operations-tools/model/scanner-adapter.ts',
+  'modules/operations-tools/model/scan-print-view.ts',
+  'modules/operations-tools/ui/GenericLabel.tsx',
+  'modules/operations-tools/ui/ScanPrintPageModule.tsx',
+]
+for (const path of requiredModuleFiles) assert.ok(existsSync(join(sourceRoot, path)), `运维工具领域缺少扫码打印模块文件：${path}`)
+const scanPageSource = readFileSync(join(sourceRoot, 'modules/operations-tools/ui/ScanPrintPageModule.tsx'), 'utf8')
+const registrySource = readFileSync(join(sourceRoot, 'app/components/shell/WorkspacePageRendererRegistry.tsx'), 'utf8')
+assert.ok(scanPageSource.split('\n').length <= 450, '扫码打印协调页应保持在 450 行内')
+assert.doesNotMatch(scanPageSource, /\bfetch\(/, '扫码打印页不得直接调用 fetch')
+assert.match(scanPageSource, /loadGeneralScanSessions\(/, '扫码打印页必须通过运维工具 client 读取会话')
+assert.match(registrySource, /ScanPrintPageModule/, '扫码打印页必须通过运维工具模块公开入口加载')
+assert.equal(existsSync(join(sourceRoot, 'app/components/ScanPrintPage.tsx')), false, '根组件目录不得保留扫码打印领域页')
 
 async function main() {
   assert.equal(normalizeScanCode(' mat-P12-001\r\n'), 'P12-001')
@@ -43,6 +65,8 @@ async function main() {
   assert.equal(pc310t203Profile.canvasHeightDots, 560)
   assert.equal(pc310t203Profile.dpi, 203)
   assert.equal(honeywell1900Profile.inputMode, 'USB HID Keyboard')
+  assert.equal(formatScanQuantity(12.340000), '12.34')
+  assert.equal(createDefaultLabelData().code, 'TEST-001')
 
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   let sessionId = ''
