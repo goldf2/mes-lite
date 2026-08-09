@@ -68,3 +68,71 @@ export async function listProductionOrders(query: ProductionOrderListQuery) {
     },
   }
 }
+
+export async function getProductionOrderDetail(id: string) {
+  const order = await prisma.productionOrder.findUnique({
+    where: { id },
+    include: {
+      product: true,
+      targetMaterial: true,
+      bom: { select: { id: true, name: true, version: true } },
+      picks: { include: { material: true }, orderBy: { createdAt: 'asc' } },
+      reports: { include: { step: true }, orderBy: { createdAt: 'asc' } },
+      qcRecords: { orderBy: { checkedAt: 'desc' } },
+      stockIns: true,
+      _count: { select: { actuals: true } },
+    },
+  })
+  if (!order) return null
+
+  const [groupLines, route] = await Promise.all([
+    order.groupNo ? prisma.productionOrder.findMany({
+      where: { groupNo: order.groupNo, deletedAt: null },
+      include: {
+        product: true,
+        targetMaterial: true,
+        bom: { select: { id: true, name: true, version: true } },
+        _count: { select: { actuals: true } },
+      },
+      orderBy: { lineNo: 'asc' },
+    }) : Promise.resolve([]),
+    prisma.processRoute.findFirst({
+      where: { productId: order.productId, isDefault: true },
+      include: { steps: { orderBy: { stepNo: 'asc' } } },
+    }),
+  ])
+  const currentStepId = route?.steps.find((step) => (
+    !order.reports.some((report) => report.stepId === step.id && report.endTime)
+  ))?.id ?? null
+  return { ...order, groupLines, currentStepId, routeSteps: route?.steps ?? [] }
+}
+
+export async function listProductionOrderOptions() {
+  const boms = await prisma.bOM.findMany({
+    where: { isActive: true },
+    select: {
+      id: true,
+      name: true,
+      version: true,
+      isDefault: true,
+      outputs: {
+        where: { isPrimary: true },
+        select: { material: { select: { id: true, code: true, name: true, spec: true, category: true, unit: true, stockUnit: true, valuationUnit: true } } },
+      },
+    },
+    orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+    take: 1000,
+  })
+  const byMaterial = new Map<string, {
+    id: string; code: string; name: string; spec: string | null; category: string; unit: string; stockUnit: string; valuationUnit: string
+    boms: Array<{ id: string; name: string; version: string; isDefault: boolean }>
+  }>()
+  for (const bom of boms) {
+    const material = bom.outputs[0]?.material
+    if (!material) continue
+    const current = byMaterial.get(material.id) || { ...material, boms: [] }
+    current.boms.push({ id: bom.id, name: bom.name, version: bom.version, isDefault: bom.isDefault })
+    byMaterial.set(material.id, current)
+  }
+  return Array.from(byMaterial.values()).sort((left, right) => left.code.localeCompare(right.code, 'zh-CN', { numeric: true }))
+}

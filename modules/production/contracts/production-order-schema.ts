@@ -28,5 +28,10 @@ export const createProductionOrderSchema = z.object({
   if (!value.planQty) context.addIssue({ code: z.ZodIssueCode.custom, message: '计划数量必须大于 0', path: ['planQty'] })
 })
 
+export const cancelProductionOrderSchema = z.object({
+  reason: z.string().min(1, '取消原因必填'),
+})
+
 export type ProductionOrderLineInput = z.infer<typeof productionOrderLineSchema>
 export type CreateProductionOrderInput = z.infer<typeof createProductionOrderSchema>
+export type CancelProductionOrderInput = z.infer<typeof cancelProductionOrderSchema>

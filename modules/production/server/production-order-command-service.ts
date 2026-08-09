@@ -2,13 +2,8 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { ensureProductForMaterial, isMaterialProductId, materialProductPrefix } from '@/lib/material-product'
 import type { CreateProductionOrderInput, ProductionOrderLineInput } from '../contracts/production-order-schema'
+import { ProductionOrderDomainError } from '../domain/production-order-errors'
 import { buildProductionOrderGroupNo, buildProductionOrderNo } from '../domain/production-order-numbering'
-
-export class ProductionOrderDomainError extends Error {
-  constructor(message: string, public readonly status = 400) {
-    super(message)
-  }
-}
 
 async function resolveOrderLine(tx: Prisma.TransactionClient, input: ProductionOrderLineInput) {
   const targetId = isMaterialProductId(input.targetId)

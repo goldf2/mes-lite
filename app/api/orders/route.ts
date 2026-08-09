@@ -7,8 +7,8 @@ import { createProductionOrderSchema } from '@/modules/production/contracts/prod
 import {
   archiveProductionOrder,
   createProductionOrders,
-  ProductionOrderDomainError,
 } from '@/modules/production/server/production-order-command-service'
+import { ProductionOrderDomainError } from '@/modules/production/domain/production-order-errors'
 import { listProductionOrders } from '@/modules/production/server/production-order-query-service'
 
 export async function POST(req: NextRequest) {
