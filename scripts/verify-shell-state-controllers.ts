@@ -6,14 +6,21 @@ const root = process.cwd()
 const readSource = (file: string) => readFileSync(join(root, file), 'utf8')
 
 const homeAppSource = readSource('app/HomeApp.tsx')
+const desktopNavigationSource = readSource('app/components/shell/useDesktopNavigationController.ts')
 const pageNavigationSource = readSource('app/components/shell/usePageNavigationController.ts')
 const workspacePreferenceSource = readSource('app/components/shell/useWorkspacePreferenceController.ts')
 
 assert.match(homeAppSource, /usePageNavigationController\(/, '应用壳必须通过页面导航控制器装配页面状态')
 assert.match(homeAppSource, /useWorkspacePreferenceController\(/, '应用壳必须通过工作区偏好控制器装配用户偏好')
+assert.match(homeAppSource, /useDesktopNavigationController\(/, '应用壳必须通过桌面导航控制器装配导航交互')
 assert.doesNotMatch(homeAppSource, /readPageContinuity|writePageContinuity|history\.replaceState/, '应用壳不得重新内联页面连续性和 URL 同步')
 assert.doesNotMatch(homeAppSource, /fetch\('\/api\/workspace-(?:preferences|usage)'/, '应用壳不得重新内联工作区偏好请求')
-assert.ok(homeAppSource.split('\n').length <= 1100, '应用壳必须保持在 1100 行以内')
+assert.ok(homeAppSource.split('\n').length <= 900, '应用壳必须保持在 900 行以内')
+
+assert.match(desktopNavigationSource, /useDesktopNavigationPreference/, '桌面导航控制器必须统一读取导航显示偏好')
+assert.match(desktopNavigationSource, /useWorkspaceLayoutPreference/, '桌面导航控制器必须统一读取工作区布局偏好')
+assert.match(desktopNavigationSource, /transientNavigationOpen/, '桌面导航控制器必须管理自动隐藏导航状态')
+assert.match(desktopNavigationSource, /handleSidebarResizePointerDown/, '桌面导航控制器必须管理侧栏拖动调整')
 
 assert.match(pageNavigationSource, /readPageContinuity/, '页面导航控制器必须恢复页面连续性')
 assert.match(pageNavigationSource, /writePageContinuity/, '页面导航控制器必须保存页面连续性')

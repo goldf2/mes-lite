@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useCallback, type CSSProperties } from 're
 import { Boxes, Menu, PanelLeftOpen, PanelRightOpen, PencilLine, Pin, PinOff, Search, X } from 'lucide-react'
 import AuthGate, { CurrentOperator } from './components/AuthGate'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
-import { InterfacePreferenceSync, preferenceChangeEvent, readDesktopNavigationPreference, useSiblingNavigationPreference, useWorkspaceLayoutPreference } from './components/interfacePreferences'
+import { InterfacePreferenceSync } from './components/interfacePreferences'
 import AiAssistantMark from './components/AiAssistantMark'
 import {
   businessNavGroups,
@@ -20,10 +20,7 @@ import {
 import type { WorkspaceFunctionKey } from '@/lib/workspace'
 import { getPageModuleDefinition, resolvePageModuleKey } from '@/lib/page-modules'
 import TopBarPortal from './components/TopBarPortal'
-import DesktopNavigation, {
-  type DesktopNavigationDisplayMode,
-  type DesktopNavigationMode,
-} from './components/navigation/DesktopNavigation'
+import DesktopNavigation from './components/navigation/DesktopNavigation'
 import DesktopTopNavigation from './components/navigation/DesktopTopNavigation'
 import MobileSiblingNavigation from './components/navigation/MobileSiblingNavigation'
 import type { NavigationGroup, NavigationItem } from './components/navigation/NavigationModel'
@@ -42,6 +39,7 @@ import {
   NavigationGlyph,
   WorkspacePageHost,
   compactNavigationLabel,
+  useDesktopNavigationController,
   usePageNavigationController,
   useWorkspacePreferenceController,
 } from './components/shell'
@@ -51,16 +49,6 @@ const AiAssistantPanel = dynamic(() => import('./components/AiAssistantPanel'))
 // ==================== 状态映射 ====================
 
 const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0'
-const desktopSidebarStorageKey = 'mes-lite.layout.desktopSidebarWidth'
-const desktopSplitSidebarStorageKey = 'mes-lite.layout.desktopSplitSidebarWidth'
-const desktopNavigationModeStorageKey = 'mes-lite.layout.desktopNavigationMode'
-const desktopNavigationDisplayModeStorageKey = 'mes-lite.layout.desktopNavigationDisplayMode'
-const defaultDesktopSidebarWidth = 224
-const minDesktopSidebarWidth = 184
-const maxDesktopSidebarWidth = 320
-const defaultDesktopSplitSidebarWidth = 296
-const minDesktopSplitSidebarWidth = 264
-const maxDesktopSplitSidebarWidth = 384
 
 // ==================== 主组件 ====================
 
@@ -181,22 +169,37 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [systemMenuOpen, setSystemMenuOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
-  const [desktopNavigationMode, setDesktopNavigationMode] = useState<DesktopNavigationMode>('accordion')
-  const [desktopNavigationDisplayMode, setDesktopNavigationDisplayMode] = useState<DesktopNavigationDisplayMode>('icon-label')
-  const [workspaceLayoutPreference, setWorkspaceLayoutPreference] = useWorkspaceLayoutPreference()
-  const [siblingNavigationEnabled] = useSiblingNavigationPreference()
-  const [transientDesktopNavigationOpen, setTransientDesktopNavigationOpen] = useState(false)
-  const [desktopSidebarWidth, setDesktopSidebarWidth] = useState(defaultDesktopSidebarWidth)
-  const [desktopSplitSidebarWidth, setDesktopSplitSidebarWidth] = useState(defaultDesktopSplitSidebarWidth)
-  const [desktopSidebarReady, setDesktopSidebarReady] = useState(false)
-  const [wideDesktopNavigation, setWideDesktopNavigation] = useState(false)
-  const [resizingDesktopSidebar, setResizingDesktopSidebar] = useState<DesktopNavigationMode | null>(null)
+  const {
+    desktopNavigationMode,
+    desktopNavigationDisplayMode,
+    workspaceLayoutPreference,
+    siblingNavigationEnabled,
+    transientNavigationOpen,
+    sidebarWidth,
+    splitSidebarWidth,
+    resizing,
+    autoHideDesktopNavigation,
+    persistentDesktopNavigation,
+    splitNavigationVisible,
+    sidebarResizeMin,
+    sidebarResizeMax,
+    sidebarResizeValue,
+    panelRef: desktopNavigationPanelRef,
+    triggerRef: desktopNavigationTriggerRef,
+    cancelOpen: cancelDesktopNavigationOpen,
+    openTransientNavigation: openTransientDesktopNavigation,
+    scheduleOpen: scheduleDesktopNavigationOpen,
+    scheduleClose: scheduleDesktopNavigationClose,
+    toggleTransientNavigation,
+    closeTransientNavigation: closeTransientDesktopNavigation,
+    toggleWorkspaceLayout,
+    toggleNavigationBehavior,
+    handleSidebarResizePointerDown,
+    resetSidebarWidth,
+    handleSidebarResizeKeyDown,
+  } = useDesktopNavigationController()
   const systemMenuRef = useRef<HTMLDivElement>(null)
   const desktopSystemMenuRef = useRef<HTMLDivElement>(null)
-  const desktopNavigationPanelRef = useRef<HTMLElement>(null)
-  const desktopNavigationTriggerRef = useRef<HTMLButtonElement>(null)
-  const desktopNavigationOpenTimerRef = useRef<number | null>(null)
-  const desktopNavigationCloseTimerRef = useRef<number | null>(null)
   const navOrderLoadedRef = useRef(false)
   const readableBusinessNavItemsRef = useRef(readableBusinessNavItems)
   readableBusinessNavItemsRef.current = readableBusinessNavItems
@@ -245,81 +248,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       : tab === 'materials'
         ? `子页面：${activeTabLabel}`
         : `页面：${activeTabLabel}`
-  const standardWorkspaceLayout = workspaceLayoutPreference.layout === 'sidebar'
-  const autoHideDesktopNavigation = standardWorkspaceLayout && workspaceLayoutPreference.navigationBehavior === 'auto-hide'
-  const persistentDesktopNavigation = standardWorkspaceLayout && workspaceLayoutPreference.navigationBehavior === 'persistent'
-
-  const cancelDesktopNavigationClose = useCallback(() => {
-    if (desktopNavigationCloseTimerRef.current === null) return
-    window.clearTimeout(desktopNavigationCloseTimerRef.current)
-    desktopNavigationCloseTimerRef.current = null
-  }, [])
-
-  const cancelDesktopNavigationOpen = useCallback(() => {
-    if (desktopNavigationOpenTimerRef.current === null) return
-    window.clearTimeout(desktopNavigationOpenTimerRef.current)
-    desktopNavigationOpenTimerRef.current = null
-  }, [])
-
-  const openTransientDesktopNavigation = useCallback(() => {
-    if (!autoHideDesktopNavigation) return
-    cancelDesktopNavigationOpen()
-    cancelDesktopNavigationClose()
-    setTransientDesktopNavigationOpen(true)
-  }, [autoHideDesktopNavigation, cancelDesktopNavigationClose, cancelDesktopNavigationOpen])
-
-  const scheduleDesktopNavigationOpen = useCallback(() => {
-    if (!autoHideDesktopNavigation || transientDesktopNavigationOpen || desktopNavigationOpenTimerRef.current !== null) return
-    cancelDesktopNavigationClose()
-    desktopNavigationOpenTimerRef.current = window.setTimeout(() => {
-      setTransientDesktopNavigationOpen(true)
-      desktopNavigationOpenTimerRef.current = null
-    }, 120)
-  }, [autoHideDesktopNavigation, cancelDesktopNavigationClose, transientDesktopNavigationOpen])
-
-  const scheduleDesktopNavigationClose = useCallback(() => {
-    if (!autoHideDesktopNavigation || resizingDesktopSidebar) return
-    cancelDesktopNavigationClose()
-    desktopNavigationCloseTimerRef.current = window.setTimeout(() => {
-      setTransientDesktopNavigationOpen(false)
-      desktopNavigationCloseTimerRef.current = null
-    }, 350)
-  }, [autoHideDesktopNavigation, cancelDesktopNavigationClose, resizingDesktopSidebar])
-
-  useEffect(() => {
-    if (autoHideDesktopNavigation) return
-    cancelDesktopNavigationOpen()
-    cancelDesktopNavigationClose()
-    setTransientDesktopNavigationOpen(false)
-  }, [autoHideDesktopNavigation, cancelDesktopNavigationClose, cancelDesktopNavigationOpen])
-
-  useEffect(() => {
-    if (!autoHideDesktopNavigation || !transientDesktopNavigationOpen) return
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node
-      if (desktopNavigationPanelRef.current?.contains(target) || desktopNavigationTriggerRef.current?.contains(target)) return
-      cancelDesktopNavigationClose()
-      setTransientDesktopNavigationOpen(false)
-    }
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      cancelDesktopNavigationClose()
-      setTransientDesktopNavigationOpen(false)
-      desktopNavigationTriggerRef.current?.focus()
-    }
-    document.addEventListener('pointerdown', handlePointerDown)
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [autoHideDesktopNavigation, cancelDesktopNavigationClose, transientDesktopNavigationOpen])
-
-  useEffect(() => () => {
-    cancelDesktopNavigationOpen()
-    cancelDesktopNavigationClose()
-  }, [cancelDesktopNavigationClose, cancelDesktopNavigationOpen])
-
   useEffect(() => {
     const currentReadableItems = readableBusinessNavItemsRef.current
     const savedOrder = window.localStorage.getItem(navigationOrderStorageKey)
@@ -408,83 +336,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }
   }, [mobileNavOpen])
 
-  useEffect(() => {
-    const savedWidth = Number(window.localStorage.getItem(desktopSidebarStorageKey))
-    const savedSplitWidth = Number(window.localStorage.getItem(desktopSplitSidebarStorageKey))
-    const syncNavigationPreference = () => {
-      const savedNavigation = readDesktopNavigationPreference()
-      setDesktopNavigationMode(savedNavigation.mode)
-      setDesktopNavigationDisplayMode(savedNavigation.displayMode)
-    }
-    if (
-      Number.isFinite(savedWidth)
-      && savedWidth >= minDesktopSidebarWidth
-      && savedWidth <= maxDesktopSidebarWidth
-    ) {
-      setDesktopSidebarWidth(savedWidth)
-    }
-    if (
-      Number.isFinite(savedSplitWidth)
-      && savedSplitWidth >= minDesktopSplitSidebarWidth
-      && savedSplitWidth <= maxDesktopSplitSidebarWidth
-    ) {
-      setDesktopSplitSidebarWidth(savedSplitWidth)
-    }
-    syncNavigationPreference()
-    window.addEventListener(preferenceChangeEvent, syncNavigationPreference)
-    setDesktopSidebarReady(true)
-    return () => window.removeEventListener(preferenceChangeEvent, syncNavigationPreference)
-  }, [])
-
-  useEffect(() => {
-    if (!desktopSidebarReady) return
-    window.localStorage.setItem(desktopSidebarStorageKey, String(desktopSidebarWidth))
-    window.localStorage.setItem(desktopSplitSidebarStorageKey, String(desktopSplitSidebarWidth))
-    window.localStorage.setItem(desktopNavigationModeStorageKey, desktopNavigationMode)
-    window.localStorage.setItem(desktopNavigationDisplayModeStorageKey, desktopNavigationDisplayMode)
-  }, [desktopNavigationDisplayMode, desktopNavigationMode, desktopSidebarReady, desktopSidebarWidth, desktopSplitSidebarWidth])
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(min-width: 1280px)')
-    const sync = () => setWideDesktopNavigation(mediaQuery.matches)
-    sync()
-    mediaQuery.addEventListener('change', sync)
-    return () => mediaQuery.removeEventListener('change', sync)
-  }, [])
-
-  useEffect(() => {
-    if (!resizingDesktopSidebar) return
-
-    const previousCursor = document.body.style.cursor
-    const previousUserSelect = document.body.style.userSelect
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-
-    const resize = (event: PointerEvent) => {
-      if (resizingDesktopSidebar === 'split') {
-        setDesktopSplitSidebarWidth(Math.min(
-          maxDesktopSplitSidebarWidth,
-          Math.max(minDesktopSplitSidebarWidth, event.clientX),
-        ))
-        return
-      }
-      setDesktopSidebarWidth(Math.min(
-        maxDesktopSidebarWidth,
-        Math.max(minDesktopSidebarWidth, event.clientX),
-      ))
-    }
-    const stop = () => setResizingDesktopSidebar(null)
-
-    window.addEventListener('pointermove', resize)
-    window.addEventListener('pointerup', stop, { once: true })
-    return () => {
-      document.body.style.cursor = previousCursor
-      document.body.style.userSelect = previousUserSelect
-      window.removeEventListener('pointermove', resize)
-      window.removeEventListener('pointerup', stop)
-    }
-  }, [resizingDesktopSidebar])
-
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index)
     e.dataTransfer.effectAllowed = 'move'
@@ -525,7 +376,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     if (target.materialSection) setMaterialSection(target.materialSection)
     setTab(target.tab)
     setMobileNavOpen(false)
-    setTransientDesktopNavigationOpen(false)
+    closeTransientDesktopNavigation()
     setSystemMenuOpen(false)
     recordWorkspaceUsage(functionKey)
   }
@@ -534,7 +385,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     if (nextTab === 'allFunctions') {
       setTab('allFunctions')
       setMobileNavOpen(false)
-      setTransientDesktopNavigationOpen(false)
+      closeTransientDesktopNavigation()
       setSystemMenuOpen(false)
       return
     }
@@ -547,21 +398,19 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     }
     setTab(nextTab)
     setMobileNavOpen(false)
-    setTransientDesktopNavigationOpen(false)
+    closeTransientDesktopNavigation()
     setSystemMenuOpen(false)
   }
 
   const changeWorkspace = (nextWorkspace: NavigationWorkspaceId) => {
     if (nextWorkspace === activeWorkspace) return
     setActiveWorkspace(nextWorkspace)
-    setTransientDesktopNavigationOpen(false)
+    closeTransientDesktopNavigation()
     setMobileNavOpen(false)
     if (!workspaceContainsFunction(workspaceNavigationConfig, nextWorkspace, activeFunctionKey)) {
       setTab('dashboard')
     }
   }
-
-  const splitNavigationVisible = desktopNavigationMode === 'split' && wideDesktopNavigation
 
   const navigationGroups: NavigationGroup[] = visibleBusinessGroups.map((group) => {
     const firstItem = group.tabs.map((key) => group.items.find((item) => item.key === key)).find(Boolean)
@@ -657,8 +506,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       data-desktop-navigation-behavior={workspaceLayoutPreference.navigationBehavior}
       data-navigation-workspace={activeWorkspace}
       style={{
-        '--mes-desktop-sidebar-width': `${desktopSidebarWidth}px`,
-        '--mes-desktop-split-sidebar-width': `${desktopSplitSidebarWidth}px`,
+        '--mes-desktop-sidebar-width': `${sidebarWidth}px`,
+        '--mes-desktop-split-sidebar-width': `${splitSidebarWidth}px`,
         '--mes-desktop-tools-width': '320px',
       } as CSSProperties}
     >
@@ -675,20 +524,16 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             <button
               ref={desktopNavigationTriggerRef}
               type="button"
-              aria-label={transientDesktopNavigationOpen ? '收起功能导航' : '打开功能导航'}
-              aria-expanded={transientDesktopNavigationOpen}
+              aria-label={transientNavigationOpen ? '收起功能导航' : '打开功能导航'}
+              aria-expanded={transientNavigationOpen}
               onPointerEnter={scheduleDesktopNavigationOpen}
               onPointerLeave={cancelDesktopNavigationOpen}
               onFocus={scheduleDesktopNavigationOpen}
-              onClick={() => {
-                cancelDesktopNavigationOpen()
-                cancelDesktopNavigationClose()
-                setTransientDesktopNavigationOpen((open) => !open)
-              }}
+              onClick={toggleTransientNavigation}
               className="group relative flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm transition hover:bg-blue-700"
             >
               <Menu aria-hidden="true" className="h-5 w-5" />
-              <ControlTooltip label={transientDesktopNavigationOpen ? '收起功能导航' : '打开功能导航'} hidden={transientDesktopNavigationOpen} />
+              <ControlTooltip label={transientNavigationOpen ? '收起功能导航' : '打开功能导航'} hidden={transientNavigationOpen} />
             </button>
           ) : (
             <>
@@ -722,12 +567,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           <button
             type="button"
             aria-label={workspaceLayoutPreference.layout === 'canvas' ? '切换到标准管理布局' : '切换到画布工作布局'}
-            onClick={() => {
-              cancelDesktopNavigationOpen()
-              cancelDesktopNavigationClose()
-              setTransientDesktopNavigationOpen(false)
-              setWorkspaceLayoutPreference({ layout: workspaceLayoutPreference.layout === 'canvas' ? 'sidebar' : 'canvas' })
-            }}
+            onClick={toggleWorkspaceLayout}
             className="group relative flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 hover:text-blue-700"
           >
             {workspaceLayoutPreference.layout === 'canvas'
@@ -777,7 +617,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         className={`fixed bottom-0 right-0 top-16 z-30 hidden w-[var(--mes-desktop-tools-width)] border-l border-gray-200 bg-white ${workspaceLayoutPreference.layout === 'canvas' ? 'lg:flex' : 'lg:hidden'}`}
       />
 
-      {autoHideDesktopNavigation && !transientDesktopNavigationOpen && (
+      {autoHideDesktopNavigation && !transientNavigationOpen && (
         <div aria-hidden="true" onPointerEnter={scheduleDesktopNavigationOpen} onPointerLeave={cancelDesktopNavigationOpen} className="fixed bottom-0 left-0 top-16 z-30 hidden w-2 lg:block" />
       )}
 
@@ -792,7 +632,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         } ${workspaceLayoutPreference.layout === 'canvas'
           ? 'lg:hidden'
           : autoHideDesktopNavigation
-            ? `z-40 shadow-2xl ${transientDesktopNavigationOpen ? 'translate-x-0' : '-translate-x-full'}`
+            ? `z-40 shadow-2xl ${transientNavigationOpen ? 'translate-x-0' : '-translate-x-full'}`
             : 'z-30 translate-x-0'
         }`}
       >
@@ -808,16 +648,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           <button
             type="button"
             aria-label={autoHideDesktopNavigation ? '固定导航' : '改为自动隐藏'}
-            onClick={() => {
-              cancelDesktopNavigationOpen()
-              cancelDesktopNavigationClose()
-              if (autoHideDesktopNavigation) {
-                setWorkspaceLayoutPreference({ navigationBehavior: 'persistent' })
-                return
-              }
-              setWorkspaceLayoutPreference({ navigationBehavior: 'auto-hide' })
-              setTransientDesktopNavigationOpen(false)
-            }}
+            onClick={toggleNavigationBehavior}
             className="group relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-blue-50 hover:text-blue-700"
           >
             {autoHideDesktopNavigation ? <Pin aria-hidden="true" className="h-4 w-4" /> : <PinOff aria-hidden="true" className="h-4 w-4" />}
@@ -829,42 +660,20 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           role="separator"
           aria-label="调整左侧辅助功能区宽度"
           aria-orientation="vertical"
-          aria-valuemin={splitNavigationVisible ? minDesktopSplitSidebarWidth : minDesktopSidebarWidth}
-          aria-valuemax={splitNavigationVisible ? maxDesktopSplitSidebarWidth : maxDesktopSidebarWidth}
-          aria-valuenow={Math.round(splitNavigationVisible ? desktopSplitSidebarWidth : desktopSidebarWidth)}
+          aria-valuemin={sidebarResizeMin}
+          aria-valuemax={sidebarResizeMax}
+          aria-valuenow={Math.round(sidebarResizeValue)}
           tabIndex={0}
-          onPointerDown={(event) => {
-            event.preventDefault()
-            cancelDesktopNavigationOpen()
-            cancelDesktopNavigationClose()
-            setResizingDesktopSidebar(splitNavigationVisible ? 'split' : 'accordion')
-          }}
-          onDoubleClick={() => {
-            if (splitNavigationVisible) setDesktopSplitSidebarWidth(defaultDesktopSplitSidebarWidth)
-            else setDesktopSidebarWidth(defaultDesktopSidebarWidth)
-          }}
-          onKeyDown={(event) => {
-            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-            event.preventDefault()
-            if (splitNavigationVisible) {
-              setDesktopSplitSidebarWidth((current) => Math.min(
-                maxDesktopSplitSidebarWidth,
-                Math.max(minDesktopSplitSidebarWidth, current + (event.key === 'ArrowRight' ? 8 : -8)),
-              ))
-              return
-            }
-            setDesktopSidebarWidth((current) => Math.min(
-              maxDesktopSidebarWidth,
-              Math.max(minDesktopSidebarWidth, current + (event.key === 'ArrowRight' ? 8 : -8)),
-            ))
-          }}
+          onPointerDown={handleSidebarResizePointerDown}
+          onDoubleClick={resetSidebarWidth}
+          onKeyDown={handleSidebarResizeKeyDown}
           className={`group absolute inset-y-0 right-0 flex w-3 translate-x-1/2 cursor-col-resize touch-none items-center justify-center outline-none ${
-            resizingDesktopSidebar ? 'bg-blue-50/70' : ''
+            resizing ? 'bg-blue-50/70' : ''
           }`}
           title="拖动调整左侧宽度，双击恢复默认"
         >
           <span className={`h-20 w-1 rounded-full transition ${
-            resizingDesktopSidebar
+            resizing
               ? 'bg-blue-500'
               : 'bg-gray-300 group-hover:bg-blue-400 group-focus:bg-blue-500'
           }`} />
