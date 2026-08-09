@@ -513,3 +513,12 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 工作台功能键删除失效的 `stats` 快捷入口，历史浏览器偏好中的该键在规范化时自动丢弃；权限资源 `stats` 仍用于统计接口和暂未拆分的流程转移权限，不与工作台键混为一谈。
 - 服务器可能存在 `DailyProductionReport` 历史正式数据，因此本轮不删除 Prisma 模型、迁移、关联保护或 `/api/daily-production-reports*` 兼容接口。是否迁移并下线旧数据模型必须另行执行可回滚的数据迁移。
 - 根级存量领域页面从 14 个降至 13 个，超过 800 行的页面从 3 个降至 2 个。
+
+## 30. 库存前端垂直模块归属
+
+- `contracts/stock.ts` 集中库存、库位、包装穿透、客户、一致性问题和调整草稿契约，页面与子任务不再复制响应结构。
+- `client/stock-api.ts` 封装库存查询、缺失库存补齐、客户与库位选项以及库存调整提交，协调页不再直接调用 `fetch`。
+- `model/stock-view.ts` 集中分类标签、数量格式、占用库位、展示名称、调整草稿和调整后总量等纯规则。
+- `StockCollectionView.tsx`、`StockDetailPanel.tsx`、`StockAdjustmentDialog.tsx` 与 `StockIntegrityAlert.tsx` 分别拥有集合、详情、调整和一致性处理任务。
+- `StockPageModule.tsx` 从 853 行降至 304 行，只保留筛选与 URL 状态、任务协调、自动补齐编排和选择态；库存页退出 800 行巨型页面基线。
+- `verify:inventory-module` 锁定 350 行协调层上限、无直接 HTTP、四个稳定任务和领域 client/model 边界；系统当前只剩 1 个超过 800 行的页面。
