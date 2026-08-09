@@ -120,7 +120,6 @@ const routeSizeBaselines: Record<string, number> = {
   'app/api/boms/route.ts': 464,
   'app/api/materials/[id]/panorama/route.ts': 412,
   'app/api/materials/import/route.ts': 398,
-  'app/api/materials/route.ts': 549,
   'app/api/permissions/route.ts': 350,
   'app/api/stocks/route.ts': 449,
   'app/api/work-instructions/route.ts': 551,

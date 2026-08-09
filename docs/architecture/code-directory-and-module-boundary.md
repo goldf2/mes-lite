@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 1485 行 | 已迁入物料领域；下一步按摘要、文档、BOM/工艺、成本和记录等稳定视图拆分 |
 | `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 57 个根文件 | 领域规则、平台基础设施、格式化工具和配置仍有混放 |
-| `modules/` | 69 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置和运维工具 8 个模块；生产工程已形成 `contracts/client/model/server/ui` 分层 |
+| `modules/` | 72 个文件 | 已有工作台、生产、库存、配置、物料、BOM、系统设置和运维工具 8 个模块；生产工程与物料均已形成包含服务端规则的垂直分层 |
 | `app/api/` | 114 个 `route.ts` | 路径结构基本合理，但部分路由仍直接承载大量领域规则 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
@@ -465,3 +465,11 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 模块 UI 禁止导入 Prisma 或 `server/`，公共框架禁止反向导入领域模块，API 路由禁止导入 UI。
 - 现有超过 800 行的页面和超过 300 行的路由作为递减基线：允许拆小，不允许继续增长；新增文件一旦越过触发线直接失败。
 - `app/components/` 根目录的 16 个领域页面被登记为待迁移存量，不允许再新增根级 `*Page.tsx`。
+
+## 25. 物料服务端模块归属
+
+- `contracts/material-schema.ts` 集中物料新建、修改、高级搜索、分页和排序请求契约，并显式声明需要 BOM 权限的查询形态。
+- `server/material-query-service.ts` 拥有智能多关键词、字段式高级搜索、自然编码排序、BOM 简况排序、分页和主图装配。
+- `server/material-command-service.ts` 拥有配置单位校验、编码唯一性、物料与库存原子创建、单位版本递增和单位变更事务审计。
+- `app/api/materials/route.ts` 从 549 行降至 73 行，只处理权限、请求解析、审计、错误映射和 HTTP 响应；该路由已从巨型路由递减基线移除。
+- `verify:material-server` 支持无数据库边界校验和临时完整数据库集成验证，测试数据不会写入本机常用库或服务器正式库。
