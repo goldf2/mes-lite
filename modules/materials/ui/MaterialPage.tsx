@@ -52,11 +52,28 @@ import {
 } from '../client'
 import MaterialEditDialog from './MaterialEditDialog'
 import MaterialDetailDialog from './MaterialDetailDialog'
+import MaterialCardView from './MaterialCardView'
 import MaterialImportDialog from './MaterialImportDialog'
+import MaterialPagination from './MaterialPagination'
+import MaterialTableView from './MaterialTableView'
 import {
   materialCategoryFilterOptions,
   materialCategoryLabels,
 } from '../model/material-options'
+import {
+  bomSummaryFieldOptions,
+  defaultBomSummaryFields,
+  defaultMaterialVisibleFields,
+  materialColumnMinWidths,
+  materialSortOptions,
+  materialVisibleFieldOptions,
+  type BomSummaryField,
+  type MaterialColumnWidths,
+  type MaterialSortBy,
+  type MaterialTableColumnKey,
+  type MaterialVisibleField,
+  type SortDirection,
+} from '../model/material-view'
 
 const bomSearchProfile: ResourceSearchProfile<BomSearchRow> = {
   key: 'boms',
@@ -91,81 +108,6 @@ const bomWorkspaceStateStorageKey = 'mes-lite.boms.workspaceState'
 const bomSummaryVisibleStorageKey = 'mes-lite.materials.bomSummaryVisible'
 const bomSummaryFieldsStorageKey = 'mes-lite.materials.bomSummaryFields'
 const materialColumnWidthsStorageKey = 'mes-lite.materials.columnWidths'
-const materialSortOptions = [
-  { value: 'createdAt', label: '创建时间' },
-  { value: 'code', label: '物料编码' },
-  { value: 'name', label: '物料名称' },
-  { value: 'category', label: '物料分类' },
-  { value: 'customer', label: '归属客户' },
-  { value: 'spec', label: '规格' },
-  { value: 'note', label: '备注' },
-  { value: 'stockUnit', label: '库存单位' },
-  { value: 'valuationUnit', label: '参考/计价单位' },
-  { value: 'costingMethod', label: '成本方法' },
-  { value: 'stock', label: '库存数量' },
-  { value: 'valuationStock', label: '参考数量' },
-  { value: 'bomSummary', label: 'BOM 简况' },
-] as const
-
-type MaterialSortBy = (typeof materialSortOptions)[number]['value']
-type SortDirection = 'asc' | 'desc'
-
-const materialVisibleFieldOptions = [
-  { key: 'image', label: '图片' },
-  { key: 'code', label: '编码' },
-  { key: 'category', label: '分类' },
-  { key: 'customer', label: '客户' },
-  { key: 'spec', label: '规格' },
-  { key: 'note', label: '备注' },
-  { key: 'stockUnit', label: '库存单位' },
-  { key: 'valuationUnit', label: '参考/计价单位' },
-  { key: 'stock', label: '库存' },
-  { key: 'valuationStock', label: '参考数量' },
-  { key: 'createdAt', label: '创建时间' },
-] as const
-
-type MaterialVisibleField = (typeof materialVisibleFieldOptions)[number]['key']
-type MaterialTableColumnKey = MaterialVisibleField | 'name' | 'bomSummary' | 'actions'
-type MaterialColumnWidths = Partial<Record<MaterialTableColumnKey, number>>
-
-const materialColumnMinWidths: Record<MaterialTableColumnKey, number> = {
-  image: 72,
-  code: 112,
-  name: 112,
-  category: 80,
-  customer: 112,
-  spec: 96,
-  note: 144,
-  stockUnit: 88,
-  valuationUnit: 160,
-  stock: 96,
-  valuationStock: 96,
-  createdAt: 128,
-  bomSummary: 176,
-  actions: 232,
-}
-
-const bomSummaryFieldOptions = [
-  { key: 'name', label: '物料名称' },
-  { key: 'spec', label: '规格' },
-  { key: 'code', label: '编码' },
-] as const
-
-type BomSummaryField = (typeof bomSummaryFieldOptions)[number]['key']
-const defaultBomSummaryFields: BomSummaryField[] = ['name', 'spec']
-
-const defaultMaterialVisibleFields: MaterialVisibleField[] = [
-  'image',
-  'code',
-  'category',
-  'customer',
-  'spec',
-  'stockUnit',
-  'valuationUnit',
-  'stock',
-  'valuationStock',
-  'createdAt',
-]
 
 function MaterialFieldVisibilityControl({
   value,
@@ -279,199 +221,6 @@ function BomSummaryVisibilityControl({
         </div>
       )}
     </div>
-  )
-}
-
-function MaterialPagination({
-  pagination,
-  pageSize,
-  onPageChange,
-  onPageSizeChange,
-}: {
-  pagination: PaginationState
-  pageSize: number
-  onPageChange: (page: number) => void
-  onPageSizeChange: (pageSize: number) => void
-}) {
-  const totalPages = Math.max(1, pagination.totalPages || 1)
-  const currentPage = Math.min(Math.max(1, pagination.page || 1), totalPages)
-  const start = pagination.total === 0 ? 0 : (currentPage - 1) * pageSize + 1
-  const end = Math.min(pagination.total, currentPage * pageSize)
-
-  return (
-    <div className="mt-4 flex flex-col gap-3 rounded-lg border border-gray-100 bg-white px-3 py-3 text-sm text-gray-600 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-      <div className="whitespace-nowrap">
-        共 {pagination.total} 条，当前 {start}-{end} 条，第 {currentPage}/{totalPages} 页
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={pageSize}
-          onChange={(event) => onPageSizeChange(Number(event.target.value))}
-          className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm"
-        >
-          <option value={20}>20 条/页</option>
-          <option value={50}>50 条/页</option>
-          <option value={100}>100 条/页</option>
-          <option value={200}>200 条/页</option>
-        </select>
-        <button
-          type="button"
-          onClick={() => onPageChange(1)}
-          disabled={currentPage <= 1}
-          className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          首页
-        </button>
-        <button
-          type="button"
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage <= 1}
-          className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          上一页
-        </button>
-        <button
-          type="button"
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage >= totalPages}
-          className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          下一页
-        </button>
-        <button
-          type="button"
-          onClick={() => onPageChange(totalPages)}
-          disabled={currentPage >= totalPages}
-          className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          末页
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function ColumnResizeHandle({
-  label,
-  onPointerDown,
-  onReset,
-  onNudge,
-}: {
-  label: string
-  onPointerDown: (event: ReactPointerEvent<HTMLSpanElement>) => void
-  onReset: () => void
-  onNudge: (delta: number) => void
-}) {
-  return (
-    <span
-      role="separator"
-      aria-label={`调整${label}列宽`}
-      aria-orientation="vertical"
-      tabIndex={0}
-      onPointerDown={onPointerDown}
-      onDoubleClick={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        onReset()
-      }}
-      onKeyDown={(event) => {
-        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-        event.preventDefault()
-        event.stopPropagation()
-        onNudge(event.key === 'ArrowRight' ? 12 : -12)
-      }}
-      title="拖动调整列宽，双击恢复自动列宽"
-      className="absolute -right-1 top-0 z-10 flex h-full w-3 cursor-col-resize touch-none items-center justify-center outline-none before:h-5 before:w-px before:bg-gray-300 hover:before:bg-blue-500 focus:before:bg-blue-500"
-    />
-  )
-}
-
-function MaterialTableHeader({
-  columnKey,
-  label,
-  className,
-  style,
-  onResize,
-  onReset,
-  onNudge,
-}: {
-  columnKey: MaterialTableColumnKey
-  label: string
-  className?: string
-  style?: CSSProperties
-  onResize: (column: MaterialTableColumnKey, event: ReactPointerEvent<HTMLSpanElement>) => void
-  onReset: (column: MaterialTableColumnKey) => void
-  onNudge: (column: MaterialTableColumnKey, delta: number) => void
-}) {
-  return (
-    <th
-      scope="col"
-      style={style}
-      className={`relative whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-gray-600 ${className || ''}`}
-    >
-      {label}
-      <ColumnResizeHandle
-        label={label}
-        onPointerDown={(event) => onResize(columnKey, event)}
-        onReset={() => onReset(columnKey)}
-        onNudge={(delta) => onNudge(columnKey, delta)}
-      />
-    </th>
-  )
-}
-
-function MaterialSortableHeader({
-  columnKey,
-  field,
-  label,
-  sortBy,
-  sortDir,
-  className,
-  style,
-  onSort,
-  onResize,
-  onReset,
-  onNudge,
-}: {
-  columnKey: MaterialTableColumnKey
-  field: MaterialSortBy
-  label: string
-  sortBy: MaterialSortBy
-  sortDir: SortDirection
-  className: string
-  style?: CSSProperties
-  onSort: (field: MaterialSortBy) => void
-  onResize: (column: MaterialTableColumnKey, event: ReactPointerEvent<HTMLSpanElement>) => void
-  onReset: (column: MaterialTableColumnKey) => void
-  onNudge: (column: MaterialTableColumnKey, delta: number) => void
-}) {
-  const active = sortBy === field
-
-  return (
-    <th
-      scope="col"
-      aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-      style={style}
-      className={`${className} relative whitespace-nowrap px-4 py-3 text-left text-sm font-semibold`}
-    >
-      <button
-        type="button"
-        onClick={() => onSort(field)}
-        className={`group flex w-full items-center gap-1 text-left transition ${active ? 'text-blue-700' : 'text-gray-600 hover:text-blue-700'}`}
-        title={`按${label}${active && sortDir === 'asc' ? '降序' : '升序'}排列`}
-      >
-        <span>{label}</span>
-        <span aria-hidden="true" className={`text-xs ${active ? 'text-blue-600' : 'text-gray-300 group-hover:text-blue-400'}`}>
-          {active ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
-        </span>
-      </button>
-      <ColumnResizeHandle
-        label={label}
-        onPointerDown={(event) => onResize(columnKey, event)}
-        onReset={() => onReset(columnKey)}
-        onNudge={(delta) => onNudge(columnKey, delta)}
-      />
-    </th>
   )
 }
 
@@ -720,7 +469,6 @@ export default function MaterialPage({
   const loadedBomDraftSignatureRef = useRef('')
   const bomWorkspaceStateRestoredRef = useRef(false)
   const handledBomOpenRequestRef = useRef<number | null>(null)
-  const showField = (field: MaterialVisibleField) => visibleFields.includes(field)
   const canUseBomData = showBomWorkspace || canReadBom
   const selectedCategory = materialSearchConditions.find((condition) => condition.field === 'category')?.value || ''
   const selectedCategories = useMemo(
@@ -2007,107 +1755,19 @@ export default function MaterialPage({
           </div>
         ) : viewMode === 'card' ? (
           <>
-            <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {materials.map((material) => {
-                const bomSummary = canUseBomData && bomSummaryVisible ? getBomSummary(material) : null
-                const isSelected = showBomWorkspace && material.id === selectedMaterialId
-                return (
-                <div
-                  key={material.id}
-                  onClick={() => {
-                    if (showBomWorkspace) selectMaterialForBom(material.id)
-                  }}
-                  className={`group flex min-h-[218px] flex-col rounded-lg border bg-white p-3 shadow-sm transition sm:shadow-none ${showBomWorkspace ? 'cursor-pointer' : ''} ${isSelected ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200 hover:border-blue-300 hover:shadow-sm'}`}
-                >
-                <div className="flex min-w-0 gap-3">
-                  {showField('image') && (
-                    <button
-                      onClick={() => handleViewDetail(material)}
-                      className="h-12 w-12 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50"
-                      title={material.primaryImage?.note || '查看物料详情'}
-                    >
-                      {material.primaryImage ? (
-                        <img src={material.primaryImage.thumbnailUrl || material.primaryImage.url} alt={material.primaryImage.note || material.name} className="h-full w-full object-cover" />
-                      ) : (
-                        <span className="flex h-full w-full items-center justify-center text-xs text-gray-400">暂无</span>
-                      )}
-                    </button>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex min-w-0 items-center gap-2">
-                      {showField('code') && <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium text-blue-700" title={material.code}>{material.code}</span>}
-                      {showField('category') && <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</span>}
-                    </div>
-                    <div className="mt-1 line-clamp-1 text-sm font-semibold text-gray-900" title={material.name}>{material.name}</div>
-                    {showField('spec') && <div className="mt-0.5 truncate text-sm text-gray-500">{material.spec || '无规格'}</div>}
-                    {showField('note') && material.note && <div className="mt-0.5 line-clamp-2 text-xs text-gray-500">备注：{material.note}</div>}
-                    {showField('customer') && <div className="mt-0.5 truncate text-xs text-gray-500">客户：{material.customer?.name || '通用/未绑定'}</div>}
-                  </div>
-                </div>
-                {(showField('stock') || showField('valuationStock')) && (
-                  <div className="mt-3 grid grid-cols-2 gap-x-3 border-t border-gray-100 pt-2 text-sm">
-                    {showField('stock') && (
-                      <div className="min-w-0">
-                        <div className="text-xs text-gray-500">库存</div>
-                        <div className="mt-0.5 truncate font-semibold text-gray-900">{material.stock?.qty || 0} {material.stockUnit || material.unit}</div>
-                      </div>
-                    )}
-                    {showField('valuationStock') && (
-                      <div className="min-w-0">
-                        <div className="text-xs text-gray-500">参考数量</div>
-                        <div className="mt-0.5 truncate font-semibold text-emerald-700">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</div>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {(showField('valuationUnit') || showField('createdAt')) && (
-                  <div className="mt-2 flex min-w-0 items-center gap-2 text-xs text-gray-500">
-                    {showField('valuationUnit') && <span className="min-w-0 flex-1 truncate">1 {material.stockUnit || material.unit} = {material.conversionRate || 1} {material.valuationUnit || material.unit}</span>}
-                    {showField('valuationUnit') && <span className="whitespace-nowrap">{material.costingMethod === 'FIFO' ? 'FIFO' : '移动加权'}</span>}
-                    {showField('createdAt') && <span className="whitespace-nowrap">{new Date(material.createdAt).toLocaleDateString('zh-CN')}</span>}
-                  </div>
-                )}
-                {bomSummary && (
-                  <div className={`mt-2 overflow-hidden rounded border-l-2 px-2 py-1.5 text-xs ${bomSummary.count > 0 ? 'border-emerald-400 bg-emerald-50 text-emerald-800' : 'border-gray-300 bg-gray-50 text-gray-500'}`}>
-                    <div className="flex min-w-0 items-center justify-between gap-2">
-                      <span className="shrink-0 font-medium">BOM</span>
-                      <span className="min-w-0 truncate">组成 {bomSummary.componentCount} · 被引用 {bomSummary.usageCount}</span>
-                    </div>
-                    <div className="mt-0.5 truncate" title={bomSummary.text}>{bomSummary.text}</div>
-                  </div>
-                )}
-                <div className="mt-auto flex items-center justify-end gap-1.5 pt-3">
-                  {canCreateBom && (
-                    <button
-                      onClick={() => openQuickBomCreate(material.id)}
-                      className="rounded border border-emerald-300 px-2 py-1 text-xs text-emerald-700 transition hover:bg-emerald-50"
-                    >
-                      创建 BOM
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleOpenPanorama(material)}
-                    className="rounded border border-blue-200 px-2 py-1 text-xs text-blue-700 transition hover:bg-blue-50"
-                  >
-                    全景
-                  </button>
-                  <button
-                    onClick={() => handleViewDetail(material)}
-                    className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 transition hover:bg-gray-50"
-                  >
-                    详情
-                  </button>
-                  <button
-                    onClick={() => handleArchive(material.id)}
-                    className="rounded border border-amber-200 px-2 py-1 text-xs text-amber-700 transition hover:bg-amber-50"
-                  >
-                    归档
-                  </button>
-                </div>
-                </div>
-                )
-              })}
-            </div>
+            <MaterialCardView
+              materials={materials}
+              visibleFields={visibleFields}
+              showBomSummary={canUseBomData && bomSummaryVisible}
+              canCreateBom={canCreateBom}
+              getBomSummary={getBomSummary}
+              actions={{
+                onCreateBom: openQuickBomCreate,
+                onOpenPanorama: handleOpenPanorama,
+                onViewDetail: handleViewDetail,
+                onArchive: handleArchive,
+              }}
+            />
             <MaterialPagination
               pagination={pagination}
               pageSize={pageSize}
@@ -2117,115 +1777,28 @@ export default function MaterialPage({
           </>
         ) : (
           <>
-            <div className="overflow-x-auto rounded-lg border border-gray-100">
-              <table className="min-w-full table-auto">
-              <thead className={showBomWorkspace ? 'sticky top-0 z-10 bg-gray-50' : 'bg-gray-50'}>
-                <tr>
-                  {showField('image') && <MaterialTableHeader columnKey="image" label="图片" style={columnStyle('image')} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
-                  {showField('code') && <MaterialSortableHeader columnKey="code" field="code" label="物料编码" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('code')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
-                  <MaterialSortableHeader columnKey="name" field="name" label="物料名称" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('name')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />
-                  {showField('category') && <MaterialSortableHeader columnKey="category" field="category" label="分类" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('category')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
-                  {showField('customer') && <MaterialSortableHeader columnKey="customer" field="customer" label="归属客户" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('customer')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
-                  {showField('spec') && <MaterialSortableHeader columnKey="spec" field="spec" label="规格" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('spec')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
-                  {showField('note') && <MaterialSortableHeader columnKey="note" field="note" label="备注" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('note')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
-                  {showField('stockUnit') && <MaterialSortableHeader columnKey="stockUnit" field="stockUnit" label="库存单位" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('stockUnit')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
-                  {showField('valuationUnit') && <MaterialSortableHeader columnKey="valuationUnit" field="valuationUnit" label="参考/计价单位" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('valuationUnit')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
-                  {showField('stock') && <MaterialSortableHeader columnKey="stock" field="stock" label="库存" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('stock')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
-                  {showField('valuationStock') && <MaterialSortableHeader columnKey="valuationStock" field="valuationStock" label="参考数量" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('valuationStock')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
-                  {showField('createdAt') && <MaterialSortableHeader columnKey="createdAt" field="createdAt" label="创建时间" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('createdAt')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
-                  {canUseBomData && bomSummaryVisible && <MaterialSortableHeader columnKey="bomSummary" field="bomSummary" label="BOM 简况" sortBy={sortBy} sortDir={sortDir} className="" style={columnStyle('bomSummary')} onSort={handleHeaderSort} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />}
-                  <MaterialTableHeader columnKey="actions" label="操作" style={columnStyle('actions')} onResize={startColumnResize} onReset={resetColumnWidth} onNudge={nudgeColumnWidth} />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {materials.map((material) => {
-                  const bomSummary = canUseBomData && bomSummaryVisible ? getBomSummary(material) : null
-                  const isSelected = showBomWorkspace && material.id === selectedMaterialId
-                  return (
-                  <tr
-                    key={material.id}
-                    onClick={() => {
-                      if (showBomWorkspace) selectMaterialForBom(material.id)
-                    }}
-                    className={`align-top transition ${showBomWorkspace ? 'cursor-pointer' : ''} ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
-                  >
-                    {showField('image') && (
-                      <td style={columnStyle('image')} className="overflow-hidden px-4 py-3">
-                        <button
-                          onClick={() => handleViewDetail(material)}
-                          className="h-12 w-12 overflow-hidden rounded border border-gray-200 bg-gray-50"
-                          title={material.primaryImage?.note || '查看物料详情'}
-                        >
-                          {material.primaryImage ? (
-                            <img src={material.primaryImage.thumbnailUrl || material.primaryImage.url} alt={material.primaryImage.note || material.name} className="h-full w-full object-cover" />
-                          ) : (
-                            <span className="text-xs text-gray-400">暂无</span>
-                          )}
-                        </button>
-                      </td>
-                    )}
-                    {showField('code') && <td style={columnStyle('code')} className="overflow-hidden px-4 py-3 font-mono text-sm text-blue-600"><div className="truncate" title={material.code}>{material.code}</div></td>}
-                    <td style={columnStyle('name')} className="overflow-hidden px-4 py-3 text-sm font-medium"><div className="truncate" title={material.name}>{material.name}</div></td>
-                    {showField('category') && <td style={columnStyle('category')} className="overflow-hidden px-4 py-3 text-sm"><div className="truncate">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</div></td>}
-                    {showField('customer') && <td style={columnStyle('customer')} className="overflow-hidden px-4 py-3 text-sm"><div className="truncate" title={material.customer?.name || '通用/未绑定'}>{material.customer?.name || '通用/未绑定'}</div></td>}
-                    {showField('spec') && <td style={columnStyle('spec')} className="overflow-hidden px-4 py-3 text-sm text-gray-500"><div className="truncate" title={material.spec || '-'}>{material.spec || '-'}</div></td>}
-                    {showField('note') && <td style={columnStyle('note')} className="overflow-hidden px-4 py-3 text-sm text-gray-500"><div className="line-clamp-2" title={material.note || '-'}>{material.note || '-'}</div></td>}
-                    {showField('stockUnit') && <td style={columnStyle('stockUnit')} className="overflow-hidden px-4 py-3 text-sm"><div className="truncate">{material.stockUnit || material.unit}</div></td>}
-                    {showField('valuationUnit') && (
-                      <td style={columnStyle('valuationUnit')} className="overflow-hidden px-4 py-3 text-sm">
-                        <div className="truncate">{material.valuationUnit || material.unit}</div>
-                        <div className="truncate text-xs text-gray-500">1 {material.stockUnit || material.unit} = {material.conversionRate || 1} {material.valuationUnit || material.unit}</div>
-                        <div className="truncate text-xs text-gray-500">成本法：{material.costingMethod === 'FIFO' ? '先入先出' : '移动加权平均'}</div>
-                      </td>
-                    )}
-                    {showField('stock') && <td style={columnStyle('stock')} className="overflow-hidden px-4 py-3 text-sm"><div className="truncate">{material.stock?.qty || 0} {material.stockUnit || material.unit}</div></td>}
-                    {showField('valuationStock') && <td style={columnStyle('valuationStock')} className="overflow-hidden px-4 py-3 text-sm text-green-600"><div className="truncate">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</div></td>}
-                    {showField('createdAt') && <td style={columnStyle('createdAt')} className="overflow-hidden px-4 py-3 text-xs text-gray-500"><div className="truncate">{new Date(material.createdAt).toLocaleString('zh-CN')}</div></td>}
-                    {bomSummary && (
-                      <td style={columnStyle('bomSummary')} className="overflow-hidden px-4 py-3 text-sm">
-                        <div className={`overflow-hidden rounded-lg border px-2 py-1.5 text-xs ${bomSummary.count > 0 ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : 'border-gray-100 bg-gray-50 text-gray-500'}`}>
-                          <div className="flex min-w-0 items-center justify-between gap-2">
-                            <span className="shrink-0 font-medium">BOM</span>
-                            <span className="min-w-0 truncate">组成 {bomSummary.componentCount} · 被引用 {bomSummary.usageCount}</span>
-                          </div>
-                          <div className="mt-1 truncate" title={bomSummary.text}>{bomSummary.text}</div>
-                        </div>
-                      </td>
-                    )}
-                    <td style={columnStyle('actions')} className="overflow-hidden whitespace-nowrap px-4 py-3">
-                      {canCreateBom && (
-                        <button
-                          onClick={() => openQuickBomCreate(material.id)}
-                          className="mr-2 rounded border border-emerald-300 px-3 py-1 text-xs text-emerald-700 transition hover:bg-emerald-50"
-                        >
-                          创建 BOM
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleOpenPanorama(material)}
-                        className="px-3 py-1 text-blue-700 border border-blue-300 rounded text-xs hover:bg-blue-50 transition"
-                      >
-                        全景
-                      </button>
-                      <button
-                        onClick={() => handleViewDetail(material)}
-                        className="ml-2 px-3 py-1 text-gray-700 border border-gray-300 rounded text-xs hover:bg-gray-50 transition"
-                      >
-                        查看详情
-                      </button>
-                      <button
-                        onClick={() => handleArchive(material.id)}
-                        className="ml-2 px-3 py-1 text-amber-700 border border-amber-300 rounded text-xs hover:bg-amber-50 transition"
-                      >
-                        归档
-                      </button>
-                    </td>
-                  </tr>
-                  )
-                })}
-              </tbody>
-              </table>
-            </div>
+            <MaterialTableView
+              materials={materials}
+              visibleFields={visibleFields}
+              showBomSummary={canUseBomData && bomSummaryVisible}
+              canCreateBom={canCreateBom}
+              getBomSummary={getBomSummary}
+              sortBy={sortBy}
+              sortDir={sortDir}
+              onSort={handleHeaderSort}
+              columns={{
+                styleFor: columnStyle,
+                onResize: startColumnResize,
+                onReset: resetColumnWidth,
+                onNudge: nudgeColumnWidth,
+              }}
+              actions={{
+                onCreateBom: openQuickBomCreate,
+                onOpenPanorama: handleOpenPanorama,
+                onViewDetail: handleViewDetail,
+                onArchive: handleArchive,
+              }}
+            />
             <MaterialPagination
               pagination={pagination}
               pageSize={pageSize}
