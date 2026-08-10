@@ -66,7 +66,7 @@ function verifyStaticBoundaries() {
   assert.match(route, /@\/modules\/business-documents\//, '打印 API 必须委托业务单据模块')
   assert.match(service, /resolveBusinessDocumentPdf[\s\S]*renderBusinessDocumentPdf/, '打印服务必须统一生成 PDF')
   assert.match(service, /latestArchivedPdf[\s\S]*documentAttachment[\s\S]*readFile[\s\S]*documentAttachment\.create/, '打印服务必须统一归档、缓存和重生成版本')
-  assert.match(query, /salesOrder[\s\S]*materialIn[\s\S]*shipment[\s\S]*returnOrder[\s\S]*flowTransfer[\s\S]*productionOrder[\s\S]*dispatch/, '查询服务必须集中装配 7 类单据打印投影')
+  assert.match(query, /salesOrder[\s\S]*materialReceipt[\s\S]*shipment[\s\S]*returnOrder[\s\S]*flowTransfer[\s\S]*productionOrder[\s\S]*dispatch/, '查询服务必须集中装配 7 类单据打印投影，来料按单头聚合多明细')
   assert.match(renderer, /new PDFDocument[\s\S]*bufferedPageRange/, '业务单据模块必须拥有统一多页 PDF 引擎')
   assert.match(detailDialog, /<ModalDialog[\s\S]*<AttachmentPanel/, '业务单据详情必须复用公共弹窗和附件骨架')
   assert.doesNotMatch(moduleIndex, /server\//, '供页面使用的公开出口不得把 Node 服务打入客户端边界')

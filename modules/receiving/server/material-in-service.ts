@@ -25,53 +25,77 @@ export function materialInInclude() {
   } satisfies Prisma.MaterialInInclude
 }
 
+export function materialReceiptInclude() {
+  return {
+    supplier: true,
+    stagingLocation: true,
+    lines: { orderBy: { lineNo: 'asc' as const }, include: materialInInclude() },
+  } satisfies Prisma.MaterialReceiptInclude
+}
+
+export type MaterialReceiptWithLines = Prisma.MaterialReceiptGetPayload<{ include: ReturnType<typeof materialReceiptInclude> }>
+
+export function toMaterialInRecord(receipt: MaterialReceiptWithLines) {
+  return {
+    ...receipt,
+    locationId: receipt.stagingLocationId,
+    location: receipt.stagingLocation,
+    items: receipt.lines,
+    itemCount: receipt.lines.length,
+    totalAmount: Number(receipt.lines.reduce((sum, line) => sum + Number(line.totalAmount), 0).toFixed(2)),
+  }
+}
+
 export async function listMaterialIns(query: MaterialInListQuery) {
   const page = Math.max(1, Number.isFinite(query.page) ? Math.floor(query.page) : 1)
   const pageSize = Math.min(100, Math.max(1, Number.isFinite(query.pageSize) ? Math.floor(query.pageSize) : 20))
-  const where: Prisma.MaterialInWhereInput = { deletedAt: null }
-  const andConditions: Prisma.MaterialInWhereInput[] = []
+  const where: Prisma.MaterialReceiptWhereInput = { deletedAt: null }
+  const andConditions: Prisma.MaterialReceiptWhereInput[] = []
   if (query.statuses.length === 1) where.status = query.statuses[0]
   else if (query.statuses.length > 1) where.status = { in: query.statuses }
   if (query.supplierId) where.supplierId = query.supplierId
-  if (query.customerId === '__UNASSIGNED__') andConditions.push({ material: { is: { customerId: null } } })
-  else if (query.customerId) andConditions.push({ material: { is: { customerId: query.customerId } } })
+  if (query.customerId === '__UNASSIGNED__') andConditions.push({ lines: { some: { material: { is: { customerId: null } } } } })
+  else if (query.customerId) andConditions.push({ lines: { some: { material: { is: { customerId: query.customerId } } } } })
   andConditions.push(...tokenizeKeywordQuery(query.keyword || '').map((token) => ({ OR: [
     { inboundNo: { contains: token } },
     { voucherNo: { contains: token } },
-    { batchNo: { contains: token } },
     { receivedBy: { contains: token } },
     { note: { contains: token } },
     { supplier: { is: { code: { contains: token } } } },
     { supplier: { is: { name: { contains: token } } } },
-    { material: { is: { code: { contains: token } } } },
-    { material: { is: { name: { contains: token } } } },
-    { material: { is: { spec: { contains: token } } } },
+    { lines: { some: { batchNo: { contains: token } } } },
+    { lines: { some: { material: { is: { code: { contains: token } } } } } },
+    { lines: { some: { material: { is: { name: { contains: token } } } } } },
+    { lines: { some: { material: { is: { spec: { contains: token } } } } } },
   ] })))
   if (andConditions.length > 0) where.AND = andConditions
 
-  const [items, total] = await Promise.all([
-    prisma.materialIn.findMany({
+  const [receipts, total] = await Promise.all([
+    prisma.materialReceipt.findMany({
       where,
-      include: materialInInclude(),
+      include: materialReceiptInclude(),
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
-    prisma.materialIn.count({ where }),
+    prisma.materialReceipt.count({ where }),
   ])
 
-  return { items, pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } }
+  return {
+    items: receipts.map(toMaterialInRecord),
+    pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+  }
 }
 
 export async function buildMaterialInLineData(
   tx: Prisma.TransactionClient,
   input: MaterialInItemInput,
-  fallbackLocationId?: string | null,
+  stagingLocationId?: string | null,
 ) {
   const material = await tx.material.findFirst({ where: { id: input.materialId, deletedAt: null } })
   if (!material) throw new MaterialInDomainError('物料不存在或已归档', 404)
 
-  const location = await resolveInventoryLocation(tx, input.locationId || fallbackLocationId)
+  const location = await resolveInventoryLocation(tx, stagingLocationId)
   const stockQuantity = resolveMaterialInStockQuantity({
     primaryMeasure: material.primaryMeasure,
     qty: input.qty,
@@ -116,6 +140,7 @@ export async function buildMaterialInLineData(
 
   return {
     material,
+    location,
     data: {
       materialId: input.materialId,
       locationId: location.id,
@@ -141,16 +166,23 @@ export async function buildMaterialInLineData(
   }
 }
 
+function lineInboundNo(receiptNo: string, lineNo: number) {
+  return `${receiptNo}-${String(lineNo).padStart(3, '0')}`
+}
+
 async function createMaterialInLine(
   tx: Prisma.TransactionClient,
+  receipt: { id: string; inboundNo: string; stagingLocationId: string },
   common: { supplierId: string; voucherNo?: string; receivedBy?: string; note?: string },
   input: MaterialInItemInput,
-  inboundNo: string,
+  lineNo: number,
 ) {
-  const { data } = await buildMaterialInLineData(tx, input)
+  const { data } = await buildMaterialInLineData(tx, input, receipt.stagingLocationId)
   return tx.materialIn.create({
     data: {
-      inboundNo,
+      receiptId: receipt.id,
+      lineNo,
+      inboundNo: lineInboundNo(receipt.inboundNo, lineNo),
       voucherNo: common.voucherNo?.trim() || null,
       supplierId: common.supplierId,
       ...data,
@@ -166,32 +198,53 @@ export async function createMaterialIns(input: CreateMaterialInInput, now = new 
   return runMaterialInDomainOperation(() => prisma.$transaction(async (tx) => {
     const { supplierId, voucherNo, receivedBy, note } = input
     const requestedItems = 'items' in input ? input.items : [input]
-    const [supplier, latest] = await Promise.all([
+    const requestedStagingLocationId = input.stagingLocationId || requestedItems[0]?.locationId
+    const [supplier, stagingLocation, latest] = await Promise.all([
       tx.supplier.findFirst({ where: { id: supplierId, deletedAt: null } }),
-      tx.materialIn.findFirst({
+      resolveInventoryLocation(tx, requestedStagingLocationId),
+      tx.materialReceipt.findFirst({
         where: { inboundNo: { startsWith: materialInNumberPrefix(now) } },
         orderBy: { inboundNo: 'desc' }, select: { inboundNo: true },
       }),
     ])
     if (!supplier) throw new MaterialInDomainError('供应商不存在或已归档', 404)
-    const items = []
+    const inboundNo = nextMaterialInNumber(now, latest?.inboundNo)
+    const receipt = await tx.materialReceipt.create({
+      data: {
+        inboundNo,
+        voucherNo: voucherNo?.trim() || null,
+        supplierId,
+        stagingLocationId: stagingLocation.id,
+        status: 'PENDING',
+        inboundDate: now,
+        receivedBy: receivedBy?.trim() || null,
+        note: note?.trim() || null,
+      },
+    })
+    const lines = []
     for (let index = 0; index < requestedItems.length; index += 1) {
-      items.push(await createMaterialInLine(
+      lines.push(await createMaterialInLine(
         tx,
+        receipt,
         { supplierId, voucherNo, receivedBy, note },
         requestedItems[index],
-        nextMaterialInNumber(now, latest?.inboundNo, index),
+        index + 1,
       ))
     }
-    return { first: items[0], items }
+    const saved = await tx.materialReceipt.findUniqueOrThrow({ where: { id: receipt.id }, include: materialReceiptInclude() })
+    return { first: toMaterialInRecord(saved), items: lines }
   }))
 }
 
 export async function archiveMaterialIn(id: string) {
-  const current = await prisma.materialIn.findUnique({ where: { id } })
-  if (!current || current.deletedAt) throw new MaterialInDomainError('来料单不存在或已归档', 404)
-  const updated = await prisma.materialIn.update({ where: { id }, data: { deletedAt: new Date() } })
-  return { current, updated }
+  return runMaterialInDomainOperation(() => prisma.$transaction(async (tx) => {
+    const current = await tx.materialReceipt.findUnique({ where: { id }, include: materialReceiptInclude() })
+    if (!current || current.deletedAt) throw new MaterialInDomainError('来料单不存在或已归档', 404)
+    const deletedAt = new Date()
+    await tx.materialIn.updateMany({ where: { receiptId: id }, data: { deletedAt } })
+    const updated = await tx.materialReceipt.update({ where: { id }, data: { deletedAt }, include: materialReceiptInclude() })
+    return { current: toMaterialInRecord(current), updated: toMaterialInRecord(updated) }
+  }))
 }
 
 export { MaterialInDomainError } from '../domain/material-in-errors'

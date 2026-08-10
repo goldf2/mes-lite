@@ -85,15 +85,9 @@ export default function MaterialInPage({
     inboundNo: (item) => item.inboundNo,
     voucherNo: (item) => item.voucherNo,
     supplier: (item) => item.supplier?.name,
-    material: (item) => `${item.material?.code || ''} ${item.material?.name || ''}`,
-    location: (item) => item.location ? `${item.location.code} ${item.location.name}` : null,
-    qty: (item) => item.qty,
-    valuationQty: (item) => item.valuationQty,
-    unitPrice: (item) => item.unitPrice,
-    valuationUnitCost: (item) => item.valuationUnitCost,
-    stockUnitCost: (item) => item.stockUnitCost,
+    material: (item) => item.items.map((line) => `${line.material.code} ${line.material.name}`).join(' '),
+    location: (item) => `${item.location.code} ${item.location.name}`,
     totalAmount: (item) => item.totalAmount,
-    batchNo: (item) => item.batchNo,
     status: (item) => statusLabels[item.status] || item.status,
     inboundDate: (item) => new Date(item.inboundDate),
   }, 'inboundDate', 'desc')
@@ -274,7 +268,6 @@ export default function MaterialInPage({
     setForm((current) => ({
       ...current,
       materialId: '',
-      locationId: locations.find((item) => item.isDefault)?.id || locations[0]?.id || '',
       qty: 0,
       pieceCount: 0,
       stockQtyMode: 'TOTAL',
@@ -318,27 +311,17 @@ export default function MaterialInPage({
       }
       items = [...items, buildCurrentItem()]
     }
-    if (editingItem && items.length !== 1) {
-      onMessage('请填写有效的来料明细')
-      return
-    }
-    if (!editingItem && items.length === 0) {
+    if (items.length === 0) {
       onMessage('请至少添加一种物料')
       return
     }
     const printPreview = reserveBusinessDocumentPrintWindow()
     setLoading(true)
     try {
-      const data = await saveMaterialInRecord(editingItem?.id || null, editingItem ? {
+      const data = await saveMaterialInRecord(editingItem?.id || null, {
           supplierId: form.supplierId,
           voucherNo: form.voucherNo || undefined,
-          ...items[0],
-          id: undefined,
-          receivedBy: form.receivedBy || undefined,
-          note: form.note || undefined,
-        } : {
-          supplierId: form.supplierId,
-          voucherNo: form.voucherNo || undefined,
+          stagingLocationId: form.locationId,
           receivedBy: form.receivedBy || undefined,
           note: form.note || undefined,
           items: items.map(({ id: _id, ...item }) => item),
@@ -353,7 +336,7 @@ export default function MaterialInPage({
           onMessage(`来料单已创建，但${error instanceof Error ? error.message : '附件绑定失败'}`)
         }
       }
-      const pdfGenerated = await generateBusinessDocumentPdfArchives('material-in', (data.items || [data.data]).map((item) => item.id))
+      const pdfGenerated = await generateBusinessDocumentPdfArchives('material-in', [data.data.id])
       if (pdfGenerated) printPreview.open('material-in', data.data.id)
       else {
         printPreview.close()
@@ -498,29 +481,48 @@ export default function MaterialInPage({
       return
     }
 
-    setMaterials((current) => current.some((material) => material.id === item.material.id)
-      ? current
-      : [...current, item.material])
+    setMaterials((current) => {
+      const merged = new Map(current.map((material) => [material.id, material]))
+      for (const line of item.items) merged.set(line.material.id, line.material)
+      return Array.from(merged.values())
+    })
     setEditingItem(item)
     setDraftAttachmentOwnerId('')
-    setDraftItems([])
+    setDraftItems(item.items.map((line) => ({
+      id: line.id,
+      materialId: line.materialId,
+      locationId: item.stagingLocationId,
+      qty: Number(line.qty),
+      pieceCount: line.pieceCount ? Number(line.pieceCount) : undefined,
+      stockQtyMode: line.stockQtyMode || 'TOTAL',
+      stockQtyInput: line.stockQtyInput ? Number(line.stockQtyInput) : undefined,
+      totalLength: line.totalLength ? Number(line.totalLength) : undefined,
+      totalWeight: line.totalWeight ? Number(line.totalWeight) : undefined,
+      unit: line.unit,
+      valuationUnit: line.valuationUnit,
+      unitPrice: Number(line.unitPrice),
+      totalAmount: Number(line.totalAmount),
+      priceUnit: normalizeMaterialInPriceUnit(line.priceUnit, line.material.primaryMeasure),
+      priceBasis: line.priceBasis === 'VALUATION' ? 'VALUATION' : 'STOCK',
+      batchNo: line.batchNo || undefined,
+    })))
     setLinkedBatchRatios(null)
     setForm({
       voucherNo: item.voucherNo || '',
       supplierId: item.supplierId,
-      materialId: item.materialId,
-      locationId: item.locationId || locations.find((location) => location.isDefault)?.id || '',
-      qty: item.material.primaryMeasure === 'LENGTH' ? 0 : Number(item.qty),
-      pieceCount: Number(item.pieceCount || 0),
-      stockQtyMode: item.stockQtyMode || 'TOTAL',
-      stockQtyInput: Number(item.stockQtyInput ?? item.qty),
-      totalLength: Number(item.totalLength ?? (item.material.primaryMeasure === 'LENGTH' ? item.qty : 0)),
-      totalWeight: Number(item.totalWeight ?? (item.material.referenceMeasure === 'WEIGHT' ? item.valuationQty : item.material.primaryMeasure === 'WEIGHT' ? item.qty : 0)),
-      unitPrice: Number(item.unitPrice),
-      priceUnit: normalizeMaterialInPriceUnit(item.priceUnit, item.material.primaryMeasure),
-      totalAmount: Number(item.totalAmount),
-      priceInputMode: 'TOTAL',
-      batchNo: item.batchNo || '',
+      materialId: '',
+      locationId: item.stagingLocationId,
+      qty: 0,
+      pieceCount: 0,
+      stockQtyMode: 'TOTAL',
+      stockQtyInput: 0,
+      totalLength: 0,
+      totalWeight: 0,
+      unitPrice: 0,
+      priceUnit: 'm',
+      totalAmount: 0,
+      priceInputMode: 'UNIT',
+      batchNo: '',
       receivedBy: item.receivedBy || '',
       note: item.note || '',
     })

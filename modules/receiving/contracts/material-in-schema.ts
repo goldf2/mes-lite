@@ -4,6 +4,7 @@ import { materialInPriceUnits } from '@/lib/material-in-quantity'
 export const materialInCommonShape = {
   voucherNo: z.string().optional(),
   supplierId: z.string().min(1, '供应商必填'),
+  stagingLocationId: z.string().min(1, '待分库库位必填').optional(),
   receivedBy: z.string().optional(),
   note: z.string().optional(),
 }
@@ -29,7 +30,10 @@ export const materialInItemShape = {
 
 export const materialInItemSchema = z.object(materialInItemShape)
 
-export const updateMaterialInSchema = z.object({ ...materialInCommonShape, ...materialInItemShape })
+export const updateMaterialInSchema = z.object({
+  ...materialInCommonShape,
+  items: z.array(materialInItemSchema).min(1, '请至少添加一种物料').max(100, '单张来料单最多添加 100 种物料'),
+})
 
 export const reverseMaterialInSchema = z.object({
   reason: z.string().trim().min(1, '红冲原因必填'),

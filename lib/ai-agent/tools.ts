@@ -384,7 +384,7 @@ export async function executeAgentTool(
         _sum: { actualQty: true },
       }),
       prisma.productionOrderActual.count({ where: { status: 'DRAFT' } }),
-      prisma.materialIn.count({ where: { status: 'PENDING' } }),
+      prisma.materialReceipt.count({ where: { status: 'PENDING', deletedAt: null } }),
       prisma.shipment.count({ where: { status: 'PENDING', deletedAt: null } }),
       prisma.returnOrder.count({ where: { status: 'PENDING', deletedAt: null } }),
       prisma.stock.count({ where: { availableQty: { lt: 10 }, material: { is: { deletedAt: null } } } }),

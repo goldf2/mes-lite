@@ -29,6 +29,7 @@ async function main() {
   let directMaterialId = ''
   let directStockId = ''
   let directMaterialInId = ''
+  let directMaterialInLineId = ''
   let documentMaterialId = ''
   let workInstructionId = ''
 
@@ -96,6 +97,9 @@ async function main() {
       },
     })
     supplierId = supplier.id
+    const stagingLocation = await prisma.inventoryLocation.create({
+      data: { code: `VERIFY-STAGING-${suffix}`, name: '永久删除验证待分库', isDefault: true },
+    })
 
     const reversedMaterial = await prisma.material.create({
       data: {
@@ -229,9 +233,16 @@ async function main() {
     })
     directMaterialId = directMaterial.id
     directStockId = directMaterial.stock!.id
+    const directReceipt = await prisma.materialReceipt.create({
+      data: {
+        inboundNo: `VERIFY-DIRECT-IN-${suffix}`, supplierId: supplier.id,
+        stagingLocationId: stagingLocation.id, status: 'REVERSED', deletedAt: new Date(),
+      },
+    })
+    directMaterialInId = directReceipt.id
     const directMaterialIn = await prisma.materialIn.create({
       data: {
-        inboundNo: `VERIFY-DIRECT-IN-${suffix}`,
+        inboundNo: `VERIFY-DIRECT-IN-${suffix}-001`, receiptId: directReceipt.id, lineNo: 1,
         supplierId: supplier.id,
         materialId: directMaterial.id,
         qty: 1,
@@ -243,7 +254,7 @@ async function main() {
         deletedAt: new Date(),
       },
     })
-    directMaterialInId = directMaterialIn.id
+    directMaterialInLineId = directMaterialIn.id
     await prisma.inventoryCostLayer.create({
       data: {
         materialId: directMaterial.id,
@@ -290,8 +301,10 @@ async function main() {
       ],
     })
 
-    await purgeArchivedRecord('materialIn', directMaterialIn.id)
+    await purgeArchivedRecord('materialIn', directReceipt.id)
     directMaterialInId = ''
+    directMaterialInLineId = ''
+    assert.equal(await prisma.materialReceipt.count({ where: { id: directReceipt.id } }), 0)
     assert.equal(await prisma.materialIn.count({ where: { id: directMaterialIn.id } }), 0)
     assert.equal(await prisma.stockLog.count({ where: { refId: directMaterialIn.id } }), 0)
     assert.equal(await prisma.inventoryCostLayer.count({
@@ -386,12 +399,15 @@ async function main() {
     if (reversedMaterialId) {
       await prisma.material.deleteMany({ where: { id: reversedMaterialId } }).catch(() => undefined)
     }
-    if (directMaterialInId) {
+    if (directMaterialInLineId) {
       await prisma.inventoryCostLayer.deleteMany({
-        where: { OR: [{ materialInId: directMaterialInId }, { sourceId: directMaterialInId }] },
+        where: { OR: [{ materialInId: directMaterialInLineId }, { sourceId: directMaterialInLineId }] },
       }).catch(() => undefined)
-      await prisma.stockLog.deleteMany({ where: { refId: directMaterialInId } }).catch(() => undefined)
-      await prisma.materialIn.deleteMany({ where: { id: directMaterialInId } }).catch(() => undefined)
+      await prisma.stockLog.deleteMany({ where: { refId: directMaterialInLineId } }).catch(() => undefined)
+      await prisma.materialIn.deleteMany({ where: { id: directMaterialInLineId } }).catch(() => undefined)
+    }
+    if (directMaterialInId) {
+      await prisma.materialReceipt.deleteMany({ where: { id: directMaterialInId } }).catch(() => undefined)
     }
     if (directStockId) {
       await prisma.stockLog.deleteMany({ where: { stockId: directStockId } }).catch(() => undefined)

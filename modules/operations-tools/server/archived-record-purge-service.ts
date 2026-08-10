@@ -107,6 +107,8 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
       ? 'productionOrder'
       : model === 'return'
         ? 'returnOrder'
+        : model === 'materialIn'
+          ? 'materialReceipt'
         : model]
     const current = await delegate.findUnique({ where: { id } })
     if (!current) throw new ArchivedRecordPurgeError('归档记录不存在', 404)
@@ -226,7 +228,7 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
       addCountBlocker(blockers, counts._count.shipments, '发货单')
       addCountBlocker(blockers, counts._count.returnOrders, '退货单')
     } else if (model === 'supplier') {
-      const count = await tx.materialIn.count({ where: { supplierId: id } })
+      const count = await tx.materialReceipt.count({ where: { supplierId: id } })
       addCountBlocker(blockers, count, '来料单')
     } else if (model === 'customer') {
       const counts = await tx.customer.findUniqueOrThrow({
@@ -245,9 +247,10 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
       addCountBlocker(blockers, counts._count.materials, '物料')
       addCountBlocker(blockers, counts._count.shipments, '发货单')
     } else if (model === 'materialIn') {
+      const lineIds = (await tx.materialIn.findMany({ where: { receiptId: id }, select: { id: true } })).map((line) => line.id)
       const [costLayers, stockLogs] = await Promise.all([
         tx.inventoryCostLayer.findMany({
-          where: { OR: [{ materialInId: id }, { sourceId: id }] },
+          where: { OR: [{ materialInId: { in: lineIds } }, { sourceId: { in: lineIds } }] },
           select: {
             id: true,
             status: true,
@@ -258,7 +261,7 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
           },
         }),
         tx.stockLog.findMany({
-          where: { refId: id },
+          where: { refId: { in: lineIds } },
           select: {
             id: true,
             type: true,
@@ -347,10 +350,11 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
         await tx.stock.delete({ where: { id: materialStockId } })
       }
     } else if (model === 'materialIn') {
+      const lineIds = (await tx.materialIn.findMany({ where: { receiptId: id }, select: { id: true } })).map((line) => line.id)
       await tx.inventoryCostLayer.deleteMany({
-        where: { OR: [{ materialInId: id }, { sourceId: id }] },
+        where: { OR: [{ materialInId: { in: lineIds } }, { sourceId: { in: lineIds } }] },
       })
-      await tx.stockLog.deleteMany({ where: { refId: id } })
+      await tx.stockLog.deleteMany({ where: { refId: { in: lineIds } } })
     }
     const deleted = await delegate.delete({ where: { id } })
     return {

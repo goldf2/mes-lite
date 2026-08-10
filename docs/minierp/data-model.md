@@ -533,7 +533,7 @@ SKU，实际库存单位。
 | `isDefault / isActive` | 默认选择与启用状态 |
 | `outputQuantity / outputUnit` | 主产出基准数量/单位的兼容投影，真实产出集合以 `BOMOutput` 为准 |
 
-`BOMOutput.quantity` 保存同一基准批次按产出物料主库存单位归一化后的每项产出，并以 `isPrimary` 标识唯一主产出。`BOMItem.quantity` 保存该批次按投入物料主库存单位归一化后的绝对投入量；两表的 `unit` 都是主库存单位快照，`entryUnit` 是用户选择的同量纲录入单位。长度和重量可按单位目录换算，数量类和其他类保持主库存单位。同一投入物料在一个 BOM 中只能出现一次。新保存的物料投入将兼容字段 `outputMaterialId` 置空，表示它属于整个批次而非某项产出。投入物料不按 `Material.category` 限制，分类只参与筛选和显示，也可用成品或半成品作为投入表达二次加工。一对一只是普通批次关系，不设独立换算模型；`purpose` 仅用于区分生产和包装语义。同物料的纯移库不属于 BOM 转换。
+`BOMOutput.quantity` 保存同一基准批次按产出物料主库存单位归一化后的每项产出，并以 `isPrimary` 标识唯一主产出。`BOMItem.quantity` 保存该批次按投入物料主库存单位归一化后的绝对投入量；两表的 `unit` 都是主库存单位快照。`entryUnit / entryQuantity` 保存用户实际输入的单位和数量，`conversionRateUsed / conversionSource / unitVersionUsed` 冻结保存时使用的物料换算。单位目录负责同量纲换算；物料配置有效的参考计量和 `conversionRate` 后，还可在主计量与参考计量之间换算，例如按 kg 填写长度库存物料的 BOM 用量。同一投入物料在一个 BOM 中只能出现一次。新保存的物料投入将兼容字段 `outputMaterialId` 置空，表示它属于整个批次而非某项产出。投入物料不按 `Material.category` 限制，分类只参与筛选和显示，也可用成品或半成品作为投入表达二次加工。一对一只是普通批次关系，不设独立换算模型；`purpose` 仅用于区分生产和包装语义。同物料的纯移库不属于 BOM 转换。
 
 ### BOMItem 锯切成本组成
 
@@ -608,7 +608,7 @@ BOM 成本计算会展开物料 BOM：
 - `SAWING_COST` 或其他成本对象项读取生效成本版本，按数量计算材料成本、人工工时、机时和直接费用。
 - 固定费用作为本次 `OVERHEAD` 快照行保存，不写入 BOM 本体。
 
-BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并列显示输入和输出，长度和重量行可从同量纲单位目录选择录入单位，切换时数值同步换算；长度新行默认 `mm`，重量新行默认 `g`。服务端校验录入单位后，将 `BOMItem.quantity` 和 `BOMOutput.quantity` 统一换算到各物料主库存单位，`entryUnit` 仅用于恢复录入显示，不允许跨量纲换算。新投入的 `outputMaterialId` 置空。标准 BOM 不再单独设置固定或百分比损耗：废料、废屑和可回收料必须作为明确的 `BOMOutput` 记录，避免与损耗字段重复核算。生产订单按主产出实际数量计算批次倍数并展开共同投入和全部计划产出；实绩中的额外耗用仅表示本批次计划外差异。
+BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并列显示输入和输出，单位下拉列出物料主计量单位，以及已配置有效物料换算时的参考计量单位；长度新行默认 `mm`，重量新行默认 `g`。服务端将 `BOMItem.quantity` 和 `BOMOutput.quantity` 统一换算到各物料主库存单位，同时保存原始录入量和换算快照。后续修改物料标准单重/米重不会改写历史 BOM 的显示量，只有操作员再次保存该 BOM 时才采用新换算。新投入的 `outputMaterialId` 置空。标准 BOM 不再单独设置固定或百分比损耗：废料、废屑和可回收料必须作为明确的 `BOMOutput` 记录，避免与损耗字段重复核算。生产订单按主产出实际数量计算批次倍数并展开共同投入和全部计划产出；实绩中的额外耗用仅表示本批次计划外差异。
 
 ### ProductionOrder / ProductionOrderActual（当前 Prisma 已实现）
 
@@ -659,7 +659,7 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 ### 物料主计量与长度型来料
 
-`Material.primaryMeasure` 取 `LENGTH`、`WEIGHT`、`QUANTITY` 或 `OTHER`。`stockUnit` 是主库存单位，库存、领料和生产耗用都以它为准。`referenceMeasure`、`valuationUnit` 和 `conversionRate` 是可选参考/计价口径，默认换算只在来料未填写实测值时使用；物料不保存标准长度。
+`Material.primaryMeasure` 取 `LENGTH`、`WEIGHT`、`QUANTITY` 或 `OTHER`。`stockUnit` 是主库存单位，库存、领料和生产耗用都以它为准。`referenceMeasure`、`valuationUnit` 和 `conversionRate` 是可选参考/计价口径；`conversionRate` 的统一语义是“1 主库存单位 = N 参考单位”。当参考计量为重量时，数量主单位对应标准单重，长度主单位对应标准单位长度重量（如 kg/m）。它用于 BOM 计划换算，并在来料未填写实测值时作为默认核算依据；物料不保存标准长度。
 
 物料单位必须来自系统单位目录。长度、重量、数量和其他计量方式的系统基准单位分别为 `m`、`kg`、`件` 和 `项`；自定义单位保存到 `SystemSetting` 的 `units.customCatalog` 配置中，并记录换算到所属基准单位的系数。该目录只处理同一计量方式内的通用换算，物料自身的长度与重量等跨计量关系仍由 `conversionRate` 表达。
 
@@ -667,7 +667,9 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 有效库存成本层的单位若与当前物料主单位不一致，不能仅改标签或直接删除，因为该层仍参与 FIFO 和成本运算。数据关系检查只把它列为阻塞风险，必须由操作员核对并通过合法库存调整处理。
 
-`MaterialIn` 使用 `pieceCount`、`totalLength` 和 `totalWeight` 保存本批实测的件数、总长度（m）和总重量（kg）；三者是独立事实，不因物料只配置了单一库存单位而丢弃。长度型来料同时使用 `stockQtyMode` 和 `stockQtyInput` 保留原始录入语义：
+`MaterialReceipt` 是来料单头，保存单号、供应商、凭据号、统一待分库库位、状态、日期、收料人、备注和归档信息；一张单头关联一至多条 `MaterialIn` 明细。`MaterialIn` 保留物料、批次、数量、计价、换算和成本层来源，是兼容既有库存流水的来料行模型。历史单行记录迁移为“一张单头 + 一条明细”，附件继续绑定单头 ID。
+
+每条 `MaterialIn` 使用 `pieceCount`、`totalLength` 和 `totalWeight` 保存本批实测的件数、总长度（m）和总重量（kg）；三者是独立事实，不因物料只配置了单一库存单位而丢弃。长度型来料同时使用 `stockQtyMode` 和 `stockQtyInput` 保留原始录入语义：
 
 - `TOTAL`：`stockQtyInput` 是本批总长度，`qty = stockQtyInput`。
 - `PER_PIECE`：`stockQtyInput` 是单根长度，`qty = pieceCount × stockQtyInput`。
@@ -675,9 +677,9 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 因此长度型物料的 `qty` 是入账总长度，`pieceCount` 是物理件数，`totalWeight` 是本批总重量；只有按物料主计量方式解析出的 `qty` 进入主库存。`priceUnit` 固定为 `m`、`kg` 或 `件`，计价数量分别取 `totalLength`、`totalWeight` 或 `pieceCount`。用户可以录入单价或总价格，服务端最终统一保存相互一致的 `unitPrice` 与 `totalAmount`。
 
-来料登记、详情、编辑、收货、拒收和整单红冲由 `modules/receiving/server` 统一拥有。收货在同一事务增加 `Stock`、目标 `StockLocationBalance` 和来料成本层并写入库存流水；整单红冲只有在对应成本层未被消费或人工改变时才允许执行，并在同一事务恢复总库存、库位、成本层余额和反向流水。Route Handler 不复制这些状态或库存规则。
+来料登记、详情、编辑、收货、拒收和整单红冲由 `modules/receiving/server` 统一拥有。创建时所有明细强制使用单头的待分库库位，不按物料分别选择最终库位；确认收货在同一事务逐行增加 `Stock`、该待分库 `StockLocationBalance` 和成本层并写入库存流水，后续通过 `FlowTransfer` 调拨到实际原料、待检或生产库位。整单红冲要求所有明细的对应成本层均未被消费或人工改变，任一行不满足则整笔回滚。Route Handler 不复制这些状态或库存规则。
 
-> v0.1.127 上线前来料单均为测试数据，迁移会一次性删除旧来料单、关联附件、审计、扫码/打印记录，并清零受影响物料的测试库存流水与成本层。新接口不对旧来料请求做字段兜底。
+> v0.1.339 将既有 `MaterialIn` 记录按原 ID 建立兼容单头，不删除历史库存流水、成本层或附件；旧记录以一单一行继续展示。
 
 当前库存不维护长度分布，只保存汇总值，不能直接回答某个具体长度各有多少根。未来如需显示“3.5 m 有几根、1.5 m 有几根”，应在来料单下增加同长分组/包装明细并汇总到现有字段；不需要改成每根实体库存。
 
@@ -837,7 +839,8 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 | `StockLocationBalance` | `stockId`、`locationId`、`qty`、`reservedQty`、`availableQty` | 主库存单位下的库位实物余额，`stockId + locationId` 唯一 |
 | `Stock` | 原有总量、核算数量和成本字段 | 继续作为物料总库存及成本唯一汇总账，不把成本复制到库位余额 |
 | `StockLog.locationId` | 库位外键 | 记录每次库存变动发生在哪个库位 |
-| `MaterialIn.locationId` | 收货库位 | 确认收货时增加该库位和物料总库存 |
+| `MaterialReceipt.stagingLocationId` | 整单待分库库位 | 一张来料单的全部明细确认时先进入该统一库位 |
+| `MaterialIn.locationId` | 明细入账库位快照 | 与单头待分库库位一致，供库存流水和历史成本层追踪 |
 | `DailyProductionReport.consumptionLocationId` | 默认投入来源库位 | 仅作为新建投入明细时的界面默认值 |
 | `DailyProductionConsumption.locationId` | 逐项投入来源库位 | 日报确认时按各明细库位扣减，冲销时恢复到同一库位 |
 | `DailyProductionReport.outputQty` | 产出入库数量 | 日报确认时增加到物料总库存和所选产出库位 |

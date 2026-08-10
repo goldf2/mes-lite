@@ -38,15 +38,13 @@ export async function POST(req: NextRequest) {
     if (denied) return denied
 
     const result = await createMaterialIns(createMaterialInSchema.parse(await req.json()))
-    for (const materialIn of result.items) {
-      await writeAuditLog(req, {
-        action: 'CREATE',
-        entityType: 'MATERIAL_IN',
-        entityId: materialIn.id,
-        entityLabel: materialIn.inboundNo,
-        afterData: materialIn,
-      })
-    }
+    await writeAuditLog(req, {
+      action: 'CREATE',
+      entityType: 'MATERIAL_IN',
+      entityId: result.first.id,
+      entityLabel: result.first.inboundNo,
+      afterData: result.first,
+    })
     return NextResponse.json({ data: result.first, items: result.items, count: result.items.length }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {

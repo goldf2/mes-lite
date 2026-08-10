@@ -109,6 +109,13 @@ export default function MaterialEditDialog({
   )
   const stockUnitConfigured = stockUnitOptions.some((unit) => unit.code === form.stockUnit)
   const valuationUnitConfigured = valuationUnitOptions.some((unit) => unit.code === form.valuationUnit)
+  const conversionRateLabel = form.referenceMeasure === 'WEIGHT'
+    ? form.primaryMeasure === 'LENGTH'
+      ? '标准单位长度重量'
+      : form.primaryMeasure === 'QUANTITY'
+        ? '标准单重'
+        : '标准重量换算'
+    : '默认参考换算'
 
   const handleSubmit = async () => {
     if (!form.code || !form.name || !form.stockUnit || (form.useDualUnit && (!form.valuationUnit || form.conversionRate <= 0))) {
@@ -346,7 +353,7 @@ export default function MaterialEditDialog({
                   placeholder="输入单位名称或编码筛选"
                 />
               </FormField>
-              <FormField label="默认参考换算" required hint={`仅在来料未填实测值时参考：1 ${form.stockUnit || '主单位'} = ${form.conversionRate || 0} ${form.valuationUnit || '参考单位'}`}>
+              <FormField label={conversionRateLabel} required hint={`用于 BOM 换算，并在来料未填实测值时参考：1 ${form.stockUnit || '主单位'} = ${form.conversionRate || 0} ${form.valuationUnit || '参考单位'}`}>
                 <input
                   type="number"
                   step="0.0001"
@@ -368,7 +375,7 @@ export default function MaterialEditDialog({
               </FormField>
             </div>
           )}
-          <p className="text-xs text-gray-500">物料不保存标准长度。长度型原料在每张来料单按根数及总长度/单根长度录入本批实际长度。</p>
+          <p className="text-xs text-gray-500">物料保存标准单重或标准米重作为计划/BOM 换算依据；来料单仍记录本批实际数量、长度和重量，实际值优先用于库存核算。</p>
         </section>
       </div>
     </ModalDialog>

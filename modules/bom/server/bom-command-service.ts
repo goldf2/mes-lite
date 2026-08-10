@@ -56,7 +56,10 @@ export async function saveBom(input: SaveBomInput) {
   const outputMaterialIds = normalizedOutputs.map((output) => output.materialId)
   const outputMaterials = await prisma.material.findMany({
     where: { id: { in: outputMaterialIds }, deletedAt: null },
-    select: { id: true, code: true, name: true, primaryMeasure: true, stockUnit: true, unit: true },
+    select: {
+      id: true, code: true, name: true, primaryMeasure: true, referenceMeasure: true,
+      stockUnit: true, unit: true, valuationUnit: true, conversionRate: true, unitVersion: true,
+    },
   })
   if (outputMaterials.length !== outputMaterialIds.length) throw new BomDomainError('BOM 中存在无效或已归档的产出物料')
   const outputMaterialById = new Map(outputMaterials.map((material) => [material.id, material]))
@@ -66,7 +69,10 @@ export async function saveBom(input: SaveBomInput) {
   const materialIds = Array.from(new Set(inputMaterialIds))
   const materials = await prisma.material.findMany({
     where: { id: { in: materialIds }, deletedAt: null },
-    select: { id: true, primaryMeasure: true, stockUnit: true, unit: true },
+    select: {
+      id: true, primaryMeasure: true, referenceMeasure: true, stockUnit: true, unit: true,
+      valuationUnit: true, conversionRate: true, unitVersion: true,
+    },
   })
   if (materials.length !== materialIds.length) throw new BomDomainError('BOM 中存在无效或已归档物料')
   const materialById = new Map(materials.map((material) => [material.id, material]))
@@ -79,7 +85,9 @@ export async function saveBom(input: SaveBomInput) {
     })
     return {
       itemType: 'MATERIAL', materialId: item.materialId, outputMaterialId: null,
-      quantity: normalized.quantity, unit: normalized.unit, entryUnit: normalized.entryUnit, wastageRate: 0,
+      quantity: normalized.quantity, unit: normalized.unit, entryUnit: normalized.entryUnit,
+      entryQuantity: normalized.entryQuantity, conversionRateUsed: normalized.conversionRateUsed,
+      conversionSource: normalized.conversionSource, unitVersionUsed: normalized.unitVersionUsed, wastageRate: 0,
     }
   })
   const outputs = normalizedOutputs.map((output) => {
@@ -91,7 +99,9 @@ export async function saveBom(input: SaveBomInput) {
     })
     return {
       materialId: output.materialId, quantity: normalized.quantity,
-      unit: normalized.unit, entryUnit: normalized.entryUnit, isPrimary: Boolean(output.isPrimary),
+      unit: normalized.unit, entryUnit: normalized.entryUnit, entryQuantity: normalized.entryQuantity,
+      conversionRateUsed: normalized.conversionRateUsed, conversionSource: normalized.conversionSource,
+      unitVersionUsed: normalized.unitVersionUsed, isPrimary: Boolean(output.isPrimary),
     }
   })
   const primaryOutput = outputs.find((output) => output.isPrimary)!

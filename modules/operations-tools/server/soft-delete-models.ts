@@ -19,7 +19,7 @@ export const SOFT_DELETE_MODELS = {
   materialIn: {
     entityType: 'MATERIAL_IN',
     labelField: 'inboundNo',
-    delegate: prisma.materialIn,
+    delegate: prisma.materialReceipt,
   },
   workInstruction: {
     entityType: 'WORK_INSTRUCTION',

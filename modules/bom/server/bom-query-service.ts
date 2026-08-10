@@ -26,6 +26,7 @@ export async function listBoms() {
       select: {
         id: true, code: true, name: true, spec: true, category: true,
         unit: true, stockUnit: true, valuationUnit: true, primaryMeasure: true,
+        referenceMeasure: true, conversionRate: true, unitVersion: true,
       },
       orderBy: [{ category: 'asc' }, { code: 'asc' }],
       take: 1000,

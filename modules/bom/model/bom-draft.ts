@@ -60,8 +60,10 @@ export function isBomDraftDirty(input: {
       const material = input.materialById.get(item.materialId)
       return !savedItem
         || bomRatiosDiffer(
-          Number(savedItem.quantity),
-          quantityInStockUnit(item.quantity, item.unit, material, input.unitCatalog),
+          savedItem.entryQuantity == null ? Number(savedItem.quantity) : Number(savedItem.entryQuantity),
+          savedItem.entryQuantity == null
+            ? quantityInStockUnit(item.quantity, item.unit, material, input.unitCatalog)
+            : Number(item.quantity),
         )
         || normalizeUnitCode(savedItem.entryUnit || savedItem.unit) !== normalizeUnitCode(item.unit)
     })
@@ -71,8 +73,10 @@ export function isBomDraftDirty(input: {
       const material = input.materialById.get(output.materialId)
       return !savedOutput
         || bomRatiosDiffer(
-          Number(savedOutput.quantity),
-          quantityInStockUnit(output.quantity, output.unit, material, input.unitCatalog),
+          savedOutput.entryQuantity == null ? Number(savedOutput.quantity) : Number(savedOutput.entryQuantity),
+          savedOutput.entryQuantity == null
+            ? quantityInStockUnit(output.quantity, output.unit, material, input.unitCatalog)
+            : Number(output.quantity),
         )
         || normalizeUnitCode(savedOutput.entryUnit || savedOutput.unit) !== normalizeUnitCode(output.unit)
     })
@@ -81,8 +85,12 @@ export function isBomDraftDirty(input: {
     || input.draftPurpose !== (input.selectedBom?.purpose || 'PRODUCTION')
     || input.draftIsDefault !== (input.selectedBom?.isDefault ?? true)
     || bomRatiosDiffer(
-      quantityInStockUnit(input.primaryOutputQuantity, input.primaryOutputUnit, input.selectedMaterial, input.unitCatalog),
-      Number(input.selectedBom?.outputQuantity || 1),
+      primaryOutput?.entryQuantity == null
+        ? quantityInStockUnit(input.primaryOutputQuantity, input.primaryOutputUnit, input.selectedMaterial, input.unitCatalog)
+        : Number(input.primaryOutputQuantity),
+      primaryOutput?.entryQuantity == null
+        ? Number(input.selectedBom?.outputQuantity || 1)
+        : Number(primaryOutput.entryQuantity),
     )
     || normalizeUnitCode(primaryOutput?.entryUnit || primaryOutput?.unit || input.selectedBom?.outputUnit || '')
       !== normalizeUnitCode(input.primaryOutputUnit)

@@ -4,6 +4,7 @@ export type {
   InventoryLocationOption,
   MaterialInDraftItem,
   MaterialInFormState,
+  MaterialInLineRecord,
   MaterialInRecord,
   ReceivingMaterialOption,
   SupplierOption,

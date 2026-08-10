@@ -69,7 +69,7 @@ export async function updateManagedInventoryLocation(input: InventoryLocationUpd
 
 async function countPendingInventoryLocationReferences(tx: Prisma.TransactionClient, id: string) {
   const [pendingReceipts, draftReports, draftTransfers, pendingShipments, pendingReturns] = await Promise.all([
-    tx.materialIn.count({ where: { locationId: id, status: 'PENDING', deletedAt: null } }),
+    tx.materialReceipt.count({ where: { stagingLocationId: id, status: 'PENDING', deletedAt: null } }),
     tx.dailyProductionReport.count({ where: { status: 'DRAFT', OR: [{ consumptionLocationId: id }, { outputLocationId: id }] } }),
     tx.flowTransfer.count({ where: { status: 'DRAFT', OR: [{ sourceLocationId: id }, { targetLocationId: id }] } }),
     tx.shipment.count({ where: { locationId: id, status: 'PENDING', deletedAt: null } }),

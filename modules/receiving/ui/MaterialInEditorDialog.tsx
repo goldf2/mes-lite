@@ -126,7 +126,7 @@ export default function MaterialInEditorDialog({
   return (
 <ModalDialog
   title={editingItem ? `编辑来料单 ${editingItem.inboundNo}` : '新建来料单'}
-  description={editingItem ? '修改当前来料明细。' : '一张来料单可添加多种物料，每种物料分别记录数量、计价和库位。'}
+  description="一张来料单可添加多种物料；整单先进入同一待分库库位，后续通过流程转移完成分库。"
   onClose={closeMaterialInForm}
   closeDisabled={loading || draftAttachmentBusy}
   size="wide"
@@ -137,13 +137,13 @@ export default function MaterialInEditorDialog({
     <ModalActions
       onCancel={closeMaterialInForm}
       onConfirm={handleSubmit}
-      confirmLabel={editingItem ? '保存并输出 PDF' : `创建 ${draftItems.length + (form.materialId ? 1 : 0)} 项并输出 PDF`}
+      confirmLabel={editingItem ? `保存 ${draftItems.length + (form.materialId ? 1 : 0)} 项并输出 PDF` : `创建 ${draftItems.length + (form.materialId ? 1 : 0)} 项并输出 PDF`}
       busy={loading || draftAttachmentBusy}
     />
   )}
 >
-  <div className={`min-h-0 ${editingItem ? '' : 'xl:grid xl:h-full xl:grid-cols-[minmax(0,1fr)_20rem]'}`}>
-    <div className={`grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-3 xl:gap-4 ${editingItem ? '' : 'xl:min-h-0 xl:overflow-y-auto xl:pr-5'}`}>
+  <div className="min-h-0 xl:grid xl:h-full xl:grid-cols-[minmax(0,1fr)_20rem]">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-3 xl:min-h-0 xl:overflow-y-auto xl:pr-5 xl:gap-4">
       <div className="lg:col-span-3">
         <label className="block text-sm font-medium text-gray-700 mb-2">凭据号</label>
         <input
@@ -210,7 +210,7 @@ export default function MaterialInEditorDialog({
         />
       </div>
       <div className="lg:col-span-3">
-        <label className="mb-2 block text-sm font-medium text-gray-700">收货库位</label>
+        <label className="mb-2 block text-sm font-medium text-gray-700">待分库库位</label>
         <SearchableSelect
           value={form.locationId}
           onChange={(locationId) => setForm({ ...form, locationId })}
@@ -218,7 +218,7 @@ export default function MaterialInEditorDialog({
             value: location.id,
             label: `${location.code} · ${location.name}${location.isDefault ? '（默认）' : ''}`,
           }))}
-          placeholder="输入库位编码或名称筛选"
+          placeholder="整单统一进入默认待分库库位"
         />
       </div>
       {selectedMaterial && (
@@ -433,7 +433,7 @@ export default function MaterialInEditorDialog({
           className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
       </div>
-      {!editingItem && selectedMaterial && (
+      {selectedMaterial && (
         <div className="flex justify-end lg:col-span-12">
           <AppButton variant="secondary" onClick={addCurrentItem}>添加本项并继续</AppButton>
         </div>
@@ -450,8 +450,7 @@ export default function MaterialInEditorDialog({
         </div>
       )}
     </div>
-    {!editingItem && (
-      <aside className="mt-5 border-t border-gray-200 pt-5 xl:mt-0 xl:min-h-0 xl:overflow-y-auto xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+    <aside className="mt-5 border-t border-gray-200 pt-5 xl:mt-0 xl:min-h-0 xl:overflow-y-auto xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-white pb-3">
           <div className="text-sm font-semibold text-gray-900">本单已加入</div>
           <div className="text-xs tabular-nums text-gray-500">{draftItems.length} 项</div>
@@ -476,9 +475,7 @@ export default function MaterialInEditorDialog({
                       <div className="mt-1 text-xs text-gray-500">
                         {item.qty} {item.unit} · ¥{item.totalAmount.toFixed(2)}
                       </div>
-                      <div className="mt-0.5 break-words text-xs text-gray-500">
-                        {location ? `${location.code} · ${location.name}` : item.locationId}
-                      </div>
+                      <div className="mt-0.5 break-words text-xs text-gray-500">统一待分库：{location ? `${location.code} · ${location.name}` : item.locationId}</div>
                     </div>
                     <button
                       type="button"
@@ -500,7 +497,6 @@ export default function MaterialInEditorDialog({
           </div>
         )}
       </aside>
-    )}
   </div>
 </ModalDialog>
   )

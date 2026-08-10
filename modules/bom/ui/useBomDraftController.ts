@@ -172,6 +172,7 @@ export default function useBomDraftController({
     setPrimaryOutputQuantity(String(bomStoredQuantityToEntry({
       quantity: Number(primaryOutput?.quantity || selectedBom?.outputQuantity || 1),
       entryUnit: primaryEntryUnit,
+      entryQuantity: primaryOutput?.entryQuantity,
       material: selectedMaterial || {},
       catalog: unitCatalog,
     })))
@@ -181,6 +182,7 @@ export default function useBomDraftController({
       quantity: bomStoredQuantityToEntry({
         quantity: Number(output.quantity),
         entryUnit: output.entryUnit || output.unit,
+        entryQuantity: output.entryQuantity,
         material: output.material,
         catalog: unitCatalog,
       }),
@@ -193,6 +195,7 @@ export default function useBomDraftController({
       quantity: bomStoredQuantityToEntry({
         quantity: Number(item.quantity || 0),
         entryUnit: item.entryUnit || item.unit,
+        entryQuantity: item.entryQuantity,
         material: item.material || {},
         catalog: unitCatalog,
       }),

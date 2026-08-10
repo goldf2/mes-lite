@@ -105,13 +105,19 @@ async function main() {
       entryUnit: 'mm',
       material: { primaryMeasure: 'LENGTH', stockUnit: 'm' },
       catalog: presetUnitCatalog,
-    }), { quantity: 0.0316, unit: 'm', entryUnit: 'mm' })
+    }), {
+      quantity: 0.0316, unit: 'm', entryUnit: 'mm', entryQuantity: 31.6,
+      conversionRateUsed: 1, conversionSource: 'UNIT_CATALOG', unitVersionUsed: 1,
+    })
     assert.deepEqual(normalizeBomEntryQuantity({
       quantity: 250,
       entryUnit: 'g',
       material: { primaryMeasure: 'WEIGHT', stockUnit: 'kg' },
       catalog: presetUnitCatalog,
-    }), { quantity: 0.25, unit: 'kg', entryUnit: 'g' })
+    }), {
+      quantity: 0.25, unit: 'kg', entryUnit: 'g', entryQuantity: 250,
+      conversionRateUsed: 1, conversionSource: 'UNIT_CATALOG', unitVersionUsed: 1,
+    })
     assert.equal(bomStoredQuantityToEntry({
       quantity: 0.0316,
       entryUnit: 'mm',
@@ -119,12 +125,33 @@ async function main() {
       catalog: presetUnitCatalog,
     }), 31.6)
     assert.equal(convertBomEntryQuantity(1, 'm', 'mm', { primaryMeasure: 'LENGTH', stockUnit: 'm' }, presetUnitCatalog), 1000)
+    assert.deepEqual(normalizeBomEntryQuantity({
+      quantity: 500,
+      entryUnit: 'g',
+      material: {
+        primaryMeasure: 'LENGTH', stockUnit: 'm', referenceMeasure: 'WEIGHT',
+        valuationUnit: 'kg', conversionRate: 2.5, unitVersion: 3,
+      },
+      catalog: presetUnitCatalog,
+    }), {
+      quantity: 0.2, unit: 'm', entryUnit: 'g', entryQuantity: 500,
+      conversionRateUsed: 2.5, conversionSource: 'MASTER_DEFAULT', unitVersionUsed: 3,
+    })
+    assert.equal(convertBomEntryQuantity(2, 'm', 'kg', {
+      primaryMeasure: 'LENGTH', stockUnit: 'm', referenceMeasure: 'WEIGHT',
+      valuationUnit: 'kg', conversionRate: 2.5,
+    }, presetUnitCatalog), 5)
+    assert.equal(bomStoredQuantityToEntry({
+      quantity: 0.2, entryUnit: 'g', entryQuantity: 500,
+      material: { primaryMeasure: 'LENGTH', stockUnit: 'm', referenceMeasure: 'WEIGHT', valuationUnit: 'kg', conversionRate: 3 },
+      catalog: presetUnitCatalog,
+    }), 500, 'BOM 必须优先展示保存时的录入数量，不能被后续物料换算变更改写')
     assert.throws(() => normalizeBomEntryQuantity({
       quantity: 1,
-      entryUnit: '根',
+      entryUnit: 'kg',
       material: { primaryMeasure: 'QUANTITY', stockUnit: '件' },
       catalog: presetUnitCatalog,
-    }), /必须使用主库存单位/)
+    }), /未配置跨量纲换算关系/)
 
     assert.deepEqual(normalizeCustomUnit({
       code: ' FT ', name: ' 英尺 ', measureType: 'LENGTH', toBaseFactor: 0.3048,

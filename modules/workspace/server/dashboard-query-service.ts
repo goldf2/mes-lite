@@ -45,7 +45,7 @@ export async function getDashboardData(now = new Date()) {
     prisma.productionOrderActualOutput.aggregate({ where: { isPrimary: true, actual: { is: { actualDate: { gte: todayStart, lt: tomorrowStart }, status: 'CONFIRMED' } } }, _sum: { actualQty: true } }),
     prisma.productionOrderActualOutput.aggregate({ where: { isPrimary: true, actual: { is: { actualDate: { gte: monthStart, lt: nextMonthStart }, status: 'CONFIRMED' } } }, _sum: { actualQty: true } }),
     prisma.productionOrderActual.count({ where: { status: 'DRAFT' } }),
-    prisma.materialIn.count({ where: { status: 'PENDING' } }),
+    prisma.materialReceipt.count({ where: { status: 'PENDING', deletedAt: null } }),
     prisma.shipment.count({ where: { status: 'PENDING' } }),
     prisma.returnOrder.count({ where: { status: 'PENDING' } }),
     prisma.stock.findMany({

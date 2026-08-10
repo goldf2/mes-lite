@@ -7,7 +7,7 @@ export async function listArchivedRecords(model: ArchiveModel | 'all') {
   if (model === 'all' || model === 'material') result.materials = await prisma.material.findMany({ where: { deletedAt: { not: null } }, orderBy: { deletedAt: 'desc' } })
   if (model === 'all' || model === 'supplier') result.suppliers = await prisma.supplier.findMany({ where: { deletedAt: { not: null } }, orderBy: { deletedAt: 'desc' } })
   if (model === 'all' || model === 'customer') result.customers = await prisma.customer.findMany({ where: { deletedAt: { not: null } }, orderBy: { deletedAt: 'desc' } })
-  if (model === 'all' || model === 'materialIn') result.materialIn = await prisma.materialIn.findMany({ where: { deletedAt: { not: null } }, include: { supplier: true, material: true }, orderBy: { deletedAt: 'desc' } })
+  if (model === 'all' || model === 'materialIn') result.materialIn = await prisma.materialReceipt.findMany({ where: { deletedAt: { not: null } }, include: { supplier: true, stagingLocation: true, lines: { include: { material: true } } }, orderBy: { deletedAt: 'desc' } })
   if (model === 'all' || model === 'workInstruction') result.workInstructions = await prisma.workInstruction.findMany({ where: { deletedAt: { not: null } }, include: { material: true }, orderBy: { deletedAt: 'desc' } })
   if (model === 'all' || model === 'order') result.orders = await prisma.productionOrder.findMany({ where: { deletedAt: { not: null } }, include: { product: true }, orderBy: { deletedAt: 'desc' } })
   if (model === 'all' || model === 'dispatch') result.dispatches = await prisma.dispatch.findMany({ where: { deletedAt: { not: null } }, include: { order: true, step: true }, orderBy: { deletedAt: 'desc' } })

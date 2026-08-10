@@ -30,6 +30,9 @@ export interface BomMaterialOption {
   stockUnit: string
   valuationUnit: string
   primaryMeasure?: BomMeasureType
+  referenceMeasure?: BomMeasureType | null
+  conversionRate?: number
+  unitVersion?: number
   stockQty?: number
   primaryImage?: BomMaterialImage | null
 }
@@ -40,6 +43,10 @@ export interface BomItem {
   quantity: number
   unit: string
   entryUnit?: string | null
+  entryQuantity?: number | null
+  conversionRateUsed?: number | null
+  conversionSource?: string | null
+  unitVersionUsed?: number | null
   wastageRate: number
   material?: BomMaterialOption | null
   outputMaterialId?: string | null
@@ -51,6 +58,10 @@ export interface BomOutput {
   quantity: number
   unit: string
   entryUnit?: string | null
+  entryQuantity?: number | null
+  conversionRateUsed?: number | null
+  conversionSource?: string | null
+  unitVersionUsed?: number | null
   isPrimary: boolean
   material: BomMaterialOption
 }

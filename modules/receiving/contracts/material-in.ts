@@ -38,9 +38,11 @@ export interface ReceivingMaterialOption {
   customer?: { id: string; code: string; name: string } | null
 }
 
-export interface MaterialInRecord {
+export interface MaterialInLineRecord {
   id: string
   inboundNo: string
+  receiptId?: string | null
+  lineNo: number
   voucherNo?: string | null
   supplierId: string
   materialId: string
@@ -70,6 +72,24 @@ export interface MaterialInRecord {
   supplier: { id: string; code: string; name: string }
   material: ReceivingMaterialOption
   location?: InventoryLocationOption | null
+}
+
+export interface MaterialInRecord {
+  id: string
+  inboundNo: string
+  voucherNo?: string | null
+  supplierId: string
+  stagingLocationId: string
+  locationId: string
+  status: string
+  inboundDate: string
+  receivedBy?: string | null
+  note?: string | null
+  totalAmount: number
+  itemCount: number
+  supplier: { id: string; code: string; name: string }
+  location: InventoryLocationOption
+  items: MaterialInLineRecord[]
 }
 
 export interface MaterialInDraftItem {

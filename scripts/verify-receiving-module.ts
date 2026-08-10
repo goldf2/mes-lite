@@ -121,9 +121,12 @@ async function main() {
         },
       ],
     }), fixedNow)
-    assert.deepEqual(created.items.map((item) => item.inboundNo), ['IN-20260810-001', 'IN-20260810-002'])
+    assert.equal(created.first.inboundNo, 'IN-20260810-001')
+    assert.deepEqual(created.items.map((item) => item.inboundNo), ['IN-20260810-001-001', 'IN-20260810-001-002'])
+    assert.equal(new Set(created.items.map((item) => item.receiptId)).size, 1, '多种物料必须属于同一来料单头')
+    assert.equal(new Set(created.items.map((item) => item.locationId)).size, 1, '整单明细必须先进入同一待分库库位')
     assert.deepEqual(
-      [created.first.qty, created.first.valuationQty, created.first.totalAmount],
+      [created.items[0].qty, created.items[0].valuationQty, created.items[0].totalAmount],
       [5, 12, 48],
       '长度型来料必须按实测重量和计价单位生成数量、核算量与金额快照',
     )
@@ -131,14 +134,23 @@ async function main() {
     assert.equal((await getMaterialInDetail(created.first.id)).supplierId, supplier.id)
 
     const updateInput = updateMaterialInSchema.parse({
-      supplierId: supplier.id, materialId: material.id, locationId: location.id,
-      qty: 6, pieceCount: 2, stockQtyMode: 'TOTAL', stockQtyInput: 6,
-      totalLength: 6, totalWeight: 15, unitPrice: 4, priceUnit: 'kg', priceBasis: 'VALUATION',
-      batchNo: 'BATCH-EDIT', receivedBy: '编辑收货员', note: '编辑验证',
+      supplierId: supplier.id, stagingLocationId: location.id,
+      receivedBy: '编辑收货员', note: '编辑验证',
+      items: [
+        {
+          materialId: material.id, qty: 6, pieceCount: 2, stockQtyMode: 'TOTAL', stockQtyInput: 6,
+          totalLength: 6, totalWeight: 15, unitPrice: 4, priceUnit: 'kg', priceBasis: 'VALUATION',
+          batchNo: 'BATCH-EDIT',
+        },
+        {
+          materialId: secondMaterial.id, qty: 3, pieceCount: 3,
+          unitPrice: 8, priceUnit: '件', priceBasis: 'STOCK',
+        },
+      ],
     })
     const edited = await updateManagedMaterialIn(created.first.id, updateInput)
     assert.deepEqual(
-      [edited.updated.qty, edited.updated.valuationQty, edited.updated.totalAmount, edited.updated.batchNo],
+      [edited.updated.items[0].qty, edited.updated.items[0].valuationQty, edited.updated.items[0].totalAmount, edited.updated.items[0].batchNo],
       [6, 15, 60, 'BATCH-EDIT'],
     )
 
@@ -147,12 +159,13 @@ async function main() {
       getMaterialInDetail(created.first.id),
       prisma.stock.findUniqueOrThrow({ where: { materialId: material.id } }),
       prisma.stockLocationBalance.findFirstOrThrow({ where: { locationId: location.id, stock: { materialId: material.id } } }),
-      prisma.inventoryCostLayer.findFirstOrThrow({ where: { materialInId: created.first.id } }),
+      prisma.inventoryCostLayer.findFirstOrThrow({ where: { materialInId: edited.updated.items[0].id } }),
     ])
     assert.equal(received.status, 'RECEIVED')
     assert.deepEqual([receivedStock.qty, receivedStock.valuationQty, receivedStock.totalCost], [6, 15, 60])
     assert.equal(receivedBalance.qty, 6)
     assert.equal(receivedLayer.remainingAmount, 60)
+    assert.equal(received.items.every((line) => line.status === 'RECEIVED'), true)
     await assert.rejects(() => receiveManagedMaterialIn(created.first.id), MaterialInDomainError, '来料不得重复收货')
     await assert.rejects(() => updateManagedMaterialIn(created.first.id, updateInput), /只有待收货来料单可以修改/)
 
@@ -161,8 +174,8 @@ async function main() {
       getMaterialInDetail(created.first.id),
       prisma.stock.findUniqueOrThrow({ where: { materialId: material.id } }),
       prisma.stockLocationBalance.findFirstOrThrow({ where: { locationId: location.id, stock: { materialId: material.id } } }),
-      prisma.inventoryCostLayer.findFirstOrThrow({ where: { materialInId: created.first.id } }),
-      prisma.stockLog.findFirstOrThrow({ where: { refType: 'MATERIAL_IN_REVERSE', refId: created.first.id } }),
+      prisma.inventoryCostLayer.findFirstOrThrow({ where: { materialInId: edited.updated.items[0].id } }),
+      prisma.stockLog.findFirstOrThrow({ where: { refType: 'MATERIAL_IN_REVERSE', refId: edited.updated.items[0].id } }),
     ])
     assert.equal(reversed.status, 'REVERSED')
     assert.deepEqual([reversedStock.qty, reversedStock.valuationQty, reversedStock.totalCost], [0, 0, 0])
@@ -176,7 +189,7 @@ async function main() {
       materialId: secondMaterial.id, locationId: location.id, qty: 2, pieceCount: 2,
       unitPrice: 5, priceUnit: '件', priceBasis: 'STOCK',
     }), fixedNow)
-    assert.equal(third.first.inboundNo, 'IN-20260810-003', '多明细创建后必须继续按最大序号编号')
+    assert.equal(third.first.inboundNo, 'IN-20260810-002', '多明细来料单只占用一个单据编号')
     await rejectManagedMaterialIn(third.first.id)
     assert.equal((await getMaterialInDetail(third.first.id)).status, 'REJECTED')
     await assert.rejects(() => receiveManagedMaterialIn(third.first.id), /无法确认收货/)
@@ -187,7 +200,8 @@ async function main() {
       unitPrice: 5, priceUnit: '件', priceBasis: 'STOCK',
     }), fixedNow)
     await receiveManagedMaterialIn(blocked.first.id)
-    const blockedLayer = await prisma.inventoryCostLayer.findFirstOrThrow({ where: { materialInId: blocked.first.id } })
+    const blockedLine = blocked.items[0]
+    const blockedLayer = await prisma.inventoryCostLayer.findFirstOrThrow({ where: { materialInId: blockedLine.id } })
     await prisma.inventoryCostLayer.update({ where: { id: blockedLayer.id }, data: { remainingStockQty: 3 } })
     await assert.rejects(
       () => reverseManagedMaterialIn(blocked.first.id, { reason: '已消耗批次验证' }),

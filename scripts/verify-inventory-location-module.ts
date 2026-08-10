@@ -37,7 +37,7 @@ function verifyStaticBoundaries() {
   ].join('\n')
   assert.doesNotMatch(services, /NextRequest|NextResponse|requireResourcePermission|writeAuditLog/, '库位服务不得依赖 HTTP、权限或请求审计')
   const command = read('modules/configuration/server/inventory-location-command-service.ts')
-  for (const relation of ['materialIn', 'dailyProductionReport', 'flowTransfer', 'shipment', 'returnOrder']) {
+  for (const relation of ['materialReceipt', 'dailyProductionReport', 'flowTransfer', 'shipment', 'returnOrder']) {
     assert.match(command, new RegExp(`tx\\.${relation}\\.count`), `库位归档必须检查 ${relation} 待处理引用`)
   }
 }
@@ -113,14 +113,14 @@ async function main() {
       where: { id: balance.id }, data: { qty: 0, availableQty: 0 },
     })
     const supplier = await prisma.supplier.create({ data: { code: 'LOC-VERIFY-SUP', name: '验证供应商' } })
-    const receipt = await prisma.materialIn.create({
+    const receipt = await prisma.materialReceipt.create({
       data: {
-        inboundNo: 'LOC-VERIFY-IN', supplierId: supplier.id, materialId: material.id,
-        locationId: second.id, qty: 1, unit: '件', status: 'PENDING',
+        inboundNo: 'LOC-VERIFY-IN', supplierId: supplier.id,
+        stagingLocationId: second.id, status: 'PENDING',
       },
     })
     await assert.rejects(() => archiveManagedInventoryLocation(second.id), /仍被待处理的来料、生产、转移、发货或退货单引用/)
-    await prisma.materialIn.update({ where: { id: receipt.id }, data: { status: 'REJECTED' } })
+    await prisma.materialReceipt.update({ where: { id: receipt.id }, data: { status: 'REJECTED' } })
 
     const archivedAt = new Date('2026-08-10T09:00:00.000Z')
     const archived = await archiveManagedInventoryLocation(second.id, archivedAt)

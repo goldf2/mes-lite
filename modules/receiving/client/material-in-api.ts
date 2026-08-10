@@ -1,6 +1,7 @@
 import type {
   CustomerOption,
   InventoryLocationOption,
+  MaterialInLineRecord,
   MaterialInRecord,
   ReceivingMaterialOption,
   SupplierOption,
@@ -40,7 +41,7 @@ export async function listReceivingMaterials(keyword = '') {
 }
 
 export async function saveMaterialInRecord(id: string | null, payload: Record<string, unknown>) {
-  return requestJson<{ data: MaterialInRecord; items?: MaterialInRecord[]; count?: number }>(
+  return requestJson<{ data: MaterialInRecord; items?: MaterialInLineRecord[]; count?: number }>(
     id ? `/api/material-ins/${id}` : '/api/material-ins',
     { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
     id ? '修改来料单失败' : '创建来料单失败',

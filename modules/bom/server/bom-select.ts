@@ -6,15 +6,21 @@ export const bomItemSelect = {
   quantity: true,
   unit: true,
   entryUnit: true,
+  entryQuantity: true,
+  conversionRateUsed: true,
+  conversionSource: true,
+  unitVersionUsed: true,
   wastageRate: true,
   outputMaterialId: true,
   outputMaterial: { select: {
     id: true, code: true, name: true, spec: true, category: true,
     unit: true, stockUnit: true, valuationUnit: true, primaryMeasure: true,
+    referenceMeasure: true, conversionRate: true, unitVersion: true,
   } },
   material: { select: {
     id: true, code: true, name: true, spec: true, category: true,
     unit: true, stockUnit: true, valuationUnit: true, primaryMeasure: true,
+    referenceMeasure: true, conversionRate: true, unitVersion: true,
   } },
   costObject: { select: { id: true, code: true, name: true, objectType: true, unit: true } },
   sawingScenario: { select: { id: true, name: true } },
@@ -33,10 +39,12 @@ export const bomSelect = {
   outputs: {
     orderBy: { isPrimary: 'desc' as const },
     select: {
-      id: true, quantity: true, unit: true, entryUnit: true, isPrimary: true,
+      id: true, quantity: true, unit: true, entryUnit: true, entryQuantity: true,
+      conversionRateUsed: true, conversionSource: true, unitVersionUsed: true, isPrimary: true,
       material: { select: {
         id: true, code: true, name: true, spec: true, category: true,
         unit: true, stockUnit: true, valuationUnit: true, primaryMeasure: true,
+        referenceMeasure: true, conversionRate: true, unitVersion: true,
       } },
     },
   },

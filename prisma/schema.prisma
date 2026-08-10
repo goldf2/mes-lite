@@ -28,6 +28,7 @@ model InventoryLocation {
   balances           StockLocationBalance[]
   stockLogs          StockLog[]
   materialIns        MaterialIn[]
+  materialReceipts   MaterialReceipt[]
   consumptionReports DailyProductionReport[]       @relation("DailyProductionConsumptionLocation")
   productionInputs   DailyProductionConsumption[]  @relation("DailyProductionConsumptionLineLocation")
   outputReports      DailyProductionReport[]       @relation("DailyProductionOutputLocation")
@@ -197,16 +198,20 @@ model BOM {
 }
 
 model BOMOutput {
-  id         String   @id @default(cuid())
-  bomId      String
-  bom        BOM      @relation(fields: [bomId], references: [id], onDelete: Cascade)
-  materialId String
-  material   Material @relation(fields: [materialId], references: [id])
-  quantity   Float    @default(1)
-  unit       String
-  entryUnit  String?
-  isPrimary  Boolean  @default(false)
-  createdAt  DateTime @default(now())
+  id                 String   @id @default(cuid())
+  bomId              String
+  bom                BOM      @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  materialId         String
+  material           Material @relation(fields: [materialId], references: [id])
+  quantity           Float    @default(1)
+  unit               String
+  entryUnit          String?
+  entryQuantity      Float?
+  conversionRateUsed Float?
+  conversionSource   String?
+  unitVersionUsed    Int?
+  isPrimary          Boolean  @default(false)
+  createdAt          DateTime @default(now())
 
   @@unique([bomId, materialId])
   @@index([materialId])
@@ -214,22 +219,26 @@ model BOMOutput {
 }
 
 model BOMItem {
-  id               String              @id @default(cuid())
-  bomId            String
-  bom              BOM                 @relation(fields: [bomId], references: [id], onDelete: Cascade)
-  itemType         String              @default("MATERIAL")
-  materialId       String?
-  material         Material?           @relation(fields: [materialId], references: [id])
-  outputMaterialId String?
-  outputMaterial   Material?           @relation("BOMItemOutputMaterial", fields: [outputMaterialId], references: [id])
-  costObjectId     String?
-  costObject       CostObject?         @relation(fields: [costObjectId], references: [id])
-  sawingScenarioId String?
-  sawingScenario   SawingCostScenario? @relation(fields: [sawingScenarioId], references: [id])
-  quantity         Float               @default(0)
-  unit             String
-  entryUnit        String?
-  wastageRate      Float               @default(0)
+  id                 String              @id @default(cuid())
+  bomId              String
+  bom                BOM                 @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  itemType           String              @default("MATERIAL")
+  materialId         String?
+  material           Material?           @relation(fields: [materialId], references: [id])
+  outputMaterialId   String?
+  outputMaterial     Material?           @relation("BOMItemOutputMaterial", fields: [outputMaterialId], references: [id])
+  costObjectId       String?
+  costObject         CostObject?         @relation(fields: [costObjectId], references: [id])
+  sawingScenarioId   String?
+  sawingScenario     SawingCostScenario? @relation(fields: [sawingScenarioId], references: [id])
+  quantity           Float               @default(0)
+  unit               String
+  entryUnit          String?
+  entryQuantity      Float?
+  conversionRateUsed Float?
+  conversionSource   String?
+  unitVersionUsed    Int?
+  wastageRate        Float               @default(0)
 
   @@unique([bomId, materialId, outputMaterialId])
   @@index([costObjectId])
@@ -952,26 +961,54 @@ model SalesOrderItem {
 }
 
 model Supplier {
-  id          String       @id @default(cuid())
-  code        String       @unique
-  name        String
-  contact     String?
-  phone       String?
-  address     String?
-  deletedAt   DateTime?
-  deletedBy   String?
-  sortOrder   Int          @default(0)
-  materialIns MaterialIn[]
-  createdAt   DateTime     @default(now())
+  id               String            @id @default(cuid())
+  code             String            @unique
+  name             String
+  contact          String?
+  phone            String?
+  address          String?
+  deletedAt        DateTime?
+  deletedBy        String?
+  sortOrder        Int               @default(0)
+  materialIns      MaterialIn[]
+  materialReceipts MaterialReceipt[]
+  createdAt        DateTime          @default(now())
 
   @@index([sortOrder])
 }
 
 // ==================== 来料入库 ====================
 
+model MaterialReceipt {
+  id                String            @id @default(cuid())
+  inboundNo         String            @unique
+  voucherNo         String?
+  supplierId        String
+  supplier          Supplier          @relation(fields: [supplierId], references: [id])
+  stagingLocationId String
+  stagingLocation   InventoryLocation @relation(fields: [stagingLocationId], references: [id])
+  status            String            @default("PENDING")
+  inboundDate       DateTime          @default(now())
+  receivedBy        String?
+  note              String?
+  deletedAt         DateTime?
+  deletedBy         String?
+  lines             MaterialIn[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([supplierId])
+  @@index([stagingLocationId])
+  @@index([status])
+  @@index([inboundDate])
+}
+
 model MaterialIn {
   id                String             @id @default(cuid())
   inboundNo         String             @unique
+  receiptId         String?
+  receipt           MaterialReceipt?   @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  lineNo            Int                @default(1)
   voucherNo         String?
   supplierId        String
   supplier          Supplier           @relation(fields: [supplierId], references: [id])
@@ -1004,6 +1041,8 @@ model MaterialIn {
   deletedAt         DateTime?
   deletedBy         String?
   createdAt         DateTime           @default(now())
+
+  @@index([receiptId, lineNo])
 }
 
 model InventoryCostLayer {
