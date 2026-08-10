@@ -8,6 +8,7 @@ const navigationGlyphs: Record<string, string> = {
   materialIn: '入',
   dispatch: '派',
   stocks: '库',
+  stockMovements: '流',
   salesOrders: '销',
   shipment: '发',
   return: '退',

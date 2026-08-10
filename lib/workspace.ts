@@ -18,6 +18,7 @@ export const workspaceFunctionKeys = [
   'shipment',
   'return',
   'stocks',
+  'stockMovements',
   'suppliers',
   'customers',
   'locationSettings',
@@ -63,6 +64,7 @@ export const defaultWorkspaceLayout: WorkspaceFunctionKey[] = [
   'materialManagement',
   'bomWorkspace',
   'stocks',
+  'stockMovements',
   'workInstructions',
   'orders',
 ]

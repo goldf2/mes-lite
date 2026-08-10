@@ -32,6 +32,7 @@ const PermissionPage = dynamic(() => import('@/modules/identity-access').then((m
 const DashboardPage = dynamic(() => import('@/modules/workspace'), { loading: FeaturePageLoading })
 const ProductionOrderModule = dynamic(() => import('@/modules/production'), { loading: FeaturePageLoading })
 const StockPageModule = dynamic(() => import('@/modules/inventory'), { loading: FeaturePageLoading })
+const StockMovementPageModule = dynamic(() => import('@/modules/inventory').then((module) => module.StockMovementPageModule), { loading: FeaturePageLoading })
 
 export interface BomEditorTarget {
   materialId: string
@@ -96,6 +97,7 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
       onStateSummaryChange={context.onStockStateSummaryChange}
     />
   ),
+  'stock-movements': (context) => <StockMovementPageModule onMessage={context.onMessage} />,
   materials: (context) => (
     <MaterialPage
       onMessage={context.onMessage}

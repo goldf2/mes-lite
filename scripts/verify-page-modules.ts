@@ -9,7 +9,7 @@ const root = process.cwd()
 const expectedFunctionKeys = [
   'dashboard', 'allFunctions', 'materialManagement', 'bomWorkspace', 'bomUsage', 'workInstructions',
   'equipment', 'orders', 'flowTransfers', 'dispatch', 'materialIn', 'salesOrders', 'shipment', 'return',
-  'stocks', 'suppliers', 'customers', 'employees', 'locationSettings', 'unitSettings', 'workCenters',
+  'stocks', 'stockMovements', 'suppliers', 'customers', 'employees', 'locationSettings', 'unitSettings', 'workCenters',
   'documentCategories', 'processTemplates', 'processRoutes', 'businessSettings', 'displaySettings', 'navigationSettings', 'aiSettings', 'sawingCost', 'scanPrint', 'archive', 'auditLogs',
   'dataTools', 'operators', 'permissionUsers', 'permissionGroups', 'create', 'detail',
 ]
@@ -92,7 +92,7 @@ for (const rendererKey of rendererKeys) {
 for (const key of expectedFunctionKeys) {
   assert.match(pageAuditSource, new RegExp('\\| `' + key + '` \\|'), `页面标准化审计缺少 ${key}`)
 }
-assert.match(pageAuditSource, /已标准化多视图：22 个/, '页面标准化审计的多视图统计必须保持同步')
+assert.match(pageAuditSource, /已标准化多视图：23 个/, '页面标准化审计的多视图统计必须保持同步')
 assert.match(pageAuditSource, /应补多视图：0 个/, '页面标准化审计的待改造统计必须保持同步')
 assert.match(pageAuditSource, /固定形态合理：16 个/, '页面标准化审计的固定形态统计必须保持同步')
 
