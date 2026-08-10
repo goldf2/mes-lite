@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>MES-lite · 当前已实现功能流程与泳道</title>
+  <style>
+    :root {
+      --page:#f3f6fb;--surface:#fff;--text:#132033;--muted:#66758a;--line:#dde5ef;
+      --blue:#2563eb;--blue-soft:#eaf1ff;--green:#07875f;--green-soft:#e8f8f1;
+      --amber:#a85f00;--amber-soft:#fff4d6;--purple:#7047c8;--purple-soft:#f1ebff;
+      --gray:#5f6c80;--gray-soft:#f3f5f8;--shadow:0 18px 52px rgba(30,55,90,.09);
+    }
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;color:var(--text);background:var(--page);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:15px;line-height:1.65}
+    .hero{padding:48px max(24px,calc((100vw - 1500px)/2));color:#fff;background:radial-gradient(circle at 88% 8%,rgba(102,222,194,.24),transparent 28%),linear-gradient(120deg,#102542 0%,#173f7d 58%,#17655d 120%)}
+    .eyebrow{display:inline-flex;padding:6px 11px;border:1px solid rgba(255,255,255,.25);border-radius:999px;background:rgba(255,255,255,.09);font-size:13px;font-weight:750}
+    h1{max-width:980px;margin:16px 0 10px;font-size:clamp(32px,4vw,54px);line-height:1.14;letter-spacing:-.035em}.hero p{max-width:980px;margin:0;color:#dbe8f6;font-size:17px}
+    .hero-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}.button{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 16px;border:1px solid rgba(255,255,255,.25);border-radius:11px;color:#fff;background:rgba(255,255,255,.1);font:inherit;font-weight:700;text-decoration:none;cursor:pointer}.button.primary{color:#17345d;background:#fff}
+    .layout{max-width:1540px;margin:26px auto 80px;padding:0 24px}.panel{margin-bottom:22px;padding:clamp(22px,3vw,38px);border:1px solid var(--line);border-radius:20px;background:var(--surface);box-shadow:var(--shadow)}
+    h2{margin:0 0 10px;font-size:clamp(23px,2.5vw,32px);line-height:1.3}h3{margin:0 0 12px;font-size:18px}.lead{max-width:980px;margin:0 0 22px;color:var(--muted)}
+    .legend{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 22px}.badge{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;font-size:12px;font-weight:750;white-space:nowrap}.implemented{color:#1d4ed8;background:var(--blue-soft)}.automatic{color:#6240a9;background:var(--purple-soft)}.manual{color:#985800;background:var(--amber-soft)}.independent{color:#4d5b70;background:var(--gray-soft)}
+    .flow-stack{display:grid;gap:14px}.flow-row{display:grid;grid-template-columns:145px minmax(0,1fr);gap:14px;align-items:stretch}.flow-label{display:flex;align-items:center;padding:16px;border:1px solid var(--line);border-radius:14px;background:#f7f9fc;font-weight:800}.flow-track{display:flex;align-items:center;gap:9px;min-width:0;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fbfcfe;overflow-x:auto}.flow-node{flex:0 0 175px;min-height:74px;padding:12px;border:1px solid #cfdbea;border-radius:12px;background:#fff;box-shadow:0 4px 12px rgba(34,60,92,.05);font-size:13px;font-weight:700;line-height:1.45}.flow-node small{display:block;margin-top:5px;color:var(--muted);font-weight:500}.flow-arrow{flex:0 0 auto;color:var(--blue);font-size:23px;font-weight:800}.flow-arrow.manual-arrow{color:var(--amber)}.flow-node.system-node{border-color:#d8caf7;background:#fbf9ff}.flow-node.independent-node{border-style:dashed;border-color:#aeb8c6;background:#f8f9fb}
+    .swimlane-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:16px}.swimlane{display:grid;grid-template-columns:170px repeat(6,minmax(190px,1fr));min-width:1340px;background:#fff}.cell{min-height:126px;padding:12px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:#fff}.cell:nth-child(7n){border-right:0}.header-cell{min-height:auto;padding:11px 12px;color:#46566c;background:#f5f8fc;font-size:13px;font-weight:800;text-align:center}.role{position:sticky;left:0;z-index:2;display:flex;align-items:center;color:#23334a;background:#f8fafc;font-weight:800}.role.system-role{color:#5838a1;background:#f5f1ff}
+    .step{position:relative;margin-bottom:8px;padding:10px 11px 10px 14px;border:1px solid #dbe4f0;border-radius:11px;background:#fff;box-shadow:0 4px 12px rgba(34,60,92,.05);font-size:13px;font-weight:650;line-height:1.4}.step::before{content:"";position:absolute;left:-1px;top:10px;bottom:10px;width:4px;border-radius:0 4px 4px 0;background:var(--blue)}.step.system-step{border-color:#ded3fa;background:#fbf9ff}.step.system-step::before{background:var(--purple)}.step.manual-step::before{background:#d98b14}.step.independent-step{border-style:dashed;background:#f8f9fb}.step.independent-step::before{background:#7b8798}.empty{background:#fcfdff}
+    .fact-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.fact{padding:18px;border:1px solid var(--line);border-radius:14px;background:#fff}.fact strong{display:block;margin:7px 0 5px;font-size:17px}.fact p{margin:0;color:var(--muted);font-size:13px}
+    .note{margin-top:18px;padding:15px 17px;border-left:4px solid var(--amber);border-radius:0 12px 12px 0;color:#415267;background:#fff8e8}.footer{padding-top:20px;color:var(--muted);font-size:13px;text-align:center}
+    @media(max-width:760px){.hero{padding:36px 20px}.hero p{font-size:15px}.layout{padding:0 14px}.panel{padding:22px 16px;border-radius:15px}.flow-row{grid-template-columns:1fr}.flow-label{padding:10px 13px}.fact-grid{grid-template-columns:1fr}.swimlane{grid-template-columns:140px repeat(6,175px);min-width:1190px}.cell{min-height:112px;padding:9px}}
+    @media print{@page{size:A3 landscape;margin:10mm}body{background:#fff}.hero{padding:20px;color:#111;background:#fff;border-bottom:2px solid #111}.hero p{color:#444}.hero-actions{display:none}.layout{max-width:none;margin:0;padding:12px 0}.panel{padding:14px;border:0;box-shadow:none;break-inside:avoid}.flow-track,.swimlane-wrap{overflow:visible}.swimlane{min-width:0;grid-template-columns:120px repeat(6,1fr)}.cell{min-height:92px;padding:6px}.step,.flow-node{font-size:10px}}
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <span class="eyebrow">MES-lite · 当前代码事实 · v0.1.338</span>
+    <h1>当前已实现功能流程与角色泳道</h1>
+    <p>只展示当前代码已经具备的销售、来料、生产、库存和履约链路。虚线节点表示已有但独立运行的基础能力，橙色箭头表示仍需人工衔接，不把目标规划混入现状。</p>
+    <div class="hero-actions"><a class="button primary" href="/mes-current-workflow.excalidraw" download>下载 Excalidraw 源文件</a><button class="button" type="button" onclick="window.print()">打印 / 导出 PDF</button><a class="button" href="/mes-business-swimlane.html">查看目标业务泳道</a></div>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <h2>当前端到端流程图</h2>
+      <p class="lead">系统当前不是单一强制流程，而是四条可以独立运行、通过库存与业务引用汇合的业务链。销售订单与生产订单之间目前主要由人员根据需求创建和关联。</p>
+      <div class="legend"><span class="badge implemented">已实现业务节点</span><span class="badge automatic">系统事务与自动记录</span><span class="badge manual">人工衔接</span><span class="badge independent">独立基础能力</span></div>
+      <div class="flow-stack">
+        <div class="flow-row"><div class="flow-label">销售与履约</div><div class="flow-track"><div class="flow-node">客户资料与销售订单<small>产品、数量、价格、交期</small></div><div class="flow-arrow">→</div><div class="flow-node">创建发货单<small>可选关联订单与明细</small></div><div class="flow-arrow">→</div><div class="flow-node system-node">确认发货并扣减库存<small>记录成本与库存流水</small></div><div class="flow-arrow">→</div><div class="flow-node">退货审核与返库<small>保留原发货引用</small></div></div></div>
+        <div class="flow-row"><div class="flow-label">来料与成本</div><div class="flow-track"><div class="flow-node">供应商与来料登记<small>数量、实测、价格、批次号</small></div><div class="flow-arrow">→</div><div class="flow-node">接收 / 拒收<small>接收后进入指定库位</small></div><div class="flow-arrow">→</div><div class="flow-node system-node">库存与成本层<small>库存流水、单位换算、成本快照</small></div><div class="flow-arrow">→</div><div class="flow-node">整单红冲<small>按原业务反向恢复</small></div></div></div>
+        <div class="flow-row"><div class="flow-label">生产执行</div><div class="flow-track"><div class="flow-node">生产订单<small>物料、BOM 快照、计划数量</small></div><div class="flow-arrow">→</div><div class="flow-node">确认与派工<small>工序、人员、优先级</small></div><div class="flow-arrow">→</div><div class="flow-node">班后生产实绩<small>员工、投入、产出、库位</small></div><div class="flow-arrow">→</div><div class="flow-node system-node">确认过账<small>投入出库、产出入库、成本结转</small></div><div class="flow-arrow">→</div><div class="flow-node">进度更新 / 实绩冲销<small>完成量、报废量与成对流水</small></div></div></div>
+        <div class="flow-row"><div class="flow-label">库存与转移</div><div class="flow-track"><div class="flow-node">库存与库位余额<small>现存、预留、可用、成本</small></div><div class="flow-arrow">→</div><div class="flow-node">流程 / 库位转移<small>草稿、确认、冲销</small></div><div class="flow-arrow">→</div><div class="flow-node system-node">统一库存流水<small>数量、成本、来源、人员、前后值</small></div><div class="flow-arrow">→</div><div class="flow-node">查询与核对<small>智能搜索、字段搜索、列表 / 卡片</small></div></div></div>
+        <div class="flow-row"><div class="flow-label">独立支撑</div><div class="flow-track"><div class="flow-node independent-node">基础质检记录<small>关联生产订单，但不控制当前实绩入库</small></div><div class="flow-arrow manual-arrow">⋯</div><div class="flow-node independent-node">设备与工作中心台账<small>没有设备事件、点检和维护闭环</small></div><div class="flow-arrow manual-arrow">⋯</div><div class="flow-node independent-node">附件、打印、权限和审计<small>作为公共模块被业务页面复用</small></div></div></div>
+      </div>
+      <div class="note"><strong>当前关键边界：</strong>确认生产实绩后会直接完成投入出库和产出入库；基础质检记录尚未成为生产放行门禁，销售订单也不会自动生成生产订单。</div>
+    </section>
+
+    <section class="panel">
+      <h2>当前角色泳道图</h2>
+      <p class="lead">泳道只放当前可执行的功能。质量泳道使用虚线，表示系统有基础记录和统计，但尚未接入生产实绩的库存放行事务。</p>
+      <div class="swimlane-wrap" role="region" aria-label="当前 MES 角色泳道图" tabindex="0"><div class="swimlane">
+        <div class="cell header-cell role">角色 / 阶段</div><div class="cell header-cell">1. 主数据与需求</div><div class="cell header-cell">2. 计划与接收</div><div class="cell header-cell">3. 执行与记录</div><div class="cell header-cell">4. 确认与过账</div><div class="cell header-cell">5. 查询与异常</div><div class="cell header-cell">6. 履约与冲销</div>
+        <div class="cell role">销售人员</div><div class="cell"><div class="step">维护客户资料</div><div class="step">登记销售订单和价格</div></div><div class="cell"><div class="step manual-step">人工协调生产需求</div></div><div class="cell empty"></div><div class="cell"><div class="step">创建或关联发货单</div></div><div class="cell"><div class="step">查看订单与发货进度</div></div><div class="cell"><div class="step">登记退货</div></div>
+        <div class="cell role">计划员 / 生产主管</div><div class="cell"><div class="step">维护物料、BOM、工艺和工作中心</div></div><div class="cell"><div class="step">创建并确认生产订单</div><div class="step">保存 BOM 快照</div></div><div class="cell"><div class="step">创建派工并更新状态</div></div><div class="cell"><div class="step">确认生产实绩</div></div><div class="cell"><div class="step">查看完成量、报废量和成本</div></div><div class="cell"><div class="step">取消订单或冲销实绩</div></div>
+        <div class="cell role">仓库员</div><div class="cell"><div class="step">维护供应商和库位</div></div><div class="cell"><div class="step">登记来料及批次号</div><div class="step">接收或拒收来料</div></div><div class="cell"><div class="step">确认生产投入库位</div><div class="step">登记流程 / 库位转移</div></div><div class="cell"><div class="step">核对生产产出入库</div><div class="step">确认发货扣库</div></div><div class="cell"><div class="step">查询库存与库存流水</div></div><div class="cell"><div class="step">来料红冲、转移冲销、退货返库</div></div>
+        <div class="cell role">生产班组 / 操作员</div><div class="cell"><div class="step">查看产品文档和作业指导</div></div><div class="cell"><div class="step">接收派工</div></div><div class="cell"><div class="step">派工开工 / 完成</div><div class="step">填写员工、投入、产出和数量</div></div><div class="cell"><div class="step">提交班后生产实绩草稿</div></div><div class="cell"><div class="step">查看实绩与订单进度</div></div><div class="cell"><div class="step manual-step">由授权人员发起实绩冲销</div></div>
+        <div class="cell role">质检员</div><div class="cell empty"></div><div class="cell empty"></div><div class="cell"><div class="step independent-step">登记生产订单基础质检记录</div></div><div class="cell"><div class="step independent-step">记录样本、良品、不良品和原因</div></div><div class="cell"><div class="step independent-step">查看基础质量统计</div></div><div class="cell empty"></div>
+        <div class="cell role system-role">MES 系统</div><div class="cell"><div class="step system-step">权限校验与主数据引用保护</div></div><div class="cell"><div class="step system-step">校验订单、BOM 快照和状态</div></div><div class="cell"><div class="step system-step">保存投入、产出、员工和库位快照</div></div><div class="cell"><div class="step system-step">事务性投入出库、产出入库和成本结转</div><div class="step system-step">重新计算订单进度</div></div><div class="cell"><div class="step system-step">库存流水、附件、打印和审计</div></div><div class="cell"><div class="step system-step">幂等校验与成对冲销流水</div></div>
+      </div></div>
+    </section>
+
+    <section class="panel"><h2>现状结论</h2><div class="fact-grid"><div class="fact"><span class="badge implemented">已形成闭环</span><strong>生产实绩与库存过账</strong><p>投入出库、产出入库、成本结转、进度更新和实绩冲销已经在服务端事务中处理。</p></div><div class="fact"><span class="badge implemented">已形成闭环</span><strong>来料、发货与库存流水</strong><p>接收、拒收、发货、退货、库位转移和冲销都能形成业务记录与库存变化。</p></div><div class="fact"><span class="badge independent">尚未接通</span><strong>质量门禁与批次谱系</strong><p>已有基础质检记录和来料批次号，但没有待检/冻结库存，也没有原料到成品再到客户的批次谱系。</p></div></div></section>
+    <footer class="footer">MES-lite · 本页只描述当前代码已实现能力；目标流程请查看“MES 业务泳道与角色参与矩阵”。</footer>
+  </main>
+</body>
+</html>
