@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>MES-lite · 业务泳道与角色参与矩阵</title>
+  <style>
+    :root {
+      --page: #f3f6fb;
+      --surface: #fff;
+      --text: #132033;
+      --muted: #66758a;
+      --line: #dde5ef;
+      --blue: #2563eb;
+      --blue-soft: #eaf1ff;
+      --green: #07875f;
+      --green-soft: #e8f8f1;
+      --amber: #a85f00;
+      --amber-soft: #fff4d6;
+      --purple: #7047c8;
+      --purple-soft: #f1ebff;
+      --red: #b83232;
+      --red-soft: #fff0f0;
+      --shadow: 0 18px 52px rgba(30, 55, 90, .09);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background: var(--page);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+    a { color: inherit; }
+    .hero {
+      padding: 48px max(24px, calc((100vw - 1500px) / 2));
+      color: #fff;
+      background:
+        radial-gradient(circle at 88% 8%, rgba(102, 222, 194, .24), transparent 28%),
+        linear-gradient(120deg, #102542 0%, #173f7d 58%, #17655d 120%);
+    }
+    .eyebrow {
+      display: inline-flex;
+      padding: 6px 11px;
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 999px;
+      background: rgba(255,255,255,.09);
+      font-size: 13px;
+      font-weight: 750;
+    }
+    h1 {
+      max-width: 920px;
+      margin: 16px 0 10px;
+      font-size: clamp(32px, 4vw, 54px);
+      line-height: 1.14;
+      letter-spacing: -.035em;
+    }
+    .hero p { max-width: 900px; margin: 0; color: #dbe8f6; font-size: 17px; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 0 16px;
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 11px;
+      color: #fff;
+      background: rgba(255,255,255,.1);
+      font: inherit;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .button.primary { color: #17345d; background: #fff; }
+    .layout { max-width: 1540px; margin: 26px auto 80px; padding: 0 24px; }
+    .panel {
+      margin-bottom: 22px;
+      padding: clamp(22px, 3vw, 38px);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    h2 { margin: 0 0 10px; font-size: clamp(23px, 2.5vw, 32px); line-height: 1.3; }
+    h3 { margin: 26px 0 10px; font-size: 19px; }
+    .lead { max-width: 920px; margin: 0 0 22px; color: var(--muted); }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 22px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+    .current { color: #1d4ed8; background: var(--blue-soft); }
+    .next { color: #087154; background: var(--green-soft); }
+    .later { color: #985800; background: var(--amber-soft); }
+    .system { color: #6240a9; background: var(--purple-soft); }
+    .swimlane-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 16px; }
+    .swimlane {
+      display: grid;
+      grid-template-columns: 160px repeat(6, minmax(190px, 1fr));
+      min-width: 1320px;
+      background: #fff;
+    }
+    .cell {
+      min-height: 122px;
+      padding: 12px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+    .cell:nth-child(7n) { border-right: 0; }
+    .header-cell {
+      min-height: auto;
+      padding: 11px 12px;
+      color: #46566c;
+      background: #f5f8fc;
+      font-size: 13px;
+      font-weight: 800;
+      text-align: center;
+    }
+    .role {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      color: #23334a;
+      background: #f8fafc;
+      font-weight: 800;
+    }
+    .role.system-role { color: #5838a1; background: #f5f1ff; }
+    .step {
+      position: relative;
+      margin-bottom: 8px;
+      padding: 10px 11px 10px 14px;
+      border: 1px solid #dbe4f0;
+      border-radius: 11px;
+      background: #fff;
+      box-shadow: 0 4px 12px rgba(34, 60, 92, .05);
+      font-size: 13px;
+      font-weight: 650;
+      line-height: 1.4;
+    }
+    .step::before {
+      content: "";
+      position: absolute;
+      left: -1px;
+      top: 10px;
+      bottom: 10px;
+      width: 4px;
+      border-radius: 0 4px 4px 0;
+      background: var(--blue);
+    }
+    .step.next-step::before { background: var(--green); }
+    .step.later-step::before { background: #d98b14; }
+    .step.system-step { border-color: #ded3fa; background: #fbf9ff; }
+    .step.system-step::before { background: var(--purple); }
+    .step.danger::before { background: var(--red); }
+    .empty { background: #fcfdff; }
+    .note {
+      margin-top: 18px;
+      padding: 15px 17px;
+      border-left: 4px solid var(--green);
+      border-radius: 0 12px 12px 0;
+      color: #415267;
+      background: #f0faf6;
+    }
+    .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; }
+    table { width: 100%; min-width: 900px; border-collapse: separate; border-spacing: 0; font-size: 13.5px; }
+    th, td { padding: 12px 14px; border-right: 1px solid #e8eef5; border-bottom: 1px solid #e8eef5; text-align: left; vertical-align: top; }
+    th:last-child, td:last-child { border-right: 0; }
+    tr:last-child td { border-bottom: 0; }
+    th { color: #3a4a60; background: #f3f7fb; white-space: nowrap; }
+    tbody tr:nth-child(even) { background: #fbfcfe; }
+    .phase-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .phase { padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+    .phase strong { display: block; margin-bottom: 6px; font-size: 17px; }
+    .phase p { margin: 0; color: var(--muted); font-size: 13px; }
+    .footer { padding-top: 20px; color: var(--muted); font-size: 13px; text-align: center; }
+    @media (max-width: 760px) {
+      .hero { padding: 36px 20px; }
+      .hero p { font-size: 15px; }
+      .layout { padding: 0 14px; }
+      .panel { padding: 22px 16px; border-radius: 15px; }
+      .phase-grid { grid-template-columns: 1fr; }
+      .swimlane { grid-template-columns: 132px repeat(6, 170px); min-width: 1152px; }
+      .cell { min-height: 112px; padding: 9px; }
+    }
+    @media print {
+      @page { size: A3 landscape; margin: 10mm; }
+      body { background: #fff; }
+      .hero { padding: 20px; color: #111; background: #fff; border-bottom: 2px solid #111; }
+      .hero p { color: #444; }
+      .hero-actions { display: none; }
+      .layout { max-width: none; margin: 0; padding: 12px 0; }
+      .panel { padding: 14px; border: 0; box-shadow: none; break-inside: avoid; }
+      .swimlane-wrap, .table-scroll { overflow: visible; }
+      .swimlane { min-width: 0; grid-template-columns: 120px repeat(6, 1fr); }
+      .cell { min-height: 92px; padding: 6px; }
+      .step { padding: 6px 7px 6px 10px; font-size: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <span class="eyebrow">MES-lite · 目标业务流程 · v0.1.337</span>
+    <h1>MES 业务泳道与角色参与矩阵</h1>
+    <p>从客户需求到生产、检验、库存和交付，统一说明每个角色的责任、跨角色交接以及 MES 自动完成的校验、过账、追溯和审计。</p>
+    <div class="hero-actions">
+      <a class="button primary" href="/mes-business-swimlane.excalidraw" download>下载 Excalidraw 源文件</a>
+      <button class="button" type="button" onclick="window.print()">打印 / 导出 PDF</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <h2>目标业务泳道</h2>
+      <p class="lead">横向表示业务阶段，纵向表示责任角色。节点颜色区分当前能力、下一阶段和后续能力；泳道节点不等于必须为它创建独立页面。</p>
+      <div class="legend" aria-label="图例">
+        <span class="badge current">当前已有基础</span>
+        <span class="badge next">下一阶段 P0</span>
+        <span class="badge later">后续 P1</span>
+        <span class="badge system">系统自动动作</span>
+      </div>
+
+      <div class="swimlane-wrap" role="region" aria-label="MES 业务泳道图" tabindex="0">
+        <div class="swimlane">
+          <div class="cell header-cell role">角色 / 阶段</div>
+          <div class="cell header-cell">1. 需求与计划</div>
+          <div class="cell header-cell">2. 来料与备料</div>
+          <div class="cell header-cell">3. 生产执行</div>
+          <div class="cell header-cell">4. 质量判定</div>
+          <div class="cell header-cell">5. 异常处置</div>
+          <div class="cell header-cell">6. 入库与交付</div>
+
+          <div class="cell role">销售 / 客户</div>
+          <div class="cell"><div class="step">客户需求或销售订单</div><div class="step">确认产品和交期</div></div>
+          <div class="cell empty"></div><div class="cell empty"></div><div class="cell empty"></div><div class="cell empty"></div>
+          <div class="cell"><div class="step">查看生产与交付状态</div></div>
+
+          <div class="cell role">计划员 / 生产主管</div>
+          <div class="cell"><div class="step">评估生产需求</div><div class="step">选择物料、BOM 和工艺路线</div></div>
+          <div class="cell"><div class="step">创建并下达生产订单</div><div class="step">检查物料可用量</div></div>
+          <div class="cell"><div class="step">派工到班组、设备或工作中心</div><div class="step">监控生产进度</div></div>
+          <div class="cell"><div class="step next-step">跟踪待检与放行</div></div>
+          <div class="cell"><div class="step later-step">协调缺料、质量和设备异常</div></div>
+          <div class="cell"><div class="step">确认订单完成</div></div>
+
+          <div class="cell role">仓库员</div>
+          <div class="cell empty"></div>
+          <div class="cell"><div class="step">来料接收</div><div class="step next-step">建立供应商批次和内部批次</div><div class="step">备料和发料</div></div>
+          <div class="cell"><div class="step">确认生产领料</div><div class="step">记录库位库存变化</div></div>
+          <div class="cell"><div class="step next-step">接收待检产出</div><div class="step next-step">可用 / 冻结状态转换</div></div>
+          <div class="cell"><div class="step later-step danger">返工、报废或退供应商出入库</div></div>
+          <div class="cell"><div class="step">接收合格成品</div><div class="step">拣货和发货</div></div>
+
+          <div class="cell role">生产班组 / 操作员</div>
+          <div class="cell empty"></div>
+          <div class="cell"><div class="step">接收派工</div><div class="step next-step">确认投入批次</div></div>
+          <div class="cell"><div class="step">开工并执行生产</div><div class="step">记录产量、废品、人工和机时</div><div class="step">提交生产实绩</div></div>
+          <div class="cell"><div class="step next-step">等待检验结果</div></div>
+          <div class="cell"><div class="step later-step">执行返工并重新提交实绩</div></div>
+          <div class="cell empty"></div>
+
+          <div class="cell role">质检员 / 质量负责人</div>
+          <div class="cell empty"></div>
+          <div class="cell"><div class="step next-step">执行来料检验</div></div>
+          <div class="cell"><div class="step next-step">接收生产检验任务</div></div>
+          <div class="cell"><div class="step next-step">填写结果、附件和判定</div><div class="step next-step">合格放行 / 不合格冻结</div></div>
+          <div class="cell"><div class="step later-step danger">评审返工、报废、退货或让步接收</div></div>
+          <div class="cell"><div class="step next-step">确认质量状态闭环</div></div>
+
+          <div class="cell role system-role">MES 系统</div>
+          <div class="cell"><div class="step system-step">校验订单、BOM 和工艺版本</div></div>
+          <div class="cell"><div class="step system-step">记录库存流水</div><div class="step system-step">记录批次来源</div></div>
+          <div class="cell"><div class="step system-step">更新进度与成本</div><div class="step system-step">生成待检任务</div></div>
+          <div class="cell"><div class="step system-step">校验判定权限</div><div class="step system-step">转换库存状态并写审计</div></div>
+          <div class="cell"><div class="step system-step">记录处置、冲销和原因</div><div class="step system-step">生成异常提醒</div></div>
+          <div class="cell"><div class="step system-step">形成批次正反向追溯</div><div class="step system-step">保留完整审计链</div></div>
+        </div>
+      </div>
+      <div class="note"><strong>下一阶段停止线：</strong>只实现“生产实绩 → 待检 → 合格/不合格 → 可用/冻结库存 → 库存流水”，不一次建设完整 QMS、SPC、OEE、APS 或专业 WMS。</div>
+    </section>
+
+    <section class="panel">
+      <h2>角色参与矩阵</h2>
+      <p class="lead">人员权限不能只按页面分配；至少需要区分查看、创建、确认、判定、处置和冲销。</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>角色</th><th>主要职责</th><th>典型系统操作</th><th>参与程度</th></tr></thead>
+          <tbody>
+            <tr><td>销售人员</td><td>提交客户需求、确认产品和交期、查看交付</td><td>销售订单、交付状态、附件</td><td>中</td></tr>
+            <tr><td>计划员</td><td>将需求转换为可执行生产任务</td><td>生产订单、BOM、工艺路线、缺料检查</td><td>高</td></tr>
+            <tr><td>生产主管</td><td>下达、派工、协调进度和异常</td><td>订单确认、派工、生产进度、异常处理</td><td>高</td></tr>
+            <tr><td>仓库员</td><td>收料、发料、库存状态转换和发货</td><td>来料、库位、批次、库存流水、发货</td><td>高</td></tr>
+            <tr><td>操作员</td><td>执行生产并记录现场事实</td><td>领料、开工、实绩、废品、人工和机时</td><td>高</td></tr>
+            <tr><td>质检员</td><td>执行检验并记录客观结果</td><td>待检、实测值、附件和质量判定</td><td>高</td></tr>
+            <tr><td>质量负责人</td><td>决定返工、报废或让步接收</td><td>不合格评审、处置授权、复检</td><td>中但关键</td></tr>
+            <tr><td>管理人员</td><td>监督交付、质量、库存和设备趋势</td><td>看板、追溯、统计和审计查询</td><td>低频但关键</td></tr>
+            <tr><td>系统管理员</td><td>维护账号、权限、业务配置和系统设置</td><td>权限组、人员、单位、菜单和维护工具</td><td>低频</td></tr>
+            <tr><td>MES 系统</td><td>校验、过账、追溯、审计和提醒</td><td>状态机、库存流水、审计日志和告警</td><td>全流程自动</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>分阶段建设边界</h2>
+      <div class="phase-grid">
+        <div class="phase"><span class="badge current">当前已有</span><strong>生产与库存基础链路</strong><p>物料、BOM、工艺、订单、派工、实绩、来料、库位、库存流水、发货、权限和审计。</p></div>
+        <div class="phase"><span class="badge next">下一阶段 P0</span><strong>质量放行与批次追溯</strong><p>先完成质量判定和库存状态闭环，再增加批次投入、产出与发货谱系。</p></div>
+        <div class="phase"><span class="badge later">后续 P1</span><strong>不合格处置与设备事件</strong><p>返工、报废、让步接收、停机、故障、点检和保养；不扩展财务资产管理。</p></div>
+      </div>
+    </section>
+
+    <footer class="footer">MES-lite · 本页为目标流程说明；当前实现仍以运行代码、Prisma Schema、权限定义和 API 为准。</footer>
+  </main>
+</body>
+</html>

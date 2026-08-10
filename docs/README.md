@@ -2,7 +2,7 @@
 
 本目录是 MES-lite 的统一知识入口。第一次接触系统时，不建议从发布记录或单个专题开始阅读；先通过总手册建立整体认知，再进入对应领域。
 
-当前事实基线：`v0.1.336` / 2026-08-10。
+当前事实基线：`v0.1.337` / 2026-08-10。
 
 ## 1. 推荐阅读路径
 
@@ -24,7 +24,7 @@
 | 未来租户化数据模型 | [目标数据模型草案](./minierp/data-model.md) |
 | MES、MRP-lite、ERP-lite 如何分工 | [MES-MRP-ERP 功能矩阵](./architecture/MES-MRP-ERP功能矩阵.md) |
 | 作为 MES 还缺什么、接下来按什么顺序补齐 | [MES 核心能力缺口与建设路线](./architecture/MES核心能力缺口与建设路线.md) |
-| 从需求到交付由哪些角色参与、如何交接 | [MES 业务泳道与角色参与矩阵](./architecture/MES业务泳道与角色参与矩阵.md) |
+| 从需求到交付由哪些角色参与、如何交接 | [HTML 泳道展示](../public/mes-business-swimlane.html)、[MES 业务泳道与角色参与矩阵](./architecture/MES业务泳道与角色参与矩阵.md) |
 | 人员、权限组和页面如何分配 | [人员权限组与页面矩阵](./architecture/人员权限组与页面矩阵.md) |
 | 页面为什么要使用公共骨架 | [公共前端模块使用指南](./minierp/公共前端模块使用指南.md) |
 | 新代码应该放在哪里 | [代码目录与模块边界规范](./architecture/code-directory-and-module-boundary.md) |
