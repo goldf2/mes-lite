@@ -74,6 +74,8 @@ export function resolveMaterialInStockQuantity(input: {
 
 export function resolveMaterialInPricing(input: {
   priceUnit: MaterialInPriceUnit
+  priceBasis?: 'VALUATION' | 'STOCK'
+  priceQuantity?: number | null
   unitPrice: number
   totalAmount?: number | null
   totalLength?: number | null
@@ -89,11 +91,13 @@ export function resolveMaterialInPricing(input: {
     throw new Error('总价格不能为负')
   }
 
-  const priceQuantity = input.priceUnit === 'm'
-    ? Number(input.totalLength || 0)
-    : input.priceUnit === 'kg'
-      ? Number(input.totalWeight || 0)
-      : Number(input.pieceCount || 0)
+  const priceQuantity = input.priceQuantity === undefined || input.priceQuantity === null
+    ? input.priceUnit === 'm'
+      ? Number(input.totalLength || 0)
+      : input.priceUnit === 'kg'
+        ? Number(input.totalWeight || 0)
+        : Number(input.pieceCount || 0)
+    : Number(input.priceQuantity)
   const hasMoney = unitPrice > 0 || Number(requestedTotalAmount || 0) > 0
   if (hasMoney && (!Number.isFinite(priceQuantity) || priceQuantity <= 0)) {
     throw new Error(`按 ${input.priceUnit} 计价时必须填写对应的长度、重量或数量`)
@@ -108,7 +112,7 @@ export function resolveMaterialInPricing(input: {
 
   return {
     priceUnit: input.priceUnit,
-    priceBasis: input.priceUnit === 'kg' ? 'VALUATION' as const : 'STOCK' as const,
+    priceBasis: input.priceBasis || (input.priceUnit === 'kg' ? 'VALUATION' as const : 'STOCK' as const),
     priceQuantity: roundQty(priceQuantity),
     unitPrice: normalizedUnitPrice,
     totalAmount,

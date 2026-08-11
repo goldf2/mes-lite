@@ -38,6 +38,17 @@ export interface ReceivingMaterialOption {
   customer?: { id: string; code: string; name: string } | null
 }
 
+export interface MaterialInConversionHistory {
+  materialId: string
+  stockUnit: string
+  valuationUnit: string
+  unitVersion: number
+  minimumSamples: number
+  sampleCount: number
+  rate: number | null
+  available: boolean
+}
+
 export interface MaterialInLineRecord {
   id: string
   inboundNo: string
@@ -58,6 +69,8 @@ export interface MaterialInLineRecord {
   valuationUnit: string
   conversionRate: number
   conversionSource?: string
+  conversionSampleCount?: number
+  unitVersionUsed?: number | null
   stockUnitCost: number
   valuationUnitCost: number
   unitPrice: number
@@ -97,11 +110,7 @@ export interface MaterialInDraftItem {
   materialId: string
   locationId: string
   qty: number
-  pieceCount?: number
-  stockQtyMode?: 'TOTAL' | 'PER_PIECE'
-  stockQtyInput?: number
-  totalLength?: number
-  totalWeight?: number
+  valuationQty?: number
   unit: string
   valuationUnit: string
   unitPrice: number
@@ -117,11 +126,7 @@ export interface MaterialInFormState {
   materialId: string
   locationId: string
   qty: number
-  pieceCount: number
-  stockQtyMode: 'TOTAL' | 'PER_PIECE'
-  stockQtyInput: number
-  totalLength: number
-  totalWeight: number
+  valuationQty: number
   unitPrice: number
   priceUnit: MaterialInPriceUnit
   totalAmount: number

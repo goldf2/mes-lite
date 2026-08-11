@@ -18,7 +18,7 @@ process.env.DATABASE_URL = databaseUrl
 function verifyStaticBoundaries(
   createMaterialInSchema: typeof import('../modules/receiving/contracts/material-in-schema').createMaterialInSchema,
 ) {
-  const validItem = { materialId: 'material', locationId: 'location', qty: 2, unitPrice: 3, pieceCount: 2, priceUnit: '件' as const }
+  const validItem = { materialId: 'material', locationId: 'location', qty: 2, unitPrice: 3, priceUnit: '件' as const }
   assert.equal(createMaterialInSchema.safeParse({ supplierId: '', items: [] }).success, false, '来料单必须有供应商和至少一项物料')
   assert.equal(createMaterialInSchema.safeParse({ supplierId: 'supplier', items: [validItem] }).success, true, '多物料来料请求必须可解析')
   assert.equal(createMaterialInSchema.safeParse({ supplierId: 'supplier', items: Array.from({ length: 101 }, () => validItem) }).success, false, '单张来料单最多允许 100 项')
@@ -30,6 +30,7 @@ function verifyStaticBoundaries(
     'modules/receiving/server/material-in-service.ts',
     'modules/receiving/server/material-in-detail-service.ts',
     'modules/receiving/server/material-in-status-service.ts',
+    'modules/receiving/server/material-in-conversion-history-service.ts',
   ]
   for (const file of requiredFiles) assert.ok(existsSync(join(root, file)), `来料领域缺少文件：${file}`)
 
@@ -39,6 +40,7 @@ function verifyStaticBoundaries(
     'app/api/material-ins/[id]/receive/route.ts',
     'app/api/material-ins/[id]/reject/route.ts',
     'app/api/material-ins/[id]/reverse/route.ts',
+    'app/api/material-ins/conversion-history/route.ts',
   ]
   for (const routePath of routes) {
     const route = read(routePath)
@@ -59,7 +61,10 @@ function verifyStaticBoundaries(
   assert.doesNotMatch(page, /fetch\(/, '来料页面不得直接发起 HTTP 请求')
   assert.match(page, /MaterialInCollectionView/, '来料页面必须委托集合视图')
   assert.match(page, /MaterialInEditorDialog/, '来料页面必须委托编辑任务')
+  assert.match(page, /getMaterialInConversionHistory/, '来料页面必须读取公共历史换算服务')
   assert.match(editor, /SearchableSelect[\s\S]*onSearch=/, '来料编辑必须复用支持异步联想的公共搜索选择器')
+  assert.match(editor, /历史实测加权推算/, '来料编辑必须明确展示历史推算来源')
+  assert.doesNotMatch(editor, /开启比例联动|实测快照|单件长度/, '普通来料界面不得继续依赖旧批次三字段联动')
   assert.match(select, /onSearch\?:[\s\S]*window\.setTimeout/, '公共搜索选择器必须提供防抖异步联想契约')
   assert.ok(page.split('\n').length <= 800, '来料主页必须保持在 800 行以内')
 }
@@ -74,6 +79,7 @@ async function main() {
     { archiveMaterialIn, createMaterialIns, listMaterialIns },
     { getMaterialInDetail, updateManagedMaterialIn },
     { receiveManagedMaterialIn, rejectManagedMaterialIn, reverseManagedMaterialIn },
+    { loadMaterialInConversionHistory },
   ] = await Promise.all([
     import('../lib/prisma'),
     import('../modules/receiving/contracts/material-in-schema'),
@@ -83,6 +89,7 @@ async function main() {
     import('../modules/receiving/server/material-in-service'),
     import('../modules/receiving/server/material-in-detail-service'),
     import('../modules/receiving/server/material-in-status-service'),
+    import('../modules/receiving/server/material-in-conversion-history-service'),
   ])
   try {
     verifyStaticBoundaries(createMaterialInSchema)
@@ -111,12 +118,11 @@ async function main() {
       receivedBy: '验证收货员',
       items: [
         {
-          materialId: material.id, locationId: location.id, qty: 5, pieceCount: 2,
-          stockQtyMode: 'TOTAL', stockQtyInput: 5, totalLength: 5, totalWeight: 12,
+          materialId: material.id, locationId: location.id, qty: 5, valuationQty: 12,
           unitPrice: 4, priceUnit: 'kg', priceBasis: 'VALUATION', batchNo: 'BATCH-001',
         },
         {
-          materialId: secondMaterial.id, locationId: location.id, qty: 3, pieceCount: 3,
+          materialId: secondMaterial.id, locationId: location.id, qty: 3,
           unitPrice: 8, priceUnit: '件', priceBasis: 'STOCK',
         },
       ],
@@ -138,12 +144,12 @@ async function main() {
       receivedBy: '编辑收货员', note: '编辑验证',
       items: [
         {
-          materialId: material.id, qty: 6, pieceCount: 2, stockQtyMode: 'TOTAL', stockQtyInput: 6,
-          totalLength: 6, totalWeight: 15, unitPrice: 4, priceUnit: 'kg', priceBasis: 'VALUATION',
+          materialId: material.id, qty: 6, valuationQty: 15,
+          unitPrice: 4, priceUnit: 'kg', priceBasis: 'VALUATION',
           batchNo: 'BATCH-EDIT',
         },
         {
-          materialId: secondMaterial.id, qty: 3, pieceCount: 3,
+          materialId: secondMaterial.id, qty: 3,
           unitPrice: 8, priceUnit: '件', priceBasis: 'STOCK',
         },
       ],
@@ -186,7 +192,7 @@ async function main() {
 
     const third = await createMaterialIns(createMaterialInSchema.parse({
       supplierId: supplier.id,
-      materialId: secondMaterial.id, locationId: location.id, qty: 2, pieceCount: 2,
+      materialId: secondMaterial.id, locationId: location.id, qty: 2,
       unitPrice: 5, priceUnit: '件', priceBasis: 'STOCK',
     }), fixedNow)
     assert.equal(third.first.inboundNo, 'IN-20260810-002', '多明细来料单只占用一个单据编号')
@@ -196,7 +202,7 @@ async function main() {
 
     const blocked = await createMaterialIns(createMaterialInSchema.parse({
       supplierId: supplier.id,
-      materialId: secondMaterial.id, locationId: location.id, qty: 4, pieceCount: 4,
+      materialId: secondMaterial.id, locationId: location.id, qty: 4,
       unitPrice: 5, priceUnit: '件', priceBasis: 'STOCK',
     }), fixedNow)
     await receiveManagedMaterialIn(blocked.first.id)
@@ -218,9 +224,52 @@ async function main() {
     await assert.rejects(
       () => createMaterialIns(createMaterialInSchema.parse({
         supplierId: 'missing-supplier', materialId: secondMaterial.id, locationId: location.id,
-        qty: 1, pieceCount: 1, unitPrice: 1, priceUnit: '件', priceBasis: 'STOCK',
+        qty: 1, unitPrice: 1, priceUnit: '件', priceBasis: 'STOCK',
       }), fixedNow),
       MaterialInDomainError,
+    )
+
+    const historyMaterial = await prisma.material.create({
+      data: {
+        code: `VERIFY-HISTORY-${suffix}`, name: `历史换算物料 ${suffix}`, unit: 'm', stockUnit: 'm', valuationUnit: 'kg',
+        primaryMeasure: 'LENGTH', referenceMeasure: 'WEIGHT', conversionRate: 2,
+      },
+    })
+    await assert.rejects(
+      () => createMaterialIns(createMaterialInSchema.parse({
+        supplierId: supplier.id, materialId: historyMaterial.id, locationId: location.id,
+        qty: 10, unitPrice: 0, priceUnit: 'm', priceBasis: 'STOCK',
+      }), fixedNow),
+      /有效历史实测不足 3 批/,
+      '无本批实测且历史不足时必须拒绝保存',
+    )
+    for (const [qty, valuationQty] of [[10, 20], [5, 11], [15, 27]] as const) {
+      const actualReceipt = await createMaterialIns(createMaterialInSchema.parse({
+        supplierId: supplier.id, materialId: historyMaterial.id, locationId: location.id,
+        qty, valuationQty, unitPrice: 0, priceUnit: 'm', priceBasis: 'STOCK',
+      }), fixedNow)
+      await receiveManagedMaterialIn(actualReceipt.first.id)
+    }
+    const history = await loadMaterialInConversionHistory(historyMaterial.id)
+    assert.deepEqual(
+      [history.sampleCount, history.rate, history.available],
+      [3, 1.933333, true],
+      '历史换算必须按已收货实测批次进行加权计算',
+    )
+    const estimatedReceipt = await createMaterialIns(createMaterialInSchema.parse({
+      supplierId: supplier.id, materialId: historyMaterial.id, locationId: location.id,
+      qty: 12, unitPrice: 0, priceUnit: 'm', priceBasis: 'STOCK',
+    }), fixedNow)
+    assert.deepEqual(
+      [estimatedReceipt.items[0].conversionSource, estimatedReceipt.items[0].conversionSampleCount, estimatedReceipt.items[0].valuationQty],
+      ['HISTORICAL_ESTIMATE', 3, 23.199996],
+      '辅助数量缺失时必须冻结历史推算来源、样本数和推算值',
+    )
+    await receiveManagedMaterialIn(estimatedReceipt.first.id)
+    assert.equal(
+      (await loadMaterialInConversionHistory(historyMaterial.id)).sampleCount,
+      3,
+      '历史推算记录不得反向污染实测样本',
     )
 
     assert.equal(isMaterialInCostLayerUntouched({

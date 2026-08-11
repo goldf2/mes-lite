@@ -2,6 +2,7 @@ import type {
   CustomerOption,
   InventoryLocationOption,
   MaterialInLineRecord,
+  MaterialInConversionHistory,
   MaterialInRecord,
   ReceivingMaterialOption,
   SupplierOption,
@@ -38,6 +39,11 @@ export async function listReceivingMaterials(keyword = '') {
   const params = new URLSearchParams({ pageSize: '50', sortBy: 'code', sortDir: 'asc' })
   if (keyword.trim()) params.set('keyword', keyword.trim())
   return requestJson<{ data: ReceivingMaterialOption[] }>(`/api/materials?${params.toString()}`, undefined, '获取物料失败')
+}
+
+export async function getMaterialInConversionHistory(materialId: string) {
+  const params = new URLSearchParams({ materialId })
+  return requestJson<{ data: MaterialInConversionHistory }>(`/api/material-ins/conversion-history?${params.toString()}`, undefined, '获取物料历史换算失败')
 }
 
 export async function saveMaterialInRecord(id: string | null, payload: Record<string, unknown>) {

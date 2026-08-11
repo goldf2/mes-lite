@@ -1004,43 +1004,45 @@ model MaterialReceipt {
 }
 
 model MaterialIn {
-  id                String             @id @default(cuid())
-  inboundNo         String             @unique
-  receiptId         String?
-  receipt           MaterialReceipt?   @relation(fields: [receiptId], references: [id], onDelete: Cascade)
-  lineNo            Int                @default(1)
-  voucherNo         String?
-  supplierId        String
-  supplier          Supplier           @relation(fields: [supplierId], references: [id])
-  materialId        String
-  material          Material           @relation(fields: [materialId], references: [id])
-  locationId        String?
-  location          InventoryLocation? @relation(fields: [locationId], references: [id])
-  qty               Float
-  unit              String
-  pieceCount        Int?
-  stockQtyMode      String             @default("TOTAL")
-  stockQtyInput     Float?
-  totalLength       Float?
-  totalWeight       Float?
-  valuationQty      Float              @default(0)
-  valuationUnit     String             @default("kg")
-  conversionRate    Float              @default(1)
-  conversionSource  String             @default("MASTER_DEFAULT")
-  unitPrice         Float              @default(0)
-  priceBasis        String             @default("VALUATION")
-  priceUnit         String?
-  valuationUnitCost Float              @default(0)
-  stockUnitCost     Float              @default(0)
-  totalAmount       Float              @default(0)
-  batchNo           String?
-  status            String             @default("PENDING")
-  inboundDate       DateTime           @default(now())
-  receivedBy        String?
-  note              String?
-  deletedAt         DateTime?
-  deletedBy         String?
-  createdAt         DateTime           @default(now())
+  id                    String             @id @default(cuid())
+  inboundNo             String             @unique
+  receiptId             String?
+  receipt               MaterialReceipt?   @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  lineNo                Int                @default(1)
+  voucherNo             String?
+  supplierId            String
+  supplier              Supplier           @relation(fields: [supplierId], references: [id])
+  materialId            String
+  material              Material           @relation(fields: [materialId], references: [id])
+  locationId            String?
+  location              InventoryLocation? @relation(fields: [locationId], references: [id])
+  qty                   Float
+  unit                  String
+  pieceCount            Int?
+  stockQtyMode          String             @default("TOTAL")
+  stockQtyInput         Float?
+  totalLength           Float?
+  totalWeight           Float?
+  valuationQty          Float              @default(0)
+  valuationUnit         String             @default("kg")
+  conversionRate        Float              @default(1)
+  conversionSource      String             @default("MASTER_DEFAULT")
+  conversionSampleCount Int                @default(0)
+  unitVersionUsed       Int?
+  unitPrice             Float              @default(0)
+  priceBasis            String             @default("VALUATION")
+  priceUnit             String?
+  valuationUnitCost     Float              @default(0)
+  stockUnitCost         Float              @default(0)
+  totalAmount           Float              @default(0)
+  batchNo               String?
+  status                String             @default("PENDING")
+  inboundDate           DateTime           @default(now())
+  receivedBy            String?
+  note                  String?
+  deletedAt             DateTime?
+  deletedBy             String?
+  createdAt             DateTime           @default(now())
 
   @@index([receiptId, lineNo])
 }

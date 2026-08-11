@@ -1,12 +1,13 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { resolveInventoryLocation } from '@/lib/inventory'
-import { normalizeMaterialInPriceUnit, resolveMaterialInPricing, resolveMaterialInStockQuantity } from '@/lib/material-in-quantity'
+import { normalizeMaterialInPriceUnit, resolveMaterialInPricing } from '@/lib/material-in-quantity'
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
-import { resolveMaterialUnits, toValuationQty } from '@/lib/units'
+import { resolveMaterialUnits } from '@/lib/units'
 import type { CreateMaterialInInput, MaterialInItemInput } from '../contracts/material-in-schema'
 import { MaterialInDomainError, runMaterialInDomainOperation } from '../domain/material-in-errors'
 import { materialInNumberPrefix, nextMaterialInNumber } from '../domain/material-in-numbering'
+import { loadMaterialInConversionHistory, materialInHistoryMinimumSamples } from './material-in-conversion-history-service'
 
 export interface MaterialInListQuery {
   statuses: string[]
@@ -96,44 +97,46 @@ export async function buildMaterialInLineData(
   if (!material) throw new MaterialInDomainError('物料不存在或已归档', 404)
 
   const location = await resolveInventoryLocation(tx, stagingLocationId)
-  const stockQuantity = resolveMaterialInStockQuantity({
-    primaryMeasure: material.primaryMeasure,
-    qty: input.qty,
-    pieceCount: input.pieceCount,
-    stockQtyMode: input.stockQtyMode,
-    stockQtyInput: input.stockQtyInput,
-    totalLength: input.totalLength,
-    totalWeight: input.totalWeight,
-  })
-  const { qty, pieceCount, stockQtyMode, stockQtyInput, totalLength, totalWeight } = stockQuantity
+  const qty = Number(input.qty)
+  if (!Number.isFinite(qty) || qty <= 0) throw new MaterialInDomainError('主库存数量必须大于 0')
   const units = resolveMaterialUnits(material)
-  const stockUnit = input.unit || units.stockUnit
-  const materialUsesDualUnit = units.stockUnit !== units.valuationUnit || units.conversionRate !== 1
-  const actualReferenceQty = material.referenceMeasure === 'LENGTH'
-    ? totalLength
-    : material.referenceMeasure === 'WEIGHT'
-      ? totalWeight
-      : material.referenceMeasure === 'QUANTITY'
-        ? pieceCount
-        : input.valuationQty
-  const effectiveValuationQty = materialUsesDualUnit && actualReferenceQty && actualReferenceQty > 0
-    ? actualReferenceQty
-    : toValuationQty(qty, units.conversionRate)
+  const stockUnit = units.stockUnit
+  const materialUsesDualUnit = Boolean(
+    material.referenceMeasure
+      && material.referenceMeasure !== material.primaryMeasure
+      && units.stockUnit !== units.valuationUnit,
+  )
+  const requestedActualValuationQty = Number(input.valuationQty || 0)
+  let effectiveValuationQty = qty
+  let conversionSource = 'SAME_UNIT'
+  let conversionSampleCount = 0
+  if (materialUsesDualUnit && requestedActualValuationQty > 0) {
+    effectiveValuationQty = requestedActualValuationQty
+    conversionSource = 'DOCUMENT_ACTUAL'
+  } else if (materialUsesDualUnit) {
+    const history = await loadMaterialInConversionHistory(material.id, tx)
+    if (!history.available || !history.rate) {
+      throw new MaterialInDomainError(
+        `物料 ${material.code} 已启用辅助单位 ${units.valuationUnit}，有效历史实测不足 ${materialInHistoryMinimumSamples} 批，请填写本批实测辅助数量`,
+      )
+    }
+    effectiveValuationQty = Number((qty * history.rate).toFixed(6))
+    conversionSource = 'HISTORICAL_ESTIMATE'
+    conversionSampleCount = history.sampleCount
+  }
   const conversionRate = Number((effectiveValuationQty / qty).toFixed(6))
-  const conversionSource = materialUsesDualUnit && actualReferenceQty && actualReferenceQty > 0 ? 'DOCUMENT_ACTUAL' : 'MASTER_DEFAULT'
-  const valuationUnit = materialUsesDualUnit ? input.valuationUnit || units.valuationUnit : stockUnit
-  const requestedPriceBasis = input.priceBasis || 'VALUATION'
+  const valuationUnit = materialUsesDualUnit ? units.valuationUnit : stockUnit
+  const requestedPriceBasis = materialUsesDualUnit && input.priceBasis === 'VALUATION' ? 'VALUATION' : 'STOCK'
   const requestedPriceUnit = normalizeMaterialInPriceUnit(
-    input.priceUnit || (requestedPriceBasis === 'VALUATION' ? valuationUnit : stockUnit),
+    requestedPriceBasis === 'VALUATION' ? valuationUnit : stockUnit,
     requestedPriceBasis === 'VALUATION' ? material.referenceMeasure || material.primaryMeasure : material.primaryMeasure,
   )
   const pricing = resolveMaterialInPricing({
     priceUnit: requestedPriceUnit,
+    priceBasis: requestedPriceBasis,
+    priceQuantity: requestedPriceBasis === 'VALUATION' ? effectiveValuationQty : qty,
     unitPrice: input.unitPrice,
     totalAmount: input.totalAmount,
-    totalLength,
-    totalWeight,
-    pieceCount,
   })
   const valuationUnitCost = effectiveValuationQty > 0 ? Number((pricing.totalAmount / effectiveValuationQty).toFixed(6)) : 0
   const stockUnitCost = qty > 0 ? Number((pricing.totalAmount / qty).toFixed(6)) : 0
@@ -146,15 +149,17 @@ export async function buildMaterialInLineData(
       locationId: location.id,
       qty,
       unit: stockUnit,
-      pieceCount,
-      stockQtyMode,
-      stockQtyInput,
-      totalLength,
-      totalWeight,
+      pieceCount: null,
+      stockQtyMode: 'TOTAL',
+      stockQtyInput: qty,
+      totalLength: null,
+      totalWeight: null,
       valuationQty: effectiveValuationQty,
       valuationUnit,
       conversionRate,
       conversionSource,
+      conversionSampleCount,
+      unitVersionUsed: material.unitVersion,
       unitPrice: pricing.unitPrice,
       priceBasis: pricing.priceBasis,
       priceUnit: pricing.priceUnit,

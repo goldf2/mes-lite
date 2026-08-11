@@ -659,7 +659,7 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 ### 物料主计量与长度型来料
 
-`Material.primaryMeasure` 取 `LENGTH`、`WEIGHT`、`QUANTITY` 或 `OTHER`。`stockUnit` 是主库存单位，库存、领料和生产耗用都以它为准。`referenceMeasure`、`valuationUnit` 和 `conversionRate` 是可选参考/计价口径；`conversionRate` 的统一语义是“1 主库存单位 = N 参考单位”。当参考计量为重量时，数量主单位对应标准单重，长度主单位对应标准单位长度重量（如 kg/m）。它用于 BOM 计划换算，并在来料未填写实测值时作为默认核算依据；物料不保存标准长度。
+`Material.primaryMeasure` 取 `LENGTH`、`WEIGHT`、`QUANTITY` 或 `OTHER`。`stockUnit` 是主库存单位，库存、领料和生产耗用都以它为准。`referenceMeasure`、`valuationUnit` 和 `conversionRate` 是唯一可选辅助/计价口径；`conversionRate` 的统一语义是“1 主库存单位 = N 辅助单位”。当辅助计量为重量时，数量主单位对应标准单重，长度主单位对应标准单位长度重量（如 kg/m）。它用于 BOM 计划换算和资料参考；来料实际核算优先使用本批实测，其次使用满足门槛的历史实测，不直接用标准值兜底。物料不保存标准长度。
 
 物料单位必须来自系统单位目录。长度、重量、数量和其他计量方式的系统基准单位分别为 `m`、`kg`、`件` 和 `项`；自定义单位保存到 `SystemSetting` 的 `units.customCatalog` 配置中，并记录换算到所属基准单位的系数。该目录只处理同一计量方式内的通用换算，物料自身的长度与重量等跨计量关系仍由 `conversionRate` 表达。
 
@@ -669,17 +669,19 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 `MaterialReceipt` 是来料单头，保存单号、供应商、凭据号、统一待分库库位、状态、日期、收料人、备注和归档信息；一张单头关联一至多条 `MaterialIn` 明细。`MaterialIn` 保留物料、批次、数量、计价、换算和成本层来源，是兼容既有库存流水的来料行模型。历史单行记录迁移为“一张单头 + 一条明细”，附件继续绑定单头 ID。
 
-每条 `MaterialIn` 使用 `pieceCount`、`totalLength` 和 `totalWeight` 保存本批实测的件数、总长度（m）和总重量（kg）；三者是独立事实，不因物料只配置了单一库存单位而丢弃。长度型来料同时使用 `stockQtyMode` 和 `stockQtyInput` 保留原始录入语义：
+每条新 `MaterialIn` 使用 `qty + unit` 保存必填的主单位实收量；双单位物料使用 `valuationQty + valuationUnit` 保存本批辅助实测量或历史推算量。来源链固定为：
 
-- `TOTAL`：`stockQtyInput` 是本批总长度，`qty = stockQtyInput`。
-- `PER_PIECE`：`stockQtyInput` 是单根长度，`qty = pieceCount × stockQtyInput`。
-- 当参考计量为重量时，`valuationQty` 取本批 `totalWeight`，`conversionRate = valuationQty ÷ qty`；未配置重量参考单位时，`totalWeight` 仍作为来料实测快照保存，但不改变库存核算单位。
+1. 填写有效辅助数量时，`conversionSource=DOCUMENT_ACTUAL`。
+2. 未填写时，只读取同物料、同单位标签、同 `unitVersion`、状态为已收货且来源为 `DOCUMENT_ACTUAL` 的最近最多 100 行。
+3. 有效样本至少 3 批时，按 `sum(valuationQty) ÷ sum(qty)` 得到加权换算率，保存 `conversionSource=HISTORICAL_ESTIMATE` 与 `conversionSampleCount`。
+4. 样本不足时拒绝保存并要求本批实测；历史推算行永不进入后续样本。
+5. 单单位物料保存 `conversionSource=SAME_UNIT`，两套数量数值相同。
 
-因此长度型物料的 `qty` 是入账总长度，`pieceCount` 是物理件数，`totalWeight` 是本批总重量；只有按物料主计量方式解析出的 `qty` 进入主库存。`priceUnit` 固定为 `m`、`kg` 或 `件`，计价数量分别取 `totalLength`、`totalWeight` 或 `pieceCount`。用户可以录入单价或总价格，服务端最终统一保存相互一致的 `unitPrice` 与 `totalAmount`。
+`conversionRate` 始终冻结为本行 `valuationQty ÷ qty`，`unitVersionUsed` 冻结物料单位版本。旧 `pieceCount`、`stockQtyMode`、`stockQtyInput`、`totalLength` 和 `totalWeight` 列继续保留以读取历史记录，但新界面和新写入不再依赖这些列。采购可按主单位或辅助单位计价；用户可以录入单价或总价格，服务端最终统一保存相互一致的 `unitPrice` 与 `totalAmount`。
 
 来料登记、详情、编辑、收货、拒收和整单红冲由 `modules/receiving/server` 统一拥有。创建时所有明细强制使用单头的待分库库位，不按物料分别选择最终库位；确认收货在同一事务逐行增加 `Stock`、该待分库 `StockLocationBalance` 和成本层并写入库存流水，后续通过 `FlowTransfer` 调拨到实际原料、待检或生产库位。整单红冲要求所有明细的对应成本层均未被消费或人工改变，任一行不满足则整笔回滚。Route Handler 不复制这些状态或库存规则。
 
-> v0.1.339 将既有 `MaterialIn` 记录按原 ID 建立兼容单头，不删除历史库存流水、成本层或附件；旧记录以一单一行继续展示。
+> v0.1.339 将既有 `MaterialIn` 记录按原 ID 建立兼容单头，不删除历史库存流水、成本层或附件；旧记录以一单一行继续展示。v0.1.340 起新来料行采用“主量必填、辅助量实测优先、至少 3 批历史实测加权兜底”的来源链。
 
 当前库存不维护长度分布，只保存汇总值，不能直接回答某个具体长度各有多少根。未来如需显示“3.5 m 有几根、1.5 m 有几根”，应在来料单下增加同长分组/包装明细并汇总到现有字段；不需要改成每根实体库存。
 

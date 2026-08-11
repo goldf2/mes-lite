@@ -4,6 +4,13 @@ import { BusinessDocumentDetailDialog, BusinessDocumentPrintLink } from '@/modul
 import type { MaterialInRecord } from '../contracts/material-in'
 import { materialInStatusLabels } from '../model/material-in-view'
 
+function conversionSourceLabel(source?: string, sampleCount = 0) {
+  if (source === 'DOCUMENT_ACTUAL') return '本批实测'
+  if (source === 'HISTORICAL_ESTIMATE') return `历史推算 · ${sampleCount} 批`
+  if (source === 'SAME_UNIT') return '同主单位'
+  return '旧标准换算'
+}
+
 export default function MaterialInDetailDialog({
   item,
   onClose,
@@ -32,7 +39,7 @@ export default function MaterialInDetailDialog({
       <div className="mt-5 overflow-x-auto rounded-lg border border-gray-200">
         <table className="w-full min-w-[760px] text-sm">
           <thead className="bg-gray-50 text-left text-gray-600">
-            <tr><th className="px-4 py-3">行</th><th className="px-4 py-3">物料</th><th className="px-4 py-3">库存数量</th><th className="px-4 py-3">实测快照</th><th className="px-4 py-3">核算数量</th><th className="px-4 py-3">批次</th><th className="px-4 py-3 text-right">金额</th></tr>
+            <tr><th className="px-4 py-3">行</th><th className="px-4 py-3">物料</th><th className="px-4 py-3">主单位数量</th><th className="px-4 py-3">辅助数量 / 来源</th><th className="px-4 py-3">本批换算</th><th className="px-4 py-3">批次</th><th className="px-4 py-3 text-right">金额</th></tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {item.items.map((line) => (
@@ -40,8 +47,8 @@ export default function MaterialInDetailDialog({
                 <td className="px-4 py-3 text-gray-500">{line.lineNo}</td>
                 <td className="px-4 py-3"><div className="font-medium text-gray-900">{line.material.code} · {line.material.name}</div><div className="text-xs text-gray-500">{line.material.spec || '无规格'}</div></td>
                 <td className="px-4 py-3 font-medium">{line.qty} {line.unit}</td>
-                <td className="px-4 py-3 text-gray-600">{line.pieceCount || 0} 件 · {line.totalLength || 0} m · {line.totalWeight || 0} kg</td>
-                <td className="px-4 py-3">{line.valuationQty} {line.valuationUnit}</td>
+                <td className="px-4 py-3"><div>{line.valuationQty} {line.valuationUnit}</div><div className="mt-0.5 text-xs text-gray-500">{conversionSourceLabel(line.conversionSource, line.conversionSampleCount)}</div></td>
+                <td className="px-4 py-3 text-gray-600">1 {line.unit} = {line.conversionRate} {line.valuationUnit}</td>
                 <td className="px-4 py-3">{line.batchNo || '-'}</td>
                 <td className="px-4 py-3 text-right font-medium">¥{line.totalAmount.toFixed(2)}</td>
               </tr>

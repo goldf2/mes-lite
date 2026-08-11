@@ -6,11 +6,11 @@ import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
-import { type MaterialInPriceUnit, normalizeMaterialInPriceUnit } from '@/lib/material-in-quantity'
+import { normalizeMaterialInPriceUnit } from '@/lib/material-in-quantity'
 import useClientTableSort from '@/app/components/useClientTableSort'
 import AppButton from '@/app/components/AppButton'
 import { MappedResourceAdvancedSearch } from '@/app/components/resource'
-import { BusinessDocumentPrintLink, generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/modules/business-documents'
+import { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/modules/business-documents'
 import {
   createDraftDocumentAttachmentId,
   discardDraftDocumentAttachments,
@@ -21,6 +21,7 @@ import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/
 import type {
   CustomerOption as Customer,
   InventoryLocationOption as InventoryLocation,
+  MaterialInConversionHistory,
   MaterialInDraftItem,
   MaterialInRecord as MaterialIn,
   ReceivingMaterialOption as Material,
@@ -28,9 +29,7 @@ import type {
 } from '../contracts/material-in'
 import {
   createEmptyMaterialInForm,
-  displayMaterialInPriceUnit as displayPriceUnit,
   formatReceivingMaterialLabel as formatMaterialLabel,
-  materialInStatusColors as statusColors,
   materialInStatusLabels as statusLabels,
   materialInStatusOptions as statusOptions,
 } from '../model/material-in-view'
@@ -40,6 +39,7 @@ import MaterialInEditorDialog from './MaterialInEditorDialog'
 import {
   listMaterialInRecords,
   listReceivingCustomers,
+  getMaterialInConversionHistory,
   listReceivingLocations,
   listReceivingMaterials,
   listReceivingSuppliers,
@@ -72,7 +72,8 @@ export default function MaterialInPage({
   const [editingItem, setEditingItem] = useState<MaterialIn | null>(null)
   const [detailItem, setDetailItem] = useState<MaterialIn | null>(null)
   const [draftItems, setDraftItems] = useState<MaterialInDraftItem[]>([])
-  const [linkedBatchRatios, setLinkedBatchRatios] = useState<{ lengthPerPiece: number; weightPerLength: number } | null>(null)
+  const [conversionHistory, setConversionHistory] = useState<MaterialInConversionHistory | null>(null)
+  const [conversionHistoryLoading, setConversionHistoryLoading] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.materialIn.viewMode', 'list')
   const advancedSearchFields = useMemo(() => [
     { key: 'status', label: '状态', value: selectedStatuses.length === 1 ? selectedStatuses[0] : '', onChange: (value: string) => setSelectedStatuses(value ? [value] : statusOptions.map((option) => option.value)), options: statusOptions },
@@ -81,6 +82,7 @@ export default function MaterialInPage({
   ], [customers, selectedCustomerId, selectedStatuses, selectedSupplierId, suppliers])
 
   const [form, setForm] = useState(createEmptyMaterialInForm)
+  const selectedMaterial = materials.find((material) => material.id === form.materialId)
   const materialInSort = useClientTableSort(materialIns, {
     inboundNo: (item) => item.inboundNo,
     voucherNo: (item) => item.voucherNo,
@@ -99,6 +101,34 @@ export default function MaterialInPage({
     fetchMaterials()
     fetchLocations()
   }, [keyword, selectedStatuses, selectedSupplierId, selectedCustomerId])
+
+  useEffect(() => {
+    let cancelled = false
+    const usesAuxiliaryUnit = Boolean(
+      selectedMaterial?.referenceMeasure
+        && selectedMaterial.referenceMeasure !== selectedMaterial.primaryMeasure
+        && selectedMaterial.valuationUnit !== selectedMaterial.stockUnit,
+    )
+    if (!selectedMaterial || !usesAuxiliaryUnit) {
+      setConversionHistory(null)
+      setConversionHistoryLoading(false)
+      return () => { cancelled = true }
+    }
+
+    setConversionHistory(null)
+    setConversionHistoryLoading(true)
+    void getMaterialInConversionHistory(selectedMaterial.id)
+      .then(({ data }) => {
+        if (!cancelled) setConversionHistory(data)
+      })
+      .catch(() => {
+        if (!cancelled) setConversionHistory(null)
+      })
+      .finally(() => {
+        if (!cancelled) setConversionHistoryLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [selectedMaterial?.id, selectedMaterial?.referenceMeasure, selectedMaterial?.primaryMeasure, selectedMaterial?.valuationUnit, selectedMaterial?.stockUnit])
 
   const fetchLocations = async () => {
     try {
@@ -165,16 +195,13 @@ export default function MaterialInPage({
   }, [])
 
   const updateSelectedMaterial = (material: Material | null) => {
-    setLinkedBatchRatios(null)
+    setConversionHistory(null)
+    setConversionHistoryLoading(false)
     setForm((current) => ({
       ...current,
       materialId: material?.id || '',
       qty: 0,
-      pieceCount: 0,
-      stockQtyMode: 'TOTAL',
-      stockQtyInput: 0,
-      totalLength: 0,
-      totalWeight: 0,
+      valuationQty: 0,
       unitPrice: 0,
       priceUnit: normalizeMaterialInPriceUnit(material?.stockUnit || material?.unit, material?.primaryMeasure),
       totalAmount: 0,
@@ -185,7 +212,7 @@ export default function MaterialInPage({
   const resetForm = () => {
     setEditingItem(null)
     setDraftItems([])
-    setLinkedBatchRatios(null)
+    setConversionHistory(null)
     setForm(createEmptyMaterialInForm(locations.find((item) => item.isDefault)?.id || locations[0]?.id || ''))
   }
 
@@ -217,8 +244,6 @@ export default function MaterialInPage({
       supplierId: supplier?.id || current.supplierId,
       materialId: material?.id || current.materialId,
       qty: qty || current.qty,
-      pieceCount: material?.stockUnit === '件' && qty ? qty : current.pieceCount,
-      stockQtyInput: qty || current.stockQtyInput,
       unitPrice: unitPrice || current.unitPrice,
       totalAmount: totalAmount || current.totalAmount,
       priceInputMode: totalAmount ? 'TOTAL' : current.priceInputMode,
@@ -233,10 +258,11 @@ export default function MaterialInPage({
     if (!form.materialId || !form.locationId || calculatedStockQty <= 0) {
       return '请选择物料和库位，并输入有效的主单位数量'
     }
-    if (isLengthMaterial && form.pieceCount <= 0) return '长度型物料请填写数量'
-    if (form.priceUnit === 'm' && totalAmountPreview > 0 && calculatedTotalLength <= 0) return '按米计价时请填写总长度'
-    if (form.priceUnit === 'kg' && totalAmountPreview > 0 && form.totalWeight <= 0) return '按 kg 计价时请填写总重量'
-    if (form.priceUnit === '件' && totalAmountPreview > 0 && form.pieceCount <= 0) return '按件计价时请填写数量'
+    if (materialUsesDualUnit && effectiveValuationQty <= 0) {
+      return conversionHistoryLoading
+        ? '正在读取历史实测数据，请稍候'
+        : `该物料启用了辅助单位 ${valuationUnitLabel}，请填写本批实测辅助数量`
+    }
     return null
   }
 
@@ -248,34 +274,26 @@ export default function MaterialInPage({
       materialId: form.materialId,
       locationId: form.locationId,
       qty: calculatedStockQty,
-      pieceCount: form.pieceCount > 0 ? form.pieceCount : undefined,
-      stockQtyMode: isLengthMaterial ? form.stockQtyMode : undefined,
-      stockQtyInput: isLengthMaterial ? form.stockQtyInput : undefined,
-      totalLength: calculatedTotalLength > 0 ? calculatedTotalLength : undefined,
-      totalWeight: form.totalWeight > 0 ? form.totalWeight : undefined,
+      valuationQty: form.valuationQty > 0 ? form.valuationQty : undefined,
       unit: stockUnit,
       valuationUnit: material?.valuationUnit || stockUnit,
       unitPrice: unitPricePreview,
       totalAmount: totalAmountPreview,
       priceUnit: form.priceUnit,
-      priceBasis: form.priceUnit === 'kg' ? 'VALUATION' : 'STOCK',
+      priceBasis: priceUsesValuation ? 'VALUATION' : 'STOCK',
       batchNo: form.batchNo || undefined,
     }
   }
 
   const resetCurrentItem = () => {
-    setLinkedBatchRatios(null)
+    setConversionHistory(null)
     setForm((current) => ({
       ...current,
       materialId: '',
       qty: 0,
-      pieceCount: 0,
-      stockQtyMode: 'TOTAL',
-      stockQtyInput: 0,
-      totalLength: 0,
-      totalWeight: 0,
+      valuationQty: 0,
       unitPrice: 0,
-      priceUnit: 'm',
+      priceUnit: '件',
       totalAmount: 0,
       priceInputMode: 'UNIT',
       batchNo: '',
@@ -353,40 +371,45 @@ export default function MaterialInPage({
     setLoading(false)
   }
 
-  const selectedMaterial = materials.find((material) => material.id === form.materialId)
-  const isLengthMaterial = selectedMaterial?.primaryMeasure === 'LENGTH'
-  const calculatedTotalLength = isLengthMaterial
-    ? Number(((form.stockQtyMode === 'PER_PIECE'
-      ? Number(form.pieceCount || 0) * Number(form.stockQtyInput || 0)
-      : Number(form.stockQtyInput || 0))).toFixed(6))
-    : Number(form.totalLength || 0)
-  const calculatedStockQty = selectedMaterial?.primaryMeasure === 'LENGTH'
-    ? calculatedTotalLength
-    : selectedMaterial?.primaryMeasure === 'WEIGHT'
-      ? Number(form.totalWeight || 0)
-      : selectedMaterial?.primaryMeasure === 'QUANTITY'
-        ? Number(form.pieceCount || 0)
-        : Number(form.qty || 0)
-  const referenceValuationQty = selectedMaterial && calculatedStockQty > 0 ? Number((calculatedStockQty * (selectedMaterial.conversionRate || 1)).toFixed(6)) : 0
+  const calculatedStockQty = Number(form.qty || 0)
   const stockUnitLabel = selectedMaterial?.stockUnit || selectedMaterial?.unit || '库存单位'
-  const valuationUnitLabel = selectedMaterial?.valuationUnit || 'kg'
-  const materialUsesDualUnit = Boolean(selectedMaterial && (stockUnitLabel !== valuationUnitLabel || Number(selectedMaterial.conversionRate || 1) !== 1))
-  const actualReferenceQty = selectedMaterial?.referenceMeasure === 'LENGTH'
-    ? calculatedTotalLength
-    : selectedMaterial?.referenceMeasure === 'WEIGHT'
-      ? Number(form.totalWeight || 0)
-      : selectedMaterial?.referenceMeasure === 'QUANTITY'
-        ? Number(form.pieceCount || 0)
-        : 0
+  const valuationUnitLabel = selectedMaterial?.valuationUnit || stockUnitLabel
+  const materialUsesDualUnit = Boolean(
+    selectedMaterial?.referenceMeasure
+      && selectedMaterial.referenceMeasure !== selectedMaterial.primaryMeasure
+      && stockUnitLabel !== valuationUnitLabel,
+  )
+  const actualValuationQty = Number(form.valuationQty || 0)
+  const historicalEstimatedValuationQty = materialUsesDualUnit
+    && actualValuationQty <= 0
+    && conversionHistory?.available
+    && conversionHistory.rate
+    && calculatedStockQty > 0
+    ? Number((calculatedStockQty * conversionHistory.rate).toFixed(6))
+    : 0
   const effectiveValuationQty = materialUsesDualUnit
-    ? (actualReferenceQty > 0 ? actualReferenceQty : referenceValuationQty)
+    ? (actualValuationQty > 0 ? actualValuationQty : historicalEstimatedValuationQty)
     : calculatedStockQty
-  const actualConversionRate = calculatedStockQty > 0 && effectiveValuationQty > 0 ? Number((effectiveValuationQty / calculatedStockQty).toFixed(6)) : 0
-  const priceQuantity = form.priceUnit === 'm'
-    ? calculatedTotalLength
-    : form.priceUnit === 'kg'
-      ? Number(form.totalWeight || 0)
-      : Number(form.pieceCount || 0)
+  const conversionRatePreview = calculatedStockQty > 0 && effectiveValuationQty > 0
+    ? Number((effectiveValuationQty / calculatedStockQty).toFixed(6))
+    : 0
+  const conversionSource = !materialUsesDualUnit
+    ? 'SAME_UNIT'
+    : actualValuationQty > 0
+      ? 'DOCUMENT_ACTUAL'
+      : historicalEstimatedValuationQty > 0
+        ? 'HISTORICAL_ESTIMATE'
+        : 'MISSING'
+  const stockPriceUnit = normalizeMaterialInPriceUnit(stockUnitLabel, selectedMaterial?.primaryMeasure)
+  const valuationPriceUnit = normalizeMaterialInPriceUnit(
+    valuationUnitLabel,
+    selectedMaterial?.referenceMeasure || selectedMaterial?.primaryMeasure,
+  )
+  const priceUnitOptions = Array.from(new Set([stockPriceUnit, ...(materialUsesDualUnit ? [valuationPriceUnit] : [])]))
+  const priceUsesValuation = materialUsesDualUnit
+    && valuationPriceUnit !== stockPriceUnit
+    && form.priceUnit === valuationPriceUnit
+  const priceQuantity = priceUsesValuation ? effectiveValuationQty : calculatedStockQty
   const totalAmountPreview = form.priceInputMode === 'TOTAL'
     ? Number(Number(form.totalAmount || 0).toFixed(6))
     : Number((priceQuantity * Number(form.unitPrice || 0)).toFixed(6))
@@ -395,73 +418,6 @@ export default function MaterialInPage({
     : Number(form.unitPrice || 0)
   const valuationUnitCostPreview = effectiveValuationQty > 0 ? Number((totalAmountPreview / effectiveValuationQty).toFixed(6)) : 0
   const stockUnitCostPreview = calculatedStockQty > 0 ? Number((totalAmountPreview / calculatedStockQty).toFixed(6)) : 0
-  const canLinkLengthWeight = isLengthMaterial
-    && form.pieceCount > 0
-    && calculatedStockQty > 0
-    && form.totalWeight > 0
-
-  const toggleBatchLink = () => {
-    if (linkedBatchRatios) {
-      setLinkedBatchRatios(null)
-      return
-    }
-    if (!canLinkLengthWeight) {
-      onMessage('请先填写数量、总长度和总重量，再开启比例联动')
-      return
-    }
-    setLinkedBatchRatios({
-      lengthPerPiece: calculatedStockQty / form.pieceCount,
-      weightPerLength: form.totalWeight / calculatedStockQty,
-    })
-    setForm((current) => ({ ...current, stockQtyMode: 'TOTAL', stockQtyInput: calculatedStockQty }))
-  }
-
-  const updateLinkedPieceCount = (pieceCount: number) => {
-    if (!linkedBatchRatios) {
-      setForm({ ...form, pieceCount })
-      return
-    }
-    const totalLength = Number((pieceCount * linkedBatchRatios.lengthPerPiece).toFixed(6))
-    setForm({
-      ...form,
-      pieceCount,
-      stockQtyMode: 'TOTAL',
-      stockQtyInput: totalLength,
-      totalLength,
-      totalWeight: Number((totalLength * linkedBatchRatios.weightPerLength).toFixed(6)),
-    })
-  }
-
-  const updateLinkedTotalLength = (totalLength: number) => {
-    if (!linkedBatchRatios) {
-      setForm({ ...form, stockQtyInput: totalLength, totalLength })
-      return
-    }
-    setForm({
-      ...form,
-      pieceCount: Math.max(1, Math.round(totalLength / linkedBatchRatios.lengthPerPiece)),
-      stockQtyMode: 'TOTAL',
-      stockQtyInput: totalLength,
-      totalLength,
-      totalWeight: Number((totalLength * linkedBatchRatios.weightPerLength).toFixed(6)),
-    })
-  }
-
-  const updateLinkedTotalWeight = (totalWeight: number) => {
-    if (!linkedBatchRatios || linkedBatchRatios.weightPerLength <= 0) {
-      setForm({ ...form, totalWeight })
-      return
-    }
-    const totalLength = Number((totalWeight / linkedBatchRatios.weightPerLength).toFixed(6))
-    setForm({
-      ...form,
-      pieceCount: Math.max(1, Math.round(totalLength / linkedBatchRatios.lengthPerPiece)),
-      stockQtyMode: 'TOTAL',
-      stockQtyInput: totalLength,
-      totalLength,
-      totalWeight,
-    })
-  }
 
   const handleReceive = async (id: string) => {
     setLoading(true)
@@ -493,11 +449,7 @@ export default function MaterialInPage({
       materialId: line.materialId,
       locationId: item.stagingLocationId,
       qty: Number(line.qty),
-      pieceCount: line.pieceCount ? Number(line.pieceCount) : undefined,
-      stockQtyMode: line.stockQtyMode || 'TOTAL',
-      stockQtyInput: line.stockQtyInput ? Number(line.stockQtyInput) : undefined,
-      totalLength: line.totalLength ? Number(line.totalLength) : undefined,
-      totalWeight: line.totalWeight ? Number(line.totalWeight) : undefined,
+      valuationQty: line.conversionSource === 'DOCUMENT_ACTUAL' ? Number(line.valuationQty) : undefined,
       unit: line.unit,
       valuationUnit: line.valuationUnit,
       unitPrice: Number(line.unitPrice),
@@ -506,20 +458,16 @@ export default function MaterialInPage({
       priceBasis: line.priceBasis === 'VALUATION' ? 'VALUATION' : 'STOCK',
       batchNo: line.batchNo || undefined,
     })))
-    setLinkedBatchRatios(null)
+    setConversionHistory(null)
     setForm({
       voucherNo: item.voucherNo || '',
       supplierId: item.supplierId,
       materialId: '',
       locationId: item.stagingLocationId,
       qty: 0,
-      pieceCount: 0,
-      stockQtyMode: 'TOTAL',
-      stockQtyInput: 0,
-      totalLength: 0,
-      totalWeight: 0,
+      valuationQty: 0,
       unitPrice: 0,
-      priceUnit: 'm',
+      priceUnit: '件',
       totalAmount: 0,
       priceInputMode: 'UNIT',
       batchNo: '',
@@ -650,32 +598,27 @@ export default function MaterialInPage({
         materials={materials}
         locations={locations}
         selectedMaterial={selectedMaterial}
-        linkedBatchRatios={linkedBatchRatios}
-        setLinkedBatchRatios={setLinkedBatchRatios}
-        isLengthMaterial={isLengthMaterial}
+        conversionHistory={conversionHistory}
+        conversionHistoryLoading={conversionHistoryLoading}
         calculatedStockQty={calculatedStockQty}
-        calculatedTotalLength={calculatedTotalLength}
         stockUnitLabel={stockUnitLabel}
         materialUsesDualUnit={materialUsesDualUnit}
         effectiveValuationQty={effectiveValuationQty}
         valuationUnitLabel={valuationUnitLabel}
-        actualReferenceQty={actualReferenceQty}
-        referenceValuationQty={referenceValuationQty}
+        conversionSource={conversionSource}
+        conversionRatePreview={conversionRatePreview}
+        priceUnitOptions={priceUnitOptions}
+        priceUsesValuation={priceUsesValuation}
         priceQuantity={priceQuantity}
         unitPricePreview={unitPricePreview}
         totalAmountPreview={totalAmountPreview}
         stockUnitCostPreview={stockUnitCostPreview}
         valuationUnitCostPreview={valuationUnitCostPreview}
-        actualConversionRate={actualConversionRate}
         onClose={closeMaterialInForm}
         onSubmit={handleSubmit}
         onSupplierSearch={fetchSuppliers}
         onMaterialSearch={fetchMaterials}
         onMaterialChange={updateSelectedMaterial}
-        onUpdatePieceCount={updateLinkedPieceCount}
-        onUpdateTotalLength={updateLinkedTotalLength}
-        onUpdateTotalWeight={updateLinkedTotalWeight}
-        onToggleBatchLink={toggleBatchLink}
         onAddCurrentItem={addCurrentItem}
         onRecognized={applyRecognizedMaterialIn}
         onMessage={onMessage}

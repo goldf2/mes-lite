@@ -353,7 +353,7 @@ export default function MaterialEditDialog({
                   placeholder="输入单位名称或编码筛选"
                 />
               </FormField>
-              <FormField label={conversionRateLabel} required hint={`用于 BOM 换算，并在来料未填实测值时参考：1 ${form.stockUnit || '主单位'} = ${form.conversionRate || 0} ${form.valuationUnit || '参考单位'}`}>
+              <FormField label={conversionRateLabel} required hint={`用于 BOM 计划换算和资料参考：1 ${form.stockUnit || '主单位'} = ${form.conversionRate || 0} ${form.valuationUnit || '辅助单位'}`}>
                 <input
                   type="number"
                   step="0.0001"
@@ -370,12 +370,12 @@ export default function MaterialEditDialog({
                   value={form.conversionNote}
                   onChange={(event) => setForm({ ...form, conversionNote: event.target.value })}
                   className={appInputClassName}
-                  placeholder="如：仅作缺少实测时的参考，来料实际值优先"
+                  placeholder="如：标准米重来源、测量条件或适用规格"
                 />
               </FormField>
             </div>
           )}
-          <p className="text-xs text-gray-500">物料保存标准单重或标准米重作为计划/BOM 换算依据；来料单仍记录本批实际数量、长度和重量，实际值优先用于库存核算。</p>
+          <p className="text-xs text-gray-500">物料换算率只作为计划/BOM 依据；来料按主数量和本批辅助实测量核算，实测缺失时仅使用达到样本门槛的历史实测推算。</p>
         </section>
       </div>
     </ModalDialog>

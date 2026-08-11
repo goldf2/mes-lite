@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { changeStockLocationBalance, postInventoryReceipt } from '@/lib/inventory'
+import { changeStockLocationBalance, postInventoryReceipt, type ConversionSource } from '@/lib/inventory'
 import type { ReverseMaterialInInput } from '../contracts/material-in-schema'
 import { MaterialInDomainError, runMaterialInDomainOperation } from '../domain/material-in-errors'
 import { calculateMaterialInReversal, isMaterialInCostLayerUntouched } from '../domain/material-in-reversal'
@@ -20,11 +20,16 @@ export async function receiveManagedMaterialIn(id: string) {
     if (current.lines.some((line) => line.material.deletedAt)) throw new MaterialInDomainError('来料单包含已归档物料，无法确认收货')
 
     for (const line of current.lines) {
+      const conversionSource: ConversionSource = line.conversionSource === 'DOCUMENT_ACTUAL'
+        || line.conversionSource === 'HISTORICAL_ESTIMATE'
+        || line.conversionSource === 'SAME_UNIT'
+        ? line.conversionSource
+        : 'MASTER_DEFAULT'
       await postInventoryReceipt(tx, {
         materialId: line.materialId,
         stockQty: Number(line.qty),
         valuationQty: Number(line.valuationQty),
-        conversionSource: line.conversionSource === 'DOCUMENT_ACTUAL' ? 'DOCUMENT_ACTUAL' : 'MASTER_DEFAULT',
+        conversionSource,
         costAmount: Number(line.totalAmount),
         type: 'IN',
         refType: 'MATERIAL_IN',

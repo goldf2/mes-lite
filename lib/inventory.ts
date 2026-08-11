@@ -5,6 +5,8 @@ import { normalizeConversionRate } from './units'
 export type ConversionSource =
   | 'MASTER_DEFAULT'
   | 'DOCUMENT_ACTUAL'
+  | 'HISTORICAL_ESTIMATE'
+  | 'SAME_UNIT'
   | 'STOCK_AVERAGE'
   | 'FIFO_LAYER'
   | 'ORIGINAL_MOVEMENT'
