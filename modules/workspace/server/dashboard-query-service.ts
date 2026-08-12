@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { normalizeProductionOrderStatusDistribution } from '@/modules/production'
 import { buildProductionFlowDashboard } from '../domain/dashboard-production'
 
 const STOCK_BALANCE_FIELDS = [
@@ -66,7 +67,9 @@ export async function getDashboardData(now = new Date()) {
       todayProductionActualOutput: todayProductionActualOutputAgg._sum.actualQty ?? 0,
       monthProductionActualOutput: monthProductionActualOutputAgg._sum.actualQty ?? 0,
     }),
-    statusDistribution: statusDistribution.map((item) => ({ status: item.status, count: item._count })),
+    statusDistribution: normalizeProductionOrderStatusDistribution(
+      statusDistribution.map((item) => ({ status: item.status, count: item._count })),
+    ),
     productionActualStatusDistribution: productionActualStatusDistribution.map((item) => ({ status: item.status, count: item._count })),
     pendingProductionActualCount,
     pendingMaterialInCount,

@@ -15,6 +15,7 @@ import {
   loadProductionOrderActuals,
   reverseProductionOrderActual,
 } from '../client/production-order-api'
+import { productionOrderActualCreationError } from '../domain/production-order-status'
 
 type BomSnapshot = {
   id: string
@@ -68,6 +69,7 @@ type ActualData = {
   order: {
     id: string
     orderNo: string
+    materialId?: string | null
     status: string
     planQty: number
     completeQty: number
@@ -170,7 +172,8 @@ export default function ProductionOrderActualPanel({
 
   const openForm = () => {
     if (!data?.order.bomSnapshot) return onMessage('该生产订单没有 BOM 快照，请重新创建生产订单')
-    if (['CANCELLED', 'COMPLETED'].includes(data.order.status)) return onMessage('已取消或已完成的生产订单不能新增实绩')
+    const creationError = productionOrderActualCreationError(data.order.status, data.order.materialId)
+    if (creationError) return onMessage(creationError)
     const defaultLocationId = data.locations.find((location) => location.isDefault)?.id || data.locations[0]?.id || ''
     const remaining = Math.max(0, Number(data.order.planQty) - Number(data.order.completeQty))
     const main = data.order.bomSnapshot.outputs.find((output) => output.isPrimary)!
@@ -282,9 +285,13 @@ export default function ProductionOrderActualPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="font-semibold text-gray-900">班后生产实绩</h3>
-          <p className="mt-1 text-sm text-gray-500">订单先保存基本信息；班后按订单 BOM 快照登记全部投入和产出，确认后再更新库存。</p>
+          <p className="mt-1 text-sm text-gray-500">订单发布后，班后按 BOM 快照登记全部投入和产出，确认后再更新库存。</p>
         </div>
-        <AppButton variant="create" onClick={openForm} disabled={loading || ['CANCELLED', 'COMPLETED'].includes(data.order.status)}>登记班后产量</AppButton>
+        <AppButton
+          variant="create"
+          onClick={openForm}
+          disabled={loading || Boolean(productionOrderActualCreationError(data.order.status, data.order.materialId))}
+        >登记班后产量</AppButton>
       </div>
 
       <div className="mt-4 space-y-3">

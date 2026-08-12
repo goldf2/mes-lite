@@ -723,6 +723,7 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 
 - `contracts/dispatch-schema.ts` 统一创建输入；`domain/dispatch-numbering.ts`、`dispatch-status.ts` 和 `dispatch-errors.ts` 分别拥有日期最大序号、五态流转和可预期领域错误。
 - `server/dispatch-query-service.ts` 统一列表、客户/工人/状态组合过滤和详情装配；`dispatch-command-service.ts` 拥有工单状态、工序归属、创建和归档；`dispatch-status-service.ts` 原子执行派工、开工、完工与取消。
+- `domain/production-order-status.ts` 是新旧订单状态的唯一翻译边界；Material 工单只写 `DRAFT / RELEASED / IN_PROGRESS / COMPLETED / CANCELLED`，历史别名只用于读取和兼容收尾。
 - 派工主路由、详情和 4 条状态路由共 6 条 Route Handler 现为 17–67 行，只保留权限、Schema、服务调用、请求级审计与 HTTP 错误映射；直接访问 Prisma 的 API 从 52 条降至 46 条。
 - 派工编号改为读取当日最大历史序号后递增，归档、取消或中间断号不会导致编号复用。
 - `verify:dispatch-module` 使用运行后删除的临时完整 SQLite 覆盖工序归属、客户/工人/状态组合查询、创建、派工、开工、完工、取消、归档、编号断号和非法重复流转，不连接本机测试库或服务器正式库。

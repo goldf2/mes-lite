@@ -24,7 +24,13 @@ import {
   finalizeDraftDocumentAttachments,
 } from '@/modules/attachments'
 import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
-import { createProductionOrders, loadProductionOrderDetail, loadProductionOrderOptions, loadProductionOrders } from '../client/production-order-api'
+import {
+  createProductionOrders,
+  loadProductionOrderDetail,
+  loadProductionOrderOptions,
+  loadProductionOrders,
+  releaseProductionOrder,
+} from '../client/production-order-api'
 import type { ProductionOrder, ProductionOrderDetail, ProductionOrderDraftLine, ProductionOrderMaterialOption, ProductionOrderMode } from '../contracts/production-order'
 import {
   buildProductionOrderCreateInput,
@@ -42,6 +48,7 @@ const ProductionOrderActualPanel = dynamic(() => import('./ProductionOrderActual
 interface ProductionOrderModuleProps {
   mode: ProductionOrderMode
   canCreate: boolean
+  canUpdate: boolean
   onModeChange: (mode: ProductionOrderMode) => void
   onMessage: (message: string) => void
   onStateSummaryChange?: (summary: string) => void
@@ -64,6 +71,7 @@ function readInitialStatuses() {
 export default function ProductionOrderModule({
   mode,
   canCreate,
+  canUpdate,
   onModeChange,
   onMessage,
   onStateSummaryChange,
@@ -167,6 +175,20 @@ export default function ProductionOrderModule({
   async function openOrderDetail(order: ProductionOrder) {
     await fetchOrderDetail(order.id)
     onModeChange('detail')
+  }
+
+  async function releaseOrder() {
+    if (!orderDetail || orderDetail.status !== 'DRAFT') return
+    setLoading(true)
+    try {
+      const result = await releaseProductionOrder(orderDetail.id)
+      onMessage(result.message)
+      await Promise.all([fetchOrderDetail(orderDetail.id), fetchOrders()])
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '发布生产订单失败')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function applyRecognizedProductionOrder(fields: Record<string, unknown>) {
@@ -376,7 +398,7 @@ export default function ProductionOrderModule({
 
       {mode === 'detail' && orderDetail && (
         <div className="rounded-lg bg-white p-6 shadow">
-          <div className="mb-6 flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold">生产订单详情</h2><span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">系统生成单据</span></div><p className="text-sm text-gray-500">{orderDetail.groupNo || orderDetail.orderNo}{orderDetail.groupNo ? ` · 第 ${orderDetail.lineNo} 项` : ''}</p><p className="text-sm text-gray-500">凭据号：{orderDetail.voucherNo || '-'}</p></div><BusinessDocumentPrintLink kind="production-order" id={orderDetail.id} /></div>
+          <div className="mb-6 flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold">生产订单详情</h2><span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">系统生成单据</span></div><p className="text-sm text-gray-500">{orderDetail.groupNo || orderDetail.orderNo}{orderDetail.groupNo ? ` · 第 ${orderDetail.lineNo} 项` : ''}</p><p className="text-sm text-gray-500">凭据号：{orderDetail.voucherNo || '-'}</p></div><div className="flex flex-wrap items-center gap-2">{canUpdate && orderDetail.status === 'DRAFT' && <AppButton variant="primary" onClick={() => void releaseOrder()} disabled={loading}>发布生产订单</AppButton>}<BusinessDocumentPrintLink kind="production-order" id={orderDetail.id} /></div></div>
           <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
             <InfoCard label="目标"><div className="font-medium">{orderDetail.targetMaterial?.name || orderDetail.product.name}</div><div className="text-xs text-gray-400">物料 {orderDetail.targetMaterial?.code || displayProductionMaterialCode(orderDetail.product.sku)}</div></InfoCard>
             <InfoCard label="BOM 方案"><div className="font-medium">{orderDetail.bomName || orderDetail.bom?.name || '-'}</div><div className="text-xs text-gray-400">{orderDetail.bomVersion || orderDetail.bom?.version || '-'}</div></InfoCard>

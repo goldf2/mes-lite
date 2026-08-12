@@ -5,7 +5,19 @@ export type { ConfirmProductionOrderActualInput, CreateProductionOrderActualInpu
 export type { ProductionActualCostLayerSnapshot } from './domain/production-order-actual-cost-snapshot'
 export type { ProductionOrderBomSnapshot } from './domain/production-order-bom-snapshot'
 export { buildProductionOrderGroupNo, buildProductionOrderNo } from './domain/production-order-numbering'
-export { confirmedProductionOrderStatus, productionOrderCancellationError, productionOrderConfirmationError } from './domain/production-order-status'
+export {
+  currentProductionOrderStatuses,
+  expandProductionOrderStatusFilters,
+  normalizeProductionOrderStatus,
+  normalizeProductionOrderStatusDistribution,
+  productionOrderActualCreationError,
+  productionOrderCancellationError,
+  productionOrderConfirmationError,
+  productionOrderDispatchError,
+  productionOrderReleaseError,
+  productionOrderStatusAfterActual,
+  releasedProductionOrderStatus,
+} from './domain/production-order-status'
 export { default as DispatchPageModule } from './ui/DispatchPageModule'
 export { default as FlowTransferPageModule } from './ui/FlowTransferPageModule'
 export { default as ProductionEngineeringSectionPage, isProductionEngineeringSection, productionEngineeringSections } from './ProductionEngineeringSectionPage'

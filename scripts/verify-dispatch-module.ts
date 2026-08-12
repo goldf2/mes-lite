@@ -92,6 +92,9 @@ async function main() {
     const product = await prisma.product.create({
       data: { sku: `VERIFY-P-${suffix}`, name: `验证产品 ${suffix}`, category: 'FINISHED', unit: '件', customerId: customer.id },
     })
+    const material = await prisma.material.create({
+      data: { code: `VERIFY-P-${suffix}`, name: `验证产品 ${suffix}`, category: 'FINISHED', unit: '件', stockUnit: '件', customerId: customer.id },
+    })
     const route = await prisma.processRoute.create({
       data: {
         productId: product.id, name: '验证路线', isDefault: true,
@@ -107,7 +110,7 @@ async function main() {
       include: { steps: true },
     })
     const order = await prisma.productionOrder.create({
-      data: { orderNo: `VERIFY-O-${suffix}`, productId: product.id, planQty: 100, status: 'PICKED' },
+      data: { orderNo: `VERIFY-O-${suffix}`, productId: product.id, materialId: material.id, planQty: 100, status: 'RELEASED' },
     })
     const draftOrder = await prisma.productionOrder.create({
       data: { orderNo: `VERIFY-DRAFT-${suffix}`, productId: product.id, planQty: 10, status: 'DRAFT' },

@@ -4,9 +4,10 @@ import { changeStockLocationBalance } from '@/lib/inventory'
 import type { CancelProductionOrderInput } from '../contracts/production-order-schema'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
 import {
-  confirmedProductionOrderStatus,
   productionOrderCancellationError,
   productionOrderConfirmationError,
+  productionOrderReleaseError,
+  releasedProductionOrderStatus,
 } from '../domain/production-order-status'
 
 export async function confirmProductionOrder(id: string, now = new Date()) {
@@ -17,14 +18,22 @@ export async function confirmProductionOrder(id: string, now = new Date()) {
   if (!order) throw new ProductionOrderDomainError('生产订单不存在', 404)
   const confirmationError = productionOrderConfirmationError(order.status)
   if (confirmationError) throw new ProductionOrderDomainError(confirmationError)
+  const releaseError = productionOrderReleaseError(order.materialId, order._count.picks)
+  if (releaseError) throw new ProductionOrderDomainError(releaseError)
 
-  const status = confirmedProductionOrderStatus(order._count.picks)
-  const updated = await prisma.productionOrder.update({ where: { id }, data: { status, startTime: now } })
+  const status = releasedProductionOrderStatus(order.materialId, order._count.picks)
+  const updated = await prisma.productionOrder.update({
+    where: { id },
+    data: { status, startTime: order.materialId ? null : now },
+  })
   return {
+    previous: order,
     updated,
-    message: order._count.picks === 0
-      ? `生产订单 ${updated.orderNo} 已确认，可直接派工`
-      : `生产订单 ${updated.orderNo} 已确认`,
+    message: order.materialId
+      ? `生产订单 ${updated.orderNo} 已发布，可派工或登记班后生产实绩`
+      : order._count.picks === 0
+        ? `历史生产订单 ${updated.orderNo} 已确认，可继续兼容派工`
+        : `历史生产订单 ${updated.orderNo} 已确认`,
   }
 }
 

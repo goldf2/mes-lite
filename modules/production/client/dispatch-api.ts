@@ -23,7 +23,7 @@ export async function listDispatches(selectedStatuses: string[], allStatuses: st
 }
 
 export async function listDispatchOrders(customerId: string) {
-  const params = new URLSearchParams({ status: 'PICKED' })
+  const params = new URLSearchParams({ statuses: 'RELEASED,IN_PROGRESS' })
   if (customerId) params.set('customerId', customerId)
   const response = await fetch(`/api/orders?${params}`)
   if (!response.ok) throw new Error('获取可派工工单失败')

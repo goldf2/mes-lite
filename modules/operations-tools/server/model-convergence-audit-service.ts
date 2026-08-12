@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { normalizeProductionOrderStatus, normalizeProductionOrderStatusDistribution } from '@/modules/production'
 
 type ModelConvergenceDatabase = Pick<
   typeof prisma,
@@ -32,6 +33,7 @@ export async function getModelConvergenceAudit(db: ModelConvergenceDatabase = pr
     sawingScenarios,
     productionOrders,
     ordersMissingMaterial,
+    productionOrderStatusRows,
     stockIns,
     shipments,
     shipmentsMissingMaterial,
@@ -64,6 +66,7 @@ export async function getModelConvergenceAudit(db: ModelConvergenceDatabase = pr
     db.sawingCostScenario.count({ where: { productId: { not: null } } }),
     db.productionOrder.count(),
     db.productionOrder.count({ where: { materialId: null } }),
+    db.productionOrder.groupBy({ by: ['status'], _count: true }),
     db.stockIn.count(),
     db.shipment.count(),
     db.shipment.count({ where: { materialId: null } }),
@@ -101,6 +104,10 @@ export async function getModelConvergenceAudit(db: ModelConvergenceDatabase = pr
   if (ordersMissingMaterial > 0) blockers.push('存在 materialId 为空的生产订单')
   if (shipmentsMissingMaterial > 0) blockers.push('存在 materialId 为空的发货单')
   if (returnsMissingMaterial > 0) blockers.push('存在 materialId 为空的退货单')
+  const rawProductionOrderStatuses = productionOrderStatusRows.map((item) => ({
+    status: item.status,
+    count: item._count,
+  }))
 
   return {
     products: {
@@ -122,6 +129,13 @@ export async function getModelConvergenceAudit(db: ModelConvergenceDatabase = pr
       ordersMissingMaterial,
       shipmentsMissingMaterial,
       returnsMissingMaterial,
+    },
+    productionOrderStatuses: {
+      raw: rawProductionOrderStatuses,
+      normalized: normalizeProductionOrderStatusDistribution(rawProductionOrderStatuses),
+      legacyAliasRows: rawProductionOrderStatuses.reduce((count, item) => (
+        count + (normalizeProductionOrderStatus(item.status) === item.status ? 0 : item.count)
+      ), 0),
     },
     inventory: {
       materialMissingStock,

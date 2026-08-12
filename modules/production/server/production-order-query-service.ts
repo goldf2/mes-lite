@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { applyStatusFilter } from '@/lib/status-filter'
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
+import { expandProductionOrderStatusFilters } from '../domain/production-order-status'
 
 export interface ProductionOrderListQuery {
   statuses: string[]
@@ -15,7 +16,7 @@ export async function listProductionOrders(query: ProductionOrderListQuery) {
   const where: Prisma.ProductionOrderWhereInput = { deletedAt: null }
   const andConditions: Prisma.ProductionOrderWhereInput[] = []
   const statusWhere: { status?: string | { in: string[] } } = {}
-  applyStatusFilter(statusWhere, query.statuses)
+  applyStatusFilter(statusWhere, expandProductionOrderStatusFilters(query.statuses))
   Object.assign(where, statusWhere)
 
   if (query.customerId === '__UNASSIGNED__') {

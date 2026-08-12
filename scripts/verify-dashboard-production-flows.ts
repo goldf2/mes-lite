@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { buildProductionFlowDashboard } from '../modules/workspace/domain/dashboard-production'
 import { buildDashboardMetricItems, normalizeDashboard } from '../modules/workspace/model/dashboard-view'
+import { normalizeProductionOrderStatusDistribution } from '../modules/production/domain/production-order-status'
 
 const root = process.cwd()
 const requiredFiles = [
@@ -71,5 +72,14 @@ assert.equal(normalized.lowStocks.length, 1, '工作台必须兼容旧库存预�
 const metrics = buildDashboardMetricItems(normalized)
 assert.equal(metrics.length, 8)
 assert.equal(metrics.find((item) => item.label === '库存预警')?.value, 1)
+assert.deepEqual(normalizeProductionOrderStatusDistribution([
+  { status: 'RELEASED', count: 2 },
+  { status: 'PICKED', count: 3 },
+  { status: 'RUNNING', count: 4 },
+  { status: 'IN_PROGRESS', count: 1 },
+]), [
+  { status: 'RELEASED', count: 5 },
+  { status: 'IN_PROGRESS', count: 5 },
+], '仪表盘必须把历史订单状态归并到当前四阶段口径')
 
 console.log('工作台模块验证通过：页面零直接请求，统计兼容、指标装配和生产流数据符合预期。')

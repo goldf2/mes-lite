@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import type { CreateDispatchInput } from '../contracts/dispatch-schema'
 import { DispatchDomainError } from '../domain/dispatch-errors'
 import { dispatchNumberPrefix, nextDispatchNumber } from '../domain/dispatch-numbering'
+import { productionOrderDispatchError } from '../domain/production-order-status'
 import { dispatchDetailInclude } from './dispatch-query-service'
 
 export async function createManagedDispatch(input: CreateDispatchInput, now = new Date()) {
@@ -11,9 +12,8 @@ export async function createManagedDispatch(input: CreateDispatchInput, now = ne
       include: { product: { include: { processRoutes: { include: { steps: true } } } }, targetMaterial: true },
     })
     if (!order || order.deletedAt) throw new DispatchDomainError('工单不存在或已归档', 404)
-    if (!['PICKED', 'RUNNING'].includes(order.status)) {
-      throw new DispatchDomainError('工单状态不允许派工，需为 PICKED 或 RUNNING')
-    }
+    const dispatchError = productionOrderDispatchError(order.status, order.materialId)
+    if (dispatchError) throw new DispatchDomainError(dispatchError)
     const stepIds = order.product.processRoutes.flatMap((route) => route.steps.map((step) => step.id))
     if (!stepIds.includes(input.stepId)) throw new DispatchDomainError('工序不属于该工单物料的工艺路线')
 

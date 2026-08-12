@@ -1,5 +1,6 @@
 import type { PermissionMap, PermissionResource } from '@/lib/permissions'
 import { prisma } from '@/lib/prisma'
+import { expandProductionOrderStatusFilters, normalizeProductionOrderStatus } from '@/modules/production'
 
 type JsonSchema = Record<string, unknown>
 
@@ -112,7 +113,7 @@ const toolSpecs: ToolSpec[] = [
             keyword: { type: 'string', description: '订单号、凭据号、物料编码或名称' },
             statuses: {
               type: 'array',
-              items: { type: 'string', enum: ['DRAFT', 'CONFIRMED', 'PICKED', 'RUNNING', 'QC_WAITING', 'QC_DONE', 'COMPLETED', 'CANCELLED'] },
+              items: { type: 'string', enum: ['DRAFT', 'RELEASED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] },
             },
             limit: { type: 'integer', minimum: 1, maximum: 20, default: 10 },
           },
@@ -329,9 +330,10 @@ export async function executeAgentTool(
 
   if (name === 'query_production_orders') {
     const keyword = stringValue(args.keyword)
-    const statuses = Array.isArray(args.statuses)
+    const requestedStatuses = Array.isArray(args.statuses)
       ? args.statuses.filter((item): item is string => typeof item === 'string').slice(0, 8)
       : []
+    const statuses = expandProductionOrderStatusFilters(requestedStatuses)
     const limit = finiteNumber(args.limit, 10, 1, 20)
     const orders = await prisma.productionOrder.findMany({
       where: {
@@ -364,7 +366,13 @@ export async function executeAgentTool(
         targetMaterial: { select: { id: true, code: true, name: true, stockUnit: true } },
       },
     })
-    return { source: '生产订单', data: orders }
+    return {
+      source: '生产订单',
+      data: orders.map((order) => {
+        const status = normalizeProductionOrderStatus(order.status)
+        return status === order.status ? order : { ...order, status, legacyStatus: order.status }
+      }),
+    }
   }
 
   if (name === 'get_business_summary') {

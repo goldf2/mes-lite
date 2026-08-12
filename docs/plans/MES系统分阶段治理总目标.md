@@ -70,10 +70,11 @@
 
 ### 阶段 1B：外键迁移与统一状态机
 
+- [x] `v0.1.350` 将新 Material 工单写入状态统一为 `DRAFT → RELEASED → IN_PROGRESS → COMPLETED/CANCELLED`。
+- [x] 历史订单状态在列表筛选、派工、仪表盘和 AI 查询中归并到新口径，不批量改写生产数据。
 - [ ] 完成生产备份挂载、可验证备份、异地副本和非覆盖恢复演练。
 - [ ] 在生产运行只读审计，人工确认所有 `Product → Material` 映射和 Product 独占库存处置。
 - [ ] 按表增加、回填、核对并收紧 `materialId`，逐步退出 Product 外键。
-- [ ] 将生产订单收敛为 `DRAFT → RELEASED → IN_PROGRESS → COMPLETED/CANCELLED`。
 - [ ] 记录每批迁移前后统计、回滚点和生产验证，不在本地数据上推断生产结论。
 
 ## 4. 暂停线

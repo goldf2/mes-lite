@@ -60,6 +60,18 @@ function verifyStaticBoundaries() {
   ]) {
     assert.match(readFileSync(join(root, path), 'utf8'), /legacyProductionCompatibilityError/, `${path} 必须阻止新物料工单进入旧执行表`)
   }
+  const modernOrderWriters = [
+    'modules/production/server/production-order-command-service.ts',
+    'modules/production/server/production-order-status-service.ts',
+    'modules/production/server/production-order-actual-totals.ts',
+  ].map((path) => readFileSync(join(root, path), 'utf8')).join('\n')
+  const oldStatusWriteLines = modernOrderWriters.split('\n').filter((line) => (
+    /status:\s*'(?:CONFIRMED|PICKED|DISPATCHED|RUNNING|QC_WAITING|QC_DONE)'/.test(line)
+    && !/\bwhere:/.test(line)
+  ))
+  assert.deepEqual(oldStatusWriteLines, [], '新 Material 工单不得重新写入旧订单状态')
+  assert.match(modernOrderWriters, /releasedProductionOrderStatus/, '订单发布必须统一通过当前状态规则')
+  assert.match(modernOrderWriters, /productionOrderStatusAfterActual/, '实绩累计必须统一通过当前状态规则')
 }
 
 execFileSync(join(root, 'node_modules', '.bin', 'prisma'), ['migrate', 'deploy'], {
@@ -103,6 +115,16 @@ async function main() {
     assert.equal(await prisma.stock.count({ where: { productId } }), 0)
     assert.equal((await findStockIntegrityIssues()).some((issue) => issue.type === 'PRODUCT_WITHOUT_STOCK'), false)
 
+    await prisma.productionOrder.create({
+      data: {
+        orderNo: `LEGACY-STATUS-${suffix}`,
+        productId,
+        materialId: material.id,
+        planQty: 1,
+        status: 'PICKED',
+      },
+    })
+
     await assert.rejects(
       () => createLegacyDailyProductionReport(),
       (error: unknown) => error instanceof LegacyDailyProductionError && error.status === 410,
@@ -112,6 +134,8 @@ async function main() {
     let audit = await getModelConvergenceAudit(prisma)
     assert.deepEqual(audit.products, { total: 1, mappedByCode: 1, unmapped: 0 })
     assert.equal(audit.inventory.productOnlyStocks, 0)
+    assert.deepEqual(audit.productionOrderStatuses.normalized, [{ status: 'RELEASED', count: 1 }])
+    assert.equal(audit.productionOrderStatuses.legacyAliasRows, 1)
     assert.equal(audit.readyForProductForeignKeyMigration, true)
 
     const legacyProduct = await prisma.product.create({

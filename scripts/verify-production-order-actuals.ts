@@ -83,6 +83,7 @@ async function main() {
         bomVersion: bom.version,
         bomSnapshot: snapshot,
         planQty: 5,
+        status: 'RELEASED',
       },
     })
 
@@ -137,6 +138,13 @@ async function main() {
         { materialId: scrap.id, locationId: scrapLocation.id, actualQty: 0.25 },
       ],
     }
+    await prisma.productionOrder.update({ where: { id: order.id }, data: { status: 'DRAFT' } })
+    await assert.rejects(
+      () => createProductionOrderActual(order.id, actualInput),
+      /请先发布生产订单/,
+      'Material 工单未发布前不得登记生产实绩',
+    )
+    await prisma.productionOrder.update({ where: { id: order.id }, data: { status: 'RELEASED' } })
     const actual = await createProductionOrderActual(order.id, actualInput)
     assert.equal(actual.status, 'DRAFT')
     assert.equal(actual.actualNo, 'PA-20260809-001')
@@ -170,7 +178,7 @@ async function main() {
     assert.equal(scrapStock.qty, 0.25)
     assert.equal(updatedOrder.completeQty, 3)
     assert.equal(updatedOrder.scrapQty, 0.25)
-    assert.equal(updatedOrder.status, 'RUNNING')
+    assert.equal(updatedOrder.status, 'IN_PROGRESS')
 
     const reversed = await reverseProductionOrderActual(order.id, actual.id, { reason: '验证冲销' }, '验证冲销员')
     assert.equal(reversed.before.status, 'CONFIRMED')
@@ -185,7 +193,7 @@ async function main() {
     assert.deepEqual([restoredInput.qty, restoredInput.totalCost], [20, 200], '冲销必须恢复投入库存和原成本')
     assert.deepEqual([reversedOutput.qty, reversedOutput.totalCost], [0, 0], '冲销必须扣回主产出库存和成本')
     assert.equal(reversedScrap.qty, 0, '冲销必须扣回副产出库存')
-    assert.deepEqual([resetOrder.completeQty, resetOrder.scrapQty, resetOrder.status], [0, 0, 'DRAFT'], '冲销后必须重算生产订单累计数量和状态')
+    assert.deepEqual([resetOrder.completeQty, resetOrder.scrapQty, resetOrder.status], [0, 0, 'RELEASED'], '冲销后必须回到已发布，不得退回未发布草稿')
     assert.equal(reversalLogs, 3, '一次冲销必须生成一条投入恢复和两条产出扣回流水')
     await assert.rejects(
       () => reverseProductionOrderActual(order.id, actual.id, { reason: '重复冲销' }, '验证员'),

@@ -10,6 +10,7 @@ import {
 } from '../domain/production-order-actual-numbering'
 import { parseProductionOrderBomSnapshot } from '../domain/production-order-bom-snapshot'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
+import { productionOrderActualCreationError } from '../domain/production-order-status'
 import { buildProductionOrderActualLines } from './production-order-actual-lines'
 
 const actualInclude = {
@@ -66,9 +67,8 @@ export async function createProductionOrderActual(orderId: string, input: Create
   return prisma.$transaction(async (tx) => {
     const order = await tx.productionOrder.findFirst({ where: { id: orderId, deletedAt: null } })
     if (!order) throw new ProductionOrderDomainError('生产订单不存在或已归档', 404)
-    if (['CANCELLED', 'COMPLETED'].includes(order.status)) {
-      throw new ProductionOrderDomainError('已取消或已完成的生产订单不能新增实绩')
-    }
+    const creationError = productionOrderActualCreationError(order.status, order.materialId)
+    if (creationError) throw new ProductionOrderDomainError(creationError)
     if (!order.bomSnapshot) throw new ProductionOrderDomainError('生产订单没有 BOM 快照，请重新创建生产订单')
 
     const employees = await resolveActiveEmployees(tx, input.employeeIds)

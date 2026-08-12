@@ -52,6 +52,12 @@ export async function createProductionOrders(input: CreateProductionOrdersInput)
   }
 }
 
+export async function releaseProductionOrder(orderId: string) {
+  const payload = await request<ProductionOrder>(`/api/orders/${encodeURIComponent(orderId)}/confirm`, { method: 'PATCH' })
+  if (!payload.data) throw new Error('生产订单发布未返回结果')
+  return { data: payload.data, message: payload.message || '生产订单已发布' }
+}
+
 export async function loadProductionOrderActuals<T>(orderId: string) {
   const payload = await request<T>(`/api/orders/${encodeURIComponent(orderId)}/actuals`)
   if (!payload.data) throw new Error('班后生产实绩未返回结果')

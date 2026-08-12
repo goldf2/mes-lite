@@ -10,7 +10,17 @@ import { buildProductionActualNo, parseProductionActualDate, parseProductionActu
 import { parseProductionOrderBomSnapshot } from '../modules/production/domain/production-order-bom-snapshot'
 import { ProductionOrderDomainError } from '../modules/production/domain/production-order-errors'
 import { buildProductionOrderGroupNo, buildProductionOrderNo } from '../modules/production/domain/production-order-numbering'
-import { confirmedProductionOrderStatus, productionOrderCancellationError, productionOrderConfirmationError } from '../modules/production/domain/production-order-status'
+import {
+  expandProductionOrderStatusFilters,
+  normalizeProductionOrderStatus,
+  productionOrderActualCreationError,
+  productionOrderCancellationError,
+  productionOrderConfirmationError,
+  productionOrderDispatchError,
+  productionOrderReleaseError,
+  productionOrderStatusAfterActual,
+  releasedProductionOrderStatus,
+} from '../modules/production/domain/production-order-status'
 import { buildProductionOrderCreateInput, groupProductionOrders } from '../modules/production/model/production-order-view'
 
 const root = process.cwd()
@@ -57,6 +67,8 @@ assert.match(pageSource, /loadProductionOrders\(/, '生产订单页面必须通�
 assert.match(pageSource, /createProductionOrders\(/, '生产订单页面必须通过领域 client 创建订单')
 assert.match(clientSource, /\/api\/orders\/options/, '生产订单 client 必须集中候选项接口')
 assert.match(clientSource, /\/api\/orders\/\$\{encodeURIComponent\(orderId\)\}/, '生产订单 client 必须集中详情接口')
+assert.match(clientSource, /export async function releaseProductionOrder[\s\S]*\/confirm/, '生产订单 client 必须提供发布命令')
+assert.match(pageSource, /releaseProductionOrder[\s\S]*发布生产订单/, '草稿订单详情必须提供显式发布动作')
 assert.match(indexSource, /ProductionOrderMode.*contracts\/production-order/, '生产订单模式类型必须从领域契约公开')
 assert.match(routeSource, /production-order-command-service/, '生产订单 API 必须委托命令服务')
 assert.match(routeSource, /production-order-query-service/, '生产订单 API 必须委托查询服务')
@@ -78,6 +90,11 @@ for (const path of [
   assert.doesNotMatch(source, /@\/lib\/prisma|\bprisma\.|\$transaction|changeStockLocationBalance|restoreMaterialCost/, `${path} 不得保留数据库或状态事务规则`)
   assert.ok(source.split('\n').length <= 45, `${path} 必须保持为不超过 45 行的 HTTP 适配层`)
 }
+assert.match(
+  readFileSync(join(root, 'app/api/orders/[id]/confirm/route.ts'), 'utf8'),
+  /writeAuditLog[\s\S]*action:\s*'RELEASE'/,
+  '生产订单发布必须记录前后状态审计',
+)
 for (const path of [
   'app/api/orders/[id]/pick/route.ts',
   'app/api/orders/[id]/reports/route.ts',
@@ -117,8 +134,29 @@ const fixedDate = new Date('2026-08-09T08:00:00.000Z')
 assert.equal(buildProductionOrderGroupNo(fixedDate, 0), 'WO-20260809-001', '生产订单组号必须按日期和当日序号生成')
 assert.equal(buildProductionOrderNo('WO-20260809-001', 0), 'WO-20260809-001', '第一行订单号必须等于组号')
 assert.equal(buildProductionOrderNo('WO-20260809-001', 1), 'WO-20260809-001-02', '后续行订单号必须追加两位行号')
-assert.equal(confirmedProductionOrderStatus(0), 'PICKED', '无领料明细的草稿订单确认后必须可直接派工')
-assert.equal(confirmedProductionOrderStatus(1), 'CONFIRMED', '已有领料明细的草稿订单确认后必须保持待领料状态')
+assert.equal(releasedProductionOrderStatus('material-id', 0), 'RELEASED', 'Material 工单确认后必须进入统一已发布状态')
+assert.equal(releasedProductionOrderStatus('material-id', 1), 'RELEASED', 'Material 工单状态不得再表达旧领料进度')
+assert.equal(releasedProductionOrderStatus(null, 0), 'PICKED', '无物料投影的历史工单保留旧状态用于收尾')
+assert.equal(releasedProductionOrderStatus(null, 1), 'CONFIRMED', '有领料项的历史工单保留旧待领料状态')
+assert.equal(productionOrderReleaseError('material-id', 0), null)
+assert.match(productionOrderReleaseError('material-id', 1) || '', /历史领料项/, '有旧领料项的 Material 工单必须先治理再发布')
+assert.equal(productionOrderReleaseError(null, 1), null, '历史工单继续使用兼容确认流程')
+assert.equal(normalizeProductionOrderStatus('CONFIRMED'), 'RELEASED')
+assert.equal(normalizeProductionOrderStatus('QC_WAITING'), 'IN_PROGRESS')
+assert.deepEqual(
+  expandProductionOrderStatusFilters(['RELEASED']),
+  ['RELEASED', 'CONFIRMED', 'PICKED', 'DISPATCHED'],
+  '按已发布筛选时必须覆盖旧状态别名',
+)
+assert.equal(productionOrderActualCreationError('DRAFT', 'material-id'), '请先发布生产订单，再登记班后生产实绩')
+assert.equal(productionOrderActualCreationError('RELEASED', 'material-id'), null)
+assert.equal(productionOrderActualCreationError('PICKED', 'material-id'), null, '旧物料工单状态必须可平滑进入新实绩流程')
+assert.equal(productionOrderDispatchError('RELEASED', 'material-id'), null)
+assert.equal(productionOrderDispatchError('PICKED', null), null, '历史工单仍可完成旧派工流程')
+assert.match(productionOrderDispatchError('DRAFT', 'material-id') || '', /不允许派工/)
+assert.equal(productionOrderStatusAfterActual('material-id', false, true), 'IN_PROGRESS')
+assert.equal(productionOrderStatusAfterActual('material-id', false, false), 'RELEASED')
+assert.equal(productionOrderStatusAfterActual('material-id', true, true), 'COMPLETED')
 assert.equal(productionOrderConfirmationError('DRAFT'), null)
 assert.equal(productionOrderConfirmationError('PICKED'), '只能确认草稿状态的生产订单')
 assert.equal(productionOrderCancellationError('COMPLETED', 0), '已入库工单不可取消，请先创建退货单')
@@ -221,7 +259,8 @@ async function verifyDatabaseRules() {
     assert.equal(options.find((item) => item.id === outputMaterial.id)?.boms[0]?.id, bom.id, '生产订单候选项必须按主产出物料归组启用 BOM')
 
     const confirmed = await confirmProductionOrder(created.items[0].id, fixedDate)
-    assert.equal(confirmed.updated.status, 'PICKED', '无领料明细的生产订单确认后必须可直接派工')
+    assert.equal(confirmed.updated.status, 'RELEASED', 'Material 生产订单确认后必须进入统一已发布状态')
+    assert.equal(confirmed.updated.startTime, null, '订单发布不等于实际开工')
     await assert.rejects(() => confirmProductionOrder(created.items[0].id), ProductionOrderDomainError, '非草稿生产订单不得重复确认')
 
     const location = await prisma.inventoryLocation.create({ data: { code: `VERIFY-LOC-${suffix}`, name: '验证默认库位', isDefault: true } })

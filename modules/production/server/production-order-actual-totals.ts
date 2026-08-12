@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client'
+import { productionOrderStatusAfterActual } from '../domain/production-order-status'
 
 const roundQty = (value: number) => Number(value.toFixed(6))
 
@@ -26,7 +27,7 @@ export async function recalculateProductionOrderTotals(tx: Prisma.TransactionCli
     data: {
       completeQty,
       scrapQty,
-      status: completed ? 'COMPLETED' : hasConfirmedActual ? 'RUNNING' : 'DRAFT',
+      status: productionOrderStatusAfterActual(order.materialId, completed, hasConfirmedActual),
       startTime: hasConfirmedActual ? order.startTime || new Date() : null,
       completeTime: completed ? order.completeTime || new Date() : null,
     },

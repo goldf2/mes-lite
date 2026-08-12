@@ -53,8 +53,8 @@ function DashboardStatusSection({ title, totalLabel, emptyText, items, labels, p
 }
 
 export function ProductionStatusOverview({ orderItems, actualItems }: { orderItems: DashboardStatusItem[]; actualItems: DashboardStatusItem[] }) {
-  const labels = { DRAFT: '草稿', CONFIRMED: '已确认', PICKED: '已领料', RUNNING: '生产中', QC_WAITING: '待质检', QC_DONE: '质检完成', COMPLETED: '已完成', CANCELLED: '已取消' }
-  const orderPalette = { DRAFT: '#94a3b8', CONFIRMED: '#3b82f6', PICKED: '#eab308', RUNNING: '#f97316', QC_WAITING: '#a855f7', QC_DONE: '#6366f1', COMPLETED: '#22c55e', CANCELLED: '#ef4444' }
+  const labels = { DRAFT: '草稿', RELEASED: '已发布', IN_PROGRESS: '进行中', COMPLETED: '已完成', CANCELLED: '已取消', CONFIRMED: '已发布', PICKED: '已发布', RUNNING: '进行中', QC_WAITING: '进行中', QC_DONE: '进行中' }
+  const orderPalette = { DRAFT: '#94a3b8', RELEASED: '#3b82f6', IN_PROGRESS: '#f97316', COMPLETED: '#22c55e', CANCELLED: '#ef4444', CONFIRMED: '#3b82f6', PICKED: '#3b82f6', RUNNING: '#f97316', QC_WAITING: '#f97316', QC_DONE: '#f97316' }
   const actualLabels = { DRAFT: '草稿', CONFIRMED: '已确认', REVERSED: '已冲销' }
   const actualPalette = { DRAFT: '#94a3b8', CONFIRMED: '#22c55e', REVERSED: '#ef4444' }
   return <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm"><div className="mb-5 flex items-center justify-between"><h3 className="font-semibold text-gray-900">生产状态分布</h3><span className="text-xs text-gray-500">生产订单 / 班后实绩</span></div><div className="space-y-4"><DashboardStatusSection title="生产订单" totalLabel="总订单" emptyText="暂无生产订单状态数据" items={orderItems} labels={labels} palette={orderPalette} /><DashboardStatusSection title="班后生产实绩" totalLabel="总实绩" emptyText="暂无班后实绩状态数据" items={actualItems} labels={actualLabels} palette={actualPalette} /></div></div>
