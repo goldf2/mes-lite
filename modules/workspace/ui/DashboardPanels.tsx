@@ -1,4 +1,6 @@
 import type { DashboardMetricItem, DashboardStatusItem, DashboardStockAlert } from '../contracts/dashboard'
+import type { RoleTaskSection } from '../model/role-task-view'
+import type { WorkspaceFunctionKey } from '@/lib/workspace'
 
 const dashboardToneMap: Record<string, { border: string; text: string; fill: string; soft: string }> = {
   blue: { border: 'border-blue-200', text: 'text-blue-700', fill: 'bg-blue-500', soft: 'bg-blue-100' },
@@ -13,6 +15,12 @@ const dashboardToneMap: Record<string, { border: string; text: string; fill: str
 
 function getDashboardTone(tone: string) {
   return dashboardToneMap[tone] || { border: 'border-gray-200', text: 'text-gray-700', fill: 'bg-gray-500', soft: 'bg-gray-100' }
+}
+
+export function RoleTaskBoard({ sections, onOpen }: { sections: RoleTaskSection[]; onOpen: (key: WorkspaceFunctionKey, task?: string) => void }) {
+  if (sections.length === 0) return null
+  const openTask = (functionKey: WorkspaceFunctionKey, task: string) => onOpen(functionKey, task)
+  return <section className="rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-slate-50 p-3 shadow-sm sm:p-4"><div className="mb-4"><div className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">岗位任务工作台</div><h2 className="mt-1 text-lg font-semibold text-gray-950">先处理我的待办</h2><p className="mt-1 text-sm text-gray-500">任务和动作按当前账号的服务端权限生成，没有权限的岗位不会收到对应入口。</p></div><div className="space-y-4">{sections.map((section) => <div key={section.key}><div className="mb-2 flex flex-wrap items-baseline justify-between gap-2"><h3 className="text-sm font-semibold text-gray-900">{section.label}</h3><span className="text-xs text-gray-500">{section.description}</span></div><div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">{section.items.map((item) => { const tone = getDashboardTone(item.tone); return <button key={item.key} type="button" onClick={() => openTask(item.functionKey, item.task)} className={`group flex min-h-24 items-center gap-3 rounded-lg border bg-white p-3 text-left transition hover:-translate-y-0.5 hover:shadow-md ${tone.border}`}><span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-2xl font-semibold ${tone.soft} ${tone.text}`}>{item.value}</span><span className="min-w-0"><span className="block text-sm font-semibold text-gray-900 group-hover:text-blue-700">{item.label}</span><span className="mt-1 block text-xs leading-5 text-gray-500">{item.description}</span></span></button> })}</div></div>)}</div></section>
 }
 
 export function DashboardKpiGrid({ items }: { items: DashboardMetricItem[] }) {

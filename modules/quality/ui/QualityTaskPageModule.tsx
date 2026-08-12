@@ -3,12 +3,19 @@
 import { useCallback, useEffect, useState } from 'react'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
 import AppButton from '@/app/components/AppButton'
-import { appInputClassName } from '@/app/components/FormField'
+import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
+import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
+import TopBarPortal from '@/app/components/TopBarPortal'
 import { loadQualityTasks } from '../client/quality-inspection-api'
 import type { QualityTaskFilter, QualityTaskWorkspace } from '../contracts/quality-task'
 import QualityLotCard from './QualityLotCard'
 
 const emptyWorkspace: QualityTaskWorkspace = { items: [], counts: { pending: 0, disposition: 0 } }
+
+function readInitialFilter(): QualityTaskFilter {
+  if (typeof window === 'undefined') return 'PENDING'
+  return new URL(window.location.href).searchParams.get('task') === 'quality-disposition' ? 'DISPOSITION' : 'PENDING'
+}
 
 export default function QualityTaskPageModule({ canDecide, canDispose, canRelease, onMessage }: {
   canDecide: boolean
@@ -17,7 +24,7 @@ export default function QualityTaskPageModule({ canDecide, canDispose, canReleas
   onMessage: (message: string) => void
 }) {
   const [workspace, setWorkspace] = useState(emptyWorkspace)
-  const [filter, setFilter] = useState<QualityTaskFilter>('PENDING')
+  const [filter, setFilter] = useState<QualityTaskFilter>(readInitialFilter)
   const [keyword, setKeyword] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -37,11 +44,12 @@ export default function QualityTaskPageModule({ canDecide, canDispose, canReleas
   }, [load])
 
   return (
-    <section className="rounded-lg bg-white p-3 shadow sm:p-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div><h2 className="text-lg font-semibold text-gray-900">质量任务工作台</h2><p className="mt-1 text-sm text-gray-500">按车间任务处理待检、冻结和返工批次；每次判定与处置均保留独立追溯记录。</p></div>
-        <input value={keyword} onChange={(event) => setKeyword(event.target.value)} className={`${appInputClassName} w-full lg:w-80`} placeholder="搜索检验单、批次、物料或来源单据" />
-      </div>
+    <>
+      <TopBarPortal>
+        <ResponsiveToolbarActions primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.qualityTasks" value={keyword} onChange={setKeyword} placeholder="搜索检验单、批次、物料或来源单据" />} />
+      </TopBarPortal>
+      <section className="rounded-lg bg-white p-3 shadow sm:p-6">
+      <div><h2 className="text-lg font-semibold text-gray-900">质量任务工作台</h2><p className="mt-1 text-sm text-gray-500">按车间任务处理待检、冻结和返工批次；每次判定与处置均保留独立追溯记录。</p></div>
       <div className="mt-4 flex flex-wrap gap-2">
         {([
           ['PENDING', `待检任务 ${workspace.counts.pending}`],
@@ -62,6 +70,7 @@ export default function QualityTaskPageModule({ canDecide, canDispose, canReleas
           </div>
         ))}</div>}
       </div>
-    </section>
+      </section>
+    </>
   )
 }

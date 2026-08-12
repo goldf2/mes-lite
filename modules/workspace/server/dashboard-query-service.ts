@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { normalizeProductionOrderStatusDistribution } from '@/modules/production'
 import { buildProductionFlowDashboard } from '../domain/dashboard-production'
+import type { PermissionMap } from '@/lib/permissions'
+import { buildRoleTaskSections } from '../model/role-task-view'
 
 const STOCK_BALANCE_FIELDS = [
   'qty',
@@ -16,7 +18,7 @@ function hasStockBalance(stock: Record<string, unknown>) {
   return STOCK_BALANCE_FIELDS.some((field) => Math.abs(Number(stock[field] || 0)) > 0.000001)
 }
 
-export async function getDashboardData(now = new Date()) {
+export async function getDashboardData(now = new Date(), permissions?: PermissionMap) {
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -35,6 +37,11 @@ export async function getDashboardData(now = new Date()) {
     pendingMaterialInCount,
     pendingShipmentCount,
     pendingReturnCount,
+    draftOrderCount,
+    executableOrderCount,
+    pendingQualityInspectionCount,
+    qualityDispositionCount,
+    pendingOperatorCount,
     lowStocks,
   ] = await Promise.all([
     prisma.productionOrder.count({ where: { createdAt: { gte: todayStart } } }),
@@ -49,6 +56,11 @@ export async function getDashboardData(now = new Date()) {
     prisma.materialReceipt.count({ where: { status: 'PENDING', deletedAt: null } }),
     prisma.shipment.count({ where: { status: 'PENDING' } }),
     prisma.returnOrder.count({ where: { status: 'PENDING' } }),
+    prisma.productionOrder.count({ where: { status: 'DRAFT', deletedAt: null } }),
+    prisma.productionOrder.count({ where: { status: { in: ['RELEASED', 'IN_PROGRESS'] }, deletedAt: null } }),
+    prisma.qualityInspection.count({ where: { status: 'PENDING' } }),
+    prisma.inventoryLot.count({ where: { status: 'OPEN', balances: { some: { inventoryStatus: { in: ['HOLD', 'REWORK'] }, stockQty: { gt: 0.000001 } } } } }),
+    prisma.operator.count({ where: { status: 'PENDING' } }),
     prisma.stock.findMany({
       where: { availableQty: { lt: 10 } },
       include: {
@@ -75,6 +87,17 @@ export async function getDashboardData(now = new Date()) {
     pendingMaterialInCount,
     pendingShipmentCount,
     pendingReturnCount,
+    roleTaskSections: permissions ? buildRoleTaskSections({
+      draftOrderCount,
+      executableOrderCount,
+      pendingProductionActualCount,
+      pendingQualityInspectionCount,
+      qualityDispositionCount,
+      pendingMaterialInCount,
+      pendingShipmentCount,
+      pendingReturnCount,
+      pendingOperatorCount,
+    }, permissions) : [],
     lowStocks: lowStocks.filter((stock) => !stock.material?.deletedAt || hasStockBalance(stock)),
   }
 }

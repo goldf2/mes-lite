@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { hashPassword } from '../lib/auth'
+import { ensureDefaultPermissions } from '../lib/permissions'
 import { postInventoryReceipt } from '../lib/inventory'
 import { createMaterialIns } from '../modules/receiving/server/material-in-service'
 import { receiveManagedMaterialIn } from '../modules/receiving/server/material-in-status-service'
@@ -29,7 +30,7 @@ async function main() {
     throw new Error('作业指导书演示库不是空库；请新建 mes_lite_guide 数据库后再运行种子脚本')
   }
 
-  const [admin, operator] = await Promise.all([
+  const [admin, operator, planner, inspectorOperator, warehouseOperator, leadOperator] = await Promise.all([
     prisma.operator.create({
       data: {
         username: 'guide-admin',
@@ -50,6 +51,10 @@ async function main() {
         approvedAt: fixedNow,
       },
     }),
+    prisma.operator.create({ data: { username: 'guide-planner', passwordHash: hashPassword('GuidePlanner123!'), name: '演示计划员', role: 'OPERATOR', status: 'ACTIVE', approvedAt: fixedNow } }),
+    prisma.operator.create({ data: { username: 'guide-inspector', passwordHash: hashPassword('GuideInspector123!'), name: '演示质检员', role: 'OPERATOR', status: 'ACTIVE', approvedAt: fixedNow } }),
+    prisma.operator.create({ data: { username: 'guide-warehouse', passwordHash: hashPassword('GuideWarehouse123!'), name: '演示仓管员', role: 'OPERATOR', status: 'ACTIVE', approvedAt: fixedNow } }),
+    prisma.operator.create({ data: { username: 'guide-lead', passwordHash: hashPassword('GuideLead123!'), name: '演示生产主管', role: 'OPERATOR', status: 'ACTIVE', approvedAt: fixedNow } }),
   ])
 
   const [waiting, rawLocation, wipLocation, finishedLocation, returnLocation] = await Promise.all([
@@ -325,19 +330,21 @@ async function main() {
     },
   })
 
-  const permissionGroup = await prisma.permissionGroup.create({
-    data: {
-      code: 'SHOP_FLOOR',
-      name: '车间执行组',
-      description: '生产订单、派工和库存只读演示权限组',
-      settings: { create: [
-        { resource: 'orders', canRead: true, canCreate: true, canUpdate: true },
-        { resource: 'dispatch', canRead: true, canCreate: true, canUpdate: true },
-        { resource: 'stocks', canRead: true },
-      ] },
-    },
+  await ensureDefaultPermissions()
+  const roleGroups = await prisma.permissionGroup.findMany({
+    where: { code: { in: ['base_access', 'production_executor', 'production_lead', 'warehouse_executor', 'quality_inspector', 'production_planner'] } },
   })
-  await prisma.operatorPermissionGroup.create({ data: { operatorId: operator.id, groupId: permissionGroup.id } })
+  const roleGroupId = new Map(roleGroups.map((group) => [group.code, group.id]))
+  const assignGroups = async (operatorId: string, codes: string[]) => {
+    await prisma.operatorPermissionGroup.createMany({ data: codes.map((code) => ({ operatorId, groupId: roleGroupId.get(code)! })) })
+  }
+  await Promise.all([
+    assignGroups(operator.id, ['base_access', 'production_executor']),
+    assignGroups(leadOperator.id, ['base_access', 'production_lead']),
+    assignGroups(planner.id, ['base_access', 'production_planner']),
+    assignGroups(inspectorOperator.id, ['base_access', 'quality_inspector']),
+    assignGroups(warehouseOperator.id, ['base_access', 'warehouse_executor']),
+  ])
 
   await prisma.scanCountSession.create({
     data: {
@@ -382,6 +389,13 @@ async function main() {
   console.log(JSON.stringify({
     databaseUrl,
     login: { username: admin.username, password: 'GuideAdmin123!' },
+    roleLogins: {
+      productionExecutor: { username: operator.username, password: 'GuideOperator123!' },
+      productionLead: { username: leadOperator.username, password: 'GuideLead123!' },
+      planner: { username: planner.username, password: 'GuidePlanner123!' },
+      qualityInspector: { username: inspectorOperator.username, password: 'GuideInspector123!' },
+      warehouse: { username: warehouseOperator.username, password: 'GuideWarehouse123!' },
+    },
     counts: {
       materials: await prisma.material.count(),
       productionOrders: await prisma.productionOrder.count(),

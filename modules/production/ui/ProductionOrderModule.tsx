@@ -47,8 +47,8 @@ const ProductionOrderActualPanel = dynamic(() => import('./ProductionOrderActual
 
 interface ProductionOrderModuleProps {
   mode: ProductionOrderMode
-  canCreate: boolean
-  canUpdate: boolean
+  canCreate: boolean; canDeleteActual: boolean; canRelease: boolean
+  canEnterActual: boolean; canConfirmActual: boolean; canReverseActual: boolean
   canQualityUpdate: boolean
   onModeChange: (mode: ProductionOrderMode) => void
   onMessage: (message: string) => void
@@ -62,9 +62,10 @@ function readInitialQuery() {
 
 function readInitialStatuses() {
   if (typeof window === 'undefined') return productionOrderStatusOptions.map((option) => option.value)
-  const url = new URL(window.location.href)
-  const requested = (url.searchParams.get('statuses') || '')
-    .split(',')
+  const url = new URL(window.location.href), task = url.searchParams.get('task')
+  if (task === 'order-release') return ['DRAFT']
+  if (task === 'production-entry' || task === 'actual-confirm') return ['RELEASED', 'IN_PROGRESS']
+  const requested = (url.searchParams.get('statuses') || '').split(',')
     .filter((value) => productionOrderStatusOptions.some((option) => option.value === value))
   return requested.length > 0 ? requested : productionOrderStatusOptions.map((option) => option.value)
 }
@@ -72,7 +73,11 @@ function readInitialStatuses() {
 export default function ProductionOrderModule({
   mode,
   canCreate,
-  canUpdate,
+  canDeleteActual,
+  canRelease,
+  canEnterActual,
+  canConfirmActual,
+  canReverseActual,
   canQualityUpdate,
   onModeChange,
   onMessage,
@@ -354,7 +359,7 @@ export default function ProductionOrderModule({
                           <div className="flex items-center gap-2">
                             <span className={`rounded px-2 py-1 text-xs font-medium ${productionOrderStatusColors[order.status]}`}>{productionOrderStatusLabels[order.status]}</span>
                             <BusinessDocumentPrintLink kind="production-order" id={order.id} compact />
-                            <button onClick={() => void openOrderDetail(order)} className="rounded border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50">详情 / 登记实绩</button>
+                            <button onClick={() => void openOrderDetail(order)} className="rounded border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50">{canEnterActual ? '详情 / 登记实绩' : '详情'}</button>
                           </div>
                         </div>
                       ))}
@@ -388,7 +393,7 @@ export default function ProductionOrderModule({
                       <td className="px-4 py-3"><span className={`inline-block rounded px-2 py-1 text-xs font-medium ${productionOrderStatusColors[order.status]}`}>{productionOrderStatusLabels[order.status]}</span></td>
                       <td className="px-4 py-3 text-xs text-gray-500">{new Date(order.createdAt).toLocaleString('zh-CN')}</td>
                       <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}><AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={order.id} compact compactMode="summary" onMessage={onMessage} /></td>
-                      <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}><div className="flex items-center gap-2"><BusinessDocumentPrintLink kind="production-order" id={order.id} compact /><button onClick={() => void openOrderDetail(order)} className="rounded border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50">详情 / 登记实绩</button></div></td>
+                      <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}><div className="flex items-center gap-2"><BusinessDocumentPrintLink kind="production-order" id={order.id} compact /><button onClick={() => void openOrderDetail(order)} className="rounded border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50">{canEnterActual ? '详情 / 登记实绩' : '详情'}</button></div></td>
                     </tr>
                   ))}
                 </tbody>
@@ -400,7 +405,7 @@ export default function ProductionOrderModule({
 
       {mode === 'detail' && orderDetail && (
         <div className="rounded-lg bg-white p-6 shadow">
-          <div className="mb-6 flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold">生产订单详情</h2><span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">系统生成单据</span></div><p className="text-sm text-gray-500">{orderDetail.groupNo || orderDetail.orderNo}{orderDetail.groupNo ? ` · 第 ${orderDetail.lineNo} 项` : ''}</p><p className="text-sm text-gray-500">凭据号：{orderDetail.voucherNo || '-'}</p></div><div className="flex flex-wrap items-center gap-2">{canUpdate && orderDetail.status === 'DRAFT' && <AppButton variant="primary" onClick={() => void releaseOrder()} disabled={loading}>发布生产订单</AppButton>}<BusinessDocumentPrintLink kind="production-order" id={orderDetail.id} /></div></div>
+          <div className="mb-6 flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold">生产订单详情</h2><span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">系统生成单据</span></div><p className="text-sm text-gray-500">{orderDetail.groupNo || orderDetail.orderNo}{orderDetail.groupNo ? ` · 第 ${orderDetail.lineNo} 项` : ''}</p><p className="text-sm text-gray-500">凭据号：{orderDetail.voucherNo || '-'}</p></div><div className="flex flex-wrap items-center gap-2">{canRelease && orderDetail.status === 'DRAFT' && <AppButton variant="primary" onClick={() => void releaseOrder()} disabled={loading}>发布生产订单</AppButton>}<BusinessDocumentPrintLink kind="production-order" id={orderDetail.id} /></div></div>
           <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
             <InfoCard label="目标"><div className="font-medium">{orderDetail.targetMaterial?.name || orderDetail.product.name}</div><div className="text-xs text-gray-400">物料 {orderDetail.targetMaterial?.code || displayProductionMaterialCode(orderDetail.product.sku)}</div></InfoCard>
             <InfoCard label="BOM 方案"><div className="font-medium">{orderDetail.bomName || orderDetail.bom?.name || '-'}</div><div className="text-xs text-gray-400">{orderDetail.bomVersion || orderDetail.bom?.version || '-'}</div></InfoCard>
@@ -421,7 +426,7 @@ export default function ProductionOrderModule({
               </div>
             </div>
           )}
-          <ProductionOrderActualPanel key={`${orderDetail.id}:${orderDetail.status}`} orderId={orderDetail.id} canQualityUpdate={canQualityUpdate} onMessage={onMessage} onOrderChanged={async () => { await Promise.all([fetchOrderDetail(orderDetail.id), fetchOrders()]) }} />
+          <ProductionOrderActualPanel key={`${orderDetail.id}:${orderDetail.status}`} orderId={orderDetail.id} canEnter={canEnterActual} canDeleteDraft={canDeleteActual} canConfirm={canConfirmActual} canReverse={canReverseActual} canQualityUpdate={canQualityUpdate} onMessage={onMessage} onOrderChanged={async () => { await Promise.all([fetchOrderDetail(orderDetail.id), fetchOrders()]) }} />
           <div className="mt-6"><AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={orderDetail.id} title="附件管理" enableAiRecognition onMessage={onMessage} /></div>
         </div>
       )}

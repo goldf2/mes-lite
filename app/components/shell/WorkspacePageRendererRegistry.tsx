@@ -53,7 +53,7 @@ export interface WorkspacePageRenderContext {
   canUpdate: (resource: string) => boolean
   canDelete: (resource: string) => boolean
   onMessage: (message: string) => void
-  onOpenWorkspaceFunction: (key: WorkspaceFunctionKey) => void
+  onOpenWorkspaceFunction: (key: WorkspaceFunctionKey, task?: string) => void
   onOpenAllFunctions: () => void
   onSaveWorkspacePreference: (preference: Pick<WorkspacePreferenceValue, 'mode' | 'layout' | 'pinned'>) => Promise<void>
   onTabChange: (tab: ApplicationTab) => void
@@ -86,7 +86,11 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
     <ProductionOrderModule
       mode={context.tab as 'orders' | 'create' | 'detail'}
       canCreate={context.canCreate('orders')}
-      canUpdate={context.canUpdate('orders')}
+      canDeleteActual={context.canDelete('productionActualEntry')}
+      canRelease={context.canUpdate('productionOrderRelease')}
+      canEnterActual={context.canUpdate('productionActualEntry')}
+      canConfirmActual={context.canUpdate('productionActualConfirm')}
+      canReverseActual={context.canUpdate('productionActualReverse')}
       canQualityUpdate={context.canUpdate('qualityDecision')}
       onModeChange={context.onTabChange}
       onMessage={context.onMessage}

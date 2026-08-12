@@ -9,7 +9,7 @@ import { confirmProductionOrderActual } from '@/modules/production/server/produc
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string; actualId: string } }) {
   try {
-    const denied = await requireResourcePermission('orders', 'update')
+    const denied = await requireResourcePermission('productionActualConfirm', 'update')
     if (denied) return denied
     confirmProductionOrderActualSchema.parse(await req.json().catch(() => ({})))
     const operator = await getCurrentOperator()

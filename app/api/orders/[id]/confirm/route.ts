@@ -6,7 +6,7 @@ import { confirmProductionOrder } from '@/modules/production/server/production-o
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
-    const denied = await requireResourcePermission('orders', 'update')
+    const denied = await requireResourcePermission('productionOrderRelease', 'update')
     if (denied) return denied
 
     const { previous, updated, message } = await confirmProductionOrder(params.id)

@@ -62,7 +62,11 @@ export default function MaterialInPage({
   const [materials, setMaterials] = useState<Material[]>([])
   const [locations, setLocations] = useState<InventoryLocation[]>([])
   const [keyword, setKeyword] = useState('')
-  const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
+  const [selectedStatuses, setSelectedStatuses] = useState(() => (
+    typeof window !== 'undefined' && new URL(window.location.href).searchParams.get('task') === 'material-in'
+      ? ['PENDING']
+      : statusOptions.map((option) => option.value)
+  ))
   const [selectedSupplierId, setSelectedSupplierId] = useState('')
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)

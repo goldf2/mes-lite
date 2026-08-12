@@ -32,7 +32,11 @@ export default function ShipmentPageModule({
   const [shipments, setShipments] = useState<Shipment[]>([])
   const [customers, setCustomers] = useState<FulfillmentCustomer[]>([])
   const [keyword, setKeyword] = useState('')
-  const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
+  const [selectedStatuses, setSelectedStatuses] = useState(() => (
+    typeof window !== 'undefined' && new URL(window.location.href).searchParams.get('task') === 'shipment'
+      ? ['PENDING']
+      : statusOptions.map((option) => option.value)
+  ))
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)

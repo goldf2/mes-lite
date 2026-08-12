@@ -7,12 +7,12 @@ import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/works
 import { loadDashboard } from '../client/dashboard-api'
 import type { DashboardData } from '../contracts/dashboard'
 import { buildDashboardMetricItems, buildDashboardPendingItems, buildDashboardWorkloadItems, normalizeDashboard } from '../model/dashboard-view'
-import { DashboardBarPanel, DashboardKpiGrid, DashboardSignalGrid, ProductionStatusOverview, StockAlertList } from './DashboardPanels'
+import { DashboardBarPanel, DashboardKpiGrid, DashboardSignalGrid, ProductionStatusOverview, RoleTaskBoard, StockAlertList } from './DashboardPanels'
 
 interface DashboardPageProps {
   items: WorkspaceFunctionItem[]
   preference: WorkspacePreferenceValue
-  onOpen: (functionKey: WorkspaceFunctionKey) => void
+  onOpen: (functionKey: WorkspaceFunctionKey, task?: string) => void
   onOpenAllFunctions: () => void
   onSave: (next: Pick<WorkspacePreferenceValue, 'mode' | 'layout' | 'pinned'>) => Promise<void>
 }
@@ -49,6 +49,7 @@ export default function DashboardPage({
 
   return (
     <div className="space-y-6">
+      <RoleTaskBoard sections={view.roleTaskSections} onOpen={onOpen} />
       <WorkspaceLauncher
         items={items.filter((item) => item.key !== 'dashboard')}
         preference={preference}

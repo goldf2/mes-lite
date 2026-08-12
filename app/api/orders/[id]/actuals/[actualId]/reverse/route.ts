@@ -9,7 +9,7 @@ import { reverseProductionOrderActual } from '@/modules/production/server/produc
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string; actualId: string } }) {
   try {
-    const denied = await requireResourcePermission('orders', 'update')
+    const denied = await requireResourcePermission('productionActualReverse', 'update')
     if (denied) return denied
     const input = reverseProductionOrderActualSchema.parse(await req.json())
     const operator = await getCurrentOperator()

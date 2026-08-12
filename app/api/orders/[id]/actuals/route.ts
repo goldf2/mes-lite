@@ -20,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const denied = await requireResourcePermission('orders', 'update')
+    const denied = await requireResourcePermission('productionActualEntry', 'update')
     if (denied) return denied
     const actual = await createProductionOrderActual(params.id, createProductionOrderActualSchema.parse(await req.json()))
     await writeAuditLog(req, {

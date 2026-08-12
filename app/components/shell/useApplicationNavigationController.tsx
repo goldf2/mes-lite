@@ -258,10 +258,14 @@ export default function useApplicationNavigationController({
     closeTransientNavigation()
     closeSystemMenu()
   }
-  const openWorkspaceFunction = (functionKey: WorkspaceFunctionKey) => {
+  const openWorkspaceFunction = (functionKey: WorkspaceFunctionKey, task?: string) => {
     const target = workspaceFunctionItems.find((item) => item.key === functionKey)
     if (!target) return
     if (target.materialSection) setMaterialSection(target.materialSection)
+    const url = new URL(window.location.href)
+    if (task) url.searchParams.set('task', task)
+    else url.searchParams.delete('task')
+    window.history.replaceState(window.history.state, '', url)
     setTab(target.tab)
     closeNavigationSurfaces()
     recordWorkspaceUsage(functionKey)

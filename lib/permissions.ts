@@ -8,12 +8,6 @@ export const permissionRoles = [
   { key: 'ADMIN', label: '管理' },
 ] as const
 
-export const defaultPermissionGroups = [
-  { code: 'basic_entry', name: '基础录入组', role: 'OPERATOR', description: '适合普通录入人员，允许录入常用业务单据。' },
-  { code: 'business_audit', name: '业务审核组', role: 'AUDITOR', description: '适合审核人员，允许处理业务状态流转和存货调整。' },
-  { code: 'system_admin', name: '系统管理组', role: 'ADMIN', description: '系统内置管理权限组，默认拥有全部功能权限。' },
-] as const
-
 export const permissionActions = [
   { key: 'canRead', label: '查' },
   { key: 'canCreate', label: '增' },
@@ -40,6 +34,10 @@ export const permissionResources = [
   { key: 'qualityDecision', label: '质量判定' },
   { key: 'qualityDisposition', label: '复检、返工与报废处置' },
   { key: 'qualityRelease', label: '让步与解冻放行' },
+  { key: 'productionOrderRelease', label: '生产订单发布' },
+  { key: 'productionActualEntry', label: '生产实绩草稿登记' },
+  { key: 'productionActualConfirm', label: '生产实绩确认过账' },
+  { key: 'productionActualReverse', label: '生产实绩冲销' },
   { key: 'sawingCost', label: '锯切成本' },
   { key: 'scanPrint', label: '扫码打单' },
   { key: 'bomCost', label: 'BOM关系' },
@@ -90,6 +88,10 @@ const operatorDefaults: PermissionMap = {
   qualityDecision: none,
   qualityDisposition: none,
   qualityRelease: none,
+  productionOrderRelease: none,
+  productionActualEntry: none,
+  productionActualConfirm: none,
+  productionActualReverse: none,
   sawingCost: readCreate,
   scanPrint: readCreateUpdate,
   bomCost: readCreate,
@@ -119,6 +121,10 @@ const auditorDefaults: PermissionMap = {
   qualityDecision: readCreateUpdate,
   qualityDisposition: readCreateUpdate,
   qualityRelease: readCreateUpdate,
+  productionOrderRelease: readCreateUpdate,
+  productionActualEntry: readCreateUpdate,
+  productionActualConfirm: readCreateUpdate,
+  productionActualReverse: readCreateUpdate,
   sawingCost: readCreateUpdate,
   scanPrint: readCreateUpdate,
   bomCost: readCreateUpdate,
@@ -135,6 +141,37 @@ export const defaultPermissionMap: Record<PermissionRole, PermissionMap> = {
   AUDITOR: auditorDefaults,
   ADMIN: Object.fromEntries(permissionResources.map((resource) => [resource.key, allOn])),
 }
+
+function flags(value: string): PermissionFlags {
+  return {
+    canRead: value.includes('R'),
+    canCreate: value.includes('C'),
+    canUpdate: value.includes('U'),
+    canDelete: value.includes('A'),
+    canGrant: value.includes('G'),
+  }
+}
+
+function permissionPreset(values: Record<string, string>): PermissionMap {
+  return Object.fromEntries(permissionResources.map((resource) => [
+    resource.key,
+    flags(values[resource.key] || ''),
+  ]))
+}
+
+export const defaultPermissionGroups = [
+  { code: 'basic_entry', name: '基础录入组', description: '兼容旧版录入角色的权限组；新账号优先使用基础访问组和岗位组。', settings: operatorDefaults },
+  { code: 'business_audit', name: '业务审核组', description: '兼容旧版审核角色的权限组；新账号应按岗位分配独立命令权限。', settings: auditorDefaults },
+  { code: 'base_access', name: '基础访问组', description: '所有正式账号的公共只读入口，不包含业务写入。', settings: permissionPreset({ dashboard: 'R', aiAssistant: 'R', materials: 'R', bomCost: 'R', workInstructions: 'R', equipment: 'R', attachments: 'R' }) },
+  { code: 'production_executor', name: '生产执行组', description: '操作工查看任务、登记实绩草稿、扫码和流程转移；不发布、不确认过账、不冲销。', settings: permissionPreset({ orders: 'R', productionActualEntry: 'U', dispatch: 'R', stats: 'RCU', stocks: 'R', scanPrint: 'RCU' }) },
+  { code: 'production_lead', name: '生产管理组', description: '班组长和生产主管发布订单、确认实绩并执行受控冲销。', settings: permissionPreset({ orders: 'RCUA', productionOrderRelease: 'U', productionActualEntry: 'UA', productionActualConfirm: 'U', productionActualReverse: 'U', dispatch: 'RCUA', stats: 'RCU', stocks: 'R', scanPrint: 'RCU' }) },
+  { code: 'warehouse_executor', name: '仓库作业组', description: '仓管员处理来料、收发退、移库、库存和扫码作业。', settings: permissionPreset({ materialIn: 'RCU', stocks: 'RU', shipment: 'RU', return: 'RU', stats: 'RCU', scanPrint: 'RCU' }) },
+  { code: 'quality_inspector', name: '质量检验组', description: '质检员查看质量任务并记录客观判定；不自动获得返工报废或授权放行。', settings: permissionPreset({ quality: 'R', qualityDecision: 'U', orders: 'R', materialIn: 'R', stocks: 'R', return: 'R' }) },
+  { code: 'quality_disposition', name: '质量处置组', description: '质量工程师执行复检、返工和报废，不自动获得让步或解冻放行。', settings: permissionPreset({ quality: 'R', qualityDisposition: 'U', orders: 'R', stocks: 'R', return: 'R' }) },
+  { code: 'quality_release', name: '质量授权放行组', description: '质量负责人执行让步与解冻放行，应限制为少量经批准人员。', settings: permissionPreset({ quality: 'R', qualityRelease: 'U', orders: 'R', stocks: 'R', return: 'R' }) },
+  { code: 'production_planner', name: '生产计划组', description: '计划员建立和发布生产订单、安排派工；不确认现场实绩或冲销库存。', settings: permissionPreset({ orders: 'RCUA', productionOrderRelease: 'U', dispatch: 'RCU', stats: 'R', materials: 'R', bomCost: 'R', equipment: 'R', materialIn: 'R', stocks: 'R', salesOrder: 'R' }) },
+  { code: 'system_admin', name: '系统管理组', description: '系统内置管理权限组，默认拥有全部功能权限。', settings: defaultPermissionMap.ADMIN },
+] as const
 
 const actionField: Record<PermissionAction, keyof PermissionFlags> = {
   read: 'canRead',
@@ -153,20 +190,15 @@ export function defaultFlagsFor(role: string, resource: string): PermissionFlags
   return cloneFlags(defaultPermissionMap[typedRole][resource] || none)
 }
 
-export async function ensureDefaultPermissions() {
-  for (const role of permissionRoles) {
-    for (const resource of permissionResources) {
-      await prisma.permissionSetting.upsert({
-        where: { role_resource: { role: role.key, resource: resource.key } },
-        create: {
-          role: role.key,
-          resource: resource.key,
-          ...defaultFlagsFor(role.key, resource.key),
-        },
-        update: {},
-      })
-    }
-  }
+let ensureDefaultPermissionsPromise: Promise<void> | null = null
+
+async function insertMissingDefaultPermissions() {
+  const savedRoleSettings = await prisma.permissionSetting.findMany({ select: { role: true, resource: true } })
+  const savedRoleKeys = new Set(savedRoleSettings.map((setting) => `${setting.role}:${setting.resource}`))
+  const missingRoleSettings = permissionRoles.flatMap((role) => permissionResources
+    .filter((resource) => !savedRoleKeys.has(`${role.key}:${resource.key}`))
+    .map((resource) => ({ role: role.key, resource: resource.key, ...defaultFlagsFor(role.key, resource.key) })))
+  if (missingRoleSettings.length > 0) await prisma.permissionSetting.createMany({ data: missingRoleSettings })
 
   for (const group of defaultPermissionGroups) {
     const savedGroup = await prisma.permissionGroup.upsert({
@@ -184,18 +216,26 @@ export async function ensureDefaultPermissions() {
       },
     })
 
-    for (const resource of permissionResources) {
-      await prisma.permissionGroupSetting.upsert({
-        where: { groupId_resource: { groupId: savedGroup.id, resource: resource.key } },
-        create: {
-          groupId: savedGroup.id,
-          resource: resource.key,
-          ...defaultFlagsFor(group.role, resource.key),
-        },
-        update: {},
-      })
-    }
+    const savedGroupSettings = await prisma.permissionGroupSetting.findMany({
+      where: { groupId: savedGroup.id },
+      select: { resource: true },
+    })
+    const savedResources = new Set(savedGroupSettings.map((setting) => setting.resource))
+    const missingGroupSettings = permissionResources
+      .filter((resource) => !savedResources.has(resource.key))
+      .map((resource) => ({ groupId: savedGroup.id, resource: resource.key, ...(group.settings[resource.key] || none) }))
+    if (missingGroupSettings.length > 0) await prisma.permissionGroupSetting.createMany({ data: missingGroupSettings })
   }
+}
+
+export async function ensureDefaultPermissions() {
+  if (!ensureDefaultPermissionsPromise) {
+    ensureDefaultPermissionsPromise = insertMissingDefaultPermissions().catch((error) => {
+      ensureDefaultPermissionsPromise = null
+      throw error
+    })
+  }
+  return ensureDefaultPermissionsPromise
 }
 
 export async function getRolePermissionMap(role: string): Promise<PermissionMap> {

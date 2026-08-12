@@ -111,11 +111,19 @@ export default function ProductionOrderActualPanel({
   onMessage,
   onOrderChanged,
   canQualityUpdate,
+  canEnter,
+  canDeleteDraft,
+  canConfirm,
+  canReverse,
 }: {
   orderId: string
   onMessage: (message: string) => void
   onOrderChanged: () => void | Promise<void>
   canQualityUpdate: boolean
+  canEnter: boolean
+  canDeleteDraft: boolean
+  canConfirm: boolean
+  canReverse: boolean
 }) {
   const [data, setData] = useState<ActualData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -298,11 +306,11 @@ export default function ProductionOrderActualPanel({
           <h3 className="font-semibold text-gray-900">班后生产实绩</h3>
           <p className="mt-1 text-sm text-gray-500">订单发布后，班后按 BOM 快照登记全部投入和产出，确认后再更新库存。</p>
         </div>
-        <AppButton
+        {canEnter && <AppButton
           variant="create"
           onClick={openForm}
           disabled={loading || Boolean(productionOrderActualCreationError(data.order.status, data.order.materialId))}
-        >登记班后产量</AppButton>
+        >登记班后产量</AppButton>}
       </div>
 
       <div className="mt-4 space-y-3">
@@ -321,10 +329,10 @@ export default function ProductionOrderActualPanel({
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {actual.status === 'DRAFT' && <>
-                    <AppButton size="sm" variant="danger" onClick={() => deleteDraft(actual)} disabled={saving}>删除草稿</AppButton>
-                    <AppButton size="sm" variant="primary" onClick={() => setConfirming(actual)} disabled={saving}>确认并更新库存</AppButton>
+                    {canDeleteDraft && <AppButton size="sm" variant="danger" onClick={() => deleteDraft(actual)} disabled={saving}>删除草稿</AppButton>}
+                    {canConfirm && <AppButton size="sm" variant="primary" onClick={() => setConfirming(actual)} disabled={saving}>确认并更新库存</AppButton>}
                   </>}
-                  {actual.status === 'CONFIRMED' && <AppButton size="sm" variant="danger" onClick={() => { setReversing(actual); setReverseReason('') }} disabled={saving}>冲销</AppButton>}
+                  {canReverse && actual.status === 'CONFIRMED' && <AppButton size="sm" variant="danger" onClick={() => { setReversing(actual); setReverseReason('') }} disabled={saving}>冲销</AppButton>}
                 </div>
               </div>
               <div className="mt-3 grid gap-3 lg:grid-cols-2">

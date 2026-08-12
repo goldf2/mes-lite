@@ -31,6 +31,7 @@ export interface DashboardData {
   statusDistribution?: DashboardStatusItem[]
   orderStatusDist?: DashboardStatusItem[]
   productionActualStatusDistribution?: DashboardStatusItem[]
+  roleTaskSections?: import('../model/role-task-view').RoleTaskSection[]
 }
 
 export interface DashboardView {
@@ -47,6 +48,7 @@ export interface DashboardView {
   lowStocks: DashboardStockAlert[]
   statusDistribution: DashboardStatusItem[]
   productionActualStatusDistribution: DashboardStatusItem[]
+  roleTaskSections: import('../model/role-task-view').RoleTaskSection[]
 }
 
 export interface DashboardMetricItem {

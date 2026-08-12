@@ -22,8 +22,8 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 
-VERSION = "v0.1.358"
-EXPECTED_WORKFLOWS = 112
+VERSION = "v0.1.359"
+EXPECTED_WORKFLOWS = 120
 PAGE_W = 1240
 PAGE_H = 1754
 MARGIN = 72
@@ -348,7 +348,9 @@ def save_docx(page_paths: list[Path], output_path: Path) -> None:
         paragraph.paragraph_format.space_after = 0
         # Leave enough room for Writer/Word's unavoidable paragraph end mark;
         # otherwise a full-height page image creates one extra blank page.
-        paragraph.add_run().add_picture(str(page_path), width=Cm(20.2))
+        picture = paragraph.add_run().add_picture(str(page_path), width=Cm(20.2))
+        picture._inline.docPr.set("title", f"MES-lite 作业指导书第 {index + 1} 页")
+        picture._inline.docPr.set("descr", f"MES-lite 全流程作业指导书第 {index + 1} 页完整页面")
         if index < len(page_paths) - 1:
             doc.add_page_break()
     props = doc.core_properties

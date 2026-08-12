@@ -6,7 +6,7 @@ import { deleteProductionOrderActualDraft } from '@/modules/production/server/pr
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string; actualId: string } }) {
   try {
-    const denied = await requireResourcePermission('orders', 'delete')
+    const denied = await requireResourcePermission('productionActualEntry', 'delete')
     if (denied) return denied
     const actual = await deleteProductionOrderActualDraft(params.id, params.actualId)
     await writeAuditLog(req, {

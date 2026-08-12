@@ -52,7 +52,11 @@ export default function ReturnPageModule({
   const [locations, setLocations] = useState<InventoryLocationOption[]>([])
   const [shipments, setShipments] = useState<ReturnShipmentOption[]>([])
   const [keyword, setKeyword] = useState('')
-  const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
+  const [selectedStatuses, setSelectedStatuses] = useState(() => (
+    typeof window !== 'undefined' && new URL(window.location.href).searchParams.get('task') === 'return'
+      ? ['PENDING']
+      : statusOptions.map((option) => option.value)
+  ))
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
