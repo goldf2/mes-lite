@@ -85,7 +85,7 @@ export async function listLegacyDailyProductionWorkspace(input: {
           select: {
             sku: true,
             boms: {
-              where: { isActive: true },
+              where: { status: 'RELEASED' },
               orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
               select: {
                 id: true, name: true, version: true, isDefault: true, isActive: true,

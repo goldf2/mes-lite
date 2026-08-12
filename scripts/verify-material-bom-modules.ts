@@ -51,7 +51,11 @@ const bomContracts = read('modules/bom/contracts/bom.ts')
 const bomRoute = read('app/api/boms/route.ts')
 const bomQueryService = read('modules/bom/server/bom-query-service.ts')
 const bomCommandService = read('modules/bom/server/bom-command-service.ts')
+const bomLifecycleService = read('modules/bom/server/bom-lifecycle-service.ts')
 const bomSchema = read('modules/bom/contracts/bom-schema.ts')
+const bomReleaseRoute = read('app/api/boms/[id]/release/route.ts')
+const bomCopyRoute = read('app/api/boms/[id]/copy/route.ts')
+const bomObsoleteRoute = read('app/api/boms/[id]/obsolete/route.ts')
 
 assert.equal(existsSync(join(root, 'app/components/MaterialPage.tsx')), false, '物料领域页面不得回流公共 components 根目录')
 assert.equal(existsSync(join(root, 'app/components/MaterialPanoramaPage.tsx')), false, '物料全景页面不得回流公共 components 根目录')
@@ -170,6 +174,13 @@ assert.match(bomRoute, /saveBom\(/, 'BOM API 必须通过命令服务保存方�
 assert.match(bomQueryService, /withMaterialImageUrls/, 'BOM 查询服务必须拥有主图与库存摘要装配')
 assert.match(bomCommandService, /validateBomStructure\(/, 'BOM 命令服务必须调用纯结构规则')
 assert.match(bomCommandService, /prisma\.\$transaction/, 'BOM 命令服务必须原子替换投入与产出')
+assert.match(bomLifecycleService, /status: 'RELEASED'/, 'BOM 生命周期服务必须显式发布版本')
+assert.match(bomLifecycleService, /status: 'OBSOLETE'/, 'BOM 生命周期服务必须显式作废版本')
+assert.match(bomLifecycleService, /status: 'DRAFT'/, 'BOM 复制新版本必须回到草稿态')
+for (const route of [bomReleaseRoute, bomCopyRoute, bomObsoleteRoute]) {
+  assert.doesNotMatch(route, /prisma\./, 'BOM 生命周期 API 不得直接读写数据库')
+  assert.match(route, /writeAuditLog\(/, 'BOM 发布、复制和作废必须写入审计')
+}
 assert.match(bomSchema, /export const saveBomSchema/, 'BOM 写入 Schema 必须归属领域契约')
 assert.equal(nextBomVersion(['v1', 'V3', 'draft']), 'v4')
 assert.equal(validateBomStructure({
@@ -207,6 +218,7 @@ assert.ok(bomDraftEditor.split('\n').length <= 450, 'BOM 草稿编辑器只能�
 assert.ok(bomDraftController.split('\n').length <= 500, 'BOM 草稿控制器不得膨胀为新的页面组件')
 assert.ok(bomDraftModel.split('\n').length <= 120, 'BOM 草稿纯规则必须保持聚焦')
 assert.ok(bomCommandService.split('\n').length <= 220, 'BOM 命令服务应聚焦校验、换算和原子替换')
+assert.ok(bomLifecycleService.split('\n').length <= 160, 'BOM 生命周期服务应聚焦发布、复制和作废')
 assert.ok(bomQueryService.split('\n').length <= 100, 'BOM 查询服务应聚焦资料与摘要装配')
 
 console.log('物料/BOM 模块边界验证通过：数据访问、物料切片、全景任务、BOM 草稿控制器、领域规则和编辑器职责已分离。')

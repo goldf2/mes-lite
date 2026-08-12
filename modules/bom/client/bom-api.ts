@@ -65,3 +65,29 @@ export async function saveBom(input: SaveBomInput) {
     message: body.message || 'BOM 批次配方已保存',
   }
 }
+
+async function mutateBomLifecycle(
+  bomId: string,
+  action: 'release' | 'obsolete' | 'copy',
+  init: RequestInit,
+) {
+  const response = await fetch(`/api/boms/${encodeURIComponent(bomId)}/${action}`, init)
+  const body = await readBomResponse<{ id?: string }>(response, '更新 BOM 生命周期失败')
+  return { id: body.data?.id, message: body.message || 'BOM 状态已更新' }
+}
+
+export function releaseBom(bomId: string) {
+  return mutateBomLifecycle(bomId, 'release', { method: 'PATCH' })
+}
+
+export function obsoleteBom(bomId: string) {
+  return mutateBomLifecycle(bomId, 'obsolete', { method: 'PATCH' })
+}
+
+export function copyBomVersion(bomId: string, changeReason?: string) {
+  return mutateBomLifecycle(bomId, 'copy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ changeReason }),
+  })
+}

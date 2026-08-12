@@ -109,7 +109,7 @@ export async function getProductionOrderDetail(id: string) {
 
 export async function listProductionOrderOptions() {
   const boms = await prisma.bOM.findMany({
-    where: { isActive: true },
+    where: { status: 'RELEASED' },
     select: {
       id: true,
       name: true,

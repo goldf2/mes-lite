@@ -71,8 +71,13 @@ export interface BomVersion {
   name: string
   purpose: 'PRODUCTION' | 'PACKAGING'
   version: string
+  status: 'DRAFT' | 'RELEASED' | 'OBSOLETE'
   isDefault: boolean
   isActive: boolean
+  basedOnBomId?: string | null
+  changeReason?: string | null
+  releasedAt?: string | Date | null
+  obsoleteAt?: string | Date | null
   outputQuantity: number
   outputUnit: string
   outputs: BomOutput[]

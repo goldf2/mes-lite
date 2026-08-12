@@ -78,6 +78,14 @@ const deleteBomItemAction = {
   destructive: true,
 }
 
+function bomRepairActions(status: string, actions: DataIntegrityIssue['actions']) {
+  return status === 'DRAFT' ? actions : []
+}
+
+function immutableBomHint(status: string) {
+  return status === 'DRAFT' ? '' : '已发布或已作废版本保持不变；请复制新版本后修复。'
+}
+
 function issueId(type: string, entityId: string) {
   return `${type}:${entityId}`
 }
@@ -243,17 +251,17 @@ export async function getDataIntegrityReport(
         type: 'BOM_OUTPUT_UNIT_MISMATCH',
         severity: 'BLOCKING',
         title: 'BOM 产出单位与物料主单位不一致',
-        detail: `BOM 保存的是 ${bom.outputUnit || '空'}，产出物料当前主库存单位是 ${expectedUnit}。`,
+        detail: `BOM 保存的是 ${bom.outputUnit || '空'}，产出物料当前主库存单位是 ${expectedUnit}。${immutableBomHint(bom.status)}`,
         entityType: 'BOM',
         entityId: bom.id,
         entityLabel: `${outputMaterial.code} · ${outputMaterial.name}`,
         currentValue: bom.outputUnit,
         expectedValue: expectedUnit,
-        actions: [{
+        actions: bomRepairActions(bom.status, [{
           key: 'SYNC_BOM_OUTPUT_UNIT',
           label: '同步产出单位',
           destructive: false,
-        }],
+        }]),
       })
     }
 
@@ -293,17 +301,18 @@ export async function getDataIntegrityReport(
 
   for (const item of bomItems) {
     const productLabel = `${item.bom.product.sku} · ${item.bom.product.name}`
+    const repairHint = immutableBomHint(item.bom.status)
     if (!item.materialId || !item.material) {
       issues.push({
         id: issueId('BOM_MATERIAL_MISSING', item.id),
         type: 'BOM_MATERIAL_MISSING',
         severity: 'BLOCKING',
         title: 'BOM 明细缺少原料',
-        detail: `${productLabel} 中存在没有有效原料引用的明细。`,
+        detail: `${productLabel} 中存在没有有效原料引用的明细。${repairHint}`,
         entityType: 'BOM_ITEM',
         entityId: item.id,
         entityLabel: productLabel,
-        actions: [deleteBomItemAction],
+        actions: bomRepairActions(item.bom.status, [deleteBomItemAction]),
       })
       continue
     }
@@ -319,7 +328,7 @@ export async function getDataIntegrityReport(
         entityType: 'BOM_ITEM',
         entityId: item.id,
         entityLabel: `${productLabel} → ${materialLabel}`,
-        actions: [deleteBomItemAction],
+        actions: bomRepairActions(item.bom.status, [deleteBomItemAction]),
       })
     }
     if (item.material.deletedAt) {
@@ -332,7 +341,7 @@ export async function getDataIntegrityReport(
         entityType: 'BOM_ITEM',
         entityId: item.id,
         entityLabel: `${productLabel} → ${materialLabel}`,
-        actions: [deleteBomItemAction],
+        actions: bomRepairActions(item.bom.status, [deleteBomItemAction]),
       })
     }
 
@@ -348,7 +357,7 @@ export async function getDataIntegrityReport(
         entityLabel: `${productLabel} → ${materialLabel}`,
         currentValue: String(item.quantity),
         expectedValue: '大于 0',
-        actions: [deleteBomItemAction],
+        actions: bomRepairActions(item.bom.status, [deleteBomItemAction]),
       })
     }
 
@@ -362,7 +371,7 @@ export async function getDataIntegrityReport(
         entityType: 'BOM_ITEM',
         entityId: item.id,
         entityLabel: `${productLabel} → ${materialLabel}`,
-        actions: [deleteBomItemAction],
+        actions: bomRepairActions(item.bom.status, [deleteBomItemAction]),
       })
     }
 
@@ -376,7 +385,7 @@ export async function getDataIntegrityReport(
         entityType: 'BOM_ITEM',
         entityId: item.id,
         entityLabel: `${productLabel} → ${materialLabel}`,
-        actions: [deleteBomItemAction],
+        actions: bomRepairActions(item.bom.status, [deleteBomItemAction]),
       })
     }
 
@@ -387,13 +396,13 @@ export async function getDataIntegrityReport(
         type: 'BOM_UNIT_MISMATCH',
         severity: 'BLOCKING',
         title: 'BOM 原料单位与当前主单位不一致',
-        detail: `${productLabel} 使用 ${materialLabel}：BOM 保存单位为 ${item.unit || '空'}，物料当前主库存单位为 ${expectedUnit}。修复只更新单位标签，不换算每批数量。`,
+        detail: `${productLabel} 使用 ${materialLabel}：BOM 保存单位为 ${item.unit || '空'}，物料当前主库存单位为 ${expectedUnit}。修复只更新单位标签，不换算每批数量。${repairHint}`,
         entityType: 'BOM_ITEM',
         entityId: item.id,
         entityLabel: `${productLabel} → ${materialLabel}`,
         currentValue: item.unit,
         expectedValue: expectedUnit,
-        actions: [repairBomUnitAction, deleteBomItemAction],
+        actions: bomRepairActions(item.bom.status, [repairBomUnitAction, deleteBomItemAction]),
       })
     }
   }
@@ -516,16 +525,20 @@ export async function applyDataIntegrityAction(
   if (action === 'SYNC_BOM_ITEM_UNIT') {
     const item = await db.bOMItem.findUniqueOrThrow({
       where: { id: issue.entityId },
-      include: { material: true },
+      include: { material: true, bom: { select: { status: true } } },
     })
     if (!item.material) throw new Error('BOM 原料不存在，不能同步单位')
+    if (item.bom.status !== 'DRAFT') throw new Error('已发布或已作废 BOM 不可修复，请先复制新版本')
     beforeData = item
     afterData = await db.bOMItem.update({
       where: { id: item.id },
       data: { unit: item.material.stockUnit || item.material.unit },
     })
   } else if (action === 'DELETE_BOM_ITEM') {
-    const item = await db.bOMItem.findUniqueOrThrow({ where: { id: issue.entityId } })
+    const item = await db.bOMItem.findUniqueOrThrow({
+      where: { id: issue.entityId }, include: { bom: { select: { status: true } } },
+    })
+    if (item.bom.status !== 'DRAFT') throw new Error('已发布或已作废 BOM 不可修复，请先复制新版本')
     const detachedSnapshots = await db.dailyProductionConsumption.count({
       where: { bomItemId: item.id },
     })
@@ -559,6 +572,7 @@ export async function applyDataIntegrityAction(
       where: { id: issue.entityId },
       include: { product: true },
     })
+    if (bom.status !== 'DRAFT') throw new Error('已发布或已作废 BOM 不可修复，请先复制新版本')
     beforeData = bom
     afterData = await db.bOM.update({
       where: { id: bom.id },

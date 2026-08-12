@@ -116,7 +116,6 @@ async function main() {
         productId: product.id,
         name: '双原料方案',
         version: 'v2',
-        isDefault: true,
         outputQuantity: 10,
         outputUnit: '件',
         items: {
@@ -126,6 +125,10 @@ async function main() {
           ],
         },
       },
+    })
+    await prisma.bOM.update({
+      where: { id: selectedBom.id },
+      data: { status: 'RELEASED', isActive: true, isDefault: true, releasedAt: new Date() },
     })
 
     await prisma.$transaction(async (tx) => {

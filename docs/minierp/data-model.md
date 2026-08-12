@@ -524,13 +524,17 @@ SKU，实际库存单位。
 
 ### BOM / BOMItem / BOMOutput（当前 Prisma 已实现）
 
-`Product` 与 `BOM` 为一对多。同一产出物料的 `productId + version` 唯一，服务层保证每个产出物料最多只有一个启用的默认方案。旧读取场景继续使用默认启用 BOM，BOM 管理和反查则返回全部方案。
+`Product` 与 `BOM` 为一对多。同一产出物料的 `productId + version` 唯一，版本号不得重复复用。BOM 使用 `DRAFT / RELEASED / OBSOLETE` 生命周期：只有草稿可编辑，发布和作废版本永久只读；正式关系的调整必须复制为下一版本草稿。生产、包装库存穿透和默认成本读取只选择已发布 BOM，BOM 管理和反查返回全部历史版本。
 
 | BOM 字段 | 含义 |
 | --- | --- |
 | `name / version` | 方案名称与产品内唯一版本 |
 | `purpose` | `PRODUCTION` 生产 BOM 或 `PACKAGING` 包装 BOM；包装 BOM 只能有一项产出 |
-| `isDefault / isActive` | 默认选择与启用状态 |
+| `status` | `DRAFT` 草稿、`RELEASED` 已发布、`OBSOLETE` 已作废；状态只能单向流转 |
+| `isDefault / isActive` | 生命周期的兼容投影；发布版本可为默认且启用，草稿和作废版本不可用于生产 |
+| `basedOnBomId / changeReason` | 新版本来源和可选变更原因，用于版本谱系与审计 |
+| `releasedAt / releasedBy` | 发布时点与操作人 |
+| `obsoleteAt / obsoleteBy` | 作废时点与操作人 |
 | `outputQuantity / outputUnit` | 主产出基准数量/单位的兼容投影，真实产出集合以 `BOMOutput` 为准 |
 
 `BOMOutput.quantity` 保存同一基准批次按产出物料主库存单位归一化后的每项产出，并以 `isPrimary` 标识唯一主产出。`BOMItem.quantity` 保存该批次按投入物料主库存单位归一化后的绝对投入量；两表的 `unit` 都是主库存单位快照。`entryUnit / entryQuantity` 保存用户实际输入的单位和数量，`conversionRateUsed / conversionSource / unitVersionUsed` 冻结保存时使用的物料换算。单位目录负责同量纲换算；物料配置有效的参考计量和 `conversionRate` 后，还可在主计量与参考计量之间换算，例如按 kg 填写长度库存物料的 BOM 用量。同一投入物料在一个 BOM 中只能出现一次。新保存的物料投入将兼容字段 `outputMaterialId` 置空，表示它属于整个批次而非某项产出。投入物料不按 `Material.category` 限制，分类只参与筛选和显示，也可用成品或半成品作为投入表达二次加工。一对一只是普通批次关系，不设独立换算模型；`purpose` 仅用于区分生产和包装语义。同物料的纯移库不属于 BOM 转换。

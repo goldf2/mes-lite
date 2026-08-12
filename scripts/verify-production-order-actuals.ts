@@ -46,7 +46,7 @@ async function main() {
     const product = await prisma.product.create({
       data: { sku: `MAT-${finished.code}`, name: finished.name, category: finished.category, unit: finished.stockUnit },
     })
-    const bom = await prisma.bOM.create({
+    const draftBom = await prisma.bOM.create({
       data: {
         productId: product.id,
         name: '二次加工方案',
@@ -63,6 +63,10 @@ async function main() {
           ],
         },
       },
+    })
+    const bom = await prisma.bOM.update({
+      where: { id: draftBom.id },
+      data: { status: 'RELEASED', isActive: true, isDefault: true, releasedAt: new Date() },
       include: {
         items: { include: { material: { select: { code: true, name: true, stockUnit: true, unit: true } } } },
         outputs: { include: { material: { select: { code: true, name: true, stockUnit: true, unit: true } } } },

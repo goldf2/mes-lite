@@ -80,7 +80,7 @@ async function loadMaterialImages(materialIds: string[]) {
 
 async function loadPackagingInventory() {
   const packagingBoms = await prisma.bOM.findMany({
-    where: { purpose: 'PACKAGING', isActive: true, isDefault: true },
+    where: { purpose: 'PACKAGING', status: 'RELEASED', isDefault: true },
     select: {
       id: true, name: true, version: true,
       outputs: {

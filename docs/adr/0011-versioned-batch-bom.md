@@ -1,6 +1,6 @@
 # ADR-0011：BOM 按多方案和基准批量建模
 
-- 状态：部分被 [ADR-0013](0013-multi-output-bom-and-production-order-convergence.md) 替代
+- 状态：部分被 [ADR-0013](0013-multi-output-bom-and-production-order-convergence.md) 和 [ADR-0029](0029-immutable-released-bom-versions.md) 替代
 - 日期：2026-08-03
 
 ## 背景
@@ -10,15 +10,15 @@
 ## 决策
 
 1. `Product 1 -> N BOM`，以 `productId + version` 保证产品内版本唯一。
-2. BOM 增加方案名、默认和启用状态；服务层保证单个主产出只有一个启用的默认方案。
+2. BOM 增加方案名、默认和启用兼容字段；当前正式生命周期、默认选择和不可变规则以 ADR-0029 为准。
 3. `BOM.outputQuantity` 保存基准批量产出，`BOMItem.quantity` 保存该批量对应输入。单位用量为二者相除的派生值。
 4. 界面继续编辑和显示单位用量，保存时自动乘以基准产出数量，降低日常录入负担。
-5. 日报和成本的兼容读取使用默认启用 BOM；历史快照仍保留当时的 BOM ID、版本和单位用量。
+5. 日报和成本的兼容读取使用默认已发布 BOM；历史快照仍保留当时的 BOM ID、版本和单位用量。
 6. BOM 方案类型后续由 ADR-0013 删除；1:1 仅是基准批量比例，同物料跨库位流转使用移库事务。
 7. 日报对 BOM 的显式选择、方案快照和逐项来源库位由 [ADR-0012](0012-daily-production-bom-and-input-locations.md) 补充。
 
 ## 后果
 
 - 旧 BOM 迁移为“默认方案 / v1”，原有 `outputQuantity = 1` 和明细数值不变。
-- BOM 重新保存会替换当前方案的物料明细，日报已保存的耗用快照不回算。
+- 草稿重新保存会替换当前草稿明细；已发布和已作废版本不可重新保存，日报和订单已保存的耗用快照不回算。
 - 工单显式选择 BOM 并保存快照、日报多输入/多产出属于后续垂直切片，本决策先提供其稳定的 BOM 基础。

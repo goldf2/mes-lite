@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { ZodError } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
 import { requireResourcePermission } from '@/lib/permissions'
 import { saveBomSchema } from '@/modules/bom/contracts/bom-schema'
-import { BomDomainError, saveBom } from '@/modules/bom/server/bom-command-service'
+import { BomDomainError } from '@/modules/bom/domain/bom-errors'
+import { saveBom } from '@/modules/bom/server/bom-command-service'
 import { listBoms } from '@/modules/bom/server/bom-query-service'
 
 export const dynamic = 'force-dynamic'
@@ -36,6 +38,9 @@ export async function PUT(req: NextRequest) {
   } catch (error) {
     if (error instanceof ZodError) return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
     if (error instanceof BomDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return NextResponse.json({ error: '同一产品的 BOM 版本号不能重复' }, { status: 409 })
+    }
     if (error instanceof Error && /BOM 数量|所选单位|必须使用主库存单位|无法换算|换算后的 BOM/.test(error.message)) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }

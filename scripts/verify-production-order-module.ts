@@ -192,6 +192,10 @@ async function verifyDatabaseRules() {
         items: { create: { materialId: inputMaterial.id, outputMaterialId: outputMaterial.id, quantity: 2, unit: '件' } },
       },
     })
+    await prisma.bOM.update({
+      where: { id: bom.id },
+      data: { status: 'RELEASED', isActive: true, isDefault: true, releasedAt: new Date() },
+    })
 
     const created = await createProductionOrders(createProductionOrderSchema.parse({
       voucherNo: 'VERIFY-PO',

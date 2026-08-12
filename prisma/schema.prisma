@@ -186,13 +186,23 @@ model BOM {
   name             String            @default("默认方案")
   purpose          String            @default("PRODUCTION")
   version          String            @default("v1")
-  isDefault        Boolean           @default(true)
-  isActive         Boolean           @default(true)
+  status           String            @default("DRAFT")
+  isDefault        Boolean           @default(false)
+  isActive         Boolean           @default(false)
   outputQuantity   Float             @default(1)
   outputUnit       String            @default("件")
+  basedOnBomId     String?
+  changeReason     String?
+  releasedAt       DateTime?
+  releasedBy       String?
+  obsoleteAt       DateTime?
+  obsoleteBy       String?
   createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   @@unique([productId, version])
+  @@index([productId, status, purpose])
+  @@index([basedOnBomId])
   @@index([productId, isActive, isDefault])
   @@index([purpose, isActive, isDefault])
 }

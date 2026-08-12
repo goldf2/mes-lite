@@ -1,6 +1,7 @@
 import { getCurrentOperator } from '@/lib/auth'
 import { resolveProductId } from '@/lib/material-product'
 import { prisma } from '@/lib/prisma'
+import { nextBomVersion } from '@/modules/bom'
 import type { ParsedSawingScenarioInput } from '../contracts/sawing-cost'
 import { sawingCostScenarioInclude } from './sawing-cost-select'
 
@@ -66,12 +67,38 @@ export async function createSawingCostScenario(input: ParsedSawingScenarioInput,
     })
 
     if (resolvedBomProductId) {
-      const bom = await tx.bOM.findFirst({
-        where: { productId: resolvedBomProductId, isActive: true },
-        orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
-      }) || await tx.bOM.create({
-        data: { productId: resolvedBomProductId, name: '默认方案', version: 'v1', isDefault: true },
+      let bom = await tx.bOM.findFirst({
+        where: { productId: resolvedBomProductId, status: 'DRAFT' },
+        orderBy: { createdAt: 'desc' },
       })
+      if (!bom) {
+        const source = await tx.bOM.findFirst({
+          where: { productId: resolvedBomProductId, status: 'RELEASED' },
+          orderBy: [{ isDefault: 'desc' }, { releasedAt: 'desc' }, { createdAt: 'desc' }],
+          include: { items: true, outputs: true },
+        })
+        const versions = await tx.bOM.findMany({
+          where: { productId: resolvedBomProductId }, select: { version: true },
+        })
+        bom = await tx.bOM.create({
+          data: {
+            productId: resolvedBomProductId,
+            name: source ? `${source.name}（新版本）` : '默认方案',
+            purpose: source?.purpose || 'PRODUCTION',
+            version: nextBomVersion(versions.map((item) => item.version)),
+            status: 'DRAFT', isDefault: false, isActive: false,
+            outputQuantity: source?.outputQuantity || 1,
+            outputUnit: source?.outputUnit || '件',
+            basedOnBomId: source?.id || null,
+          },
+        })
+        if (source?.items.length) await tx.bOMItem.createMany({
+          data: source.items.map(({ id: _id, ...item }) => ({ ...item, bomId: bom!.id })),
+        })
+        if (source?.outputs.length) await tx.bOMOutput.createMany({
+          data: source.outputs.map(({ id: _id, createdAt: _createdAt, ...output }) => ({ ...output, bomId: bom!.id })),
+        })
+      }
       await tx.bOMItem.create({
         data: {
           bomId: bom.id, itemType: 'SAWING_COST', costObjectId: costObject.id,

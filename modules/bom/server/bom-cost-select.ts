@@ -5,7 +5,7 @@ export const bomCostRunInclude = {
 
 export const bomCostProductInclude = {
   boms: {
-    where: { isActive: true },
+    where: { status: 'RELEASED' },
     orderBy: [{ isDefault: 'desc' as const }, { createdAt: 'desc' as const }],
     take: 1,
     include: {

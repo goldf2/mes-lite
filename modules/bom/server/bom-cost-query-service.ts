@@ -9,7 +9,7 @@ export async function listBomCostWorkspace(inputProductId?: string) {
       select: {
         id: true, sku: true, name: true, unit: true,
         boms: {
-          where: { isActive: true }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }], take: 1,
+          where: { status: 'RELEASED' }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }], take: 1,
           select: {
             id: true, version: true, isActive: true, outputQuantity: true,
             outputs: { where: { isPrimary: true }, take: 1, select: { materialId: true, quantity: true } },

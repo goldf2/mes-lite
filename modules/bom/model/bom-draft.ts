@@ -83,7 +83,6 @@ export function isBomDraftDirty(input: {
     || input.selectedBomId === '__new__'
     || input.draftName !== (input.selectedBom?.name || '')
     || input.draftPurpose !== (input.selectedBom?.purpose || 'PRODUCTION')
-    || input.draftIsDefault !== (input.selectedBom?.isDefault ?? true)
     || bomRatiosDiffer(
       primaryOutput?.entryQuantity == null
         ? quantityInStockUnit(input.primaryOutputQuantity, input.primaryOutputUnit, input.selectedMaterial, input.unitCatalog)

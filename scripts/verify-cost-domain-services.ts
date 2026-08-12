@@ -84,13 +84,31 @@ async function main() {
       SawingCostServiceError,
       '已有物料方案缺少物料时必须在领域服务拒绝',
     )
-    const scenario = await createSawingCostScenario(scenarioInput, '验证员')
+    const bomProduct = await prisma.product.create({
+      data: { sku: `VERIFY-BOM-${suffix}`, name: '验证 BOM 产品', category: 'FINISHED' },
+    })
+    const releasedBom = await prisma.bOM.create({
+      data: {
+        productId: bomProduct.id, version: 'v1',
+      },
+    })
+    await prisma.bOM.update({
+      where: { id: releasedBom.id },
+      data: { status: 'RELEASED', isActive: true, isDefault: true, releasedAt: new Date() },
+    })
+    const scenario = await createSawingCostScenario({ ...scenarioInput, bomProductId: bomProduct.id }, '验证员')
     const [linkedCostObject, savedItems] = await Promise.all([
       prisma.costObject.findFirst({ where: { sourceType: 'SAWING_COST_SCENARIO', sourceId: scenario.id } }),
       prisma.productionCostItem.count({ where: { scenarioId: scenario.id } }),
     ])
     assert.ok(linkedCostObject, '锯切方案事务必须同步生成 BOM 可引用的成本对象')
     assert.equal(savedItems, 1, '锯切方案事务必须同步保存分项成本')
+    assert.equal(await prisma.bOMItem.count({ where: { bomId: releasedBom.id } }), 0, '已发布 BOM 不得被锯切成本工具原地修改')
+    const draftBom = await prisma.bOM.findFirstOrThrow({
+      where: { productId: bomProduct.id, status: 'DRAFT' }, include: { items: true },
+    })
+    assert.equal(draftBom.version, 'v2', '向已发布 BOM 添加成本项必须派生唯一新版本')
+    assert.equal(draftBom.items.some((item) => item.itemType === 'SAWING_COST'), true)
     assert.equal((await listSawingCostWorkspace()).data.length, 1)
 
     await createProductionCostRecord(productionCostRecordInputSchema.parse({

@@ -83,6 +83,10 @@ async function main() {
       },
     },
   })
+  await prisma.bOM.update({
+    where: { id: bom1.id },
+    data: { status: 'RELEASED', isActive: true, isDefault: true, releasedAt: new Date() },
+  })
 
   // 5. 齿轮 BOM
   const bom2 = await prisma.bOM.create({
@@ -96,6 +100,10 @@ async function main() {
         ],
       },
     },
+  })
+  await prisma.bOM.update({
+    where: { id: bom2.id },
+    data: { status: 'RELEASED', isActive: true, isDefault: true, releasedAt: new Date() },
   })
 
   // 6. 轴承工艺路线

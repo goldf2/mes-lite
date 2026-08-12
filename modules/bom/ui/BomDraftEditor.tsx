@@ -204,9 +204,9 @@ export default function BomDraftEditor({
     primaryOutputQuantity,
     primaryOutputUnit,
     draftOutputs,
-    draftIsDefault,
     draftItems,
     dirty,
+    editable,
     saving,
   } = controller
   const outputOptions = useMemo(() => materialOptions.map((material) => ({
@@ -217,7 +217,7 @@ export default function BomDraftEditor({
 
   return (
     <>
-      <div className="rounded-lg border border-gray-200">
+      <fieldset disabled={!editable} className={`rounded-lg border border-gray-200 ${editable ? '' : 'bg-gray-50 opacity-80'}`}>
         <div className="grid grid-cols-1 divide-y divide-gray-200 lg:grid-cols-2 lg:divide-x lg:divide-y-0">
           <section className="min-w-0 p-3 sm:p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -341,10 +341,10 @@ export default function BomDraftEditor({
             </div>
           </section>
         </div>
-      </div>
+      </fieldset>
 
       <div className="mt-4 flex flex-col gap-4 border-t border-gray-200 pt-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="min-w-0 flex-1 lg:max-w-xl">
+        <fieldset disabled={!editable} className="min-w-0 flex-1 lg:max-w-xl">
           <label className="block text-xs font-medium text-gray-700">
             BOM 方案名称
             <input
@@ -369,31 +369,55 @@ export default function BomDraftEditor({
                 </button>
               ))}
             </div>
-            <label className="inline-flex items-center gap-2 text-gray-700">
-              <input
-                type="checkbox"
-                checked={draftIsDefault}
-                onChange={(event) => controller.setDraftIsDefault(event.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              默认 BOM
-            </label>
+            <span>草稿发布后自动成为该用途的默认 BOM</span>
             <span>{selectedBom ? `版本 ${selectedBom.version}` : '保存时自动生成版本'}</span>
             <span className={dirty ? 'font-medium text-amber-700' : 'text-gray-400'}>
               {dirty ? '有未保存修改' : '已保存'}
             </span>
           </div>
-        </div>
+        </fieldset>
         {showSaveAction && (
-          <AppButton
-            variant="primary"
-            onClick={controller.save}
-            disabled={saving || !selectedMaterial || !dirty}
-            title={!selectedMaterial ? '请先添加产出物料' : !dirty ? '当前没有待保存修改' : undefined}
-            className="shrink-0 px-6 py-2.5 font-semibold"
-          >
-            {saving ? '保存中...' : '保存 BOM'}
-          </AppButton>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            {editable && (
+              <AppButton
+                variant="primary"
+                onClick={controller.save}
+                disabled={saving || !selectedMaterial || !dirty}
+                title={!selectedMaterial ? '请先添加产出物料' : !dirty ? '当前没有待保存修改' : undefined}
+                className="px-6 py-2.5 font-semibold"
+              >
+                {saving ? '处理中...' : '保存草稿'}
+              </AppButton>
+            )}
+            {selectedBom?.status === 'DRAFT' && (
+              <AppButton
+                variant="secondary"
+                onClick={controller.release}
+                disabled={saving || dirty}
+                title={dirty ? '请先保存修改再发布' : '发布后生产订单才可引用'}
+                className="px-5 py-2.5 font-semibold"
+              >
+                发布 BOM
+              </AppButton>
+            )}
+            {selectedBom && selectedBom.status !== 'DRAFT' && (
+              <AppButton variant="primary" onClick={controller.copyVersion} disabled={saving} className="px-5 py-2.5 font-semibold">
+                创建新版本
+              </AppButton>
+            )}
+            {selectedBom?.status === 'RELEASED' && (
+              <AppButton
+                variant="secondary"
+                onClick={() => {
+                  if (window.confirm(`确认作废 BOM ${selectedBom.version}？历史订单仍会保留其快照。`)) void controller.obsolete()
+                }}
+                disabled={saving}
+                className="px-5 py-2.5 text-red-600"
+              >
+                作废版本
+              </AppButton>
+            )}
+          </div>
         )}
       </div>
 

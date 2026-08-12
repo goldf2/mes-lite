@@ -4,8 +4,9 @@ import { prisma } from '@/lib/prisma'
 import { bomSelect, type ListedBom } from './bom-select'
 
 function pickDefaultBom(boms: ListedBom[]) {
-  return boms.find((bom) => bom.isActive && bom.isDefault)
-    || boms.find((bom) => bom.isActive)
+  return boms.find((bom) => bom.status === 'RELEASED' && bom.isDefault)
+    || boms.find((bom) => bom.status === 'RELEASED')
+    || boms.find((bom) => bom.status === 'DRAFT')
     || boms[0]
     || null
 }
@@ -16,7 +17,7 @@ export async function listBoms() {
       select: {
         id: true, sku: true, name: true, category: true, unit: true,
         customer: { select: { id: true, name: true } },
-        boms: { select: bomSelect, orderBy: [{ isActive: 'desc' }, { isDefault: 'desc' }, { createdAt: 'desc' }] },
+        boms: { select: bomSelect, orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }] },
       },
       orderBy: { createdAt: 'desc' },
       take: 500,

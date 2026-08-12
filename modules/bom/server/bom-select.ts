@@ -31,11 +31,17 @@ export const bomSelect = {
   name: true,
   purpose: true,
   version: true,
+  status: true,
   isDefault: true,
   isActive: true,
+  basedOnBomId: true,
+  changeReason: true,
+  releasedAt: true,
+  obsoleteAt: true,
   outputQuantity: true,
   outputUnit: true,
   createdAt: true,
+  updatedAt: true,
   outputs: {
     orderBy: { isPrimary: 'desc' as const },
     select: {

@@ -282,7 +282,7 @@ export async function executeAgentTool(
     if (!keyword) return { source: 'BOM', data: [] }
     const boms = await prisma.bOM.findMany({
       where: {
-        isActive: true,
+        status: 'RELEASED',
         OR: [
           { product: { is: { OR: [{ sku: { contains: keyword } }, { name: { contains: keyword } }] } } },
           { outputs: { some: { material: { is: { OR: [

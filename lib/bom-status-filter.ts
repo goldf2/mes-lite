@@ -5,17 +5,17 @@ export function getBomStatusRelationFilters(status?: string | null): Record<stri
   if (status === 'NO_ACTIVE') {
     return [
       { bomOutputs: { some: {} } },
-      { bomOutputs: { none: { bom: { isActive: true } } } },
+      { bomOutputs: { none: { bom: { status: 'RELEASED' } } } },
     ]
   }
   if (status === 'NO_DEFAULT') {
     return [
-      { bomOutputs: { some: { bom: { isActive: true } } } },
-      { bomOutputs: { none: { bom: { isActive: true, isDefault: true } } } },
+      { bomOutputs: { some: { bom: { status: 'RELEASED' } } } },
+      { bomOutputs: { none: { bom: { status: 'RELEASED', isDefault: true } } } },
     ]
   }
   if (status === 'READY') {
-    return [{ bomOutputs: { some: { bom: { isActive: true, isDefault: true } } } }]
+    return [{ bomOutputs: { some: { bom: { status: 'RELEASED', isDefault: true } } } }]
   }
   return []
 }

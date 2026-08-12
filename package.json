@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.343",
+  "version": "0.1.344",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -74,6 +74,7 @@
     "verify:bom-cost-module": "tsx scripts/verify-bom-cost-module.ts",
     "verify:cost-domain-services": "tsx scripts/verify-cost-domain-services.ts",
     "verify:bom-versions": "tsx scripts/verify-bom-versions.ts",
+    "verify:bom-lifecycle": "tsx scripts/verify-bom-lifecycle.ts",
     "verify:bom-material-search": "tsx scripts/verify-bom-material-search.ts",
     "verify:unit-catalog": "tsx scripts/verify-unit-catalog.ts",
     "verify:configuration-order": "tsx scripts/verify-configuration-order.ts",

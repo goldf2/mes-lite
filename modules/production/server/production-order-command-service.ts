@@ -20,7 +20,7 @@ async function resolveOrderLine(tx: Prisma.TransactionClient, input: ProductionO
     description: `由物料 ${material.code} 自动映射，用于简易生产工单。`,
   })
   const bom = await tx.bOM.findFirst({
-    where: { id: input.bomId, productId, isActive: true },
+    where: { id: input.bomId, productId, status: 'RELEASED' },
     select: {
       id: true,
       name: true,
@@ -44,7 +44,7 @@ async function resolveOrderLine(tx: Prisma.TransactionClient, input: ProductionO
     },
   })
   if (!bom || bom.outputs.length === 0 || bom.items.length === 0) {
-    throw new ProductionOrderDomainError(`物料 ${material.code} 的 BOM 不存在、已停用或缺少投入/产出明细`)
+    throw new ProductionOrderDomainError(`物料 ${material.code} 缺少已发布且结构完整的 BOM`)
   }
   if (bom.outputs.filter((output) => output.isPrimary).length !== 1) {
     throw new ProductionOrderDomainError(`物料 ${material.code} 的 BOM 必须且只能有一项主产出`)

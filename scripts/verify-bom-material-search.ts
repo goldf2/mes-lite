@@ -25,15 +25,22 @@ async function createOutputBom(input: {
   const product = await prisma.product.create({
     data: { sku: input.code, name: input.code, category: 'FINISHED', unit: '件' },
   })
-  return prisma.bOM.create({
+  const bom = await prisma.bOM.create({
     data: {
       productId: product.id,
       name: `${input.code} BOM`,
-      isActive: input.isActive,
-      isDefault: input.isDefault,
       outputs: { create: { materialId: input.materialId, quantity: 1, unit: '件', isPrimary: true } },
     },
   })
+  await prisma.bOM.update({
+    where: { id: bom.id },
+    data: { status: 'RELEASED', isActive: input.isActive, isDefault: input.isDefault, releasedAt: new Date() },
+  })
+  if (!input.isActive) return prisma.bOM.update({
+    where: { id: bom.id },
+    data: { status: 'OBSOLETE', obsoleteAt: new Date() },
+  })
+  return prisma.bOM.findUniqueOrThrow({ where: { id: bom.id } })
 }
 
 async function main() {

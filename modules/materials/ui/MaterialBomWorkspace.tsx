@@ -51,7 +51,9 @@ export default function MaterialBomWorkspace({
                     <span className="flex shrink-0 items-center gap-1">
                       <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${bom.purpose === 'PACKAGING' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>{bom.purpose === 'PACKAGING' ? '包装' : '生产'}</span>
                       {bom.isDefault && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700">默认</span>}
-                      {!bom.isActive && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600">已停用</span>}
+                      <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${bom.status === 'RELEASED' ? 'bg-emerald-50 text-emerald-700' : bom.status === 'DRAFT' ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {bom.status === 'RELEASED' ? '已发布' : bom.status === 'DRAFT' ? '草稿' : '已作废'}
+                      </span>
                     </span>
                   </span>
                   <span className="my-2 block border-t border-gray-100" />
@@ -68,8 +70,11 @@ export default function MaterialBomWorkspace({
       <div aria-label="BOM 创建与修改工作区" className="min-w-0 rounded-lg bg-white p-4 shadow sm:p-6">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2"><h3 className="text-base font-semibold text-gray-900">创建 / 修改 BOM</h3>{loading && <span className="text-xs text-gray-500">同步中...</span>}</div>
+            <div className="flex items-center gap-2"><h3 className="text-base font-semibold text-gray-900">BOM 版本</h3>{loading && <span className="text-xs text-gray-500">同步中...</span>}</div>
             <div className="mt-1 truncate text-sm text-gray-500">{controller.selectedMaterial ? `${controller.selectedMaterial.code} · ${controller.selectedMaterial.name}` : '新建 BOM：分别添加每批投入和产出'}</div>
+            {controller.selectedBom && controller.selectedBom.status !== 'DRAFT' && (
+              <p className="mt-1 text-xs text-gray-500">已发布和已作废版本只读；需要调整时请创建新版本。</p>
+            )}
           </div>
         </div>
         <BomDraftEditor controller={controller} showSaveAction />

@@ -3,16 +3,10 @@ import { materialProductPrefix, resolveProductId } from '@/lib/material-product'
 import { prisma } from '@/lib/prisma'
 import { getUnitCatalog } from '@/lib/unit-catalog'
 import type { SaveBomInput } from '../contracts/bom-schema'
+import { BomDomainError } from '../domain/bom-errors'
 import { validateBomStructure } from '../domain/bom-structure'
 import { nextBomVersion } from '../domain/bom-version'
 import { bomSelect } from './bom-select'
-
-export class BomDomainError extends Error {
-  constructor(message: string, public readonly status = 400) {
-    super(message)
-    this.name = 'BomDomainError'
-  }
-}
 
 export async function saveBom(input: SaveBomInput) {
   const unitCatalog = await getUnitCatalog()
@@ -109,27 +103,21 @@ export async function saveBom(input: SaveBomInput) {
   const saved = await prisma.$transaction(async (tx) => {
     const existingBoms = await tx.bOM.findMany({
       where: { productId: product.id },
-      select: { id: true, version: true, isDefault: true, isActive: true },
+      select: { id: true, version: true, status: true },
       orderBy: { createdAt: 'desc' },
     })
     let target = input.bomId ? existingBoms.find((bom) => bom.id === input.bomId) : undefined
     if (input.bomId && !target) throw new BomDomainError('BOM 方案不存在', 404)
     if (!target && !input.createNew) {
-      target = existingBoms.find((bom) => bom.isActive && bom.isDefault)
-        || existingBoms.find((bom) => bom.isActive)
-        || existingBoms[0]
+      target = existingBoms.find((bom) => bom.status === 'DRAFT')
+    }
+    if (target && target.status !== 'DRAFT') {
+      throw new BomDomainError('已发布或已作废 BOM 不可修改，请先创建新版本', 409)
     }
 
-    const shouldDefault = input.isDefault ?? (target?.isDefault || existingBoms.length === 0)
     const version = input.version || target?.version || nextBomVersion(existingBoms.map((bom) => bom.version))
     if ((!target || version !== target.version) && existingBoms.some((bom) => bom.version === version)) {
       throw new BomDomainError('同一产品的 BOM 版本号不能重复', 409)
-    }
-    if (shouldDefault) {
-      await tx.bOM.updateMany({
-        where: { productId: product.id, ...(target ? { id: { not: target.id } } : {}) },
-        data: { isDefault: false },
-      })
     }
 
     const bom = target
@@ -137,7 +125,7 @@ export async function saveBom(input: SaveBomInput) {
           where: { id: target.id },
           data: {
             name: input.name || '默认方案', purpose: input.purpose, version,
-            isDefault: shouldDefault, isActive: input.isActive,
+            status: 'DRAFT', isDefault: false, isActive: false,
             outputQuantity: primaryOutput.quantity,
             outputUnit: primaryOutputMaterial.stockUnit || primaryOutputMaterial.unit,
           },
@@ -146,7 +134,7 @@ export async function saveBom(input: SaveBomInput) {
       : await tx.bOM.create({
           data: {
             productId: product.id, name: input.name || `方案 ${version}`, purpose: input.purpose, version,
-            isDefault: shouldDefault, isActive: input.isActive,
+            status: 'DRAFT', isDefault: false, isActive: false,
             outputQuantity: primaryOutput.quantity,
             outputUnit: primaryOutputMaterial.stockUnit || primaryOutputMaterial.unit,
           },
@@ -164,16 +152,6 @@ export async function saveBom(input: SaveBomInput) {
     await tx.bOMOutput.deleteMany({ where: { bomId: bom.id } })
     await tx.bOMOutput.createMany({ data: outputs.map((output) => ({ ...output, bomId: bom.id })) })
 
-    await tx.bOM.updateMany({ where: { productId: product.id, isActive: false, isDefault: true }, data: { isDefault: false } })
-    const activeDefault = await tx.bOM.findFirst({
-      where: { productId: product.id, isActive: true, isDefault: true }, select: { id: true },
-    })
-    if (!activeDefault) {
-      const replacement = await tx.bOM.findFirst({
-        where: { productId: product.id, isActive: true }, orderBy: { createdAt: 'desc' }, select: { id: true },
-      })
-      if (replacement) await tx.bOM.update({ where: { id: replacement.id }, data: { isDefault: true } })
-    }
     return tx.bOM.findUnique({ where: { id: bom.id }, select: bomSelect })
   })
   return { saved, product }

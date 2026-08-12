@@ -224,6 +224,21 @@ async function main() {
       })
       assert.equal(detachedConsumption.bomItemId, null, '删除 BOM 明细时应保留日报快照并清空失效指针')
 
+      await tx.bOM.update({
+        where: { id: bom.id },
+        data: { status: 'RELEASED', isActive: true, isDefault: true, releasedAt: new Date() },
+      })
+      await tx.material.update({ where: { id: raw.id }, data: { stockUnit: 'kg' } })
+      const immutableIssue = (await getDataIntegrityReport(tx)).issues.find(
+        (issue) => issue.id === `BOM_UNIT_MISMATCH:${mismatched.id}`,
+      )
+      assert.equal(immutableIssue?.actions.length, 0, '已发布 BOM 的一致性问题只允许告警，不得原地修复')
+      await assert.rejects(
+        () => applyDataIntegrityAction(tx, immutableIssue!.id, 'SYNC_BOM_ITEM_UNIT'),
+        /已不存在|不再适用/,
+        '维护工具不得绕过已发布 BOM 不可变规则',
+      )
+
       throw rollbackMarker
     }, { timeout: 20000 })
   } catch (error) {

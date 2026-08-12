@@ -45,6 +45,7 @@ interface BomVersion {
   name: string
   purpose: 'PRODUCTION' | 'PACKAGING'
   version: string
+  status: 'DRAFT' | 'RELEASED' | 'OBSOLETE'
   isDefault: boolean
   isActive: boolean
   outputQuantity: number
@@ -116,7 +117,9 @@ function BomStatus({ bom }: { bom: BomVersion }) {
         {bom.purpose === 'PACKAGING' ? '包装' : '生产'}
       </span>
       {bom.isDefault && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700">默认</span>}
-      {!bom.isActive && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600">已停用</span>}
+      <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${bom.status === 'RELEASED' ? 'bg-emerald-50 text-emerald-700' : bom.status === 'DRAFT' ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
+        {bom.status === 'RELEASED' ? '已发布' : bom.status === 'DRAFT' ? '草稿' : '已作废'}
+      </span>
     </span>
   )
 }
@@ -386,7 +389,7 @@ export default function BomOverviewPage({
                             onClick={() => onOpenBom(editorMaterialId, bom.id)}
                             className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
                           >
-                            打开编辑
+                            打开版本
                             <ArrowRight className="h-4 w-4" aria-hidden="true" />
                           </button>
                         </div>
@@ -437,7 +440,7 @@ export default function BomOverviewPage({
                             onClick={() => onOpenBom(editorMaterialId, bom.id)}
                             className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
                           >
-                            打开编辑
+                            打开版本
                             <ArrowRight className="h-4 w-4" aria-hidden="true" />
                           </button>
                         </div>

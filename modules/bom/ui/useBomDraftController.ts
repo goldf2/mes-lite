@@ -17,6 +17,7 @@ import type {
 } from '../contracts'
 import { bomProductIdForMaterial, indexBomProductsByMaterialId } from '../model/bom-material'
 import { isBomDraftDirty } from '../model/bom-draft'
+import useBomLifecycleActions from './useBomLifecycleActions'
 
 interface UseBomDraftControllerOptions {
   products: MaterialBom[]
@@ -57,6 +58,7 @@ export default function useBomDraftController({
     ? null
     : selectedProduct?.boms.find((bom) => bom.id === selectedBomId) || selectedProduct?.bom || null
   const numericPrimaryOutputQuantity = Number(primaryOutputQuantity)
+  const editable = !selectedBom || selectedBom.status === 'DRAFT'
 
   const preferredEntryUnit = useCallback((material: BomMaterialOption) => {
     const preferredCode = material.primaryMeasure === 'LENGTH'
@@ -370,6 +372,10 @@ export default function useBomDraftController({
   }, [])
 
   const save = useCallback(async () => {
+    if (!editable) {
+      onMessage('已发布或已作废 BOM 不可修改，请先创建新版本')
+      return false
+    }
     if (!selectedMaterial) {
       onMessage('请先添加主产出物料')
       return false
@@ -436,7 +442,11 @@ export default function useBomDraftController({
     } finally {
       setSaving(false)
     }
-  }, [draftIsDefault, draftItems, draftName, draftOutputs, draftPurpose, numericPrimaryOutputQuantity, onAfterSave, onMessage, primaryOutputUnit, selectedBom, selectedBomId, selectedMaterial, selectedProduct])
+  }, [draftIsDefault, draftItems, draftName, draftOutputs, draftPurpose, editable, numericPrimaryOutputQuantity, onAfterSave, onMessage, primaryOutputUnit, selectedBom, selectedBomId, selectedMaterial, selectedProduct])
+
+  const { release, copyVersion, obsolete } = useBomLifecycleActions({
+    selectedBom, dirty, setSaving, onMessage, onAfterSave,
+  })
 
   return {
     materialOptions,
@@ -456,6 +466,7 @@ export default function useBomDraftController({
     draftIsDefault,
     draftItems,
     dirty,
+    editable,
     saving,
     setDraftName,
     setDraftPurpose,
@@ -474,6 +485,9 @@ export default function useBomDraftController({
     changeOutputUnit,
     changePrimaryOutputUnit,
     save,
+    release,
+    copyVersion,
+    obsolete,
   }
 }
 

@@ -31,7 +31,7 @@ export async function buildLegacyDailyProductionConsumption(
     where: { sku: { in: [finishedMaterial.code, simpleProductSku(finishedMaterial.code)] } },
     include: {
       boms: {
-        where: { isActive: true, id: options.bomId },
+        where: { status: 'RELEASED', id: options.bomId },
         orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
         take: 1,
         include: {
