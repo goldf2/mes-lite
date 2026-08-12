@@ -36,6 +36,8 @@ function verifyBoundaries() {
   const route = read('app/api/materials/route.ts')
   const query = read('modules/materials/server/material-query-service.ts')
   const command = read('modules/materials/server/material-command-service.ts')
+  const client = read('modules/materials/client/materials-api.ts')
+  const page = read('modules/materials/ui/MaterialPage.tsx')
   assert.match(route, /material-query-service/, '物料 API 必须委托查询领域服务')
   assert.match(route, /material-command-service/, '物料 API 必须委托写入领域服务')
   assert.match(route, /requireResourcePermission[\s\S]*writeAuditLog/, '物料 API 必须保留权限与请求审计')
@@ -47,6 +49,10 @@ function verifyBoundaries() {
   assert.doesNotMatch(command, /NextRequest|NextResponse|requireResourcePermission/, '物料写入服务不得依赖 HTTP')
   assert.match(query, /tokenizeKeywordQuery/, '物料查询服务必须保留智能多关键词搜索')
   assert.match(query, /listByBomSummary[\s\S]*withMaterialImageUrls/, '物料查询服务必须集中 BOM 简况与主图装配')
+  assert.match(client, /listMaterials\(params: URLSearchParams, signal\?: AbortSignal\)/, '物料列表 client 必须支持取消过期搜索请求')
+  assert.match(page, /materialRequestRef\.current\?\.abort\(\)[\s\S]*listMaterials\(buildMaterialParams\(\), controller\.signal\)/, '物料页面必须取消上一轮搜索并只保留最新请求')
+  assert.match(page, /if \(controller\.signal\.aborted\) return[\s\S]*setMaterials\(\[\]\)/, '搜索失败必须区分过期请求并清除误导性的旧结果')
+  assert.match(page, /materialLoading \? \([\s\S]*正在筛选物料[\s\S]*没有匹配的物料[\s\S]*清除搜索条件/, '搜索期间和无结果时必须呈现明确状态，不能继续显示旧卡片')
 }
 
 async function verifyDatabaseRules() {

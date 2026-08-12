@@ -107,6 +107,7 @@ export default function MaterialPage({
   canCreateBom?: boolean
 }) {
   const [materials, setMaterials] = useState<Material[]>([])
+  const [materialLoading, setMaterialLoading] = useState(true)
   const [customers, setCustomers] = useState<CustomerOption[]>([])
   const [bomProducts, setBomProducts] = useState<MaterialBom[]>([])
   const [bomMaterialOptions, setBomMaterialOptions] = useState<BomMaterialOption[]>([])
@@ -140,6 +141,7 @@ export default function MaterialPage({
     columnControls,
   } = viewPreferences
   const afterBomSaveRef = useRef<(preferredBomId?: string) => Promise<void>>()
+  const materialRequestRef = useRef<AbortController | null>(null)
   const handleAfterBomSave = useCallback(async (preferredBomId?: string) => {
     await afterBomSaveRef.current?.(preferredBomId)
   }, [])
@@ -234,6 +236,8 @@ export default function MaterialPage({
     }
   }, [fetchBomData])
 
+  useEffect(() => () => materialRequestRef.current?.abort(), [])
+
   useEffect(() => {
     if (!showBomWorkspace) fetchMaterials()
   }, [keyword, selectedCategories, customerFilter, bomStatusFilter, materialSearchConditions, sortBy, sortDir, page, pageSize, showBomWorkspace])
@@ -269,8 +273,13 @@ export default function MaterialPage({
   }
 
   const fetchMaterials = async () => {
+    materialRequestRef.current?.abort()
+    const controller = new AbortController()
+    materialRequestRef.current = controller
+    setMaterialLoading(true)
     try {
-      const result = await listMaterials(buildMaterialParams())
+      const result = await listMaterials(buildMaterialParams(), controller.signal)
+      if (materialRequestRef.current !== controller) return
       const nextPagination = result.pagination || { page, pageSize, total: result.materials.length, totalPages: 1 }
       setMaterials(result.materials)
       setPagination(nextPagination)
@@ -279,7 +288,15 @@ export default function MaterialPage({
       }
       setDetailMaterial((current) => current ? result.materials.find((item) => item.id === current.id) || current : null)
     } catch (error) {
+      if (controller.signal.aborted) return
+      setMaterials([])
+      setPagination({ page: 1, pageSize, total: 0, totalPages: 1 })
       onMessage(error instanceof MaterialApiError ? error.message : '获取物料失败')
+    } finally {
+      if (materialRequestRef.current === controller) {
+        materialRequestRef.current = null
+        setMaterialLoading(false)
+      }
     }
   }
 
@@ -495,6 +512,12 @@ export default function MaterialPage({
     setPage(1)
   }, [])
 
+  const clearMaterialSearch = () => {
+    setKeyword('')
+    setMaterialSearchConditions([])
+    setPage(1)
+  }
+
   const renderToolbar = () => (
     <MaterialWorkspaceToolbar
       showBomWorkspace={showBomWorkspace}
@@ -549,14 +572,18 @@ export default function MaterialPage({
         <div
           className="min-w-0 rounded-lg bg-transparent p-0 shadow-none sm:bg-white sm:p-4 sm:shadow"
         >
-          {materials.length === 0 ? (
+          {materialLoading ? (
+          <div className="rounded-lg bg-white py-10 shadow sm:bg-transparent sm:py-12 sm:shadow-none">
+            <AppLoadingIndicator compact label="正在筛选物料..." />
+          </div>
+        ) : materials.length === 0 ? (
           <div className="rounded-lg bg-white py-10 text-center text-gray-500 shadow sm:bg-transparent sm:py-12 sm:shadow-none">
-            <p>暂无物料</p>
+            <p>{keyword.trim() || materialSearchConditions.length > 0 ? '没有匹配的物料' : '暂无物料'}</p>
             <button
-              onClick={handleAdd}
+              onClick={keyword.trim() || materialSearchConditions.length > 0 ? clearMaterialSearch : handleAdd}
               className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition"
             >
-              创建第一个物料
+              {keyword.trim() || materialSearchConditions.length > 0 ? '清除搜索条件' : '创建第一个物料'}
             </button>
           </div>
         ) : viewMode === 'card' ? (

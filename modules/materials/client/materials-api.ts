@@ -53,9 +53,9 @@ async function readApiEnvelope<T>(response: Response, fallbackMessage: string): 
   return body
 }
 
-export async function listMaterials(params: URLSearchParams) {
+export async function listMaterials(params: URLSearchParams, signal?: AbortSignal) {
   const query = params.toString()
-  const response = await fetch(query ? `/api/materials?${query}` : '/api/materials')
+  const response = await fetch(query ? `/api/materials?${query}` : '/api/materials', { signal })
   const body = await readApiEnvelope<Material[]>(response, '获取物料失败')
   const materials = body.data || []
   return {
