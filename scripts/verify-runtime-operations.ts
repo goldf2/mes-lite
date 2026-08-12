@@ -74,6 +74,53 @@ async function main() {
     assert.notEqual(overwriteRejected.status, 0)
     assert.match(overwriteRejected.stderr, /不允许覆盖/)
 
+    const drillTarget = path.join(temporaryRoot, 'drill-candidate')
+    const drillReport = path.join(backupDirectory, 'drill-reports', 'isolated-recovery.md')
+    const drilled = JSON.parse(runRuntimeBackup([
+      'drill', '--archive', archivePath, '--target', drillTarget, '--report', drillReport,
+      '--environment', 'isolated-ci', '--operator', 'runtime-verifier',
+      '--rpo-hours', '24', '--rto-minutes', '60',
+    ]))
+    assert.equal(drilled.command, 'drill')
+    assert.equal(drilled.scope, 'restore-candidate')
+    assert.equal(drilled.status, 'CANDIDATE_PASS')
+    assert.equal(drilled.metrics.rpo.pass, true)
+    assert.equal(drilled.metrics.rto.pass, true)
+    assert.equal(drilled.applicationSmoke.status, 'NOT_RUN')
+    assert.equal(drilled.reportPath, drillReport)
+    assert.match(drilled.backup.sha256, /^[a-f0-9]{64}$/)
+    assert.equal(
+      await readFile(path.join(drillTarget, 'uploads', 'MATERIAL', 'material-1', 'drawing.txt'), 'utf8'),
+      'MES-lite runtime backup attachment\n',
+    )
+    const reportSource = await readFile(drillReport, 'utf8')
+    assert.match(reportSource, /# MES-lite 恢复演练记录/)
+    assert.match(reportSource, /候选恢复技术验收：通过/)
+    assert.match(reportSource, /应用登录与业务抽查：未执行/)
+    assert.match(reportSource, /isolated-ci/)
+    assert.match(reportSource, /归档 SHA-256 \| [a-f0-9]{64}/)
+
+    const reportOverwriteRejected = spawnSync(process.execPath, [
+      'scripts/runtime-backup.mjs', 'drill', '--archive', archivePath,
+      '--target', path.join(temporaryRoot, 'second-drill-candidate'), '--report', drillReport,
+      '--environment', 'isolated-ci', '--operator', 'runtime-verifier',
+    ], { cwd: root, encoding: 'utf8' })
+    assert.notEqual(reportOverwriteRejected.status, 0)
+    assert.match(reportOverwriteRejected.stderr, /演练报告必须写入不存在的新文件/)
+
+    const missedRpoReport = path.join(backupDirectory, 'drill-reports', 'missed-rpo.md')
+    const missedRpo = spawnSync(process.execPath, [
+      'scripts/runtime-backup.mjs', 'drill', '--archive', archivePath,
+      '--target', path.join(temporaryRoot, 'missed-rpo-candidate'), '--report', missedRpoReport,
+      '--environment', 'isolated-ci', '--operator', 'runtime-verifier',
+      '--rpo-hours', '0.0000001', '--rto-minutes', '60',
+    ], { cwd: root, encoding: 'utf8' })
+    assert.equal(missedRpo.status, 2)
+    const missedRpoResult = JSON.parse(missedRpo.stdout)
+    assert.equal(missedRpoResult.status, 'CANDIDATE_FAIL')
+    assert.equal(missedRpoResult.metrics.rpo.pass, false)
+    assert.match(await readFile(missedRpoReport, 'utf8'), /候选恢复技术验收：未通过/)
+
   const sidecarPath = `${archivePath}.sha256`
   const validSidecar = await readFile(sidecarPath, 'utf8')
   await writeFile(sidecarPath, `${'0'.repeat(64)}  ${path.basename(archivePath)}\n`)
@@ -148,6 +195,8 @@ async function main() {
   assert.match(dockerfile, /\/api\/health\/ready/)
   assert.match(dockerfile, /runtime-backup\.mjs create/)
   assert.match(dockerfile, /MES_LITE_PRE_MIGRATION_BACKUP_ENABLED=false/)
+  const packageJson = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))
+  assert.equal(packageJson.scripts['storage:drill'], 'node scripts/runtime-backup.mjs drill')
   const composeSource = await readFile(path.join(root, 'compose.yaml'), 'utf8')
   assert.match(composeSource, /MES_LITE_PRE_MIGRATION_BACKUP_ENABLED: "true"/)
   assert.match(composeSource, /\.\/\.runtime\/backups:\/app\/backups/)
@@ -156,7 +205,7 @@ async function main() {
   ], { cwd: root, encoding: 'utf8' }).trim()
   assert.equal(trackedRuntimeFiles, '')
 
-  console.log('运维基线验证通过：SQLite 快照、附件校验、SHA-256、非覆盖恢复候选与 readiness 降级均符合预期。')
+  console.log('运维基线验证通过：SQLite 快照、附件校验、SHA-256、非覆盖恢复、RPO/RTO 报告与 readiness 降级均符合预期。')
   } finally {
     if (client) await client.$disconnect()
     await rm(temporaryRoot, { recursive: true, force: true })

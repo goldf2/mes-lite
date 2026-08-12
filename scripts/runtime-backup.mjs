@@ -48,6 +48,12 @@ function positiveInteger(value, fallback, label) {
   return resolved
 }
 
+function positiveNumber(value, fallback, label) {
+  const resolved = value === undefined ? fallback : Number(value)
+  if (!Number.isFinite(resolved) || resolved <= 0) throw new Error(`${label}必须是正数`)
+  return resolved
+}
+
 function resolveStoragePath(value, fallback) {
   return path.resolve(value || fallback)
 }
@@ -353,7 +359,7 @@ async function validateExtractedBackup(extractedDirectory) {
 
 async function verifyBackupArchive(archivePathValue, keepExtracted = false) {
   const archivePath = path.resolve(archivePathValue)
-  await verifySidecar(archivePath)
+  const archiveSha256 = await verifySidecar(archivePath)
   const { stdout } = await execFileAsync('tar', ['-tzf', archivePath], { maxBuffer: 16 * 1024 * 1024 })
   stdout.split('\n').filter(Boolean).forEach(validateArchiveEntry)
   const { stdout: verboseListing } = await execFileAsync('tar', ['-tvzf', archivePath], { maxBuffer: 16 * 1024 * 1024 })
@@ -366,7 +372,11 @@ async function verifyBackupArchive(archivePathValue, keepExtracted = false) {
     await runTar(['-xzf', archivePath, '-C', extractedDirectory])
     const validated = await validateExtractedBackup(extractedDirectory)
     succeeded = true
-    return { ...validated, extractedDirectory: keepExtracted ? extractedDirectory : undefined }
+    return {
+      ...validated,
+      summary: { ...validated.summary, sha256: archiveSha256 },
+      extractedDirectory: keepExtracted ? extractedDirectory : undefined,
+    }
   } finally {
     if (!keepExtracted || !succeeded) await rm(extractedDirectory, { recursive: true, force: true })
   }
@@ -408,14 +418,152 @@ async function stageRestore(options) {
   }
 }
 
+function markdownValue(value) {
+  return String(value).replaceAll('|', '\\|').replaceAll('\n', ' ')
+}
+
+function recoveryDrillMarkdown(result) {
+  const checklist = result.applicationSmoke.requiredChecks.map((item) => `- [ ] ${item}`).join('\n')
+  return `# MES-lite 恢复演练记录
+
+> 证据范围：恢复候选技术验收。该结果不能替代隔离实例启动、登录和业务抽查。
+
+## 1. 演练结论
+
+| 项目 | 结果 |
+| --- | --- |
+| 演练编号 | ${markdownValue(result.drillId)} |
+| 环境 | ${markdownValue(result.environment)} |
+| 操作人 | ${markdownValue(result.operator)} |
+| 主机 | ${markdownValue(result.host)} |
+| 候选恢复技术验收 | ${result.status === 'CANDIDATE_PASS' ? '通过' : '未通过'} |
+| 应用登录与业务抽查 | 未执行 |
+
+结论：候选恢复技术验收：${result.status === 'CANDIDATE_PASS' ? '通过' : '未通过'}；应用登录与业务抽查：未执行。
+
+## 2. 恢复证据
+
+| 项目 | 结果 |
+| --- | --- |
+| 应用版本 | ${markdownValue(result.backup.appVersion)} |
+| 备份归档 | ${markdownValue(result.backup.archivePath)} |
+| 归档 SHA-256 | ${markdownValue(result.backup.sha256)} |
+| 备份创建时间 | ${markdownValue(result.backup.createdAt)} |
+| 演练开始时间 | ${markdownValue(result.startedAt)} |
+| 候选完成时间 | ${markdownValue(result.completedAt)} |
+| 恢复候选目录 | ${markdownValue(result.restore.targetRoot)} |
+| SQLite quick_check | ${markdownValue(result.backup.databaseQuickCheck)} |
+| 附件记录数 | ${result.backup.attachmentRows} |
+| 清单文件数 | ${result.backup.fileCount} |
+
+## 3. RPO / RTO
+
+| 指标 | 实测 | 目标 | 结果 |
+| --- | ---: | ---: | --- |
+| RPO | ${result.metrics.rpo.actualSeconds.toFixed(3)} 秒 | ≤ ${result.metrics.rpo.targetHours} 小时 | ${result.metrics.rpo.pass ? '通过' : '未通过'} |
+| RTO（候选目录就绪） | ${result.metrics.rto.actualSeconds.toFixed(3)} 秒 | ≤ ${result.metrics.rto.targetMinutes} 分钟 | ${result.metrics.rto.pass ? '通过' : '未通过'} |
+| 其中恢复命令耗时 | ${result.metrics.restoreDurationSeconds.toFixed(3)} 秒 | — | 记录值 |
+
+RPO 按“演练开始时间减去备份创建时间”计算；RTO 只计算从演练开始到恢复候选技术验收完成，不包含容器切换、登录和人工业务抽查。
+
+## 4. 自动完成的技术检查
+
+- [x] 归档侧车 SHA-256 校验通过。
+- [x] 归档条目、逐文件大小和 SHA-256 清单校验通过。
+- [x] SQLite \`PRAGMA quick_check\` 返回 \`ok\`。
+- [x] 数据库附件引用与恢复附件文件一致。
+- [x] 恢复写入不存在的新目录，没有覆盖当前运行数据。
+
+## 5. 部署环境仍需完成
+
+${checklist}
+
+完成以上项目后，应在本报告中补充执行时间、操作人、抽查单号和异常；未补充前不得把本记录表述为生产恢复验收。
+`
+}
+
+async function drillRecovery(options) {
+  if (!options.archive || !options.target || !options.report || !options.environment || !options.operator) {
+    throw new Error('drill 需要 --archive、--target、--report、--environment 和 --operator')
+  }
+  const environment = String(options.environment).trim()
+  const operator = String(options.operator).trim()
+  if (!environment || !operator) throw new Error('演练环境和操作人不能为空')
+  const targetRoot = path.resolve(options.target)
+  const reportPath = path.resolve(options.report)
+  if (path.extname(reportPath).toLowerCase() !== '.md') throw new Error('演练报告必须使用 .md 文件')
+  if (reportPath === targetRoot || reportPath.startsWith(`${targetRoot}${path.sep}`)) {
+    throw new Error('演练报告不能写入恢复候选目录')
+  }
+  if (await lstat(reportPath).catch(() => null)) {
+    throw new Error('演练报告必须写入不存在的新文件，不允许覆盖')
+  }
+  await mkdir(path.dirname(reportPath), { recursive: true })
+
+  const rpoTargetHours = positiveNumber(options['rpo-hours'] || process.env.MES_LITE_RPO_TARGET_HOURS, 24, 'RPO 目标小时数')
+  const rtoTargetMinutes = positiveNumber(options['rto-minutes'] || process.env.MES_LITE_RTO_TARGET_MINUTES, 60, 'RTO 目标分钟数')
+  const drillId = randomUUID()
+  const started = new Date()
+  const verified = await verifyBackup({ archive: options.archive })
+  const backupCreatedAt = Date.parse(verified.createdAt)
+  if (!Number.isFinite(backupCreatedAt)) throw new Error('备份清单 createdAt 无效，无法计算 RPO')
+  const restoreStartedAt = Date.now()
+  const restored = await stageRestore({ archive: options.archive, target: targetRoot })
+  const completed = new Date()
+  const rpoSeconds = Math.max(0, (started.getTime() - backupCreatedAt) / 1000)
+  const rtoSeconds = (completed.getTime() - started.getTime()) / 1000
+  const rpoPass = rpoSeconds <= rpoTargetHours * 60 * 60
+  const rtoPass = rtoSeconds <= rtoTargetMinutes * 60
+  const result = {
+    command: 'drill',
+    scope: 'restore-candidate',
+    status: rpoPass && rtoPass ? 'CANDIDATE_PASS' : 'CANDIDATE_FAIL',
+    drillId,
+    environment,
+    operator,
+    host: os.hostname(),
+    startedAt: started.toISOString(),
+    completedAt: completed.toISOString(),
+    backup: {
+      archivePath: verified.archivePath,
+      sha256: verified.sha256,
+      appVersion: verified.appVersion,
+      createdAt: verified.createdAt,
+      attachmentRows: verified.attachmentRows,
+      fileCount: verified.fileCount,
+      databaseQuickCheck: verified.databaseQuickCheck,
+    },
+    restore: { targetRoot: restored.targetRoot },
+    metrics: {
+      rpo: { actualSeconds: rpoSeconds, targetHours: rpoTargetHours, pass: rpoPass },
+      rto: { actualSeconds: rtoSeconds, targetMinutes: rtoTargetMinutes, pass: rtoPass },
+      restoreDurationSeconds: (completed.getTime() - restoreStartedAt) / 1000,
+    },
+    applicationSmoke: {
+      status: 'NOT_RUN',
+      requiredChecks: [
+        '将候选 data 与 uploads 挂载到隔离的单实例容器。',
+        '确认 /api/health/ready 返回 200，且所有硬检查为 pass。',
+        '管理员登录成功，并随机抽查物料、库存、生产订单和附件原文件。',
+        '记录容器切换完成时间，重新计算包含应用验证的真实 RTO。',
+      ],
+    },
+    reportPath,
+  }
+  await writeFile(reportPath, recoveryDrillMarkdown(result), { flag: 'wx' })
+  return result
+}
+
 async function main() {
   const { command, options } = parseArguments(process.argv.slice(2))
   const result = command === 'create' ? await createBackup(options)
     : command === 'verify' ? await verifyBackup(options)
     : command === 'stage-restore' ? await stageRestore(options)
+    : command === 'drill' ? await drillRecovery(options)
     : null
-  if (!result) throw new Error('用法：node scripts/runtime-backup.mjs <create|verify|stage-restore> [--参数 值]')
+  if (!result) throw new Error('用法：node scripts/runtime-backup.mjs <create|verify|stage-restore|drill> [--参数 值]')
   console.log(JSON.stringify(result))
+  if (result.command === 'drill' && result.status !== 'CANDIDATE_PASS') process.exitCode = 2
 }
 
 main().catch((error) => {

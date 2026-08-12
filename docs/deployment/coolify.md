@@ -210,4 +210,6 @@ node /app/scripts/runtime-backup.mjs create
 
 完整的手动验证、异地副本、非覆盖恢复候选、生产切换/回滚和 RPO/RTO 演练步骤见 [备份、恢复与灾备演练](../operations/备份恢复与灾备演练.md)。
 
+每季度和重大迁移前应使用 `npm run storage:drill -- ...` 将归档验证、非覆盖候选恢复和 RPO/RTO 写入独立 Markdown 报告。`CANDIDATE_PASS` 只表示候选目录技术校验通过；必须继续在隔离的新实例完成 `/api/health/ready`、管理员登录、业务单据和附件抽查，才可签署生产恢复验收。
+
 SQLite 数据目录只能由一个运行中的应用实例写入。需要多实例或滚动部署时，应先迁移到 PostgreSQL，并将附件迁移到对象存储或共享文件存储。

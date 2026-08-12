@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.351",
+  "version": "0.1.352",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -27,6 +27,7 @@
     "storage:backup": "node scripts/runtime-backup.mjs create",
     "storage:backup:verify": "node scripts/runtime-backup.mjs verify",
     "storage:restore:stage": "node scripts/runtime-backup.mjs stage-restore",
+    "storage:drill": "node scripts/runtime-backup.mjs drill",
     "verify:runtime-operations": "tsx scripts/verify-runtime-operations.ts",
     "audit:model-convergence": "tsx scripts/audit-model-convergence.ts",
     "verify:model-convergence": "tsx scripts/verify-model-convergence.ts",
