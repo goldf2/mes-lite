@@ -22,6 +22,13 @@ const actualInclude = {
     include: {
       material: { select: { id: true, code: true, name: true, category: true, stockUnit: true, unit: true } },
       location: { select: { id: true, code: true, name: true } },
+      lotAllocations: {
+        include: {
+          lot: { select: { id: true, lotNo: true, sourceType: true, sourceId: true, supplierLotNo: true, status: true } },
+          location: { select: { id: true, code: true, name: true } },
+        },
+        orderBy: { createdAt: 'asc' as const },
+      },
     },
     orderBy: { createdAt: 'asc' as const },
   },
@@ -33,6 +40,18 @@ const actualInclude = {
         include: {
           balances: { orderBy: { createdAt: 'asc' as const } },
           inspections: { orderBy: { createdAt: 'desc' as const } },
+          childGenealogies: {
+            where: { status: 'ACTIVE' },
+            include: {
+              parentLot: { select: { id: true, lotNo: true, sourceType: true, sourceId: true, supplierLotNo: true, status: true } },
+              inputAllocation: {
+                include: {
+                  actualInput: { select: { id: true, materialCode: true, materialName: true, unit: true } },
+                },
+              },
+            },
+            orderBy: { createdAt: 'asc' as const },
+          },
         },
       },
     },

@@ -66,7 +66,8 @@ function ReceiptLines({ item, compact = false }: { item: MaterialInRecord; compa
         <div key={line.id} className="flex min-w-0 items-start justify-between gap-3 rounded-md bg-gray-50 px-3 py-2 text-xs">
           <div className="min-w-0">
             <div className="truncate font-medium text-gray-900">{line.material.code} · {line.material.name}</div>
-            <div className="truncate text-gray-500">{line.material.spec || '无规格'}{line.batchNo ? ` · 批次 ${line.batchNo}` : ''}</div>
+            <div className="truncate text-gray-500">{line.material.spec || '无规格'}{line.batchNo ? ` · 供应批号 ${line.batchNo}` : ''}</div>
+            {line.inventoryLot && <div className="truncate font-mono text-[11px] text-blue-700">内部批次 {line.inventoryLot.lotNo}</div>}
           </div>
           <div className="shrink-0 text-right">
             <div className="font-medium text-gray-800">{line.qty} {line.unit}</div>

@@ -18,10 +18,15 @@ from docx.shared import Inches, Pt, RGBColor
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.1.354"
+VERSION = "0.1.355"
 SCREENSHOT_BASELINE = "0.1.350"
 QUALITY_SCREENSHOT_BASELINE = "0.1.354"
+TRACE_SCREENSHOT_BASELINE = "0.1.355"
 DOCUMENT_FONT = "Arial Unicode MS"
+EAST_ASIA_FONT = "Arial Unicode MS"
+# compact_reference_guide 的横向现场截图覆盖：9.55in 固定表格，保留 120 DXA 左缩进。
+TABLE_WIDTH_DXA = 13752
+TABLE_INDENT_DXA = 120
 SHOT_ROOT = ROOT / "docs/operations/user-guide/screenshots"
 SOURCE_DIR = ROOT / "docs/operations/user-guide"
 DOCX_DIR = ROOT / "output/docx"
@@ -69,7 +74,18 @@ CHAPTERS = [
         ],
     ),
     (
-        "5. 派工与流程转移",
+        "5. 来料到生产批次谱系",
+        [
+            ("73-receipt-internal-lot.png", "核对来料内部批次", "确认收货后的内部批号与供应商炉批号并存。", ["进入 MES > 物流 > 来料管理。", "打开状态为“已收货”的来料单详情。", "在物料明细的批次列同时核对供应批号和内部批号。"], "内部批号以 RM- 开头，供应批号与原始单据一致。", TRACE_SCREENSHOT_BASELINE),
+            ("74-receipt-lot-trace.png", "查看原料批次追溯", "从来料批次查看来源、库位余额和下游产出。", ["在已收货来料明细点击“查看谱系”。", "核对当前批次的物料、来源单据和各库位可用余额。", "查看右侧下游产出批次数量。"], "来料批次无上游；已投入生产时可看到下游产出。", TRACE_SCREENSHOT_BASELINE),
+            ("75-production-trace-confirm.png", "确认生产批次谱系", "在改变库存前复核 FIFO 分配和谱系生成的事务边界。", ["打开已发布生产订单的班后实绩。", "在待确认实绩点击“确认并更新库存”。", "阅读弹窗中的投入扣减、FIFO、产出待检和整笔回滚提示。", "无误后点击“确认并生成批次谱系”。"], "库存不足时整笔不生效；成功时实绩转为已确认。", TRACE_SCREENSHOT_BASELINE),
+            ("76-production-input-allocations.png", "核对投入批次分配", "核对本次实绩实际消耗的内部批次、供应批号和数量。", ["确认完成后等待实绩卡片刷新。", "在“投入物料”中查看批次明细。", "核对内部批号、供应批号、库位和分配数量。", "展开产出卡的“投入批次谱系”复核父批次。"], "各投入分配合计等于本次实际投入，产出谱系显示同一来源批次。", TRACE_SCREENSHOT_BASELINE),
+            ("77-output-lot-trace.png", "从产出批次反查上游", "从成品内部批次反查所有投入和供应商炉批。", ["在产出批次卡点击“查看谱系”。", "在中间核对产出批号、质检单和待检余额。", "在左侧核对所有投入批次、物料和分配数量。"], "产出批次能反查原料内部批号和供应批号。", TRACE_SCREENSHOT_BASELINE),
+            ("78-source-lot-downstream.png", "从原料批次正查下游", "沿相邻谱系节点返回原料批次并查看全部下游产出。", ["在产出追溯弹窗点击左侧原料批次。", "确认中间当前批次已切换为来料批次。", "在右侧查看所有相邻下游产出，需要时可继续点击。"], "同一原料批次对应的多个生产产出均可查看，弹窗不重叠。", TRACE_SCREENSHOT_BASELINE),
+        ],
+    ),
+    (
+        "6. 派工与流程转移",
         [
             ("13-dispatch-list.png", "查看派工", "查看生产任务的人员和工作中心分配。", ["进入 MES > 生产 > 派工管理。", "按任务、人员或状态筛选。", "核对生产订单、工作中心和执行人员。"], "待处理派工及其来源订单可追溯。"),
             ("14-dispatch-create.png", "新建派工", "把已发布生产任务分配到员工和工作中心。", ["点击“新建派工”。", "选择生产订单、员工、工作中心和计划时间。", "填写要求并保存。"], "派工记录出现在列表并可跟踪状态。"),
@@ -78,7 +94,7 @@ CHAPTERS = [
         ],
     ),
     (
-        "6. 来料与库存闭环",
+        "7. 来料与库存闭环",
         [
             ("17-receiving-list.png", "查看来料单", "查看供应商来料及收货状态。", ["进入 MES > 物流 > 来料管理。", "按单号、供应商或物料搜索。", "核对采购数量、实测数据、计价和状态。"], "待收货与已收货单据清晰区分。"),
             ("18-receiving-create.png", "新建来料单", "登记供应商原材料到货。", ["点击“新建来料单”。", "选择供应商、物料、收货库位。", "填写数量、实测重量、单价、凭据和附件。", "创建后保留为待收货，等待现场确认。"], "来料单生成，但库存尚未增加。"),
@@ -89,7 +105,7 @@ CHAPTERS = [
         ],
     ),
     (
-        "7. 销售、发货与退货",
+        "8. 销售、发货与退货",
         [
             ("24-sales-order-list.png", "查看销售订单", "跟踪客户需求、占用、已发和未发数量。", ["进入 ERP > 销售 > 销售订单。", "搜索客户、订单号或物料。", "查看草稿、已确认、部分发货和完成状态。"], "订单数量与发货占用、已发和未发数量一致。"),
             ("25-sales-order-create.png", "新建销售订单", "登记客户需求、价格和交期。", ["点击“新建销售订单”。", "选择客户并填写订单日期、交期和客户单号。", "添加物料、数量、单价和附件。", "创建后复核并确认订单。"], "草稿订单生成，确认后才可用于关联发货。"),
@@ -103,7 +119,7 @@ CHAPTERS = [
         ],
     ),
     (
-        "8. 文档与设备台账",
+        "9. 文档与设备台账",
         [
             ("33-document-list.png", "查看受控文档", "按物料、客户和工作中心查找现场文件。", ["进入 MES > 文档 > 产品文档。", "按标题、正文、产品或备注搜索。", "点击“在线阅读”或“详情”查看版本和附件。"], "能确认文件标题、版本、状态和适用范围。"),
             ("34-document-create.png", "新建受控文档", "上传原文件或创建在线作业正文。", ["点击“新建文档”。", "上传原文件或填写在线正文。", "关联物料、类别、版本和工作中心。", "保存后在列表复核状态。"], "文档可按适用范围检索并保留原始附件。"),
@@ -112,7 +128,7 @@ CHAPTERS = [
         ],
     ),
     (
-        "9. 业务主数据配置",
+        "10. 业务主数据配置",
         [
             ("37-business-config-menu.png", "进入业务配置", "按顺序建立业务运行依赖的主数据。", ["展开 MES 的“业务配置”。", "建议依次维护单位、库位、员工、工作中心、工艺、路线和文档类别。", "ERP 工作区维护供应商、客户和企业规则。"], "业务单据下拉项来自已启用主数据。"),
             ("38-employee-list.png", "查看员工资料", "区分业务员工与登录账号。", ["进入员工资料。", "核对员工编码、部门、电话、账号绑定和在职状态。", "员工用于派工、实绩和转移，账号绑定不授予权限。"], "员工与账号关系清晰且无重复绑定。"),
@@ -135,7 +151,7 @@ CHAPTERS = [
         ],
     ),
     (
-        "10. 系统、工具与权限",
+        "11. 系统、工具与权限",
         [
             ("55-display-settings.png", "显示设置", "配置界面配色、对比度和显示效果。", ["进入系统设置 > 显示设置。", "调整主题和显示选项。", "保存后刷新并检查可读性。"], "设置对当前客户端或系统范围按页面说明生效。"),
             ("56-navigation-settings.png", "导航与工作区设置", "配置页面在 MES/MRP/ERP 的唯一归属和顺序。", ["进入导航与工作区。", "调整页面归属、名称和顺序。", "保存后逐个工作区核对菜单。"], "每个页面仅在一个工作区出现，导航符合现场任务流。"),
@@ -173,13 +189,144 @@ def set_run_font(run, size: float | None = None, bold: bool | None = None, color
     run.font.name = DOCUMENT_FONT
     run._element.rPr.rFonts.set(qn("w:ascii"), DOCUMENT_FONT)
     run._element.rPr.rFonts.set(qn("w:hAnsi"), DOCUMENT_FONT)
-    run._element.rPr.rFonts.set(qn("w:eastAsia"), DOCUMENT_FONT)
+    run._element.rPr.rFonts.set(qn("w:eastAsia"), EAST_ASIA_FONT)
     if size is not None:
         run.font.size = Pt(size)
     if bold is not None:
         run.bold = bold
     if color:
         run.font.color.rgb = RGBColor.from_string(color)
+
+
+def set_table_geometry(table, widths_dxa: list[int]) -> None:
+    if sum(widths_dxa) != TABLE_WIDTH_DXA:
+        raise ValueError(f"表格列宽合计必须为 {TABLE_WIDTH_DXA} DXA：{widths_dxa}")
+    table.autofit = False
+    tbl_pr = table._tbl.tblPr
+    tbl_w = tbl_pr.find(qn("w:tblW"))
+    if tbl_w is None:
+        tbl_w = OxmlElement("w:tblW")
+        tbl_pr.append(tbl_w)
+    tbl_w.set(qn("w:w"), str(TABLE_WIDTH_DXA))
+    tbl_w.set(qn("w:type"), "dxa")
+    tbl_ind = tbl_pr.find(qn("w:tblInd"))
+    if tbl_ind is None:
+        tbl_ind = OxmlElement("w:tblInd")
+        tbl_pr.append(tbl_ind)
+    tbl_ind.set(qn("w:w"), str(TABLE_INDENT_DXA))
+    tbl_ind.set(qn("w:type"), "dxa")
+    tbl_layout = tbl_pr.find(qn("w:tblLayout"))
+    if tbl_layout is None:
+        tbl_layout = OxmlElement("w:tblLayout")
+        tbl_pr.append(tbl_layout)
+    tbl_layout.set(qn("w:type"), "fixed")
+
+    grid = table._tbl.tblGrid
+    for child in list(grid):
+        grid.remove(child)
+    for width in widths_dxa:
+        grid_col = OxmlElement("w:gridCol")
+        grid_col.set(qn("w:w"), str(width))
+        grid.append(grid_col)
+
+    for row in table.rows:
+        for index, cell in enumerate(row.cells):
+            width = widths_dxa[min(index, len(widths_dxa) - 1)]
+            tc_pr = cell._tc.get_or_add_tcPr()
+            tc_w = tc_pr.find(qn("w:tcW"))
+            if tc_w is None:
+                tc_w = OxmlElement("w:tcW")
+                tc_pr.append(tc_w)
+            tc_w.set(qn("w:w"), str(width))
+            tc_w.set(qn("w:type"), "dxa")
+            tc_mar = tc_pr.find(qn("w:tcMar"))
+            if tc_mar is None:
+                tc_mar = OxmlElement("w:tcMar")
+                tc_pr.append(tc_mar)
+            for side, value in (("top", 80), ("bottom", 80), ("start", 120), ("end", 120)):
+                margin = tc_mar.find(qn(f"w:{side}"))
+                if margin is None:
+                    margin = OxmlElement(f"w:{side}")
+                    tc_mar.append(margin)
+                margin.set(qn("w:w"), str(value))
+                margin.set(qn("w:type"), "dxa")
+            for paragraph in cell.paragraphs:
+                paragraph.paragraph_format.space_before = Pt(0)
+                paragraph.paragraph_format.space_after = Pt(0)
+                paragraph.paragraph_format.line_spacing = 1.0
+
+
+def add_numbering_definition(doc: Document, kind: str) -> int:
+    numbering = doc.part.numbering_part.element
+    abstract_ids = [int(node.get(qn("w:abstractNumId"))) for node in numbering.findall(qn("w:abstractNum"))]
+    num_ids = [int(node.get(qn("w:numId"))) for node in numbering.findall(qn("w:num"))]
+    abstract_id = max(abstract_ids, default=0) + 1
+    num_id = max(num_ids, default=0) + 1
+
+    abstract = OxmlElement("w:abstractNum")
+    abstract.set(qn("w:abstractNumId"), str(abstract_id))
+    multi = OxmlElement("w:multiLevelType")
+    multi.set(qn("w:val"), "singleLevel")
+    abstract.append(multi)
+    level = OxmlElement("w:lvl")
+    level.set(qn("w:ilvl"), "0")
+    start = OxmlElement("w:start")
+    start.set(qn("w:val"), "1")
+    level.append(start)
+    num_fmt = OxmlElement("w:numFmt")
+    num_fmt.set(qn("w:val"), "bullet" if kind == "bullet" else "decimal")
+    level.append(num_fmt)
+    level_text = OxmlElement("w:lvlText")
+    level_text.set(qn("w:val"), "•" if kind == "bullet" else "%1.")
+    level.append(level_text)
+    level_justification = OxmlElement("w:lvlJc")
+    level_justification.set(qn("w:val"), "left")
+    level.append(level_justification)
+    p_pr = OxmlElement("w:pPr")
+    tabs = OxmlElement("w:tabs")
+    tab = OxmlElement("w:tab")
+    tab.set(qn("w:val"), "num")
+    tab.set(qn("w:pos"), "540")
+    tabs.append(tab)
+    p_pr.append(tabs)
+    indent = OxmlElement("w:ind")
+    indent.set(qn("w:left"), "540")
+    indent.set(qn("w:hanging"), "271")
+    p_pr.append(indent)
+    spacing = OxmlElement("w:spacing")
+    spacing.set(qn("w:after"), "80")
+    spacing.set(qn("w:line"), "300")
+    spacing.set(qn("w:lineRule"), "auto")
+    p_pr.append(spacing)
+    level.append(p_pr)
+    abstract.append(level)
+    numbering.append(abstract)
+
+    num = OxmlElement("w:num")
+    num.set(qn("w:numId"), str(num_id))
+    abstract_ref = OxmlElement("w:abstractNumId")
+    abstract_ref.set(qn("w:val"), str(abstract_id))
+    num.append(abstract_ref)
+    numbering.append(num)
+    return num_id
+
+
+def add_list_paragraph(doc: Document, text: str, num_id: int, *, size: float = 11, compact: bool = False):
+    paragraph = doc.add_paragraph()
+    p_pr = paragraph._p.get_or_add_pPr()
+    num_pr = OxmlElement("w:numPr")
+    ilvl = OxmlElement("w:ilvl")
+    ilvl.set(qn("w:val"), "0")
+    num_id_node = OxmlElement("w:numId")
+    num_id_node.set(qn("w:val"), str(num_id))
+    num_pr.append(ilvl)
+    num_pr.append(num_id_node)
+    p_pr.append(num_pr)
+    # 截图步骤页使用紧凑覆盖，其余列表保持 preset 的 4pt / 1.25。
+    paragraph.paragraph_format.space_after = Pt(0 if compact else 4)
+    paragraph.paragraph_format.line_spacing = 0.95 if compact else 1.25
+    set_run_font(paragraph.add_run(text), size)
+    return paragraph
 
 
 def add_page_number(paragraph) -> None:
@@ -203,29 +350,29 @@ def apply_styles(doc: Document) -> None:
     normal.font.name = DOCUMENT_FONT
     normal._element.rPr.rFonts.set(qn("w:ascii"), DOCUMENT_FONT)
     normal._element.rPr.rFonts.set(qn("w:hAnsi"), DOCUMENT_FONT)
-    normal._element.rPr.rFonts.set(qn("w:eastAsia"), DOCUMENT_FONT)
-    normal.font.size = Pt(9.5)
+    normal._element.rPr.rFonts.set(qn("w:eastAsia"), EAST_ASIA_FONT)
+    normal.font.size = Pt(11)
     normal.font.color.rgb = RGBColor(30, 41, 59)
-    normal.paragraph_format.space_after = Pt(3)
-    normal.paragraph_format.line_spacing = 1.05
+    normal.paragraph_format.space_after = Pt(6)
+    normal.paragraph_format.line_spacing = 1.25
 
-    for name, size, color in [
-        ("Title", 28, "0F172A"),
-        ("Heading 1", 19, "0F3B5F"),
-        ("Heading 2", 14, "075985"),
-        ("Heading 3", 11, "0F172A"),
+    for name, size, color, before, after in [
+        ("Title", 28, "0F172A", 0, 3),
+        ("Heading 1", 16, "2E74B5", 18, 10),
+        ("Heading 2", 13, "2E74B5", 14, 7),
+        ("Heading 3", 12, "1F4D78", 10, 5),
     ]:
         style = styles[name]
         style.font.name = DOCUMENT_FONT
         style._element.rPr.rFonts.set(qn("w:ascii"), DOCUMENT_FONT)
         style._element.rPr.rFonts.set(qn("w:hAnsi"), DOCUMENT_FONT)
-        style._element.rPr.rFonts.set(qn("w:eastAsia"), DOCUMENT_FONT)
+        style._element.rPr.rFonts.set(qn("w:eastAsia"), EAST_ASIA_FONT)
         style.font.size = Pt(size)
         style.font.bold = True
         style.font.color.rgb = RGBColor.from_string(color)
         style.paragraph_format.keep_with_next = True
-        style.paragraph_format.space_before = Pt(4)
-        style.paragraph_format.space_after = Pt(4)
+        style.paragraph_format.space_before = Pt(before)
+        style.paragraph_format.space_after = Pt(after)
 
     if "Figure Caption" not in styles:
         cap = styles.add_style("Figure Caption", WD_STYLE_TYPE.PARAGRAPH)
@@ -234,7 +381,7 @@ def apply_styles(doc: Document) -> None:
     cap.font.name = DOCUMENT_FONT
     cap._element.rPr.rFonts.set(qn("w:ascii"), DOCUMENT_FONT)
     cap._element.rPr.rFonts.set(qn("w:hAnsi"), DOCUMENT_FONT)
-    cap._element.rPr.rFonts.set(qn("w:eastAsia"), DOCUMENT_FONT)
+    cap._element.rPr.rFonts.set(qn("w:eastAsia"), EAST_ASIA_FONT)
     cap.font.size = Pt(8)
     cap.font.italic = True
     cap.font.color.rgb = RGBColor(71, 85, 105)
@@ -270,8 +417,7 @@ def add_banner(doc: Document, text: str, fill: str = "E0F2FE", color: str = "075
     table = doc.add_table(rows=1, cols=1)
     set_repeat_table_header(table.rows[0])
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    table.autofit = False
-    table.columns[0].width = Inches(9.55)
+    set_table_geometry(table, [TABLE_WIDTH_DXA])
     cell = table.cell(0, 0)
     set_cell_shading(cell, fill)
     cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
@@ -304,7 +450,7 @@ def add_cover(doc: Document) -> None:
     table.style = "Table Grid"
     rows = [
         ("交付版本", f"v{VERSION}"),
-        ("截图基线", f"v{SCREENSHOT_BASELINE} 的 65 张通用流程 + v{QUALITY_SCREENSHOT_BASELINE} 的 7 张质量批次流程"),
+        ("截图基线", f"v{SCREENSHOT_BASELINE} 的 65 张通用流程 + v{QUALITY_SCREENSHOT_BASELINE} 的 7 张质量批次流程 + v{TRACE_SCREENSHOT_BASELINE} 的 6 张来料生产谱系流程"),
         ("适用角色", "管理员、计划员、班组长、仓管、销售、质检和系统维护人员"),
         ("数据范围", "仅限本机 mes_lite_guide.db 临时演示数据"),
         ("编制日期", "2026-08-13"),
@@ -317,6 +463,7 @@ def add_cover(doc: Document) -> None:
             set_run_font(run, 9.5, True, "0F172A")
         for run in table.cell(idx, 1).paragraphs[0].runs:
             set_run_font(run, 9.5)
+    set_table_geometry(table, [2700, 11052])
     p4 = doc.add_paragraph()
     p4.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p4.paragraph_format.space_before = Pt(18)
@@ -324,27 +471,32 @@ def add_cover(doc: Document) -> None:
     set_run_font(run, 10, True, "B45309")
 
 
-def add_front_matter(doc: Document) -> None:
+def add_front_matter(doc: Document, bullet_num_id: int) -> None:
     doc.add_page_break()
-    doc.add_heading("使用说明与边界", level=1)
+    front_heading = doc.add_heading("使用说明与边界", level=1)
+    front_heading.paragraph_format.space_before = Pt(4)
+    front_heading.paragraph_format.space_after = Pt(4)
     add_banner(doc, "先建立主数据，再创建业务单据；先核对草稿，再执行会改变库存或状态的确认动作。", "DCFCE7", "166534")
     bullets = [
         "绿色/成功提示只是页面提交成功；关键业务还必须在库存流水、订单详情或操作记录中复核。",
         "归档、永久删除、库存调整、数据修复、权限修改和 AI 密钥配置仅限授权人员。",
         "业务员工和登录账号是两套对象：员工用于单据执行，账号用于登录；绑定账号不会自动授予权限。",
         "生产订单统一状态：草稿 -> 已发布 -> 生产中 -> 已完成，或在允许阶段取消。草稿不可登记实绩。",
-        "生产产出已完成内部批次、待检、整批放行/冻结；来料、投入、发货批次和部分放行/处置仍未贯通，不得对外描述为完整追溯。",
+        "供应商批号、来料内部批次、生产投入、产出批次和整批质量状态已贯通；发货/退货到客户的批次边和部分放行/处置仍未贯通，不得对外描述为完整追溯。",
         "旧 Product 兼容入口和旧生产领料/报工/QC/入库接口不作为本指导书主流程；当前主流程使用 Material、已发布 BOM 和班后实绩。",
     ]
     for item in bullets:
-        p = doc.add_paragraph(style="List Bullet")
-        p.add_run(item)
+        add_list_paragraph(doc, item, bullet_num_id, size=9.5, compact=True)
 
-    doc.add_heading("推荐业务顺序", level=2)
+    flow_heading = doc.add_heading("推荐业务顺序", level=2)
+    flow_heading.paragraph_format.space_before = Pt(4)
+    flow_heading.paragraph_format.space_after = Pt(3)
     flow = "单位/库位/员工/供应商/客户/工作中心 -> 物料 -> BOM/工艺路线 -> 生产订单/销售订单 -> 派工/来料/发货 -> 实绩 -> 产出待检与整批判定 -> 收货/退货 -> 库存与审计复核"
     add_banner(doc, flow)
 
-    doc.add_heading("章节索引", level=2)
+    index_heading = doc.add_heading("章节索引", level=2)
+    index_heading.paragraph_format.space_before = Pt(4)
+    index_heading.paragraph_format.space_after = Pt(3)
     table = doc.add_table(rows=1, cols=3)
     table.style = "Table Grid"
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -358,11 +510,11 @@ def add_front_matter(doc: Document) -> None:
     chapter_rows = [
         ("1", "登录、工作台、MES/ERP 导航", "进入正确工作区"),
         ("2", "物料与 BOM", "统一主数据和已发布 BOM"),
-        ("3-5", "生产订单、实绩、产出质检、派工、转移", "执行和质量状态可回放"),
-        ("6", "来料、库存、流水", "收发存可追溯"),
-        ("7", "销售、发货、退货", "订单与库存闭环"),
-        ("8-9", "文档、设备、业务配置", "基础数据可被业务引用"),
-        ("10", "系统、工具、权限", "可配置、可审计、最小权限"),
+        ("3-6", "生产订单、实绩、质检、批次谱系、派工、转移", "投入、产出和质量状态可回放"),
+        ("7", "来料、库存、流水", "收发存可追溯"),
+        ("8", "销售、发货、退货", "订单与库存闭环"),
+        ("9-10", "文档、设备、业务配置", "基础数据可被业务引用"),
+        ("11", "系统、工具、权限", "可配置、可审计、最小权限"),
     ]
     for row in chapter_rows:
         cells = table.add_row().cells
@@ -370,6 +522,7 @@ def add_front_matter(doc: Document) -> None:
             cells[i].text = value
             for run in cells[i].paragraphs[0].runs:
                 set_run_font(run, 8.5)
+    set_table_geometry(table, [1200, 6276, 6276])
 
 
 def normalize_item(item):
@@ -384,21 +537,22 @@ def add_instruction_page(doc: Document, chapter: str, item, figure_number: int) 
         raise FileNotFoundError(image_path)
     doc.add_page_break()
     h = doc.add_paragraph()
+    h.paragraph_format.space_before = Pt(0)
     h.paragraph_format.space_after = Pt(2)
     run = h.add_run(chapter)
     set_run_font(run, 10, True, "0284C7")
-    doc.add_heading(title, level=2)
+    step_heading = doc.add_heading(title, level=2)
+    step_heading.paragraph_format.space_before = Pt(0)
+    step_heading.paragraph_format.space_after = Pt(2)
     p = doc.add_paragraph()
     p.paragraph_format.space_after = Pt(2)
     r1 = p.add_run("目的：")
     set_run_font(r1, 9, True, "0F172A")
     r2 = p.add_run(objective)
     set_run_font(r2, 9)
-    steps_p = doc.add_paragraph()
-    steps_p.paragraph_format.space_after = Pt(3)
-    for idx, step in enumerate(steps, start=1):
-        run = steps_p.add_run(f"{idx}. {step}  ")
-        set_run_font(run, 8.8)
+    number_num_id = add_numbering_definition(doc, "decimal")
+    for step in steps:
+        add_list_paragraph(doc, step, number_num_id, size=8.4, compact=True)
     result_p = doc.add_paragraph()
     result_p.paragraph_format.space_after = Pt(3)
     rr1 = result_p.add_run("结果检查：")
@@ -408,16 +562,20 @@ def add_instruction_page(doc: Document, chapter: str, item, figure_number: int) 
     picture_p = doc.add_paragraph()
     picture_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     picture_p.paragraph_format.space_after = Pt(0)
-    picture = picture_p.add_run().add_picture(str(image_path), width=Inches(8.45))
+    picture_p.paragraph_format.keep_with_next = True
+    picture = picture_p.add_run().add_picture(str(image_path), height=Inches(4.3))
     picture._inline.docPr.set("title", title)
     picture._inline.docPr.set("descr", f"MES-lite {title}页面操作截图")
     caption = doc.add_paragraph(style="Figure Caption")
+    caption.paragraph_format.keep_together = True
     caption.add_run(f"图 {figure_number}  {title}（演示库截图：{filename}）")
 
 
-def add_appendix(doc: Document) -> None:
+def add_appendix(doc: Document, bullet_num_id: int) -> None:
     doc.add_page_break()
-    doc.add_heading("附录 A：上线前岗位检查表", level=1)
+    appendix_a_heading = doc.add_heading("附录 A：上线前岗位检查表", level=1)
+    appendix_a_heading.paragraph_format.space_before = Pt(4)
+    appendix_a_heading.paragraph_format.space_after = Pt(4)
     checks = [
         ("计划/生产", "物料、BOM、计划数量和日期已复核；订单发布后再执行"),
         ("班组", "员工、工作中心、实际投入/产出、库位和班后日期真实"),
@@ -439,7 +597,6 @@ def add_appendix(doc: Document) -> None:
             set_run_font(run, 9, True, "FFFFFF")
     for role, check in checks:
         row = table.add_row()
-        row.height = Inches(0.43)
         cells = row.cells
         cells[0].text = role
         cells[1].text = check
@@ -447,15 +604,17 @@ def add_appendix(doc: Document) -> None:
         for cell in cells:
             for run in cell.paragraphs[0].runs:
                 set_run_font(run, 9)
-    doc.add_heading("附录 B：暂不作为现行 SOP 的治理项", level=1)
+    set_table_geometry(table, [1900, 9252, 2600])
+    appendix_b_heading = doc.add_heading("附录 B：暂不作为现行 SOP 的治理项", level=1)
+    appendix_b_heading.paragraph_format.space_before = Pt(6)
+    appendix_b_heading.paragraph_format.space_after = Pt(4)
     for item in [
         "质量：生产产出已支持整批放行/冻结；部分放行、复检、让步、返工、报废和解冻尚未贯通。",
-        "批次/炉批：生产产出已有内部批次；来料、投入和客户发货批次尚未形成端到端追溯链。",
+        "批次/炉批：供应商、来料、投入和产出已形成谱系；客户发货与退货批次尚未形成端到端追溯链。",
         "设备事件：开停机、故障、维护、产量和 OEE 尚未形成统一事件流。",
         "模型收敛：旧 Product 与 Material 仍需分阶段迁移，当前禁止继续扩展旧模型写入口。",
     ]:
-        p = doc.add_paragraph(style="List Bullet")
-        p.add_run(item)
+        add_list_paragraph(doc, item, bullet_num_id, size=9.2, compact=True)
     add_banner(doc, "以上功能在完成数据模型、权限、回归测试和现场验证前，不应写入车间正式作业标准。", "FEF3C7", "92400E")
 
 
@@ -464,18 +623,19 @@ def build_docx(path: Path) -> None:
     doc = Document()
     configure_section(doc)
     apply_styles(doc)
+    bullet_num_id = add_numbering_definition(doc, "bullet")
     doc.core_properties.title = "MES-lite 全流程作业指导书"
     doc.core_properties.subject = "MES-lite 业务操作与截图 SOP"
     doc.core_properties.author = "MES-lite 项目组"
     doc.core_properties.keywords = "MES-lite,MES,作业指导书,SOP"
     add_cover(doc)
-    add_front_matter(doc)
+    add_front_matter(doc, bullet_num_id)
     figure_number = 1
     for chapter, items in CHAPTERS:
         for item in items:
             add_instruction_page(doc, chapter, item, figure_number)
             figure_number += 1
-    add_appendix(doc)
+    add_appendix(doc, bullet_num_id)
     doc.save(path)
 
 
@@ -483,11 +643,11 @@ def markdown_lines() -> Iterable[str]:
     yield "# MES-lite 全流程作业指导书"
     yield ""
     yield f"- 交付版本：v{VERSION}"
-    yield f"- 截图基线：v{SCREENSHOT_BASELINE}（65 张通用流程）+ v{QUALITY_SCREENSHOT_BASELINE}（7 张质量批次流程）"
+    yield f"- 截图基线：v{SCREENSHOT_BASELINE}（65 张通用流程）+ v{QUALITY_SCREENSHOT_BASELINE}（7 张质量批次流程）+ v{TRACE_SCREENSHOT_BASELINE}（6 张来料生产谱系流程）"
     yield "- 数据范围：隔离本地临时演示库，不含生产业务数据"
     yield "- 编制日期：2026-08-13"
     yield ""
-    yield "> 重要：生产产出已完成内部批次、待检和整批放行/冻结；来料、投入、发货批次和完整不合格处置尚未贯通。"
+    yield "> 重要：供应商批号、来料内部批次、生产投入、产出批次与整批质量状态已贯通；发货/退货到客户的批次边和完整不合格处置尚未贯通。"
     yield ""
     yield "## 推荐业务顺序"
     yield ""
@@ -512,7 +672,7 @@ def markdown_lines() -> Iterable[str]:
     yield "## 暂不作为现行 SOP 的治理项"
     yield ""
     yield "- 生产产出已支持整批放行/冻结；部分放行、复检、让步、返工、报废和解冻尚未贯通。"
-    yield "- 生产产出已有内部批次；来料、投入和发货批次尚未形成端到端追溯。"
+    yield "- 供应商、来料、投入和产出已形成谱系；发货、退货和客户批次尚未形成端到端追溯。"
     yield "- 设备开停机、故障、维护、产量和 OEE 尚未形成统一事件流。"
     yield "- 旧 Product 与 Material 仍需分阶段迁移，禁止继续扩展旧模型写入口。"
 

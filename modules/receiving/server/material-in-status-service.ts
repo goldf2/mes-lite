@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { changeStockLocationBalance, postInventoryReceipt, type ConversionSource } from '@/lib/inventory'
+import { createInventoryLotReceipt } from '@/modules/inventory'
 import type { ReverseMaterialInInput } from '../contracts/material-in-schema'
 import { MaterialInDomainError, runMaterialInDomainOperation } from '../domain/material-in-errors'
 import { calculateMaterialInReversal, isMaterialInCostLayerUntouched } from '../domain/material-in-reversal'
@@ -25,7 +26,7 @@ export async function receiveManagedMaterialIn(id: string, receivedBy: string) {
         || line.conversionSource === 'SAME_UNIT'
         ? line.conversionSource
         : 'MASTER_DEFAULT'
-      await postInventoryReceipt(tx, {
+      const posted = await postInventoryReceipt(tx, {
         materialId: line.materialId,
         stockQty: Number(line.qty),
         valuationQty: Number(line.valuationQty),
@@ -40,6 +41,28 @@ export async function receiveManagedMaterialIn(id: string, receivedBy: string) {
         materialInId: line.id,
         locationId: current.stagingLocationId,
       })
+      const lot = await createInventoryLotReceipt(tx, {
+        lotNo: `RM-${line.inboundNo}`,
+        materialId: line.materialId,
+        materialInId: line.id,
+        sourceType: 'MATERIAL_IN',
+        sourceId: line.id,
+        supplierLotNo: line.batchNo,
+        receivedAt: current.inboundDate,
+        locationId: posted.location!.id,
+        inventoryStatus: 'AVAILABLE',
+        stockQty: Number(line.qty),
+        valuationQty: Number(posted.quantities?.valuationQty || line.valuationQty),
+        costAmount: Number(line.totalAmount),
+        stockLogId: posted.movement!.id,
+        idempotencyKey: `MATERIAL_IN:${line.id}:LOT_RECEIPT`,
+        note: `来料单 ${current.inboundNo} 第 ${line.lineNo} 行内部批次`,
+        createdBy: receivedBy,
+      })
+      await Promise.all([
+        tx.stockLog.update({ where: { id: posted.movement!.id }, data: { lotId: lot.id, inventoryStatus: 'AVAILABLE', toInventoryStatus: 'AVAILABLE' } }),
+        posted.costLayer ? tx.inventoryCostLayer.update({ where: { id: posted.costLayer.id }, data: { lotId: lot.id, inventoryStatus: 'AVAILABLE' } }) : Promise.resolve(),
+      ])
     }
 
     const inboundDate = new Date()
@@ -75,6 +98,16 @@ async function reverseMaterialInLine(
   const stock = await tx.stock.findUnique({ where: { materialId: current.materialId } })
   if (!stock) throw new MaterialInDomainError(`物料 ${current.material.code} 的库存记录不存在，无法红冲`)
   const layer = await tx.inventoryCostLayer.findFirst({ where: { materialInId: current.id } })
+  const lot = current.inventoryLot
+  if (lot) {
+    const [activeAllocations, activeBalance] = await Promise.all([
+      tx.inventoryLotAllocation.count({ where: { lotId: lot.id, status: 'ACTIVE' } }),
+      tx.inventoryLotBalance.findFirst({ where: { lotId: lot.id, inventoryStatus: 'AVAILABLE', stockQty: { gt: 0.000001 } } }),
+    ])
+    if (activeAllocations > 0 || !activeBalance || Math.abs(Number(activeBalance.stockQty) - Number(current.qty)) > 0.000001) {
+      throw new MaterialInDomainError(`物料 ${current.material.code} 的内部批次 ${lot.lotNo} 已被生产领用或余额变动，不能整单红冲`)
+    }
+  }
   if (layer) {
     const activeConsumptionCount = await tx.costLayerConsumption.count({
       where: { costLayerId: layer.id, restoredAt: null },
@@ -143,12 +176,34 @@ async function reverseMaterialInLine(
       stockUnitSnapshot: current.unit, valuationUnitSnapshot: current.valuationUnit,
       conversionRateUsed: current.conversionRate, conversionSource: 'ORIGINAL_MOVEMENT',
       costingMethodSnapshot: current.material.costingMethod, sourceMovementId: sourceMovement?.id,
+      lotId: lot?.id,
+      inventoryStatus: 'AVAILABLE',
+      fromInventoryStatus: 'AVAILABLE',
       idempotencyKey: `MATERIAL_IN:${current.id}:REVERSE`, refType: 'MATERIAL_IN_REVERSE', refId: current.id,
       note: `红冲来料单 ${receiptNo} 第 ${current.lineNo} 行: ${input.reason}`, createdBy: reversedBy,
     },
   })
   if (sourceMovement) {
     await tx.stockLog.update({ where: { id: sourceMovement.id }, data: { reversalMovementId: reversalMovement.id } })
+  }
+  if (lot) {
+    await tx.inventoryLotBalance.updateMany({
+      where: { lotId: lot.id, inventoryStatus: 'AVAILABLE' },
+      data: { stockQty: 0, valuationQty: 0, costAmount: 0 },
+    })
+    await tx.inventoryLotTransaction.create({
+      data: {
+        lotId: lot.id, locationId: location.id, type: 'REVERSE_RECEIPT', fromStatus: 'AVAILABLE',
+        stockQty: qty, valuationQty, costAmount: reversal.reverseCostAmount,
+        refType: 'MATERIAL_IN_REVERSE', refId: current.id, stockLogId: reversalMovement.id,
+        idempotencyKey: `MATERIAL_IN:${current.id}:LOT_REVERSE`,
+        note: `红冲来料单 ${receiptNo} 第 ${current.lineNo} 行: ${input.reason}`, createdBy: reversedBy,
+      },
+    })
+    await tx.inventoryLot.update({
+      where: { id: lot.id },
+      data: { status: 'REVERSED', reversedAt: new Date(), reversedBy, reverseReason: input.reason },
+    })
   }
 }
 

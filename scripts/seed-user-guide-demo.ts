@@ -2,8 +2,10 @@ import { PrismaClient } from '@prisma/client'
 import { hashPassword } from '../lib/auth'
 import { postInventoryReceipt } from '../lib/inventory'
 import { createMaterialIns } from '../modules/receiving/server/material-in-service'
+import { receiveManagedMaterialIn } from '../modules/receiving/server/material-in-status-service'
 import { createManagedDispatch } from '../modules/production/server/dispatch-command-service'
 import { createManagedFlowTransfer } from '../modules/production/server/flow-transfer-command-service'
+import { confirmManagedFlowTransfer } from '../modules/production/server/flow-transfer-status-service'
 import { createProductionOrderActual } from '../modules/production/server/production-order-actual-service'
 import { confirmProductionOrderActual } from '../modules/production/server/production-order-actual-status-service'
 import { createProductionOrders } from '../modules/production/server/production-order-command-service'
@@ -137,10 +139,19 @@ async function main() {
   })
 
   await prisma.$transaction(async (tx) => {
-    await postInventoryReceipt(tx, { materialId: wire.id, stockQty: 1200, valuationQty: 1200, costAmount: 9600, type: 'OPENING', refType: 'DEMO', refId: 'wire-opening', note: '指导书演示期初库存', createdBy: admin.name, idempotencyKey: 'GUIDE:WIRE:OPENING', locationId: rawLocation.id })
     await postInventoryReceipt(tx, { materialId: oil.id, stockQty: 180, valuationQty: 180, costAmount: 2700, type: 'OPENING', refType: 'DEMO', refId: 'oil-opening', note: '指导书演示期初库存', createdBy: admin.name, idempotencyKey: 'GUIDE:OIL:OPENING', locationId: rawLocation.id })
     await postInventoryReceipt(tx, { materialId: bolt.id, stockQty: 1500, valuationQty: 1500, costAmount: 1350, type: 'OPENING', refType: 'DEMO', refId: 'bolt-opening', note: '指导书演示期初库存', createdBy: admin.name, idempotencyKey: 'GUIDE:BOLT:OPENING', locationId: finishedLocation.id })
   })
+
+  const receivedMaterialIn = await createMaterialIns({
+    supplierId: supplier.id,
+    stagingLocationId: rawLocation.id,
+    voucherNo: 'PO-DEMO-RECEIVED',
+    receivedBy: warehouseKeeper.name,
+    note: '指导书：已收货且可追溯的供应商炉批',
+    items: [{ materialId: wire.id, qty: 1200, valuationQty: 1200, unitPrice: 8, priceBasis: 'STOCK', batchNo: 'HEAT-SCM435-20260812-R1' }],
+  }, fixedNow)
+  await receiveManagedMaterialIn(receivedMaterialIn.first.id, warehouseKeeper.name)
 
   await createMaterialIns({
     supplierId: supplier.id,
@@ -187,6 +198,19 @@ async function main() {
   const pendingQualityActual = await createQualityDemoActual(400, '指导书：待检批次')
   const passedQualityActual = await createQualityDemoActual(500, '指导书：合格放行批次')
   const heldQualityActual = await createQualityDemoActual(300, '指导书：不合格冻结批次')
+  const traceDraftActual = await createProductionOrderActual(releasedOrder.first.id, {
+    actualDate: '2026-08-13',
+    employeeIds: [employee.id],
+    note: '指导书：待在浏览器确认并生成批次谱系',
+    inputs: [
+      { materialId: wire.id, locationId: rawLocation.id, lossMode: 'PERCENT', lossValue: 0 },
+      { materialId: oil.id, locationId: rawLocation.id, lossMode: 'PERCENT', lossValue: 0 },
+    ],
+    outputs: [
+      { materialId: bolt.id, locationId: finishedLocation.id, actualQty: 200 },
+      { materialId: scrap.id, locationId: finishedLocation.id, actualQty: 0 },
+    ],
+  })
   const passedInspection = passedQualityActual.outputs[0]?.inventoryLot?.inspections[0]
   const heldInspection = heldQualityActual.outputs[0]?.inventoryLot?.inspections[0]
   if (!passedInspection || !heldInspection) throw new Error('作业指导书质量演示数据生成失败')
@@ -207,7 +231,7 @@ async function main() {
     note: '指导书：待派工任务',
   }, fixedNow)
 
-  await createManagedFlowTransfer({
+  const confirmedFlowTransfer = await createManagedFlowTransfer({
     transferDate: '2026-08-12',
     materialId: wire.id,
     sourceLocationId: rawLocation.id,
@@ -216,6 +240,7 @@ async function main() {
     employeeId: warehouseKeeper.id,
     note: '指导书：原料配送到生产现场',
   })
+  await confirmManagedFlowTransfer(confirmedFlowTransfer.id, warehouseKeeper.name, fixedNow)
 
   const draftSalesOrder = await createManagedSalesOrder({
     customerId: customer.id,
@@ -342,6 +367,9 @@ async function main() {
       inventoryLots: await prisma.inventoryLot.count(),
       qualityInspections: await prisma.qualityInspection.count(),
       pendingQualityActual: pendingQualityActual.actualNo,
+      traceDraftActual: traceDraftActual.actualNo,
+      receivedMaterialIn: receivedMaterialIn.first.inboundNo,
+      confirmedFlowTransfer: confirmedFlowTransfer.transferNo,
       salesOrders: await prisma.salesOrder.count(),
       shipments: await prisma.shipment.count(),
     },

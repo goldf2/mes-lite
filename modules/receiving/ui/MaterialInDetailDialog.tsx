@@ -1,5 +1,9 @@
 'use client'
 
+import { useState } from 'react'
+import AppButton from '@/app/components/AppButton'
+import { InventoryLotTraceDialog } from '@/modules/inventory'
+
 import { BusinessDocumentDetailDialog, BusinessDocumentPrintLink } from '@/modules/business-documents'
 import type { MaterialInRecord } from '../contracts/material-in'
 import { materialInStatusLabels } from '../model/material-in-view'
@@ -20,7 +24,9 @@ export default function MaterialInDetailDialog({
   onClose: () => void
   onMessage: (message: string) => void
 }) {
+  const [traceLotId, setTraceLotId] = useState<string | null>(null)
   return (
+    <>
     <BusinessDocumentDetailDialog
       title={`来料单 ${item.inboundNo}`}
       description={`凭据号：${item.voucherNo || '-'} · ${materialInStatusLabels[item.status] || item.status} · ${item.itemCount} 项物料`}
@@ -49,7 +55,7 @@ export default function MaterialInDetailDialog({
                 <td className="px-4 py-3 font-medium">{line.qty} {line.unit}</td>
                 <td className="px-4 py-3"><div>{line.valuationQty} {line.valuationUnit}</div><div className="mt-0.5 text-xs text-gray-500">{conversionSourceLabel(line.conversionSource, line.conversionSampleCount)}</div></td>
                 <td className="px-4 py-3 text-gray-600">1 {line.unit} = {line.conversionRate} {line.valuationUnit}</td>
-                <td className="px-4 py-3">{line.batchNo || '-'}</td>
+                <td className="px-4 py-3"><div>{line.batchNo || '-'}</div>{line.inventoryLot && <div className="mt-1"><div className="font-mono text-xs text-blue-700">内部 {line.inventoryLot.lotNo}</div><AppButton size="sm" variant="secondary" onClick={() => setTraceLotId(line.inventoryLot!.id)}>查看谱系</AppButton></div>}</td>
                 <td className="px-4 py-3 text-right font-medium">¥{line.totalAmount.toFixed(2)}</td>
               </tr>
             ))}
@@ -57,5 +63,7 @@ export default function MaterialInDetailDialog({
         </table>
       </div>
     </BusinessDocumentDetailDialog>
+    {traceLotId && <InventoryLotTraceDialog lotId={traceLotId} onClose={() => setTraceLotId(null)} onMessage={onMessage} />}
+    </>
   )
 }

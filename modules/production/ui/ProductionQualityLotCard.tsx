@@ -4,6 +4,7 @@ import { useState } from 'react'
 import AppButton from '@/app/components/AppButton'
 import { appInputClassName, appTextareaClassName } from '@/app/components/FormField'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
+import { InventoryLotTraceDialog } from '@/modules/inventory'
 import { decideProductionQualityInspection } from '../client/production-order-api'
 
 export type ProductionQualityLotView = {
@@ -29,6 +30,26 @@ export type ProductionQualityLotView = {
     inspector?: string | null
     checkedAt?: string | null
     note?: string | null
+  }>
+  childGenealogies?: Array<{
+    id: string
+    parentLot: {
+      id: string
+      lotNo: string
+      sourceType: string
+      sourceId: string
+      supplierLotNo?: string | null
+      status: string
+    }
+    inputAllocation: {
+      stockQty: number
+      actualInput: {
+        id: string
+        materialCode: string
+        materialName: string
+        unit: string
+      }
+    }
   }>
 }
 
@@ -57,8 +78,10 @@ export default function ProductionQualityLotCard({
   const [badQty, setBadQty] = useState(0)
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
+  const [traceOpen, setTraceOpen] = useState(false)
   const balance = lot.balances.find((item) => Number(item.stockQty) > 0.000001) || lot.balances[0]
   const inspection = lot.inspections[0]
+  const ancestors = lot.childGenealogies || []
   const meta = statusMeta[balance?.inventoryStatus as keyof typeof statusMeta]
 
   const openDecision = (nextDecision: 'PASS' | 'FAIL') => {
@@ -96,18 +119,37 @@ export default function ProductionQualityLotCard({
           {meta && <span className={`ml-2 rounded px-2 py-0.5 font-medium ${meta.className}`}>{meta.label}</span>}
           {lot.status === 'REVERSED' && <span className="ml-2 rounded bg-gray-100 px-2 py-0.5 font-medium text-gray-600">已冲销</span>}
         </div>
-        {canDecide && inspection?.status === 'PENDING' && balance?.inventoryStatus === 'QUARANTINE' && (
-          <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <AppButton size="sm" variant="secondary" onClick={() => setTraceOpen(true)}>查看谱系</AppButton>
+          {canDecide && inspection?.status === 'PENDING' && balance?.inventoryStatus === 'QUARANTINE' && (<>
             <AppButton size="sm" variant="primary" onClick={() => openDecision('PASS')} disabled={saving}>合格放行</AppButton>
             <AppButton size="sm" variant="danger" onClick={() => openDecision('FAIL')} disabled={saving}>不合格冻结</AppButton>
-          </div>
-        )}
+          </>)}
+        </div>
       </div>
       <div className="mt-1">状态数量 {numberText(balance?.stockQty || 0)} · 检验单 {inspection?.inspectionNo || '-'}</div>
       {inspection?.status === 'COMPLETED' && (
         <div className="mt-1 text-gray-500">
           判定 {inspection.result === 'PASS' ? '合格' : '不合格'} · 抽检 {numberText(inspection.sampleQty)} · 合格 {numberText(inspection.goodQty)} · 不合格 {numberText(inspection.badQty)} · {inspection.inspector || '未知检验员'}
         </div>
+      )}
+      {ancestors.length > 0 && (
+        <details className="mt-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5">
+          <summary className="cursor-pointer font-medium text-slate-700">投入批次谱系 · {ancestors.length} 条</summary>
+          <div className="mt-2 space-y-1.5">
+            {ancestors.map((item) => (
+              <div key={item.id} className="rounded bg-white px-2 py-1.5 text-slate-600">
+                <div className="flex flex-wrap justify-between gap-2">
+                  <span>{item.inputAllocation.actualInput.materialCode} · {item.inputAllocation.actualInput.materialName}</span>
+                  <span>{numberText(item.inputAllocation.stockQty)} {item.inputAllocation.actualInput.unit}</span>
+                </div>
+                <div className="mt-0.5 font-mono text-[11px] text-slate-500">
+                  来源批次 {item.parentLot.lotNo}{item.parentLot.supplierLotNo ? ` · 供应批号 ${item.parentLot.supplierLotNo}` : item.parentLot.sourceType === 'LEGACY_INVENTORY' ? ' · 历史未追踪库存' : ''}
+                </div>
+              </div>
+            ))}
+          </div>
+        </details>
       )}
 
       {decision && inspection && (
@@ -128,6 +170,7 @@ export default function ProductionQualityLotCard({
           <label className="mt-4 block text-sm font-medium text-gray-700">检验结论说明<textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} className={`${appTextareaClassName} mt-2`} placeholder={decision === 'PASS' ? '例如：关键尺寸抽检符合图纸要求' : '请记录不合格现象和冻结原因'} /></label>
         </ModalDialog>
       )}
+      {traceOpen && <InventoryLotTraceDialog lotId={lot.id} onClose={() => setTraceOpen(false)} onMessage={onMessage} />}
     </div>
   )
 }

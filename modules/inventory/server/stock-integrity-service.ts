@@ -15,7 +15,7 @@ export class StockIntegrityError extends Error {
 }
 
 export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]> {
-  const [materialsWithoutStock, allStocks] = await Promise.all([
+  const [materialsWithoutStock, allStocks, activeLotBalances, activeLotAllocations, activeGenealogies] = await Promise.all([
     prisma.material.findMany({
       where: { deletedAt: null, stock: null },
       select: { id: true, code: true, name: true },
@@ -27,6 +27,16 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
         product: { select: { id: true, sku: true, name: true } },
         locationBalances: true,
       },
+    }),
+    prisma.inventoryLotBalance.findMany({
+      where: { lot: { status: 'OPEN' }, stockQty: { gt: 0.000001 } },
+      include: { lot: { select: { id: true, lotNo: true, materialId: true } }, location: { select: { code: true } } },
+    }),
+    prisma.inventoryLotAllocation.findMany({
+      where: { status: 'ACTIVE' }, include: { lot: { select: { materialId: true, status: true, lotNo: true } }, actualInput: { select: { materialId: true, actualId: true } } },
+    }),
+    prisma.inventoryLotGenealogy.findMany({
+      where: { status: 'ACTIVE' }, include: { parentLot: { select: { materialId: true, status: true } }, childLot: { select: { status: true } }, inputAllocation: { select: { status: true } } },
     }),
   ])
 
@@ -82,6 +92,57 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
       type: 'INVALID_STOCK_BALANCE',
       message: '存在库存余额数量或关联关系异常',
       records: invalidStocks.slice(0, 20),
+    })
+  }
+  const invalidLotBalances: Array<Record<string, unknown>> = []
+  const balanceSums = new Map<string, number>()
+  for (const balance of activeLotBalances) {
+    if (Number(balance.stockQty) < -0.000001 || Number(balance.valuationQty) < -0.000001 || Number(balance.costAmount) < -0.000001) {
+      invalidLotBalances.push({ id: balance.id, lotNo: balance.lot.lotNo, location: balance.location.code, reason: '批次余额不能为负数' })
+    }
+    const key = `${balance.lot.materialId}:${balance.locationId}:${balance.inventoryStatus}`
+    balanceSums.set(key, Number((Number(balanceSums.get(key) || 0) + Number(balance.stockQty)).toFixed(6)))
+  }
+  for (const stock of allStocks) {
+    if (!stock.materialId) continue
+    for (const location of stock.locationBalances) {
+      for (const [status, expected] of [
+        ['AVAILABLE', Number(location.availableQty)],
+        ['QUARANTINE', Number(location.quarantineQty)],
+        ['HOLD', Number(location.holdQty)],
+      ] as const) {
+        const tracked = Number(balanceSums.get(`${stock.materialId}:${location.locationId}:${status}`) || 0)
+        if (tracked - expected > 0.000001) {
+          invalidLotBalances.push({ materialId: stock.materialId, locationId: location.locationId, status, tracked, expected, reason: '有效批次余额大于对应库位状态余额' })
+        }
+      }
+    }
+  }
+  if (invalidLotBalances.length > 0) {
+    issues.push({ type: 'INVALID_INVENTORY_LOT_BALANCE', message: '存在内部批次余额负数或大于库位状态余额', records: invalidLotBalances.slice(0, 20) })
+  }
+  const invalidAllocations = activeLotAllocations.filter((allocation) => (
+    allocation.lot.status !== 'OPEN'
+    || allocation.lot.materialId !== allocation.actualInput.materialId
+    || Number(allocation.stockQty) <= 0
+  ))
+  if (invalidAllocations.length > 0) {
+    issues.push({
+      type: 'INVALID_INVENTORY_LOT_ALLOCATION',
+      message: '存在有效投入分配关联已冲销批次、错误物料或非正数量',
+      records: invalidAllocations.slice(0, 20).map((item) => ({ id: item.id, lotNo: item.lot.lotNo, actualId: item.actualInput.actualId })),
+    })
+  }
+  const invalidGenealogies = activeGenealogies.filter((genealogy) => (
+    genealogy.parentLot.status !== 'OPEN'
+    || genealogy.childLot.status !== 'OPEN'
+    || genealogy.inputAllocation.status !== 'ACTIVE'
+  ))
+  if (invalidGenealogies.length > 0) {
+    issues.push({
+      type: 'INVALID_INVENTORY_LOT_GENEALOGY',
+      message: '存在有效谱系边关联已冲销批次或已冲销投入分配',
+      records: invalidGenealogies.slice(0, 20).map((item) => ({ id: item.id, parentLotId: item.parentLotId, childLotId: item.childLotId })),
     })
   }
   return issues

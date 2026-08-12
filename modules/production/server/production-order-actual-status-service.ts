@@ -1,7 +1,12 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { changeStockLocationBalance, postInventoryIssue, postInventoryReceipt } from '@/lib/inventory'
-import { createInventoryLotReceipt } from '@/modules/inventory'
+import {
+  allocateAvailableInventoryLots,
+  createInventoryLotReceipt,
+  createProductionLotGenealogies,
+  reverseProductionLotAllocations,
+} from '@/modules/inventory'
 import { createProductionQualityInspection } from '@/modules/quality'
 import { parseProductionActualCostLayerSnapshot } from '../domain/production-order-actual-cost-snapshot'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
@@ -11,8 +16,31 @@ const roundQty = (value: number) => Number(value.toFixed(6))
 const tolerance = 0.000001
 
 const postingInclude = {
-  inputs: { include: { material: true } },
-  outputs: { include: { material: true, inventoryLot: { include: { balances: true, inspections: true } } } },
+  inputs: {
+    include: {
+      material: true,
+      lotAllocations: {
+        include: { lot: true, location: true },
+        orderBy: { createdAt: 'asc' as const },
+      },
+    },
+  },
+  outputs: {
+    include: {
+      material: true,
+      inventoryLot: {
+        include: {
+          balances: true,
+          inspections: true,
+          childGenealogies: {
+            where: { status: 'ACTIVE' },
+            include: { parentLot: true, inputAllocation: { include: { actualInput: true } } },
+            orderBy: { createdAt: 'asc' as const },
+          },
+        },
+      },
+    },
+  },
 } satisfies Prisma.ProductionOrderActualInclude
 
 async function requireProductionOrderActual(
@@ -66,6 +94,18 @@ export async function confirmProductionOrderActual(orderId: string, actualId: st
           costLayerSnapshot: issue.layerConsumptions.length > 0 ? JSON.stringify(issue.layerConsumptions) : null,
         },
       })
+      await allocateAvailableInventoryLots(tx, {
+        actualInputId: line.id,
+        materialId: line.materialId,
+        materialCode: line.materialCode,
+        locationId: line.locationId,
+        locationCode: issue.location!.code,
+        stockQty: Number(line.actualQty),
+        issueValuationQty: Number(issue.valuationQty),
+        issueCostAmount: Number(issue.costAmount),
+        stockLogId: issue.movement!.id,
+        createdBy: confirmedBy,
+      })
       totalConsumedCost = roundQty(totalConsumedCost + Number(issue.costAmount))
     }
 
@@ -118,6 +158,11 @@ export async function confirmProductionOrderActual(orderId: string, actualId: st
           inspectedQty: Number(line.actualQty),
         }),
       ])
+      await createProductionLotGenealogies(tx, {
+        actualId: actual.id,
+        outputId: line.id,
+        childLotId: lot.id,
+      })
       await tx.productionOrderActualOutput.update({
         where: { id: line.id },
         data: {
@@ -371,6 +416,7 @@ export async function reverseProductionOrderActual(
     const actual = await requireProductionOrderActual(tx, orderId, actualId, 'CONFIRMED')
     for (const line of actual.outputs) await reverseProductionOutput(tx, actual, line, input.reason, reversedBy)
     for (const line of actual.inputs) await restoreProductionInput(tx, actual, line, reversedBy)
+    await reverseProductionLotAllocations(tx, { actualId: actual.id, reversedBy })
 
     const updated = await tx.productionOrderActual.update({
       where: { id: actual.id },

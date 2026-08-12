@@ -54,6 +54,13 @@ type ActualRecord = {
     actualQty: number
     unit: string
     location: { code: string; name: string }
+    lotAllocations?: Array<{
+      id: string
+      stockQty: number
+      status: string
+      lot: { id: string; lotNo: string; supplierLotNo?: string | null; sourceType: string; status: string }
+      location: { code: string; name: string }
+    }>
   }>
   outputs: Array<{
     id: string
@@ -323,7 +330,7 @@ export default function ProductionOrderActualPanel({
               <div className="mt-3 grid gap-3 lg:grid-cols-2">
                 <div className="rounded-md bg-gray-50 p-3 text-sm">
                   <div className="mb-2 font-medium text-gray-700">投入物料</div>
-                  {actual.inputs.map((line) => <div key={line.id} className="flex justify-between gap-3 py-1 text-gray-600"><span>{line.materialCode} · {line.materialName}</span><span className="shrink-0">{numberText(line.actualQty)} {line.unit} · {line.location.code}</span></div>)}
+                  {actual.inputs.map((line) => <div key={line.id} className="py-1 text-gray-600"><div className="flex justify-between gap-3"><span>{line.materialCode} · {line.materialName}</span><span className="shrink-0">{numberText(line.actualQty)} {line.unit} · {line.location.code}</span></div>{(line.lotAllocations || []).length > 0 && <div className="mt-1 space-y-1 pl-2 text-xs text-slate-500">{line.lotAllocations!.map((allocation) => <div key={allocation.id} className="flex flex-wrap justify-between gap-2"><span className="font-mono">批次 {allocation.lot.lotNo}{allocation.lot.supplierLotNo ? ` · 供应批号 ${allocation.lot.supplierLotNo}` : allocation.lot.sourceType === 'LEGACY_INVENTORY' ? ' · 历史未追踪' : ''}</span><span>{numberText(allocation.stockQty)} {line.unit}</span></div>)}</div>}</div>)}
                 </div>
                 <div className="rounded-md bg-blue-50/60 p-3 text-sm">
                   <div className="mb-2 font-medium text-blue-800">产出物料</div>
@@ -418,7 +425,7 @@ export default function ProductionOrderActualPanel({
       )}
 
       {confirming && (
-        <ModalDialog title="确认班后生产实绩" description={`${confirming.actualNo} · 确认后将原子更新投入，并将全部产出生成待检批次。`} onClose={() => !saving && setConfirming(null)} closeDisabled={saving} size="sm" footer={<ModalActions onCancel={() => setConfirming(null)} onConfirm={confirmActual} confirmLabel="确认并生成待检批次" busy={saving} />}>
+        <ModalDialog title="确认班后生产实绩" description={`${confirming.actualNo} · 确认后按库位可用批次先进先出分配投入，并为全部产出生成待检批次和投入产出谱系。`} onClose={() => !saving && setConfirming(null)} closeDisabled={saving} size="sm" footer={<ModalActions onCancel={() => setConfirming(null)} onConfirm={confirmActual} confirmLabel="确认并生成批次谱系" busy={saving} />}>
           <p className="text-sm text-gray-600">系统会扣减投入、增加产出总库存、生成内部批次和质量检验任务；产出在质量放行前不计入可用库存。库存不足时整笔事务不会生效。</p>
         </ModalDialog>
       )}

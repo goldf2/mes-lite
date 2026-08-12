@@ -22,6 +22,11 @@ export function materialInInclude() {
   return {
     supplier: true,
     location: true,
+    inventoryLot: {
+      include: {
+        balances: { orderBy: { createdAt: 'asc' as const } },
+      },
+    },
     material: { include: { customer: { select: { id: true, code: true, name: true } } } },
   } satisfies Prisma.MaterialInInclude
 }

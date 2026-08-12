@@ -4,7 +4,7 @@
 
 > 当前产品不是多租户商城或完整进销存。MES-lite 先服务一个工厂、一个实例和一个数据库，`Material` 是唯一物品主档，生产事实统一为 `ProductionOrder + ProductionOrderActual`。详细边界见[单厂 MES 产品边界与核心模型收敛](../architecture/单厂MES产品边界与核心模型收敛.md)。
 
-> `v0.1.354` 补充：新生产实绩产出以 `InventoryLot` 为内部批次，以 `QualityInspection` 为待检/判定事实，以 `InventoryLotBalance` 和 `InventoryLotTransaction` 保存状态余额与变化。当前只完成生产产出整批放行/冻结，不代表来料、投入、发货谱系已经贯通。
+> `v0.1.355` 补充：`InventoryLot` 同时承载来料和生产产出内部批次；`InventoryLotAllocation` 保存生产实绩投入按批次的实际分配；`InventoryLotGenealogy` 保存投入父批次到产出子批次的显式关系；`InventoryLotBalance` 和 `InventoryLotTransaction` 保存状态/库位余额与变化。发货批次和完整不合格处置尚未贯通。
 
 ## 建模原则
 

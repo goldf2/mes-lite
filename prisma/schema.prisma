@@ -40,6 +40,7 @@ model InventoryLocation {
   returnOrders             ReturnOrder[]
   inventoryLotBalances     InventoryLotBalance[]
   inventoryLotTransactions InventoryLotTransaction[]
+  inventoryLotAllocations  InventoryLotAllocation[]
   createdAt                DateTime                      @default(now())
   updatedAt                DateTime                      @updatedAt
 
@@ -536,24 +537,25 @@ model ProductionOrder {
 }
 
 model ProductionOrderActual {
-  id            String                          @id @default(cuid())
-  actualNo      String                          @unique
-  orderId       String
-  order         ProductionOrder                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  actualDate    DateTime
-  workers       String
-  note          String?
-  status        String                          @default("DRAFT")
-  confirmedAt   DateTime?
-  confirmedBy   String?
-  reversedAt    DateTime?
-  reversedBy    String?
-  reverseReason String?
-  employees     ProductionOrderActualEmployee[]
-  inputs        ProductionOrderActualInput[]
-  outputs       ProductionOrderActualOutput[]
-  createdAt     DateTime                        @default(now())
-  updatedAt     DateTime                        @updatedAt
+  id             String                          @id @default(cuid())
+  actualNo       String                          @unique
+  orderId        String
+  order          ProductionOrder                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actualDate     DateTime
+  workers        String
+  note           String?
+  status         String                          @default("DRAFT")
+  confirmedAt    DateTime?
+  confirmedBy    String?
+  reversedAt     DateTime?
+  reversedBy     String?
+  reverseReason  String?
+  employees      ProductionOrderActualEmployee[]
+  inputs         ProductionOrderActualInput[]
+  outputs        ProductionOrderActualOutput[]
+  lotGenealogies InventoryLotGenealogy[]
+  createdAt      DateTime                        @default(now())
+  updatedAt      DateTime                        @updatedAt
 
   @@index([orderId, actualDate])
   @@index([status])
@@ -574,31 +576,32 @@ model ProductionOrderActualEmployee {
 }
 
 model ProductionOrderActualInput {
-  id                 String                @id @default(cuid())
+  id                 String                   @id @default(cuid())
   actualId           String
-  actual             ProductionOrderActual @relation(fields: [actualId], references: [id], onDelete: Cascade)
+  actual             ProductionOrderActual    @relation(fields: [actualId], references: [id], onDelete: Cascade)
   materialId         String
-  material           Material              @relation("ProductionOrderActualInputMaterial", fields: [materialId], references: [id])
+  material           Material                 @relation("ProductionOrderActualInputMaterial", fields: [materialId], references: [id])
   locationId         String
-  location           InventoryLocation     @relation("ProductionOrderActualInputLocation", fields: [locationId], references: [id])
+  location           InventoryLocation        @relation("ProductionOrderActualInputLocation", fields: [locationId], references: [id])
   bomItemId          String?
   materialCode       String
   materialName       String
   quantityPerBatch   Float
-  lossMode           String                @default("PERCENT")
-  lossValue          Float                 @default(0)
-  lossQty            Float                 @default(0)
+  lossMode           String                   @default("PERCENT")
+  lossValue          Float                    @default(0)
+  lossQty            Float                    @default(0)
   plannedQty         Float
   actualQty          Float
   unit               String
-  valuationQty       Float                 @default(0)
+  valuationQty       Float                    @default(0)
   valuationUnit      String?
-  costAmount         Float                 @default(0)
+  costAmount         Float                    @default(0)
   conversionRateUsed Float?
   conversionSource   String?
   costingMethod      String?
   costLayerSnapshot  String?
-  createdAt          DateTime              @default(now())
+  lotAllocations     InventoryLotAllocation[]
+  createdAt          DateTime                 @default(now())
 
   @@unique([actualId, materialId])
   @@index([materialId])
@@ -606,13 +609,13 @@ model ProductionOrderActualInput {
 }
 
 model ProductionOrderActualOutput {
-  id                 String                @id @default(cuid())
+  id                 String                  @id @default(cuid())
   actualId           String
-  actual             ProductionOrderActual @relation(fields: [actualId], references: [id], onDelete: Cascade)
+  actual             ProductionOrderActual   @relation(fields: [actualId], references: [id], onDelete: Cascade)
   materialId         String
-  material           Material              @relation("ProductionOrderActualOutputMaterial", fields: [materialId], references: [id])
+  material           Material                @relation("ProductionOrderActualOutputMaterial", fields: [materialId], references: [id])
   locationId         String
-  location           InventoryLocation     @relation("ProductionOrderActualOutputLocation", fields: [locationId], references: [id])
+  location           InventoryLocation       @relation("ProductionOrderActualOutputLocation", fields: [locationId], references: [id])
   bomOutputId        String?
   materialCode       String
   materialName       String
@@ -620,15 +623,16 @@ model ProductionOrderActualOutput {
   plannedQty         Float
   actualQty          Float
   unit               String
-  isPrimary          Boolean               @default(false)
-  valuationQty       Float                 @default(0)
-  costAmount         Float                 @default(0)
+  isPrimary          Boolean                 @default(false)
+  valuationQty       Float                   @default(0)
+  costAmount         Float                   @default(0)
   stockUnit          String?
   valuationUnit      String?
   conversionRateUsed Float?
   conversionSource   String?
   inventoryLot       InventoryLot?
-  createdAt          DateTime              @default(now())
+  lotGenealogies     InventoryLotGenealogy[]
+  createdAt          DateTime                @default(now())
 
   @@unique([actualId, materialId])
   @@index([materialId])
@@ -914,30 +918,82 @@ model StockLog {
 }
 
 model InventoryLot {
-  id                 String                       @id @default(cuid())
-  lotNo              String                       @unique
-  materialId         String
-  material           Material                     @relation(fields: [materialId], references: [id], onDelete: Restrict)
-  productionOutputId String?                      @unique
-  productionOutput   ProductionOrderActualOutput? @relation(fields: [productionOutputId], references: [id], onDelete: Restrict)
-  sourceType         String
-  sourceId           String
-  supplierLotNo      String?
-  status             String                       @default("OPEN")
-  receivedAt         DateTime                     @default(now())
-  reversedAt         DateTime?
-  reversedBy         String?
-  reverseReason      String?
-  balances           InventoryLotBalance[]
-  transactions       InventoryLotTransaction[]
-  inspections        QualityInspection[]
-  costLayers         InventoryCostLayer[]
-  createdAt          DateTime                     @default(now())
-  updatedAt          DateTime                     @updatedAt
+  id                         String                       @id @default(cuid())
+  lotNo                      String                       @unique
+  materialId                 String
+  material                   Material                     @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  materialInId               String?                      @unique
+  materialIn                 MaterialIn?                  @relation(fields: [materialInId], references: [id], onDelete: Restrict)
+  productionOutputId         String?                      @unique
+  productionOutput           ProductionOrderActualOutput? @relation(fields: [productionOutputId], references: [id], onDelete: Restrict)
+  sourceType                 String
+  sourceId                   String
+  supplierLotNo              String?
+  status                     String                       @default("OPEN")
+  receivedAt                 DateTime                     @default(now())
+  reversedAt                 DateTime?
+  reversedBy                 String?
+  reverseReason              String?
+  balances                   InventoryLotBalance[]
+  transactions               InventoryLotTransaction[]
+  inspections                QualityInspection[]
+  costLayers                 InventoryCostLayer[]
+  productionInputAllocations InventoryLotAllocation[]
+  parentGenealogies          InventoryLotGenealogy[]      @relation("InventoryLotGenealogyParent")
+  childGenealogies           InventoryLotGenealogy[]      @relation("InventoryLotGenealogyChild")
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
 
   @@index([materialId, status])
   @@index([sourceType, sourceId])
   @@index([supplierLotNo])
+}
+
+model InventoryLotAllocation {
+  id              String                     @id @default(cuid())
+  actualInputId   String
+  actualInput     ProductionOrderActualInput @relation(fields: [actualInputId], references: [id], onDelete: Restrict)
+  lotId           String
+  lot             InventoryLot               @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  locationId      String
+  location        InventoryLocation          @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  inventoryStatus String                     @default("AVAILABLE")
+  stockQty        Float
+  valuationQty    Float                      @default(0)
+  costAmount      Float                      @default(0)
+  status          String                     @default("ACTIVE")
+  reversedAt      DateTime?
+  reversedBy      String?
+  createdAt       DateTime                   @default(now())
+  genealogies     InventoryLotGenealogy[]
+
+  @@unique([actualInputId, lotId, locationId])
+  @@index([lotId, status])
+  @@index([actualInputId, status])
+  @@index([locationId, status])
+}
+
+model InventoryLotGenealogy {
+  id                String                      @id @default(cuid())
+  inputAllocationId String
+  inputAllocation   InventoryLotAllocation      @relation(fields: [inputAllocationId], references: [id], onDelete: Restrict)
+  parentLotId       String
+  parentLot         InventoryLot                @relation("InventoryLotGenealogyParent", fields: [parentLotId], references: [id], onDelete: Restrict)
+  childLotId        String
+  childLot          InventoryLot                @relation("InventoryLotGenealogyChild", fields: [childLotId], references: [id], onDelete: Restrict)
+  actualId          String
+  actual            ProductionOrderActual       @relation(fields: [actualId], references: [id], onDelete: Restrict)
+  outputId          String
+  output            ProductionOrderActualOutput @relation(fields: [outputId], references: [id], onDelete: Restrict)
+  status            String                      @default("ACTIVE")
+  reversedAt        DateTime?
+  createdAt         DateTime                    @default(now())
+
+  @@unique([inputAllocationId, childLotId])
+  @@index([parentLotId, status])
+  @@index([childLotId, status])
+  @@index([actualId])
+  @@index([outputId])
 }
 
 model InventoryLotBalance {
@@ -1175,6 +1231,7 @@ model MaterialIn {
   note                  String?
   deletedAt             DateTime?
   deletedBy             String?
+  inventoryLot          InventoryLot?
   createdAt             DateTime           @default(now())
 
   @@index([receiptId, lineNo])

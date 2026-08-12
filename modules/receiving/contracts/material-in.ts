@@ -78,6 +78,13 @@ export interface MaterialInLineRecord {
   priceUnit?: string
   totalAmount: number
   batchNo?: string
+  inventoryLot?: {
+    id: string
+    lotNo: string
+    status: string
+    supplierLotNo?: string | null
+    balances: Array<{ inventoryStatus: string; stockQty: number }>
+  } | null
   status: string
   inboundDate: string
   receivedBy?: string

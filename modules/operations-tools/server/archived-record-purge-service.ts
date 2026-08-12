@@ -262,7 +262,7 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
       addCountBlocker(blockers, counts._count.shipments, '发货单')
     } else if (model === 'materialIn') {
       const lineIds = (await tx.materialIn.findMany({ where: { receiptId: id }, select: { id: true } })).map((line) => line.id)
-      const [costLayers, stockLogs] = await Promise.all([
+      const [costLayers, stockLogs, lots] = await Promise.all([
         tx.inventoryCostLayer.findMany({
           where: { OR: [{ materialInId: { in: lineIds } }, { sourceId: { in: lineIds } }] },
           select: {
@@ -284,7 +284,20 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
             costAmount: true,
           },
         }),
+        tx.inventoryLot.findMany({
+          where: { materialInId: { in: lineIds } },
+          select: {
+            id: true,
+            status: true,
+            balances: { select: { stockQty: true, valuationQty: true, costAmount: true } },
+            _count: { select: { productionInputAllocations: true, parentGenealogies: true, childGenealogies: true } },
+          },
+        }),
       ])
+      const lotIds = lots.map((lot) => lot.id)
+      const lotTransactionCount = lotIds.length > 0
+        ? await tx.inventoryLotTransaction.count({ where: { lotId: { in: lotIds } } })
+        : 0
       if (current.status === 'REVERSED') {
         const unsafeCostLayers = costLayers.filter((layer) => (
           layer.status !== 'REVERSED' ||
@@ -297,9 +310,22 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
         if (unsafeLogs.length === 0 && hasNonZeroMovementTotal(stockLogs)) {
           blockers.push('来料库存流水未完全对冲')
         }
+        const unsafeLots = lots.filter((lot) => (
+          lot.status !== 'REVERSED'
+          || lot.balances.some((balance) => [balance.stockQty, balance.valuationQty, balance.costAmount].some((value) => Math.abs(Number(value)) > zeroTolerance))
+          || lot._count.productionInputAllocations > 0
+          || lot._count.parentGenealogies > 0
+          || lot._count.childGenealogies > 0
+        ))
+        addCountBlocker(blockers, unsafeLots.length, '仍有余额或谱系引用的库存批次')
+        const expectedLotTransactions = lots.length * 2
+        if (lotTransactionCount !== expectedLotTransactions) {
+          blockers.push(`库存批次交易共 ${lotTransactionCount} 条，预期每个完整红冲批次仅保留入库与红冲各 1 条`)
+        }
       } else {
         addCountBlocker(blockers, costLayers.length, '库存成本层')
         addCountBlocker(blockers, stockLogs.length, '库存流水')
+        addCountBlocker(blockers, lots.length, '库存批次追溯记录')
       }
     } else if (model === 'order') {
       const counts = await tx.productionOrder.findUniqueOrThrow({
@@ -365,6 +391,12 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
       }
     } else if (model === 'materialIn') {
       const lineIds = (await tx.materialIn.findMany({ where: { receiptId: id }, select: { id: true } })).map((line) => line.id)
+      const lotIds = (await tx.inventoryLot.findMany({ where: { materialInId: { in: lineIds } }, select: { id: true } })).map((lot) => lot.id)
+      if (lotIds.length > 0) {
+        await tx.inventoryLotTransaction.deleteMany({ where: { lotId: { in: lotIds } } })
+        await tx.inventoryLotBalance.deleteMany({ where: { lotId: { in: lotIds } } })
+        await tx.inventoryLot.deleteMany({ where: { id: { in: lotIds } } })
+      }
       await tx.inventoryCostLayer.deleteMany({
         where: { OR: [{ materialInId: { in: lineIds } }, { sourceId: { in: lineIds } }] },
       })
