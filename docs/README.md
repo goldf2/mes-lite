@@ -2,7 +2,7 @@
 
 本目录是 MES-lite 的统一知识入口。第一次接触系统时，不建议从发布记录或单个专题开始阅读；先通过总手册建立整体认知，再进入对应领域。
 
-当前事实基线：`v0.1.350` / 2026-08-12。
+当前事实基线：`v0.1.351` / 2026-08-12。
 
 ## 1. 推荐阅读路径
 
@@ -25,6 +25,7 @@
 | 暂停的未来租户化候选 | [目标数据模型草案](./minierp/data-model.md) |
 | MES、MRP-lite、ERP-lite 如何分工 | [MES-MRP-ERP 功能矩阵](./architecture/MES-MRP-ERP功能矩阵.md) |
 | 作为 MES 还缺什么、接下来按什么顺序补齐 | [MES 核心能力缺口与建设路线](./architecture/MES核心能力缺口与建设路线.md) |
+| 如何按界面完成当前已交付的业务流程 | [MES-lite 全流程作业指导书](./operations/user-guide/MES-lite全流程作业指导书-v0.1.351.md) |
 | 当前系统已经能执行哪些流程、由谁操作 | [当前功能 HTML 流程与泳道](../public/mes-current-workflow.html)、[MES 当前功能流程与泳道](./architecture/MES当前功能流程与泳道.md) |
 | 从需求到交付由哪些角色参与、如何交接 | [HTML 泳道展示](../public/mes-business-swimlane.html)、[MES 业务泳道与角色参与矩阵](./architecture/MES业务泳道与角色参与矩阵.md) |
 | 人员、权限组和页面如何分配 | [人员权限组与页面矩阵](./architecture/人员权限组与页面矩阵.md) |
@@ -77,6 +78,7 @@
 
 ### 权限、AI、附件与运维
 
+- [MES-lite 全流程作业指导书](./operations/user-guide/MES-lite全流程作业指导书-v0.1.351.md)
 - [人员权限组与页面矩阵](./architecture/人员权限组与页面矩阵.md)
 - [MES Agent 规范](./ai-agent/MES-Agent规范.md)
 - [业务单据打印与归档](./product/业务单据打印与归档.md)

@@ -69,6 +69,11 @@ assert.match(clientSource, /\/api\/orders\/options/, '生产订单 client 必须
 assert.match(clientSource, /\/api\/orders\/\$\{encodeURIComponent\(orderId\)\}/, '生产订单 client 必须集中详情接口')
 assert.match(clientSource, /export async function releaseProductionOrder[\s\S]*\/confirm/, '生产订单 client 必须提供发布命令')
 assert.match(pageSource, /releaseProductionOrder[\s\S]*发布生产订单/, '草稿订单详情必须提供显式发布动作')
+assert.match(
+  pageSource,
+  /ProductionOrderActualPanel[\s\S]*key=\{`\$\{orderDetail\.id\}:\$\{orderDetail\.status\}`\}/,
+  '订单状态变化后必须重载生产实绩工作区，避免发布后按钮继续沿用草稿状态',
+)
 assert.match(indexSource, /ProductionOrderMode.*contracts\/production-order/, '生产订单模式类型必须从领域契约公开')
 assert.match(routeSource, /production-order-command-service/, '生产订单 API 必须委托命令服务')
 assert.match(routeSource, /production-order-query-service/, '生产订单 API 必须委托查询服务')

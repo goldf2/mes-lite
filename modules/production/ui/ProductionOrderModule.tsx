@@ -419,7 +419,7 @@ export default function ProductionOrderModule({
               </div>
             </div>
           )}
-          <ProductionOrderActualPanel orderId={orderDetail.id} onMessage={onMessage} onOrderChanged={async () => { await Promise.all([fetchOrderDetail(orderDetail.id), fetchOrders()]) }} />
+          <ProductionOrderActualPanel key={`${orderDetail.id}:${orderDetail.status}`} orderId={orderDetail.id} onMessage={onMessage} onOrderChanged={async () => { await Promise.all([fetchOrderDetail(orderDetail.id), fetchOrders()]) }} />
           <div className="mt-6"><AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={orderDetail.id} title="附件管理" enableAiRecognition onMessage={onMessage} /></div>
         </div>
       )}

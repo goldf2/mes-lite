@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.350",
+  "version": "0.1.351",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -21,6 +21,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:user-guide": "tsx scripts/seed-user-guide-demo.ts",
     "db:studio": "prisma studio",
     "storage:fix": "sh scripts/fix-persistent-storage-permissions.sh",
     "storage:backup": "node scripts/runtime-backup.mjs create",
