@@ -1,6 +1,6 @@
 'use client'
 
-import { Bookmark, BookmarkPlus, Sparkles, X } from 'lucide-react'
+import { Bookmark, BookmarkPlus, Search, Sparkles, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { ResourceSearchCondition } from '@/lib/resource-search'
 import ControlTooltip from './ControlTooltip'
@@ -207,6 +207,7 @@ export function SearchFieldWithPresets({
   conditions,
   onConditionsChange,
   conditionLabel,
+  submitMode = 'instant',
   inputClassName = 'h-9 min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm sm:h-10 sm:px-4 sm:py-2',
   className = 'flex w-full min-w-[260px] max-w-[620px] flex-[1_1_420px] items-center gap-2',
 }: {
@@ -218,35 +219,65 @@ export function SearchFieldWithPresets({
   conditions?: readonly ResourceSearchCondition[]
   onConditionsChange?: (conditions: ResourceSearchCondition[]) => void
   conditionLabel?: string
+  submitMode?: 'instant' | 'explicit'
   inputClassName?: string
   className?: string
 }) {
   const [smartSearchEnabled, setSmartSearchEnabled] = useState(true)
-  const displayValue = smartSearchEnabled ? value : unwrapPhraseQuery(value)
+  const [draftValue, setDraftValue] = useState(() => unwrapPhraseQuery(value))
+
+  useEffect(() => {
+    setDraftValue(smartSearchEnabled ? value : unwrapPhraseQuery(value))
+  }, [smartSearchEnabled, value])
 
   useEffect(() => {
     const saved = window.localStorage.getItem(smartSearchStorageKey)
     if (saved !== 'false') return
     setSmartSearchEnabled(false)
-    onChange(encodeSearchQuery(unwrapPhraseQuery(value), false))
+    const nextValue = unwrapPhraseQuery(value)
+    setDraftValue(nextValue)
+    onChange(encodeSearchQuery(nextValue, false))
   // 只在控件首次挂载时读取当前浏览器偏好，避免输入过程中重复改写查询。
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const submitSearch = (nextValue = draftValue, enabled = smartSearchEnabled) => {
+    const normalizedValue = enabled ? nextValue : unwrapPhraseQuery(nextValue)
+    setDraftValue(normalizedValue)
+    onChange(encodeSearchQuery(normalizedValue, enabled))
+  }
+
   const changeSearchValue = (nextValue: string) => {
-    onChange(encodeSearchQuery(nextValue, smartSearchEnabled))
+    setDraftValue(nextValue)
+    if (submitMode === 'instant' || !nextValue.trim()) {
+      onChange(encodeSearchQuery(nextValue, smartSearchEnabled))
+    }
   }
 
   const toggleSmartSearch = (enabled: boolean) => {
     setSmartSearchEnabled(enabled)
     window.localStorage.setItem(smartSearchStorageKey, String(enabled))
-    onChange(encodeSearchQuery(displayValue, enabled))
+    submitSearch(draftValue, enabled)
   }
+
+  const pendingSearch = submitMode === 'explicit' && encodeSearchQuery(draftValue, smartSearchEnabled) !== value
 
   return (
     <div className={className}>
       <div className="relative min-w-0 flex-1">
-        <input type="search" value={displayValue} onChange={(event) => changeSearchValue(event.target.value)} placeholder={placeholder} aria-label={placeholder} className={`${inputClassName} w-full pr-24`} />
+        <input
+          type="search"
+          value={draftValue}
+          onChange={(event) => changeSearchValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (submitMode !== 'explicit' || event.key !== 'Enter' || event.nativeEvent.isComposing) return
+            event.preventDefault()
+            submitSearch()
+          }}
+          placeholder={placeholder}
+          aria-label={placeholder}
+          className={`${inputClassName} w-full pr-24`}
+        />
         <label className={`group absolute right-2 top-1/2 inline-flex -translate-y-1/2 cursor-pointer items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium transition ${smartSearchEnabled ? 'bg-blue-50 text-blue-700' : 'text-gray-400 hover:bg-gray-100'}`}>
           <input type="checkbox" checked={smartSearchEnabled} onChange={(event) => toggleSmartSearch(event.target.checked)} aria-label="智能搜索" className="sr-only" />
           <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
@@ -254,8 +285,20 @@ export function SearchFieldWithPresets({
           <ControlTooltip label={smartSearchEnabled ? '智能搜索：空格分隔多个关键词' : '开启智能搜索'} />
         </label>
       </div>
+      {submitMode === 'explicit' && (
+        <button
+          type="button"
+          onClick={() => submitSearch()}
+          aria-label="执行搜索"
+          aria-keyshortcuts="Enter"
+          className={`group relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border p-0 shadow-sm transition sm:h-10 sm:w-10 ${pendingSearch ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-700' : 'border-gray-200 bg-white text-blue-600 hover:bg-gray-50'}`}
+        >
+          <Search aria-hidden="true" className="h-4 w-4" />
+          <ControlTooltip label={pendingSearch ? '执行搜索（回车）' : '重新搜索（回车）'} />
+        </button>
+      )}
       {advancedSearch}
-      <SavedSearchPresets storageKey={storageKey} value={displayValue} onApply={changeSearchValue} conditions={conditions} onApplyConditions={onConditionsChange} conditionLabel={conditionLabel} />
+      <SavedSearchPresets storageKey={storageKey} value={draftValue} onApply={submitSearch} conditions={conditions} onApplyConditions={onConditionsChange} conditionLabel={conditionLabel} />
     </div>
   )
 }

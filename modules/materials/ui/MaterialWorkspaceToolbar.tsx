@@ -77,6 +77,7 @@ export default function MaterialWorkspaceToolbar({
           value={materialKeyword}
           onChange={onMaterialKeywordChange}
           placeholder="搜索物料名称或编码"
+          submitMode="explicit"
           conditions={materialConditions}
           onConditionsChange={onMaterialConditionsChange}
           conditionLabel={`${materialConditions.length} 个精确条件`}
