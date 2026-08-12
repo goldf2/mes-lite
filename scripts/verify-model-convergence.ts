@@ -22,6 +22,10 @@ function projectPath(path: string) {
 
 function verifyStaticBoundaries() {
   const schema = readFileSync(join(root, 'prisma/schema.prisma'), 'utf8')
+  for (const model of ['Product', 'BOM', 'BomCostRun', 'ProcessRoute', 'SawingCostScenario', 'StockIn']) {
+    const block = schema.match(new RegExp(`^model\\s+${model}\\s+\\{([\\s\\S]*?)^\\}`, 'm'))?.[1] || ''
+    assert.match(block, /^\s*materialId\s+String\?/m, `${model} 必须具备可空 Material 投影，供扩展-回填-收紧迁移`)
+  }
   const allowedProductDependencyModels = new Set([
     'BOM', 'BomCostRun', 'ProcessRoute', 'SawingCostScenario', 'ProductionOrder',
     'Stock', 'StockIn', 'Shipment', 'ReturnOrder',
@@ -105,8 +109,51 @@ async function main() {
       data: { code: `CONVERGE-${suffix}`, name: '模型收敛验证物料', category: 'FINISHED', unit: '件', stockUnit: '件' },
     })
     const productId = await prisma.$transaction((tx) => ensureProductForMaterial(tx, material))
+    const compatibilityProduct = await prisma.product.findUniqueOrThrow({ where: { id: productId } })
+    assert.equal(compatibilityProduct.materialId, material.id, '新兼容 Product 必须显式绑定 Material，不能只靠编码推断')
     assert.equal(await prisma.stock.count({ where: { productId } }), 0, '创建内部兼容 Product 不得创建平行库存')
     assert.equal(await prisma.stock.count({ where: { materialId: material.id } }), 0)
+
+    const legacyMaterial = await prisma.material.create({
+      data: { code: `LEGACY-MAP-${suffix}`, name: '待人工映射物料', category: 'FINISHED', unit: '件', stockUnit: '件' },
+    })
+    const codeMatchedLegacyProduct = await prisma.product.create({
+      data: { sku: legacyMaterial.code, name: legacyMaterial.name, category: legacyMaterial.category, unit: '件' },
+    })
+    assert.equal(
+      await prisma.$transaction((tx) => ensureProductForMaterial(tx, legacyMaterial)),
+      codeMatchedLegacyProduct.id,
+      '扩展阶段不得在人工映射前阻断现有业务',
+    )
+    assert.equal(
+      (await prisma.product.findUniqueOrThrow({ where: { id: codeMatchedLegacyProduct.id } })).materialId,
+      null,
+      '允许旧 Product 继续工作不等于自动确认 Product→Material 映射',
+    )
+    await prisma.product.delete({ where: { sku: legacyMaterial.code } })
+    await prisma.material.delete({ where: { id: legacyMaterial.id } })
+
+    const ambiguousBase = `AMBIGUOUS-${suffix}`
+    const ambiguousMaterial = await prisma.material.create({
+      data: { code: ambiguousBase, name: '歧义候选 A', category: 'FINISHED', unit: '件', stockUnit: '件' },
+    })
+    const prefixedAmbiguousMaterial = await prisma.material.create({
+      data: { code: `MAT-${ambiguousBase}`, name: '歧义候选 B', category: 'FINISHED', unit: '件', stockUnit: '件' },
+    })
+    const ambiguousProduct = await prisma.product.create({
+      data: { sku: `MAT-${ambiguousBase}`, name: '歧义旧产品', category: 'FINISHED', unit: '件' },
+    })
+    await assert.rejects(
+      () => prisma.$transaction((tx) => ensureProductForMaterial(tx, ambiguousMaterial)),
+      /多个 Material 候选/,
+      '编码歧义时不得按排序自动选择 Material',
+    )
+    const ambiguousAudit = await getModelConvergenceAudit(prisma)
+    assert.equal(ambiguousAudit.products.ambiguousCodeMappings, 1)
+    assert.equal(ambiguousAudit.products.mappedByCodeFallback, 0)
+    assert.equal(ambiguousAudit.readyForProductForeignKeyMigration, false)
+    await prisma.product.delete({ where: { id: ambiguousProduct.id } })
+    await prisma.material.deleteMany({ where: { id: { in: [ambiguousMaterial.id, prefixedAmbiguousMaterial.id] } } })
 
     const repaired = await backfillMissingStockRecords()
     assert.deepEqual(Object.keys(repaired), ['materials'], '库存补齐结果只允许 Material')
@@ -132,7 +179,12 @@ async function main() {
     )
 
     let audit = await getModelConvergenceAudit(prisma)
-    assert.deepEqual(audit.products, { total: 1, mappedByCode: 1, unmapped: 0 })
+    assert.equal(audit.schema.materialProjectionMigrationApplied, true)
+    assert.ok(audit.inventory && audit.productionOrderStatuses)
+    assert.deepEqual(audit.products, {
+      total: 1, mappedExplicitly: 1, mappedByCodeFallback: 0,
+      ambiguousCodeMappings: 0, invalidExplicitMappings: 0, unmapped: 0,
+    })
     assert.equal(audit.inventory.productOnlyStocks, 0)
     assert.deepEqual(audit.productionOrderStatuses.normalized, [{ status: 'RELEASED', count: 1 }])
     assert.equal(audit.productionOrderStatuses.legacyAliasRows, 1)
@@ -143,6 +195,7 @@ async function main() {
     })
     await prisma.stock.create({ data: { productId: legacyProduct.id } })
     audit = await getModelConvergenceAudit(prisma)
+    assert.ok(audit.inventory)
     assert.equal(audit.products.unmapped, 1)
     assert.equal(audit.inventory.productOnlyStocks, 1)
     assert.equal(audit.inventory.riskyProductOnlyStocks, 0)

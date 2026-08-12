@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { nextConfigurationSortOrder } from '@/modules/configuration'
-import { resolveProductId } from '@/lib/material-product'
+import { resolveMaterialIdForProduct, resolveProductId } from '@/lib/material-product'
 import type { ProcessRouteInput, ProcessStepInput, ProcessTemplateInput } from '../contracts/production-engineering-schema'
 
 const templateInclude = { materials: { select: { id: true, code: true, name: true } } } as const
@@ -82,10 +82,13 @@ export async function createProcessRoute(data: ProcessRouteInput) {
     const productId = await resolveProductId(tx, data.productId, { description: '由物料自动映射，用于工艺路线兼容。' })
     const product = await tx.product.findUnique({ where: { id: productId } })
     if (!product) throw new ProductionEngineeringNotFoundError('material')
+    const materialId = await resolveMaterialIdForProduct(tx, data.productId, product.materialId)
+    if (!materialId) throw new ProductionEngineeringNotFoundError('material')
     if (data.isDefault) await tx.processRoute.updateMany({ where: { productId, isDefault: true }, data: { isDefault: false } })
     const route = await tx.processRoute.create({
       data: {
         productId,
+        materialId,
         name: data.name,
         isDefault: Boolean(data.isDefault),
         sortOrder: await nextConfigurationSortOrder(tx, 'processRoutes'),
@@ -104,11 +107,13 @@ export async function updateProcessRoute(id: string, data: ProcessRouteInput) {
     const productId = await resolveProductId(tx, data.productId, { description: '由物料自动映射，用于工艺路线兼容。' })
     const product = await tx.product.findUnique({ where: { id: productId } })
     if (!product) throw new ProductionEngineeringNotFoundError('material')
+    const materialId = await resolveMaterialIdForProduct(tx, data.productId, product.materialId)
+    if (!materialId) throw new ProductionEngineeringNotFoundError('material')
     if (data.isDefault) await tx.processRoute.updateMany({ where: { productId, isDefault: true, id: { not: id } }, data: { isDefault: false } })
     await tx.processStep.updateMany({ where: { routeId: id, deletedAt: null }, data: { deletedAt: new Date() } })
     const route = await tx.processRoute.update({
       where: { id },
-      data: { productId, name: data.name, isDefault: Boolean(data.isDefault), steps: { create: data.steps.map(stepData) } },
+      data: { productId, materialId, name: data.name, isDefault: Boolean(data.isDefault), steps: { create: data.steps.map(stepData) } },
       include: routeInclude,
     })
     return { before, product, route }

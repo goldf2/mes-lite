@@ -1,4 +1,4 @@
-import { resolveProductId } from '@/lib/material-product'
+import { resolveMaterialIdForProduct, resolveProductId } from '@/lib/material-product'
 import { prisma } from '@/lib/prisma'
 import type { BomCostRunInput } from '../contracts/bom-cost'
 import { BomCostRuleError, calculateBomCostSnapshot } from '../domain/bom-cost'
@@ -20,6 +20,12 @@ export async function createBomCostRun(input: BomCostRunInput, createdBy: string
   const bom = product.boms[0]
   if (!bom) throw new BomCostServiceError('该物料暂无有效的默认 BOM，无法计算成本', 400)
   const primaryOutput = bom.outputs[0]
+  const materialId = await prisma.$transaction((tx) => resolveMaterialIdForProduct(
+    tx,
+    input.productId,
+    primaryOutput?.materialId || product.materialId,
+  ))
+  if (!materialId) throw new BomCostServiceError('该物料的 Product→Material 关系无法唯一解析，请先确认映射', 400)
   let snapshot
   try {
     snapshot = calculateBomCostSnapshot({
@@ -35,7 +41,8 @@ export async function createBomCostRun(input: BomCostRunInput, createdBy: string
   }
   return prisma.bomCostRun.create({
     data: {
-      productId: product.id, bomId: bom.id, bomVersion: bom.version,
+      productId: product.id, materialId,
+      bomId: bom.id, bomVersion: bom.version,
       quantityBasis: input.quantityBasis, laborRatePerHour: input.laborRatePerHour,
       machineRatePerHour: input.machineRatePerHour, overheadCost: input.overheadCost,
       totalMaterialCost: snapshot.totalMaterialCost, totalLaborCost: snapshot.totalLaborCost,

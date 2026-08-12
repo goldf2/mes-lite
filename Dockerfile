@@ -103,6 +103,7 @@ COPY --from=builder --chown=node:node /app/prisma ./prisma
 COPY --from=builder --chown=node:node /app/scripts/cleanup-legacy-work-instruction-files.mjs ./scripts/cleanup-legacy-work-instruction-files.mjs
 COPY --from=builder --chown=node:node /app/scripts/render-pdf-thumbnail.mjs ./scripts/render-pdf-thumbnail.mjs
 COPY --from=builder --chown=node:node /app/scripts/runtime-backup.mjs ./scripts/runtime-backup.mjs
+COPY --from=builder --chown=node:node /app/.next/maintenance/product-material-migration.mjs ./scripts/product-material-migration.mjs
 COPY --from=builder --chown=root:root --chmod=755 /app/scripts/fix-persistent-storage-permissions.sh /app/scripts/docker-entrypoint.sh ./scripts/
 
 EXPOSE 3000

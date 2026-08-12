@@ -110,6 +110,7 @@ model Equipment {
 model Product {
   id               String               @id @default(cuid())
   sku              String               @unique
+  materialId       String?              @unique
   name             String
   category         String
   customerId       String?
@@ -179,6 +180,7 @@ model BOM {
   id               String            @id @default(cuid())
   productId        String
   product          Product           @relation(fields: [productId], references: [id])
+  materialId       String?
   items            BOMItem[]
   outputs          BOMOutput[]
   productionOrders ProductionOrder[]
@@ -201,6 +203,7 @@ model BOM {
   updatedAt        DateTime          @updatedAt
 
   @@unique([productId, version])
+  @@index([materialId])
   @@index([productId, status, purpose])
   @@index([basedOnBomId])
   @@index([productId, isActive, isDefault])
@@ -293,6 +296,7 @@ model BomCostRun {
   id                 String           @id @default(cuid())
   productId          String
   product            Product          @relation(fields: [productId], references: [id])
+  materialId         String?
   bomId              String?
   bom                BOM?             @relation(fields: [bomId], references: [id])
   bomVersion         String?
@@ -311,6 +315,7 @@ model BomCostRun {
   lines              BomCostRunLine[]
 
   @@index([productId, createdAt])
+  @@index([materialId, createdAt])
   @@index([bomId])
 }
 
@@ -342,15 +347,17 @@ model BomCostRunLine {
 // ==================== 工艺路线 ====================
 
 model ProcessRoute {
-  id        String        @id @default(cuid())
-  productId String
-  product   Product       @relation(fields: [productId], references: [id])
-  name      String
-  steps     ProcessStep[]
-  isDefault Boolean       @default(false)
-  sortOrder Int           @default(0)
+  id         String        @id @default(cuid())
+  productId  String
+  product    Product       @relation(fields: [productId], references: [id])
+  materialId String?
+  name       String
+  steps      ProcessStep[]
+  isDefault  Boolean       @default(false)
+  sortOrder  Int           @default(0)
 
   @@index([sortOrder])
+  @@index([materialId])
 }
 
 model ProcessStep {
@@ -445,6 +452,7 @@ model SawingCostScenario {
   productKind          String               @default("TEMPORARY")
   productId            String?
   product              Product?             @relation(fields: [productId], references: [id])
+  materialId           String?
   laborHoursPerPiece   Float                @default(0)
   machineHoursPerPiece Float                @default(0)
   bomItems             BOMItem[]
@@ -455,6 +463,7 @@ model SawingCostScenario {
   updatedAt            DateTime             @updatedAt
 
   @@index([productId])
+  @@index([materialId])
 }
 
 model ProductionCostItem {
@@ -887,16 +896,19 @@ model StockLog {
 }
 
 model StockIn {
-  id        String          @id @default(cuid())
-  orderId   String
-  order     ProductionOrder @relation(fields: [orderId], references: [id])
-  productId String
-  product   Product         @relation(fields: [productId], references: [id])
-  qty       Int
-  batchNo   String?
-  inDate    DateTime        @default(now())
-  inBy      String?
-  note      String?
+  id         String          @id @default(cuid())
+  orderId    String
+  order      ProductionOrder @relation(fields: [orderId], references: [id])
+  productId  String
+  product    Product         @relation(fields: [productId], references: [id])
+  materialId String?
+  qty        Int
+  batchNo    String?
+  inDate     DateTime        @default(now())
+  inBy       String?
+  note       String?
+
+  @@index([materialId])
 }
 
 // ==================== 客户与供应商 ====================

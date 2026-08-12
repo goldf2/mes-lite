@@ -88,11 +88,12 @@ async function main() {
   ])
 
   const product = await prisma.product.create({
-    data: { sku: 'MAT-FG-BOLT-M8-30', name: bolt.name, category: bolt.category, customerId: customer.id, unit: '件', description: bolt.spec },
+    data: { sku: 'MAT-FG-BOLT-M8-30', materialId: bolt.id, name: bolt.name, category: bolt.category, customerId: customer.id, unit: '件', description: bolt.spec },
   })
   const route = await prisma.processRoute.create({
     data: {
       productId: product.id,
+      materialId: bolt.id,
       name: 'M8×30 标准生产路线',
       isDefault: true,
       sortOrder: 10,

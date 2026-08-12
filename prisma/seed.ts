@@ -3,28 +3,28 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 async function main() {
-  // 1. 产品：轴承 6204
-  const product1 = await prisma.product.create({
+  // 1. 唯一物品主档：成品和原材料都先创建为 Material。
+  const bearing = await prisma.material.create({
     data: {
-      sku: 'ZC-6204',
+      code: 'ZC-6204',
       name: '深沟球轴承 6204',
-      category: '轴承',
+      spec: '内径20mm',
+      category: 'FINISHED',
       unit: '件',
-      description: '标准深沟球轴承，内径20mm',
+      stockUnit: '件',
     },
   })
 
-  // 2. 产品：齿轮 8模
-  const product2 = await prisma.product.create({
+  const gear = await prisma.material.create({
     data: {
-      sku: 'CL-8M',
+      code: 'CL-8M',
       name: '直齿轮 8模 80齿',
-      category: '齿轮',
+      category: 'FINISHED',
       unit: '件',
+      stockUnit: '件',
     },
   })
 
-  // 3. 原材料
   const steel = await prisma.material.create({
     data: {
       code: 'GC-15',
@@ -70,11 +70,35 @@ async function main() {
     },
   })
 
-  // 4. 轴承 BOM
+  // 2. Product 只是旧外键的兼容投影，必须显式绑定同一 Material。
+  const product1 = await prisma.product.create({
+    data: {
+      sku: 'ZC-6204',
+      materialId: bearing.id,
+      name: bearing.name,
+      category: bearing.category,
+      unit: bearing.stockUnit,
+      description: bearing.spec,
+    },
+  })
+
+  const product2 = await prisma.product.create({
+    data: {
+      sku: 'CL-8M',
+      materialId: gear.id,
+      name: gear.name,
+      category: gear.category,
+      unit: gear.stockUnit,
+    },
+  })
+
+  // 3. 轴承 BOM
   const bom1 = await prisma.bOM.create({
     data: {
       productId: product1.id,
+      materialId: bearing.id,
       version: 'v1',
+      outputs: { create: { materialId: bearing.id, quantity: 1, unit: '件', isPrimary: true } },
       items: {
         create: [
           { materialId: steel.id, quantity: 0.35, unit: 'kg', wastageRate: 0.05 },
@@ -88,11 +112,13 @@ async function main() {
     data: { status: 'RELEASED', isActive: true, isDefault: true, releasedAt: new Date() },
   })
 
-  // 5. 齿轮 BOM
+  // 4. 齿轮 BOM
   const bom2 = await prisma.bOM.create({
     data: {
       productId: product2.id,
+      materialId: gear.id,
       version: 'v1',
+      outputs: { create: { materialId: gear.id, quantity: 1, unit: '件', isPrimary: true } },
       items: {
         create: [
           { materialId: iron.id, quantity: 2.5, unit: 'kg', wastageRate: 0.08 },
@@ -106,10 +132,11 @@ async function main() {
     data: { status: 'RELEASED', isActive: true, isDefault: true, releasedAt: new Date() },
   })
 
-  // 6. 轴承工艺路线
+  // 5. 轴承工艺路线
   const route1 = await prisma.processRoute.create({
     data: {
       productId: product1.id,
+      materialId: bearing.id,
       name: '标准轴承加工路线',
       isDefault: true,
       steps: {
@@ -123,10 +150,11 @@ async function main() {
     },
   })
 
-  // 7. 齿轮工艺路线
+  // 6. 齿轮工艺路线
   const route2 = await prisma.processRoute.create({
     data: {
       productId: product2.id,
+      materialId: gear.id,
       name: '齿轮加工路线',
       isDefault: true,
       steps: {
@@ -141,8 +169,8 @@ async function main() {
   })
 
   console.log('Seed completed:')
-  console.log(`- Products: ${product1.name}, ${product2.name}`)
-  console.log(`- Materials: ${steel.name}, ${iron.name}, ${cutter.name}`)
+  console.log(`- Compatibility products: ${product1.name}, ${product2.name}`)
+  console.log(`- Materials: ${bearing.name}, ${gear.name}, ${steel.name}, ${iron.name}, ${cutter.name}`)
   console.log(`- BOMs: 2`)
   console.log(`- Routes: 2 with steps`)
 }

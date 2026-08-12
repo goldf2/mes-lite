@@ -125,6 +125,7 @@ export async function saveBom(input: SaveBomInput) {
           where: { id: target.id },
           data: {
             name: input.name || '默认方案', purpose: input.purpose, version,
+            materialId: primaryOutputMaterial.id,
             status: 'DRAFT', isDefault: false, isActive: false,
             outputQuantity: primaryOutput.quantity,
             outputUnit: primaryOutputMaterial.stockUnit || primaryOutputMaterial.unit,
@@ -133,7 +134,8 @@ export async function saveBom(input: SaveBomInput) {
         })
       : await tx.bOM.create({
           data: {
-            productId: product.id, name: input.name || `方案 ${version}`, purpose: input.purpose, version,
+            productId: product.id, materialId: primaryOutputMaterial.id,
+            name: input.name || `方案 ${version}`, purpose: input.purpose, version,
             status: 'DRAFT', isDefault: false, isActive: false,
             outputQuantity: primaryOutput.quantity,
             outputUnit: primaryOutputMaterial.stockUnit || primaryOutputMaterial.unit,

@@ -52,6 +52,7 @@ export async function copyBomVersion(bomId: string, changeReason?: string) {
     const copied = await tx.bOM.create({
       data: {
         productId: source.productId,
+        materialId: source.materialId,
         name: `${source.name}（新版本）`,
         purpose: source.purpose,
         version,

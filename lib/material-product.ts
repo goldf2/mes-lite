@@ -62,6 +62,7 @@ export function materialAsProductOption(material: {
 export async function ensureProductForMaterial(
   tx: ProductResolver,
   material: {
+    id: string
     code: string
     name: string
     category: string
@@ -75,12 +76,33 @@ export async function ensureProductForMaterial(
   const routeSortOrder = options.defaultRoute
     ? ((await tx.processRoute.aggregate({ _max: { sortOrder: true } }))._max.sortOrder ?? -1) + 1
     : 0
-  const existing = await tx.product.findFirst({
+  const existingProducts = await tx.product.findMany({
     where: { OR: [{ sku: material.code }, { sku }] },
     include: { processRoutes: options.defaultRoute ? { where: { isDefault: true }, include: { steps: true } } : false },
+    take: 2,
   })
+  if (existingProducts.length > 1) {
+    throw new Error(`物料 ${material.code} 对应多个兼容 Product，请先执行人工映射`)
+  }
+  const existing = existingProducts[0]
 
   if (existing) {
+    if (existing.materialId && existing.materialId !== material.id) {
+      throw new Error(`兼容产品 ${existing.sku} 已绑定其他物料，禁止按编码改写映射`)
+    }
+    if (!existing.materialId) {
+      const candidateCodes = existing.sku.startsWith('MAT-')
+        ? [existing.sku, existing.sku.slice(4)]
+        : [existing.sku]
+      const candidateMaterials = await tx.material.findMany({
+        where: { code: { in: candidateCodes }, deletedAt: null },
+        select: { id: true },
+        take: 2,
+      })
+      if (candidateMaterials.length > 1) {
+        throw new Error(`兼容产品 ${existing.sku} 对应多个 Material 候选，请先执行人工映射`)
+      }
+    }
     if (options.defaultRoute) {
       const routes = ('processRoutes' in existing ? existing.processRoutes : []) as unknown as Array<{ id: string; steps: unknown[] }>
       const defaultRoute = routes[0]
@@ -88,13 +110,23 @@ export async function ensureProductForMaterial(
         await tx.processRoute.create({
           data: {
             productId: existing.id,
+            materialId: material.id,
             name: '简易生产路线',
             isDefault: true,
             sortOrder: routeSortOrder,
             steps: { create: [{ stepNo: 1, name: '简易作业', workstation: '现场' }] },
           },
         })
-      } else if (defaultRoute.steps.length === 0) {
+      } else {
+        const existingRoute = await tx.processRoute.findUnique({ where: { id: defaultRoute.id } })
+        if (existingRoute?.materialId && existingRoute.materialId !== material.id) {
+          throw new Error(`兼容产品 ${existing.sku} 的默认工艺路线已指向其他 Material`)
+        }
+        if (existingRoute && !existingRoute.materialId) {
+          await tx.processRoute.update({ where: { id: existingRoute.id }, data: { materialId: material.id } })
+        }
+      }
+      if (defaultRoute && defaultRoute.steps.length === 0) {
         await tx.processStep.create({
           data: {
             routeId: defaultRoute.id,
@@ -111,16 +143,18 @@ export async function ensureProductForMaterial(
   const created = await tx.product.create({
     data: {
       sku,
+      materialId: material.id,
       name: material.name,
       category: material.category,
       customerId: material.customerId || null,
       unit: material.stockUnit || material.unit,
       description: options.description || `由物料 ${material.code} 自动映射，用于兼容旧业务表。`,
       ...(options.defaultRoute
-        ? {
-            processRoutes: {
-              create: {
-                name: '简易生产路线',
+      ? {
+          processRoutes: {
+            create: {
+              materialId: material.id,
+              name: '简易生产路线',
                 isDefault: true,
                 sortOrder: routeSortOrder,
                 steps: { create: [{ stepNo: 1, name: '简易作业', workstation: '现场' }] },
@@ -144,7 +178,7 @@ export async function resolveProductId(
   const materialId = targetId.slice(materialProductPrefix.length)
   const material = await tx.material.findUnique({
     where: { id: materialId },
-    select: { code: true, name: true, category: true, customerId: true, stockUnit: true, unit: true, deletedAt: true },
+    select: { id: true, code: true, name: true, category: true, customerId: true, stockUnit: true, unit: true, deletedAt: true },
   })
   if (!material || material.deletedAt) throw new Error('物料不存在或已归档，无法创建业务记录')
 
@@ -175,20 +209,28 @@ export async function resolveMaterialIdForProduct(
 
   const product = await tx.product.findUnique({
     where: { id: productId },
-    select: { sku: true },
+    select: { sku: true, materialId: true },
   })
   if (!product) return null
+  if (product.materialId) {
+    const explicitMaterial = await tx.material.findUnique({
+      where: { id: product.materialId },
+      select: { id: true, deletedAt: true },
+    })
+    return explicitMaterial && !explicitMaterial.deletedAt ? explicitMaterial.id : null
+  }
 
   const materialCodes = product.sku.startsWith('MAT-')
     ? [product.sku, product.sku.slice(4)]
     : [product.sku]
-  const material = await tx.material.findFirst({
+  const materials = await tx.material.findMany({
     where: {
       code: { in: materialCodes },
       deletedAt: null,
     },
     orderBy: { code: 'asc' },
     select: { id: true },
+    take: 2,
   })
-  return material?.id || null
+  return materials.length === 1 ? materials[0].id : null
 }

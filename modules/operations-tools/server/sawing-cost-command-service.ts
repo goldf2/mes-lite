@@ -1,5 +1,5 @@
 import { getCurrentOperator } from '@/lib/auth'
-import { resolveProductId } from '@/lib/material-product'
+import { resolveMaterialIdForProduct, resolveProductId } from '@/lib/material-product'
 import { prisma } from '@/lib/prisma'
 import { nextBomVersion } from '@/modules/bom'
 import type { ParsedSawingScenarioInput } from '../contracts/sawing-cost'
@@ -30,8 +30,19 @@ export async function createSawingCostScenario(input: ParsedSawingScenarioInput,
       ? await resolveProductId(tx, bomProductId, { description: '由物料自动映射，用于锯切成本/BOM 组成。' })
       : null
     const linkedProduct = resolvedProductId
-      ? await tx.product.findUnique({ where: { id: resolvedProductId }, select: { sku: true, name: true } })
+      ? await tx.product.findUnique({ where: { id: resolvedProductId }, select: { sku: true, name: true, materialId: true } })
       : null
+    const linkedMaterialId = resolvedProductId
+      ? await resolveMaterialIdForProduct(tx, values.productId!, linkedProduct?.materialId)
+      : null
+    if (resolvedProductId && !linkedMaterialId) throw new SawingCostServiceError('所选产品无法解析到有效 Material')
+    const linkedBomProduct = resolvedBomProductId
+      ? await tx.product.findUnique({ where: { id: resolvedBomProductId }, select: { materialId: true } })
+      : null
+    const linkedBomMaterialId = resolvedBomProductId
+      ? await resolveMaterialIdForProduct(tx, bomProductId!, linkedBomProduct?.materialId)
+      : null
+    if (resolvedBomProductId && !linkedBomMaterialId) throw new SawingCostServiceError('BOM 所选产品无法解析到有效 Material')
     const scenarioName = values.name?.trim()
       || (linkedProduct
         ? `${linkedProduct.sku} ${linkedProduct.name} 锯切成本`
@@ -41,6 +52,7 @@ export async function createSawingCostScenario(input: ParsedSawingScenarioInput,
         ...values,
         name: scenarioName,
         productId: resolvedProductId,
+        materialId: linkedMaterialId,
         createdBy: operatorName,
         processTemplates: { connect: processTemplateIds.map((id) => ({ id })) },
         costItems: { create: costItems },
@@ -83,6 +95,7 @@ export async function createSawingCostScenario(input: ParsedSawingScenarioInput,
         bom = await tx.bOM.create({
           data: {
             productId: resolvedBomProductId,
+            materialId: linkedBomMaterialId!,
             name: source ? `${source.name}（新版本）` : '默认方案',
             purpose: source?.purpose || 'PRODUCTION',
             version: nextBomVersion(versions.map((item) => item.version)),
@@ -98,6 +111,30 @@ export async function createSawingCostScenario(input: ParsedSawingScenarioInput,
         if (source?.outputs.length) await tx.bOMOutput.createMany({
           data: source.outputs.map(({ id: _id, createdAt: _createdAt, ...output }) => ({ ...output, bomId: bom!.id })),
         })
+      }
+      if (bom.materialId && bom.materialId !== linkedBomMaterialId) {
+        throw new SawingCostServiceError('BOM 已绑定其他 Material，禁止加入锯切成本')
+      }
+      const bomOutputs = await tx.bOMOutput.findMany({ where: { bomId: bom.id } })
+      const primaryOutputs = bomOutputs.filter((output) => output.isPrimary)
+      if (primaryOutputs.length > 1 || (primaryOutputs[0] && primaryOutputs[0].materialId !== linkedBomMaterialId)) {
+        throw new SawingCostServiceError('BOM 主产出与所选 Material 不一致')
+      }
+      if (primaryOutputs.length === 0) {
+        const matchingOutput = bomOutputs.find((output) => output.materialId === linkedBomMaterialId)
+        if (matchingOutput) {
+          await tx.bOMOutput.update({ where: { id: matchingOutput.id }, data: { isPrimary: true } })
+        } else {
+          await tx.bOMOutput.create({
+            data: {
+              bomId: bom.id, materialId: linkedBomMaterialId!, quantity: bom.outputQuantity,
+              unit: bom.outputUnit, isPrimary: true,
+            },
+          })
+        }
+      }
+      if (!bom.materialId) {
+        bom = await tx.bOM.update({ where: { id: bom.id }, data: { materialId: linkedBomMaterialId } })
       }
       await tx.bOMItem.create({
         data: {
