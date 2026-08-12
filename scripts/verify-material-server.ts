@@ -38,6 +38,7 @@ function verifyBoundaries() {
   const command = read('modules/materials/server/material-command-service.ts')
   const client = read('modules/materials/client/materials-api.ts')
   const page = read('modules/materials/ui/MaterialPage.tsx')
+  const editDialog = read('modules/materials/ui/MaterialEditDialog.tsx')
   assert.match(route, /material-query-service/, '物料 API 必须委托查询领域服务')
   assert.match(route, /material-command-service/, '物料 API 必须委托写入领域服务')
   assert.match(route, /requireResourcePermission[\s\S]*writeAuditLog/, '物料 API 必须保留权限与请求审计')
@@ -53,6 +54,12 @@ function verifyBoundaries() {
   assert.match(page, /materialRequestRef\.current\?\.abort\(\)[\s\S]*listMaterials\(buildMaterialParams\(\), controller\.signal\)/, '物料页面必须取消上一轮搜索并只保留最新请求')
   assert.match(page, /if \(controller\.signal\.aborted\) return[\s\S]*setMaterials\(\[\]\)/, '搜索失败必须区分过期请求并清除误导性的旧结果')
   assert.match(page, /materialLoading \? \([\s\S]*正在筛选物料[\s\S]*没有匹配的物料[\s\S]*清除搜索条件/, '搜索期间和无结果时必须呈现明确状态，不能继续显示旧卡片')
+  assert.match(
+    editDialog,
+    /await saveMaterial\([\s\S]*onClose\(\)[\s\S]*void Promise\.resolve\(\)\.then\(onSaved\)/,
+    '物料保存成功后必须先关闭编辑弹窗，再在后台刷新列表',
+  )
+  assert.match(editDialog, /物料已保存，但列表刷新失败/, '保存成功后的列表刷新失败必须使用独立提示，不能让弹窗停留在处理中')
 }
 
 async function verifyDatabaseRules() {

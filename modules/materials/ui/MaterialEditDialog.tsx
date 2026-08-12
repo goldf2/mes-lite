@@ -146,8 +146,10 @@ export default function MaterialEditDialog({
     try {
       await saveMaterial(payload, material?.id)
       onMessage(material ? '物料更新成功' : '物料创建成功')
-      await onSaved()
       onClose()
+      void Promise.resolve().then(onSaved).catch(() => {
+        onMessage('物料已保存，但列表刷新失败，请稍后重试')
+      })
     } catch (error) {
       onMessage(error instanceof MaterialApiError ? error.message : '操作失败')
     } finally {
