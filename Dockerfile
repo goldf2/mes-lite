@@ -55,6 +55,14 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000 \
     DATABASE_URL=file:/app/data/mes_lite.db \
+    MES_LITE_DATABASE_PATH=/app/data/mes_lite.db \
+    MES_LITE_DATA_DIR=/app/data \
+    MES_LITE_UPLOAD_DIR=/app/public/uploads \
+    MES_LITE_BACKUP_DIR=/app/backups \
+    MES_LITE_BACKUP_RETENTION_COUNT=30 \
+    MES_LITE_BACKUP_RETENTION_DAYS=14 \
+    MES_LITE_BACKUP_MAX_AGE_HOURS=26 \
+    MES_LITE_PRE_MIGRATION_BACKUP_ENABLED=false \
     PDF_FONT_PATH=/app/assets/fonts/NotoSansCJKsc-Regular.otf
 
 COPY --from=builder --chown=node:node /app/assets/fonts ./assets/fonts
@@ -70,13 +78,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       libreoffice-calc-nogui \
       libreoffice-impress-nogui \
       fontconfig \
+      tar \
     && command -v pdftoppm >/dev/null \
     && command -v soffice >/dev/null \
+    && command -v tar >/dev/null \
     && mkdir -p /usr/local/share/fonts/mes-lite \
     && cp /app/assets/fonts/NotoSansCJKsc-Regular.otf /usr/local/share/fonts/mes-lite/ \
     && fc-cache -f \
     && command -v setpriv >/dev/null \
-    && mkdir -p /app/data /app/public/uploads \
+    && mkdir -p /app/data /app/public/uploads /app/backups \
     && chown -R node:node /app
 
 COPY --from=builder --chown=node:node /app/.next/standalone ./
@@ -92,13 +102,14 @@ COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/prisma ./prisma
 COPY --from=builder --chown=node:node /app/scripts/cleanup-legacy-work-instruction-files.mjs ./scripts/cleanup-legacy-work-instruction-files.mjs
 COPY --from=builder --chown=node:node /app/scripts/render-pdf-thumbnail.mjs ./scripts/render-pdf-thumbnail.mjs
+COPY --from=builder --chown=node:node /app/scripts/runtime-backup.mjs ./scripts/runtime-backup.mjs
 COPY --from=builder --chown=root:root --chmod=755 /app/scripts/fix-persistent-storage-permissions.sh /app/scripts/docker-entrypoint.sh ./scripts/
 
 EXPOSE 3000
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=6 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+  CMD ["node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/api/health/ready').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
 
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 
-CMD ["sh", "-c", "touch /app/data/mes_lite.db && node scripts/cleanup-legacy-work-instruction-files.mjs && node node_modules/prisma/build/index.js migrate deploy && node server.js"]
+CMD ["sh", "-c", "database_path=\"${MES_LITE_DATABASE_PATH:-/app/data/mes_lite.db}\" && touch \"$database_path\" && if [ \"${MES_LITE_PRE_MIGRATION_BACKUP_ENABLED:-false}\" = \"true\" ] && [ -s \"$database_path\" ]; then node scripts/runtime-backup.mjs create; fi && node scripts/cleanup-legacy-work-instruction-files.mjs && node node_modules/prisma/build/index.js migrate deploy && node server.js"]

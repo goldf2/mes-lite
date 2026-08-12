@@ -47,11 +47,17 @@
 - [x] 生产 Cookie 显式启用 `Secure`，所有写 API 在 Middleware 执行 Origin 同源校验。
 - [x] 登录页依据服务端注册开关显示或隐藏注册入口。
 
-### 阶段 0 后续切片
+### 阶段 0C：运行时数据与灾备（v0.1.347）
 
-- [ ] 停止跟踪 SQLite 数据库与构建缓存；在维护窗口清理 Git 历史并轮换账号。
-- [ ] 建立 SQLite 一致性快照、附件同步、保留策略、异地副本和恢复演练。
-- [ ] 增强 readiness 健康检查，并使部署文档与实际 Compose/Coolify 配置一致。
+- [x] 停止跟踪 SQLite 数据库、journal/WAL/SHM 与 TypeScript 构建缓存，保留当前本地数据。
+- [x] 建立 SQLite 一致快照、附件引用校验、逐文件 SHA-256、保留策略和非覆盖恢复候选。
+- [x] 增加 liveness/readiness 分层，readiness 覆盖数据库、失败迁移和持久目录可写性。
+- [x] 对齐 Compose、Dockerfile、Coolify 挂载、迁移前备份、每日调度和恢复演练手册。
+
+### 阶段 0 维护窗口待办
+
+- [ ] 历史 commit 仍含旧 SQLite 快照；需在维护窗口完成备份、协作者通知、Git 历史重写、远程强制更新及账号/密钥轮换。
+- [ ] 在 Coolify 配置实际异地备份目标，完成一次部署环境恢复演练并记录真实 RPO/RTO。
 
 ## 4. 暂停线
 

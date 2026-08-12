@@ -26,7 +26,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.json({ error: '写请求来源无效' }, { status: 403 })
   }
   if (pathname.startsWith('/api/auth')) return NextResponse.next()
-  if (pathname === '/api/health') return NextResponse.next()
+  if (pathname === '/api/health' || pathname.startsWith('/api/health/')) return NextResponse.next()
 
   const token = req.cookies.get(SESSION_COOKIE)?.value
   if (!token) {

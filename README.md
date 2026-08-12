@@ -93,7 +93,9 @@ npm run verify:data-integrity # 关键数据一致性
 
 - `/app/data`：SQLite 数据库
 - `/app/public/uploads`：原始附件和派生预览
-- `/api/health`：健康检查
+- `/app/backups`：经一致性和 SHA-256 校验的数据库+附件备份
+- `/api/health/live`：进程存活检查
+- `/api/health/ready`：数据库、迁移和持久存储就绪检查
 - 写 API：校验同源 `Origin`；额外允许来源由 `MES_TRUSTED_ORIGINS` 配置
 
-详见 [Coolify 部署说明](./docs/deployment/coolify.md)。PostgreSQL、对象存储和多租户是规划中的演进方向，不是当前运行事实。
+详见 [Coolify 部署说明](./docs/deployment/coolify.md) 和 [备份、恢复与灾备演练](./docs/operations/备份恢复与灾备演练.md)。PostgreSQL、对象存储和多租户是规划中的演进方向，不是当前运行事实。

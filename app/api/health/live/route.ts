@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   return NextResponse.json({
-    status: 'ok',
+    status: 'alive',
     service: 'mes-lite',
     timestamp: new Date().toISOString(),
   }, { headers: { 'Cache-Control': 'no-store' } })

@@ -5,6 +5,7 @@ storage_user="${MES_LITE_STORAGE_USER:-node}"
 storage_group="${MES_LITE_STORAGE_GROUP:-node}"
 data_dir="${MES_LITE_DATA_DIR:-/app/data}"
 upload_dir="${MES_LITE_UPLOAD_DIR:-/app/public/uploads}"
+backup_dir="${MES_LITE_BACKUP_DIR:-/app/backups}"
 
 validate_storage_dir() {
   storage_dir="$1"
@@ -54,3 +55,4 @@ repair_storage_dir() {
 
 repair_storage_dir "$data_dir" "数据库目录"
 repair_storage_dir "$upload_dir" "附件目录"
+repair_storage_dir "$backup_dir" "备份目录"
