@@ -43,19 +43,27 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
     const qty = Number(stock.qty)
     const reservedQty = Number(stock.reservedQty)
     const availableQty = Number(stock.availableQty)
+    const quarantineQty = Number(stock.quarantineQty)
+    const holdQty = Number(stock.holdQty)
     const valuationQty = Number(stock.valuationQty)
     const reservedValuationQty = Number(stock.reservedValuationQty)
     const availableValuationQty = Number(stock.availableValuationQty)
+    const quarantineValuationQty = Number(stock.quarantineValuationQty)
+    const holdValuationQty = Number(stock.holdValuationQty)
     const totalCost = Number(stock.totalCost)
+    const quarantineCost = Number(stock.quarantineCost)
+    const holdCost = Number(stock.holdCost)
     const hasMaterial = Boolean(stock.materialId)
     const hasProduct = Boolean(stock.productId)
     const reasons = validateStockBalance({
-      qty, reservedQty, availableQty, valuationQty, reservedValuationQty,
-      availableValuationQty, totalCost, hasMaterial, hasProduct,
+      qty, reservedQty, availableQty, quarantineQty, holdQty, valuationQty, reservedValuationQty,
+      availableValuationQty, quarantineValuationQty, holdValuationQty,
+      totalCost, quarantineCost, holdCost, hasMaterial, hasProduct,
       materialExists: Boolean(stock.material),
       productExists: Boolean(stock.product),
       locationBalances: stock.locationBalances.map((item) => ({
         qty: Number(item.qty), reservedQty: Number(item.reservedQty), availableQty: Number(item.availableQty),
+        quarantineQty: Number(item.quarantineQty), holdQty: Number(item.holdQty),
       })),
     })
 

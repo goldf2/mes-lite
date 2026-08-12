@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { changeStockLocationBalance, postInventoryIssue, postInventoryReceipt } from '@/lib/inventory'
+import { createInventoryLotReceipt } from '@/modules/inventory'
+import { createProductionQualityInspection } from '@/modules/quality'
 import { parseProductionActualCostLayerSnapshot } from '../domain/production-order-actual-cost-snapshot'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
 import { recalculateProductionOrderTotals } from './production-order-actual-totals'
@@ -10,7 +12,7 @@ const tolerance = 0.000001
 
 const postingInclude = {
   inputs: { include: { material: true } },
-  outputs: { include: { material: true } },
+  outputs: { include: { material: true, inventoryLot: { include: { balances: true, inspections: true } } } },
 } satisfies Prisma.ProductionOrderActualInclude
 
 async function requireProductionOrderActual(
@@ -82,7 +84,40 @@ export async function confirmProductionOrderActual(orderId: string, actualId: st
         createdBy: confirmedBy,
         idempotencyKey: `PRODUCTION_ACTUAL:${actual.id}:OUTPUT:${line.id}`,
         locationId: line.locationId,
+        inventoryStatus: 'QUARANTINE',
       })
+      const lot = await createInventoryLotReceipt(tx, {
+        lotNo: `${actual.actualNo}-${line.materialCode}`,
+        materialId: line.materialId,
+        productionOutputId: line.id,
+        sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT',
+        sourceId: line.id,
+        locationId: receipt.location!.id,
+        inventoryStatus: 'QUARANTINE',
+        stockQty: Number(line.actualQty),
+        valuationQty: Number(receipt.quantities?.valuationQty || 0),
+        costAmount,
+        stockLogId: receipt.movement!.id,
+        idempotencyKey: `PRODUCTION_ACTUAL:${actual.id}:LOT_RECEIPT:${line.id}`,
+        note: `生产订单实绩 ${actual.actualNo} 产出批次待检入库`,
+        createdBy: confirmedBy,
+      })
+      await Promise.all([
+        tx.stockLog.update({
+          where: { id: receipt.movement!.id },
+          data: { lotId: lot.id, inventoryStatus: 'QUARANTINE', toInventoryStatus: 'QUARANTINE' },
+        }),
+        receipt.costLayer ? tx.inventoryCostLayer.update({
+          where: { id: receipt.costLayer.id },
+          data: { lotId: lot.id, inventoryStatus: 'QUARANTINE' },
+        }) : Promise.resolve(),
+        createProductionQualityInspection(tx, {
+          inspectionNo: `QI-${lot.lotNo}`,
+          lotId: lot.id,
+          sourceId: line.id,
+          inspectedQty: Number(line.actualQty),
+        }),
+      ])
       await tx.productionOrderActualOutput.update({
         where: { id: line.id },
         data: {
@@ -109,7 +144,7 @@ export async function confirmProductionOrderActual(orderId: string, actualId: st
 async function reverseProductionOutput(
   tx: Prisma.TransactionClient,
   actual: Prisma.ProductionOrderActualGetPayload<{ include: typeof postingInclude }>,
-  line: Prisma.ProductionOrderActualOutputGetPayload<{ include: { material: true } }>,
+  line: Prisma.ProductionOrderActualOutputGetPayload<{ include: { material: true, inventoryLot: { include: { balances: true, inspections: true } } } }>,
   reason: string,
   reversedBy: string,
 ) {
@@ -117,7 +152,13 @@ async function reverseProductionOutput(
   if (outputQty <= 0) return
   const stock = await tx.stock.findUnique({ where: { materialId: line.materialId } })
   if (!stock) throw new ProductionOrderDomainError(`产出 ${line.materialCode} 没有库存记录，无法冲销`)
-  if (Number(stock.availableQty) + tolerance < outputQty) {
+  const lotBalance = line.inventoryLot?.balances.find((balance) => Number(balance.stockQty) > tolerance)
+  const inventoryStatus = lotBalance?.inventoryStatus
+  if (inventoryStatus === 'AVAILABLE') throw new ProductionOrderDomainError(`产出批次 ${line.inventoryLot?.lotNo} 已放行，不能直接冲销`)
+  if (line.inventoryLot && (!lotBalance || (inventoryStatus !== 'QUARANTINE' && inventoryStatus !== 'HOLD'))) {
+    throw new ProductionOrderDomainError(`产出批次 ${line.inventoryLot.lotNo} 状态异常，不能冲销`)
+  }
+  if (!line.inventoryLot && Number(stock.availableQty) + tolerance < outputQty) {
     throw new ProductionOrderDomainError(`产出 ${line.materialCode} 可用库存不足，无法冲销`)
   }
   if (Number(stock.totalCost) + tolerance < Number(line.costAmount)) {
@@ -133,8 +174,9 @@ async function reverseProductionOutput(
   )) {
     throw new ProductionOrderDomainError(`产出 ${line.materialCode} 已被后续领用或发货，不能直接冲销`)
   }
-  await tx.inventoryCostLayer.deleteMany({
+  await tx.inventoryCostLayer.updateMany({
     where: { sourceType: 'PRODUCTION_ORDER_ACTUAL', sourceId: actual.id, materialId: line.materialId },
+    data: { remainingStockQty: 0, remainingValuationQty: 0, remainingAmount: 0, status: 'REVERSED' },
   })
 
   const beforeQty = Number(stock.qty)
@@ -143,14 +185,22 @@ async function reverseProductionOutput(
   const afterQty = roundQty(beforeQty - outputQty)
   const afterValuationQty = Math.max(0, roundQty(beforeValuationQty - Number(line.valuationQty)))
   const afterCost = Math.max(0, roundQty(beforeCost - Number(line.costAmount)))
+  const isQuarantine = inventoryStatus === 'QUARANTINE'
+  const isHold = inventoryStatus === 'HOLD'
   await tx.stock.update({
     where: { id: stock.id },
     data: {
       qty: afterQty,
-      availableQty: roundQty(Number(stock.availableQty) - outputQty),
+      availableQty: roundQty(Number(stock.availableQty) - (!line.inventoryLot ? outputQty : 0)),
+      quarantineQty: roundQty(Number(stock.quarantineQty) - (isQuarantine ? outputQty : 0)),
+      holdQty: roundQty(Number(stock.holdQty) - (isHold ? outputQty : 0)),
       valuationQty: afterValuationQty,
-      availableValuationQty: Math.max(0, roundQty(Number(stock.availableValuationQty) - Number(line.valuationQty))),
+      availableValuationQty: Math.max(0, roundQty(Number(stock.availableValuationQty) - (!line.inventoryLot ? Number(line.valuationQty) : 0))),
+      quarantineValuationQty: Math.max(0, roundQty(Number(stock.quarantineValuationQty) - (isQuarantine ? Number(line.valuationQty) : 0))),
+      holdValuationQty: Math.max(0, roundQty(Number(stock.holdValuationQty) - (isHold ? Number(line.valuationQty) : 0))),
       totalCost: afterCost,
+      quarantineCost: Math.max(0, roundQty(Number(stock.quarantineCost) - (isQuarantine ? Number(line.costAmount) : 0))),
+      holdCost: Math.max(0, roundQty(Number(stock.holdCost) - (isHold ? Number(line.costAmount) : 0))),
       valuationUnitCost: afterValuationQty > 0 ? afterCost / afterValuationQty : 0,
       stockUnitCost: afterQty > 0 ? afterCost / afterQty : 0,
     },
@@ -159,6 +209,9 @@ async function reverseProductionOutput(
     stockId: stock.id,
     locationId: line.locationId,
     qtyDelta: -outputQty,
+    availableDelta: !line.inventoryLot ? -outputQty : 0,
+    quarantineDelta: isQuarantine ? -outputQty : 0,
+    holdDelta: isHold ? -outputQty : 0,
   })
   const sourceMovement = await tx.stockLog.findFirst({
     where: { refType: 'PRODUCTION_ORDER_ACTUAL', refId: actual.id, type: 'PRODUCTION_IN', stockId: stock.id, locationId: location.id },
@@ -183,6 +236,9 @@ async function reverseProductionOutput(
       conversionRateUsed: line.conversionRateUsed,
       conversionSource: 'ORIGINAL_MOVEMENT',
       costingMethodSnapshot: line.material.costingMethod,
+      lotId: line.inventoryLot?.id,
+      inventoryStatus: inventoryStatus || 'AVAILABLE',
+      fromInventoryStatus: inventoryStatus || 'AVAILABLE',
       sourceMovementId: sourceMovement?.id,
       idempotencyKey: `PRODUCTION_ACTUAL:${actual.id}:REVERSE_OUTPUT:${line.id}`,
       refType: 'PRODUCTION_ORDER_ACTUAL_REVERSE',
@@ -193,6 +249,37 @@ async function reverseProductionOutput(
   })
   if (sourceMovement) {
     await tx.stockLog.update({ where: { id: sourceMovement.id }, data: { reversalMovementId: reversalMovement.id } })
+  }
+  if (line.inventoryLot && lotBalance && (inventoryStatus === 'QUARANTINE' || inventoryStatus === 'HOLD')) {
+    await tx.inventoryLotBalance.update({
+      where: { id: lotBalance.id },
+      data: { stockQty: 0, valuationQty: 0, costAmount: 0 },
+    })
+    await tx.inventoryLotTransaction.create({
+      data: {
+        lotId: line.inventoryLot.id,
+        locationId: lotBalance.locationId,
+        type: 'REVERSE_RECEIPT',
+        fromStatus: inventoryStatus,
+        stockQty: outputQty,
+        valuationQty: Number(line.valuationQty),
+        costAmount: Number(line.costAmount),
+        refType: 'PRODUCTION_ORDER_ACTUAL_REVERSE',
+        refId: actual.id,
+        stockLogId: reversalMovement.id,
+        idempotencyKey: `PRODUCTION_ACTUAL:${actual.id}:LOT_REVERSE:${line.id}`,
+        note: `冲销生产订单实绩 ${actual.actualNo}: ${reason}`,
+        createdBy: reversedBy,
+      },
+    })
+    await tx.inventoryLot.update({
+      where: { id: line.inventoryLot.id },
+      data: { status: 'REVERSED', reversedAt: new Date(), reversedBy, reverseReason: reason },
+    })
+    await tx.qualityInspection.updateMany({
+      where: { lotId: line.inventoryLot.id },
+      data: { status: 'REVERSED' },
+    })
   }
 }
 

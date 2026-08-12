@@ -15,6 +15,7 @@ export type ConversionSource =
 const roundQty = (value: number) => Number(value.toFixed(6))
 const tolerance = 0.000001
 export const defaultInventoryLocationId = 'default-location'
+export type InventoryReceiptStatus = 'AVAILABLE' | 'QUARANTINE' | 'HOLD'
 
 type MaterialPolicy = {
   id: string
@@ -131,6 +132,8 @@ export async function changeStockLocationBalance(
     qtyDelta: number
     reservedDelta?: number
     availableDelta?: number
+    quarantineDelta?: number
+    holdDelta?: number
   },
 ) {
   const location = await resolveInventoryLocation(tx, input.locationId)
@@ -144,13 +147,15 @@ export async function changeStockLocationBalance(
   const availableQty = roundQty(
     Number(current.availableQty) + (input.availableDelta ?? input.qtyDelta),
   )
-  if (qty < -tolerance || reservedQty < -tolerance || availableQty < -tolerance) {
+  const quarantineQty = roundQty(Number(current.quarantineQty) + Number(input.quarantineDelta || 0))
+  const holdQty = roundQty(Number(current.holdQty) + Number(input.holdDelta || 0))
+  if (qty < -tolerance || reservedQty < -tolerance || availableQty < -tolerance || quarantineQty < -tolerance || holdQty < -tolerance) {
     throw new Error(
       `库位 ${location.code} ${location.name} 库存不足：可用 ${current.availableQty}，本次变动 ${input.availableDelta ?? input.qtyDelta}`,
     )
   }
-  if (Math.abs(availableQty - (qty - reservedQty)) > tolerance) {
-    throw new Error(`库位 ${location.code} ${location.name} 的库存、占用和可用数量不一致`)
+  if (Math.abs(availableQty - (qty - reservedQty - quarantineQty - holdQty)) > tolerance) {
+    throw new Error(`库位 ${location.code} ${location.name} 的库存、占用、待检、冻结和可用数量不一致`)
   }
   const balance = await tx.stockLocationBalance.update({
     where: { id: current.id },
@@ -158,6 +163,8 @@ export async function changeStockLocationBalance(
       qty: Math.max(0, qty),
       reservedQty: Math.max(0, reservedQty),
       availableQty: Math.max(0, availableQty),
+      quarantineQty: Math.max(0, quarantineQty),
+      holdQty: Math.max(0, holdQty),
     },
   })
   return { location, balance }
@@ -191,19 +198,22 @@ async function ensureFifoOpeningLayer(
     totalCost: number
     stockUnitCost: number
     valuationUnitCost: number
+    eligibleStockQty: number
+    eligibleValuationQty: number
+    eligibleCostAmount: number
   },
 ) {
-  if (material.costingMethod !== 'FIFO' || stock.qty <= tolerance) return
+  if (material.costingMethod !== 'FIFO' || stock.eligibleStockQty <= tolerance) return
   const aggregate = await tx.inventoryCostLayer.aggregate({
-    where: { materialId: material.id, status: 'OPEN' },
+    where: { materialId: material.id, status: 'OPEN', inventoryStatus: 'AVAILABLE' },
     _sum: { remainingStockQty: true },
   })
   const layeredQty = Number(aggregate._sum.remainingStockQty || 0)
-  const missingQty = roundQty(stock.qty - layeredQty)
+  const missingQty = roundQty(stock.eligibleStockQty - layeredQty)
   if (missingQty <= tolerance) return
-  const averageRate = stock.qty > 0 ? stock.valuationQty / stock.qty : material.conversionRate
+  const averageRate = stock.eligibleStockQty > 0 ? stock.eligibleValuationQty / stock.eligibleStockQty : material.conversionRate
   const valuationQty = roundQty(missingQty * averageRate)
-  const amount = roundQty(missingQty * (stock.qty > 0 ? stock.totalCost / stock.qty : stock.stockUnitCost))
+  const amount = roundQty(missingQty * (stock.eligibleStockQty > 0 ? stock.eligibleCostAmount / stock.eligibleStockQty : stock.stockUnitCost))
   await tx.inventoryCostLayer.create({
     data: {
       materialId: material.id,
@@ -217,6 +227,7 @@ async function ensureFifoOpeningLayer(
       stockUnitCost: missingQty > 0 ? amount / missingQty : stock.stockUnitCost,
       totalAmount: amount,
       remainingAmount: amount,
+      inventoryStatus: 'AVAILABLE',
     },
   })
 }
@@ -239,6 +250,7 @@ export async function postInventoryReceipt(
     materialInId?: string | null
     sourceMovementId?: string | null
     locationId?: string | null
+    inventoryStatus?: InventoryReceiptStatus
   },
 ) {
   if (input.idempotencyKey) {
@@ -255,10 +267,14 @@ export async function postInventoryReceipt(
   const costAmount = roundQty(Number(input.costAmount || 0))
   if (costAmount < 0) throw new Error('入库成本不能为负数')
   const stock = await getOrCreateStock(tx, material.id)
+  const inventoryStatus = input.inventoryStatus || 'AVAILABLE'
   const { location } = await changeStockLocationBalance(tx, {
     stockId: stock.id,
     locationId: input.locationId,
     qtyDelta: quantities.stockQty,
+    availableDelta: inventoryStatus === 'AVAILABLE' ? quantities.stockQty : 0,
+    quarantineDelta: inventoryStatus === 'QUARANTINE' ? quantities.stockQty : 0,
+    holdDelta: inventoryStatus === 'HOLD' ? quantities.stockQty : 0,
   })
   const beforeQty = Number(stock.qty)
   const beforeValuationQty = Number(stock.valuationQty)
@@ -271,17 +287,24 @@ export async function postInventoryReceipt(
     where: { id: stock.id },
     data: {
       qty: afterQty,
-      availableQty: roundQty(Number(stock.availableQty) + quantities.stockQty),
+      availableQty: roundQty(Number(stock.availableQty) + (inventoryStatus === 'AVAILABLE' ? quantities.stockQty : 0)),
+      quarantineQty: roundQty(Number(stock.quarantineQty) + (inventoryStatus === 'QUARANTINE' ? quantities.stockQty : 0)),
+      holdQty: roundQty(Number(stock.holdQty) + (inventoryStatus === 'HOLD' ? quantities.stockQty : 0)),
       valuationQty: afterValuationQty,
-      availableValuationQty: roundQty(Number(stock.availableValuationQty) + quantities.valuationQty),
+      availableValuationQty: roundQty(Number(stock.availableValuationQty) + (inventoryStatus === 'AVAILABLE' ? quantities.valuationQty : 0)),
+      quarantineValuationQty: roundQty(Number(stock.quarantineValuationQty) + (inventoryStatus === 'QUARANTINE' ? quantities.valuationQty : 0)),
+      holdValuationQty: roundQty(Number(stock.holdValuationQty) + (inventoryStatus === 'HOLD' ? quantities.valuationQty : 0)),
       totalCost: afterCostAmount,
+      quarantineCost: roundQty(Number(stock.quarantineCost) + (inventoryStatus === 'QUARANTINE' ? costAmount : 0)),
+      holdCost: roundQty(Number(stock.holdCost) + (inventoryStatus === 'HOLD' ? costAmount : 0)),
       valuationUnitCost: afterValuationQty > 0 ? afterCostAmount / afterValuationQty : 0,
       stockUnitCost: afterQty > 0 ? afterCostAmount / afterQty : 0,
     },
   })
 
+  let costLayer = null
   if (input.createCostLayer !== false) {
-    await tx.inventoryCostLayer.create({
+    costLayer = await tx.inventoryCostLayer.create({
       data: {
         materialId: material.id,
         materialInId: input.materialInId || null,
@@ -297,6 +320,7 @@ export async function postInventoryReceipt(
         stockUnitCost: quantities.stockQty > 0 ? costAmount / quantities.stockQty : 0,
         totalAmount: costAmount,
         remainingAmount: costAmount,
+        inventoryStatus,
       },
     })
   }
@@ -320,6 +344,7 @@ export async function postInventoryReceipt(
       conversionRateUsed: quantities.conversionRateUsed,
       conversionSource: quantities.conversionSource,
       costingMethodSnapshot: material.costingMethod,
+      inventoryStatus,
       sourceMovementId: input.sourceMovementId || null,
       idempotencyKey: input.idempotencyKey,
       refType: input.refType,
@@ -328,7 +353,7 @@ export async function postInventoryReceipt(
       createdBy: input.createdBy || null,
     },
   })
-  return { movement, material, location, quantities, costAmount, duplicate: false }
+  return { movement, costLayer, material, location, quantities, costAmount, inventoryStatus, duplicate: false }
 }
 
 export async function postInventoryIssue(
@@ -356,16 +381,21 @@ export async function postInventoryIssue(
     totalCost: Number(stock.totalCost),
     stockUnitCost: Number(stock.stockUnitCost),
     valuationUnitCost: Number(stock.valuationUnitCost),
+    eligibleStockQty: roundQty(Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty)),
+    eligibleValuationQty: roundQty(Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty)),
+    eligibleCostAmount: roundQty(Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost)),
   })
   const costResult = await consumeMaterialCost(tx, {
     materialId: material.id,
     issueStockQty: issueQty,
     stock: {
       id: stock.id,
-      qty: Number(stock.qty),
-      valuationQty: Number(stock.valuationQty),
-      totalCost: Number(stock.totalCost),
-      valuationUnitCost: Number(stock.valuationUnitCost),
+      qty: roundQty(Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty)),
+      valuationQty: roundQty(Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty)),
+      totalCost: roundQty(Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost)),
+      valuationUnitCost: Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty) > tolerance
+        ? roundQty((Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost)) / (Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty)))
+        : 0,
     },
     material: {
       costingMethod: material.costingMethod,

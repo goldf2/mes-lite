@@ -55,7 +55,11 @@ export async function importMaterialsCsv(text: string, mode: MaterialImportMode)
       ])
       const stock = existing.stock as Record<string, unknown> | null
       const hasBalance = stock
-        ? ['qty', 'valuationQty', 'reservedQty', 'reservedValuationQty', 'totalCost']
+        ? [
+            'qty', 'valuationQty', 'reservedQty', 'reservedValuationQty',
+            'quarantineQty', 'holdQty', 'quarantineValuationQty', 'holdValuationQty',
+            'totalCost', 'quarantineCost', 'holdCost',
+          ]
             .some((field) => Math.abs(Number(stock[field] || 0)) > 0.000001)
         : false
       return hasBalance || movementCount > 0 || existing._count.bomItems > 0 || outputBomCount > 0

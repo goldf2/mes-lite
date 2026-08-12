@@ -40,21 +40,24 @@ export async function pickLegacyProductionOrder(
         if (Number(stock.availableQty) + requiredQty < item.actualQty) {
           throw new ProductionOrderDomainError(`物料 ${pick.material.name} 库存不足`)
         }
+        const eligibleStockQty = roundQty(Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty))
+        const eligibleValuationQty = roundQty(Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty))
+        const eligibleCostAmount = roundQty(Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost))
 
         const reservedValuationQty = Number(pick.reservedValuationQty) > 0
           ? Number(pick.reservedValuationQty)
-          : Number(stock.qty) > 0
-            ? roundQty(requiredQty * (Number(stock.valuationQty) / Number(stock.qty)))
+          : eligibleStockQty > 0
+            ? roundQty(requiredQty * (eligibleValuationQty / eligibleStockQty))
             : roundQty(requiredQty * Number(pick.material.conversionRate || 1))
         const costResult = await consumeMaterialCost(tx, {
           materialId: pick.materialId,
           issueStockQty: item.actualQty,
           stock: {
             id: stock.id,
-            qty: Number(stock.qty),
-            valuationQty: Number(stock.valuationQty),
-            totalCost: Number(stock.totalCost),
-            valuationUnitCost: Number(stock.valuationUnitCost),
+            qty: eligibleStockQty,
+            valuationQty: eligibleValuationQty,
+            totalCost: eligibleCostAmount,
+            valuationUnitCost: eligibleValuationQty > 0 ? eligibleCostAmount / eligibleValuationQty : 0,
           },
           material: {
             costingMethod: pick.material.costingMethod,

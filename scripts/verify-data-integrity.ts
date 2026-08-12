@@ -148,10 +148,11 @@ async function main() {
       const riskyOrphanStock = await tx.stock.create({
         data: {
           qty: 2,
-          availableQty: 2,
+          quarantineQty: 2,
           valuationQty: 2,
-          availableValuationQty: 2,
+          quarantineValuationQty: 2,
           totalCost: 20,
+          quarantineCost: 20,
         },
       })
 

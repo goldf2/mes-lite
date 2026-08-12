@@ -12,7 +12,10 @@ const materialInclude = {
   stock: {
     select: {
       qty: true, reservedQty: true, availableQty: true, valuationQty: true,
-      reservedValuationQty: true, availableValuationQty: true, totalCost: true,
+      quarantineQty: true, holdQty: true,
+      reservedValuationQty: true, availableValuationQty: true,
+      quarantineValuationQty: true, holdValuationQty: true,
+      totalCost: true, quarantineCost: true, holdCost: true,
       valuationUnitCost: true, stockUnitCost: true,
     },
   },

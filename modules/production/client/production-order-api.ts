@@ -89,3 +89,11 @@ export async function reverseProductionOrderActual(orderId: string, actualId: st
     body: JSON.stringify({ reason }),
   })
 }
+
+export async function decideProductionQualityInspection(inspectionId: string, input: unknown) {
+  return request<unknown>(`/api/quality-inspections/${encodeURIComponent(inspectionId)}/decision`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}

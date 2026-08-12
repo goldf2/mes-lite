@@ -16,6 +16,7 @@ import {
   reverseProductionOrderActual,
 } from '../client/production-order-api'
 import { productionOrderActualCreationError } from '../domain/production-order-status'
+import ProductionQualityLotCard, { type ProductionQualityLotView } from './ProductionQualityLotCard'
 
 type BomSnapshot = {
   id: string
@@ -62,6 +63,7 @@ type ActualRecord = {
     unit: string
     isPrimary: boolean
     location: { code: string; name: string }
+    inventoryLot?: ProductionQualityLotView | null
   }>
 }
 
@@ -101,10 +103,12 @@ export default function ProductionOrderActualPanel({
   orderId,
   onMessage,
   onOrderChanged,
+  canQualityUpdate,
 }: {
   orderId: string
   onMessage: (message: string) => void
   onOrderChanged: () => void | Promise<void>
+  canQualityUpdate: boolean
 }) {
   const [data, setData] = useState<ActualData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -323,7 +327,7 @@ export default function ProductionOrderActualPanel({
                 </div>
                 <div className="rounded-md bg-blue-50/60 p-3 text-sm">
                   <div className="mb-2 font-medium text-blue-800">产出物料</div>
-                  {actual.outputs.map((line) => <div key={line.id} className="flex justify-between gap-3 py-1 text-blue-800"><span>{line.isPrimary ? '主产出 · ' : ''}{line.materialCode} · {line.materialName}</span><span className="shrink-0">{numberText(line.actualQty)} {line.unit} · {line.location.code}</span></div>)}
+                  {actual.outputs.map((line) => <div key={line.id} className="py-1 text-blue-800"><div className="flex justify-between gap-3"><span>{line.isPrimary ? '主产出 · ' : ''}{line.materialCode} · {line.materialName}</span><span className="shrink-0">{numberText(line.actualQty)} {line.unit} · {line.location.code}</span></div>{line.inventoryLot && <ProductionQualityLotCard lot={line.inventoryLot} canDecide={canQualityUpdate} onMessage={onMessage} onChanged={load} />}</div>)}
                 </div>
               </div>
               {actual.note && <div className="mt-3 text-sm text-gray-500">备注：{actual.note}</div>}
@@ -414,8 +418,8 @@ export default function ProductionOrderActualPanel({
       )}
 
       {confirming && (
-        <ModalDialog title="确认班后生产实绩" description={`${confirming.actualNo} · 确认后将原子更新全部投入和产出库存。`} onClose={() => !saving && setConfirming(null)} closeDisabled={saving} size="sm" footer={<ModalActions onCancel={() => setConfirming(null)} onConfirm={confirmActual} confirmLabel="确认并更新库存" busy={saving} />}>
-          <p className="text-sm text-gray-600">系统会按各明细选择的库位扣减投入、增加产出，并累计到生产订单完成数量。库存不足时整笔事务不会生效。</p>
+        <ModalDialog title="确认班后生产实绩" description={`${confirming.actualNo} · 确认后将原子更新投入，并将全部产出生成待检批次。`} onClose={() => !saving && setConfirming(null)} closeDisabled={saving} size="sm" footer={<ModalActions onCancel={() => setConfirming(null)} onConfirm={confirmActual} confirmLabel="确认并生成待检批次" busy={saving} />}>
+          <p className="text-sm text-gray-600">系统会扣减投入、增加产出总库存、生成内部批次和质量检验任务；产出在质量放行前不计入可用库存。库存不足时整笔事务不会生效。</p>
         </ModalDialog>
       )}
 

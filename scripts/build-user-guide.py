@@ -18,10 +18,11 @@ from docx.shared import Inches, Pt, RGBColor
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.1.351"
+VERSION = "0.1.354"
 SCREENSHOT_BASELINE = "0.1.350"
+QUALITY_SCREENSHOT_BASELINE = "0.1.354"
 DOCUMENT_FONT = "Arial Unicode MS"
-SHOT_DIR = ROOT / "docs/operations/user-guide/screenshots" / f"v{SCREENSHOT_BASELINE}"
+SHOT_ROOT = ROOT / "docs/operations/user-guide/screenshots"
 SOURCE_DIR = ROOT / "docs/operations/user-guide"
 DOCX_DIR = ROOT / "output/docx"
 
@@ -56,7 +57,19 @@ CHAPTERS = [
         ],
     ),
     (
-        "4. 派工与流程转移",
+        "4. 生产产出批次与质检",
+        [
+            ("66-production-quality-lots.png", "查看产出批次与质量状态", "从生产实绩核对内部批次、检验单和当前库存状态。", ["进入生产订单详情并展开已确认实绩。", "在每项产出下查看内部批次号和检验单号。", "区分待检、已放行和冻结状态。"], "每项新产出具有唯一内部批次，待检任务只允许判定一次。", QUALITY_SCREENSHOT_BASELINE),
+            ("67-quality-pass-form.png", "填写合格判定", "记录抽样结果并准备整批放行。", ["在待检批次点击“合格放行”。", "录入抽检数量、合格数量和不合格数量。", "填写检验结论说明并核对批次号。"], "合格数量与不合格数量之和等于抽检数量，整批合格时不合格数为 0。", QUALITY_SCREENSHOT_BASELINE),
+            ("68-quality-pass-result.png", "确认整批放行", "把检验合格的整批产出从待检转为可用。", ["点击“确认整批放行”。", "等待保存成功并刷新订单详情。", "核对批次状态、判定人和抽样结果。"], "批次显示“已放行”，待检库存减少、可用库存增加。", QUALITY_SCREENSHOT_BASELINE),
+            ("69-quality-fail-form.png", "填写不合格判定", "记录不合格样本和冻结原因。", ["在另一待检批次点击“不合格冻结”。", "录入抽检、合格和不合格数量。", "在说明中写清不合格现象和冻结原因。"], "抽样关系校验通过，说明可供后续处置人员理解。", QUALITY_SCREENSHOT_BASELINE),
+            ("70-quality-fail-result.png", "确认整批冻结", "阻止不合格产出进入领料或发货可用量。", ["点击“确认整批冻结”。", "等待保存成功并刷新订单详情。", "核对批次状态、判定人和抽样结果。"], "批次显示“冻结”，待检库存减少、冻结库存增加。", QUALITY_SCREENSHOT_BASELINE),
+            ("71-inventory-status-review.png", "核对库存状态", "在库存总账复核质量判定后的可用、待检和冻结数量。", ["进入 MES > 库存 > 库存管理。", "搜索质检涉及的产出物料。", "核对总量、可用、待检、冻结及库位余额。"], "总库存等于可用、待检和冻结之和，质量判定不改变总量或总成本。", QUALITY_SCREENSHOT_BASELINE),
+            ("72-inventory-quality-movements.png", "核对质量状态流水", "确认放行或冻结可以从统一库存流水回放。", ["进入 MES > 库存 > 库存流水。", "搜索产出物料或质量来源。", "核对 QUALITY RELEASE / QUALITY HOLD、批次、状态方向、操作人和时间。"], "状态转换流水数量变化为 0，但明确记录待检到可用或冻结的转换。", QUALITY_SCREENSHOT_BASELINE),
+        ],
+    ),
+    (
+        "5. 派工与流程转移",
         [
             ("13-dispatch-list.png", "查看派工", "查看生产任务的人员和工作中心分配。", ["进入 MES > 生产 > 派工管理。", "按任务、人员或状态筛选。", "核对生产订单、工作中心和执行人员。"], "待处理派工及其来源订单可追溯。"),
             ("14-dispatch-create.png", "新建派工", "把已发布生产任务分配到员工和工作中心。", ["点击“新建派工”。", "选择生产订单、员工、工作中心和计划时间。", "填写要求并保存。"], "派工记录出现在列表并可跟踪状态。"),
@@ -65,7 +78,7 @@ CHAPTERS = [
         ],
     ),
     (
-        "5. 来料与库存闭环",
+        "6. 来料与库存闭环",
         [
             ("17-receiving-list.png", "查看来料单", "查看供应商来料及收货状态。", ["进入 MES > 物流 > 来料管理。", "按单号、供应商或物料搜索。", "核对采购数量、实测数据、计价和状态。"], "待收货与已收货单据清晰区分。"),
             ("18-receiving-create.png", "新建来料单", "登记供应商原材料到货。", ["点击“新建来料单”。", "选择供应商、物料、收货库位。", "填写数量、实测重量、单价、凭据和附件。", "创建后保留为待收货，等待现场确认。"], "来料单生成，但库存尚未增加。"),
@@ -76,7 +89,7 @@ CHAPTERS = [
         ],
     ),
     (
-        "6. 销售、发货与退货",
+        "7. 销售、发货与退货",
         [
             ("24-sales-order-list.png", "查看销售订单", "跟踪客户需求、占用、已发和未发数量。", ["进入 ERP > 销售 > 销售订单。", "搜索客户、订单号或物料。", "查看草稿、已确认、部分发货和完成状态。"], "订单数量与发货占用、已发和未发数量一致。"),
             ("25-sales-order-create.png", "新建销售订单", "登记客户需求、价格和交期。", ["点击“新建销售订单”。", "选择客户并填写订单日期、交期和客户单号。", "添加物料、数量、单价和附件。", "创建后复核并确认订单。"], "草稿订单生成，确认后才可用于关联发货。"),
@@ -90,7 +103,7 @@ CHAPTERS = [
         ],
     ),
     (
-        "7. 文档与设备台账",
+        "8. 文档与设备台账",
         [
             ("33-document-list.png", "查看受控文档", "按物料、客户和工作中心查找现场文件。", ["进入 MES > 文档 > 产品文档。", "按标题、正文、产品或备注搜索。", "点击“在线阅读”或“详情”查看版本和附件。"], "能确认文件标题、版本、状态和适用范围。"),
             ("34-document-create.png", "新建受控文档", "上传原文件或创建在线作业正文。", ["点击“新建文档”。", "上传原文件或填写在线正文。", "关联物料、类别、版本和工作中心。", "保存后在列表复核状态。"], "文档可按适用范围检索并保留原始附件。"),
@@ -99,7 +112,7 @@ CHAPTERS = [
         ],
     ),
     (
-        "8. 业务主数据配置",
+        "9. 业务主数据配置",
         [
             ("37-business-config-menu.png", "进入业务配置", "按顺序建立业务运行依赖的主数据。", ["展开 MES 的“业务配置”。", "建议依次维护单位、库位、员工、工作中心、工艺、路线和文档类别。", "ERP 工作区维护供应商、客户和企业规则。"], "业务单据下拉项来自已启用主数据。"),
             ("38-employee-list.png", "查看员工资料", "区分业务员工与登录账号。", ["进入员工资料。", "核对员工编码、部门、电话、账号绑定和在职状态。", "员工用于派工、实绩和转移，账号绑定不授予权限。"], "员工与账号关系清晰且无重复绑定。"),
@@ -122,7 +135,7 @@ CHAPTERS = [
         ],
     ),
     (
-        "9. 系统、工具与权限",
+        "10. 系统、工具与权限",
         [
             ("55-display-settings.png", "显示设置", "配置界面配色、对比度和显示效果。", ["进入系统设置 > 显示设置。", "调整主题和显示选项。", "保存后刷新并检查可读性。"], "设置对当前客户端或系统范围按页面说明生效。"),
             ("56-navigation-settings.png", "导航与工作区设置", "配置页面在 MES/MRP/ERP 的唯一归属和顺序。", ["进入导航与工作区。", "调整页面归属、名称和顺序。", "保存后逐个工作区核对菜单。"], "每个页面仅在一个工作区出现，导航符合现场任务流。"),
@@ -291,10 +304,10 @@ def add_cover(doc: Document) -> None:
     table.style = "Table Grid"
     rows = [
         ("交付版本", f"v{VERSION}"),
-        ("截图基线", f"v{SCREENSHOT_BASELINE}（v{VERSION} 仅修复发布后实绩面板刷新并交付本手册）"),
+        ("截图基线", f"v{SCREENSHOT_BASELINE} 的 65 张通用流程 + v{QUALITY_SCREENSHOT_BASELINE} 的 7 张质量批次流程"),
         ("适用角色", "管理员、计划员、班组长、仓管、销售、质检和系统维护人员"),
         ("数据范围", "仅限本机 mes_lite_guide.db 临时演示数据"),
-        ("编制日期", "2026-08-12"),
+        ("编制日期", "2026-08-13"),
     ]
     for idx, (key, value) in enumerate(rows):
         table.cell(idx, 0).text = key
@@ -320,7 +333,7 @@ def add_front_matter(doc: Document) -> None:
         "归档、永久删除、库存调整、数据修复、权限修改和 AI 密钥配置仅限授权人员。",
         "业务员工和登录账号是两套对象：员工用于单据执行，账号用于登录；绑定账号不会自动授予权限。",
         "生产订单统一状态：草稿 -> 已发布 -> 生产中 -> 已完成，或在允许阶段取消。草稿不可登记实绩。",
-        "本指导书不把尚未贯通的质量检验、批次/炉批、设备事件/OEE 写成现行操作。它们属于后续治理阶段。",
+        "生产产出已完成内部批次、待检、整批放行/冻结；来料、投入、发货批次和部分放行/处置仍未贯通，不得对外描述为完整追溯。",
         "旧 Product 兼容入口和旧生产领料/报工/QC/入库接口不作为本指导书主流程；当前主流程使用 Material、已发布 BOM 和班后实绩。",
     ]
     for item in bullets:
@@ -328,7 +341,7 @@ def add_front_matter(doc: Document) -> None:
         p.add_run(item)
 
     doc.add_heading("推荐业务顺序", level=2)
-    flow = "单位/库位/员工/供应商/客户/工作中心 -> 物料 -> BOM/工艺路线 -> 生产订单/销售订单 -> 派工/来料/发货 -> 实绩/收货/退货 -> 库存与审计复核"
+    flow = "单位/库位/员工/供应商/客户/工作中心 -> 物料 -> BOM/工艺路线 -> 生产订单/销售订单 -> 派工/来料/发货 -> 实绩 -> 产出待检与整批判定 -> 收货/退货 -> 库存与审计复核"
     add_banner(doc, flow)
 
     doc.add_heading("章节索引", level=2)
@@ -345,11 +358,11 @@ def add_front_matter(doc: Document) -> None:
     chapter_rows = [
         ("1", "登录、工作台、MES/ERP 导航", "进入正确工作区"),
         ("2", "物料与 BOM", "统一主数据和已发布 BOM"),
-        ("3-4", "生产订单、实绩、派工、转移", "执行状态和现场记录一致"),
-        ("5", "来料、库存、流水", "收发存可追溯"),
-        ("6", "销售、发货、退货", "订单与库存闭环"),
-        ("7-8", "文档、设备、业务配置", "基础数据可被业务引用"),
-        ("9", "系统、工具、权限", "可配置、可审计、最小权限"),
+        ("3-5", "生产订单、实绩、产出质检、派工、转移", "执行和质量状态可回放"),
+        ("6", "来料、库存、流水", "收发存可追溯"),
+        ("7", "销售、发货、退货", "订单与库存闭环"),
+        ("8-9", "文档、设备、业务配置", "基础数据可被业务引用"),
+        ("10", "系统、工具、权限", "可配置、可审计、最小权限"),
     ]
     for row in chapter_rows:
         cells = table.add_row().cells
@@ -359,9 +372,14 @@ def add_front_matter(doc: Document) -> None:
                 set_run_font(run, 8.5)
 
 
+def normalize_item(item):
+    filename, title, objective, steps, result, *baseline = item
+    return filename, title, objective, steps, result, (baseline[0] if baseline else SCREENSHOT_BASELINE)
+
+
 def add_instruction_page(doc: Document, chapter: str, item, figure_number: int) -> None:
-    filename, title, objective, steps, result = item
-    image_path = SHOT_DIR / filename
+    filename, title, objective, steps, result, screenshot_baseline = normalize_item(item)
+    image_path = SHOT_ROOT / f"v{screenshot_baseline}" / filename
     if not image_path.exists():
         raise FileNotFoundError(image_path)
     doc.add_page_break()
@@ -406,7 +424,8 @@ def add_appendix(doc: Document) -> None:
         ("仓储", "收货、发货、退货和调整均有来源单据；完成后核对流水"),
         ("销售", "客户、价格、交期、客户单号与发货占用一致"),
         ("文控", "文档版本、状态、适用物料和工作中心正确"),
-        ("管理员", "账号已审核；权限遵循最小权限；关键操作可审计"),
+        ("质检", "批次号、抽样结果和结论已核对；整批放行/冻结后复核库存状态与流水"),
+        ("管理员", "账号已审核；质量判定使用独立权限；关键操作可审计"),
         ("运维", "操作前备份；恢复演练通过；密钥不进代码和截图"),
     ]
     table = doc.add_table(rows=1, cols=3)
@@ -430,8 +449,8 @@ def add_appendix(doc: Document) -> None:
                 set_run_font(run, 9)
     doc.add_heading("附录 B：暂不作为现行 SOP 的治理项", level=1)
     for item in [
-        "质量：检验计划、检验结果、不合格品处置尚未与生产实绩和库存完整贯通。",
-        "批次/炉批：来料批次、生产批次、成品批次和客户发货批次尚未形成端到端追溯链。",
+        "质量：生产产出已支持整批放行/冻结；部分放行、复检、让步、返工、报废和解冻尚未贯通。",
+        "批次/炉批：生产产出已有内部批次；来料、投入和客户发货批次尚未形成端到端追溯链。",
         "设备事件：开停机、故障、维护、产量和 OEE 尚未形成统一事件流。",
         "模型收敛：旧 Product 与 Material 仍需分阶段迁移，当前禁止继续扩展旧模型写入口。",
     ]:
@@ -464,19 +483,20 @@ def markdown_lines() -> Iterable[str]:
     yield "# MES-lite 全流程作业指导书"
     yield ""
     yield f"- 交付版本：v{VERSION}"
-    yield f"- 截图基线：v{SCREENSHOT_BASELINE}"
-    yield "- 数据范围：隔离本地演示库 `prisma/mes_lite_guide.db`，不含生产业务数据"
-    yield "- 编制日期：2026-08-12"
+    yield f"- 截图基线：v{SCREENSHOT_BASELINE}（65 张通用流程）+ v{QUALITY_SCREENSHOT_BASELINE}（7 张质量批次流程）"
+    yield "- 数据范围：隔离本地临时演示库，不含生产业务数据"
+    yield "- 编制日期：2026-08-13"
     yield ""
-    yield "> 重要：质量、批次/炉批、设备事件/OEE 尚未形成完整业务闭环，本指导书不把这些治理项描述为现行功能。"
+    yield "> 重要：生产产出已完成内部批次、待检和整批放行/冻结；来料、投入、发货批次和完整不合格处置尚未贯通。"
     yield ""
     yield "## 推荐业务顺序"
     yield ""
-    yield "单位/库位/员工/供应商/客户/工作中心 → 物料 → BOM/工艺路线 → 生产订单/销售订单 → 派工/来料/发货 → 实绩/收货/退货 → 库存与审计复核。"
+    yield "单位/库位/员工/供应商/客户/工作中心 → 物料 → BOM/工艺路线 → 生产订单/销售订单 → 派工/来料/发货 → 实绩 → 产出待检与整批判定 → 收货/退货 → 库存与审计复核。"
     for chapter, items in CHAPTERS:
         yield ""
         yield f"## {chapter}"
-        for filename, title, objective, steps, result in items:
+        for item in items:
+            filename, title, objective, steps, result, screenshot_baseline = normalize_item(item)
             yield ""
             yield f"### {title}"
             yield ""
@@ -487,12 +507,12 @@ def markdown_lines() -> Iterable[str]:
             yield ""
             yield f"结果检查：{result}"
             yield ""
-            yield f"![{title}](screenshots/v{SCREENSHOT_BASELINE}/{filename})"
+            yield f"![{title}](screenshots/v{screenshot_baseline}/{filename})"
     yield ""
     yield "## 暂不作为现行 SOP 的治理项"
     yield ""
-    yield "- 质量检验、不合格处置与库存尚未完整贯通。"
-    yield "- 来料批次、生产批次、成品批次和发货批次尚未形成端到端追溯。"
+    yield "- 生产产出已支持整批放行/冻结；部分放行、复检、让步、返工、报废和解冻尚未贯通。"
+    yield "- 生产产出已有内部批次；来料、投入和发货批次尚未形成端到端追溯。"
     yield "- 设备开停机、故障、维护、产量和 OEE 尚未形成统一事件流。"
     yield "- 旧 Product 与 Material 仍需分阶段迁移，禁止继续扩展旧模型写入口。"
 

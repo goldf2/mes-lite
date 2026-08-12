@@ -49,6 +49,7 @@ interface ProductionOrderModuleProps {
   mode: ProductionOrderMode
   canCreate: boolean
   canUpdate: boolean
+  canQualityUpdate: boolean
   onModeChange: (mode: ProductionOrderMode) => void
   onMessage: (message: string) => void
   onStateSummaryChange?: (summary: string) => void
@@ -72,6 +73,7 @@ export default function ProductionOrderModule({
   mode,
   canCreate,
   canUpdate,
+  canQualityUpdate,
   onModeChange,
   onMessage,
   onStateSummaryChange,
@@ -419,7 +421,7 @@ export default function ProductionOrderModule({
               </div>
             </div>
           )}
-          <ProductionOrderActualPanel key={`${orderDetail.id}:${orderDetail.status}`} orderId={orderDetail.id} onMessage={onMessage} onOrderChanged={async () => { await Promise.all([fetchOrderDetail(orderDetail.id), fetchOrders()]) }} />
+          <ProductionOrderActualPanel key={`${orderDetail.id}:${orderDetail.status}`} orderId={orderDetail.id} canQualityUpdate={canQualityUpdate} onMessage={onMessage} onOrderChanged={async () => { await Promise.all([fetchOrderDetail(orderDetail.id), fetchOrders()]) }} />
           <div className="mt-6"><AttachmentPanel ownerType="PRODUCTION_ORDER" ownerId={orderDetail.id} title="附件管理" enableAiRecognition onMessage={onMessage} /></div>
         </div>
       )}

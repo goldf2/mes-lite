@@ -17,29 +17,31 @@ model SystemSetting {
 }
 
 model InventoryLocation {
-  id                 String                        @id @default(cuid())
-  code               String                        @unique
-  name               String
-  note               String?
-  isDefault          Boolean                       @default(false)
-  isActive           Boolean                       @default(true)
-  sortOrder          Int                           @default(0)
-  deletedAt          DateTime?
-  balances           StockLocationBalance[]
-  stockLogs          StockLog[]
-  materialIns        MaterialIn[]
-  materialReceipts   MaterialReceipt[]
-  consumptionReports DailyProductionReport[]       @relation("DailyProductionConsumptionLocation")
-  productionInputs   DailyProductionConsumption[]  @relation("DailyProductionConsumptionLineLocation")
-  outputReports      DailyProductionReport[]       @relation("DailyProductionOutputLocation")
-  orderActualInputs  ProductionOrderActualInput[]  @relation("ProductionOrderActualInputLocation")
-  orderActualOutputs ProductionOrderActualOutput[] @relation("ProductionOrderActualOutputLocation")
-  outgoingTransfers  FlowTransfer[]                @relation("FlowTransferSourceLocation")
-  incomingTransfers  FlowTransfer[]                @relation("FlowTransferTargetLocation")
-  shipments          Shipment[]
-  returnOrders       ReturnOrder[]
-  createdAt          DateTime                      @default(now())
-  updatedAt          DateTime                      @updatedAt
+  id                       String                        @id @default(cuid())
+  code                     String                        @unique
+  name                     String
+  note                     String?
+  isDefault                Boolean                       @default(false)
+  isActive                 Boolean                       @default(true)
+  sortOrder                Int                           @default(0)
+  deletedAt                DateTime?
+  balances                 StockLocationBalance[]
+  stockLogs                StockLog[]
+  materialIns              MaterialIn[]
+  materialReceipts         MaterialReceipt[]
+  consumptionReports       DailyProductionReport[]       @relation("DailyProductionConsumptionLocation")
+  productionInputs         DailyProductionConsumption[]  @relation("DailyProductionConsumptionLineLocation")
+  outputReports            DailyProductionReport[]       @relation("DailyProductionOutputLocation")
+  orderActualInputs        ProductionOrderActualInput[]  @relation("ProductionOrderActualInputLocation")
+  orderActualOutputs       ProductionOrderActualOutput[] @relation("ProductionOrderActualOutputLocation")
+  outgoingTransfers        FlowTransfer[]                @relation("FlowTransferSourceLocation")
+  incomingTransfers        FlowTransfer[]                @relation("FlowTransferTargetLocation")
+  shipments                Shipment[]
+  returnOrders             ReturnOrder[]
+  inventoryLotBalances     InventoryLotBalance[]
+  inventoryLotTransactions InventoryLotTransaction[]
+  createdAt                DateTime                      @default(now())
+  updatedAt                DateTime                      @updatedAt
 
   @@index([sortOrder])
 }
@@ -171,6 +173,7 @@ model Material {
   shipments                   Shipment[]
   salesOrderItems             SalesOrderItem[]
   returnOrders                ReturnOrder[]
+  inventoryLots               InventoryLot[]
   createdAt                   DateTime                      @default(now())
 }
 
@@ -624,6 +627,7 @@ model ProductionOrderActualOutput {
   valuationUnit      String?
   conversionRateUsed Float?
   conversionSource   String?
+  inventoryLot       InventoryLot?
   createdAt          DateTime              @default(now())
 
   @@unique([actualId, materialId])
@@ -832,30 +836,38 @@ model Stock {
   productId  String?   @unique
   product    Product?  @relation(fields: [productId], references: [id])
 
-  qty                   Float @default(0)
-  reservedQty           Float @default(0)
-  availableQty          Float @default(0)
-  valuationQty          Float @default(0)
-  reservedValuationQty  Float @default(0)
-  availableValuationQty Float @default(0)
-  totalCost             Float @default(0)
-  valuationUnitCost     Float @default(0)
-  stockUnitCost         Float @default(0)
+  qty                    Float @default(0)
+  reservedQty            Float @default(0)
+  availableQty           Float @default(0)
+  quarantineQty          Float @default(0)
+  holdQty                Float @default(0)
+  valuationQty           Float @default(0)
+  reservedValuationQty   Float @default(0)
+  availableValuationQty  Float @default(0)
+  quarantineValuationQty Float @default(0)
+  holdValuationQty       Float @default(0)
+  totalCost              Float @default(0)
+  quarantineCost         Float @default(0)
+  holdCost               Float @default(0)
+  valuationUnitCost      Float @default(0)
+  stockUnitCost          Float @default(0)
 
   logs             StockLog[]
   locationBalances StockLocationBalance[]
 }
 
 model StockLocationBalance {
-  id           String            @id @default(cuid())
-  stockId      String
-  stock        Stock             @relation(fields: [stockId], references: [id], onDelete: Cascade)
-  locationId   String
-  location     InventoryLocation @relation(fields: [locationId], references: [id])
-  qty          Float             @default(0)
-  reservedQty  Float             @default(0)
-  availableQty Float             @default(0)
-  updatedAt    DateTime          @updatedAt
+  id            String            @id @default(cuid())
+  stockId       String
+  stock         Stock             @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  locationId    String
+  location      InventoryLocation @relation(fields: [locationId], references: [id])
+  qty           Float             @default(0)
+  reservedQty   Float             @default(0)
+  availableQty  Float             @default(0)
+  quarantineQty Float             @default(0)
+  holdQty       Float             @default(0)
+  updatedAt     DateTime          @updatedAt
 
   @@unique([stockId, locationId])
   @@index([locationId])
@@ -886,6 +898,10 @@ model StockLog {
   sourceMovementId      String?
   reversalMovementId    String?
   idempotencyKey        String? @unique
+  lotId                 String?
+  inventoryStatus       String?
+  fromInventoryStatus   String?
+  toInventoryStatus     String?
 
   refType String?
   refId   String?
@@ -893,6 +909,101 @@ model StockLog {
 
   createdAt DateTime @default(now())
   createdBy String?
+
+  @@index([lotId])
+}
+
+model InventoryLot {
+  id                 String                       @id @default(cuid())
+  lotNo              String                       @unique
+  materialId         String
+  material           Material                     @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  productionOutputId String?                      @unique
+  productionOutput   ProductionOrderActualOutput? @relation(fields: [productionOutputId], references: [id], onDelete: Restrict)
+  sourceType         String
+  sourceId           String
+  supplierLotNo      String?
+  status             String                       @default("OPEN")
+  receivedAt         DateTime                     @default(now())
+  reversedAt         DateTime?
+  reversedBy         String?
+  reverseReason      String?
+  balances           InventoryLotBalance[]
+  transactions       InventoryLotTransaction[]
+  inspections        QualityInspection[]
+  costLayers         InventoryCostLayer[]
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
+
+  @@index([materialId, status])
+  @@index([sourceType, sourceId])
+  @@index([supplierLotNo])
+}
+
+model InventoryLotBalance {
+  id              String            @id @default(cuid())
+  lotId           String
+  lot             InventoryLot      @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  locationId      String
+  location        InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  inventoryStatus String
+  stockQty        Float             @default(0)
+  valuationQty    Float             @default(0)
+  costAmount      Float             @default(0)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@unique([lotId, locationId, inventoryStatus])
+  @@index([locationId, inventoryStatus])
+  @@index([inventoryStatus])
+}
+
+model InventoryLotTransaction {
+  id             String            @id @default(cuid())
+  lotId          String
+  lot            InventoryLot      @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  locationId     String
+  location       InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  type           String
+  fromStatus     String?
+  toStatus       String?
+  stockQty       Float
+  valuationQty   Float
+  costAmount     Float
+  refType        String
+  refId          String
+  stockLogId     String?
+  idempotencyKey String            @unique
+  note           String?
+  createdBy      String?
+  createdAt      DateTime          @default(now())
+
+  @@index([lotId, createdAt])
+  @@index([refType, refId])
+}
+
+model QualityInspection {
+  id           String       @id @default(cuid())
+  inspectionNo String       @unique
+  lotId        String
+  lot          InventoryLot @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  sourceType   String
+  sourceId     String
+  status       String       @default("PENDING")
+  result       String       @default("PENDING")
+  inspectedQty Float        @default(0)
+  sampleQty    Float        @default(0)
+  goodQty      Float        @default(0)
+  badQty       Float        @default(0)
+  inspector    String?
+  checkedAt    DateTime?
+  note         String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([lotId, status])
+  @@index([status, createdAt])
+  @@index([sourceType, sourceId])
 }
 
 model StockIn {
@@ -1087,6 +1198,9 @@ model InventoryCostLayer {
   totalAmount           Float
   remainingAmount       Float                  @default(0)
   status                String                 @default("OPEN")
+  inventoryStatus       String                 @default("AVAILABLE")
+  lotId                 String?
+  lot                   InventoryLot?          @relation(fields: [lotId], references: [id], onDelete: Restrict)
   createdAt             DateTime               @default(now())
   consumptions          CostLayerConsumption[]
 
@@ -1094,6 +1208,8 @@ model InventoryCostLayer {
   @@index([materialInId])
   @@index([sourceType, sourceId])
   @@index([status])
+  @@index([lotId])
+  @@index([inventoryStatus, status])
 }
 
 model CostLayerConsumption {

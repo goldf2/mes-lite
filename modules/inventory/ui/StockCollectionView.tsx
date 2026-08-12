@@ -52,7 +52,7 @@ function StockTypeBadges({ stock }: { stock: Stock }) {
 function StockTable({ sort, selectedStockId, canAdjust, onSelect, onAdjust }: Omit<StockCollectionViewProps, 'viewMode'>) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1080px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">
+      <table className="w-full min-w-[1220px] text-sm [&_td]:align-top [&_th]:whitespace-nowrap">
         <thead className="bg-gray-50">
           <tr>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">图片</th>
@@ -62,6 +62,8 @@ function StockTable({ sort, selectedStockId, canAdjust, onSelect, onAdjust }: Om
             <SortableTableHeader column="qty" activeColumn={sort.sortColumn} direction={sort.sortDirection} onSort={sort.toggleSort}>库存</SortableTableHeader>
             <SortableTableHeader column="reservedQty" activeColumn={sort.sortColumn} direction={sort.sortDirection} onSort={sort.toggleSort}>已预留</SortableTableHeader>
             <SortableTableHeader column="availableQty" activeColumn={sort.sortColumn} direction={sort.sortDirection} onSort={sort.toggleSort}>可用</SortableTableHeader>
+            <SortableTableHeader column="quarantineQty" activeColumn={sort.sortColumn} direction={sort.sortDirection} onSort={sort.toggleSort}>待检</SortableTableHeader>
+            <SortableTableHeader column="holdQty" activeColumn={sort.sortColumn} direction={sort.sortDirection} onSort={sort.toggleSort}>冻结</SortableTableHeader>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库位</th>
             <SortableTableHeader column="valuationQty" activeColumn={sort.sortColumn} direction={sort.sortDirection} onSort={sort.toggleSort}>核算库存</SortableTableHeader>
             <SortableTableHeader column="totalCost" activeColumn={sort.sortColumn} direction={sort.sortDirection} onSort={sort.toggleSort}>库存金额</SortableTableHeader>
@@ -88,6 +90,8 @@ function StockTable({ sort, selectedStockId, canAdjust, onSelect, onAdjust }: Om
                 </td>
                 <td className="px-4 py-3 text-sm text-orange-600">{stockQuantityText(stock.reservedQty)} {unit}</td>
                 <td className={`px-4 py-3 text-sm font-medium ${stock.availableQty < 10 ? 'text-red-600' : 'text-green-600'}`}>{stockQuantityText(stock.availableQty)} {unit}</td>
+                <td className="px-4 py-3 text-sm font-medium text-amber-700">{stockQuantityText(stock.quarantineQty)} {unit}</td>
+                <td className="px-4 py-3 text-sm font-medium text-red-700">{stockQuantityText(stock.holdQty)} {unit}</td>
                 <td className="px-4 py-3 text-xs">
                   {locations.length > 0 ? (
                     <div className="space-y-1">
@@ -135,11 +139,13 @@ function StockCards({ sort, selectedStockId, canAdjust, onSelect, onAdjust }: Om
               </div>
               <StockTypeBadges stock={stock} />
             </div>
-            <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="grid grid-cols-5 gap-2 text-center">
               {[
                 ['库存', stock.qty, 'text-gray-900'],
                 ['已预留', stock.reservedQty, 'text-orange-600'],
                 ['可用', stock.availableQty, stock.availableQty < 10 ? 'text-red-600' : 'text-green-600'],
+                ['待检', stock.quarantineQty, 'text-amber-700'],
+                ['冻结', stock.holdQty, 'text-red-700'],
               ].map(([label, value, color]) => (
                 <div key={String(label)}>
                   <div className="mb-1 text-xs text-gray-500">{label}</div>

@@ -91,7 +91,7 @@ export default function MaterialDetailDialog({
             <p className="mt-1 text-sm text-gray-600">归属客户：{detail.customer?.name || '通用/未绑定'}</p>
           </div>
 
-          <dl className="grid grid-cols-3 border-b border-gray-200 py-5">
+          <dl className="grid grid-cols-2 gap-y-4 border-b border-gray-200 py-5 sm:grid-cols-5">
             <div>
               <dt className="text-xs text-gray-500">当前库存</dt>
               <dd className="mt-2 text-xl font-semibold text-gray-900">{detail.stock?.qty || 0} {stockUnit}</dd>
@@ -103,6 +103,14 @@ export default function MaterialDetailDialog({
             <div className="border-l border-gray-200 pl-5">
               <dt className="text-xs text-gray-500">可用库存</dt>
               <dd className="mt-2 text-xl font-semibold text-green-700">{detail.stock?.availableQty || 0} {stockUnit}</dd>
+            </div>
+            <div className="border-l border-gray-200 pl-5">
+              <dt className="text-xs text-gray-500">待检库存</dt>
+              <dd className="mt-2 text-xl font-semibold text-amber-700">{detail.stock?.quarantineQty || 0} {stockUnit}</dd>
+            </div>
+            <div className="border-l border-gray-200 pl-5">
+              <dt className="text-xs text-gray-500">冻结库存</dt>
+              <dd className="mt-2 text-xl font-semibold text-gray-700">{detail.stock?.holdQty || 0} {stockUnit}</dd>
             </div>
           </dl>
 

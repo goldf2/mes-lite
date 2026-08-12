@@ -228,7 +228,10 @@ export async function executeAgentTool(
         valuationUnit: true,
         conversionRate: true,
         customer: { select: { name: true } },
-        stock: { select: { qty: true, availableQty: true, valuationQty: true, totalCost: true } },
+        stock: { select: {
+          qty: true, reservedQty: true, availableQty: true, quarantineQty: true, holdQty: true,
+          valuationQty: true, totalCost: true,
+        } },
       },
     })
     return { source: '物料档案', data: materials }
@@ -260,14 +263,22 @@ export async function executeAgentTool(
         qty: true,
         reservedQty: true,
         availableQty: true,
+        quarantineQty: true,
+        holdQty: true,
         valuationQty: true,
         availableValuationQty: true,
         totalCost: true,
         material: { select: { id: true, code: true, name: true, spec: true, stockUnit: true, valuationUnit: true, deletedAt: true } },
         product: { select: { id: true, sku: true, name: true, unit: true } },
         locationBalances: {
-          where: { OR: [{ qty: { not: 0 } }, { reservedQty: { not: 0 } }] },
-          select: { qty: true, reservedQty: true, availableQty: true, location: { select: { code: true, name: true } } },
+          where: { OR: [
+            { qty: { not: 0 } }, { reservedQty: { not: 0 } },
+            { quarantineQty: { not: 0 } }, { holdQty: { not: 0 } },
+          ] },
+          select: {
+            qty: true, reservedQty: true, availableQty: true, quarantineQty: true, holdQty: true,
+            location: { select: { code: true, name: true } },
+          },
         },
       },
     })

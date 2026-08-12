@@ -153,7 +153,7 @@ async function main() {
     )
     await prisma.material.delete({ where: { id: driftMaterial.id } })
 
-    await prisma.stock.update({ where: { id: productStock.id }, data: { qty: 1, availableQty: 1 } })
+    await prisma.stock.update({ where: { id: productStock.id }, data: { holdQty: 1, holdCost: 10 } })
     await assert.rejects(
       () => applyProductMaterialMapping(prisma!, confirmedPlan),
       (error: unknown) => error instanceof ProductMaterialMigrationError && /独占库存非零/.test(error.message),
@@ -174,7 +174,7 @@ async function main() {
     assert.match(failedReport.error, /独占库存非零/)
     assert.match(failedReport.backup.sha256, /^[a-f0-9]{64}$/)
     prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } })
-    await prisma.stock.update({ where: { id: productStock.id }, data: { qty: 0, availableQty: 0 } })
+    await prisma.stock.update({ where: { id: productStock.id }, data: { holdQty: 0, holdCost: 0 } })
     await writeFile(mappingPath, `${JSON.stringify(confirmedPlan, null, 2)}\n`)
     await prisma.$disconnect()
     prisma = undefined

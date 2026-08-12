@@ -248,6 +248,8 @@ export default function StockPageModule({ operatorName, canUpdateStock, onMessag
     qty: (stock) => stock.qty,
     reservedQty: (stock) => stock.reservedQty,
     availableQty: (stock) => stock.availableQty,
+    quarantineQty: (stock) => stock.quarantineQty,
+    holdQty: (stock) => stock.holdQty,
     valuationQty: (stock) => stock.valuationQty,
     totalCost: (stock) => stock.totalCost,
   }, 'object', 'asc')

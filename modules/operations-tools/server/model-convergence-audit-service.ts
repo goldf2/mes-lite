@@ -114,14 +114,22 @@ export async function getModelConvergenceAudit(database?: ModelConvergenceDataba
         qty: true,
         reservedQty: true,
         availableQty: true,
+        quarantineQty: true,
+        holdQty: true,
         valuationQty: true,
         reservedValuationQty: true,
         availableValuationQty: true,
+        quarantineValuationQty: true,
+        holdValuationQty: true,
         totalCost: true,
+        quarantineCost: true,
+        holdCost: true,
         valuationUnitCost: true,
         stockUnitCost: true,
         logs: { select: { id: true }, take: 1 },
-        locationBalances: { select: { qty: true, reservedQty: true, availableQty: true } },
+        locationBalances: { select: {
+          qty: true, reservedQty: true, availableQty: true, quarantineQty: true, holdQty: true,
+        } },
       },
     }),
     db.material.count({ where: { deletedAt: null, stock: null } }),
@@ -215,16 +223,23 @@ export async function getModelConvergenceAudit(database?: ModelConvergenceDataba
       stock.qty,
       stock.reservedQty,
       stock.availableQty,
+      stock.quarantineQty,
+      stock.holdQty,
       stock.valuationQty,
       stock.reservedValuationQty,
       stock.availableValuationQty,
+      stock.quarantineValuationQty,
+      stock.holdValuationQty,
       stock.totalCost,
+      stock.quarantineCost,
+      stock.holdCost,
       stock.valuationUnitCost,
       stock.stockUnitCost,
     ].some(nonZero)
     || stock.logs.length > 0
     || stock.locationBalances.some((balance) => (
       nonZero(balance.qty) || nonZero(balance.reservedQty) || nonZero(balance.availableQty)
+      || nonZero(balance.quarantineQty) || nonZero(balance.holdQty)
     ))
   )).length
 

@@ -34,10 +34,16 @@ export interface Material {
     qty: number
     reservedQty: number
     availableQty: number
+    quarantineQty: number
+    holdQty: number
     valuationQty: number
     reservedValuationQty: number
     availableValuationQty: number
+    quarantineValuationQty: number
+    holdValuationQty: number
     totalCost: number
+    quarantineCost: number
+    holdCost: number
     valuationUnitCost: number
     stockUnitCost: number
   }

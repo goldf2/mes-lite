@@ -45,19 +45,31 @@ function hasNonZeroStock(stock: {
   qty: number
   reservedQty: number
   availableQty: number
+  quarantineQty: number
+  holdQty: number
   valuationQty: number
   reservedValuationQty: number
   availableValuationQty: number
+  quarantineValuationQty: number
+  holdValuationQty: number
   totalCost: number
+  quarantineCost: number
+  holdCost: number
 }) {
   return [
     stock.qty,
     stock.reservedQty,
     stock.availableQty,
+    stock.quarantineQty,
+    stock.holdQty,
     stock.valuationQty,
     stock.reservedValuationQty,
     stock.availableValuationQty,
+    stock.quarantineValuationQty,
+    stock.holdValuationQty,
     stock.totalCost,
+    stock.quarantineCost,
+    stock.holdCost,
   ].some((value) => Math.abs(Number(value || 0)) > 0.000001)
 }
 
@@ -163,6 +175,7 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
                 dailyProductionConsumptions: true,
                 shipments: true,
                 returnOrders: true,
+                inventoryLots: true,
               },
             },
           },
@@ -227,6 +240,7 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
       addCountBlocker(blockers, counts._count.dailyProductionConsumptions, '生产日报用料')
       addCountBlocker(blockers, counts._count.shipments, '发货单')
       addCountBlocker(blockers, counts._count.returnOrders, '退货单')
+      addCountBlocker(blockers, counts._count.inventoryLots, '库存批次追溯记录')
     } else if (model === 'supplier') {
       const count = await tx.materialReceipt.count({ where: { supplierId: id } })
       addCountBlocker(blockers, count, '来料单')

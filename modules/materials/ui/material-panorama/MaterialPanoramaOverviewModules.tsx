@@ -36,6 +36,8 @@ export function MaterialPanoramaSummaryModule({ data, coverImage }: { data: Pano
           <Metric label="当前库存" value={`${formatNumber(stock?.qty)} ${material.stockUnit || material.unit}`} />
           <Metric label="可用库存" value={`${formatNumber(stock?.availableQty)} ${material.stockUnit || material.unit}`} tone="green" />
           <Metric label="已占用" value={`${formatNumber(stock?.reservedQty)} ${material.stockUnit || material.unit}`} tone="amber" />
+          <Metric label="待检库存" value={`${formatNumber(stock?.quarantineQty)} ${material.stockUnit || material.unit}`} tone="amber" />
+          <Metric label="冻结库存" value={`${formatNumber(stock?.holdQty)} ${material.stockUnit || material.unit}`} />
           <Metric label="核算库存" value={`${formatNumber(stock?.valuationQty)} ${material.valuationUnit}`} />
           <Metric label="库存金额" value={formatMoney(stock?.totalCost)} tone="blue" />
           <Metric label="当前单价" value={`${formatMoney(stock?.stockUnitCost)} / ${material.stockUnit || material.unit}`} hint={`${formatMoney(stock?.valuationUnitCost)} / ${material.valuationUnit}`} />
@@ -58,7 +60,7 @@ export function MaterialPanoramaDocumentsModule({ data, onOpenInstruction }: { d
                   <div><div className="font-medium text-gray-900">{location.locationName}</div><div className="mt-0.5 text-xs text-gray-500">{location.locationCode}</div></div>
                   <div className="text-right"><div className="font-semibold text-gray-900">{formatNumber(location.qty)} {material.stockUnit || material.unit}</div><div className="text-xs text-green-700">可用 {formatNumber(location.availableQty)} {material.stockUnit || material.unit}</div></div>
                 </div>
-                <div className="mt-2 text-xs text-gray-500">占用 {formatNumber(location.reservedQty)} {material.stockUnit || material.unit}；成本仍按物料总库存统一核算</div>
+                <div className="mt-2 text-xs text-gray-500">占用 {formatNumber(location.reservedQty)} · 待检 {formatNumber(location.quarantineQty)} · 冻结 {formatNumber(location.holdQty)} {material.stockUnit || material.unit}；成本仍按物料总库存统一核算</div>
                 {location.note && <div className="mt-1 text-xs text-gray-500">{location.note}</div>}
               </div>
             ))}

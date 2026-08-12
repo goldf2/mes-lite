@@ -18,6 +18,8 @@ export interface StockLocationBalance {
   qty: number
   reservedQty: number
   availableQty: number
+  quarantineQty: number
+  holdQty: number
   location: InventoryLocationOption
 }
 
@@ -57,10 +59,16 @@ export interface Stock {
   qty: number
   reservedQty: number
   availableQty: number
+  quarantineQty: number
+  holdQty: number
   valuationQty: number
   reservedValuationQty: number
   availableValuationQty: number
+  quarantineValuationQty: number
+  holdValuationQty: number
   totalCost: number
+  quarantineCost: number
+  holdCost: number
   valuationUnitCost: number
   stockUnitCost: number
   locationBalances: StockLocationBalance[]

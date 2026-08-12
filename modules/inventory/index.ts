@@ -1,2 +1,5 @@
 export { default } from './ui/StockPageModule'
 export { default as StockMovementPageModule } from './ui/StockMovementPageModule'
+export { inventoryStatusLabel, inventoryStatuses } from './domain/inventory-status'
+export type { InventoryStatus } from './domain/inventory-status'
+export { createInventoryLotReceipt, transitionInventoryLotStatus } from './server/inventory-status-service'

@@ -101,12 +101,13 @@ export async function cancelProductionOrder(id: string, input: CancelProductionO
           })
         } else if (stock) {
           const requiredQty = Number(pick.requiredQty)
-          const stockQty = Number(stock.qty)
+          const stockQty = Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty)
+          const availableValuationQty = Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty)
           const conversionRate = Number(pick.conversionRateUsed || pick.material.conversionRate || 1)
           const valuationReserveQty = Number(pick.reservedValuationQty) > 0
             ? Number(pick.reservedValuationQty)
             : stockQty > 0
-              ? Number((requiredQty * (Number(stock.valuationQty) / stockQty)).toFixed(6))
+              ? Number((requiredQty * (availableValuationQty / stockQty)).toFixed(6))
               : Number((requiredQty * conversionRate).toFixed(6))
           await tx.stock.update({
             where: { id: stock.id },

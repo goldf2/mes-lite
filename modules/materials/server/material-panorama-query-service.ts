@@ -123,6 +123,7 @@ export async function getMaterialPanorama(materialId: string) {
   const locationBalances = (material.stock?.locationBalances || []).map((balance) => ({
     id: balance.id, locationCode: balance.location.code, locationName: balance.location.name,
     qty: balance.qty, reservedQty: balance.reservedQty, availableQty: balance.availableQty,
+    quarantineQty: balance.quarantineQty, holdQty: balance.holdQty,
     note: balance.location.note || undefined,
   }))
   const productBoms = linkedProducts.flatMap((product) => product.boms.map((bom) => ({

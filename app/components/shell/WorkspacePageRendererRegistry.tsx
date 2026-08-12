@@ -85,6 +85,7 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
       mode={context.tab as 'orders' | 'create' | 'detail'}
       canCreate={context.canCreate('orders')}
       canUpdate={context.canUpdate('orders')}
+      canQualityUpdate={context.canUpdate('quality')}
       onModeChange={context.onTabChange}
       onMessage={context.onMessage}
       onStateSummaryChange={context.onProductionOrderStateSummaryChange}

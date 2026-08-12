@@ -19,6 +19,7 @@ const trustedActorRoutes = [
   'app/api/orders/[id]/pick/route.ts',
   'app/api/orders/[id]/stock-in/route.ts',
   'app/api/costs/route.ts',
+  'app/api/quality-inspections/[id]/decision/route.ts',
 ] as const
 
 for (const path of trustedActorRoutes) {
@@ -38,6 +39,7 @@ for (const path of [
   'modules/receiving/contracts/material-in-schema.ts',
   'modules/sales/contracts/fulfillment-schema.ts',
   'modules/production/contracts/production-cost-record-schema.ts',
+  'modules/quality/contracts/quality-inspection-schema.ts',
 ]) {
   assert.doesNotMatch(
     read(path),

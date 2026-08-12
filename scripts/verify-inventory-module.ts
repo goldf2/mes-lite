@@ -42,19 +42,19 @@ assert.match(integrityService, /validateStockBalance\(/, '库存一致性服务�
 assert.match(commandService, /postStockLocationAdjustment\(/, '库存命令服务必须调用原子调整规则')
 
 const validReasons = validateStockBalance({
-  qty: 10, reservedQty: 3, availableQty: 7,
-  valuationQty: 20, reservedValuationQty: 4, availableValuationQty: 16,
-  totalCost: 100, hasMaterial: true, hasProduct: false,
+  qty: 10, reservedQty: 3, availableQty: 5, quarantineQty: 1, holdQty: 1,
+  valuationQty: 20, reservedValuationQty: 4, availableValuationQty: 12, quarantineValuationQty: 2, holdValuationQty: 2,
+  totalCost: 100, quarantineCost: 10, holdCost: 10, hasMaterial: true, hasProduct: false,
   materialExists: true, productExists: false,
-  locationBalances: [{ qty: 10, reservedQty: 3, availableQty: 7 }],
+  locationBalances: [{ qty: 10, reservedQty: 3, availableQty: 5, quarantineQty: 1, holdQty: 1 }],
 })
 assert.deepEqual(validReasons, [], '平衡库存不得产生一致性错误')
 const invalidReasons = validateStockBalance({
-  qty: 5, reservedQty: 6, availableQty: 1,
-  valuationQty: 5, reservedValuationQty: 0, availableValuationQty: 5,
-  totalCost: 0, hasMaterial: true, hasProduct: true,
+  qty: 5, reservedQty: 6, availableQty: 1, quarantineQty: 0, holdQty: 0,
+  valuationQty: 5, reservedValuationQty: 0, availableValuationQty: 5, quarantineValuationQty: 0, holdValuationQty: 0,
+  totalCost: 0, quarantineCost: 0, holdCost: 0, hasMaterial: true, hasProduct: true,
   materialExists: true, productExists: true,
-  locationBalances: [{ qty: 4, reservedQty: 0, availableQty: 4 }],
+  locationBalances: [{ qty: 4, reservedQty: 0, availableQty: 4, quarantineQty: 0, holdQty: 0 }],
 })
 assert.ok(invalidReasons.includes('库存记录必须且只能关联一个物料或内部兼容物料'))
 assert.ok(invalidReasons.includes('预留库存不能大于库存'))

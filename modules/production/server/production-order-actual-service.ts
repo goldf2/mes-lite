@@ -29,6 +29,12 @@ const actualInclude = {
     include: {
       material: { select: { id: true, code: true, name: true, category: true, stockUnit: true, unit: true } },
       location: { select: { id: true, code: true, name: true } },
+      inventoryLot: {
+        include: {
+          balances: { orderBy: { createdAt: 'asc' as const } },
+          inspections: { orderBy: { createdAt: 'desc' as const } },
+        },
+      },
     },
     orderBy: [{ isPrimary: 'desc' as const }, { createdAt: 'asc' as const }],
   },

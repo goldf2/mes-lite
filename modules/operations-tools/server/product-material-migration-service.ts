@@ -85,20 +85,24 @@ function addCandidate(
 }
 
 function stockRisk(stock: {
-  qty: number; reservedQty: number; availableQty: number; valuationQty: number
-  reservedValuationQty: number; availableValuationQty: number; totalCost: number
+  qty: number; reservedQty: number; availableQty: number; quarantineQty: number; holdQty: number; valuationQty: number
+  reservedValuationQty: number; availableValuationQty: number; quarantineValuationQty: number; holdValuationQty: number
+  totalCost: number; quarantineCost: number; holdCost: number
   valuationUnitCost: number; stockUnitCost: number
   logs: Array<{ id: string }>
-  locationBalances: Array<{ qty: number; reservedQty: number; availableQty: number }>
+  locationBalances: Array<{ qty: number; reservedQty: number; availableQty: number; quarantineQty: number; holdQty: number }>
 } | null) {
   return Boolean(stock && (
     [
-      stock.qty, stock.reservedQty, stock.availableQty, stock.valuationQty,
-      stock.reservedValuationQty, stock.availableValuationQty, stock.totalCost,
+      stock.qty, stock.reservedQty, stock.availableQty, stock.quarantineQty, stock.holdQty, stock.valuationQty,
+      stock.reservedValuationQty, stock.availableValuationQty, stock.quarantineValuationQty, stock.holdValuationQty,
+      stock.totalCost, stock.quarantineCost, stock.holdCost,
       stock.valuationUnitCost, stock.stockUnitCost,
     ].some(nonZero)
     || stock.logs.length > 0
-    || stock.locationBalances.some((balance) => [balance.qty, balance.reservedQty, balance.availableQty].some(nonZero))
+    || stock.locationBalances.some((balance) => (
+      [balance.qty, balance.reservedQty, balance.availableQty, balance.quarantineQty, balance.holdQty].some(nonZero)
+    ))
   ))
 }
 

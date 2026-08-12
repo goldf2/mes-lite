@@ -4,8 +4,11 @@ import { postInventoryReceipt } from '../lib/inventory'
 import { createMaterialIns } from '../modules/receiving/server/material-in-service'
 import { createManagedDispatch } from '../modules/production/server/dispatch-command-service'
 import { createManagedFlowTransfer } from '../modules/production/server/flow-transfer-command-service'
+import { createProductionOrderActual } from '../modules/production/server/production-order-actual-service'
+import { confirmProductionOrderActual } from '../modules/production/server/production-order-actual-status-service'
 import { createProductionOrders } from '../modules/production/server/production-order-command-service'
 import { confirmProductionOrder } from '../modules/production/server/production-order-status-service'
+import { decideQualityInspection } from '../modules/quality/server/quality-inspection-service'
 import { createManagedReturn, createManagedShipment } from '../modules/sales/server/fulfillment-command-service'
 import { deliverManagedShipment, shipManagedShipment } from '../modules/sales/server/fulfillment-status-service'
 import { confirmManagedSalesOrder, createManagedSalesOrder } from '../modules/sales/server/sales-order-command-service'
@@ -115,11 +118,7 @@ async function main() {
       productId: product.id,
       name: 'M8×30 冷镦标准 BOM',
       version: 'v1.0',
-      status: 'RELEASED',
-      isActive: true,
-      isDefault: true,
-      releasedAt: fixedNow,
-      releasedBy: admin.name,
+      status: 'DRAFT',
       outputQuantity: 1000,
       outputUnit: '件',
       outputs: { create: [
@@ -131,6 +130,10 @@ async function main() {
         { materialId: oil.id, outputMaterialId: bolt.id, quantity: 0.3, unit: 'kg' },
       ] },
     },
+  })
+  await prisma.bOM.update({
+    where: { id: bom.id },
+    data: { status: 'RELEASED', isActive: true, isDefault: true, releasedAt: fixedNow, releasedBy: admin.name },
   })
 
   await prisma.$transaction(async (tx) => {
@@ -159,6 +162,40 @@ async function main() {
     items: [{ targetId: bolt.id, bomId: bom.id, planQty: 3000 }],
   }, fixedNow)
   await confirmProductionOrder(releasedOrder.first.id, fixedNow)
+
+  const createQualityDemoActual = async (quantity: number, note: string) => {
+    const actual = await createProductionOrderActual(releasedOrder.first.id, {
+      actualDate: '2026-08-12',
+      employeeIds: [employee.id],
+      note,
+      inputs: [
+        { materialId: wire.id, locationId: rawLocation.id, lossMode: 'PERCENT', lossValue: 0 },
+        { materialId: oil.id, locationId: rawLocation.id, lossMode: 'PERCENT', lossValue: 0 },
+      ],
+      outputs: [
+        { materialId: bolt.id, locationId: finishedLocation.id, actualQty: quantity },
+        { materialId: scrap.id, locationId: finishedLocation.id, actualQty: 0 },
+      ],
+    })
+    await confirmProductionOrderActual(releasedOrder.first.id, actual.id, admin.name)
+    return prisma.productionOrderActual.findUniqueOrThrow({
+      where: { id: actual.id },
+      include: { outputs: { where: { isPrimary: true }, include: { inventoryLot: { include: { inspections: true } } } } },
+    })
+  }
+
+  const pendingQualityActual = await createQualityDemoActual(400, '指导书：待检批次')
+  const passedQualityActual = await createQualityDemoActual(500, '指导书：合格放行批次')
+  const heldQualityActual = await createQualityDemoActual(300, '指导书：不合格冻结批次')
+  const passedInspection = passedQualityActual.outputs[0]?.inventoryLot?.inspections[0]
+  const heldInspection = heldQualityActual.outputs[0]?.inventoryLot?.inspections[0]
+  if (!passedInspection || !heldInspection) throw new Error('作业指导书质量演示数据生成失败')
+  await decideQualityInspection(passedInspection.id, {
+    decision: 'PASS', sampleQty: 20, goodQty: 20, badQty: 0, note: '尺寸和外观抽检合格，整批放行',
+  }, inspector.name)
+  await decideQualityInspection(heldInspection.id, {
+    decision: 'FAIL', sampleQty: 20, goodQty: 17, badQty: 3, note: '抽检发现头部尺寸超差，整批冻结待处置',
+  }, inspector.name)
 
   await createManagedDispatch({
     orderId: releasedOrder.first.id,
@@ -302,6 +339,9 @@ async function main() {
     counts: {
       materials: await prisma.material.count(),
       productionOrders: await prisma.productionOrder.count(),
+      inventoryLots: await prisma.inventoryLot.count(),
+      qualityInspections: await prisma.qualityInspection.count(),
+      pendingQualityActual: pendingQualityActual.actualNo,
       salesOrders: await prisma.salesOrder.count(),
       shipments: await prisma.shipment.count(),
     },

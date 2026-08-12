@@ -53,6 +53,7 @@ export async function consumeMaterialCost(
       where: {
         materialId: input.materialId,
         status: 'OPEN',
+        inventoryStatus: 'AVAILABLE',
         remainingStockQty: { gt: 0 },
       },
       orderBy: { createdAt: 'asc' },

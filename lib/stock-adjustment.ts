@@ -26,6 +26,9 @@ export async function postStockLocationAdjustment(
   if (stock.material?.costingMethod === 'FIFO') {
     throw new StockAdjustmentError('FIFO 物料不能直接修改库存余额，请使用来料、生产、退货或后续正式盘点单，避免库存与成本层不一致')
   }
+  if (Number(stock.quarantineQty) > 0.000001 || Number(stock.holdQty) > 0.000001) {
+    throw new StockAdjustmentError('存在待检或冻结库存时不能直接修改余额，请先完成质量处置或使用后续正式盘点单')
+  }
 
   let location
   try {
@@ -38,6 +41,9 @@ export async function postStockLocationAdjustment(
   })
   const oldLocationQty = Number(locationBalance?.qty || 0)
   const locationReservedQty = Number(locationBalance?.reservedQty || 0)
+  if (Number(locationBalance?.quarantineQty || 0) > 0.000001 || Number(locationBalance?.holdQty || 0) > 0.000001) {
+    throw new StockAdjustmentError('所选库位存在待检或冻结库存，不能直接调整')
+  }
   if (input.newLocationQty < locationReservedQty) {
     throw new StockAdjustmentError(`调整后库位库存不能小于该库位已预留数量 ${locationReservedQty}`)
   }
