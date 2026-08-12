@@ -8,11 +8,13 @@ export type InventoryLotTraceNode = {
   status: string
   receivedAt: string
   sourceDocument: {
-    type: 'MATERIAL_IN' | 'PRODUCTION_ORDER_ACTUAL_OUTPUT' | 'LEGACY_INVENTORY' | 'OTHER'
+    type: 'MATERIAL_IN' | 'PRODUCTION_ORDER_ACTUAL_OUTPUT' | 'RETURN_ORDER' | 'LEGACY_INVENTORY' | 'LEGACY_SHIPMENT' | 'OTHER'
     number: string
     supplier?: string | null
     productionOrder?: string | null
     actualNo?: string | null
+    shipmentNo?: string | null
+    customer?: string | null
   }
   balances: Array<{
     location: { id: string; code: string; name: string }
@@ -34,6 +36,34 @@ export type InventoryLotTraceNode = {
   }>
 }
 
+export type InventoryLotCustomerShipment = {
+  id: string
+  shipmentId: string
+  shipmentNo: string
+  customer: string
+  customerCode?: string | null
+  status: string
+  shippedAt?: string | null
+  trackingNo?: string | null
+  stockQty: number
+  returnedStockQty: number
+  location: { id: string; code: string; name: string }
+}
+
+export type InventoryLotCustomerReturn = {
+  id: string
+  direction: 'SOURCE' | 'DESCENDANT'
+  returnOrderId: string
+  returnNo: string
+  status: string
+  processedAt?: string | null
+  reason: string
+  shipmentNo: string
+  customer: string
+  stockQty: number
+  lot: InventoryLotTraceNode
+}
+
 export type InventoryLotTraceRelation = {
   id: string
   direction: 'UPSTREAM' | 'DOWNSTREAM'
@@ -49,4 +79,7 @@ export type InventoryLotTrace = {
   lot: InventoryLotTraceNode
   upstream: InventoryLotTraceRelation[]
   downstream: InventoryLotTraceRelation[]
+  customerShipments: InventoryLotCustomerShipment[]
+  returnSources: InventoryLotCustomerReturn[]
+  returnDescendants: InventoryLotCustomerReturn[]
 }

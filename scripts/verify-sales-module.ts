@@ -19,6 +19,7 @@ const requiredFiles = [
   'modules/sales/ui/ShipmentPageModule.tsx',
   'modules/sales/ui/ShipmentCreateDialog.tsx',
   'modules/sales/ui/ReturnPageModule.tsx',
+  'modules/sales/ui/ReturnDetailDialog.tsx',
   'modules/sales/contracts/sales-order-schema.ts',
   'modules/sales/contracts/fulfillment-schema.ts',
   'modules/sales/domain/sales-errors.ts',
@@ -76,6 +77,7 @@ const serverRoutes = [
   'app/api/shipments/[id]/cancel/route.ts',
   'app/api/shipments/[id]/delivery-note/route.ts',
   'app/api/returns/route.ts',
+  'app/api/returns/options/route.ts',
   'app/api/returns/[id]/route.ts',
   'app/api/returns/[id]/process/route.ts',
   'app/api/returns/[id]/reject/route.ts',
@@ -95,4 +97,4 @@ assert.equal(nextDatedDocumentNo('SH', new Date('2026-08-10T00:00:00.000Z'), 'SH
 assert.equal(salesOrderFulfillmentStatus([{ qty: 10, shippedQty: 2 }]), 'PARTIAL')
 assert.equal(salesOrderFulfillmentStatus([{ qty: 10, shippedQty: 10 }]), 'COMPLETED')
 
-console.log(`销售模块验证通过：订单 ${page.split('\n').length} 行、发货 ${shipmentPage.split('\n').length} 行、退货 ${returnPage.split('\n').length} 行，16 条 API 保持薄层，页面、client、领域规则与服务边界完整。`)
+console.log(`销售模块验证通过：订单 ${page.split('\n').length} 行、发货 ${shipmentPage.split('\n').length} 行、退货 ${returnPage.split('\n').length} 行，17 条 API 保持薄层，页面、client、领域规则与服务边界完整。`)

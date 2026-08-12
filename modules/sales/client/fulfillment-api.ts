@@ -4,6 +4,7 @@ import type {
   ReturnMaterialOption,
   ReturnForm,
   ReturnOrder,
+  ReturnShipmentOption,
   Shipment,
   ShipmentCreated,
   ShipmentForm,
@@ -71,15 +72,17 @@ export async function loadReturns(params: URLSearchParams) {
 }
 
 export async function loadReturnOptions() {
-  const [customers, products, locations] = await Promise.all([
+  const [customers, products, locations, shipments] = await Promise.all([
     request<FulfillmentCustomer[]>('/api/customers'),
     request<ReturnMaterialOption[]>('/api/products'),
     request<InventoryLocationOption[]>('/api/inventory-locations'),
+    request<ReturnShipmentOption[]>('/api/returns/options'),
   ])
   return {
     customers: customers.data || [],
     products: products.data || [],
     locations: locations.data || [],
+    shipments: shipments.data || [],
   }
 }
 

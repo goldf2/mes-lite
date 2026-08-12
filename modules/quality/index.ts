@@ -1,4 +1,6 @@
 export { decideQualityInspectionSchema } from './contracts/quality-inspection-schema'
 export type { DecideQualityInspectionInput } from './contracts/quality-inspection-schema'
 export { QualityInspectionDomainError } from './domain/quality-inspection-errors'
-export { createProductionQualityInspection } from './server/quality-inspection-service'
+export { createProductionQualityInspection, createReturnQualityInspection } from './server/quality-inspection-service'
+export { default as QualityLotCard } from './ui/QualityLotCard'
+export type { QualityLotView } from './ui/QualityLotCard'

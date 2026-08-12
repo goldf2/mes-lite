@@ -29,6 +29,7 @@ export async function createInventoryLotReceipt(
     materialId: string
     materialInId?: string | null
     productionOutputId?: string | null
+    returnOrderId?: string | null
     sourceType: string
     sourceId: string
     supplierLotNo?: string | null
@@ -50,6 +51,7 @@ export async function createInventoryLotReceipt(
       materialId: input.materialId,
       materialInId: input.materialInId || null,
       productionOutputId: input.productionOutputId || null,
+      returnOrderId: input.returnOrderId || null,
       sourceType: input.sourceType,
       sourceId: input.sourceId,
       supplierLotNo: input.supplierLotNo || null,
@@ -94,6 +96,11 @@ export type InventoryLotIssueAllocation = {
   stockQty: number
   valuationQty: number
   costAmount: number
+}
+
+type ConsumedInventoryLot = InventoryLotIssueAllocation & {
+  balanceValuationQty: number
+  balanceCostAmount: number
 }
 
 function legacyLotNo(materialCode: string, locationCode: string) {
@@ -186,6 +193,64 @@ async function ensureLegacyAvailableLot(
   return created.id
 }
 
+async function consumeAvailableInventoryLots(
+  tx: Prisma.TransactionClient,
+  input: {
+    materialId: string
+    materialCode: string
+    locationId: string
+    locationCode: string
+    stockQty: number
+    issueValuationQty: number
+    issueCostAmount: number
+    createdBy?: string | null
+  },
+) {
+  await ensureLegacyAvailableLot(tx, input)
+  const balances = await tx.inventoryLotBalance.findMany({
+    where: {
+      lot: { materialId: input.materialId, status: 'OPEN' },
+      locationId: input.locationId,
+      inventoryStatus: 'AVAILABLE',
+      stockQty: { gt: tolerance },
+    },
+    include: { lot: true },
+    orderBy: [{ lot: { receivedAt: 'asc' } }, { createdAt: 'asc' }],
+  })
+  let remainingStockQty = roundQty(input.stockQty)
+  const allocations: ConsumedInventoryLot[] = []
+  for (const balance of balances) {
+    if (remainingStockQty <= tolerance) break
+    const balanceStockQty = Number(balance.stockQty)
+    const stockQty = roundQty(Math.min(balanceStockQty, remainingStockQty))
+    const ratio = balanceStockQty > tolerance ? stockQty / balanceStockQty : 0
+    const balanceValuationQty = roundQty(Number(balance.valuationQty) * ratio)
+    const balanceCostAmount = roundQty(Number(balance.costAmount) * ratio)
+    const afterStockQty = roundQty(balanceStockQty - stockQty)
+    const afterValuationQty = Math.max(0, roundQty(Number(balance.valuationQty) - balanceValuationQty))
+    const afterCostAmount = Math.max(0, roundQty(Number(balance.costAmount) - balanceCostAmount))
+    await tx.inventoryLotBalance.update({
+      where: { id: balance.id },
+      data: { stockQty: afterStockQty, valuationQty: afterValuationQty, costAmount: afterCostAmount },
+    })
+    allocations.push({
+      lotId: balance.lotId, lotNo: balance.lot.lotNo, sourceType: balance.lot.sourceType, sourceId: balance.lot.sourceId,
+      supplierLotNo: balance.lot.supplierLotNo, locationId: input.locationId, stockQty,
+      valuationQty: balanceValuationQty, costAmount: balanceCostAmount, balanceValuationQty, balanceCostAmount,
+    })
+    remainingStockQty = roundQty(remainingStockQty - stockQty)
+  }
+  if (remainingStockQty > tolerance) {
+    throw new Error(`物料 ${input.materialCode} 可用批次余额不足：尚缺 ${remainingStockQty}`)
+  }
+
+  return allocations
+}
+
+function distributeIssueValue(total: number, stockQty: number, totalStockQty: number, allocated: number, last: boolean) {
+  return last ? roundQty(total - allocated) : roundQty(totalStockQty > tolerance ? total * stockQty / totalStockQty : 0)
+}
+
 export async function allocateAvailableInventoryLots(
   tx: Prisma.TransactionClient,
   input: {
@@ -208,63 +273,190 @@ export async function allocateAvailableInventoryLots(
   })
   if (existing.length > 0) return existing
 
-  await ensureLegacyAvailableLot(tx, input)
-  const balances = await tx.inventoryLotBalance.findMany({
-    where: {
-      lot: { materialId: input.materialId, status: 'OPEN' },
-      locationId: input.locationId,
-      inventoryStatus: 'AVAILABLE',
-      stockQty: { gt: tolerance },
-    },
-    include: { lot: true },
-    orderBy: [{ lot: { receivedAt: 'asc' } }, { createdAt: 'asc' }],
-  })
-  let remainingStockQty = roundQty(input.stockQty)
-  const allocations: InventoryLotIssueAllocation[] = []
-  for (const balance of balances) {
-    if (remainingStockQty <= tolerance) break
-    const balanceStockQty = Number(balance.stockQty)
-    const stockQty = roundQty(Math.min(balanceStockQty, remainingStockQty))
-    const ratio = balanceStockQty > tolerance ? stockQty / balanceStockQty : 0
-    const valuationQty = roundQty(Number(balance.valuationQty) * ratio)
-    const costAmount = roundQty(Number(balance.costAmount) * ratio)
-    const afterStockQty = roundQty(balanceStockQty - stockQty)
-    const afterValuationQty = Math.max(0, roundQty(Number(balance.valuationQty) - valuationQty))
-    const afterCostAmount = Math.max(0, roundQty(Number(balance.costAmount) - costAmount))
-    await tx.inventoryLotBalance.update({
-      where: { id: balance.id },
-      data: { stockQty: afterStockQty, valuationQty: afterValuationQty, costAmount: afterCostAmount },
-    })
-    const allocation = await tx.inventoryLotAllocation.create({
+  const allocations = await consumeAvailableInventoryLots(tx, input)
+  for (const item of allocations) {
+    await tx.inventoryLotAllocation.create({
       data: {
-        actualInputId: input.actualInputId, lotId: balance.lotId, locationId: input.locationId,
-        inventoryStatus: 'AVAILABLE', stockQty, valuationQty, costAmount,
+        actualInputId: input.actualInputId, lotId: item.lotId, locationId: input.locationId,
+        inventoryStatus: 'AVAILABLE', stockQty: item.stockQty,
+        valuationQty: item.balanceValuationQty, costAmount: item.balanceCostAmount,
       },
-      include: { lot: true },
     })
     await tx.inventoryLotTransaction.create({
       data: {
-        lotId: balance.lotId, locationId: input.locationId, type: 'PRODUCTION_CONSUME', fromStatus: 'AVAILABLE',
-        stockQty: -stockQty, valuationQty: -valuationQty, costAmount: -costAmount,
+        lotId: item.lotId, locationId: input.locationId, type: 'PRODUCTION_CONSUME', fromStatus: 'AVAILABLE',
+        stockQty: -item.stockQty, valuationQty: -item.balanceValuationQty, costAmount: -item.balanceCostAmount,
         refType: 'PRODUCTION_ORDER_ACTUAL_INPUT', refId: input.actualInputId, stockLogId: input.stockLogId || null,
-        idempotencyKey: `PRODUCTION_ACTUAL_INPUT:${input.actualInputId}:LOT:${balance.lotId}`,
+        idempotencyKey: `PRODUCTION_ACTUAL_INPUT:${input.actualInputId}:LOT:${item.lotId}`,
         note: '生产实绩投入批次分配', createdBy: input.createdBy || null,
       },
     })
-    allocations.push({
-      lotId: balance.lotId, lotNo: balance.lot.lotNo, sourceType: balance.lot.sourceType, sourceId: balance.lot.sourceId,
-      supplierLotNo: balance.lot.supplierLotNo, locationId: input.locationId, stockQty, valuationQty, costAmount,
-    })
-    remainingStockQty = roundQty(remainingStockQty - stockQty)
   }
-  if (remainingStockQty > tolerance) {
-    throw new Error(`物料 ${input.materialCode} 可用批次余额不足：尚缺 ${remainingStockQty}`)
-  }
-
-  const allocatedStockQty = allocations.reduce((sum, item) => sum + item.stockQty, 0)
-  if (Math.abs(allocatedStockQty - input.stockQty) > tolerance) throw new Error('生产投入批次分配数量与库存出库数量不一致')
   return tx.inventoryLotAllocation.findMany({
     where: { actualInputId: input.actualInputId, status: 'ACTIVE' }, include: { lot: true }, orderBy: { createdAt: 'asc' },
+  })
+}
+
+export async function allocateShipmentInventoryLots(
+  tx: Prisma.TransactionClient,
+  input: {
+    shipmentId: string
+    materialId: string
+    materialCode: string
+    locationId: string
+    locationCode: string
+    stockQty: number
+    issueValuationQty: number
+    issueCostAmount: number
+    stockLogId?: string | null
+    createdBy?: string | null
+  },
+) {
+  const existing = await tx.shipmentLotAllocation.findMany({
+    where: { shipmentId: input.shipmentId, status: 'ACTIVE' }, include: { lot: true }, orderBy: { createdAt: 'asc' },
+  })
+  if (existing.length > 0) return existing
+  const consumed = await consumeAvailableInventoryLots(tx, input)
+  let allocatedValuationQty = 0
+  let allocatedCostAmount = 0
+  for (let index = 0; index < consumed.length; index += 1) {
+    const item = consumed[index]
+    const last = index === consumed.length - 1
+    const valuationQty = distributeIssueValue(input.issueValuationQty, item.stockQty, input.stockQty, allocatedValuationQty, last)
+    const costAmount = distributeIssueValue(input.issueCostAmount, item.stockQty, input.stockQty, allocatedCostAmount, last)
+    allocatedValuationQty = roundQty(allocatedValuationQty + valuationQty)
+    allocatedCostAmount = roundQty(allocatedCostAmount + costAmount)
+    await tx.shipmentLotAllocation.create({
+      data: {
+        shipmentId: input.shipmentId, lotId: item.lotId, locationId: input.locationId,
+        inventoryStatus: 'AVAILABLE', stockQty: item.stockQty, valuationQty, costAmount,
+      },
+    })
+    await tx.inventoryLotTransaction.create({
+      data: {
+        lotId: item.lotId, locationId: input.locationId, type: 'SHIPMENT_OUT', fromStatus: 'AVAILABLE',
+        stockQty: -item.stockQty, valuationQty: -item.balanceValuationQty, costAmount: -item.balanceCostAmount,
+        refType: 'SHIPMENT', refId: input.shipmentId, stockLogId: input.stockLogId || null,
+        idempotencyKey: `SHIPMENT:${input.shipmentId}:LOT:${item.lotId}`,
+        note: '发货单内部批次分配', createdBy: input.createdBy || null,
+      },
+    })
+  }
+  const allocatedStockQty = consumed.reduce((sum, item) => sum + item.stockQty, 0)
+  if (Math.abs(allocatedStockQty - input.stockQty) > tolerance) throw new Error('发货批次分配数量与库存出库数量不一致')
+  return tx.shipmentLotAllocation.findMany({
+    where: { shipmentId: input.shipmentId, status: 'ACTIVE' }, include: { lot: true }, orderBy: { createdAt: 'asc' },
+  })
+}
+
+export async function createHistoricalShipmentLotAllocation(
+  tx: Prisma.TransactionClient,
+  input: {
+    shipmentId: string
+    shipmentNo: string
+    materialId: string
+    materialCode: string
+    locationId: string
+    stockQty: number
+    valuationQty: number
+    costAmount: number
+    previouslyReturnedStockQty?: number
+    createdBy?: string | null
+  },
+) {
+  const existing = await tx.shipmentLotAllocation.findMany({
+    where: { shipmentId: input.shipmentId, status: 'ACTIVE' }, include: { lot: true }, orderBy: { createdAt: 'asc' },
+  })
+  if (existing.length > 0) return existing
+  const safeShipmentNo = input.shipmentNo.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 48)
+  const lot = await tx.inventoryLot.create({
+    data: {
+      lotNo: `LEGACY-${safeShipmentNo}`, materialId: input.materialId,
+      sourceType: 'LEGACY_SHIPMENT', sourceId: input.shipmentId,
+      receivedAt: new Date(0),
+    },
+  })
+  const returnedStockQty = Math.max(0, roundQty(input.previouslyReturnedStockQty || 0))
+  const returnedRatio = input.stockQty > tolerance ? returnedStockQty / input.stockQty : 0
+  await tx.shipmentLotAllocation.create({
+    data: {
+      shipmentId: input.shipmentId, lotId: lot.id, locationId: input.locationId,
+      stockQty: input.stockQty, valuationQty: input.valuationQty, costAmount: input.costAmount,
+      returnedStockQty,
+      returnedValuationQty: roundQty(input.valuationQty * returnedRatio),
+      returnedCostAmount: roundQty(input.costAmount * returnedRatio),
+    },
+  })
+  await tx.inventoryLotTransaction.create({
+    data: {
+      lotId: lot.id, locationId: input.locationId, type: 'LEGACY_SHIPMENT_OUT', fromStatus: 'AVAILABLE',
+      stockQty: -input.stockQty, valuationQty: -input.valuationQty, costAmount: -input.costAmount,
+      refType: 'SHIPMENT', refId: input.shipmentId,
+      idempotencyKey: `LEGACY_SHIPMENT:${input.shipmentId}:LOT`,
+      note: `历史发货单 ${input.shipmentNo} 未记录真实内部批次，仅作显式兼容`, createdBy: input.createdBy || null,
+    },
+  })
+  await tx.shipment.update({ where: { id: input.shipmentId }, data: { lotTraceStatus: 'LEGACY' } })
+  return tx.shipmentLotAllocation.findMany({
+    where: { shipmentId: input.shipmentId, status: 'ACTIVE' }, include: { lot: true }, orderBy: { createdAt: 'asc' },
+  })
+}
+
+export async function allocateReturnToShipmentLots(
+  tx: Prisma.TransactionClient,
+  input: {
+    returnOrderId: string
+    shipmentId: string
+    returnedLotId: string
+    stockQty: number
+    valuationQty: number
+    costAmount: number
+  },
+) {
+  const existing = await tx.returnLotAllocation.findMany({
+    where: { returnOrderId: input.returnOrderId, status: 'ACTIVE' }, orderBy: { createdAt: 'asc' },
+  })
+  if (existing.length > 0) return existing
+  const allocations = await tx.shipmentLotAllocation.findMany({
+    where: { shipmentId: input.shipmentId, status: 'ACTIVE' }, orderBy: { createdAt: 'asc' },
+  })
+  let remainingStockQty = roundQty(input.stockQty)
+  let allocatedValuationQty = 0
+  let allocatedCostAmount = 0
+  const slices: Array<{ allocationId: string; stockQty: number }> = []
+  for (const allocation of allocations) {
+    if (remainingStockQty <= tolerance) break
+    const returnable = roundQty(Number(allocation.stockQty) - Number(allocation.returnedStockQty))
+    if (returnable <= tolerance) continue
+    const stockQty = roundQty(Math.min(returnable, remainingStockQty))
+    slices.push({ allocationId: allocation.id, stockQty })
+    remainingStockQty = roundQty(remainingStockQty - stockQty)
+  }
+  if (remainingStockQty > tolerance) throw new Error(`原发货批次可退数量不足：尚缺 ${remainingStockQty}`)
+  for (let index = 0; index < slices.length; index += 1) {
+    const slice = slices[index]
+    const last = index === slices.length - 1
+    const valuationQty = distributeIssueValue(input.valuationQty, slice.stockQty, input.stockQty, allocatedValuationQty, last)
+    const costAmount = distributeIssueValue(input.costAmount, slice.stockQty, input.stockQty, allocatedCostAmount, last)
+    allocatedValuationQty = roundQty(allocatedValuationQty + valuationQty)
+    allocatedCostAmount = roundQty(allocatedCostAmount + costAmount)
+    await tx.returnLotAllocation.create({
+      data: {
+        returnOrderId: input.returnOrderId, shipmentAllocationId: slice.allocationId, returnedLotId: input.returnedLotId,
+        stockQty: slice.stockQty, valuationQty, costAmount,
+      },
+    })
+    await tx.shipmentLotAllocation.update({
+      where: { id: slice.allocationId },
+      data: {
+        returnedStockQty: { increment: slice.stockQty },
+        returnedValuationQty: { increment: valuationQty },
+        returnedCostAmount: { increment: costAmount },
+      },
+    })
+  }
+  return tx.returnLotAllocation.findMany({
+    where: { returnOrderId: input.returnOrderId, status: 'ACTIVE' }, orderBy: { createdAt: 'asc' },
   })
 }
 

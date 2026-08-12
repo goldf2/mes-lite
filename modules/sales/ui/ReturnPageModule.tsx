@@ -7,7 +7,6 @@ import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
-import { MaterialChoiceSearch } from '@/modules/materials'
 import SearchableSelect from '@/app/components/SearchableSelect'
 import SortableTableHeader from '@/app/components/SortableTableHeader'
 import useClientTableSort from '@/app/components/useClientTableSort'
@@ -15,7 +14,7 @@ import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import FormField, { appInputClassName, appTextareaClassName } from '@/app/components/FormField'
 import AppButton from '@/app/components/AppButton'
 import { MappedResourceAdvancedSearch } from '@/app/components/resource'
-import { BusinessDocumentDetailDialog, BusinessDocumentPrintLink, generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/modules/business-documents'
+import { BusinessDocumentPrintLink, generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/modules/business-documents'
 import {
   DraftDocumentAttachmentPanel,
   createDraftDocumentAttachmentId,
@@ -24,11 +23,13 @@ import {
 } from '@/modules/attachments'
 import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
 import { createReturn, loadReturnOptions, loadReturns, transitionReturn } from '../client/fulfillment-api'
+import ReturnDetailDialog from './ReturnDetailDialog'
 import type {
   FulfillmentCustomer,
   InventoryLocationOption,
   ReturnMaterialOption,
   ReturnOrder,
+  ReturnShipmentOption,
 } from '../contracts/fulfillment'
 import {
   returnStatusColors as statusColors,
@@ -39,14 +40,17 @@ import {
 export default function ReturnPageModule({
   onMessage,
   onToolbarChange,
+  canQualityUpdate,
 }: {
   onMessage: (msg: string) => void
   onToolbarChange?: (actions: ReactNode | null) => void
+  canQualityUpdate: boolean
 }) {
   const [returns, setReturns] = useState<ReturnOrder[]>([])
   const [products, setProducts] = useState<ReturnMaterialOption[]>([])
   const [customers, setCustomers] = useState<FulfillmentCustomer[]>([])
   const [locations, setLocations] = useState<InventoryLocationOption[]>([])
+  const [shipments, setShipments] = useState<ReturnShipmentOption[]>([])
   const [keyword, setKeyword] = useState('')
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
@@ -63,6 +67,7 @@ export default function ReturnPageModule({
 
   const [form, setForm] = useState({
     voucherNo: '',
+    shipmentId: '',
     productId: '',
     locationId: '',
     qty: 0,
@@ -81,6 +86,7 @@ export default function ReturnPageModule({
     createdAt: (item) => new Date(item.createdAt),
   }, 'createdAt', 'desc')
   const selectedProduct = products.find((item) => item.id === form.productId)
+  const selectedShipment = shipments.find((item) => item.id === form.shipmentId)
 
   const fetchReturns = useCallback(async () => {
     setLoading(true)
@@ -89,7 +95,9 @@ export default function ReturnPageModule({
       const params = new URLSearchParams(query)
       if (keyword.trim()) params.set('keyword', keyword.trim())
       if (selectedCustomerId) params.set('customerId', selectedCustomerId)
-      setReturns(await loadReturns(params))
+      const nextReturns = await loadReturns(params)
+      setReturns(nextReturns)
+      setDetailItem((current) => current ? nextReturns.find((item) => item.id === current.id) || current : null)
     } catch (error) {
       onMessage(error instanceof Error ? error.message : '获取退货单列表失败')
     } finally {
@@ -103,6 +111,7 @@ export default function ReturnPageModule({
       setCustomers(data.customers)
       setProducts(data.products)
       setLocations(data.locations)
+      setShipments(data.shipments)
       setForm((current) => current.locationId ? current : {
         ...current,
         locationId: data.locations.find((location) => location.isDefault)?.id || data.locations[0]?.id || '',
@@ -123,6 +132,7 @@ export default function ReturnPageModule({
   const resetForm = useCallback(() => {
     setForm({
       voucherNo: '',
+      shipmentId: '',
       productId: '',
       locationId: locations.find((location) => location.isDefault)?.id || locations[0]?.id || '',
       qty: 0,
@@ -149,10 +159,13 @@ export default function ReturnPageModule({
     const material = recognizedText(fields, 'material')
     const matchedProduct = products.find((product) => matchesRecognizedValue(material, [product.sku, product.name]))
     const qty = recognizedNumber(fields, 'qty')
+    const shipmentNo = recognizedText(fields, 'shipmentNo')
+    const matchedShipment = shipments.find((shipment) => matchesRecognizedValue(shipmentNo, [shipment.shipmentNo]))
     setForm((current) => ({
       ...current,
       voucherNo: recognizedText(fields, 'voucherNo') || recognizedText(fields, 'shipmentNo') || current.voucherNo,
-      productId: matchedProduct?.id || current.productId,
+      shipmentId: matchedShipment?.id || current.shipmentId,
+      productId: matchedShipment?.productId || matchedProduct?.id || current.productId,
       qty: qty > 0 ? qty : current.qty,
       reason: recognizedText(fields, 'reason') || current.reason,
       note: recognizedText(fields, 'note') || current.note,
@@ -164,8 +177,12 @@ export default function ReturnPageModule({
       onMessage('请等待附件上传或 AI 识别完成')
       return
     }
-    if (!form.productId || !form.locationId || form.qty <= 0 || !form.reason) {
-      onMessage('请选择物料和退回库位，并填写数量和退货原因')
+    if (!form.shipmentId || !form.productId || !form.locationId || form.qty <= 0 || !form.reason) {
+      onMessage('请选择原发货单和退回库位，并填写数量和退货原因')
+      return
+    }
+    if (selectedShipment && form.qty > selectedShipment.returnableQty + 0.000001) {
+      onMessage(`退货数量不能超过剩余可退数量 ${selectedShipment.returnableQty}`)
       return
     }
     const printPreview = reserveBusinessDocumentPrintWindow()
@@ -422,31 +439,13 @@ export default function ReturnPageModule({
       </div>
 
       {detailItem && (
-        <BusinessDocumentDetailDialog
-          title={`退货单 ${detailItem.returnNo}`}
-          description={`关联发货单：${detailItem.shipment?.shipmentNo || '-'} · ${statusLabels[detailItem.status] || detailItem.status}`}
-          ownerType="RETURN_ORDER"
-          ownerId={detailItem.id}
-          onClose={() => setDetailItem(null)}
-          onMessage={onMessage}
-          headerActions={<BusinessDocumentPrintLink kind="return" id={detailItem.id} />}
-        >
-          <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-            <div><dt className="text-gray-500">物料</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.product?.name}</dd><dd className="text-xs text-gray-500">{detailItem.product?.sku}</dd></div>
-            <div><dt className="text-gray-500">客户</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.shipment?.customerRef?.name || detailItem.product?.customer?.name || '通用/未绑定'}</dd></div>
-            <div><dt className="text-gray-500">退回库位</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.location ? `${detailItem.location.code} · ${detailItem.location.name}` : '-'}</dd></div>
-            <div><dt className="text-gray-500">创建时间</dt><dd className="mt-1 font-medium text-gray-900">{new Date(detailItem.createdAt).toLocaleString('zh-CN')}</dd></div>
-            <div><dt className="text-gray-500">退货数量</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.qty}</dd></div>
-            <div className="sm:col-span-2"><dt className="text-gray-500">退货原因</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.reason}</dd></div>
-            <div><dt className="text-gray-500">处理时间</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.processedAt ? new Date(detailItem.processedAt).toLocaleString('zh-CN') : '-'}</dd></div>
-          </dl>
-        </BusinessDocumentDetailDialog>
+        <ReturnDetailDialog item={detailItem} canQualityUpdate={canQualityUpdate} onClose={() => setDetailItem(null)} onChanged={fetchReturns} onMessage={onMessage} />
       )}
 
       {showModal && (
         <ModalDialog
           title="新建退货单"
-          description="登记退回物料、数量和实际接收库位。"
+          description="选择原发货单，登记退回数量；收货后先进入待检库存。"
           onClose={() => void closeCreate()}
           closeDisabled={loading || draftAttachmentBusy}
           footer={(
@@ -468,25 +467,37 @@ export default function ReturnPageModule({
                   className={appInputClassName}
                 />
               </FormField>
-              <FormField label="物料" required>
-                <MaterialChoiceSearch
-                  value={form.productId}
-                  options={products}
-                  onChange={(productId) => setForm({ ...form, productId })}
-                  placeholder="输入物料编码、名称或客户筛选"
+              <FormField label="原发货单" required hint="仅显示已发货/已签收且仍有可退数量的单据。">
+                <SearchableSelect
+                  value={form.shipmentId}
+                  onChange={(shipmentId) => {
+                    const shipment = shipments.find((item) => item.id === shipmentId)
+                    setForm((current) => ({ ...current, shipmentId, productId: shipment?.productId || '', qty: 0 }))
+                  }}
+                  options={shipments.map((shipment) => ({
+                    value: shipment.id,
+                    label: `${shipment.shipmentNo} · ${shipment.customerRef?.name || shipment.customer} · ${shipment.product.sku} · 可退 ${shipment.returnableQty} ${shipment.product.unit}`,
+                  }))}
+                  placeholder="输入发货单号、客户或物料筛选"
                 />
               </FormField>
-              <FormField label={`数量${selectedProduct ? `（${selectedProduct.unit}）` : ''}`} required>
+              <FormField label="退货物料">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
+                  {selectedShipment ? `${selectedShipment.product.sku} · ${selectedShipment.product.name}` : '选择原发货单后自动带出'}
+                </div>
+              </FormField>
+              <FormField label={`数量${selectedProduct ? `（${selectedProduct.unit}）` : ''}`} required hint={selectedShipment ? `剩余可退 ${selectedShipment.returnableQty} ${selectedShipment.product.unit}` : '请先选择原发货单'}>
                 <input
                   type="number"
                   step="any"
                   value={form.qty || ''}
                   onChange={(e) => setForm({ ...form, qty: Number(e.target.value) })}
                   min={0}
+                  max={selectedShipment?.returnableQty}
                   className={appInputClassName}
                 />
               </FormField>
-              <FormField label="退回库位" required hint="退货处理后，库存会进入所选库位。">
+              <FormField label="退回库位" required hint="确认收货后先进入该库位的待检库存，质检合格后才转为可用。">
                 <SearchableSelect
                   value={form.locationId}
                   onChange={(locationId) => setForm({ ...form, locationId })}

@@ -19,7 +19,7 @@ export const createShipmentSchema = z.object({
 
 export const createReturnSchema = z.object({
   voucherNo: z.string().optional(),
-  shipmentId: z.string().min(1).optional(),
+  shipmentId: z.string().min(1, '请选择原发货单'),
   productId: z.string().min(1),
   locationId: z.string().min(1, '退回库位必填'),
   qty: z.number().finite().positive(),

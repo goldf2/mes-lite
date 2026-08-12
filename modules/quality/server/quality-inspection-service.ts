@@ -24,6 +24,26 @@ export async function createProductionQualityInspection(
   })
 }
 
+export async function createReturnQualityInspection(
+  tx: Prisma.TransactionClient,
+  input: {
+    inspectionNo: string
+    lotId: string
+    sourceId: string
+    inspectedQty: number
+  },
+) {
+  return tx.qualityInspection.create({
+    data: {
+      inspectionNo: input.inspectionNo,
+      lotId: input.lotId,
+      sourceType: 'RETURN_ORDER',
+      sourceId: input.sourceId,
+      inspectedQty: input.inspectedQty,
+    },
+  })
+}
+
 export async function decideQualityInspection(
   inspectionId: string,
   input: DecideQualityInspectionInput,

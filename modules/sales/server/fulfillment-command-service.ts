@@ -81,19 +81,17 @@ export async function createManagedReturn(input: CreateReturnCommand, now = new 
     const productId = await resolveProductId(tx, input.productId, { description: '由物料自动映射，用于退货兼容。' })
     const product = await tx.product.findUnique({ where: { id: productId } })
     if (!product) throw new SalesDomainError('物料不存在', 404)
-    if (input.shipmentId) {
-      const shipment = await tx.shipment.findUnique({ where: { id: input.shipmentId } })
-      if (!shipment) throw new SalesDomainError('发货单不存在', 404)
-      if (!['SHIPPED', 'DELIVERED'].includes(shipment.status)) throw new SalesDomainError('只有已发货或已签收单据可以退货')
-      const shipmentMaterialId = await resolveMaterialIdForProduct(tx, shipment.productId, shipment.materialId)
-      if (!shipmentMaterialId || shipmentMaterialId !== materialId) throw new SalesDomainError('退货物料必须与原发货单一致')
-      const returned = await tx.returnOrder.aggregate({
-        where: { shipmentId: input.shipmentId, deletedAt: null, status: { in: ['PENDING', 'PROCESSED'] } },
-        _sum: { qty: true },
-      })
-      const remainingQty = Number((Number(shipment.qty) - Number(returned._sum.qty || 0)).toFixed(6))
-      if (input.qty > remainingQty + 0.000001) throw new SalesDomainError(`退货数量超过原发货可退数量 ${remainingQty}`)
-    }
+    const shipment = await tx.shipment.findUnique({ where: { id: input.shipmentId } })
+    if (!shipment) throw new SalesDomainError('发货单不存在', 404)
+    if (!['SHIPPED', 'DELIVERED'].includes(shipment.status)) throw new SalesDomainError('只有已发货或已签收单据可以退货')
+    const shipmentMaterialId = await resolveMaterialIdForProduct(tx, shipment.productId, shipment.materialId)
+    if (!shipmentMaterialId || shipmentMaterialId !== materialId) throw new SalesDomainError('退货物料必须与原发货单一致')
+    const returned = await tx.returnOrder.aggregate({
+      where: { shipmentId: input.shipmentId, deletedAt: null, status: { in: ['PENDING', 'PROCESSED'] } },
+      _sum: { qty: true },
+    })
+    const remainingQty = Number((Number(shipment.qty) - Number(returned._sum.qty || 0)).toFixed(6))
+    if (input.qty > remainingQty + 0.000001) throw new SalesDomainError(`退货数量超过原发货可退数量 ${remainingQty}`)
     const [location, latest] = await Promise.all([
       resolveInventoryLocation(tx, input.locationId),
       tx.returnOrder.findFirst({
@@ -104,7 +102,7 @@ export async function createManagedReturn(input: CreateReturnCommand, now = new 
     return tx.returnOrder.create({
       data: {
         returnNo: nextDatedDocumentNo('RT', now, latest?.returnNo), voucherNo: input.voucherNo?.trim() || null,
-        shipmentId: input.shipmentId ?? null, productId, materialId, locationId: location.id,
+        shipmentId: input.shipmentId, productId, materialId, locationId: location.id,
         qty: input.qty, reason: input.reason, note: input.note?.trim() || null, status: 'PENDING',
       },
       include: { product: true, shipment: true, location: true },

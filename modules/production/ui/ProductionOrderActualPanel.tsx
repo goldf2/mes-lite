@@ -16,7 +16,7 @@ import {
   reverseProductionOrderActual,
 } from '../client/production-order-api'
 import { productionOrderActualCreationError } from '../domain/production-order-status'
-import ProductionQualityLotCard, { type ProductionQualityLotView } from './ProductionQualityLotCard'
+import { QualityLotCard, type QualityLotView } from '@/modules/quality'
 
 type BomSnapshot = {
   id: string
@@ -70,7 +70,7 @@ type ActualRecord = {
     unit: string
     isPrimary: boolean
     location: { code: string; name: string }
-    inventoryLot?: ProductionQualityLotView | null
+    inventoryLot?: QualityLotView | null
   }>
 }
 
@@ -334,7 +334,7 @@ export default function ProductionOrderActualPanel({
                 </div>
                 <div className="rounded-md bg-blue-50/60 p-3 text-sm">
                   <div className="mb-2 font-medium text-blue-800">产出物料</div>
-                  {actual.outputs.map((line) => <div key={line.id} className="py-1 text-blue-800"><div className="flex justify-between gap-3"><span>{line.isPrimary ? '主产出 · ' : ''}{line.materialCode} · {line.materialName}</span><span className="shrink-0">{numberText(line.actualQty)} {line.unit} · {line.location.code}</span></div>{line.inventoryLot && <ProductionQualityLotCard lot={line.inventoryLot} canDecide={canQualityUpdate} onMessage={onMessage} onChanged={load} />}</div>)}
+                  {actual.outputs.map((line) => <div key={line.id} className="py-1 text-blue-800"><div className="flex justify-between gap-3"><span>{line.isPrimary ? '主产出 · ' : ''}{line.materialCode} · {line.materialName}</span><span className="shrink-0">{numberText(line.actualQty)} {line.unit} · {line.location.code}</span></div>{line.inventoryLot && <QualityLotCard lot={line.inventoryLot} canDecide={canQualityUpdate} onMessage={onMessage} onChanged={load} />}</div>)}
                 </div>
               </div>
               {actual.note && <div className="mt-3 text-sm text-gray-500">备注：{actual.note}</div>}

@@ -1,6 +1,13 @@
 import { prisma } from '@/lib/prisma'
 import { postInventoryIssue, postInventoryReceipt } from '@/lib/inventory'
 import { resolveMaterialIdForProduct } from '@/lib/material-product'
+import {
+  allocateReturnToShipmentLots,
+  allocateShipmentInventoryLots,
+  createHistoricalShipmentLotAllocation,
+  createInventoryLotReceipt,
+} from '@/modules/inventory'
+import { createReturnQualityInspection } from '@/modules/quality'
 import { runSalesDomainOperation, SalesDomainError } from '../domain/sales-errors'
 import { refreshSalesOrderStatus } from './sales-order-availability-service'
 
@@ -23,10 +30,22 @@ export async function shipManagedShipment(id: string, shippedBy: string) {
       note: `发货单 ${shipment.shipmentNo} 出库`, createdBy: shippedBy,
       idempotencyKey: `SHIPMENT:${shipment.id}:SHIP`, locationId: shipment.locationId,
     })
+    await allocateShipmentInventoryLots(tx, {
+      shipmentId: shipment.id,
+      materialId,
+      materialCode: issue.material!.code,
+      locationId: issue.location!.id,
+      locationCode: issue.location!.code,
+      stockQty: Number(shipment.qty),
+      issueValuationQty: Number(issue.valuationQty),
+      issueCostAmount: Number(issue.costAmount),
+      stockLogId: issue.movement!.id,
+      createdBy: shippedBy,
+    })
     const updated = await tx.shipment.update({
       where: { id: shipment.id },
       data: {
-        status: 'SHIPPED', shippedAt: new Date(), materialId,
+        status: 'SHIPPED', shippedAt: new Date(), materialId, lotTraceStatus: 'TRACKED',
         shippedValuationQty: issue.valuationQty, shippedCostAmount: issue.costAmount,
         stockUnitSnapshot: issue.material?.stockUnit, valuationUnitSnapshot: issue.material?.valuationUnit,
         conversionRateUsed: issue.conversionRateUsed, conversionSource: issue.conversionSource,
@@ -93,7 +112,70 @@ export async function processManagedReturn(id: string, processedBy: string) {
       note: `退货单 ${returnOrder.returnNo} 退回入库`, createdBy: processedBy,
       idempotencyKey: `RETURN:${returnOrder.id}:PROCESS`, sourceMovementId: sourceMovement?.id,
       locationId: returnOrder.locationId,
+      inventoryStatus: 'QUARANTINE',
     })
+    let shipmentAllocations = shipment
+      ? await tx.shipmentLotAllocation.findMany({ where: { shipmentId: shipment.id, status: 'ACTIVE' } })
+      : []
+    if (shipment && shipmentAllocations.length === 0) {
+      const previousReturns = await tx.returnOrder.aggregate({
+        where: { shipmentId: shipment.id, status: 'PROCESSED', id: { not: returnOrder.id } },
+        _sum: { qty: true },
+      })
+      shipmentAllocations = await createHistoricalShipmentLotAllocation(tx, {
+        shipmentId: shipment.id,
+        shipmentNo: shipment.shipmentNo,
+        materialId,
+        materialCode: receipt.material!.code,
+        locationId: shipment.locationId || receipt.location!.id,
+        stockQty: Number(shipment.qty),
+        valuationQty: Number(shipment.shippedValuationQty),
+        costAmount: Number(shipment.shippedCostAmount),
+        previouslyReturnedStockQty: Number(previousReturns._sum.qty || 0),
+        createdBy: processedBy,
+      })
+    }
+    const lot = await createInventoryLotReceipt(tx, {
+      lotNo: `RT-${returnOrder.returnNo}`,
+      materialId,
+      returnOrderId: returnOrder.id,
+      sourceType: 'RETURN_ORDER',
+      sourceId: returnOrder.id,
+      locationId: receipt.location!.id,
+      inventoryStatus: 'QUARANTINE',
+      stockQty: Number(returnOrder.qty),
+      valuationQty: returnValuationQty,
+      costAmount: returnCostAmount,
+      stockLogId: receipt.movement!.id,
+      idempotencyKey: `RETURN:${returnOrder.id}:LOT_RECEIPT`,
+      note: `退货单 ${returnOrder.returnNo} 独立待检批次`,
+      createdBy: processedBy,
+    })
+    await Promise.all([
+      tx.stockLog.update({
+        where: { id: receipt.movement!.id },
+        data: { lotId: lot.id, inventoryStatus: 'QUARANTINE', toInventoryStatus: 'QUARANTINE' },
+      }),
+      receipt.costLayer ? tx.inventoryCostLayer.update({
+        where: { id: receipt.costLayer.id }, data: { lotId: lot.id, inventoryStatus: 'QUARANTINE' },
+      }) : Promise.resolve(),
+      createReturnQualityInspection(tx, {
+        inspectionNo: `QI-${lot.lotNo}`,
+        lotId: lot.id,
+        sourceId: returnOrder.id,
+        inspectedQty: Number(returnOrder.qty),
+      }),
+    ])
+    if (shipment) {
+      await allocateReturnToShipmentLots(tx, {
+        returnOrderId: returnOrder.id,
+        shipmentId: shipment.id,
+        returnedLotId: lot.id,
+        stockQty: Number(returnOrder.qty),
+        valuationQty: returnValuationQty,
+        costAmount: returnCostAmount,
+      })
+    }
     const updated = await tx.returnOrder.update({
       where: { id: returnOrder.id },
       data: {

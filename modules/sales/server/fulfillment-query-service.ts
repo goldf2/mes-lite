@@ -33,14 +33,26 @@ export async function listShipments(input: FulfillmentQuery) {
     { customerRef: { is: { code: { contains: token } } } }, { customerRef: { is: { name: { contains: token } } } },
   ] })))
   if (andConditions.length > 0) where.AND = andConditions
-  const [data, total, customers] = await Promise.all([
+  const [shipments, total, customers] = await Promise.all([
     prisma.shipment.findMany({
       where,
       include: {
-        product: { select: { id: true, name: true, sku: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
+        product: { select: { id: true, name: true, sku: true, unit: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
         customerRef: { select: { id: true, code: true, name: true } },
         location: { select: { id: true, code: true, name: true } },
         salesOrder: { select: { id: true, orderNo: true, voucherNo: true } },
+        returnOrders: {
+          where: { deletedAt: null, status: { in: ['PENDING', 'PROCESSED'] } },
+          select: { qty: true },
+        },
+        lotAllocations: {
+          where: { status: 'ACTIVE' },
+          include: {
+            lot: { select: { id: true, lotNo: true, sourceType: true, supplierLotNo: true, status: true } },
+            location: { select: { id: true, code: true, name: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
       },
       orderBy: { createdAt: 'desc' }, skip: (input.page - 1) * input.pageSize, take: input.pageSize,
     }),
@@ -50,7 +62,50 @@ export async function listShipments(input: FulfillmentQuery) {
       select: { id: true, code: true, name: true, contact: true, phone: true, address: true },
     }),
   ])
+  const data = shipments.map((shipment) => {
+    const returnedQty = shipment.returnOrders.reduce((sum, item) => sum + Number(item.qty), 0)
+    return {
+      ...shipment,
+      returnedQty,
+      returnableQty: Math.max(0, Number((Number(shipment.qty) - returnedQty).toFixed(6))),
+      returnOrders: undefined,
+    }
+  })
   return { data, customers, pagination: { page: input.page, pageSize: input.pageSize, total, totalPages: Math.ceil(total / input.pageSize) } }
+}
+
+export async function listReturnShipmentOptions() {
+  const shipments = await prisma.shipment.findMany({
+    where: { deletedAt: null, status: { in: ['SHIPPED', 'DELIVERED'] } },
+    include: {
+      product: { select: { id: true, sku: true, name: true, unit: true } },
+      customerRef: { select: { id: true, code: true, name: true } },
+      returnOrders: {
+        where: { deletedAt: null, status: { in: ['PENDING', 'PROCESSED'] } },
+        select: { qty: true },
+      },
+    },
+    orderBy: [{ shippedAt: 'desc' }, { createdAt: 'desc' }],
+    take: 200,
+  })
+  return shipments.flatMap((shipment) => {
+    const returnedQty = shipment.returnOrders.reduce((sum, item) => sum + Number(item.qty), 0)
+    const returnableQty = Math.max(0, Number((Number(shipment.qty) - returnedQty).toFixed(6)))
+    if (returnableQty <= 0.000001) return []
+    return [{
+      id: shipment.id,
+      shipmentNo: shipment.shipmentNo,
+      productId: shipment.productId,
+      product: shipment.product,
+      customer: shipment.customer,
+      customerRef: shipment.customerRef,
+      status: shipment.status,
+      shippedAt: shipment.shippedAt?.toISOString() || null,
+      qty: Number(shipment.qty),
+      returnedQty,
+      returnableQty,
+    }]
+  })
 }
 
 export async function getShipmentDetail(id: string) {
@@ -109,6 +164,24 @@ export async function listReturns(input: FulfillmentQuery) {
         product: { include: { customer: { select: { id: true, code: true, name: true } } } },
         shipment: { include: { customerRef: { select: { id: true, code: true, name: true } } } },
         location: true,
+        inventoryLot: {
+          include: {
+            balances: { orderBy: { createdAt: 'asc' } },
+            inspections: { orderBy: { createdAt: 'desc' } },
+          },
+        },
+        lotAllocations: {
+          where: { status: 'ACTIVE' },
+          include: {
+            shipmentAllocation: {
+              include: {
+                lot: { select: { id: true, lotNo: true, sourceType: true, supplierLotNo: true, status: true } },
+                location: { select: { id: true, code: true, name: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
       },
       orderBy: { createdAt: 'desc' }, skip: (input.page - 1) * input.pageSize, take: input.pageSize,
     }),
@@ -118,7 +191,16 @@ export async function listReturns(input: FulfillmentQuery) {
 }
 
 export async function getReturnDetail(id: string) {
-  const returnOrder = await prisma.returnOrder.findUnique({ where: { id }, include: { product: true, shipment: true } })
+  const returnOrder = await prisma.returnOrder.findUnique({
+    where: { id },
+    include: {
+      product: true,
+      shipment: true,
+      location: true,
+      inventoryLot: { include: { balances: true, inspections: { orderBy: { createdAt: 'desc' } } } },
+      lotAllocations: { include: { shipmentAllocation: { include: { lot: true, location: true } } } },
+    },
+  })
   if (!returnOrder) throw new SalesDomainError('退货单不存在', 404)
   return returnOrder
 }

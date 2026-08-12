@@ -11,6 +11,6 @@ export const returnStatusColors: Record<string, string> = {
   PENDING: 'bg-gray-100 text-gray-700', PROCESSED: 'bg-green-100 text-green-700', REJECTED: 'bg-red-100 text-red-700',
 }
 export const returnStatusLabels: Record<string, string> = {
-  PENDING: '待处理', PROCESSED: '已处理', REJECTED: '已拒绝',
+  PENDING: '待收货', PROCESSED: '已收货', REJECTED: '已拒绝',
 }
 export const returnStatusOptions = Object.entries(returnStatusLabels).map(([value, label]) => ({ value, label }))

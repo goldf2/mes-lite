@@ -142,7 +142,7 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
   dispatch: (context) => <DispatchPage onMessage={context.onMessage} />,
   'sales-orders': (context) => <SalesOrderPage onMessage={context.onMessage} />,
   shipment: (context) => <ShipmentPage onMessage={context.onMessage} />,
-  return: (context) => <ReturnPage onMessage={context.onMessage} />,
+  return: (context) => <ReturnPage onMessage={context.onMessage} canQualityUpdate={context.canUpdate('quality')} />,
   'flow-transfers': (context) => <FlowTransferPage onMessage={context.onMessage} />,
   employees: (context) => (
     <EmployeePage

@@ -290,7 +290,15 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
             id: true,
             status: true,
             balances: { select: { stockQty: true, valuationQty: true, costAmount: true } },
-            _count: { select: { productionInputAllocations: true, parentGenealogies: true, childGenealogies: true } },
+            _count: {
+              select: {
+                productionInputAllocations: true,
+                shipmentAllocations: true,
+                returnedLotAllocations: true,
+                parentGenealogies: true,
+                childGenealogies: true,
+              },
+            },
           },
         }),
       ])
@@ -314,6 +322,8 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
           lot.status !== 'REVERSED'
           || lot.balances.some((balance) => [balance.stockQty, balance.valuationQty, balance.costAmount].some((value) => Math.abs(Number(value)) > zeroTolerance))
           || lot._count.productionInputAllocations > 0
+          || lot._count.shipmentAllocations > 0
+          || lot._count.returnedLotAllocations > 0
           || lot._count.parentGenealogies > 0
           || lot._count.childGenealogies > 0
         ))
@@ -352,15 +362,25 @@ export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string)
       addCountBlocker(blockers, counts._count.costRecords, '成本记录')
       addCountBlocker(blockers, stockLogCount, '库存流水')
     } else if (model === 'shipment') {
-      const [returnCount, stockLogCount] = await Promise.all([
+      const [returnCount, stockLogCount, lotAllocationCount, returnLotAllocationCount] = await Promise.all([
         tx.returnOrder.count({ where: { shipmentId: id } }),
         tx.stockLog.count({ where: { refId: id } }),
+        tx.shipmentLotAllocation.count({ where: { shipmentId: id } }),
+        tx.returnLotAllocation.count({ where: { shipmentAllocation: { shipmentId: id } } }),
       ])
       addCountBlocker(blockers, returnCount, '退货单')
       addCountBlocker(blockers, stockLogCount, '库存流水')
+      addCountBlocker(blockers, lotAllocationCount, '发货批次分配')
+      addCountBlocker(blockers, returnLotAllocationCount, '退货批次谱系')
     } else if (model === 'return') {
-      const stockLogCount = await tx.stockLog.count({ where: { refId: id } })
+      const [stockLogCount, lotCount, allocationCount] = await Promise.all([
+        tx.stockLog.count({ where: { refId: id } }),
+        tx.inventoryLot.count({ where: { returnOrderId: id } }),
+        tx.returnLotAllocation.count({ where: { returnOrderId: id } }),
+      ])
       addCountBlocker(blockers, stockLogCount, '库存流水')
+      addCountBlocker(blockers, lotCount, '退货待检批次')
+      addCountBlocker(blockers, allocationCount, '退货来源批次分配')
     }
 
     if (blockers.length > 0) {

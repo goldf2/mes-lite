@@ -15,7 +15,17 @@ export class StockIntegrityError extends Error {
 }
 
 export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]> {
-  const [materialsWithoutStock, allStocks, activeLotBalances, activeLotAllocations, activeGenealogies] = await Promise.all([
+  const [
+    materialsWithoutStock,
+    allStocks,
+    activeLotBalances,
+    activeLotAllocations,
+    activeGenealogies,
+    tracedShipments,
+    activeShipmentAllocations,
+    tracedReturns,
+    activeReturnAllocations,
+  ] = await Promise.all([
     prisma.material.findMany({
       where: { deletedAt: null, stock: null },
       select: { id: true, code: true, name: true },
@@ -37,6 +47,34 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
     }),
     prisma.inventoryLotGenealogy.findMany({
       where: { status: 'ACTIVE' }, include: { parentLot: { select: { materialId: true, status: true } }, childLot: { select: { status: true } }, inputAllocation: { select: { status: true } } },
+    }),
+    prisma.shipment.findMany({
+      where: { deletedAt: null, lotTraceStatus: { in: ['TRACKED', 'LEGACY'] } },
+      include: { lotAllocations: { where: { status: 'ACTIVE' } } },
+    }),
+    prisma.shipmentLotAllocation.findMany({
+      where: { status: 'ACTIVE' },
+      include: {
+        lot: { select: { materialId: true, status: true, lotNo: true } },
+        shipment: { select: { materialId: true, shipmentNo: true, status: true } },
+      },
+    }),
+    prisma.returnOrder.findMany({
+      where: { deletedAt: null, status: 'PROCESSED', inventoryLot: { isNot: null } },
+      include: { inventoryLot: true, lotAllocations: { where: { status: 'ACTIVE' } } },
+    }),
+    prisma.returnLotAllocation.findMany({
+      where: { status: 'ACTIVE' },
+      include: {
+        returnOrder: { select: { returnNo: true, shipmentId: true, status: true } },
+        returnedLot: { select: { id: true, returnOrderId: true, materialId: true, status: true, lotNo: true } },
+        shipmentAllocation: {
+          include: {
+            lot: { select: { materialId: true, status: true, lotNo: true } },
+            shipment: { select: { id: true, shipmentNo: true } },
+          },
+        },
+      },
     }),
   ])
 
@@ -143,6 +181,76 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
       type: 'INVALID_INVENTORY_LOT_GENEALOGY',
       message: '存在有效谱系边关联已冲销批次或已冲销投入分配',
       records: invalidGenealogies.slice(0, 20).map((item) => ({ id: item.id, parentLotId: item.parentLotId, childLotId: item.childLotId })),
+    })
+  }
+  const invalidShipmentAllocations: Array<Record<string, unknown>> = []
+  for (const allocation of activeShipmentAllocations) {
+    const returnedQty = Number(allocation.returnedStockQty)
+    if (
+      allocation.lot.status !== 'OPEN'
+      || allocation.shipment.status === 'PENDING'
+      || Number(allocation.stockQty) <= 0
+      || returnedQty < -0.000001
+      || returnedQty - Number(allocation.stockQty) > 0.000001
+      || (allocation.shipment.materialId && allocation.shipment.materialId !== allocation.lot.materialId)
+    ) {
+      invalidShipmentAllocations.push({
+        id: allocation.id,
+        shipmentNo: allocation.shipment.shipmentNo,
+        lotNo: allocation.lot.lotNo,
+        stockQty: allocation.stockQty,
+        returnedStockQty: allocation.returnedStockQty,
+      })
+    }
+  }
+  for (const shipment of tracedShipments) {
+    const allocatedQty = shipment.lotAllocations.reduce((sum, item) => sum + Number(item.stockQty), 0)
+    if (Math.abs(allocatedQty - Number(shipment.qty)) > 0.000001) {
+      invalidShipmentAllocations.push({ id: shipment.id, shipmentNo: shipment.shipmentNo, shipmentQty: shipment.qty, allocatedQty, reason: '发货批次合计与发货数量不一致' })
+    }
+  }
+  if (invalidShipmentAllocations.length > 0) {
+    issues.push({
+      type: 'INVALID_SHIPMENT_LOT_ALLOCATION',
+      message: '存在发货批次数量、退回累计或物料关联异常',
+      records: invalidShipmentAllocations.slice(0, 20),
+    })
+  }
+  const invalidReturnAllocations: Array<Record<string, unknown>> = []
+  for (const allocation of activeReturnAllocations) {
+    if (
+      allocation.returnOrder.status !== 'PROCESSED'
+      || allocation.returnOrder.shipmentId !== allocation.shipmentAllocation.shipment.id
+      || allocation.returnedLot.returnOrderId !== allocation.returnOrderId
+      || allocation.returnedLot.status !== 'OPEN'
+      || allocation.shipmentAllocation.lot.status !== 'OPEN'
+      || allocation.returnedLot.materialId !== allocation.shipmentAllocation.lot.materialId
+      || Number(allocation.stockQty) <= 0
+    ) {
+      invalidReturnAllocations.push({
+        id: allocation.id,
+        returnNo: allocation.returnOrder.returnNo,
+        shipmentNo: allocation.shipmentAllocation.shipment.shipmentNo,
+        sourceLotNo: allocation.shipmentAllocation.lot.lotNo,
+        returnedLotNo: allocation.returnedLot.lotNo,
+      })
+    }
+  }
+  for (const returnOrder of tracedReturns) {
+    const allocatedQty = returnOrder.lotAllocations.reduce((sum, item) => sum + Number(item.stockQty), 0)
+    if (
+      !returnOrder.inventoryLot
+      || returnOrder.inventoryLot.returnOrderId !== returnOrder.id
+      || Math.abs(allocatedQty - Number(returnOrder.qty)) > 0.000001
+    ) {
+      invalidReturnAllocations.push({ id: returnOrder.id, returnNo: returnOrder.returnNo, returnQty: returnOrder.qty, allocatedQty, reason: '退货来源分配合计或独立退货批次关联异常' })
+    }
+  }
+  if (invalidReturnAllocations.length > 0) {
+    issues.push({
+      type: 'INVALID_RETURN_LOT_ALLOCATION',
+      message: '存在退货来源分配、独立退货批次或原发货关联异常',
+      records: invalidReturnAllocations.slice(0, 20),
     })
   }
   return issues
