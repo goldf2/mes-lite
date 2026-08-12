@@ -56,6 +56,9 @@
 | approved_at | 审核通过时间 |
 | approved_by | 审核人 |
 | last_login_at | 最近登录时间 |
+| failed_login_attempts | 当前失败窗口内的密码错误次数 |
+| last_failed_login_at | 最近一次密码验证失败时间 |
+| locked_until | 连续失败触发的锁定截止时间 |
 | created_at | 注册时间 |
 | updated_at | 更新时间 |
 
@@ -70,6 +73,20 @@
 | operator_id | 操作人员 ID |
 | expires_at | 过期时间 |
 | created_at | 创建时间 |
+
+### authentication_throttles
+
+登录、公开注册和管理员安装的来源级持久限流窗口。来源只保存 SHA-256 哈希，不保存原始 IP；未知账号也会受到限制。
+
+| 字段 | 含义 |
+| --- | --- |
+| id | 限流记录 ID |
+| scope | `LOGIN`、`REGISTER`、`SETUP` 等入口范围 |
+| key_hash | 来源标识哈希，与 scope 联合唯一 |
+| window_started_at | 当前计数窗口开始时间 |
+| attempt_count | 当前窗口请求次数 |
+| blocked_until | 超限后的阻断截止时间 |
+| created_at / updated_at | 创建和更新时间 |
 
 ### employees
 

@@ -6,6 +6,9 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: file:/app/data/mes_lite.db
+      MES_TRUSTED_ORIGINS: http://localhost:3000
+      MES_PUBLIC_REGISTRATION_ENABLED: "false"
+      MES_INITIAL_ADMIN_TOKEN: ${MES_INITIAL_ADMIN_TOKEN:-}
     volumes:
       - ./.runtime/data:/app/data
       - ./.runtime/uploads:/app/public/uploads

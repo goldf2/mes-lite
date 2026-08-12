@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import AppLoadingIndicator from './AppLoadingIndicator'
 import {
   loadCurrentOperator,
+  loadPublicRegistrationEnabled,
   loadWeChatLoginEnabled,
   loginOperator,
   logoutOperator,
@@ -55,9 +56,11 @@ export default function AuthGate({ children }: AuthGateProps) {
   const [checked, setChecked] = useState(false)
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [message, setMessage] = useState('')
+  const [registrationEnabled, setRegistrationEnabled] = useState(false)
 
   useEffect(() => {
     fetchMe()
+    loadPublicRegistrationEnabled().then(setRegistrationEnabled).catch(() => setRegistrationEnabled(false))
     const params = new URLSearchParams(window.location.search)
     const wechatStatus = params.get('wechat_login')
     if (wechatStatus) {
@@ -102,10 +105,12 @@ export default function AuthGate({ children }: AuthGateProps) {
           </div>
           <h1 className="text-2xl font-bold text-gray-900">MES-lite</h1>
           <div className="mt-1 text-xs font-medium text-gray-400">v{appVersion}</div>
-          <p className="text-sm text-gray-500 mt-1">操作人员需要注册并审核通过后使用</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {registrationEnabled ? '操作人员需要注册并审核通过后使用' : '请使用管理员分配并审核通过的账号登录'}
+          </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-lg mb-5">
+        <div className={`grid ${registrationEnabled ? 'grid-cols-2' : 'grid-cols-1'} gap-2 bg-gray-100 p-1 rounded-lg mb-5`}>
           <button
             type="button"
             onClick={() => { setMode('login'); setMessage('') }}
@@ -113,13 +118,15 @@ export default function AuthGate({ children }: AuthGateProps) {
           >
             登录
           </button>
-          <button
-            type="button"
-            onClick={() => { setMode('register'); setMessage('') }}
-            className={`py-2 rounded-md text-sm font-medium ${mode === 'register' ? 'bg-white shadow text-blue-700' : 'text-gray-600'}`}
-          >
-            注册
-          </button>
+          {registrationEnabled && (
+            <button
+              type="button"
+              onClick={() => { setMode('register'); setMessage('') }}
+              className={`py-2 rounded-md text-sm font-medium ${mode === 'register' ? 'bg-white shadow text-blue-700' : 'text-gray-600'}`}
+            >
+              注册
+            </button>
+          )}
         </div>
 
         {message && (
@@ -128,7 +135,7 @@ export default function AuthGate({ children }: AuthGateProps) {
           </div>
         )}
 
-        {mode === 'login' ? (
+        {mode === 'login' || !registrationEnabled ? (
           <LoginForm onSuccess={fetchMe} onMessage={setMessage} />
         ) : (
           <RegisterForm onRegistered={() => setMode('login')} onMessage={setMessage} />
@@ -252,6 +259,7 @@ function RegisterForm({ onRegistered, onMessage }: { onRegistered: () => void; o
       <div>
         <label htmlFor="register-password" className="block text-sm font-medium text-gray-700 mb-2">密码</label>
         <input id="register-password" name="password" type="password" autoComplete="new-password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+        <p className="mt-1 text-xs text-gray-500">至少 10 位</p>
       </div>
       <button type="submit" disabled={loading || !form.username || !form.password || !form.name} className="w-full px-4 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50">
         {loading ? '提交中...' : '提交注册'}

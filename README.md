@@ -49,6 +49,8 @@ npm run dev:admin
 
 `dev:admin` 在 `NODE_ENV=production` 时会拒绝执行，不是生产后门。
 
+生产环境不会让首位注册者自动成为管理员。首次部署时先在 Coolify 临时配置至少 32 字符的 `MES_INITIAL_ADMIN_TOKEN`，再按 [Coolify 部署说明](./docs/deployment/coolify.md) 调用一次 `/api/auth/setup`；成功后立即删除令牌并重新部署。公开注册默认关闭，开启后新账号仍需管理员审核。
+
 ## 常用命令
 
 ```bash
@@ -92,5 +94,6 @@ npm run verify:data-integrity # 关键数据一致性
 - `/app/data`：SQLite 数据库
 - `/app/public/uploads`：原始附件和派生预览
 - `/api/health`：健康检查
+- 写 API：校验同源 `Origin`；额外允许来源由 `MES_TRUSTED_ORIGINS` 配置
 
 详见 [Coolify 部署说明](./docs/deployment/coolify.md)。PostgreSQL、对象存储和多租户是规划中的演进方向，不是当前运行事实。

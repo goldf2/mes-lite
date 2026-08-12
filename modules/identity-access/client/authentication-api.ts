@@ -26,6 +26,13 @@ export async function registerOperatorAccount(input: { username: string; passwor
   }), '注册失败')
 }
 
+export async function loadPublicRegistrationEnabled() {
+  const response = await fetch('/api/auth/register')
+  if (!response.ok) return false
+  const payload = await response.json() as { data?: { enabled?: boolean } }
+  return Boolean(payload.data?.enabled)
+}
+
 export async function loadWeChatLoginEnabled() {
   const response = await fetch('/api/auth/wechat/status')
   if (!response.ok) return false

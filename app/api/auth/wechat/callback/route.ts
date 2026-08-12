@@ -6,7 +6,13 @@ import { WECHAT_STATE_COOKIE, buildAuthPageUrl, getWeChatWebConfig, getWeChatWeb
 
 function redirectWithStatus(req: NextRequest, status?: string) {
   const response = NextResponse.redirect(buildAuthPageUrl(req, status))
-  response.cookies.set(WECHAT_STATE_COOKIE, '', { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 0 })
+  response.cookies.set(WECHAT_STATE_COOKIE, '', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 0,
+  })
   return response
 }
 

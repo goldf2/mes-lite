@@ -45,7 +45,11 @@ docker compose up --build
 ```env
 NODE_ENV=production
 DATABASE_URL=file:/app/data/mes_lite.db
+MES_TRUSTED_ORIGINS=https://mes.example.com
+MES_PUBLIC_REGISTRATION_ENABLED=false
 ```
+
+`MES_TRUSTED_ORIGINS` 必须填写浏览器实际访问的 HTTPS Origin（协议、域名和可选端口，不带路径）。所有 `POST / PUT / PATCH / DELETE` API 都会先执行同源校验；多个可信 Origin 使用英文逗号分隔。公开注册默认关闭，只有在受控注册时间窗口才临时把 `MES_PUBLIC_REGISTRATION_ENABLED` 改为 `true`，新账号仍统一进入待审核状态。
 
 启用全局 AI 协作助手时，在 Coolify 增加以下运行时变量。第一版默认使用阿里云百炼的 OpenAI 兼容接口，也可替换为其他国产兼容服务；密钥不得写入仓库或前端变量：
 
@@ -82,7 +86,29 @@ sudo mkdir -p /opt/mes-lite/data /opt/mes-lite/uploads
 
 产品文档图片/PDF 的持久缩略图与原文件存放在同一个 uploads 挂载中，不需要新增存储卷；迁移或备份时必须整体保留该目录。
 
-容器启动入口会先以 root 身份幂等修复 `/app/data` 与 `/app/public/uploads` 的所有者和读写权限，再立即通过 Debian 基础镜像内置的 `setpriv` 降权为 `node` 用户；随后创建 SQLite 文件、执行 `prisma migrate deploy` 并启动 Next.js。应用进程本身不会以 root 运行。全新数据库首次注册的用户会自动成为管理员；已有数据库则继续使用原账号。
+容器启动入口会先以 root 身份幂等修复 `/app/data` 与 `/app/public/uploads` 的所有者和读写权限，再立即通过 Debian 基础镜像内置的 `setpriv` 降权为 `node` 用户；随后创建 SQLite 文件、执行 `prisma migrate deploy` 并启动 Next.js。应用进程本身不会以 root 运行。已有数据库继续使用原账号；全新数据库必须按下一节显式安装首个管理员，任何密码或微信注册都不会按注册顺序自动提权。
+
+### 3.1 首位管理员显式安装
+
+1. 使用 `openssl rand -hex 32` 生成一次性随机值，临时保存到 Coolify 环境变量 `MES_INITIAL_ADMIN_TOKEN` 后重新部署。
+2. 确认站点已经使用 HTTPS，并从受信任终端执行一次以下请求；管理员密码至少 12 位：
+
+```bash
+MES_ORIGIN='https://mes.example.com'
+MES_INITIAL_ADMIN_TOKEN='<Coolify 中的临时令牌>'
+curl --fail-with-body -X POST "$MES_ORIGIN/api/auth/setup" \
+  -H "Origin: $MES_ORIGIN" \
+  -H 'Content-Type: application/json' \
+  -H "X-MES-Initial-Admin-Token: $MES_INITIAL_ADMIN_TOKEN" \
+  --data '{"username":"admin","password":"replace-with-a-strong-password","name":"系统管理员"}'
+```
+
+3. 收到“初始管理员安装成功”后，立即从 Coolify 删除 `MES_INITIAL_ADMIN_TOKEN` 并重新部署。接口在令牌缺失时返回 404；数据库已有任意管理员时返回 409，不提供远程密码重置能力。
+4. 若遗失管理员密码，不要重新开放安装接口；应进入受控维护窗口备份数据库，再使用单独的账号恢复流程处理。
+
+登录、公开注册和管理员安装都按来源写入 `AuthenticationThrottle` 限流；同一账号 15 分钟内连续 5 次密码错误会锁定 15 分钟。生产会话 Cookie 和微信登录 state Cookie 强制 `Secure`，因此正式环境必须使用 HTTPS。
+
+限流来源优先使用反向代理覆盖写入的 `X-Real-IP`，其次读取 `X-Forwarded-For` 最右侧地址；部署入口不得绕过 Coolify 代理直接暴露容器端口，也不得允许客户端覆盖这些代理头。超过 30 天未活动的限流窗口会在后续认证请求中自动清理。
 
 默认目录可通过以下环境变量调整，但禁止把 `/`、`/app` 或 `/app/public` 这类过宽目录设为修复目标：
 
@@ -123,7 +149,7 @@ Prisma Client 生成使用独立缓存层，仅在 npm 依赖或 `prisma/` 发�
 - Coolify 的 Persistent Storage 是否正确挂载。
 - 启动日志是否出现“持久存储权限已就绪”；若未出现，检查挂载是否允许容器 root 用户执行 `chown`。
 
-### 3.1 国内部署镜像加速
+### 3.2 国内部署镜像加速
 
 只有 Coolify 的详细构建日志长时间停在拉取基础镜像、`load metadata`、`npm ci` 或下载 npm 包时，镜像站才是主要优化方向。若耗时集中在 `npm run build`，切换镜像站不会缩短编译时间。
 
@@ -138,7 +164,7 @@ DEBIAN_MIRROR=http://mirrors.aliyun.com
 
 系统包下载、npm 依赖和 Next.js 编译均应使用 BuildKit cache mount。缓存目录不得在同一构建步骤末尾删除，否则失败重试和后续版本无法复用已下载内容。慢网络操作必须设置有限重试与超时；依赖安装层应位于业务源码 `COPY` 之前，避免每次应用修改都重新下载。
 
-### 3.2 构建成功但导出镜像失败
+### 3.3 构建成功但导出镜像失败
 
 如果日志已出现 `Compiled successfully`、静态页生成完成和完整路由表，却在 `exporting layers` 立即失败，说明应用代码已构建成功，应优先检查部署主机的 Docker 存储，而不是把 lint warning 当作失败原因。
 

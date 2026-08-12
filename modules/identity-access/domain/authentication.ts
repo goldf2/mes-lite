@@ -1,8 +1,20 @@
 export class AuthenticationError extends Error {
-  constructor(message: string, public readonly status: 400 | 401 | 403) {
+  constructor(
+    message: string,
+    public readonly status: 400 | 401 | 403 | 404 | 409 | 429,
+    public readonly retryAfterSeconds?: number,
+  ) {
     super(message)
     this.name = 'AuthenticationError'
   }
+}
+
+export const PASSWORD_FAILURE_LIMIT = 5
+export const PASSWORD_FAILURE_WINDOW_MS = 15 * 60 * 1000
+export const PASSWORD_LOCK_MS = 15 * 60 * 1000
+
+export function publicRegistrationEnabled() {
+  return process.env.MES_PUBLIC_REGISTRATION_ENABLED?.trim().toLowerCase() === 'true'
 }
 
 export function operatorLoginStatusError(status: string) {

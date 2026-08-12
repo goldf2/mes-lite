@@ -47,6 +47,7 @@ export function setSessionCookie(res: NextResponse, token: string, expiresAt: Da
   res.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
     path: '/',
     expires: expiresAt,
   })
@@ -56,6 +57,7 @@ export function clearSessionCookie(res: NextResponse) {
   res.cookies.set(SESSION_COOKIE, '', {
     httpOnly: true,
     sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
     path: '/',
     maxAge: 0,
   })

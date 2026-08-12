@@ -7,7 +7,13 @@ export function authenticationHttpError(error: unknown, fallback = '认证失败
   if (error instanceof z.ZodError) return NextResponse.json({
     error: error.errors[0]?.message || '参数错误', details: error.errors,
   }, { status: 400 })
-  if (error instanceof AuthenticationError) return NextResponse.json({ error: error.message }, { status: error.status })
+  if (error instanceof AuthenticationError) return NextResponse.json(
+    { error: error.message },
+    {
+      status: error.status,
+      headers: error.retryAfterSeconds ? { 'Retry-After': String(error.retryAfterSeconds) } : undefined,
+    },
+  )
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     const message = error.code === 'P2002' ? '账号已存在'
       : error.code === 'P2021' || error.code === 'P2022' ? '数据库结构未初始化，请先执行迁移'
