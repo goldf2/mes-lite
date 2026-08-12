@@ -30,7 +30,7 @@ assert.equal(rankWorkspaceFunctionKeys({
   layout: [],
   pinned: [],
   usage: [],
-}).length, 9)
+}).length, 10)
 
 assert.deepEqual(rankWorkspaceFunctionKeys({
   mode: 'CUSTOM',

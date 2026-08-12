@@ -12,7 +12,7 @@ import { createProductionOrders } from '../modules/production/server/production-
 import { confirmProductionOrder } from '../modules/production/server/production-order-status-service'
 import { decideQualityInspection, disposeQualityInspection } from '../modules/quality/server/quality-inspection-service'
 import { createManagedReturn, createManagedShipment } from '../modules/sales/server/fulfillment-command-service'
-import { deliverManagedShipment, shipManagedShipment } from '../modules/sales/server/fulfillment-status-service'
+import { deliverManagedShipment, processManagedReturn, shipManagedShipment } from '../modules/sales/server/fulfillment-status-service'
 import { confirmManagedSalesOrder, createManagedSalesOrder } from '../modules/sales/server/sales-order-command-service'
 
 const databaseUrl = process.env.DATABASE_URL || ''
@@ -140,7 +140,6 @@ async function main() {
 
   await prisma.$transaction(async (tx) => {
     await postInventoryReceipt(tx, { materialId: oil.id, stockQty: 180, valuationQty: 180, costAmount: 2700, type: 'OPENING', refType: 'DEMO', refId: 'oil-opening', note: '指导书演示期初库存', createdBy: admin.name, idempotencyKey: 'GUIDE:OIL:OPENING', locationId: rawLocation.id })
-    await postInventoryReceipt(tx, { materialId: bolt.id, stockQty: 1500, valuationQty: 1500, costAmount: 1350, type: 'OPENING', refType: 'DEMO', refId: 'bolt-opening', note: '指导书演示期初库存', createdBy: admin.name, idempotencyKey: 'GUIDE:BOLT:OPENING', locationId: finishedLocation.id })
   })
 
   const receivedMaterialIn = await createMaterialIns({
@@ -300,6 +299,15 @@ async function main() {
     reason: '客户抽检尺寸超差',
     note: '指导书：待处理退货单',
   }, fixedNow)
+  const processedReturn = await createManagedReturn({
+    shipmentId: deliveredShipment.id,
+    productId: product.id,
+    locationId: returnLocation.id,
+    qty: 8,
+    reason: '客户复测发现螺纹通止规异常',
+    note: '指导书：已收货且形成独立待检批次的退货单',
+  }, fixedNow)
+  await processManagedReturn(processedReturn.id, warehouseKeeper.name)
 
   const parentCategory = await prisma.documentCategory.create({ data: { name: '生产作业文件', sortOrder: 10 } })
   const childCategory = await prisma.documentCategory.create({ data: { name: '冷镦工序指导', parentId: parentCategory.id, sortOrder: 10 } })

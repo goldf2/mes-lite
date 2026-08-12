@@ -38,6 +38,7 @@ export type InventoryLotTraceNode = {
 
 export type InventoryLotCustomerShipment = {
   id: string
+  lotId: string
   shipmentId: string
   shipmentNo: string
   customer: string

@@ -20,6 +20,7 @@ export const workspaceFunctionKeys = [
   'return',
   'stocks',
   'stockMovements',
+  'lotPanorama',
   'suppliers',
   'customers',
   'locationSettings',

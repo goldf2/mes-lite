@@ -12,7 +12,7 @@ export interface PagePresentationDefinition {
 
 export const applicationTabs = [
   'dashboard', 'allFunctions', 'orders', 'materials', 'workInstructions', 'equipment', 'materialIn',
-  'dispatch', 'stocks', 'stockMovements', 'qualityTasks', 'salesOrders', 'shipment', 'return', 'flowTransfers', 'sawingCost', 'scanPrint',
+  'dispatch', 'stocks', 'stockMovements', 'lotPanorama', 'qualityTasks', 'salesOrders', 'shipment', 'return', 'flowTransfers', 'sawingCost', 'scanPrint',
   'suppliers', 'customers', 'employees', 'processTemplates', 'processRoutes', 'archive', 'auditLogs',
   'dataTools', 'unitSettings', 'locationSettings', 'workCenters', 'documentCategories', 'businessSettings',
   'displaySettings', 'navigationSettings', 'aiSettings', 'operators', 'permissionUsers', 'permissionGroups',
@@ -46,6 +46,7 @@ export type PageRendererKey =
   | 'production-orders'
   | 'stocks'
   | 'stock-movements'
+  | 'lot-panorama'
   | 'quality-tasks'
   | 'materials'
   | 'bom-workspace'
@@ -114,6 +115,7 @@ const registeredPages = [
   registerPage({ key: 'return', tab: 'return', kind: 'transaction', title: '退货管理', description: '登记退货、审核并处理返库', renderer: 'return', groupKey: 'sales', resource: 'return', primaryNavigation: true, workspace: { functionKey: 'return', label: '退货管理', icon: '退' } }),
   registerPage({ key: 'stocks', tab: 'stocks', kind: 'master-detail', title: '库存管理', description: '查看库存、库位余额和成本', renderer: 'stocks', groupKey: 'inventory', resource: 'stocks', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' }, workspace: { functionKey: 'stocks', label: '库存管理', icon: '库' } }),
   registerPage({ key: 'stockMovements', tab: 'stockMovements', kind: 'transaction', title: '库存流水', description: '追踪库存、核算数量和成本的每次变化及业务来源', renderer: 'stock-movements', groupKey: 'inventory', resource: 'stocks', primaryNavigation: true, workspace: { functionKey: 'stockMovements', label: '库存流水', icon: '流' } }),
+  registerPage({ key: 'lotPanorama', tab: 'lotPanorama', kind: 'master-detail', title: '批次追溯', description: '从供应、生产、质量、客户发货与退货线索展开批次全景', renderer: 'lot-panorama', groupKey: 'inventory', resource: 'stocks', primaryNavigation: true, workspace: { functionKey: 'lotPanorama', label: '批次追溯', icon: '溯' } }),
   registerPage({ key: 'suppliers', tab: 'suppliers', kind: 'resource', title: '供应商资料', description: '维护供应商基础资料', renderer: 'system-section', groupKey: 'configuration', resource: 'system', primaryNavigation: true, systemSection: 'suppliers', workspace: { functionKey: 'suppliers', label: '供应商资料', icon: '供' } }),
   registerPage({ key: 'customers', tab: 'customers', kind: 'resource', title: '客户资料', description: '维护客户基础资料', renderer: 'system-section', groupKey: 'configuration', resource: 'system', primaryNavigation: true, systemSection: 'customers', workspace: { functionKey: 'customers', label: '客户资料', icon: '客' } }),
   registerPage({ key: 'employees', tab: 'employees', kind: 'resource', title: '员工资料', description: '维护业务员工并供生产和转移单据选用', renderer: 'employees', groupKey: 'configuration', resource: 'system', primaryNavigation: true, workspace: { functionKey: 'employees', label: '员工资料', icon: '员' } }),

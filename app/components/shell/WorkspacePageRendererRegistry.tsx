@@ -33,6 +33,7 @@ const DashboardPage = dynamic(() => import('@/modules/workspace'), { loading: Fe
 const ProductionOrderModule = dynamic(() => import('@/modules/production'), { loading: FeaturePageLoading })
 const StockPageModule = dynamic(() => import('@/modules/inventory'), { loading: FeaturePageLoading })
 const StockMovementPageModule = dynamic(() => import('@/modules/inventory').then((module) => module.StockMovementPageModule), { loading: FeaturePageLoading })
+const InventoryLotPanoramaPageModule = dynamic(() => import('@/modules/inventory').then((module) => module.InventoryLotPanoramaPageModule), { loading: FeaturePageLoading })
 const QualityTaskPageModule = dynamic(() => import('@/modules/quality').then((module) => module.QualityTaskPageModule), { loading: FeaturePageLoading })
 
 export interface BomEditorTarget {
@@ -101,6 +102,7 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
     />
   ),
   'stock-movements': (context) => <StockMovementPageModule onMessage={context.onMessage} />,
+  'lot-panorama': (context) => <InventoryLotPanoramaPageModule onMessage={context.onMessage} />,
   'quality-tasks': (context) => <QualityTaskPageModule canDecide={context.canUpdate('qualityDecision')} canDispose={context.canUpdate('qualityDisposition')} canRelease={context.canUpdate('qualityRelease')} onMessage={context.onMessage} />,
   materials: (context) => (
     <MaterialPage

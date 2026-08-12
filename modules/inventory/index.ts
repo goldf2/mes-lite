@@ -1,10 +1,13 @@
 export { default } from './ui/StockPageModule'
 export { default as StockMovementPageModule } from './ui/StockMovementPageModule'
 export { default as InventoryLotTraceDialog } from './ui/InventoryLotTraceDialog'
+export { default as InventoryLotPanoramaPageModule } from './ui/InventoryLotPanoramaPageModule'
 export { inventoryStatusLabel, inventoryStatuses } from './domain/inventory-status'
 export type { InventoryStatus } from './domain/inventory-status'
 export type { InventoryLotCustomerReturn, InventoryLotCustomerShipment, InventoryLotTrace, InventoryLotTraceNode, InventoryLotTraceRelation } from './contracts/inventory-lot-trace'
+export type { InventoryLotPanorama, InventoryLotPanoramaEdge, InventoryLotPanoramaNode, InventoryLotSearchItem, InventoryLotSearchResult } from './contracts/inventory-lot-panorama'
 export { getInventoryLotTrace } from './server/inventory-lot-trace-service'
+export { getInventoryLotPanorama, searchInventoryLots } from './server/inventory-lot-panorama-service'
 export {
   allocateAvailableInventoryLots,
   allocateReturnToShipmentLots,

@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import type { InventoryLotCustomerReturn, InventoryLotCustomerShipment, InventoryLotTrace, InventoryLotTraceNode, InventoryLotTraceRelation } from '../contracts/inventory-lot-trace'
 
-const traceInclude = {
+export const inventoryLotTraceInclude = {
   material: { select: { id: true, code: true, name: true, stockUnit: true, unit: true } },
   materialIn: { include: { supplier: { select: { name: true } } } },
   productionOutput: { include: { actual: { include: { order: { select: { orderNo: true } } } } } },
@@ -15,7 +15,7 @@ const traceInclude = {
   inspections: { orderBy: { createdAt: 'desc' as const } },
 } as const
 
-function toTraceNode(lot: Awaited<ReturnType<typeof loadLot>>): InventoryLotTraceNode {
+export function toInventoryLotTraceNode(lot: Awaited<ReturnType<typeof loadLot>>): InventoryLotTraceNode {
   if (!lot) throw new Error('内部批次不存在')
   const sourceDocument = lot.materialIn
     ? { type: 'MATERIAL_IN' as const, number: lot.materialIn.inboundNo, supplier: lot.materialIn.supplier.name }
@@ -74,7 +74,17 @@ function toTraceNode(lot: Awaited<ReturnType<typeof loadLot>>): InventoryLotTrac
 }
 
 function loadLot(id: string) {
-  return prisma.inventoryLot.findUnique({ where: { id }, include: traceInclude })
+  return prisma.inventoryLot.findUnique({ where: { id }, include: inventoryLotTraceInclude })
+}
+
+export async function loadInventoryLotTraceNodes(ids: string[]) {
+  if (ids.length === 0) return []
+  const lots = await prisma.inventoryLot.findMany({
+    where: { id: { in: ids } },
+    include: inventoryLotTraceInclude,
+    orderBy: [{ receivedAt: 'asc' }, { lotNo: 'asc' }],
+  })
+  return lots.map((lot) => toInventoryLotTraceNode(lot))
 }
 
 export async function getInventoryLotTrace(id: string): Promise<InventoryLotTrace> {
@@ -84,7 +94,7 @@ export async function getInventoryLotTrace(id: string): Promise<InventoryLotTrac
     prisma.inventoryLotGenealogy.findMany({
       where: { childLotId: id, status: 'ACTIVE' },
       include: {
-        parentLot: { include: traceInclude },
+        parentLot: { include: inventoryLotTraceInclude },
         inputAllocation: { include: { actualInput: true } },
         actual: { include: { order: { select: { orderNo: true } } } },
       },
@@ -93,7 +103,7 @@ export async function getInventoryLotTrace(id: string): Promise<InventoryLotTrac
     prisma.inventoryLotGenealogy.findMany({
       where: { parentLotId: id, status: 'ACTIVE' },
       include: {
-        childLot: { include: traceInclude },
+        childLot: { include: inventoryLotTraceInclude },
         inputAllocation: { include: { actualInput: true } },
         actual: { include: { order: { select: { orderNo: true } } } },
       },
@@ -113,7 +123,7 @@ export async function getInventoryLotTrace(id: string): Promise<InventoryLotTrac
         returnOrder: true,
         shipmentAllocation: {
           include: {
-            lot: { include: traceInclude },
+            lot: { include: inventoryLotTraceInclude },
             shipment: true,
           },
         },
@@ -125,7 +135,7 @@ export async function getInventoryLotTrace(id: string): Promise<InventoryLotTrac
       include: {
         returnOrder: true,
         shipmentAllocation: { include: { shipment: true } },
-        returnedLot: { include: traceInclude },
+        returnedLot: { include: inventoryLotTraceInclude },
       },
       orderBy: { createdAt: 'asc' },
     }),
@@ -138,7 +148,7 @@ export async function getInventoryLotTrace(id: string): Promise<InventoryLotTrac
     materialName: item.inputAllocation.actualInput.materialName,
     actualNo: item.actual.actualNo,
     orderNo: item.actual.order.orderNo,
-    lot: toTraceNode(item.parentLot),
+    lot: toInventoryLotTraceNode(item.parentLot),
   }))
   const downstream: InventoryLotTraceRelation[] = children.map((item) => ({
     id: item.id,
@@ -148,10 +158,11 @@ export async function getInventoryLotTrace(id: string): Promise<InventoryLotTrac
     materialName: item.inputAllocation.actualInput.materialName,
     actualNo: item.actual.actualNo,
     orderNo: item.actual.order.orderNo,
-    lot: toTraceNode(item.childLot),
+    lot: toInventoryLotTraceNode(item.childLot),
   }))
   const customerShipments: InventoryLotCustomerShipment[] = shipmentAllocations.map((item) => ({
     id: item.id,
+    lotId: item.lotId,
     shipmentId: item.shipmentId,
     shipmentNo: item.shipment.shipmentNo,
     customer: item.shipment.customer,
@@ -174,7 +185,7 @@ export async function getInventoryLotTrace(id: string): Promise<InventoryLotTrac
     shipmentNo: item.shipmentAllocation.shipment.shipmentNo,
     customer: item.shipmentAllocation.shipment.customer,
     stockQty: Number(item.stockQty),
-    lot: toTraceNode(item.shipmentAllocation.lot),
+    lot: toInventoryLotTraceNode(item.shipmentAllocation.lot),
   }))
   const returnDescendants: InventoryLotCustomerReturn[] = returnDescendantsData.map((item) => ({
     id: item.id,
@@ -187,7 +198,7 @@ export async function getInventoryLotTrace(id: string): Promise<InventoryLotTrac
     shipmentNo: item.shipmentAllocation.shipment.shipmentNo,
     customer: item.shipmentAllocation.shipment.customer,
     stockQty: Number(item.stockQty),
-    lot: toTraceNode(item.returnedLot),
+    lot: toInventoryLotTraceNode(item.returnedLot),
   }))
-  return { lot: toTraceNode(lot), upstream, downstream, customerShipments, returnSources, returnDescendants }
+  return { lot: toInventoryLotTraceNode(lot), upstream, downstream, customerShipments, returnSources, returnDescendants }
 }
