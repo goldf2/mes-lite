@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { changeStockLocationBalance } from '@/lib/inventory'
 import type { LegacyProductionOrderStockInInput } from '../contracts/legacy-production-order-execution-schema'
-import { legacyStockInStatusError } from '../domain/legacy-production-order-execution-rules'
+import { legacyProductionCompatibilityError, legacyStockInStatusError } from '../domain/legacy-production-order-execution-rules'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
 
 const roundQty = (value: number) => Number(value.toFixed(6))
@@ -18,6 +18,8 @@ export async function stockInLegacyProductionOrder(
         include: { targetMaterial: true },
       })
       if (!order) throw new ProductionOrderDomainError('工单不存在', 404)
+      const compatibilityError = legacyProductionCompatibilityError(order.materialId)
+      if (compatibilityError) throw new ProductionOrderDomainError(compatibilityError, 410)
       const statusError = legacyStockInStatusError(order.status)
       if (statusError) throw new ProductionOrderDomainError(statusError)
 

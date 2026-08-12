@@ -785,7 +785,7 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 ## 64. 旧生产订单执行接口兼容归属
 
 - 当前页面唯一生产过账入口仍是生产订单详情中的 `ProductionOrderActualPanel`；生产页面和其 client 均不调用 `/api/orders/:id/pick`、`reports` 或 `stock-in`。
-- 服务器可能仍保存 `PickItem`、`WorkReport` 和 `StockIn` 历史记录，因此三个 URL 不直接删除。`contracts/legacy-production-order-execution-schema.ts` 集中兼容输入，`domain/legacy-production-order-execution-rules.ts` 以纯规则表达状态、工序顺序和报工完成状态。
+- 服务器可能仍保存 `PickItem`、`WorkReport` 和 `StockIn` 历史记录，因此三个 URL 不直接删除；但只允许处理 `materialId=null` 的历史工单，物料工单固定返回 `410`。`contracts/legacy-production-order-execution-schema.ts` 集中兼容输入，`domain/legacy-production-order-execution-rules.ts` 以纯规则表达兼容拒绝、状态、工序顺序和报工完成状态。
 - 三个 `server/legacy-production-order-*` 服务分别拥有领料成本/预留事务、报工查询与状态事务、旧入库余额与流水事务；首次创建产出库存时同样写 `StockLog`，避免余额与流水断裂。
 - 三条 Route Handler 合计从 501 行降至 80 行，只保留 `orders` 权限、Schema、领域服务、领料审计和 HTTP 映射，不再直接访问 Prisma，使直接访问 Prisma 的 API 从 29 条降至 26 条。
 - `verify:production-order-execution` 在运行后删除的临时完整 SQLite 中覆盖领料、非连续工序号的上一工序防呆、报工状态、质检后入库、首次库存流水和重复入库拒绝；不连接本机测试库或服务器正式库。

@@ -33,10 +33,10 @@ export async function PATCH(req: NextRequest) {
       entityType: 'STOCK',
       entityLabel: '库存余额补齐',
       afterData: result,
-      note: '补齐缺失的物料和内部兼容物料 0 库存余额记录',
+      note: '仅补齐缺失的 Material 物料 0 库存余额记录，不再为内部兼容 Product 创建平行库存',
     })
     return NextResponse.json({
-      message: `库存余额已补齐：物料 ${result.materials.length} 条，内部兼容物料 ${result.products.length} 条`,
+      message: `库存余额已补齐：物料 ${result.materials.length} 条`,
       data: result,
     })
   } catch (error) {

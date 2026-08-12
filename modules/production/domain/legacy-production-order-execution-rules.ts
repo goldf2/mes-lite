@@ -9,6 +9,12 @@ interface WorkReportLike {
   endTime: Date | null
 }
 
+export function legacyProductionCompatibilityError(materialId: string | null | undefined) {
+  return materialId
+    ? '当前工单使用生产实绩流程，不允许继续写入旧领料、工序报工或工单入库记录'
+    : null
+}
+
 export function legacyPickStatusError(status: string) {
   return status === 'CONFIRMED' ? null : `工单状态为 ${status}，不可领料`
 }

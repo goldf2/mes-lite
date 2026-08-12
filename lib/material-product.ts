@@ -10,7 +10,7 @@ export function isMaterialProductId(value?: string | null) {
   return Boolean(value?.startsWith(materialProductPrefix))
 }
 
-type ProductResolver = Pick<typeof prisma, 'material' | 'product' | 'stock' | 'processRoute' | 'processStep'>
+type ProductResolver = Pick<typeof prisma, 'material' | 'product' | 'processRoute' | 'processStep'>
 
 export function materialAsProductOption(material: {
   id: string
@@ -77,17 +77,10 @@ export async function ensureProductForMaterial(
     : 0
   const existing = await tx.product.findFirst({
     where: { OR: [{ sku: material.code }, { sku }] },
-    include: { stock: true, processRoutes: options.defaultRoute ? { where: { isDefault: true }, include: { steps: true } } : false },
+    include: { processRoutes: options.defaultRoute ? { where: { isDefault: true }, include: { steps: true } } : false },
   })
 
   if (existing) {
-    if (!existing.stock) {
-      await tx.stock.upsert({
-        where: { productId: existing.id },
-        update: {},
-        create: { productId: existing.id },
-      })
-    }
     if (options.defaultRoute) {
       const routes = ('processRoutes' in existing ? existing.processRoutes : []) as unknown as Array<{ id: string; steps: unknown[] }>
       const defaultRoute = routes[0]
@@ -123,7 +116,6 @@ export async function ensureProductForMaterial(
       customerId: material.customerId || null,
       unit: material.stockUnit || material.unit,
       description: options.description || `由物料 ${material.code} 自动映射，用于兼容旧业务表。`,
-      stock: { create: {} },
       ...(options.defaultRoute
         ? {
             processRoutes: {

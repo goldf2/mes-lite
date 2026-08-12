@@ -3,7 +3,7 @@ import { consumeMaterialCost } from '@/lib/costing'
 import { changeStockLocationBalance } from '@/lib/inventory'
 import type { LegacyProductionOrderPickInput } from '../contracts/legacy-production-order-execution-schema'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
-import { legacyPickStatusError } from '../domain/legacy-production-order-execution-rules'
+import { legacyPickStatusError, legacyProductionCompatibilityError } from '../domain/legacy-production-order-execution-rules'
 
 const roundQty = (value: number) => Number(value.toFixed(6))
 
@@ -16,9 +16,11 @@ export async function pickLegacyProductionOrder(
     return await prisma.$transaction(async (tx) => {
       const order = await tx.productionOrder.findUnique({
         where: { id: orderId },
-        select: { id: true, orderNo: true, status: true },
+        select: { id: true, orderNo: true, materialId: true, status: true },
       })
       if (!order) throw new ProductionOrderDomainError('工单不存在', 404)
+      const compatibilityError = legacyProductionCompatibilityError(order.materialId)
+      if (compatibilityError) throw new ProductionOrderDomainError(compatibilityError, 410)
       const statusError = legacyPickStatusError(order.status)
       if (statusError) throw new ProductionOrderDomainError(statusError)
 

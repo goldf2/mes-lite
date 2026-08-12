@@ -1,7 +1,9 @@
 # ADR 0025：共享多租户与数据单元架构
 
-状态：接受  
+状态：长期候选，当前暂停；当前产品范围由 ADR 0030 约束
 日期：2026-08-08
+
+> 2026-08-12 复审：本文不代表当前产品合同，也不能驱动当前 Schema 增加 `tenantId`、PostgreSQL、RLS 或 DataCell。MES-lite 当前先完成单厂领域模型收敛；是否重启多租户 SaaS 须由真实商业需求触发并重新评审。见 [ADR 0030](./0030-single-factory-material-master-and-legacy-write-freeze.md)。
 
 ## 背景
 
@@ -68,4 +70,3 @@ MES-lite 当前使用 SQLite、本地附件目录和单实例 Coolify 部署。�
 - [MES-lite 商业化 SaaS 数据与存储架构](../architecture/saas-data-and-storage-architecture.md)
 - [PostgreSQL SaaS 数据结构与迁移计划](../plans/postgresql-saas-migration.md)
 - [OSS SaaS 附件存储接入计划](../plans/oss-saas-integration.md)
-

@@ -1,6 +1,6 @@
 import type { Stock, StockIntegrityIssue } from '../contracts/stock'
 
-const repairableStockIssueTypes = new Set(['MATERIAL_WITHOUT_STOCK', 'PRODUCT_WITHOUT_STOCK'])
+const repairableStockIssueTypes = new Set(['MATERIAL_WITHOUT_STOCK'])
 
 export function canBackfillStockIssues(issues: StockIntegrityIssue[]) {
   return issues.length > 0 && issues.every((issue) => Boolean(issue.type && repairableStockIssueTypes.has(issue.type)))

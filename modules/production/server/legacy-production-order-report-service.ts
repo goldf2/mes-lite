@@ -4,6 +4,7 @@ import {
   areAllProductionStepsReported,
   incompletePreviousStepError,
   legacyOrderStatusAfterReport,
+  legacyProductionCompatibilityError,
   legacyReportStatusError,
 } from '../domain/legacy-production-order-execution-rules'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
@@ -23,9 +24,11 @@ export async function reportLegacyProductionOrder(
   return prisma.$transaction(async (tx) => {
     const order = await tx.productionOrder.findUnique({
       where: { id: orderId },
-      select: { id: true, orderNo: true, productId: true, status: true },
+      select: { id: true, orderNo: true, productId: true, materialId: true, status: true },
     })
     if (!order) throw new ProductionOrderDomainError('工单不存在', 404)
+    const compatibilityError = legacyProductionCompatibilityError(order.materialId)
+    if (compatibilityError) throw new ProductionOrderDomainError(compatibilityError, 410)
     const statusError = legacyReportStatusError(order.status)
     if (statusError) throw new ProductionOrderDomainError(statusError)
 

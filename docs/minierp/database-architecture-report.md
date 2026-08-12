@@ -1,9 +1,10 @@
 # MES-lite 数据库架构分析报告
 
 日期：2026-07-14
+治理修正：2026-08-12 / `v0.1.349`
 商业化目标补充：2026-08-08
 
-> 本文前半部分描述当前 SQLite 数据模型。商业化 SaaS 的 PostgreSQL、租户隔离、OSS 和 DataCell 目标以 [MES-lite 商业化 SaaS 数据与存储架构](../architecture/saas-data-and-storage-architecture.md) 为准；`docs/minierp/data-model.md` 中的 `tenant_id` 表属于目标草案，不代表当前 Prisma Schema 已经完成多租户改造。
+> 本文保留 2026-07-14 的历史抽样与结构分析。自 `v0.1.349` 起，当前产品合同和迁移规则以[单厂 MES 产品边界与核心模型收敛](../architecture/单厂MES产品边界与核心模型收敛.md)为准；多租户 SaaS 已暂停。下文若仍描述“每个 Product 必须有库存”，均已被本修正取代。
 
 ## 结论摘要
 
@@ -11,10 +12,10 @@
 
 当前最重要的建模结论：
 
-- `Material` / `Product` 是主数据，描述“这是什么物品”。
+- `Material` 是唯一用户侧主数据；`Product` 是待退出的旧外键投影。
 - `Stock` 是库存余额，描述“当前有多少、预留多少、可用多少、成本多少”。
 - 主数据和库存余额分表是合理的 ERP 建模方式，不建议为了显示方便把二者合并成一张表。
-- 但系统必须保证：每个有效物料和每个产品都必须有且只有一条库存余额记录。
+- 系统只保证每个有效 Material 有且只有一条库存余额记录；Product 独占余额只审计，不再创建或补齐。
 - 当前已经增加历史补齐迁移和运行时一致性检查，用来避免“物料档案存在，但库存页面静默不显示”的问题再次发生。
 
 ## 当前数据规模
@@ -134,7 +135,7 @@ flowchart TD
 | 不变量 | 含义 |
 | --- | --- |
 | 每个有效 `Material` 必须有 `Stock` | 物料档案不能在库存页静默丢失 |
-| 每个内部兼容 `Product` 必须有 `Stock` | 兼容记录不能在库存页静默丢失 |
+| Product 独占 `Stock` 不再新增或补齐 | 历史余额进入模型收敛审计和人工迁移 |
 | `Stock` 必须且只能关联一个主数据 | 不允许同时关联物料和产品，也不允许都不关联 |
 | `availableQty = qty - reservedQty` | 可用库存必须由库存和预留库存推导 |
 | `availableValuationQty = valuationQty - reservedValuationQty` | 可用核算库存必须由核算库存和预留核算库存推导 |
@@ -143,9 +144,9 @@ flowchart TD
 
 已完成补强：
 
-- 新增迁移 `20260714123000_backfill_missing_stock_records`，补齐历史 `Material` / `Product` 缺失的 0 余额库存记录。
+- 历史迁移 `20260714123000_backfill_missing_stock_records` 曾补齐 `Material` / `Product` 余额；`v0.1.349` 起运行时补齐只面向 Material。
 - 物料创建时在事务内同步创建 `Stock`。
-- 产品创建时在事务内同步创建 `Stock`。
+- 兼容 Product 解析不再同步创建 `Stock`。
 - `/api/stocks` 增加一致性检查，发现缺失或非法库存记录时返回 `409`，页面显示红色错误面板。
 
 仍需增强：
@@ -277,8 +278,8 @@ flowchart TD
 
 ### 第一阶段：数据一致性优先
 
-- 保持 `Material` / `Product` / `Stock` 当前结构。
-- 强制所有主数据创建时同步创建库存余额。
+- 暂时保留旧外键结构，但禁止扩大 Product 写入。
+- 只为新建 Material 同步创建库存余额。
 - 库存查询前执行一致性检查。
 - 增加后台“数据体检”页面，集中显示缺失库存、孤立附件、异常余额、负库存、权限异常。
 

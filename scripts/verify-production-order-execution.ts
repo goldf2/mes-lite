@@ -12,6 +12,7 @@ import {
   areAllProductionStepsReported,
   incompletePreviousStepError,
   legacyOrderStatusAfterReport,
+  legacyProductionCompatibilityError,
   legacyPickStatusError,
   legacyReportStatusError,
   legacyStockInStatusError,
@@ -42,6 +43,8 @@ assert.equal(legacyReportStatusError('PICKED'), null)
 assert.match(legacyReportStatusError('QC_DONE') || '', /不可报工/)
 assert.equal(legacyStockInStatusError('QC_DONE'), null)
 assert.match(legacyStockInStatusError('RUNNING') || '', /不可入库/)
+assert.equal(legacyProductionCompatibilityError(null), null, '旧工单可继续完成兼容流程')
+assert.match(legacyProductionCompatibilityError('material-id') || '', /生产实绩流程/, '新物料工单必须退出旧执行流程')
 
 const ruleSteps = [
   { id: 'second', name: '精加工', stepNo: 20 },
@@ -94,7 +97,6 @@ async function main() {
       data: {
         orderNo: `EXEC-WO-${suffix}`,
         productId: product.id,
-        materialId: outputMaterial.id,
         planQty: 5,
         status: 'CONFIRMED',
       },
@@ -160,12 +162,12 @@ async function main() {
     await prisma.productionOrder.update({ where: { id: order.id }, data: { status: 'QC_DONE' } })
     const stocked = await stockInLegacyProductionOrder(order.id, { qty: 3, batchNo: 'BATCH-001', inBy: '验证仓管员' }, '登录验证员')
     const [outputStock, outputBalance, stockInLogs] = await Promise.all([
-      prisma.stock.findUniqueOrThrow({ where: { materialId: outputMaterial.id } }),
-      prisma.stockLocationBalance.findFirstOrThrow({ where: { stock: { materialId: outputMaterial.id } } }),
+      prisma.stock.findUniqueOrThrow({ where: { productId: product.id } }),
+      prisma.stockLocationBalance.findFirstOrThrow({ where: { stock: { productId: product.id } } }),
       prisma.stockLog.findMany({ where: { refType: 'STOCK_IN', refId: order.id } }),
     ])
     assert.deepEqual([stocked.updated.status, stocked.updated.completeQty], ['COMPLETED', 3])
-    assert.deepEqual([outputStock.qty, outputStock.availableQty, outputStock.valuationQty], [3, 3, 3])
+    assert.deepEqual([outputStock.qty, outputStock.availableQty, outputStock.valuationQty], [3, 3, 0])
     assert.deepEqual([outputBalance.qty, outputBalance.availableQty], [3, 3])
     assert.equal(stockInLogs.length, 1, '首次创建库存余额时也必须生成兼容入库流水')
     assert.equal(stockInLogs[0].createdBy, '登录验证员', '兼容入库库存流水必须使用服务端可信操作人')
@@ -175,7 +177,44 @@ async function main() {
       '已完成工单不得重复兼容入库',
     )
 
-    console.log('生产订单旧执行兼容验证通过：领料、跨序防呆、报工查询、质检后入库和库存流水符合预期')
+    const modernOrder = await prisma.productionOrder.create({
+      data: {
+        orderNo: `MODERN-WO-${suffix}`,
+        productId: product.id,
+        materialId: outputMaterial.id,
+        planQty: 5,
+        status: 'CONFIRMED',
+      },
+    })
+    const modernPick = await prisma.pickItem.create({
+      data: { orderId: modernOrder.id, materialId: inputMaterial.id, requiredQty: 1, status: 'RESERVED' },
+    })
+    const isGone = (error: unknown) => (
+      error instanceof ProductionOrderDomainError
+      && error.status === 410
+      && error.message.includes('生产实绩流程')
+    )
+    await assert.rejects(
+      () => pickLegacyProductionOrder(modernOrder.id, { items: [{ pickItemId: modernPick.id, actualQty: 1, pickedBy: '验证员' }] }, '登录验证员'),
+      isGone,
+      '新物料工单不得写入旧领料流程',
+    )
+    await prisma.productionOrder.update({ where: { id: modernOrder.id }, data: { status: 'PICKED' } })
+    await assert.rejects(
+      () => reportLegacyProductionOrder(modernOrder.id, { ...reportInput, stepId: route.steps[0].id }),
+      isGone,
+      '新物料工单不得写入旧工序报工',
+    )
+    await prisma.productionOrder.update({ where: { id: modernOrder.id }, data: { status: 'QC_DONE' } })
+    await assert.rejects(
+      () => stockInLegacyProductionOrder(modernOrder.id, { qty: 1, inBy: '验证员' }, '登录验证员'),
+      isGone,
+      '新物料工单不得写入旧工单入库',
+    )
+    assert.equal(await prisma.workReport.count({ where: { orderId: modernOrder.id } }), 0)
+    assert.equal(await prisma.stockIn.count({ where: { orderId: modernOrder.id } }), 0)
+
+    console.log('生产订单旧执行兼容验证通过：历史工单可收尾，新物料工单禁止新增旧领料、报工和入库记录')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

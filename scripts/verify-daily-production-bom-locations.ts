@@ -161,23 +161,41 @@ async function main() {
       consumptions: [input.consumptions[0], input.consumptions[0]],
     }).success, false, '同一原料不得重复填写')
     await assert.rejects(
-      () => createLegacyDailyProductionReport({ ...input, outputQty: 100 }),
-      /库存不足/,
-      '创建草稿时应拒绝超过来源库位可用量的耗用',
+      () => createLegacyDailyProductionReport(),
+      (error: unknown) => error instanceof LegacyDailyProductionError && error.status === 410,
+      '旧生产日报必须停止新建',
     )
 
-    const created = await createLegacyDailyProductionReport(input)
-    assert.deepEqual(
-      [created.reportNo, created.status, created.bomId, created.workers],
-      ['PR-20260810-001', 'DRAFT', selectedBom.id, '验证员'],
+    const created = await prisma.dailyProductionReport.create({
+      data: {
+        reportNo: 'PR-20260810-001',
+        reportDate: new Date('2026-08-10T00:00:00.000Z'),
+        finishedMaterialId: finished.id,
+        consumptionLocationId: locationA.id,
+        outputLocationId: outputLocation.id,
+        outputQty: 20,
+        workers: '验证员',
+        note: '首版草稿',
+        bomId: selectedBom.id,
+        bomName: selectedBom.name,
+        bomVersion: selectedBom.version,
+        bomType: 'PRODUCTION',
+        bomOutputQuantity: selectedBom.outputQuantity,
+        bomOutputUnit: selectedBom.outputUnit,
+      },
+    })
+    await assert.rejects(
+      () => updateLegacyDailyProductionReport(created.id, { ...input, outputQty: 100 }),
+      /库存不足/,
+      '历史草稿更新时仍应拒绝超过来源库位可用量的耗用',
     )
-    assert.deepEqual(created.consumptions.map((line) => [line.materialCode, line.actualQty, line.locationId]), [
-      [rawA.code, 6, locationA.id],
-      [rawB.code, 4, locationB.id],
-    ])
 
     const updated = await updateLegacyDailyProductionReport(created.id, { ...input, note: '已更新草稿' })
     assert.deepEqual([updated.existing.note, updated.report.note], ['首版草稿', '已更新草稿'])
+    assert.deepEqual(updated.report.consumptions.map((line) => [line.materialCode, line.actualQty, line.locationId]), [
+      [rawA.code, 6, locationA.id],
+      [rawB.code, 4, locationB.id],
+    ])
     const workspace = await listLegacyDailyProductionWorkspace({ keyword: '验证员 验证产出', status: 'DRAFT' })
     assert.deepEqual(workspace.reports.map((report) => report.id), [created.id], '多关键词应跨人员和产出物料字段组合查询')
     assert.equal(workspace.materials.find((material) => material.id === finished.id)?.bom?.id, selectedBom.id)
@@ -222,7 +240,7 @@ async function main() {
       /只有已确认生产记录可以冲销/,
     )
 
-    console.log('旧生产日报兼容模块验证通过：薄 API、输入规则、BOM 快照、搜索、确认过账和冲销闭环均符合预期')
+    console.log('旧生产日报兼容模块验证通过：停止新建，历史草稿更新、确认、冲销和库存回放仍符合预期')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

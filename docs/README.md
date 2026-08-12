@@ -2,7 +2,7 @@
 
 本目录是 MES-lite 的统一知识入口。第一次接触系统时，不建议从发布记录或单个专题开始阅读；先通过总手册建立整体认知，再进入对应领域。
 
-当前事实基线：`v0.1.348` / 2026-08-12。
+当前事实基线：`v0.1.349` / 2026-08-12。
 
 ## 1. 推荐阅读路径
 
@@ -18,10 +18,11 @@
 | 你想了解的问题 | 首选文档 |
 | --- | --- |
 | 这个系统是什么、能做什么、不能做什么 | [系统开发与理解手册](./开发文档.md) |
+| 当前单厂产品边界、唯一主档和旧模型如何退出 | [单厂 MES 产品边界与核心模型收敛](./architecture/单厂MES产品边界与核心模型收敛.md) |
 | 一个功能发布在哪个页面、使用什么权限和接口 | [功能、页面、权限与接口矩阵](./architecture/功能页面权限接口矩阵.md) |
 | 前端、API、权限、数据库和文件如何连接 | [系统结构图](./architecture/系统结构图.md)、[系统时序图](./architecture/系统时序图.md) |
 | 当前数据表和核心关系 | [数据库结构](./architecture/数据库结构.md) |
-| 未来租户化数据模型 | [目标数据模型草案](./minierp/data-model.md) |
+| 暂停的未来租户化候选 | [目标数据模型草案](./minierp/data-model.md) |
 | MES、MRP-lite、ERP-lite 如何分工 | [MES-MRP-ERP 功能矩阵](./architecture/MES-MRP-ERP功能矩阵.md) |
 | 作为 MES 还缺什么、接下来按什么顺序补齐 | [MES 核心能力缺口与建设路线](./architecture/MES核心能力缺口与建设路线.md) |
 | 当前系统已经能执行哪些流程、由谁操作 | [当前功能 HTML 流程与泳道](../public/mes-current-workflow.html)、[MES 当前功能流程与泳道](./architecture/MES当前功能流程与泳道.md) |
@@ -48,6 +49,7 @@
 ### 系统与业务
 
 - [系统开发与理解手册](./开发文档.md)
+- [单厂 MES 产品边界与核心模型收敛](./architecture/单厂MES产品边界与核心模型收敛.md)
 - [系统功能与流程总览](./minierp/system-function-flow.md)
 - [领域模型](./minierp/domain-model.md)
 - [当前系统建模与结构审查](./minierp/当前系统建模与结构审查.md)
@@ -84,8 +86,8 @@
 ## 4. 决策、规划、版本和归档
 
 - `docs/adr/`：重要决策及其理由。
-- [目标数据模型草案](./minierp/data-model.md)：面向租户化的目标字段，不代表当前 Prisma Schema。
-- [SaaS 数据与存储目标架构](./architecture/saas-data-and-storage-architecture.md)：PostgreSQL、对象存储和多租户的阶段目标。
+- [目标数据模型草案](./minierp/data-model.md)：暂停的租户化长期候选，不代表当前产品合同或 Prisma Schema。
+- [SaaS 数据与存储目标架构](./architecture/saas-data-and-storage-architecture.md)：暂停的 PostgreSQL、对象存储和多租户长期候选。
 - `docs/plans/`：模块化、PostgreSQL、OSS 和工作区实验等未来计划。
 - [MES 系统分阶段治理总目标](./plans/MES系统分阶段治理总目标.md)：当前正在执行的安全、模型、业务闭环、导航与商业交付治理路线。
 - [版本更新记录](./releases/README.md)：逐版本变更证据。

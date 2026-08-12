@@ -15,15 +15,10 @@ export class StockIntegrityError extends Error {
 }
 
 export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]> {
-  const [materialsWithoutStock, productsWithoutStock, allStocks] = await Promise.all([
+  const [materialsWithoutStock, allStocks] = await Promise.all([
     prisma.material.findMany({
       where: { deletedAt: null, stock: null },
       select: { id: true, code: true, name: true },
-      take: 20,
-    }),
-    prisma.product.findMany({
-      where: { stock: null },
-      select: { id: true, sku: true, name: true },
       take: 20,
     }),
     prisma.stock.findMany({
@@ -43,14 +38,6 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
       records: materialsWithoutStock.map((item) => ({ id: item.id, code: item.code, name: item.name })),
     })
   }
-  if (productsWithoutStock.length > 0) {
-    issues.push({
-      type: 'PRODUCT_WITHOUT_STOCK',
-      message: '存在内部兼容物料没有对应库存余额记录',
-      records: productsWithoutStock.map((item) => ({ id: item.id, code: item.sku, name: item.name })),
-    })
-  }
-
   const invalidStocks: Array<Record<string, unknown>> = []
   for (const stock of allStocks) {
     const qty = Number(stock.qty)
@@ -94,19 +81,15 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
 
 export async function backfillMissingStockRecords() {
   return prisma.$transaction(async (tx) => {
-    const [materialsWithoutStock, productsWithoutStock] = await Promise.all([
-      tx.material.findMany({ where: { deletedAt: null, stock: null }, select: { id: true, code: true, name: true } }),
-      tx.product.findMany({ where: { stock: null }, select: { id: true, sku: true, name: true } }),
-    ])
+    const materialsWithoutStock = await tx.material.findMany({
+      where: { deletedAt: null, stock: null },
+      select: { id: true, code: true, name: true },
+    })
     for (const material of materialsWithoutStock) {
       await tx.stock.upsert({ where: { materialId: material.id }, update: {}, create: { materialId: material.id } })
     }
-    for (const product of productsWithoutStock) {
-      await tx.stock.upsert({ where: { productId: product.id }, update: {}, create: { productId: product.id } })
-    }
     return {
       materials: materialsWithoutStock.map((item) => ({ id: item.id, code: item.code, name: item.name })),
-      products: productsWithoutStock.map((item) => ({ id: item.id, code: item.sku, name: item.name })),
     }
   })
 }
