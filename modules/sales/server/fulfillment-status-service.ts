@@ -89,9 +89,9 @@ export async function processManagedReturn(id: string, processedBy: string) {
       tx.material.findUnique({ where: { id: materialId }, select: { conversionRate: true } }),
       returnOrder.shipmentId ? tx.shipment.findUnique({ where: { id: returnOrder.shipmentId } }) : null,
     ])
-    const availableStockQty = stock ? Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty) : 0
-    const availableValuationQty = stock ? Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty) : 0
-    const availableCost = stock ? Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost) : 0
+    const availableStockQty = stock ? Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty) - Number(stock.reworkQty) : 0
+    const availableValuationQty = stock ? Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty) - Number(stock.reworkValuationQty) : 0
+    const availableCost = stock ? Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost) - Number(stock.reworkCost) : 0
     const currentValuationRate = stock && availableStockQty > 0
       ? availableValuationQty / availableStockQty
       : Number(material?.conversionRate || 1)

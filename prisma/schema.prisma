@@ -846,14 +846,17 @@ model Stock {
   availableQty           Float @default(0)
   quarantineQty          Float @default(0)
   holdQty                Float @default(0)
+  reworkQty              Float @default(0)
   valuationQty           Float @default(0)
   reservedValuationQty   Float @default(0)
   availableValuationQty  Float @default(0)
   quarantineValuationQty Float @default(0)
   holdValuationQty       Float @default(0)
+  reworkValuationQty     Float @default(0)
   totalCost              Float @default(0)
   quarantineCost         Float @default(0)
   holdCost               Float @default(0)
+  reworkCost             Float @default(0)
   valuationUnitCost      Float @default(0)
   stockUnitCost          Float @default(0)
 
@@ -872,6 +875,7 @@ model StockLocationBalance {
   availableQty  Float             @default(0)
   quarantineQty Float             @default(0)
   holdQty       Float             @default(0)
+  reworkQty     Float             @default(0)
   updatedAt     DateTime          @updatedAt
 
   @@unique([stockId, locationId])
@@ -940,6 +944,7 @@ model InventoryLot {
   balances                   InventoryLotBalance[]
   transactions               InventoryLotTransaction[]
   inspections                QualityInspection[]
+  qualityDispositions        QualityDisposition[]
   costLayers                 InventoryCostLayer[]
   productionInputAllocations InventoryLotAllocation[]
   shipmentAllocations        ShipmentLotAllocation[]
@@ -1089,27 +1094,61 @@ model InventoryLotTransaction {
 }
 
 model QualityInspection {
-  id           String       @id @default(cuid())
-  inspectionNo String       @unique
-  lotId        String
-  lot          InventoryLot @relation(fields: [lotId], references: [id], onDelete: Restrict)
-  sourceType   String
-  sourceId     String
-  status       String       @default("PENDING")
-  result       String       @default("PENDING")
-  inspectedQty Float        @default(0)
-  sampleQty    Float        @default(0)
-  goodQty      Float        @default(0)
-  badQty       Float        @default(0)
-  inspector    String?
-  checkedAt    DateTime?
-  note         String?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id                       String               @id @default(cuid())
+  inspectionNo             String               @unique
+  lotId                    String
+  lot                      InventoryLot         @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  sourceType               String
+  sourceId                 String
+  round                    Int                  @default(1)
+  parentInspectionId       String?
+  parentInspection         QualityInspection?   @relation("QualityInspectionRounds", fields: [parentInspectionId], references: [id], onDelete: Restrict)
+  followUpInspections      QualityInspection[]  @relation("QualityInspectionRounds")
+  requestedByDispositionId String?              @unique
+  requestedByDisposition   QualityDisposition?  @relation("QualityDispositionFollowUp", fields: [requestedByDispositionId], references: [id], onDelete: Restrict)
+  dispositions             QualityDisposition[] @relation("QualityInspectionDispositions")
+  status                   String               @default("PENDING")
+  result                   String               @default("PENDING")
+  inspectedQty             Float                @default(0)
+  sampleQty                Float                @default(0)
+  goodQty                  Float                @default(0)
+  badQty                   Float                @default(0)
+  inspector                String?
+  checkedAt                DateTime?
+  note                     String?
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
 
   @@index([lotId, status])
   @@index([status, createdAt])
   @@index([sourceType, sourceId])
+  @@index([parentInspectionId, round])
+}
+
+model QualityDisposition {
+  id                 String             @id @default(cuid())
+  dispositionNo      String             @unique
+  operationId        String             @unique
+  inspectionId       String
+  inspection         QualityInspection  @relation("QualityInspectionDispositions", fields: [inspectionId], references: [id], onDelete: Restrict)
+  lotId              String
+  lot                InventoryLot       @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  action             String
+  sourceStatus       String?
+  targetStatus       String?
+  stockQty           Float
+  valuationQty       Float              @default(0)
+  costAmount         Float              @default(0)
+  reason             String
+  status             String             @default("COMPLETED")
+  performedBy        String
+  performedAt        DateTime           @default(now())
+  followUpInspection QualityInspection? @relation("QualityDispositionFollowUp")
+  createdAt          DateTime           @default(now())
+
+  @@index([inspectionId, performedAt])
+  @@index([lotId, performedAt])
+  @@index([action, performedAt])
 }
 
 model StockIn {

@@ -101,8 +101,8 @@ export async function cancelProductionOrder(id: string, input: CancelProductionO
           })
         } else if (stock) {
           const requiredQty = Number(pick.requiredQty)
-          const stockQty = Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty)
-          const availableValuationQty = Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty)
+          const stockQty = Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty) - Number(stock.reworkQty)
+          const availableValuationQty = Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty) - Number(stock.reworkValuationQty)
           const conversionRate = Number(pick.conversionRateUsed || pick.material.conversionRate || 1)
           const valuationReserveQty = Number(pick.reservedValuationQty) > 0
             ? Number(pick.reservedValuationQty)

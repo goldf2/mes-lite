@@ -40,6 +40,7 @@ export default function StockDetailPanel({
           ['可用', stock.availableQty, 'text-emerald-700'],
           ['待检', stock.quarantineQty, 'text-amber-700'],
           ['冻结', stock.holdQty, 'text-red-700'],
+          ['返工中', stock.reworkQty, 'text-violet-700'],
         ].map(([label, value, color]) => (
           <div key={String(label)}>
             <div className="text-[11px] text-gray-500">{label}</div>
@@ -60,7 +61,7 @@ export default function StockDetailPanel({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="truncate text-xs font-medium text-gray-800">{balance.location.code} · {balance.location.name}</div>
-                    <div className="mt-1 text-[11px] text-gray-500">预留 {stockQuantityText(balance.reservedQty)} · 可用 {stockQuantityText(balance.availableQty)} · 待检 {stockQuantityText(balance.quarantineQty)} · 冻结 {stockQuantityText(balance.holdQty)}</div>
+                    <div className="mt-1 text-[11px] text-gray-500">预留 {stockQuantityText(balance.reservedQty)} · 可用 {stockQuantityText(balance.availableQty)} · 待检 {stockQuantityText(balance.quarantineQty)} · 冻结 {stockQuantityText(balance.holdQty)} · 返工中 {stockQuantityText(balance.reworkQty)}</div>
                   </div>
                   <div className="shrink-0 text-right">
                     <div className="text-sm font-semibold text-gray-900">{stockQuantityText(balance.qty)} {unit}</div>

@@ -33,6 +33,7 @@ const DashboardPage = dynamic(() => import('@/modules/workspace'), { loading: Fe
 const ProductionOrderModule = dynamic(() => import('@/modules/production'), { loading: FeaturePageLoading })
 const StockPageModule = dynamic(() => import('@/modules/inventory'), { loading: FeaturePageLoading })
 const StockMovementPageModule = dynamic(() => import('@/modules/inventory').then((module) => module.StockMovementPageModule), { loading: FeaturePageLoading })
+const QualityTaskPageModule = dynamic(() => import('@/modules/quality').then((module) => module.QualityTaskPageModule), { loading: FeaturePageLoading })
 
 export interface BomEditorTarget {
   materialId: string
@@ -85,7 +86,7 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
       mode={context.tab as 'orders' | 'create' | 'detail'}
       canCreate={context.canCreate('orders')}
       canUpdate={context.canUpdate('orders')}
-      canQualityUpdate={context.canUpdate('quality')}
+      canQualityUpdate={context.canUpdate('qualityDecision')}
       onModeChange={context.onTabChange}
       onMessage={context.onMessage}
       onStateSummaryChange={context.onProductionOrderStateSummaryChange}
@@ -100,6 +101,7 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
     />
   ),
   'stock-movements': (context) => <StockMovementPageModule onMessage={context.onMessage} />,
+  'quality-tasks': (context) => <QualityTaskPageModule canDecide={context.canUpdate('qualityDecision')} canDispose={context.canUpdate('qualityDisposition')} canRelease={context.canUpdate('qualityRelease')} onMessage={context.onMessage} />,
   materials: (context) => (
     <MaterialPage
       onMessage={context.onMessage}
@@ -142,7 +144,7 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
   dispatch: (context) => <DispatchPage onMessage={context.onMessage} />,
   'sales-orders': (context) => <SalesOrderPage onMessage={context.onMessage} />,
   shipment: (context) => <ShipmentPage onMessage={context.onMessage} />,
-  return: (context) => <ReturnPage onMessage={context.onMessage} canQualityUpdate={context.canUpdate('quality')} />,
+  return: (context) => <ReturnPage onMessage={context.onMessage} canQualityUpdate={context.canUpdate('qualityDecision')} />,
   'flow-transfers': (context) => <FlowTransferPage onMessage={context.onMessage} />,
   employees: (context) => (
     <EmployeePage

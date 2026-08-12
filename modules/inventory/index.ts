@@ -13,6 +13,7 @@ export {
   createHistoricalShipmentLotAllocation,
   createProductionLotGenealogies,
   reverseProductionLotAllocations,
+  scrapInventoryLotQuantity,
   transferAvailableInventoryLots,
   transitionInventoryLotStatus,
 } from './server/inventory-status-service'

@@ -93,25 +93,28 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
     const availableQty = Number(stock.availableQty)
     const quarantineQty = Number(stock.quarantineQty)
     const holdQty = Number(stock.holdQty)
+    const reworkQty = Number(stock.reworkQty)
     const valuationQty = Number(stock.valuationQty)
     const reservedValuationQty = Number(stock.reservedValuationQty)
     const availableValuationQty = Number(stock.availableValuationQty)
     const quarantineValuationQty = Number(stock.quarantineValuationQty)
     const holdValuationQty = Number(stock.holdValuationQty)
+    const reworkValuationQty = Number(stock.reworkValuationQty)
     const totalCost = Number(stock.totalCost)
     const quarantineCost = Number(stock.quarantineCost)
     const holdCost = Number(stock.holdCost)
+    const reworkCost = Number(stock.reworkCost)
     const hasMaterial = Boolean(stock.materialId)
     const hasProduct = Boolean(stock.productId)
     const reasons = validateStockBalance({
-      qty, reservedQty, availableQty, quarantineQty, holdQty, valuationQty, reservedValuationQty,
-      availableValuationQty, quarantineValuationQty, holdValuationQty,
-      totalCost, quarantineCost, holdCost, hasMaterial, hasProduct,
+      qty, reservedQty, availableQty, quarantineQty, holdQty, reworkQty, valuationQty, reservedValuationQty,
+      availableValuationQty, quarantineValuationQty, holdValuationQty, reworkValuationQty,
+      totalCost, quarantineCost, holdCost, reworkCost, hasMaterial, hasProduct,
       materialExists: Boolean(stock.material),
       productExists: Boolean(stock.product),
       locationBalances: stock.locationBalances.map((item) => ({
         qty: Number(item.qty), reservedQty: Number(item.reservedQty), availableQty: Number(item.availableQty),
-        quarantineQty: Number(item.quarantineQty), holdQty: Number(item.holdQty),
+        quarantineQty: Number(item.quarantineQty), holdQty: Number(item.holdQty), reworkQty: Number(item.reworkQty),
       })),
     })
 
@@ -148,6 +151,7 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
         ['AVAILABLE', Number(location.availableQty)],
         ['QUARANTINE', Number(location.quarantineQty)],
         ['HOLD', Number(location.holdQty)],
+        ['REWORK', Number(location.reworkQty)],
       ] as const) {
         const tracked = Number(balanceSums.get(`${stock.materialId}:${location.locationId}:${status}`) || 0)
         if (tracked - expected > 0.000001) {

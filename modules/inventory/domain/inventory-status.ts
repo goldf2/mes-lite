@@ -1,10 +1,11 @@
-export const inventoryStatuses = ['AVAILABLE', 'QUARANTINE', 'HOLD'] as const
+export const inventoryStatuses = ['AVAILABLE', 'QUARANTINE', 'HOLD', 'REWORK'] as const
 export type InventoryStatus = (typeof inventoryStatuses)[number]
 
 export function inventoryStatusLabel(status: string) {
   if (status === 'AVAILABLE') return '可用'
   if (status === 'QUARANTINE') return '待检'
   if (status === 'HOLD') return '冻结'
+  if (status === 'REWORK') return '返工中'
   return status
 }
 

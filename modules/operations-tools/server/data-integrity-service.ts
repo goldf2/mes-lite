@@ -52,14 +52,17 @@ const stockBalanceFields = [
   'availableQty',
   'quarantineQty',
   'holdQty',
+  'reworkQty',
   'valuationQty',
   'reservedValuationQty',
   'availableValuationQty',
   'quarantineValuationQty',
   'holdValuationQty',
+  'reworkValuationQty',
   'totalCost',
   'quarantineCost',
   'holdCost',
+  'reworkCost',
 ] as const
 
 function hasStockBalance(stock: Record<(typeof stockBalanceFields)[number], number>) {
@@ -203,14 +206,17 @@ export async function getDataIntegrityReport(
         availableQty: true,
         quarantineQty: true,
         holdQty: true,
+        reworkQty: true,
         valuationQty: true,
         reservedValuationQty: true,
         availableValuationQty: true,
         quarantineValuationQty: true,
         holdValuationQty: true,
+        reworkValuationQty: true,
         totalCost: true,
         quarantineCost: true,
         holdCost: true,
+        reworkCost: true,
         _count: {
           select: {
             logs: true,

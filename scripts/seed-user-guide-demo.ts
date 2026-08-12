@@ -10,7 +10,7 @@ import { createProductionOrderActual } from '../modules/production/server/produc
 import { confirmProductionOrderActual } from '../modules/production/server/production-order-actual-status-service'
 import { createProductionOrders } from '../modules/production/server/production-order-command-service'
 import { confirmProductionOrder } from '../modules/production/server/production-order-status-service'
-import { decideQualityInspection } from '../modules/quality/server/quality-inspection-service'
+import { decideQualityInspection, disposeQualityInspection } from '../modules/quality/server/quality-inspection-service'
 import { createManagedReturn, createManagedShipment } from '../modules/sales/server/fulfillment-command-service'
 import { deliverManagedShipment, shipManagedShipment } from '../modules/sales/server/fulfillment-status-service'
 import { confirmManagedSalesOrder, createManagedSalesOrder } from '../modules/sales/server/sales-order-command-service'
@@ -198,6 +198,8 @@ async function main() {
   const pendingQualityActual = await createQualityDemoActual(400, '指导书：待检批次')
   const passedQualityActual = await createQualityDemoActual(500, '指导书：合格放行批次')
   const heldQualityActual = await createQualityDemoActual(300, '指导书：不合格冻结批次')
+  const partialQualityActual = await createQualityDemoActual(240, '指导书：部分放行与冻结批次')
+  const reworkQualityActual = await createQualityDemoActual(180, '指导书：返工中批次')
   const traceDraftActual = await createProductionOrderActual(releasedOrder.first.id, {
     actualDate: '2026-08-13',
     employeeIds: [employee.id],
@@ -213,12 +215,23 @@ async function main() {
   })
   const passedInspection = passedQualityActual.outputs[0]?.inventoryLot?.inspections[0]
   const heldInspection = heldQualityActual.outputs[0]?.inventoryLot?.inspections[0]
-  if (!passedInspection || !heldInspection) throw new Error('作业指导书质量演示数据生成失败')
+  const partialInspection = partialQualityActual.outputs[0]?.inventoryLot?.inspections[0]
+  const reworkInspection = reworkQualityActual.outputs[0]?.inventoryLot?.inspections[0]
+  if (!passedInspection || !heldInspection || !partialInspection || !reworkInspection) throw new Error('作业指导书质量演示数据生成失败')
   await decideQualityInspection(passedInspection.id, {
     decision: 'PASS', sampleQty: 20, goodQty: 20, badQty: 0, note: '尺寸和外观抽检合格，整批放行',
   }, inspector.name)
   await decideQualityInspection(heldInspection.id, {
     decision: 'FAIL', sampleQty: 20, goodQty: 17, badQty: 3, note: '抽检发现头部尺寸超差，整批冻结待处置',
+  }, inspector.name)
+  await decideQualityInspection(partialInspection.id, {
+    decision: 'PARTIAL', sampleQty: 20, goodQty: 16, badQty: 4, releaseQty: 160, holdQty: 80, note: '分选后 160 件合格放行，80 件冻结待处置',
+  }, inspector.name)
+  await decideQualityInspection(reworkInspection.id, {
+    decision: 'FAIL', sampleQty: 20, goodQty: 15, badQty: 5, note: '螺纹通止规抽检不合格，冻结后转返工',
+  }, inspector.name)
+  await disposeQualityInspection(reworkInspection.id, {
+    operationId: '9f42ff2b-9c13-4e1b-a644-138d37fa17ce', action: 'REWORK_START', stockQty: 100, reason: '返工单 RW-GUIDE-001：重新滚丝',
   }, inspector.name)
 
   await createManagedDispatch({

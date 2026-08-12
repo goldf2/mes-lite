@@ -64,6 +64,7 @@ function StockTable({ sort, selectedStockId, canAdjust, onSelect, onAdjust }: Om
             <SortableTableHeader column="availableQty" activeColumn={sort.sortColumn} direction={sort.sortDirection} onSort={sort.toggleSort}>可用</SortableTableHeader>
             <SortableTableHeader column="quarantineQty" activeColumn={sort.sortColumn} direction={sort.sortDirection} onSort={sort.toggleSort}>待检</SortableTableHeader>
             <SortableTableHeader column="holdQty" activeColumn={sort.sortColumn} direction={sort.sortDirection} onSort={sort.toggleSort}>冻结</SortableTableHeader>
+            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">返工中</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">库位</th>
             <SortableTableHeader column="valuationQty" activeColumn={sort.sortColumn} direction={sort.sortDirection} onSort={sort.toggleSort}>核算库存</SortableTableHeader>
             <SortableTableHeader column="totalCost" activeColumn={sort.sortColumn} direction={sort.sortDirection} onSort={sort.toggleSort}>库存金额</SortableTableHeader>
@@ -92,6 +93,7 @@ function StockTable({ sort, selectedStockId, canAdjust, onSelect, onAdjust }: Om
                 <td className={`px-4 py-3 text-sm font-medium ${stock.availableQty < 10 ? 'text-red-600' : 'text-green-600'}`}>{stockQuantityText(stock.availableQty)} {unit}</td>
                 <td className="px-4 py-3 text-sm font-medium text-amber-700">{stockQuantityText(stock.quarantineQty)} {unit}</td>
                 <td className="px-4 py-3 text-sm font-medium text-red-700">{stockQuantityText(stock.holdQty)} {unit}</td>
+                <td className="px-4 py-3 text-sm font-medium text-violet-700">{stockQuantityText(stock.reworkQty)} {unit}</td>
                 <td className="px-4 py-3 text-xs">
                   {locations.length > 0 ? (
                     <div className="space-y-1">
@@ -146,6 +148,7 @@ function StockCards({ sort, selectedStockId, canAdjust, onSelect, onAdjust }: Om
                 ['可用', stock.availableQty, stock.availableQty < 10 ? 'text-red-600' : 'text-green-600'],
                 ['待检', stock.quarantineQty, 'text-amber-700'],
                 ['冻结', stock.holdQty, 'text-red-700'],
+                ['返工中', stock.reworkQty, 'text-violet-700'],
               ].map(([label, value, color]) => (
                 <div key={String(label)}>
                   <div className="mb-1 text-xs text-gray-500">{label}</div>

@@ -47,14 +47,17 @@ function hasNonZeroStock(stock: {
   availableQty: number
   quarantineQty: number
   holdQty: number
+  reworkQty: number
   valuationQty: number
   reservedValuationQty: number
   availableValuationQty: number
   quarantineValuationQty: number
   holdValuationQty: number
+  reworkValuationQty: number
   totalCost: number
   quarantineCost: number
   holdCost: number
+  reworkCost: number
 }) {
   return [
     stock.qty,
@@ -62,14 +65,17 @@ function hasNonZeroStock(stock: {
     stock.availableQty,
     stock.quarantineQty,
     stock.holdQty,
+    stock.reworkQty,
     stock.valuationQty,
     stock.reservedValuationQty,
     stock.availableValuationQty,
     stock.quarantineValuationQty,
     stock.holdValuationQty,
+    stock.reworkValuationQty,
     stock.totalCost,
     stock.quarantineCost,
     stock.holdCost,
+    stock.reworkCost,
   ].some((value) => Math.abs(Number(value || 0)) > 0.000001)
 }
 

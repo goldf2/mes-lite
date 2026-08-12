@@ -197,11 +197,14 @@ async function reverseProductionOutput(
   if (outputQty <= 0) return
   const stock = await tx.stock.findUnique({ where: { materialId: line.materialId } })
   if (!stock) throw new ProductionOrderDomainError(`产出 ${line.materialCode} 没有库存记录，无法冲销`)
-  const lotBalance = line.inventoryLot?.balances.find((balance) => Number(balance.stockQty) > tolerance)
+  const positiveLotBalances = line.inventoryLot?.balances.filter((balance) => Number(balance.stockQty) > tolerance) || []
+  const lotBalance = positiveLotBalances[0]
   const inventoryStatus = lotBalance?.inventoryStatus
-  if (inventoryStatus === 'AVAILABLE') throw new ProductionOrderDomainError(`产出批次 ${line.inventoryLot?.lotNo} 已放行，不能直接冲销`)
-  if (line.inventoryLot && (!lotBalance || (inventoryStatus !== 'QUARANTINE' && inventoryStatus !== 'HOLD'))) {
-    throw new ProductionOrderDomainError(`产出批次 ${line.inventoryLot.lotNo} 状态异常，不能冲销`)
+  if (positiveLotBalances.some((balance) => balance.inventoryStatus === 'AVAILABLE')) {
+    throw new ProductionOrderDomainError(`产出批次 ${line.inventoryLot?.lotNo} 已放行，不能直接冲销`)
+  }
+  if (line.inventoryLot && (positiveLotBalances.length !== 1 || !lotBalance || (inventoryStatus !== 'QUARANTINE' && inventoryStatus !== 'HOLD'))) {
+    throw new ProductionOrderDomainError(`产出批次 ${line.inventoryLot.lotNo} 已分批处置、进入返工或状态异常，不能直接冲销`)
   }
   if (!line.inventoryLot && Number(stock.availableQty) + tolerance < outputQty) {
     throw new ProductionOrderDomainError(`产出 ${line.materialCode} 可用库存不足，无法冲销`)

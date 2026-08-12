@@ -229,7 +229,7 @@ export async function executeAgentTool(
         conversionRate: true,
         customer: { select: { name: true } },
         stock: { select: {
-          qty: true, reservedQty: true, availableQty: true, quarantineQty: true, holdQty: true,
+          qty: true, reservedQty: true, availableQty: true, quarantineQty: true, holdQty: true, reworkQty: true,
           valuationQty: true, totalCost: true,
         } },
       },
@@ -265,6 +265,7 @@ export async function executeAgentTool(
         availableQty: true,
         quarantineQty: true,
         holdQty: true,
+        reworkQty: true,
         valuationQty: true,
         availableValuationQty: true,
         totalCost: true,
@@ -273,10 +274,10 @@ export async function executeAgentTool(
         locationBalances: {
           where: { OR: [
             { qty: { not: 0 } }, { reservedQty: { not: 0 } },
-            { quarantineQty: { not: 0 } }, { holdQty: { not: 0 } },
+            { quarantineQty: { not: 0 } }, { holdQty: { not: 0 } }, { reworkQty: { not: 0 } },
           ] },
           select: {
-            qty: true, reservedQty: true, availableQty: true, quarantineQty: true, holdQty: true,
+            qty: true, reservedQty: true, availableQty: true, quarantineQty: true, holdQty: true, reworkQty: true,
             location: { select: { code: true, name: true } },
           },
         },

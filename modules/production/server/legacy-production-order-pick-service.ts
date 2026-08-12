@@ -40,9 +40,9 @@ export async function pickLegacyProductionOrder(
         if (Number(stock.availableQty) + requiredQty < item.actualQty) {
           throw new ProductionOrderDomainError(`物料 ${pick.material.name} 库存不足`)
         }
-        const eligibleStockQty = roundQty(Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty))
-        const eligibleValuationQty = roundQty(Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty))
-        const eligibleCostAmount = roundQty(Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost))
+        const eligibleStockQty = roundQty(Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty) - Number(stock.reworkQty))
+        const eligibleValuationQty = roundQty(Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty) - Number(stock.reworkValuationQty))
+        const eligibleCostAmount = roundQty(Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost) - Number(stock.reworkCost))
 
         const reservedValuationQty = Number(pick.reservedValuationQty) > 0
           ? Number(pick.reservedValuationQty)

@@ -85,23 +85,23 @@ function addCandidate(
 }
 
 function stockRisk(stock: {
-  qty: number; reservedQty: number; availableQty: number; quarantineQty: number; holdQty: number; valuationQty: number
-  reservedValuationQty: number; availableValuationQty: number; quarantineValuationQty: number; holdValuationQty: number
-  totalCost: number; quarantineCost: number; holdCost: number
+  qty: number; reservedQty: number; availableQty: number; quarantineQty: number; holdQty: number; reworkQty: number; valuationQty: number
+  reservedValuationQty: number; availableValuationQty: number; quarantineValuationQty: number; holdValuationQty: number; reworkValuationQty: number
+  totalCost: number; quarantineCost: number; holdCost: number; reworkCost: number
   valuationUnitCost: number; stockUnitCost: number
   logs: Array<{ id: string }>
-  locationBalances: Array<{ qty: number; reservedQty: number; availableQty: number; quarantineQty: number; holdQty: number }>
+  locationBalances: Array<{ qty: number; reservedQty: number; availableQty: number; quarantineQty: number; holdQty: number; reworkQty: number }>
 } | null) {
   return Boolean(stock && (
     [
-      stock.qty, stock.reservedQty, stock.availableQty, stock.quarantineQty, stock.holdQty, stock.valuationQty,
-      stock.reservedValuationQty, stock.availableValuationQty, stock.quarantineValuationQty, stock.holdValuationQty,
-      stock.totalCost, stock.quarantineCost, stock.holdCost,
+      stock.qty, stock.reservedQty, stock.availableQty, stock.quarantineQty, stock.holdQty, stock.reworkQty, stock.valuationQty,
+      stock.reservedValuationQty, stock.availableValuationQty, stock.quarantineValuationQty, stock.holdValuationQty, stock.reworkValuationQty,
+      stock.totalCost, stock.quarantineCost, stock.holdCost, stock.reworkCost,
       stock.valuationUnitCost, stock.stockUnitCost,
     ].some(nonZero)
     || stock.logs.length > 0
     || stock.locationBalances.some((balance) => (
-      [balance.qty, balance.reservedQty, balance.availableQty, balance.quarantineQty, balance.holdQty].some(nonZero)
+      [balance.qty, balance.reservedQty, balance.availableQty, balance.quarantineQty, balance.holdQty, balance.reworkQty].some(nonZero)
     ))
   ))
 }

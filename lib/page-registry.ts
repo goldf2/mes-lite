@@ -12,7 +12,7 @@ export interface PagePresentationDefinition {
 
 export const applicationTabs = [
   'dashboard', 'allFunctions', 'orders', 'materials', 'workInstructions', 'equipment', 'materialIn',
-  'dispatch', 'stocks', 'stockMovements', 'salesOrders', 'shipment', 'return', 'flowTransfers', 'sawingCost', 'scanPrint',
+  'dispatch', 'stocks', 'stockMovements', 'qualityTasks', 'salesOrders', 'shipment', 'return', 'flowTransfers', 'sawingCost', 'scanPrint',
   'suppliers', 'customers', 'employees', 'processTemplates', 'processRoutes', 'archive', 'auditLogs',
   'dataTools', 'unitSettings', 'locationSettings', 'workCenters', 'documentCategories', 'businessSettings',
   'displaySettings', 'navigationSettings', 'aiSettings', 'operators', 'permissionUsers', 'permissionGroups',
@@ -46,6 +46,7 @@ export type PageRendererKey =
   | 'production-orders'
   | 'stocks'
   | 'stock-movements'
+  | 'quality-tasks'
   | 'materials'
   | 'bom-workspace'
   | 'bom-usage'
@@ -106,6 +107,7 @@ const registeredPages = [
   registerPage({ key: 'orders', tab: 'orders', kind: 'transaction', title: '生产订单', description: '先保存生产计划，班后再登记实际产量', renderer: 'production-orders', groupKey: 'production', resource: 'orders', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' }, workspace: { functionKey: 'orders', label: '生产订单', icon: '工' } }),
   registerPage({ key: 'dispatch', tab: 'dispatch', kind: 'transaction', title: '派工管理', description: '将生产任务派发到人员与工作中心', renderer: 'dispatch', groupKey: 'production', resource: 'dispatch', primaryNavigation: true, workspace: { functionKey: 'dispatch', label: '派工管理', icon: '派' } }),
   registerPage({ key: 'flowTransfers', tab: 'flowTransfers', kind: 'transaction', title: '流程转移', description: '同一物料在库位或流程节点之间转移', renderer: 'flow-transfers', groupKey: 'production', resource: 'stats', primaryNavigation: true, workspace: { functionKey: 'flowTransfers', label: '流程转移', icon: '转' } }),
+  registerPage({ key: 'qualityTasks', tab: 'qualityTasks', kind: 'transaction', title: '质量任务', description: '处理待检、冻结、返工、复检、报废和授权放行', renderer: 'quality-tasks', groupKey: 'production', resource: 'quality', primaryNavigation: true, workspace: { functionKey: 'qualityTasks', label: '质量任务', icon: '质' } }),
   registerPage({ key: 'materialIn', tab: 'materialIn', kind: 'transaction', title: '来料管理', description: '登记供应商来料、实测和采购计价', renderer: 'material-in', groupKey: 'logistics', resource: 'materialIn', primaryNavigation: true, workspace: { functionKey: 'materialIn', label: '来料管理', icon: '入' } }),
   registerPage({ key: 'salesOrders', tab: 'salesOrders', kind: 'transaction', title: '销售订单', description: '登记客户需求并跟踪订单发货进度', renderer: 'sales-orders', groupKey: 'sales', resource: 'salesOrder', primaryNavigation: true, workspace: { functionKey: 'salesOrders', label: '销售订单', icon: '销' } }),
   registerPage({ key: 'shipment', tab: 'shipment', kind: 'transaction', title: '发货管理', description: '独立登记发货，可选关联销售订单并在确认后扣减库存', renderer: 'shipment', groupKey: 'sales', resource: 'shipment', primaryNavigation: true, workspace: { functionKey: 'shipment', label: '发货管理', icon: '发' } }),

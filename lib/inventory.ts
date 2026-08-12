@@ -134,6 +134,7 @@ export async function changeStockLocationBalance(
     availableDelta?: number
     quarantineDelta?: number
     holdDelta?: number
+    reworkDelta?: number
   },
 ) {
   const location = await resolveInventoryLocation(tx, input.locationId)
@@ -149,13 +150,14 @@ export async function changeStockLocationBalance(
   )
   const quarantineQty = roundQty(Number(current.quarantineQty) + Number(input.quarantineDelta || 0))
   const holdQty = roundQty(Number(current.holdQty) + Number(input.holdDelta || 0))
-  if (qty < -tolerance || reservedQty < -tolerance || availableQty < -tolerance || quarantineQty < -tolerance || holdQty < -tolerance) {
+  const reworkQty = roundQty(Number(current.reworkQty) + Number(input.reworkDelta || 0))
+  if (qty < -tolerance || reservedQty < -tolerance || availableQty < -tolerance || quarantineQty < -tolerance || holdQty < -tolerance || reworkQty < -tolerance) {
     throw new Error(
       `库位 ${location.code} ${location.name} 库存不足：可用 ${current.availableQty}，本次变动 ${input.availableDelta ?? input.qtyDelta}`,
     )
   }
-  if (Math.abs(availableQty - (qty - reservedQty - quarantineQty - holdQty)) > tolerance) {
-    throw new Error(`库位 ${location.code} ${location.name} 的库存、占用、待检、冻结和可用数量不一致`)
+  if (Math.abs(availableQty - (qty - reservedQty - quarantineQty - holdQty - reworkQty)) > tolerance) {
+    throw new Error(`库位 ${location.code} ${location.name} 的库存、占用、待检、冻结、返工和可用数量不一致`)
   }
   const balance = await tx.stockLocationBalance.update({
     where: { id: current.id },
@@ -165,6 +167,7 @@ export async function changeStockLocationBalance(
       availableQty: Math.max(0, availableQty),
       quarantineQty: Math.max(0, quarantineQty),
       holdQty: Math.max(0, holdQty),
+      reworkQty: Math.max(0, reworkQty),
     },
   })
   return { location, balance }
@@ -381,20 +384,20 @@ export async function postInventoryIssue(
     totalCost: Number(stock.totalCost),
     stockUnitCost: Number(stock.stockUnitCost),
     valuationUnitCost: Number(stock.valuationUnitCost),
-    eligibleStockQty: roundQty(Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty)),
-    eligibleValuationQty: roundQty(Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty)),
-    eligibleCostAmount: roundQty(Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost)),
+    eligibleStockQty: roundQty(Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty) - Number(stock.reworkQty)),
+    eligibleValuationQty: roundQty(Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty) - Number(stock.reworkValuationQty)),
+    eligibleCostAmount: roundQty(Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost) - Number(stock.reworkCost)),
   })
   const costResult = await consumeMaterialCost(tx, {
     materialId: material.id,
     issueStockQty: issueQty,
     stock: {
       id: stock.id,
-      qty: roundQty(Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty)),
-      valuationQty: roundQty(Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty)),
-      totalCost: roundQty(Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost)),
-      valuationUnitCost: Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty) > tolerance
-        ? roundQty((Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost)) / (Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty)))
+      qty: roundQty(Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty) - Number(stock.reworkQty)),
+      valuationQty: roundQty(Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty) - Number(stock.reworkValuationQty)),
+      totalCost: roundQty(Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost) - Number(stock.reworkCost)),
+      valuationUnitCost: Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty) - Number(stock.reworkValuationQty) > tolerance
+        ? roundQty((Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost) - Number(stock.reworkCost)) / (Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty) - Number(stock.reworkValuationQty)))
         : 0,
     },
     material: {
