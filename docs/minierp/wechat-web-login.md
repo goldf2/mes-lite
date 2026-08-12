@@ -10,9 +10,9 @@
 
 ## 目标地址
 
-- 网站域名：`https://mes.csyufeng.com`
-- 微信登录回调地址：`https://mes.csyufeng.com/api/auth/wechat/callback`
-- 微信开放平台授权回调域：`mes.csyufeng.com`
+- 网站域名：`https://mes.szxiangshu.com`
+- 微信登录回调地址：`https://mes.szxiangshu.com/api/auth/wechat/callback`
+- 微信开放平台授权回调域：`mes.szxiangshu.com`
 
 注意：微信开放平台后台通常填写“授权回调域”，只填域名，不填 `https://`，也不填 `/api/auth/wechat/callback`。MES-lite 的环境变量里填写完整回调地址。
 
@@ -20,23 +20,23 @@
 
 ### 1. 准备域名和 HTTPS
 
-1. DNS 中将 `mes.csyufeng.com` 指向 Coolify 所在服务器。
-2. Coolify 应用绑定域名 `https://mes.csyufeng.com`。
-3. 确认浏览器可以正常打开 `https://mes.csyufeng.com`。
+1. DNS 中将 `mes.szxiangshu.com` 指向 Coolify 所在服务器。
+2. Coolify 应用绑定域名 `https://mes.szxiangshu.com`。
+3. 确认浏览器可以正常打开 `https://mes.szxiangshu.com`。
 4. 确认 HTTPS 证书正常，不能使用浏览器报错的证书。
 
 检查标准：
 
-- 打开 `https://mes.csyufeng.com` 能进入 MES-lite。
+- 打开 `https://mes.szxiangshu.com` 能进入 MES-lite。
 - 登录页或系统右上角显示当前版本号。
-- `https://mes.csyufeng.com/api/health` 返回健康状态。
+- `https://mes.szxiangshu.com/api/health` 返回健康状态。
 
 ### 2. 创建微信开放平台网站应用
 
 1. 登录微信开放平台。
 2. 创建“网站应用”。
 3. 填写应用名称、应用介绍、官网地址等基础信息。
-4. 授权回调域填写 `mes.csyufeng.com`。
+4. 授权回调域填写 `mes.szxiangshu.com`。
 5. 等待网站应用审核通过。
 6. 记录应用的 `AppID` 和 `AppSecret`。
 
@@ -44,7 +44,7 @@
 
 - 已拿到网站应用的 `AppID`。
 - 已拿到网站应用的 `AppSecret`。
-- 授权回调域包含 `mes.csyufeng.com`。
+- 授权回调域包含 `mes.szxiangshu.com`。
 
 ### 3. 配置 Coolify 环境变量
 
@@ -53,14 +53,14 @@
 ```env
 WECHAT_WEB_APP_ID=
 WECHAT_WEB_APP_SECRET=
-WECHAT_WEB_REDIRECT_URI=https://mes.csyufeng.com/api/auth/wechat/callback
+WECHAT_WEB_REDIRECT_URI=https://mes.szxiangshu.com/api/auth/wechat/callback
 ```
 
 填写方式：
 
 - `WECHAT_WEB_APP_ID`: 微信开放平台网站应用的 AppID。
 - `WECHAT_WEB_APP_SECRET`: 微信开放平台网站应用的 AppSecret。
-- `WECHAT_WEB_REDIRECT_URI`: 固定填写 `https://mes.csyufeng.com/api/auth/wechat/callback`。
+- `WECHAT_WEB_REDIRECT_URI`: 固定填写 `https://mes.szxiangshu.com/api/auth/wechat/callback`。
 
 安全要求：
 
@@ -77,7 +77,7 @@ WECHAT_WEB_REDIRECT_URI=https://mes.csyufeng.com/api/auth/wechat/callback
 ### 4. 部署并验证登录入口
 
 1. 在 Coolify 重新部署 MES-lite。
-2. 打开 `https://mes.csyufeng.com`。
+2. 打开 `https://mes.szxiangshu.com`。
 3. 退出当前登录账号，进入登录页。
 4. 确认登录页出现“微信扫码登录”按钮。
 
@@ -91,7 +91,7 @@ WECHAT_WEB_REDIRECT_URI=https://mes.csyufeng.com/api/auth/wechat/callback
 
 1. 点击“微信扫码登录”。
 2. 使用微信扫码确认授权。
-3. 微信回调到 `https://mes.csyufeng.com/api/auth/wechat/callback`。
+3. 微信回调到 `https://mes.szxiangshu.com/api/auth/wechat/callback`。
 4. 系统根据微信身份创建或匹配操作人员账号。
 
 检查标准：
@@ -169,15 +169,15 @@ flowchart TD
 
 原因：
 
-- 微信开放平台的授权回调域没有填写 `mes.csyufeng.com`。
+- 微信开放平台的授权回调域没有填写 `mes.szxiangshu.com`。
 - MES-lite 的 `WECHAT_WEB_REDIRECT_URI` 和微信开放平台域名不一致。
 - 使用了非 HTTPS 地址。
 
 处理：
 
-1. 微信开放平台授权回调域填写 `mes.csyufeng.com`。
-2. Coolify 环境变量填写完整地址 `https://mes.csyufeng.com/api/auth/wechat/callback`。
-3. 确认 `https://mes.csyufeng.com` 可正常访问。
+1. 微信开放平台授权回调域填写 `mes.szxiangshu.com`。
+2. Coolify 环境变量填写完整地址 `https://mes.szxiangshu.com/api/auth/wechat/callback`。
+3. 确认 `https://mes.szxiangshu.com` 可正常访问。
 
 ### 扫码后显示等待管理员审核
 
@@ -195,13 +195,13 @@ flowchart TD
 
 ## 上线检查清单
 
-- [ ] `https://mes.csyufeng.com` 已能访问。
+- [ ] `https://mes.szxiangshu.com` 已能访问。
 - [ ] Coolify 域名和 HTTPS 已配置。
 - [ ] 微信开放平台网站应用已审核通过。
-- [ ] 微信开放平台授权回调域为 `mes.csyufeng.com`。
+- [ ] 微信开放平台授权回调域为 `mes.szxiangshu.com`。
 - [ ] Coolify 已配置 `WECHAT_WEB_APP_ID`。
 - [ ] Coolify 已配置 `WECHAT_WEB_APP_SECRET`。
-- [ ] Coolify 已配置 `WECHAT_WEB_REDIRECT_URI=https://mes.csyufeng.com/api/auth/wechat/callback`。
+- [ ] Coolify 已配置 `WECHAT_WEB_REDIRECT_URI=https://mes.szxiangshu.com/api/auth/wechat/callback`。
 - [ ] 修改环境变量后已重新部署或重启容器。
 - [ ] 登录页显示“微信扫码登录”。
 - [ ] 新微信账号扫码后能进入待审核状态。

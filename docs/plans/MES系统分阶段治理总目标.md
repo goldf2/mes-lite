@@ -47,12 +47,13 @@
 - [x] 生产 Cookie 显式启用 `Secure`，所有写 API 在 Middleware 执行 Origin 同源校验。
 - [x] 登录页依据服务端注册开关显示或隐藏注册入口。
 
-### 阶段 0C：运行时数据与灾备（v0.1.347）
+### 阶段 0C：运行时数据与灾备（v0.1.347-v0.1.348）
 
 - [x] 停止跟踪 SQLite 数据库、journal/WAL/SHM 与 TypeScript 构建缓存，保留当前本地数据。
 - [x] 建立 SQLite 一致快照、附件引用校验、逐文件 SHA-256、保留策略和非覆盖恢复候选。
 - [x] 增加 liveness/readiness 分层，readiness 覆盖数据库、失败迁移和持久目录可写性。
 - [x] 对齐 Compose、Dockerfile、Coolify 挂载、迁移前备份、每日调度和恢复演练手册。
+- [x] 依据当前 Coolify 应用配置，将生产来源和微信回调示例统一为 `mes.szxiangshu.com`。
 
 ### 阶段 0 维护窗口待办
 
