@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getCurrentOperator, operatorDisplayName } from '@/lib/auth'
 import { writeAuditLog } from '@/lib/audit'
 import { requireResourcePermission } from '@/lib/permissions'
 import { reverseMaterialInSchema } from '@/modules/receiving/contracts/material-in-schema'
@@ -11,7 +12,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const denied = await requireResourcePermission('materialIn', 'update')
     if (denied) return denied
     const input = reverseMaterialInSchema.parse(await req.json())
-    const { current, updated } = await reverseManagedMaterialIn(params.id, input)
+    const operator = await getCurrentOperator()
+    if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
+    const { current, updated } = await reverseManagedMaterialIn(params.id, input, operatorDisplayName(operator))
     await writeAuditLog(req, {
       action: 'REVERSE', entityType: 'MATERIAL_IN', entityId: updated.id,
       entityLabel: updated.inboundNo, beforeData: current, afterData: updated, note: input.reason,

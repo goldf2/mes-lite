@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getCurrentOperator } from '@/lib/auth'
+import { getCurrentOperator, operatorDisplayName } from '@/lib/auth'
 import { writeAuditLog } from '@/lib/audit'
 import { requireResourcePermission } from '@/lib/permissions'
 import { reverseFlowTransferSchema } from '@/modules/production/contracts/flow-transfer-schema'
@@ -13,8 +13,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (denied) return denied
     const input = reverseFlowTransferSchema.parse(await req.json())
     const operator = await getCurrentOperator()
-    const reversedBy = input.reversedBy || operator?.name || operator?.username || '系统用户'
-    const { current, updated } = await reverseManagedFlowTransfer(params.id, { ...input, reversedBy })
+    if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
+    const { current, updated } = await reverseManagedFlowTransfer(params.id, input, operatorDisplayName(operator))
     await writeAuditLog(req, {
       action: 'REVERSE', entityType: 'FLOW_TRANSFER', entityId: updated.id,
       entityLabel: updated.transferNo, beforeData: current, afterData: updated, note: input.reason,

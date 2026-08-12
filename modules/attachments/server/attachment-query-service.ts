@@ -17,9 +17,9 @@ export function withManagedAttachmentUrls<T extends {
     : withAttachmentUrls(attachment)
 }
 
-export async function listManagedAttachments(ownerType: string, ownerId: string) {
+export async function listManagedAttachments(ownerType: string, ownerId: string, draftUploadedBy?: string) {
   const attachments = await prisma.documentAttachment.findMany({
-    where: { ownerType, ownerId, deletedAt: null },
+    where: { ownerType, ownerId, deletedAt: null, ...(draftUploadedBy ? { uploadedBy: draftUploadedBy } : {}) },
     orderBy: { createdAt: 'desc' },
   })
   return attachments.map(withManagedAttachmentUrls)

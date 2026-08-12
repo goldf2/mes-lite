@@ -24,7 +24,6 @@ export async function uploadAttachment<T>(input: {
   ownerId: string
   documentType?: string
   note?: string
-  uploadedBy?: string
   file: File
 }) {
   const form = new FormData()
@@ -32,7 +31,6 @@ export async function uploadAttachment<T>(input: {
   form.append('ownerId', input.ownerId)
   form.append('documentType', input.documentType || 'ORIGINAL')
   if (input.note?.trim()) form.append('note', input.note.trim())
-  if (input.uploadedBy?.trim()) form.append('uploadedBy', input.uploadedBy.trim())
   form.append('file', input.file)
   const response = await fetch('/api/attachments', { method: 'POST', body: form })
   const body = await readAttachmentEnvelope<T>(response, `上传 ${input.file.name} 失败`)

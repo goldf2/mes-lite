@@ -277,19 +277,20 @@ async function restoreProductionInput(
 export async function reverseProductionOrderActual(
   orderId: string,
   actualId: string,
-  input: { reason: string; reversedBy: string },
+  input: { reason: string },
+  reversedBy: string,
 ) {
   return prisma.$transaction(async (tx) => {
     const actual = await requireProductionOrderActual(tx, orderId, actualId, 'CONFIRMED')
-    for (const line of actual.outputs) await reverseProductionOutput(tx, actual, line, input.reason, input.reversedBy)
-    for (const line of actual.inputs) await restoreProductionInput(tx, actual, line, input.reversedBy)
+    for (const line of actual.outputs) await reverseProductionOutput(tx, actual, line, input.reason, reversedBy)
+    for (const line of actual.inputs) await restoreProductionInput(tx, actual, line, reversedBy)
 
     const updated = await tx.productionOrderActual.update({
       where: { id: actual.id },
       data: {
         status: 'REVERSED',
         reversedAt: new Date(),
-        reversedBy: input.reversedBy,
+        reversedBy,
         reverseReason: input.reason,
       },
       include: postingInclude,

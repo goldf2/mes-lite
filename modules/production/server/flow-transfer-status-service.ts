@@ -28,7 +28,8 @@ export async function confirmManagedFlowTransfer(id: string, confirmedBy: string
 }
 export async function reverseManagedFlowTransfer(
   id: string,
-  input: ReverseFlowTransferInput & { reversedBy: string },
+  input: ReverseFlowTransferInput,
+  reversedBy: string,
   now = new Date(),
 ) {
   return runFlowTransferDomainOperation(() => prisma.$transaction(async (tx) => {
@@ -43,12 +44,12 @@ export async function reverseManagedFlowTransfer(
       targetLocationId: current.sourceLocationId,
       refId: current.id,
       note: `冲销流程转移 ${current.transferNo}：${input.reason}`,
-      createdBy: input.reversedBy,
+      createdBy: reversedBy,
       reverse: true,
     })
     const updated = await tx.flowTransfer.update({
       where: { id },
-      data: { status: 'REVERSED', reversedAt: now, reversedBy: input.reversedBy, reverseReason: input.reason },
+      data: { status: 'REVERSED', reversedAt: now, reversedBy, reverseReason: input.reason },
       include: flowTransferInclude,
     })
     return { current, updated }

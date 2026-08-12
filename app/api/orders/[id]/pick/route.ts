@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getCurrentOperator, operatorDisplayName } from '@/lib/auth'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { legacyProductionOrderPickSchema } from '@/modules/production/contracts/legacy-production-order-execution-schema'
@@ -10,10 +11,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const denied = await requireResourcePermission('orders', 'update')
     if (denied) return denied
 
-    const result = await pickLegacyProductionOrder(
-      params.id,
-      legacyProductionOrderPickSchema.parse(await req.json()),
-    )
+    const input = legacyProductionOrderPickSchema.parse(await req.json())
+    const operator = await getCurrentOperator()
+    if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
+    const result = await pickLegacyProductionOrder(params.id, input, operatorDisplayName(operator))
     await writeAuditLog(req, {
       action: 'PICK',
       entityType: 'ORDER',

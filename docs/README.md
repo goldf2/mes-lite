@@ -2,7 +2,7 @@
 
 本目录是 MES-lite 的统一知识入口。第一次接触系统时，不建议从发布记录或单个专题开始阅读；先通过总手册建立整体认知，再进入对应领域。
 
-当前事实基线：`v0.1.344` / 2026-08-12。
+当前事实基线：`v0.1.345` / 2026-08-12。
 
 ## 1. 推荐阅读路径
 
@@ -85,6 +85,7 @@
 - [目标数据模型草案](./minierp/data-model.md)：面向租户化的目标字段，不代表当前 Prisma Schema。
 - [SaaS 数据与存储目标架构](./architecture/saas-data-and-storage-architecture.md)：PostgreSQL、对象存储和多租户的阶段目标。
 - `docs/plans/`：模块化、PostgreSQL、OSS 和工作区实验等未来计划。
+- [MES 系统分阶段治理总目标](./plans/MES系统分阶段治理总目标.md)：当前正在执行的安全、模型、业务闭环、导航与商业交付治理路线。
 - [版本更新记录](./releases/README.md)：逐版本变更证据。
 - `docs/archive/`：已失效或被取代的历史文档。
 

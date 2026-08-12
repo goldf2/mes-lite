@@ -9,7 +9,7 @@ const route = readFileSync(join(root, 'app/api/ai/document-recognition/route.ts'
 const service = readFileSync(join(root, 'modules/attachments/server/document-recognition-service.ts'), 'utf8')
 assert.ok(route.split('\n').length <= 50, 'AI 文档识别 API 必须保持为不超过 50 行的 HTTP 适配层')
 assert.doesNotMatch(route, /@\/lib\/prisma|\bprisma\.|readFile\(|ensureAttachmentThumbnail\(|\bfetch\(/, 'AI 文档识别 API 不得承载数据库、文件或 Provider 调用')
-assert.match(service, /documentAttachment\.findUnique/, '识别服务必须校验附件记录')
+assert.match(service, /requireManagedAttachmentAccessForOperator/, '识别服务必须校验附件记录和所属业务权限')
 assert.match(service, /AI_DOCUMENT_OWNER_MISMATCH/, '识别服务必须校验附件所有者')
 assert.match(service, /AbortController/, '识别服务必须保留 Provider 超时控制')
 assert.equal(documentRecognitionInputSchema.safeParse({ attachmentId: '', ownerType: '', ownerId: '' }).success, false)

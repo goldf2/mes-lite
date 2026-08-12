@@ -31,7 +31,6 @@ export type AttachmentUploadInput = {
   ownerType: string
   ownerId: string
   documentType: string
-  uploadedBy?: string
   note?: string
   file: File
 }
@@ -42,7 +41,6 @@ export function parseAttachmentUploadForm(form: FormData): AttachmentUploadInput
     ownerId: form.get('ownerId'),
   })
   const documentType = z.string().trim().min(1).max(80).parse(form.get('documentType') || 'ORIGINAL')
-  const uploadedBy = z.string().trim().max(160).optional().parse(String(form.get('uploadedBy') || '') || undefined)
   const note = z.string().trim().max(2000).optional().parse(String(form.get('note') || '') || undefined)
   const file = form.get('file')
   if (!(file instanceof File)) throw new z.ZodError([{
@@ -55,5 +53,5 @@ export function parseAttachmentUploadForm(form: FormData): AttachmentUploadInput
     path: ['file'],
     message: '文件名无效或过长',
   }])
-  return { ...owner, documentType, uploadedBy, note, file }
+  return { ...owner, documentType, note, file }
 }

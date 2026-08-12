@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AttachmentDomainError } from '../domain/attachment-errors'
 import { DocumentRecognitionError } from '../domain/document-recognition'
 
 const providerErrors: Record<string, [string, number]> = {
@@ -15,6 +16,7 @@ const providerErrors: Record<string, [string, number]> = {
 
 export function documentRecognitionHttpError(error: unknown) {
   if (error instanceof z.ZodError) return NextResponse.json({ error: 'AI 凭据识别参数不完整' }, { status: 400 })
+  if (error instanceof AttachmentDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
   if (error instanceof DocumentRecognitionError) {
     const [message, status] = providerErrors[error.code] || ['AI 凭据识别失败，请检查视觉模型配置', 502]
     return NextResponse.json({ error: message }, { status })

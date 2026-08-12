@@ -13,11 +13,10 @@ export const flowTransferInputSchema = z.object({
   path: ['targetLocationId'],
 })
 
-export const confirmFlowTransferSchema = z.object({ confirmedBy: z.string().trim().optional() })
+export const confirmFlowTransferSchema = z.object({})
 
 export const reverseFlowTransferSchema = z.object({
   reason: z.string().trim().min(1, '冲销原因必填'),
-  reversedBy: z.string().trim().optional(),
 })
 
 export type FlowTransferInput = z.infer<typeof flowTransferInputSchema>

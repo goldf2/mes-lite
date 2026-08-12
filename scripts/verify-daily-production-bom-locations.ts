@@ -204,7 +204,8 @@ async function main() {
     const reversedAt = new Date('2026-08-10T09:00:00.000Z')
     const reversed = await reverseLegacyDailyProductionReport(
       created.id,
-      { reason: '验证冲销', reversedBy: '验证主管' },
+      { reason: '验证冲销' },
+      '验证主管',
       reversedAt,
     )
     assert.deepEqual(
@@ -217,7 +218,7 @@ async function main() {
       '冲销生产必须恢复原料来源库位并撤销产出库位库存',
     )
     await assert.rejects(
-      () => reverseLegacyDailyProductionReport(created.id, { reason: '重复冲销', reversedBy: '验证主管' }),
+      () => reverseLegacyDailyProductionReport(created.id, { reason: '重复冲销' }, '验证主管'),
       /只有已确认生产记录可以冲销/,
     )
 

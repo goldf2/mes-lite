@@ -13,7 +13,7 @@ async function loadReceipt(tx: Prisma.TransactionClient, id: string) {
   return receipt
 }
 
-export async function receiveManagedMaterialIn(id: string) {
+export async function receiveManagedMaterialIn(id: string, receivedBy: string) {
   return runMaterialInDomainOperation(() => prisma.$transaction(async (tx) => {
     const current = await loadReceipt(tx, id)
     if (current.status !== 'PENDING') throw new MaterialInDomainError('来料单状态不是待收货，无法确认收货')
@@ -35,6 +35,7 @@ export async function receiveManagedMaterialIn(id: string) {
         refType: 'MATERIAL_IN',
         refId: line.id,
         note: `来料入库: ${current.inboundNo} 第 ${line.lineNo} 行`,
+        createdBy: receivedBy,
         idempotencyKey: `MATERIAL_IN:${line.id}:RECEIVE`,
         materialInId: line.id,
         locationId: current.stagingLocationId,
@@ -42,10 +43,10 @@ export async function receiveManagedMaterialIn(id: string) {
     }
 
     const inboundDate = new Date()
-    await tx.materialIn.updateMany({ where: { receiptId: id }, data: { status: 'RECEIVED', inboundDate } })
+    await tx.materialIn.updateMany({ where: { receiptId: id }, data: { status: 'RECEIVED', inboundDate, receivedBy } })
     const updated = await tx.materialReceipt.update({
       where: { id },
-      data: { status: 'RECEIVED', inboundDate },
+      data: { status: 'RECEIVED', inboundDate, receivedBy },
       include: materialReceiptInclude(),
     })
     return { current: toMaterialInRecord(current), updated: toMaterialInRecord(updated) }
@@ -69,6 +70,7 @@ async function reverseMaterialInLine(
   current: Awaited<ReturnType<typeof loadReceipt>>['lines'][number],
   receiptNo: string,
   input: ReverseMaterialInInput,
+  reversedBy: string,
 ) {
   const stock = await tx.stock.findUnique({ where: { materialId: current.materialId } })
   if (!stock) throw new MaterialInDomainError(`物料 ${current.material.code} 的库存记录不存在，无法红冲`)
@@ -142,7 +144,7 @@ async function reverseMaterialInLine(
       conversionRateUsed: current.conversionRate, conversionSource: 'ORIGINAL_MOVEMENT',
       costingMethodSnapshot: current.material.costingMethod, sourceMovementId: sourceMovement?.id,
       idempotencyKey: `MATERIAL_IN:${current.id}:REVERSE`, refType: 'MATERIAL_IN_REVERSE', refId: current.id,
-      note: `红冲来料单 ${receiptNo} 第 ${current.lineNo} 行: ${input.reason}`, createdBy: input.reversedBy,
+      note: `红冲来料单 ${receiptNo} 第 ${current.lineNo} 行: ${input.reason}`, createdBy: reversedBy,
     },
   })
   if (sourceMovement) {
@@ -150,11 +152,11 @@ async function reverseMaterialInLine(
   }
 }
 
-export async function reverseManagedMaterialIn(id: string, input: ReverseMaterialInInput) {
+export async function reverseManagedMaterialIn(id: string, input: ReverseMaterialInInput, reversedBy: string) {
   return runMaterialInDomainOperation(() => prisma.$transaction(async (tx) => {
     const current = await loadReceipt(tx, id)
     if (current.status !== 'RECEIVED') throw new MaterialInDomainError('只有已收货来料单可以红冲')
-    for (const line of current.lines) await reverseMaterialInLine(tx, line, current.inboundNo, input)
+    for (const line of current.lines) await reverseMaterialInLine(tx, line, current.inboundNo, input, reversedBy)
 
     const note = current.note ? `${current.note}\n红冲原因：${input.reason}` : `红冲原因：${input.reason}`
     await tx.materialIn.updateMany({ where: { receiptId: id }, data: { status: 'REVERSED', note } })

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getCurrentOperator, operatorDisplayName } from '@/lib/auth'
 import { requireResourcePermission } from '@/lib/permissions'
 import { productionCostRecordInputSchema } from '@/modules/production/contracts/production-cost-record-schema'
 import { createProductionCostRecord } from '@/modules/production/server/production-cost-record-command-service'
@@ -25,7 +26,10 @@ export async function POST(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('stats', 'create')
     if (denied) return denied
-    const record = await createProductionCostRecord(productionCostRecordInputSchema.parse(await req.json()))
+    const input = productionCostRecordInputSchema.parse(await req.json())
+    const operator = await getCurrentOperator()
+    if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
+    const record = await createProductionCostRecord(input, operatorDisplayName(operator))
     return NextResponse.json({ data: record }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })

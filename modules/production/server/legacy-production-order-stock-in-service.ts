@@ -9,6 +9,7 @@ const roundQty = (value: number) => Number(value.toFixed(6))
 export async function stockInLegacyProductionOrder(
   orderId: string,
   input: LegacyProductionOrderStockInInput,
+  createdBy: string,
 ) {
   try {
     return await prisma.$transaction(async (tx) => {
@@ -80,7 +81,7 @@ export async function stockInLegacyProductionOrder(
           note: targetMaterial
             ? `工单 ${order.orderNo} 物料入库`
             : `工单 ${order.orderNo} 成品入库`,
-          createdBy: input.inBy,
+          createdBy,
         },
       })
       const updated = await tx.productionOrder.update({

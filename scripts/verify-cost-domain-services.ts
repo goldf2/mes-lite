@@ -112,11 +112,12 @@ async function main() {
     assert.equal((await listSawingCostWorkspace()).data.length, 1)
 
     await createProductionCostRecord(productionCostRecordInputSchema.parse({
-      costType: 'LABOR', category: '验证人工', amount: 12.5, date: '2026-08-10', createdBy: '验证员',
-    }))
+      costType: 'LABOR', category: '验证人工', amount: 12.5, date: '2026-08-10',
+    }), '验证员')
     const list = await listProductionCostRecords({ page: 1, pageSize: 20 })
     const stats = await summarizeProductionCosts({})
     assert.deepEqual([list.pagination.total, stats.totalCost], [1, 12.5])
+    assert.equal(list.data[0].createdBy, '验证员', '成本记录必须保存服务端可信操作人')
 
     console.log('成本领域服务验证通过：BOM 成本对象、锯切方案事务及生产成本记录均已脱离 HTTP 层并通过临时数据库回归。')
   } finally {

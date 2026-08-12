@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getCurrentOperator } from '@/lib/auth'
+import { getCurrentOperator, operatorDisplayName } from '@/lib/auth'
 import { writeAuditLog } from '@/lib/audit'
 import { requireResourcePermission } from '@/lib/permissions'
 import { confirmFlowTransferSchema } from '@/modules/production/contracts/flow-transfer-schema'
@@ -11,10 +11,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   try {
     const denied = await requireResourcePermission('stats', 'update')
     if (denied) return denied
-    const input = confirmFlowTransferSchema.parse(await req.json().catch(() => ({})))
+    confirmFlowTransferSchema.parse(await req.json().catch(() => ({})))
     const operator = await getCurrentOperator()
-    const confirmedBy = input.confirmedBy || operator?.name || operator?.username || '系统用户'
-    const { current, updated } = await confirmManagedFlowTransfer(params.id, confirmedBy)
+    if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
+    const { current, updated } = await confirmManagedFlowTransfer(params.id, operatorDisplayName(operator))
     await writeAuditLog(req, {
       action: 'CONFIRM', entityType: 'FLOW_TRANSFER', entityId: updated.id,
       entityLabel: updated.transferNo, beforeData: current, afterData: updated,

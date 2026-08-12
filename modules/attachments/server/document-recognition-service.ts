@@ -3,10 +3,11 @@ import { getAiAgentConfig } from '@/lib/ai-agent/config'
 import { attachmentPreviewKind } from '@/lib/attachment-file-types'
 import { resolveAttachmentStoragePath } from '@/lib/attachment-storage'
 import { ensureAttachmentThumbnail } from '@/lib/attachment-thumbnail'
+import type { PermissionSubject } from '@/lib/permissions'
 import { draftDocumentAttachmentOwnerType, isDocumentSourceCredentialOwnerType } from '@/lib/draft-document-attachments'
-import { prisma } from '@/lib/prisma'
 import type { DocumentRecognitionInput } from '../contracts/document-recognition'
 import { DocumentRecognitionError, documentRecognitionFieldPrompts, extractRecognitionJson, normalizeRecognitionResult } from '../domain/document-recognition'
+import { requireManagedAttachmentAccessForOperator } from './attachment-authorization-service'
 
 async function recognitionContent(input: DocumentRecognitionInput, attachment: {
   originalName: string
@@ -29,10 +30,12 @@ async function recognitionContent(input: DocumentRecognitionInput, attachment: {
   throw new DocumentRecognitionError('AI_DOCUMENT_UNSUPPORTED')
 }
 
-export async function recognizeDocumentAttachment(input: DocumentRecognitionInput) {
+export async function recognizeDocumentAttachment(
+  input: DocumentRecognitionInput,
+  operator: (PermissionSubject & { id: string; username: string; name: string }) | null,
+) {
   if (!isDocumentSourceCredentialOwnerType(input.ownerType)) throw new DocumentRecognitionError('AI_DOCUMENT_OWNER_UNSUPPORTED')
-  const attachment = await prisma.documentAttachment.findUnique({ where: { id: input.attachmentId } })
-  if (!attachment || attachment.deletedAt) throw new DocumentRecognitionError('AI_DOCUMENT_NOT_FOUND')
+  const { attachment } = await requireManagedAttachmentAccessForOperator(operator, input.attachmentId, 'read')
   const allowedOwnerTypes = new Set([input.ownerType, draftDocumentAttachmentOwnerType(input.ownerType)])
   if (!allowedOwnerTypes.has(attachment.ownerType) || attachment.ownerId !== input.ownerId || attachment.documentType !== 'ORIGINAL') {
     throw new DocumentRecognitionError('AI_DOCUMENT_OWNER_MISMATCH')

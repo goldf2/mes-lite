@@ -92,6 +92,10 @@ export async function getCurrentOperator() {
   return session.operator
 }
 
+export function operatorDisplayName(operator: { name?: string | null; username: string }) {
+  return operator.name?.trim() || operator.username
+}
+
 export function canAudit(role: string) {
   return role === 'AUDITOR' || role === 'ADMIN'
 }

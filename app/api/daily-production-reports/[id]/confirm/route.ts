@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { writeAuditLog } from '@/lib/audit'
-import { getCurrentOperator } from '@/lib/auth'
+import { getCurrentOperator, operatorDisplayName } from '@/lib/auth'
 import { requireResourcePermission } from '@/lib/permissions'
 import { confirmLegacyDailyProductionSchema } from '@/modules/production/contracts/legacy-daily-production-schema'
 import { legacyDailyProductionHttpError } from '@/modules/production/http/legacy-daily-production-http'
@@ -11,10 +11,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const denied = await requireResourcePermission('stats', 'update')
     if (denied) return denied
 
-    const input = confirmLegacyDailyProductionSchema.parse(await req.json().catch(() => ({})))
+    confirmLegacyDailyProductionSchema.parse(await req.json().catch(() => ({})))
     const operator = await getCurrentOperator()
-    const confirmedBy = input.confirmedBy || operator?.name || operator?.username || '系统用户'
-    const { before, result } = await confirmLegacyDailyProductionReport(params.id, confirmedBy)
+    if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
+    const { before, result } = await confirmLegacyDailyProductionReport(params.id, operatorDisplayName(operator))
     await writeAuditLog(req, {
       action: 'CONFIRM',
       entityType: 'DAILY_PRODUCTION_REPORT',

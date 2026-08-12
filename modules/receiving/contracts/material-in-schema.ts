@@ -37,7 +37,6 @@ export const updateMaterialInSchema = z.object({
 
 export const reverseMaterialInSchema = z.object({
   reason: z.string().trim().min(1, '红冲原因必填'),
-  reversedBy: z.string().optional(),
 })
 
 export const createMaterialInSchema = z.union([

@@ -698,9 +698,9 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 ## 53. 通用附件生命周期模块归属
 
 - `modules/attachments/contracts` 集中附件所有者、上传、封面/旋转动作和草稿附件输入契约；`domain` 拥有存储片段、扩展名、物料图片判断、权限资源映射及领域错误。
-- `server/attachment-query-service.ts` 统一有效附件查询和展示 URL 装配；`attachment-command-service.ts` 统一上传落盘、缩略图/展示图生成、旋转、封面切换、归档后封面接替以及草稿绑定/丢弃。
+- `server/attachment-query-service.ts` 统一有效附件查询和展示 URL 装配；`attachment-command-service.ts` 统一上传落盘、缩略图/展示图生成、旋转、封面切换、归档后封面接替以及草稿绑定/丢弃；`attachment-authorization-service.ts` 统一附件动作权限、所属业务资源、对象存在性和暂存账号归属校验。
 - `client/attachment-api.ts` 是页面和文档、物料领域访问附件 API 的唯一 CRUD 入口；`AttachmentPanel`、草稿附件面板及相邻领域 client 不再重复拼接附件请求。
-- 附件主路由从 291 行降至 102 行，草稿路由从 88 行降至 53 行；六条附件路由均不再直接访问 Prisma，使直接访问 Prisma 的 API 从 78 个降至 72 个。
+- 附件主路由保持在 100 行以内，草稿路由保持在 60 行以内；六条附件路由均不直接访问 Prisma。原文件只经受保护的 API 返回，Middleware 阻止 `/uploads/*` 静态直读。
 - `verify:attachment-management` 使用运行后删除的临时完整 SQLite 和临时上传目录验证上传、旋转、封面切换、归档接替、草稿绑定及文件清理，同时锁定公共 client 和薄路由边界。
 
 ## 54. 销售订单与履约服务端垂直模块归属
@@ -808,7 +808,7 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 ## 67. 平台 Route Handler 清零直连 Prisma
 
 - 密码认证、注销、首位管理员和微信账号绑定归 `modules/identity-access`；Route Handler 只负责请求解析、Cookie、重定向和 HTTP 错误映射。
-- AI 文档识别归 `modules/attachments`：附件所有权、可识别类型、Provider 超时、JSON 解析和高置信度结果规则不再由路由承载。
+- AI 文档识别归 `modules/attachments`：附件所属业务权限、暂存账号归属、可识别类型、Provider 超时、JSON 解析和高置信度结果规则不再由路由承载。
 - 工作区偏好、物料导出/兼容查询、生产与质量统计、配置人工排序分别归 `modules/workspace`、`modules/materials`、`modules/production` 与 `modules/configuration`。
 - 跨领域调用配置排序时必须经过 `modules/configuration/index.ts` 公开入口；禁止引用其他模块的 `server` 子路径。
 - 直接访问 Prisma 的 Route Handler 从 12 条降至 0 条。数据库事务继续存在于所属领域服务，而不是被隐藏在通用 HTTP 工具中。

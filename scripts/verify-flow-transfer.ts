@@ -168,7 +168,7 @@ async function main() {
     })
     await prisma.stockLocationBalance.update({ where: { id: targetBalance.id }, data: { qty: 29, availableQty: 29 } })
     await assert.rejects(
-      () => reverseManagedFlowTransfer(created.id, { reason: '超量冲销验证', reversedBy: '验证员' }),
+      () => reverseManagedFlowTransfer(created.id, { reason: '超量冲销验证' }, '验证员'),
       /库存不足/,
     )
     assert.equal((await prisma.flowTransfer.findUniqueOrThrow({ where: { id: created.id } })).status, 'CONFIRMED')
@@ -176,14 +176,15 @@ async function main() {
 
     const reversed = await reverseManagedFlowTransfer(
       created.id,
-      { reason: '验证冲销', reversedBy: '冲销员' },
+      { reason: '验证冲销' },
+      '冲销员',
       fixedNow,
     )
     assert.equal(reversed.updated.status, 'REVERSED')
     assert.equal(await qtyAt(source.id), 100)
     assert.equal(await qtyAt(target.id), 0)
     await assert.rejects(
-      () => reverseManagedFlowTransfer(created.id, { reason: '重复冲销', reversedBy: '冲销员' }),
+      () => reverseManagedFlowTransfer(created.id, { reason: '重复冲销' }, '冲销员'),
       /只有已确认转移可以冲销/,
     )
     const stockAfterReverse = await prisma.stock.findUniqueOrThrow({ where: { materialId: material.id } })

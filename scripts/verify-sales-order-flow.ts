@@ -116,16 +116,18 @@ async function main() {
     assert.equal(listedBeforeShip.pagination.total, 2, '多关键词查询必须在领域查询服务中生效')
     assert.equal((await listShippableSalesOrderItems()).data[0].remainingQty, 70)
 
-    await shipManagedShipment(shipment.id)
-    const [stockAfterShip, orderAfterShip, shipmentAfterShip] = await Promise.all([
+    await shipManagedShipment(shipment.id, '验证发货员')
+    const [stockAfterShip, orderAfterShip, shipmentAfterShip, shipmentLog] = await Promise.all([
       prisma.stock.findUniqueOrThrow({ where: { materialId: material.id } }),
       prisma.salesOrder.findUniqueOrThrow({ where: { id: order.id }, include: { items: true } }),
       getShipmentDetail(shipment.id),
+      prisma.stockLog.findFirstOrThrow({ where: { refType: 'SHIPMENT', refId: shipment.id } }),
     ])
     assert.deepEqual([stockAfterShip.qty, stockAfterShip.totalCost], [70, 700], '确认发货必须原子扣减库存与成本')
     assert.deepEqual([orderAfterShip.status, orderAfterShip.items[0].shippedQty], ['PARTIAL', 30])
     assert.deepEqual([shipmentAfterShip.status, shipmentAfterShip.shippedCostAmount], ['SHIPPED', 300])
-    await assert.rejects(() => shipManagedShipment(shipment.id), /只能确认待发货状态/)
+    assert.equal(shipmentLog.createdBy, '验证发货员', '发货库存流水必须使用服务端可信操作人')
+    await assert.rejects(() => shipManagedShipment(shipment.id, '验证发货员'), /只能确认待发货状态/)
     await deliverManagedShipment(shipment.id)
 
     await updateSystemSettings({
@@ -171,7 +173,7 @@ async function main() {
       '独立发货必须保留空销售来源并调用物料默认价',
     )
     await cancelManagedShipment(independentShipment.id)
-    await assert.rejects(() => shipManagedShipment(independentShipment.id), /只能确认待发货状态/)
+    await assert.rejects(() => shipManagedShipment(independentShipment.id, '验证发货员'), /只能确认待发货状态/)
 
     const [shipments, returns] = await Promise.all([
       listShipments({ statuses: [], keyword: '验证 履约', page: 1, pageSize: 20 }),

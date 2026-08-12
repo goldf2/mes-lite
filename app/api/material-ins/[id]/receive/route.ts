@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getCurrentOperator, operatorDisplayName } from '@/lib/auth'
 import { writeAuditLog } from '@/lib/audit'
 import { requireResourcePermission } from '@/lib/permissions'
 import { MaterialInDomainError } from '@/modules/receiving/domain/material-in-errors'
@@ -8,7 +9,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   try {
     const denied = await requireResourcePermission('materialIn', 'update')
     if (denied) return denied
-    const { current, updated } = await receiveManagedMaterialIn(params.id)
+    const operator = await getCurrentOperator()
+    if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
+    const { current, updated } = await receiveManagedMaterialIn(params.id, operatorDisplayName(operator))
     await writeAuditLog(req, {
       action: 'RECEIVE', entityType: 'MATERIAL_IN', entityId: updated.id,
       entityLabel: updated.inboundNo, beforeData: current, afterData: updated,

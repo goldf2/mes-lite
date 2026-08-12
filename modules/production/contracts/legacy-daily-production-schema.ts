@@ -20,13 +20,10 @@ export const legacyDailyProductionReportInputSchema = z.object({
   message: '同一原料不能重复填写',
 })
 
-export const confirmLegacyDailyProductionSchema = z.object({
-  confirmedBy: z.string().trim().optional(),
-})
+export const confirmLegacyDailyProductionSchema = z.object({})
 
 export const reverseLegacyDailyProductionSchema = z.object({
   reason: z.string().trim().min(1, '冲销原因必填'),
-  reversedBy: z.string().trim().optional(),
 })
 
 export type LegacyDailyProductionReportInput = z.infer<typeof legacyDailyProductionReportInputSchema>

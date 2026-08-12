@@ -172,7 +172,7 @@ async function main() {
     assert.equal(updatedOrder.scrapQty, 0.25)
     assert.equal(updatedOrder.status, 'RUNNING')
 
-    const reversed = await reverseProductionOrderActual(order.id, actual.id, { reason: '验证冲销', reversedBy: '验证冲销员' })
+    const reversed = await reverseProductionOrderActual(order.id, actual.id, { reason: '验证冲销' }, '验证冲销员')
     assert.equal(reversed.before.status, 'CONFIRMED')
     assert.equal(reversed.updated.status, 'REVERSED')
     const [restoredInput, reversedOutput, reversedScrap, resetOrder, reversalLogs] = await Promise.all([
@@ -188,7 +188,7 @@ async function main() {
     assert.deepEqual([resetOrder.completeQty, resetOrder.scrapQty, resetOrder.status], [0, 0, 'DRAFT'], '冲销后必须重算生产订单累计数量和状态')
     assert.equal(reversalLogs, 3, '一次冲销必须生成一条投入恢复和两条产出扣回流水')
     await assert.rejects(
-      () => reverseProductionOrderActual(order.id, actual.id, { reason: '重复冲销', reversedBy: '验证员' }),
+      () => reverseProductionOrderActual(order.id, actual.id, { reason: '重复冲销' }, '验证员'),
       ProductionOrderDomainError,
       '已冲销实绩不得重复冲销',
     )

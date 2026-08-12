@@ -27,7 +27,7 @@ export const createReturnSchema = z.object({
   note: z.string().optional(),
 })
 
-export const processReturnSchema = z.object({ processedBy: z.string().trim().optional() })
+export const processReturnSchema = z.object({})
 
 export type CreateShipmentCommand = z.infer<typeof createShipmentSchema>
 export type CreateReturnCommand = z.infer<typeof createReturnSchema>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
-import { getCurrentOperator } from '@/lib/auth'
+import { getCurrentOperator, operatorDisplayName } from '@/lib/auth'
 import { writeAuditLog } from '@/lib/audit'
 import { confirmProductionOrderActualSchema } from '@/modules/production/contracts/production-order-actual-schema'
 import { ProductionOrderDomainError } from '@/modules/production/domain/production-order-errors'
@@ -11,10 +11,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   try {
     const denied = await requireResourcePermission('orders', 'update')
     if (denied) return denied
-    const input = confirmProductionOrderActualSchema.parse(await req.json().catch(() => ({})))
+    confirmProductionOrderActualSchema.parse(await req.json().catch(() => ({})))
     const operator = await getCurrentOperator()
-    const confirmedBy = input.confirmedBy || operator?.name || operator?.username || '系统用户'
-    const result = await confirmProductionOrderActual(params.id, params.actualId, confirmedBy)
+    if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
+    const result = await confirmProductionOrderActual(params.id, params.actualId, operatorDisplayName(operator))
     await writeAuditLog(req, {
       action: 'CONFIRM', entityType: 'PRODUCTION_ORDER_ACTUAL', entityId: result.updated.id,
       entityLabel: result.updated.actualNo, beforeData: result.before, afterData: result.updated,

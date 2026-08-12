@@ -11,7 +11,7 @@ import { AttachmentDomainError } from '../domain/attachment-errors'
 import { attachmentStorageExtension, isMaterialImageAttachment, safeAttachmentStorageSegment } from '../domain/attachment-policy'
 import { requireActiveAttachment, withManagedAttachmentUrls } from './attachment-query-service'
 
-export async function uploadManagedAttachment(input: AttachmentUploadInput) {
+export async function uploadManagedAttachment(input: AttachmentUploadInput, uploadedBy: string) {
   if (input.file.size <= 0 || input.file.size > MAX_ATTACHMENT_FILE_SIZE) {
     throw new AttachmentDomainError('文件大小必须在 50MB 以内')
   }
@@ -53,7 +53,7 @@ export async function uploadManagedAttachment(input: AttachmentUploadInput) {
         url: `/uploads/${ownerTypeDirectory}/${ownerIdDirectory}/${fileName}`,
         storagePath,
         note: input.note,
-        uploadedBy: input.uploadedBy,
+        uploadedBy,
         isCover: materialImage && existingImageCount === 0,
       },
     })
@@ -131,22 +131,25 @@ function requireDraftOwnerType(ownerType: string) {
   return draftDocumentAttachmentOwnerType(ownerType)
 }
 
-export async function finalizeManagedDraftAttachments(input: DraftAttachmentInput) {
+export async function finalizeManagedDraftAttachments(input: DraftAttachmentInput, uploadedBy: string) {
   if (!input.targetOwnerId) throw new AttachmentDomainError('暂存附件绑定参数无效')
   const draftOwnerType = requireDraftOwnerType(input.ownerType)
   return prisma.documentAttachment.updateMany({
-    where: { ownerType: draftOwnerType, ownerId: input.draftOwnerId, deletedAt: null },
+    where: { ownerType: draftOwnerType, ownerId: input.draftOwnerId, uploadedBy, deletedAt: null },
     data: { ownerType: input.ownerType, ownerId: input.targetOwnerId },
   })
 }
 
-export async function discardManagedDraftAttachments(input: Pick<DraftAttachmentInput, 'ownerType' | 'draftOwnerId'>) {
+export async function discardManagedDraftAttachments(
+  input: Pick<DraftAttachmentInput, 'ownerType' | 'draftOwnerId'>,
+  uploadedBy: string,
+) {
   const draftOwnerType = requireDraftOwnerType(input.ownerType)
   const attachments = await prisma.documentAttachment.findMany({
-    where: { ownerType: draftOwnerType, ownerId: input.draftOwnerId },
+    where: { ownerType: draftOwnerType, ownerId: input.draftOwnerId, uploadedBy },
     select: { id: true, storagePath: true },
   })
-  await prisma.documentAttachment.deleteMany({ where: { ownerType: draftOwnerType, ownerId: input.draftOwnerId } })
+  await prisma.documentAttachment.deleteMany({ where: { ownerType: draftOwnerType, ownerId: input.draftOwnerId, uploadedBy } })
   await Promise.all(attachments.map((attachment) => removeAttachmentStoredFiles(attachment.storagePath)))
   return { count: attachments.length }
 }

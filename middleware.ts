@@ -4,6 +4,9 @@ const SESSION_COOKIE = 'mes_lite_session'
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
+  if (pathname.startsWith('/uploads/')) {
+    return NextResponse.json({ error: '附件必须通过授权接口访问' }, { status: 404 })
+  }
   if (!pathname.startsWith('/api')) return NextResponse.next()
   if (pathname.startsWith('/api/auth')) return NextResponse.next()
   if (pathname === '/api/health') return NextResponse.next()
@@ -17,5 +20,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/api/:path*'],
+  matcher: ['/api/:path*', '/uploads/:path*'],
 }

@@ -1,24 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
-import { requireResourcePermission } from '@/lib/permissions'
 import {
   attachmentMutationSchema,
   attachmentOwnerQuerySchema,
   parseAttachmentUploadForm,
 } from '@/modules/attachments/contracts/attachment-schema'
 import { AttachmentDomainError } from '@/modules/attachments/domain/attachment-errors'
-import { attachmentUpdatePermissionResource } from '@/modules/attachments/domain/attachment-policy'
+import {
+  requireManagedAttachmentAccess,
+  requireManagedAttachmentOwnerAccess,
+} from '@/modules/attachments/server/attachment-authorization-service'
 import {
   archiveManagedAttachment,
   setManagedAttachmentRotation,
   setMaterialImageCover,
   uploadManagedAttachment,
 } from '@/modules/attachments/server/attachment-command-service'
-import {
-  listManagedAttachments,
-  requireActiveAttachment,
-} from '@/modules/attachments/server/attachment-query-service'
+import { listManagedAttachments } from '@/modules/attachments/server/attachment-query-service'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -36,10 +35,11 @@ function attachmentError(error: unknown, fallback: string) {
 
 export async function GET(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('attachments', 'read')
-    if (denied) return denied
     const input = attachmentOwnerQuerySchema.parse(Object.fromEntries(new URL(req.url).searchParams))
-    return NextResponse.json({ data: await listManagedAttachments(input.ownerType, input.ownerId) })
+    const { operator, context } = await requireManagedAttachmentOwnerAccess(input.ownerType, input.ownerId, 'read')
+    return NextResponse.json({
+      data: await listManagedAttachments(input.ownerType, input.ownerId, context.draft ? operator.id : undefined),
+    })
   } catch (error) {
     return attachmentError(error, '获取附件失败')
   }
@@ -47,9 +47,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('attachments', 'create')
-    if (denied) return denied
-    const attachment = await uploadManagedAttachment(parseAttachmentUploadForm(await req.formData()))
+    const input = parseAttachmentUploadForm(await req.formData())
+    const { operator } = await requireManagedAttachmentOwnerAccess(input.ownerType, input.ownerId, 'upload')
+    const attachment = await uploadManagedAttachment(input, operator.id)
     return NextResponse.json({ data: attachment }, { status: 201 })
   } catch (error) {
     return attachmentError(error, '上传附件失败')
@@ -58,15 +58,8 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const readDenied = await requireResourcePermission('attachments', 'read')
-    if (readDenied) return readDenied
     const input = attachmentMutationSchema.parse(await req.json())
-    const attachment = await requireActiveAttachment(input.id)
-    const denied = await requireResourcePermission(
-      input.action === 'SET_COVER' ? 'materials' : attachmentUpdatePermissionResource(attachment.ownerType),
-      'update',
-    )
-    if (denied) return denied
+    await requireManagedAttachmentAccess(input.id, 'update')
 
     if (input.action === 'SET_COVER') {
       await setMaterialImageCover(input.id)
@@ -91,9 +84,8 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('attachments', 'delete')
-    if (denied) return denied
     const id = z.string().trim().min(1, '缺少附件 ID').parse(new URL(req.url).searchParams.get('id'))
+    await requireManagedAttachmentAccess(id, 'archive')
     await archiveManagedAttachment(id)
     return NextResponse.json({ success: true, message: '附件已归档' })
   } catch (error) {

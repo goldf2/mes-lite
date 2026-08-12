@@ -160,22 +160,24 @@ async function main() {
       [6, 15, 60, 'BATCH-EDIT'],
     )
 
-    await receiveManagedMaterialIn(created.first.id)
-    const [received, receivedStock, receivedBalance, receivedLayer] = await Promise.all([
+    await receiveManagedMaterialIn(created.first.id, '验证收货员')
+    const [received, receivedStock, receivedBalance, receivedLayer, receivedLog] = await Promise.all([
       getMaterialInDetail(created.first.id),
       prisma.stock.findUniqueOrThrow({ where: { materialId: material.id } }),
       prisma.stockLocationBalance.findFirstOrThrow({ where: { locationId: location.id, stock: { materialId: material.id } } }),
       prisma.inventoryCostLayer.findFirstOrThrow({ where: { materialInId: edited.updated.items[0].id } }),
+      prisma.stockLog.findFirstOrThrow({ where: { refType: 'MATERIAL_IN', refId: edited.updated.items[0].id } }),
     ])
     assert.equal(received.status, 'RECEIVED')
     assert.deepEqual([receivedStock.qty, receivedStock.valuationQty, receivedStock.totalCost], [6, 15, 60])
     assert.equal(receivedBalance.qty, 6)
     assert.equal(receivedLayer.remainingAmount, 60)
+    assert.deepEqual([received.receivedBy, receivedLog.createdBy], ['验证收货员', '验证收货员'], '来料记录和库存流水必须使用服务端可信操作人')
     assert.equal(received.items.every((line) => line.status === 'RECEIVED'), true)
-    await assert.rejects(() => receiveManagedMaterialIn(created.first.id), MaterialInDomainError, '来料不得重复收货')
+    await assert.rejects(() => receiveManagedMaterialIn(created.first.id, '验证收货员'), MaterialInDomainError, '来料不得重复收货')
     await assert.rejects(() => updateManagedMaterialIn(created.first.id, updateInput), /只有待收货来料单可以修改/)
 
-    await reverseManagedMaterialIn(created.first.id, { reason: '验证整单红冲', reversedBy: '验证冲销员' })
+    await reverseManagedMaterialIn(created.first.id, { reason: '验证整单红冲' }, '验证冲销员')
     const [reversed, reversedStock, reversedBalance, reversedLayer, reverseLog] = await Promise.all([
       getMaterialInDetail(created.first.id),
       prisma.stock.findUniqueOrThrow({ where: { materialId: material.id } }),
@@ -188,7 +190,8 @@ async function main() {
     assert.equal(reversedBalance.qty, 0)
     assert.equal(reversedLayer.status, 'REVERSED')
     assert.equal(reverseLog.costAmount, -60)
-    await assert.rejects(() => reverseManagedMaterialIn(created.first.id, { reason: '重复红冲' }), /只有已收货来料单可以红冲/)
+    assert.equal(reverseLog.createdBy, '验证冲销员', '来料红冲流水必须使用服务端可信操作人')
+    await assert.rejects(() => reverseManagedMaterialIn(created.first.id, { reason: '重复红冲' }, '验证冲销员'), /只有已收货来料单可以红冲/)
 
     const third = await createMaterialIns(createMaterialInSchema.parse({
       supplierId: supplier.id,
@@ -198,19 +201,19 @@ async function main() {
     assert.equal(third.first.inboundNo, 'IN-20260810-002', '多明细来料单只占用一个单据编号')
     await rejectManagedMaterialIn(third.first.id)
     assert.equal((await getMaterialInDetail(third.first.id)).status, 'REJECTED')
-    await assert.rejects(() => receiveManagedMaterialIn(third.first.id), /无法确认收货/)
+    await assert.rejects(() => receiveManagedMaterialIn(third.first.id, '验证收货员'), /无法确认收货/)
 
     const blocked = await createMaterialIns(createMaterialInSchema.parse({
       supplierId: supplier.id,
       materialId: secondMaterial.id, locationId: location.id, qty: 4,
       unitPrice: 5, priceUnit: '件', priceBasis: 'STOCK',
     }), fixedNow)
-    await receiveManagedMaterialIn(blocked.first.id)
+    await receiveManagedMaterialIn(blocked.first.id, '验证收货员')
     const blockedLine = blocked.items[0]
     const blockedLayer = await prisma.inventoryCostLayer.findFirstOrThrow({ where: { materialInId: blockedLine.id } })
     await prisma.inventoryCostLayer.update({ where: { id: blockedLayer.id }, data: { remainingStockQty: 3 } })
     await assert.rejects(
-      () => reverseManagedMaterialIn(blocked.first.id, { reason: '已消耗批次验证' }),
+      () => reverseManagedMaterialIn(blocked.first.id, { reason: '已消耗批次验证' }, '验证冲销员'),
       /成本层已变动/,
       '已被使用的成本层必须阻止整单红冲',
     )
@@ -248,7 +251,7 @@ async function main() {
         supplierId: supplier.id, materialId: historyMaterial.id, locationId: location.id,
         qty, valuationQty, unitPrice: 0, priceUnit: 'm', priceBasis: 'STOCK',
       }), fixedNow)
-      await receiveManagedMaterialIn(actualReceipt.first.id)
+      await receiveManagedMaterialIn(actualReceipt.first.id, '验证收货员')
     }
     const history = await loadMaterialInConversionHistory(historyMaterial.id)
     assert.deepEqual(
@@ -265,7 +268,7 @@ async function main() {
       ['HISTORICAL_ESTIMATE', 3, 23.199996],
       '辅助数量缺失时必须冻结历史推算来源、样本数和推算值',
     )
-    await receiveManagedMaterialIn(estimatedReceipt.first.id)
+    await receiveManagedMaterialIn(estimatedReceipt.first.id, '验证收货员')
     assert.equal(
       (await loadMaterialInConversionHistory(historyMaterial.id)).sampleCount,
       3,

@@ -11,6 +11,8 @@ const productionModuleSource = readFileSync(join(root, 'modules/production/ui/Pr
 const salesOrderSource = readFileSync(join(root, 'modules/sales/ui/SalesOrderPageModule.tsx'), 'utf8')
 const detailDialogSource = readFileSync(join(root, 'modules/business-documents/ui/BusinessDocumentDetailDialog.tsx'), 'utf8')
 const attachmentClientSource = readFileSync(join(root, 'modules/attachments/client/attachment-api.ts'), 'utf8')
+const attachmentAuthorizationSource = readFileSync(join(root, 'modules/attachments/server/attachment-authorization-service.ts'), 'utf8')
+const middlewareSource = readFileSync(join(root, 'middleware.ts'), 'utf8')
 const attachmentRoutePaths = [
   'app/api/attachments/route.ts',
   'app/api/attachments/drafts/route.ts',
@@ -42,6 +44,7 @@ for (const modulePath of [
   'modules/attachments/domain/attachment-policy.ts',
   'modules/attachments/server/attachment-query-service.ts',
   'modules/attachments/server/attachment-command-service.ts',
+  'modules/attachments/server/attachment-authorization-service.ts',
   'modules/attachments/client/attachment-api.ts',
   'modules/attachments/index.ts',
 ]) {
@@ -50,7 +53,14 @@ for (const modulePath of [
 for (const routePath of attachmentRoutePaths) {
   const source = readFileSync(join(root, routePath), 'utf8')
   assert.doesNotMatch(source, /@\/lib\/prisma|prisma\.|\$transaction/, `${routePath} 必须保持为薄 HTTP 层`)
+  assert.match(source, /requireManagedAttachment(?:Owner)?Access/, `${routePath} 必须校验附件所属业务对象权限`)
 }
+assert.match(attachmentAuthorizationSource, /hasResourcePermission/, '附件鉴权必须同时复用统一资源权限')
+assert.match(attachmentAuthorizationSource, /attachmentOwnerExists/, '附件鉴权必须验证所属业务对象真实存在')
+assert.match(attachmentAuthorizationSource, /uploadedBy !== operator\.id/, '暂存附件必须限制为当前登录人员所有')
+assert.match(middlewareSource, /pathname\.startsWith\('\/uploads\/'\)/, '静态上传目录必须禁止绕过附件 API 直接读取')
+assert.match(middlewareSource, /'\/uploads\/:path\*'/, 'Middleware 必须覆盖静态上传目录')
+assert.doesNotMatch(attachmentClientSource, /uploadedBy/, '附件客户端不得提交操作人身份')
 assert.ok(readFileSync(join(root, attachmentRoutePaths[0]), 'utf8').split('\n').length <= 140, '附件主路由不得重新膨胀')
 assert.ok(readFileSync(join(root, attachmentRoutePaths[1]), 'utf8').split('\n').length <= 70, '附件草稿路由不得重新膨胀')
 assert.match(productionModuleSource, /系统生成单据/, '生产订单详情必须明确标识系统生成单据')
@@ -85,23 +95,53 @@ async function verifyAttachmentLifecycle() {
     { prisma },
     command,
     query,
+    authorization,
     { AttachmentDomainError },
     { draftDocumentAttachmentOwnerType },
   ] = await Promise.all([
     import('../lib/prisma'),
     import('../modules/attachments/server/attachment-command-service'),
     import('../modules/attachments/server/attachment-query-service'),
+    import('../modules/attachments/server/attachment-authorization-service'),
     import('../modules/attachments/domain/attachment-errors'),
     import('../lib/draft-document-attachments'),
   ])
 
   try {
+    const admin = await prisma.operator.create({
+      data: {
+        username: 'attachment-admin', passwordHash: 'verification-only', name: '附件管理员',
+        role: 'ADMIN', status: 'ACTIVE',
+      },
+    })
+    const otherAdmin = await prisma.operator.create({
+      data: {
+        username: 'attachment-admin-2', passwordHash: 'verification-only', name: '其他管理员',
+        role: 'ADMIN', status: 'ACTIVE',
+      },
+    })
+    const material = await prisma.material.create({
+      data: { code: 'ATTACH-MAT-001', name: '附件权限物料', unit: '件' },
+    })
+    await authorization.requireManagedAttachmentOwnerAccessForOperator(admin, 'MATERIAL', material.id, 'read')
+    await assert.rejects(
+      () => authorization.requireManagedAttachmentOwnerAccessForOperator(admin, 'UNKNOWN', material.id, 'read'),
+      (error: unknown) => error instanceof AttachmentDomainError && error.status === 400,
+      '未知附件所属类型必须拒绝',
+    )
+    await assert.rejects(
+      () => authorization.requireManagedAttachmentOwnerAccessForOperator(admin, 'MATERIAL', 'missing-material', 'read'),
+      (error: unknown) => error instanceof AttachmentDomainError && error.status === 404,
+      '不存在的业务对象不得挂载附件',
+    )
+
     const uploaded = await command.uploadManagedAttachment({
       ownerType: 'WORK_INSTRUCTION',
       ownerId: 'instruction-1',
       documentType: 'WORK_INSTRUCTION',
       file: new File(['controlled instruction'], 'instruction.txt', { type: 'text/plain' }),
-    })
+    }, 'operator-1')
+    assert.equal(uploaded.uploadedBy, 'operator-1', '附件上传人必须由服务端传入当前登录人员')
     assert.equal((await query.listManagedAttachments('WORK_INSTRUCTION', 'instruction-1'))[0].id, uploaded.id)
     const rotated = await command.setManagedAttachmentRotation(uploaded.id, 90)
     assert.equal(rotated.before.rotation, 0)
@@ -110,7 +150,7 @@ async function verifyAttachmentLifecycle() {
       () => command.uploadManagedAttachment({
         ownerType: 'WORK_INSTRUCTION', ownerId: 'instruction-1', documentType: 'ORIGINAL',
         file: new File([], 'empty.txt', { type: 'text/plain' }),
-      }),
+      }, 'operator-1'),
       AttachmentDomainError,
       '空文件必须由领域服务拒绝',
     )
@@ -140,15 +180,26 @@ async function verifyAttachmentLifecycle() {
     const draftOwnerType = draftDocumentAttachmentOwnerType('MATERIAL_IN')
     const finalizeDraft = await prisma.documentAttachment.create({
       data: {
-        ownerType: draftOwnerType, ownerId: 'draft-finalize', originalName: 'receipt.pdf',
-        fileName: 'receipt.pdf', mimeType: 'application/pdf', size: 1, url: '/draft/receipt.pdf',
-        storagePath: join(uploadRoot, 'draft-finalize.pdf'),
+          ownerType: draftOwnerType, ownerId: 'draft-finalize', originalName: 'receipt.pdf',
+          fileName: 'receipt.pdf', mimeType: 'application/pdf', size: 1, url: '/draft/receipt.pdf',
+          storagePath: join(uploadRoot, 'draft-finalize.pdf'), uploadedBy: admin.id,
       },
     })
+    await authorization.requireManagedAttachmentAccessForOperator(admin, finalizeDraft.id, 'read')
+    await assert.rejects(
+      () => authorization.requireManagedAttachmentAccessForOperator(otherAdmin, finalizeDraft.id, 'read'),
+      (error: unknown) => error instanceof AttachmentDomainError && error.status === 404,
+      '其他人员即使具有同类资源权限也不得读取当前人员的暂存附件',
+    )
     const finalized = await command.finalizeManagedDraftAttachments({
       ownerType: 'MATERIAL_IN', draftOwnerId: 'draft-finalize', targetOwnerId: 'receipt-1',
-    })
-    assert.equal(finalized.count, 1)
+    }, 'operator-1')
+    assert.equal(finalized.count, 0, '不得绑定不属于当前登录人员的历史暂存附件')
+    await prisma.documentAttachment.update({ where: { id: finalizeDraft.id }, data: { uploadedBy: 'operator-1' } })
+    const ownedFinalized = await command.finalizeManagedDraftAttachments({
+      ownerType: 'MATERIAL_IN', draftOwnerId: 'draft-finalize', targetOwnerId: 'receipt-1',
+    }, 'operator-1')
+    assert.equal(ownedFinalized.count, 1)
     assert.deepEqual(
       await prisma.documentAttachment.findUniqueOrThrow({ where: { id: finalizeDraft.id } }).then((item) => [item.ownerType, item.ownerId]),
       ['MATERIAL_IN', 'receipt-1'],
@@ -164,7 +215,10 @@ async function verifyAttachmentLifecycle() {
         fileName: 'discard.txt', mimeType: 'text/plain', size: 7, url: '/draft/discard.txt', storagePath: discardPath,
       },
     })
-    assert.equal((await command.discardManagedDraftAttachments({ ownerType: 'MATERIAL_IN', draftOwnerId: 'draft-discard' })).count, 1)
+    assert.equal((await command.discardManagedDraftAttachments({ ownerType: 'MATERIAL_IN', draftOwnerId: 'draft-discard' }, 'operator-1')).count, 0)
+    assert.equal((await access(discardPath).then(() => true, () => false)), true, '不得清理其他人员的暂存附件')
+    await prisma.documentAttachment.updateMany({ where: { ownerId: 'draft-discard' }, data: { uploadedBy: 'operator-1' } })
+    assert.equal((await command.discardManagedDraftAttachments({ ownerType: 'MATERIAL_IN', draftOwnerId: 'draft-discard' }, 'operator-1')).count, 1)
     await assert.rejects(access(discardPath), '取消新建必须同时清理暂存文件')
 
     console.log('附件管理验证通过：公共客户端、薄 API、上传、旋转、封面、归档与草稿生命周期均符合模块边界。')

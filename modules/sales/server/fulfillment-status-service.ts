@@ -4,7 +4,7 @@ import { resolveMaterialIdForProduct } from '@/lib/material-product'
 import { runSalesDomainOperation, SalesDomainError } from '../domain/sales-errors'
 import { refreshSalesOrderStatus } from './sales-order-availability-service'
 
-export async function shipManagedShipment(id: string) {
+export async function shipManagedShipment(id: string, shippedBy: string) {
   return runSalesDomainOperation(() => prisma.$transaction(async (tx) => {
     const shipment = await tx.shipment.findUnique({ where: { id } })
     if (!shipment) throw new SalesDomainError('发货单不存在', 404)
@@ -20,7 +20,7 @@ export async function shipManagedShipment(id: string) {
     }
     const issue = await postInventoryIssue(tx, {
       materialId, stockQty: Number(shipment.qty), type: 'OUT', refType: 'SHIPMENT', refId: shipment.id,
-      note: `发货单 ${shipment.shipmentNo} 出库`, createdBy: shipment.shippedBy,
+      note: `发货单 ${shipment.shipmentNo} 出库`, createdBy: shippedBy,
       idempotencyKey: `SHIPMENT:${shipment.id}:SHIP`, locationId: shipment.locationId,
     })
     const updated = await tx.shipment.update({

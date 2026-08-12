@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
-import { getCurrentOperator } from '@/lib/auth'
+import { getCurrentOperator, operatorDisplayName } from '@/lib/auth'
 import { writeAuditLog } from '@/lib/audit'
 import { reverseProductionOrderActualSchema } from '@/modules/production/contracts/production-order-actual-schema'
 import { ProductionOrderDomainError } from '@/modules/production/domain/production-order-errors'
@@ -13,8 +13,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (denied) return denied
     const input = reverseProductionOrderActualSchema.parse(await req.json())
     const operator = await getCurrentOperator()
-    const reversedBy = input.reversedBy || operator?.name || operator?.username || '系统用户'
-    const result = await reverseProductionOrderActual(params.id, params.actualId, { reason: input.reason, reversedBy })
+    if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
+    const result = await reverseProductionOrderActual(params.id, params.actualId, input, operatorDisplayName(operator))
     await writeAuditLog(req, {
       action: 'REVERSE', entityType: 'PRODUCTION_ORDER_ACTUAL', entityId: result.updated.id,
       entityLabel: result.updated.actualNo, beforeData: result.before, afterData: result.updated, note: input.reason,

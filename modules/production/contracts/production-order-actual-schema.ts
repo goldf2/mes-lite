@@ -22,13 +22,10 @@ export const createProductionOrderActualSchema = z.object({
   outputs: z.array(productionOrderActualOutputSchema).min(1, '请填写产出实绩').max(50),
 })
 
-export const confirmProductionOrderActualSchema = z.object({
-  confirmedBy: z.string().trim().optional(),
-})
+export const confirmProductionOrderActualSchema = z.object({})
 
 export const reverseProductionOrderActualSchema = z.object({
   reason: z.string().trim().min(1, '冲销原因必填'),
-  reversedBy: z.string().trim().optional(),
 })
 
 export type CreateProductionOrderActualInput = z.infer<typeof createProductionOrderActualSchema>

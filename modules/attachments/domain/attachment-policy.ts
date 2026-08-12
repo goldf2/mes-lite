@@ -1,4 +1,43 @@
 import type { PermissionResource } from '@/lib/permissions'
+import {
+  isDraftDocumentAttachmentOwnerType,
+  targetOwnerTypeFromDraft,
+} from '@/lib/draft-document-attachments'
+
+export const attachmentOwnerPolicies = {
+  MATERIAL: { resource: 'materials' },
+  WORK_INSTRUCTION: { resource: 'workInstructions' },
+  MATERIAL_IN: { resource: 'materialIn' },
+  PRODUCTION_ORDER: { resource: 'orders' },
+  DISPATCH: { resource: 'dispatch' },
+  SALES_ORDER: { resource: 'salesOrder' },
+  SHIPMENT: { resource: 'shipment' },
+  RETURN_ORDER: { resource: 'return' },
+  FLOW_TRANSFER: { resource: 'stats' },
+} as const satisfies Record<string, { resource: PermissionResource }>
+
+export type AttachmentOwnerType = keyof typeof attachmentOwnerPolicies
+
+export type AttachmentOwnerContext = {
+  requestedOwnerType: string
+  targetOwnerType: AttachmentOwnerType
+  resource: PermissionResource
+  draft: boolean
+}
+
+export function resolveAttachmentOwnerContext(ownerType: string): AttachmentOwnerContext | null {
+  const targetOwnerType = isDraftDocumentAttachmentOwnerType(ownerType)
+    ? targetOwnerTypeFromDraft(ownerType)
+    : ownerType
+  if (!targetOwnerType || !(targetOwnerType in attachmentOwnerPolicies)) return null
+  const typedOwnerType = targetOwnerType as AttachmentOwnerType
+  return {
+    requestedOwnerType: ownerType,
+    targetOwnerType: typedOwnerType,
+    resource: attachmentOwnerPolicies[typedOwnerType].resource,
+    draft: isDraftDocumentAttachmentOwnerType(ownerType),
+  }
+}
 
 export function safeAttachmentStorageSegment(value: string) {
   return value.replace(/[^a-zA-Z0-9_-]/g, '_')
@@ -25,7 +64,5 @@ export function isMaterialImageAttachment(input: { ownerType: string; documentTy
 }
 
 export function attachmentUpdatePermissionResource(ownerType: string): PermissionResource {
-  if (ownerType === 'WORK_INSTRUCTION') return 'workInstructions'
-  if (ownerType === 'MATERIAL') return 'materials'
-  return 'attachments'
+  return resolveAttachmentOwnerContext(ownerType)?.resource || 'attachments'
 }

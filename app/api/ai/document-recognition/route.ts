@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { writeAuditLog } from '@/lib/audit'
+import { getCurrentOperator } from '@/lib/auth'
 import { requireResourcePermission } from '@/lib/permissions'
 import { documentRecognitionInputSchema } from '@/modules/attachments/contracts/document-recognition'
 import { documentRecognitionHttpError } from '@/modules/attachments/http/document-recognition-http'
@@ -9,12 +10,14 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  const attachmentDenied = await requireResourcePermission('attachments', 'read')
-  if (attachmentDenied) return attachmentDenied
   const aiDenied = await requireResourcePermission('aiAssistant', 'read')
   if (aiDenied) return aiDenied
   try {
-    const { attachment, config, result } = await recognizeDocumentAttachment(documentRecognitionInputSchema.parse(await req.json()))
+    const operator = await getCurrentOperator()
+    const { attachment, config, result } = await recognizeDocumentAttachment(
+      documentRecognitionInputSchema.parse(await req.json()),
+      operator,
+    )
     await writeAuditLog(req, {
       action: 'QUERY', entityType: 'AI_DOCUMENT_RECOGNITION', entityId: attachment.id, entityLabel: attachment.originalName,
       afterData: {

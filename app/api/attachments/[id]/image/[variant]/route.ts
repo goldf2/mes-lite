@@ -1,13 +1,12 @@
 import { readFile } from 'fs/promises'
 import { NextResponse } from 'next/server'
-import { requireResourcePermission } from '@/lib/permissions'
 import {
   attachmentImageVariantVersion,
   ensureAttachmentImageVariant,
   isAttachmentImageVariant,
 } from '@/lib/attachment-image-variants'
 import { AttachmentDomainError } from '@/modules/attachments/domain/attachment-errors'
-import { requireActiveAttachment } from '@/modules/attachments/server/attachment-query-service'
+import { requireManagedAttachmentAccess } from '@/modules/attachments/server/attachment-authorization-service'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,14 +16,11 @@ export async function GET(
   { params }: { params: { id: string; variant: string } },
 ) {
   try {
-    const denied = await requireResourcePermission('attachments', 'read')
-    if (denied) return denied
-
     if (!isAttachmentImageVariant(params.variant)) {
       return NextResponse.json({ error: '图片规格不存在' }, { status: 404 })
     }
 
-    const attachment = await requireActiveAttachment(params.id)
+    const { attachment } = await requireManagedAttachmentAccess(params.id, 'read')
     if (!attachment.mimeType.startsWith('image/')) {
       return NextResponse.json({ error: '该附件类型不支持图片优化' }, { status: 415 })
     }

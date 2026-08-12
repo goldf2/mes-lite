@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server'
 import { readFile } from 'fs/promises'
-import { requireResourcePermission } from '@/lib/permissions'
 import { attachmentPreviewKind } from '@/lib/attachment-file-types'
 import { resolveAttachmentStoragePath } from '@/lib/attachment-storage'
 import { ensureOfficeDocumentPreview } from '@/lib/office-document-preview'
 import { AttachmentDomainError } from '@/modules/attachments/domain/attachment-errors'
-import { requireActiveAttachment } from '@/modules/attachments/server/attachment-query-service'
+import { requireManagedAttachmentAccess } from '@/modules/attachments/server/attachment-authorization-service'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,10 +14,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const denied = await requireResourcePermission('attachments', 'read')
-    if (denied) return denied
-
-    const attachment = await requireActiveAttachment(params.id)
+    const { attachment } = await requireManagedAttachmentAccess(params.id, 'read')
 
     const kind = attachmentPreviewKind(attachment.originalName, attachment.mimeType)
     if (kind !== 'office' && kind !== 'text') {

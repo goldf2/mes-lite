@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server'
 import { readFile } from 'fs/promises'
-import { requireResourcePermission } from '@/lib/permissions'
 import { resolveAttachmentStoragePath } from '@/lib/attachment-thumbnail'
 import { shouldServeAttachmentInline } from '@/lib/attachment-file-types'
 import { AttachmentDomainError } from '@/modules/attachments/domain/attachment-errors'
-import { requireActiveAttachment } from '@/modules/attachments/server/attachment-query-service'
+import { requireManagedAttachmentAccess } from '@/modules/attachments/server/attachment-authorization-service'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,10 +13,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const denied = await requireResourcePermission('attachments', 'read')
-    if (denied) return denied
-
-    const attachment = await requireActiveAttachment(params.id)
+    const { attachment } = await requireManagedAttachmentAccess(params.id, 'read')
 
     const storagePath = resolveAttachmentStoragePath(attachment.storagePath)
 

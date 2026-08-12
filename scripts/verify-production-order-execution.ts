@@ -118,19 +118,20 @@ async function main() {
       data: { orderId: order.id, materialId: inputMaterial.id, requiredQty: 5, reservedValuationQty: 5, status: 'RESERVED' },
     })
 
-    await pickLegacyProductionOrder(order.id, { items: [{ pickItemId: pick.id, actualQty: 4, pickedBy: '验证领料员' }] })
+    await pickLegacyProductionOrder(order.id, { items: [{ pickItemId: pick.id, actualQty: 4, pickedBy: '验证领料员' }] }, '登录验证员')
     const [pickedOrder, pickedItem, pickedStock, pickedBalance, pickLogs] = await Promise.all([
       prisma.productionOrder.findUniqueOrThrow({ where: { id: order.id } }),
       prisma.pickItem.findUniqueOrThrow({ where: { id: pick.id } }),
       prisma.stock.findUniqueOrThrow({ where: { id: stock.id } }),
       prisma.stockLocationBalance.findUniqueOrThrow({ where: { stockId_locationId: { stockId: stock.id, locationId: location.id } } }),
-      prisma.stockLog.count({ where: { refType: 'PICK', refId: pick.id } }),
+      prisma.stockLog.findMany({ where: { refType: 'PICK', refId: pick.id } }),
     ])
     assert.equal(pickedOrder.status, 'PICKED', '全部兼容领料完成后工单必须进入已领料')
     assert.deepEqual([pickedItem.status, pickedItem.actualQty, pickedItem.costAmount], ['COMPLETED', 4, 8])
     assert.deepEqual([pickedStock.qty, pickedStock.reservedQty, pickedStock.availableQty, pickedStock.totalCost], [16, 0, 16, 32])
     assert.deepEqual([pickedBalance.qty, pickedBalance.reservedQty, pickedBalance.availableQty], [16, 0, 16])
-    assert.equal(pickLogs, 1, '兼容领料必须生成库存流水')
+    assert.equal(pickLogs.length, 1, '兼容领料必须生成库存流水')
+    assert.equal(pickLogs[0].createdBy, '登录验证员', '兼容领料库存流水必须使用服务端可信操作人')
 
     const route = await prisma.processRoute.create({
       data: {
@@ -157,18 +158,19 @@ async function main() {
     assert.equal((await listLegacyProductionOrderReports(order.id)).length, 2, '兼容报工查询必须返回完整工序记录')
 
     await prisma.productionOrder.update({ where: { id: order.id }, data: { status: 'QC_DONE' } })
-    const stocked = await stockInLegacyProductionOrder(order.id, { qty: 3, batchNo: 'BATCH-001', inBy: '验证仓管员' })
+    const stocked = await stockInLegacyProductionOrder(order.id, { qty: 3, batchNo: 'BATCH-001', inBy: '验证仓管员' }, '登录验证员')
     const [outputStock, outputBalance, stockInLogs] = await Promise.all([
       prisma.stock.findUniqueOrThrow({ where: { materialId: outputMaterial.id } }),
       prisma.stockLocationBalance.findFirstOrThrow({ where: { stock: { materialId: outputMaterial.id } } }),
-      prisma.stockLog.count({ where: { refType: 'STOCK_IN', refId: order.id } }),
+      prisma.stockLog.findMany({ where: { refType: 'STOCK_IN', refId: order.id } }),
     ])
     assert.deepEqual([stocked.updated.status, stocked.updated.completeQty], ['COMPLETED', 3])
     assert.deepEqual([outputStock.qty, outputStock.availableQty, outputStock.valuationQty], [3, 3, 3])
     assert.deepEqual([outputBalance.qty, outputBalance.availableQty], [3, 3])
-    assert.equal(stockInLogs, 1, '首次创建库存余额时也必须生成兼容入库流水')
+    assert.equal(stockInLogs.length, 1, '首次创建库存余额时也必须生成兼容入库流水')
+    assert.equal(stockInLogs[0].createdBy, '登录验证员', '兼容入库库存流水必须使用服务端可信操作人')
     await assert.rejects(
-      () => stockInLegacyProductionOrder(order.id, { qty: 1, inBy: '重复入库员' }),
+      () => stockInLegacyProductionOrder(order.id, { qty: 1, inBy: '重复入库员' }, '登录验证员'),
       ProductionOrderDomainError,
       '已完成工单不得重复兼容入库',
     )

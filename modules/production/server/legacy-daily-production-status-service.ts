@@ -276,7 +276,8 @@ async function restoreLegacyConsumption(
 
 export async function reverseLegacyDailyProductionReport(
   id: string,
-  input: ReverseLegacyDailyProductionInput & { reversedBy: string },
+  input: ReverseLegacyDailyProductionInput,
+  reversedBy: string,
   reversedAt = new Date(),
 ) {
   return runLegacyDailyProductionOperation(() => prisma.$transaction(async (tx) => {
@@ -285,12 +286,12 @@ export async function reverseLegacyDailyProductionReport(
     })
     if (!report) throw new LegacyDailyProductionError('生产记录不存在', 404)
     assertLegacyDailyProductionConfirmed(report.status)
-    await reverseLegacyOutput(tx, report, input.reason, input.reversedBy)
-    for (const line of report.consumptions) await restoreLegacyConsumption(tx, report, line, input.reversedBy)
+    await reverseLegacyOutput(tx, report, input.reason, reversedBy)
+    for (const line of report.consumptions) await restoreLegacyConsumption(tx, report, line, reversedBy)
     const result = await tx.dailyProductionReport.update({
       where: { id: report.id },
       data: {
-        status: 'REVERSED', reversedAt, reversedBy: input.reversedBy, reverseReason: input.reason,
+        status: 'REVERSED', reversedAt, reversedBy, reverseReason: input.reason,
       },
       include: legacyDailyProductionStatusInclude,
     })

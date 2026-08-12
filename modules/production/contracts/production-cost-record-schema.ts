@@ -7,7 +7,6 @@ export const productionCostRecordInputSchema = z.object({
   amount: z.number().finite().nonnegative(),
   description: z.string().optional(),
   date: z.string().min(1),
-  createdBy: z.string().optional(),
 })
 
 export type ProductionCostRecordInput = z.infer<typeof productionCostRecordInputSchema>
