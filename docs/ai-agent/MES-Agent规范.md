@@ -49,7 +49,7 @@ MES-lite AI Agent 是覆盖整个应用的业务协作入口，用于查询、�
 ## 5. 权限模型
 
 - `aiAssistant.canRead` 决定用户能否看到和调用全局 AI 助手。
-- Agent 工具不是一项总权限。物料、库存、BOM、订单和仪表盘工具分别要求 `materials`、`stocks`、`bomCost`、`orders` 和 `dashboard` 的查看权限。
+- Agent 工具不是一项总权限。物料、库存、BOM 结构、订单和仪表盘工具分别要求 `materials`、`stocks`、`bom`、`orders` 和 `dashboard` 的查看权限；BOM 成本能力另校验 `bomCost`。
 - 工具列表生成时过滤一次，实际执行时再次鉴权。前端不承担安全边界。
 - 模型只接收允许工具返回的数据；无权限数据不能通过提示词、当前页面上下文或对话历史间接获得。
 

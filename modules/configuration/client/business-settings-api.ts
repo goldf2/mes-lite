@@ -15,11 +15,11 @@ async function readResponse(response: Response, fallbackMessage: string): Promis
 }
 
 export async function loadBusinessSettings() {
-  return readResponse(await fetch('/api/system/settings'), '获取企业与业务规则失败')
+  return readResponse(await fetch('/api/system/settings?scope=business'), '获取企业与业务规则失败')
 }
 
 export async function updateBusinessSettings(patch: BusinessSettingsPatch) {
-  return readResponse(await fetch('/api/system/settings', {
+  return readResponse(await fetch('/api/system/settings?scope=business', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),

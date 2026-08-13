@@ -10,7 +10,7 @@ const copySchema = z.object({ changeReason: z.string().trim().max(500).optional(
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const denied = await requireResourcePermission('bomCost', 'create')
+    const denied = await requireResourcePermission('bom', 'create')
     if (denied) return denied
     const input = copySchema.parse(await req.json().catch(() => ({})))
     const saved = await copyBomVersion(params.id, input.changeReason)

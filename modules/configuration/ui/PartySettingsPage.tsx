@@ -33,7 +33,7 @@ const partyDefinitions = {
 
 const emptyForm = { name: '', contact: '', phone: '', address: '' }
 
-export default function PartySettingsPage({ kind, onMessage }: { kind: PartyKind; onMessage: (message: string) => void }) {
+export default function PartySettingsPage({ kind, onMessage, canCreate, canUpdate, canDelete }: { kind: PartyKind; onMessage: (message: string) => void; canCreate: boolean; canUpdate: boolean; canDelete: boolean }) {
   const definition = partyDefinitions[kind]
   const [items, setItems] = useState<PartyRecord[]>([])
   const [keyword, setKeyword] = useState('')
@@ -110,7 +110,7 @@ export default function PartySettingsPage({ kind, onMessage }: { kind: PartyKind
     { key: 'phone', label: <ResourceSortLabel column="phone" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>电话</ResourceSortLabel>, render: (item) => item.phone || '-', hideBelow: 'md' },
     { key: 'address', label: <ResourceSortLabel column="address" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>地址</ResourceSortLabel>, render: (item) => <span className="line-clamp-2">{item.address || '-'}</span>, hideBelow: 'lg' },
     { key: 'createdAt', label: <ResourceSortLabel column="createdAt" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>创建时间</ResourceSortLabel>, render: (item) => new Date(item.createdAt).toLocaleString('zh-CN'), hideBelow: 'xl' },
-    { key: 'actions', label: <span className="block text-right">操作</span>, render: (item) => <div className="flex justify-end gap-2"><AppButton size="sm" onClick={() => openEdit(item)}>编辑</AppButton><AppButton size="sm" variant="warning" onClick={() => void archive(item)}>归档</AppButton></div>, className: 'text-right' },
+    { key: 'actions', label: <span className="block text-right">操作</span>, render: (item) => <div className="flex justify-end gap-2">{canUpdate && <AppButton size="sm" onClick={() => openEdit(item)}>编辑</AppButton>}{canDelete && <AppButton size="sm" variant="warning" onClick={() => void archive(item)}>归档</AppButton>}</div>, className: 'text-right' },
   ]
 
   return (
@@ -124,10 +124,10 @@ export default function PartySettingsPage({ kind, onMessage }: { kind: PartyKind
         columns={columns}
         renderCard={({ item }) => (
           <article className="h-full rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="truncate font-semibold text-gray-900">{item.name}</h2><p className="font-mono text-xs text-blue-700">{item.code}</p></div><AppButton size="sm" onClick={() => openEdit(item)}>编辑</AppButton></div>
+            <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="truncate font-semibold text-gray-900">{item.name}</h2><p className="font-mono text-xs text-blue-700">{item.code}</p></div>{canUpdate && <AppButton size="sm" onClick={() => openEdit(item)}>编辑</AppButton>}</div>
             <dl className="mt-4 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-xs text-gray-500">联系人</dt><dd className="mt-1">{item.contact || '-'}</dd></div><div><dt className="text-xs text-gray-500">电话</dt><dd className="mt-1">{item.phone || '-'}</dd></div></dl>
             <p className="mt-3 line-clamp-2 text-sm text-gray-600">地址：{item.address || '-'}</p>
-            <div className="mt-4 flex justify-end"><AppButton size="sm" variant="warning" onClick={() => void archive(item)}>归档</AppButton></div>
+            {canDelete && <div className="mt-4 flex justify-end"><AppButton size="sm" variant="warning" onClick={() => void archive(item)}>归档</AppButton></div>}
           </article>
         )}
         loading={loading}
@@ -136,11 +136,11 @@ export default function PartySettingsPage({ kind, onMessage }: { kind: PartyKind
         onSearchChange={setKeyword}
         searchPlaceholder="输入编码、名称、联系人、电话或地址；空格分隔多个关键词"
         advancedSearchFields={partyAdvancedFields}
-        actions={<ConfigurationManualOrder entity={definition.entity} label={definition.label} onMessage={onMessage} onSaved={load} />}
+        actions={canUpdate ? <ConfigurationManualOrder entity={definition.entity} label={definition.label} onMessage={onMessage} onSaved={load} /> : undefined}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         displayModes={['card', 'list']}
-        onCreate={openCreate}
+        onCreate={canCreate ? openCreate : undefined}
         createLabel={`新建${definition.label}`}
         summary={<span className="text-sm text-gray-500">共 {filteredItems.length} 项</span>}
         rowLabel={(item) => `${definition.label} ${item.name}`}

@@ -11,21 +11,27 @@ export type SystemSection = RegisteredSystemSection
 export default function SystemPage({
   section,
   onMessage,
+  canCreate,
+  canUpdate,
+  canDelete,
 }: {
   section: SystemSection
   onMessage: (message: string) => void
+  canCreate: boolean
+  canUpdate: boolean
+  canDelete: boolean
 }) {
   if (isConfigurationSection(section)) {
-    return <ConfigurationSectionPage section={section} onMessage={onMessage} />
+    return <ConfigurationSectionPage section={section} onMessage={onMessage} canCreate={canCreate} canUpdate={canUpdate} canDelete={canDelete} />
   }
   if (isOperationsToolsSection(section)) {
-    return <OperationsToolsSectionPage section={section} onMessage={onMessage} />
+    return <OperationsToolsSectionPage section={section} onMessage={onMessage} canUpdate={canUpdate} canDelete={canDelete} />
   }
   if (isProductionEngineeringSection(section)) {
-    return <ProductionEngineeringSectionPage section={section} onMessage={onMessage} />
+    return <ProductionEngineeringSectionPage section={section} onMessage={onMessage} canCreate={canCreate} canUpdate={canUpdate} />
   }
   if (isSystemSettingsSection(section)) {
-    return <SystemSettingsSectionPage section={section} onMessage={onMessage} />
+    return <SystemSettingsSectionPage section={section} onMessage={onMessage} canUpdate={canUpdate} />
   }
   return null
 }

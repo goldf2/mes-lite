@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.359",
+  "version": "0.1.360",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -38,6 +38,8 @@
     "verify:permissions": "tsx scripts/verify-permissions.ts",
     "verify:role-task-permissions": "tsx scripts/verify-role-task-permissions.ts",
     "verify:role-task-http-permissions": "tsx scripts/verify-role-task-http-permissions.ts",
+    "verify:fine-grained-permissions": "tsx scripts/verify-fine-grained-permissions.ts",
+    "verify:fine-grained-http-permissions": "tsx scripts/verify-fine-grained-http-permissions.ts",
     "verify:identity-access-module": "tsx scripts/verify-identity-access-module.ts",
     "verify:authentication-services": "tsx scripts/verify-authentication-services.ts",
     "verify:trusted-actors": "tsx scripts/verify-trusted-business-actors.ts",

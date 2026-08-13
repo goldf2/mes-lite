@@ -18,7 +18,7 @@ const executeSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'read')
+    const denied = await requireResourcePermission('dataTools', 'read')
     if (denied) return denied
 
     const scope = new URL(req.url).searchParams.get('scope') || MATERIAL_IMAGE_OPTIMIZATION_SCOPE
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'update')
+    const denied = await requireResourcePermission('dataTools', 'update')
     if (denied) return denied
 
     const body = executeSchema.safeParse(await req.json())

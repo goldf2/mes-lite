@@ -19,7 +19,7 @@ export default function ProductionEngineeringPageShell<T>({
   conditionLabel: string
   viewMode: 'card' | 'list'
   onViewModeChange: (value: 'card' | 'list') => void
-  onCreate: () => void
+  onCreate?: () => void
   resourceLabel: string
   actions?: ReactNode
   children: ReactNode

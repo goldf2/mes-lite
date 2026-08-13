@@ -50,7 +50,7 @@ function auditSnapshot(config: ReturnType<typeof toPublicAiAgentConfig>) {
 }
 
 export async function GET() {
-  const denied = await requireResourcePermission('system', 'read')
+  const denied = await requireResourcePermission('aiSettings', 'read')
   if (denied) return denied
   try {
     return NextResponse.json({ data: toPublicAiAgentConfig(await getAiAgentConfig()) })
@@ -61,7 +61,7 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const denied = await requireResourcePermission('system', 'update')
+  const denied = await requireResourcePermission('aiSettings', 'update')
   if (denied) return denied
   try {
     const parsed = updateSchema.safeParse(await req.json())
@@ -89,7 +89,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const denied = await requireResourcePermission('system', 'update')
+  const denied = await requireResourcePermission('aiSettings', 'update')
   if (denied) return denied
   try {
     const result = await testAiAgentConnection()

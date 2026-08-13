@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
-import { requireResourcePermission } from '@/lib/permissions'
+import { requireAnyResourcePermission, requireResourcePermission } from '@/lib/permissions'
 import { partyIdSchema, partyInputSchema, partyUpdateSchema } from '../contracts/party-schema'
 import type { PartyKind } from '../contracts/reference-data'
 import { PartyDomainError } from '../domain/party-errors'
@@ -24,7 +24,7 @@ export function createPartyRouteHandlers(kind: PartyKind) {
   return {
     async GET(req: NextRequest) {
       try {
-        const denied = await requireResourcePermission('system', 'read')
+        const denied = await requireAnyResourcePermission(definition.referenceReadResources, 'read')
         if (denied) return denied
         return NextResponse.json({ data: await listManagedParties(kind, new URL(req.url).searchParams.get('keyword')) })
       } catch (error) {
@@ -34,7 +34,7 @@ export function createPartyRouteHandlers(kind: PartyKind) {
 
     async POST(req: NextRequest) {
       try {
-        const denied = await requireResourcePermission('system', 'create')
+        const denied = await requireResourcePermission(definition.permissionResource, 'create')
         if (denied) return denied
         const created = await createManagedParty(kind, partyInputSchema.parse(await req.json()))
         await writeAuditLog(req, {
@@ -49,7 +49,7 @@ export function createPartyRouteHandlers(kind: PartyKind) {
 
     async PUT(req: NextRequest) {
       try {
-        const denied = await requireResourcePermission('system', 'update')
+        const denied = await requireResourcePermission(definition.permissionResource, 'update')
         if (denied) return denied
         const { id, ...input } = partyUpdateSchema.parse(await req.json())
         const { current, updated } = await updateManagedParty(kind, id, input)
@@ -65,7 +65,7 @@ export function createPartyRouteHandlers(kind: PartyKind) {
 
     async DELETE(req: NextRequest) {
       try {
-        const denied = await requireResourcePermission('system', 'delete')
+        const denied = await requireResourcePermission(definition.permissionResource, 'delete')
         if (denied) return denied
         const id = partyIdSchema.parse(new URL(req.url).searchParams.get('id'))
         const { current, archived } = await archiveManagedParty(kind, id)

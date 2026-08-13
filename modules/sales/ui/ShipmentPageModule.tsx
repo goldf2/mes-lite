@@ -21,7 +21,6 @@ import {
   shipmentStatusLabels as statusLabels,
   shipmentStatusOptions as statusOptions,
 } from '../model/fulfillment-view'
-
 export default function ShipmentPageModule({
   onMessage,
   onToolbarChange,
@@ -80,7 +79,6 @@ export default function ShipmentPageModule({
   useEffect(() => {
     void fetchShipments()
   }, [fetchShipments])
-
   const handleAction = async (id: string, action: 'ship' | 'deliver') => {
     setLoading(true)
     try {
@@ -93,8 +91,6 @@ export default function ShipmentPageModule({
       setLoading(false)
     }
   }
-
-
   useEffect(() => {
     if (!onToolbarChange) return
 
@@ -122,7 +118,6 @@ export default function ShipmentPageModule({
         )}
       />
     )
-
     return () => onToolbarChange(null)
   }, [advancedSearchFields, onToolbarChange, keyword, selectedStatuses, selectedCustomerId, customers, viewMode, setViewMode])
 

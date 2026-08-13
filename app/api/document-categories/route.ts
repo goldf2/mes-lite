@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { writeAuditLog } from '@/lib/audit'
-import { requireResourcePermission } from '@/lib/permissions'
+import { requireAnyResourcePermission, requireResourcePermission } from '@/lib/permissions'
 import {
   documentCategoryFieldsSchema,
   documentCategoryIdSchema,
@@ -18,7 +18,7 @@ import { listManagedDocumentCategories } from '@/modules/documents/server/docume
 export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
-    const denied = await requireResourcePermission('workInstructions', 'read')
+    const denied = await requireAnyResourcePermission(['documentCategories', 'workInstructions'], 'read')
     if (denied) return denied
     return NextResponse.json({ data: await listManagedDocumentCategories() })
   } catch (error) {
@@ -27,7 +27,7 @@ export async function GET() {
 }
 export async function POST(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('workInstructions', 'update')
+    const denied = await requireResourcePermission('documentCategories', 'create')
     if (denied) return denied
     const category = await createManagedDocumentCategory(documentCategoryFieldsSchema.parse(await req.json()))
     await writeAuditLog(req, {
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('workInstructions', 'update')
+    const denied = await requireResourcePermission('documentCategories', 'update')
     if (denied) return denied
     const { before, saved } = await updateManagedDocumentCategory(documentCategoryUpdateSchema.parse(await req.json()))
     await writeAuditLog(req, {
@@ -57,7 +57,7 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('workInstructions', 'delete')
+    const denied = await requireResourcePermission('documentCategories', 'delete')
     if (denied) return denied
     const deleted = await deleteManagedDocumentCategory(
       documentCategoryIdSchema.parse(new URL(req.url).searchParams.get('id')),

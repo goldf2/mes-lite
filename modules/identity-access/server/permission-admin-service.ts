@@ -5,6 +5,7 @@ import {
   hasResourcePermission,
   permissionActions,
   permissionResources,
+  permissionResourceSection,
   permissionRoles,
   type PermissionMap,
   type PermissionResource,
@@ -67,7 +68,7 @@ export async function listPermissionAdministration(actor: PermissionActor) {
     prisma.permissionGroup.findMany({ include: { settings: true }, orderBy: [{ isSystem: 'desc' }, { createdAt: 'asc' }] }),
     prisma.operatorPermissionGroup.findMany({ orderBy: [{ operatorId: 'asc' }, { createdAt: 'asc' }] }),
   ])
-  return { roles: permissionRoles, resources: permissionResources, actions: permissionActions, settings, operators, groups, operatorGroups }
+  return { roles: permissionRoles, resources: permissionResources.map((resource) => ({ ...resource, section: permissionResourceSection(resource.key) })), actions: permissionActions, settings, operators, groups, operatorGroups }
 }
 
 export async function updatePermissionAdministration(actor: PermissionActor, input: UpdatePermissionsInput) {

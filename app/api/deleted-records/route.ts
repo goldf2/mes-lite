@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'read')
+    const denied = await requireResourcePermission('archive', 'read')
     if (denied) return denied
     const rawModel = req.nextUrl.searchParams.get('model') || 'all'
     const model = rawModel === 'all' ? 'all' : archiveModelSchema.parse(rawModel)
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'delete')
+    const denied = await requireResourcePermission('archive', 'delete')
     if (denied) return denied
     const input = purgeArchivedRecordSchema.parse(await req.json())
     const { result, fileCleanupFailed } = await purgeArchivedRecordAndFiles(input.model, input.id)

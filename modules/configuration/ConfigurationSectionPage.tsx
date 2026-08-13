@@ -19,11 +19,11 @@ export function isConfigurationSection(section: string): section is Configuratio
   return configurationSections.includes(section as ConfigurationSection)
 }
 
-export default function ConfigurationSectionPage({ section, onMessage }: { section: ConfigurationSection; onMessage: (message: string) => void }) {
-  if (section === 'businessSettings') return <BusinessSettingsPage onMessage={onMessage} />
-  if (section === 'suppliers') return <PartySettingsPage kind="supplier" onMessage={onMessage} />
-  if (section === 'customers') return <PartySettingsPage kind="customer" onMessage={onMessage} />
-  if (section === 'units') return <UnitSettingsPage onMessage={onMessage} />
-  if (section === 'locations') return <InventoryLocationSettingsPage onMessage={onMessage} />
-  return <WorkCenterSettingsPage onMessage={onMessage} />
+export default function ConfigurationSectionPage({ section, onMessage, canCreate, canUpdate, canDelete }: { section: ConfigurationSection; onMessage: (message: string) => void; canCreate: boolean; canUpdate: boolean; canDelete: boolean }) {
+  if (section === 'businessSettings') return <BusinessSettingsPage onMessage={onMessage} canUpdate={canUpdate} />
+  if (section === 'suppliers') return <PartySettingsPage kind="supplier" onMessage={onMessage} canCreate={canCreate} canUpdate={canUpdate} canDelete={canDelete} />
+  if (section === 'customers') return <PartySettingsPage kind="customer" onMessage={onMessage} canCreate={canCreate} canUpdate={canUpdate} canDelete={canDelete} />
+  if (section === 'units') return <UnitSettingsPage onMessage={onMessage} canCreate={canCreate} canUpdate={canUpdate} canDelete={canDelete} />
+  if (section === 'locations') return <InventoryLocationSettingsPage onMessage={onMessage} canCreate={canCreate} canUpdate={canUpdate} canDelete={canDelete} />
+  return <WorkCenterSettingsPage onMessage={onMessage} canCreate={canCreate} canUpdate={canUpdate} canDelete={canDelete} />
 }

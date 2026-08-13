@@ -30,7 +30,7 @@ import {
   flowTransferStatusMeta as statusMeta,
 } from '../model/flow-transfer-view'
 
-export default function FlowTransferPageModule({ onMessage }: { onMessage: (message: string) => void }) {
+export default function FlowTransferPageModule({ onMessage, canCreate, canUpdate }: { onMessage: (message: string) => void; canCreate: boolean; canUpdate: boolean }) {
   const [transfers, setTransfers] = useState<FlowTransferRecord[]>([])
   const [materials, setMaterials] = useState<FlowTransferMaterialOption[]>([])
   const [locations, setLocations] = useState<FlowTransferLocationOption[]>([])
@@ -189,13 +189,13 @@ export default function FlowTransferPageModule({ onMessage }: { onMessage: (mess
   const actions = (transfer: FlowTransferRecord) => (
     <div className="flex flex-wrap justify-end gap-2">
       <BusinessDocumentPrintLink kind="flow-transfer" id={transfer.id} />
-      {transfer.status === 'DRAFT' && (
+      {canUpdate && transfer.status === 'DRAFT' && (
         <>
           <AppButton size="sm" onClick={() => openEdit(transfer)}>编辑</AppButton>
           <AppButton size="sm" variant="create" onClick={() => setConfirmingTransfer(transfer)}>确认</AppButton>
         </>
       )}
-      {transfer.status === 'CONFIRMED' && (
+      {canUpdate && transfer.status === 'CONFIRMED' && (
         <AppButton size="sm" variant="danger" onClick={() => {
           setReversingTransfer(transfer)
           setReverseReason('')
@@ -218,7 +218,7 @@ export default function FlowTransferPageModule({ onMessage }: { onMessage: (mess
           )}
           advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
           viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
-          actions={<AppButton variant="create" onClick={openCreate}>新建流程转移</AppButton>}
+          actions={canCreate ? <AppButton variant="create" onClick={openCreate}>新建流程转移</AppButton> : undefined}
         />
       </TopBarPortal>
 

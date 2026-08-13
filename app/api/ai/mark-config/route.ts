@@ -22,7 +22,7 @@ export async function GET() {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'update')
+    const denied = await requireResourcePermission('aiSettings', 'update')
     if (denied) return denied
 
     const body = publishSchema.safeParse(await req.json())

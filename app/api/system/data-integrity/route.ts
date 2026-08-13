@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const denied = await requireResourcePermission('system', 'read')
+    const denied = await requireResourcePermission('dataTools', 'read')
     if (denied) return denied
     return NextResponse.json({ data: await getDataIntegrityReport() })
   } catch (error) {
@@ -22,7 +22,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const input = dataIntegrityActionSchema.parse(await req.json())
-    const denied = await requireResourcePermission('system', input.action.startsWith('DELETE_') ? 'delete' : 'update')
+    const denied = await requireResourcePermission('dataTools', input.action.startsWith('DELETE_') ? 'delete' : 'update')
     if (denied) return denied
     const result = await executeDataIntegrityAction(input, await getAuditContext(req))
     return NextResponse.json({

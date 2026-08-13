@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const denied = await requireResourcePermission('bomCost', 'read')
+    const denied = await requireResourcePermission('bom', 'read')
     if (denied) return denied
     return NextResponse.json(await listBoms())
   } catch (error) {
@@ -23,9 +23,9 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('bomCost', 'update')
-    if (denied) return denied
     const input = saveBomSchema.parse(await req.json())
+    const denied = await requireResourcePermission('bom', input.createNew ? 'create' : 'update')
+    if (denied) return denied
     const { saved, product } = await saveBom(input)
     await writeAuditLog(req, {
       action: input.createNew ? 'CREATE' : 'UPDATE',

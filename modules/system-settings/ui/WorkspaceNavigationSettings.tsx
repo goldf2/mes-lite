@@ -52,7 +52,7 @@ function duplicateLabel(config: WorkspaceNavigationConfig) {
   return null
 }
 
-export default function WorkspaceNavigationSettings({ onMessage }: { onMessage: (message: string) => void }) {
+export default function WorkspaceNavigationSettings({ onMessage, canUpdate }: { onMessage: (message: string) => void; canUpdate: boolean }) {
   const [draft, setDraft] = useState<WorkspaceNavigationConfig>(createDefaultWorkspaceNavigationConfig)
   const [selectedWorkspace, setSelectedWorkspace] = useState<NavigationWorkspaceId>('mes')
   const [query, setQuery] = useState('')
@@ -211,6 +211,7 @@ export default function WorkspaceNavigationSettings({ onMessage }: { onMessage: 
             默认工作区
             <select
               value={draft.defaultWorkspace}
+              disabled={!canUpdate}
               onChange={(event) => setDraft((current) => ({ ...current, defaultWorkspace: event.target.value as NavigationWorkspaceId }))}
               className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800"
             >
@@ -222,7 +223,7 @@ export default function WorkspaceNavigationSettings({ onMessage }: { onMessage: 
           {navigationWorkspaceIds.map((workspace) => (
             <label key={workspace} className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${draft.workspaces[workspace].enabled ? 'border-blue-200 bg-blue-50/50' : 'border-gray-200 bg-gray-50'}`}>
               <span className="font-semibold text-gray-900">{navigationWorkspaceLabels[workspace]}</span>
-              <input type="checkbox" checked={draft.workspaces[workspace].enabled} onChange={(event) => toggleWorkspace(workspace, event.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600" />
+              <input type="checkbox" checked={draft.workspaces[workspace].enabled} disabled={!canUpdate} onChange={(event) => toggleWorkspace(workspace, event.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600" />
             </label>
           ))}
         </div>
@@ -242,8 +243,8 @@ export default function WorkspaceNavigationSettings({ onMessage }: { onMessage: 
               {activeGroupKeys.map((groupKey, index) => (
                 <div key={groupKey} className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 pl-2.5">
                   <span className="mr-1 text-sm font-medium text-gray-700">{index + 1}. {businessGroupByKey.get(groupKey)?.label || groupKey}</span>
-                  <button type="button" disabled={index === 0} onClick={() => moveGroup(groupKey, -1)} aria-label={`前移${businessGroupByKey.get(groupKey)?.label || groupKey}`} className="rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-30">前移</button>
-                  <button type="button" disabled={index === activeGroupKeys.length - 1} onClick={() => moveGroup(groupKey, 1)} aria-label={`后移${businessGroupByKey.get(groupKey)?.label || groupKey}`} className="rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-30">后移</button>
+                  <button type="button" disabled={!canUpdate || index === 0} onClick={() => moveGroup(groupKey, -1)} aria-label={`前移${businessGroupByKey.get(groupKey)?.label || groupKey}`} className="rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-30">前移</button>
+                  <button type="button" disabled={!canUpdate || index === activeGroupKeys.length - 1} onClick={() => moveGroup(groupKey, 1)} aria-label={`后移${businessGroupByKey.get(groupKey)?.label || groupKey}`} className="rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-30">后移</button>
                 </div>
               ))}
             </div>
@@ -263,14 +264,14 @@ export default function WorkspaceNavigationSettings({ onMessage }: { onMessage: 
                 return (
                   <tr key={catalog.key} className={assigned ? 'bg-white' : 'bg-gray-50/60 text-gray-400'}>
                     <td className="px-4 py-3">
-                      <select value={owner} onChange={(event) => assignWorkspace(catalog.key, event.target.value as NavigationWorkspaceId)} className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
+                      <select value={owner} disabled={!canUpdate} onChange={(event) => assignWorkspace(catalog.key, event.target.value as NavigationWorkspaceId)} className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
                         {navigationWorkspaceIds.map((workspace) => <option key={workspace} value={workspace}>{navigationWorkspaceLabels[workspace]}</option>)}
                       </select>
                     </td>
                     <td className="px-4 py-3"><div className="font-medium text-gray-900">{catalog.label}</div><div className="font-mono text-[11px] text-gray-400">{catalog.key}</div></td>
-                    <td className="px-4 py-3"><input disabled={!assigned} value={item?.label || ''} onChange={(event) => renameItem(catalog.key, event.target.value)} maxLength={20} placeholder={catalog.label} className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100" /></td>
+                    <td className="px-4 py-3"><input disabled={!canUpdate || !assigned} value={item?.label || ''} onChange={(event) => renameItem(catalog.key, event.target.value)} maxLength={20} placeholder={catalog.label} className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100" /></td>
                     <td className="px-4 py-3 text-gray-500">{catalog.groupLabel}</td>
-                    <td className="px-4 py-3"><div className="flex justify-end gap-1"><button type="button" disabled={!assigned || itemIndex <= 0} onClick={() => moveItem(catalog.key, -1)} className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-30">上移</button><button type="button" disabled={!assigned || itemIndex < 0 || itemIndex >= activeItems.length - 1} onClick={() => moveItem(catalog.key, 1)} className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-30">下移</button></div></td>
+                    <td className="px-4 py-3"><div className="flex justify-end gap-1"><button type="button" disabled={!canUpdate || !assigned || itemIndex <= 0} onClick={() => moveItem(catalog.key, -1)} className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-30">上移</button><button type="button" disabled={!canUpdate || !assigned || itemIndex < 0 || itemIndex >= activeItems.length - 1} onClick={() => moveItem(catalog.key, 1)} className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-30">下移</button></div></td>
                   </tr>
                 )
               })}
@@ -286,8 +287,8 @@ export default function WorkspaceNavigationSettings({ onMessage }: { onMessage: 
       </section>
 
       <div className="flex flex-wrap justify-end gap-2">
-        <AppButton variant="secondary" onClick={restoreDefault} disabled={loading || saving}>恢复系统默认</AppButton>
-        <AppButton variant="primary" onClick={save} disabled={loading || saving}>{saving ? '发布中...' : '保存并发布'}</AppButton>
+        {canUpdate && <AppButton variant="secondary" onClick={restoreDefault} disabled={loading || saving}>恢复系统默认</AppButton>}
+        {canUpdate && <AppButton variant="primary" onClick={save} disabled={loading || saving}>{saving ? '发布中...' : '保存并发布'}</AppButton>}
       </div>
     </div>
   )

@@ -10,12 +10,12 @@ async function readResponse(response: Response, fallbackMessage: string): Promis
   }
 }
 
-export async function loadSystemAppearanceSettings() {
-  return readResponse(await fetch('/api/system/settings'), '获取系统外观设置失败')
+export async function loadSystemAppearanceSettings(scope: 'display' | 'ai' = 'display') {
+  return readResponse(await fetch(`/api/system/settings?scope=${scope}`), '获取系统外观设置失败')
 }
 
-export async function updateSystemAppearanceSettings(patch: Partial<SystemAppearanceSettings>) {
-  return readResponse(await fetch('/api/system/settings', {
+export async function updateSystemAppearanceSettings(patch: Partial<SystemAppearanceSettings>, scope: 'display' | 'ai' = 'display') {
+  return readResponse(await fetch(`/api/system/settings?scope=${scope}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),

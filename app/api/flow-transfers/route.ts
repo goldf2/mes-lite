@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('stats', 'read')
+    const denied = await requireResourcePermission('flowTransfers', 'read')
     if (denied) return denied
     const { searchParams } = new URL(req.url)
     const result = await loadManagedFlowTransferWorkspace({
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('stats', 'create')
+    const denied = await requireResourcePermission('flowTransfers', 'create')
     if (denied) return denied
     const transfer = await createManagedFlowTransfer(flowTransferInputSchema.parse(await req.json()))
     await writeAuditLog(req, {

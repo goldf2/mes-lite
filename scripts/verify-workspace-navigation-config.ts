@@ -72,7 +72,7 @@ assert.match(settingsSource, /账号与权限/, '一级菜单顺序必须覆盖�
 assert.match(settingsSource, /显示名称留空时使用系统名称/, '配置页必须说明页面显示名称的继承规则')
 assert.match(settingsSource, /每个业务页面只能属于一个工作区/, '配置页必须明确页面唯一归属规则')
 assert.match(settingsSource, /内部页面 ID、路由、权限和业务数据/, '配置页必须说明重命名不会改变内部语义')
-assert.match(routeSource, /requireResourcePermission\('system', 'update'\)/, '发布工作区配置必须受系统更新权限保护')
+assert.match(routeSource, /requireResourcePermission\('navigationSettings', 'update'\)/, '发布工作区配置必须受导航设置更新权限保护')
 assert.match(routeSource, /workspaceNavigationGroupKeys/, '接口必须校验一级菜单顺序')
 
 console.log('MES/MRP/ERP 一级菜单顺序、页面唯一归属、别名和安全默认值验证通过')

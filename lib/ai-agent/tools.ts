@@ -82,7 +82,7 @@ const toolSpecs: ToolSpec[] = [
     },
   },
   {
-    resource: 'bomCost',
+    resource: 'bom',
     definition: {
       type: 'function',
       function: {
@@ -143,7 +143,7 @@ const toolSpecs: ToolSpec[] = [
 
 const guidanceEntries = [
   { keywords: ['物料'], resource: 'materials', text: '物料管理用于维护统一物料档案、分类、规格、图片、主库存单位和参考/计价单位。原材料、成品、辅材和废料都保存在物料表中。' },
-  { keywords: ['bom', 'BOM'], resource: 'bomCost', text: 'BOM 设置以整批为基准：左侧录入共同投入，右侧录入同时产出。投入和产出可使用各自物料允许的单位；生产实绩按 BOM 比例展开后再登记实际数量。BOM 全览用于按物料正查和反查。' },
+  { keywords: ['bom', 'BOM'], resource: 'bom', text: 'BOM 设置以整批为基准：左侧录入共同投入，右侧录入同时产出。投入和产出可使用各自物料允许的单位；生产实绩按 BOM 比例展开后再登记实际数量。BOM 全览用于按物料正查和反查。' },
   { keywords: ['生产订单', '工单', '生产'], resource: 'orders', text: '生产订单保存计划产品、BOM 和计划数量。一张订单可以包含多个产品。班后在订单详情登记实际投入、产出、人员和库位，确认实绩后库存才发生变化。' },
   { keywords: ['来料', '入库'], resource: 'materialIn', text: '来料单登记供应商、物料、数量、实测参考数量和库位。单据确认后增加对应库位和物料总库存；草稿或待处理单据不会直接改变库存。' },
   { keywords: ['库存', '库位'], resource: 'stocks', text: '库存管理展示主库存数量、可用数量、参考/核算数量、金额及库位余额。库存变化应来自确认后的来料、生产实绩、发货、退货或有原因记录的库存调整。' },

@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     if (denied) return denied
     const params = req.nextUrl.searchParams
     if (params.get('bomStatus')) {
-      const bomDenied = await requireResourcePermission('bomCost', 'read')
+      const bomDenied = await requireResourcePermission('bom', 'read')
       if (bomDenied) return bomDenied
     }
     return csvResponse('materials-export.csv', await exportMaterialsCsv({

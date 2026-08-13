@@ -11,7 +11,7 @@ import {
 } from '../client/maintenance-api'
 import type { MaterialCodeNormalizationPreview } from '../contracts/maintenance'
 
-export default function DataToolsPage({ onMessage }: { onMessage: (message: string) => void }) {
+export default function DataToolsPage({ onMessage, canUpdate, canDelete }: { onMessage: (message: string) => void; canUpdate: boolean; canDelete: boolean }) {
   const [preview, setPreview] = useState<MaterialCodeNormalizationPreview | null>(null)
   const [loading, setLoading] = useState(true)
   const [executing, setExecuting] = useState(false)
@@ -63,9 +63,9 @@ export default function DataToolsPage({ onMessage }: { onMessage: (message: stri
       </div>
 
       <div className="mb-4">
-        <ImageOptimizationPanel onMessage={onMessage} />
+        <ImageOptimizationPanel onMessage={onMessage} canUpdate={canUpdate} />
       </div>
-      <DataIntegrityPanel onMessage={onMessage} />
+      <DataIntegrityPanel onMessage={onMessage} canUpdate={canUpdate} canDelete={canDelete} />
 
       <div className="mt-4 rounded-lg border border-gray-200 p-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -77,7 +77,7 @@ export default function DataToolsPage({ onMessage }: { onMessage: (message: stri
           <AppButton
             variant="primary"
             onClick={execute}
-            disabled={loading || executing || !preview?.canExecute || preview.pendingMaterialCount === 0}
+            disabled={loading || executing || !canUpdate || !preview?.canExecute || preview.pendingMaterialCount === 0}
           >
             {executing ? '转换中...' : '转换为大写并删除空格'}
           </AppButton>

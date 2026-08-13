@@ -8,6 +8,9 @@ export default function MaterialBomWorkspace({
   selectedMaterialId,
   selectedBomId,
   controller,
+  canCreateBom,
+  canUpdateBom,
+  canDeleteBom,
   onSelectBom,
 }: {
   rows: BomSearchRow[]
@@ -16,6 +19,9 @@ export default function MaterialBomWorkspace({
   selectedMaterialId: string
   selectedBomId: string
   controller: BomDraftController
+  canCreateBom: boolean
+  canUpdateBom: boolean
+  canDeleteBom: boolean
   onSelectBom: (materialId: string, bomId: string) => void
 }) {
   return (
@@ -77,7 +83,7 @@ export default function MaterialBomWorkspace({
             )}
           </div>
         </div>
-        <BomDraftEditor controller={controller} showSaveAction />
+        <BomDraftEditor controller={controller} showSaveAction={canCreateBom || canUpdateBom || canDeleteBom} permissions={{ canCreate: canCreateBom, canUpdate: canUpdateBom, canDelete: canDeleteBom }} />
       </div>
     </div>
   )

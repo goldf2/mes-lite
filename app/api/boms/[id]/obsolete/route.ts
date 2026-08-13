@@ -7,7 +7,7 @@ import { obsoleteBomVersion } from '@/modules/bom/server/bom-lifecycle-service'
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const denied = await requireResourcePermission('bomCost', 'delete')
+    const denied = await requireResourcePermission('bom', 'delete')
     if (denied) return denied
     const operator = await getCurrentOperator()
     const saved = await obsoleteBomVersion(params.id, operator?.id)

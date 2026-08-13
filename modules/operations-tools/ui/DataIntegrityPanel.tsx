@@ -59,7 +59,7 @@ const severityStyles = {
   },
 }
 
-export default function DataIntegrityPanel({ onMessage }: { onMessage: (message: string) => void }) {
+export default function DataIntegrityPanel({ onMessage, canUpdate, canDelete }: { onMessage: (message: string) => void; canUpdate: boolean; canDelete: boolean }) {
   const [report, setReport] = useState<IntegrityReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
@@ -165,9 +165,9 @@ export default function DataIntegrityPanel({ onMessage }: { onMessage: (message:
                         <div className="mt-1 text-sm text-gray-700">{issue.entityLabel}</div>
                         <div className="mt-1 text-xs leading-5 text-gray-500">{issue.detail}</div>
                       </div>
-                      {issue.actions.length > 0 && !confirming && (
+                      {issue.actions.some((action) => action.destructive ? canDelete : canUpdate) && !confirming && (
                         <div className="flex shrink-0 flex-wrap gap-2">
-                          {issue.actions.map((action) => (
+                          {issue.actions.filter((action) => action.destructive ? canDelete : canUpdate).map((action) => (
                             <button
                               key={action.key}
                               type="button"

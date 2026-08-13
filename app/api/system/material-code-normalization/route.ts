@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const denied = await requireResourcePermission('system', 'read')
+    const denied = await requireResourcePermission('dataTools', 'read')
     if (denied) return denied
     return NextResponse.json({ data: await getMaterialCodeNormalizationPreview() })
   } catch (error) {
@@ -21,7 +21,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'update')
+    const denied = await requireResourcePermission('dataTools', 'update')
     if (denied) return denied
     executeMaterialCodeNormalizationSchema.parse(await req.json())
     const result = await executeMaterialCodeNormalization()

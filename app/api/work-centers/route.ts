@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
     const permissions = await getEffectivePermissionMap(operator)
     const readable = operator.role === 'ADMIN'
-      || permissions.system?.canRead
+      || permissions.workCenters?.canRead
       || permissions.equipment?.canRead
       || permissions.workInstructions?.canRead
     if (!readable) return NextResponse.json({ error: '无权限' }, { status: 403 })
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'create')
+    const denied = await requireResourcePermission('workCenters', 'create')
     if (denied) return denied
     const saved = await createManagedWorkCenter(workCenterFieldsSchema.parse(await req.json()))
     await writeAuditLog(req, {
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'update')
+    const denied = await requireResourcePermission('workCenters', 'update')
     if (denied) return denied
     const { existing, saved } = await updateManagedWorkCenter(workCenterUpdateSchema.parse(await req.json()))
     await writeAuditLog(req, {
@@ -70,7 +70,7 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'delete')
+    const denied = await requireResourcePermission('workCenters', 'delete')
     if (denied) return denied
     const id = workCenterIdSchema.parse(new URL(req.url).searchParams.get('id'))
     const { existing, saved } = await archiveManagedWorkCenter(id)

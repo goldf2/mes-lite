@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
 import SortableTableHeader from '@/app/components/SortableTableHeader'
@@ -162,6 +162,14 @@ export default function PermissionPageModule({
       ...blankFlags,
     }
   })
+  const groupedSettings = useMemo(() => {
+    const groups = new Map<string, typeof currentGroupSettings>()
+    for (const setting of currentGroupSettings) {
+      const section = resources.find((resource) => resource.key === setting.resource)?.section || '其他'
+      groups.set(section, [...(groups.get(section) || []), setting])
+    }
+    return Array.from(groups.entries())
+  }, [currentGroupSettings, resources])
 
   const toggleGroupSetting = (resource: string, action: keyof PermissionFlags) => {
     if (!activeGroup) return
@@ -486,10 +494,11 @@ export default function PermissionPageModule({
 
         {groupViewMode === 'card' ? (
           <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
-            {currentGroupSettings.map((setting) => {
-              const resource = resources.find((item) => item.key === setting.resource)
-              return (
-                <div key={setting.resource} className="rounded-lg border border-gray-200 bg-white p-4">
+            {groupedSettings.map(([section, settings]) => <section key={section} className="contents">
+              <h4 className="col-span-full mt-2 border-b border-gray-200 pb-2 text-sm font-semibold text-gray-700">{section}</h4>
+              {settings.map((setting) => {
+                const resource = resources.find((item) => item.key === setting.resource)
+                return <div key={setting.resource} className="rounded-lg border border-gray-200 bg-white p-4">
                   <div className="font-medium text-sm">{resource?.label || setting.resource}</div>
                   <div className="mt-1 text-xs text-gray-400 font-mono">{setting.resource}</div>
                   <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -510,8 +519,8 @@ export default function PermissionPageModule({
                     ))}
                   </div>
                 </div>
-              )
-            })}
+              })}
+            </section>)}
           </div>
         ) : (
           <div className="mt-5 overflow-x-auto">
@@ -528,10 +537,11 @@ export default function PermissionPageModule({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {currentGroupSettings.map((setting) => {
-                  const resource = resources.find((item) => item.key === setting.resource)
-                  return (
-                    <tr key={setting.resource} className="hover:bg-gray-50">
+                {groupedSettings.map(([section, settings]) => <Fragment key={section}>
+                  <tr className="bg-slate-100"><th colSpan={actions.length + 1} className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">{section}</th></tr>
+                  {settings.map((setting) => {
+                    const resource = resources.find((item) => item.key === setting.resource)
+                    return <tr key={setting.resource} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
                         <div className="font-medium text-sm">{resource?.label || setting.resource}</div>
                         <div className="text-xs text-gray-400 font-mono">{setting.resource}</div>
@@ -548,8 +558,8 @@ export default function PermissionPageModule({
                         </td>
                       ))}
                     </tr>
-                  )
-                })}
+                  })}
+                </Fragment>)}
               </tbody>
             </table>
           </div>

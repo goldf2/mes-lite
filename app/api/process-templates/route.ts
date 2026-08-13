@@ -13,13 +13,13 @@ import {
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const denied = await requireResourcePermission('system', 'read')
+  const denied = await requireResourcePermission('processTemplates', 'read')
   if (denied) return denied
   return NextResponse.json({ data: await listProcessTemplates(), categories: processCategories })
 }
 
 export async function POST(req: NextRequest) {
-  const denied = await requireResourcePermission('system', 'create')
+  const denied = await requireResourcePermission('processTemplates', 'create')
   if (denied) return denied
   try {
     const template = await createProcessTemplate(processTemplateInputSchema.parse(await req.json()))
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const denied = await requireResourcePermission('system', 'update')
+  const denied = await requireResourcePermission('processTemplates', 'update')
   if (denied) return denied
   try {
     const body = await req.json()

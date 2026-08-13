@@ -96,6 +96,8 @@ export default function MaterialPage({
   onOpenBomWorkspace,
   canReadBom = false,
   canCreateBom = false,
+  canUpdateBom = false,
+  canDeleteBom = false,
 }: {
   onMessage: (msg: string) => void
   onToolbarChange?: (actions: ReactNode | null) => void
@@ -105,6 +107,8 @@ export default function MaterialPage({
   onOpenBomWorkspace?: (materialId: string) => void
   canReadBom?: boolean
   canCreateBom?: boolean
+  canUpdateBom?: boolean
+  canDeleteBom?: boolean
 }) {
   const [materials, setMaterials] = useState<Material[]>([])
   const [materialLoading, setMaterialLoading] = useState(true)
@@ -535,6 +539,7 @@ export default function MaterialPage({
       onViewModeChange={setViewMode}
       onOpenPageOptions={() => setShowPageOptions(true)}
       onNewBom={() => selectMaterialForBom('')}
+      canCreateBom={canCreateBom}
       onNewMaterial={handleAdd}
       onImport={openImportModal}
       onExport={handleExport}
@@ -646,6 +651,9 @@ export default function MaterialPage({
             selectedMaterialId={selectedMaterialId}
             selectedBomId={selectedBomId}
             controller={bomDraft}
+            canCreateBom={canCreateBom}
+            canUpdateBom={canUpdateBom}
+            canDeleteBom={canDeleteBom}
             onSelectBom={selectExistingBom}
           />
         )}

@@ -30,7 +30,7 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
 }
 
-export default function ImageOptimizationPanel({ onMessage }: { onMessage: (message: string) => void }) {
+export default function ImageOptimizationPanel({ onMessage, canUpdate }: { onMessage: (message: string) => void; canUpdate: boolean }) {
   const [preview, setPreview] = useState<ImageOptimizationPreview | null>(null)
   const [loading, setLoading] = useState(true)
   const [executing, setExecuting] = useState(false)
@@ -100,7 +100,7 @@ export default function ImageOptimizationPanel({ onMessage }: { onMessage: (mess
         <AppButton
           onClick={execute}
           variant="primary"
-          disabled={loading || executing || !preview || preview.pendingCount === 0}
+          disabled={loading || executing || !canUpdate || !preview || preview.pendingCount === 0}
           className="shrink-0"
         >
           {executing ? `优化中 ${progressPercent}%` : '优化待处理图片'}

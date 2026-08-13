@@ -25,7 +25,7 @@ const detailManagedPages = [
   ['来料', 'modules/receiving/ui/MaterialInCollectionView.tsx', 'modules/receiving/ui/MaterialInDetailDialog.tsx'],
   ['派工', 'modules/production/ui/DispatchPageModule.tsx', 'modules/production/ui/DispatchPageModule.tsx'],
   ['发货', 'modules/sales/ui/ShipmentPageModule.tsx', 'modules/sales/ui/ShipmentPageModule.tsx'],
-  ['退货', 'modules/sales/ui/ReturnPageModule.tsx', 'modules/sales/ui/ReturnPageModule.tsx'],
+  ['退货', 'modules/sales/ui/ReturnPageModule.tsx', 'modules/sales/ui/ReturnDetailDialog.tsx'],
 ] as const
 
 assert.match(attachmentPanelSource, /title\s*=\s*'附件管理'/, '公共附件模块默认名称必须为附件管理')

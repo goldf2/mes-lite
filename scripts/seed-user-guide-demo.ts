@@ -30,7 +30,7 @@ async function main() {
     throw new Error('作业指导书演示库不是空库；请新建 mes_lite_guide 数据库后再运行种子脚本')
   }
 
-  const [admin, operator, planner, inspectorOperator, warehouseOperator, leadOperator] = await Promise.all([
+  const [admin, operator, planner, inspectorOperator, warehouseOperator, leadOperator, processOperator, warehouseLeadOperator, salesOperator, personnelOperator, permissionOperator, aiObserverOperator] = await Promise.all([
     prisma.operator.create({
       data: {
         username: 'guide-admin',
@@ -55,6 +55,12 @@ async function main() {
     prisma.operator.create({ data: { username: 'guide-inspector', passwordHash: hashPassword('GuideInspector123!'), name: '演示质检员', role: 'OPERATOR', status: 'ACTIVE', approvedAt: fixedNow } }),
     prisma.operator.create({ data: { username: 'guide-warehouse', passwordHash: hashPassword('GuideWarehouse123!'), name: '演示仓管员', role: 'OPERATOR', status: 'ACTIVE', approvedAt: fixedNow } }),
     prisma.operator.create({ data: { username: 'guide-lead', passwordHash: hashPassword('GuideLead123!'), name: '演示生产主管', role: 'OPERATOR', status: 'ACTIVE', approvedAt: fixedNow } }),
+    prisma.operator.create({ data: { username: 'guide-process', passwordHash: hashPassword('GuideProcess123!'), name: '演示工艺工程师', role: 'OPERATOR', status: 'ACTIVE', approvedAt: fixedNow } }),
+    prisma.operator.create({ data: { username: 'guide-warehouse-lead', passwordHash: hashPassword('GuideWarehouseLead123!'), name: '演示仓库主管', role: 'OPERATOR', status: 'ACTIVE', approvedAt: fixedNow } }),
+    prisma.operator.create({ data: { username: 'guide-sales', passwordHash: hashPassword('GuideSales123!'), name: '演示销售跟单员', role: 'OPERATOR', status: 'ACTIVE', approvedAt: fixedNow } }),
+    prisma.operator.create({ data: { username: 'guide-personnel', passwordHash: hashPassword('GuidePersonnel123!'), name: '演示人事管理员', role: 'OPERATOR', status: 'ACTIVE', approvedAt: fixedNow } }),
+    prisma.operator.create({ data: { username: 'guide-permission', passwordHash: hashPassword('GuidePermission123!'), name: '演示权限管理员', role: 'OPERATOR', status: 'ACTIVE', approvedAt: fixedNow } }),
+    prisma.operator.create({ data: { username: 'guide-ai-reader', passwordHash: hashPassword('GuideAiReader123!'), name: '演示 AI 配置观察员', role: 'OPERATOR', status: 'ACTIVE', approvedAt: fixedNow } }),
   ])
 
   const [waiting, rawLocation, wipLocation, finishedLocation, returnLocation] = await Promise.all([
@@ -331,8 +337,21 @@ async function main() {
   })
 
   await ensureDefaultPermissions()
+  const aiObserverGroup = await prisma.permissionGroup.create({
+    data: {
+      code: 'guide_ai_observer',
+      name: 'AI 配置只读演示组',
+      description: '仅用于指导书验证 AI 配置可查看、不可修改。',
+      settings: {
+        create: [
+          { resource: 'dashboard', canRead: true },
+          { resource: 'aiSettings', canRead: true },
+        ],
+      },
+    },
+  })
   const roleGroups = await prisma.permissionGroup.findMany({
-    where: { code: { in: ['base_access', 'production_executor', 'production_lead', 'warehouse_executor', 'quality_inspector', 'production_planner'] } },
+    where: { code: { in: ['base_access', 'production_executor', 'production_lead', 'warehouse_executor', 'warehouse_lead', 'quality_inspector', 'production_planner', 'process_engineer', 'sales_fulfillment', 'personnel_manager', 'permission_admin'] } },
   })
   const roleGroupId = new Map(roleGroups.map((group) => [group.code, group.id]))
   const assignGroups = async (operatorId: string, codes: string[]) => {
@@ -344,6 +363,12 @@ async function main() {
     assignGroups(planner.id, ['base_access', 'production_planner']),
     assignGroups(inspectorOperator.id, ['base_access', 'quality_inspector']),
     assignGroups(warehouseOperator.id, ['base_access', 'warehouse_executor']),
+    assignGroups(processOperator.id, ['base_access', 'process_engineer']),
+    assignGroups(warehouseLeadOperator.id, ['base_access', 'warehouse_lead']),
+    assignGroups(salesOperator.id, ['base_access', 'sales_fulfillment']),
+    assignGroups(personnelOperator.id, ['base_access', 'personnel_manager']),
+    assignGroups(permissionOperator.id, ['base_access', 'permission_admin']),
+    prisma.operatorPermissionGroup.create({ data: { operatorId: aiObserverOperator.id, groupId: aiObserverGroup.id } }),
   ])
 
   await prisma.scanCountSession.create({
@@ -395,6 +420,12 @@ async function main() {
       planner: { username: planner.username, password: 'GuidePlanner123!' },
       qualityInspector: { username: inspectorOperator.username, password: 'GuideInspector123!' },
       warehouse: { username: warehouseOperator.username, password: 'GuideWarehouse123!' },
+      processEngineer: { username: processOperator.username, password: 'GuideProcess123!' },
+      warehouseLead: { username: warehouseLeadOperator.username, password: 'GuideWarehouseLead123!' },
+      salesFulfillment: { username: salesOperator.username, password: 'GuideSales123!' },
+      personnelManager: { username: personnelOperator.username, password: 'GuidePersonnel123!' },
+      permissionAdmin: { username: permissionOperator.username, password: 'GuidePermission123!' },
+      aiObserver: { username: aiObserverOperator.username, password: 'GuideAiReader123!' },
     },
     counts: {
       materials: await prisma.material.count(),

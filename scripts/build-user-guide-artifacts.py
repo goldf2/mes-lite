@@ -22,8 +22,8 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 
-VERSION = "v0.1.359"
-EXPECTED_WORKFLOWS = 120
+VERSION = "v0.1.360"
+EXPECTED_WORKFLOWS = 129
 PAGE_W = 1240
 PAGE_H = 1754
 MARGIN = 72

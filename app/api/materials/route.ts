@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     const parsed = parseMaterialListQuery(new URL(req.url).searchParams)
     if (!parsed.data) return NextResponse.json({ error: parsed.error }, { status: 400 })
     if (materialQueryNeedsBomPermission(parsed.data)) {
-      const bomDenied = await requireResourcePermission('bomCost', 'read')
+      const bomDenied = await requireResourcePermission('bom', 'read')
       if (bomDenied) return bomDenied
     }
     return NextResponse.json(await listMaterials(parsed.data))

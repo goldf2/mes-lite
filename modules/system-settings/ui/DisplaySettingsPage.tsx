@@ -16,7 +16,7 @@ import TogglePreferenceRow from './TogglePreferenceRow'
 
 const choiceClass = (selected: boolean) => `rounded-lg border p-3 text-left transition ${selected ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 hover:bg-gray-50'}`
 
-export default function DisplaySettingsPage({ onMessage }: { onMessage: (message: string) => void }) {
+export default function DisplaySettingsPage({ onMessage, canUpdate }: { onMessage: (message: string) => void; canUpdate: boolean }) {
   const [modalGlassEnabled, setModalGlassEnabled] = useModalGlassPreference()
   const [navigationPreference, setNavigationPreference] = useDesktopNavigationPreference()
   const [workspaceLayoutPreference, setWorkspaceLayoutPreference] = useWorkspaceLayoutPreference()
@@ -118,7 +118,7 @@ export default function DisplaySettingsPage({ onMessage }: { onMessage: (message
           <div className="mt-1 text-sm text-gray-500">统一调整页面背景、容器层级、边框清晰度、标题、正文和辅助文字的反差；按钮主色与业务状态色保持不变。</div>
           <div className="mt-2 text-xs text-gray-500">系统级设置，保存后对所有客户端生效；当前页面会立即预览。</div>
         </div>
-        <ContrastModeSelector value={contrastMode} onChange={saveContrastMode} disabled={loading || saving} />
+        <ContrastModeSelector value={contrastMode} onChange={saveContrastMode} disabled={loading || saving || !canUpdate} />
       </section>
 
       <TogglePreferenceRow title="弹窗背景磨砂玻璃" description="开启后弹窗出现时背景会模糊并遮罩；关闭后仅保留半透明遮罩，仍会屏蔽底层按钮响应。" hint="个人显示偏好，只保存在当前浏览器。" enabled={modalGlassEnabled} onChange={setModalGlassEnabled} />

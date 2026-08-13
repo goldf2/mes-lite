@@ -112,8 +112,10 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
     <MaterialPage
       onMessage={context.onMessage}
       showBomWorkspace={false}
-      canReadBom={context.canRead('bomCost')}
-      canCreateBom={context.canUpdate('bomCost')}
+      canReadBom={context.canRead('bom')}
+      canCreateBom={context.canCreate('bom')}
+      canUpdateBom={context.canUpdate('bom')}
+      canDeleteBom={context.canDelete('bom')}
       onOpenBomWorkspace={(materialId) => context.onOpenBomEditor(materialId)}
     />
   ),
@@ -121,6 +123,9 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
     <MaterialPage
       onMessage={context.onMessage}
       showBomWorkspace
+      canCreateBom={context.canCreate('bom')}
+      canUpdateBom={context.canUpdate('bom')}
+      canDeleteBom={context.canDelete('bom')}
       openBomRequest={context.bomEditorTarget}
       onOpenBomRequestHandled={context.onBomEditorTargetHandled}
     />
@@ -134,8 +139,8 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
   'document-categories': (context) => (
     <DocumentCategorySettingsPage
       onMessage={context.onMessage}
-      canUpdate={context.canUpdate('workInstructions')}
-      canDelete={context.canDelete('workInstructions')}
+      canUpdate={context.canUpdate('documentCategories')}
+      canDelete={context.canDelete('documentCategories')}
     />
   ),
   equipment: (context) => (
@@ -151,19 +156,19 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
   'sales-orders': (context) => <SalesOrderPage onMessage={context.onMessage} />,
   shipment: (context) => <ShipmentPage onMessage={context.onMessage} />,
   return: (context) => <ReturnPage onMessage={context.onMessage} canQualityUpdate={context.canUpdate('qualityDecision')} />,
-  'flow-transfers': (context) => <FlowTransferPage onMessage={context.onMessage} />,
+  'flow-transfers': (context) => <FlowTransferPage onMessage={context.onMessage} canCreate={context.canCreate('flowTransfers')} canUpdate={context.canUpdate('flowTransfers')} />,
   employees: (context) => (
     <EmployeePage
       onMessage={context.onMessage}
-      canCreate={context.canCreate('system')}
-      canUpdate={context.canUpdate('system')}
+      canCreate={context.canCreate('employees')}
+      canUpdate={context.canUpdate('employees')}
     />
   ),
   'sawing-cost': () => <SawingCostCalculatorPage />,
   'scan-print': (context) => <ScanPrintPage onMessage={context.onMessage} />,
   operators: (context) => <OperatorPage currentOperator={context.operator} onMessage={context.onMessage} />,
   'system-section': (context, definition) => definition.systemSection
-    ? <SystemPage section={definition.systemSection} onMessage={context.onMessage} />
+    ? <SystemPage section={definition.systemSection} onMessage={context.onMessage} canCreate={context.canCreate(definition.resource)} canUpdate={context.canUpdate(definition.resource)} canDelete={context.canDelete(definition.resource)} />
     : null,
   'permission-users': (context) => <PermissionPage mode="users" onMessage={context.onMessage} />,
   'permission-groups': (context) => <PermissionPage mode="groups" onMessage={context.onMessage} />,

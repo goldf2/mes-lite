@@ -11,8 +11,8 @@ export function isSystemSettingsSection(section: string): section is SystemSetti
   return systemSettingsSections.includes(section as SystemSettingsSection)
 }
 
-export default function SystemSettingsSectionPage({ section, onMessage }: { section: SystemSettingsSection; onMessage: (message: string) => void }) {
-  if (section === 'displaySettings') return <DisplaySettingsPage onMessage={onMessage} />
-  if (section === 'navigationSettings') return <NavigationSettingsPage onMessage={onMessage} />
-  return <AiSettingsPage onMessage={onMessage} />
+export default function SystemSettingsSectionPage({ section, onMessage, canUpdate }: { section: SystemSettingsSection; onMessage: (message: string) => void; canUpdate: boolean }) {
+  if (section === 'displaySettings') return <DisplaySettingsPage onMessage={onMessage} canUpdate={canUpdate} />
+  if (section === 'navigationSettings') return <NavigationSettingsPage onMessage={onMessage} canUpdate={canUpdate} />
+  return <AiSettingsPage onMessage={onMessage} canUpdate={canUpdate} />
 }

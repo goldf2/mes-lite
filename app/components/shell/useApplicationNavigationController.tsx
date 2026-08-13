@@ -52,7 +52,7 @@ export default function useApplicationNavigationController({
   const { config: workspaceNavigationConfig, activeWorkspace, setActiveWorkspace } = useWorkspaceNavigation()
   const canReadNavItem = (item: { key: TabType; resource: string }) => (
     item.key === 'materials'
-      ? canRead('materials') || canRead('bomCost')
+      ? canRead('materials') || canRead('bom')
       : canRead(item.resource)
   )
   const readableWorkspaceFunctionItems = workspaceFunctionCatalog.filter((item) => (
@@ -93,8 +93,8 @@ export default function useApplicationNavigationController({
     .map((item) => ({ ...item, label: labelForTab(item) }))
   const materialSectionItems = [
     { key: 'materials' as const, functionKey: 'materialManagement' as const, label: '物料管理', visible: canRead('materials') },
-    { key: 'bomWorkspace' as const, functionKey: 'bomWorkspace' as const, label: 'BOM 设置', visible: canRead('materials') && canRead('bomCost') },
-    { key: 'bomUsage' as const, functionKey: 'bomUsage' as const, label: 'BOM 全览', visible: canRead('bomCost') },
+    { key: 'bomWorkspace' as const, functionKey: 'bomWorkspace' as const, label: 'BOM 设置', visible: canRead('bom') },
+    { key: 'bomUsage' as const, functionKey: 'bomUsage' as const, label: 'BOM 全览', visible: canRead('bom') },
   ].filter((item) => item.visible)
     .filter((item) => workspaceContainsFunction(workspaceNavigationConfig, activeWorkspace, item.functionKey))
     .map((item) => ({
@@ -108,8 +108,8 @@ export default function useApplicationNavigationController({
   const defaultMaterialSection: MaterialSection = canRead('materials') ? 'materials' : 'bomUsage'
   const restorableMaterialSections = [
     canRead('materials') ? 'materials' : null,
-    canRead('materials') && canRead('bomCost') ? 'bomWorkspace' : null,
-    canRead('bomCost') ? 'bomUsage' : null,
+    canRead('bom') ? 'bomWorkspace' : null,
+    canRead('bom') ? 'bomUsage' : null,
   ].filter((section): section is MaterialSection => section !== null)
 
   const {

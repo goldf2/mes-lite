@@ -9,7 +9,7 @@ import { reverseManagedFlowTransfer } from '@/modules/production/server/flow-tra
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const denied = await requireResourcePermission('stats', 'update')
+    const denied = await requireResourcePermission('flowTransfers', 'update')
     if (denied) return denied
     const input = reverseFlowTransferSchema.parse(await req.json())
     const operator = await getCurrentOperator()

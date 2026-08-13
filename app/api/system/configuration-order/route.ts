@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
-import { requireResourcePermission } from '@/lib/permissions'
+import { requireResourcePermission, type PermissionResource } from '@/lib/permissions'
 import { configurationOrderEntities, getConfigurationOrder, updateConfigurationOrder } from '@/modules/configuration/server'
 
 const entitySchema = z.enum(configurationOrderEntities)
 const saveSchema = z.object({ entity: entitySchema, orderedIds: z.array(z.string().min(1)).max(2000) })
+const permissionResourceByEntity: Record<z.infer<typeof entitySchema>, PermissionResource> = {
+  locations: 'locations', suppliers: 'suppliers', customers: 'customers', employees: 'employees',
+  workCenters: 'workCenters', processTemplates: 'processTemplates', processRoutes: 'processRoutes', units: 'units',
+}
 
 export async function GET(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'read')
+    const entity = entitySchema.parse(req.nextUrl.searchParams.get('entity'))
+    const denied = await requireResourcePermission(permissionResourceByEntity[entity], 'read')
     if (denied) return denied
-    return NextResponse.json({ data: await getConfigurationOrder(entitySchema.parse(req.nextUrl.searchParams.get('entity'))) })
+    return NextResponse.json({ data: await getConfigurationOrder(entity) })
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: '排序类型无效' }, { status: 400 })
     return NextResponse.json({ error: '获取手动顺序失败' }, { status: 500 })
@@ -20,9 +25,9 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'update')
-    if (denied) return denied
     const input = saveSchema.parse(await req.json())
+    const denied = await requireResourcePermission(permissionResourceByEntity[input.entity], 'update')
+    if (denied) return denied
     const before = await getConfigurationOrder(input.entity)
     const data = await updateConfigurationOrder(input.entity, input.orderedIds)
     await writeAuditLog(req, {

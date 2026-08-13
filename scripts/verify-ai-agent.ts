@@ -15,7 +15,7 @@ const restrictedPermissions: PermissionMap = {
   dashboard: off,
   materials: read,
   stocks: off,
-  bomCost: off,
+  bom: off,
   orders: off,
 }
 const restrictedTools = getAvailableAgentToolNames(restrictedPermissions)
@@ -29,7 +29,7 @@ const fullReadPermissions: PermissionMap = {
   ...restrictedPermissions,
   dashboard: read,
   stocks: read,
-  bomCost: read,
+  bom: read,
   orders: read,
 }
 const allTools = getAvailableAgentToolNames(fullReadPermissions)

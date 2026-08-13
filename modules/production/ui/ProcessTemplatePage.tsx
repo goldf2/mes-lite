@@ -28,7 +28,7 @@ const costFields = [
   ['machineRatePerHour', '设备机时费率', '元/h'], ['energyCostPerHour', '每小时能源费', '元/h'], ['consumableCostPerBatch', '每批耗材费', '元/批'], ['yieldRate', '标准合格率', '%'],
 ] as const
 
-export default function ProcessTemplatePage({ onMessage, actions }: { onMessage: (message: string) => void; actions?: ReactNode }) {
+export default function ProcessTemplatePage({ onMessage, actions, canCreate, canUpdate }: { onMessage: (message: string) => void; actions?: ReactNode; canCreate: boolean; canUpdate: boolean }) {
   const [templates, setTemplates] = useState<ProcessTemplate[]>([])
   const [materials, setMaterials] = useState<Array<{ id: string; code: string; name: string }>>([])
   const [keyword, setKeyword] = useState('')
@@ -90,13 +90,13 @@ export default function ProcessTemplatePage({ onMessage, actions }: { onMessage:
   }
 
   return (
-    <ProductionEngineeringPageShell resourceKey="process-templates" title="加工工艺" description="按类别维护可复用工艺，并关联到物料全景。" summary={`共 ${filteredTemplates.length} 项`} keyword={keyword} onKeywordChange={setKeyword} searchPlaceholder="输入工艺编码、名称、类别、工位或关联物料" advancedFields={processTemplateAdvancedFields} conditions={conditions} onConditionsChange={setConditions} conditionLabel="加工工艺组合条件" viewMode={viewMode} onViewModeChange={setViewMode} onCreate={openAdd} resourceLabel="加工工艺" actions={actions}>
+    <ProductionEngineeringPageShell resourceKey="process-templates" title="加工工艺" description="按类别维护可复用工艺，并关联到物料全景。" summary={`共 ${filteredTemplates.length} 项`} keyword={keyword} onKeywordChange={setKeyword} searchPlaceholder="输入工艺编码、名称、类别、工位或关联物料" advancedFields={processTemplateAdvancedFields} conditions={conditions} onConditionsChange={setConditions} conditionLabel="加工工艺组合条件" viewMode={viewMode} onViewModeChange={setViewMode} onCreate={canCreate ? openAdd : undefined} resourceLabel="加工工艺" actions={actions}>
       {effectiveViewMode === 'card' ? (
         <div className="grid grid-cols-1 gap-3 p-4 lg:grid-cols-2">
           {templateSort.sortedRows.map((template) => {
             const thousand = processCostPerThousand(template)
             return <article key={template.id} className="rounded-lg border border-gray-200 p-4">
-              <div className="flex items-start justify-between gap-3"><div><div className="font-semibold">{template.name}</div><div className="mt-1 text-xs text-gray-500">{processCategoryLabel[template.category] || template.category} · {template.code}{template.isPreset ? ' · 预置' : ''}</div></div><AppButton size="sm" onClick={() => openEdit(template)}>编辑</AppButton></div>
+              <div className="flex items-start justify-between gap-3"><div><div className="font-semibold">{template.name}</div><div className="mt-1 text-xs text-gray-500">{processCategoryLabel[template.category] || template.category} · {template.code}{template.isPreset ? ' · 预置' : ''}</div></div>{canUpdate && <AppButton size="sm" onClick={() => openEdit(template)}>编辑</AppButton>}</div>
               <div className="mt-2 text-sm text-gray-600">{template.workstation || '未设工位'}{template.defaultTime ? ` · ${template.defaultTime} 分钟` : ''}</div>
               {template.description && <div className="mt-2 text-xs text-gray-500">{template.description}</div>}
               <div className="mt-2 text-xs text-gray-500">关联物料：{template.materials.length ? template.materials.map((item) => item.code).join('、') : '暂无'}</div>
@@ -113,7 +113,7 @@ export default function ProcessTemplatePage({ onMessage, actions }: { onMessage:
           <th className="px-4 py-3 text-right">操作</th>
         </tr></thead><tbody className="divide-y divide-gray-100">{templateSort.sortedRows.map((template) => <tr key={template.id}>
           <td className="px-4 py-3"><div className="font-medium text-gray-900">{template.name}</div><div className="font-mono text-xs text-gray-500">{template.code}{template.isPreset ? ' · 预置' : ''}</div></td>
-          <td className="px-4 py-3 text-sm text-gray-600">{processCategoryLabel[template.category] || template.category}</td><td className="px-4 py-3 text-sm text-gray-600">{template.workstation || '-'}</td><td className="px-4 py-3 text-sm text-gray-600">{template.materials.length}</td><td className="px-4 py-3 text-right"><AppButton size="sm" onClick={() => openEdit(template)}>编辑</AppButton></td>
+          <td className="px-4 py-3 text-sm text-gray-600">{processCategoryLabel[template.category] || template.category}</td><td className="px-4 py-3 text-sm text-gray-600">{template.workstation || '-'}</td><td className="px-4 py-3 text-sm text-gray-600">{template.materials.length}</td><td className="px-4 py-3 text-right">{canUpdate && <AppButton size="sm" onClick={() => openEdit(template)}>编辑</AppButton>}</td>
         </tr>)}</tbody></table></div>
       )}
       {filteredTemplates.length === 0 && <div className="py-12 text-center text-sm text-gray-500">暂无符合条件的加工工艺</div>}

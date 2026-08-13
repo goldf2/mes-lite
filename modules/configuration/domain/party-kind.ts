@@ -1,4 +1,5 @@
 import type { PartyKind } from '../contracts/reference-data'
+import type { PermissionResource } from '@/lib/permissions'
 
 export interface PartyKindDefinition {
   kind: PartyKind
@@ -6,6 +7,8 @@ export interface PartyKindDefinition {
   entityType: 'SUPPLIER' | 'CUSTOMER'
   orderEntity: 'suppliers' | 'customers'
   uniqueActiveName: boolean
+  permissionResource: 'suppliers' | 'customers'
+  referenceReadResources: PermissionResource[]
 }
 
 const partyKindDefinitions: Record<PartyKind, PartyKindDefinition> = {
@@ -15,6 +18,8 @@ const partyKindDefinitions: Record<PartyKind, PartyKindDefinition> = {
     entityType: 'SUPPLIER',
     orderEntity: 'suppliers',
     uniqueActiveName: false,
+    permissionResource: 'suppliers',
+    referenceReadResources: ['suppliers', 'materialIn'],
   },
   customer: {
     kind: 'customer',
@@ -22,6 +27,8 @@ const partyKindDefinitions: Record<PartyKind, PartyKindDefinition> = {
     entityType: 'CUSTOMER',
     orderEntity: 'customers',
     uniqueActiveName: true,
+    permissionResource: 'customers',
+    referenceReadResources: ['customers', 'materials', 'workInstructions', 'dispatch', 'stocks', 'salesOrder', 'shipment', 'return', 'materialIn'],
   },
 }
 

@@ -14,11 +14,15 @@ export function isOperationsToolsSection(section: string): section is Operations
 export default function OperationsToolsSectionPage({
   section,
   onMessage,
+  canUpdate,
+  canDelete,
 }: {
   section: OperationsToolsSection
   onMessage: (message: string) => void
+  canUpdate: boolean
+  canDelete: boolean
 }) {
-  if (section === 'recycle') return <ArchiveRecordsPage onMessage={onMessage} />
+  if (section === 'recycle') return <ArchiveRecordsPage onMessage={onMessage} canUpdate={canUpdate} canDelete={canDelete} />
   if (section === 'audit') return <AuditLogPage onMessage={onMessage} />
-  return <DataToolsPage onMessage={onMessage} />
+  return <DataToolsPage onMessage={onMessage} canUpdate={canUpdate} canDelete={canDelete} />
 }

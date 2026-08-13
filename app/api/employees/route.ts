@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'read')
+    const denied = await requireResourcePermission('employees', 'read')
     if (denied) return denied
     const params = new URL(req.url).searchParams
     const data = await listEmployeeWorkspace(
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'create')
+    const denied = await requireResourcePermission('employees', 'create')
     if (denied) return denied
     const employee = await createManagedEmployee(employeeFieldsSchema.parse(await req.json()))
     await writeAuditLog(req, {
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'update')
+    const denied = await requireResourcePermission('employees', 'update')
     if (denied) return denied
     const { before, saved } = await updateManagedEmployee(employeeUpdateSchema.parse(await req.json()))
     await writeAuditLog(req, {

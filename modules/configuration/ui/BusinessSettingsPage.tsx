@@ -18,7 +18,7 @@ const emptyProfile: BusinessSettingsView = {
   companyAddress: '',
 }
 
-export default function BusinessSettingsPage({ onMessage }: { onMessage: (message: string) => void }) {
+export default function BusinessSettingsPage({ onMessage, canUpdate }: { onMessage: (message: string) => void; canUpdate: boolean }) {
   const [settings, setSettings] = useState(emptyProfile)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -85,12 +85,12 @@ export default function BusinessSettingsPage({ onMessage }: { onMessage: (messag
           <div className="mt-1 text-sm text-gray-500">作为供货方显示在发货单 PDF 中；甲方资料自动读取销售订单客户。</div>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
-          <FormField label="企业名称" required><input value={settings.companyName} onChange={(event) => updateField('companyName', event.target.value)} className={appInputClassName} disabled={loading} /></FormField>
-          <FormField label="联系人"><input value={settings.companyContact} onChange={(event) => updateField('companyContact', event.target.value)} className={appInputClassName} disabled={loading} /></FormField>
-          <FormField label="联系电话"><input value={settings.companyPhone} onChange={(event) => updateField('companyPhone', event.target.value)} className={appInputClassName} disabled={loading} /></FormField>
-          <FormField label="企业地址"><input value={settings.companyAddress} onChange={(event) => updateField('companyAddress', event.target.value)} className={appInputClassName} disabled={loading} /></FormField>
+          <FormField label="企业名称" required><input value={settings.companyName} onChange={(event) => updateField('companyName', event.target.value)} className={appInputClassName} disabled={loading || !canUpdate} /></FormField>
+          <FormField label="联系人"><input value={settings.companyContact} onChange={(event) => updateField('companyContact', event.target.value)} className={appInputClassName} disabled={loading || !canUpdate} /></FormField>
+          <FormField label="联系电话"><input value={settings.companyPhone} onChange={(event) => updateField('companyPhone', event.target.value)} className={appInputClassName} disabled={loading || !canUpdate} /></FormField>
+          <FormField label="企业地址"><input value={settings.companyAddress} onChange={(event) => updateField('companyAddress', event.target.value)} className={appInputClassName} disabled={loading || !canUpdate} /></FormField>
         </div>
-        <div className="mt-4 flex justify-end"><AppButton variant="primary" onClick={saveCompanyProfile} disabled={loading || saving}>{saving ? '保存中...' : '保存乙方资料'}</AppButton></div>
+        {canUpdate && <div className="mt-4 flex justify-end"><AppButton variant="primary" onClick={saveCompanyProfile} disabled={loading || saving}>{saving ? '保存中...' : '保存乙方资料'}</AppButton></div>}
       </section>
 
       <section className="rounded-lg border border-gray-200 p-4">
@@ -102,7 +102,7 @@ export default function BusinessSettingsPage({ onMessage }: { onMessage: (messag
           </div>
           <label className={`inline-flex items-center gap-3 ${loading || saving ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}>
             <span className="text-sm text-gray-600">{loading ? '读取中' : saving ? '保存中' : settings.naturalMaterialCodeSortEnabled ? '已开启' : '已关闭'}</span>
-            <input type="checkbox" checked={settings.naturalMaterialCodeSortEnabled} disabled={loading || saving} onChange={(event) => saveNaturalCodeSort(event.target.checked)} className="sr-only" />
+            <input type="checkbox" checked={settings.naturalMaterialCodeSortEnabled} disabled={loading || saving || !canUpdate} onChange={(event) => saveNaturalCodeSort(event.target.checked)} className="sr-only" />
             <span className={`relative h-7 w-12 rounded-full transition ${settings.naturalMaterialCodeSortEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${settings.naturalMaterialCodeSortEnabled ? 'left-6' : 'left-1'}`} /></span>
           </label>
         </div>

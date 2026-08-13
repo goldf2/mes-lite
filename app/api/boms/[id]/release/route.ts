@@ -7,7 +7,7 @@ import { releaseBomVersion } from '@/modules/bom/server/bom-lifecycle-service'
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const denied = await requireResourcePermission('bomCost', 'update')
+    const denied = await requireResourcePermission('bom', 'update')
     if (denied) return denied
     const operator = await getCurrentOperator()
     const saved = await releaseBomVersion(params.id, operator?.id)

@@ -187,9 +187,11 @@ function BomMaterialIdentity({
 export default function BomDraftEditor({
   controller,
   showSaveAction = false,
+  permissions = { canCreate: true, canUpdate: true, canDelete: true },
 }: {
   controller: BomDraftController
   showSaveAction?: boolean
+  permissions?: { canCreate: boolean; canUpdate: boolean; canDelete: boolean }
 }) {
   const [previewMaterial, setPreviewMaterial] = useState<BomMaterialOption | null>(null)
   const {
@@ -209,6 +211,7 @@ export default function BomDraftEditor({
     editable,
     saving,
   } = controller
+  const canEditCurrent = selectedBom ? permissions.canUpdate : permissions.canCreate
   const outputOptions = useMemo(() => materialOptions.map((material) => ({
     value: material.id,
     label: materialOptionLabel(material),
@@ -217,7 +220,7 @@ export default function BomDraftEditor({
 
   return (
     <>
-      <fieldset disabled={!editable} className={`rounded-lg border border-gray-200 ${editable ? '' : 'bg-gray-50 opacity-80'}`}>
+      <fieldset disabled={!editable || !canEditCurrent} className={`rounded-lg border border-gray-200 ${editable && canEditCurrent ? '' : 'bg-gray-50 opacity-80'}`}>
         <div className="grid grid-cols-1 divide-y divide-gray-200 lg:grid-cols-2 lg:divide-x lg:divide-y-0">
           <section className="min-w-0 p-3 sm:p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -344,7 +347,7 @@ export default function BomDraftEditor({
       </fieldset>
 
       <div className="mt-4 flex flex-col gap-4 border-t border-gray-200 pt-4 lg:flex-row lg:items-end lg:justify-between">
-        <fieldset disabled={!editable} className="min-w-0 flex-1 lg:max-w-xl">
+        <fieldset disabled={!editable || !canEditCurrent} className="min-w-0 flex-1 lg:max-w-xl">
           <label className="block text-xs font-medium text-gray-700">
             BOM 方案名称
             <input
@@ -378,7 +381,7 @@ export default function BomDraftEditor({
         </fieldset>
         {showSaveAction && (
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-            {editable && (
+            {editable && canEditCurrent && (
               <AppButton
                 variant="primary"
                 onClick={controller.save}
@@ -389,7 +392,7 @@ export default function BomDraftEditor({
                 {saving ? '处理中...' : '保存草稿'}
               </AppButton>
             )}
-            {selectedBom?.status === 'DRAFT' && (
+            {permissions.canUpdate && selectedBom?.status === 'DRAFT' && (
               <AppButton
                 variant="secondary"
                 onClick={controller.release}
@@ -400,12 +403,12 @@ export default function BomDraftEditor({
                 发布 BOM
               </AppButton>
             )}
-            {selectedBom && selectedBom.status !== 'DRAFT' && (
+            {permissions.canCreate && selectedBom && selectedBom.status !== 'DRAFT' && (
               <AppButton variant="primary" onClick={controller.copyVersion} disabled={saving} className="px-5 py-2.5 font-semibold">
                 创建新版本
               </AppButton>
             )}
-            {selectedBom?.status === 'RELEASED' && (
+            {permissions.canDelete && selectedBom?.status === 'RELEASED' && (
               <AppButton
                 variant="secondary"
                 onClick={() => {

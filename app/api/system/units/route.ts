@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentOperator } from '@/lib/auth'
 import { writeAuditLog } from '@/lib/audit'
-import { requireResourcePermission } from '@/lib/permissions'
+import { requireAnyResourcePermission, requireResourcePermission } from '@/lib/permissions'
 import {
   unitFieldsSchema,
   unitIdentitySchema,
@@ -20,6 +20,8 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     if (!await getCurrentOperator()) return NextResponse.json({ error: '未登录' }, { status: 401 })
+    const denied = await requireAnyResourcePermission(['units', 'materials', 'bom', 'materialIn'], 'read')
+    if (denied) return denied
     return NextResponse.json({ data: await listConfiguredUnits() })
   } catch (error) {
     return unitHttpError(error, '获取单位配置失败')
@@ -28,7 +30,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'update')
+    const denied = await requireResourcePermission('units', 'create')
     if (denied) return denied
     const saved = await createConfiguredUnit(unitFieldsSchema.parse(await req.json()))
     await writeAuditLog(req, {
@@ -44,7 +46,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'update')
+    const denied = await requireResourcePermission('units', 'update')
     if (denied) return denied
     const { before, saved, usageCount } = await updateConfiguredUnit(unitUpdateSchema.parse(await req.json()))
     await writeAuditLog(req, {
@@ -60,7 +62,7 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'update')
+    const denied = await requireResourcePermission('units', 'delete')
     if (denied) return denied
     const params = new URL(req.url).searchParams
     const deleted = await deleteConfiguredUnit(unitIdentitySchema.parse({

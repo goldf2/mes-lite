@@ -8,7 +8,7 @@ import { updateManagedFlowTransfer } from '@/modules/production/server/flow-tran
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const denied = await requireResourcePermission('stats', 'update')
+    const denied = await requireResourcePermission('flowTransfers', 'update')
     if (denied) return denied
     const { current, updated } = await updateManagedFlowTransfer(
       params.id,

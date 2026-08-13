@@ -9,7 +9,7 @@ import { confirmManagedFlowTransfer } from '@/modules/production/server/flow-tra
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const denied = await requireResourcePermission('stats', 'update')
+    const denied = await requireResourcePermission('flowTransfers', 'update')
     if (denied) return denied
     confirmFlowTransferSchema.parse(await req.json().catch(() => ({})))
     const operator = await getCurrentOperator()

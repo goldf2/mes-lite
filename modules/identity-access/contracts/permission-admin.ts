@@ -8,6 +8,7 @@ export interface PermissionActor {
 export interface PermissionResourceItem {
   key: string
   label: string
+  section: string
 }
 
 export interface PermissionFlags {

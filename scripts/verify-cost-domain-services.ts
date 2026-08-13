@@ -84,12 +84,15 @@ async function main() {
       SawingCostServiceError,
       '已有物料方案缺少物料时必须在领域服务拒绝',
     )
+    const bomMaterial = await prisma.material.create({
+      data: { code: `VERIFY-BOM-${suffix}`, name: '验证 BOM 物料', category: 'FINISHED', unit: '件' },
+    })
     const bomProduct = await prisma.product.create({
-      data: { sku: `VERIFY-BOM-${suffix}`, name: '验证 BOM 产品', category: 'FINISHED' },
+      data: { sku: `LEGACY-BOM-${suffix}`, materialId: bomMaterial.id, name: '验证 BOM 产品', category: 'FINISHED' },
     })
     const releasedBom = await prisma.bOM.create({
       data: {
-        productId: bomProduct.id, version: 'v1',
+        productId: bomProduct.id, materialId: bomMaterial.id, version: 'v1',
       },
     })
     await prisma.bOM.update({

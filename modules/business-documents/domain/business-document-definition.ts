@@ -7,7 +7,7 @@ const definitions = {
   'sales-order': { permissionResource: 'salesOrder', ownerType: 'SALES_ORDER' },
   shipment: { permissionResource: 'shipment', ownerType: 'SHIPMENT' },
   return: { permissionResource: 'return', ownerType: 'RETURN_ORDER' },
-  'flow-transfer': { permissionResource: 'stats', ownerType: 'FLOW_TRANSFER' },
+  'flow-transfer': { permissionResource: 'flowTransfers', ownerType: 'FLOW_TRANSFER' },
   'production-order': { permissionResource: 'orders', ownerType: 'PRODUCTION_ORDER' },
   dispatch: { permissionResource: 'dispatch', ownerType: 'DISPATCH' },
 } as const satisfies Record<BusinessDocumentKind, { permissionResource: string; ownerType: string }>

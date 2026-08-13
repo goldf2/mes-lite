@@ -18,7 +18,7 @@ from docx.shared import Inches, Pt, RGBColor
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.1.359"
+VERSION = "0.1.360"
 SCREENSHOT_BASELINE = "0.1.350"
 QUALITY_SCREENSHOT_BASELINE = "0.1.354"
 TRACE_SCREENSHOT_BASELINE = "0.1.355"
@@ -26,6 +26,7 @@ FULFILLMENT_SCREENSHOT_BASELINE = "0.1.356"
 DISPOSITION_SCREENSHOT_BASELINE = "0.1.357"
 PANORAMA_SCREENSHOT_BASELINE = "0.1.358"
 ROLE_TASK_SCREENSHOT_BASELINE = "0.1.359"
+FINE_GRAINED_PERMISSION_SCREENSHOT_BASELINE = "0.1.360"
 DOCUMENT_FONT = "Arial Unicode MS"
 EAST_ASIA_FONT = "Arial Unicode MS"
 # compact_reference_guide 的横向现场截图覆盖：9.55in 固定表格，保留 120 DXA 左缩进。
@@ -225,6 +226,20 @@ CHAPTERS = [
             ("118-warehouse-task-direct.png", "直达待收货来料单", "从仓储任务卡进入已筛选的来料清单。", ["在仓管员任务台点击“待收货”。", "确认系统打开来料管理页。", "核对状态自动筛选为“待收货”。"], "列表只显示需要当前仓储岗位处理的待收货单。", ROLE_TASK_SCREENSHOT_BASELINE),
             ("119-production-command-permissions.png", "配置生产命令权限", "把发布、实绩登记、实绩确认和冲销拆成独立授权。", ["使用管理员账号进入账号与权限 > 组权限。", "选择生产管理或计划岗位组。", "分别核对生产订单发布、生产实绩登记、生产实绩确认和生产实绩冲销四个资源。", "保存后使用目标岗位账号复核任务入口、按钮和 API 结果。"], "四类高风险命令可独立授权；前端按钮和服务端接口使用相同门禁。", ROLE_TASK_SCREENSHOT_BASELINE),
             ("120-mobile-role-task-workbench.png", "在手机端处理岗位待办", "让车间人员在窄屏首屏直接看到本人任务。", ["将浏览器或手持终端调整为手机宽度。", "使用生产主管账号进入 MES 仪表盘。", "先处理顶部岗位任务卡，再按需展开导航或下方统计。"], "390 像素宽度下任务卡完整可读、可点击，不需要先穿过多级菜单。", ROLE_TASK_SCREENSHOT_BASELINE),
+        ],
+    ),
+    (
+        "15. 细粒度权限与岗位边界",
+        [
+            ("121-fine-grained-permission-sections.png", "按业务域查看细粒度权限", "在 48 项资源中快速定位要配置的业务权限。", ["使用管理员进入账号与权限 > 组权限。", "选择目标权限组。", "按公共入口、生产质量、物料工艺、来料销售、人员运维和升级兼容分区核对。", "只修改岗位实际需要的动作。"], "权限矩阵按业务域分区展示，新增、编辑、归档和授权动作可独立配置。", FINE_GRAINED_PERMISSION_SCREENSHOT_BASELINE),
+            ("122-bom-structure-permission.png", "分开配置 BOM 结构与成本", "避免工艺工程师因维护 BOM 结构而自动获得成本权限。", ["在组权限中选择工艺技术组。", "定位物料、工艺与设备分区。", "为 BOM 结构与版本配置必要动作。", "保持 BOM 成本关闭，除非岗位确需查看成本。"], "BOM 结构与版本和 BOM 成本是两个独立资源，工艺组可维护结构而不能读取成本。", FINE_GRAINED_PERMISSION_SCREENSHOT_BASELINE),
+            ("123-process-engineer-bom-workspace.png", "使用工艺岗位维护 BOM", "让工艺工程师只进入工艺相关页面并维护 BOM。", ["使用工艺工程师账号登录。", "进入物料 > BOM 设置。", "新建或选择 BOM 草稿，维护投入、产出与方案名称。", "核对左侧没有销售、系统设置和权限管理菜单。"], "工艺岗位可新建和维护 BOM，非工艺业务入口不会显示。", FINE_GRAINED_PERMISSION_SCREENSHOT_BASELINE),
+            ("124-warehouse-flow-transfer.png", "使用仓库岗位执行流程转移", "让仓库主管独立执行库位转移，不获得统计维护权限。", ["使用仓库主管账号登录。", "进入生产 > 流程转移。", "核对已有转移单并按需新建。", "确认账号没有统计分析维护入口。"], "流程转移按 flowTransfers 资源授权，可与 stats 统计权限分别控制。", FINE_GRAINED_PERMISSION_SCREENSHOT_BASELINE),
+            ("125-sales-customer-management.png", "使用销售岗位维护客户", "让销售跟单人员维护客户和履约资料，不进入员工或系统配置。", ["使用销售发运账号登录并切换 ERP。", "进入业务配置 > 客户资料。", "查询、新建或编辑客户。", "核对员工、AI、归档和权限管理入口不可见。"], "销售岗位可维护客户、订单、发货与退货，其他主数据和系统设置保持隔离。", FINE_GRAINED_PERMISSION_SCREENSHOT_BASELINE),
+            ("126-personnel-employee-management.png", "使用人事岗位维护员工", "把员工业务档案和其他业务主数据分开授权。", ["使用人事管理员账号登录并切换 MES。", "进入业务配置 > 员工资料。", "新建或编辑员工，并按需绑定登录账号。", "核对客户、库位、工艺和系统设置入口不可见。"], "人事岗位可维护员工与账号状态，但不会自动获得生产、销售或系统配置权限。", FINE_GRAINED_PERMISSION_SCREENSHOT_BASELINE),
+            ("127-ai-settings-readonly.png", "只读核对 AI 服务配置", "允许运维观察员查看 AI 配置状态而不能修改密钥或模型。", ["使用 AI 配置只读账号登录。", "进入系统设置 > AI 服务。", "核对启用开关、提供商、接口、模型和密钥状态。", "确认所有字段禁用，且没有保存、测试或图标调参按钮。"], "aiSettings 只读权限仅展示配置；页面动作和写接口均不可用。", FINE_GRAINED_PERMISSION_SCREENSHOT_BASELINE),
+            ("128-permission-admin-boundary.png", "使用权限管理员维护赋权", "把安全赋权职责与业务、系统运维职责分开。", ["使用权限管理员账号登录。", "进入账号与权限 > 组权限。", "维护权限组或人员赋权并保存。", "尝试进入企业规则、AI、数据工具等页面并确认被留在已授权页面。"], "权限管理员可维护人员赋权和组权限，但不会自动获得业务数据或系统配置权限。", FINE_GRAINED_PERMISSION_SCREENSHOT_BASELINE),
+            ("129-mobile-permission-admin.png", "在手机端核对权限组", "在窄屏设备上查看岗位组和权限矩阵。", ["将浏览器或手持终端调整到手机宽度。", "使用权限管理员账号进入组权限。", "选择目标岗位组并纵向浏览资源分区。", "涉及批量赋权时仍建议在桌面端完成并复核。"], "375 像素宽度下岗位组可选择、矩阵可阅读，底部导航不会遮挡当前内容。", FINE_GRAINED_PERMISSION_SCREENSHOT_BASELINE),
         ],
     ),
 ]
@@ -511,8 +526,8 @@ def add_cover(doc: Document) -> None:
     table.style = "Table Grid"
     rows = [
         ("交付版本", f"v{VERSION}"),
-        ("截图基线", "v0.1.350-v0.1.359 的 120 张真实页面流程截图"),
-        ("适用角色", "管理员、计划员、班组长、仓管、销售、质检和系统维护人员"),
+        ("截图基线", "v0.1.350-v0.1.360 的 129 张真实页面流程截图"),
+        ("适用角色", "管理员、计划员、班组长、工艺、仓管、销售、人事、质检和系统维护人员"),
         ("数据范围", "仅限本机 mes_lite_guide.db 临时演示数据"),
         ("编制日期", "2026-08-13"),
     ]
@@ -543,7 +558,7 @@ def add_front_matter(doc: Document, bullet_num_id: int) -> None:
         "归档、永久删除、库存调整、数据修复、权限修改和 AI 密钥配置仅限授权人员。",
         "业务员工和登录账号是两套对象：员工用于单据执行，账号用于登录；绑定账号不会自动授予权限。",
         "生产订单统一状态：草稿 -> 已发布 -> 生产中 -> 已完成，或在允许阶段取消。草稿不可登记实绩。",
-        "供应商批号、来料内部批次、生产投入、产出批次、客户发货、退货回流、质量判定与不合格处置已贯通；岗位任务和生产命令权限已落地但数据范围尚未完成；生产上线前仍须在服务器维护窗口完成备份、迁移、岗位权限和真实业务验收。",
+        "供应商批号、来料内部批次、生产投入、产出批次、客户发货、退货回流、质量判定与不合格处置已贯通；48 项细粒度资源、岗位任务和生产命令权限已落地，但数据范围尚未完成；生产上线前仍须在服务器维护窗口完成备份、迁移、岗位权限和真实业务验收。",
         "旧 Product 兼容入口和旧生产领料/报工/QC/入库接口不作为本指导书主流程；当前主流程使用 Material、已发布 BOM 和班后实绩。",
     ]
     for item in bullets:
@@ -705,11 +720,11 @@ def markdown_lines() -> Iterable[str]:
     yield "# MES-lite 全流程作业指导书"
     yield ""
     yield f"- 交付版本：v{VERSION}"
-    yield "- 截图基线：v0.1.350-v0.1.359（120 张真实页面流程截图）"
+    yield "- 截图基线：v0.1.350-v0.1.360（129 张真实页面流程截图）"
     yield "- 数据范围：隔离本地临时演示库，不含生产业务数据"
     yield "- 编制日期：2026-08-13"
     yield ""
-    yield "> 重要：供应商批号、来料内部批次、生产投入产出、客户发货、退货回流、质量判定、不合格处置和跨批次搜索全景已贯通；岗位任务台和四类生产命令权限已落地，但尚未包含部门、工作中心或库位数据范围；本机临时数据与截图不等于真实 Coolify 服务器已部署。"
+    yield "> 重要：供应商批号、来料内部批次、生产投入产出、客户发货、退货回流、质量判定、不合格处置和跨批次搜索全景已贯通；48 项细粒度资源、岗位任务台和四类生产命令权限已落地，但尚未包含本人、部门、工作中心或库位数据范围；本机临时数据与截图不等于真实 Coolify 服务器已部署。"
     yield ""
     yield "## 推荐业务顺序"
     yield ""

@@ -9,7 +9,7 @@ const restoreSchema = z.object({ model: archiveModelSchema, id: z.string().min(1
 
 export async function PATCH(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'update')
+    const denied = await requireResourcePermission('archive', 'update')
     if (denied) return denied
     const { model, id } = restoreSchema.parse(await req.json())
     const result = await restoreArchivedRecord(model, id)

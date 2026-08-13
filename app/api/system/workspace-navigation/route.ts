@@ -42,7 +42,7 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
-  const denied = await requireResourcePermission('system', 'update')
+  const denied = await requireResourcePermission('navigationSettings', 'update')
   if (denied) return denied
 
   try {

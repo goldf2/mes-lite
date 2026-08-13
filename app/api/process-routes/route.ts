@@ -13,7 +13,7 @@ import {
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const denied = await requireResourcePermission('system', 'read')
+  const denied = await requireResourcePermission('processRoutes', 'read')
   if (denied) return denied
   try {
     return NextResponse.json({ data: await listProcessRoutes() })
@@ -24,7 +24,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const denied = await requireResourcePermission('system', 'create')
+  const denied = await requireResourcePermission('processRoutes', 'create')
   if (denied) return denied
   try {
     const { product, route } = await createProcessRoute(processRouteInputSchema.parse(await req.json()))
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const denied = await requireResourcePermission('system', 'update')
+  const denied = await requireResourcePermission('processRoutes', 'update')
   if (denied) return denied
   try {
     const body = await req.json()

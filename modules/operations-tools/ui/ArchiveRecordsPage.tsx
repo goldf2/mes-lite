@@ -11,7 +11,7 @@ import type { ArchivedRecord } from '../contracts/maintenance'
 import { flattenArchivedRecords } from '../model/archive-records'
 import OperationsToolsToolbar from './OperationsToolsToolbar'
 
-export default function ArchiveRecordsPage({ onMessage }: { onMessage: (message: string) => void }) {
+export default function ArchiveRecordsPage({ onMessage, canUpdate, canDelete }: { onMessage: (message: string) => void; canUpdate: boolean; canDelete: boolean }) {
   const [records, setRecords] = useState<ArchivedRecord[]>([])
   const [loading, setLoading] = useState(false)
   const [purgingKey, setPurgingKey] = useState('')
@@ -74,10 +74,10 @@ export default function ArchiveRecordsPage({ onMessage }: { onMessage: (message:
 
   const actionsFor = (record: ArchivedRecord) => (
     <div className="flex flex-wrap gap-2">
-      <AppButton size="sm" onClick={() => restore(record)}>恢复归档</AppButton>
-      <AppButton size="sm" variant="danger" onClick={() => purge(record)} disabled={purgingKey === `${record.model}-${record.id}`}>
+      {canUpdate && <AppButton size="sm" onClick={() => restore(record)}>恢复归档</AppButton>}
+      {canDelete && <AppButton size="sm" variant="danger" onClick={() => purge(record)} disabled={purgingKey === `${record.model}-${record.id}`}>
         {purgingKey === `${record.model}-${record.id}` ? '删除中...' : '永久删除'}
-      </AppButton>
+      </AppButton>}
     </div>
   )
 

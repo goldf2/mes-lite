@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getCurrentOperator } from '@/lib/auth'
 import { writeAuditLog } from '@/lib/audit'
-import { requireResourcePermission } from '@/lib/permissions'
+import { requireAnyResourcePermission, requireResourcePermission } from '@/lib/permissions'
 import {
   inventoryLocationFieldsSchema,
   inventoryLocationIdSchema,
@@ -31,6 +31,10 @@ export async function GET(req: NextRequest) {
   try {
     if (!await getCurrentOperator()) return NextResponse.json({ error: '请先登录' }, { status: 401 })
     const includeInactive = new URL(req.url).searchParams.get('includeInactive') === '1'
+    const denied = includeInactive
+      ? await requireResourcePermission('locations', 'read')
+      : await requireAnyResourcePermission(['locations', 'materialIn', 'orders', 'productionActualEntry', 'stocks', 'shipment', 'return', 'flowTransfers'], 'read')
+    if (denied) return denied
     return NextResponse.json({ data: await listManagedInventoryLocations(includeInactive) })
   } catch (error) {
     return locationHttpError(error, '获取库位失败')
@@ -39,7 +43,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'update')
+    const denied = await requireResourcePermission('locations', 'create')
     if (denied) return denied
     const saved = await createManagedInventoryLocation(inventoryLocationFieldsSchema.parse(await req.json()))
     await writeAuditLog(req, {
@@ -54,7 +58,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'update')
+    const denied = await requireResourcePermission('locations', 'update')
     if (denied) return denied
     const { existing, saved } = await updateManagedInventoryLocation(inventoryLocationUpdateSchema.parse(await req.json()))
     await writeAuditLog(req, {
@@ -69,7 +73,7 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'delete')
+    const denied = await requireResourcePermission('locations', 'delete')
     if (denied) return denied
     const id = inventoryLocationIdSchema.parse(new URL(req.url).searchParams.get('id'))
     const { existing, saved } = await archiveManagedInventoryLocation(id)

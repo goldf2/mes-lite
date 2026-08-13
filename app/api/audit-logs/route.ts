@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
-    const denied = await requireResourcePermission('system', 'read')
+    const denied = await requireResourcePermission('auditLogs', 'read')
     if (denied) return denied
     const params = req.nextUrl.searchParams
     return NextResponse.json(await listAuditLogs({

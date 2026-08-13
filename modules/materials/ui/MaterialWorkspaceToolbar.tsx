@@ -23,6 +23,7 @@ export default function MaterialWorkspaceToolbar({
   onViewModeChange,
   onOpenPageOptions,
   onNewBom,
+  canCreateBom,
   onNewMaterial,
   onImport,
   onExport,
@@ -42,6 +43,7 @@ export default function MaterialWorkspaceToolbar({
   onViewModeChange: (value: ViewMode) => void
   onOpenPageOptions: () => void
   onNewBom: () => void
+  canCreateBom: boolean
   onNewMaterial: () => void
   onImport: () => void
   onExport: () => void
@@ -63,7 +65,7 @@ export default function MaterialWorkspaceToolbar({
         )}
         advancedSearch={<ResourceAdvancedSearch fields={bomFields} conditions={bomConditions} onChange={onBomConditionsChange} />}
         onOpenPageOptions={onOpenPageOptions}
-        actions={<AppButton variant="create" onClick={onNewBom}>新建 BOM</AppButton>}
+        actions={canCreateBom ? <AppButton variant="create" onClick={onNewBom}>新建 BOM</AppButton> : undefined}
       />
     )
   }
