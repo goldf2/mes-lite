@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      DATABASE_URL: file:${{ runner.temp }}/mes-lite-ci.db
+      DATABASE_URL: file:./mes-lite-ci.db
       NEXT_TELEMETRY_DISABLED: "1"
 
     steps:
