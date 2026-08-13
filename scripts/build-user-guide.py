@@ -323,7 +323,7 @@ def add_cover(doc: Document) -> None:
         ("截图基线", f"{SCREENSHOT_BASELINE_LABEL} 的 {WORKFLOW_COUNT} 张真实页面流程截图"),
         ("适用角色", "管理员、计划员、班组长、工艺、仓管、销售、人事、质检和系统维护人员"),
         ("数据范围", "业务页面使用隔离演示数据；恢复章节使用脱敏的生产候选演练证据"),
-        ("编制日期", "2026-08-13"),
+        ("编制日期", "2026-08-14"),
     ]
     for idx, (key, value) in enumerate(rows):
         table.cell(idx, 0).text = key
@@ -518,7 +518,7 @@ def markdown_lines() -> Iterable[str]:
     yield f"- 交付版本：v{VERSION}"
     yield f"- 截图基线：{SCREENSHOT_BASELINE_LABEL}（{WORKFLOW_COUNT} 张经验证流程截图）"
     yield "- 数据范围：业务流程使用隔离本地临时演示库；第 17 章使用真实 Coolify 运维配置和脱敏生产恢复候选演练证据，不展示生产业务明细、账号、密码或密钥"
-    yield "- 编制日期：2026-08-13"
+    yield "- 编制日期：2026-08-14"
     yield ""
     yield f"> 重要：{CATALOG['important']}"
     yield ""

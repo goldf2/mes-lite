@@ -1,6 +1,6 @@
 {
-  "version": "0.1.366",
+  "version": "0.1.367",
   "impact": "updated",
-  "workflowIds": ["141-application-recovery-drill"],
-  "summary": "新增生产恢复候选的隔离应用级演练，覆盖 readiness、登录、业务和附件原文件抽查。"
+  "workflowIds": ["60-archive-records"],
+  "summary": "归档列表、恢复和永久删除增加原业务资源权限与人员数据范围二次校验。"
 }

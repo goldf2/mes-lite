@@ -8,7 +8,7 @@ function appendRecords(
   readLabel: (item: RawArchivedRecord) => string,
 ) {
   for (const item of items || []) {
-    target.push({ id: item.id, label: readLabel(item), type, model, deletedAt: item.deletedAt })
+    target.push({ id: item.id, label: readLabel(item), type, model, deletedAt: item.deletedAt, canRestore: false, canPurge: false })
   }
 }
 
@@ -23,5 +23,9 @@ export function flattenArchivedRecords(data: ArchivedRecordsPayload): ArchivedRe
   appendRecords(records, data.dispatches, '派工单', 'dispatch', (item) => item.dispatchNo || '-')
   appendRecords(records, data.shipments, '发货单', 'shipment', (item) => item.shipmentNo || '-')
   appendRecords(records, data.returns, '退货单', 'return', (item) => item.returnNo || '-')
-  return records.sort((a, b) => String(b.deletedAt || '').localeCompare(String(a.deletedAt || '')))
+  return records.map((record) => ({
+    ...record,
+    canRestore: Boolean(data.modelActions?.[record.model]?.canRestore),
+    canPurge: Boolean(data.modelActions?.[record.model]?.canPurge),
+  })).sort((a, b) => String(b.deletedAt || '').localeCompare(String(a.deletedAt || '')))
 }

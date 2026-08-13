@@ -8,6 +8,7 @@ const checks = [
   'verify:permissions',
   'verify:role-task-http-permissions',
   'verify:fine-grained-http-permissions',
+  'verify:archive-resource-permissions',
   'verify:data-scopes',
   'verify:data-scope-http',
   'verify:production-quality-lots',

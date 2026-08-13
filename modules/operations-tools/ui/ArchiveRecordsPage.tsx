@@ -74,8 +74,8 @@ export default function ArchiveRecordsPage({ onMessage, canUpdate, canDelete }: 
 
   const actionsFor = (record: ArchivedRecord) => (
     <div className="flex flex-wrap gap-2">
-      {canUpdate && <AppButton size="sm" onClick={() => restore(record)}>恢复归档</AppButton>}
-      {canDelete && <AppButton size="sm" variant="danger" onClick={() => purge(record)} disabled={purgingKey === `${record.model}-${record.id}`}>
+      {canUpdate && record.canRestore && <AppButton size="sm" onClick={() => restore(record)}>恢复归档</AppButton>}
+      {canDelete && record.canPurge && <AppButton size="sm" variant="danger" onClick={() => purge(record)} disabled={purgingKey === `${record.model}-${record.id}`}>
         {purgingKey === `${record.model}-${record.id}` ? '删除中...' : '永久删除'}
       </AppButton>}
     </div>
@@ -86,7 +86,7 @@ export default function ArchiveRecordsPage({ onMessage, canUpdate, canDelete }: 
       <OperationsToolsToolbar viewMode={viewMode} onViewModeChange={setViewMode} actions={<AppButton onClick={fetchRecords}>刷新</AppButton>} />
       <div className="mb-6">
         <h3 className="text-lg font-semibold">归档记录</h3>
-        <p className="mt-1 text-sm text-gray-500">归档记录可以恢复；没有有效库存和下游业务引用时可永久删除并释放编码，完整红冲且净影响为零的来料历史会一并清理。</p>
+        <p className="mt-1 text-sm text-gray-500">列表只显示同时满足归档权限、原业务权限和人员数据范围的记录；恢复和永久删除还需对应动作权限，永久删除前会检查库存及下游业务引用。</p>
       </div>
 
       {effectiveViewMode === 'card' && records.length > 0 ? (

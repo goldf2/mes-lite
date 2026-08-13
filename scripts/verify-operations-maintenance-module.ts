@@ -7,7 +7,9 @@ const sourceRoot = process.cwd()
 const requiredFiles = [
   'modules/operations-tools/client/maintenance-api.ts',
   'modules/operations-tools/contracts/maintenance.ts',
+  'modules/operations-tools/domain/archive-resource-policy.ts',
   'modules/operations-tools/model/archive-records.ts',
+  'modules/operations-tools/server/archive-data-scope-service.ts',
   'modules/operations-tools/server/archived-record-purge-service.ts',
   'modules/operations-tools/server/archived-record-restore-service.ts',
   'modules/operations-tools/server/data-integrity-service.ts',

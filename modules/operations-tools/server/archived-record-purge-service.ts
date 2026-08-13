@@ -1,4 +1,6 @@
 import { prisma } from '@/lib/prisma'
+import { unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
+import { assertArchivedRecordDataScope } from './archive-data-scope-service'
 import { SOFT_DELETE_MODELS, SoftDeleteModelKey } from './soft-delete-models'
 
 const attachmentOwnerTypes: Partial<Record<SoftDeleteModelKey, string>> = {
@@ -118,7 +120,12 @@ function hasNonZeroMovementTotal(logs: Array<{
   return Object.values(totals).some((value) => Math.abs(value) > zeroTolerance)
 }
 
-export async function purgeArchivedRecord(model: SoftDeleteModelKey, id: string) {
+export async function purgeArchivedRecord(
+  model: SoftDeleteModelKey,
+  id: string,
+  scope: EffectiveDataScope = unrestrictedDataScope,
+) {
+  await assertArchivedRecordDataScope(model, id, scope)
   return prisma.$transaction(async (tx) => {
     const config = SOFT_DELETE_MODELS[model]
     const delegate: any = (tx as any)[model === 'order'

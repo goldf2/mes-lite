@@ -1,5 +1,7 @@
 import type { ArchiveModel } from '../contracts/maintenance'
 import { prisma } from '@/lib/prisma'
+import { unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
+import { assertArchivedRecordDataScope } from './archive-data-scope-service'
 import { SOFT_DELETE_MODELS } from './soft-delete-models'
 
 export class ArchivedRecordRestoreError extends Error {
@@ -9,7 +11,12 @@ export class ArchivedRecordRestoreError extends Error {
   }
 }
 
-export async function restoreArchivedRecord(model: ArchiveModel, id: string) {
+export async function restoreArchivedRecord(
+  model: ArchiveModel,
+  id: string,
+  scope: EffectiveDataScope = unrestrictedDataScope,
+) {
+  await assertArchivedRecordDataScope(model, id, scope)
   const config = SOFT_DELETE_MODELS[model]
   if (model === 'materialIn') {
     return prisma.$transaction(async (tx) => {

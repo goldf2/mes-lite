@@ -46,6 +46,7 @@ export interface ArchivedRecordsPayload {
   dispatches?: RawArchivedRecord[]
   shipments?: RawArchivedRecord[]
   returns?: RawArchivedRecord[]
+  modelActions?: Partial<Record<ArchiveModel, { canRestore: boolean; canPurge: boolean }>>
 }
 
 export interface ArchivedRecord {
@@ -54,6 +55,8 @@ export interface ArchivedRecord {
   type: string
   model: ArchiveModel
   deletedAt?: string | null
+  canRestore: boolean
+  canPurge: boolean
 }
 
 export interface AuditLogRecord {
