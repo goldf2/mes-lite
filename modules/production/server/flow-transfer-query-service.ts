@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client'
 import { withMaterialImageUrls } from '@/lib/attachment-urls'
 import { prisma } from '@/lib/prisma'
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
+import { flowTransferDataScopeWhere, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 
 export const flowTransferInclude = {
   material: { select: { id: true, code: true, name: true, spec: true, category: true, stockUnit: true, unit: true } },
@@ -10,8 +11,8 @@ export const flowTransferInclude = {
   employee: { select: { id: true, code: true, name: true, department: true, isActive: true } },
 } satisfies Prisma.FlowTransferInclude
 
-export async function loadManagedFlowTransferWorkspace(input: { keyword?: string | null; status?: string | null }) {
-  const where: Prisma.FlowTransferWhereInput = {}
+export async function loadManagedFlowTransferWorkspace(input: { keyword?: string | null; status?: string | null }, scope: EffectiveDataScope = unrestrictedDataScope) {
+  const where: Prisma.FlowTransferWhereInput = flowTransferDataScopeWhere(scope)
   if (input.status && input.status !== 'ALL') where.status = input.status
   const keywordFilters = tokenizeKeywordQuery(input.keyword?.trim() || '').map((token) => ({ OR: [
     { transferNo: { contains: token } },
@@ -32,13 +33,14 @@ export async function loadManagedFlowTransferWorkspace(input: { keyword?: string
       select: {
         id: true, code: true, name: true, spec: true, category: true, stockUnit: true, unit: true,
         stock: { select: { qty: true, availableQty: true, locationBalances: {
+          where: scope.inventoryMode === 'LOCATIONS' ? { locationId: { in: scope.locationIds } } : undefined,
           select: { locationId: true, qty: true, reservedQty: true, availableQty: true },
         } } },
       },
       orderBy: [{ category: 'asc' }, { code: 'asc' }], take: 1000,
     }),
     prisma.inventoryLocation.findMany({
-      where: { isActive: true, deletedAt: null },
+      where: { isActive: true, deletedAt: null, ...(scope.inventoryMode === 'LOCATIONS' ? { id: { in: scope.locationIds } } : {}) },
       select: { id: true, code: true, name: true, isDefault: true },
       orderBy: [{ isDefault: 'desc' }, { code: 'asc' }],
     }),
@@ -62,7 +64,18 @@ export async function loadManagedFlowTransferWorkspace(input: { keyword?: string
     transfers,
     materials: materials.map((material) => {
       const image = primaryImageByMaterial.get(material.id)
-      return { ...material, primaryImage: image ? withMaterialImageUrls(image) : null }
+      const locationBalances = material.stock?.locationBalances || []
+      return {
+        ...material,
+        stock: material.stock ? {
+          ...material.stock,
+          ...(scope.inventoryMode === 'LOCATIONS' ? {
+            qty: locationBalances.reduce((total, balance) => total + Number(balance.qty), 0),
+            availableQty: locationBalances.reduce((total, balance) => total + Number(balance.availableQty), 0),
+          } : {}),
+        } : null,
+        primaryImage: image ? withMaterialImageUrls(image) : null,
+      }
     }),
     locations,
     employees,

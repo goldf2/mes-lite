@@ -103,6 +103,7 @@ export async function registerOperator(input: RegisterInput) {
     data: {
       username: input.username, passwordHash: hashPassword(input.password), name: input.name,
       phone: input.phone || undefined, role: 'OPERATOR', status: 'PENDING',
+      dataScope: { create: { productionMode: 'SELF', inventoryMode: 'LOCATIONS' } },
     },
     select: operatorPublicSelect,
   })
@@ -178,6 +179,7 @@ export async function resolveWeChatOperator(profile: WeChatUserProfile) {
           username, passwordHash: hashPassword(randomBytes(24).toString('hex')),
           name: profile.nickname || `微信用户${profile.openid.slice(-6)}`,
           role: 'OPERATOR', status: 'PENDING',
+          dataScope: { create: { productionMode: 'SELF', inventoryMode: 'LOCATIONS' } },
         },
       })
       return tx.operatorAuthAccount.create({

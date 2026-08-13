@@ -21,7 +21,7 @@ export async function listMaterialInRecords(params: URLSearchParams) {
 }
 
 export async function listReceivingLocations() {
-  return requestJson<{ data: InventoryLocationOption[] }>('/api/inventory-locations', undefined, '获取库位失败')
+  return requestJson<{ data: InventoryLocationOption[] }>('/api/inventory-locations?context=material-in', undefined, '获取库位失败')
 }
 
 export async function listReceivingCustomers() {

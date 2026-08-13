@@ -5,11 +5,13 @@ import type { ReverseFlowTransferInput } from '../contracts/flow-transfer-schema
 import { FlowTransferDomainError, runFlowTransferDomainOperation } from '../domain/flow-transfer-errors'
 import { flowTransferTransitionError } from '../domain/flow-transfer-status'
 import { flowTransferInclude } from './flow-transfer-query-service'
+import { assertInventoryLocationDataScope, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 
-export async function confirmManagedFlowTransfer(id: string, confirmedBy: string, now = new Date()) {
+export async function confirmManagedFlowTransfer(id: string, confirmedBy: string, now = new Date(), scope: EffectiveDataScope = unrestrictedDataScope) {
   return runFlowTransferDomainOperation(() => prisma.$transaction(async (tx) => {
     const current = await tx.flowTransfer.findUnique({ where: { id }, include: flowTransferInclude })
     if (!current) throw new FlowTransferDomainError('流程转移记录不存在', 404)
+    assertInventoryLocationDataScope(scope, [current.sourceLocationId, current.targetLocationId])
     const statusError = flowTransferTransitionError(current.status, 'confirm')
     if (statusError) throw new FlowTransferDomainError(statusError)
     const moved = await postInventoryLocationTransfer(tx, {
@@ -43,10 +45,12 @@ export async function reverseManagedFlowTransfer(
   input: ReverseFlowTransferInput,
   reversedBy: string,
   now = new Date(),
+  scope: EffectiveDataScope = unrestrictedDataScope,
 ) {
   return runFlowTransferDomainOperation(() => prisma.$transaction(async (tx) => {
     const current = await tx.flowTransfer.findUnique({ where: { id }, include: flowTransferInclude })
     if (!current) throw new FlowTransferDomainError('流程转移记录不存在', 404)
+    assertInventoryLocationDataScope(scope, [current.sourceLocationId, current.targetLocationId])
     const statusError = flowTransferTransitionError(current.status, 'reverse')
     if (statusError) throw new FlowTransferDomainError(statusError)
     const moved = await postInventoryLocationTransfer(tx, {

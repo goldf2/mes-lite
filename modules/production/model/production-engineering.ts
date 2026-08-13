@@ -15,7 +15,7 @@ export const emptyProcessTemplateForm = (): ProcessTemplateForm => ({
 })
 
 export const emptyProcessStep = (): ProcessStepForm => ({
-  stepNo: 1, name: '', defaultTime: 0, workstation: '', description: '', templateId: '', templateCode: '',
+  stepNo: 1, name: '', defaultTime: 0, workstation: '', workCenterId: '', description: '', templateId: '', templateCode: '',
   standardBatchQty: 1000, setupTimeMinutes: 0, cycleTimeSeconds: 0, peopleCount: 1, laborRatePerHour: 0,
   machineCount: 1, machineRatePerHour: 0, energyCostPerHour: 0, consumableCostPerBatch: 0, yieldRate: 1,
 })

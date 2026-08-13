@@ -3,6 +3,7 @@ import PDFDocument from 'pdfkit'
 import { getSystemSettings, type SystemSettings } from '@/lib/system-settings'
 import { SalesDomainError } from '../domain/sales-errors'
 import { getShipmentDeliveryNoteSource } from './fulfillment-query-service'
+import { unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 
 const FONT_PATHS = [
   process.env.PDF_FONT_PATH,
@@ -121,8 +122,8 @@ async function renderDeliveryNotePdf(shipment: DeliveryNoteShipment, settings: S
   })
 }
 
-export async function createShipmentDeliveryNote(id: string) {
-  const [shipment, settings] = await Promise.all([getShipmentDeliveryNoteSource(id), getSystemSettings()])
+export async function createShipmentDeliveryNote(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
+  const [shipment, settings] = await Promise.all([getShipmentDeliveryNoteSource(id, scope), getSystemSettings()])
   if (!['SHIPPED', 'DELIVERED'].includes(shipment.status)) throw new SalesDomainError('确认发货后才能下载发货单 PDF')
   if (!settings.companyName.trim()) throw new SalesDomainError('请先在系统设置填写发货单乙方企业名称')
   return {

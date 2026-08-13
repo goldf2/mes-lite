@@ -142,6 +142,10 @@ async function main() {
       username: 'worker', password: 'worker-secret', name: '操作员',
     }))
     assert.deepEqual([registered.role, registered.status], ['OPERATOR', 'PENDING'])
+    assert.deepEqual(await prisma.operatorDataScope.findUnique({
+      where: { operatorId: registered.id },
+      select: { productionMode: true, inventoryMode: true },
+    }), { productionMode: 'SELF', inventoryMode: 'LOCATIONS' })
     await rejectedAuthentication(
       () => registerOperator(registerInputSchema.parse({ username: 'worker', password: 'worker-secret', name: '重复' })),
       400,
@@ -185,6 +189,10 @@ async function main() {
 
     const wechat = await resolveWeChatOperator({ openid: 'openid-verify', nickname: '微信验证员', rawData: { safe: true } })
     assert.deepEqual([wechat.operator.role, wechat.operator.status], ['OPERATOR', 'PENDING'])
+    assert.deepEqual(await prisma.operatorDataScope.findUnique({
+      where: { operatorId: wechat.operator.id },
+      select: { productionMode: true, inventoryMode: true },
+    }), { productionMode: 'SELF', inventoryMode: 'LOCATIONS' })
     assert.equal((await resolveWeChatOperator({ openid: 'openid-verify', nickname: '更新昵称' })).operator.id, wechat.operator.id)
     assert.equal(await prisma.operatorAuthAccount.count(), 1)
     console.log('身份认证服务验证通过：显式管理员安装、默认关闭注册、登录锁定、请求限流、同源校验、安全 Cookie 与微信待审均通过。')

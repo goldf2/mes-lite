@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { EffectiveDataScope } from '../modules/identity-access'
 
 const root = process.cwd()
 const read = (path: string) => readFileSync(join(root, path), 'utf8')
@@ -95,9 +96,10 @@ async function main() {
     verifyStaticBoundaries(createMaterialInSchema)
     const fixedNow = new Date('2026-08-10T08:00:00.000Z')
     const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`
-    const [supplier, location, material, secondMaterial] = await Promise.all([
+    const [supplier, location, otherLocation, material, secondMaterial] = await Promise.all([
       prisma.supplier.create({ data: { code: `VERIFY-SUP-${suffix}`, name: `验证供应商 ${suffix}` } }),
       prisma.inventoryLocation.create({ data: { code: `VERIFY-IN-${suffix}`, name: `验证收货位 ${suffix}`, isDefault: true } }),
+      prisma.inventoryLocation.create({ data: { code: `VERIFY-IN-X-${suffix}`, name: `验证其他收货位 ${suffix}` } }),
       prisma.material.create({
         data: {
           code: `VERIFY-RAW-${suffix}`, name: `验证铝材 ${suffix}`, unit: 'm', stockUnit: 'm', valuationUnit: 'kg',
@@ -273,6 +275,22 @@ async function main() {
       (await loadMaterialInConversionHistory(historyMaterial.id)).sampleCount,
       3,
       '历史推算记录不得反向污染实测样本',
+    )
+    const externalReceipt = await createMaterialIns(createMaterialInSchema.parse({
+      supplierId: supplier.id, materialId: historyMaterial.id, locationId: otherLocation.id,
+      qty: 10, valuationQty: 100, unitPrice: 0, priceUnit: 'm', priceBasis: 'STOCK',
+    }), fixedNow)
+    await receiveManagedMaterialIn(externalReceipt.first.id, '其他库位收货员')
+    const locationScope: EffectiveDataScope = {
+      operatorId: 'receiving-scope', employeeId: null, employeeCode: null,
+      productionMode: 'ALL', inventoryMode: 'LOCATIONS',
+      workCenterIds: [], locationIds: [location.id], inheritedLegacyDefault: false,
+    }
+    const scopedHistory = await loadMaterialInConversionHistory(historyMaterial.id, locationScope)
+    assert.deepEqual(
+      [scopedHistory.sampleCount, scopedHistory.rate],
+      [3, 1.933333],
+      '历史换算只能聚合当前账号授权库位的实测样本',
     )
 
     assert.equal(isMaterialInCostLayerUntouched({

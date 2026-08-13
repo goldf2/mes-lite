@@ -45,6 +45,22 @@ export interface PermissionOperator {
   name: string
   role: 'OPERATOR' | 'AUDITOR' | 'ADMIN'
   status: 'PENDING' | 'ACTIVE' | 'REJECTED' | 'DISABLED'
+  employee?: { id: string; code: string; name: string; department?: string | null; isActive: boolean } | null
+}
+
+export interface PermissionScopeOption {
+  id: string
+  code: string
+  name: string
+}
+
+export interface OperatorDataScopeSetting {
+  operatorId: string
+  productionMode: 'ALL' | 'SELF' | 'WORK_CENTERS'
+  inventoryMode: 'ALL' | 'LOCATIONS'
+  workCenterIds: string[]
+  locationIds: string[]
+  inheritedLegacyDefault?: boolean
 }
 
 export interface OperatorPermissionGroup {
@@ -53,12 +69,27 @@ export interface OperatorPermissionGroup {
   groupId: string
 }
 
+export interface OperatorPermissionOverrideSetting extends PermissionFlags {
+  id: string
+  operatorId: string
+  resource: string
+  reason?: string | null
+  grantedBy?: string | null
+  startsAt?: string | null
+  expiresAt?: string | null
+  legacyPermanent: boolean
+}
+
 export interface PermissionAdministrationData {
   resources: PermissionResourceItem[]
   actions: PermissionActionItem[]
   operators: PermissionOperator[]
   groups: PermissionGroup[]
   operatorGroups: OperatorPermissionGroup[]
+  operatorPermissionOverrides: OperatorPermissionOverrideSetting[]
+  operatorDataScopes: OperatorDataScopeSetting[]
+  workCenters: PermissionScopeOption[]
+  locations: PermissionScopeOption[]
 }
 
 const groupSettingSchema = z.object({
@@ -75,10 +106,34 @@ const operatorGroupSchema = z.object({
   groupIds: z.array(z.string()),
 })
 
+const operatorDataScopeSchema = z.object({
+  operatorId: z.string().min(1),
+  productionMode: z.enum(['ALL', 'SELF', 'WORK_CENTERS']),
+  inventoryMode: z.enum(['ALL', 'LOCATIONS']),
+  workCenterIds: z.array(z.string()),
+  locationIds: z.array(z.string()),
+})
+
+const operatorPermissionOverrideSchema = z.object({
+  action: z.enum(['UPSERT', 'DELETE']),
+  operatorId: z.string().min(1),
+  resource: z.string().min(1),
+  canRead: z.boolean().optional(),
+  canCreate: z.boolean().optional(),
+  canUpdate: z.boolean().optional(),
+  canDelete: z.boolean().optional(),
+  canGrant: z.boolean().optional(),
+  reason: z.string().trim().max(500).optional(),
+  startsAt: z.string().datetime().optional(),
+  expiresAt: z.string().datetime().optional(),
+})
+
 export const updatePermissionsSchema = z.object({
   groupId: z.string().optional(),
   groupSettings: z.array(groupSettingSchema).optional(),
   operatorGroups: z.array(operatorGroupSchema).optional(),
+  operatorDataScopes: z.array(operatorDataScopeSchema).optional(),
+  operatorPermissionOverrides: z.array(operatorPermissionOverrideSchema).optional(),
 })
 
 export const createPermissionGroupSchema = z.object({

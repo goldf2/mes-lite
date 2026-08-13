@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
+import { unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 
 export type SalesOrderQuery = {
   statuses: string[]
@@ -79,7 +80,10 @@ export async function getSalesOrderOptions() {
   return { customers, materials }
 }
 
-export async function listShippableSalesOrderItems() {
+export async function listShippableSalesOrderItems(scope: EffectiveDataScope = unrestrictedDataScope) {
+  const locationBalanceWhere = scope.inventoryMode === 'LOCATIONS'
+    ? { locationId: { in: scope.locationIds } }
+    : undefined
   const [items, customers, materials] = await Promise.all([
     prisma.salesOrderItem.findMany({
       where: {
@@ -91,7 +95,11 @@ export async function listShippableSalesOrderItems() {
         material: {
           select: {
             id: true, code: true, name: true, spec: true, category: true, stockUnit: true, unit: true,
-            stock: { select: { availableQty: true, locationBalances: { select: { locationId: true, availableQty: true } } } },
+            stock: {
+              select: {
+                locationBalances: { where: locationBalanceWhere, select: { locationId: true, availableQty: true } },
+              },
+            },
           },
         },
         shipments: { where: { status: 'PENDING', deletedAt: null }, select: { qty: true } },
@@ -107,7 +115,11 @@ export async function listShippableSalesOrderItems() {
       select: {
         id: true, code: true, name: true, spec: true, stockUnit: true, unit: true,
         defaultSalePrice: true, salesCurrency: true,
-        stock: { select: { locationBalances: { select: { locationId: true, availableQty: true } } } },
+        stock: {
+          select: {
+            locationBalances: { where: locationBalanceWhere, select: { locationId: true, availableQty: true } },
+          },
+        },
       },
     }),
   ])

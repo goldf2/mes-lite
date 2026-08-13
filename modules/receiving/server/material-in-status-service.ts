@@ -6,6 +6,7 @@ import type { ReverseMaterialInInput } from '../contracts/material-in-schema'
 import { MaterialInDomainError, runMaterialInDomainOperation } from '../domain/material-in-errors'
 import { calculateMaterialInReversal, isMaterialInCostLayerUntouched } from '../domain/material-in-reversal'
 import { materialReceiptInclude, toMaterialInRecord } from './material-in-service'
+import { assertInventoryLocationDataScope, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 
 async function loadReceipt(tx: Prisma.TransactionClient, id: string) {
   const receipt = await tx.materialReceipt.findUnique({ where: { id }, include: materialReceiptInclude() })
@@ -14,9 +15,10 @@ async function loadReceipt(tx: Prisma.TransactionClient, id: string) {
   return receipt
 }
 
-export async function receiveManagedMaterialIn(id: string, receivedBy: string) {
+export async function receiveManagedMaterialIn(id: string, receivedBy: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   return runMaterialInDomainOperation(() => prisma.$transaction(async (tx) => {
     const current = await loadReceipt(tx, id)
+    assertInventoryLocationDataScope(scope, [current.stagingLocationId])
     if (current.status !== 'PENDING') throw new MaterialInDomainError('来料单状态不是待收货，无法确认收货')
     if (current.lines.some((line) => line.material.deletedAt)) throw new MaterialInDomainError('来料单包含已归档物料，无法确认收货')
 
@@ -76,9 +78,10 @@ export async function receiveManagedMaterialIn(id: string, receivedBy: string) {
   }))
 }
 
-export async function rejectManagedMaterialIn(id: string) {
+export async function rejectManagedMaterialIn(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   return runMaterialInDomainOperation(() => prisma.$transaction(async (tx) => {
     const current = await loadReceipt(tx, id)
+    assertInventoryLocationDataScope(scope, [current.stagingLocationId])
     if (current.status !== 'PENDING') throw new MaterialInDomainError('来料单状态不是待收货，无法拒收')
     await tx.materialIn.updateMany({ where: { receiptId: id }, data: { status: 'REJECTED' } })
     const updated = await tx.materialReceipt.update({
@@ -207,9 +210,10 @@ async function reverseMaterialInLine(
   }
 }
 
-export async function reverseManagedMaterialIn(id: string, input: ReverseMaterialInInput, reversedBy: string) {
+export async function reverseManagedMaterialIn(id: string, input: ReverseMaterialInInput, reversedBy: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   return runMaterialInDomainOperation(() => prisma.$transaction(async (tx) => {
     const current = await loadReceipt(tx, id)
+    assertInventoryLocationDataScope(scope, [current.stagingLocationId])
     if (current.status !== 'RECEIVED') throw new MaterialInDomainError('只有已收货来料单可以红冲')
     for (const line of current.lines) await reverseMaterialInLine(tx, line, current.inboundNo, input, reversedBy)
 

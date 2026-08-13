@@ -57,6 +57,7 @@ for (const routePath of attachmentRoutePaths) {
 }
 assert.match(attachmentAuthorizationSource, /hasResourcePermission/, '附件鉴权必须同时复用统一资源权限')
 assert.match(attachmentAuthorizationSource, /attachmentOwnerExists/, '附件鉴权必须验证所属业务对象真实存在')
+assert.match(attachmentAuthorizationSource, /loadEffectiveDataScope/, '附件鉴权必须校验所属业务对象的数据范围')
 assert.match(attachmentAuthorizationSource, /uploadedBy !== operator\.id/, '暂存附件必须限制为当前登录人员所有')
 assert.match(middlewareSource, /pathname\.startsWith\('\/uploads\/'\)/, '静态上传目录必须禁止绕过附件 API 直接读取')
 assert.match(middlewareSource, /'\/uploads\/:path\*'/, 'Middleware 必须覆盖静态上传目录')
@@ -133,6 +134,29 @@ async function verifyAttachmentLifecycle() {
       () => authorization.requireManagedAttachmentOwnerAccessForOperator(admin, 'MATERIAL', 'missing-material', 'read'),
       (error: unknown) => error instanceof AttachmentDomainError && error.status === 404,
       '不存在的业务对象不得挂载附件',
+    )
+
+    const [allowedLocation, blockedLocation] = await Promise.all([
+      prisma.inventoryLocation.create({ data: { code: 'ATTACH-LOC-A', name: '附件授权库位' } }),
+      prisma.inventoryLocation.create({ data: { code: 'ATTACH-LOC-B', name: '附件未授权库位' } }),
+    ])
+    const supplier = await prisma.supplier.create({ data: { code: 'ATTACH-SUP', name: '附件供应商' } })
+    const scopedOperator = await prisma.operator.create({ data: {
+      username: 'attachment-scoped', passwordHash: 'verification-only', name: '附件范围员', role: 'OPERATOR', status: 'ACTIVE',
+      dataScope: { create: {
+        productionMode: 'SELF', inventoryMode: 'LOCATIONS',
+        locations: { create: { locationId: allowedLocation.id } },
+      } },
+    } })
+    const [allowedReceipt, blockedReceipt] = await Promise.all([
+      prisma.materialReceipt.create({ data: { inboundNo: 'ATTACH-IN-A', supplierId: supplier.id, stagingLocationId: allowedLocation.id } }),
+      prisma.materialReceipt.create({ data: { inboundNo: 'ATTACH-IN-B', supplierId: supplier.id, stagingLocationId: blockedLocation.id } }),
+    ])
+    await authorization.requireManagedAttachmentOwnerAccessForOperator(scopedOperator, 'MATERIAL_IN', allowedReceipt.id, 'read')
+    await assert.rejects(
+      () => authorization.requireManagedAttachmentOwnerAccessForOperator(scopedOperator, 'MATERIAL_IN', blockedReceipt.id, 'read'),
+      (error: unknown) => error instanceof AttachmentDomainError && error.status === 404,
+      '即使拥有来料和附件功能权限，也不得读取未授权库位的附件',
     )
 
     const uploaded = await command.uploadManagedAttachment({
@@ -221,7 +245,7 @@ async function verifyAttachmentLifecycle() {
     assert.equal((await command.discardManagedDraftAttachments({ ownerType: 'MATERIAL_IN', draftOwnerId: 'draft-discard' }, 'operator-1')).count, 1)
     await assert.rejects(access(discardPath), '取消新建必须同时清理暂存文件')
 
-    console.log('附件管理验证通过：公共客户端、薄 API、上传、旋转、封面、归档与草稿生命周期均符合模块边界。')
+    console.log('附件管理验证通过：功能权限、所属单据数据范围、上传、归档与草稿生命周期均符合模块边界。')
   } finally {
     await prisma.$disconnect()
     await rm(verifyRoot, { recursive: true, force: true })

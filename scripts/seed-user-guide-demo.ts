@@ -114,9 +114,9 @@ async function main() {
       isDefault: true,
       sortOrder: 10,
       steps: { create: [
-        { stepNo: 10, name: '冷镦成型', workstation: '一号冷镦机', standardBatchQty: 1000, setupTimeMinutes: 30, cycleTimeSeconds: 1.2 },
-        { stepNo: 20, name: '滚丝', workstation: '滚丝区', standardBatchQty: 1000, setupTimeMinutes: 20, cycleTimeSeconds: 0.9 },
-        { stepNo: 30, name: '终检包装', workstation: '包装中心', standardBatchQty: 1000, setupTimeMinutes: 10, cycleTimeSeconds: 0.5 },
+        { stepNo: 10, name: '冷镦成型', workstation: '一号冷镦机', workCenterId: formingCenter.id, standardBatchQty: 1000, setupTimeMinutes: 30, cycleTimeSeconds: 1.2 },
+        { stepNo: 20, name: '滚丝', workstation: '滚丝区', workCenterId: formingCenter.id, standardBatchQty: 1000, setupTimeMinutes: 20, cycleTimeSeconds: 0.9 },
+        { stepNo: 30, name: '终检包装', workstation: '包装中心', workCenterId: packingCenter.id, standardBatchQty: 1000, setupTimeMinutes: 10, cycleTimeSeconds: 0.5 },
       ] },
     },
     include: { steps: true },
@@ -247,7 +247,7 @@ async function main() {
   await createManagedDispatch({
     orderId: releasedOrder.first.id,
     stepId: route.steps[0].id,
-    workerName: employee.name,
+    employeeId: employee.id,
     planQty: 3000,
     priority: 'HIGH',
     voucherNo: 'DP-DEMO-001',
@@ -369,6 +369,25 @@ async function main() {
     assignGroups(personnelOperator.id, ['base_access', 'personnel_manager']),
     assignGroups(permissionOperator.id, ['base_access', 'permission_admin']),
     prisma.operatorPermissionGroup.create({ data: { operatorId: aiObserverOperator.id, groupId: aiObserverGroup.id } }),
+  ])
+  await Promise.all([
+    prisma.operatorDataScope.create({ data: {
+      operatorId: operator.id, productionMode: 'SELF', inventoryMode: 'LOCATIONS',
+      locations: { create: [{ locationId: rawLocation.id }, { locationId: wipLocation.id }] },
+    } }),
+    prisma.operatorDataScope.create({ data: {
+      operatorId: leadOperator.id, productionMode: 'WORK_CENTERS', inventoryMode: 'ALL',
+      workCenters: { create: [{ workCenterId: formingCenter.id }, { workCenterId: packingCenter.id }] },
+    } }),
+    prisma.operatorDataScope.create({ data: {
+      operatorId: warehouseOperator.id, productionMode: 'ALL', inventoryMode: 'LOCATIONS',
+      locations: { create: [{ locationId: waiting.id }, { locationId: rawLocation.id }, { locationId: finishedLocation.id }, { locationId: returnLocation.id }] },
+    } }),
+    prisma.operatorPermissionOverride.create({ data: {
+      operatorId: operator.id, resource: 'quality', canRead: true,
+      reason: '临时协助首件检验记录复核', grantedBy: admin.id,
+      startsAt: fixedNow, expiresAt: new Date('2026-08-20T18:00:00+08:00'),
+    } }),
   ])
 
   await prisma.scanCountSession.create({

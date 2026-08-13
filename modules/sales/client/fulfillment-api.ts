@@ -45,7 +45,7 @@ export function transitionShipment(id: string, action: 'ship' | 'deliver') {
 export async function loadShipmentCreateOptions() {
   const [items, locations] = await Promise.all([
     request<ShippableSalesItem[]>('/api/sales-orders/shippable'),
-    request<InventoryLocationOption[]>('/api/inventory-locations'),
+    request<InventoryLocationOption[]>('/api/inventory-locations?context=shipment'),
   ])
   return {
     items: items.data || [],
@@ -75,7 +75,7 @@ export async function loadReturnOptions() {
   const [customers, products, locations, shipments] = await Promise.all([
     request<FulfillmentCustomer[]>('/api/customers'),
     request<ReturnMaterialOption[]>('/api/products'),
-    request<InventoryLocationOption[]>('/api/inventory-locations'),
+    request<InventoryLocationOption[]>('/api/inventory-locations?context=return'),
     request<ReturnShipmentOption[]>('/api/returns/options'),
   ])
   return {

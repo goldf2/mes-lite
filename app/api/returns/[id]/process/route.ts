@@ -5,6 +5,7 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { processReturnSchema } from '@/modules/sales/contracts/fulfillment-schema'
 import { SalesDomainError } from '@/modules/sales/domain/sales-errors'
 import { processManagedReturn } from '@/modules/sales/server/fulfillment-status-service'
+import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -13,11 +14,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     processReturnSchema.parse(await req.json().catch(() => ({})))
     const operator = await getCurrentOperator()
     if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
-    await processManagedReturn(params.id, operatorDisplayName(operator))
+    await processManagedReturn(params.id, operatorDisplayName(operator), await loadEffectiveDataScope(operator))
     return NextResponse.json({ success: true, message: '退货处理成功' })
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
     if (error instanceof SalesDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Process return error:', error)
     return NextResponse.json({ error: '处理退货失败' }, { status: 500 })
   }

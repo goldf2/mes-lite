@@ -10,12 +10,13 @@ import {
 } from '@/modules/production/server/production-order-command-service'
 import { ProductionOrderDomainError } from '@/modules/production/domain/production-order-errors'
 import { listProductionOrders } from '@/modules/production/server/production-order-query-service'
+import { getCurrentOperator } from '@/lib/auth'
+import { assertProductionOrderIdDataScope, DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
 
 export async function POST(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('orders', 'create')
     if (denied) return denied
-
     const result = await createProductionOrders(createProductionOrderSchema.parse(await req.json()))
 
     return NextResponse.json({
@@ -38,6 +39,8 @@ export async function GET(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('orders', 'read')
     if (denied) return denied
+    const operator = await getCurrentOperator()
+    if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
 
     const { searchParams } = new URL(req.url)
     const statuses = parseStatusFilter(searchParams)
@@ -47,7 +50,7 @@ export async function GET(req: NextRequest) {
       customerId: searchParams.get('customerId'),
       page: Number(searchParams.get('page') ?? '1'),
       pageSize: Number(searchParams.get('pageSize') ?? '20'),
-    })
+    }, await loadEffectiveDataScope(operator))
     return NextResponse.json({ data: result.items, pagination: result.pagination })
   } catch (error) {
     console.error('Get orders error:', error)
@@ -63,6 +66,9 @@ export async function DELETE(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: '缺少生产订单 ID' }, { status: 400 })
+    const operator = await getCurrentOperator()
+    if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
+    await assertProductionOrderIdDataScope(await loadEffectiveDataScope(operator), id)
 
     const { current, updated } = await archiveProductionOrder(id)
 
@@ -78,6 +84,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ success: true, message: '生产订单已归档，可在归档记录中恢复' })
   } catch (error) {
     if (error instanceof ProductionOrderDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Archive order error:', error)
     return NextResponse.json({ error: '归档生产订单失败' }, { status: 500 })
   }

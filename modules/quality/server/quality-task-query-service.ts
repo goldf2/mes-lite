@@ -1,9 +1,10 @@
 import { prisma } from '@/lib/prisma'
 import type { QualityTaskFilter } from '../contracts/quality-task'
+import { qualityInspectionDataScopeWhere, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 
 const tolerance = 0.000001
 
-export async function listQualityTaskWorkspace(input: { keyword?: string; filter: QualityTaskFilter }) {
+export async function listQualityTaskWorkspace(input: { keyword?: string; filter: QualityTaskFilter }, scope: EffectiveDataScope = unrestrictedDataScope) {
   const keyword = input.keyword?.trim() || ''
   const keywordWhere = keyword ? {
     OR: [
@@ -18,10 +19,10 @@ export async function listQualityTaskWorkspace(input: { keyword?: string; filter
     some: { inventoryStatus: { in: ['HOLD', 'REWORK'] }, stockQty: { gt: tolerance } },
   }
   const where = input.filter === 'PENDING'
-    ? { ...keywordWhere, status: 'PENDING' }
+    ? { ...keywordWhere, status: 'PENDING', ...qualityInspectionDataScopeWhere(scope) }
     : input.filter === 'DISPOSITION'
-      ? { ...keywordWhere, status: 'COMPLETED', lot: { balances: dispositionBalance } }
-      : keywordWhere
+      ? { AND: [{ ...keywordWhere, status: 'COMPLETED', lot: { balances: dispositionBalance } }, qualityInspectionDataScopeWhere(scope)] }
+      : { AND: [keywordWhere, qualityInspectionDataScopeWhere(scope)] }
   const [rows, pending, dispositionLots] = await Promise.all([
     prisma.qualityInspection.findMany({
       where,
@@ -36,8 +37,11 @@ export async function listQualityTaskWorkspace(input: { keyword?: string; filter
       orderBy: [{ createdAt: 'desc' }, { round: 'desc' }],
       take: 200,
     }),
-    prisma.qualityInspection.count({ where: { status: 'PENDING' } }),
-    prisma.inventoryLot.count({ where: { status: 'OPEN', balances: dispositionBalance } }),
+    prisma.qualityInspection.count({ where: { status: 'PENDING', ...qualityInspectionDataScopeWhere(scope) } }),
+    prisma.inventoryLot.count({ where: { status: 'OPEN', balances: { some: {
+      inventoryStatus: { in: ['HOLD', 'REWORK'] }, stockQty: { gt: tolerance },
+      ...(scope.inventoryMode === 'LOCATIONS' ? { locationId: { in: scope.locationIds } } : {}),
+    } } } }),
   ])
   const seenLots = new Set<string>()
   const items = rows.filter((row) => {

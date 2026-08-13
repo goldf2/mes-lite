@@ -5,14 +5,19 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { updateMaterialInSchema } from '@/modules/receiving/contracts/material-in-schema'
 import { MaterialInDomainError } from '@/modules/receiving/domain/material-in-errors'
 import { getMaterialInDetail, updateManagedMaterialIn } from '@/modules/receiving/server/material-in-detail-service'
+import { getCurrentOperator } from '@/lib/auth'
+import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const denied = await requireResourcePermission('materialIn', 'read')
     if (denied) return denied
-    return NextResponse.json({ data: await getMaterialInDetail(params.id) })
+    const operator = await getCurrentOperator()
+    if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
+    return NextResponse.json({ data: await getMaterialInDetail(params.id, await loadEffectiveDataScope(operator)) })
   } catch (error) {
     if (error instanceof MaterialInDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Get material-in error:', error)
     return NextResponse.json({ error: '获取来料单详情失败' }, { status: 500 })
   }
@@ -22,7 +27,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   try {
     const denied = await requireResourcePermission('materialIn', 'update')
     if (denied) return denied
-    const { current, updated } = await updateManagedMaterialIn(params.id, updateMaterialInSchema.parse(await req.json()))
+    const operator = await getCurrentOperator()
+    if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
+    const { current, updated } = await updateManagedMaterialIn(params.id, updateMaterialInSchema.parse(await req.json()), await loadEffectiveDataScope(operator))
     await writeAuditLog(req, {
       action: 'UPDATE', entityType: 'MATERIAL_IN', entityId: updated.id,
       entityLabel: updated.inboundNo, beforeData: current, afterData: updated,
@@ -31,6 +38,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
     if (error instanceof MaterialInDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Update material-in error:', error)
     return NextResponse.json({ error: '修改来料单失败' }, { status: 500 })
   }

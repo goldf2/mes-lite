@@ -18,6 +18,15 @@ export interface DispatchProcessStep {
   stepNo: number
   name: string
   workstation: string | null
+  workCenterId?: string | null
+  workCenter?: { id: string; code: string; name: string } | null
+}
+
+export interface DispatchEmployeeOption {
+  id: string
+  code: string
+  name: string
+  department?: string | null
 }
 
 export interface DispatchRecord {
@@ -28,6 +37,8 @@ export interface DispatchRecord {
   stepId: string
   workerName: string
   workerId?: string
+  employeeId?: string | null
+  employee?: DispatchEmployeeOption | null
   planQty: number
   priority: string
   status: string
@@ -41,8 +52,7 @@ export interface DispatchFormInput {
   orderId: string
   voucherNo?: string
   stepId: string
-  workerName: string
-  workerId?: string
+  employeeId: string
   planQty: number
   priority: string
   note?: string

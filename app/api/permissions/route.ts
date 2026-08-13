@@ -53,6 +53,20 @@ export async function PUT(req: NextRequest) {
         ...result.operatorAudit,
       })
     }
+    if (result.scopeAudit) {
+      await writeAuditLog(req, {
+        action: 'UPDATE_OPERATOR_DATA_SCOPE',
+        entityType: 'OPERATOR_DATA_SCOPE',
+        ...result.scopeAudit,
+      })
+    }
+    if (result.overrideAudit) {
+      await writeAuditLog(req, {
+        action: 'UPDATE_OPERATOR_PERMISSION_OVERRIDE',
+        entityType: 'OPERATOR_PERMISSION_OVERRIDE',
+        ...result.overrideAudit,
+      })
+    }
     return NextResponse.json({ success: true, message: '权限已保存' })
   } catch (error) {
     return permissionError(error, '保存权限失败', 'Update')

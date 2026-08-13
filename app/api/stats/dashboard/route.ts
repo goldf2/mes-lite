@@ -3,6 +3,7 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { getEffectivePermissionMap } from '@/lib/permissions'
 import { getCurrentOperator } from '@/lib/auth'
 import { getDashboardData } from '@/modules/workspace/server/dashboard-query-service'
+import { loadEffectiveDataScope } from '@/modules/identity-access'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +14,9 @@ export async function GET() {
     const operator = await getCurrentOperator()
     if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
 
-    return NextResponse.json({ data: await getDashboardData(new Date(), await getEffectivePermissionMap(operator)) })
+    return NextResponse.json({ data: await getDashboardData(
+      new Date(), await getEffectivePermissionMap(operator), await loadEffectiveDataScope(operator),
+    ) })
   } catch (error) {
     console.error('Get dashboard error:', error)
     return NextResponse.json({ error: '获取仪表盘数据失败' }, { status: 500 })

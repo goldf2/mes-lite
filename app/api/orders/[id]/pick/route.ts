@@ -5,6 +5,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { legacyProductionOrderPickSchema } from '@/modules/production/contracts/legacy-production-order-execution-schema'
 import { productionOrderHttpError } from '@/modules/production/http/production-order-http'
 import { pickLegacyProductionOrder } from '@/modules/production/server/legacy-production-order-pick-service'
+import { assertProductionOrderIdDataScope, loadEffectiveDataScope } from '@/modules/identity-access'
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -14,6 +15,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const input = legacyProductionOrderPickSchema.parse(await req.json())
     const operator = await getCurrentOperator()
     if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
+    await assertProductionOrderIdDataScope(await loadEffectiveDataScope(operator), params.id)
     const result = await pickLegacyProductionOrder(params.id, input, operatorDisplayName(operator))
     await writeAuditLog(req, {
       action: 'PICK',

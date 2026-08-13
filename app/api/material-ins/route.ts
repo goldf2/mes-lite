@@ -10,11 +10,15 @@ import {
   createMaterialIns,
   listMaterialIns,
 } from '@/modules/receiving/server/material-in-service'
+import { getCurrentOperator } from '@/lib/auth'
+import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
 
 export async function GET(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('materialIn', 'read')
     if (denied) return denied
+    const operator = await getCurrentOperator()
+    if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
 
     const { searchParams } = new URL(req.url)
     const result = await listMaterialIns({
@@ -24,9 +28,10 @@ export async function GET(req: NextRequest) {
       customerId: searchParams.get('customerId'),
       page: Number(searchParams.get('page') ?? '1'),
       pageSize: Number(searchParams.get('pageSize') ?? '20'),
-    })
+    }, await loadEffectiveDataScope(operator))
     return NextResponse.json({ data: result.items, pagination: result.pagination })
   } catch (error) {
+    if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Get material-ins error:', error)
     return NextResponse.json({ error: '获取来料单列表失败' }, { status: 500 })
   }
@@ -36,8 +41,10 @@ export async function POST(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('materialIn', 'create')
     if (denied) return denied
+    const operator = await getCurrentOperator()
+    if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
 
-    const result = await createMaterialIns(createMaterialInSchema.parse(await req.json()))
+    const result = await createMaterialIns(createMaterialInSchema.parse(await req.json()), new Date(), await loadEffectiveDataScope(operator))
     await writeAuditLog(req, {
       action: 'CREATE',
       entityType: 'MATERIAL_IN',
@@ -53,6 +60,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof MaterialInDomainError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
+    if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error instanceof Error && /必须|不能为负|必须大于|库位/.test(error.message)) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
@@ -65,10 +73,12 @@ export async function DELETE(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('materialIn', 'delete')
     if (denied) return denied
+    const operator = await getCurrentOperator()
+    if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
 
     const id = new URL(req.url).searchParams.get('id')
     if (!id) return NextResponse.json({ error: '缺少来料单 ID' }, { status: 400 })
-    const { current, updated } = await archiveMaterialIn(id)
+    const { current, updated } = await archiveMaterialIn(id, await loadEffectiveDataScope(operator))
     await writeAuditLog(req, {
       action: 'ARCHIVE',
       entityType: 'MATERIAL_IN',
@@ -82,6 +92,7 @@ export async function DELETE(req: NextRequest) {
     if (error instanceof MaterialInDomainError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
+    if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Archive material-in error:', error)
     return NextResponse.json({ error: '归档来料单失败' }, { status: 500 })
   }

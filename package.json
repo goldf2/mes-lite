@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.360",
+  "version": "0.1.361",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -31,6 +31,9 @@
     "storage:restore:stage": "node scripts/runtime-backup.mjs stage-restore",
     "storage:drill": "node scripts/runtime-backup.mjs drill",
     "verify:runtime-operations": "tsx scripts/verify-runtime-operations.ts",
+    "audit:production-database": "node scripts/audit-production-database.mjs",
+    "prepare:production-recovery-candidate": "npx -y node@20 scripts/prepare-production-recovery-candidate.mjs",
+    "verify:production-database-audit": "node scripts/verify-production-database-audit.mjs",
     "audit:model-convergence": "tsx scripts/audit-model-convergence.ts",
     "migrate:product-material": "tsx scripts/product-material-migration.ts",
     "verify:model-convergence": "tsx scripts/verify-model-convergence.ts",
@@ -40,6 +43,8 @@
     "verify:role-task-http-permissions": "tsx scripts/verify-role-task-http-permissions.ts",
     "verify:fine-grained-permissions": "tsx scripts/verify-fine-grained-permissions.ts",
     "verify:fine-grained-http-permissions": "tsx scripts/verify-fine-grained-http-permissions.ts",
+    "verify:data-scopes": "tsx scripts/verify-data-scopes.ts",
+    "verify:data-scope-http": "tsx scripts/verify-data-scope-http.ts",
     "verify:identity-access-module": "tsx scripts/verify-identity-access-module.ts",
     "verify:authentication-services": "tsx scripts/verify-authentication-services.ts",
     "verify:trusted-actors": "tsx scripts/verify-trusted-business-actors.ts",

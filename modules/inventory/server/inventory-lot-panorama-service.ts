@@ -1,4 +1,10 @@
 import { prisma } from '@/lib/prisma'
+import {
+  assertInventoryLotDataScope,
+  inventoryLotDataScopeWhere,
+  unrestrictedDataScope,
+  type EffectiveDataScope,
+} from '@/modules/identity-access'
 import type {
   InventoryLotPanorama,
   InventoryLotPanoramaEdge,
@@ -31,10 +37,10 @@ function matchedBy(lot: Awaited<ReturnType<typeof searchLotRows>>[number], keywo
   return Array.from(labels)
 }
 
-function searchLotRows(keyword: string) {
+function searchLotRows(keyword: string, scope: EffectiveDataScope) {
   return prisma.inventoryLot.findMany({
     where: {
-      OR: [
+      AND: [inventoryLotDataScopeWhere(scope), { OR: [
         { lotNo: { contains: keyword } },
         { supplierLotNo: { contains: keyword } },
         { material: { OR: [{ code: { contains: keyword } }, { name: { contains: keyword } }] } },
@@ -56,13 +62,16 @@ function searchLotRows(keyword: string) {
           { shipment: { customer: { contains: keyword } } },
         ] } },
         { inspections: { some: { inspectionNo: { contains: keyword } } } },
-      ],
+      ] }],
     },
     include: {
       ...inventoryLotTraceInclude,
       materialIn: { include: { supplier: { select: { code: true, name: true } }, receipt: { select: { inboundNo: true } } } },
       shipmentAllocations: {
-        where: { status: 'ACTIVE' },
+        where: {
+          status: 'ACTIVE',
+          ...(scope.inventoryMode === 'LOCATIONS' ? { locationId: { in: scope.locationIds } } : {}),
+        },
         include: { shipment: { include: { customerRef: { select: { code: true } } } } },
         orderBy: { createdAt: 'asc' },
       },
@@ -72,11 +81,14 @@ function searchLotRows(keyword: string) {
   })
 }
 
-export async function searchInventoryLots(input: { keyword?: string }): Promise<InventoryLotSearchResult> {
+export async function searchInventoryLots(
+  input: { keyword?: string },
+  scope: EffectiveDataScope = unrestrictedDataScope,
+): Promise<InventoryLotSearchResult> {
   const keyword = normalizeKeyword(input.keyword)
   if (!keyword) return { keyword, items: [], truncated: false }
-  const rows = await searchLotRows(keyword)
-  const nodesById = new Map((await loadInventoryLotTraceNodes(rows.slice(0, maxSearchResults).map((row) => row.id))).map((node) => [node.id, node]))
+  const rows = await searchLotRows(keyword, scope)
+  const nodesById = new Map((await loadInventoryLotTraceNodes(rows.slice(0, maxSearchResults).map((row) => row.id), scope)).map((node) => [node.id, node]))
   return {
     keyword,
     truncated: rows.length > maxSearchResults,
@@ -91,9 +103,16 @@ function addEdge(map: Map<string, InventoryLotPanoramaEdge>, edge: InventoryLotP
   map.set(`${edge.type}:${edge.id}`, edge)
 }
 
-export async function getInventoryLotPanorama(selectedLotId: string): Promise<InventoryLotPanorama> {
-  const exists = await prisma.inventoryLot.findUnique({ where: { id: selectedLotId }, select: { id: true } })
+export async function getInventoryLotPanorama(
+  selectedLotId: string,
+  scope: EffectiveDataScope = unrestrictedDataScope,
+): Promise<InventoryLotPanorama> {
+  const exists = await prisma.inventoryLot.findUnique({
+    where: { id: selectedLotId },
+    include: { balances: { select: { locationId: true, stockQty: true } } },
+  })
   if (!exists) throw new Error('内部批次不存在')
+  assertInventoryLotDataScope(scope, exists)
   const generations = new Map<string, number>([[selectedLotId, 0]])
   const queue = [selectedLotId]
   const edgeMap = new Map<string, InventoryLotPanoramaEdge>()
@@ -142,11 +161,40 @@ export async function getInventoryLotPanorama(selectedLotId: string): Promise<In
       queue.push(candidate[0])
     }
   }
-  const lotIds = Array.from(generations.keys())
+  const discoveredLotIds = Array.from(generations.keys())
+  const authorizedRows = await prisma.inventoryLot.findMany({
+    where: { id: { in: discoveredLotIds }, ...inventoryLotDataScopeWhere(scope) },
+    select: { id: true },
+  })
+  const authorizedIds = new Set(authorizedRows.map((item) => item.id))
+  const authorizedEdges = Array.from(edgeMap.values()).filter((edge) => (
+    authorizedIds.has(edge.sourceLotId) && authorizedIds.has(edge.targetLotId)
+  ))
+  const scopedGenerations = new Map<string, number>([[selectedLotId, 0]])
+  const scopedQueue = [selectedLotId]
+  while (scopedQueue.length > 0) {
+    const currentId = scopedQueue.shift()!
+    const generation = scopedGenerations.get(currentId) ?? 0
+    for (const edge of authorizedEdges) {
+      const candidate = edge.sourceLotId === currentId
+        ? [edge.targetLotId, generation + 1] as const
+        : edge.targetLotId === currentId
+          ? [edge.sourceLotId, generation - 1] as const
+          : null
+      if (!candidate || scopedGenerations.has(candidate[0])) continue
+      scopedGenerations.set(candidate[0], candidate[1])
+      scopedQueue.push(candidate[0])
+    }
+  }
+  const lotIds = Array.from(scopedGenerations.keys())
   const [lotNodes, shipmentRows] = await Promise.all([
-    loadInventoryLotTraceNodes(lotIds),
+    loadInventoryLotTraceNodes(lotIds, scope),
     prisma.shipmentLotAllocation.findMany({
-      where: { status: 'ACTIVE', lotId: { in: lotIds } },
+      where: {
+        status: 'ACTIVE',
+        lotId: { in: lotIds },
+        ...(scope.inventoryMode === 'LOCATIONS' ? { locationId: { in: scope.locationIds } } : {}),
+      },
       include: { shipment: { include: { customerRef: { select: { code: true } } } }, location: { select: { id: true, code: true, name: true } } },
       orderBy: { createdAt: 'asc' },
     }),
@@ -165,9 +213,9 @@ export async function getInventoryLotPanorama(selectedLotId: string): Promise<In
     returnedStockQty: Number(item.returnedStockQty),
     location: item.location,
   }))
-  const nodes = lotNodes.map((lot) => ({ lot, generation: generations.get(lot.id) || 0 }))
+  const nodes = lotNodes.map((lot) => ({ lot, generation: scopedGenerations.get(lot.id) || 0 }))
     .sort((left, right) => left.generation - right.generation || left.lot.receivedAt.localeCompare(right.lot.receivedAt) || left.lot.lotNo.localeCompare(right.lot.lotNo))
-  const edges = Array.from(edgeMap.values()).filter((edge) => generations.has(edge.sourceLotId) && generations.has(edge.targetLotId))
+  const edges = authorizedEdges.filter((edge) => scopedGenerations.has(edge.sourceLotId) && scopedGenerations.has(edge.targetLotId))
   return {
     selectedLotId,
     nodes,

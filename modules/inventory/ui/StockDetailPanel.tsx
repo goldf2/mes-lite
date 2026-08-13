@@ -48,6 +48,9 @@ export default function StockDetailPanel({
           </div>
         ))}
       </div>
+      {stock.dataScopeRestricted && (
+        <div className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">当前仅汇总授权库位数量；全厂核算数量与库存金额已隐藏。</div>
+      )}
 
       <section className="mt-5">
         <div className="mb-2 flex items-center justify-between gap-3">

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
 import type { StockMovementQuery, StockMovementWorkspace } from '../contracts/stock-movement'
 import { stockMovementReferenceOptions, stockMovementTypeOptions } from '../model/stock-movement-view'
+import { stockLogDataScopeWhere, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 
 function textContains(value: string) {
   return { contains: value }
@@ -58,8 +59,8 @@ function buildStockMovementWhere(query: StockMovementQuery): Prisma.StockLogWher
   return and.length > 0 ? { AND: and } : {}
 }
 
-export async function loadStockMovementWorkspace(query: StockMovementQuery): Promise<StockMovementWorkspace> {
-  const where = buildStockMovementWhere(query)
+export async function loadStockMovementWorkspace(query: StockMovementQuery, scope: EffectiveDataScope = unrestrictedDataScope): Promise<StockMovementWorkspace> {
+  const where: Prisma.StockLogWhereInput = { AND: [buildStockMovementWhere(query), stockLogDataScopeWhere(scope)] }
   const [rows, total, typeRows, refTypeRows, locations] = await Promise.all([
     prisma.stockLog.findMany({
       where,
@@ -77,9 +78,9 @@ export async function loadStockMovementWorkspace(query: StockMovementQuery): Pro
       take: query.pageSize,
     }),
     prisma.stockLog.count({ where }),
-    prisma.stockLog.findMany({ distinct: ['type'], select: { type: true }, orderBy: { type: 'asc' } }),
-    prisma.stockLog.findMany({ where: { refType: { not: null } }, distinct: ['refType'], select: { refType: true }, orderBy: { refType: 'asc' } }),
-    prisma.inventoryLocation.findMany({ where: { deletedAt: null }, select: { id: true, code: true, name: true }, orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] }),
+    prisma.stockLog.findMany({ where: stockLogDataScopeWhere(scope), distinct: ['type'], select: { type: true }, orderBy: { type: 'asc' } }),
+    prisma.stockLog.findMany({ where: { AND: [{ refType: { not: null } }, stockLogDataScopeWhere(scope)] }, distinct: ['refType'], select: { refType: true }, orderBy: { refType: 'asc' } }),
+    prisma.inventoryLocation.findMany({ where: { deletedAt: null, ...(scope.inventoryMode === 'LOCATIONS' ? { id: { in: scope.locationIds } } : {}) }, select: { id: true, code: true, name: true }, orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] }),
   ])
   const items = rows.flatMap((row) => {
     const material = row.stock.material

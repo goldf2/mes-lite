@@ -22,6 +22,7 @@ import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/
 import {
   createDispatch,
   listDispatchCustomers,
+  listDispatchEmployees,
   listDispatches,
   listDispatchOrders,
   listDispatchOrderSteps,
@@ -34,6 +35,7 @@ import {
   dispatchStatusLabels as statusLabels,
   dispatchStatusOptions as statusOptions,
   type DispatchCustomer as Customer,
+  type DispatchEmployeeOption as Employee,
   type DispatchOrder as Order,
   type DispatchProcessStep as ProcessStep,
   type DispatchRecord as Dispatch,
@@ -52,6 +54,7 @@ export default function DispatchPage({
   const [orders, setOrders] = useState<Order[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [steps, setSteps] = useState<ProcessStep[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
@@ -69,8 +72,7 @@ export default function DispatchPage({
     voucherNo: '',
     orderId: '',
     stepId: '',
-    workerName: '',
-    workerId: '',
+    employeeId: '',
     planQty: 0,
     priority: 'NORMAL',
     note: '',
@@ -86,13 +88,12 @@ export default function DispatchPage({
     priority: (item) => priorityLabels[item.priority] || item.priority,
     status: (item) => statusLabels[item.status] || item.status,
   }, 'dispatchNo', 'desc')
-
   useEffect(() => {
     fetchDispatches()
     fetchOrders()
     fetchCustomers()
+    fetchEmployees()
   }, [selectedStatuses, selectedCustomerId])
-
   const fetchDispatches = async () => {
     setLoading(true)
     try {
@@ -102,7 +103,6 @@ export default function DispatchPage({
     }
     setLoading(false)
   }
-
   const fetchOrders = async () => {
     try {
       setOrders(await listDispatchOrders(selectedCustomerId))
@@ -110,7 +110,6 @@ export default function DispatchPage({
       // ignore
     }
   }
-
   const fetchCustomers = async () => {
     try {
       setCustomers(await listDispatchCustomers())
@@ -118,7 +117,13 @@ export default function DispatchPage({
       // ignore
     }
   }
-
+  const fetchEmployees = async () => {
+    try {
+      setEmployees(await listDispatchEmployees())
+    } catch {
+      setEmployees([])
+    }
+  }
   const fetchOrderSteps = async (orderId: string) => {
     if (!orderId) {
       setSteps([])
@@ -136,8 +141,7 @@ export default function DispatchPage({
       voucherNo: '',
       orderId: '',
       stepId: '',
-      workerName: '',
-      workerId: '',
+      employeeId: '',
       planQty: 0,
       priority: 'NORMAL',
       note: '',
@@ -174,13 +178,15 @@ export default function DispatchPage({
     const stepValue = recognizedText(fields, 'processStep')
     const matchedStep = nextSteps.find((step) => matchesRecognizedValue(stepValue, [String(step.stepNo), step.name, step.workstation]))
     const priorityValue = recognizedText(fields, 'priority').toUpperCase()
+    const workerName = recognizedText(fields, 'workerName')
+    const workerId = recognizedText(fields, 'workerId')
+    const matchedEmployee = employees.find((employee) => matchesRecognizedValue(workerId || workerName, [employee.code, employee.name]))
     setForm((current) => ({
       ...current,
       voucherNo: recognizedText(fields, 'voucherNo') || current.voucherNo,
       orderId: matchedOrder?.id || current.orderId,
       stepId: matchedStep?.id || current.stepId,
-      workerName: recognizedText(fields, 'workerName') || current.workerName,
-      workerId: recognizedText(fields, 'workerId') || current.workerId,
+      employeeId: matchedEmployee?.id || current.employeeId,
       planQty: recognizedNumber(fields, 'planQty') || current.planQty,
       priority: ['LOW', 'NORMAL', 'HIGH', 'URGENT'].includes(priorityValue) ? priorityValue : current.priority,
       note: recognizedText(fields, 'note') || current.note,
@@ -192,7 +198,7 @@ export default function DispatchPage({
       onMessage('请等待附件上传或 AI 识别完成')
       return
     }
-    if (!form.orderId || !form.stepId || !form.workerName || form.planQty <= 0) {
+    if (!form.orderId || !form.stepId || !form.employeeId || form.planQty <= 0) {
       onMessage('请填写完整信息')
       return
     }
@@ -203,8 +209,7 @@ export default function DispatchPage({
         orderId: form.orderId,
         voucherNo: form.voucherNo || undefined,
         stepId: form.stepId,
-        workerName: form.workerName,
-        workerId: form.workerId || undefined,
+        employeeId: form.employeeId,
         planQty: form.planQty,
         priority: form.priority,
         note: form.note || undefined,
@@ -575,25 +580,19 @@ export default function DispatchPage({
                   placeholder="输入工序名称或工位筛选"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">工人姓名</label>
-                  <input
-                    type="text"
-                    value={form.workerName}
-                    onChange={(e) => setForm({ ...form, workerName: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">工号</label>
-                  <input
-                    type="text"
-                    value={form.workerId}
-                    onChange={(e) => setForm({ ...form, workerId: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">生产员工</label>
+                <SearchableSelect
+                  value={form.employeeId}
+                  onChange={(employeeId) => setForm({ ...form, employeeId })}
+                  options={employees.map((employee) => ({
+                    value: employee.id,
+                    label: `${employee.code} · ${employee.name}${employee.department ? ` · ${employee.department}` : ''}`,
+                    keywords: `${employee.code} ${employee.name} ${employee.department || ''}`,
+                  }))}
+                  placeholder="输入工号、姓名或部门筛选"
+                  emptyText="当前生产范围内没有可选员工"
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

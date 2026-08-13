@@ -5,6 +5,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { requireResourcePermission } from '@/lib/permissions'
 import { decideQualityInspectionSchema, QualityInspectionDomainError } from '@/modules/quality'
 import { decideQualityInspection } from '@/modules/quality/server/quality-inspection-service'
+import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -13,7 +14,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const input = decideQualityInspectionSchema.parse(await req.json())
     const operator = await getCurrentOperator()
     if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
-    const result = await decideQualityInspection(params.id, input, operatorDisplayName(operator))
+    const result = await decideQualityInspection(params.id, input, operatorDisplayName(operator), await loadEffectiveDataScope(operator))
     await writeAuditLog(req, {
       action: input.decision === 'PASS' ? 'QUALITY_RELEASE' : input.decision === 'FAIL' ? 'QUALITY_HOLD' : 'QUALITY_PARTIAL_DECISION',
       entityType: 'QUALITY_INSPECTION',
@@ -34,6 +35,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors[0]?.message || '参数错误' }, { status: 400 })
     if (error instanceof QualityInspectionDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error instanceof Error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ error: '保存质量判定失败' }, { status: 500 })
   }

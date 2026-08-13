@@ -5,6 +5,7 @@ import type { CreateReturnCommand, CreateShipmentCommand } from '../contracts/fu
 import { datedDocumentPrefix, nextDatedDocumentNo } from '../domain/sales-document-numbering'
 import { runSalesDomainOperation, SalesDomainError } from '../domain/sales-errors'
 import { getSalesOrderItemRemainingQty } from './sales-order-availability-service'
+import { assertInventoryLocationDataScope, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 
 const shipmentInclude = {
   product: { select: { id: true, name: true, sku: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
@@ -13,7 +14,8 @@ const shipmentInclude = {
   salesOrder: { select: { id: true, orderNo: true, voucherNo: true } },
 } as const
 
-export async function createManagedShipment(data: CreateShipmentCommand, now = new Date()) {
+export async function createManagedShipment(data: CreateShipmentCommand, now = new Date(), scope: EffectiveDataScope = unrestrictedDataScope) {
+  assertInventoryLocationDataScope(scope, [data.locationId])
   return runSalesDomainOperation(() => prisma.$transaction(async (tx) => {
     const [location, latest] = await Promise.all([
       resolveInventoryLocation(tx, data.locationId),
@@ -67,14 +69,16 @@ export async function createManagedShipment(data: CreateShipmentCommand, now = n
   }))
 }
 
-export async function archiveManagedShipment(id: string) {
+export async function archiveManagedShipment(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   const before = await prisma.shipment.findUnique({ where: { id } })
   if (!before || before.deletedAt) throw new SalesDomainError('发货单不存在或已归档', 404)
+  assertInventoryLocationDataScope(scope, [before.locationId])
   const updated = await prisma.shipment.update({ where: { id }, data: { deletedAt: new Date() } })
   return { before, updated }
 }
 
-export async function createManagedReturn(input: CreateReturnCommand, now = new Date()) {
+export async function createManagedReturn(input: CreateReturnCommand, now = new Date(), scope: EffectiveDataScope = unrestrictedDataScope) {
+  assertInventoryLocationDataScope(scope, [input.locationId])
   return runSalesDomainOperation(() => prisma.$transaction(async (tx) => {
     const materialId = await resolveMaterialIdForProduct(tx, input.productId)
     if (!materialId) throw new SalesDomainError('退货物料未关联统一物料档案')
@@ -110,9 +114,10 @@ export async function createManagedReturn(input: CreateReturnCommand, now = new 
   }))
 }
 
-export async function archiveManagedReturn(id: string) {
+export async function archiveManagedReturn(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   const before = await prisma.returnOrder.findUnique({ where: { id } })
   if (!before || before.deletedAt) throw new SalesDomainError('退货单不存在或已归档', 404)
+  assertInventoryLocationDataScope(scope, [before.locationId])
   const updated = await prisma.returnOrder.update({ where: { id }, data: { deletedAt: new Date() } })
   return { before, updated }
 }

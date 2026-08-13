@@ -8,6 +8,7 @@ import type { CreateMaterialInInput, MaterialInItemInput } from '../contracts/ma
 import { MaterialInDomainError, runMaterialInDomainOperation } from '../domain/material-in-errors'
 import { materialInNumberPrefix, nextMaterialInNumber } from '../domain/material-in-numbering'
 import { loadMaterialInConversionHistory, materialInHistoryMinimumSamples } from './material-in-conversion-history-service'
+import { assertInventoryLocationDataScope, materialReceiptDataScopeWhere, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 
 export interface MaterialInListQuery {
   statuses: string[]
@@ -52,11 +53,12 @@ export function toMaterialInRecord(receipt: MaterialReceiptWithLines) {
   }
 }
 
-export async function listMaterialIns(query: MaterialInListQuery) {
+export async function listMaterialIns(query: MaterialInListQuery, scope: EffectiveDataScope = unrestrictedDataScope) {
   const page = Math.max(1, Number.isFinite(query.page) ? Math.floor(query.page) : 1)
   const pageSize = Math.min(100, Math.max(1, Number.isFinite(query.pageSize) ? Math.floor(query.pageSize) : 20))
   const where: Prisma.MaterialReceiptWhereInput = { deletedAt: null }
   const andConditions: Prisma.MaterialReceiptWhereInput[] = []
+  andConditions.push(materialReceiptDataScopeWhere(scope))
   if (query.statuses.length === 1) where.status = query.statuses[0]
   else if (query.statuses.length > 1) where.status = { in: query.statuses }
   if (query.supplierId) where.supplierId = query.supplierId
@@ -97,6 +99,7 @@ export async function buildMaterialInLineData(
   tx: Prisma.TransactionClient,
   input: MaterialInItemInput,
   stagingLocationId?: string | null,
+  scope: EffectiveDataScope = unrestrictedDataScope,
 ) {
   const material = await tx.material.findFirst({ where: { id: input.materialId, deletedAt: null } })
   if (!material) throw new MaterialInDomainError('物料不存在或已归档', 404)
@@ -119,7 +122,7 @@ export async function buildMaterialInLineData(
     effectiveValuationQty = requestedActualValuationQty
     conversionSource = 'DOCUMENT_ACTUAL'
   } else if (materialUsesDualUnit) {
-    const history = await loadMaterialInConversionHistory(material.id, tx)
+    const history = await loadMaterialInConversionHistory(material.id, scope, tx)
     if (!history.available || !history.rate) {
       throw new MaterialInDomainError(
         `物料 ${material.code} 已启用辅助单位 ${units.valuationUnit}，有效历史实测不足 ${materialInHistoryMinimumSamples} 批，请填写本批实测辅助数量`,
@@ -186,8 +189,9 @@ async function createMaterialInLine(
   common: { supplierId: string; voucherNo?: string; receivedBy?: string; note?: string },
   input: MaterialInItemInput,
   lineNo: number,
+  scope: EffectiveDataScope,
 ) {
-  const { data } = await buildMaterialInLineData(tx, input, receipt.stagingLocationId)
+  const { data } = await buildMaterialInLineData(tx, input, receipt.stagingLocationId, scope)
   return tx.materialIn.create({
     data: {
       receiptId: receipt.id,
@@ -204,11 +208,12 @@ async function createMaterialInLine(
   })
 }
 
-export async function createMaterialIns(input: CreateMaterialInInput, now = new Date()) {
+export async function createMaterialIns(input: CreateMaterialInInput, now = new Date(), scope: EffectiveDataScope = unrestrictedDataScope) {
   return runMaterialInDomainOperation(() => prisma.$transaction(async (tx) => {
     const { supplierId, voucherNo, receivedBy, note } = input
     const requestedItems = 'items' in input ? input.items : [input]
     const requestedStagingLocationId = input.stagingLocationId || requestedItems[0]?.locationId
+    assertInventoryLocationDataScope(scope, [requestedStagingLocationId])
     const [supplier, stagingLocation, latest] = await Promise.all([
       tx.supplier.findFirst({ where: { id: supplierId, deletedAt: null } }),
       resolveInventoryLocation(tx, requestedStagingLocationId),
@@ -239,6 +244,7 @@ export async function createMaterialIns(input: CreateMaterialInInput, now = new 
         { supplierId, voucherNo, receivedBy, note },
         requestedItems[index],
         index + 1,
+        scope,
       ))
     }
     const saved = await tx.materialReceipt.findUniqueOrThrow({ where: { id: receipt.id }, include: materialReceiptInclude() })
@@ -246,10 +252,11 @@ export async function createMaterialIns(input: CreateMaterialInInput, now = new 
   }))
 }
 
-export async function archiveMaterialIn(id: string) {
+export async function archiveMaterialIn(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   return runMaterialInDomainOperation(() => prisma.$transaction(async (tx) => {
     const current = await tx.materialReceipt.findUnique({ where: { id }, include: materialReceiptInclude() })
     if (!current || current.deletedAt) throw new MaterialInDomainError('来料单不存在或已归档', 404)
+    assertInventoryLocationDataScope(scope, [current.stagingLocationId])
     const deletedAt = new Date()
     await tx.materialIn.updateMany({ where: { receiptId: id }, data: { deletedAt } })
     const updated = await tx.materialReceipt.update({ where: { id }, data: { deletedAt }, include: materialReceiptInclude() })

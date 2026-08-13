@@ -2,6 +2,16 @@ import type { PermissionAction, PermissionSubject } from '@/lib/permissions'
 import { hasResourcePermission } from '@/lib/permissions'
 import { prisma } from '@/lib/prisma'
 import { getCurrentOperator } from '@/lib/auth'
+import {
+  dispatchDataScopeWhere,
+  flowTransferDataScopeWhere,
+  loadEffectiveDataScope,
+  materialReceiptDataScopeWhere,
+  productionOrderDataScopeWhere,
+  returnDataScopeWhere,
+  shipmentDataScopeWhere,
+  type EffectiveDataScope,
+} from '@/modules/identity-access'
 import { AttachmentDomainError } from '../domain/attachment-errors'
 import {
   resolveAttachmentOwnerContext,
@@ -36,7 +46,7 @@ function ownerPermissionAction(operation: AttachmentAccessOperation, draft: bool
   return 'update'
 }
 
-async function attachmentOwnerExists(ownerType: AttachmentOwnerType, ownerId: string) {
+async function attachmentOwnerExists(ownerType: AttachmentOwnerType, ownerId: string, scope: EffectiveDataScope) {
   if (ownerType === 'MATERIAL') {
     return Boolean(await prisma.material.findFirst({ where: { id: ownerId, deletedAt: null }, select: { id: true } }))
   }
@@ -44,24 +54,36 @@ async function attachmentOwnerExists(ownerType: AttachmentOwnerType, ownerId: st
     return Boolean(await prisma.workInstruction.findFirst({ where: { id: ownerId, deletedAt: null }, select: { id: true } }))
   }
   if (ownerType === 'MATERIAL_IN') {
-    return Boolean(await prisma.materialReceipt.findFirst({ where: { id: ownerId, deletedAt: null }, select: { id: true } }))
+    return Boolean(await prisma.materialReceipt.findFirst({
+      where: { id: ownerId, deletedAt: null, ...materialReceiptDataScopeWhere(scope) }, select: { id: true },
+    }))
   }
   if (ownerType === 'PRODUCTION_ORDER') {
-    return Boolean(await prisma.productionOrder.findFirst({ where: { id: ownerId, deletedAt: null }, select: { id: true } }))
+    return Boolean(await prisma.productionOrder.findFirst({
+      where: { id: ownerId, deletedAt: null, ...productionOrderDataScopeWhere(scope) }, select: { id: true },
+    }))
   }
   if (ownerType === 'DISPATCH') {
-    return Boolean(await prisma.dispatch.findFirst({ where: { id: ownerId, deletedAt: null }, select: { id: true } }))
+    return Boolean(await prisma.dispatch.findFirst({
+      where: { id: ownerId, deletedAt: null, ...dispatchDataScopeWhere(scope) }, select: { id: true },
+    }))
   }
   if (ownerType === 'SALES_ORDER') {
     return Boolean(await prisma.salesOrder.findFirst({ where: { id: ownerId, deletedAt: null }, select: { id: true } }))
   }
   if (ownerType === 'SHIPMENT') {
-    return Boolean(await prisma.shipment.findFirst({ where: { id: ownerId, deletedAt: null }, select: { id: true } }))
+    return Boolean(await prisma.shipment.findFirst({
+      where: { id: ownerId, deletedAt: null, ...shipmentDataScopeWhere(scope) }, select: { id: true },
+    }))
   }
   if (ownerType === 'RETURN_ORDER') {
-    return Boolean(await prisma.returnOrder.findFirst({ where: { id: ownerId, deletedAt: null }, select: { id: true } }))
+    return Boolean(await prisma.returnOrder.findFirst({
+      where: { id: ownerId, deletedAt: null, ...returnDataScopeWhere(scope) }, select: { id: true },
+    }))
   }
-  return Boolean(await prisma.flowTransfer.findFirst({ where: { id: ownerId }, select: { id: true } }))
+  return Boolean(await prisma.flowTransfer.findFirst({
+    where: { id: ownerId, ...flowTransferDataScopeWhere(scope) }, select: { id: true },
+  }))
 }
 
 function requireSupportedOwner(ownerType: string) {
@@ -103,7 +125,7 @@ async function requireOwner(
     if (attachment && attachment.uploadedBy !== operator.id) {
       throw new AttachmentDomainError('附件不存在或无权访问', 404)
     }
-  } else if (!(await attachmentOwnerExists(context.targetOwnerType, ownerId))) {
+  } else if (!(await attachmentOwnerExists(context.targetOwnerType, ownerId, await loadEffectiveDataScope(operator)))) {
     throw new AttachmentDomainError('附件所属业务对象不存在或已归档', 404)
   }
 

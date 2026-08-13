@@ -76,6 +76,7 @@ export interface Stock {
   valuationUnitCost: number
   stockUnitCost: number
   locationBalances: StockLocationBalance[]
+  dataScopeRestricted?: boolean
   packagingDefinition?: PackagingDefinition | null
   packagingSummary?: PackagingInventorySummary | null
   material?: {

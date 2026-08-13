@@ -1,5 +1,11 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import {
+  assertInventoryLocationDataScope,
+  assertProductionActualDataScope,
+  unrestrictedDataScope,
+  type EffectiveDataScope,
+} from '@/modules/identity-access'
 import { changeStockLocationBalance, postInventoryIssue, postInventoryReceipt } from '@/lib/inventory'
 import {
   allocateAvailableInventoryLots,
@@ -16,6 +22,20 @@ const roundQty = (value: number) => Number(value.toFixed(6))
 const tolerance = 0.000001
 
 const postingInclude = {
+  employees: { select: { employeeId: true } },
+  order: {
+    include: {
+      dispatches: { where: { deletedAt: null }, select: { employeeId: true, step: { select: { workCenterId: true } } } },
+      product: {
+        select: {
+          processRoutes: {
+            where: { isDefault: true },
+            select: { steps: { where: { deletedAt: null }, select: { workCenterId: true } } },
+          },
+        },
+      },
+    },
+  },
   inputs: {
     include: {
       material: true,
@@ -62,9 +82,11 @@ async function requireProductionOrderActual(
   return actual
 }
 
-export async function confirmProductionOrderActual(orderId: string, actualId: string, confirmedBy: string) {
+export async function confirmProductionOrderActual(orderId: string, actualId: string, confirmedBy: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   return prisma.$transaction(async (tx) => {
     const actual = await requireProductionOrderActual(tx, orderId, actualId, 'DRAFT')
+    assertProductionActualDataScope(scope, actual)
+    assertInventoryLocationDataScope(scope, [...actual.inputs.map((line) => line.locationId), ...actual.outputs.map((line) => line.locationId)])
     if (actual.inputs.length === 0 || actual.outputs.length === 0) {
       throw new ProductionOrderDomainError('班后生产实绩缺少投入或产出明细')
     }
@@ -192,6 +214,7 @@ async function reverseProductionOutput(
   line: Prisma.ProductionOrderActualOutputGetPayload<{ include: { material: true, inventoryLot: { include: { balances: true, inspections: true } } } }>,
   reason: string,
   reversedBy: string,
+  scope: EffectiveDataScope = unrestrictedDataScope,
 ) {
   const outputQty = Number(line.actualQty)
   if (outputQty <= 0) return
@@ -414,9 +437,12 @@ export async function reverseProductionOrderActual(
   actualId: string,
   input: { reason: string },
   reversedBy: string,
+  scope: EffectiveDataScope = unrestrictedDataScope,
 ) {
   return prisma.$transaction(async (tx) => {
     const actual = await requireProductionOrderActual(tx, orderId, actualId, 'CONFIRMED')
+    assertProductionActualDataScope(scope, actual)
+    assertInventoryLocationDataScope(scope, [...actual.inputs.map((line) => line.locationId), ...actual.outputs.map((line) => line.locationId)])
     for (const line of actual.outputs) await reverseProductionOutput(tx, actual, line, input.reason, reversedBy)
     for (const line of actual.inputs) await restoreProductionInput(tx, actual, line, reversedBy)
     await reverseProductionLotAllocations(tx, { actualId: actual.id, reversedBy })

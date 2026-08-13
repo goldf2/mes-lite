@@ -5,6 +5,7 @@ import type { FlowTransferInput } from '../contracts/flow-transfer-schema'
 import { FlowTransferDomainError, runFlowTransferDomainOperation } from '../domain/flow-transfer-errors'
 import { flowTransferNumberPrefix, nextFlowTransferNumber, parseFlowTransferDate } from '../domain/flow-transfer-numbering'
 import { flowTransferInclude } from './flow-transfer-query-service'
+import { assertInventoryLocationDataScope, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 
 export async function resolveFlowTransferDraft(tx: Prisma.TransactionClient, input: FlowTransferInput) {
   const [material, sourceLocation, targetLocation, employee] = await Promise.all([
@@ -47,7 +48,8 @@ function transferData(input: FlowTransferInput, resolved: Awaited<ReturnType<typ
   }
 }
 
-export async function createManagedFlowTransfer(input: FlowTransferInput) {
+export async function createManagedFlowTransfer(input: FlowTransferInput, scope: EffectiveDataScope = unrestrictedDataScope) {
+  assertInventoryLocationDataScope(scope, [input.sourceLocationId, input.targetLocationId])
   return runFlowTransferDomainOperation(() => prisma.$transaction(async (tx) => {
     const resolved = await resolveFlowTransferDraft(tx, input)
     const transferDate = parseFlowTransferDate(input.transferDate)
@@ -62,10 +64,12 @@ export async function createManagedFlowTransfer(input: FlowTransferInput) {
   }))
 }
 
-export async function updateManagedFlowTransfer(id: string, input: FlowTransferInput) {
+export async function updateManagedFlowTransfer(id: string, input: FlowTransferInput, scope: EffectiveDataScope = unrestrictedDataScope) {
+  assertInventoryLocationDataScope(scope, [input.sourceLocationId, input.targetLocationId])
   return runFlowTransferDomainOperation(() => prisma.$transaction(async (tx) => {
     const current = await tx.flowTransfer.findUnique({ where: { id }, include: flowTransferInclude })
     if (!current) throw new FlowTransferDomainError('流程转移记录不存在', 404)
+    assertInventoryLocationDataScope(scope, [current.sourceLocationId, current.targetLocationId])
     if (current.status !== 'DRAFT') throw new FlowTransferDomainError('只有草稿转移可以修改；已确认转移请先冲销')
     const resolved = await resolveFlowTransferDraft(tx, input)
     const updated = await tx.flowTransfer.update({

@@ -14,6 +14,7 @@ export interface ProcessStepForm {
   name: string
   defaultTime: number
   workstation: string
+  workCenterId: string
   description: string
   templateId: string
   templateCode: string
@@ -36,7 +37,13 @@ export interface ProcessRoute {
   isDefault: boolean
   sortOrder: number
   product: { id: string; sku: string; name: string }
-  steps: Array<ProcessStepForm & { id: string; defaultTime?: number | null; workstation?: string | null; description?: string | null; templateId?: string | null; templateCode?: string | null }>
+  steps: Array<ProcessStepForm & { id: string; defaultTime?: number | null; workstation?: string | null; workCenterId?: string | null; description?: string | null; templateId?: string | null; templateCode?: string | null }>
+}
+
+export interface ProcessWorkCenterOption {
+  id: string
+  code: string
+  name: string
 }
 
 export interface ProcessTemplate {

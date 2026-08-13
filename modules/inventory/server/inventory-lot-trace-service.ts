@@ -1,4 +1,10 @@
 import { prisma } from '@/lib/prisma'
+import {
+  assertInventoryLotDataScope,
+  inventoryLotDataScopeWhere,
+  unrestrictedDataScope,
+  type EffectiveDataScope,
+} from '@/modules/identity-access'
 import type { InventoryLotCustomerReturn, InventoryLotCustomerShipment, InventoryLotTrace, InventoryLotTraceNode, InventoryLotTraceRelation } from '../contracts/inventory-lot-trace'
 
 export const inventoryLotTraceInclude = {
@@ -15,7 +21,10 @@ export const inventoryLotTraceInclude = {
   inspections: { orderBy: { createdAt: 'desc' as const } },
 } as const
 
-export function toInventoryLotTraceNode(lot: Awaited<ReturnType<typeof loadLot>>): InventoryLotTraceNode {
+export function toInventoryLotTraceNode(
+  lot: Awaited<ReturnType<typeof loadLot>>,
+  scope: EffectiveDataScope = unrestrictedDataScope,
+): InventoryLotTraceNode {
   if (!lot) throw new Error('内部批次不存在')
   const sourceDocument = lot.materialIn
     ? { type: 'MATERIAL_IN' as const, number: lot.materialIn.inboundNo, supplier: lot.materialIn.supplier.name }
@@ -52,7 +61,9 @@ export function toInventoryLotTraceNode(lot: Awaited<ReturnType<typeof loadLot>>
     status: lot.status,
     receivedAt: lot.receivedAt.toISOString(),
     sourceDocument,
-    balances: lot.balances.map((balance) => ({
+    balances: lot.balances.filter((balance) => (
+      scope.inventoryMode === 'ALL' || scope.locationIds.includes(balance.locationId)
+    )).map((balance) => ({
       location: balance.location,
       inventoryStatus: balance.inventoryStatus,
       stockQty: Number(balance.stockQty),
@@ -77,19 +88,27 @@ function loadLot(id: string) {
   return prisma.inventoryLot.findUnique({ where: { id }, include: inventoryLotTraceInclude })
 }
 
-export async function loadInventoryLotTraceNodes(ids: string[]) {
+export async function loadInventoryLotTraceNodes(ids: string[], scope: EffectiveDataScope = unrestrictedDataScope) {
   if (ids.length === 0) return []
   const lots = await prisma.inventoryLot.findMany({
-    where: { id: { in: ids } },
+    where: { id: { in: ids }, ...inventoryLotDataScopeWhere(scope) },
     include: inventoryLotTraceInclude,
     orderBy: [{ receivedAt: 'asc' }, { lotNo: 'asc' }],
   })
-  return lots.map((lot) => toInventoryLotTraceNode(lot))
+  return lots.map((lot) => toInventoryLotTraceNode(lot, scope))
 }
 
-export async function getInventoryLotTrace(id: string): Promise<InventoryLotTrace> {
+function lotIsAuthorized(scope: EffectiveDataScope, lot: { balances: Array<{ locationId: string; stockQty: unknown }> }) {
+  return scope.inventoryMode === 'ALL' || lot.balances.some((balance) => scope.locationIds.includes(balance.locationId))
+}
+
+export async function getInventoryLotTrace(
+  id: string,
+  scope: EffectiveDataScope = unrestrictedDataScope,
+): Promise<InventoryLotTrace> {
   const lot = await loadLot(id)
   if (!lot) throw new Error('内部批次不存在')
+  assertInventoryLotDataScope(scope, lot)
   const [parents, children, shipmentAllocations, returnSourcesData, returnDescendantsData] = await Promise.all([
     prisma.inventoryLotGenealogy.findMany({
       where: { childLotId: id, status: 'ACTIVE' },
@@ -140,7 +159,7 @@ export async function getInventoryLotTrace(id: string): Promise<InventoryLotTrac
       orderBy: { createdAt: 'asc' },
     }),
   ])
-  const upstream: InventoryLotTraceRelation[] = parents.map((item) => ({
+  const upstream: InventoryLotTraceRelation[] = parents.filter((item) => lotIsAuthorized(scope, item.parentLot)).map((item) => ({
     id: item.id,
     direction: 'UPSTREAM',
     stockQty: Number(item.inputAllocation.stockQty),
@@ -148,9 +167,9 @@ export async function getInventoryLotTrace(id: string): Promise<InventoryLotTrac
     materialName: item.inputAllocation.actualInput.materialName,
     actualNo: item.actual.actualNo,
     orderNo: item.actual.order.orderNo,
-    lot: toInventoryLotTraceNode(item.parentLot),
+    lot: toInventoryLotTraceNode(item.parentLot, scope),
   }))
-  const downstream: InventoryLotTraceRelation[] = children.map((item) => ({
+  const downstream: InventoryLotTraceRelation[] = children.filter((item) => lotIsAuthorized(scope, item.childLot)).map((item) => ({
     id: item.id,
     direction: 'DOWNSTREAM',
     stockQty: Number(item.inputAllocation.stockQty),
@@ -158,9 +177,11 @@ export async function getInventoryLotTrace(id: string): Promise<InventoryLotTrac
     materialName: item.inputAllocation.actualInput.materialName,
     actualNo: item.actual.actualNo,
     orderNo: item.actual.order.orderNo,
-    lot: toInventoryLotTraceNode(item.childLot),
+    lot: toInventoryLotTraceNode(item.childLot, scope),
   }))
-  const customerShipments: InventoryLotCustomerShipment[] = shipmentAllocations.map((item) => ({
+  const customerShipments: InventoryLotCustomerShipment[] = shipmentAllocations.filter((item) => (
+    scope.inventoryMode === 'ALL' || scope.locationIds.includes(item.locationId)
+  )).map((item) => ({
     id: item.id,
     lotId: item.lotId,
     shipmentId: item.shipmentId,
@@ -174,7 +195,10 @@ export async function getInventoryLotTrace(id: string): Promise<InventoryLotTrac
     returnedStockQty: Number(item.returnedStockQty),
     location: item.location,
   }))
-  const returnSources: InventoryLotCustomerReturn[] = returnSourcesData.map((item) => ({
+  const returnSources: InventoryLotCustomerReturn[] = returnSourcesData.filter((item) => (
+    lotIsAuthorized(scope, item.shipmentAllocation.lot)
+    && (scope.inventoryMode === 'ALL' || scope.locationIds.includes(item.shipmentAllocation.locationId))
+  )).map((item) => ({
     id: item.id,
     direction: 'SOURCE',
     returnOrderId: item.returnOrderId,
@@ -185,9 +209,12 @@ export async function getInventoryLotTrace(id: string): Promise<InventoryLotTrac
     shipmentNo: item.shipmentAllocation.shipment.shipmentNo,
     customer: item.shipmentAllocation.shipment.customer,
     stockQty: Number(item.stockQty),
-    lot: toInventoryLotTraceNode(item.shipmentAllocation.lot),
+    lot: toInventoryLotTraceNode(item.shipmentAllocation.lot, scope),
   }))
-  const returnDescendants: InventoryLotCustomerReturn[] = returnDescendantsData.map((item) => ({
+  const returnDescendants: InventoryLotCustomerReturn[] = returnDescendantsData.filter((item) => (
+    lotIsAuthorized(scope, item.returnedLot)
+    && (scope.inventoryMode === 'ALL' || scope.locationIds.includes(item.shipmentAllocation.locationId))
+  )).map((item) => ({
     id: item.id,
     direction: 'DESCENDANT',
     returnOrderId: item.returnOrderId,
@@ -198,7 +225,7 @@ export async function getInventoryLotTrace(id: string): Promise<InventoryLotTrac
     shipmentNo: item.shipmentAllocation.shipment.shipmentNo,
     customer: item.shipmentAllocation.shipment.customer,
     stockQty: Number(item.stockQty),
-    lot: toInventoryLotTraceNode(item.returnedLot),
+    lot: toInventoryLotTraceNode(item.returnedLot, scope),
   }))
-  return { lot: toInventoryLotTraceNode(lot), upstream, downstream, customerShipments, returnSources, returnDescendants }
+  return { lot: toInventoryLotTraceNode(lot, scope), upstream, downstream, customerShipments, returnSources, returnDescendants }
 }

@@ -1,5 +1,4 @@
 'use client'
-
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
@@ -9,6 +8,7 @@ import AppButton from '@/app/components/AppButton'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import { ResourceAdvancedSearch } from '@/app/components/resource'
+import { OneToManyRelationField, RelationSearch } from '@/app/components/relations'
 import { filterByAdvancedSearch, matchesKeywordValues } from '@/lib/resource-search'
 import type { ResourceAdvancedSearchField, ResourceSearchCondition } from '@/lib/resource-search'
 import {
@@ -18,12 +18,15 @@ import {
 } from '../client/identity-access-api'
 import type {
   OperatorPermissionGroup,
+  OperatorPermissionOverrideSetting,
+  OperatorDataScopeSetting,
   PermissionActionItem,
   PermissionFlags,
   PermissionGroup,
   PermissionGroupSetting,
   PermissionOperator,
   PermissionResourceItem,
+  PermissionScopeOption,
 } from '../contracts/permission-admin'
 
 const actionHelp: Record<string, string> = {
@@ -74,12 +77,20 @@ export default function PermissionPageModule({
   const [operators, setOperators] = useState<PermissionOperator[]>([])
   const [groups, setGroups] = useState<PermissionGroup[]>([])
   const [operatorGroups, setOperatorGroups] = useState<OperatorPermissionGroup[]>([])
+  const [operatorPermissionOverrides, setOperatorPermissionOverrides] = useState<OperatorPermissionOverrideSetting[]>([])
+  const [operatorDataScopes, setOperatorDataScopes] = useState<OperatorDataScopeSetting[]>([])
+  const [workCenters, setWorkCenters] = useState<PermissionScopeOption[]>([])
+  const [locations, setLocations] = useState<PermissionScopeOption[]>([])
   const [activeGroupId, setActiveGroupId] = useState('')
   const [activeOperatorId, setActiveOperatorId] = useState('')
   const [searchKeyword, setSearchKeyword] = useState('')
   const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [newGroup, setNewGroup] = useState({ name: '', code: '', description: '' })
   const [showNewGroupForm, setShowNewGroupForm] = useState(false)
+  const [temporaryGrant, setTemporaryGrant] = useState({
+    resource: '', canRead: true, canCreate: false, canUpdate: false, canDelete: false, canGrant: false,
+    reason: '', startsAt: '', expiresAt: '',
+  })
   const [loading, setLoading] = useState(false)
   const [userViewMode, setUserViewMode] = usePersistedViewMode('mes-lite.permissions.users.viewMode', 'card')
   const [groupViewMode, setGroupViewMode] = usePersistedViewMode('mes-lite.permissions.groups.viewMode', 'list')
@@ -94,6 +105,10 @@ export default function PermissionPageModule({
       setOperators(data.operators || [])
       setGroups(fetchedGroups)
       setOperatorGroups(data.operatorGroups || [])
+      setOperatorPermissionOverrides(data.operatorPermissionOverrides || [])
+      setOperatorDataScopes(data.operatorDataScopes || [])
+      setWorkCenters(data.workCenters || [])
+      setLocations(data.locations || [])
       setActiveGroupId((current) => current || fetchedGroups[0]?.id || '')
       setActiveOperatorId((current) => current || data.operators?.[0]?.id || '')
     } catch (error) {
@@ -109,6 +124,8 @@ export default function PermissionPageModule({
 
   const activeGroup = groups.find((group) => group.id === activeGroupId)
   const activeOperator = operators.find((operator) => operator.id === activeOperatorId)
+  const activeDataScope = operatorDataScopes.find((scope) => scope.operatorId === activeOperatorId)
+  const activePermissionOverrides = operatorPermissionOverrides.filter((item) => item.operatorId === activeOperatorId)
   const groupMemberCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     operatorGroups.forEach((item) => {
@@ -148,6 +165,16 @@ export default function PermissionPageModule({
       return [...prev, { operatorId: activeOperator.id, groupId }]
     })
   }
+
+  const updateActiveDataScope = (patch: Partial<OperatorDataScopeSetting>) => {
+    if (!activeOperator || activeOperator.role === 'ADMIN') return
+    setOperatorDataScopes((current) => current.map((scope) => scope.operatorId === activeOperator.id
+      ? { ...scope, ...patch, inheritedLegacyDefault: false }
+      : scope))
+  }
+
+  const selectedWorkCenters = workCenters.filter((item) => activeDataScope?.workCenterIds.includes(item.id))
+  const selectedLocations = locations.filter((item) => activeDataScope?.locationIds.includes(item.id))
 
   const groupSettingMap = useMemo(() => {
     const map = new Map<string, PermissionGroupSetting>()
@@ -214,7 +241,16 @@ export default function PermissionPageModule({
     }
 
     try {
-      const data = await savePermissionAdministration({ operatorGroups: [selectedAssignment] })
+      const data = await savePermissionAdministration({
+        operatorGroups: [selectedAssignment],
+        operatorDataScopes: activeDataScope && activeOperator.role !== 'ADMIN' ? [{
+          operatorId: activeDataScope.operatorId,
+          productionMode: activeDataScope.productionMode,
+          inventoryMode: activeDataScope.inventoryMode,
+          workCenterIds: activeDataScope.workCenterIds,
+          locationIds: activeDataScope.locationIds,
+        }] : undefined,
+      })
       onMessage(data.message || '权限组分配已保存')
       await fetchPermissions()
     } catch (error) {
@@ -237,6 +273,47 @@ export default function PermissionPageModule({
       await fetchPermissions()
     } catch (error) {
       onMessage(error instanceof Error ? error.message : '保存权限组明细失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const saveTemporaryGrant = async () => {
+    if (!activeOperator || !temporaryGrant.resource || !temporaryGrant.reason.trim()
+      || !temporaryGrant.startsAt || !temporaryGrant.expiresAt) {
+      onMessage('临时授权必须选择功能并填写原因、开始和失效时间')
+      return
+    }
+    setLoading(true)
+    try {
+      const data = await savePermissionAdministration({
+        operatorPermissionOverrides: [{
+          action: 'UPSERT', operatorId: activeOperator.id,
+          ...temporaryGrant,
+          startsAt: new Date(temporaryGrant.startsAt).toISOString(),
+          expiresAt: new Date(temporaryGrant.expiresAt).toISOString(),
+        }],
+      })
+      onMessage(data.message || '个人临时授权已保存')
+      setTemporaryGrant((current) => ({ ...current, reason: '', startsAt: '', expiresAt: '' }))
+      await fetchPermissions()
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '保存个人临时授权失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const removeTemporaryGrant = async (item: OperatorPermissionOverrideSetting) => {
+    setLoading(true)
+    try {
+      await savePermissionAdministration({ operatorPermissionOverrides: [{
+        action: 'DELETE', operatorId: item.operatorId, resource: item.resource,
+      }] })
+      onMessage('个人例外权限已移除')
+      await fetchPermissions()
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '移除个人例外权限失败')
     } finally {
       setLoading(false)
     }
@@ -434,6 +511,159 @@ export default function PermissionPageModule({
                 )
               ) : (
                 <div className="h-full flex items-center justify-center text-gray-500 text-sm">请从左侧选择一个人员</div>
+              )}
+
+              {activeOperator && activeDataScope && (
+                <section className="mt-6 border-t border-gray-200 pt-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold text-gray-900">业务数据范围</h3>
+                      <p className="mt-1 text-sm text-gray-500">功能权限决定能做什么；数据范围决定能看和处理哪些生产任务与库位。</p>
+                    </div>
+                    {activeDataScope.inheritedLegacyDefault && activeOperator.role !== 'ADMIN' && (
+                      <span className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-700">旧账号兼容：尚未显式保存，当前为全厂</span>
+                    )}
+                  </div>
+
+                  {activeOperator.role === 'ADMIN' ? (
+                    <div className="mt-4 rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">管理账号固定使用全厂生产与库存范围。</div>
+                  ) : (
+                    <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                      <div className="overflow-hidden rounded-lg border border-gray-200">
+                        <div className="border-b border-gray-100 bg-gray-50 p-4">
+                          <label className="block text-sm font-medium text-gray-700">生产数据范围</label>
+                          <select
+                            value={activeDataScope.productionMode}
+                            onChange={(event) => updateActiveDataScope({
+                              productionMode: event.target.value as OperatorDataScopeSetting['productionMode'],
+                            })}
+                            disabled={loading}
+                            className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                          >
+                            <option value="ALL">全厂生产数据</option>
+                            <option value="SELF">仅本人派工任务</option>
+                            <option value="WORK_CENTERS">指定工作中心</option>
+                          </select>
+                          {activeDataScope.productionMode === 'SELF' && (
+                            <p className={`mt-2 text-xs ${activeOperator.employee?.isActive ? 'text-gray-500' : 'text-red-600'}`}>
+                              {activeOperator.employee?.isActive
+                                ? `已绑定员工：${activeOperator.employee.code} · ${activeOperator.employee.name}`
+                                : '当前账号未绑定在职员工，不能保存“仅本人”。'}
+                            </p>
+                          )}
+                        </div>
+                        {activeDataScope.productionMode === 'WORK_CENTERS' ? (
+                          <OneToManyRelationField
+                            title="允许的工作中心"
+                            items={selectedWorkCenters}
+                            getKey={(item) => item.id}
+                            selector={<RelationSearch
+                              items={workCenters}
+                              getKey={(item) => item.id}
+                              getLabel={(item) => `${item.code} · ${item.name}`}
+                              getKeywords={(item) => `${item.code} ${item.name}`}
+                              disabledIds={activeDataScope.workCenterIds}
+                              onSelect={(item) => updateActiveDataScope({ workCenterIds: [...activeDataScope.workCenterIds, item.id] })}
+                              placeholder="搜索并添加工作中心"
+                            />}
+                            renderIdentity={(item) => <div><div className="text-sm font-medium text-gray-900">{item.name}</div><div className="text-xs text-gray-500">{item.code}</div></div>}
+                            onRemove={(item) => updateActiveDataScope({ workCenterIds: activeDataScope.workCenterIds.filter((id) => id !== item.id) })}
+                            emptyText="至少添加一个允许的工作中心"
+                          />
+                        ) : <div className="p-4 text-sm text-gray-500">{activeDataScope.productionMode === 'SELF' ? '列表和状态命令只允许绑定员工的派工任务。' : '可访问全厂生产数据。'}</div>}
+                      </div>
+
+                      <div className="overflow-hidden rounded-lg border border-gray-200">
+                        <div className="border-b border-gray-100 bg-gray-50 p-4">
+                          <label className="block text-sm font-medium text-gray-700">库存数据范围</label>
+                          <select
+                            value={activeDataScope.inventoryMode}
+                            onChange={(event) => updateActiveDataScope({
+                              inventoryMode: event.target.value as OperatorDataScopeSetting['inventoryMode'],
+                            })}
+                            disabled={loading}
+                            className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                          >
+                            <option value="ALL">全厂库位</option>
+                            <option value="LOCATIONS">指定库位</option>
+                          </select>
+                        </div>
+                        {activeDataScope.inventoryMode === 'LOCATIONS' ? (
+                          <OneToManyRelationField
+                            title="允许的库位"
+                            items={selectedLocations}
+                            getKey={(item) => item.id}
+                            selector={<RelationSearch
+                              items={locations}
+                              getKey={(item) => item.id}
+                              getLabel={(item) => `${item.code} · ${item.name}`}
+                              getKeywords={(item) => `${item.code} ${item.name}`}
+                              disabledIds={activeDataScope.locationIds}
+                              onSelect={(item) => updateActiveDataScope({ locationIds: [...activeDataScope.locationIds, item.id] })}
+                              placeholder="搜索并添加库位"
+                            />}
+                            renderIdentity={(item) => <div><div className="text-sm font-medium text-gray-900">{item.name}</div><div className="text-xs text-gray-500">{item.code}</div></div>}
+                            onRemove={(item) => updateActiveDataScope({ locationIds: activeDataScope.locationIds.filter((id) => id !== item.id) })}
+                            emptyText="至少添加一个允许的库位"
+                          />
+                        ) : <div className="p-4 text-sm text-gray-500">可访问全厂库位；保存指定范围后，查询和写入都会由服务端复检。</div>}
+                      </div>
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {activeOperator && activeOperator.role !== 'ADMIN' && (
+                <section className="mt-6 border-t border-gray-200 pt-5">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">个人临时授权</h3>
+                    <p className="mt-1 text-sm text-gray-500">只用于岗位组之外的限时例外；必须记录原因、授权人和失效时间。</p>
+                  </div>
+                  <div className="mt-4 grid gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 lg:grid-cols-2">
+                    <select
+                      value={temporaryGrant.resource}
+                      onChange={(event) => setTemporaryGrant({ ...temporaryGrant, resource: event.target.value })}
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="">选择功能资源</option>
+                      {resources.map((resource) => <option key={resource.key} value={resource.key}>{resource.section} · {resource.label}</option>)}
+                    </select>
+                    <input
+                      value={temporaryGrant.reason}
+                      onChange={(event) => setTemporaryGrant({ ...temporaryGrant, reason: event.target.value })}
+                      placeholder="授权原因（必填）"
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                    />
+                    <label className="text-sm text-gray-600">开始时间<input type="datetime-local" value={temporaryGrant.startsAt} onChange={(event) => setTemporaryGrant({ ...temporaryGrant, startsAt: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2" /></label>
+                    <label className="text-sm text-gray-600">失效时间<input type="datetime-local" value={temporaryGrant.expiresAt} onChange={(event) => setTemporaryGrant({ ...temporaryGrant, expiresAt: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2" /></label>
+                    <div className="flex flex-wrap gap-3 lg:col-span-2">
+                      {actions.map((action) => <label key={action.key} className="flex items-center gap-2 text-sm text-gray-700">
+                        <input type="checkbox" checked={temporaryGrant[action.key]} onChange={() => setTemporaryGrant({ ...temporaryGrant, [action.key]: !temporaryGrant[action.key] })} />
+                        {action.label}
+                      </label>)}
+                    </div>
+                    <div className="lg:col-span-2">
+                      <AppButton variant="primary" onClick={saveTemporaryGrant} disabled={loading}>保存临时授权</AppButton>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    {activePermissionOverrides.map((item) => {
+                      const expired = Boolean(item.expiresAt && new Date(item.expiresAt) <= new Date())
+                      return <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 p-3 text-sm">
+                        <div>
+                          <div className="font-medium text-gray-900">{resources.find((resource) => resource.key === item.resource)?.label || item.resource}</div>
+                          <div className="mt-1 text-xs text-gray-500">
+                            {item.legacyPermanent ? '历史永久覆盖，待重新审批' : `${item.startsAt ? new Date(item.startsAt).toLocaleString() : '-'} 至 ${item.expiresAt ? new Date(item.expiresAt).toLocaleString() : '-'}`}
+                            {' · '}{item.reason || '未记录原因'}{expired ? ' · 已失效' : ''}
+                          </div>
+                        </div>
+                        <AppButton variant="danger" onClick={() => removeTemporaryGrant(item)} disabled={loading}>移除</AppButton>
+                      </div>
+                    })}
+                    {activePermissionOverrides.length === 0 && <div className="text-sm text-gray-500">当前没有个人例外权限。</div>}
+                  </div>
+                </section>
               )}
             </div>
           </div>

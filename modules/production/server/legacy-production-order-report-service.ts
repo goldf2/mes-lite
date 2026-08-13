@@ -8,8 +8,17 @@ import {
   legacyReportStatusError,
 } from '../domain/legacy-production-order-execution-rules'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
+import {
+  assertProductionOrderIdDataScope,
+  type EffectiveDataScope,
+  unrestrictedDataScope,
+} from '@/modules/identity-access'
 
-export async function listLegacyProductionOrderReports(orderId: string) {
+export async function listLegacyProductionOrderReports(
+  orderId: string,
+  scope: EffectiveDataScope = unrestrictedDataScope,
+) {
+  await assertProductionOrderIdDataScope(scope, orderId)
   return prisma.workReport.findMany({
     where: { orderId },
     include: { step: true },
@@ -20,7 +29,9 @@ export async function listLegacyProductionOrderReports(orderId: string) {
 export async function reportLegacyProductionOrder(
   orderId: string,
   input: LegacyProductionOrderReportInput,
+  scope: EffectiveDataScope = unrestrictedDataScope,
 ) {
+  await assertProductionOrderIdDataScope(scope, orderId)
   return prisma.$transaction(async (tx) => {
     const order = await tx.productionOrder.findUnique({
       where: { id: orderId },

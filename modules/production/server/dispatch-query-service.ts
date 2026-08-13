@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { DispatchDomainError } from '../domain/dispatch-errors'
+import { assertDispatchDataScope, dispatchDataScopeWhere, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 
 export const dispatchDetailInclude = {
   order: {
@@ -19,7 +20,8 @@ export const dispatchDetailInclude = {
       },
     },
   },
-  step: true,
+  step: { include: { workCenter: { select: { id: true, code: true, name: true } } } },
+  employee: { select: { id: true, code: true, name: true, department: true } },
 } satisfies Prisma.DispatchInclude
 
 export interface DispatchListInput {
@@ -30,8 +32,8 @@ export interface DispatchListInput {
   page: number
   pageSize: number
 }
-export async function listManagedDispatches(input: DispatchListInput) {
-  const where: Prisma.DispatchWhereInput = { deletedAt: null }
+export async function listManagedDispatches(input: DispatchListInput, scope: EffectiveDataScope = unrestrictedDataScope) {
+  const where: Prisma.DispatchWhereInput = { deletedAt: null, ...dispatchDataScopeWhere(scope) }
   if (input.statuses.length === 1) where.status = input.statuses[0]
   if (input.statuses.length > 1) where.status = { in: input.statuses }
   if (input.workerName) where.workerName = { contains: input.workerName }
@@ -59,8 +61,20 @@ export async function listManagedDispatches(input: DispatchListInput) {
   return { items, pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } }
 }
 
-export async function getManagedDispatch(id: string) {
+export async function getManagedDispatch(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   const dispatch = await prisma.dispatch.findUnique({ where: { id }, include: dispatchDetailInclude })
   if (!dispatch || dispatch.deletedAt) throw new DispatchDomainError('派工单不存在或已归档', 404)
+  assertDispatchDataScope(scope, dispatch)
   return dispatch
+}
+
+export async function listManagedDispatchEmployees(scope: EffectiveDataScope) {
+  return prisma.employee.findMany({
+    where: {
+      isActive: true,
+      ...(scope.productionMode === 'SELF' ? { id: scope.employeeId ?? '__NO_AUTHORIZED_SCOPE__' } : {}),
+    },
+    select: { id: true, code: true, name: true, department: true },
+    orderBy: [{ code: 'asc' }],
+  })
 }

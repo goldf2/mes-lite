@@ -1,5 +1,6 @@
 import type {
   DispatchCustomer,
+  DispatchEmployeeOption,
   DispatchFormInput,
   DispatchOrder,
   DispatchProcessStep,
@@ -9,6 +10,12 @@ import type {
 async function responseData<T>(response: Response): Promise<{ ok: boolean; data?: T; error?: string; message?: string }> {
   const payload = await response.json()
   return { ok: response.ok, ...payload }
+}
+
+export async function listDispatchEmployees() {
+  const response = await fetch('/api/dispatches?options=employees')
+  if (!response.ok) throw new Error('获取生产员工失败')
+  return ((await response.json()).data || []) as DispatchEmployeeOption[]
 }
 
 export async function listDispatches(selectedStatuses: string[], allStatuses: string[], customerId: string) {

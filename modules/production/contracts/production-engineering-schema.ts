@@ -27,6 +27,7 @@ export const processStepInputSchema = z.object({
   name: z.string().min(1, '工序名称必填'),
   defaultTime: z.number().int().nonnegative().optional(),
   workstation: z.string().optional(),
+  workCenterId: z.string().optional(),
   description: z.string().optional(),
   templateId: z.string().optional(),
   templateCode: z.string().optional(),

@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { assertInventoryLocationDataScope, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 import { scrapInventoryLotQuantity, transitionInventoryLotStatus } from '@/modules/inventory'
 import type { DecideQualityInspectionInput, DisposeQualityInspectionInput } from '../contracts/quality-inspection-schema'
 import { QualityInspectionDomainError } from '../domain/quality-inspection-errors'
@@ -90,6 +91,7 @@ export async function decideQualityInspection(
   inspectionId: string,
   input: DecideQualityInspectionInput,
   inspectedBy: string,
+  scope: EffectiveDataScope = unrestrictedDataScope,
 ) {
   return prisma.$transaction(async (tx) => {
     const inspection = await tx.qualityInspection.findUnique({
@@ -97,6 +99,9 @@ export async function decideQualityInspection(
       include: { lot: { include: { balances: true } } },
     })
     if (!inspection) throw new QualityInspectionDomainError('质量检验任务不存在', 404)
+    assertInventoryLocationDataScope(scope, inspection.lot.balances
+      .filter((balance) => Number(balance.stockQty) > tolerance)
+      .map((balance) => balance.locationId))
     if (inspection.status !== 'PENDING') throw new QualityInspectionDomainError('只有待检任务可以执行质量判定')
     if (Number(input.sampleQty) > Number(inspection.inspectedQty) + 0.000001) {
       throw new QualityInspectionDomainError('抽检数量不能大于本批次待检数量')
@@ -223,6 +228,7 @@ export async function disposeQualityInspection(
   inspectionId: string,
   input: DisposeQualityInspectionInput,
   performedBy: string,
+  scope: EffectiveDataScope = unrestrictedDataScope,
 ) {
   return prisma.$transaction(async (tx) => {
     const duplicate = await tx.qualityDisposition.findUnique({
@@ -236,6 +242,9 @@ export async function disposeQualityInspection(
       include: { lot: { include: { balances: true } } },
     })
     if (!inspection) throw new QualityInspectionDomainError('质量检验任务不存在', 404)
+    assertInventoryLocationDataScope(scope, inspection.lot.balances
+      .filter((balance) => Number(balance.stockQty) > tolerance)
+      .map((balance) => balance.locationId))
     if (inspection.status !== 'COMPLETED') throw new QualityInspectionDomainError('质量判定完成后才能执行后续处置')
 
     const sourceStatus = input.action === 'REWORK_COMPLETE' ? 'REWORK' : 'HOLD'

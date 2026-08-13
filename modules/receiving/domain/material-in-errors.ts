@@ -1,3 +1,5 @@
+import { DataScopeError } from '@/modules/identity-access'
+
 export class MaterialInDomainError extends Error {
   constructor(message: string, public readonly status = 400) {
     super(message)
@@ -11,6 +13,7 @@ export async function runMaterialInDomainOperation<T>(operation: () => Promise<T
   try {
     return await operation()
   } catch (error) {
+    if (error instanceof DataScopeError) throw error
     if (error instanceof MaterialInDomainError) throw error
     if (error instanceof Error && expectedMaterialInError.test(error.message)) {
       throw new MaterialInDomainError(error.message)

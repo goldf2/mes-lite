@@ -17,50 +17,53 @@ model SystemSetting {
 }
 
 model InventoryLocation {
-  id                       String                        @id @default(cuid())
-  code                     String                        @unique
+  id                       String                           @id @default(cuid())
+  code                     String                           @unique
   name                     String
   note                     String?
-  isDefault                Boolean                       @default(false)
-  isActive                 Boolean                       @default(true)
-  sortOrder                Int                           @default(0)
+  isDefault                Boolean                          @default(false)
+  isActive                 Boolean                          @default(true)
+  sortOrder                Int                              @default(0)
   deletedAt                DateTime?
   balances                 StockLocationBalance[]
   stockLogs                StockLog[]
   materialIns              MaterialIn[]
   materialReceipts         MaterialReceipt[]
-  consumptionReports       DailyProductionReport[]       @relation("DailyProductionConsumptionLocation")
-  productionInputs         DailyProductionConsumption[]  @relation("DailyProductionConsumptionLineLocation")
-  outputReports            DailyProductionReport[]       @relation("DailyProductionOutputLocation")
-  orderActualInputs        ProductionOrderActualInput[]  @relation("ProductionOrderActualInputLocation")
-  orderActualOutputs       ProductionOrderActualOutput[] @relation("ProductionOrderActualOutputLocation")
-  outgoingTransfers        FlowTransfer[]                @relation("FlowTransferSourceLocation")
-  incomingTransfers        FlowTransfer[]                @relation("FlowTransferTargetLocation")
+  consumptionReports       DailyProductionReport[]          @relation("DailyProductionConsumptionLocation")
+  productionInputs         DailyProductionConsumption[]     @relation("DailyProductionConsumptionLineLocation")
+  outputReports            DailyProductionReport[]          @relation("DailyProductionOutputLocation")
+  orderActualInputs        ProductionOrderActualInput[]     @relation("ProductionOrderActualInputLocation")
+  orderActualOutputs       ProductionOrderActualOutput[]    @relation("ProductionOrderActualOutputLocation")
+  outgoingTransfers        FlowTransfer[]                   @relation("FlowTransferSourceLocation")
+  incomingTransfers        FlowTransfer[]                   @relation("FlowTransferTargetLocation")
   shipments                Shipment[]
   returnOrders             ReturnOrder[]
   inventoryLotBalances     InventoryLotBalance[]
   inventoryLotTransactions InventoryLotTransaction[]
   inventoryLotAllocations  InventoryLotAllocation[]
   shipmentLotAllocations   ShipmentLotAllocation[]
-  createdAt                DateTime                      @default(now())
-  updatedAt                DateTime                      @updatedAt
+  operatorScopes           OperatorInventoryLocationScope[]
+  createdAt                DateTime                         @default(now())
+  updatedAt                DateTime                         @updatedAt
 
   @@index([sortOrder])
 }
 
 model WorkCenter {
-  id               String            @id @default(cuid())
-  code             String            @unique
+  id               String                    @id @default(cuid())
+  code             String                    @unique
   name             String
   category         String?
   note             String?
-  isActive         Boolean           @default(true)
-  sortOrder        Int               @default(0)
+  isActive         Boolean                   @default(true)
+  sortOrder        Int                       @default(0)
   deletedAt        DateTime?
   equipment        Equipment[]
   workInstructions WorkInstruction[]
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  processSteps     ProcessStep[]
+  operatorScopes   OperatorWorkCenterScope[]
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
 
   @@index([isActive])
   @@index([sortOrder])
@@ -80,6 +83,7 @@ model Employee {
   dailyProductionReports DailyProductionReportEmployee[]
   productionOrderActuals ProductionOrderActualEmployee[]
   flowTransfers          FlowTransfer[]
+  dispatches             Dispatch[]
   createdAt              DateTime                        @default(now())
   updatedAt              DateTime                        @updatedAt
 
@@ -373,6 +377,8 @@ model ProcessStep {
   name                   String
   defaultTime            Int?
   workstation            String?
+  workCenterId           String?
+  workCenter             WorkCenter?  @relation(fields: [workCenterId], references: [id], onDelete: SetNull)
   description            String?
   templateId             String?
   templateCode           String?
@@ -390,6 +396,8 @@ model ProcessStep {
   deletedBy              String?
   reports                WorkReport[]
   dispatches             Dispatch[]
+
+  @@index([workCenterId])
 }
 
 model ProcessTemplate {
@@ -1391,6 +1399,8 @@ model Dispatch {
   step         ProcessStep     @relation(fields: [stepId], references: [id])
   workerName   String
   workerId     String?
+  employeeId   String?
+  employee     Employee?       @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   planQty      Int
   priority     String          @default("NORMAL")
   status       String          @default("PENDING")
@@ -1401,6 +1411,8 @@ model Dispatch {
   deletedAt    DateTime?
   deletedBy    String?
   createdAt    DateTime        @default(now())
+
+  @@index([employeeId])
 }
 
 // ==================== 发货管理 ====================
@@ -1666,8 +1678,42 @@ model Operator {
   permissionGroups    OperatorPermissionGroup[]
   workspacePreference OperatorWorkspacePreference?
   functionUsages      OperatorFunctionUsage[]
+  dataScope           OperatorDataScope?
   createdAt           DateTime                     @default(now())
   updatedAt           DateTime                     @updatedAt
+}
+
+model OperatorDataScope {
+  operatorId     String                           @id
+  operator       Operator                         @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  productionMode String                           @default("ALL")
+  inventoryMode  String                           @default("ALL")
+  workCenters    OperatorWorkCenterScope[]
+  locations      OperatorInventoryLocationScope[]
+  createdAt      DateTime                         @default(now())
+  updatedAt      DateTime                         @updatedAt
+}
+
+model OperatorWorkCenterScope {
+  operatorId   String
+  dataScope    OperatorDataScope @relation(fields: [operatorId], references: [operatorId], onDelete: Cascade)
+  workCenterId String
+  workCenter   WorkCenter        @relation(fields: [workCenterId], references: [id], onDelete: Cascade)
+  createdAt    DateTime          @default(now())
+
+  @@id([operatorId, workCenterId])
+  @@index([workCenterId])
+}
+
+model OperatorInventoryLocationScope {
+  operatorId String
+  dataScope  OperatorDataScope @relation(fields: [operatorId], references: [operatorId], onDelete: Cascade)
+  locationId String
+  location   InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  createdAt  DateTime          @default(now())
+
+  @@id([operatorId, locationId])
+  @@index([locationId])
 }
 
 model OperatorWorkspacePreference {
@@ -1728,20 +1774,26 @@ model PermissionSetting {
 }
 
 model OperatorPermissionOverride {
-  id         String   @id @default(cuid())
-  operatorId String
-  operator   Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
-  resource   String
-  canRead    Boolean  @default(false)
-  canCreate  Boolean  @default(false)
-  canUpdate  Boolean  @default(false)
-  canDelete  Boolean  @default(false)
-  canGrant   Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id              String    @id @default(cuid())
+  operatorId      String
+  operator        Operator  @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  resource        String
+  canRead         Boolean   @default(false)
+  canCreate       Boolean   @default(false)
+  canUpdate       Boolean   @default(false)
+  canDelete       Boolean   @default(false)
+  canGrant        Boolean   @default(false)
+  reason          String?
+  grantedBy       String?
+  startsAt        DateTime?
+  expiresAt       DateTime?
+  legacyPermanent Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@unique([operatorId, resource])
   @@index([operatorId])
+  @@index([expiresAt])
 }
 
 model PermissionGroup {

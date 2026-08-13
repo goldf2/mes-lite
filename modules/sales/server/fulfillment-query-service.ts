@@ -2,6 +2,13 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
 import { SalesDomainError } from '../domain/sales-errors'
+import {
+  assertInventoryLocationDataScope,
+  returnDataScopeWhere,
+  shipmentDataScopeWhere,
+  unrestrictedDataScope,
+  type EffectiveDataScope,
+} from '@/modules/identity-access'
 
 export type FulfillmentQuery = {
   statuses: string[]
@@ -17,9 +24,10 @@ function applyStatuses<T extends { status?: string | { in: string[] } }>(where: 
   else if (statuses.length > 1) where.status = { in: statuses }
 }
 
-export async function listShipments(input: FulfillmentQuery) {
+export async function listShipments(input: FulfillmentQuery, scope: EffectiveDataScope = unrestrictedDataScope) {
   const where: Prisma.ShipmentWhereInput = { deletedAt: null }
   const andConditions: Prisma.ShipmentWhereInput[] = []
+  andConditions.push(shipmentDataScopeWhere(scope))
   applyStatuses(where as { status?: string | { in: string[] } }, input.statuses)
   if (input.customerId === '__UNASSIGNED__') where.customerId = null
   else if (input.customerId) where.customerId = input.customerId
@@ -74,9 +82,9 @@ export async function listShipments(input: FulfillmentQuery) {
   return { data, customers, pagination: { page: input.page, pageSize: input.pageSize, total, totalPages: Math.ceil(total / input.pageSize) } }
 }
 
-export async function listReturnShipmentOptions() {
+export async function listReturnShipmentOptions(scope: EffectiveDataScope = unrestrictedDataScope) {
   const shipments = await prisma.shipment.findMany({
-    where: { deletedAt: null, status: { in: ['SHIPPED', 'DELIVERED'] } },
+    where: { deletedAt: null, status: { in: ['SHIPPED', 'DELIVERED'] }, ...shipmentDataScopeWhere(scope) },
     include: {
       product: { select: { id: true, sku: true, name: true, unit: true } },
       customerRef: { select: { id: true, code: true, name: true } },
@@ -108,16 +116,17 @@ export async function listReturnShipmentOptions() {
   })
 }
 
-export async function getShipmentDetail(id: string) {
+export async function getShipmentDetail(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   const shipment = await prisma.shipment.findUnique({
     where: { id },
     include: { product: true, location: true, returnOrders: { orderBy: { createdAt: 'desc' } } },
   })
   if (!shipment) throw new SalesDomainError('发货单不存在', 404)
+  assertInventoryLocationDataScope(scope, [shipment.locationId])
   return shipment
 }
 
-export async function getShipmentDeliveryNoteSource(id: string) {
+export async function getShipmentDeliveryNoteSource(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   const shipment = await prisma.shipment.findUnique({
     where: { id },
     include: {
@@ -129,12 +138,14 @@ export async function getShipmentDeliveryNoteSource(id: string) {
     },
   })
   if (!shipment) throw new SalesDomainError('发货单不存在', 404)
+  assertInventoryLocationDataScope(scope, [shipment.locationId])
   return shipment
 }
 
-export async function listReturns(input: FulfillmentQuery) {
+export async function listReturns(input: FulfillmentQuery, scope: EffectiveDataScope = unrestrictedDataScope) {
   const where: Prisma.ReturnOrderWhereInput = { deletedAt: null }
   const andConditions: Prisma.ReturnOrderWhereInput[] = []
+  andConditions.push(returnDataScopeWhere(scope))
   applyStatuses(where as { status?: string | { in: string[] } }, input.statuses)
   if (input.customerId === '__UNASSIGNED__') {
     andConditions.push({ OR: [
@@ -190,7 +201,7 @@ export async function listReturns(input: FulfillmentQuery) {
   return { data, pagination: { page: input.page, pageSize: input.pageSize, total, totalPages: Math.ceil(total / input.pageSize) } }
 }
 
-export async function getReturnDetail(id: string) {
+export async function getReturnDetail(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   const returnOrder = await prisma.returnOrder.findUnique({
     where: { id },
     include: {
@@ -202,5 +213,6 @@ export async function getReturnDetail(id: string) {
     },
   })
   if (!returnOrder) throw new SalesDomainError('退货单不存在', 404)
+  assertInventoryLocationDataScope(scope, [returnOrder.locationId])
   return returnOrder
 }

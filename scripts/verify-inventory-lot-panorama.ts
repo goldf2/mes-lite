@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { EffectiveDataScope } from '../modules/identity-access'
 
 const verifyRoot = mkdtempSync(join(tmpdir(), 'ml-lot-panorama-'))
 const databaseUrl = `file:${join(verifyRoot, 'verify.db')}`
@@ -23,8 +24,9 @@ async function main() {
   ])
   const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`
   try {
-    const [location, supplier, customer, raw, finished] = await Promise.all([
+    const [location, restrictedLocation, supplier, customer, raw, finished] = await Promise.all([
       prisma.inventoryLocation.create({ data: { code: `PAN-${suffix}`, name: '全景验证库位', isDefault: true } }),
+      prisma.inventoryLocation.create({ data: { code: `PAN-X-${suffix}`, name: '无权历史库位' } }),
       prisma.supplier.create({ data: { code: `SUP-PAN-${suffix}`, name: '全景验证供应商' } }),
       prisma.customer.create({ data: { code: `CUS-PAN-${suffix}`, name: '全景验证客户' } }),
       prisma.material.create({ data: { code: `RAW-PAN-${suffix}`, name: '全景原料', category: 'RAW', unit: 'kg', stockUnit: 'kg', valuationUnit: 'kg' } }),
@@ -108,8 +110,28 @@ async function main() {
     const reverse = await getInventoryLotPanorama(returnLot.id)
     assert.equal(reverse.nodes.find((item) => item.lot.id === rawLot.id)?.generation, -2)
     assert.equal(reverse.nodes.find((item) => item.lot.id === returnLot.id)?.generation, 0)
+
+    const scoped: EffectiveDataScope = {
+      operatorId: 'panorama-scope', employeeId: null, employeeCode: null,
+      productionMode: 'ALL', inventoryMode: 'LOCATIONS',
+      workCenterIds: [], locationIds: [location.id], inheritedLegacyDefault: false,
+    }
+    await prisma.inventoryLotBalance.updateMany({
+      where: { lotId: rawLot.id, locationId: location.id },
+      data: { stockQty: 0, valuationQty: 0, costAmount: 0 },
+    })
+    const restrictedLot = await prisma.inventoryLot.create({ data: {
+      lotNo: `LOT-X-${suffix}`, materialId: raw.id, sourceType: 'VERIFY', sourceId: 'restricted',
+      balances: { create: { locationId: restrictedLocation.id, inventoryStatus: 'AVAILABLE', stockQty: 0, valuationQty: 0, costAmount: 0 } },
+    } })
+    const historicalSearch = await searchInventoryLots({ keyword: rawLot.lotNo }, scoped)
+    assert.ok(historicalSearch.items.some((item) => item.lot.id === rawLot.id), '授权库位的零库存历史批次仍必须可搜索')
+    const historicalPanorama = await getInventoryLotPanorama(rawLot.id, scoped)
+    assert.ok(historicalPanorama.nodes.some((item) => item.lot.id === rawLot.id), '授权库位的零库存历史批次仍必须可追溯')
+    assert.equal((await searchInventoryLots({ keyword: restrictedLot.lotNo }, scoped)).items.length, 0, '未授权库位的历史批次不得泄露')
+    await assert.rejects(() => getInventoryLotPanorama(restrictedLot.id, scoped), /库存数据范围/)
     await assert.rejects(() => getInventoryLotPanorama('missing-lot'), /内部批次不存在/)
-    console.log('批次搜索全景验证通过：供应批号、内部批号、供应商、客户、发货/退货/检验单搜索与多跳正反向全景均符合预期。')
+    console.log('批次搜索全景验证通过：单据搜索、多跳正反向全景与零库存历史批次库位隔离均符合预期。')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

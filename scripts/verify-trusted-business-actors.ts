@@ -49,11 +49,11 @@ for (const path of [
 }
 
 const receivingStatus = read('modules/receiving/server/material-in-status-service.ts')
-assert.match(receivingStatus, /receiveManagedMaterialIn\(id: string, receivedBy: string\)/, '来料确认必须显式接收可信操作人')
+assert.match(receivingStatus, /receiveManagedMaterialIn\(id: string, receivedBy: string(?:,|\))/, '来料确认必须显式接收可信操作人')
 assert.match(receivingStatus, /createdBy: receivedBy/, '来料库存流水必须记录可信操作人')
 
 const salesStatus = read('modules/sales/server/fulfillment-status-service.ts')
-assert.match(salesStatus, /shipManagedShipment\(id: string, shippedBy: string\)/, '确认发货必须显式接收可信操作人')
+assert.match(salesStatus, /shipManagedShipment\(id: string, shippedBy: string(?:,|\))/, '确认发货必须显式接收可信操作人')
 assert.match(salesStatus, /createdBy: shippedBy/, '发货库存流水必须记录可信操作人')
 
 console.log('可信操作人验证通过：确认、冲销、收货、发货、退货、兼容过账和成本记录均只使用服务端登录身份。')

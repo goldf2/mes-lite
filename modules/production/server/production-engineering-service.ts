@@ -6,7 +6,7 @@ import type { ProcessRouteInput, ProcessStepInput, ProcessTemplateInput } from '
 const templateInclude = { materials: { select: { id: true, code: true, name: true } } } as const
 const routeInclude = {
   product: { select: { id: true, sku: true, name: true } },
-  steps: { where: { deletedAt: null }, orderBy: { stepNo: 'asc' as const } },
+  steps: { where: { deletedAt: null }, include: { workCenter: { select: { id: true, code: true, name: true } } }, orderBy: { stepNo: 'asc' as const } },
 } as const
 
 export class ProductionEngineeringNotFoundError extends Error {
@@ -38,7 +38,7 @@ function templateData(data: ProcessTemplateInput) {
 
 function stepData(step: ProcessStepInput) {
   return {
-    stepNo: step.stepNo, name: step.name, defaultTime: step.defaultTime ?? null, workstation: step.workstation || null, description: step.description || null,
+    stepNo: step.stepNo, name: step.name, defaultTime: step.defaultTime ?? null, workstation: step.workstation || null, workCenterId: step.workCenterId || null, description: step.description || null,
     templateId: step.templateId || null, templateCode: step.templateCode || null, standardBatchQty: step.standardBatchQty, setupTimeMinutes: step.setupTimeMinutes,
     cycleTimeSeconds: step.cycleTimeSeconds, peopleCount: step.peopleCount, laborRatePerHour: step.laborRatePerHour, machineCount: step.machineCount,
     machineRatePerHour: step.machineRatePerHour, energyCostPerHour: step.energyCostPerHour, consumableCostPerBatch: step.consumableCostPerBatch, yieldRate: step.yieldRate,
@@ -84,6 +84,7 @@ export async function createProcessRoute(data: ProcessRouteInput) {
     if (!product) throw new ProductionEngineeringNotFoundError('material')
     const materialId = await resolveMaterialIdForProduct(tx, data.productId, product.materialId)
     if (!materialId) throw new ProductionEngineeringNotFoundError('material')
+    await assertProcessWorkCenters(tx, data.steps)
     if (data.isDefault) await tx.processRoute.updateMany({ where: { productId, isDefault: true }, data: { isDefault: false } })
     const route = await tx.processRoute.create({
       data: {
@@ -109,6 +110,7 @@ export async function updateProcessRoute(id: string, data: ProcessRouteInput) {
     if (!product) throw new ProductionEngineeringNotFoundError('material')
     const materialId = await resolveMaterialIdForProduct(tx, data.productId, product.materialId)
     if (!materialId) throw new ProductionEngineeringNotFoundError('material')
+    await assertProcessWorkCenters(tx, data.steps)
     if (data.isDefault) await tx.processRoute.updateMany({ where: { productId, isDefault: true, id: { not: id } }, data: { isDefault: false } })
     await tx.processStep.updateMany({ where: { routeId: id, deletedAt: null }, data: { deletedAt: new Date() } })
     const route = await tx.processRoute.update({
@@ -118,4 +120,11 @@ export async function updateProcessRoute(id: string, data: ProcessRouteInput) {
     })
     return { before, product, route }
   })
+}
+
+async function assertProcessWorkCenters(tx: import('@prisma/client').Prisma.TransactionClient, steps: ProcessStepInput[]) {
+  const ids = Array.from(new Set(steps.flatMap((step) => step.workCenterId ? [step.workCenterId] : [])))
+  if (ids.length === 0) return
+  const count = await tx.workCenter.count({ where: { id: { in: ids }, isActive: true, deletedAt: null } })
+  if (count !== ids.length) throw new ProductionEngineeringNotFoundError('route')
 }

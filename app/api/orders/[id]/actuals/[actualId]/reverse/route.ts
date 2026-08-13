@@ -6,6 +6,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { reverseProductionOrderActualSchema } from '@/modules/production/contracts/production-order-actual-schema'
 import { ProductionOrderDomainError } from '@/modules/production/domain/production-order-errors'
 import { reverseProductionOrderActual } from '@/modules/production/server/production-order-actual-status-service'
+import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string; actualId: string } }) {
   try {
@@ -14,7 +15,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const input = reverseProductionOrderActualSchema.parse(await req.json())
     const operator = await getCurrentOperator()
     if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
-    const result = await reverseProductionOrderActual(params.id, params.actualId, input, operatorDisplayName(operator))
+    const result = await reverseProductionOrderActual(params.id, params.actualId, input, operatorDisplayName(operator), await loadEffectiveDataScope(operator))
     await writeAuditLog(req, {
       action: 'REVERSE', entityType: 'PRODUCTION_ORDER_ACTUAL', entityId: result.updated.id,
       entityLabel: result.updated.actualNo, beforeData: result.before, afterData: result.updated, note: input.reason,
@@ -23,6 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors[0]?.message || '参数错误' }, { status: 400 })
     if (error instanceof ProductionOrderDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error instanceof Error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ error: '冲销班后生产实绩失败' }, { status: 500 })
   }

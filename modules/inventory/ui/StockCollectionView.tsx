@@ -107,8 +107,8 @@ function StockTable({ sort, selectedStockId, canAdjust, onSelect, onAdjust }: Om
                     </div>
                   ) : <span className="text-gray-400">无库位库存</span>}
                 </td>
-                <td className="px-4 py-3 text-sm">{stock.material ? `${stockQuantityText(stock.valuationQty)} ${stock.material.valuationUnit}` : '-'}</td>
-                <td className="px-4 py-3 text-sm">{stock.material ? `¥${Number(stock.totalCost || 0).toFixed(2)}` : '-'}</td>
+                <td className="px-4 py-3 text-sm">{stock.dataScopeRestricted ? <span className="text-amber-700">范围内不展示</span> : stock.material ? `${stockQuantityText(stock.valuationQty)} ${stock.material.valuationUnit}` : '-'}</td>
+                <td className="px-4 py-3 text-sm">{stock.dataScopeRestricted ? <span className="text-amber-700">范围内不展示</span> : stock.material ? `¥${Number(stock.totalCost || 0).toFixed(2)}` : '-'}</td>
                 <td className="px-4 py-3">
                   {canAdjust && <button type="button" onClick={(event) => { event.stopPropagation(); onAdjust(stock) }} className="rounded border border-blue-300 px-3 py-1 text-xs text-blue-700 hover:bg-blue-50">存货调整</button>}
                 </td>
@@ -177,7 +177,7 @@ function StockCards({ sort, selectedStockId, canAdjust, onSelect, onAdjust }: Om
                 <div className="mt-1 text-gray-500">散装 {stockQuantityText(stock.qty)} + 包装等效 {stockQuantityText(stock.packagingSummary.packagedEquivalentQty)}</div>
               </div>
             )}
-            {stock.material && (
+            {stock.material && !stock.dataScopeRestricted && (
               <div className="mt-3 rounded bg-gray-50 p-3 text-xs text-gray-600">
                 <div>核算库存：<span className="font-semibold text-gray-900">{stockQuantityText(stock.valuationQty)}</span> {stock.material.valuationUnit}</div>
                 <div className="mt-1">库存金额：<span className="font-semibold text-gray-900">¥{Number(stock.totalCost || 0).toFixed(2)}</span></div>
@@ -185,6 +185,9 @@ function StockCards({ sort, selectedStockId, canAdjust, onSelect, onAdjust }: Om
                 <div className="mt-1">当前实际换算：1 {unit} = {Number(stock.qty) > 0 ? (Number(stock.valuationQty) / Number(stock.qty)).toFixed(6) : '-'} {stock.material.valuationUnit}</div>
                 <div className="mt-1 text-gray-500">物料默认换算：1 {unit} = {stock.material.conversionRate || 1} {stock.material.valuationUnit}</div>
               </div>
+            )}
+            {stock.dataScopeRestricted && (
+              <div className="mt-3 rounded bg-amber-50 p-3 text-xs text-amber-800">当前数量只统计授权库位；成本层没有库位级金额，系统不显示全厂成本，避免把全局金额误当作范围内金额。</div>
             )}
             {canAdjust && <button type="button" onClick={(event) => { event.stopPropagation(); onAdjust(stock) }} className="mt-3 w-full rounded-lg border border-blue-300 px-3 py-2 text-sm text-blue-700 hover:bg-blue-50">存货调整</button>}
           </div>

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
+import { DataScopeError } from '@/modules/identity-access'
 
 export function productionOrderHttpError(error: unknown, fallback: string) {
   if (error instanceof z.ZodError) {
@@ -10,6 +11,9 @@ export function productionOrderHttpError(error: unknown, fallback: string) {
     }, { status: 400 })
   }
   if (error instanceof ProductionOrderDomainError) {
+    return NextResponse.json({ error: error.message }, { status: error.status })
+  }
+  if (error instanceof DataScopeError) {
     return NextResponse.json({ error: error.message }, { status: error.status })
   }
   console.error(`${fallback}:`, error)

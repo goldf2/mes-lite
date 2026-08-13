@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -20,9 +21,14 @@ execFileSync(join(root, 'node_modules', '.bin', 'prisma'), ['migrate', 'deploy']
 process.env.DATABASE_URL = databaseUrl
 
 async function main() {
-  const [{ prisma }, { ensureDefaultPermissions, getEffectivePermissionMap, hasResourcePermission }] = await Promise.all([
+  const [
+    { prisma },
+    { ensureDefaultPermissions, getEffectivePermissionMap, hasResourcePermission },
+    { updatePermissionAdministration },
+  ] = await Promise.all([
     import('../lib/prisma'),
     import('../lib/permissions'),
+    import('../modules/identity-access/server/permission-admin-service'),
   ])
   try {
     await ensureDefaultPermissions()
@@ -57,7 +63,41 @@ async function main() {
     assertEqual(restoredPermissions.system.canRead, false, '移除权限组后恢复角色默认权限')
     assertEqual(await hasResourcePermission(operator, 'system', 'read'), false, '移除权限组后权限判断恢复默认')
 
-    console.log('权限验证通过：角色兜底、权限组赋权与移除恢复均在临时完整数据库中符合预期。')
+    const admin = await prisma.operator.create({ data: {
+      username: `PERM-ADMIN-${Date.now()}`, passwordHash: 'permission-test', name: '临时授权管理员',
+      role: 'ADMIN', status: 'ACTIVE',
+    } })
+    const startsAt = new Date(Date.now() - 60_000).toISOString()
+    const expiresAt = new Date(Date.now() + 3_600_000).toISOString()
+    await assert.rejects(
+      () => updatePermissionAdministration(admin, { operatorPermissionOverrides: [{
+        action: 'UPSERT', operatorId: operator.id, resource: 'dataTools',
+        canRead: true, startsAt, expiresAt, reason: '',
+      }] }),
+      /必须填写原因/,
+      '个人临时授权必须记录原因',
+    )
+    const temporaryGrant = await updatePermissionAdministration(admin, { operatorPermissionOverrides: [{
+      action: 'UPSERT', operatorId: operator.id, resource: 'dataTools',
+      canRead: true, canUpdate: true, startsAt, expiresAt, reason: '临时执行灾备验证',
+    }] })
+    assertEqual(Boolean(temporaryGrant.overrideAudit), true, '个人临时授权变更必须返回审计快照')
+    const savedGrant = await prisma.operatorPermissionOverride.findUniqueOrThrow({
+      where: { operatorId_resource: { operatorId: operator.id, resource: 'dataTools' } },
+    })
+    assertEqual(savedGrant.reason, '临时执行灾备验证', '临时授权必须保存原因')
+    assertEqual(savedGrant.grantedBy, admin.id, '临时授权必须保存授权人')
+    assertEqual(await hasResourcePermission(operator, 'dataTools', 'update'), true, '生效时间内的个人临时授权必须可用')
+    await prisma.operatorPermissionOverride.update({
+      where: { id: savedGrant.id }, data: { startsAt: new Date(Date.now() - 120_000), expiresAt: new Date(Date.now() - 60_000) },
+    })
+    assertEqual(await hasResourcePermission(operator, 'dataTools', 'update'), false, '过期个人临时授权必须自动失效')
+    await prisma.operatorPermissionOverride.update({
+      where: { id: savedGrant.id }, data: { legacyPermanent: true },
+    })
+    assertEqual(await hasResourcePermission(operator, 'dataTools', 'update'), true, '迁移标记的历史永久覆盖在重新审批前保持兼容')
+
+    console.log('权限验证通过：角色兜底、权限组、限时个人授权、过期失效与历史兼容均符合预期。')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

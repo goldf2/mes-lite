@@ -12,8 +12,8 @@ import useClientTableSort from '@/app/components/useClientTableSort'
 import useCompactViewport from '@/app/components/useCompactViewport'
 import { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import { filterByResourceSearch, type ResourceSearchCondition } from '@/lib/resource-search'
-import { loadEngineeringProducts, loadProcessRoutes, loadProcessTemplates, saveProcessRoute } from '../client/production-engineering-api'
-import type { MaterialChoice, ProcessRoute, ProcessRouteForm, ProcessStepForm, ProcessTemplate } from '../contracts/production-engineering'
+import { loadEngineeringProducts, loadProcessRoutes, loadProcessTemplates, loadProcessWorkCenters, saveProcessRoute } from '../client/production-engineering-api'
+import type { MaterialChoice, ProcessRoute, ProcessRouteForm, ProcessStepForm, ProcessTemplate, ProcessWorkCenterOption } from '../contracts/production-engineering'
 import {
   displayMaterialCode,
   emptyProcessRouteForm,
@@ -29,6 +29,7 @@ export default function ProcessRoutePage({ onMessage, actions, canCreate, canUpd
   const [routes, setRoutes] = useState<ProcessRoute[]>([])
   const [products, setProducts] = useState<MaterialChoice[]>([])
   const [templates, setTemplates] = useState<ProcessTemplate[]>([])
+  const [workCenters, setWorkCenters] = useState<ProcessWorkCenterOption[]>([])
   const [showModal, setShowModal] = useState(false)
   const [editingRoute, setEditingRoute] = useState<ProcessRoute | null>(null)
   const [saving, setSaving] = useState(false)
@@ -48,13 +49,15 @@ export default function ProcessRoutePage({ onMessage, actions, canCreate, canUpd
   }, 'manual', 'asc')
 
   const load = useCallback(async () => {
-    const [routeResult, productResult, templateResult] = await Promise.allSettled([loadProcessRoutes(), loadEngineeringProducts(), loadProcessTemplates()])
+    const [routeResult, productResult, templateResult, workCenterResult] = await Promise.allSettled([loadProcessRoutes(), loadEngineeringProducts(), loadProcessTemplates(), loadProcessWorkCenters()])
     if (routeResult.status === 'fulfilled') setRoutes(routeResult.value)
     else onMessage(routeResult.reason instanceof Error ? routeResult.reason.message : '获取工艺路线失败')
     if (productResult.status === 'fulfilled') setProducts(productResult.value)
     else onMessage(productResult.reason instanceof Error ? productResult.reason.message : '获取物料失败')
     if (templateResult.status === 'fulfilled') setTemplates(templateResult.value)
     else onMessage(templateResult.reason instanceof Error ? templateResult.reason.message : '获取加工工艺失败')
+    if (workCenterResult.status === 'fulfilled') setWorkCenters(workCenterResult.value)
+    else onMessage(workCenterResult.reason instanceof Error ? workCenterResult.reason.message : '获取工作中心失败')
   }, [onMessage])
 
   useEffect(() => { void load() }, [load])
@@ -77,7 +80,7 @@ export default function ProcessRoutePage({ onMessage, actions, canCreate, canUpd
       name: route.name,
       isDefault: route.isDefault,
       steps: route.steps.length ? route.steps.map((step) => ({
-        stepNo: step.stepNo, name: step.name, defaultTime: step.defaultTime || 0, workstation: step.workstation || '', description: step.description || '',
+        stepNo: step.stepNo, name: step.name, defaultTime: step.defaultTime || 0, workstation: step.workstation || '', workCenterId: step.workCenterId || '', description: step.description || '',
         templateId: step.templateId || '', templateCode: step.templateCode || '', standardBatchQty: step.standardBatchQty,
         setupTimeMinutes: step.setupTimeMinutes, cycleTimeSeconds: step.cycleTimeSeconds, peopleCount: step.peopleCount,
         laborRatePerHour: step.laborRatePerHour, machineCount: step.machineCount, machineRatePerHour: step.machineRatePerHour,
@@ -151,7 +154,7 @@ export default function ProcessRoutePage({ onMessage, actions, canCreate, canUpd
           <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.isDefault} onChange={(event) => setForm({ ...form, isDefault: event.target.checked })} className="h-4 w-4" />设为该物料默认工艺路线</label>
           <section><div className="mb-3 flex items-center justify-between"><h4 className="font-medium">工序列表</h4><AppButton variant="secondary" size="sm" onClick={addStep}>添加工序</AppButton></div><div className="space-y-3">{form.steps.map((step, index) => <div key={index} className="rounded-lg border border-gray-200 p-3">
             <FormField label="从可计算工艺模板加入"><SearchableSelect value={step.templateId} onChange={(templateId) => applyTemplate(index, templateId)} options={[{ value: '', label: '手工工序' }, ...templates.map((template) => ({ value: template.id, label: `${template.code} · ${template.name}` }))]} placeholder="输入模板编码或名称筛选" /></FormField>
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"><FormField label="工序号" required><input type="number" value={step.stepNo || ''} onChange={(event) => updateStep(index, { stepNo: Number(event.target.value) })} className={appInputClassName} /></FormField><FormField label="工序名称" required><input value={step.name} onChange={(event) => updateStep(index, { name: event.target.value })} className={appInputClassName} /></FormField><FormField label="工位"><input value={step.workstation} onChange={(event) => updateStep(index, { workstation: event.target.value })} className={appInputClassName} /></FormField><FormField label="默认工时（分钟）"><input type="number" value={step.defaultTime || ''} onChange={(event) => updateStep(index, { defaultTime: Number(event.target.value) })} className={appInputClassName} /></FormField></div>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"><FormField label="工序号" required><input type="number" value={step.stepNo || ''} onChange={(event) => updateStep(index, { stepNo: Number(event.target.value) })} className={appInputClassName} /></FormField><FormField label="工序名称" required><input value={step.name} onChange={(event) => updateStep(index, { name: event.target.value })} className={appInputClassName} /></FormField><FormField label="工作中心"><SearchableSelect value={step.workCenterId} onChange={(workCenterId) => { const selected = workCenters.find((item) => item.id === workCenterId); updateStep(index, { workCenterId, workstation: selected?.name || '' }) }} options={workCenters.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} placeholder="选择稳定工作中心" /></FormField><FormField label="默认工时（分钟）"><input type="number" value={step.defaultTime || ''} onChange={(event) => updateStep(index, { defaultTime: Number(event.target.value) })} className={appInputClassName} /></FormField></div>
             <div className="mt-3"><FormField label="说明"><input value={step.description} onChange={(event) => updateStep(index, { description: event.target.value })} className={appInputClassName} /></FormField></div>
             {step.templateId && (() => { const value = processCostPerThousand(step); return <div className="mt-3 grid grid-cols-3 gap-2 rounded bg-gray-50 p-2 text-xs text-gray-600"><span>千件人工 <b>{value.laborHours.toFixed(2)}h</b></span><span>千件机时 <b>{value.machineHours.toFixed(2)}h</b></span><span>千件成本 <b>¥{value.cost.toFixed(2)}</b></span></div> })()}
             <div className="mt-3 flex justify-end"><AppButton variant="danger" size="sm" onClick={() => removeStep(index)}>移除本工序</AppButton></div>

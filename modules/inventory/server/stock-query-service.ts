@@ -9,6 +9,7 @@ import {
   findStockIntegrityIssues,
   StockIntegrityError,
 } from './stock-integrity-service'
+import { stockDataScopeWhere, type EffectiveDataScope } from '@/modules/identity-access'
 
 const stockInclude = {
   material: {
@@ -126,11 +127,37 @@ async function loadPackagingInventory() {
   )
 }
 
-export async function listStocks(query: StockListQuery) {
+function scopedStockProjection<T extends {
+  qty: number; reservedQty: number; availableQty: number; quarantineQty: number; holdQty: number; reworkQty: number
+  locationBalances: Array<{ locationId: string; qty: number; reservedQty: number; availableQty: number; quarantineQty: number; holdQty: number; reworkQty: number }>
+}>(stock: T, scope: EffectiveDataScope) {
+  if (scope.inventoryMode === 'ALL') return { ...stock, dataScopeRestricted: false }
+  const locationBalances = stock.locationBalances.filter((balance) => scope.locationIds.includes(balance.locationId))
+  const sum = (field: 'qty' | 'reservedQty' | 'availableQty' | 'quarantineQty' | 'holdQty' | 'reworkQty') => (
+    locationBalances.reduce((total, balance) => total + Number(balance[field] || 0), 0)
+  )
+  return {
+    ...stock,
+    qty: sum('qty'), reservedQty: sum('reservedQty'), availableQty: sum('availableQty'),
+    quarantineQty: sum('quarantineQty'), holdQty: sum('holdQty'), reworkQty: sum('reworkQty'),
+    valuationQty: 0, reservedValuationQty: 0, availableValuationQty: 0,
+    quarantineValuationQty: 0, holdValuationQty: 0, reworkValuationQty: 0,
+    totalCost: 0, quarantineCost: 0, holdCost: 0, reworkCost: 0,
+    valuationUnitCost: 0, stockUnitCost: 0,
+    packagingDefinition: null, packagingSummary: null,
+    locationBalances,
+    dataScopeRestricted: true,
+  }
+}
+
+export async function listStocks(query: StockListQuery, scope: EffectiveDataScope) {
   const integrityIssues = await findStockIntegrityIssues()
   if (integrityIssues.length > 0) throw new StockIntegrityError(integrityIssues)
 
-  const stocks = await prisma.stock.findMany({ where: buildStockWhere(query), include: stockInclude, orderBy: { id: 'asc' } })
+  const baseWhere = buildStockWhere(query)
+  const stocks = await prisma.stock.findMany({
+    where: { AND: [baseWhere, stockDataScopeWhere(scope)] }, include: stockInclude, orderBy: { id: 'asc' },
+  })
   const materialIds = stocks.flatMap((stock) => stock.materialId ? [stock.materialId] : [])
   const [primaryImageByMaterial, packagingAnalysis] = await Promise.all([
     loadMaterialImages(materialIds),
@@ -138,12 +165,12 @@ export async function listStocks(query: StockListQuery) {
   ])
   const enriched = stocks.map((stock) => {
     const image = stock.materialId ? primaryImageByMaterial.get(stock.materialId) : null
-    return {
+    return scopedStockProjection({
       ...stock,
       packagingDefinition: stock.materialId ? packagingAnalysis.definitions.get(stock.materialId) || null : null,
       packagingSummary: stock.materialId ? packagingAnalysis.summaries.get(stock.materialId) || null : null,
       material: stock.material ? { ...stock.material, primaryImage: image ? withMaterialImageUrls(image) : null } : null,
-    }
+    }, scope)
   })
   const visible = (query.includeInvalid ? enriched : enriched.filter((stock) => !stock.material?.deletedAt || hasStockBalance(stock)))
     .filter((stock) => stock.material || hasStockBalance(stock))

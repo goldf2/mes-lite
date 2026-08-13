@@ -375,7 +375,12 @@ async function insertMissingDefaultPermissions() {
   const inheritedOverrides = savedOverrides.flatMap((override) => permissionResources.flatMap((resource) => {
     if (permissionResourceLegacySources[resource.key] !== override.resource) return []
     if (overrideByKey.has(`${override.operatorId}:${resource.key}`)) return []
-    return [{ operatorId: override.operatorId, resource: resource.key, ...cloneFlags(override) }]
+    return [{
+      operatorId: override.operatorId, resource: resource.key, ...cloneFlags(override),
+      reason: override.reason, grantedBy: override.grantedBy,
+      startsAt: override.startsAt, expiresAt: override.expiresAt,
+      legacyPermanent: override.legacyPermanent,
+    }]
   }))
   if (inheritedOverrides.length > 0) await prisma.operatorPermissionOverride.createMany({ data: inheritedOverrides })
 }
@@ -450,8 +455,15 @@ export async function getEffectivePermissionMap(subject: PermissionSubject | str
     }
   }
 
+  const now = new Date()
   const overrides = await prisma.operatorPermissionOverride.findMany({
-    where: { operatorId: current.id },
+    where: {
+      operatorId: current.id,
+      OR: [
+        { legacyPermanent: true },
+        { legacyPermanent: false, startsAt: { lte: now }, expiresAt: { gt: now } },
+      ],
+    },
   })
 
   for (const override of overrides) {

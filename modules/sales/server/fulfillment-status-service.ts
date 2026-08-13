@@ -10,11 +10,13 @@ import {
 import { createReturnQualityInspection } from '@/modules/quality'
 import { runSalesDomainOperation, SalesDomainError } from '../domain/sales-errors'
 import { refreshSalesOrderStatus } from './sales-order-availability-service'
+import { assertInventoryLocationDataScope, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 
-export async function shipManagedShipment(id: string, shippedBy: string) {
+export async function shipManagedShipment(id: string, shippedBy: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   return runSalesDomainOperation(() => prisma.$transaction(async (tx) => {
     const shipment = await tx.shipment.findUnique({ where: { id } })
     if (!shipment) throw new SalesDomainError('发货单不存在', 404)
+    assertInventoryLocationDataScope(scope, [shipment.locationId])
     if (shipment.status !== 'PENDING') throw new SalesDomainError('只能确认待发货状态的发货单')
     const materialId = await resolveMaterialIdForProduct(tx, shipment.productId, shipment.materialId)
     if (!materialId) throw new SalesDomainError('发货对象未关联统一物料档案')
@@ -61,26 +63,29 @@ export async function shipManagedShipment(id: string, shippedBy: string) {
   }))
 }
 
-export async function deliverManagedShipment(id: string) {
+export async function deliverManagedShipment(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   const before = await prisma.shipment.findUnique({ where: { id } })
   if (!before) throw new SalesDomainError('发货单不存在', 404)
+  assertInventoryLocationDataScope(scope, [before.locationId])
   if (before.status !== 'SHIPPED') throw new SalesDomainError('只能确认已发货状态的发货单签收')
   const updated = await prisma.shipment.update({ where: { id }, data: { status: 'DELIVERED' } })
   return { before, updated }
 }
 
-export async function cancelManagedShipment(id: string) {
+export async function cancelManagedShipment(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   const before = await prisma.shipment.findUnique({ where: { id } })
   if (!before) throw new SalesDomainError('发货单不存在', 404)
+  assertInventoryLocationDataScope(scope, [before.locationId])
   if (before.status !== 'PENDING') throw new SalesDomainError('已发货的发货单不可取消，请走退货流程')
   const updated = await prisma.shipment.update({ where: { id }, data: { status: 'CANCELLED' } })
   return { before, updated }
 }
 
-export async function processManagedReturn(id: string, processedBy: string) {
+export async function processManagedReturn(id: string, processedBy: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   return runSalesDomainOperation(() => prisma.$transaction(async (tx) => {
     const returnOrder = await tx.returnOrder.findUnique({ where: { id } })
     if (!returnOrder) throw new SalesDomainError('退货单不存在', 404)
+    assertInventoryLocationDataScope(scope, [returnOrder.locationId])
     if (returnOrder.status !== 'PENDING') throw new SalesDomainError('只能处理待处理状态的退货单')
     const materialId = await resolveMaterialIdForProduct(tx, returnOrder.productId, returnOrder.materialId)
     if (!materialId) throw new SalesDomainError('退货对象未关联统一物料档案')
@@ -190,9 +195,10 @@ export async function processManagedReturn(id: string, processedBy: string) {
   }))
 }
 
-export async function rejectManagedReturn(id: string) {
+export async function rejectManagedReturn(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   const before = await prisma.returnOrder.findUnique({ where: { id } })
   if (!before) throw new SalesDomainError('退货单不存在', 404)
+  assertInventoryLocationDataScope(scope, [before.locationId])
   if (before.status !== 'PENDING') throw new SalesDomainError('只能拒绝待处理状态的退货单')
   const updated = await prisma.returnOrder.update({ where: { id }, data: { status: 'REJECTED' } })
   return { before, updated }

@@ -112,6 +112,9 @@ async function main() {
     const order = await prisma.productionOrder.create({
       data: { orderNo: `VERIFY-O-${suffix}`, productId: product.id, materialId: material.id, planQty: 100, status: 'RELEASED' },
     })
+    const employee = await prisma.employee.create({
+      data: { code: `VERIFY-E-${suffix}`, name: '验证工人', isActive: true },
+    })
     const draftOrder = await prisma.productionOrder.create({
       data: { orderNo: `VERIFY-DRAFT-${suffix}`, productId: product.id, planQty: 10, status: 'DRAFT' },
     })
@@ -123,7 +126,7 @@ async function main() {
     })
 
     const input = createDispatchSchema.parse({
-      orderId: order.id, stepId: route.steps[0].id, workerName: ' 验证工人 ',
+      orderId: order.id, stepId: route.steps[0].id, employeeId: employee.id,
       planQty: 80, priority: 'HIGH', voucherNo: ' V-001 ', note: ' 首工序 ',
     })
     const created = await createManagedDispatch(input, fixedNow)
@@ -147,7 +150,7 @@ async function main() {
     assert.equal(completed.updated.status, 'COMPLETED')
     await assert.rejects(() => transitionManagedDispatch(created.id, 'cancel'), /只能取消待派工或已派工/)
 
-    const cancellable = await createManagedDispatch({ ...input, workerName: '待取消工人', stepId: route.steps[1].id }, fixedNow)
+    const cancellable = await createManagedDispatch({ ...input, stepId: route.steps[1].id }, fixedNow)
     assert.equal(cancellable.dispatchNo, 'DP-20260810-011')
     const cancelled = await transitionManagedDispatch(cancellable.id, 'cancel', fixedNow)
     assert.equal(cancelled.updated.status, 'CANCELLED')

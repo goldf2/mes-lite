@@ -5,14 +5,19 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { flowTransferInputSchema } from '@/modules/production/contracts/flow-transfer-schema'
 import { FlowTransferDomainError } from '@/modules/production/domain/flow-transfer-errors'
 import { updateManagedFlowTransfer } from '@/modules/production/server/flow-transfer-command-service'
+import { getCurrentOperator } from '@/lib/auth'
+import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const denied = await requireResourcePermission('flowTransfers', 'update')
     if (denied) return denied
+    const operator = await getCurrentOperator()
+    if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
     const { current, updated } = await updateManagedFlowTransfer(
       params.id,
       flowTransferInputSchema.parse(await req.json()),
+      await loadEffectiveDataScope(operator),
     )
     await writeAuditLog(req, {
       action: 'UPDATE', entityType: 'FLOW_TRANSFER', entityId: updated.id,
@@ -24,6 +29,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: error.errors[0]?.message || '参数错误', details: error.errors }, { status: 400 })
     }
     if (error instanceof FlowTransferDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Update flow transfer error:', error)
     return NextResponse.json({ error: '更新流程转移失败' }, { status: 500 })
   }

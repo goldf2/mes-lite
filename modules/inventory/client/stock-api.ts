@@ -51,7 +51,7 @@ export async function loadStockCustomers(): Promise<Customer[]> {
 }
 
 export async function loadInventoryLocations(): Promise<InventoryLocationOption[]> {
-  const response = await fetch('/api/inventory-locations')
+  const response = await fetch('/api/inventory-locations?context=stocks')
   if (!response.ok) return []
   const payload = await response.json()
   return Array.isArray(payload.data) ? payload.data : []

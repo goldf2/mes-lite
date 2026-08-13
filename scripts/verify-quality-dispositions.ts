@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { EffectiveDataScope } from '../modules/identity-access'
 
 const verifyRoot = mkdtempSync(join(tmpdir(), 'ml-quality-dispositions-'))
 const databaseUrl = `file:${join(verifyRoot, 'verify.db')}`
@@ -32,7 +33,15 @@ async function main() {
 
   try {
     const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`
-    const location = await prisma.inventoryLocation.create({ data: { code: `QD-${suffix}`, name: '质量处置库位' } })
+    const [location, restrictedLocation] = await Promise.all([
+      prisma.inventoryLocation.create({ data: { code: `QD-${suffix}`, name: '质量处置库位' } }),
+      prisma.inventoryLocation.create({ data: { code: `QD-X-${suffix}`, name: '无权质量库位' } }),
+    ])
+    const scoped: EffectiveDataScope = {
+      operatorId: 'quality-scope', employeeId: null, employeeCode: null,
+      productionMode: 'ALL', inventoryMode: 'LOCATIONS',
+      workCenterIds: [], locationIds: [location.id], inheritedLegacyDefault: false,
+    }
     const material = await prisma.material.create({
       data: { code: `QD-MAT-${suffix}`, name: '质量处置验证物料', category: 'FINISHED', unit: '件', stockUnit: '件', valuationUnit: '件', costingMethod: 'FIFO' },
     })
@@ -59,10 +68,14 @@ async function main() {
     }
 
     const partial = await createPendingLot('PARTIAL', 10, 100)
+    await prisma.inventoryLotBalance.create({ data: {
+      lotId: partial.lot.id, locationId: restrictedLocation.id, inventoryStatus: 'AVAILABLE',
+      stockQty: 0, valuationQty: 0, costAmount: 0,
+    } })
     await decideQualityInspection(partial.inspection.id, {
       decision: 'PARTIAL', sampleQty: 2, goodQty: 1, badQty: 1,
       releaseQty: 6, holdQty: 4, note: '部分尺寸合格，分批处置',
-    }, '质量判定员')
+    }, '质量判定员', scoped)
 
     let stock = await prisma.stock.findUniqueOrThrow({ where: { materialId: material.id } })
     close(Number(stock.availableQty), 6, '部分判定后可用量')
@@ -122,7 +135,16 @@ async function main() {
     assert.equal(Object.values(integrity[0] || {})[0], 'ok')
     assert.equal(await prisma.qualityDisposition.count(), 11, '所有质量判定和处置都必须保留独立记录')
     assert.equal(await prisma.qualityInspection.count(), 4, '初检、复检和返工复检必须保留完整轮次')
-    console.log('质量处置闭环验证通过：部分放行、复检、让步、返工送检、报废、解冻、成本与批次状态守恒。')
+
+    const blocked = await createPendingLot('BLOCKED', 2, 20)
+    await prisma.inventoryLotBalance.create({ data: {
+      lotId: blocked.lot.id, locationId: restrictedLocation.id, inventoryStatus: 'AVAILABLE',
+      stockQty: 1, valuationQty: 1, costAmount: 10,
+    } })
+    await assert.rejects(() => decideQualityInspection(blocked.inspection.id, {
+      decision: 'PASS', sampleQty: 1, goodQty: 1, badQty: 0, note: '跨库位越权验证',
+    }, '质量判定员', scoped), /库存数据范围/)
+    console.log('质量处置闭环验证通过：处置、成本守恒、零余额历史库位兼容与跨授权库位阻断均符合预期。')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

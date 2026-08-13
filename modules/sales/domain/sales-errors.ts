@@ -1,3 +1,5 @@
+import { DataScopeError } from '@/modules/identity-access'
+
 export class SalesDomainError extends Error {
   constructor(message: string, public readonly status = 400) {
     super(message)
@@ -10,6 +12,7 @@ export async function runSalesDomainOperation<T>(operation: () => Promise<T>) {
   try {
     return await operation()
   } catch (error) {
+    if (error instanceof DataScopeError) throw error
     if (error instanceof SalesDomainError) throw error
     if (error instanceof Error && expectedSalesError.test(error.message)) {
       throw new SalesDomainError(error.message)

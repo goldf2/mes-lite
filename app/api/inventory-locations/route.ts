@@ -15,6 +15,7 @@ import {
   updateManagedInventoryLocation,
 } from '@/modules/configuration/server/inventory-location-command-service'
 import { listManagedInventoryLocations } from '@/modules/configuration/server/inventory-location-query-service'
+import { allowedInventoryLocationIds, loadEffectiveDataScope } from '@/modules/identity-access'
 
 function locationHttpError(error: unknown, fallback: string) {
   if (error instanceof z.ZodError) {
@@ -29,13 +30,18 @@ function locationHttpError(error: unknown, fallback: string) {
 
 export async function GET(req: NextRequest) {
   try {
-    if (!await getCurrentOperator()) return NextResponse.json({ error: '请先登录' }, { status: 401 })
-    const includeInactive = new URL(req.url).searchParams.get('includeInactive') === '1'
+    const operator = await getCurrentOperator()
+    if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
+    const searchParams = new URL(req.url).searchParams
+    const includeInactive = searchParams.get('includeInactive') === '1'
     const denied = includeInactive
       ? await requireResourcePermission('locations', 'read')
       : await requireAnyResourcePermission(['locations', 'materialIn', 'orders', 'productionActualEntry', 'stocks', 'shipment', 'return', 'flowTransfers'], 'read')
     if (denied) return denied
-    return NextResponse.json({ data: await listManagedInventoryLocations(includeInactive) })
+    const locations = await listManagedInventoryLocations(includeInactive)
+    if (!searchParams.get('context')) return NextResponse.json({ data: locations })
+    const allowedIds = allowedInventoryLocationIds(await loadEffectiveDataScope(operator))
+    return NextResponse.json({ data: allowedIds ? locations.filter((location) => allowedIds.includes(location.id)) : locations })
   } catch (error) {
     return locationHttpError(error, '获取库位失败')
   }

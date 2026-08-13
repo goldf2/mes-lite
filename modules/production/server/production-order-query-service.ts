@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { applyStatusFilter } from '@/lib/status-filter'
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
 import { expandProductionOrderStatusFilters } from '../domain/production-order-status'
+import { productionOrderDataScopeWhere, type EffectiveDataScope } from '@/modules/identity-access'
 
 export interface ProductionOrderListQuery {
   statuses: string[]
@@ -12,9 +13,10 @@ export interface ProductionOrderListQuery {
   pageSize: number
 }
 
-export async function listProductionOrders(query: ProductionOrderListQuery) {
+export async function listProductionOrders(query: ProductionOrderListQuery, scope?: EffectiveDataScope) {
   const where: Prisma.ProductionOrderWhereInput = { deletedAt: null }
   const andConditions: Prisma.ProductionOrderWhereInput[] = []
+  if (scope) andConditions.push(productionOrderDataScopeWhere(scope))
   const statusWhere: { status?: string | { in: string[] } } = {}
   applyStatusFilter(statusWhere, expandProductionOrderStatusFilters(query.statuses))
   Object.assign(where, statusWhere)
@@ -70,9 +72,9 @@ export async function listProductionOrders(query: ProductionOrderListQuery) {
   }
 }
 
-export async function getProductionOrderDetail(id: string) {
-  const order = await prisma.productionOrder.findUnique({
-    where: { id },
+export async function getProductionOrderDetail(id: string, scope?: EffectiveDataScope) {
+  const order = await prisma.productionOrder.findFirst({
+    where: { id, ...(scope ? productionOrderDataScopeWhere(scope) : {}) },
     include: {
       product: true,
       targetMaterial: true,
@@ -88,7 +90,7 @@ export async function getProductionOrderDetail(id: string) {
 
   const [groupLines, route] = await Promise.all([
     order.groupNo ? prisma.productionOrder.findMany({
-      where: { groupNo: order.groupNo, deletedAt: null },
+      where: { groupNo: order.groupNo, deletedAt: null, ...(scope ? productionOrderDataScopeWhere(scope) : {}) },
       include: {
         product: true,
         targetMaterial: true,

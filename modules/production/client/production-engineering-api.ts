@@ -1,4 +1,4 @@
-import type { MaterialChoice, ProcessRoute, ProcessRouteForm, ProcessTemplate, ProcessTemplateForm } from '../contracts/production-engineering'
+import type { MaterialChoice, ProcessRoute, ProcessRouteForm, ProcessTemplate, ProcessTemplateForm, ProcessWorkCenterOption } from '../contracts/production-engineering'
 
 async function readData<T>(response: Response, fallbackMessage: string): Promise<T> {
   const payload = await response.json()
@@ -26,6 +26,10 @@ export async function loadProcessRoutes() {
   return readData<ProcessRoute[]>(await fetch('/api/process-routes'), '获取工艺路线失败')
 }
 
+export async function loadProcessWorkCenters() {
+  return readData<ProcessWorkCenterOption[]>(await fetch('/api/work-centers'), '获取工作中心失败')
+}
+
 export async function loadEngineeringProducts() {
   return readData<MaterialChoice[]>(await fetch('/api/products'), '获取物料失败')
 }
@@ -42,6 +46,7 @@ export async function saveProcessRoute(form: ProcessRouteForm, editingId?: strin
         stepNo: Number(step.stepNo),
         defaultTime: Number(step.defaultTime || 0),
         workstation: step.workstation || undefined,
+        workCenterId: step.workCenterId || undefined,
         description: step.description || undefined,
         templateId: step.templateId || undefined,
         templateCode: step.templateCode || undefined,

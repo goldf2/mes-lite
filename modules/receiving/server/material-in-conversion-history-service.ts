@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { resolveMaterialUnits } from '@/lib/units'
+import { materialInDataScopeWhere, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 import { MaterialInDomainError } from '../domain/material-in-errors'
 
 export const materialInHistoryMinimumSamples = 3
@@ -21,6 +22,7 @@ export interface MaterialInConversionHistory {
 
 export async function loadMaterialInConversionHistory(
   materialId: string,
+  scope: EffectiveDataScope = unrestrictedDataScope,
   client: ConversionHistoryClient = prisma,
 ): Promise<MaterialInConversionHistory> {
   const material = await client.material.findFirst({ where: { id: materialId, deletedAt: null } })
@@ -46,6 +48,7 @@ export async function loadMaterialInConversionHistory(
 
   const samples = await client.materialIn.findMany({
     where: {
+      ...materialInDataScopeWhere(scope),
       materialId,
       status: 'RECEIVED',
       deletedAt: null,

@@ -1,3 +1,5 @@
+import { DataScopeError } from '@/modules/identity-access'
+
 export class FlowTransferDomainError extends Error {
   constructor(message: string, public readonly status = 400) {
     super(message)
@@ -10,6 +12,7 @@ export async function runFlowTransferDomainOperation<T>(operation: () => Promise
   try {
     return await operation()
   } catch (error) {
+    if (error instanceof DataScopeError) throw error
     if (error instanceof FlowTransferDomainError) throw error
     if (error instanceof Error && expectedFlowTransferError.test(error.message)) {
       throw new FlowTransferDomainError(error.message)
