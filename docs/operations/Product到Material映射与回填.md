@@ -2,7 +2,7 @@
 
 状态：阶段 1B-2 生产操作手册
 
-事实基线：`v0.1.353` / 2026-08-12
+事实基线：`v0.1.368` / 2026-08-14
 
 ## 1. 目的和边界
 
@@ -38,7 +38,7 @@ node scripts/product-material-migration.mjs plan \
   --mapping /app/backups/product-material/mapping-2026-08-12.json
 ```
 
-`audit` 和 `plan` 都只读数据库。计划中每个 Product 包含依赖数、Product 独占库存风险、物料候选以及候选来源；`materialCatalog` 提供有效物料和 `materialStockExists`，便于选择空库存处置。审计会单独统计 `ambiguousCodeMappings`；同时存在 `X` 和 `MAT-X` 两个候选时，兼容读写也会拒绝按排序猜测。`snapshotSha256` 只覆盖不可编辑的计划快照；`apply` 会重新计算，快照变化后必须废弃旧签字。
+`audit` 和 `plan` 都只读数据库。计划中每个 Product 包含依赖数、Product 独占库存风险、物料候选以及候选来源；`materialCatalog` 提供有效物料和 `materialStockExists`，便于选择空库存处置。审计会单独统计 `ambiguousCodeMappings`；同时存在 `X` 和 `MAT-X` 两个候选时，兼容读写也会拒绝按排序猜测。`snapshotSha256` 只覆盖不可编辑的计划快照；`preflight` 和 `apply` 都会重新计算，快照变化后必须废弃旧签字。
 
 ## 4. 人工确认映射
 
@@ -53,7 +53,28 @@ node scripts/product-material-migration.mjs plan \
 
 映射必须覆盖所有 Product，一个 Material 不能绑定多个兼容 Product。确认期间如 Product 或依赖数变化，应废弃旧文件并重新生成。
 
-## 5. 维护窗口执行回填
+## 5. 维护窗口前只读预检
+
+人工填写完成后，先在停止写入的恢复候选或维护副本上执行：
+
+```bash
+node scripts/product-material-migration.mjs preflight \
+  --mapping /app/backups/product-material/mapping-2026-08-14-confirmed.json \
+  --report /app/backups/product-material/preflight-2026-08-14.json
+```
+
+`preflight` 不创建备份、不执行回填。它复用 `apply` 的全部映射门禁，验证签字、逐行依据、Material 有效性、一对一关系、BOM 主产出、现有单据投影、引用计数、Product 库存风险及计划快照；成功和失败都写入不存在的新报告文件，并记录数据库前后 SHA-256。
+
+只有以下条件全部满足才能进入维护窗口：
+
+- `status=PASS` 且 `readyForApply=true`；
+- `databaseSha256Before` 与 `databaseSha256After` 完全一致；
+- 报告中的 `mappingSha256` 与待执行映射文件一致；
+- 当前数据库仍保持停止写入；任何业务数据变化都必须重新 `plan → 签字 → preflight`。
+
+失败报告必须保留。不得直接修改 `snapshotSha256`、绕过签字、复用旧报告或把候选自动决定当作业务批准。
+
+## 6. 维护窗口执行回填
 
 1. 停止对外流量和所有能写数据的应用副本，确认只有一个维护进程持有数据库。
 2. 将确认后的 JSON 放回持久备份卷。
@@ -70,7 +91,7 @@ node scripts/product-material-migration.mjs apply \
 
 `apply` 首先预留报告文件，然后创建并验证数据库+附件一致备份，通过后才在一个数据库事务中回填。失败时保留 `FAILED` 报告、错误和备份信息；`mappingTransactionCompleted=false` 证明映射事务未完成。成功报告为 `COMPLETE`，包含映射文件 SHA-256、备份 SHA-256、前后审计和各表改动数。
 
-## 6. 验收和回滚
+## 7. 验收和回滚
 
 成功后先检查报告：
 
@@ -89,8 +110,8 @@ node scripts/runtime-backup.mjs stage-restore \
 
 验证候选后再切换 `data/uploads` 挂载，不得直接解压覆盖当前运行目录。代码回退本身不会逆转数据回填；数据回滚必须使用该次报告绑定的备份。
 
-## 7. 本地已验证与未完成
+## 8. 本地已验证与未完成
 
-已在运行后删除的隔离 SQLite 上验证：从空库应用全部迁移、只读审计、计划、未确认/冲突/缺主产出/非零库存阻断、失败报告、自动备份、9 类数据回填、对账和从成功报告备份恢复。新种子数据审计达到 `ready=true`。
+已在运行后删除的隔离 SQLite 上验证：从空库应用全部迁移、只读审计、计划、预检通过、未签字/非法 JSON/缺依据/签字后漂移/冲突/缺主产出/非零库存阻断、失败报告、自动备份、9 类数据回填、对账和从成功报告备份恢复。新种子数据审计达到 `ready=true`。
 
-仍未完成：服务器真实数据审计、人工映射签字、生产维护窗口回填、异地备份和 Coolify 恢复验收。完成这些之前，不得将可空字段收紧或删除 Product 外键。
+2026-08-14 已对 2026-08-13 生产恢复候选执行只读审计、计划和未签字预检，源文件前后 SHA-256 一致；匿名缺口见[恢复候选只读审计与预检证据](./drills/2026-08-14-product-material-preflight-v0.1.368.md)。该候选不是在线生产实时快照，仍未完成最新生产数据刷新、人工映射签字、生产维护窗口回填、异地备份和真实 Coolify 挂载切换。完成这些之前，不得将可空字段收紧或删除 Product 外键。

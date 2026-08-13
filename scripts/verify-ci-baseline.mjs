@@ -5,6 +5,7 @@ const checks = [
   'verify:module-boundaries',
   'verify:structural-goal',
   'verify:model-convergence',
+  'verify:product-material-migration',
   'verify:permissions',
   'verify:role-task-http-permissions',
   'verify:fine-grained-http-permissions',

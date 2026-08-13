@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client'
 import {
   applyProductMaterialMapping,
   buildProductMaterialMappingPlan,
+  validateProductMaterialMapping,
   type ProductMaterialMappingPlan,
 } from '../modules/operations-tools/server/product-material-migration-service'
 import { getModelConvergenceAudit } from '../modules/operations-tools/server/model-convergence-audit-service'
@@ -68,10 +69,11 @@ async function replaceReservedReport(filePath: string, value: unknown) {
 
 async function main() {
   const { command, options } = parseArgs(process.argv.slice(2))
-  if (!['audit', 'plan', 'apply'].includes(command || '')) {
-    throw new Error('用法：product-material-migration <audit|plan|apply> [--report <file>] [--mapping <file> --backup-dir <dir> --uploads <dir>]')
+  if (!['audit', 'plan', 'preflight', 'apply'].includes(command || '')) {
+    throw new Error('用法：product-material-migration <audit|plan|preflight|apply> [--report <file>] [--mapping <file> --backup-dir <dir> --uploads <dir>]')
   }
   if (command === 'audit' && !options.report) throw new Error('audit 必须提供 --report')
+  if (command === 'preflight' && !options.report) throw new Error('preflight 必须提供 --report')
   if (command !== 'audit' && !options.mapping) throw new Error(`${command} 必须提供 --mapping`)
   const databaseUrl = process.env.DATABASE_URL || ''
   const databasePath = databasePathFromUrl(databaseUrl)
@@ -95,6 +97,61 @@ async function main() {
       const plan = await buildProductMaterialMappingPlan(prisma)
       const mappingPath = await writeNewJson(options.mapping!, plan)
       console.log(JSON.stringify({ command, mappingPath, products: plan.products.length }))
+      return
+    }
+
+    if (command === 'preflight') {
+      const reportPath = path.resolve(options.report)
+      if (await stat(reportPath).catch(() => null)) throw new Error('预检报告必须写入不存在的新文件，不允许覆盖')
+      const mappingPath = path.resolve(options.mapping!)
+      const mappingSource = await readFile(mappingPath, 'utf8')
+      const mappingSha256 = await sha256File(mappingPath)
+      const databaseSha256Before = await sha256File(databasePath)
+      try {
+        const mapping = JSON.parse(mappingSource) as ProductMaterialMappingPlan
+        const validated = await validateProductMaterialMapping(prisma, mapping)
+        const databaseSha256After = await sha256File(databasePath)
+        if (databaseSha256After !== databaseSha256Before) {
+          throw new Error('预检期间数据库文件发生变化，请停止写入后重新生成映射并预检')
+        }
+        await writeNewJson(reportPath, {
+          format: 'mes-lite-product-material-preflight',
+          formatVersion: 1,
+          status: 'PASS',
+          generatedAt: new Date().toISOString(),
+          readyForApply: true,
+          databasePath,
+          databaseSha256Before,
+          databaseSha256After,
+          mappingPath,
+          mappingSha256,
+          validated,
+        })
+        console.log(JSON.stringify({
+          command,
+          status: 'PASS',
+          readyForApply: true,
+          reportPath,
+          databaseSha256Before,
+          databaseSha256After,
+        }))
+      } catch (error) {
+        const databaseSha256After = await sha256File(databasePath)
+        await writeNewJson(reportPath, {
+          format: 'mes-lite-product-material-preflight',
+          formatVersion: 1,
+          status: 'FAILED',
+          generatedAt: new Date().toISOString(),
+          readyForApply: false,
+          databasePath,
+          databaseSha256Before,
+          databaseSha256After,
+          mappingPath,
+          mappingSha256,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        throw error
+      }
       return
     }
 

@@ -2,7 +2,7 @@
 
 本目录是 MES-lite 的统一知识入口。第一次接触系统时，不建议从发布记录或单个专题开始阅读；先通过总手册建立整体认知，再进入对应领域。
 
-当前事实基线：`v0.1.367` / 2026-08-14。
+当前事实基线：`v0.1.368` / 2026-08-14。
 
 ## 1. 推荐阅读路径
 
@@ -25,7 +25,7 @@
 | 暂停的未来租户化候选 | [目标数据模型草案](./minierp/data-model.md) |
 | MES、MRP-lite、ERP-lite 如何分工 | [MES-MRP-ERP 功能矩阵](./architecture/MES-MRP-ERP功能矩阵.md) |
 | 作为 MES 还缺什么、接下来按什么顺序补齐 | [MES 核心能力缺口与建设路线](./architecture/MES核心能力缺口与建设路线.md) |
-| 如何按界面完成当前已交付的业务流程 | 站内“帮助中心”或顶部问号；离线交付见 [Markdown](./operations/user-guide/MES-lite全流程作业指导书-v0.1.367.md) / [DOCX](../output/docx/MES-lite全流程作业指导书-v0.1.367.docx) / [PDF](../output/pdf/MES-lite全流程作业指导书-v0.1.367.pdf) / [离线 Web](../output/web/MES-lite全流程作业指导书-v0.1.367/index.html) |
+| 如何按界面完成当前已交付的业务流程 | 站内“帮助中心”或顶部问号；离线交付见 [Markdown](./operations/user-guide/MES-lite全流程作业指导书-v0.1.368.md) / [DOCX](../output/docx/MES-lite全流程作业指导书-v0.1.368.docx) / [PDF](../output/pdf/MES-lite全流程作业指导书-v0.1.368.pdf) / [离线 Web](../output/web/MES-lite全流程作业指导书-v0.1.368/index.html) |
 | 来料批次如何进入生产并正反追溯 | [来料到生产批次谱系操作与回滚](./operations/来料到生产批次谱系操作与回滚.md) |
 | 如何执行生产产出质检、放行和冻结 | [生产产出批次质检与库存状态](./operations/生产产出批次质检与库存状态.md) |
 | 如何追溯客户发货批次并处理退货质检 | [发货退货批次追溯与质检操作](./operations/发货退货批次追溯与质检操作.md) |
@@ -37,6 +37,7 @@
 | 如何本地启动和部署 | [系统开发与理解手册](./开发文档.md)、[Coolify 部署说明](./deployment/coolify.md) |
 | 如何备份、校验、恢复和做灾备演练 | [备份、恢复与灾备演练](./operations/备份恢复与灾备演练.md) |
 | 如何审计、确认并回填 Product→Material | [Product 到 Material 映射与回填](./operations/Product到Material映射与回填.md) |
+| 当前恢复候选上的 Product→Material 缺口是什么 | [2026-08-14 恢复候选只读审计与预检证据](./operations/drills/2026-08-14-product-material-preflight-v0.1.368.md) |
 | 最近一次恢复演练留下了什么证据 | [2026-08-13 Coolify 生产恢复候选记录](./operations/drills/2026-08-13-coolify-production-candidate-v0.1.361.md) |
 | 恢复候选能否启动应用、登录并读取业务和附件 | [2026-08-13 生产候选应用级隔离演练](./operations/drills/2026-08-13-local-production-candidate-application-v0.1.366.md) |
 | 商业交付如何签署范围、流程和发布门禁 | [单厂 MES 商业交付验收基线](./delivery/单厂MES商业交付验收基线.md) |
@@ -85,7 +86,7 @@
 
 ### 权限、AI、附件与运维
 
-- MES-lite 全流程作业指导书（与站内帮助同源）：[Markdown](./operations/user-guide/MES-lite全流程作业指导书-v0.1.367.md) / [DOCX](../output/docx/MES-lite全流程作业指导书-v0.1.367.docx) / [PDF](../output/pdf/MES-lite全流程作业指导书-v0.1.367.pdf) / [离线 Web](../output/web/MES-lite全流程作业指导书-v0.1.367/index.html)
+- MES-lite 全流程作业指导书（与站内帮助同源）：[Markdown](./operations/user-guide/MES-lite全流程作业指导书-v0.1.368.md) / [DOCX](../output/docx/MES-lite全流程作业指导书-v0.1.368.docx) / [PDF](../output/pdf/MES-lite全流程作业指导书-v0.1.368.pdf) / [离线 Web](../output/web/MES-lite全流程作业指导书-v0.1.368/index.html)
 - [单厂 MES 商业交付验收基线](./delivery/单厂MES商业交付验收基线.md)
 - [来料到生产批次谱系操作与回滚](./operations/来料到生产批次谱系操作与回滚.md)
 - [生产产出批次质检与库存状态](./operations/生产产出批次质检与库存状态.md)
@@ -114,4 +115,4 @@
 3. 页面、权限和入口变化同步更新功能页面权限接口矩阵。
 4. Prisma、流程、接口、权限或页面骨架变化，按仓库 `AGENTS.md` 同步对应专题文档。
 5. 发布前运行 `npm run verify:development-docs` 和 `npm run verify:release-notes`。
-6. 业务代码变化必须更新 `sop/change-impact.json`；流程变化继续更新 `sop/manifest.json`、验证版本和真实截图，再运行 `npm run verify:sop` 与 `npm run sop:build`。
+6. 业务代码变化必须更新 `sop/change-impact.json`；流程变化继续更新 `sop/manifest.json`、验证版本和真实截图，先运行 `npm run sop:build` 生成站内帮助、Markdown、DOCX、PDF 和离线 Web，再运行 `npm run verify:sop`。CI 会用 Git 差异阻止业务代码变了但未声明 SOP 影响的提交。

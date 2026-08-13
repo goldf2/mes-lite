@@ -1,6 +1,6 @@
 {
-  "version": "0.1.367",
+  "version": "0.1.368",
   "impact": "updated",
-  "workflowIds": ["60-archive-records"],
-  "summary": "归档列表、恢复和永久删除增加原业务资源权限与人员数据范围二次校验。"
+  "workflowIds": ["142-product-material-preflight"],
+  "summary": "Product 到 Material 生产迁移增加只读预检、不可覆盖报告和源数据库前后哈希守卫。"
 }

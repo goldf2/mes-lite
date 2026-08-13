@@ -48,6 +48,20 @@ export interface ProductMaterialMappingPlan {
 
 export class ProductMaterialMigrationError extends Error {}
 
+type PreparedProductMaterialMapping = {
+  productId: string
+  materialId: string
+  stockId: string | null
+  stockDisposition: StockDisposition
+  counts: Record<string, number>
+}
+
+type PreparedProductMaterialPlan = {
+  confirmedBy: string
+  confirmedAt: string
+  mappings: PreparedProductMaterialMapping[]
+}
+
 function mappingSnapshotSha256(input: Pick<ProductMaterialMappingPlan, 'materialCatalog' | 'products'>) {
   const products = input.products.map(({ decision: _decision, ...product }) => product)
   return createHash('sha256').update(JSON.stringify({ materialCatalog: input.materialCatalog, products })).digest('hex')
@@ -235,7 +249,10 @@ function requireConfirmedPlan(input: ProductMaterialMappingPlan) {
   if (confirmedAt > Date.now() + 60_000) throw new ProductMaterialMigrationError('映射确认时间不能晚于当前时间')
 }
 
-export async function applyProductMaterialMapping(db: PrismaClient, input: ProductMaterialMappingPlan) {
+async function prepareProductMaterialMapping(
+  db: PrismaClient,
+  input: ProductMaterialMappingPlan,
+): Promise<PreparedProductMaterialPlan> {
   await requireProjectionSchema(db)
   requireConfirmedPlan(input)
   const currentProducts = await db.product.findMany({ orderBy: { sku: 'asc' } })
@@ -251,11 +268,7 @@ export async function applyProductMaterialMapping(db: PrismaClient, input: Produ
   const materialById = new Map(materials.map((item) => [item.id, item]))
   if (materials.length !== materialIds.length) throw new ProductMaterialMigrationError('映射包含不存在或已归档的 Material')
 
-  type Prepared = {
-    productId: string; materialId: string; stockId: string | null; stockDisposition: StockDisposition
-    counts: Record<string, number>
-  }
-  const prepared: Prepared[] = []
+  const prepared: PreparedProductMaterialMapping[] = []
   for (const product of currentProducts) {
     const mapping = decisionByProduct.get(product.id)!
     const materialId = mapping.decision.materialId!
@@ -325,13 +338,38 @@ export async function applyProductMaterialMapping(db: PrismaClient, input: Produ
     throw new ProductMaterialMigrationError('映射计划生成后数据已变化，请重新生成并人工确认')
   }
 
+  return {
+    confirmedBy: input.confirmation.confirmedBy.trim(),
+    confirmedAt: new Date(input.confirmation.confirmedAt).toISOString(),
+    mappings: prepared,
+  }
+}
+
+export async function validateProductMaterialMapping(db: PrismaClient, input: ProductMaterialMappingPlan) {
+  const prepared = await prepareProductMaterialMapping(db, input)
+  return {
+    confirmedBy: prepared.confirmedBy,
+    confirmedAt: prepared.confirmedAt,
+    products: prepared.mappings.length,
+    mappings: prepared.mappings.map(({ productId, materialId, stockDisposition, counts }) => ({
+      productId,
+      materialId,
+      stockDisposition,
+      counts,
+    })),
+  }
+}
+
+export async function applyProductMaterialMapping(db: PrismaClient, input: ProductMaterialMappingPlan) {
+  const prepared = await prepareProductMaterialMapping(db, input)
+
   const changed = await db.$transaction(async (tx: Prisma.TransactionClient) => {
     const totals = {
       products: 0, boms: 0, bomCostRuns: 0, processRoutes: 0, sawingScenarios: 0,
       productionOrders: 0, stockIns: 0, shipments: 0, returns: 0,
       deletedEmptyProductStocks: 0, movedEmptyProductStocks: 0,
     }
-    for (const item of prepared) {
+    for (const item of prepared.mappings) {
       totals.products += (await tx.product.updateMany({ where: { id: item.productId, materialId: null }, data: { materialId: item.materialId } })).count
       totals.boms += (await tx.bOM.updateMany({ where: { productId: item.productId, materialId: null }, data: { materialId: item.materialId } })).count
       totals.bomCostRuns += (await tx.bomCostRun.updateMany({ where: { productId: item.productId, materialId: null }, data: { materialId: item.materialId } })).count
@@ -354,9 +392,9 @@ export async function applyProductMaterialMapping(db: PrismaClient, input: Produ
   })
 
   return {
-    confirmedBy: input.confirmation.confirmedBy.trim(),
-    confirmedAt: new Date(input.confirmation.confirmedAt).toISOString(),
-    mappings: prepared.map(({ productId, materialId, stockDisposition, counts }) => ({ productId, materialId, stockDisposition, counts })),
+    confirmedBy: prepared.confirmedBy,
+    confirmedAt: prepared.confirmedAt,
+    mappings: prepared.mappings.map(({ productId, materialId, stockDisposition, counts }) => ({ productId, materialId, stockDisposition, counts })),
     changed,
   }
 }

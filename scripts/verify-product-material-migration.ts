@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -23,6 +24,10 @@ function runRuntimeBackup(args: string[]) {
   }).trim()
 }
 
+async function sha256File(filePath: string) {
+  return createHash('sha256').update(await readFile(filePath)).digest('hex')
+}
+
 async function main() {
   const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), 'mes-lite-product-material-migration-'))
   const dataDirectory = path.join(temporaryRoot, 'data')
@@ -32,6 +37,11 @@ async function main() {
   const backups = path.join(temporaryRoot, 'backups')
   const mappingPath = path.join(temporaryRoot, 'mapping.json')
   const auditPath = path.join(temporaryRoot, 'audit.json')
+  const preflightPath = path.join(temporaryRoot, 'preflight.json')
+  const unsignedPreflightPath = path.join(temporaryRoot, 'unsigned-preflight.json')
+  const invalidPreflightPath = path.join(temporaryRoot, 'invalid-preflight.json')
+  const failedPreflightPath = path.join(temporaryRoot, 'failed-preflight.json')
+  const driftPreflightPath = path.join(temporaryRoot, 'drift-preflight.json')
   const reportPath = path.join(temporaryRoot, 'migration-report.json')
   let prisma: PrismaClient | undefined
   try {
@@ -117,12 +127,95 @@ async function main() {
       () => applyProductMaterialMapping(prisma!, originalPlan),
       (error: unknown) => error instanceof ProductMaterialMigrationError && /confirmedBy/.test(error.message),
     )
+    await writeFile(mappingPath, `${JSON.stringify(originalPlan, null, 2)}\n`)
+    const databaseSha256BeforeUnsignedPreflight = await sha256File(databasePath)
+    await prisma.$disconnect()
+    prisma = undefined
+    const unsignedPreflight = spawnSync(process.execPath, [
+      bundledTool, 'preflight', '--mapping', mappingPath, '--report', unsignedPreflightPath,
+    ], { cwd: root, env: { ...process.env, DATABASE_URL: databaseUrl, RUST_LOG: 'info' }, encoding: 'utf8' })
+    assert.notEqual(unsignedPreflight.status, 0)
+    const unsignedPreflightReport = JSON.parse(await readFile(unsignedPreflightPath, 'utf8'))
+    assert.equal(unsignedPreflightReport.status, 'FAILED')
+    assert.equal(unsignedPreflightReport.readyForApply, false)
+    assert.match(unsignedPreflightReport.error, /confirmedBy/)
+    assert.equal(unsignedPreflightReport.databaseSha256Before, databaseSha256BeforeUnsignedPreflight)
+    assert.equal(unsignedPreflightReport.databaseSha256After, databaseSha256BeforeUnsignedPreflight)
+    assert.equal(await sha256File(databasePath), databaseSha256BeforeUnsignedPreflight)
+    await writeFile(mappingPath, '{ invalid json\n')
+    const databaseSha256BeforeInvalidPreflight = await sha256File(databasePath)
+    const invalidPreflight = spawnSync(process.execPath, [
+      bundledTool, 'preflight', '--mapping', mappingPath, '--report', invalidPreflightPath,
+    ], { cwd: root, env: { ...process.env, DATABASE_URL: databaseUrl, RUST_LOG: 'info' }, encoding: 'utf8' })
+    assert.notEqual(invalidPreflight.status, 0)
+    const invalidPreflightReport = JSON.parse(await readFile(invalidPreflightPath, 'utf8'))
+    assert.equal(invalidPreflightReport.status, 'FAILED')
+    assert.equal(invalidPreflightReport.readyForApply, false)
+    assert.match(invalidPreflightReport.error, /JSON/)
+    assert.equal(invalidPreflightReport.databaseSha256Before, databaseSha256BeforeInvalidPreflight)
+    assert.equal(invalidPreflightReport.databaseSha256After, databaseSha256BeforeInvalidPreflight)
+    assert.equal(await sha256File(databasePath), databaseSha256BeforeInvalidPreflight)
+    prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } })
 
     const confirmedPlan = structuredClone(originalPlan)
     confirmedPlan.confirmation = { confirmedBy: '集成测试确认人', confirmedAt: new Date().toISOString() }
     confirmedPlan.products[0].decision.note = '已核对 BOM 主产出、编码、单据和空库存。'
+    await writeFile(mappingPath, `${JSON.stringify(confirmedPlan, null, 2)}\n`)
+    const databaseSha256BeforePreflight = await sha256File(databasePath)
+    await prisma.$disconnect()
+    prisma = undefined
+    const preflight = JSON.parse(runMigrationTool([
+      'preflight', '--mapping', mappingPath, '--report', preflightPath,
+    ], databaseUrl))
+    assert.equal(preflight.status, 'PASS')
+    assert.equal(preflight.readyForApply, true)
+    assert.equal(preflight.databaseSha256Before, databaseSha256BeforePreflight)
+    assert.equal(preflight.databaseSha256After, databaseSha256BeforePreflight)
+    const preflightReport = JSON.parse(await readFile(preflightPath, 'utf8'))
+    assert.equal(preflightReport.format, 'mes-lite-product-material-preflight')
+    assert.equal(preflightReport.status, 'PASS')
+    assert.equal(preflightReport.validated.products, 1)
+    assert.equal(await sha256File(databasePath), databaseSha256BeforePreflight)
+    prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } })
+
+    const preflightDriftMaterial = await prisma.material.create({
+      data: { code: 'FG-PREFLIGHT-DRIFT', name: '预检漂移物料', category: 'FINISHED', unit: '件', stockUnit: '件' },
+    })
+    const databaseSha256BeforeDriftPreflight = await sha256File(databasePath)
+    await prisma.$disconnect()
+    prisma = undefined
+    const driftPreflight = spawnSync(process.execPath, [
+      bundledTool, 'preflight', '--mapping', mappingPath, '--report', driftPreflightPath,
+    ], { cwd: root, env: { ...process.env, DATABASE_URL: databaseUrl, RUST_LOG: 'info' }, encoding: 'utf8' })
+    assert.notEqual(driftPreflight.status, 0)
+    const driftPreflightReport = JSON.parse(await readFile(driftPreflightPath, 'utf8'))
+    assert.equal(driftPreflightReport.status, 'FAILED')
+    assert.equal(driftPreflightReport.readyForApply, false)
+    assert.match(driftPreflightReport.error, /数据已变化/)
+    assert.equal(driftPreflightReport.databaseSha256Before, databaseSha256BeforeDriftPreflight)
+    assert.equal(driftPreflightReport.databaseSha256After, databaseSha256BeforeDriftPreflight)
+    assert.equal(await sha256File(databasePath), databaseSha256BeforeDriftPreflight)
+    prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } })
+    await prisma.material.delete({ where: { id: preflightDriftMaterial.id } })
+
     const missingNotePlan = structuredClone(confirmedPlan)
     missingNotePlan.products[0].decision.note = ''
+    await writeFile(mappingPath, `${JSON.stringify(missingNotePlan, null, 2)}\n`)
+    const databaseSha256BeforeFailedPreflight = await sha256File(databasePath)
+    await prisma.$disconnect()
+    prisma = undefined
+    const failedPreflight = spawnSync(process.execPath, [
+      bundledTool, 'preflight', '--mapping', mappingPath, '--report', failedPreflightPath,
+    ], { cwd: root, env: { ...process.env, DATABASE_URL: databaseUrl, RUST_LOG: 'info' }, encoding: 'utf8' })
+    assert.notEqual(failedPreflight.status, 0)
+    const failedPreflightReport = JSON.parse(await readFile(failedPreflightPath, 'utf8'))
+    assert.equal(failedPreflightReport.status, 'FAILED')
+    assert.equal(failedPreflightReport.readyForApply, false)
+    assert.equal(failedPreflightReport.databaseSha256Before, databaseSha256BeforeFailedPreflight)
+    assert.equal(failedPreflightReport.databaseSha256After, databaseSha256BeforeFailedPreflight)
+    assert.match(failedPreflightReport.error, /decision.note/)
+    assert.equal(await sha256File(databasePath), databaseSha256BeforeFailedPreflight)
+    prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } })
     await assert.rejects(
       () => applyProductMaterialMapping(prisma!, missingNotePlan),
       (error: unknown) => error instanceof ProductMaterialMigrationError && /decision.note/.test(error.message),
@@ -229,7 +322,7 @@ async function main() {
     assert.equal(await restoredClient.stock.count({ where: { productId: product.id } }), 1)
     await restoredClient.$disconnect()
 
-    console.log('Product→Material 迁移验证通过：显式确认、冲突/库存阻断、自动备份、全表回填、对账报告与非覆盖回滚候选符合预期。')
+    console.log('Product→Material 迁移验证通过：只读预检、显式确认、签字后漂移与冲突/库存阻断、自动备份、全表回填、对账报告和非覆盖回滚候选符合预期。')
   } finally {
     if (prisma) await prisma.$disconnect()
     await rm(temporaryRoot, { recursive: true, force: true })

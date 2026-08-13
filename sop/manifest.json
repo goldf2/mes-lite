@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "title": "MES-lite 全流程作业指导书",
   "recommendedSequence": "单位/库位/员工/供应商/客户/工作中心 → 物料 → BOM/工艺路线 → 生产订单/销售订单 → 派工/来料/发货 → 实绩 → 质量判定/处置/复检 → 收货/退货 → 库存与审计复核。",
-  "important": "业务闭环、岗位权限和数据范围已落地；真实 Coolify 已建立固定提交、关闭自动部署、每日一致备份、失败通知和非覆盖恢复候选。异地存储、候选新实例业务抽查和真实岗位审批仍未完成，不能据此承诺完整异地容灾。",
+  "important": "业务闭环、岗位权限和数据范围已落地；真实 Coolify 已建立固定提交、关闭自动部署、每日一致备份、失败通知和非覆盖恢复候选，生产候选已完成隔离应用级抽查。异地存储、真实 Coolify 挂载切换、Product 到 Material 人工确认和真实岗位审批仍未完成，不能据此承诺完整异地容灾或模型收敛。",
   "governanceBoundaries": [
     "质量闭环与岗位动作权限已贯通；正式上线前仍须按企业审批制度配置岗位权限、数据范围并使用真实不合格评审单验收。",
     "供应商、来料、生产投入产出、发货和退货回流已形成可搜索全景；跨工厂或供应商系统集成不在本阶段。",
@@ -3215,6 +3215,30 @@
             "file": "141-application-recovery-drill.png"
           },
           "lastVerifiedVersion": "0.1.366"
+        },
+        {
+          "id": "142-product-material-preflight",
+          "title": "预检 Product 到 Material 映射",
+          "objective": "在进入生产维护窗口前，只读验证人工映射签字、引用一致性、库存风险和数据漂移。",
+          "steps": [
+            "在停止写入的生产恢复候选上先执行 audit 和 plan，并将映射文件交给熟悉业务数据的负责人逐行核对。",
+            "为每个 Product 填写 materialId、materialCode、库存处置和非空 decision.note，最后填写真实确认人及确认时间。",
+            "执行 product-material-migration.mjs preflight，并把输出写入不存在的新报告文件。",
+            "只有报告为 PASS、readyForApply=true 且 databaseSha256Before 与 databaseSha256After 相同时，才允许安排备份和维护窗口 apply。",
+            "若报告为 FAILED，按错误修正；如提示签字后数据变化，废弃旧映射并重新生成，禁止绕过预检。"
+          ],
+          "result": "未签字、缺少核对依据、引用冲突、非零库存或签字后漂移都会在写数据前被拒绝并留档；预检本身不创建备份、不回填数据库。",
+          "pageKey": "dataTools",
+          "resource": "dataTools",
+          "roles": [
+            "运维管理员",
+            "业务数据负责人"
+          ],
+          "screenshot": {
+            "baseline": "0.1.368",
+            "file": "142-product-material-preflight.png"
+          },
+          "lastVerifiedVersion": "0.1.368"
         }
       ]
     }
