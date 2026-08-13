@@ -85,7 +85,7 @@ AI_AGENT_MAX_TOOL_ROUNDS=4
 sudo mkdir -p /opt/mes-lite/data /opt/mes-lite/uploads /opt/mes-lite/backups
 ```
 
-在 Coolify 的 Persistent Storage 中添加两个 Bind Mount：
+在 Coolify 的 Persistent Storage 中添加三个 Bind Mount：
 
 ```text
 主机目录                    容器目录
@@ -213,3 +213,16 @@ node /app/scripts/runtime-backup.mjs create
 每季度和重大迁移前应使用 `npm run storage:drill -- ...` 将归档验证、非覆盖候选恢复和 RPO/RTO 写入独立 Markdown 报告。`CANDIDATE_PASS` 只表示候选目录技术校验通过；必须继续在隔离的新实例完成 `/api/health/ready`、管理员登录、业务单据和附件抽查，才可签署生产恢复验收。
 
 SQLite 数据目录只能由一个运行中的应用实例写入。需要多实例或滚动部署时，应先迁移到 PostgreSQL，并将附件迁移到对象存储或共享文件存储。
+
+### 4.1 当前生产发布基线（2026-08-13）
+
+- 生产应用 `yjad2gnk1ycpeletd0aqlq4g` 固定到完整提交 `66a175d22bdf5295c19728e44a863ffc21d8cbbf`（`v0.1.361`）。
+- Auto Deploy 已关闭；代码推送不再直接触发生产部署。发布时必须先完成 CI、备份和维护窗口审批，再人工修改 Commit SHA 并 Redeploy。
+- `/app/backups` 已持久挂载，`MES_LITE_PRE_MIGRATION_BACKUP_ENABLED=true` 已配置；非空数据库在每次迁移前先生成并校验一致备份。
+- `MES-lite 每日一致备份` 使用 `0 18 * * *`。该表达式仅因当前容器实测为 UTC，换算为北京时间 02:00；迁移服务器后必须重新验证时区。
+- Coolify 邮件通知已启用部署失败、备份失败、定时任务失败、容器状态和磁盘告警。
+- S3 Storages 尚未配置，当前归档只在应用主机持久目录，不能表述为异地容灾完成。
+
+2026-08-13 应用上述配置时，第一次重建完成编译和镜像层组装后在 `exporting layers` 被 BuildKit `context canceled` 中断；旧健康容器未被移除。复核主机仍有 29 GB 可用空间、3.5 GiB 可用内存，随后把迁移前备份变量改为仅 Runtime 注入并重试。第二次构建复用既有镜像，启动日志先生成一致备份 `mes-lite-backup-2026-08-13T11-33-44-021Z-5330c3ab.tar.gz`（SHA-256 `cbcfe027ee518032247806768c2c35c811434e377a8020cabb5f6ab3be37999b`），再确认 76 个迁移无待处理，新容器健康后才移除旧容器并完成滚动更新。
+
+生产发布应使用两步控制：Git 提供可追溯提交，Coolify Commit SHA 决定实际部署版本。不得仅凭 `main` 最新提交或部署列表中的日志文案判断线上版本；必须同时核对 Coolify Running 链接、应用版本和 `/api/health/ready`。

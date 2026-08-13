@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.361",
+  "version": "0.1.362",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -124,7 +124,8 @@
     "verify:account-menu-boundary": "tsx scripts/verify-account-menu-boundary.ts",
     "verify:attachment-file-types": "tsx scripts/verify-attachment-file-types.ts",
     "verify:attachment-management": "tsx scripts/verify-attachment-management.ts",
-    "verify:development-docs": "node scripts/verify-development-docs.mjs"
+    "verify:development-docs": "node scripts/verify-development-docs.mjs",
+    "verify:ci": "node scripts/verify-ci-baseline.mjs"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.3",

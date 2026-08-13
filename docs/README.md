@@ -2,7 +2,7 @@
 
 本目录是 MES-lite 的统一知识入口。第一次接触系统时，不建议从发布记录或单个专题开始阅读；先通过总手册建立整体认知，再进入对应领域。
 
-当前事实基线：`v0.1.361` / 2026-08-13。
+当前事实基线：`v0.1.362` / 2026-08-13。
 
 ## 1. 推荐阅读路径
 
@@ -25,7 +25,7 @@
 | 暂停的未来租户化候选 | [目标数据模型草案](./minierp/data-model.md) |
 | MES、MRP-lite、ERP-lite 如何分工 | [MES-MRP-ERP 功能矩阵](./architecture/MES-MRP-ERP功能矩阵.md) |
 | 作为 MES 还缺什么、接下来按什么顺序补齐 | [MES 核心能力缺口与建设路线](./architecture/MES核心能力缺口与建设路线.md) |
-| 如何按界面完成当前已交付的业务流程 | [MES-lite 全流程作业指导书](./operations/user-guide/MES-lite全流程作业指导书-v0.1.361.md) |
+| 如何按界面完成当前已交付的业务流程 | [Markdown](./operations/user-guide/MES-lite全流程作业指导书-v0.1.362.md) / [DOCX](../output/docx/MES-lite全流程作业指导书-v0.1.362.docx) / [离线 Web](../output/web/MES-lite全流程作业指导书-v0.1.362/index.html) |
 | 来料批次如何进入生产并正反追溯 | [来料到生产批次谱系操作与回滚](./operations/来料到生产批次谱系操作与回滚.md) |
 | 如何执行生产产出质检、放行和冻结 | [生产产出批次质检与库存状态](./operations/生产产出批次质检与库存状态.md) |
 | 如何追溯客户发货批次并处理退货质检 | [发货退货批次追溯与质检操作](./operations/发货退货批次追溯与质检操作.md) |
@@ -37,7 +37,8 @@
 | 如何本地启动和部署 | [系统开发与理解手册](./开发文档.md)、[Coolify 部署说明](./deployment/coolify.md) |
 | 如何备份、校验、恢复和做灾备演练 | [备份、恢复与灾备演练](./operations/备份恢复与灾备演练.md) |
 | 如何审计、确认并回填 Product→Material | [Product 到 Material 映射与回填](./operations/Product到Material映射与回填.md) |
-| 最近一次恢复演练留下了什么证据 | [2026-08-12 本机隔离恢复演练记录](./operations/drills/2026-08-12-local-isolated-v0.1.352.md) |
+| 最近一次恢复演练留下了什么证据 | [2026-08-13 Coolify 生产恢复候选记录](./operations/drills/2026-08-13-coolify-production-candidate-v0.1.361.md) |
+| 商业交付如何签署范围、流程和发布门禁 | [单厂 MES 商业交付验收基线](./delivery/单厂MES商业交付验收基线.md) |
 
 ## 2. 文档状态怎么判断
 
@@ -83,7 +84,8 @@
 
 ### 权限、AI、附件与运维
 
-- [MES-lite 全流程作业指导书](./operations/user-guide/MES-lite全流程作业指导书-v0.1.361.md)
+- MES-lite 全流程作业指导书：[Markdown](./operations/user-guide/MES-lite全流程作业指导书-v0.1.362.md) / [DOCX](../output/docx/MES-lite全流程作业指导书-v0.1.362.docx) / [PDF](../output/pdf/MES-lite全流程作业指导书-v0.1.362.pdf) / [离线 Web](../output/web/MES-lite全流程作业指导书-v0.1.362/index.html)
+- [单厂 MES 商业交付验收基线](./delivery/单厂MES商业交付验收基线.md)
 - [来料到生产批次谱系操作与回滚](./operations/来料到生产批次谱系操作与回滚.md)
 - [生产产出批次质检与库存状态](./operations/生产产出批次质检与库存状态.md)
 - [发货退货批次追溯与质检操作](./operations/发货退货批次追溯与质检操作.md)

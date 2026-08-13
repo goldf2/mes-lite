@@ -18,7 +18,7 @@ from docx.shared import Inches, Pt, RGBColor
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.1.361"
+VERSION = "0.1.362"
 SCREENSHOT_BASELINE = "0.1.350"
 QUALITY_SCREENSHOT_BASELINE = "0.1.354"
 TRACE_SCREENSHOT_BASELINE = "0.1.355"
@@ -28,6 +28,7 @@ PANORAMA_SCREENSHOT_BASELINE = "0.1.358"
 ROLE_TASK_SCREENSHOT_BASELINE = "0.1.359"
 FINE_GRAINED_PERMISSION_SCREENSHOT_BASELINE = "0.1.360"
 DATA_SCOPE_SCREENSHOT_BASELINE = "0.1.361"
+OPERATIONS_SCREENSHOT_BASELINE = "0.1.362"
 DOCUMENT_FONT = "Arial Unicode MS"
 EAST_ASIA_FONT = "Arial Unicode MS"
 # compact_reference_guide 的横向现场截图覆盖：9.55in 固定表格，保留 120 DXA 左缩进。
@@ -249,6 +250,17 @@ CHAPTERS = [
             ("130-operator-data-scope.png", "配置本人和指定库位范围", "限制操作员只能处理本人生产任务和获批库位业务数据。", ["使用权限管理员进入账号与权限 > 人员权限。", "选择已绑定在职员工的目标账号。", "将生产范围设为“本人”，库存范围设为“指定库位”。", "勾选允许操作的库位并保存。"], "页面显示本人范围及获批库位；目标账号的列表、统计、任务、附件和状态动作使用同一服务端范围。", DATA_SCOPE_SCREENSHOT_BASELINE),
             ("131-temporary-permission-grant.png", "授予个人临时权限", "为短期替岗或异常处置提供有原因、有期限、可审计的个人例外。", ["在人员权限中选择目标账号。", "选择资源并勾选确需临时授予的动作。", "填写业务原因、开始时间和失效时间。", "保存后复核生效状态；任务完成后可提前移除。"], "授权记录显示原因、授权人和有效期；到期后自动从有效权限中排除，新增、修改和删除均写入审计。", DATA_SCOPE_SCREENSHOT_BASELINE),
             ("132-work-center-data-scope.png", "配置工作中心和全库范围", "让生产主管查看获批工作中心，同时按岗位职责访问全厂库存。", ["使用权限管理员选择生产主管账号。", "将生产范围设为“指定工作中心”。", "勾选允许管理的工作中心。", "按审批结果将库存范围设为“全部库位”，保存并使用目标账号复核。"], "生产订单、派工、实绩、统计与任务只覆盖所选工作中心；库存业务按已保存的全库范围执行。", DATA_SCOPE_SCREENSHOT_BASELINE),
+        ],
+    ),
+    (
+        "17. Coolify 发布、备份与恢复",
+        [
+            ("133-fixed-commit-auto-deploy-off.png", "固定生产提交并关闭自动部署", "让生产只部署经过审批的精确版本，避免 main 推送直接改变线上状态。", ["进入 Coolify 应用 > Git Source，填写并保存已批准的完整 Commit SHA。", "进入 Advanced，关闭 Auto Deploy。", "核对顶部 Running 链接仍指向当前批准提交且状态为 healthy。", "只有在备份、CI 和维护窗口就绪后才人工 Redeploy。"], "生产发布由完整提交和人工维护窗口双重控制；推送 main 不再自动部署。", OPERATIONS_SCREENSHOT_BASELINE),
+            ("134-persistent-backup-storage.png", "配置持久备份目录", "确保容器重建后数据库、附件和备份归档都保留。", ["进入应用 > Persistent Storage。", "核对 data 映射到 /app/data。", "核对 uploads 映射到 /app/public/uploads。", "新增并核对 backups 映射到 /app/backups。"], "Directories 显示 3 项，三个业务目录均为独立持久挂载。", OPERATIONS_SCREENSHOT_BASELINE),
+            ("135-daily-consistent-backup.png", "配置每日一致备份", "每日生成包含 SQLite 一致快照和附件的可验证归档。", ["进入 Scheduled Tasks 并打开“MES-lite 每日一致备份”。", "填写命令 node /app/scripts/runtime-backup.mjs create。", "先核验容器时区；当前 UTC 容器使用 0 18 * * * 对应北京时间 02:00。", "设置 1800 秒超时并保存。"], "任务已启用，最近执行状态为 Success；失败通知由 Coolify 邮件通道发送。", OPERATIONS_SCREENSHOT_BASELINE),
+            ("136-first-backup-verification.png", "执行并验证首份生产备份", "确认真实生产数据库和附件能生成通过完整校验的归档。", ["在每日备份任务点击 Execute Now。", "等待 Recent executions 显示 Success。", "展开执行结果，记录 archivePath 与 SHA-256。", "核对 databaseQuickCheck=ok、附件记录数和清单文件数。"], "首份生产一致备份成功并保存可追溯的归档路径、SHA-256 和清单统计。", OPERATIONS_SCREENSHOT_BASELINE),
+            ("137-production-health-ready.png", "验证生产就绪状态", "在发布或恢复后确认应用、数据库、迁移、持久目录和备份新鲜度同时可用。", ["打开 https://mes.szxiangshu.com/api/health/ready。", "确认 HTTP 状态为 200 且整体 status 为 ready。", "逐项核对 database、migrations、dataStorage、attachmentStorage 和 backupFreshness。", "任一硬检查失败时停止验收并按返回项排查。"], "所有硬检查与备份新鲜度均为 pass，Coolify 同时显示 Running (healthy)。", OPERATIONS_SCREENSHOT_BASELINE),
+            ("138-pre-migration-backup-deploy.png", "核对迁移前备份与启动日志", "证明每次非空生产部署会先完成一致备份，再执行迁移和启动服务。", ["完成固定版本 Redeploy 后进入应用 Logs。", "核对 data、uploads 和 backups 三个目录权限均已就绪。", "记录启动前 create 结果中的归档、SHA-256、附件数和 quick_check。", "确认 76 个迁移无待处理、Next.js Ready 且顶部 Running healthy。"], "新容器先生成经验证备份，再执行迁移并健康启动；旧容器只在新容器健康后移除。", OPERATIONS_SCREENSHOT_BASELINE),
         ],
     ),
 ]
@@ -535,7 +547,7 @@ def add_cover(doc: Document) -> None:
     table.style = "Table Grid"
     rows = [
         ("交付版本", f"v{VERSION}"),
-        ("截图基线", "v0.1.350-v0.1.361 的 132 张真实页面流程截图"),
+        ("截图基线", "v0.1.350-v0.1.362 的 138 张真实页面流程截图"),
         ("适用角色", "管理员、计划员、班组长、工艺、仓管、销售、人事、质检和系统维护人员"),
         ("数据范围", "仅限本机 mes_lite_guide.db 临时演示数据"),
         ("编制日期", "2026-08-13"),
@@ -567,7 +579,7 @@ def add_front_matter(doc: Document, bullet_num_id: int) -> None:
         "归档、永久删除、库存调整、数据修复、权限修改和 AI 密钥配置仅限授权人员。",
         "业务员工和登录账号是两套对象：员工用于单据执行，账号用于登录；绑定账号不会自动授予权限。",
         "生产订单统一状态：草稿 -> 已发布 -> 生产中 -> 已完成，或在允许阶段取消。草稿不可登记实绩。",
-        "供应商批号、来料内部批次、生产投入、产出批次、客户发货、退货回流、质量判定与不合格处置已贯通；48 项细粒度资源、岗位任务、生产命令、本人/工作中心生产范围、库位库存范围和个人临时授权已落地；生产上线前仍须在服务器维护窗口完成备份、迁移、岗位审批和真实业务验收。",
+        "供应商批号、来料内部批次、生产投入、产出批次、客户发货、退货回流、质量判定与不合格处置已贯通；48 项细粒度资源、岗位任务、生产命令、数据范围和临时授权已落地；生产已建立固定提交、每日一致备份、失败通知和候选恢复基线，异地副本与真实岗位审批仍待完成。",
         "旧 Product 兼容入口和旧生产领料/报工/QC/入库接口不作为本指导书主流程；当前主流程使用 Material、已发布 BOM 和班后实绩。",
     ]
     for item in bullets:
@@ -600,6 +612,7 @@ def add_front_matter(doc: Document, bullet_num_id: int) -> None:
         ("8", "销售、发货、退货", "订单与库存闭环"),
         ("9-10", "文档、设备、业务配置", "基础数据可被业务引用"),
         ("11", "系统、工具、权限", "可配置、可审计、最小权限"),
+        ("17", "Coolify 发布、备份和健康验收", "版本固定、数据可备份、故障可恢复"),
     ]
     for row in chapter_rows:
         cells = table.add_row().cells
@@ -729,11 +742,11 @@ def markdown_lines() -> Iterable[str]:
     yield "# MES-lite 全流程作业指导书"
     yield ""
     yield f"- 交付版本：v{VERSION}"
-    yield "- 截图基线：v0.1.350-v0.1.361（132 张真实页面流程截图）"
-    yield "- 数据范围：隔离本地临时演示库，不含生产业务数据"
+    yield "- 截图基线：v0.1.350-v0.1.362（132 张本地演示流程截图 + 6 张真实 Coolify 运维截图）"
+    yield "- 数据范围：业务流程使用隔离本地临时演示库；第 17 章使用真实 Coolify 运维配置，不展示生产业务数据或密钥"
     yield "- 编制日期：2026-08-13"
     yield ""
-    yield "> 重要：供应商批号、来料内部批次、生产投入产出、客户发货、退货回流、质量判定、不合格处置和跨批次搜索全景已贯通；48 项细粒度资源、岗位任务台、四类生产命令、本人/工作中心生产范围、库位库存范围和个人临时授权已落地；部门/班组范围尚未独立建模，本机临时数据与截图不等于真实 Coolify 服务器已部署。"
+    yield "> 重要：业务闭环、岗位权限和数据范围已落地；真实 Coolify 已建立固定提交、关闭自动部署、每日一致备份、失败通知和非覆盖恢复候选。异地存储、候选新实例业务抽查和真实岗位审批仍未完成，不能据此承诺完整异地容灾。"
     yield ""
     yield "## 推荐业务顺序"
     yield ""
