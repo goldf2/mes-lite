@@ -15,6 +15,7 @@ const checks = [
   'verify:shipment-return-lots',
   'verify:quality-dispositions',
   'verify:runtime-operations',
+  'verify:attachment-storage',
   'verify:production-database-audit',
   'verify:sop',
   'verify:release-notes',

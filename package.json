@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.365",
+  "version": "0.1.366",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -32,7 +32,10 @@
     "storage:backup:verify": "node scripts/runtime-backup.mjs verify",
     "storage:restore:stage": "node scripts/runtime-backup.mjs stage-restore",
     "storage:drill": "node scripts/runtime-backup.mjs drill",
+    "storage:drill:application": "tsx scripts/application-recovery-drill.ts",
     "verify:runtime-operations": "tsx scripts/verify-runtime-operations.ts",
+    "verify:application-recovery-drill": "tsx scripts/verify-application-recovery-drill.ts",
+    "verify:attachment-storage": "tsx scripts/verify-attachment-storage.ts",
     "audit:production-database": "node scripts/audit-production-database.mjs",
     "prepare:production-recovery-candidate": "npx -y node@20 scripts/prepare-production-recovery-candidate.mjs",
     "verify:production-database-audit": "node scripts/verify-production-database-audit.mjs",

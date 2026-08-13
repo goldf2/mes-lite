@@ -41,6 +41,12 @@ jobs:
           npx prisma validate
           npx prisma generate
 
+      - name: Production build
+        run: npm run build
+
+      - name: Verify application recovery drill
+        run: npm run verify:application-recovery-drill
+
       - name: Run domain and governance regression baseline
         env:
           SOP_DIFF_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
@@ -51,6 +57,3 @@ jobs:
 
       - name: Lint
         run: npm run lint
-
-      - name: Production build
-        run: npm run build

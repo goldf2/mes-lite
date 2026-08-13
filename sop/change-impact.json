@@ -1,6 +1,6 @@
 {
-  "version": "0.1.365",
+  "version": "0.1.366",
   "impact": "updated",
-  "workflowIds": ["139-sop-help-center", "140-context-help-drawer"],
-  "summary": "新增站内帮助中心和当前页面帮助抽屉；既有 138 个业务流程内容不变。"
+  "workflowIds": ["141-application-recovery-drill"],
+  "summary": "新增生产恢复候选的隔离应用级演练，覆盖 readiness、登录、业务和附件原文件抽查。"
 }
