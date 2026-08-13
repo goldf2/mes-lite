@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "title": "MES-lite 全流程作业指导书",
   "recommendedSequence": "单位/库位/员工/供应商/客户/工作中心 → 物料 → BOM/工艺路线 → 生产订单/销售订单 → 派工/来料/发货 → 实绩 → 质量判定/处置/复检 → 收货/退货 → 库存与审计复核。",
-  "important": "业务闭环、岗位权限和数据范围已落地；真实 Coolify 已建立固定提交、关闭自动部署、每日一致备份、失败通知和非覆盖恢复候选，生产候选已完成隔离应用级抽查。异地存储、真实 Coolify 挂载切换、Product 到 Material 人工确认和真实岗位审批仍未完成，不能据此承诺完整异地容灾或模型收敛。",
+  "important": "业务闭环、岗位权限、数据范围和设备基础运行事件已落地；真实 Coolify 已建立固定提交、关闭自动部署、每日一致备份、失败通知和非覆盖恢复候选，生产候选已完成隔离应用级抽查。异地存储、真实 Coolify 挂载切换、Product 到 Material 人工确认和真实岗位审批仍未完成，不能据此承诺完整异地容灾或模型收敛。",
   "governanceBoundaries": [
     "质量闭环与岗位动作权限已贯通；正式上线前仍须按企业审批制度配置岗位权限、数据范围并使用真实不合格评审单验收。",
     "供应商、来料、生产投入产出、发货和退货回流已形成可搜索全景；跨工厂或供应商系统集成不在本阶段。",
     "岗位任务、生产命令、本人/工作中心生产范围与库位库存范围已经分层；部门/班组范围尚未独立建模。",
-    "设备开停机、故障、维护、产量和 OEE 尚未形成统一事件流。",
+    "设备开机、停机、故障和恢复已形成运行事件时间线；点检、保养、维修工单、产量采集和 OEE 尚未贯通。",
     "旧 Product 与 Material 仍需分阶段迁移，禁止继续扩展旧模型写入口。"
   ],
   "chapters": [
@@ -1779,23 +1779,23 @@
         {
           "id": "35-equipment-list",
           "title": "查看设备台账",
-          "objective": "维护设备状态、工作中心和能力参数。",
+          "objective": "核对设备基础资料、当前状态和运行事件入口。",
           "steps": [
             "进入 MES > 设备 > 设备台账。",
             "搜索设备编码、名称、型号或工作中心。",
-            "核对设备状态和现场位置。"
+            "核对设备当前状态、现场位置和事件数量。"
           ],
-          "result": "台账显示可用、使用中、维护中或停用状态。",
+          "result": "台账显示可用、使用中、故障、维护中或停机状态；状态不能在基础资料中直接改写。",
           "pageKey": "equipment",
           "resource": "equipment",
           "roles": [
             "设备管理员"
           ],
           "screenshot": {
-            "baseline": "0.1.350",
+            "baseline": "0.1.369",
             "file": "35-equipment-list.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.369"
         },
         {
           "id": "36-equipment-create",
@@ -1804,20 +1804,54 @@
           "steps": [
             "点击“新建设备”。",
             "填写编码、名称、类型和工作中心。",
-            "填写状态、位置、厂商、型号、参数和备注。",
+            "填写位置、厂商、型号、参数和备注；不要在基础资料中设置运行状态。",
             "保存后复核列表。"
           ],
-          "result": "设备可用于后续事件、派工和产能关联。",
+          "result": "设备以“可用”作为初始状态，可用于后续运行事件、派工和产能关联。",
           "pageKey": "equipment",
           "resource": "equipment",
           "roles": [
             "设备管理员"
           ],
           "screenshot": {
-            "baseline": "0.1.350",
+            "baseline": "0.1.369",
             "file": "36-equipment-create.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.369"
+        },
+        {
+          "id": "143-equipment-fault-command",
+          "title": "上报设备故障",
+          "objective": "把现场故障作为可审计事件登记并立即改变设备状态。",
+          "steps": [
+            "进入设备台账，在目标设备点击“事件”。",
+            "点击“报告故障”。",
+            "填写现场可核对的故障原因和已采取的安全措施。",
+            "确认设备编码、当前状态和原因后点击“确认记录事件”。"
+          ],
+          "result": "设备转为“故障”，时间线保留原状态、原因、操作人和发生时间。",
+          "pageKey": "equipment",
+          "resource": "equipmentEvents",
+          "roles": ["设备维护员"],
+          "screenshot": {"baseline": "0.1.369", "file": "143-equipment-fault-command.png"},
+          "lastVerifiedVersion": "0.1.369"
+        },
+        {
+          "id": "144-equipment-event-timeline",
+          "title": "恢复设备并回放事件时间线",
+          "objective": "恢复设备前完成试运行，并核对故障持续时间与完整状态链。",
+          "steps": [
+            "在故障设备的事件弹窗点击“恢复可用”。",
+            "填写维修结果、试运行结论和复核说明。",
+            "确认记录后重新打开“事件”。",
+            "核对恢复、故障、开机事件的状态链、人员、原因和故障持续时间。"
+          ],
+          "result": "设备回到“可用”；故障事件记录从故障发生到恢复的持续时间，恢复事件不重复计算。",
+          "pageKey": "equipment",
+          "resource": "equipment",
+          "roles": ["设备维护员", "生产主管"],
+          "screenshot": {"baseline": "0.1.369", "file": "144-equipment-event-timeline.png"},
+          "lastVerifiedVersion": "0.1.369"
         }
       ]
     },
@@ -2788,7 +2822,7 @@
         {
           "id": "121-fine-grained-permission-sections",
           "title": "按业务域查看细粒度权限",
-          "objective": "在 48 项资源中快速定位要配置的业务权限。",
+          "objective": "在 49 项资源中快速定位要配置的业务权限。",
           "steps": [
             "使用管理员进入账号与权限 > 组权限。",
             "选择目标权限组。",
@@ -2802,10 +2836,10 @@
             "权限管理员"
           ],
           "screenshot": {
-            "baseline": "0.1.360",
+            "baseline": "0.1.369",
             "file": "121-fine-grained-permission-sections.png"
           },
-          "lastVerifiedVersion": "0.1.360"
+          "lastVerifiedVersion": "0.1.369"
         },
         {
           "id": "122-bom-structure-permission",

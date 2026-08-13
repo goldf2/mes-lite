@@ -744,6 +744,13 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 设备和工作中心 Route Handler 分别从 139/135 行降至 84/85 行，不再直接访问 Prisma，使直接访问 Prisma 的 API 从 39 条降至 37 条。
 - `verify:equipment` 使用运行后删除的临时完整 SQLite，覆盖公共 `ResourcePage`、输入清理、唯一编码、组合搜索、设备迁移、引用归档阻断、直接停用旁路封闭、设备归档和工作中心恢复。
 
+### v0.1.369 设备运行事件扩展
+
+- `contracts/equipment-event-schema.ts` 与 `domain/equipment-event-rules.ts` 分别拥有命令输入和合法状态转换；基础资料 Schema 严格拒绝 `status`。
+- `server/equipment-event-service.ts` 在一个事务内保存 `EquipmentEvent` 和 `Equipment.status`，恢复负责关闭最近未结束事件并计算持续时间；HTTP 路由不持有 Prisma 事务。
+- `ui/EquipmentEditorDialog.tsx` 只编辑基础资料，`ui/EquipmentEventDialog.tsx` 负责运行命令和时间线；协调页继续使用公共 `ResourcePage`。
+- `verify:equipment`、`verify:equipment-events-http` 和 `verify:fine-grained-permissions` 分别锁定领域不变式、HTTP 403/201 和第 49 个权限资源。
+
 ## 59. 旧生产日报兼容服务归属
 
 - `modules/production/contracts/legacy-daily-production-schema.ts` 统一旧日报创建、编辑、确认和冲销输入；`domain/legacy-daily-production-*` 集中日期解析、最大序号编号、状态约束、数量精度和可预期错误。

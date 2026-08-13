@@ -6,6 +6,8 @@ const checks = [
   'verify:structural-goal',
   'verify:model-convergence',
   'verify:product-material-migration',
+  'verify:equipment',
+  'verify:equipment-events-http',
   'verify:permissions',
   'verify:role-task-http-permissions',
   'verify:fine-grained-http-permissions',

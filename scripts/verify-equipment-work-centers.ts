@@ -21,16 +21,21 @@ function verifyStaticBoundaries() {
     'modules/equipment/client/equipment-api.ts',
     'modules/equipment/contracts/equipment.ts',
     'modules/equipment/contracts/equipment-schema.ts',
+    'modules/equipment/contracts/equipment-event-schema.ts',
     'modules/equipment/contracts/work-center-schema.ts',
     'modules/equipment/domain/equipment-errors.ts',
     'modules/equipment/domain/equipment-rules.ts',
+    'modules/equipment/domain/equipment-event-rules.ts',
     'modules/equipment/model/equipment-view.ts',
     'modules/equipment/model/work-center-view.ts',
     'modules/equipment/server/equipment-command-service.ts',
     'modules/equipment/server/equipment-query-service.ts',
+    'modules/equipment/server/equipment-event-service.ts',
     'modules/equipment/server/work-center-command-service.ts',
     'modules/equipment/server/work-center-query-service.ts',
     'modules/equipment/ui/EquipmentPageModule.tsx',
+    'modules/equipment/ui/EquipmentEditorDialog.tsx',
+    'modules/equipment/ui/EquipmentEventDialog.tsx',
     'modules/equipment/ui/WorkCenterSettingsPage.tsx',
   ]
   for (const path of requiredFiles) assert.ok(existsSync(join(root, path)), `设备领域缺少模块文件：${path}`)
@@ -41,6 +46,7 @@ function verifyStaticBoundaries() {
   const equipmentIndex = read('modules/equipment/index.ts')
   const configurationSection = read('modules/configuration/ConfigurationSectionPage.tsx')
   const registry = read('app/components/shell/WorkspacePageRendererRegistry.tsx')
+  const eventMigration = read('prisma/migrations/20260815090000_add_equipment_events/migration.sql')
   assert.ok(equipmentPage.split('\n').length <= 230, '设备协调页应保持在 230 行内')
   for (const [path, source] of [
     ['设备页', equipmentPage],
@@ -53,8 +59,11 @@ function verifyStaticBoundaries() {
   assert.match(configurationSection, /from '@\/modules\/equipment'/, '业务配置只能通过设备领域公开入口挂载工作中心')
   assert.doesNotMatch(configurationSection, /\.\/ui\/WorkCenterSettingsPage/, '业务配置不得直接拥有工作中心 UI')
   assert.match(registry, /import\('@\/modules\/equipment'\)/, '设备页必须通过设备模块公开入口加载')
+  for (const trigger of ['Equipment_available_on_create', 'Equipment_status_requires_latest_event', 'EquipmentEvent_validate_insert', 'EquipmentEvent_apply_status', 'EquipmentEvent_restrict_update', 'EquipmentEvent_prevent_delete']) {
+    assert.match(eventMigration, new RegExp(trigger), `设备事件迁移必须包含数据库约束：${trigger}`)
+  }
 
-  for (const routePath of ['app/api/equipment/route.ts', 'app/api/work-centers/route.ts']) {
+  for (const routePath of ['app/api/equipment/route.ts', 'app/api/equipment/[id]/events/route.ts', 'app/api/work-centers/route.ts']) {
     const route = read(routePath)
     assert.ok(route.split('\n').length <= 100, `${routePath} 应保持为不超过 100 行的 HTTP 适配层`)
     assert.doesNotMatch(route, /@\/lib\/prisma|\bprisma\.|\$transaction\(/, `${routePath} 不得直接访问 Prisma 或持有事务`)
@@ -64,6 +73,7 @@ function verifyStaticBoundaries() {
   const services = [
     read('modules/equipment/server/equipment-command-service.ts'),
     read('modules/equipment/server/equipment-query-service.ts'),
+    read('modules/equipment/server/equipment-event-service.ts'),
     read('modules/equipment/server/work-center-command-service.ts'),
     read('modules/equipment/server/work-center-query-service.ts'),
   ].join('\n')
@@ -74,19 +84,23 @@ async function main() {
   const [
     { prisma },
     { equipmentInputSchema },
+    { equipmentEventCommandSchema },
     { workCenterFieldsSchema },
     { EquipmentDomainError },
     { createManagedEquipment, updateManagedEquipment, archiveManagedEquipment },
     { listManagedEquipment },
+    { recordEquipmentEvent, listEquipmentEvents },
     { createManagedWorkCenter, updateManagedWorkCenter, archiveManagedWorkCenter },
     { listManagedWorkCenters },
   ] = await Promise.all([
     import('../lib/prisma'),
     import('../modules/equipment/contracts/equipment-schema'),
+    import('../modules/equipment/contracts/equipment-event-schema'),
     import('../modules/equipment/contracts/work-center-schema'),
     import('../modules/equipment/domain/equipment-errors'),
     import('../modules/equipment/server/equipment-command-service'),
     import('../modules/equipment/server/equipment-query-service'),
+    import('../modules/equipment/server/equipment-event-service'),
     import('../modules/equipment/server/work-center-command-service'),
     import('../modules/equipment/server/work-center-query-service'),
   ])
@@ -94,6 +108,10 @@ async function main() {
   try {
     verifyStaticBoundaries()
     assert.equal(equipmentInputSchema.safeParse({ code: '  ' }).success, false, '设备字段必须拒绝纯空白')
+    assert.equal(equipmentInputSchema.safeParse({
+      code: 'EQ-X', name: '旁路设备', equipmentType: '锯床', workCenterId: 'WC-X', status: 'IN_USE',
+    }).success, false, '设备基础资料输入必须拒绝夹带状态，状态只能由事件命令改变')
+    assert.equal(equipmentEventCommandSchema.safeParse({ action: 'FAULT', reason: ' ' }).success, false, '设备事件必须填写原因')
     assert.equal(workCenterFieldsSchema.safeParse({ code: '  ', name: '空编码' }).success, false, '工作中心字段必须拒绝纯空白')
     await prisma.workCenter.deleteMany()
 
@@ -131,6 +149,20 @@ async function main() {
       ['EQ01', '一号锯床', '锯床', '锯切中心', 'S-100', '华东设备'],
       '设备服务必须清理输入并装配工作中心视图',
     )
+    assert.equal(equipment.status, 'AVAILABLE', '新设备必须从可用状态开始')
+    assert.equal(equipment._count.events, 0, '新设备在没有现场命令前不得伪造历史事件')
+    await assert.rejects(
+      () => prisma.equipment.create({
+        data: { code: 'EQ-BYPASS', name: '旁路设备', equipmentType: '锯床', workCenterId: cutting.id, status: 'IN_USE' },
+      }),
+      '数据库必须拒绝新设备绕过可用初始状态',
+    )
+    assert.equal(await prisma.equipment.count({ where: { code: 'EQ-BYPASS' } }), 0, '被拒绝的旁路设备不得残留')
+    await assert.rejects(
+      () => prisma.equipment.update({ where: { id: equipment.id }, data: { status: 'IN_USE' } }),
+      '数据库必须拒绝绕过事件直接修改设备状态',
+    )
+    assert.equal((await prisma.equipment.findUniqueOrThrow({ where: { id: equipment.id } })).status, 'AVAILABLE', '被拒绝的状态旁路不得改变当前快照')
     await assert.rejects(
       () => createManagedEquipment({ code: 'eq01', name: '重复设备', equipmentType: '锯床', workCenterId: cutting.id }),
       (error: unknown) => error instanceof EquipmentDomainError && error.status === 409,
@@ -151,12 +183,39 @@ async function main() {
       '仍有设备引用的工作中心不得归档',
     )
 
+    const actor = { operatorId: 'verify-equipment-operator', operatorName: '设备验证员' }
+    const startedAt = new Date('2026-08-14T01:00:00.000Z')
+    const started = await recordEquipmentEvent(equipment.id, { action: 'START', reason: '早班启动' }, actor, startedAt)
+    assert.deepEqual(
+      [started.event.eventType, started.event.sourceStatus, started.event.targetStatus, started.event.operatorName, started.equipment.status],
+      ['START', 'AVAILABLE', 'IN_USE', '设备验证员', 'IN_USE'],
+      '开始运行必须原子写入事件和当前状态',
+    )
+    await assert.rejects(
+      () => recordEquipmentEvent(equipment.id, { action: 'START', reason: '重复启动' }, actor),
+      (error: unknown) => error instanceof EquipmentDomainError && error.status === 409,
+      '运行中的设备不得重复启动',
+    )
+    const faultedAt = new Date('2026-08-14T01:20:00.000Z')
+    const faulted = await recordEquipmentEvent(equipment.id, { action: 'FAULT', reason: '主轴过载', note: '现场已断电' }, actor, faultedAt)
+    assert.deepEqual([faulted.event.sourceStatus, faulted.event.targetStatus, faulted.equipment.status], ['IN_USE', 'FAULT', 'FAULT'])
+    const recoveredAt = new Date('2026-08-14T01:35:00.000Z')
+    const recovered = await recordEquipmentEvent(equipment.id, { action: 'RECOVER', reason: '复位并试运行正常' }, actor, recoveredAt)
+    assert.deepEqual(
+      [recovered.event.sourceStatus, recovered.event.targetStatus, recovered.event.durationSeconds, recovered.equipment.status],
+      ['FAULT', 'AVAILABLE', null, 'AVAILABLE'],
+      '恢复事件只记录恢复时点并回到可用状态，不得重复计算停机时长',
+    )
+    const eventTimeline = await listEquipmentEvents(equipment.id)
+    assert.deepEqual(eventTimeline.map((event) => event.eventType), ['RECOVER', 'FAULT', 'START'], '设备事件必须按时间倒序可回放')
+    assert.equal(eventTimeline.find((event) => event.eventType === 'FAULT')?.durationSeconds, 900, '故障持续时间必须归属被关闭的故障事件')
+
     const moved = await updateManagedEquipment(equipment.id, {
       code: 'eq 01', name: '一号锯床', equipmentType: '自动锯床', workCenterId: assembly.id,
-      status: 'IN_USE', model: null, manufacturer: null, serialNumber: null,
+      model: null, manufacturer: null, serialNumber: null,
       location: 'B 区', basicParameters: null, note: null,
     })
-    assert.deepEqual([moved.existing.workCenterId, moved.saved.workCenterId, moved.saved.status], [cutting.id, assembly.id, 'IN_USE'])
+    assert.deepEqual([moved.existing.workCenterId, moved.saved.workCenterId, moved.saved.status], [cutting.id, assembly.id, 'AVAILABLE'])
 
     const archivedCenterAt = new Date('2026-08-10T10:00:00.000Z')
     const archivedCenter = await archiveManagedWorkCenter(cutting.id, archivedCenterAt)
@@ -176,13 +235,30 @@ async function main() {
     const listedCenter = (await listManagedWorkCenters(true)).find((item) => item.id === cutting.id)
     assert.equal(listedCenter?._count.workInstructions, 1, '工作中心查询必须集中装配工艺文档引用计数')
 
-    const archivedEquipmentAt = new Date('2026-08-10T10:30:00.000Z')
-    const archivedEquipment = await archiveManagedEquipment(equipment.id, archivedEquipmentAt)
+    const stoppedAt = new Date('2026-08-14T01:50:00.000Z')
+    await recordEquipmentEvent(equipment.id, { action: 'STOP', reason: '计划停机归档' }, actor, stoppedAt)
+    const archivedEquipmentAt = new Date('2026-08-14T02:00:00.000Z')
+    const archivedEquipment = await archiveManagedEquipment(equipment.id, actor, archivedEquipmentAt)
     assert.deepEqual(
       [archivedEquipment.saved.status, archivedEquipment.saved.deletedAt?.toISOString()],
       ['STOPPED', archivedEquipmentAt.toISOString()],
       '归档设备必须同步进入停机状态',
     )
+    assert.equal(archivedEquipment.event.eventType, 'ARCHIVE', '归档导致的状态变化也必须写入设备事件')
+    const archivedTimeline = await prisma.equipmentEvent.findMany({ where: { equipmentId: equipment.id } })
+    const stoppedEvent = archivedTimeline.find((event) => event.eventType === 'STOP')
+    assert.equal(stoppedEvent?.durationSeconds, 600, '归档必须关闭仍未结束的停机/故障事件')
+    assert.equal(stoppedEvent?.endedAt?.toISOString(), archivedEquipmentAt.toISOString(), '归档必须补齐异常事件结束时间')
+    await assert.rejects(
+      () => prisma.equipmentEvent.delete({ where: { id: stoppedEvent!.id } }),
+      '数据库必须拒绝删除设备事件',
+    )
+    assert.equal(await prisma.equipmentEvent.count({ where: { id: stoppedEvent!.id } }), 1, '被拒绝删除的事件必须仍然存在')
+    await assert.rejects(
+      () => prisma.equipmentEvent.update({ where: { id: stoppedEvent!.id }, data: { reason: '篡改历史' } }),
+      '数据库必须拒绝篡改设备事件业务事实',
+    )
+    assert.equal((await prisma.equipmentEvent.findUniqueOrThrow({ where: { id: stoppedEvent!.id } })).reason, '计划停机归档', '被拒绝的篡改不得改变事件事实')
     assert.equal((await listManagedEquipment({})).length, 0, '默认设备查询不得返回归档设备')
     assert.equal((await listManagedEquipment({ includeArchived: true })).length, 1)
     await assert.rejects(

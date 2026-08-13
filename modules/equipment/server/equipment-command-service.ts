@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import type { EquipmentInput } from '../contracts/equipment-schema'
 import { EquipmentDomainError } from '../domain/equipment-errors'
 import { equipmentWriteData } from '../domain/equipment-rules'
+import { closeLatestEquipmentIncident, type EquipmentEventActor } from './equipment-event-service'
 import { equipmentInclude } from './equipment-query-service'
 
 async function runEquipmentCommand<T>(operation: () => Promise<T>, duplicateMessage: string) {
@@ -43,13 +44,20 @@ export async function updateManagedEquipment(id: string, input: EquipmentInput) 
   }), '设备编码已存在')
 }
 
-export async function archiveManagedEquipment(id: string, archivedAt = new Date()) {
+export async function archiveManagedEquipment(id: string, actor: EquipmentEventActor, archivedAt = new Date()) {
   return runEquipmentCommand(() => prisma.$transaction(async (tx) => {
     const existing = await tx.equipment.findUnique({ where: { id }, include: equipmentInclude })
     if (!existing || existing.deletedAt) throw new EquipmentDomainError('设备不存在或已归档', 404)
-    const saved = await tx.equipment.update({
-      where: { id }, data: { deletedAt: archivedAt, status: 'STOPPED' }, include: equipmentInclude,
+    await closeLatestEquipmentIncident(tx, id, existing.status, archivedAt)
+    const event = await tx.equipmentEvent.create({
+      data: {
+        equipmentId: id, eventType: 'ARCHIVE', sourceStatus: existing.status, targetStatus: 'STOPPED',
+        reason: '设备归档', operatorId: actor.operatorId || null, operatorName: actor.operatorName, occurredAt: archivedAt,
+      },
     })
-    return { existing, saved }
+    const saved = await tx.equipment.update({
+      where: { id }, data: { deletedAt: archivedAt }, include: equipmentInclude,
+    })
+    return { existing, event, saved }
   }), '设备编码已存在')
 }

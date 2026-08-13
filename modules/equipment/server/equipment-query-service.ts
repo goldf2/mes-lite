@@ -5,6 +5,7 @@ import { equipmentStatusValues } from '../contracts/equipment-schema'
 
 export const equipmentInclude = {
   workCenter: { select: { id: true, code: true, name: true, isActive: true } },
+  _count: { select: { events: true } },
 } satisfies Prisma.EquipmentInclude
 
 export async function listManagedEquipment(input: {

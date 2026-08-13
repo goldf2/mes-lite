@@ -2,7 +2,7 @@
 
 状态：暂停的长期候选
 
-> 当前产品是单厂轻量 MES，使用 `prisma/schema.prisma` 的单实例模型；本文中的 `tenant_id`、商城、支付和多租户关系既未实现，也不是当前开发合同。当前物料主档、生产事实和 Product 外键退出规则以[单厂 MES 产品边界与核心模型收敛](../architecture/单厂MES产品边界与核心模型收敛.md)为准。`v0.1.358` 已在当前模型中交付来料/产出/客户退货内部批次、生产投入与产出谱系、发货与退货回流分配、完整质量处置和跨业务批次搜索全景；`v0.1.359-v0.1.361` 又在现有单厂权限模型上交付岗位任务、独立生产命令、48 个细分资源、人员数据范围和个人临时授权。这些当前事实不并入本暂停草案的未来租户结构。
+> 当前产品是单厂轻量 MES，使用 `prisma/schema.prisma` 的单实例模型；本文中的 `tenant_id`、商城、支付和多租户关系既未实现，也不是当前开发合同。当前物料主档、生产事实和 Product 外键退出规则以[单厂 MES 产品边界与核心模型收敛](../architecture/单厂MES产品边界与核心模型收敛.md)为准。`v0.1.358-v0.1.361` 已交付批次全景、岗位任务、48 个细分资源、人员数据范围和个人临时授权；`v0.1.369` 在当前模型中增加设备运行事件与第 49 个权限资源。这些当前事实不并入本暂停草案的未来租户结构。
 
 ## 命名约定
 
@@ -828,9 +828,11 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 | `WorkCenter` | `code`、`name`、`category`、`isActive`、`sortOrder` | 锯切、钻孔、检验等逻辑能力区域，由“业务配置 / 工作中心”进入、`modules/equipment` 实现；`sortOrder` 保存共享默认顺序 |
 | `Equipment` | `code`、`name`、`equipmentType`、`workCenterId` | 实际生产设备及其工作中心归属 |
 | `Equipment` | `manufacturer`、`model`、`serialNumber` | 设备厂商、型号和出厂编号 |
-| `Equipment` | `status`、`location`、`basicParameters` | 可用、使用中、维护、停用状态及基础能力参数 |
+| `Equipment` | `status`、`location`、`basicParameters` | 可用、使用中、故障、维护、停机当前快照及基础能力参数 |
+| `EquipmentEvent` | `eventType`、`sourceStatus`、`targetStatus`、`reason` | 开机、停机、故障、恢复、归档的只追加命令事实 |
+| `EquipmentEvent` | `operatorId`、`operatorName`、`occurredAt`、`durationSeconds`、`endedAt` | 操作人快照、发生时间；恢复时仅为被关闭事件补齐结束时间和持续时间 |
 
-工作中心归档前必须先调整其全部设备归属，普通更新不得绕过引用检查直接停用。设备只能归属启用且未归档的工作中心；设备归档同时进入 `STOPPED` 状态并保留审计记录。工艺文档后续修改适用工作中心时使用显式保存。
+工作中心归档前必须先调整其全部设备归属，普通更新不得绕过引用检查直接停用。设备只能归属启用且未归档的工作中心；基础资料不能直接写 `status`，状态由服务端事件状态机原子更新。恢复会把持续时间写回最近一条未结束的故障/停机/维护事件；设备归档同时进入 `STOPPED` 并写 `ARCHIVE` 事件。工艺文档后续修改适用工作中心时使用显式保存。
 
 ### system_settings
 

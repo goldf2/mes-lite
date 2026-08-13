@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getCurrentOperator, operatorDisplayName } from '@/lib/auth'
 import { writeAuditLog } from '@/lib/audit'
 import { requireResourcePermission } from '@/lib/permissions'
 import { equipmentIdSchema, equipmentInputSchema, equipmentUpdateSchema } from '@/modules/equipment/contracts/equipment-schema'
@@ -72,7 +73,11 @@ export async function DELETE(req: NextRequest) {
     const denied = await requireResourcePermission('equipment', 'delete')
     if (denied) return denied
     const id = equipmentIdSchema.parse(new URL(req.url).searchParams.get('id'))
-    const { existing, saved } = await archiveManagedEquipment(id)
+    const operator = await getCurrentOperator()
+    if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
+    const { existing, saved } = await archiveManagedEquipment(id, {
+      operatorId: operator.id, operatorName: operatorDisplayName(operator),
+    })
     await writeAuditLog(req, {
       action: 'ARCHIVE', entityType: 'EQUIPMENT', entityId: saved.id,
       entityLabel: `${saved.code} ${saved.name}`, beforeData: existing, afterData: saved,

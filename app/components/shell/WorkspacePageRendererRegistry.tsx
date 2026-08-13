@@ -151,6 +151,7 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
       canCreate={context.canCreate('equipment')}
       canUpdate={context.canUpdate('equipment')}
       canDelete={context.canDelete('equipment')}
+      canCommand={context.canUpdate('equipmentEvents')}
     />
   ),
   'material-in': (context) => <MaterialInPage onMessage={context.onMessage} />,

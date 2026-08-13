@@ -23,6 +23,7 @@ export const permissionResources = [
   { key: 'materials', label: '物料管理' },
   { key: 'workInstructions', label: '产品文档' },
   { key: 'equipment', label: '设备管理' },
+  { key: 'equipmentEvents', label: '设备运行事件' },
   { key: 'materialIn', label: '来料管理' },
   { key: 'dispatch', label: '派工管理' },
   { key: 'stocks', label: '库存管理' },
@@ -70,7 +71,7 @@ export const permissionResources = [
 export const permissionResourceSections = [
   { key: 'common', label: '公共入口', resources: ['dashboard', 'aiAssistant', 'attachments'] },
   { key: 'production', label: '生产、质量与统计', resources: ['orders', 'productionOrderRelease', 'productionActualEntry', 'productionActualConfirm', 'productionActualReverse', 'dispatch', 'flowTransfers', 'stats', 'quality', 'qualityDecision', 'qualityDisposition', 'qualityRelease'] },
-  { key: 'engineering', label: '物料、工艺与设备', resources: ['materials', 'bom', 'bomCost', 'workInstructions', 'documentCategories', 'equipment', 'units', 'workCenters', 'processTemplates', 'processRoutes', 'sawingCost', 'scanPrint'] },
+  { key: 'engineering', label: '物料、工艺与设备', resources: ['materials', 'bom', 'bomCost', 'workInstructions', 'documentCategories', 'equipment', 'equipmentEvents', 'units', 'workCenters', 'processTemplates', 'processRoutes', 'sawingCost', 'scanPrint'] },
   { key: 'fulfillment', label: '来料、库存与销售', resources: ['materialIn', 'stocks', 'salesOrder', 'shipment', 'return', 'suppliers', 'customers', 'locations'] },
   { key: 'administration', label: '人员、配置与运维', resources: ['employees', 'operators', 'businessSettings', 'displaySettings', 'navigationSettings', 'aiSettings', 'archive', 'auditLogs', 'dataTools', 'permissionUsers', 'permissionGroups'] },
   { key: 'legacy', label: '升级兼容资源', resources: ['system', 'permissions'] },
@@ -108,6 +109,7 @@ const operatorDefaults: PermissionMap = {
   materials: readOnly,
   workInstructions: readOnly,
   equipment: readOnly,
+  equipmentEvents: none,
   materialIn: readCreate,
   dispatch: readCreate,
   stocks: readOnly,
@@ -159,6 +161,7 @@ const auditorDefaults: PermissionMap = {
   materials: readOnly,
   workInstructions: readCreateUpdate,
   equipment: readCreateUpdate,
+  equipmentEvents: readCreateUpdate,
   materialIn: readCreateUpdate,
   dispatch: readCreateUpdate,
   stocks: { canRead: true, canCreate: false, canUpdate: true, canDelete: false, canGrant: false },
@@ -239,7 +242,7 @@ export const defaultPermissionGroups = [
   { code: 'quality_release', name: '质量授权放行组', description: '质量负责人执行让步与解冻放行，应限制为少量经批准人员。', settings: permissionPreset({ quality: 'R', qualityRelease: 'U', orders: 'R', stocks: 'R', return: 'R' }) },
   { code: 'process_engineer', name: '工艺技术组', description: '工艺与 BOM 工程师维护物料、BOM、工艺、单位和技术文档。', settings: permissionPreset({ materials: 'RCU', bom: 'RCUA', workInstructions: 'RCU', documentCategories: 'R', units: 'RCUA', workCenters: 'RCUA', processTemplates: 'RCUA', processRoutes: 'RCUA', sawingCost: 'RCU' }) },
   { code: 'production_planner', name: '生产计划组', description: '计划员建立和发布生产订单、安排派工；不确认现场实绩或冲销库存。', settings: permissionPreset({ orders: 'RCUA', productionOrderRelease: 'U', dispatch: 'RCU', flowTransfers: 'R', stats: 'R', materials: 'R', bom: 'R', equipment: 'R', materialIn: 'R', stocks: 'R', salesOrder: 'R', suppliers: 'R', units: 'R', workCenters: 'R', processTemplates: 'R', processRoutes: 'R' }) },
-  { code: 'equipment_maintenance', name: '设备维护组', description: '设备管理员维护设备台账并读取工作中心和技术文档。', settings: permissionPreset({ equipment: 'RCUA', workCenters: 'R', workInstructions: 'R' }) },
+  { code: 'equipment_maintenance', name: '设备维护组', description: '设备管理员维护设备台账、执行运行事件并读取工作中心和技术文档。', settings: permissionPreset({ equipment: 'RCUA', equipmentEvents: 'RU', workCenters: 'R', workInstructions: 'R' }) },
   { code: 'document_control', name: '文档管理组', description: '文控人员维护产品文档、类别、版本和附件。', settings: permissionPreset({ workInstructions: 'RCUA', documentCategories: 'RCUA', attachments: 'RCUA' }) },
   { code: 'sales_fulfillment', name: '销售发运组', description: '销售、跟单与发运人员维护客户、订单、发货和退货。', settings: permissionPreset({ materials: 'R', stocks: 'R', salesOrder: 'RCUA', shipment: 'RCUA', return: 'RCUA', suppliers: 'RCU', customers: 'RCU' }) },
   { code: 'personnel_manager', name: '人员管理组', description: '人事与账号审核人员维护员工档案和账号状态，不获得业务权限。', settings: permissionPreset({ employees: 'RCUA', operators: 'RU' }) },
@@ -248,6 +251,7 @@ export const defaultPermissionGroups = [
 ] as const
 
 export const permissionResourceLegacySources: Partial<Record<PermissionResource, PermissionResource>> = {
+  equipmentEvents: 'equipment',
   flowTransfers: 'stats',
   bom: 'bomCost',
   suppliers: 'system',

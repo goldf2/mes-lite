@@ -91,10 +91,26 @@ async function main() {
   ])
 
   await prisma.equipment.createMany({ data: [
-    { code: 'EQ-CF-01', name: '一号冷镦机', equipmentType: '冷镦机', model: 'CF-6D', manufacturer: '演示设备厂', status: 'AVAILABLE', location: 'A1', workCenterId: formingCenter.id },
-    { code: 'EQ-QC-01', name: '影像测量仪', equipmentType: '检测设备', model: 'VM-3020', manufacturer: '演示仪器厂', status: 'IN_USE', location: '质检室', workCenterId: inspectionCenter.id },
-    { code: 'EQ-PK-01', name: '自动计数包装机', equipmentType: '包装机', model: 'PK-1000', manufacturer: '演示设备厂', status: 'MAINTENANCE', location: '包装区', workCenterId: packingCenter.id },
+    { code: 'EQ-CF-01', name: '一号冷镦机', equipmentType: '冷镦机', model: 'CF-6D', manufacturer: '演示设备厂', location: 'A1', workCenterId: formingCenter.id },
+    { code: 'EQ-QC-01', name: '影像测量仪', equipmentType: '检测设备', model: 'VM-3020', manufacturer: '演示仪器厂', location: '质检室', workCenterId: inspectionCenter.id },
+    { code: 'EQ-PK-01', name: '自动计数包装机', equipmentType: '包装机', model: 'PK-1000', manufacturer: '演示设备厂', location: '包装区', workCenterId: packingCenter.id },
   ] })
+  const seededEquipment = await prisma.equipment.findMany({
+    where: { code: { in: ['EQ-QC-01', 'EQ-PK-01'] } }, select: { id: true, code: true },
+  })
+  const equipmentId = new Map(seededEquipment.map((item) => [item.code, item.id]))
+  await prisma.equipmentEvent.create({
+    data: {
+      equipmentId: equipmentId.get('EQ-QC-01')!, eventType: 'START', sourceStatus: 'AVAILABLE', targetStatus: 'IN_USE',
+      reason: '演示环境开机', operatorName: 'SOP 演示数据',
+    },
+  })
+  await prisma.equipmentEvent.create({
+    data: {
+      equipmentId: equipmentId.get('EQ-PK-01')!, eventType: 'STOP', sourceStatus: 'AVAILABLE', targetStatus: 'STOPPED',
+      reason: '演示环境计划停机', operatorName: 'SOP 演示数据',
+    },
+  })
 
   const [wire, oil, bolt, scrap] = await Promise.all([
     prisma.material.create({ data: { code: 'RAW-SCM435-8', name: 'SCM435 盘圆', spec: 'Φ8.0mm', category: 'RAW', unit: 'kg', primaryMeasure: 'WEIGHT', stockUnit: 'kg', valuationUnit: 'kg', conversionRate: 1, costingMethod: 'FIFO' } }),

@@ -1,6 +1,7 @@
 import type {
   EquipmentForm,
   EquipmentItem,
+  EquipmentEventItem,
   EquipmentWorkCenterOption,
   WorkCenterConfig,
   WorkCenterForm,
@@ -44,6 +45,18 @@ export async function saveEquipment(form: EquipmentForm, id?: string) {
 export async function archiveEquipment(id: string) {
   const payload = await request<never>(`/api/equipment?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
   return payload.message
+}
+
+export async function loadEquipmentEvents(id: string) {
+  const payload = await request<EquipmentEventItem[]>(`/api/equipment/${encodeURIComponent(id)}/events`)
+  return payload.data || []
+}
+
+export async function saveEquipmentEvent(id: string, input: { action: string; reason: string; note?: string }) {
+  const payload = await request<{ equipment: EquipmentItem; event: EquipmentEventItem }>(`/api/equipment/${encodeURIComponent(id)}/events`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  })
+  return payload.data
 }
 
 export async function loadManagedWorkCenters() {

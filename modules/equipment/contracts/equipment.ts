@@ -19,6 +19,7 @@ export interface EquipmentItem {
   note?: string | null
   workCenterId: string
   workCenter: EquipmentWorkCenterOption
+  _count: { events: number }
   createdAt: string
 }
 
@@ -30,10 +31,24 @@ export interface EquipmentForm {
   model: string
   manufacturer: string
   serialNumber: string
-  status: string
   location: string
   basicParameters: string
   note: string
+}
+
+export interface EquipmentEventItem {
+  id: string
+  equipmentId: string
+  eventType: string
+  sourceStatus: string
+  targetStatus: string
+  reason: string
+  note?: string | null
+  operatorId?: string | null
+  operatorName: string
+  occurredAt: string
+  durationSeconds?: number | null
+  endedAt?: string | null
 }
 
 export interface WorkCenterConfig {

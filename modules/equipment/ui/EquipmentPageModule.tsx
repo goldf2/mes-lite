@@ -1,43 +1,42 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import SearchableSelect from '@/app/components/SearchableSelect'
 import { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import useClientTableSort from '@/app/components/useClientTableSort'
-import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import AppButton from '@/app/components/AppButton'
-import { appInputClassName, appSelectClassName, appTextareaClassName } from '@/app/components/FormField'
 import ResourcePage from '@/app/components/resource/ResourcePage'
 import ResourceSortButton from '@/app/components/resource/ResourceSortButton'
 import type { ResourceAdvancedSearchField } from '@/lib/resource-search'
-import { archiveEquipment, loadEquipment, loadEquipmentWorkCenters, saveEquipment } from '../client/equipment-api'
+import { archiveEquipment, loadEquipment, loadEquipmentWorkCenters } from '../client/equipment-api'
 import type { EquipmentItem, EquipmentWorkCenterOption } from '../contracts/equipment'
 import {
-  createEmptyEquipmentForm,
   equipmentStatusLabels as statusLabels,
   equipmentStatusOptions as statusOptions,
 } from '../model/equipment-view'
+import EquipmentEditorDialog from './EquipmentEditorDialog'
+import EquipmentEventDialog from './EquipmentEventDialog'
 
 export default function EquipmentPageModule({
   onMessage,
   canCreate,
   canUpdate,
   canDelete,
+  canCommand,
 }: {
   onMessage: (message: string) => void
   canCreate: boolean
   canUpdate: boolean
   canDelete: boolean
+  canCommand: boolean
 }) {
   const [items, setItems] = useState<EquipmentItem[]>([])
   const [workCenters, setWorkCenters] = useState<EquipmentWorkCenterOption[]>([])
   const [keyword, setKeyword] = useState('')
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.equipment.viewMode', 'list')
-  const [showModal, setShowModal] = useState(false)
+  const [showEditor, setShowEditor] = useState(false)
   const [editing, setEditing] = useState<EquipmentItem | null>(null)
-  const [form, setForm] = useState(createEmptyEquipmentForm)
+  const [eventEquipment, setEventEquipment] = useState<EquipmentItem | null>(null)
   const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
   const tableSort = useClientTableSort(items, {
     code: (item) => item.code,
     name: (item) => item.name,
@@ -95,36 +94,12 @@ export default function EquipmentPageModule({
 
   const openCreate = () => {
     setEditing(null)
-    setForm({ ...createEmptyEquipmentForm(), workCenterId: workCenters[0]?.id || '' })
-    setShowModal(true)
+    setShowEditor(true)
   }
 
   const openEdit = (item: EquipmentItem) => {
     setEditing(item)
-    setForm({
-      code: item.code, name: item.name, equipmentType: item.equipmentType,
-      workCenterId: item.workCenterId, model: item.model || '', manufacturer: item.manufacturer || '',
-      serialNumber: item.serialNumber || '', status: item.status, location: item.location || '',
-      basicParameters: item.basicParameters || '', note: item.note || '',
-    })
-    setShowModal(true)
-  }
-
-  const save = async () => {
-    if (!form.code.trim() || !form.name.trim() || !form.equipmentType.trim() || !form.workCenterId) {
-      return onMessage('请填写设备编码、名称、类型并选择工作中心')
-    }
-    setSaving(true)
-    try {
-      await saveEquipment(form, editing?.id)
-      setShowModal(false)
-      onMessage(editing ? '设备已更新' : '设备已新增')
-      await loadItems()
-    } catch (error) {
-      onMessage(error instanceof Error ? error.message : '保存设备失败')
-    } finally {
-      setSaving(false)
-    }
+    setShowEditor(true)
   }
 
   const archive = async (item: EquipmentItem) => {
@@ -152,7 +127,7 @@ export default function EquipmentPageModule({
     { key: 'model', label: sortLabel('model', '厂商 / 型号'), render: (item: EquipmentItem) => [item.manufacturer, item.model].filter(Boolean).join(' · ') || '-', hideBelow: 'lg' as const },
     { key: 'location', label: sortLabel('location', '位置'), render: (item: EquipmentItem) => item.location || '-', hideBelow: 'xl' as const },
     { key: 'status', label: sortLabel('status', '状态'), render: (item: EquipmentItem) => <span className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">{statusLabels[item.status] || item.status}</span> },
-    { key: 'actions', label: <span className="block text-right">操作</span>, headerClassName: 'text-right', className: 'text-right whitespace-nowrap', render: (item: EquipmentItem) => <>{canUpdate && <AppButton size="sm" onClick={() => openEdit(item)}>编辑</AppButton>}{canDelete && <AppButton size="sm" variant="warning" className="ml-2" onClick={() => archive(item)}>归档</AppButton>}</> },
+    { key: 'actions', label: <span className="block text-right">操作</span>, headerClassName: 'text-right', className: 'text-right whitespace-nowrap', render: (item: EquipmentItem) => <><AppButton size="sm" onClick={() => setEventEquipment(item)}>事件 {item._count.events || ''}</AppButton>{canUpdate && <AppButton size="sm" className="ml-2" onClick={() => openEdit(item)}>编辑</AppButton>}{canDelete && <AppButton size="sm" variant="warning" className="ml-2" onClick={() => archive(item)}>归档</AppButton>}</> },
   ]
 
   return (
@@ -160,7 +135,7 @@ export default function EquipmentPageModule({
       <ResourcePage
         resourceKey="equipment"
         title="设备台账"
-        description="维护设备、状态、工作中心归属和基础能力参数。"
+        description="维护设备基础资料、工作中心归属，并通过事件命令留痕运行状态变化。"
         items={tableSort.sortedRows}
         getKey={(item) => item.id}
         columns={columns}
@@ -169,7 +144,7 @@ export default function EquipmentPageModule({
             <div className="flex items-start justify-between gap-3"><div><div className="font-mono text-sm font-semibold text-blue-700">{item.code}</div><h3 className="mt-1 font-semibold text-gray-900">{item.name}</h3></div><span className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">{statusLabels[item.status] || item.status}</span></div>
             <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-gray-600"><div><span className="text-xs text-gray-400">类型</span><div>{item.equipmentType}</div></div><div><span className="text-xs text-gray-400">工作中心</span><div>{item.workCenter.name}</div></div><div><span className="text-xs text-gray-400">型号</span><div>{item.model || '-'}</div></div><div><span className="text-xs text-gray-400">位置</span><div>{item.location || '-'}</div></div></div>
             {item.basicParameters && <div className="mt-3 line-clamp-3 whitespace-pre-wrap rounded bg-gray-50 p-3 text-xs text-gray-600">{item.basicParameters}</div>}
-            <div className="mt-4 flex justify-end gap-2">{canUpdate && <AppButton size="sm" onClick={() => openEdit(item)}>编辑</AppButton>}{canDelete && <AppButton size="sm" variant="warning" onClick={() => archive(item)}>归档</AppButton>}</div>
+            <div className="mt-4 flex justify-end gap-2"><AppButton size="sm" onClick={() => setEventEquipment(item)}>事件 {item._count.events || ''}</AppButton>{canUpdate && <AppButton size="sm" onClick={() => openEdit(item)}>编辑</AppButton>}{canDelete && <AppButton size="sm" variant="warning" onClick={() => archive(item)}>归档</AppButton>}</div>
           </>
         )}
         loading={loading}
@@ -188,23 +163,8 @@ export default function EquipmentPageModule({
         rowLabel={(item) => `${item.code} ${item.name}`}
       />
 
-      {showModal && (
-        <ModalDialog title={editing ? '编辑设备' : '新建设备'} description="设备保存基础台账和能力参数；具体加工方法由工艺文档维护。" onClose={() => setShowModal(false)} closeDisabled={saving} size="xl" footer={<ModalActions onCancel={() => setShowModal(false)} onConfirm={save} busy={saving} />}>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <label className="text-sm font-medium text-gray-700">设备编码 *<input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} className={`mt-2 ${appInputClassName}`} /></label>
-            <label className="text-sm font-medium text-gray-700">设备名称 *<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={`mt-2 ${appInputClassName}`} /></label>
-            <label className="text-sm font-medium text-gray-700">设备类型 *<input value={form.equipmentType} onChange={(event) => setForm({ ...form, equipmentType: event.target.value })} className={`mt-2 ${appInputClassName}`} placeholder="如 锯床、钻床" /></label>
-            <label className="text-sm font-medium text-gray-700">工作中心 *<div className="mt-2"><SearchableSelect value={form.workCenterId} onChange={(workCenterId) => setForm({ ...form, workCenterId })} options={workCenterOptions} placeholder="输入工作中心筛选" /></div></label>
-            <label className="text-sm font-medium text-gray-700">状态<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })} className={`mt-2 ${appSelectClassName}`}>{statusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-            <label className="text-sm font-medium text-gray-700">现场位置<input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} className={`mt-2 ${appInputClassName}`} /></label>
-            <label className="text-sm font-medium text-gray-700">制造商<input value={form.manufacturer} onChange={(event) => setForm({ ...form, manufacturer: event.target.value })} className={`mt-2 ${appInputClassName}`} /></label>
-            <label className="text-sm font-medium text-gray-700">型号<input value={form.model} onChange={(event) => setForm({ ...form, model: event.target.value })} className={`mt-2 ${appInputClassName}`} /></label>
-            <label className="text-sm font-medium text-gray-700">出厂编号<input value={form.serialNumber} onChange={(event) => setForm({ ...form, serialNumber: event.target.value })} className={`mt-2 ${appInputClassName}`} /></label>
-            <label className="sm:col-span-2 lg:col-span-3 text-sm font-medium text-gray-700">基础参数<textarea value={form.basicParameters} onChange={(event) => setForm({ ...form, basicParameters: event.target.value })} rows={4} className={`mt-2 ${appTextareaClassName}`} placeholder={'例如：\n最大加工尺寸：...\n主轴功率：...\n能力范围：...'} /></label>
-            <label className="sm:col-span-2 lg:col-span-3 text-sm font-medium text-gray-700">备注<textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} rows={3} className={`mt-2 ${appTextareaClassName}`} /></label>
-          </div>
-        </ModalDialog>
-      )}
+      {showEditor && <EquipmentEditorDialog equipment={editing} workCenters={workCenters} onClose={() => setShowEditor(false)} onSaved={loadItems} onMessage={onMessage} />}
+      {eventEquipment && <EquipmentEventDialog equipment={eventEquipment} canCommand={canCommand} onClose={() => setEventEquipment(null)} onChanged={loadItems} onMessage={onMessage} />}
     </>
   )
 }

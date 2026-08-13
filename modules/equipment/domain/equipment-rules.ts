@@ -15,7 +15,6 @@ export function equipmentWriteData(input: EquipmentInput) {
     model: input.model?.trim() || null,
     manufacturer: input.manufacturer?.trim() || null,
     serialNumber: input.serialNumber?.trim() || null,
-    status: input.status || 'AVAILABLE',
     location: input.location?.trim() || null,
     basicParameters: input.basicParameters?.trim() || null,
     note: input.note?.trim() || null,
