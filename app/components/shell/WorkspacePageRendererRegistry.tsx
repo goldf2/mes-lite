@@ -35,6 +35,7 @@ const StockPageModule = dynamic(() => import('@/modules/inventory'), { loading: 
 const StockMovementPageModule = dynamic(() => import('@/modules/inventory').then((module) => module.StockMovementPageModule), { loading: FeaturePageLoading })
 const InventoryLotPanoramaPageModule = dynamic(() => import('@/modules/inventory').then((module) => module.InventoryLotPanoramaPageModule), { loading: FeaturePageLoading })
 const QualityTaskPageModule = dynamic(() => import('@/modules/quality').then((module) => module.QualityTaskPageModule), { loading: FeaturePageLoading })
+const SopHelpCenterPage = dynamic(() => import('@/modules/sop').then((module) => module.SopHelpCenterPage), { loading: FeaturePageLoading })
 
 export interface BomEditorTarget {
   materialId: string
@@ -82,6 +83,7 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
       onOpen={context.onOpenWorkspaceFunction}
     />
   ),
+  'sop-help-center': () => <SopHelpCenterPage />,
   'production-orders': (context) => (
     <ProductionOrderModule
       mode={context.tab as 'orders' | 'create' | 'detail'}

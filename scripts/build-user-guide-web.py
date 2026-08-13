@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import html
+import json
 import re
 import shutil
 from dataclasses import dataclass
@@ -11,7 +12,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.1.362"
+VERSION = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
 SOURCE = ROOT / "docs/operations/user-guide" / f"MES-lite全流程作业指导书-v{VERSION}.md"
 OUTPUT = ROOT / "output/web" / f"MES-lite全流程作业指导书-v{VERSION}"
 
@@ -165,7 +166,7 @@ main{{width:min(1180px,100%);padding:36px 42px 80px}}.hero,.workflow,.boundaries
 <dialog id="viewer"><button type="button">关闭 Esc</button><img alt="放大截图"></dialog>
 <script>
 const input=document.querySelector('#search'),cards=[...document.querySelectorAll('.workflow')],count=document.querySelector('#count'),empty=document.querySelector('#empty');
-input.addEventListener('input',()=>{{const terms=input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);let visible=0;cards.forEach(card=>{{const show=terms.every(term=>card.dataset.search.includes(term));card.hidden=!show;if(show)visible++}});document.querySelectorAll('.chapter').forEach(ch=>{{let node=ch.nextElementSibling,any=false;while(node&&!node.classList.contains('chapter')){{if(node.classList.contains('workflow')&&!node.hidden)any=true;node=node.nextElementSibling}}ch.hidden=!any}});count.textContent=`${{visible}} / ${{cards.length}}`;empty.style.display=visible?'none':'block'}});
+input.addEventListener('input',()=>{{const terms=input.value.trim().toLowerCase().split(/\\s+/).filter(Boolean);let visible=0;cards.forEach(card=>{{const show=terms.every(term=>card.dataset.search.includes(term));card.hidden=!show;if(show)visible++}});document.querySelectorAll('.chapter').forEach(ch=>{{let node=ch.nextElementSibling,any=false;while(node&&!node.classList.contains('chapter')){{if(node.classList.contains('workflow')&&!node.hidden)any=true;node=node.nextElementSibling}}ch.hidden=!any}});count.textContent=`${{visible}} / ${{cards.length}}`;empty.style.display=visible?'none':'block'}});
 const viewer=document.querySelector('#viewer'),viewerImage=viewer.querySelector('img');document.querySelectorAll('.shot').forEach(button=>button.addEventListener('click',()=>{{viewerImage.src=button.querySelector('img').src;viewerImage.alt=button.querySelector('img').alt;viewer.showModal()}}));viewer.querySelector('button').addEventListener('click',()=>viewer.close());viewer.addEventListener('click',event=>{{if(event.target===viewer)viewer.close()}});
 </script>
 </body>

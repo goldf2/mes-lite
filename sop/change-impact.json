@@ -1,0 +1,6 @@
+{
+  "version": "0.1.365",
+  "impact": "updated",
+  "workflowIds": ["139-sop-help-center", "140-context-help-drawer"],
+  "summary": "新增站内帮助中心和当前页面帮助抽屉；既有 138 个业务流程内容不变。"
+}

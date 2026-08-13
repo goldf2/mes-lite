@@ -4,6 +4,7 @@ export type WorkspaceMode = (typeof workspaceModes)[number]
 
 export const workspaceFunctionKeys = [
   'dashboard',
+  'helpCenter',
   'materialManagement',
   'bomWorkspace',
   'bomUsage',

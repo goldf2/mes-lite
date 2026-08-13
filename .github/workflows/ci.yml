@@ -42,6 +42,8 @@ jobs:
           npx prisma generate
 
       - name: Run domain and governance regression baseline
+        env:
+          SOP_DIFF_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: npm run verify:ci
 
       - name: Type check

@@ -3,7 +3,7 @@
 // 应用壳实现；业务垂直切片通过 modules/<domain> 的公开入口挂载。
 
 import { useState, useEffect, useRef, useCallback, type CSSProperties } from 'react'
-import { Menu, PanelLeftOpen, PanelRightOpen, Pin, PinOff, X } from 'lucide-react'
+import { CircleHelp, Menu, PanelLeftOpen, PanelRightOpen, Pin, PinOff, X } from 'lucide-react'
 import AuthGate, { CurrentOperator } from './components/AuthGate'
 import ResponsiveToolbarActions from './components/ResponsiveToolbarActions'
 import { InterfacePreferenceSync } from './components/interfacePreferences'
@@ -27,6 +27,7 @@ import {
 } from './components/shell'
 
 const AiAssistantPanel = dynamic(() => import('./components/AiAssistantPanel'))
+const SopHelpDrawer = dynamic(() => import('@/modules/sop').then((module) => module.SopHelpDrawer))
 
 // ==================== 状态映射 ====================
 
@@ -57,6 +58,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const [stockStateSummary, setStockStateSummary] = useState('页面：库存管理')
   const [systemMenuOpen, setSystemMenuOpen] = useState(false)
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
+  const [sopHelpOpen, setSopHelpOpen] = useState(false)
   const {
     desktopNavigationMode,
     desktopNavigationDisplayMode,
@@ -234,6 +236,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         <div className="flex h-full shrink-0 items-center gap-2 border-l border-gray-100 px-4">
           <button
             type="button"
+            aria-label={`打开${activeTabLabel}操作帮助`}
+            onClick={() => setSopHelpOpen(true)}
+            className="group relative flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-blue-50 hover:text-blue-700"
+          >
+            <CircleHelp aria-hidden="true" className="h-5 w-5" />
+            <ControlTooltip label="当前页面操作帮助" hidden={sopHelpOpen} />
+          </button>
+          <button
+            type="button"
             aria-label={workspaceLayoutPreference.layout === 'canvas' ? '切换到标准管理布局' : '切换到画布工作布局'}
             onClick={toggleWorkspaceLayout}
             className="group relative flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 hover:text-blue-700"
@@ -373,6 +384,14 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               </button>
               {siblingNavigationEnabled && <MobileSiblingNavigation group={activeNavigationGroup} />}
               <div id="topbar-actions-mobile" className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible empty:hidden" />
+              <button
+                type="button"
+                aria-label={`打开${activeTabLabel}操作帮助`}
+                onClick={() => setSopHelpOpen(true)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-blue-50 hover:text-blue-700"
+              >
+                <CircleHelp aria-hidden="true" className="h-5 w-5" />
+              </button>
               <AccountMenu
                 containerRef={systemMenuRef}
                 operator={operator}
@@ -478,6 +497,15 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           }}
           pageContext={{ key: pageLocationKey, label: activeTabLabel }}
           isAdmin={operator.role === 'ADMIN'}
+        />
+      )}
+
+      {sopHelpOpen && (
+        <SopHelpDrawer
+          pageKey={activePageModule.key}
+          pageLabel={activeTabLabel}
+          onClose={() => setSopHelpOpen(false)}
+          onOpenHelpCenter={openWorkspaceFunction}
         />
       )}
 

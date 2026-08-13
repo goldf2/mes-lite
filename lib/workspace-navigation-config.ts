@@ -44,6 +44,7 @@ export interface WorkspaceNavigationConfig {
 
 export const sharedWorkspaceFunctionKeys = [
   'dashboard',
+  'helpCenter',
   'displaySettings',
   'navigationSettings',
   'aiSettings',

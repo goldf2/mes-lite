@@ -8,6 +8,9 @@ const nextConfig = {
   },
   experimental: {
     serverComponentsExternalPackages: ['@napi-rs/canvas', '@prisma/client', 'pdfjs-dist', 'pdfkit'],
+    outputFileTracingIncludes: {
+      '/api/sop/screenshots/[workflowId]': ['./docs/operations/user-guide/screenshots/**/*'],
+    },
   },
 }
 

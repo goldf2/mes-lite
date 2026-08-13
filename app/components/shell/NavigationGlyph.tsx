@@ -1,6 +1,7 @@
 const navigationGlyphs: Record<string, string> = {
   dashboard: '仪',
   allFunctions: '全',
+  helpCenter: '助',
   orders: '工',
   materials: '料',
   workInstructions: '书',

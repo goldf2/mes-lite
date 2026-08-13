@@ -8,6 +8,7 @@ installed on the reader's computer.
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 import tempfile
@@ -22,8 +23,12 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 
-VERSION = "v0.1.362"
-EXPECTED_WORKFLOWS = 138
+ROOT = Path(__file__).resolve().parents[1]
+VERSION = f"v{json.loads((ROOT / 'package.json').read_text(encoding='utf-8'))['version']}"
+EXPECTED_WORKFLOWS = sum(
+    len(chapter["workflows"])
+    for chapter in json.loads((ROOT / "sop/manifest.json").read_text(encoding="utf-8"))["chapters"]
+)
 PAGE_W = 1240
 PAGE_H = 1754
 MARGIN = 72

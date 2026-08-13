@@ -16,6 +16,7 @@ const checks = [
   'verify:quality-dispositions',
   'verify:runtime-operations',
   'verify:production-database-audit',
+  'verify:sop',
   'verify:release-notes',
   'verify:development-docs',
 ]

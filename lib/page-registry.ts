@@ -11,7 +11,7 @@ export interface PagePresentationDefinition {
 }
 
 export const applicationTabs = [
-  'dashboard', 'allFunctions', 'orders', 'materials', 'workInstructions', 'equipment', 'materialIn',
+  'dashboard', 'allFunctions', 'helpCenter', 'orders', 'materials', 'workInstructions', 'equipment', 'materialIn',
   'dispatch', 'stocks', 'stockMovements', 'lotPanorama', 'qualityTasks', 'salesOrders', 'shipment', 'return', 'flowTransfers', 'sawingCost', 'scanPrint',
   'suppliers', 'customers', 'employees', 'processTemplates', 'processRoutes', 'archive', 'auditLogs',
   'dataTools', 'unitSettings', 'locationSettings', 'workCenters', 'documentCategories', 'businessSettings',
@@ -43,6 +43,7 @@ export type RegisteredSystemSection =
 export type PageRendererKey =
   | 'dashboard'
   | 'all-functions'
+  | 'sop-help-center'
   | 'production-orders'
   | 'stocks'
   | 'stock-movements'
@@ -100,6 +101,7 @@ function registerPage<const T extends Omit<PageModuleDefinition, 'toolbar'>>(def
 const registeredPages = [
   registerPage({ key: 'dashboard', tab: 'dashboard', kind: 'workspace', title: '仪表盘', description: '查看业务、生产和库存总览', renderer: 'dashboard', groupKey: 'workspace', resource: 'dashboard', primaryNavigation: true, hostToolbarProvided: true, shellToolbarActions: true, presentation: { content: 'page' }, workspace: { functionKey: 'dashboard', label: '仪表盘', icon: '仪' } }),
   registerPage({ key: 'allFunctions', tab: 'allFunctions', kind: 'workspace', title: '所有功能', description: '系统功能导航与个人工作台', renderer: 'all-functions', groupKey: 'workspace', resource: 'dashboard', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' } }),
+  registerPage({ key: 'helpCenter', tab: 'helpCenter', kind: 'workspace', title: '帮助中心', description: '按权限查找当前版本的流程作业指导书', renderer: 'sop-help-center', groupKey: 'workspace', resource: 'dashboard', primaryNavigation: true, workspace: { functionKey: 'helpCenter', label: '帮助中心', icon: '助' } }),
   registerPage({ key: 'materialManagement', tab: 'materials', materialSection: 'materials', kind: 'master-detail', title: '物料管理', description: '维护物料、单位、规格和库存基础', renderer: 'materials', groupKey: 'materials', resource: 'materials', primaryNavigation: true, tabLabel: '物料与 BOM', workspace: { functionKey: 'materialManagement', label: '物料管理', icon: '料' } }),
   registerPage({ key: 'bomWorkspace', tab: 'materials', materialSection: 'bomWorkspace', kind: 'master-detail', title: 'BOM 设置', description: '创建 BOM 或修改已有 BOM 的整批输入与输出', renderer: 'bom-workspace', groupKey: 'materials', resource: 'bom', presentation: { content: 'page' }, workspace: { functionKey: 'bomWorkspace', label: 'BOM 设置', icon: '本' } }),
   registerPage({ key: 'bomUsage', tab: 'materials', materialSection: 'bomUsage', kind: 'master-detail', title: 'BOM 全览', description: '查看与某个物料有关的全部产出和投入 BOM', renderer: 'bom-usage', groupKey: 'materials', resource: 'bom', workspace: { functionKey: 'bomUsage', label: 'BOM 全览', icon: '查' } }),
