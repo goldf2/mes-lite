@@ -538,6 +538,9 @@ async function main() {
       operatorId: warehouseOperator.id, productionMode: 'ALL', inventoryMode: 'LOCATIONS',
       locations: { create: [{ locationId: waiting.id }, { locationId: rawLocation.id }, { locationId: finishedLocation.id }, { locationId: returnLocation.id }] },
     } }),
+    prisma.operatorDataScope.create({ data: {
+      operatorId: warehouseLeadOperator.id, productionMode: 'ALL', inventoryMode: 'ALL',
+    } }),
     prisma.operatorPermissionOverride.create({ data: {
       operatorId: operator.id, resource: 'quality', canRead: true,
       reason: '临时协助首件检验记录复核', grantedBy: admin.id,

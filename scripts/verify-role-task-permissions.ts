@@ -34,6 +34,7 @@ async function main() {
       'production_executor',
       'production_lead',
       'warehouse_executor',
+      'warehouse_lead',
       'quality_inspector',
       'quality_disposition',
       'quality_release',
@@ -63,10 +64,11 @@ async function main() {
       })
     }
 
-    const [executor, lead, warehouse, quality, qualityEngineer, planner, maintainer] = await Promise.all([
+    const [executor, lead, warehouse, warehouseLead, quality, qualityEngineer, planner, maintainer] = await Promise.all([
       createJobOperator('production_executor'),
       createJobOperator('production_lead'),
       createJobOperator('warehouse_executor'),
+      createJobOperator('warehouse_lead'),
       createJobOperator('quality_inspector'),
       createJobOperator('quality_disposition'),
       createJobOperator('production_planner'),
@@ -88,7 +90,11 @@ async function main() {
     assert.equal(await hasResourcePermission(planner, 'productionActualConfirm', 'update'), false, '计划员不得确认实绩过账')
     assert.equal(await hasResourcePermission(planner, 'productionActualReverse', 'update'), false, '计划员不得冲销实绩')
 
-    assert.equal(await hasResourcePermission(warehouse, 'materialIn', 'update'), true, '仓管可执行来料作业')
+    assert.equal(await hasResourcePermission(warehouse, 'materialIn', 'update'), true, '仓管可编辑待收货来料单')
+    assert.equal(await hasResourcePermission(warehouse, 'materialInReceive', 'update'), true, '仓管可确认收货或拒收')
+    assert.equal(await hasResourcePermission(warehouse, 'materialInReverse', 'update'), false, '仓管不得执行来料红冲')
+    assert.equal(await hasResourcePermission(warehouseLead, 'materialInReceive', 'update'), true, '仓库主管可确认收货或拒收')
+    assert.equal(await hasResourcePermission(warehouseLead, 'materialInReverse', 'update'), true, '仓库主管可执行有原因的来料红冲')
     assert.equal(await hasResourcePermission(warehouse, 'orders', 'update'), false, '仓管不得执行生产实绩')
     assert.equal(await hasResourcePermission(quality, 'qualityDecision', 'update'), true, '质检员可记录质量判定')
     assert.equal(await hasResourcePermission(quality, 'qualityDisposition', 'update'), false, '质检员不自动获得返工报废处置')
@@ -137,6 +143,9 @@ async function main() {
     assert.match(read('app/api/orders/[id]/actuals/route.ts'), /requireResourcePermission\('productionActualEntry', 'update'\)/, '实绩登记 API 必须使用独立权限')
     assert.match(read('app/api/orders/[id]/actuals/[actualId]/confirm/route.ts'), /requireResourcePermission\('productionActualConfirm', 'update'\)/, '实绩确认 API 必须使用独立权限')
     assert.match(read('app/api/orders/[id]/actuals/[actualId]/reverse/route.ts'), /requireResourcePermission\('productionActualReverse', 'update'\)/, '实绩冲销 API 必须使用独立权限')
+    assert.match(read('app/api/material-ins/[id]/receive/route.ts'), /requireResourcePermission\('materialInReceive', 'update'\)/, '来料收货 API 必须使用独立权限')
+    assert.match(read('app/api/material-ins/[id]/reject/route.ts'), /requireResourcePermission\('materialInReceive', 'update'\)/, '来料拒收 API 必须使用收货决策权限')
+    assert.match(read('app/api/material-ins/[id]/reverse/route.ts'), /requireResourcePermission\('materialInReverse', 'update'\)/, '来料红冲 API 必须使用独立权限')
 
     console.log('岗位任务与生产命令权限验证通过：岗位预置组、待办可见性和三层服务端门禁符合最小权限。')
   } finally {

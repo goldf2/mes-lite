@@ -15,6 +15,9 @@ interface MaterialInCollectionViewProps {
   sortDirection: TableSortDirection
   onSort: (column: string) => void
   onMessage: (message: string) => void
+  canUpdate: boolean
+  canReceive: boolean
+  canReverse: boolean
   onDetail: (item: MaterialInRecord) => void
   onEdit: (item: MaterialInRecord) => void
   onReceive: (id: string) => void
@@ -34,6 +37,9 @@ function ItemActions({ item, compact = false, ...props }: {
   item: MaterialInRecord
   compact?: boolean
   loading: boolean
+  canUpdate: boolean
+  canReceive: boolean
+  canReverse: boolean
   onDetail: (item: MaterialInRecord) => void
   onEdit: (item: MaterialInRecord) => void
   onReceive: (id: string) => void
@@ -46,12 +52,12 @@ function ItemActions({ item, compact = false, ...props }: {
       <BusinessDocumentPrintLink kind="material-in" id={item.id} compact={compact} />
       {item.status === 'PENDING' && (
         <>
-          <button type="button" onClick={() => props.onEdit(item)} disabled={props.loading} className="rounded bg-blue-600 px-3 py-1 text-xs text-white transition hover:bg-blue-700 disabled:opacity-50">编辑</button>
-          <button type="button" onClick={() => props.onReceive(item.id)} disabled={props.loading} className="rounded bg-green-600 px-3 py-1 text-xs text-white transition hover:bg-green-700 disabled:opacity-50">整单收货</button>
-          <button type="button" onClick={() => props.onReject(item.id)} disabled={props.loading} className="rounded bg-red-600 px-3 py-1 text-xs text-white transition hover:bg-red-700 disabled:opacity-50">整单拒收</button>
+          {props.canUpdate && <button type="button" onClick={() => props.onEdit(item)} disabled={props.loading} className="rounded bg-blue-600 px-3 py-1 text-xs text-white transition hover:bg-blue-700 disabled:opacity-50">编辑</button>}
+          {props.canReceive && <button type="button" onClick={() => props.onReceive(item.id)} disabled={props.loading} className="rounded bg-green-600 px-3 py-1 text-xs text-white transition hover:bg-green-700 disabled:opacity-50">整单收货</button>}
+          {props.canReceive && <button type="button" onClick={() => props.onReject(item.id)} disabled={props.loading} className="rounded bg-red-600 px-3 py-1 text-xs text-white transition hover:bg-red-700 disabled:opacity-50">整单拒收</button>}
         </>
       )}
-      {item.status === 'RECEIVED' && (
+      {item.status === 'RECEIVED' && props.canReverse && (
         <button type="button" onClick={() => props.onReverse(item)} disabled={props.loading} className="rounded bg-orange-600 px-3 py-1 text-xs text-white transition hover:bg-orange-700 disabled:opacity-50">整单红冲</button>
       )}
     </div>
@@ -109,7 +115,7 @@ export default function MaterialInCollectionView(props: MaterialInCollectionView
             </div>
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
               <AttachmentPanel ownerType="MATERIAL_IN" ownerId={item.id} compact compactMode="summary" onMessage={props.onMessage} />
-              <ItemActions item={item} loading={props.loading} onDetail={props.onDetail} onEdit={props.onEdit} onReceive={props.onReceive} onReject={props.onReject} onReverse={props.onReverse} />
+              <ItemActions item={item} loading={props.loading} canUpdate={props.canUpdate} canReceive={props.canReceive} canReverse={props.canReverse} onDetail={props.onDetail} onEdit={props.onEdit} onReceive={props.onReceive} onReject={props.onReject} onReverse={props.onReverse} />
             </div>
           </article>
         ))}
@@ -145,7 +151,7 @@ export default function MaterialInCollectionView(props: MaterialInCollectionView
               <td className="px-4 py-3"><StatusBadge item={item} /></td>
               <td className="px-4 py-3 text-gray-500">{new Date(item.inboundDate).toLocaleString('zh-CN')}</td>
               <td className="px-4 py-3"><AttachmentPanel ownerType="MATERIAL_IN" ownerId={item.id} compact compactMode="summary" onMessage={props.onMessage} /></td>
-              <td className="px-4 py-3"><ItemActions item={item} compact loading={props.loading} onDetail={props.onDetail} onEdit={props.onEdit} onReceive={props.onReceive} onReject={props.onReject} onReverse={props.onReverse} /></td>
+              <td className="px-4 py-3"><ItemActions item={item} compact loading={props.loading} canUpdate={props.canUpdate} canReceive={props.canReceive} canReverse={props.canReverse} onDetail={props.onDetail} onEdit={props.onEdit} onReceive={props.onReceive} onReject={props.onReject} onReverse={props.onReverse} /></td>
             </tr>
           ))}
         </tbody>

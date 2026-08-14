@@ -8,7 +8,7 @@ import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-acces
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const denied = await requireResourcePermission('materialIn', 'update')
+    const denied = await requireResourcePermission('materialInReceive', 'update')
     if (denied) return denied
     const operator = await getCurrentOperator()
     if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })

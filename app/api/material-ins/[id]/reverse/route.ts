@@ -10,7 +10,7 @@ import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-acces
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const denied = await requireResourcePermission('materialIn', 'update')
+    const denied = await requireResourcePermission('materialInReverse', 'update')
     if (denied) return denied
     const input = reverseMaterialInSchema.parse(await req.json())
     const operator = await getCurrentOperator()

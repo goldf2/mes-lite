@@ -87,7 +87,7 @@ export function buildRoleTaskSections(summary: RoleTaskSummary, permissions: Per
   })
 
   const warehouse: RoleTaskItem[] = []
-  if (canUpdate(permissions, 'materialIn')) warehouse.push({ key: 'material-in', label: '待收货', description: '核对供应商、数量和炉批', value: summary.pendingMaterialInCount, tone: 'yellow', functionKey: 'materialIn', task: 'material-in' })
+  if (canUpdate(permissions, 'materialInReceive')) warehouse.push({ key: 'material-in', label: '待收货', description: '核对供应商、数量和炉批', value: summary.pendingMaterialInCount, tone: 'yellow', functionKey: 'materialIn', task: 'material-in' })
   if (canUpdate(permissions, 'shipment')) warehouse.push({ key: 'shipment', label: '待发货', description: '复核客户、库位和实际批次', value: summary.pendingShipmentCount, tone: 'orange', functionKey: 'shipment', task: 'shipment' })
   if (canUpdate(permissions, 'return')) warehouse.push({ key: 'return', label: '退货待收货', description: '核对原发货单并转入待检', value: summary.pendingReturnCount, tone: 'red', functionKey: 'return', task: 'return' })
   if (warehouse.length > 0) sections.push({ key: 'warehouse', label: '我的仓库任务', description: '收、发、退作业直接进入对应待办', items: warehouse })

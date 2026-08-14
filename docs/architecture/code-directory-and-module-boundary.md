@@ -855,5 +855,12 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 ## 70. v0.1.373 来料检验与接收边界
 
 - `modules/receiving` 继续拥有收货、批次、库存、成本和红冲事务；它只能通过 `modules/quality/index.ts` 公开入口查询来料标准、建立任务和准备质量回滚，不导入质量模块 `server` 子路径。
-- `modules/quality` 统一拥有生产、来料、退货三类标准快照与检验生命周期；来料不建立第二套 QC 表或权限资源，仓库 `materialIn.update` 不能替代 `quality.read` / `qualityDecision.update`。
+- `modules/quality` 统一拥有生产、来料、退货三类标准快照与检验生命周期；来料不建立第二套 QC 表，仓库命令不能替代 `quality.read` / `qualityDecision.update`。
+
+## 71. v0.1.374 来料命令权限边界
+
+- `modules/receiving` 继续唯一拥有来料编辑、收货/拒收和红冲领域服务；权限资源只在应用壳与 Route Handler 检查，不进入领域服务。
+- `materialIn` 负责页面读取和草稿维护，`materialInReceive.update` 负责收货/拒收，`materialInReverse.update` 负责有原因红冲；仪表盘待收货任务使用同一收货命令资源。
+- 既有权限安装不从 `materialIn.update` 自动继承两个高风险命令，避免质量岗位、旧角色、自定义组或个人例外在升级后意外获得库存过账/冲销权。
+- 页面继续复用 `MaterialInPage`、`MaterialInCollectionView`、公共工具栏、按钮和详情/附件模块，只增加稳定权限布尔值，不复制来料页面或库存事务。
 - 第 81 个迁移只扩展质量来源与取消保护，不新增模型。`verify:incoming-quality-inspections` 与 `verify:incoming-quality-inspections-http` 使用临时完整 SQLite，覆盖受控/非受控多行收货、隔离、判定、红冲、仓库与质检权限及库位数据范围。

@@ -32,6 +32,7 @@ async function main() {
       { role: 'OPERATOR', resource: 'bomCost', canRead: true, canCreate: true, canUpdate: true, canDelete: false, canGrant: false },
       { role: 'OPERATOR', resource: 'workInstructions', canRead: true, canCreate: false, canUpdate: false, canDelete: true, canGrant: false },
       { role: 'OPERATOR', resource: 'equipment', canRead: true, canCreate: false, canUpdate: true, canDelete: false, canGrant: false },
+      { role: 'OPERATOR', resource: 'materialIn', canRead: true, canCreate: true, canUpdate: true, canDelete: false, canGrant: false },
     ] })
     const customGroup = await prisma.permissionGroup.create({
       data: {
@@ -42,6 +43,7 @@ async function main() {
           { resource: 'bomCost', canRead: true, canCreate: true, canUpdate: true, canDelete: false, canGrant: false },
           { resource: 'workInstructions', canRead: true, canCreate: false, canUpdate: false, canDelete: true, canGrant: false },
           { resource: 'equipment', canRead: true, canCreate: false, canUpdate: true, canDelete: false, canGrant: false },
+          { resource: 'materialIn', canRead: true, canCreate: true, canUpdate: true, canDelete: false, canGrant: false },
         ] },
       },
     })
@@ -55,6 +57,15 @@ async function main() {
         ] },
       },
     })
+    const customizedWarehouseGroup = await prisma.permissionGroup.create({
+      data: {
+        code: 'warehouse_executor', name: '企业已修改仓库作业组', isSystem: true,
+        settings: { create: [
+          { resource: 'materialIn', canRead: true, canCreate: true, canUpdate: true, canDelete: false, canGrant: false },
+          { resource: 'stocks', canRead: true, canCreate: false, canUpdate: false, canDelete: false, canGrant: false },
+        ] },
+      },
+    })
     await prisma.operatorPermissionOverride.createMany({ data: [
       { operatorId: operator.id, resource: 'system', canRead: true, canCreate: false, canUpdate: true, canDelete: false, canGrant: false },
       { operatorId: operator.id, resource: 'stats', canRead: true, canCreate: true, canUpdate: false, canDelete: false, canGrant: false },
@@ -62,7 +73,7 @@ async function main() {
     ] })
 
     await permissions.ensureDefaultPermissions()
-    assert.equal(permissions.permissionResources.length, 52, '权限资源应增加独立检验标准资源，形成 52 个')
+    assert.equal(permissions.permissionResources.length, 54, '权限资源应增加来料收货与红冲命令资源，形成 54 个')
 
     const roleMap = await permissions.getRolePermissionMap('OPERATOR')
     assert.deepEqual(roleMap.suppliers, roleMap.system, '旧角色 system 必须继承到供应商资源')
@@ -74,10 +85,12 @@ async function main() {
     assert.deepEqual(roleMap.equipmentInspections, roleMap.equipmentEvents, '旧角色设备事件权限必须继承到设备点检')
     assert.deepEqual(roleMap.equipmentMaintenance, roleMap.equipmentInspections, '旧角色设备点检权限必须继承到设备维保')
     assert.deepEqual(roleMap.qualityStandards, roleMap.quality, '旧角色质量查看权限必须继承到检验标准')
+    assert.equal(roleMap.materialInReceive.canUpdate, false, '旧角色的来料通用更新不得自动升级为收货命令')
+    assert.equal(roleMap.materialInReverse.canUpdate, false, '旧角色的来料通用更新不得自动升级为红冲命令')
 
     const groupSettings = await prisma.permissionGroupSetting.findMany({ where: { groupId: customGroup.id } })
     const groupMap = new Map(groupSettings.map((setting) => [setting.resource, setting]))
-    assert.equal(groupSettings.length, 52, '旧自定义组必须补齐全部新资源')
+    assert.equal(groupSettings.length, 54, '旧自定义组必须补齐全部新资源')
     assert.equal(groupMap.get('customers')?.canUpdate, true, '旧自定义组 system.update 必须继承到客户资料')
     assert.equal(groupMap.get('flowTransfers')?.canCreate, true, '旧自定义组 stats.create 必须继承到流程转移')
     assert.equal(groupMap.get('bom')?.canUpdate, true, '旧自定义组 BOM 更新权限必须继承')
@@ -97,6 +110,8 @@ async function main() {
       '旧自定义组设备点检权限必须继承到设备维保',
     )
     assert.equal(groupMap.get('qualityStandards')?.canRead, false, '未配置质量资源的旧自定义组不得额外获得检验标准权限')
+    assert.equal(groupMap.get('materialInReceive')?.canUpdate, false, '旧自定义组不得由 materialIn.update 自动获得收货命令')
+    assert.equal(groupMap.get('materialInReverse')?.canUpdate, false, '旧自定义组不得由 materialIn.update 自动获得红冲命令')
 
     const builtinSettings = await prisma.permissionGroupSetting.findMany({ where: { groupId: customizedBuiltinGroup.id } })
     const builtinMap = new Map(builtinSettings.map((setting) => [setting.resource, setting]))
@@ -126,6 +141,14 @@ async function main() {
     assert.equal(equipmentMap.get('equipmentMaintenance')?.canCreate, true, '设备维护组必须能创建保养计划和维修工单')
     assert.equal(equipmentMap.get('equipmentMaintenance')?.canUpdate, true, '设备维护组必须能执行维保工单')
     assert.equal(equipmentMap.get('equipmentMaintenance')?.canDelete, false, '设备维护组不得删除维保事实')
+    const warehouseGroup = await prisma.permissionGroup.findUnique({ where: { id: customizedWarehouseGroup.id }, include: { settings: true } })
+    const warehouseMap = new Map(warehouseGroup?.settings.map((setting) => [setting.resource, setting]))
+    assert.equal(warehouseMap.get('materialInReceive')?.canUpdate, false, '升级时不得替企业已修改仓库组自动授予收货命令')
+    assert.equal(warehouseMap.get('materialInReverse')?.canUpdate, false, '升级时不得替企业已修改仓库组自动授予红冲命令')
+    const warehouseLeadGroup = await prisma.permissionGroup.findUnique({ where: { code: 'warehouse_lead' }, include: { settings: true } })
+    const warehouseLeadMap = new Map(warehouseLeadGroup?.settings.map((setting) => [setting.resource, setting]))
+    assert.equal(warehouseLeadMap.get('materialInReceive')?.canUpdate, true, '新安装仓库主管组必须能确认收货或拒收')
+    assert.equal(warehouseLeadMap.get('materialInReverse')?.canUpdate, true, '新安装仓库主管组必须能执行有原因红冲')
 
     const registry = read('lib/page-registry.ts')
     assert.doesNotMatch(registry, /resource: 'system'/, '页面注册不得继续使用 system 宽资源')
@@ -136,7 +159,7 @@ async function main() {
     assert.match(read('modules/business-documents/domain/business-document-definition.ts'), /'flow-transfer': \{ permissionResource: 'flowTransfers'/, '流程转移打印必须继承流程转移资源')
     assert.match(read('modules/bom/ui/BomDraftEditor.tsx'), /fieldset disabled=\{!editable \|\| !canEditCurrent\}/, 'BOM 只读岗位必须禁用两个编辑字段区')
 
-    console.log('细粒度权限迁移验证通过：52 个资源、设备事件/点检/维保/检验标准命令、旧角色/自定义组/个人例外一次性继承及页面/AI/附件映射均符合契约。')
+    console.log('细粒度权限迁移验证通过：54 个资源、来料收货/红冲及设备/质量命令、旧权限安全升级和页面/API 映射均符合契约。')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

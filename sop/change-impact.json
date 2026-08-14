@@ -1,6 +1,6 @@
 {
-  "version": "0.1.373",
+  "version": "0.1.374",
   "impact": "updated",
-  "workflowIds": ["162-incoming-quality-standard", "163-incoming-quality-task", "164-incoming-quality-decision", "165-incoming-quality-release", "166-incoming-quality-trends", "167-incoming-quality-receipt", "168-incoming-quality-quarantine", "169-incoming-quality-reversal"],
-  "summary": "新增显式启用来料检验、收货转待检、仓库与质量交接、逐项判定、合格放行、趋势分析和待检红冲取消的完整操作说明。"
+  "workflowIds": ["170-material-in-command-permissions", "171-material-in-command-actions"],
+  "summary": "新增来料草稿、收货/拒收与红冲命令分权的授权和岗位操作说明，并明确旧权限不会自动扩大高风险命令。"
 }

@@ -52,9 +52,17 @@ import {
 export default function MaterialInPage({
   onMessage,
   onToolbarChange,
+  canCreate,
+  canUpdate,
+  canReceive,
+  canReverse,
 }: {
   onMessage: (msg: string) => void
   onToolbarChange?: (actions: ReactNode | null) => void
+  canCreate: boolean
+  canUpdate: boolean
+  canReceive: boolean
+  canReverse: boolean
 }) {
   const [materialIns, setMaterialIns] = useState<MaterialIn[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -525,19 +533,16 @@ export default function MaterialInPage({
         viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
         actions={(
           <>
-            <AppButton
-              variant="create"
-              onClick={openCreateMaterialIn}
-            >
-              新建来料单
-            </AppButton>
+            {canCreate && (
+              <AppButton variant="create" onClick={openCreateMaterialIn}>新建来料单</AppButton>
+            )}
           </>
         )}
       />
     )
 
     return () => onToolbarChange(null)
-  }, [advancedSearchFields, onToolbarChange, keyword, selectedStatuses, selectedCustomerId, selectedSupplierId, customers, suppliers, viewMode, setViewMode])
+  }, [advancedSearchFields, canCreate, onToolbarChange, keyword, selectedStatuses, selectedCustomerId, selectedSupplierId, customers, suppliers, viewMode, setViewMode])
 
   return (
     <>
@@ -555,12 +560,9 @@ export default function MaterialInPage({
           viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
           actions={(
             <>
-              <AppButton
-                variant="create"
-                onClick={openCreateMaterialIn}
-              >
-                新建来料单
-              </AppButton>
+              {canCreate && (
+                <AppButton variant="create" onClick={openCreateMaterialIn}>新建来料单</AppButton>
+              )}
             </>
           )}
         />
@@ -575,6 +577,9 @@ export default function MaterialInPage({
           sortDirection={materialInSort.sortDirection}
           onSort={materialInSort.toggleSort}
           onMessage={onMessage}
+          canUpdate={canUpdate}
+          canReceive={canReceive}
+          canReverse={canReverse}
           onDetail={setDetailItem}
           onEdit={handleEdit}
           onReceive={handleReceive}

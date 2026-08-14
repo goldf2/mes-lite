@@ -172,7 +172,15 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
       canManageAttachments={context.canUpdate('equipmentMaintenance') && context.canCreate('attachments')}
     />
   ),
-  'material-in': (context) => <MaterialInPage onMessage={context.onMessage} />,
+  'material-in': (context) => (
+    <MaterialInPage
+      onMessage={context.onMessage}
+      canCreate={context.canCreate('materialIn')}
+      canUpdate={context.canUpdate('materialIn')}
+      canReceive={context.canUpdate('materialInReceive')}
+      canReverse={context.canUpdate('materialInReverse')}
+    />
+  ),
   dispatch: (context) => <DispatchPage onMessage={context.onMessage} />,
   'sales-orders': (context) => <SalesOrderPage onMessage={context.onMessage} />,
   shipment: (context) => <ShipmentPage onMessage={context.onMessage} />,

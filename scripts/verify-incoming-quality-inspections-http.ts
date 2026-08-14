@@ -37,7 +37,7 @@ async function main() {
     import('../modules/quality/server/quality-inspection-standard-service'),
   ])
   await ensureDefaultPermissions()
-  const groups = await prisma.permissionGroup.findMany({ where: { code: { in: ['warehouse_executor', 'quality_inspector'] } } })
+  const groups = await prisma.permissionGroup.findMany({ where: { code: { in: ['warehouse_executor', 'warehouse_lead', 'quality_inspector'] } } })
   const groupByCode = new Map(groups.map((group) => [group.code, group.id]))
   const [supplier, location, blockedLocation, material] = await Promise.all([
     prisma.supplier.create({ data: { code: 'IQ-HTTP-SUP', name: '来料质检 HTTP 供应商' } }),
@@ -55,15 +55,21 @@ async function main() {
     supplierId: supplier.id, stagingLocationId: location.id, receivedBy: 'HTTP 仓管员',
     materialId: material.id, qty: 8, valuationQty: 8, unitPrice: 5, priceUnit: 'kg', priceBasis: 'STOCK', batchNo: 'IQ-HTTP-HEAT',
   }))
-  const createOperator = (username: string, groupCode: 'warehouse_executor' | 'quality_inspector', scopeLocationId: string) => prisma.operator.create({ data: {
+  const editorOnlyGroup = await prisma.permissionGroup.create({ data: {
+    code: 'incoming_editor_only', name: '仅编辑来料',
+    settings: { create: { resource: 'materialIn', canRead: true, canCreate: true, canUpdate: true, canDelete: false, canGrant: false } },
+  } })
+  const createOperator = (username: string, groupId: string, scopeLocationId: string) => prisma.operator.create({ data: {
     username, passwordHash: hashPassword('VerifyIncoming123!'), name: username, role: 'OPERATOR', status: 'ACTIVE',
-    permissionGroups: { create: [{ groupId: groupByCode.get(groupCode)! }] },
+    permissionGroups: { create: [{ groupId }] },
     dataScope: { create: { productionMode: 'ALL', inventoryMode: 'LOCATIONS', locations: { create: [{ locationId: scopeLocationId }] } } },
   } })
   await Promise.all([
-    createOperator('incoming-warehouse', 'warehouse_executor', location.id),
-    createOperator('incoming-inspector', 'quality_inspector', location.id),
-    createOperator('incoming-outsider', 'quality_inspector', blockedLocation.id),
+    createOperator('incoming-editor', editorOnlyGroup.id, location.id),
+    createOperator('incoming-warehouse', groupByCode.get('warehouse_executor')!, location.id),
+    createOperator('incoming-warehouse-lead', groupByCode.get('warehouse_lead')!, location.id),
+    createOperator('incoming-inspector', groupByCode.get('quality_inspector')!, location.id),
+    createOperator('incoming-outsider', groupByCode.get('quality_inspector')!, blockedLocation.id),
   ])
   await prisma.$disconnect()
 
@@ -71,7 +77,13 @@ async function main() {
   server = spawn(join(root, 'node_modules', '.bin', 'next'), ['dev', '--hostname', '127.0.0.1', '--port', String(port)], { cwd: root, env: { ...process.env, DATABASE_URL: databaseUrl, NEXT_TELEMETRY_DISABLED: '1' }, stdio: ['ignore', 'pipe', 'pipe'] })
   await waitUntilReady(baseUrl, server)
   const login = async (username: string) => { const response = await fetch(`${baseUrl}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: baseUrl }, body: JSON.stringify({ username, password: 'VerifyIncoming123!' }) }); assert.equal(response.status, 200); const cookie = response.headers.get('set-cookie')?.split(';')[0]; assert.ok(cookie); return cookie }
-  const [warehouseCookie, inspectorCookie, outsiderCookie] = await Promise.all([login('incoming-warehouse'), login('incoming-inspector'), login('incoming-outsider')])
+  const [editorCookie, warehouseCookie, warehouseLeadCookie, inspectorCookie, outsiderCookie] = await Promise.all([
+    login('incoming-editor'), login('incoming-warehouse'), login('incoming-warehouse-lead'), login('incoming-inspector'), login('incoming-outsider'),
+  ])
+  const deniedReceive = await fetch(`${baseUrl}/api/material-ins/${receipt.first.id}/receive`, { method: 'PATCH', headers: { Cookie: editorCookie, Origin: baseUrl } })
+  assert.equal(deniedReceive.status, 403, '仅有来料通用更新权限的账号不得确认收货')
+  const deniedReject = await fetch(`${baseUrl}/api/material-ins/${receipt.first.id}/reject`, { method: 'PATCH', headers: { Cookie: editorCookie, Origin: baseUrl } })
+  assert.equal(deniedReject.status, 403, '仅有来料通用更新权限的账号不得拒收')
   const receivedResponse = await fetch(`${baseUrl}/api/material-ins/${receipt.first.id}/receive`, { method: 'PATCH', headers: { Cookie: warehouseCookie, Origin: baseUrl } })
   assert.equal(receivedResponse.status, 200, '授权仓管员必须能确认收货')
   const receivedBody = await receivedResponse.json()
@@ -102,7 +114,13 @@ async function main() {
   const inspectorDecision = await fetch(`${baseUrl}/api/quality-inspections/${inspection.id}/decision`, { method: 'PATCH', headers: { Cookie: inspectorCookie, Origin: baseUrl, 'Content-Type': 'application/json' }, body: JSON.stringify(decisionInput) })
   assert.equal(inspectorDecision.status, 200, '授权质检员必须能完成来料检验')
   assert.equal((await inspectorDecision.json()).data.result, 'PASS')
-  console.log('来料自动检验 HTTP 验证通过：仓管收货、质量任务交接、权限隔离、库位范围和质检放行均符合契约。')
+  const deniedReverse = await fetch(`${baseUrl}/api/material-ins/${receipt.first.id}/reverse`, { method: 'PATCH', headers: { Cookie: warehouseCookie, Origin: baseUrl, 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: '普通仓管越权红冲' }) })
+  assert.equal(deniedReverse.status, 403, '普通仓管员不得执行来料红冲')
+  const editorDeniedReverse = await fetch(`${baseUrl}/api/material-ins/${receipt.first.id}/reverse`, { method: 'PATCH', headers: { Cookie: editorCookie, Origin: baseUrl, 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: '编辑账号越权红冲' }) })
+  assert.equal(editorDeniedReverse.status, 403, '仅有来料通用更新权限的账号不得执行红冲')
+  const leadReverse = await fetch(`${baseUrl}/api/material-ins/${receipt.first.id}/reverse`, { method: 'PATCH', headers: { Cookie: warehouseLeadCookie, Origin: baseUrl, 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: '主管复核后红冲' }) })
+  assert.equal(leadReverse.status, 200, '仓库主管必须能执行有原因的来料红冲')
+  console.log('来料自动检验 HTTP 验证通过：编辑/收货/红冲命令分权、质量任务交接、库位范围和质检放行均符合契约。')
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1 }).finally(async () => { await stopServer(server); rmSync(verifyRoot, { recursive: true, force: true }) })

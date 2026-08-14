@@ -27,6 +27,8 @@ export const permissionResources = [
   { key: 'equipmentInspections', label: '设备点检任务' },
   { key: 'equipmentMaintenance', label: '设备保养与维修' },
   { key: 'materialIn', label: '来料管理' },
+  { key: 'materialInReceive', label: '来料收货与拒收' },
+  { key: 'materialInReverse', label: '来料红冲' },
   { key: 'dispatch', label: '派工管理' },
   { key: 'stocks', label: '库存管理' },
   { key: 'salesOrder', label: '销售订单' },
@@ -75,7 +77,7 @@ export const permissionResourceSections = [
   { key: 'common', label: '公共入口', resources: ['dashboard', 'aiAssistant', 'attachments'] },
   { key: 'production', label: '生产、质量与统计', resources: ['orders', 'productionOrderRelease', 'productionActualEntry', 'productionActualConfirm', 'productionActualReverse', 'dispatch', 'flowTransfers', 'stats', 'quality', 'qualityStandards', 'qualityDecision', 'qualityDisposition', 'qualityRelease'] },
   { key: 'engineering', label: '物料、工艺与设备', resources: ['materials', 'bom', 'bomCost', 'workInstructions', 'documentCategories', 'equipment', 'equipmentEvents', 'equipmentInspections', 'equipmentMaintenance', 'units', 'workCenters', 'processTemplates', 'processRoutes', 'sawingCost', 'scanPrint'] },
-  { key: 'fulfillment', label: '来料、库存与销售', resources: ['materialIn', 'stocks', 'salesOrder', 'shipment', 'return', 'suppliers', 'customers', 'locations'] },
+  { key: 'fulfillment', label: '来料、库存与销售', resources: ['materialIn', 'materialInReceive', 'materialInReverse', 'stocks', 'salesOrder', 'shipment', 'return', 'suppliers', 'customers', 'locations'] },
   { key: 'administration', label: '人员、配置与运维', resources: ['employees', 'operators', 'businessSettings', 'displaySettings', 'navigationSettings', 'aiSettings', 'archive', 'auditLogs', 'dataTools', 'permissionUsers', 'permissionGroups'] },
   { key: 'legacy', label: '升级兼容资源', resources: ['system', 'permissions'] },
 ] as const
@@ -116,6 +118,8 @@ const operatorDefaults: PermissionMap = {
   equipmentInspections: none,
   equipmentMaintenance: none,
   materialIn: readCreate,
+  materialInReceive: none,
+  materialInReverse: none,
   dispatch: readCreate,
   stocks: readOnly,
   salesOrder: readCreate,
@@ -171,6 +175,8 @@ const auditorDefaults: PermissionMap = {
   equipmentInspections: readCreateUpdate,
   equipmentMaintenance: readCreateUpdate,
   materialIn: readCreateUpdate,
+  materialInReceive: none,
+  materialInReverse: none,
   dispatch: readCreateUpdate,
   stocks: { canRead: true, canCreate: false, canUpdate: true, canDelete: false, canGrant: false },
   salesOrder: readCreateUpdate,
@@ -244,8 +250,8 @@ export const defaultPermissionGroups = [
   { code: 'base_access', name: '基础访问组', description: '所有正式账号的公共只读入口，不包含业务写入。', settings: permissionPreset({ dashboard: 'R', aiAssistant: 'R', materials: 'R', bom: 'R', workInstructions: 'R', equipment: 'R', attachments: 'R' }) },
   { code: 'production_executor', name: '生产执行组', description: '操作工查看任务、登记实绩草稿、扫码和流程转移；不发布、不确认过账、不冲销。', settings: permissionPreset({ orders: 'R', productionActualEntry: 'U', dispatch: 'R', flowTransfers: 'RCU', stocks: 'R', equipment: 'R', scanPrint: 'RCU' }) },
   { code: 'production_lead', name: '生产管理组', description: '班组长和生产主管发布订单、确认实绩并执行受控冲销。', settings: permissionPreset({ orders: 'RCUA', productionOrderRelease: 'U', productionActualEntry: 'UA', productionActualConfirm: 'U', productionActualReverse: 'U', dispatch: 'RCUA', flowTransfers: 'RCU', stats: 'R', stocks: 'R', employees: 'R', locations: 'R', workCenters: 'R', scanPrint: 'RCU' }) },
-  { code: 'warehouse_executor', name: '仓库作业组', description: '仓管员处理来料、收发退、移库、库存和扫码作业。', settings: permissionPreset({ materials: 'R', materialIn: 'RCU', stocks: 'RU', shipment: 'RU', return: 'RU', flowTransfers: 'RCU', locations: 'R', scanPrint: 'RCU' }) },
-  { code: 'warehouse_lead', name: '仓库管理组', description: '仓库主管在仓库作业基础上维护库位和受控归档。', settings: permissionPreset({ materials: 'R', materialIn: 'RCUA', stocks: 'RU', shipment: 'RU', return: 'RU', flowTransfers: 'RCU', suppliers: 'R', locations: 'RCUA', scanPrint: 'RCU' }) },
+  { code: 'warehouse_executor', name: '仓库作业组', description: '仓管员登记来料并执行收货或拒收、处理收发退、移库、库存和扫码；不执行来料红冲。', settings: permissionPreset({ materials: 'R', materialIn: 'RCU', materialInReceive: 'U', stocks: 'RU', shipment: 'RU', return: 'RU', flowTransfers: 'RCU', locations: 'R', scanPrint: 'RCU' }) },
+  { code: 'warehouse_lead', name: '仓库管理组', description: '仓库主管在仓库作业基础上执行有原因的来料红冲，并维护库位和受控归档。', settings: permissionPreset({ materials: 'R', materialIn: 'RCUA', materialInReceive: 'U', materialInReverse: 'U', stocks: 'RU', shipment: 'RU', return: 'RU', flowTransfers: 'RCU', suppliers: 'R', locations: 'RCUA', scanPrint: 'RCU' }) },
   { code: 'quality_inspector', name: '质量检验组', description: '质检员查看质量任务和生效标准并记录客观判定；不自动获得标准变更、返工报废或授权放行。', settings: permissionPreset({ materials: 'R', workInstructions: 'R', quality: 'RU', qualityStandards: 'R', qualityDecision: 'U', orders: 'R', materialIn: 'RU', stocks: 'R', return: 'R', attachments: 'RC' }) },
   { code: 'quality_disposition', name: '质量处置组', description: '质量工程师维护检验标准并执行复检、返工和报废，不自动获得让步或解冻放行。', settings: permissionPreset({ materials: 'R', quality: 'RU', qualityStandards: 'RCU', qualityDisposition: 'U', orders: 'R', stocks: 'R', return: 'R', attachments: 'RCU' }) },
   { code: 'quality_release', name: '质量授权放行组', description: '质量负责人读取生效标准并执行让步与解冻放行，应限制为少量经批准人员。', settings: permissionPreset({ quality: 'R', qualityStandards: 'R', qualityRelease: 'U', orders: 'R', stocks: 'R', return: 'R' }) },
@@ -283,6 +289,11 @@ export const permissionResourceLegacySources: Partial<Record<PermissionResource,
   auditLogs: 'system',
   dataTools: 'system',
 }
+
+const explicitApprovalUpgradeResources = new Set<PermissionResource>([
+  'materialInReceive',
+  'materialInReverse',
+])
 
 function findLegacyPermissionSetting<T>(settingByResource: Map<string, T>, resource: PermissionResource) {
   const visited = new Set<string>()
@@ -323,6 +334,7 @@ let ensureDefaultPermissionsPromise: Promise<void> | null = null
 
 async function insertMissingDefaultPermissions() {
   const savedRoleSettings = await prisma.permissionSetting.findMany()
+  const isExistingPermissionInstall = savedRoleSettings.length > 0
   const savedRoleKeys = new Set(savedRoleSettings.map((setting) => `${setting.role}:${setting.resource}`))
   const roleSettingsByRole = new Map(permissionRoles.map((role) => [
     role.key,
@@ -331,11 +343,12 @@ async function insertMissingDefaultPermissions() {
   const missingRoleSettings = permissionRoles.flatMap((role) => permissionResources
     .filter((resource) => !savedRoleKeys.has(`${role.key}:${resource.key}`))
     .map((resource) => {
-      const inherited = findLegacyPermissionSetting(roleSettingsByRole.get(role.key)!, resource.key)
+      const requiresApproval = isExistingPermissionInstall && explicitApprovalUpgradeResources.has(resource.key)
+      const inherited = requiresApproval ? null : findLegacyPermissionSetting(roleSettingsByRole.get(role.key)!, resource.key)
       return {
         role: role.key,
         resource: resource.key,
-        ...(inherited ? cloneFlags(inherited) : defaultFlagsFor(role.key, resource.key)),
+        ...(requiresApproval ? cloneFlags(none) : inherited ? cloneFlags(inherited) : defaultFlagsFor(role.key, resource.key)),
       }
     }))
   if (missingRoleSettings.length > 0) await prisma.permissionSetting.createMany({ data: missingRoleSettings })
@@ -369,12 +382,13 @@ async function insertMissingDefaultPermissions() {
     const missingGroupSettings = permissionResources
       .filter((resource) => !savedResources.has(resource.key))
       .map((resource) => {
-        const inherited = existingGroup ? findLegacyPermissionSetting(existingSettingByResource, resource.key) : null
+        const requiresApproval = Boolean(existingGroup) && explicitApprovalUpgradeResources.has(resource.key)
+        const inherited = existingGroup && !requiresApproval ? findLegacyPermissionSetting(existingSettingByResource, resource.key) : null
         const preset = group.settings[resource.key]
         return {
           groupId: savedGroup.id,
           resource: resource.key,
-          ...(inherited ? cloneFlags(inherited) : preset ? cloneFlags(preset) : cloneFlags(none)),
+          ...(requiresApproval ? cloneFlags(none) : inherited ? cloneFlags(inherited) : preset ? cloneFlags(preset) : cloneFlags(none)),
         }
       })
     if (missingGroupSettings.length > 0) await prisma.permissionGroupSetting.createMany({ data: missingGroupSettings })
