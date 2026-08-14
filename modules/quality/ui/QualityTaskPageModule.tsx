@@ -21,6 +21,12 @@ function readInitialFilter(): QualityTaskFilter {
 
 type QualityWorkspaceView = 'TASKS' | 'STANDARDS' | 'TRENDS'
 
+const sourceLabel: Record<string, string> = {
+  PRODUCTION_ORDER_ACTUAL_OUTPUT: '生产入库',
+  MATERIAL_IN: '来料入库',
+  RETURN_ORDER: '退货入库',
+}
+
 export default function QualityTaskPageModule({
   canDecide, canDispose, canRelease, canReadStandards, canCreateStandards, canUpdateStandards,
   canReadAttachments, canManageAttachments, onMessage,
@@ -84,7 +90,7 @@ export default function QualityTaskPageModule({
           <div className="rounded-lg border border-dashed border-gray-300 px-6 py-12 text-center text-sm text-gray-500">当前筛选条件下没有质量任务。</div>
         ) : <div className="space-y-3">{workspace.items.map((item) => (
           <div key={item.id} className="rounded-lg border border-gray-200 bg-slate-50 p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><div><span className="font-medium text-gray-900">{item.lot.material.code} · {item.lot.material.name}</span><span className="ml-2 text-gray-500">来源 {item.sourceType} / {item.sourceId}</span></div><span className="text-gray-500">创建 {new Date(item.createdAt).toLocaleString('zh-CN')}</span></div>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><div><span className="font-medium text-gray-900">{item.lot.material.code} · {item.lot.material.name}</span><span className="ml-2 text-gray-500">来源 {sourceLabel[item.sourceType] || item.sourceType} / {item.sourceId}</span></div><span className="text-gray-500">创建 {new Date(item.createdAt).toLocaleString('zh-CN')}</span></div>
             <QualityLotCard lot={{ ...item.lot, inspections: [item] }} canDecide={canDecide} canDispose={canDispose} canRelease={canRelease} canReadAttachments={canReadAttachments} canManageAttachments={canManageAttachments} onChanged={load} onMessage={onMessage} />
           </div>
         ))}</div>}

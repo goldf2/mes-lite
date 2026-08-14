@@ -851,3 +851,9 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 生产与销售领域只通过 `modules/quality` 公开入口创建带标准快照的待检任务；质量附件只通过 `modules/attachments` 公开入口与公共 `AttachmentPanel` 接入，不从质量模块导入其他领域的 `server` 子路径。
 - 质量任务页面保留专用事务工作区，因为标准版本、逐项判定、库存处置和趋势不是普通 CRUD；外围继续复用 `ModalDialog`、`ManyToOneRelationField`、`AttachmentPanel`、公共按钮和工作区渲染注册表。
 - `verify:quality-inspection-standards` 与 `verify:quality-inspection-standards-http` 使用运行后删除的临时完整 SQLite，覆盖 80 个迁移、标准不可变、自动抽样、任务快照、逐项结果、趋势与真实 HTTP 权限边界。
+
+## 70. v0.1.373 来料检验与接收边界
+
+- `modules/receiving` 继续拥有收货、批次、库存、成本和红冲事务；它只能通过 `modules/quality/index.ts` 公开入口查询来料标准、建立任务和准备质量回滚，不导入质量模块 `server` 子路径。
+- `modules/quality` 统一拥有生产、来料、退货三类标准快照与检验生命周期；来料不建立第二套 QC 表或权限资源，仓库 `materialIn.update` 不能替代 `quality.read` / `qualityDecision.update`。
+- 第 81 个迁移只扩展质量来源与取消保护，不新增模型。`verify:incoming-quality-inspections` 与 `verify:incoming-quality-inspections-http` 使用临时完整 SQLite，覆盖受控/非受控多行收货、隔离、判定、红冲、仓库与质检权限及库位数据范围。

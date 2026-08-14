@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { assertInventoryLocationDataScope, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 import { scrapInventoryLotQuantity, transitionInventoryLotStatus } from '@/modules/inventory'
 import type { DecideQualityInspectionInput, DisposeQualityInspectionInput } from '../contracts/quality-inspection-schema'
+import type { QualityInspectionSourceType } from '../contracts/quality-inspection-standard-schema'
 import { QualityInspectionDomainError } from '../domain/quality-inspection-errors'
 import { calculateSuggestedSampleQty } from '../domain/quality-sampling-rules'
 
@@ -50,7 +51,7 @@ async function createDisposition(
 
 async function qualityStandardSnapshot(
   tx: Prisma.TransactionClient,
-  input: { lotId: string; sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT' | 'RETURN_ORDER'; inspectedQty: number },
+  input: { lotId: string; sourceType: QualityInspectionSourceType; inspectedQty: number },
 ) {
   const lot = await tx.inventoryLot.findUnique({ where: { id: input.lotId }, select: { materialId: true } })
   if (!lot) throw new QualityInspectionDomainError('待检批次不存在', 404)
@@ -78,6 +79,16 @@ async function qualityStandardSnapshot(
       acceptanceCriteria: item.acceptanceCriteria, sortOrder: item.sortOrder,
     })) },
   }
+}
+
+export async function hasReleasedQualityInspectionStandard(
+  tx: Prisma.TransactionClient,
+  input: { materialId: string; sourceType: QualityInspectionSourceType },
+) {
+  return Boolean(await tx.qualityInspectionStandard.findFirst({
+    where: { materialId: input.materialId, sourceType: input.sourceType, status: 'RELEASED' },
+    select: { id: true },
+  }))
 }
 
 function followUpStandardSnapshot(inspection: {
@@ -154,6 +165,56 @@ export async function createReturnQualityInspection(
       ...snapshot,
     },
   })
+}
+
+export async function createMaterialInQualityInspection(
+  tx: Prisma.TransactionClient,
+  input: {
+    inspectionNo: string
+    lotId: string
+    sourceId: string
+    inspectedQty: number
+  },
+) {
+  const snapshot = await qualityStandardSnapshot(tx, { lotId: input.lotId, sourceType: 'MATERIAL_IN', inspectedQty: input.inspectedQty })
+  if (!snapshot.standardId) throw new QualityInspectionDomainError('来料收货时未找到已发布检验标准，不能建立待检任务')
+  return tx.qualityInspection.create({
+    data: {
+      inspectionNo: input.inspectionNo,
+      lotId: input.lotId,
+      sourceType: 'MATERIAL_IN',
+      sourceId: input.sourceId,
+      inspectedQty: input.inspectedQty,
+      ...snapshot,
+    },
+  })
+}
+
+export async function prepareMaterialInQualityReversal(
+  tx: Prisma.TransactionClient,
+  input: { lotId: string; materialInId: string; reason: string; reversedBy: string },
+) {
+  const inspections = await tx.qualityInspection.findMany({
+    where: { lotId: input.lotId, sourceType: 'MATERIAL_IN', sourceId: input.materialInId },
+    include: { dispositions: true },
+    orderBy: [{ round: 'desc' }, { createdAt: 'desc' }],
+  })
+  if (inspections.length === 0) return { inventoryStatus: 'AVAILABLE' as const, cancelledInspectionId: null }
+  const current = inspections[0]
+  if (inspections.length === 1 && current.round === 1 && current.status === 'PENDING' && current.dispositions.length === 0) {
+    await tx.qualityInspection.update({
+      where: { id: current.id },
+      data: {
+        status: 'CANCELLED', result: 'CANCELLED', inspector: input.reversedBy, checkedAt: new Date(),
+        note: current.note ? `${current.note}\n来料红冲取消：${input.reason}` : `来料红冲取消：${input.reason}`,
+      },
+    })
+    return { inventoryStatus: 'QUARANTINE' as const, cancelledInspectionId: current.id }
+  }
+  if (inspections.length === 1 && current.status === 'COMPLETED' && current.result === 'PASS') {
+    return { inventoryStatus: 'AVAILABLE' as const, cancelledInspectionId: null }
+  }
+  throw new QualityInspectionDomainError('来料批次已完成不合格判定或进入后续质量处置，不能直接红冲；请先按质量流程处理')
 }
 
 export async function decideQualityInspection(

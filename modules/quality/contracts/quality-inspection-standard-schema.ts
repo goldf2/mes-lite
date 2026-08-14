@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
-export const qualityInspectionSourceTypes = ['PRODUCTION_ORDER_ACTUAL_OUTPUT', 'RETURN_ORDER'] as const
+export const qualityInspectionSourceTypes = ['PRODUCTION_ORDER_ACTUAL_OUTPUT', 'MATERIAL_IN', 'RETURN_ORDER'] as const
+export type QualityInspectionSourceType = typeof qualityInspectionSourceTypes[number]
 export const qualitySamplingModes = ['FULL', 'FIXED', 'PERCENTAGE'] as const
 
 const qualityInspectionStandardItemSchema = z.object({

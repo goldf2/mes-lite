@@ -2,6 +2,12 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { changeStockLocationBalance, postInventoryReceipt, type ConversionSource } from '@/lib/inventory'
 import { createInventoryLotReceipt } from '@/modules/inventory'
+import {
+  createMaterialInQualityInspection,
+  hasReleasedQualityInspectionStandard,
+  prepareMaterialInQualityReversal,
+  QualityInspectionDomainError,
+} from '@/modules/quality'
 import type { ReverseMaterialInInput } from '../contracts/material-in-schema'
 import { MaterialInDomainError, runMaterialInDomainOperation } from '../domain/material-in-errors'
 import { calculateMaterialInReversal, isMaterialInCostLayerUntouched } from '../domain/material-in-reversal'
@@ -22,7 +28,12 @@ export async function receiveManagedMaterialIn(id: string, receivedBy: string, s
     if (current.status !== 'PENDING') throw new MaterialInDomainError('来料单状态不是待收货，无法确认收货')
     if (current.lines.some((line) => line.material.deletedAt)) throw new MaterialInDomainError('来料单包含已归档物料，无法确认收货')
 
+    let qualityInspectionsCreated = 0
     for (const line of current.lines) {
+      const requiresQualityInspection = await hasReleasedQualityInspectionStandard(tx, {
+        materialId: line.materialId, sourceType: 'MATERIAL_IN',
+      })
+      const inventoryStatus = requiresQualityInspection ? 'QUARANTINE' as const : 'AVAILABLE' as const
       const conversionSource: ConversionSource = line.conversionSource === 'DOCUMENT_ACTUAL'
         || line.conversionSource === 'HISTORICAL_ESTIMATE'
         || line.conversionSource === 'SAME_UNIT'
@@ -42,6 +53,7 @@ export async function receiveManagedMaterialIn(id: string, receivedBy: string, s
         idempotencyKey: `MATERIAL_IN:${line.id}:RECEIVE`,
         materialInId: line.id,
         locationId: current.stagingLocationId,
+        inventoryStatus,
       })
       const lot = await createInventoryLotReceipt(tx, {
         lotNo: `RM-${line.inboundNo}`,
@@ -52,7 +64,7 @@ export async function receiveManagedMaterialIn(id: string, receivedBy: string, s
         supplierLotNo: line.batchNo,
         receivedAt: current.inboundDate,
         locationId: posted.location!.id,
-        inventoryStatus: 'AVAILABLE',
+        inventoryStatus,
         stockQty: Number(line.qty),
         valuationQty: Number(posted.quantities?.valuationQty || line.valuationQty),
         costAmount: Number(line.totalAmount),
@@ -62,9 +74,18 @@ export async function receiveManagedMaterialIn(id: string, receivedBy: string, s
         createdBy: receivedBy,
       })
       await Promise.all([
-        tx.stockLog.update({ where: { id: posted.movement!.id }, data: { lotId: lot.id, inventoryStatus: 'AVAILABLE', toInventoryStatus: 'AVAILABLE' } }),
-        posted.costLayer ? tx.inventoryCostLayer.update({ where: { id: posted.costLayer.id }, data: { lotId: lot.id, inventoryStatus: 'AVAILABLE' } }) : Promise.resolve(),
+        tx.stockLog.update({ where: { id: posted.movement!.id }, data: { lotId: lot.id, inventoryStatus, toInventoryStatus: inventoryStatus } }),
+        posted.costLayer ? tx.inventoryCostLayer.update({ where: { id: posted.costLayer.id }, data: { lotId: lot.id, inventoryStatus } }) : Promise.resolve(),
       ])
+      if (requiresQualityInspection) {
+        await createMaterialInQualityInspection(tx, {
+          inspectionNo: `QI-${lot.lotNo}`,
+          lotId: lot.id,
+          sourceId: line.id,
+          inspectedQty: Number(line.qty),
+        })
+        qualityInspectionsCreated += 1
+      }
     }
 
     const inboundDate = new Date()
@@ -74,7 +95,7 @@ export async function receiveManagedMaterialIn(id: string, receivedBy: string, s
       data: { status: 'RECEIVED', inboundDate, receivedBy },
       include: materialReceiptInclude(),
     })
-    return { current: toMaterialInRecord(current), updated: toMaterialInRecord(updated) }
+    return { current: toMaterialInRecord(current), updated: toMaterialInRecord(updated), qualityInspectionsCreated }
   }))
 }
 
@@ -102,16 +123,28 @@ async function reverseMaterialInLine(
   if (!stock) throw new MaterialInDomainError(`物料 ${current.material.code} 的库存记录不存在，无法红冲`)
   const layer = await tx.inventoryCostLayer.findFirst({ where: { materialInId: current.id } })
   const lot = current.inventoryLot
+  let reversalInventoryStatus: 'AVAILABLE' | 'QUARANTINE' = 'AVAILABLE'
   if (lot) {
+    try {
+      reversalInventoryStatus = (await prepareMaterialInQualityReversal(tx, {
+        lotId: lot.id, materialInId: current.id, reason: input.reason, reversedBy,
+      })).inventoryStatus
+    } catch (error) {
+      if (error instanceof QualityInspectionDomainError) throw new MaterialInDomainError(error.message, error.status)
+      throw error
+    }
     const [activeAllocations, activeBalance] = await Promise.all([
       tx.inventoryLotAllocation.count({ where: { lotId: lot.id, status: 'ACTIVE' } }),
-      tx.inventoryLotBalance.findFirst({ where: { lotId: lot.id, inventoryStatus: 'AVAILABLE', stockQty: { gt: 0.000001 } } }),
+      tx.inventoryLotBalance.findFirst({ where: { lotId: lot.id, inventoryStatus: reversalInventoryStatus, stockQty: { gt: 0.000001 } } }),
     ])
     if (activeAllocations > 0 || !activeBalance || Math.abs(Number(activeBalance.stockQty) - Number(current.qty)) > 0.000001) {
       throw new MaterialInDomainError(`物料 ${current.material.code} 的内部批次 ${lot.lotNo} 已被生产领用或余额变动，不能整单红冲`)
     }
   }
   if (layer) {
+    if (layer.inventoryStatus !== reversalInventoryStatus) {
+      throw new MaterialInDomainError(`物料 ${current.material.code} 的来料成本层已经进入${layer.inventoryStatus}状态，不能整单红冲`)
+    }
     const activeConsumptionCount = await tx.costLayerConsumption.count({
       where: { costLayerId: layer.id, restoredAt: null },
     })
@@ -125,21 +158,25 @@ async function reverseMaterialInLine(
   const costAmount = Number(current.totalAmount)
   const reversal = calculateMaterialInReversal({
     stockQty: Number(stock.qty),
-    availableQty: Number(stock.availableQty),
+    availableQty: Number(reversalInventoryStatus === 'QUARANTINE' ? stock.quarantineQty : stock.availableQty),
     valuationQty: Number(stock.valuationQty),
-    availableValuationQty: Number(stock.availableValuationQty),
+    availableValuationQty: Number(reversalInventoryStatus === 'QUARANTINE' ? stock.quarantineValuationQty : stock.availableValuationQty),
     totalCost: Number(stock.totalCost),
     receiptQty: qty,
     receiptValuationQty: valuationQty,
     receiptCost: costAmount,
     hasCostLayer: Boolean(layer),
+    inventoryStatus: reversalInventoryStatus,
   })
 
   await tx.stock.update({
     where: { id: stock.id },
     data: {
-      qty: { decrement: qty }, availableQty: { decrement: qty },
-      valuationQty: { decrement: valuationQty }, availableValuationQty: { decrement: valuationQty },
+      qty: { decrement: qty },
+      ...(reversalInventoryStatus === 'QUARANTINE'
+        ? { quarantineQty: { decrement: qty }, quarantineValuationQty: { decrement: valuationQty }, quarantineCost: { decrement: reversal.reverseCostAmount } }
+        : { availableQty: { decrement: qty }, availableValuationQty: { decrement: valuationQty } }),
+      valuationQty: { decrement: valuationQty },
       totalCost: { decrement: reversal.reverseCostAmount },
       valuationUnitCost: Math.max(0, reversal.valuationUnitCost),
       stockUnitCost: Math.max(0, reversal.stockUnitCost),
@@ -147,6 +184,7 @@ async function reverseMaterialInLine(
   })
   const { location } = await changeStockLocationBalance(tx, {
     stockId: stock.id, locationId: current.locationId, qtyDelta: -qty,
+    ...(reversalInventoryStatus === 'QUARANTINE' ? { availableDelta: 0, quarantineDelta: -qty } : {}),
   })
 
   if (layer) {
@@ -180,8 +218,8 @@ async function reverseMaterialInLine(
       conversionRateUsed: current.conversionRate, conversionSource: 'ORIGINAL_MOVEMENT',
       costingMethodSnapshot: current.material.costingMethod, sourceMovementId: sourceMovement?.id,
       lotId: lot?.id,
-      inventoryStatus: 'AVAILABLE',
-      fromInventoryStatus: 'AVAILABLE',
+      inventoryStatus: reversalInventoryStatus,
+      fromInventoryStatus: reversalInventoryStatus,
       idempotencyKey: `MATERIAL_IN:${current.id}:REVERSE`, refType: 'MATERIAL_IN_REVERSE', refId: current.id,
       note: `红冲来料单 ${receiptNo} 第 ${current.lineNo} 行: ${input.reason}`, createdBy: reversedBy,
     },
@@ -191,12 +229,12 @@ async function reverseMaterialInLine(
   }
   if (lot) {
     await tx.inventoryLotBalance.updateMany({
-      where: { lotId: lot.id, inventoryStatus: 'AVAILABLE' },
+      where: { lotId: lot.id, inventoryStatus: reversalInventoryStatus },
       data: { stockQty: 0, valuationQty: 0, costAmount: 0 },
     })
     await tx.inventoryLotTransaction.create({
       data: {
-        lotId: lot.id, locationId: location.id, type: 'REVERSE_RECEIPT', fromStatus: 'AVAILABLE',
+        lotId: lot.id, locationId: location.id, type: 'REVERSE_RECEIPT', fromStatus: reversalInventoryStatus,
         stockQty: qty, valuationQty, costAmount: reversal.reverseCostAmount,
         refType: 'MATERIAL_IN_REVERSE', refId: current.id, stockLogId: reversalMovement.id,
         idempotencyKey: `MATERIAL_IN:${current.id}:LOT_REVERSE`,

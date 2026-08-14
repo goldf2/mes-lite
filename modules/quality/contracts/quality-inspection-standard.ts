@@ -19,7 +19,7 @@ export interface QualityInspectionStandardView {
   version: number
   name: string
   materialId: string
-  sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT' | 'RETURN_ORDER'
+  sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT' | 'MATERIAL_IN' | 'RETURN_ORDER'
   samplingMode: 'FULL' | 'FIXED' | 'PERCENTAGE'
   sampleValue: number
   minSampleQty: number | null

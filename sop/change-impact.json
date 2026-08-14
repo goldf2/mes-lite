@@ -1,6 +1,6 @@
 {
-  "version": "0.1.372",
+  "version": "0.1.373",
   "impact": "updated",
-  "workflowIds": ["155-quality-standard-versions", "156-quality-standard-create", "157-quality-standard-release", "158-quality-standard-task", "159-quality-standard-decision", "160-quality-inspection-attachment", "161-quality-trends"],
-  "summary": "新增检验标准版本、发布与自动停用、任务快照、自动抽样、逐项判定、质量附件和趋势分析的完整操作说明。"
+  "workflowIds": ["162-incoming-quality-standard", "163-incoming-quality-task", "164-incoming-quality-decision", "165-incoming-quality-release", "166-incoming-quality-trends", "167-incoming-quality-receipt", "168-incoming-quality-quarantine", "169-incoming-quality-reversal"],
+  "summary": "新增显式启用来料检验、收货转待检、仓库与质量交接、逐项判定、合格放行、趋势分析和待检红冲取消的完整操作说明。"
 }

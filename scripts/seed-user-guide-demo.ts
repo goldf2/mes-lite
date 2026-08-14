@@ -280,6 +280,34 @@ async function main() {
   }, fixedNow)
   await receiveManagedMaterialIn(receivedMaterialIn.first.id, warehouseKeeper.name)
 
+  const incomingQualityStandard = await createQualityInspectionStandard({
+    code: 'QIS-RAW-SCM435-01',
+    name: 'SCM435 盘圆来料检验',
+    materialId: wire.id,
+    sourceType: 'MATERIAL_IN',
+    samplingMode: 'FIXED',
+    sampleValue: 3,
+    minSampleQty: 3,
+    maxSampleQty: 3,
+    changeReason: '作业指导书演示：来料质量控制显式启用',
+    items: [
+      { name: '材质证明', method: '核对供应商材质证明书与炉批', acceptanceCriteria: '牌号 SCM435，炉批与来料单一致' },
+      { name: '线径', method: '千分尺沿不同方向抽测', acceptanceCriteria: '8.00 ± 0.05 mm' },
+      { name: '表面状态', method: '自然光下目视检查', acceptanceCriteria: '无严重锈蚀、裂纹、折叠和混料' },
+    ],
+  }, qualityStandardActor)
+  await releaseQualityInspectionStandard(incomingQualityStandard.id, qualityStandardActor, fixedNow)
+
+  const incomingQualityMaterialIn = await createMaterialIns({
+    supplierId: supplier.id,
+    stagingLocationId: waiting.id,
+    voucherNo: 'PO-DEMO-QC-PENDING',
+    receivedBy: warehouseKeeper.name,
+    note: '指导书：已收货并等待来料检验的供应商炉批',
+    items: [{ materialId: wire.id, qty: 60, valuationQty: 60, unitPrice: 8.15, priceBasis: 'STOCK', batchNo: 'HEAT-SCM435-20260812-QC' }],
+  }, fixedNow)
+  await receiveManagedMaterialIn(incomingQualityMaterialIn.first.id, warehouseKeeper.name)
+
   await createMaterialIns({
     supplierId: supplier.id,
     stagingLocationId: waiting.id,

@@ -6,7 +6,7 @@ import { InventoryLotTraceDialog } from '@/modules/inventory'
 
 import { BusinessDocumentDetailDialog, BusinessDocumentPrintLink } from '@/modules/business-documents'
 import type { MaterialInRecord } from '../contracts/material-in'
-import { materialInStatusLabels } from '../model/material-in-view'
+import { materialInLineQualityStatus, materialInStatusLabels } from '../model/material-in-view'
 
 function conversionSourceLabel(source?: string, sampleCount = 0) {
   if (source === 'DOCUMENT_ACTUAL') return '本批实测'
@@ -48,17 +48,20 @@ export default function MaterialInDetailDialog({
             <tr><th className="px-4 py-3">行</th><th className="px-4 py-3">物料</th><th className="px-4 py-3">主单位数量</th><th className="px-4 py-3">辅助数量 / 来源</th><th className="px-4 py-3">本批换算</th><th className="px-4 py-3">批次</th><th className="px-4 py-3 text-right">金额</th></tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {item.items.map((line) => (
+            {item.items.map((line) => {
+              const qualityStatus = materialInLineQualityStatus(line)
+              return (
               <tr key={line.id}>
                 <td className="px-4 py-3 text-gray-500">{line.lineNo}</td>
                 <td className="px-4 py-3"><div className="font-medium text-gray-900">{line.material.code} · {line.material.name}</div><div className="text-xs text-gray-500">{line.material.spec || '无规格'}</div></td>
                 <td className="px-4 py-3 font-medium">{line.qty} {line.unit}</td>
                 <td className="px-4 py-3"><div>{line.valuationQty} {line.valuationUnit}</div><div className="mt-0.5 text-xs text-gray-500">{conversionSourceLabel(line.conversionSource, line.conversionSampleCount)}</div></td>
                 <td className="px-4 py-3 text-gray-600">1 {line.unit} = {line.conversionRate} {line.valuationUnit}</td>
-                <td className="px-4 py-3"><div>{line.batchNo || '-'}</div>{line.inventoryLot && <div className="mt-1"><div className="font-mono text-xs text-blue-700">内部 {line.inventoryLot.lotNo}</div><AppButton size="sm" variant="secondary" onClick={() => setTraceLotId(line.inventoryLot!.id)}>查看谱系</AppButton></div>}</td>
+                <td className="px-4 py-3"><div>{line.batchNo || '-'}</div>{line.inventoryLot && <div className="mt-1"><div className="font-mono text-xs text-blue-700">内部 {line.inventoryLot.lotNo}</div>{qualityStatus && <div className="my-1"><span className={`rounded px-1.5 py-0.5 text-xs font-medium ${qualityStatus.className}`}>{qualityStatus.label}</span><div className="mt-1 font-mono text-[11px] text-gray-500">{qualityStatus.inspectionNo}</div></div>}<AppButton size="sm" variant="secondary" onClick={() => setTraceLotId(line.inventoryLot!.id)}>查看谱系</AppButton></div>}</td>
                 <td className="px-4 py-3 text-right font-medium">¥{line.totalAmount.toFixed(2)}</td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>

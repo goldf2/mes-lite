@@ -27,10 +27,11 @@ export function calculateMaterialInReversal(input: {
   receiptValuationQty: number
   receiptCost: number
   hasCostLayer: boolean
+  inventoryStatus?: 'AVAILABLE' | 'QUARANTINE'
 }) {
   if (input.availableQty + tolerance < input.receiptQty
     || input.availableValuationQty + tolerance < input.receiptValuationQty) {
-    throw new Error('可用库存不足，不能红冲该来料单')
+    throw new Error(`${input.inventoryStatus === 'QUARANTINE' ? '待检' : '可用'}库存不足，不能红冲该来料单`)
   }
   if (input.hasCostLayer && input.totalCost + tolerance < input.receiptCost) {
     throw new Error('库存金额不足，不能红冲该来料单')

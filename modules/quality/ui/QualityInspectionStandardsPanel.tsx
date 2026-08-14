@@ -18,7 +18,7 @@ import QualityInspectionStandardDialog from './QualityInspectionStandardDialog'
 const emptyWorkspace: QualityInspectionStandardWorkspace = { standards: [], materials: [] }
 const statusLabel = { DRAFT: '草稿', RELEASED: '已发布', OBSOLETE: '已停用' } as const
 const statusClass = { DRAFT: 'bg-amber-100 text-amber-800', RELEASED: 'bg-emerald-100 text-emerald-800', OBSOLETE: 'bg-gray-100 text-gray-600' } as const
-const sourceLabel: Record<string, string> = { PRODUCTION_ORDER_ACTUAL_OUTPUT: '生产入库', RETURN_ORDER: '退货入库' }
+const sourceLabel: Record<string, string> = { PRODUCTION_ORDER_ACTUAL_OUTPUT: '生产入库', MATERIAL_IN: '来料入库', RETURN_ORDER: '退货入库' }
 
 function samplingText(standard: QualityInspectionStandardView) {
   const core = standard.samplingMode === 'FULL' ? '全检' : standard.samplingMode === 'FIXED' ? `固定 ${standard.sampleValue}` : `${standard.sampleValue}%`

@@ -258,6 +258,7 @@ export default function QualityLotCard({
           判定 {inspection.result === 'PASS' ? '合格' : inspection.result === 'FAIL' ? '不合格' : '部分放行'} · 抽检 {numberText(inspection.sampleQty)} · 合格 {numberText(inspection.goodQty)} · 不合格 {numberText(inspection.badQty)} · {inspection.inspector || '未知检验员'}
         </div>
       )}
+      {inspection?.status === 'CANCELLED' && <div className="mt-1 text-gray-500">检验任务已随来料红冲取消；标准快照和附件仍保留用于审计。</div>}
       {(inspection?.dispositions?.length || 0) > 0 && (
         <details className="mt-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5">
           <summary className="cursor-pointer font-medium text-slate-700">判定与处置记录 · {inspection.dispositions!.length} 条</summary>

@@ -5,7 +5,7 @@ import { AttachmentPanel } from '@/modules/attachments'
 import { BusinessDocumentPrintLink } from '@/modules/business-documents'
 import SortableTableHeader, { type TableSortDirection } from '@/app/components/SortableTableHeader'
 import type { MaterialInRecord } from '../contracts/material-in'
-import { materialInStatusColors, materialInStatusLabels } from '../model/material-in-view'
+import { materialInLineQualityStatus, materialInStatusColors, materialInStatusLabels } from '../model/material-in-view'
 
 interface MaterialInCollectionViewProps {
   items: MaterialInRecord[]
@@ -62,19 +62,23 @@ function ReceiptLines({ item, compact = false }: { item: MaterialInRecord; compa
   const shown = compact ? item.items.slice(0, 3) : item.items
   return (
     <div className="space-y-1.5">
-      {shown.map((line) => (
+      {shown.map((line) => {
+        const qualityStatus = materialInLineQualityStatus(line)
+        return (
         <div key={line.id} className="flex min-w-0 items-start justify-between gap-3 rounded-md bg-gray-50 px-3 py-2 text-xs">
           <div className="min-w-0">
             <div className="truncate font-medium text-gray-900">{line.material.code} · {line.material.name}</div>
             <div className="truncate text-gray-500">{line.material.spec || '无规格'}{line.batchNo ? ` · 供应批号 ${line.batchNo}` : ''}</div>
             {line.inventoryLot && <div className="truncate font-mono text-[11px] text-blue-700">内部批次 {line.inventoryLot.lotNo}</div>}
+            {qualityStatus && <div className="mt-1 flex flex-wrap items-center gap-1"><span className={`rounded px-1.5 py-0.5 font-medium ${qualityStatus.className}`}>{qualityStatus.label}</span><span className="font-mono text-[11px] text-gray-500">{qualityStatus.inspectionNo}</span></div>}
           </div>
           <div className="shrink-0 text-right">
             <div className="font-medium text-gray-800">{line.qty} {line.unit}</div>
             <div className="text-gray-500">¥{line.totalAmount.toFixed(2)}</div>
           </div>
         </div>
-      ))}
+        )
+      })}
       {compact && item.items.length > shown.length && <div className="text-xs text-gray-500">另有 {item.items.length - shown.length} 项，点击详情查看</div>}
     </div>
   )

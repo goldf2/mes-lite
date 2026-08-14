@@ -1,4 +1,4 @@
-import type { MaterialInFormState, ReceivingMaterialOption } from '../contracts/material-in'
+import type { MaterialInFormState, MaterialInLineRecord, ReceivingMaterialOption } from '../contracts/material-in'
 
 export const materialInStatusColors: Record<string, string> = {
   PENDING: 'bg-gray-100 text-gray-700',
@@ -45,4 +45,14 @@ export function formatReceivingMaterialLabel(material: ReceivingMaterialOption) 
 
 export function displayMaterialInPriceUnit(unit: string | null | undefined) {
   return unit === 'm' ? '米' : unit || '-'
+}
+
+export function materialInLineQualityStatus(line: MaterialInLineRecord) {
+  const inspection = line.inventoryLot?.inspections?.[0]
+  if (!inspection) return null
+  if (inspection.status === 'PENDING') return { label: '待质量检验', className: 'bg-amber-100 text-amber-800', inspectionNo: inspection.inspectionNo }
+  if (inspection.status === 'CANCELLED') return { label: '质量任务已取消', className: 'bg-gray-100 text-gray-600', inspectionNo: inspection.inspectionNo }
+  if (inspection.result === 'PASS') return { label: '质量已放行', className: 'bg-emerald-100 text-emerald-800', inspectionNo: inspection.inspectionNo }
+  if (inspection.result === 'PARTIAL') return { label: '质量部分判定', className: 'bg-orange-100 text-orange-800', inspectionNo: inspection.inspectionNo }
+  return { label: '质量已冻结', className: 'bg-red-100 text-red-800', inspectionNo: inspection.inspectionNo }
 }

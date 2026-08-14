@@ -84,6 +84,20 @@ export interface MaterialInLineRecord {
     status: string
     supplierLotNo?: string | null
     balances: Array<{ inventoryStatus: string; stockQty: number }>
+    inspections?: Array<{
+      id: string
+      inspectionNo: string
+      sourceType: string
+      sourceId: string
+      round: number
+      status: string
+      result: string
+      standardCodeSnapshot?: string | null
+      standardVersionSnapshot?: number | null
+      standardNameSnapshot?: string | null
+      suggestedSampleQty: number
+      inspectedQty: number
+    }>
   } | null
   status: string
   inboundDate: string

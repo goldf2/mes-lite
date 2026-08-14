@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "title": "MES-lite 全流程作业指导书",
-  "recommendedSequence": "单位/库位/员工/供应商/客户/工作中心 → 物料 → BOM/工艺路线 → 生产订单/销售订单 → 派工/来料/发货 → 实绩 → 质量判定/处置/复检 → 收货/退货 → 库存与审计复核。",
-  "important": "质量标准版本、自动抽样、逐项判定、批次/库存处置、趋势统计、岗位权限、数据范围、设备事件、周期点检和维保已落地；真实 Coolify 已建立固定提交、关闭自动部署、每日一致备份、失败通知和非覆盖恢复候选，生产候选已完成隔离应用级抽查。异地存储、真实 Coolify 挂载切换、Product 到 Material 人工确认、OEE 口径/设备采集接口和真实岗位审批仍未完成，不能据此承诺完整异地容灾、设备绩效或模型收敛。",
+  "recommendedSequence": "单位/库位/员工/供应商/客户/工作中心 → 物料 → 检验标准 → BOM/工艺路线 → 生产订单/销售订单 → 派工/来料/发货 → 收货转待检 → 质量判定/处置/复检 → 库存与审计复核。",
+  "important": "质量标准版本、来料自动待检、自动抽样、逐项判定、批次/库存处置、趋势统计、岗位权限、数据范围、设备事件、周期点检和维保已落地；真实 Coolify 已建立固定提交、关闭自动部署、每日一致备份、失败通知和非覆盖恢复候选，生产候选已完成隔离应用级抽查。异地存储、真实 Coolify 挂载切换、Product 到 Material 人工确认、OEE 口径/设备采集接口和真实岗位审批仍未完成，不能据此承诺完整异地容灾、设备绩效或模型收敛。",
   "governanceBoundaries": [
-    "质量闭环与岗位动作权限已贯通；正式上线前仍须按企业审批制度配置岗位权限、数据范围并使用真实不合格评审单验收。",
-    "供应商、来料、生产投入产出、发货和退货回流已形成可搜索全景；跨工厂或供应商系统集成不在本阶段。",
+    "生产、退货和显式启用标准的来料质量闭环与岗位动作权限已贯通；正式上线前仍须按企业审批制度配置岗位权限、数据范围并使用真实不合格评审单验收。",
+    "供应商、来料待检、生产投入产出、发货和退货回流已形成可搜索全景；未发布来料检验标准的物料仍直接入可用库存，跨工厂或供应商系统集成不在本阶段。",
     "岗位任务、生产命令、本人/工作中心生产范围与库位库存范围已经分层；部门/班组范围尚未独立建模。",
     "设备开机、停机、故障和恢复已形成事件时间线，周期点检、保养、维修工单、备件批次成本和现场附件已贯通；真实产量采集与 OEE 口径仍待企业确认。",
     "旧 Product 与 Material 仍需分阶段迁移，禁止继续扩展旧模型写入口。"
@@ -512,6 +512,91 @@
       "title": "5. 质量任务与不合格处置",
       "workflows": [
         {
+          "id": "162-incoming-quality-standard",
+          "title": "启用来料检验标准",
+          "objective": "只为需要来料质量控制的物料显式启用入库待检。",
+          "steps": [
+            "进入 MES > 生产 > 质量任务，点击“检验标准”。",
+            "新建或复制标准，选择物料和“来料入库待检”来源。",
+            "配置抽样方式、最低/最高数量和逐项接收标准。",
+            "完成质量审批后发布标准。"
+          ],
+          "result": "已发布标准显示“来料入库”；只有该物料后续收货会自动转待检，未启用标准的物料保持直接可用。",
+          "pageKey": "qualityTasks",
+          "resource": "qualityStandards",
+          "roles": ["质量工程师", "质量主管"],
+          "screenshot": {"baseline": "0.1.373", "file": "164-incoming-quality-standard.png"},
+          "lastVerifiedVersion": "0.1.373"
+        },
+        {
+          "id": "163-incoming-quality-task",
+          "title": "接收来料检验任务",
+          "objective": "由质检岗位接收仓管收货后自动生成的来料检验任务。",
+          "steps": [
+            "进入 MES > 生产 > 质量任务。",
+            "在“待检任务”中按内部批号、物料或来料单搜索。",
+            "核对来源显示“来料入库”、检验单号、标准快照和建议抽样数。",
+            "展开检验项目快照，确认接收标准与来料检验计划一致。"
+          ],
+          "result": "质检员可读取授权库位的任务；仓管员只能完成收货，不能代替质量判定。",
+          "pageKey": "qualityTasks",
+          "resource": "quality",
+          "roles": ["质检员", "质量工程师"],
+          "screenshot": {"baseline": "0.1.373", "file": "167-incoming-quality-task.png"},
+          "lastVerifiedVersion": "0.1.373"
+        },
+        {
+          "id": "164-incoming-quality-decision",
+          "title": "逐项判定来料质量",
+          "objective": "按生效标准和建议抽样数完成来料逐项检验。",
+          "steps": [
+            "在来料待检任务点击“合格放行”“不合格冻结”或“部分判定”。",
+            "进入全屏表单，核对抽检、合格和不合格样本数量。",
+            "逐项选择结果，填写实测值、项目备注和检验结论。",
+            "确认总判定与逐项结果一致后提交。"
+          ],
+          "result": "系统拒绝低于标准建议抽样数、项目缺失或总判定矛盾的提交。",
+          "pageKey": "qualityTasks",
+          "resource": "qualityDecision",
+          "roles": ["质检员"],
+          "screenshot": {"baseline": "0.1.373", "file": "168-incoming-quality-decision.png"},
+          "lastVerifiedVersion": "0.1.373"
+        },
+        {
+          "id": "165-incoming-quality-release",
+          "title": "核对来料合格放行",
+          "objective": "确认来料库存由待检转为可用并保留完整检验事实。",
+          "steps": [
+            "切换质量任务“全部记录”。",
+            "按来料内部批号搜索已完成检验。",
+            "核对“已放行”数量、标准快照、抽样和判定人。",
+            "在库存或批次谱系复核同批次可用余额。"
+          ],
+          "result": "同一批次待检余额归零、可用余额增加，总数量和总成本不变。",
+          "pageKey": "qualityTasks",
+          "resource": "quality",
+          "roles": ["质检员", "仓库主管", "质量主管"],
+          "screenshot": {"baseline": "0.1.373", "file": "169-incoming-quality-released.png"},
+          "lastVerifiedVersion": "0.1.373"
+        },
+        {
+          "id": "166-incoming-quality-trends",
+          "title": "查看来料质量趋势",
+          "objective": "单独分析供应来料的批次和样本质量表现。",
+          "steps": [
+            "点击“质量趋势”。",
+            "选择日期范围，并把来源切换为“来料入库”。",
+            "点击“刷新统计”。",
+            "核对完成批次、批次合格率、样本合格率、不合格项目和物料排名。"
+          ],
+          "result": "趋势只统计已完成来料检验，不把待检或已随红冲取消的任务计入分母。",
+          "pageKey": "qualityTasks",
+          "resource": "quality",
+          "roles": ["质检员", "质量工程师", "质量主管"],
+          "screenshot": {"baseline": "0.1.373", "file": "170-incoming-quality-trend.png"},
+          "lastVerifiedVersion": "0.1.373"
+        },
+        {
           "id": "155-quality-standard-versions",
           "title": "查看检验标准版本",
           "objective": "按物料和任务来源查看草稿、已发布和已停用标准。",
@@ -535,7 +620,7 @@
           "steps": [
             "在检验标准页点击“新建检验标准”。",
             "填写编码和名称，搜索并选择适用物料。",
-            "选择生产入库或退货入库来源，设置全检、固定数量或比例抽样。",
+            "选择生产入库、来料入库待检或退货入库来源，设置全检、固定数量或比例抽样。",
             "逐项添加项目名称、检验方法和接收标准。",
             "填写建立原因并保存草稿。"
           ],
@@ -1341,6 +1426,57 @@
             "file": "19-receiving-received.png"
           },
           "lastVerifiedVersion": "0.1.350"
+        },
+        {
+          "id": "167-incoming-quality-receipt",
+          "title": "确认启用质检的来料收货",
+          "objective": "仓管员确认实物到厂，并把受控物料交接到待检库存。",
+          "steps": [
+            "进入 MES > 物流 > 来料管理，搜索待收货单。",
+            "核对供应商、物料、数量、供应批号和待检库位。",
+            "点击“整单收货”。",
+            "查看成功提示中的来料检验任务数量。"
+          ],
+          "result": "来料单由待收货变为已收货；受控行不会直接可用，而是生成内部批次和质量任务。",
+          "pageKey": "materialIn",
+          "resource": "materialIn",
+          "roles": ["仓管员", "采购员"],
+          "screenshot": {"baseline": "0.1.373", "file": "165-incoming-receipt-before.png"},
+          "lastVerifiedVersion": "0.1.373"
+        },
+        {
+          "id": "168-incoming-quality-quarantine",
+          "title": "核对来料待检隔离",
+          "objective": "确认收货后的受控物料不可提前领用或发出。",
+          "steps": [
+            "收货完成后保持来料单搜索条件。",
+            "核对状态为“已收货”，物料行显示“待质量检验”。",
+            "记录内部批号和检验单号。",
+            "在库存中确认该数量计入待检而非可用。"
+          ],
+          "result": "待检数量参与总库存和成本，但不进入可用数量，生产领料和发货不能消费该批次。",
+          "pageKey": "materialIn",
+          "resource": "materialIn",
+          "roles": ["仓管员", "质检员", "库存主管"],
+          "screenshot": {"baseline": "0.1.373", "file": "166-incoming-receipt-quarantine.png"},
+          "lastVerifiedVersion": "0.1.373"
+        },
+        {
+          "id": "169-incoming-quality-reversal",
+          "title": "红冲未完成质检的来料",
+          "objective": "在原单取消且尚未判定质量时，成套冲销待检库存和未完成任务。",
+          "steps": [
+            "在已收货且仍待检的来料单点击“整单红冲”。",
+            "填写不可为空的红冲原因并提交。",
+            "在质量任务“全部记录”按内部批号搜索。",
+            "核对批次已冲销、在库余额为零，检验任务显示“待检已冲销”。"
+          ],
+          "result": "待检库存、库位余额、成本层和来料状态成套冲销；标准快照与取消记录保留审计。已不合格、部分判定或处置过的批次禁止直接红冲。",
+          "pageKey": "materialIn",
+          "resource": "materialIn",
+          "roles": ["仓库主管", "审计员"],
+          "screenshot": {"baseline": "0.1.373", "file": "171-incoming-reversal-cancelled.png"},
+          "lastVerifiedVersion": "0.1.373"
         },
         {
           "id": "20-stock-list",

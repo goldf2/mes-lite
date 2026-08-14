@@ -26,6 +26,14 @@ export function materialInInclude() {
     inventoryLot: {
       include: {
         balances: { orderBy: { createdAt: 'asc' as const } },
+        inspections: {
+          orderBy: [{ round: 'desc' as const }, { createdAt: 'desc' as const }],
+          select: {
+            id: true, inspectionNo: true, sourceType: true, sourceId: true, round: true,
+            status: true, result: true, standardCodeSnapshot: true, standardVersionSnapshot: true,
+            standardNameSnapshot: true, suggestedSampleQty: true, inspectedQty: true,
+          },
+        },
       },
     },
     material: { include: { customer: { select: { id: true, code: true, name: true } } } },
