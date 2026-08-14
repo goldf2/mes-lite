@@ -38,8 +38,11 @@ export async function loadShipments(params: URLSearchParams) {
   return { shipments: payload.data || [], customers: payload.customers || [] }
 }
 
-export function transitionShipment(id: string, action: 'ship' | 'deliver') {
-  return request<never>(`/api/shipments/${id}/${action}`, { method: 'PATCH' })
+export function transitionShipment(id: string, action: 'ship' | 'deliver' | 'cancel', input?: { reason: string }) {
+  return request<never>(`/api/shipments/${id}/${action}`, {
+    method: 'PATCH',
+    ...(input ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) } : {}),
+  })
 }
 
 export async function loadShipmentCreateOptions() {
@@ -96,6 +99,9 @@ export async function createReturn(input: ReturnForm) {
   return payload.data
 }
 
-export function transitionReturn(id: string, action: 'process' | 'reject') {
-  return request<never>(`/api/returns/${id}/${action}`, { method: 'PATCH' })
+export function transitionReturn(id: string, action: 'process' | 'reject', input?: { reason: string }) {
+  return request<never>(`/api/returns/${id}/${action}`, {
+    method: 'PATCH',
+    ...(input ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) } : {}),
+  })
 }

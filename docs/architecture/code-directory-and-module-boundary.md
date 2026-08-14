@@ -511,7 +511,7 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 
 - 生产订单详情中的 `ProductionOrderActualPanel` 是当前唯一可达生产实绩入口，覆盖草稿、确认过账、投入与多产出库存原子更新、删除草稿和冲销。
 - 旧 `StatsPage.tsx` 自生产订单实绩闭环上线后已不在页面注册、导航或应用壳中，继续拆分只会维护第二套不可达交互，因此删除其 936 行前端实现。
-- 工作台功能键删除失效的 `stats` 快捷入口，历史浏览器偏好中的该键在规范化时自动丢弃；权限资源 `stats` 仍用于统计接口和暂未拆分的流程转移权限，不与工作台键混为一谈。
+- 工作台功能键删除失效的 `stats` 快捷入口，历史浏览器偏好中的该键在规范化时自动丢弃；权限资源 `stats` 只保留统计接口兼容。自 `v0.1.360` 起流程转移页面使用 `flowTransfers`，自 `v0.1.375` 起确认和冲销再分别使用独立命令资源，不与工作台键混为一谈。
 - 服务器可能存在 `DailyProductionReport` 历史正式数据，因此本轮不删除 Prisma 模型、迁移、关联保护或 `/api/daily-production-reports*` 兼容接口。是否迁移并下线旧数据模型必须另行执行可回滚的数据迁移。
 - 根级存量领域页面从 14 个降至 13 个，超过 800 行的页面从 3 个降至 2 个。
 
@@ -864,3 +864,11 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 既有权限安装不从 `materialIn.update` 自动继承两个高风险命令，避免质量岗位、旧角色、自定义组或个人例外在升级后意外获得库存过账/冲销权。
 - 页面继续复用 `MaterialInPage`、`MaterialInCollectionView`、公共工具栏、按钮和详情/附件模块，只增加稳定权限布尔值，不复制来料页面或库存事务。
 - 第 81 个迁移只扩展质量来源与取消保护，不新增模型。`verify:incoming-quality-inspections` 与 `verify:incoming-quality-inspections-http` 使用临时完整 SQLite，覆盖受控/非受控多行收货、隔离、判定、红冲、仓库与质检权限及库位数据范围。
+
+## 72. v0.1.375 物流状态命令权限边界
+
+- `modules/sales` 继续唯一拥有发货与退货状态机、库存/成本/批次事务；`modules/production` 继续唯一拥有流程转移事务。权限资源只在应用壳与 Route Handler 校验，不进入领域服务或复制第二套库存逻辑。
+- `shipmentDispatch`、`shipmentDeliver`、`shipmentCancel`，`returnReceive`、`returnReject`，以及 `flowTransferConfirm`、`flowTransferReverse` 分别拥有一个状态命令；通用 `shipment`、`return`、`flowTransfers` 只负责页面读取和草稿维护。
+- 七个命令是显式审批升级资源，既有角色、内置/自定义组和个人覆盖补齐时默认关闭。取消发货、拒绝退货和流程转移冲销必须填写原因；发货与退货状态命令另写请求级审计。
+- 页面复用既有发货、退货和流程转移工作区，只通过应用壳注入稳定的命令能力；仪表盘仓库待办使用正向命令资源，不因通用编辑权限出现。
+- `verify:role-task-permissions`、`verify:role-task-http-permissions`、销售与流程转移领域回归在隔离 SQLite 中覆盖普通执行、高风险主管动作、403 边界、原因审计以及库存/成本守恒；本版本不修改 Prisma Schema 或迁移。

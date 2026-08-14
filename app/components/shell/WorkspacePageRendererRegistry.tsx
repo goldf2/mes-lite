@@ -183,9 +183,33 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
   ),
   dispatch: (context) => <DispatchPage onMessage={context.onMessage} />,
   'sales-orders': (context) => <SalesOrderPage onMessage={context.onMessage} />,
-  shipment: (context) => <ShipmentPage onMessage={context.onMessage} />,
-  return: (context) => <ReturnPage onMessage={context.onMessage} canQualityUpdate={context.canUpdate('qualityDecision')} />,
-  'flow-transfers': (context) => <FlowTransferPage onMessage={context.onMessage} canCreate={context.canCreate('flowTransfers')} canUpdate={context.canUpdate('flowTransfers')} />,
+  shipment: (context) => (
+    <ShipmentPage
+      onMessage={context.onMessage}
+      canCreate={context.canCreate('shipment')}
+      canDispatch={context.canUpdate('shipmentDispatch')}
+      canDeliver={context.canUpdate('shipmentDeliver')}
+      canCancel={context.canUpdate('shipmentCancel')}
+    />
+  ),
+  return: (context) => (
+    <ReturnPage
+      onMessage={context.onMessage}
+      canQualityUpdate={context.canUpdate('qualityDecision')}
+      canCreate={context.canCreate('return')}
+      canReceive={context.canUpdate('returnReceive')}
+      canReject={context.canUpdate('returnReject')}
+    />
+  ),
+  'flow-transfers': (context) => (
+    <FlowTransferPage
+      onMessage={context.onMessage}
+      canCreate={context.canCreate('flowTransfers')}
+      canUpdate={context.canUpdate('flowTransfers')}
+      canConfirm={context.canUpdate('flowTransferConfirm')}
+      canReverse={context.canUpdate('flowTransferReverse')}
+    />
+  ),
   employees: (context) => (
     <EmployeePage
       onMessage={context.onMessage}

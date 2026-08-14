@@ -29,5 +29,13 @@ export const createReturnSchema = z.object({
 
 export const processReturnSchema = z.object({})
 
+export const shipmentCancelSchema = z.object({
+  reason: z.string().trim().min(2, '取消原因至少 2 个字').max(200, '取消原因不能超过 200 个字'),
+})
+
+export const returnRejectSchema = z.object({
+  reason: z.string().trim().min(2, '拒绝原因至少 2 个字').max(200, '拒绝原因不能超过 200 个字'),
+})
+
 export type CreateShipmentCommand = z.infer<typeof createShipmentSchema>
 export type CreateReturnCommand = z.infer<typeof createReturnSchema>

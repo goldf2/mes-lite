@@ -3489,6 +3489,191 @@
             "file": "173-material-in-command-actions.png"
           },
           "lastVerifiedVersion": "0.1.374"
+        },
+        {
+          "id": "172-logistics-command-permissions",
+          "title": "分配物流状态命令权限",
+          "objective": "把单据登记、库存正向执行、业务确认和高风险取消/冲销分配给不同岗位。",
+          "steps": [
+            "使用权限管理员账号进入账号与权限 > 组权限。",
+            "选择仓库作业组，确认其具有发货执行、退货收货和流程转移确认，但没有签收、取消、拒绝或冲销。",
+            "选择仓库管理组，依据仓储负责人签字增加发货取消、退货拒绝和流程转移冲销。",
+            "选择销售发运组，确认其可确认客户签收、取消待发货和拒绝退货，但不能执行仓库出入库。",
+            "保存后分别使用通用编辑、普通仓管、仓库主管和销售跟单账号复核按钮与 HTTP 403。"
+          ],
+          "result": "61 个资源中的七个物流状态命令独立授权；既有角色、组和个人例外不会由通用修改自动扩大权限。",
+          "pageKey": "permissionGroups",
+          "resource": "permissionGroups",
+          "roles": [
+            "权限管理员",
+            "仓储负责人",
+            "销售负责人"
+          ],
+          "screenshot": {
+            "baseline": "0.1.375",
+            "file": "174-logistics-command-permissions.png"
+          },
+          "lastVerifiedVersion": "0.1.375"
+        },
+        {
+          "id": "173-warehouse-shipment-dispatch",
+          "title": "仓管确认发货并扣减库存",
+          "objective": "由普通仓管复核待发货单并执行批次、库存和成本的正向发出。",
+          "steps": [
+            "使用普通仓管账号进入销售 > 发货管理，筛选待发货。",
+            "复核客户、销售订单、物料、发货库位、数量和物流单号。",
+            "点击“确认发货”，等待状态变为已发货。",
+            "在详情、库存流水和批次追溯中复核实际批次、数量、成本和可信操作人。"
+          ],
+          "result": "普通仓管可以执行发货库存过账，但页面不显示客户签收和取消命令；直接越权调用返回 403。",
+          "pageKey": "shipment",
+          "resource": "shipment",
+          "roles": [
+            "仓管员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.375",
+            "file": "175-warehouse-shipment-dispatch.png"
+          },
+          "lastVerifiedVersion": "0.1.375"
+        },
+        {
+          "id": "174-sales-shipment-delivery",
+          "title": "销售确认客户签收",
+          "objective": "由销售跟单确认客户已签收，不允许其代替仓库执行库存发出。",
+          "steps": [
+            "使用销售跟单账号进入销售 > 发货管理，筛选已发货。",
+            "复核发货单、客户、物流单号和发货时间。",
+            "点击“确认签收”，等待状态变为已签收。",
+            "在操作记录中核对 DELIVER 动作、操作人和前后状态。"
+          ],
+          "result": "销售跟单可确认客户签收，但不能执行库存发货；签收动作不重复扣减库存。",
+          "pageKey": "shipment",
+          "resource": "shipment",
+          "roles": [
+            "销售员",
+            "销售跟单"
+          ],
+          "screenshot": {
+            "baseline": "0.1.375",
+            "file": "176-sales-shipment-delivery.png"
+          },
+          "lastVerifiedVersion": "0.1.375"
+        },
+        {
+          "id": "175-lead-shipment-cancel",
+          "title": "有原因取消待发货单",
+          "objective": "在尚未扣减库存前，由获批主管结束错误或已撤销的待发货单。",
+          "steps": [
+            "使用仓库主管或销售负责人账号打开待发货单。",
+            "确认单据尚未发货且没有库存、成本或批次过账。",
+            "点击“取消发货”，填写至少 2 个字的具体原因。",
+            "确认后核对状态为已取消，并在操作记录中复核 CANCEL、原因、操作人和前后快照。"
+          ],
+          "result": "取消仅允许待发货状态且必须记录原因；普通仓管与通用编辑账号没有该命令。",
+          "pageKey": "shipment",
+          "resource": "shipment",
+          "roles": [
+            "仓库主管",
+            "销售负责人"
+          ],
+          "screenshot": {
+            "baseline": "0.1.375",
+            "file": "177-lead-shipment-cancel.png"
+          },
+          "lastVerifiedVersion": "0.1.375"
+        },
+        {
+          "id": "176-warehouse-return-receive",
+          "title": "仓管接收入库退货",
+          "objective": "由普通仓管核对原发货来源，将客户退货接收入库并进入待检状态。",
+          "steps": [
+            "使用普通仓管账号进入销售 > 退货管理，筛选待处理。",
+            "复核原发货单、客户、物料、剩余可退数量、退回库位和退货原因。",
+            "点击“确认退货收货”。",
+            "在详情、质量任务、库存流水和批次追溯中核对独立退货批次及 QUARANTINE 数量。"
+          ],
+          "result": "普通仓管可以接收入库退货但不能拒绝申请；退货库存进入待检，不直接增加可用量。",
+          "pageKey": "return",
+          "resource": "return",
+          "roles": [
+            "仓管员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.375",
+            "file": "178-warehouse-return-receive.png"
+          },
+          "lastVerifiedVersion": "0.1.375"
+        },
+        {
+          "id": "177-sales-return-reject",
+          "title": "有原因拒绝退货",
+          "objective": "由获批销售或仓库主管拒绝不符合协议的待处理退货，且不产生库存。",
+          "steps": [
+            "使用销售跟单或仓库主管账号打开待处理退货单。",
+            "核对客户、原发货、物料、数量及退货协议依据。",
+            "点击“拒绝退货”，填写至少 2 个字的具体原因。",
+            "确认后核对状态为已拒绝、没有退货批次或库存流水，并在操作记录中复核 REJECT 原因。"
+          ],
+          "result": "退货拒绝与退货收货分离授权；拒绝必须有原因且不会产生库存或质量任务。",
+          "pageKey": "return",
+          "resource": "return",
+          "roles": [
+            "销售员",
+            "销售跟单",
+            "仓库主管"
+          ],
+          "screenshot": {
+            "baseline": "0.1.375",
+            "file": "179-sales-return-reject.png"
+          },
+          "lastVerifiedVersion": "0.1.375"
+        },
+        {
+          "id": "178-warehouse-flow-transfer-confirm",
+          "title": "仓管确认正向流程转移",
+          "objective": "由普通仓管确认同物料、同数量的正向移库，不改变总库存和总成本。",
+          "steps": [
+            "使用普通仓管账号进入生产 > 流程转移，找到草稿转移单。",
+            "复核物料、来源库位、目标库位、数量和操作员工。",
+            "点击“确认移库”，再次核对移动方向后确认。",
+            "在库位余额和库存流水中核对一出一入，总库存、计价数量和成本层保持不变。"
+          ],
+          "result": "普通仓管可确认正向移库但不能冲销；库存只在两个获批库位之间移动。",
+          "pageKey": "flowTransfers",
+          "resource": "flowTransfers",
+          "roles": [
+            "仓管员",
+            "生产操作员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.375",
+            "file": "180-warehouse-flow-transfer-confirm.png"
+          },
+          "lastVerifiedVersion": "0.1.375"
+        },
+        {
+          "id": "179-lead-flow-transfer-reverse",
+          "title": "主管有原因冲销流程转移",
+          "objective": "由获批主管在目标库位余额足够时恢复原移库，保留完整原因和审计。",
+          "steps": [
+            "使用仓库主管或生产主管账号打开已确认流程转移单。",
+            "复核目标库位仍有足够可用数量，确认没有造成单边恢复风险。",
+            "点击“冲销”，填写具体原因并确认。",
+            "核对数量从目标库位移回来源库位，一出一入流水、REVERSE 审计和总库存/成本守恒。"
+          ],
+          "result": "冲销与草稿修改、正向确认独立授权；普通仓管调用冲销返回 403，主管必须填写原因。",
+          "pageKey": "flowTransfers",
+          "resource": "flowTransfers",
+          "roles": [
+            "仓库主管",
+            "生产主管"
+          ],
+          "screenshot": {
+            "baseline": "0.1.375",
+            "file": "181-lead-flow-transfer-reverse.png"
+          },
+          "lastVerifiedVersion": "0.1.375"
         }
       ]
     },

@@ -22,8 +22,9 @@ import {
   finalizeDraftDocumentAttachments,
 } from '@/modules/attachments'
 import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
-import { createReturn, loadReturnOptions, loadReturns, transitionReturn } from '../client/fulfillment-api'
+import { createReturn, loadReturnOptions, loadReturns } from '../client/fulfillment-api'
 import ReturnDetailDialog from './ReturnDetailDialog'
+import ReturnStatusActions from './ReturnStatusActions'
 import type {
   FulfillmentCustomer,
   InventoryLocationOption,
@@ -41,10 +42,16 @@ export default function ReturnPageModule({
   onMessage,
   onToolbarChange,
   canQualityUpdate,
+  canCreate,
+  canReceive,
+  canReject,
 }: {
   onMessage: (msg: string) => void
   onToolbarChange?: (actions: ReactNode | null) => void
   canQualityUpdate: boolean
+  canCreate: boolean
+  canReceive: boolean
+  canReject: boolean
 }) {
   const [returns, setReturns] = useState<ReturnOrder[]>([])
   const [products, setProducts] = useState<ReturnMaterialOption[]>([])
@@ -217,20 +224,6 @@ export default function ReturnPageModule({
     }
   }
 
-  const handleAction = async (id: string, action: 'process' | 'reject') => {
-    setLoading(true)
-    try {
-      const data = await transitionReturn(id, action)
-      onMessage(data.message || '操作成功')
-      await fetchReturns()
-    } catch (error) {
-      onMessage(error instanceof Error ? error.message : '操作失败')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-
   useEffect(() => {
     if (!onToolbarChange) return
 
@@ -246,21 +239,12 @@ export default function ReturnPageModule({
         )}
         advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
         viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
-        actions={(
-          <>
-            <AppButton
-              variant="create"
-              onClick={openCreate}
-            >
-              新建退货单
-            </AppButton>
-          </>
-        )}
+        actions={canCreate ? <AppButton variant="create" onClick={openCreate}>新建退货单</AppButton> : undefined}
       />
     )
 
     return () => onToolbarChange(null)
-  }, [advancedSearchFields, onToolbarChange, openCreate, viewMode, setViewMode])
+  }, [advancedSearchFields, canCreate, onToolbarChange, openCreate, viewMode, setViewMode])
 
   return (
     <>
@@ -276,16 +260,7 @@ export default function ReturnPageModule({
           )}
           advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
           viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
-          actions={(
-            <>
-              <AppButton
-                variant="create"
-                onClick={openCreate}
-              >
-                新建退货单
-              </AppButton>
-            </>
-          )}
+          actions={canCreate ? <AppButton variant="create" onClick={openCreate}>新建退货单</AppButton> : undefined}
         />
       </TopBarPortal>
       <div className="space-y-4">
@@ -334,24 +309,7 @@ export default function ReturnPageModule({
                   <div className="flex flex-wrap gap-2">
                     <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
                     <BusinessDocumentPrintLink kind="return" id={item.id} />
-                    {item.status === 'PENDING' && (
-                      <>
-                        <button
-                          onClick={() => handleAction(item.id, 'process')}
-                          disabled={loading}
-                          className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition disabled:opacity-50"
-                        >
-                          处理
-                        </button>
-                        <button
-                          onClick={() => handleAction(item.id, 'reject')}
-                          disabled={loading}
-                          className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition disabled:opacity-50"
-                        >
-                          拒绝
-                        </button>
-                      </>
-                    )}
+                    <ReturnStatusActions returnOrder={item} canReceive={canReceive} canReject={canReject} onChanged={fetchReturns} onMessage={onMessage} />
                     {item.status !== 'PENDING' && (
                       <span className="text-xs text-gray-400">无操作</span>
                     )}
@@ -411,24 +369,7 @@ export default function ReturnPageModule({
                       <div className="flex flex-wrap gap-2">
                         <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
                         <BusinessDocumentPrintLink kind="return" id={item.id} compact />
-                        {item.status === 'PENDING' && (
-                          <>
-                            <button
-                              onClick={() => handleAction(item.id, 'process')}
-                              disabled={loading}
-                              className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition disabled:opacity-50"
-                            >
-                              处理
-                            </button>
-                            <button
-                              onClick={() => handleAction(item.id, 'reject')}
-                              disabled={loading}
-                              className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition disabled:opacity-50"
-                            >
-                              拒绝
-                            </button>
-                          </>
-                        )}
+                        <ReturnStatusActions returnOrder={item} canReceive={canReceive} canReject={canReject} onChanged={fetchReturns} onMessage={onMessage} />
                         {item.status !== 'PENDING' && (
                           <span className="text-xs text-gray-400">无操作</span>
                         )}
@@ -446,7 +387,7 @@ export default function ReturnPageModule({
         <ReturnDetailDialog item={detailItem} canQualityUpdate={canQualityUpdate} onClose={() => setDetailItem(null)} onChanged={fetchReturns} onMessage={onMessage} />
       )}
 
-      {showModal && (
+      {canCreate && showModal && (
         <ModalDialog
           title="新建退货单"
           description="选择原发货单，登记退回数量；收货后先进入待检库存。"

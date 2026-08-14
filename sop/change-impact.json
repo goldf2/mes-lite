@@ -1,6 +1,15 @@
 {
-  "version": "0.1.374",
+  "version": "0.1.375",
   "impact": "updated",
-  "workflowIds": ["170-material-in-command-permissions", "171-material-in-command-actions"],
-  "summary": "新增来料草稿、收货/拒收与红冲命令分权的授权和岗位操作说明，并明确旧权限不会自动扩大高风险命令。"
+  "workflowIds": [
+    "172-logistics-command-permissions",
+    "173-warehouse-shipment-dispatch",
+    "174-sales-shipment-delivery",
+    "175-lead-shipment-cancel",
+    "176-warehouse-return-receive",
+    "177-sales-return-reject",
+    "178-warehouse-flow-transfer-confirm",
+    "179-lead-flow-transfer-reverse"
+  ],
+  "summary": "新增发货、签收、取消、退货收货/拒绝和流程转移确认/冲销的命令分权、岗位操作、原因与审计说明。"
 }

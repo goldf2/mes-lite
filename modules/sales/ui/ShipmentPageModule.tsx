@@ -14,7 +14,8 @@ import { MappedResourceAdvancedSearch } from '@/app/components/resource'
 import { BusinessDocumentDetailDialog, BusinessDocumentPrintLink } from '@/modules/business-documents'
 import { InventoryLotTraceDialog } from '@/modules/inventory'
 import ShipmentCreateDialog from './ShipmentCreateDialog'
-import { loadShipments, transitionShipment } from '../client/fulfillment-api'
+import ShipmentStatusActions from './ShipmentStatusActions'
+import { loadShipments } from '../client/fulfillment-api'
 import type { FulfillmentCustomer, Shipment } from '../contracts/fulfillment'
 import {
   shipmentStatusColors as statusColors,
@@ -24,9 +25,17 @@ import {
 export default function ShipmentPageModule({
   onMessage,
   onToolbarChange,
+  canCreate,
+  canDispatch,
+  canDeliver,
+  canCancel,
 }: {
   onMessage: (msg: string) => void
   onToolbarChange?: (actions: ReactNode | null) => void
+  canCreate: boolean
+  canDispatch: boolean
+  canDeliver: boolean
+  canCancel: boolean
 }) {
   const [shipments, setShipments] = useState<Shipment[]>([])
   const [customers, setCustomers] = useState<FulfillmentCustomer[]>([])
@@ -79,18 +88,6 @@ export default function ShipmentPageModule({
   useEffect(() => {
     void fetchShipments()
   }, [fetchShipments])
-  const handleAction = async (id: string, action: 'ship' | 'deliver') => {
-    setLoading(true)
-    try {
-      const data = await transitionShipment(id, action)
-      onMessage(data.message || '操作成功')
-      await fetchShipments()
-    } catch (error) {
-      onMessage(error instanceof Error ? error.message : '操作失败')
-    } finally {
-      setLoading(false)
-    }
-  }
   useEffect(() => {
     if (!onToolbarChange) return
 
@@ -106,20 +103,11 @@ export default function ShipmentPageModule({
         )}
         advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
         viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
-        actions={(
-          <>
-            <AppButton
-              variant="create"
-              onClick={() => setShowModal(true)}
-            >
-              新建发货单
-            </AppButton>
-          </>
-        )}
+        actions={canCreate ? <AppButton variant="create" onClick={() => setShowModal(true)}>新建发货单</AppButton> : undefined}
       />
     )
     return () => onToolbarChange(null)
-  }, [advancedSearchFields, onToolbarChange, keyword, selectedStatuses, selectedCustomerId, customers, viewMode, setViewMode])
+  }, [advancedSearchFields, canCreate, onToolbarChange, keyword, selectedStatuses, selectedCustomerId, customers, viewMode, setViewMode])
 
   return (
     <>
@@ -135,16 +123,7 @@ export default function ShipmentPageModule({
           )}
           advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
           viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
-          actions={(
-            <>
-              <AppButton
-                variant="create"
-                onClick={() => setShowModal(true)}
-              >
-                新建发货单
-              </AppButton>
-            </>
-          )}
+          actions={canCreate ? <AppButton variant="create" onClick={() => setShowModal(true)}>新建发货单</AppButton> : undefined}
         />
       </TopBarPortal>
       <div className="space-y-4">
@@ -209,24 +188,7 @@ export default function ShipmentPageModule({
                   <div className="flex flex-wrap gap-2">
                     <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
                     <BusinessDocumentPrintLink kind="shipment" id={item.id} />
-                    {item.status === 'PENDING' && (
-                      <button
-                        onClick={() => handleAction(item.id, 'ship')}
-                        disabled={loading}
-                        className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition disabled:opacity-50"
-                      >
-                        发货
-                      </button>
-                    )}
-                    {item.status === 'SHIPPED' && (
-                      <button
-                        onClick={() => handleAction(item.id, 'deliver')}
-                        disabled={loading}
-                        className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition disabled:opacity-50"
-                      >
-                        签收
-                      </button>
-                    )}
+                    <ShipmentStatusActions shipment={item} canDispatch={canDispatch} canDeliver={canDeliver} canCancel={canCancel} onChanged={fetchShipments} onMessage={onMessage} />
                     {(item.status === 'SHIPPED' || item.status === 'DELIVERED') && (
                       <a
                         href={`/api/shipments/${item.id}/delivery-note`}
@@ -299,24 +261,7 @@ export default function ShipmentPageModule({
                       <div className="flex flex-wrap gap-2">
                         <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
                         <BusinessDocumentPrintLink kind="shipment" id={item.id} />
-                        {item.status === 'PENDING' && (
-                          <button
-                            onClick={() => handleAction(item.id, 'ship')}
-                            disabled={loading}
-                            className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition disabled:opacity-50"
-                          >
-                            发货
-                          </button>
-                        )}
-                        {item.status === 'SHIPPED' && (
-                          <button
-                            onClick={() => handleAction(item.id, 'deliver')}
-                            disabled={loading}
-                            className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition disabled:opacity-50"
-                          >
-                            签收
-                          </button>
-                        )}
+                        <ShipmentStatusActions shipment={item} canDispatch={canDispatch} canDeliver={canDeliver} canCancel={canCancel} onChanged={fetchShipments} onMessage={onMessage} />
                         {(item.status === 'SHIPPED' || item.status === 'DELIVERED') && (
                           <a
                             href={`/api/shipments/${item.id}/delivery-note`}
@@ -385,7 +330,7 @@ export default function ShipmentPageModule({
 
       {traceLotId && <InventoryLotTraceDialog lotId={traceLotId} onClose={() => setTraceLotId(null)} onMessage={onMessage} />}
 
-      {showModal && (
+      {canCreate && showModal && (
         <ShipmentCreateDialog
           onClose={() => setShowModal(false)}
           onCreated={fetchShipments}

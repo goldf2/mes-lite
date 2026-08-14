@@ -4,7 +4,7 @@
 
 > 当前产品不是多租户商城或完整进销存。MES-lite 先服务一个工厂、一个实例和一个数据库，`Material` 是唯一物品主档，生产事实统一为 `ProductionOrder + ProductionOrderActual`。详细边界见[单厂 MES 产品边界与核心模型收敛](../architecture/单厂MES产品边界与核心模型收敛.md)。
 
-> `v0.1.374` 补充：`InventoryLot` 同时承载来料、生产产出和客户退货内部批次；生产投入/产出、客户发货和退货回流谱系已经贯通。`QualityInspectionStandard` 保存生产、来料、退货来源的版本化标准，`QualityInspection` / `QualityInspectionCheckItem` 保存任务快照、抽样和逐项结果，`QualityDisposition` 保存复检、返工、报废、让步、解冻和后续检验轮次。已发布来料标准是收货进入隔离并建任务的显式开关；来料登记/编辑、收货/拒收与红冲使用独立命令权限但不改变库存/质量事实模型。跨批次搜索全景可按批号、客商和业务单据定位并多跳展开，逐件序列号尚未贯通。
+> `v0.1.375` 补充：`InventoryLot` 同时承载来料、生产产出和客户退货内部批次；生产投入/产出、客户发货和退货回流谱系已经贯通。`QualityInspectionStandard` 保存生产、来料、退货来源的版本化标准，`QualityInspection` / `QualityInspectionCheckItem` 保存任务快照、抽样和逐项结果，`QualityDisposition` 保存复检、返工、报废、让步、解冻和后续检验轮次。已发布来料标准是收货进入隔离并建任务的显式开关；来料及发货/退货/流程转移状态动作使用独立命令权限但不改变库存、质量或业务单据事实模型。跨批次搜索全景可按批号、客商和业务单据定位并多跳展开，逐件序列号尚未贯通。
 
 ## 建模原则
 

@@ -419,6 +419,15 @@ async function main() {
     note: '指导书：原料配送到生产现场',
   })
   await confirmManagedFlowTransfer(confirmedFlowTransfer.id, warehouseKeeper.name, fixedNow)
+  await createManagedFlowTransfer({
+    transferDate: '2026-08-12',
+    materialId: wire.id,
+    sourceLocationId: rawLocation.id,
+    targetLocationId: wipLocation.id,
+    quantity: 60,
+    employeeId: warehouseKeeper.id,
+    note: '指导书：待确认流程转移单',
+  })
 
   const draftSalesOrder = await createManagedSalesOrder({
     customerId: customer.id,
@@ -456,6 +465,15 @@ async function main() {
   }, fixedNow)
   await shipManagedShipment(deliveredShipment.id, warehouseKeeper.name)
   await deliverManagedShipment(deliveredShipment.id)
+  const shippedShipment = await createManagedShipment({
+    salesOrderItemId: confirmedSalesOrder.items[0].id,
+    locationId: finishedLocation.id,
+    qty: 40,
+    trackingNo: 'SF-DEMO-SHIPPED',
+    shippedBy: warehouseKeeper.name,
+    note: '指导书：待销售确认签收',
+  }, fixedNow)
+  await shipManagedShipment(shippedShipment.id, warehouseKeeper.name)
 
   await createManagedReturn({
     shipmentId: deliveredShipment.id,

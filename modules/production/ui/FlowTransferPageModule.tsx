@@ -30,7 +30,19 @@ import {
   flowTransferStatusMeta as statusMeta,
 } from '../model/flow-transfer-view'
 
-export default function FlowTransferPageModule({ onMessage, canCreate, canUpdate }: { onMessage: (message: string) => void; canCreate: boolean; canUpdate: boolean }) {
+export default function FlowTransferPageModule({
+  onMessage,
+  canCreate,
+  canUpdate,
+  canConfirm,
+  canReverse,
+}: {
+  onMessage: (message: string) => void
+  canCreate: boolean
+  canUpdate: boolean
+  canConfirm: boolean
+  canReverse: boolean
+}) {
   const [transfers, setTransfers] = useState<FlowTransferRecord[]>([])
   const [materials, setMaterials] = useState<FlowTransferMaterialOption[]>([])
   const [locations, setLocations] = useState<FlowTransferLocationOption[]>([])
@@ -189,13 +201,13 @@ export default function FlowTransferPageModule({ onMessage, canCreate, canUpdate
   const actions = (transfer: FlowTransferRecord) => (
     <div className="flex flex-wrap justify-end gap-2">
       <BusinessDocumentPrintLink kind="flow-transfer" id={transfer.id} />
-      {canUpdate && transfer.status === 'DRAFT' && (
+      {transfer.status === 'DRAFT' && (
         <>
-          <AppButton size="sm" onClick={() => openEdit(transfer)}>编辑</AppButton>
-          <AppButton size="sm" variant="create" onClick={() => setConfirmingTransfer(transfer)}>确认</AppButton>
+          {canUpdate && <AppButton size="sm" onClick={() => openEdit(transfer)}>编辑</AppButton>}
+          {canConfirm && <AppButton size="sm" variant="create" onClick={() => setConfirmingTransfer(transfer)}>确认移库</AppButton>}
         </>
       )}
-      {canUpdate && transfer.status === 'CONFIRMED' && (
+      {canReverse && transfer.status === 'CONFIRMED' && (
         <AppButton size="sm" variant="danger" onClick={() => {
           setReversingTransfer(transfer)
           setReverseReason('')

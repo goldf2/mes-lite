@@ -10,7 +10,7 @@ import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-acces
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const denied = await requireResourcePermission('flowTransfers', 'update')
+    const denied = await requireResourcePermission('flowTransferReverse', 'update')
     if (denied) return denied
     const input = reverseFlowTransferSchema.parse(await req.json())
     const operator = await getCurrentOperator()
