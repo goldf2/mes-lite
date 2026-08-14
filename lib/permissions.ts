@@ -24,6 +24,7 @@ export const permissionResources = [
   { key: 'workInstructions', label: '产品文档' },
   { key: 'equipment', label: '设备管理' },
   { key: 'equipmentEvents', label: '设备运行事件' },
+  { key: 'equipmentInspections', label: '设备点检任务' },
   { key: 'materialIn', label: '来料管理' },
   { key: 'dispatch', label: '派工管理' },
   { key: 'stocks', label: '库存管理' },
@@ -71,7 +72,7 @@ export const permissionResources = [
 export const permissionResourceSections = [
   { key: 'common', label: '公共入口', resources: ['dashboard', 'aiAssistant', 'attachments'] },
   { key: 'production', label: '生产、质量与统计', resources: ['orders', 'productionOrderRelease', 'productionActualEntry', 'productionActualConfirm', 'productionActualReverse', 'dispatch', 'flowTransfers', 'stats', 'quality', 'qualityDecision', 'qualityDisposition', 'qualityRelease'] },
-  { key: 'engineering', label: '物料、工艺与设备', resources: ['materials', 'bom', 'bomCost', 'workInstructions', 'documentCategories', 'equipment', 'equipmentEvents', 'units', 'workCenters', 'processTemplates', 'processRoutes', 'sawingCost', 'scanPrint'] },
+  { key: 'engineering', label: '物料、工艺与设备', resources: ['materials', 'bom', 'bomCost', 'workInstructions', 'documentCategories', 'equipment', 'equipmentEvents', 'equipmentInspections', 'units', 'workCenters', 'processTemplates', 'processRoutes', 'sawingCost', 'scanPrint'] },
   { key: 'fulfillment', label: '来料、库存与销售', resources: ['materialIn', 'stocks', 'salesOrder', 'shipment', 'return', 'suppliers', 'customers', 'locations'] },
   { key: 'administration', label: '人员、配置与运维', resources: ['employees', 'operators', 'businessSettings', 'displaySettings', 'navigationSettings', 'aiSettings', 'archive', 'auditLogs', 'dataTools', 'permissionUsers', 'permissionGroups'] },
   { key: 'legacy', label: '升级兼容资源', resources: ['system', 'permissions'] },
@@ -110,6 +111,7 @@ const operatorDefaults: PermissionMap = {
   workInstructions: readOnly,
   equipment: readOnly,
   equipmentEvents: none,
+  equipmentInspections: none,
   materialIn: readCreate,
   dispatch: readCreate,
   stocks: readOnly,
@@ -162,6 +164,7 @@ const auditorDefaults: PermissionMap = {
   workInstructions: readCreateUpdate,
   equipment: readCreateUpdate,
   equipmentEvents: readCreateUpdate,
+  equipmentInspections: readCreateUpdate,
   materialIn: readCreateUpdate,
   dispatch: readCreateUpdate,
   stocks: { canRead: true, canCreate: false, canUpdate: true, canDelete: false, canGrant: false },
@@ -242,7 +245,7 @@ export const defaultPermissionGroups = [
   { code: 'quality_release', name: '质量授权放行组', description: '质量负责人执行让步与解冻放行，应限制为少量经批准人员。', settings: permissionPreset({ quality: 'R', qualityRelease: 'U', orders: 'R', stocks: 'R', return: 'R' }) },
   { code: 'process_engineer', name: '工艺技术组', description: '工艺与 BOM 工程师维护物料、BOM、工艺、单位和技术文档。', settings: permissionPreset({ materials: 'RCU', bom: 'RCUA', workInstructions: 'RCU', documentCategories: 'R', units: 'RCUA', workCenters: 'RCUA', processTemplates: 'RCUA', processRoutes: 'RCUA', sawingCost: 'RCU' }) },
   { code: 'production_planner', name: '生产计划组', description: '计划员建立和发布生产订单、安排派工；不确认现场实绩或冲销库存。', settings: permissionPreset({ orders: 'RCUA', productionOrderRelease: 'U', dispatch: 'RCU', flowTransfers: 'R', stats: 'R', materials: 'R', bom: 'R', equipment: 'R', materialIn: 'R', stocks: 'R', salesOrder: 'R', suppliers: 'R', units: 'R', workCenters: 'R', processTemplates: 'R', processRoutes: 'R' }) },
-  { code: 'equipment_maintenance', name: '设备维护组', description: '设备管理员维护设备台账、执行运行事件并读取工作中心和技术文档。', settings: permissionPreset({ equipment: 'RCUA', equipmentEvents: 'RU', workCenters: 'R', workInstructions: 'R' }) },
+  { code: 'equipment_maintenance', name: '设备维护组', description: '设备管理员维护设备台账、执行运行事件和点检计划，并管理现场附件。', settings: permissionPreset({ equipment: 'RCUA', equipmentEvents: 'RU', equipmentInspections: 'RCU', workCenters: 'R', workInstructions: 'R', attachments: 'RCUA' }) },
   { code: 'document_control', name: '文档管理组', description: '文控人员维护产品文档、类别、版本和附件。', settings: permissionPreset({ workInstructions: 'RCUA', documentCategories: 'RCUA', attachments: 'RCUA' }) },
   { code: 'sales_fulfillment', name: '销售发运组', description: '销售、跟单与发运人员维护客户、订单、发货和退货。', settings: permissionPreset({ materials: 'R', stocks: 'R', salesOrder: 'RCUA', shipment: 'RCUA', return: 'RCUA', suppliers: 'RCU', customers: 'RCU' }) },
   { code: 'personnel_manager', name: '人员管理组', description: '人事与账号审核人员维护员工档案和账号状态，不获得业务权限。', settings: permissionPreset({ employees: 'RCUA', operators: 'RU' }) },
@@ -252,6 +255,7 @@ export const defaultPermissionGroups = [
 
 export const permissionResourceLegacySources: Partial<Record<PermissionResource, PermissionResource>> = {
   equipmentEvents: 'equipment',
+  equipmentInspections: 'equipmentEvents',
   flowTransfers: 'stats',
   bom: 'bomCost',
   suppliers: 'system',
@@ -270,6 +274,18 @@ export const permissionResourceLegacySources: Partial<Record<PermissionResource,
   archive: 'system',
   auditLogs: 'system',
   dataTools: 'system',
+}
+
+function findLegacyPermissionSetting<T>(settingByResource: Map<string, T>, resource: PermissionResource) {
+  const visited = new Set<string>()
+  let source = permissionResourceLegacySources[resource]
+  while (source && !visited.has(source)) {
+    visited.add(source)
+    const saved = settingByResource.get(source)
+    if (saved) return saved
+    source = permissionResourceLegacySources[source]
+  }
+  return null
 }
 
 const actionField: Record<PermissionAction, keyof PermissionFlags> = {
@@ -300,12 +316,14 @@ let ensureDefaultPermissionsPromise: Promise<void> | null = null
 async function insertMissingDefaultPermissions() {
   const savedRoleSettings = await prisma.permissionSetting.findMany()
   const savedRoleKeys = new Set(savedRoleSettings.map((setting) => `${setting.role}:${setting.resource}`))
-  const savedRoleSettingByKey = new Map(savedRoleSettings.map((setting) => [`${setting.role}:${setting.resource}`, setting]))
+  const roleSettingsByRole = new Map(permissionRoles.map((role) => [
+    role.key,
+    new Map(savedRoleSettings.filter((setting) => setting.role === role.key).map((setting) => [setting.resource, setting])),
+  ]))
   const missingRoleSettings = permissionRoles.flatMap((role) => permissionResources
     .filter((resource) => !savedRoleKeys.has(`${role.key}:${resource.key}`))
     .map((resource) => {
-      const legacyResource = permissionResourceLegacySources[resource.key]
-      const inherited = legacyResource ? savedRoleSettingByKey.get(`${role.key}:${legacyResource}`) : null
+      const inherited = findLegacyPermissionSetting(roleSettingsByRole.get(role.key)!, resource.key)
       return {
         role: role.key,
         resource: resource.key,
@@ -343,12 +361,12 @@ async function insertMissingDefaultPermissions() {
     const missingGroupSettings = permissionResources
       .filter((resource) => !savedResources.has(resource.key))
       .map((resource) => {
-        const legacyResource = permissionResourceLegacySources[resource.key]
-        const inherited = existingGroup && legacyResource ? existingSettingByResource.get(legacyResource) : null
+        const inherited = existingGroup ? findLegacyPermissionSetting(existingSettingByResource, resource.key) : null
+        const preset = group.settings[resource.key]
         return {
           groupId: savedGroup.id,
           resource: resource.key,
-          ...(inherited ? cloneFlags(inherited) : (group.settings[resource.key] || none)),
+          ...(inherited ? cloneFlags(inherited) : preset ? cloneFlags(preset) : cloneFlags(none)),
         }
       })
     if (missingGroupSettings.length > 0) await prisma.permissionGroupSetting.createMany({ data: missingGroupSettings })
@@ -363,8 +381,7 @@ async function insertMissingDefaultPermissions() {
     const settingByResource = new Map(group.settings.map((setting) => [setting.resource, setting]))
     const missingSettings = permissionResources.flatMap((resource) => {
       if (settingByResource.has(resource.key)) return []
-      const legacyResource = permissionResourceLegacySources[resource.key]
-      const inherited = legacyResource ? settingByResource.get(legacyResource) : null
+      const inherited = findLegacyPermissionSetting(settingByResource, resource.key)
       return [{
         groupId: group.id,
         resource: resource.key,
@@ -376,16 +393,20 @@ async function insertMissingDefaultPermissions() {
 
   const savedOverrides = await prisma.operatorPermissionOverride.findMany()
   const overrideByKey = new Map(savedOverrides.map((override) => [`${override.operatorId}:${override.resource}`, override]))
-  const inheritedOverrides = savedOverrides.flatMap((override) => permissionResources.flatMap((resource) => {
-    if (permissionResourceLegacySources[resource.key] !== override.resource) return []
-    if (overrideByKey.has(`${override.operatorId}:${resource.key}`)) return []
-    return [{
-      operatorId: override.operatorId, resource: resource.key, ...cloneFlags(override),
-      reason: override.reason, grantedBy: override.grantedBy,
-      startsAt: override.startsAt, expiresAt: override.expiresAt,
-      legacyPermanent: override.legacyPermanent,
-    }]
-  }))
+  const inheritedOverrides = Array.from(new Set(savedOverrides.map((override) => override.operatorId))).flatMap((operatorId) => {
+    const operatorOverrides = new Map(savedOverrides.filter((override) => override.operatorId === operatorId).map((override) => [override.resource, override]))
+    return permissionResources.flatMap((resource) => {
+      if (overrideByKey.has(`${operatorId}:${resource.key}`)) return []
+      const inherited = findLegacyPermissionSetting(operatorOverrides, resource.key)
+      if (!inherited) return []
+      return [{
+        operatorId, resource: resource.key, ...cloneFlags(inherited),
+        reason: inherited.reason, grantedBy: inherited.grantedBy,
+        startsAt: inherited.startsAt, expiresAt: inherited.expiresAt,
+        legacyPermanent: inherited.legacyPermanent,
+      }]
+    })
+  })
   if (inheritedOverrides.length > 0) await prisma.operatorPermissionOverride.createMany({ data: inheritedOverrides })
 }
 

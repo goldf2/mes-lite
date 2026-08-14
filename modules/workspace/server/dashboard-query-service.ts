@@ -3,6 +3,7 @@ import { normalizeProductionOrderStatusDistribution } from '@/modules/production
 import { buildProductionFlowDashboard } from '../domain/dashboard-production'
 import type { PermissionMap } from '@/lib/permissions'
 import { buildRoleTaskSections } from '../model/role-task-view'
+import { equipmentInspectionScopeWhere } from '@/modules/equipment'
 import {
   materialReceiptDataScopeWhere,
   productionActualDataScopeWhere,
@@ -52,6 +53,7 @@ export async function getDashboardData(now = new Date(), permissions?: Permissio
     executableOrderCount,
     pendingQualityInspectionCount,
     qualityDispositionCount,
+    dueEquipmentInspectionCount,
     pendingOperatorCount,
     lowStocks,
   ] = await Promise.all([
@@ -71,6 +73,7 @@ export async function getDashboardData(now = new Date(), permissions?: Permissio
     prisma.productionOrder.count({ where: { status: { in: ['RELEASED', 'IN_PROGRESS'] }, deletedAt: null, ...productionOrderDataScopeWhere(scope) } }),
     prisma.qualityInspection.count({ where: { status: 'PENDING', ...qualityInspectionDataScopeWhere(scope) } }),
     prisma.inventoryLot.count({ where: { status: 'OPEN', balances: { some: { inventoryStatus: { in: ['HOLD', 'REWORK'] }, stockQty: { gt: 0.000001 }, ...(scope.inventoryMode === 'LOCATIONS' ? { locationId: { in: scope.locationIds } } : {}) } } } }),
+    prisma.equipmentInspectionPlan.count({ where: { status: 'ACTIVE', nextDueAt: { lte: now }, ...equipmentInspectionScopeWhere(scope) } }),
     prisma.operator.count({ where: { status: 'PENDING' } }),
     prisma.stock.findMany({
       where: {
@@ -111,6 +114,7 @@ export async function getDashboardData(now = new Date(), permissions?: Permissio
       pendingProductionActualCount,
       pendingQualityInspectionCount,
       qualityDispositionCount,
+      dueEquipmentInspectionCount,
       pendingMaterialInCount,
       pendingShipmentCount,
       pendingReturnCount,

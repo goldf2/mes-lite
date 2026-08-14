@@ -26,6 +26,7 @@ export interface DashboardData {
   pendingShipments?: number
   pendingReturnCount?: number
   pendingReturns?: number
+  dueEquipmentInspectionCount?: number
   lowStocks?: DashboardStockAlert[]
   alertStocks?: DashboardStockAlert[]
   statusDistribution?: DashboardStatusItem[]

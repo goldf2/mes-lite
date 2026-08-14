@@ -505,7 +505,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           pageKey={activePageModule.key}
           pageLabel={activeTabLabel}
           onClose={() => setSopHelpOpen(false)}
-          onOpenHelpCenter={openWorkspaceFunction}
         />
       )}
 

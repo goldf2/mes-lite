@@ -1,6 +1,6 @@
 {
-  "version": "0.1.369",
+  "version": "0.1.370",
   "impact": "updated",
-  "workflowIds": ["35-equipment-list", "36-equipment-create", "121-fine-grained-permission-sections", "143-equipment-fault-command", "144-equipment-event-timeline"],
-  "summary": "设备基础资料不再直接改写运行状态；新增开停机、故障、恢复命令、事件时间线和独立设备事件权限。"
+  "workflowIds": ["139-sop-help-center", "140-context-help-drawer", "145-equipment-inspection-due-tasks", "146-equipment-inspection-create-plan", "147-equipment-inspection-complete", "148-equipment-inspection-abnormal-history"],
+  "summary": "新增周期设备点检、异常故障联动、现场附件和独立点检权限；快捷帮助与完整帮助均可在新页面全屏查看。"
 }

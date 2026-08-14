@@ -93,23 +93,25 @@ model Employee {
 }
 
 model Equipment {
-  id              String           @id @default(cuid())
-  code            String           @unique
-  name            String
-  equipmentType   String
-  model           String?
-  manufacturer    String?
-  serialNumber    String?
-  status          String           @default("AVAILABLE")
-  location        String?
-  basicParameters String?
-  note            String?
-  workCenterId    String
-  workCenter      WorkCenter       @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
-  events          EquipmentEvent[]
-  deletedAt       DateTime?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id                String                      @id @default(cuid())
+  code              String                      @unique
+  name              String
+  equipmentType     String
+  model             String?
+  manufacturer      String?
+  serialNumber      String?
+  status            String                      @default("AVAILABLE")
+  location          String?
+  basicParameters   String?
+  note              String?
+  workCenterId      String
+  workCenter        WorkCenter                  @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
+  events            EquipmentEvent[]
+  inspectionPlans   EquipmentInspectionPlan[]
+  inspectionRecords EquipmentInspectionRecord[]
+  deletedAt         DateTime?
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
 
   @@index([workCenterId])
   @@index([status])
@@ -117,24 +119,104 @@ model Equipment {
 }
 
 model EquipmentEvent {
-  id              String    @id @default(cuid())
-  equipmentId     String
-  equipment       Equipment @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
-  eventType       String
-  sourceStatus    String
-  targetStatus    String
-  reason          String
-  note            String?
-  operatorId      String?
-  operatorName    String
-  occurredAt      DateTime  @default(now())
-  durationSeconds Int?
-  endedAt         DateTime?
-  createdAt       DateTime  @default(now())
+  id               String                     @id @default(cuid())
+  equipmentId      String
+  equipment        Equipment                  @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  eventType        String
+  sourceStatus     String
+  targetStatus     String
+  reason           String
+  note             String?
+  operatorId       String?
+  operatorName     String
+  occurredAt       DateTime                   @default(now())
+  durationSeconds  Int?
+  endedAt          DateTime?
+  createdAt        DateTime                   @default(now())
+  inspectionRecord EquipmentInspectionRecord?
 
   @@index([equipmentId, occurredAt])
   @@index([eventType, occurredAt])
   @@index([endedAt])
+}
+
+model EquipmentInspectionPlan {
+  id           String                        @id @default(cuid())
+  code         String                        @unique
+  name         String
+  equipmentId  String
+  equipment    Equipment                     @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  intervalDays Int
+  status       String                        @default("ACTIVE")
+  nextDueAt    DateTime
+  activatedAt  DateTime                      @default(now())
+  note         String?
+  createdBy    String
+  items        EquipmentInspectionPlanItem[]
+  records      EquipmentInspectionRecord[]
+  createdAt    DateTime                      @default(now())
+  updatedAt    DateTime                      @updatedAt
+
+  @@index([equipmentId, status])
+  @@index([status, nextDueAt])
+}
+
+model EquipmentInspectionPlanItem {
+  id        String                      @id @default(cuid())
+  planId    String
+  plan      EquipmentInspectionPlan     @relation(fields: [planId], references: [id], onDelete: Restrict)
+  name      String
+  standard  String
+  unit      String?
+  sortOrder Int                         @default(0)
+  results   EquipmentInspectionResult[]
+  createdAt DateTime                    @default(now())
+
+  @@unique([planId, sortOrder])
+  @@index([planId])
+}
+
+model EquipmentInspectionRecord {
+  id            String                      @id @default(cuid())
+  recordNo      String                      @unique
+  operationId   String                      @unique
+  planId        String
+  plan          EquipmentInspectionPlan     @relation(fields: [planId], references: [id], onDelete: Restrict)
+  equipmentId   String
+  equipment     Equipment                   @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  dueAt         DateTime
+  inspectedAt   DateTime                    @default(now())
+  result        String
+  inspectorId   String?
+  inspectorName String
+  note          String?
+  faultEventId  String?                     @unique
+  faultEvent    EquipmentEvent?             @relation(fields: [faultEventId], references: [id], onDelete: Restrict)
+  items         EquipmentInspectionResult[]
+  createdAt     DateTime                    @default(now())
+
+  @@unique([planId, dueAt])
+  @@index([equipmentId, inspectedAt])
+  @@index([result, inspectedAt])
+}
+
+model EquipmentInspectionResult {
+  id          String                      @id @default(cuid())
+  recordId    String
+  record      EquipmentInspectionRecord   @relation(fields: [recordId], references: [id], onDelete: Restrict)
+  planItemId  String
+  planItem    EquipmentInspectionPlanItem @relation(fields: [planItemId], references: [id], onDelete: Restrict)
+  itemName    String
+  standard    String
+  unit        String?
+  actualValue String?
+  result      String
+  note        String?
+  sortOrder   Int
+  createdAt   DateTime                    @default(now())
+
+  @@unique([recordId, planItemId])
+  @@index([recordId, sortOrder])
 }
 
 model Product {

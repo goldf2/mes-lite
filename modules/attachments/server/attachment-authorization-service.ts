@@ -81,6 +81,18 @@ async function attachmentOwnerExists(ownerType: AttachmentOwnerType, ownerId: st
       where: { id: ownerId, deletedAt: null, ...returnDataScopeWhere(scope) }, select: { id: true },
     }))
   }
+  if (ownerType === 'EQUIPMENT_INSPECTION_RECORD') {
+    const workCenterIds = scope.productionMode === 'WORK_CENTERS' ? scope.workCenterIds : []
+    return Boolean(await prisma.equipmentInspectionRecord.findFirst({
+      where: {
+        id: ownerId,
+        ...(scope.productionMode === 'ALL' ? {} : scope.productionMode === 'WORK_CENTERS'
+          ? { equipment: { is: { workCenterId: { in: workCenterIds.length > 0 ? workCenterIds : ['__NO_AUTHORIZED_SCOPE__'] } } } }
+          : { id: '__SELF_SCOPE_HAS_NO_EQUIPMENT_ASSIGNMENT__' }),
+      },
+      select: { id: true },
+    }))
+  }
   return Boolean(await prisma.flowTransfer.findFirst({
     where: { id: ownerId, ...flowTransferDataScopeWhere(scope) }, select: { id: true },
   }))

@@ -1,11 +1,10 @@
 'use client'
 
-import { BookOpen, X } from 'lucide-react'
-import type { WorkspaceFunctionKey } from '@/lib/workspace'
+import { BookOpen, ExternalLink, X } from 'lucide-react'
 import SopWorkflowCard from './SopWorkflowCard'
 import { useSopCatalog } from './useSopCatalog'
 
-export default function SopHelpDrawer({ pageKey, pageLabel, onClose, onOpenHelpCenter }: { pageKey: string; pageLabel: string; onClose: () => void; onOpenHelpCenter: (key: WorkspaceFunctionKey) => void }) {
+export default function SopHelpDrawer({ pageKey, pageLabel, onClose }: { pageKey: string; pageLabel: string; onClose: () => void }) {
   const { catalog, error } = useSopCatalog(pageKey)
   const workflows = catalog?.chapters.flatMap((chapter) => chapter.workflows) || []
   return (
@@ -21,7 +20,14 @@ export default function SopHelpDrawer({ pageKey, pageLabel, onClose, onOpenHelpC
           {catalog && workflows.length === 0 && <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">当前页面暂时没有关联流程，请进入完整帮助中心检索。</div>}
           {workflows.map((workflow) => <SopWorkflowCard key={workflow.id} workflow={workflow} compact />)}
         </div>
-        <footer className="border-t border-slate-200 bg-white p-4"><button type="button" onClick={() => { onClose(); onOpenHelpCenter('helpCenter' as WorkspaceFunctionKey) }} className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700">打开完整帮助中心</button></footer>
+        <footer className="grid gap-2 border-t border-slate-200 bg-white p-4 sm:grid-cols-2">
+          <a href={`/help?pageKey=${encodeURIComponent(pageKey)}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 rounded-lg border border-blue-200 px-4 py-2.5 text-sm font-medium text-blue-700 hover:bg-blue-50">
+            <ExternalLink className="h-4 w-4" />新页面全屏查看
+          </a>
+          <a href="/help" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700">
+            <ExternalLink className="h-4 w-4" />打开完整帮助中心
+          </a>
+        </footer>
       </aside>
     </div>
   )

@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "title": "MES-lite 全流程作业指导书",
   "recommendedSequence": "单位/库位/员工/供应商/客户/工作中心 → 物料 → BOM/工艺路线 → 生产订单/销售订单 → 派工/来料/发货 → 实绩 → 质量判定/处置/复检 → 收货/退货 → 库存与审计复核。",
-  "important": "业务闭环、岗位权限、数据范围和设备基础运行事件已落地；真实 Coolify 已建立固定提交、关闭自动部署、每日一致备份、失败通知和非覆盖恢复候选，生产候选已完成隔离应用级抽查。异地存储、真实 Coolify 挂载切换、Product 到 Material 人工确认和真实岗位审批仍未完成，不能据此承诺完整异地容灾或模型收敛。",
+  "important": "业务闭环、岗位权限、数据范围、设备运行事件和周期点检已落地；真实 Coolify 已建立固定提交、关闭自动部署、每日一致备份、失败通知和非覆盖恢复候选，生产候选已完成隔离应用级抽查。异地存储、真实 Coolify 挂载切换、Product 到 Material 人工确认和真实岗位审批仍未完成，不能据此承诺完整异地容灾或模型收敛。",
   "governanceBoundaries": [
     "质量闭环与岗位动作权限已贯通；正式上线前仍须按企业审批制度配置岗位权限、数据范围并使用真实不合格评审单验收。",
     "供应商、来料、生产投入产出、发货和退货回流已形成可搜索全景；跨工厂或供应商系统集成不在本阶段。",
     "岗位任务、生产命令、本人/工作中心生产范围与库位库存范围已经分层；部门/班组范围尚未独立建模。",
-    "设备开机、停机、故障和恢复已形成运行事件时间线；点检、保养、维修工单、产量采集和 OEE 尚未贯通。",
+    "设备开机、停机、故障和恢复已形成事件时间线，周期点检支持完整项目、异常故障联动和现场附件；保养、维修工单、产量采集和 OEE 尚未贯通。",
     "旧 Product 与 Material 仍需分阶段迁移，禁止继续扩展旧模型写入口。"
   ],
   "chapters": [
@@ -22,15 +22,16 @@
           "steps": [
             "在任一工作区展开“工作台”菜单。",
             "点击“帮助中心”。",
+            "需要独立全屏查看时，在快捷帮助中点击“打开完整帮助中心”，系统会新开页面且保留当前业务页面。",
             "使用搜索框输入页面、单据、岗位或操作关键字。",
             "展开目标流程，逐步操作并核对结果检查。"
           ],
-          "result": "帮助中心显示系统版本、可读流程数和章节；无权限的流程不会出现。",
+          "result": "独立帮助页面显示系统版本、可读流程数和章节；无权限的流程不会出现，原业务页面保持不动。",
           "pageKey": "helpCenter",
           "resource": "dashboard",
           "roles": ["全员"],
-          "screenshot": {"baseline": "0.1.365", "file": "139-sop-help-center.png"},
-          "lastVerifiedVersion": "0.1.365"
+          "screenshot": {"baseline": "0.1.370", "file": "150-fullscreen-help-page.png"},
+          "lastVerifiedVersion": "0.1.370"
         },
         {
           "id": "140-context-help-drawer",
@@ -40,14 +41,14 @@
             "进入需要操作的业务页面。",
             "点击顶部问号按钮。",
             "在右侧抽屉展开相关流程并查看步骤、结果和截图。",
-            "需要检索其他流程时点击“打开完整帮助中心”。"
+            "点击“新页面全屏查看”只查看当前功能，或点击“打开完整帮助中心”在新页面检索全部流程。"
           ],
-          "result": "抽屉只显示当前页面且当前账号有权读取的 SOP 流程。",
+          "result": "抽屉只显示当前页面且当前账号有权读取的 SOP；两个底部入口均在新页面打开，不中断当前业务操作。",
           "pageKey": "dashboard",
           "resource": "dashboard",
           "roles": ["全员"],
-          "screenshot": {"baseline": "0.1.365", "file": "140-context-help-drawer.png"},
-          "lastVerifiedVersion": "0.1.365"
+          "screenshot": {"baseline": "0.1.370", "file": "149-context-help-new-page.png"},
+          "lastVerifiedVersion": "0.1.370"
         },
         {
           "id": "01-login",
@@ -1852,6 +1853,74 @@
           "roles": ["设备维护员", "生产主管"],
           "screenshot": {"baseline": "0.1.369", "file": "144-equipment-event-timeline.png"},
           "lastVerifiedVersion": "0.1.369"
+        },
+        {
+          "id": "145-equipment-inspection-due-tasks",
+          "title": "查看到期设备点检任务",
+          "objective": "按到期、逾期和异常状态找到当前工作中心需要处理的点检任务。",
+          "steps": [
+            "展开 MES 的“设备”菜单并进入“设备点检”。",
+            "先查看到期、逾期和异常记录计数。",
+            "使用“到期任务”筛选，并按计划、设备或工作中心搜索。",
+            "核对设备、周期、下次到期时间和完整检查清单。"
+          ],
+          "result": "页面只显示当前账号工作中心范围内的点检计划，到期任务可直接执行。",
+          "pageKey": "equipmentInspections",
+          "resource": "equipmentInspections",
+          "roles": ["设备维护员", "生产主管"],
+          "screenshot": {"baseline": "0.1.370", "file": "145-equipment-inspection-due-tasks.png"},
+          "lastVerifiedVersion": "0.1.370"
+        },
+        {
+          "id": "146-equipment-inspection-create-plan",
+          "title": "新建设备点检计划",
+          "objective": "为一台设备建立不可直接改写的周期点检标准和完整项目清单。",
+          "steps": [
+            "在设备点检页面点击“新建点检计划”。",
+            "填写唯一计划编码、名称、周期和首次到期时间。",
+            "搜索并选择当前工作中心范围内的设备。",
+            "逐项添加项目名称、检查标准和可选单位，一次保存计划。"
+          ],
+          "result": "新计划进入到期任务或全部计划；项目清单保存后只能暂停或恢复计划，不能覆盖历史标准。",
+          "pageKey": "equipmentInspections",
+          "resource": "equipmentInspections",
+          "roles": ["设备维护员"],
+          "screenshot": {"baseline": "0.1.370", "file": "146-equipment-inspection-create-plan.png"},
+          "lastVerifiedVersion": "0.1.370"
+        },
+        {
+          "id": "147-equipment-inspection-complete",
+          "title": "逐项完成设备点检",
+          "objective": "按计划快照完整提交实测值、结果、人员和整次说明。",
+          "steps": [
+            "在到期任务卡片点击“执行点检”。",
+            "核对实际点检时间和每一项标准。",
+            "逐项选择正常或异常，并填写实测值；异常项必须填写异常说明。",
+            "填写整次说明后点击“确认完成点检”。"
+          ],
+          "result": "系统一次保存全部项目、点检人、到期周期与审计记录，并把下次到期时间推进一个周期。",
+          "pageKey": "equipmentInspections",
+          "resource": "equipmentInspections",
+          "roles": ["设备维护员"],
+          "screenshot": {"baseline": "0.1.370", "file": "147-equipment-inspection-complete.png"},
+          "lastVerifiedVersion": "0.1.370"
+        },
+        {
+          "id": "148-equipment-inspection-abnormal-history",
+          "title": "复核异常点检与现场附件",
+          "objective": "从异常记录回看点检事实，并保留现场照片或报告。",
+          "steps": [
+            "切换到“异常记录”筛选。",
+            "核对异常记录号、点检时间、点检人和异常说明。",
+            "确认原设备已进入故障状态，并在设备事件时间线中存在对应故障事件。",
+            "按需要在该次记录下上传现场照片、测量报告或维修凭证。"
+          ],
+          "result": "异常点检记录不可改写；设备原为可用或运行中时，同一事务生成故障事件，附件继承点检与工作中心权限。",
+          "pageKey": "equipmentInspections",
+          "resource": "equipmentInspections",
+          "roles": ["设备维护员", "生产主管"],
+          "screenshot": {"baseline": "0.1.370", "file": "148-equipment-inspection-abnormal-history.png"},
+          "lastVerifiedVersion": "0.1.370"
         }
       ]
     },

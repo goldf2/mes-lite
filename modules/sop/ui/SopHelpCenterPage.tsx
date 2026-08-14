@@ -5,8 +5,8 @@ import { BookOpen, Search } from 'lucide-react'
 import SopWorkflowCard from './SopWorkflowCard'
 import { useSopCatalog } from './useSopCatalog'
 
-export default function SopHelpCenterPage() {
-  const { catalog, error } = useSopCatalog()
+export default function SopHelpCenterPage({ pageKey, standalone = false }: { pageKey?: string; standalone?: boolean } = {}) {
+  const { catalog, error } = useSopCatalog(pageKey)
   const [query, setQuery] = useState('')
   const normalized = query.trim().toLocaleLowerCase()
   const chapters = useMemo(() => catalog?.chapters.flatMap((chapter) => {
@@ -22,8 +22,9 @@ export default function SopHelpCenterPage() {
     <div className="mx-auto max-w-6xl space-y-5 pb-8">
       <section className="rounded-2xl bg-gradient-to-br from-slate-900 to-blue-900 p-6 text-white shadow-lg sm:p-8">
         <div className="flex items-center gap-3"><BookOpen className="h-7 w-7" /><h2 className="text-2xl font-bold">{catalog.title}</h2></div>
-        <p className="mt-3 max-w-4xl text-sm leading-6 text-blue-100">按当前账号权限显示；内容、Web 帮助与 DOCX/PDF 均来自同一份 SOP 清单。</p>
+        <p className="mt-3 max-w-4xl text-sm leading-6 text-blue-100">{pageKey ? '当前页面相关流程已在独立页面全屏展开；' : ''}按当前账号权限显示，内容、Web 帮助与 DOCX/PDF 均来自同一份 SOP 清单。</p>
         <div className="mt-5 flex flex-wrap gap-2 text-xs"><span className="rounded-full bg-white/10 px-3 py-1.5">系统 v{catalog.version}</span><span className="rounded-full bg-white/10 px-3 py-1.5">可读流程 {catalog.workflowCount}</span><span className="rounded-full bg-white/10 px-3 py-1.5">章节 {catalog.chapters.length}</span></div>
+        {standalone && pageKey && <a href="/help" className="mt-5 inline-flex rounded-lg border border-white/30 px-3 py-2 text-sm font-medium text-white hover:bg-white/10">查看全部流程</a>}
       </section>
       <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <Search className="h-5 w-5 text-slate-400" />

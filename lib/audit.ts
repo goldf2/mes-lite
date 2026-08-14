@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from './prisma'
 import { getCurrentOperator } from './auth'
 
-type AuditInput = {
+export type AuditInput = {
   action: string
   entityType: string
   entityId?: string | null
@@ -32,9 +32,11 @@ export async function getAuditContext(req: NextRequest | Request | null) {
   }
 }
 
+export type AuditContext = Awaited<ReturnType<typeof getAuditContext>>
+
 export async function createAuditLog(
   client: Pick<Prisma.TransactionClient, 'auditLog'>,
-  context: Awaited<ReturnType<typeof getAuditContext>>,
+  context: AuditContext,
   input: AuditInput,
 ) {
   return client.auditLog.create({

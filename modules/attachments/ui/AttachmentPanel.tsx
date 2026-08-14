@@ -47,6 +47,7 @@ interface AttachmentPanelProps {
   onAiRecognize?: (attachment: ManagedAttachment) => void | Promise<void>
   onBusyChange?: (busy: boolean) => void
   onMessage: (msg: string) => void
+  readOnly?: boolean
 }
 
 function formatSize(size: number) {
@@ -69,6 +70,7 @@ export default function AttachmentPanel({
   onAiRecognize,
   onBusyChange,
   onMessage,
+  readOnly = false,
 }: AttachmentPanelProps) {
   const [attachments, setAttachments] = useState<ManagedAttachment[]>([])
   const [uploading, setUploading] = useState(false)
@@ -208,7 +210,7 @@ export default function AttachmentPanel({
     return (
       <div className="min-w-[150px] space-y-2">
         <div className="flex items-center gap-2">
-          <label className="px-3 py-1 border border-blue-300 text-blue-700 rounded text-xs hover:bg-blue-50 cursor-pointer whitespace-nowrap">
+          {!readOnly && <label className="px-3 py-1 border border-blue-300 text-blue-700 rounded text-xs hover:bg-blue-50 cursor-pointer whitespace-nowrap">
             {uploading ? '上传中' : imageOnly ? '上传图片' : '上传文件'}
             <input
               ref={inputRef}
@@ -221,7 +223,7 @@ export default function AttachmentPanel({
                 if (file) uploadFile(file)
               }}
             />
-          </label>
+          </label>}
           <span className="text-xs text-gray-500">{attachments.length} 个</span>
         </div>
         {attachments.length > 0 && (

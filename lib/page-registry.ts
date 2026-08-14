@@ -11,7 +11,7 @@ export interface PagePresentationDefinition {
 }
 
 export const applicationTabs = [
-  'dashboard', 'allFunctions', 'helpCenter', 'orders', 'materials', 'workInstructions', 'equipment', 'materialIn',
+  'dashboard', 'allFunctions', 'helpCenter', 'orders', 'materials', 'workInstructions', 'equipment', 'equipmentInspections', 'materialIn',
   'dispatch', 'stocks', 'stockMovements', 'lotPanorama', 'qualityTasks', 'salesOrders', 'shipment', 'return', 'flowTransfers', 'sawingCost', 'scanPrint',
   'suppliers', 'customers', 'employees', 'processTemplates', 'processRoutes', 'archive', 'auditLogs',
   'dataTools', 'unitSettings', 'locationSettings', 'workCenters', 'documentCategories', 'businessSettings',
@@ -55,6 +55,7 @@ export type PageRendererKey =
   | 'work-instructions'
   | 'document-categories'
   | 'equipment'
+  | 'equipment-inspections'
   | 'material-in'
   | 'dispatch'
   | 'sales-orders'
@@ -107,6 +108,7 @@ const registeredPages = [
   registerPage({ key: 'bomUsage', tab: 'materials', materialSection: 'bomUsage', kind: 'master-detail', title: 'BOM 全览', description: '查看与某个物料有关的全部产出和投入 BOM', renderer: 'bom-usage', groupKey: 'materials', resource: 'bom', workspace: { functionKey: 'bomUsage', label: 'BOM 全览', icon: '查' } }),
   registerPage({ key: 'workInstructions', tab: 'workInstructions', kind: 'master-detail', title: '产品文档', description: '管理图纸、PDF 和作业指导文档', renderer: 'work-instructions', groupKey: 'documents', resource: 'workInstructions', primaryNavigation: true, workspace: { functionKey: 'workInstructions', label: '产品文档', icon: '书' } }),
   registerPage({ key: 'equipment', tab: 'equipment', kind: 'resource', title: '设备台账', description: '维护设备基础资料并回放运行事件', renderer: 'equipment', groupKey: 'equipment', resource: 'equipment', primaryNavigation: true, workspace: { functionKey: 'equipment', label: '设备台账', icon: '机' } }),
+  registerPage({ key: 'equipmentInspections', tab: 'equipmentInspections', kind: 'transaction', title: '设备点检', description: '建立周期计划并逐项执行到期设备点检', renderer: 'equipment-inspections', groupKey: 'equipment', resource: 'equipmentInspections', primaryNavigation: true, workspace: { functionKey: 'equipmentInspections', label: '设备点检', icon: '检' } }),
   registerPage({ key: 'orders', tab: 'orders', kind: 'transaction', title: '生产订单', description: '先保存生产计划，班后再登记实际产量', renderer: 'production-orders', groupKey: 'production', resource: 'orders', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' }, workspace: { functionKey: 'orders', label: '生产订单', icon: '工' } }),
   registerPage({ key: 'dispatch', tab: 'dispatch', kind: 'transaction', title: '派工管理', description: '将生产任务派发到人员与工作中心', renderer: 'dispatch', groupKey: 'production', resource: 'dispatch', primaryNavigation: true, workspace: { functionKey: 'dispatch', label: '派工管理', icon: '派' } }),
   registerPage({ key: 'flowTransfers', tab: 'flowTransfers', kind: 'transaction', title: '流程转移', description: '同一物料在库位或流程节点之间转移', renderer: 'flow-transfers', groupKey: 'production', resource: 'flowTransfers', primaryNavigation: true, workspace: { functionKey: 'flowTransfers', label: '流程转移', icon: '转' } }),

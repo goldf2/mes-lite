@@ -15,6 +15,7 @@ import { decideQualityInspection, disposeQualityInspection } from '../modules/qu
 import { createManagedReturn, createManagedShipment } from '../modules/sales/server/fulfillment-command-service'
 import { deliverManagedShipment, processManagedReturn, shipManagedShipment } from '../modules/sales/server/fulfillment-status-service'
 import { confirmManagedSalesOrder, createManagedSalesOrder } from '../modules/sales/server/sales-order-command-service'
+import { completeEquipmentInspection, createEquipmentInspectionPlan } from '../modules/equipment/server/equipment-inspection-command-service'
 
 const databaseUrl = process.env.DATABASE_URL || ''
 if (!databaseUrl.includes('mes_lite_guide')) {
@@ -96,7 +97,7 @@ async function main() {
     { code: 'EQ-PK-01', name: '自动计数包装机', equipmentType: '包装机', model: 'PK-1000', manufacturer: '演示设备厂', location: '包装区', workCenterId: packingCenter.id },
   ] })
   const seededEquipment = await prisma.equipment.findMany({
-    where: { code: { in: ['EQ-QC-01', 'EQ-PK-01'] } }, select: { id: true, code: true },
+    where: { code: { in: ['EQ-CF-01', 'EQ-QC-01', 'EQ-PK-01'] } }, select: { id: true, code: true },
   })
   const equipmentId = new Map(seededEquipment.map((item) => [item.code, item.id]))
   await prisma.equipmentEvent.create({
@@ -111,6 +112,45 @@ async function main() {
       reason: '演示环境计划停机', operatorName: 'SOP 演示数据',
     },
   })
+
+  const inspectionActor = {
+    operatorId: admin.id,
+    operatorName: admin.name,
+    auditContext: { operatorId: admin.id, operatorName: admin.name, ipAddress: undefined, userAgent: undefined },
+  }
+  await createEquipmentInspectionPlan({
+    code: 'EI-CF-DAILY',
+    name: '冷镦机每日安全点检',
+    equipmentId: equipmentId.get('EQ-CF-01')!,
+    intervalDays: 1,
+    nextDueAt: new Date('2026-08-12T07:30:00+08:00'),
+    note: '每班开机前执行；用于作业指导书演示。',
+    items: [
+      { name: '安全防护罩', standard: '关闭到位，无松动和缺失', unit: null },
+      { name: '润滑油位', standard: '油位处于上下限刻度之间', unit: 'mm' },
+      { name: '急停按钮', standard: '按下后设备立即停止，复位正常', unit: null },
+    ],
+  }, inspectionActor)
+  const measurementInspection = await createEquipmentInspectionPlan({
+    code: 'EI-QC-WEEKLY',
+    name: '影像测量仪周检',
+    equipmentId: equipmentId.get('EQ-QC-01')!,
+    intervalDays: 7,
+    nextDueAt: new Date('2026-08-12T07:00:00+08:00'),
+    note: '用于演示异常点检与设备故障事件联动。',
+    items: [
+      { name: '标准块复核', standard: '测量偏差绝对值不大于 0.003', unit: 'mm' },
+      { name: '镜头与光源', standard: '镜头洁净，环形光源无闪烁', unit: null },
+    ],
+  }, inspectionActor)
+  await completeEquipmentInspection(measurementInspection.id, {
+    operationId: '00000000-0000-4000-8000-000000000370',
+    inspectedAt: fixedNow,
+    note: '标准块复核超差，已停止使用并通知维护。',
+    items: measurementInspection.items.map((item) => item.name === '标准块复核'
+      ? { planItemId: item.id, actualValue: '0.009', result: 'FAIL' as const, note: '连续三次复核均超出 0.003 mm 上限' }
+      : { planItemId: item.id, actualValue: '正常', result: 'PASS' as const, note: null }),
+  }, inspectionActor, undefined, fixedNow)
 
   const [wire, oil, bolt, scrap] = await Promise.all([
     prisma.material.create({ data: { code: 'RAW-SCM435-8', name: 'SCM435 盘圆', spec: 'Φ8.0mm', category: 'RAW', unit: 'kg', primaryMeasure: 'WEIGHT', stockUnit: 'kg', valuationUnit: 'kg', conversionRate: 1, costingMethod: 'FIFO' } }),

@@ -751,6 +751,13 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `ui/EquipmentEditorDialog.tsx` 只编辑基础资料，`ui/EquipmentEventDialog.tsx` 负责运行命令和时间线；协调页继续使用公共 `ResourcePage`。
 - `verify:equipment`、`verify:equipment-events-http` 和 `verify:fine-grained-permissions` 分别锁定领域不变式、HTTP 403/201 和第 49 个权限资源。
 
+### v0.1.370 设备周期点检扩展
+
+- `contracts/equipment-inspection-*` 定义计划、项目和完整执行请求；`domain/equipment-inspection-rules.ts` 负责周期推进、工作中心范围、完整清单和汇总结果纯规则。
+- `server/equipment-inspection-command-service.ts` 在同一事务保存点检事实、下次到期、审计与可选故障事件；查询服务统一装配到期/逾期/异常计数、设备候选和最近记录。
+- 页面、计划弹窗和执行弹窗均通过 `modules/equipment/index.ts` 注册；设备选择复用公共关系字段，记录附件复用公共附件面板，三条 Route Handler 保持无 Prisma 的薄 HTTP 层。
+- `verify:equipment-inspections`、`verify:equipment-inspections-http`、`verify:fine-grained-permissions` 和 `verify:sop-fullscreen-help` 锁定数据库不变式、真实 HTTP 403/201、递归升级继承、第 50 个权限资源及帮助新页边界。
+
 ## 59. 旧生产日报兼容服务归属
 
 - `modules/production/contracts/legacy-daily-production-schema.ts` 统一旧日报创建、编辑、确认和冲销输入；`domain/legacy-daily-production-*` 集中日期解析、最大序号编号、状态约束、数量精度和可预期错误。

@@ -26,6 +26,7 @@ const MaterialPage = dynamic(() => import('@/modules/materials'), { loading: Fea
 const WorkInstructionPage = dynamic(() => import('@/modules/documents'), { loading: FeaturePageLoading })
 const DocumentCategorySettingsPage = dynamic(() => import('@/modules/documents').then((module) => module.DocumentCategorySettingsPage), { loading: FeaturePageLoading })
 const EquipmentPage = dynamic(() => import('@/modules/equipment'), { loading: FeaturePageLoading })
+const EquipmentInspectionPage = dynamic(() => import('@/modules/equipment').then((module) => module.EquipmentInspectionPageModule), { loading: FeaturePageLoading })
 const OperatorPage = dynamic(() => import('@/modules/identity-access').then((module) => module.OperatorPageModule), { loading: FeaturePageLoading })
 const SystemPage = dynamic(() => import('../SystemPage'), { loading: FeaturePageLoading })
 const PermissionPage = dynamic(() => import('@/modules/identity-access').then((module) => module.PermissionPageModule), { loading: FeaturePageLoading })
@@ -152,6 +153,14 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
       canUpdate={context.canUpdate('equipment')}
       canDelete={context.canDelete('equipment')}
       canCommand={context.canUpdate('equipmentEvents')}
+    />
+  ),
+  'equipment-inspections': (context) => (
+    <EquipmentInspectionPage
+      onMessage={context.onMessage}
+      canCreate={context.canCreate('equipmentInspections')}
+      canUpdate={context.canUpdate('equipmentInspections')}
+      canManageAttachments={context.canUpdate('equipmentInspections') && context.canCreate('attachments')}
     />
   ),
   'material-in': (context) => <MaterialInPage onMessage={context.onMessage} />,

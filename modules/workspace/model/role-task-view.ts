@@ -7,6 +7,7 @@ export interface RoleTaskSummary {
   pendingProductionActualCount: number
   pendingQualityInspectionCount: number
   qualityDispositionCount: number
+  dueEquipmentInspectionCount: number
   pendingMaterialInCount: number
   pendingShipmentCount: number
   pendingReturnCount: number
@@ -24,7 +25,7 @@ export interface RoleTaskItem {
 }
 
 export interface RoleTaskSection {
-  key: 'production' | 'quality' | 'warehouse' | 'system'
+  key: 'production' | 'quality' | 'equipment' | 'warehouse' | 'system'
   label: string
   description: string
   items: RoleTaskItem[]
@@ -70,6 +71,11 @@ export function buildRoleTaskSections(summary: RoleTaskSummary, permissions: Per
     items: qualityItems,
   })
   }
+
+  if (canRead(permissions, 'equipmentInspections') && canUpdate(permissions, 'equipmentInspections')) sections.push({
+    key: 'equipment', label: '我的设备任务', description: '按工作中心范围执行已到期的设备点检',
+    items: [{ key: 'equipment-inspection-due', label: '到期点检', description: '逐项记录标准、实测值和异常说明', value: summary.dueEquipmentInspectionCount, tone: 'orange', functionKey: 'equipmentInspections', task: 'equipment-inspection-due' }],
+  })
 
   const warehouse: RoleTaskItem[] = []
   if (canUpdate(permissions, 'materialIn')) warehouse.push({ key: 'material-in', label: '待收货', description: '核对供应商、数量和炉批', value: summary.pendingMaterialInCount, tone: 'yellow', functionKey: 'materialIn', task: 'material-in' })

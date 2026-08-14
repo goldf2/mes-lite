@@ -97,10 +97,11 @@ async function main() {
       pendingProductionActualCount: 4,
       pendingQualityInspectionCount: 5,
       qualityDispositionCount: 6,
-      pendingMaterialInCount: 7,
-      pendingShipmentCount: 8,
-      pendingReturnCount: 9,
-      pendingOperatorCount: 10,
+      dueEquipmentInspectionCount: 7,
+      pendingMaterialInCount: 8,
+      pendingShipmentCount: 9,
+      pendingReturnCount: 10,
+      pendingOperatorCount: 11,
     }
     const executorTasks = buildRoleTaskSections(taskView, await getEffectivePermissionMap(executor)).flatMap((section) => section.items)
     assert.ok(executorTasks.some((item) => item.key === 'production-entry'), '生产执行工作台必须显示可登记实绩订单')

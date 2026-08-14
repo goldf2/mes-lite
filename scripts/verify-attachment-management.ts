@@ -12,6 +12,7 @@ const salesOrderSource = readFileSync(join(root, 'modules/sales/ui/SalesOrderPag
 const detailDialogSource = readFileSync(join(root, 'modules/business-documents/ui/BusinessDocumentDetailDialog.tsx'), 'utf8')
 const attachmentClientSource = readFileSync(join(root, 'modules/attachments/client/attachment-api.ts'), 'utf8')
 const attachmentAuthorizationSource = readFileSync(join(root, 'modules/attachments/server/attachment-authorization-service.ts'), 'utf8')
+const attachmentPolicySource = readFileSync(join(root, 'modules/attachments/domain/attachment-policy.ts'), 'utf8')
 const middlewareSource = readFileSync(join(root, 'middleware.ts'), 'utf8')
 const attachmentRoutePaths = [
   'app/api/attachments/route.ts',
@@ -59,6 +60,8 @@ assert.match(attachmentAuthorizationSource, /hasResourcePermission/, '附件鉴�
 assert.match(attachmentAuthorizationSource, /attachmentOwnerExists/, '附件鉴权必须验证所属业务对象真实存在')
 assert.match(attachmentAuthorizationSource, /loadEffectiveDataScope/, '附件鉴权必须校验所属业务对象的数据范围')
 assert.match(attachmentAuthorizationSource, /uploadedBy !== operator\.id/, '暂存附件必须限制为当前登录人员所有')
+assert.match(attachmentPolicySource, /EQUIPMENT_INSPECTION_RECORD: \{ resource: 'equipmentInspections' \}/, '点检附件必须继承点检资源')
+assert.match(attachmentAuthorizationSource, /equipmentInspectionRecord\.findFirst/, '点检附件必须校验记录和工作中心数据范围')
 assert.match(middlewareSource, /pathname\.startsWith\('\/uploads\/'\)/, '静态上传目录必须禁止绕过附件 API 直接读取')
 assert.match(middlewareSource, /'\/uploads\/:path\*'/, 'Middleware 必须覆盖静态上传目录')
 assert.doesNotMatch(attachmentClientSource, /uploadedBy/, '附件客户端不得提交操作人身份')

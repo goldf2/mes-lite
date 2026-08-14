@@ -64,7 +64,7 @@ export const configurableWorkspaceFunctionKeys = workspaceFunctionKeys.filter((k
 
 const defaultItems: Record<NavigationWorkspaceId, WorkspaceFunctionKey[]> = {
   mes: [
-    'materialManagement', 'bomWorkspace', 'workInstructions', 'equipment',
+    'materialManagement', 'bomWorkspace', 'workInstructions', 'equipment', 'equipmentInspections',
     'orders', 'dispatch', 'flowTransfers', 'qualityTasks', 'employees', 'materialIn', 'stocks', 'stockMovements', 'lotPanorama', 'locationSettings',
     'unitSettings', 'documentCategories', 'workCenters', 'processTemplates', 'processRoutes',
     'sawingCost', 'scanPrint',
