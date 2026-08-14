@@ -4,6 +4,7 @@ import { assertInventoryLocationDataScope, unrestrictedDataScope, type Effective
 import { scrapInventoryLotQuantity, transitionInventoryLotStatus } from '@/modules/inventory'
 import type { DecideQualityInspectionInput, DisposeQualityInspectionInput } from '../contracts/quality-inspection-schema'
 import { QualityInspectionDomainError } from '../domain/quality-inspection-errors'
+import { calculateSuggestedSampleQty } from '../domain/quality-sampling-rules'
 
 const tolerance = 0.000001
 
@@ -47,6 +48,70 @@ async function createDisposition(
   })
 }
 
+async function qualityStandardSnapshot(
+  tx: Prisma.TransactionClient,
+  input: { lotId: string; sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT' | 'RETURN_ORDER'; inspectedQty: number },
+) {
+  const lot = await tx.inventoryLot.findUnique({ where: { id: input.lotId }, select: { materialId: true } })
+  if (!lot) throw new QualityInspectionDomainError('待检批次不存在', 404)
+  const standard = await tx.qualityInspectionStandard.findFirst({
+    where: { materialId: lot.materialId, sourceType: input.sourceType, status: 'RELEASED' },
+    include: { items: { orderBy: { sortOrder: 'asc' } } },
+    orderBy: { releasedAt: 'desc' },
+  })
+  if (!standard) return { suggestedSampleQty: 0 }
+  return {
+    standardId: standard.id,
+    standardCodeSnapshot: standard.code,
+    standardVersionSnapshot: standard.version,
+    standardNameSnapshot: standard.name,
+    samplingModeSnapshot: standard.samplingMode,
+    samplingValueSnapshot: standard.sampleValue,
+    minSampleQtySnapshot: standard.minSampleQty,
+    maxSampleQtySnapshot: standard.maxSampleQty,
+    suggestedSampleQty: calculateSuggestedSampleQty(input.inspectedQty, {
+      mode: standard.samplingMode as 'FULL' | 'FIXED' | 'PERCENTAGE',
+      value: Number(standard.sampleValue), min: standard.minSampleQty == null ? null : Number(standard.minSampleQty), max: standard.maxSampleQty == null ? null : Number(standard.maxSampleQty),
+    }),
+    checkItems: { create: standard.items.map((item) => ({
+      standardItemId: item.id, name: item.name, method: item.method,
+      acceptanceCriteria: item.acceptanceCriteria, sortOrder: item.sortOrder,
+    })) },
+  }
+}
+
+function followUpStandardSnapshot(inspection: {
+  standardId: string | null
+  standardCodeSnapshot: string | null
+  standardVersionSnapshot: number | null
+  standardNameSnapshot: string | null
+  samplingModeSnapshot: string | null
+  samplingValueSnapshot: number | null
+  minSampleQtySnapshot: number | null
+  maxSampleQtySnapshot: number | null
+  checkItems: Array<{ standardItemId: string | null; name: string; method: string; acceptanceCriteria: string; sortOrder: number }>
+}, inspectedQty: number) {
+  if (!inspection.standardId || !inspection.samplingModeSnapshot) return { suggestedSampleQty: 0 }
+  return {
+    standardId: inspection.standardId,
+    standardCodeSnapshot: inspection.standardCodeSnapshot,
+    standardVersionSnapshot: inspection.standardVersionSnapshot,
+    standardNameSnapshot: inspection.standardNameSnapshot,
+    samplingModeSnapshot: inspection.samplingModeSnapshot,
+    samplingValueSnapshot: inspection.samplingValueSnapshot,
+    minSampleQtySnapshot: inspection.minSampleQtySnapshot,
+    maxSampleQtySnapshot: inspection.maxSampleQtySnapshot,
+    suggestedSampleQty: calculateSuggestedSampleQty(inspectedQty, {
+      mode: inspection.samplingModeSnapshot as 'FULL' | 'FIXED' | 'PERCENTAGE',
+      value: Number(inspection.samplingValueSnapshot || 0), min: inspection.minSampleQtySnapshot, max: inspection.maxSampleQtySnapshot,
+    }),
+    checkItems: { create: inspection.checkItems.map((item) => ({
+      standardItemId: item.standardItemId, name: item.name, method: item.method,
+      acceptanceCriteria: item.acceptanceCriteria, sortOrder: item.sortOrder,
+    })) },
+  }
+}
+
 export async function createProductionQualityInspection(
   tx: Prisma.TransactionClient,
   input: {
@@ -56,6 +121,7 @@ export async function createProductionQualityInspection(
     inspectedQty: number
   },
 ) {
+  const snapshot = await qualityStandardSnapshot(tx, { lotId: input.lotId, sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT', inspectedQty: input.inspectedQty })
   return tx.qualityInspection.create({
     data: {
       inspectionNo: input.inspectionNo,
@@ -63,6 +129,7 @@ export async function createProductionQualityInspection(
       sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT',
       sourceId: input.sourceId,
       inspectedQty: input.inspectedQty,
+      ...snapshot,
     },
   })
 }
@@ -76,6 +143,7 @@ export async function createReturnQualityInspection(
     inspectedQty: number
   },
 ) {
+  const snapshot = await qualityStandardSnapshot(tx, { lotId: input.lotId, sourceType: 'RETURN_ORDER', inspectedQty: input.inspectedQty })
   return tx.qualityInspection.create({
     data: {
       inspectionNo: input.inspectionNo,
@@ -83,6 +151,7 @@ export async function createReturnQualityInspection(
       sourceType: 'RETURN_ORDER',
       sourceId: input.sourceId,
       inspectedQty: input.inspectedQty,
+      ...snapshot,
     },
   })
 }
@@ -96,7 +165,7 @@ export async function decideQualityInspection(
   return prisma.$transaction(async (tx) => {
     const inspection = await tx.qualityInspection.findUnique({
       where: { id: inspectionId },
-      include: { lot: { include: { balances: true } } },
+      include: { lot: { include: { balances: true } }, checkItems: { orderBy: { sortOrder: 'asc' } } },
     })
     if (!inspection) throw new QualityInspectionDomainError('质量检验任务不存在', 404)
     assertInventoryLocationDataScope(scope, inspection.lot.balances
@@ -105,6 +174,29 @@ export async function decideQualityInspection(
     if (inspection.status !== 'PENDING') throw new QualityInspectionDomainError('只有待检任务可以执行质量判定')
     if (Number(input.sampleQty) > Number(inspection.inspectedQty) + 0.000001) {
       throw new QualityInspectionDomainError('抽检数量不能大于本批次待检数量')
+    }
+    if (Number(input.sampleQty) + tolerance < Number(inspection.suggestedSampleQty)) {
+      throw new QualityInspectionDomainError(`抽检数量不能低于检验标准建议数量 ${inspection.suggestedSampleQty}`)
+    }
+    const submittedItems = input.itemResults || []
+    if (inspection.checkItems.length > 0) {
+      const submittedById = new Map(submittedItems.map((item) => [item.itemId, item]))
+      if (submittedById.size !== inspection.checkItems.length || inspection.checkItems.some((item) => !submittedById.has(item.id))) {
+        throw new QualityInspectionDomainError('必须逐项提交当前检验标准的全部项目结果')
+      }
+      const hasFailedItem = inspection.checkItems.some((item) => submittedById.get(item.id)?.result === 'FAIL')
+      if (input.decision === 'PASS' && hasFailedItem) throw new QualityInspectionDomainError('整批合格时所有检验项目必须合格')
+      if (input.decision !== 'PASS' && !hasFailedItem) throw new QualityInspectionDomainError('不合格或部分判定必须至少有一个检验项目不合格')
+      const checkedAt = new Date()
+      for (const item of inspection.checkItems) {
+        const result = submittedById.get(item.id)!
+        await tx.qualityInspectionCheckItem.update({ where: { id: item.id }, data: {
+          result: result.result, measuredValue: result.measuredValue?.trim() || null,
+          note: result.note?.trim() || null, checkedAt,
+        } })
+      }
+    } else if (submittedItems.length > 0) {
+      throw new QualityInspectionDomainError('该检验任务没有标准项目，不能提交未知项目结果')
     }
     const quarantine = inspection.lot.balances.find((balance) => (
       balance.inventoryStatus === 'QUARANTINE' && Number(balance.stockQty) > tolerance
@@ -218,7 +310,7 @@ export async function decideQualityInspection(
         checkedAt: new Date(),
         note: input.note,
       },
-      include: { lot: { include: { balances: true } }, dispositions: true },
+      include: { lot: { include: { balances: true } }, dispositions: true, checkItems: { orderBy: { sortOrder: 'asc' } } },
     })
     return { before: inspection, updated, transitions }
   })
@@ -239,7 +331,7 @@ export async function disposeQualityInspection(
 
     const inspection = await tx.qualityInspection.findUnique({
       where: { id: inspectionId },
-      include: { lot: { include: { balances: true } } },
+      include: { lot: { include: { balances: true } }, checkItems: { orderBy: { sortOrder: 'asc' } } },
     })
     if (!inspection) throw new QualityInspectionDomainError('质量检验任务不存在', 404)
     assertInventoryLocationDataScope(scope, inspection.lot.balances
@@ -306,6 +398,7 @@ export async function disposeQualityInspection(
           requestedByDispositionId: disposition.id,
           inspectedQty: input.stockQty,
           note: input.reason,
+          ...followUpStandardSnapshot(inspection, input.stockQty),
         },
       })
     }

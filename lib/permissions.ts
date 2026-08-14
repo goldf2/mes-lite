@@ -35,6 +35,7 @@ export const permissionResources = [
   { key: 'stats', label: '统计分析' },
   { key: 'flowTransfers', label: '流程转移' },
   { key: 'quality', label: '质量任务查看' },
+  { key: 'qualityStandards', label: '质量检验标准' },
   { key: 'qualityDecision', label: '质量判定' },
   { key: 'qualityDisposition', label: '复检、返工与报废处置' },
   { key: 'qualityRelease', label: '让步与解冻放行' },
@@ -72,7 +73,7 @@ export const permissionResources = [
 
 export const permissionResourceSections = [
   { key: 'common', label: '公共入口', resources: ['dashboard', 'aiAssistant', 'attachments'] },
-  { key: 'production', label: '生产、质量与统计', resources: ['orders', 'productionOrderRelease', 'productionActualEntry', 'productionActualConfirm', 'productionActualReverse', 'dispatch', 'flowTransfers', 'stats', 'quality', 'qualityDecision', 'qualityDisposition', 'qualityRelease'] },
+  { key: 'production', label: '生产、质量与统计', resources: ['orders', 'productionOrderRelease', 'productionActualEntry', 'productionActualConfirm', 'productionActualReverse', 'dispatch', 'flowTransfers', 'stats', 'quality', 'qualityStandards', 'qualityDecision', 'qualityDisposition', 'qualityRelease'] },
   { key: 'engineering', label: '物料、工艺与设备', resources: ['materials', 'bom', 'bomCost', 'workInstructions', 'documentCategories', 'equipment', 'equipmentEvents', 'equipmentInspections', 'equipmentMaintenance', 'units', 'workCenters', 'processTemplates', 'processRoutes', 'sawingCost', 'scanPrint'] },
   { key: 'fulfillment', label: '来料、库存与销售', resources: ['materialIn', 'stocks', 'salesOrder', 'shipment', 'return', 'suppliers', 'customers', 'locations'] },
   { key: 'administration', label: '人员、配置与运维', resources: ['employees', 'operators', 'businessSettings', 'displaySettings', 'navigationSettings', 'aiSettings', 'archive', 'auditLogs', 'dataTools', 'permissionUsers', 'permissionGroups'] },
@@ -123,6 +124,7 @@ const operatorDefaults: PermissionMap = {
   stats: readCreateUpdate,
   flowTransfers: readCreateUpdate,
   quality: none,
+  qualityStandards: none,
   qualityDecision: none,
   qualityDisposition: none,
   qualityRelease: none,
@@ -177,6 +179,7 @@ const auditorDefaults: PermissionMap = {
   stats: readCreateUpdate,
   flowTransfers: readCreateUpdate,
   quality: readCreateUpdate,
+  qualityStandards: readCreateUpdate,
   qualityDecision: readCreateUpdate,
   qualityDisposition: readCreateUpdate,
   qualityRelease: readCreateUpdate,
@@ -243,9 +246,9 @@ export const defaultPermissionGroups = [
   { code: 'production_lead', name: '生产管理组', description: '班组长和生产主管发布订单、确认实绩并执行受控冲销。', settings: permissionPreset({ orders: 'RCUA', productionOrderRelease: 'U', productionActualEntry: 'UA', productionActualConfirm: 'U', productionActualReverse: 'U', dispatch: 'RCUA', flowTransfers: 'RCU', stats: 'R', stocks: 'R', employees: 'R', locations: 'R', workCenters: 'R', scanPrint: 'RCU' }) },
   { code: 'warehouse_executor', name: '仓库作业组', description: '仓管员处理来料、收发退、移库、库存和扫码作业。', settings: permissionPreset({ materials: 'R', materialIn: 'RCU', stocks: 'RU', shipment: 'RU', return: 'RU', flowTransfers: 'RCU', locations: 'R', scanPrint: 'RCU' }) },
   { code: 'warehouse_lead', name: '仓库管理组', description: '仓库主管在仓库作业基础上维护库位和受控归档。', settings: permissionPreset({ materials: 'R', materialIn: 'RCUA', stocks: 'RU', shipment: 'RU', return: 'RU', flowTransfers: 'RCU', suppliers: 'R', locations: 'RCUA', scanPrint: 'RCU' }) },
-  { code: 'quality_inspector', name: '质量检验组', description: '质检员查看质量任务并记录客观判定；不自动获得返工报废或授权放行。', settings: permissionPreset({ materials: 'R', workInstructions: 'R', quality: 'R', qualityDecision: 'U', orders: 'R', materialIn: 'RU', stocks: 'R', return: 'R' }) },
-  { code: 'quality_disposition', name: '质量处置组', description: '质量工程师执行复检、返工和报废，不自动获得让步或解冻放行。', settings: permissionPreset({ quality: 'R', qualityDisposition: 'U', orders: 'R', stocks: 'R', return: 'R' }) },
-  { code: 'quality_release', name: '质量授权放行组', description: '质量负责人执行让步与解冻放行，应限制为少量经批准人员。', settings: permissionPreset({ quality: 'R', qualityRelease: 'U', orders: 'R', stocks: 'R', return: 'R' }) },
+  { code: 'quality_inspector', name: '质量检验组', description: '质检员查看质量任务和生效标准并记录客观判定；不自动获得标准变更、返工报废或授权放行。', settings: permissionPreset({ materials: 'R', workInstructions: 'R', quality: 'RU', qualityStandards: 'R', qualityDecision: 'U', orders: 'R', materialIn: 'RU', stocks: 'R', return: 'R', attachments: 'RC' }) },
+  { code: 'quality_disposition', name: '质量处置组', description: '质量工程师维护检验标准并执行复检、返工和报废，不自动获得让步或解冻放行。', settings: permissionPreset({ materials: 'R', quality: 'RU', qualityStandards: 'RCU', qualityDisposition: 'U', orders: 'R', stocks: 'R', return: 'R', attachments: 'RCU' }) },
+  { code: 'quality_release', name: '质量授权放行组', description: '质量负责人读取生效标准并执行让步与解冻放行，应限制为少量经批准人员。', settings: permissionPreset({ quality: 'R', qualityStandards: 'R', qualityRelease: 'U', orders: 'R', stocks: 'R', return: 'R' }) },
   { code: 'process_engineer', name: '工艺技术组', description: '工艺与 BOM 工程师维护物料、BOM、工艺、单位和技术文档。', settings: permissionPreset({ materials: 'RCU', bom: 'RCUA', workInstructions: 'RCU', documentCategories: 'R', units: 'RCUA', workCenters: 'RCUA', processTemplates: 'RCUA', processRoutes: 'RCUA', sawingCost: 'RCU' }) },
   { code: 'production_planner', name: '生产计划组', description: '计划员建立和发布生产订单、安排派工；不确认现场实绩或冲销库存。', settings: permissionPreset({ orders: 'RCUA', productionOrderRelease: 'U', dispatch: 'RCU', flowTransfers: 'R', stats: 'R', materials: 'R', bom: 'R', equipment: 'R', materialIn: 'R', stocks: 'R', salesOrder: 'R', suppliers: 'R', units: 'R', workCenters: 'R', processTemplates: 'R', processRoutes: 'R' }) },
   { code: 'equipment_maintenance', name: '设备维护组', description: '设备管理员维护台账、运行事件、点检、保养维修和备件领用，并管理现场附件。', settings: permissionPreset({ equipment: 'RCUA', equipmentEvents: 'RU', equipmentInspections: 'RCU', equipmentMaintenance: 'RCU', stocks: 'R', locations: 'R', materials: 'R', workCenters: 'R', workInstructions: 'R', attachments: 'RCUA' }) },
@@ -257,6 +260,7 @@ export const defaultPermissionGroups = [
 ] as const
 
 export const permissionResourceLegacySources: Partial<Record<PermissionResource, PermissionResource>> = {
+  qualityStandards: 'quality',
   equipmentEvents: 'equipment',
   equipmentInspections: 'equipmentEvents',
   equipmentMaintenance: 'equipmentInspections',

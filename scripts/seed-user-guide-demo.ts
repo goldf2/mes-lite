@@ -12,6 +12,12 @@ import { confirmProductionOrderActual } from '../modules/production/server/produ
 import { createProductionOrders } from '../modules/production/server/production-order-command-service'
 import { confirmProductionOrder } from '../modules/production/server/production-order-status-service'
 import { decideQualityInspection, disposeQualityInspection } from '../modules/quality/server/quality-inspection-service'
+import {
+  copyQualityInspectionStandard,
+  createQualityInspectionStandard,
+  releaseQualityInspectionStandard,
+  updateQualityInspectionStandard,
+} from '../modules/quality/server/quality-inspection-standard-service'
 import { createManagedReturn, createManagedShipment } from '../modules/sales/server/fulfillment-command-service'
 import { deliverManagedShipment, processManagedReturn, shipManagedShipment } from '../modules/sales/server/fulfillment-status-service'
 import { confirmManagedSalesOrder, createManagedSalesOrder } from '../modules/sales/server/sales-order-command-service'
@@ -168,6 +174,23 @@ async function main() {
   const product = await prisma.product.create({
     data: { sku: 'MAT-FG-BOLT-M8-30', materialId: bolt.id, name: bolt.name, category: bolt.category, customerId: customer.id, unit: '件', description: bolt.spec },
   })
+  const qualityStandardActor = {
+    operatorName: admin.name,
+    auditContext: { operatorId: admin.id, operatorName: admin.name, ipAddress: undefined, userAgent: undefined },
+  }
+  const qualityStandardInput = {
+    code: 'QIS-FG-BOLT-01', name: 'M8×30 成品出厂检验', materialId: bolt.id,
+    sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT' as const,
+    samplingMode: 'PERCENTAGE' as const, sampleValue: 5, minSampleQty: 20, maxSampleQty: 50,
+    changeReason: '作业指导书演示：建立成品入库检验基线',
+    items: [
+      { name: '对边尺寸', method: '数显卡尺抽测', acceptanceCriteria: '13.00 ± 0.15 mm' },
+      { name: '螺纹通止', method: 'M8-6g 通止规全检抽取样本', acceptanceCriteria: '通规顺利、止规不得超过 2 扣' },
+      { name: '外观', method: '自然光下目视检查', acceptanceCriteria: '无裂纹、混料、明显磕伤和锈蚀' },
+    ],
+  }
+  const qualityStandardV1 = await createQualityInspectionStandard(qualityStandardInput, qualityStandardActor)
+  await releaseQualityInspectionStandard(qualityStandardV1.id, qualityStandardActor, fixedNow)
   const route = await prisma.processRoute.create({
     data: {
       productId: product.id,
@@ -295,7 +318,7 @@ async function main() {
     await confirmProductionOrderActual(releasedOrder.first.id, actual.id, admin.name)
     return prisma.productionOrderActual.findUniqueOrThrow({
       where: { id: actual.id },
-      include: { outputs: { where: { isPrimary: true }, include: { inventoryLot: { include: { inspections: true } } } } },
+      include: { outputs: { where: { isPrimary: true }, include: { inventoryLot: { include: { inspections: { include: { checkItems: { orderBy: { sortOrder: 'asc' } } } } } } } } },
     })
   }
 
@@ -322,21 +345,31 @@ async function main() {
   const partialInspection = partialQualityActual.outputs[0]?.inventoryLot?.inspections[0]
   const reworkInspection = reworkQualityActual.outputs[0]?.inventoryLot?.inspections[0]
   if (!passedInspection || !heldInspection || !partialInspection || !reworkInspection) throw new Error('作业指导书质量演示数据生成失败')
+  const itemResults = (inspection: typeof passedInspection, failedName?: string) => inspection.checkItems.map((item) => ({
+    itemId: item.id,
+    result: item.name === failedName ? 'FAIL' as const : 'PASS' as const,
+    measuredValue: item.name === '对边尺寸' ? (failedName === item.name ? '13.28 mm' : '13.02 mm') : item.name === '螺纹通止' ? (failedName === item.name ? '止规进入 4 扣' : '通止正常') : '外观合格',
+    note: item.name === failedName ? '超出接收标准' : null,
+  }))
   await decideQualityInspection(passedInspection.id, {
-    decision: 'PASS', sampleQty: 20, goodQty: 20, badQty: 0, note: '尺寸和外观抽检合格，整批放行',
+    decision: 'PASS', sampleQty: 25, goodQty: 25, badQty: 0, note: '尺寸和外观抽检合格，整批放行', itemResults: itemResults(passedInspection),
   }, inspector.name)
   await decideQualityInspection(heldInspection.id, {
-    decision: 'FAIL', sampleQty: 20, goodQty: 17, badQty: 3, note: '抽检发现头部尺寸超差，整批冻结待处置',
+    decision: 'FAIL', sampleQty: 20, goodQty: 17, badQty: 3, note: '抽检发现头部尺寸超差，整批冻结待处置', itemResults: itemResults(heldInspection, '对边尺寸'),
   }, inspector.name)
   await decideQualityInspection(partialInspection.id, {
-    decision: 'PARTIAL', sampleQty: 20, goodQty: 16, badQty: 4, releaseQty: 160, holdQty: 80, note: '分选后 160 件合格放行，80 件冻结待处置',
+    decision: 'PARTIAL', sampleQty: 20, goodQty: 16, badQty: 4, releaseQty: 160, holdQty: 80, note: '分选后 160 件合格放行，80 件冻结待处置', itemResults: itemResults(partialInspection, '外观'),
   }, inspector.name)
   await decideQualityInspection(reworkInspection.id, {
-    decision: 'FAIL', sampleQty: 20, goodQty: 15, badQty: 5, note: '螺纹通止规抽检不合格，冻结后转返工',
+    decision: 'FAIL', sampleQty: 20, goodQty: 15, badQty: 5, note: '螺纹通止规抽检不合格，冻结后转返工', itemResults: itemResults(reworkInspection, '螺纹通止'),
   }, inspector.name)
   await disposeQualityInspection(reworkInspection.id, {
     operationId: '9f42ff2b-9c13-4e1b-a644-138d37fa17ce', action: 'REWORK_START', stockQty: 100, reason: '返工单 RW-GUIDE-001：重新滚丝',
   }, inspector.name)
+  const qualityStandardV2 = await copyQualityInspectionStandard(qualityStandardV1.id, { changeReason: '作业指导书演示：计划将最低抽样数提高到 30' }, qualityStandardActor)
+  await updateQualityInspectionStandard(qualityStandardV2.id, {
+    ...qualityStandardInput, minSampleQty: 30, changeReason: '作业指导书演示：计划将最低抽样数提高到 30',
+  }, qualityStandardActor)
 
   await createManagedDispatch({
     orderId: releasedOrder.first.id,
@@ -545,6 +578,7 @@ async function main() {
       productionOrders: await prisma.productionOrder.count(),
       inventoryLots: await prisma.inventoryLot.count(),
       qualityInspections: await prisma.qualityInspection.count(),
+      qualityStandards: await prisma.qualityInspectionStandard.count(),
       pendingQualityActual: pendingQualityActual.actualNo,
       traceDraftActual: traceDraftActual.actualNo,
       receivedMaterialIn: receivedMaterialIn.first.inboundNo,

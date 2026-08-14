@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "title": "MES-lite 全流程作业指导书",
   "recommendedSequence": "单位/库位/员工/供应商/客户/工作中心 → 物料 → BOM/工艺路线 → 生产订单/销售订单 → 派工/来料/发货 → 实绩 → 质量判定/处置/复检 → 收货/退货 → 库存与审计复核。",
-  "important": "业务闭环、岗位权限、数据范围、设备运行事件和周期点检已落地；真实 Coolify 已建立固定提交、关闭自动部署、每日一致备份、失败通知和非覆盖恢复候选，生产候选已完成隔离应用级抽查。异地存储、真实 Coolify 挂载切换、Product 到 Material 人工确认和真实岗位审批仍未完成，不能据此承诺完整异地容灾或模型收敛。",
+  "important": "质量标准版本、自动抽样、逐项判定、批次/库存处置、趋势统计、岗位权限、数据范围、设备事件、周期点检和维保已落地；真实 Coolify 已建立固定提交、关闭自动部署、每日一致备份、失败通知和非覆盖恢复候选，生产候选已完成隔离应用级抽查。异地存储、真实 Coolify 挂载切换、Product 到 Material 人工确认、OEE 口径/设备采集接口和真实岗位审批仍未完成，不能据此承诺完整异地容灾、设备绩效或模型收敛。",
   "governanceBoundaries": [
     "质量闭环与岗位动作权限已贯通；正式上线前仍须按企业审批制度配置岗位权限、数据范围并使用真实不合格评审单验收。",
     "供应商、来料、生产投入产出、发货和退货回流已形成可搜索全景；跨工厂或供应商系统集成不在本阶段。",
     "岗位任务、生产命令、本人/工作中心生产范围与库位库存范围已经分层；部门/班组范围尚未独立建模。",
-    "设备开机、停机、故障和恢复已形成事件时间线，周期点检支持完整项目、异常故障联动和现场附件；保养、维修工单、产量采集和 OEE 尚未贯通。",
+    "设备开机、停机、故障和恢复已形成事件时间线，周期点检、保养、维修工单、备件批次成本和现场附件已贯通；真实产量采集与 OEE 口径仍待企业确认。",
     "旧 Product 与 Material 仍需分阶段迁移，禁止继续扩展旧模型写入口。"
   ],
   "chapters": [
@@ -511,6 +511,125 @@
       "id": "05",
       "title": "5. 质量任务与不合格处置",
       "workflows": [
+        {
+          "id": "155-quality-standard-versions",
+          "title": "查看检验标准版本",
+          "objective": "按物料和任务来源查看草稿、已发布和已停用标准。",
+          "steps": [
+            "进入 MES > 生产 > 质量任务。",
+            "点击页内“检验标准”。",
+            "按标准编码、物料或状态搜索。",
+            "展开检验项目，核对方法、接收标准和变更原因。"
+          ],
+          "result": "同一标准编码的多个版本独立显示，只有草稿可编辑。",
+          "pageKey": "qualityTasks",
+          "resource": "qualityStandards",
+          "roles": ["质检员", "质量工程师", "质量主管"],
+          "screenshot": {"baseline": "0.1.372", "file": "159-quality-standard-versions.png"},
+          "lastVerifiedVersion": "0.1.372"
+        },
+        {
+          "id": "156-quality-standard-create",
+          "title": "新建检验标准草稿",
+          "objective": "为物料建立任务来源、抽样规则和完整检验项目。",
+          "steps": [
+            "在检验标准页点击“新建检验标准”。",
+            "填写编码和名称，搜索并选择适用物料。",
+            "选择生产入库或退货入库来源，设置全检、固定数量或比例抽样。",
+            "逐项添加项目名称、检验方法和接收标准。",
+            "填写建立原因并保存草稿。"
+          ],
+          "result": "标准以 v1 草稿建立，发布前可继续编辑。",
+          "pageKey": "qualityTasks",
+          "resource": "qualityStandards",
+          "roles": ["质量工程师"],
+          "screenshot": {"baseline": "0.1.372", "file": "160-quality-standard-create.png"},
+          "lastVerifiedVersion": "0.1.372"
+        },
+        {
+          "id": "157-quality-standard-release",
+          "title": "发布检验标准新版本",
+          "objective": "使新检验任务引用经批准版本，同时保留旧版历史。",
+          "steps": [
+            "在草稿行展开项目并完成发布前复核。",
+            "点击“发布”并确认不可覆盖提示。",
+            "核对新版本显示“已发布”。",
+            "核对同物料同来源的旧发布版本自动显示“已停用”。"
+          ],
+          "result": "同物料同来源始终只有一个生效版本，历史任务快照不受影响。",
+          "pageKey": "qualityTasks",
+          "resource": "qualityStandards",
+          "roles": ["质量工程师"],
+          "screenshot": {"baseline": "0.1.372", "file": "161-quality-standard-release.png"},
+          "lastVerifiedVersion": "0.1.372"
+        },
+        {
+          "id": "158-quality-standard-task",
+          "title": "核对检验任务标准快照",
+          "objective": "确认待检批次自动带入当时生效标准和建议抽样数。",
+          "steps": [
+            "进入“质量任务”并搜索待检批次。",
+            "核对标准编码、版本、名称和建议抽样数。",
+            "展开“检验项目快照”核对任务建立时的接收标准。"
+          ],
+          "result": "任务保留独立快照，后续发布新标准不会改写已建任务。",
+          "pageKey": "qualityTasks",
+          "resource": "quality",
+          "roles": ["质检员", "质量工程师"],
+          "screenshot": {"baseline": "0.1.372", "file": "157-quality-standard-task.png"},
+          "lastVerifiedVersion": "0.1.372"
+        },
+        {
+          "id": "159-quality-standard-decision",
+          "title": "按标准逐项记录检验结果",
+          "objective": "按建议抽样数填写样本结果并完成每个标准项判定。",
+          "steps": [
+            "在待检任务选择合格、不合格或部分判定。",
+            "确认抽检数量不低于标准建议值。",
+            "为每个检验项选择合格或不合格，填写实测值和必要备注。",
+            "填写结论说明并提交。"
+          ],
+          "result": "系统校验抽样下限、全部项目完整性和总判定一致性。",
+          "pageKey": "qualityTasks",
+          "resource": "qualityDecision",
+          "roles": ["质检员"],
+          "screenshot": {"baseline": "0.1.372", "file": "158-quality-standard-decision.png"},
+          "lastVerifiedVersion": "0.1.372"
+        },
+        {
+          "id": "160-quality-inspection-attachment",
+          "title": "上传质量检验凭证",
+          "objective": "把测量报告、现场照片或客户凭证绑定到具体检验单。",
+          "steps": [
+            "在检验任务点击“质量附件”。",
+            "点击“上传文件”并选择 50 MB 以内的凭证。",
+            "上传后核对附件数量和缩略入口。",
+            "点击附件确认可通过受权 API 预览。"
+          ],
+          "result": "附件只对拥有质量任务、附件权限且在授权库位范围内的人员可见。",
+          "pageKey": "qualityTasks",
+          "resource": "quality",
+          "roles": ["质检员", "质量工程师"],
+          "screenshot": {"baseline": "0.1.372", "file": "162-quality-inspection-attachment.png"},
+          "lastVerifiedVersion": "0.1.372"
+        },
+        {
+          "id": "161-quality-trends",
+          "title": "查看质量趋势",
+          "objective": "按日期、物料和来源分析批次与样本质量。",
+          "steps": [
+            "点击页内“质量趋势”。",
+            "选择日期范围，必要时限定物料或任务来源。",
+            "区分批次合格率与样本合格率，不得混用。",
+            "查看日趋势、不合格项目排名和物料质量排名。"
+          ],
+          "result": "统计只包含已完成真实检验，超过 5000 条时明确提示截断。",
+          "pageKey": "qualityTasks",
+          "resource": "quality",
+          "roles": ["质检员", "质量工程师", "质量主管"],
+          "screenshot": {"baseline": "0.1.372", "file": "163-quality-trends.png"},
+          "lastVerifiedVersion": "0.1.372"
+        },
         {
           "id": "89-quality-task-workbench",
           "title": "进入质量任务工作台",

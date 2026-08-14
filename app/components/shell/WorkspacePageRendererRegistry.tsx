@@ -111,7 +111,7 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
   ),
   'stock-movements': (context) => <StockMovementPageModule onMessage={context.onMessage} />,
   'lot-panorama': (context) => <InventoryLotPanoramaPageModule onMessage={context.onMessage} />,
-  'quality-tasks': (context) => <QualityTaskPageModule canDecide={context.canUpdate('qualityDecision')} canDispose={context.canUpdate('qualityDisposition')} canRelease={context.canUpdate('qualityRelease')} onMessage={context.onMessage} />,
+  'quality-tasks': (context) => <QualityTaskPageModule canDecide={context.canUpdate('qualityDecision')} canDispose={context.canUpdate('qualityDisposition')} canRelease={context.canUpdate('qualityRelease')} canReadStandards={context.canRead('qualityStandards')} canCreateStandards={context.canCreate('qualityStandards')} canUpdateStandards={context.canUpdate('qualityStandards')} canReadAttachments={context.canRead('attachments')} canManageAttachments={context.canCreate('attachments') && context.canUpdate('quality')} onMessage={context.onMessage} />,
   materials: (context) => (
     <MaterialPage
       onMessage={context.onMessage}

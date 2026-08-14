@@ -8,6 +8,7 @@ import {
   loadEffectiveDataScope,
   materialReceiptDataScopeWhere,
   productionOrderDataScopeWhere,
+  qualityInspectionDataScopeWhere,
   returnDataScopeWhere,
   shipmentDataScopeWhere,
   type EffectiveDataScope,
@@ -103,6 +104,11 @@ async function attachmentOwnerExists(ownerType: AttachmentOwnerType, ownerId: st
           : { id: '__SELF_SCOPE_HAS_NO_EQUIPMENT_ASSIGNMENT__' }),
       },
       select: { id: true },
+    }))
+  }
+  if (ownerType === 'QUALITY_INSPECTION') {
+    return Boolean(await prisma.qualityInspection.findFirst({
+      where: { id: ownerId, ...qualityInspectionDataScopeWhere(scope) }, select: { id: true },
     }))
   }
   return Boolean(await prisma.flowTransfer.findFirst({

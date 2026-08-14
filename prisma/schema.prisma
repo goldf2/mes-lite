@@ -436,6 +436,7 @@ model Material {
   returnOrders                ReturnOrder[]
   inventoryLots               InventoryLot[]
   maintenanceSpareUsages      EquipmentMaintenanceSpareUsage[]
+  qualityInspectionStandards  QualityInspectionStandard[]
   createdAt                   DateTime                         @default(now())
 }
 
@@ -1358,6 +1359,50 @@ model InventoryLotTransaction {
   @@index([refType, refId])
 }
 
+model QualityInspectionStandard {
+  id              String                          @id @default(cuid())
+  code            String
+  version         Int                             @default(1)
+  name            String
+  materialId      String
+  material        Material                        @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  sourceType      String
+  samplingMode    String
+  sampleValue     Float                           @default(0)
+  minSampleQty    Float?
+  maxSampleQty    Float?
+  status          String                          @default("DRAFT")
+  changeReason    String
+  createdBy       String
+  releasedAt      DateTime?
+  releasedBy      String?
+  obsoleteAt      DateTime?
+  obsoleteBy      String?
+  items           QualityInspectionStandardItem[]
+  inspections     QualityInspection[]
+  createdAt       DateTime                        @default(now())
+  updatedAt       DateTime                        @updatedAt
+
+  @@unique([code, version])
+  @@index([materialId, sourceType, status])
+  @@index([status, updatedAt])
+}
+
+model QualityInspectionStandardItem {
+  id                 String                       @id @default(cuid())
+  standardId         String
+  standard           QualityInspectionStandard    @relation(fields: [standardId], references: [id], onDelete: Restrict)
+  name               String
+  method             String
+  acceptanceCriteria String
+  sortOrder          Int                          @default(0)
+  inspectionItems    QualityInspectionCheckItem[]
+  createdAt          DateTime                     @default(now())
+
+  @@unique([standardId, sortOrder])
+  @@index([standardId])
+}
+
 model QualityInspection {
   id                       String               @id @default(cuid())
   inspectionNo             String               @unique
@@ -1372,6 +1417,17 @@ model QualityInspection {
   requestedByDispositionId String?              @unique
   requestedByDisposition   QualityDisposition?  @relation("QualityDispositionFollowUp", fields: [requestedByDispositionId], references: [id], onDelete: Restrict)
   dispositions             QualityDisposition[] @relation("QualityInspectionDispositions")
+  standardId               String?
+  standard                 QualityInspectionStandard? @relation(fields: [standardId], references: [id], onDelete: Restrict)
+  standardCodeSnapshot     String?
+  standardVersionSnapshot  Int?
+  standardNameSnapshot     String?
+  samplingModeSnapshot     String?
+  samplingValueSnapshot    Float?
+  minSampleQtySnapshot     Float?
+  maxSampleQtySnapshot     Float?
+  suggestedSampleQty       Float                @default(0)
+  checkItems                QualityInspectionCheckItem[]
   status                   String               @default("PENDING")
   result                   String               @default("PENDING")
   inspectedQty             Float                @default(0)
@@ -1388,6 +1444,29 @@ model QualityInspection {
   @@index([status, createdAt])
   @@index([sourceType, sourceId])
   @@index([parentInspectionId, round])
+  @@index([standardId, status])
+}
+
+model QualityInspectionCheckItem {
+  id                         String                         @id @default(cuid())
+  inspectionId               String
+  inspection                 QualityInspection              @relation(fields: [inspectionId], references: [id], onDelete: Restrict)
+  standardItemId             String?
+  standardItem               QualityInspectionStandardItem? @relation(fields: [standardItemId], references: [id], onDelete: Restrict)
+  name                       String
+  method                     String
+  acceptanceCriteria         String
+  sortOrder                  Int                            @default(0)
+  result                     String                         @default("PENDING")
+  measuredValue              String?
+  note                       String?
+  checkedAt                  DateTime?
+  createdAt                  DateTime                       @default(now())
+
+  @@unique([inspectionId, sortOrder])
+  @@index([inspectionId, result])
+  @@index([standardItemId])
+  @@index([name, result])
 }
 
 model QualityDisposition {

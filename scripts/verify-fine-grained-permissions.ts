@@ -62,7 +62,7 @@ async function main() {
     ] })
 
     await permissions.ensureDefaultPermissions()
-    assert.equal(permissions.permissionResources.length, 51, '权限资源应在设备点检后增加独立维保资源，形成 51 个')
+    assert.equal(permissions.permissionResources.length, 52, '权限资源应增加独立检验标准资源，形成 52 个')
 
     const roleMap = await permissions.getRolePermissionMap('OPERATOR')
     assert.deepEqual(roleMap.suppliers, roleMap.system, '旧角色 system 必须继承到供应商资源')
@@ -73,10 +73,11 @@ async function main() {
     assert.deepEqual(roleMap.equipmentEvents, roleMap.equipment, '旧角色设备权限必须继承到设备运行事件')
     assert.deepEqual(roleMap.equipmentInspections, roleMap.equipmentEvents, '旧角色设备事件权限必须继承到设备点检')
     assert.deepEqual(roleMap.equipmentMaintenance, roleMap.equipmentInspections, '旧角色设备点检权限必须继承到设备维保')
+    assert.deepEqual(roleMap.qualityStandards, roleMap.quality, '旧角色质量查看权限必须继承到检验标准')
 
     const groupSettings = await prisma.permissionGroupSetting.findMany({ where: { groupId: customGroup.id } })
     const groupMap = new Map(groupSettings.map((setting) => [setting.resource, setting]))
-    assert.equal(groupSettings.length, 51, '旧自定义组必须补齐全部新资源')
+    assert.equal(groupSettings.length, 52, '旧自定义组必须补齐全部新资源')
     assert.equal(groupMap.get('customers')?.canUpdate, true, '旧自定义组 system.update 必须继承到客户资料')
     assert.equal(groupMap.get('flowTransfers')?.canCreate, true, '旧自定义组 stats.create 必须继承到流程转移')
     assert.equal(groupMap.get('bom')?.canUpdate, true, '旧自定义组 BOM 更新权限必须继承')
@@ -95,6 +96,7 @@ async function main() {
       groupMap.get('equipmentInspections')?.canUpdate,
       '旧自定义组设备点检权限必须继承到设备维保',
     )
+    assert.equal(groupMap.get('qualityStandards')?.canRead, false, '未配置质量资源的旧自定义组不得额外获得检验标准权限')
 
     const builtinSettings = await prisma.permissionGroupSetting.findMany({ where: { groupId: customizedBuiltinGroup.id } })
     const builtinMap = new Map(builtinSettings.map((setting) => [setting.resource, setting]))
@@ -134,7 +136,7 @@ async function main() {
     assert.match(read('modules/business-documents/domain/business-document-definition.ts'), /'flow-transfer': \{ permissionResource: 'flowTransfers'/, '流程转移打印必须继承流程转移资源')
     assert.match(read('modules/bom/ui/BomDraftEditor.tsx'), /fieldset disabled=\{!editable \|\| !canEditCurrent\}/, 'BOM 只读岗位必须禁用两个编辑字段区')
 
-    console.log('细粒度权限迁移验证通过：51 个资源、设备事件/点检/维保命令、旧角色/自定义组/个人例外一次性继承及页面/AI/附件映射均符合契约。')
+    console.log('细粒度权限迁移验证通过：52 个资源、设备事件/点检/维保/检验标准命令、旧角色/自定义组/个人例外一次性继承及页面/AI/附件映射均符合契约。')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

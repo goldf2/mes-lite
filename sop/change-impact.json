@@ -1,6 +1,6 @@
 {
-  "version": "0.1.371",
+  "version": "0.1.372",
   "impact": "updated",
-  "workflowIds": ["149-equipment-maintenance-due-plans", "150-equipment-maintenance-create-plan", "151-equipment-maintenance-create-repair", "152-equipment-maintenance-start-work-order", "153-equipment-maintenance-complete-with-spare", "154-equipment-maintenance-completed-history"],
-  "summary": "新增周期保养、故障维修工单、备件库存/成本/批次原子过账、设备恢复和独立维保权限的完整操作说明。"
+  "workflowIds": ["155-quality-standard-versions", "156-quality-standard-create", "157-quality-standard-release", "158-quality-standard-task", "159-quality-standard-decision", "160-quality-inspection-attachment", "161-quality-trends"],
+  "summary": "新增检验标准版本、发布与自动停用、任务快照、自动抽样、逐项判定、质量附件和趋势分析的完整操作说明。"
 }

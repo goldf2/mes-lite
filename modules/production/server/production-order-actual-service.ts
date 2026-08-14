@@ -47,7 +47,7 @@ const actualInclude = {
       inventoryLot: {
         include: {
           balances: { orderBy: { createdAt: 'asc' as const } },
-          inspections: { orderBy: { createdAt: 'desc' as const } },
+          inspections: { include: { checkItems: { orderBy: { sortOrder: 'asc' as const } } }, orderBy: { createdAt: 'desc' as const } },
           childGenealogies: {
             where: { status: 'ACTIVE' },
             include: {

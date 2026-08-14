@@ -63,11 +63,12 @@ async function main() {
       })
     }
 
-    const [executor, lead, warehouse, quality, planner, maintainer] = await Promise.all([
+    const [executor, lead, warehouse, quality, qualityEngineer, planner, maintainer] = await Promise.all([
       createJobOperator('production_executor'),
       createJobOperator('production_lead'),
       createJobOperator('warehouse_executor'),
       createJobOperator('quality_inspector'),
+      createJobOperator('quality_disposition'),
       createJobOperator('production_planner'),
       createJobOperator('equipment_maintenance'),
     ])
@@ -92,6 +93,11 @@ async function main() {
     assert.equal(await hasResourcePermission(quality, 'qualityDecision', 'update'), true, '质检员可记录质量判定')
     assert.equal(await hasResourcePermission(quality, 'qualityDisposition', 'update'), false, '质检员不自动获得返工报废处置')
     assert.equal(await hasResourcePermission(quality, 'qualityRelease', 'update'), false, '质检员不自动获得授权放行')
+    assert.equal(await hasResourcePermission(quality, 'qualityStandards', 'read'), true, '质检员可读取已发布检验标准')
+    assert.equal(await hasResourcePermission(quality, 'qualityStandards', 'update'), false, '质检员不得修改检验标准')
+    assert.equal(await hasResourcePermission(quality, 'quality', 'update'), true, '质检员可为授权质量任务维护附件')
+    assert.equal(await hasResourcePermission(qualityEngineer, 'qualityStandards', 'create'), true, '质量工程师可创建检验标准版本')
+    assert.equal(await hasResourcePermission(qualityEngineer, 'qualityStandards', 'update'), true, '质量工程师可发布或停用检验标准')
 
     const taskView = {
       draftOrderCount: 2,

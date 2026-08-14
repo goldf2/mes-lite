@@ -178,7 +178,7 @@ export async function listReturns(input: FulfillmentQuery, scope: EffectiveDataS
         inventoryLot: {
           include: {
             balances: { orderBy: { createdAt: 'asc' } },
-            inspections: { orderBy: { createdAt: 'desc' } },
+            inspections: { include: { checkItems: { orderBy: { sortOrder: 'asc' } } }, orderBy: { createdAt: 'desc' } },
           },
         },
         lotAllocations: {
@@ -208,7 +208,7 @@ export async function getReturnDetail(id: string, scope: EffectiveDataScope = un
       product: true,
       shipment: true,
       location: true,
-      inventoryLot: { include: { balances: true, inspections: { orderBy: { createdAt: 'desc' } } } },
+      inventoryLot: { include: { balances: true, inspections: { include: { checkItems: { orderBy: { sortOrder: 'asc' } } }, orderBy: { createdAt: 'desc' } } } },
       lotAllocations: { include: { shipmentAllocation: { include: { lot: true, location: true } } } },
     },
   })

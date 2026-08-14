@@ -844,3 +844,10 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 页面、组件和 UI Hook 不得直接调用 `fetch`。HTTP 请求只允许出现在 `modules/<domain>/client` 或明确的服务端 Provider 适配层；生产实绩、配置排序、身份、AI 助手和工作区导航均已补齐 client。
 - `verify:structural-goal` 固定最终结构底线：114 条 Route Handler 直连 Prisma 为 0、UI 直接请求为 0、超 800 行页面为 0、超 300 行路由为 0，所有模块必须存在公开入口，且 Tailwind 必须覆盖模块 UI 源码。
 - 39 个注册页面继续强制公共顶部工具栏，并由 6 类公共骨架承载；领域组件迁移后仍由同一套 Tailwind 配置生成样式，不能因目录变化出现无样式或空白状态。
+
+## 69. v0.1.372 质量标准、抽样与趋势扩展
+
+- 标准输入、版本/趋势契约、抽样纯规则、查询与生命周期服务统一归 `modules/quality`；6 条新增 Route Handler 只负责会话、细粒度权限、Schema、领域服务和 HTTP 错误映射，不直接访问 Prisma。
+- 生产与销售领域只通过 `modules/quality` 公开入口创建带标准快照的待检任务；质量附件只通过 `modules/attachments` 公开入口与公共 `AttachmentPanel` 接入，不从质量模块导入其他领域的 `server` 子路径。
+- 质量任务页面保留专用事务工作区，因为标准版本、逐项判定、库存处置和趋势不是普通 CRUD；外围继续复用 `ModalDialog`、`ManyToOneRelationField`、`AttachmentPanel`、公共按钮和工作区渲染注册表。
+- `verify:quality-inspection-standards` 与 `verify:quality-inspection-standards-http` 使用运行后删除的临时完整 SQLite，覆盖 80 个迁移、标准不可变、自动抽样、任务快照、逐项结果、趋势与真实 HTTP 权限边界。

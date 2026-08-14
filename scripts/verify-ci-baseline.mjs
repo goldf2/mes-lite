@@ -22,6 +22,8 @@ const checks = [
   'verify:inventory-lot-genealogy',
   'verify:shipment-return-lots',
   'verify:quality-dispositions',
+  'verify:quality-inspection-standards',
+  'verify:quality-inspection-standards-http',
   'verify:runtime-operations',
   'verify:attachment-storage',
   'verify:production-database-audit',

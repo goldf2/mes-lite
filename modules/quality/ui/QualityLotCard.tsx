@@ -4,6 +4,7 @@ import { useState } from 'react'
 import AppButton from '@/app/components/AppButton'
 import { appInputClassName, appTextareaClassName } from '@/app/components/FormField'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
+import { AttachmentPanel } from '@/modules/attachments'
 import { InventoryLotTraceDialog } from '@/modules/inventory'
 import { decideQualityInspection, disposeQualityInspection } from '../client/quality-inspection-api'
 import { selectPrimaryQualityBalance } from '../domain/quality-balance-selection'
@@ -32,6 +33,24 @@ export type QualityLotView = {
     checkedAt?: string | null
     note?: string | null
     round?: number
+    standardCodeSnapshot?: string | null
+    standardVersionSnapshot?: number | null
+    standardNameSnapshot?: string | null
+    samplingModeSnapshot?: string | null
+    samplingValueSnapshot?: number | null
+    minSampleQtySnapshot?: number | null
+    maxSampleQtySnapshot?: number | null
+    suggestedSampleQty?: number
+    checkItems?: Array<{
+      id: string
+      name: string
+      method: string
+      acceptanceCriteria: string
+      sortOrder: number
+      result: string
+      measuredValue?: string | null
+      note?: string | null
+    }>
     dispositions?: Array<{
       id: string
       dispositionNo: string
@@ -100,6 +119,8 @@ export default function QualityLotCard({
   canDecide,
   canDispose = false,
   canRelease = false,
+  canReadAttachments = false,
+  canManageAttachments = false,
   onChanged,
   onMessage,
 }: {
@@ -107,6 +128,8 @@ export default function QualityLotCard({
   canDecide: boolean
   canDispose?: boolean
   canRelease?: boolean
+  canReadAttachments?: boolean
+  canManageAttachments?: boolean
   onChanged: () => void | Promise<void>
   onMessage: (message: string) => void
 }) {
@@ -122,6 +145,8 @@ export default function QualityLotCard({
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [traceOpen, setTraceOpen] = useState(false)
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false)
+  const [itemResults, setItemResults] = useState<Record<string, { result: 'PASS' | 'FAIL'; measuredValue: string; note: string }>>({})
   const inspection = lot.inspections[0]
   const positiveBalances = lot.balances.filter((item) => Number(item.stockQty) > 0.000001)
   const balance = selectPrimaryQualityBalance(lot.balances, inspection?.status)
@@ -132,14 +157,18 @@ export default function QualityLotCard({
 
   const openDecision = (nextDecision: 'PASS' | 'FAIL' | 'PARTIAL') => {
     if (!inspection) return onMessage('该批次没有质量检验任务')
-    const defaultSample = Number(inspection.inspectedQty)
+    const defaultSample = Number(inspection.suggestedSampleQty || inspection.inspectedQty)
+    const defaultBad = nextDecision === 'PASS' ? 0 : nextDecision === 'FAIL' ? defaultSample : defaultSample > 1 ? 1 : defaultSample / 2
     setDecision(nextDecision)
     setSampleQty(defaultSample)
-    setGoodQty(nextDecision === 'FAIL' ? 0 : defaultSample)
-    setBadQty(nextDecision === 'PASS' ? 0 : nextDecision === 'FAIL' ? defaultSample : 0)
+    setGoodQty(nextDecision === 'FAIL' ? 0 : defaultSample - defaultBad)
+    setBadQty(defaultBad)
     setReleaseQty(Number(balance?.stockQty || inspection.inspectedQty))
     setHoldQty(0)
     setNote(nextDecision === 'PASS' ? '抽检合格，整批放行' : '')
+    setItemResults(Object.fromEntries((inspection.checkItems || []).map((item, index) => [item.id, {
+      result: nextDecision === 'PASS' || index > 0 ? 'PASS' : 'FAIL', measuredValue: item.measuredValue || '', note: item.note || '',
+    }])))
   }
 
   const submit = async () => {
@@ -150,6 +179,10 @@ export default function QualityLotCard({
         decision, sampleQty: Number(sampleQty), goodQty: Number(goodQty), badQty: Number(badQty),
         releaseQty: decision === 'PARTIAL' ? Number(releaseQty) : undefined,
         holdQty: decision === 'PARTIAL' ? Number(holdQty) : undefined,
+        itemResults: (inspection.checkItems || []).map((item) => ({
+          itemId: item.id, result: itemResults[item.id]?.result,
+          measuredValue: itemResults[item.id]?.measuredValue || null, note: itemResults[item.id]?.note || null,
+        })),
         note,
       })
       onMessage(payload.message || (decision === 'PASS' ? '整批库存已放行' : '整批库存已冻结'))
@@ -199,6 +232,7 @@ export default function QualityLotCard({
         </div>
         <div className="flex flex-wrap gap-2">
           <AppButton size="sm" variant="secondary" onClick={() => setTraceOpen(true)}>查看谱系</AppButton>
+          {canReadAttachments && <AppButton size="sm" variant="secondary" onClick={() => setAttachmentsOpen((current) => !current)}>质量附件</AppButton>}
           {canDecide && inspection?.status === 'PENDING' && balance?.inventoryStatus === 'QUARANTINE' && (<>
             <AppButton size="sm" variant="primary" onClick={() => openDecision('PASS')} disabled={saving}>合格放行</AppButton>
             <AppButton size="sm" variant="danger" onClick={() => openDecision('FAIL')} disabled={saving}>不合格冻结</AppButton>
@@ -217,6 +251,8 @@ export default function QualityLotCard({
         </div>
       </div>
       <div className="mt-1">{positiveBalances.map((item) => `${statusMeta[item.inventoryStatus as keyof typeof statusMeta]?.label || item.inventoryStatus} ${numberText(item.stockQty)}`).join(' · ') || '无在库余额'} · 检验单 {inspection?.inspectionNo || '-'}{inspection?.round ? ` · 第 ${inspection.round} 轮` : ''}</div>
+      {inspection?.standardCodeSnapshot && <div className="mt-2 rounded border border-blue-100 bg-blue-50 px-2 py-1.5 text-blue-800"><span className="font-medium">标准 {inspection.standardCodeSnapshot} v{inspection.standardVersionSnapshot} · {inspection.standardNameSnapshot}</span><span className="ml-2">建议抽样 {numberText(Number(inspection.suggestedSampleQty || 0))}</span>{(inspection.checkItems?.length || 0) > 0 && <span className="ml-2">{inspection.checkItems!.length} 项</span>}</div>}
+      {(inspection?.checkItems?.length || 0) > 0 && <details className="mt-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5"><summary className="cursor-pointer font-medium text-slate-700">检验项目快照 · {inspection!.checkItems!.length} 项</summary><div className="mt-2 space-y-1.5">{inspection!.checkItems!.map((item, index) => <div key={item.id} className="rounded bg-white px-2 py-1.5"><div className="flex flex-wrap justify-between gap-2"><span className="font-medium text-gray-800">{index + 1}. {item.name}</span><span className={item.result === 'FAIL' ? 'text-red-600' : item.result === 'PASS' ? 'text-emerald-600' : 'text-gray-400'}>{item.result === 'FAIL' ? '不合格' : item.result === 'PASS' ? '合格' : '待检'}</span></div><div className="mt-0.5 text-gray-500">{item.method} · {item.acceptanceCriteria}</div>{item.measuredValue && <div className="mt-0.5 text-gray-600">实测：{item.measuredValue}{item.note ? ` · ${item.note}` : ''}</div>}</div>)}</div></details>}
       {inspection?.status === 'COMPLETED' && (
         <div className="mt-1 text-gray-500">
           判定 {inspection.result === 'PASS' ? '合格' : inspection.result === 'FAIL' ? '不合格' : '部分放行'} · 抽检 {numberText(inspection.sampleQty)} · 合格 {numberText(inspection.goodQty)} · 不合格 {numberText(inspection.badQty)} · {inspection.inspector || '未知检验员'}
@@ -254,6 +290,7 @@ export default function QualityLotCard({
           </div>
         </details>
       )}
+      {attachmentsOpen && inspection && <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3"><AttachmentPanel ownerType="QUALITY_INSPECTION" ownerId={inspection.id} title="质量检验附件" compact onMessage={onMessage} readOnly={!canManageAttachments} /></div>}
 
       {decision && inspection && (
         <ModalDialog
@@ -270,6 +307,8 @@ export default function QualityLotCard({
             <label className="block text-xs font-medium text-gray-700">不合格数量<input type="number" min="0" step="0.000001" value={badQty} onChange={(event) => setBadQty(Number(event.target.value))} className={`${appInputClassName} mt-1`} /></label>
           </div>
           <p className="mt-3 text-xs text-gray-500">合格数量与不合格数量之和必须等于抽检数量；整批合格时不合格样本必须为 0。</p>
+          {inspection.suggestedSampleQty ? <p className="mt-2 rounded bg-blue-50 px-3 py-2 text-xs text-blue-700">当前标准建议至少抽检 {numberText(inspection.suggestedSampleQty)}，系统不允许低于该数量提交。</p> : null}
+          {(inspection.checkItems?.length || 0) > 0 && <section className="mt-4 space-y-3"><div className="font-medium text-gray-800">逐项检验结果</div>{inspection.checkItems!.map((item, index) => { const current = itemResults[item.id]; return <div key={item.id} className="rounded-lg border border-gray-200 bg-slate-50 p-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-sm font-medium text-gray-900">{index + 1}. {item.name}</div><div className="mt-1 text-xs text-gray-500">{item.method} · {item.acceptanceCriteria}</div></div><div className="flex gap-2"><AppButton size="sm" variant={current?.result === 'PASS' ? 'create' : 'secondary'} onClick={() => setItemResults({ ...itemResults, [item.id]: { ...current, result: 'PASS', measuredValue: current?.measuredValue || '', note: current?.note || '' } })}>合格</AppButton><AppButton size="sm" variant={current?.result === 'FAIL' ? 'danger' : 'secondary'} onClick={() => setItemResults({ ...itemResults, [item.id]: { ...current, result: 'FAIL', measuredValue: current?.measuredValue || '', note: current?.note || '' } })}>不合格</AppButton></div></div><div className="mt-3 grid gap-2 sm:grid-cols-2"><input value={current?.measuredValue || ''} onChange={(event) => setItemResults({ ...itemResults, [item.id]: { result: current?.result || 'PASS', measuredValue: event.target.value, note: current?.note || '' } })} className={appInputClassName} placeholder="实测值或观察结果" /><input value={current?.note || ''} onChange={(event) => setItemResults({ ...itemResults, [item.id]: { result: current?.result || 'PASS', measuredValue: current?.measuredValue || '', note: event.target.value } })} className={appInputClassName} placeholder="项目备注（可选）" /></div></div> })}</section>}
           {decision === 'PARTIAL' && <div className="mt-3 grid grid-cols-2 gap-3">
             <label className="block text-xs font-medium text-gray-700">放行数量<input type="number" min="0.000001" step="0.000001" value={releaseQty} onChange={(event) => setReleaseQty(Number(event.target.value))} className={`${appInputClassName} mt-1`} /></label>
             <label className="block text-xs font-medium text-gray-700">冻结数量<input type="number" min="0.000001" step="0.000001" value={holdQty} onChange={(event) => setHoldQty(Number(event.target.value))} className={`${appInputClassName} mt-1`} /></label>

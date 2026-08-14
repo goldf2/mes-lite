@@ -17,6 +17,24 @@ export interface QualityTaskItem {
   checkedAt: string | null
   note: string | null
   createdAt: string
+  standardCodeSnapshot: string | null
+  standardVersionSnapshot: number | null
+  standardNameSnapshot: string | null
+  samplingModeSnapshot: string | null
+  samplingValueSnapshot: number | null
+  minSampleQtySnapshot: number | null
+  maxSampleQtySnapshot: number | null
+  suggestedSampleQty: number
+  checkItems: Array<{
+    id: string
+    name: string
+    method: string
+    acceptanceCriteria: string
+    sortOrder: number
+    result: string
+    measuredValue: string | null
+    note: string | null
+  }>
   dispositions: Array<{
     id: string
     dispositionNo: string

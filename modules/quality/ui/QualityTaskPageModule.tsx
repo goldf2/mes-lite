@@ -9,6 +9,8 @@ import TopBarPortal from '@/app/components/TopBarPortal'
 import { loadQualityTasks } from '../client/quality-inspection-api'
 import type { QualityTaskFilter, QualityTaskWorkspace } from '../contracts/quality-task'
 import QualityLotCard from './QualityLotCard'
+import QualityInspectionStandardsPanel from './QualityInspectionStandardsPanel'
+import QualityTrendPanel from './QualityTrendPanel'
 
 const emptyWorkspace: QualityTaskWorkspace = { items: [], counts: { pending: 0, disposition: 0 } }
 
@@ -17,12 +19,23 @@ function readInitialFilter(): QualityTaskFilter {
   return new URL(window.location.href).searchParams.get('task') === 'quality-disposition' ? 'DISPOSITION' : 'PENDING'
 }
 
-export default function QualityTaskPageModule({ canDecide, canDispose, canRelease, onMessage }: {
+type QualityWorkspaceView = 'TASKS' | 'STANDARDS' | 'TRENDS'
+
+export default function QualityTaskPageModule({
+  canDecide, canDispose, canRelease, canReadStandards, canCreateStandards, canUpdateStandards,
+  canReadAttachments, canManageAttachments, onMessage,
+}: {
   canDecide: boolean
   canDispose: boolean
   canRelease: boolean
+  canReadStandards: boolean
+  canCreateStandards: boolean
+  canUpdateStandards: boolean
+  canReadAttachments: boolean
+  canManageAttachments: boolean
   onMessage: (message: string) => void
 }) {
+  const [view, setView] = useState<QualityWorkspaceView>('TASKS')
   const [workspace, setWorkspace] = useState(emptyWorkspace)
   const [filter, setFilter] = useState<QualityTaskFilter>(readInitialFilter)
   const [keyword, setKeyword] = useState('')
@@ -45,10 +58,16 @@ export default function QualityTaskPageModule({ canDecide, canDispose, canReleas
 
   return (
     <>
-      <TopBarPortal>
+      {view === 'TASKS' && <TopBarPortal>
         <ResponsiveToolbarActions primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.qualityTasks" value={keyword} onChange={setKeyword} placeholder="搜索检验单、批次、物料或来源单据" />} />
-      </TopBarPortal>
+      </TopBarPortal>}
       <section className="rounded-lg bg-white p-3 shadow sm:p-6">
+      <div className="mb-5 flex flex-wrap gap-2 border-b border-gray-200 pb-3">
+        <AppButton size="sm" variant={view === 'TASKS' ? 'primary' : 'secondary'} onClick={() => setView('TASKS')}>质量任务</AppButton>
+        {canReadStandards && <AppButton size="sm" variant={view === 'STANDARDS' ? 'primary' : 'secondary'} onClick={() => setView('STANDARDS')}>检验标准</AppButton>}
+        <AppButton size="sm" variant={view === 'TRENDS' ? 'primary' : 'secondary'} onClick={() => setView('TRENDS')}>质量趋势</AppButton>
+      </div>
+      {view === 'STANDARDS' ? <QualityInspectionStandardsPanel canCreate={canCreateStandards} canUpdate={canUpdateStandards} onMessage={onMessage} /> : view === 'TRENDS' ? <QualityTrendPanel canReadStandards={canReadStandards} onMessage={onMessage} /> : <>
       <div><h2 className="text-lg font-semibold text-gray-900">质量任务工作台</h2><p className="mt-1 text-sm text-gray-500">按车间任务处理待检、冻结和返工批次；每次判定与处置均保留独立追溯记录。</p></div>
       <div className="mt-4 flex flex-wrap gap-2">
         {([
@@ -66,10 +85,10 @@ export default function QualityTaskPageModule({ canDecide, canDispose, canReleas
         ) : <div className="space-y-3">{workspace.items.map((item) => (
           <div key={item.id} className="rounded-lg border border-gray-200 bg-slate-50 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><div><span className="font-medium text-gray-900">{item.lot.material.code} · {item.lot.material.name}</span><span className="ml-2 text-gray-500">来源 {item.sourceType} / {item.sourceId}</span></div><span className="text-gray-500">创建 {new Date(item.createdAt).toLocaleString('zh-CN')}</span></div>
-            <QualityLotCard lot={{ ...item.lot, inspections: [item] }} canDecide={canDecide} canDispose={canDispose} canRelease={canRelease} onChanged={load} onMessage={onMessage} />
+            <QualityLotCard lot={{ ...item.lot, inspections: [item] }} canDecide={canDecide} canDispose={canDispose} canRelease={canRelease} canReadAttachments={canReadAttachments} canManageAttachments={canManageAttachments} onChanged={load} onMessage={onMessage} />
           </div>
         ))}</div>}
-      </div>
+      </div></>}
       </section>
     </>
   )

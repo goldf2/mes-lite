@@ -7,6 +7,12 @@ export const decideQualityInspectionSchema = z.object({
   badQty: z.number().finite().min(0, '不合格数量不能为负数'),
   releaseQty: z.number().finite().positive('放行数量必须大于 0').optional(),
   holdQty: z.number().finite().positive('冻结数量必须大于 0').optional(),
+  itemResults: z.array(z.object({
+    itemId: z.string().trim().min(1, '检验项目标识不能为空'),
+    result: z.enum(['PASS', 'FAIL']),
+    measuredValue: z.string().trim().max(200, '实测值不能超过 200 字').nullable().optional(),
+    note: z.string().trim().max(300, '项目备注不能超过 300 字').nullable().optional(),
+  })).max(50, '最多提交 50 个检验项目结果').optional(),
   note: z.string().trim().min(1, '请填写检验结论说明').max(500, '检验结论说明不能超过 500 字'),
 }).superRefine((input, context) => {
   if (Math.abs(input.goodQty + input.badQty - input.sampleQty) > 0.000001) {

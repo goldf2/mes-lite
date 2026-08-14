@@ -27,6 +27,7 @@ export async function listQualityTaskWorkspace(input: { keyword?: string; filter
     prisma.qualityInspection.findMany({
       where,
       include: {
+        checkItems: { orderBy: { sortOrder: 'asc' } },
         dispositions: { orderBy: { performedAt: 'desc' } },
         lot: { include: {
           material: { select: { id: true, code: true, name: true, stockUnit: true } },
