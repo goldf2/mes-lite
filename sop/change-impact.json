@@ -1,6 +1,6 @@
 {
-  "version": "0.1.370",
+  "version": "0.1.371",
   "impact": "updated",
-  "workflowIds": ["139-sop-help-center", "140-context-help-drawer", "145-equipment-inspection-due-tasks", "146-equipment-inspection-create-plan", "147-equipment-inspection-complete", "148-equipment-inspection-abnormal-history"],
-  "summary": "新增周期设备点检、异常故障联动、现场附件和独立点检权限；快捷帮助与完整帮助均可在新页面全屏查看。"
+  "workflowIds": ["149-equipment-maintenance-due-plans", "150-equipment-maintenance-create-plan", "151-equipment-maintenance-create-repair", "152-equipment-maintenance-start-work-order", "153-equipment-maintenance-complete-with-spare", "154-equipment-maintenance-completed-history"],
+  "summary": "新增周期保养、故障维修工单、备件库存/成本/批次原子过账、设备恢复和独立维保权限的完整操作说明。"
 }

@@ -38,6 +38,7 @@ async function main() {
       'quality_disposition',
       'quality_release',
       'production_planner',
+      'equipment_maintenance',
       'system_admin',
     ]
     const groups = await prisma.permissionGroup.findMany({
@@ -62,12 +63,13 @@ async function main() {
       })
     }
 
-    const [executor, lead, warehouse, quality, planner] = await Promise.all([
+    const [executor, lead, warehouse, quality, planner, maintainer] = await Promise.all([
       createJobOperator('production_executor'),
       createJobOperator('production_lead'),
       createJobOperator('warehouse_executor'),
       createJobOperator('quality_inspector'),
       createJobOperator('production_planner'),
+      createJobOperator('equipment_maintenance'),
     ])
 
     assert.equal(await hasResourcePermission(executor, 'orders', 'update'), false, '生产执行人员不获得订单通用更新')
@@ -98,6 +100,8 @@ async function main() {
       pendingQualityInspectionCount: 5,
       qualityDispositionCount: 6,
       dueEquipmentInspectionCount: 7,
+      dueEquipmentMaintenanceCount: 12,
+      openEquipmentMaintenanceCount: 13,
       pendingMaterialInCount: 8,
       pendingShipmentCount: 9,
       pendingReturnCount: 10,
@@ -118,6 +122,10 @@ async function main() {
     const qualityTasks = buildRoleTaskSections(taskView, await getEffectivePermissionMap(quality)).flatMap((section) => section.items)
     assert.ok(qualityTasks.some((item) => item.key === 'quality-pending' && item.value === 5), '质量工作台必须显示待检任务')
     assert.ok(!qualityTasks.some((item) => item.key === 'quality-disposition'), '质检员工作台不得显示未授权处置待办')
+
+    const maintenanceTasks = buildRoleTaskSections(taskView, await getEffectivePermissionMap(maintainer)).flatMap((section) => section.items)
+    assert.ok(maintenanceTasks.some((item) => item.key === 'equipment-maintenance-due' && item.value === 12), '设备维护工作台必须显示到期保养')
+    assert.ok(maintenanceTasks.some((item) => item.key === 'equipment-maintenance-open' && item.value === 13), '设备维护工作台必须显示待办维保工单')
 
     assert.match(read('app/api/orders/[id]/confirm/route.ts'), /requireResourcePermission\('productionOrderRelease', 'update'\)/, '订单发布 API 必须使用独立权限')
     assert.match(read('app/api/orders/[id]/actuals/route.ts'), /requireResourcePermission\('productionActualEntry', 'update'\)/, '实绩登记 API 必须使用独立权限')

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const equipmentEventActionValues = ['START', 'STOP', 'FAULT', 'RECOVER'] as const
+export const equipmentEventActionValues = ['START', 'STOP', 'FAULT', 'MAINTAIN', 'RECOVER'] as const
 
 export const equipmentEventCommandSchema = z.object({
   action: z.enum(equipmentEventActionValues),

@@ -8,6 +8,8 @@ export interface RoleTaskSummary {
   pendingQualityInspectionCount: number
   qualityDispositionCount: number
   dueEquipmentInspectionCount: number
+  dueEquipmentMaintenanceCount: number
+  openEquipmentMaintenanceCount: number
   pendingMaterialInCount: number
   pendingShipmentCount: number
   pendingReturnCount: number
@@ -72,9 +74,16 @@ export function buildRoleTaskSections(summary: RoleTaskSummary, permissions: Per
   })
   }
 
-  if (canRead(permissions, 'equipmentInspections') && canUpdate(permissions, 'equipmentInspections')) sections.push({
-    key: 'equipment', label: '我的设备任务', description: '按工作中心范围执行已到期的设备点检',
-    items: [{ key: 'equipment-inspection-due', label: '到期点检', description: '逐项记录标准、实测值和异常说明', value: summary.dueEquipmentInspectionCount, tone: 'orange', functionKey: 'equipmentInspections', task: 'equipment-inspection-due' }],
+  const equipmentItems: RoleTaskItem[] = []
+  if (canRead(permissions, 'equipmentInspections') && canUpdate(permissions, 'equipmentInspections')) equipmentItems.push(
+    { key: 'equipment-inspection-due', label: '到期点检', description: '逐项记录标准、实测值和异常说明', value: summary.dueEquipmentInspectionCount, tone: 'orange', functionKey: 'equipmentInspections', task: 'equipment-inspection-due' },
+  )
+  if (canRead(permissions, 'equipmentMaintenance') && canUpdate(permissions, 'equipmentMaintenance')) equipmentItems.push(
+    { key: 'equipment-maintenance-due', label: '到期保养', description: '生成保养工单并逐项执行', value: summary.dueEquipmentMaintenanceCount, tone: 'yellow', functionKey: 'equipmentMaintenance', task: 'equipment-maintenance-due' },
+    { key: 'equipment-maintenance-open', label: '维保工单', description: '开始或完成设备维修和备件领用', value: summary.openEquipmentMaintenanceCount, tone: 'red', functionKey: 'equipmentMaintenance', task: 'equipment-maintenance-open' },
+  )
+  if (equipmentItems.length > 0) sections.push({
+    key: 'equipment', label: '我的设备任务', description: '按工作中心范围处理点检、保养和维修任务', items: equipmentItems,
   })
 
   const warehouse: RoleTaskItem[] = []

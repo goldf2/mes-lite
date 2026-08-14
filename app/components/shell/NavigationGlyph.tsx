@@ -7,6 +7,7 @@ const navigationGlyphs: Record<string, string> = {
   workInstructions: '书',
   equipment: '机',
   equipmentInspections: '检',
+  equipmentMaintenance: '修',
   materialIn: '入',
   dispatch: '派',
   stocks: '库',

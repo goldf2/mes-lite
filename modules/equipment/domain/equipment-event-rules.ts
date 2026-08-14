@@ -5,6 +5,7 @@ const transitions: Record<EquipmentEventAction, Partial<Record<string, string>>>
   START: { AVAILABLE: 'IN_USE' },
   STOP: { AVAILABLE: 'STOPPED', IN_USE: 'STOPPED' },
   FAULT: { AVAILABLE: 'FAULT', IN_USE: 'FAULT' },
+  MAINTAIN: { AVAILABLE: 'MAINTENANCE', IN_USE: 'MAINTENANCE', STOPPED: 'MAINTENANCE', FAULT: 'MAINTENANCE' },
   RECOVER: { STOPPED: 'AVAILABLE', FAULT: 'AVAILABLE', MAINTENANCE: 'AVAILABLE' },
 }
 
@@ -12,6 +13,7 @@ export const equipmentEventActionLabels: Record<EquipmentEventAction, string> = 
   START: '开始运行',
   STOP: '停机',
   FAULT: '报告故障',
+  MAINTAIN: '进入维修',
   RECOVER: '恢复可用',
 }
 

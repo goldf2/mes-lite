@@ -10,6 +10,8 @@ const checks = [
   'verify:equipment-events-http',
   'verify:equipment-inspections',
   'verify:equipment-inspections-http',
+  'verify:equipment-maintenance',
+  'verify:equipment-maintenance-http',
   'verify:permissions',
   'verify:role-task-http-permissions',
   'verify:fine-grained-http-permissions',

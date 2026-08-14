@@ -62,6 +62,8 @@ assert.match(attachmentAuthorizationSource, /loadEffectiveDataScope/, '附件鉴
 assert.match(attachmentAuthorizationSource, /uploadedBy !== operator\.id/, '暂存附件必须限制为当前登录人员所有')
 assert.match(attachmentPolicySource, /EQUIPMENT_INSPECTION_RECORD: \{ resource: 'equipmentInspections' \}/, '点检附件必须继承点检资源')
 assert.match(attachmentAuthorizationSource, /equipmentInspectionRecord\.findFirst/, '点检附件必须校验记录和工作中心数据范围')
+assert.match(attachmentPolicySource, /EQUIPMENT_MAINTENANCE_WORK_ORDER: \{ resource: 'equipmentMaintenance' \}/, '维保附件必须继承设备维保资源')
+assert.match(attachmentAuthorizationSource, /equipmentMaintenanceWorkOrder\.findFirst/, '维保附件必须校验工单和工作中心数据范围')
 assert.match(middlewareSource, /pathname\.startsWith\('\/uploads\/'\)/, '静态上传目录必须禁止绕过附件 API 直接读取')
 assert.match(middlewareSource, /'\/uploads\/:path\*'/, 'Middleware 必须覆盖静态上传目录')
 assert.doesNotMatch(attachmentClientSource, /uploadedBy/, '附件客户端不得提交操作人身份')

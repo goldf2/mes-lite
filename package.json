@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.370",
+  "version": "0.1.371",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -106,6 +106,8 @@
     "verify:equipment-events-http": "tsx scripts/verify-equipment-events-http.ts",
     "verify:equipment-inspections": "tsx scripts/verify-equipment-inspections.ts",
     "verify:equipment-inspections-http": "tsx scripts/verify-equipment-inspections-http.ts",
+    "verify:equipment-maintenance": "tsx scripts/verify-equipment-maintenance.ts",
+    "verify:equipment-maintenance-http": "tsx scripts/verify-equipment-maintenance-http.ts",
     "verify:sop-fullscreen-help": "tsx scripts/verify-sop-fullscreen-help.ts",
     "verify:bom-ratio": "tsx scripts/verify-bom-ratio.ts",
     "verify:bom-cost-module": "tsx scripts/verify-bom-cost-module.ts",

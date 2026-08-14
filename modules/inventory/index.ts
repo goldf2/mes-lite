@@ -8,8 +8,10 @@ export type { InventoryLotCustomerReturn, InventoryLotCustomerShipment, Inventor
 export type { InventoryLotPanorama, InventoryLotPanoramaEdge, InventoryLotPanoramaNode, InventoryLotSearchItem, InventoryLotSearchResult } from './contracts/inventory-lot-panorama'
 export { getInventoryLotTrace } from './server/inventory-lot-trace-service'
 export { getInventoryLotPanorama, searchInventoryLots } from './server/inventory-lot-panorama-service'
+export { issueInventoryForBusinessReference } from './server/inventory-posting-service'
 export {
   allocateAvailableInventoryLots,
+  consumeAvailableInventoryLotsForReference,
   allocateReturnToShipmentLots,
   allocateShipmentInventoryLots,
   createInventoryLotReceipt,

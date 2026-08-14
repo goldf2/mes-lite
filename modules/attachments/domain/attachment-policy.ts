@@ -15,6 +15,7 @@ export const attachmentOwnerPolicies = {
   RETURN_ORDER: { resource: 'return' },
   FLOW_TRANSFER: { resource: 'flowTransfers' },
   EQUIPMENT_INSPECTION_RECORD: { resource: 'equipmentInspections' },
+  EQUIPMENT_MAINTENANCE_WORK_ORDER: { resource: 'equipmentMaintenance' },
 } as const satisfies Record<string, { resource: PermissionResource }>
 
 export type AttachmentOwnerType = keyof typeof attachmentOwnerPolicies

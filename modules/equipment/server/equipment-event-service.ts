@@ -48,7 +48,9 @@ export async function recordEquipmentEvent(
     const existing = await tx.equipment.findUnique({ where: { id: equipmentId } })
     if (!existing || existing.deletedAt) throw new EquipmentDomainError('设备不存在或已归档', 404)
     const { sourceStatus, targetStatus } = resolveEquipmentTransition(existing.status, input.action)
-    if (input.action === 'RECOVER') await closeLatestEquipmentIncident(tx, equipmentId, sourceStatus, occurredAt)
+    if (input.action === 'RECOVER' || input.action === 'MAINTAIN') {
+      await closeLatestEquipmentIncident(tx, equipmentId, sourceStatus, occurredAt)
+    }
     const event = await tx.equipmentEvent.create({
       data: {
         equipmentId,

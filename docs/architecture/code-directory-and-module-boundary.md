@@ -758,6 +758,14 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 页面、计划弹窗和执行弹窗均通过 `modules/equipment/index.ts` 注册；设备选择复用公共关系字段，记录附件复用公共附件面板，三条 Route Handler 保持无 Prisma 的薄 HTTP 层。
 - `verify:equipment-inspections`、`verify:equipment-inspections-http`、`verify:fine-grained-permissions` 和 `verify:sop-fullscreen-help` 锁定数据库不变式、真实 HTTP 403/201、递归升级继承、第 50 个权限资源及帮助新页边界。
 
+### v0.1.371 设备维保与备件过账扩展
+
+- `contracts/equipment-maintenance-*` 定义保养计划、计划/故障工单、完成清单和备件领用请求；`domain/equipment-maintenance-rules.ts` 负责状态机、周期推进、工作中心范围和输入不变量。
+- `server/equipment-maintenance-command-service.ts` 在同一 Prisma 事务内协调工单、设备 `MAINTAIN/RECOVER` 事件、计划推进、完整保养结果、审计和备件过账；查询服务统一装配到期/逾期/待办/完成计数、设备和备件候选。
+- 备件消耗通过 `modules/inventory/index.ts` 新公开的 `issueInventoryForBusinessReference` 进入现有库存、成本与 FIFO 批次算法；设备模块不导入库存内部文件，也不建立平行库存账。
+- 页面、计划/报修/完成弹窗只通过 `modules/equipment/index.ts` 挂载；关系输入复用公共搜索—选择—已选列表骨架，工单附件复用公共附件面板，8 条 Route Handler 仅做权限、Schema、范围、服务调用和 HTTP 映射。
+- `verify:equipment-maintenance`、`verify:equipment-maintenance-http`、`verify:fine-grained-permissions`、`verify:role-task-permissions` 和 `verify:attachment-management` 锁定 79 个迁移、不变式、真实 HTTP 403/201、工作中心/库位隔离、第 51 个资源、岗位任务和附件边界。
+
 ## 59. 旧生产日报兼容服务归属
 
 - `modules/production/contracts/legacy-daily-production-schema.ts` 统一旧日报创建、编辑、确认和冲销输入；`domain/legacy-daily-production-*` 集中日期解析、最大序号编号、状态约束、数量精度和可预期错误。

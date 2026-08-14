@@ -325,6 +325,83 @@ async function consumeAvailableInventoryLots(
   return allocations
 }
 
+export async function consumeAvailableInventoryLotsForReference(
+  tx: Prisma.TransactionClient,
+  input: {
+    materialId: string
+    materialCode: string
+    locationId: string
+    locationCode: string
+    stockQty: number
+    issueValuationQty: number
+    issueCostAmount: number
+    refType: string
+    refId: string
+    transactionType: string
+    idempotencyPrefix: string
+    note: string
+    stockLogId?: string | null
+    createdBy?: string | null
+  },
+) {
+  const existing = await tx.inventoryLotTransaction.findMany({
+    where: { refType: input.refType, refId: input.refId },
+    include: { lot: true },
+    orderBy: { createdAt: 'asc' },
+  })
+  if (existing.length > 0) return existing.map((transaction) => ({
+    lotId: transaction.lotId,
+    lotNo: transaction.lot.lotNo,
+    locationId: transaction.locationId,
+    stockQty: Math.abs(Number(transaction.stockQty)),
+    valuationQty: Math.abs(Number(transaction.valuationQty)),
+    costAmount: Math.abs(Number(transaction.costAmount)),
+    transaction,
+  }))
+
+  const consumed = await consumeAvailableInventoryLots(tx, input)
+  let allocatedValuationQty = 0
+  let allocatedCostAmount = 0
+  const result = []
+  for (let index = 0; index < consumed.length; index += 1) {
+    const item = consumed[index]
+    const last = index === consumed.length - 1
+    const valuationQty = distributeIssueValue(input.issueValuationQty, item.stockQty, input.stockQty, allocatedValuationQty, last)
+    const costAmount = distributeIssueValue(input.issueCostAmount, item.stockQty, input.stockQty, allocatedCostAmount, last)
+    allocatedValuationQty = roundQty(allocatedValuationQty + valuationQty)
+    allocatedCostAmount = roundQty(allocatedCostAmount + costAmount)
+    const transaction = await tx.inventoryLotTransaction.create({
+      data: {
+        lotId: item.lotId,
+        locationId: input.locationId,
+        type: input.transactionType,
+        fromStatus: 'AVAILABLE',
+        stockQty: -item.stockQty,
+        valuationQty: -item.balanceValuationQty,
+        costAmount: -item.balanceCostAmount,
+        refType: input.refType,
+        refId: input.refId,
+        stockLogId: input.stockLogId || null,
+        idempotencyKey: `${input.idempotencyPrefix}:LOT:${item.lotId}`,
+        note: input.note,
+        createdBy: input.createdBy || null,
+      },
+    })
+    result.push({
+      lotId: item.lotId,
+      lotNo: item.lotNo,
+      locationId: input.locationId,
+      stockQty: item.stockQty,
+      valuationQty,
+      costAmount,
+      transaction,
+    })
+  }
+  const allocatedStockQty = result.reduce((sum, item) => sum + item.stockQty, 0)
+  if (Math.abs(allocatedStockQty - input.stockQty) > tolerance) throw new Error('业务批次分配数量与库存出库数量不一致')
+  return result
+}
+
 function distributeIssueValue(total: number, stockQty: number, totalStockQty: number, allocated: number, last: boolean) {
   return last ? roundQty(total - allocated) : roundQty(totalStockQty > tolerance ? total * stockQty / totalStockQty : 0)
 }

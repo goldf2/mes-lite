@@ -11,6 +11,7 @@ export const workspaceFunctionKeys = [
   'workInstructions',
   'equipment',
   'equipmentInspections',
+  'equipmentMaintenance',
   'orders',
   'dispatch',
   'flowTransfers',

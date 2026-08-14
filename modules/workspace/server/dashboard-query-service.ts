@@ -3,7 +3,7 @@ import { normalizeProductionOrderStatusDistribution } from '@/modules/production
 import { buildProductionFlowDashboard } from '../domain/dashboard-production'
 import type { PermissionMap } from '@/lib/permissions'
 import { buildRoleTaskSections } from '../model/role-task-view'
-import { equipmentInspectionScopeWhere } from '@/modules/equipment'
+import { equipmentInspectionScopeWhere, equipmentMaintenanceScopeWhere } from '@/modules/equipment'
 import {
   materialReceiptDataScopeWhere,
   productionActualDataScopeWhere,
@@ -54,6 +54,8 @@ export async function getDashboardData(now = new Date(), permissions?: Permissio
     pendingQualityInspectionCount,
     qualityDispositionCount,
     dueEquipmentInspectionCount,
+    dueEquipmentMaintenanceCount,
+    openEquipmentMaintenanceCount,
     pendingOperatorCount,
     lowStocks,
   ] = await Promise.all([
@@ -74,6 +76,8 @@ export async function getDashboardData(now = new Date(), permissions?: Permissio
     prisma.qualityInspection.count({ where: { status: 'PENDING', ...qualityInspectionDataScopeWhere(scope) } }),
     prisma.inventoryLot.count({ where: { status: 'OPEN', balances: { some: { inventoryStatus: { in: ['HOLD', 'REWORK'] }, stockQty: { gt: 0.000001 }, ...(scope.inventoryMode === 'LOCATIONS' ? { locationId: { in: scope.locationIds } } : {}) } } } }),
     prisma.equipmentInspectionPlan.count({ where: { status: 'ACTIVE', nextDueAt: { lte: now }, ...equipmentInspectionScopeWhere(scope) } }),
+    prisma.equipmentMaintenancePlan.count({ where: { status: 'ACTIVE', nextDueAt: { lte: now }, ...equipmentMaintenanceScopeWhere(scope) } }),
+    prisma.equipmentMaintenanceWorkOrder.count({ where: { status: { in: ['OPEN', 'IN_PROGRESS'] }, ...equipmentMaintenanceScopeWhere(scope) } }),
     prisma.operator.count({ where: { status: 'PENDING' } }),
     prisma.stock.findMany({
       where: {
@@ -115,6 +119,8 @@ export async function getDashboardData(now = new Date(), permissions?: Permissio
       pendingQualityInspectionCount,
       qualityDispositionCount,
       dueEquipmentInspectionCount,
+      dueEquipmentMaintenanceCount,
+      openEquipmentMaintenanceCount,
       pendingMaterialInCount,
       pendingShipmentCount,
       pendingReturnCount,

@@ -17,34 +17,36 @@ model SystemSetting {
 }
 
 model InventoryLocation {
-  id                       String                           @id @default(cuid())
-  code                     String                           @unique
+  id                       String                                   @id @default(cuid())
+  code                     String                                   @unique
   name                     String
   note                     String?
-  isDefault                Boolean                          @default(false)
-  isActive                 Boolean                          @default(true)
-  sortOrder                Int                              @default(0)
+  isDefault                Boolean                                  @default(false)
+  isActive                 Boolean                                  @default(true)
+  sortOrder                Int                                      @default(0)
   deletedAt                DateTime?
   balances                 StockLocationBalance[]
   stockLogs                StockLog[]
   materialIns              MaterialIn[]
   materialReceipts         MaterialReceipt[]
-  consumptionReports       DailyProductionReport[]          @relation("DailyProductionConsumptionLocation")
-  productionInputs         DailyProductionConsumption[]     @relation("DailyProductionConsumptionLineLocation")
-  outputReports            DailyProductionReport[]          @relation("DailyProductionOutputLocation")
-  orderActualInputs        ProductionOrderActualInput[]     @relation("ProductionOrderActualInputLocation")
-  orderActualOutputs       ProductionOrderActualOutput[]    @relation("ProductionOrderActualOutputLocation")
-  outgoingTransfers        FlowTransfer[]                   @relation("FlowTransferSourceLocation")
-  incomingTransfers        FlowTransfer[]                   @relation("FlowTransferTargetLocation")
+  consumptionReports       DailyProductionReport[]                  @relation("DailyProductionConsumptionLocation")
+  productionInputs         DailyProductionConsumption[]             @relation("DailyProductionConsumptionLineLocation")
+  outputReports            DailyProductionReport[]                  @relation("DailyProductionOutputLocation")
+  orderActualInputs        ProductionOrderActualInput[]             @relation("ProductionOrderActualInputLocation")
+  orderActualOutputs       ProductionOrderActualOutput[]            @relation("ProductionOrderActualOutputLocation")
+  outgoingTransfers        FlowTransfer[]                           @relation("FlowTransferSourceLocation")
+  incomingTransfers        FlowTransfer[]                           @relation("FlowTransferTargetLocation")
   shipments                Shipment[]
   returnOrders             ReturnOrder[]
   inventoryLotBalances     InventoryLotBalance[]
   inventoryLotTransactions InventoryLotTransaction[]
   inventoryLotAllocations  InventoryLotAllocation[]
   shipmentLotAllocations   ShipmentLotAllocation[]
+  maintenanceSpareUsages   EquipmentMaintenanceSpareUsage[]
+  maintenanceSpareLots     EquipmentMaintenanceSpareLotAllocation[]
   operatorScopes           OperatorInventoryLocationScope[]
-  createdAt                DateTime                         @default(now())
-  updatedAt                DateTime                         @updatedAt
+  createdAt                DateTime                                 @default(now())
+  updatedAt                DateTime                                 @updatedAt
 
   @@index([sortOrder])
 }
@@ -93,25 +95,27 @@ model Employee {
 }
 
 model Equipment {
-  id                String                      @id @default(cuid())
-  code              String                      @unique
+  id                String                          @id @default(cuid())
+  code              String                          @unique
   name              String
   equipmentType     String
   model             String?
   manufacturer      String?
   serialNumber      String?
-  status            String                      @default("AVAILABLE")
+  status            String                          @default("AVAILABLE")
   location          String?
   basicParameters   String?
   note              String?
   workCenterId      String
-  workCenter        WorkCenter                  @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
+  workCenter        WorkCenter                      @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
   events            EquipmentEvent[]
   inspectionPlans   EquipmentInspectionPlan[]
   inspectionRecords EquipmentInspectionRecord[]
+  maintenancePlans  EquipmentMaintenancePlan[]
+  maintenanceOrders EquipmentMaintenanceWorkOrder[]
   deletedAt         DateTime?
-  createdAt         DateTime                    @default(now())
-  updatedAt         DateTime                    @updatedAt
+  createdAt         DateTime                        @default(now())
+  updatedAt         DateTime                        @updatedAt
 
   @@index([workCenterId])
   @@index([status])
@@ -119,21 +123,24 @@ model Equipment {
 }
 
 model EquipmentEvent {
-  id               String                     @id @default(cuid())
-  equipmentId      String
-  equipment        Equipment                  @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
-  eventType        String
-  sourceStatus     String
-  targetStatus     String
-  reason           String
-  note             String?
-  operatorId       String?
-  operatorName     String
-  occurredAt       DateTime                   @default(now())
-  durationSeconds  Int?
-  endedAt          DateTime?
-  createdAt        DateTime                   @default(now())
-  inspectionRecord EquipmentInspectionRecord?
+  id                           String                         @id @default(cuid())
+  equipmentId                  String
+  equipment                    Equipment                      @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  eventType                    String
+  sourceStatus                 String
+  targetStatus                 String
+  reason                       String
+  note                         String?
+  operatorId                   String?
+  operatorName                 String
+  occurredAt                   DateTime                       @default(now())
+  durationSeconds              Int?
+  endedAt                      DateTime?
+  createdAt                    DateTime                       @default(now())
+  inspectionRecord             EquipmentInspectionRecord?
+  maintenanceFaultWorkOrder    EquipmentMaintenanceWorkOrder? @relation("MaintenanceFaultEvent")
+  maintenanceStartWorkOrder    EquipmentMaintenanceWorkOrder? @relation("MaintenanceStartEvent")
+  maintenanceRecoveryWorkOrder EquipmentMaintenanceWorkOrder? @relation("MaintenanceRecoveryEvent")
 
   @@index([equipmentId, occurredAt])
   @@index([eventType, occurredAt])
@@ -219,6 +226,150 @@ model EquipmentInspectionResult {
   @@index([recordId, sortOrder])
 }
 
+model EquipmentMaintenancePlan {
+  id           String                          @id @default(cuid())
+  code         String                          @unique
+  name         String
+  equipmentId  String
+  equipment    Equipment                       @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  intervalDays Int
+  status       String                          @default("ACTIVE")
+  nextDueAt    DateTime
+  activatedAt  DateTime                        @default(now())
+  note         String?
+  createdBy    String
+  items        EquipmentMaintenancePlanItem[]
+  workOrders   EquipmentMaintenanceWorkOrder[]
+  createdAt    DateTime                        @default(now())
+  updatedAt    DateTime                        @updatedAt
+
+  @@index([equipmentId, status])
+  @@index([status, nextDueAt])
+}
+
+model EquipmentMaintenancePlanItem {
+  id        String                           @id @default(cuid())
+  planId    String
+  plan      EquipmentMaintenancePlan         @relation(fields: [planId], references: [id], onDelete: Restrict)
+  name      String
+  standard  String
+  sortOrder Int                              @default(0)
+  results   EquipmentMaintenanceWorkResult[]
+  createdAt DateTime                         @default(now())
+
+  @@unique([planId, sortOrder])
+  @@index([planId])
+}
+
+model EquipmentMaintenanceWorkOrder {
+  id                    String                           @id @default(cuid())
+  workOrderNo           String                           @unique
+  createOperationId     String                           @unique
+  kind                  String
+  equipmentId           String
+  equipment             Equipment                        @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  planId                String?
+  plan                  EquipmentMaintenancePlan?        @relation(fields: [planId], references: [id], onDelete: Restrict)
+  planDueAt             DateTime?
+  dueAt                 DateTime?
+  title                 String
+  priority              String                           @default("NORMAL")
+  faultDescription      String?
+  assignedTo            String?
+  status                String                           @default("OPEN")
+  createdById           String?
+  createdByName         String
+  startedAt             DateTime?
+  startedById           String?
+  startedByName         String?
+  completedAt           DateTime?
+  completedById         String?
+  completedByName       String?
+  completionOperationId String?                          @unique
+  cancelledAt           DateTime?
+  cancelledById         String?
+  cancelledByName       String?
+  cancelReason          String?
+  workDescription       String?
+  failureCause          String?
+  faultEventId          String?                          @unique
+  faultEvent            EquipmentEvent?                  @relation("MaintenanceFaultEvent", fields: [faultEventId], references: [id], onDelete: Restrict)
+  startEventId          String?                          @unique
+  startEvent            EquipmentEvent?                  @relation("MaintenanceStartEvent", fields: [startEventId], references: [id], onDelete: Restrict)
+  recoveryEventId       String?                          @unique
+  recoveryEvent         EquipmentEvent?                  @relation("MaintenanceRecoveryEvent", fields: [recoveryEventId], references: [id], onDelete: Restrict)
+  results               EquipmentMaintenanceWorkResult[]
+  spares                EquipmentMaintenanceSpareUsage[]
+  createdAt             DateTime                         @default(now())
+  updatedAt             DateTime                         @updatedAt
+
+  @@index([equipmentId, status])
+  @@index([status, dueAt])
+  @@index([kind, status])
+}
+
+model EquipmentMaintenanceWorkResult {
+  id          String                        @id @default(cuid())
+  workOrderId String
+  workOrder   EquipmentMaintenanceWorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  planItemId  String
+  planItem    EquipmentMaintenancePlanItem  @relation(fields: [planItemId], references: [id], onDelete: Restrict)
+  itemName    String
+  standard    String
+  result      String
+  note        String?
+  sortOrder   Int
+  createdAt   DateTime                      @default(now())
+
+  @@unique([workOrderId, planItemId])
+  @@index([workOrderId, sortOrder])
+}
+
+model EquipmentMaintenanceSpareUsage {
+  id                    String                                   @id @default(cuid())
+  workOrderId           String
+  workOrder             EquipmentMaintenanceWorkOrder            @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  materialId            String
+  material              Material                                 @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  locationId            String
+  location              InventoryLocation                        @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  stockQty              Float
+  valuationQty          Float                                    @default(0)
+  costAmount            Float                                    @default(0)
+  stockUnitSnapshot     String
+  valuationUnitSnapshot String
+  conversionRateUsed    Float                                    @default(0)
+  costingMethodSnapshot String
+  stockLogId            String                                   @unique
+  note                  String?
+  createdBy             String
+  lotAllocations        EquipmentMaintenanceSpareLotAllocation[]
+  createdAt             DateTime                                 @default(now())
+
+  @@unique([workOrderId, materialId, locationId])
+  @@index([materialId, createdAt])
+  @@index([locationId, createdAt])
+}
+
+model EquipmentMaintenanceSpareLotAllocation {
+  id              String                         @id @default(cuid())
+  spareUsageId    String
+  spareUsage      EquipmentMaintenanceSpareUsage @relation(fields: [spareUsageId], references: [id], onDelete: Restrict)
+  lotId           String
+  lot             InventoryLot                   @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  locationId      String
+  location        InventoryLocation              @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  inventoryStatus String                         @default("AVAILABLE")
+  stockQty        Float
+  valuationQty    Float                          @default(0)
+  costAmount      Float                          @default(0)
+  createdAt       DateTime                       @default(now())
+
+  @@unique([spareUsageId, lotId, locationId])
+  @@index([lotId])
+  @@index([locationId])
+}
+
 model Product {
   id               String               @id @default(cuid())
   sku              String               @unique
@@ -243,48 +394,49 @@ model Product {
 }
 
 model Material {
-  id                          String                        @id @default(cuid())
-  code                        String                        @unique
+  id                          String                           @id @default(cuid())
+  code                        String                           @unique
   name                        String
   spec                        String?
   note                        String?
-  category                    String                        @default("RAW")
+  category                    String                           @default("RAW")
   customerId                  String?
-  customer                    Customer?                     @relation(fields: [customerId], references: [id])
+  customer                    Customer?                        @relation(fields: [customerId], references: [id])
   unit                        String
-  primaryMeasure              String                        @default("QUANTITY")
-  stockUnit                   String                        @default("件")
+  primaryMeasure              String                           @default("QUANTITY")
+  stockUnit                   String                           @default("件")
   referenceMeasure            String?
-  valuationUnit               String                        @default("kg")
-  conversionRate              Float                         @default(1)
+  valuationUnit               String                           @default("kg")
+  conversionRate              Float                            @default(1)
   conversionNote              String?
-  unitMode                    String                        @default("DUAL")
-  unitVersion                 Int                           @default(1)
-  costingMethod               String                        @default("WEIGHTED_AVERAGE")
+  unitMode                    String                           @default("DUAL")
+  unitVersion                 Int                              @default(1)
+  costingMethod               String                           @default("WEIGHTED_AVERAGE")
   defaultSalePrice            Float?
-  salesCurrency               String                        @default("CNY")
+  salesCurrency               String                           @default("CNY")
   deletedAt                   DateTime?
   deletedBy                   String?
   stock                       Stock?
   costLayers                  InventoryCostLayer[]
   bomItems                    BOMItem[]
-  bomItemOutputs              BOMItem[]                     @relation("BOMItemOutputMaterial")
+  bomItemOutputs              BOMItem[]                        @relation("BOMItemOutputMaterial")
   bomOutputs                  BOMOutput[]
   pickItems                   PickItem[]
   materialIns                 MaterialIn[]
-  productionOrders            ProductionOrder[]             @relation("ProductionOrderTargetMaterial")
+  productionOrders            ProductionOrder[]                @relation("ProductionOrderTargetMaterial")
   workInstructions            WorkInstruction[]
   processTemplates            ProcessTemplate[]
-  dailyProductionReports      DailyProductionReport[]       @relation("DailyProductionFinishedMaterial")
-  dailyProductionConsumptions DailyProductionConsumption[]  @relation("DailyProductionConsumedMaterial")
-  productionActualInputs      ProductionOrderActualInput[]  @relation("ProductionOrderActualInputMaterial")
-  productionActualOutputs     ProductionOrderActualOutput[] @relation("ProductionOrderActualOutputMaterial")
+  dailyProductionReports      DailyProductionReport[]          @relation("DailyProductionFinishedMaterial")
+  dailyProductionConsumptions DailyProductionConsumption[]     @relation("DailyProductionConsumedMaterial")
+  productionActualInputs      ProductionOrderActualInput[]     @relation("ProductionOrderActualInputMaterial")
+  productionActualOutputs     ProductionOrderActualOutput[]    @relation("ProductionOrderActualOutputMaterial")
   flowTransfers               FlowTransfer[]
   shipments                   Shipment[]
   salesOrderItems             SalesOrderItem[]
   returnOrders                ReturnOrder[]
   inventoryLots               InventoryLot[]
-  createdAt                   DateTime                      @default(now())
+  maintenanceSpareUsages      EquipmentMaintenanceSpareUsage[]
+  createdAt                   DateTime                         @default(now())
 }
 
 // ==================== 物料清单 BOM ====================
@@ -1035,36 +1187,37 @@ model StockLog {
 }
 
 model InventoryLot {
-  id                         String                       @id @default(cuid())
-  lotNo                      String                       @unique
-  materialId                 String
-  material                   Material                     @relation(fields: [materialId], references: [id], onDelete: Restrict)
-  materialInId               String?                      @unique
-  materialIn                 MaterialIn?                  @relation(fields: [materialInId], references: [id], onDelete: Restrict)
-  productionOutputId         String?                      @unique
-  productionOutput           ProductionOrderActualOutput? @relation(fields: [productionOutputId], references: [id], onDelete: Restrict)
-  returnOrderId              String?                      @unique
-  returnOrder                ReturnOrder?                 @relation(fields: [returnOrderId], references: [id], onDelete: Restrict)
-  sourceType                 String
-  sourceId                   String
-  supplierLotNo              String?
-  status                     String                       @default("OPEN")
-  receivedAt                 DateTime                     @default(now())
-  reversedAt                 DateTime?
-  reversedBy                 String?
-  reverseReason              String?
-  balances                   InventoryLotBalance[]
-  transactions               InventoryLotTransaction[]
-  inspections                QualityInspection[]
-  qualityDispositions        QualityDisposition[]
-  costLayers                 InventoryCostLayer[]
-  productionInputAllocations InventoryLotAllocation[]
-  shipmentAllocations        ShipmentLotAllocation[]
-  returnedLotAllocations     ReturnLotAllocation[]        @relation("ReturnedInventoryLot")
-  parentGenealogies          InventoryLotGenealogy[]      @relation("InventoryLotGenealogyParent")
-  childGenealogies           InventoryLotGenealogy[]      @relation("InventoryLotGenealogyChild")
-  createdAt                  DateTime                     @default(now())
-  updatedAt                  DateTime                     @updatedAt
+  id                          String                                   @id @default(cuid())
+  lotNo                       String                                   @unique
+  materialId                  String
+  material                    Material                                 @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  materialInId                String?                                  @unique
+  materialIn                  MaterialIn?                              @relation(fields: [materialInId], references: [id], onDelete: Restrict)
+  productionOutputId          String?                                  @unique
+  productionOutput            ProductionOrderActualOutput?             @relation(fields: [productionOutputId], references: [id], onDelete: Restrict)
+  returnOrderId               String?                                  @unique
+  returnOrder                 ReturnOrder?                             @relation(fields: [returnOrderId], references: [id], onDelete: Restrict)
+  sourceType                  String
+  sourceId                    String
+  supplierLotNo               String?
+  status                      String                                   @default("OPEN")
+  receivedAt                  DateTime                                 @default(now())
+  reversedAt                  DateTime?
+  reversedBy                  String?
+  reverseReason               String?
+  balances                    InventoryLotBalance[]
+  transactions                InventoryLotTransaction[]
+  inspections                 QualityInspection[]
+  qualityDispositions         QualityDisposition[]
+  costLayers                  InventoryCostLayer[]
+  productionInputAllocations  InventoryLotAllocation[]
+  shipmentAllocations         ShipmentLotAllocation[]
+  returnedLotAllocations      ReturnLotAllocation[]                    @relation("ReturnedInventoryLot")
+  maintenanceSpareAllocations EquipmentMaintenanceSpareLotAllocation[]
+  parentGenealogies           InventoryLotGenealogy[]                  @relation("InventoryLotGenealogyParent")
+  childGenealogies            InventoryLotGenealogy[]                  @relation("InventoryLotGenealogyChild")
+  createdAt                   DateTime                                 @default(now())
+  updatedAt                   DateTime                                 @updatedAt
 
   @@index([materialId, status])
   @@index([sourceType, sourceId])

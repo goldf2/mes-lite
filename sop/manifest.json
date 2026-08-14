@@ -1921,6 +1921,108 @@
           "roles": ["设备维护员", "生产主管"],
           "screenshot": {"baseline": "0.1.370", "file": "148-equipment-inspection-abnormal-history.png"},
           "lastVerifiedVersion": "0.1.370"
+        },
+        {
+          "id": "149-equipment-maintenance-due-plans",
+          "title": "查看到期设备保养计划",
+          "objective": "按到期和逾期状态找到当前工作中心需要生成工单的周期保养任务。",
+          "steps": [
+            "展开 MES 的“设备”菜单并进入“设备维保”。",
+            "查看到期保养、逾期、维修中和待处理计数。",
+            "切换到“到期计划”，按计划、设备、工作中心或负责人搜索。",
+            "核对计划周期、下次到期时间、完整项目清单以及是否已生成工单。"
+          ],
+          "result": "页面只显示当前账号工作中心范围内的保养计划；同一计划和到期周期不会重复生成活动工单。",
+          "pageKey": "equipmentMaintenance",
+          "resource": "equipmentMaintenance",
+          "roles": ["设备维护员", "生产主管"],
+          "screenshot": {"baseline": "0.1.371", "file": "151-equipment-maintenance-due-plans.png"},
+          "lastVerifiedVersion": "0.1.371"
+        },
+        {
+          "id": "150-equipment-maintenance-create-plan",
+          "title": "新建设备保养计划",
+          "objective": "为一台设备建立不可直接覆盖的周期保养标准和项目清单。",
+          "steps": [
+            "在设备维保页面点击“新建保养计划”。",
+            "填写唯一计划编码、名称、周期、首次到期时间和说明。",
+            "搜索并选择当前工作中心范围内的设备。",
+            "逐项添加项目名称和作业标准，一次保存计划。"
+          ],
+          "result": "计划进入到期或全部计划；项目清单保存后只能暂停或恢复计划，不能覆盖历史工单标准。",
+          "pageKey": "equipmentMaintenance",
+          "resource": "equipmentMaintenance",
+          "roles": ["设备维护员"],
+          "screenshot": {"baseline": "0.1.371", "file": "152-equipment-maintenance-create-plan.png"},
+          "lastVerifiedVersion": "0.1.371"
+        },
+        {
+          "id": "151-equipment-maintenance-create-repair",
+          "title": "登记设备故障维修工单",
+          "objective": "把真实故障现象登记为可执行、可追溯的纠正性维修工单。",
+          "steps": [
+            "在设备维保页面点击“新建维修工单”。",
+            "搜索并选择发生故障的设备。",
+            "填写维修主题、优先级、要求完成时间、负责人和客观故障现象。",
+            "核对信息后点击“创建维修工单”。"
+          ],
+          "result": "系统创建待处理维修工单；原为可用或运行中的设备同时进入故障状态并保留故障事件。",
+          "pageKey": "equipmentMaintenance",
+          "resource": "equipmentMaintenance",
+          "roles": ["设备维护员"],
+          "screenshot": {"baseline": "0.1.371", "file": "153-equipment-maintenance-create-repair.png"},
+          "lastVerifiedVersion": "0.1.371"
+        },
+        {
+          "id": "152-equipment-maintenance-start-work-order",
+          "title": "开始设备维修或保养工单",
+          "objective": "明确现场作业开始时点，并阻止设备在维修期间被视为可生产。",
+          "steps": [
+            "切换到“待办工单”并核对工单、设备、负责人和故障现象或保养来源。",
+            "在待处理工单点击“开始维修”。",
+            "确认工单状态由“待处理”变为“维修中”。",
+            "到设备台账核对同一设备状态已经同步变为“维修中”。"
+          ],
+          "result": "工单记录开始人和开始时间，设备事件链增加进入维修状态的事件。",
+          "pageKey": "equipmentMaintenance",
+          "resource": "equipmentMaintenance",
+          "roles": ["设备维护员"],
+          "screenshot": {"baseline": "0.1.371", "file": "154-equipment-maintenance-start-work-order.png"},
+          "lastVerifiedVersion": "0.1.371"
+        },
+        {
+          "id": "153-equipment-maintenance-complete-with-spare",
+          "title": "完成维修并领用备件",
+          "objective": "一次提交真实作业结果和备件领用，让设备、库存、成本与批次保持原子一致。",
+          "steps": [
+            "在维修中工单点击“完成并领料”。",
+            "计划保养工单须逐项确认全部清单达标；故障维修填写故障原因。",
+            "按“搜索—选择物料—选择库位—填写数量—添加”录入全部备件。",
+            "填写维修或保养内容、完成时间并点击“确认完成并过账”。"
+          ],
+          "result": "工单完成、设备恢复可用；备件按可用批次扣减库存并形成库存流水、成本金额和批次分配。",
+          "pageKey": "equipmentMaintenance",
+          "resource": "equipmentMaintenance",
+          "roles": ["设备维护员"],
+          "screenshot": {"baseline": "0.1.371", "file": "155-equipment-maintenance-complete-with-spare.png"},
+          "lastVerifiedVersion": "0.1.371"
+        },
+        {
+          "id": "154-equipment-maintenance-completed-history",
+          "title": "复核维保历史与备件批次",
+          "objective": "从完成事实回看工单、作业结果、设备恢复、备件成本和实际消耗批次。",
+          "steps": [
+            "在设备维保页面切换到“完成记录”。",
+            "核对工单号、设备、负责人、故障现象和实际作业结果。",
+            "在“备件领用”中核对物料、数量、库位和实际批次。",
+            "按需要上传维修照片、校准报告或外协凭证，并到库存流水反查同一业务来源。"
+          ],
+          "result": "完成工单、设备恢复事件、备件库存流水、成本和批次分配可相互追溯，完成事实不可覆盖。",
+          "pageKey": "equipmentMaintenance",
+          "resource": "equipmentMaintenance",
+          "roles": ["设备维护员", "生产主管", "仓库主管"],
+          "screenshot": {"baseline": "0.1.371", "file": "156-equipment-maintenance-completed-history.png"},
+          "lastVerifiedVersion": "0.1.371"
         }
       ]
     },

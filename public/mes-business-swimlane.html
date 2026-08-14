@@ -304,6 +304,7 @@
             <tr><td>操作员</td><td>执行生产并记录现场事实</td><td>领料、开工、实绩、废品、人工和机时</td><td>高</td></tr>
             <tr><td>质检员</td><td>执行检验并记录客观结果</td><td>待检、实测值、附件和质量判定</td><td>高</td></tr>
             <tr><td>质量负责人</td><td>决定返工、报废或让步接收</td><td>不合格评审、处置授权、复检</td><td>中但关键</td></tr>
+            <tr><td>设备维护员</td><td>执行点检、保养和故障维修</td><td>到期任务、维修工单、设备恢复、备件领用和附件</td><td>高</td></tr>
             <tr><td>管理人员</td><td>监督交付、质量、库存和设备趋势</td><td>看板、追溯、统计和审计查询</td><td>低频但关键</td></tr>
             <tr><td>系统管理员</td><td>维护账号、权限、业务配置和系统设置</td><td>权限组、人员、单位、菜单和维护工具</td><td>低频</td></tr>
             <tr><td>MES 系统</td><td>校验、过账、追溯、审计和提醒</td><td>状态机、库存流水、审计日志和告警</td><td>全流程自动</td></tr>
@@ -315,9 +316,9 @@
     <section class="panel">
       <h2>分阶段建设边界</h2>
       <div class="phase-grid">
-        <div class="phase"><span class="badge current">当前已有</span><strong>生产与库存基础链路</strong><p>物料、BOM、工艺、订单、派工、实绩、来料、库位、库存流水、发货、权限和审计。</p></div>
-        <div class="phase"><span class="badge next">下一阶段 P0</span><strong>质量放行与批次追溯</strong><p>先完成质量判定和库存状态闭环，再增加批次投入、产出与发货谱系。</p></div>
-        <div class="phase"><span class="badge later">后续 P1</span><strong>不合格处置与设备事件</strong><p>返工、报废、让步接收、停机、故障、点检和保养；不扩展财务资产管理。</p></div>
+        <div class="phase"><span class="badge current">当前已有</span><strong>生产、质量与批次闭环</strong><p>物料、BOM、工艺、订单、实绩、质量处置、供应到客户追溯、库存流水、权限和审计。</p></div>
+        <div class="phase"><span class="badge current">当前已有</span><strong>设备点检、维保与备件</strong><p>事件、周期点检、保养/维修工单、设备恢复和备件库存/成本/实际批次。</p></div>
+        <div class="phase"><span class="badge later">后续按需</span><strong>设备采集与 OEE</strong><p>先签字确认接口、设备时钟、班次、停机原因和 OEE 口径；不扩展财务资产管理。</p></div>
       </div>
     </section>
 

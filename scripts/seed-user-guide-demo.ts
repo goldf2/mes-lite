@@ -16,6 +16,12 @@ import { createManagedReturn, createManagedShipment } from '../modules/sales/ser
 import { deliverManagedShipment, processManagedReturn, shipManagedShipment } from '../modules/sales/server/fulfillment-status-service'
 import { confirmManagedSalesOrder, createManagedSalesOrder } from '../modules/sales/server/sales-order-command-service'
 import { completeEquipmentInspection, createEquipmentInspectionPlan } from '../modules/equipment/server/equipment-inspection-command-service'
+import {
+  createCorrectiveMaintenanceWorkOrder,
+  createEquipmentMaintenancePlan,
+  createPreventiveMaintenanceWorkOrder,
+  startEquipmentMaintenanceWorkOrder,
+} from '../modules/equipment/server/equipment-maintenance-command-service'
 
 const databaseUrl = process.env.DATABASE_URL || ''
 if (!databaseUrl.includes('mes_lite_guide')) {
@@ -208,6 +214,38 @@ async function main() {
   await prisma.$transaction(async (tx) => {
     await postInventoryReceipt(tx, { materialId: oil.id, stockQty: 180, valuationQty: 180, costAmount: 2700, type: 'OPENING', refType: 'DEMO', refId: 'oil-opening', note: '指导书演示期初库存', createdBy: admin.name, idempotencyKey: 'GUIDE:OIL:OPENING', locationId: rawLocation.id })
   })
+
+  const maintenanceActor = {
+    operatorId: admin.id,
+    operatorName: admin.name,
+    auditContext: { operatorId: admin.id, operatorName: admin.name, ipAddress: undefined, userAgent: undefined },
+  }
+  await createEquipmentMaintenancePlan({
+    code: 'EM-CF-MONTHLY', name: '冷镦机月度润滑保养', equipmentId: equipmentId.get('EQ-CF-01')!,
+    intervalDays: 30, nextDueAt: new Date('2026-08-12T07:30:00+08:00'), note: '用于演示到期保养计划和工单生成。',
+    items: [
+      { name: '润滑系统', standard: '更换过滤元件，确认油路无泄漏' },
+      { name: '主滑台导轨', standard: '清洁后补充润滑脂，手动运行无卡滞' },
+      { name: '安全联锁', standard: '防护门与急停联锁试验有效' },
+    ],
+  }, maintenanceActor)
+  const packingMaintenancePlan = await createEquipmentMaintenancePlan({
+    code: 'EM-PK-WEEKLY', name: '包装机周度维护', equipmentId: equipmentId.get('EQ-PK-01')!,
+    intervalDays: 7, nextDueAt: new Date('2026-08-12T07:45:00+08:00'), note: '用于演示已生成但尚未开始的计划保养工单。',
+    items: [
+      { name: '计数传感器', standard: '清洁镜面并用标准件验证计数准确' },
+      { name: '输送带张力', standard: '张力适中，无跑偏和异常磨损' },
+    ],
+  }, maintenanceActor)
+  await createPreventiveMaintenanceWorkOrder(packingMaintenancePlan.id, {
+    operationId: '00000000-0000-4000-8000-000000000371', assignedTo: '设备维护组',
+  }, maintenanceActor, undefined, fixedNow)
+  const correctiveMaintenance = await createCorrectiveMaintenanceWorkOrder({
+    operationId: '00000000-0000-4000-8000-000000003710', equipmentId: equipmentId.get('EQ-QC-01')!,
+    title: '影像测量仪校准维修', priority: 'HIGH', faultDescription: '标准块连续复核超差 0.009 mm',
+    assignedTo: '设备维护组', dueAt: new Date('2026-08-12T12:00:00+08:00'),
+  }, maintenanceActor, undefined, new Date('2026-08-12T08:05:00+08:00'))
+  await startEquipmentMaintenanceWorkOrder(correctiveMaintenance.workOrder.id, maintenanceActor, undefined, new Date('2026-08-12T08:10:00+08:00'))
 
   const receivedMaterialIn = await createMaterialIns({
     supplierId: supplier.id,
@@ -513,6 +551,8 @@ async function main() {
       confirmedFlowTransfer: confirmedFlowTransfer.transferNo,
       salesOrders: await prisma.salesOrder.count(),
       shipments: await prisma.shipment.count(),
+      maintenancePlans: await prisma.equipmentMaintenancePlan.count(),
+      maintenanceWorkOrders: await prisma.equipmentMaintenanceWorkOrder.count(),
     },
   }, null, 2))
 }
