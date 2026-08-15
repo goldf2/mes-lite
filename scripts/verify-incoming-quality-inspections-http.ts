@@ -76,7 +76,14 @@ async function main() {
   const port = await availablePort(); const baseUrl = `http://127.0.0.1:${port}`
   server = spawn(join(root, 'node_modules', '.bin', 'next'), ['dev', '--hostname', '127.0.0.1', '--port', String(port)], { cwd: root, env: { ...process.env, DATABASE_URL: databaseUrl, NEXT_TELEMETRY_DISABLED: '1' }, stdio: ['ignore', 'pipe', 'pipe'] })
   await waitUntilReady(baseUrl, server)
-  const login = async (username: string) => { const response = await fetch(`${baseUrl}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: baseUrl }, body: JSON.stringify({ username, password: 'VerifyIncoming123!' }) }); assert.equal(response.status, 200); const cookie = response.headers.get('set-cookie')?.split(';')[0]; assert.ok(cookie); return cookie }
+  const login = async (username: string) => {
+    const response = await fetch(`${baseUrl}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: baseUrl }, body: JSON.stringify({ username, password: 'VerifyIncoming123!' }) })
+    const body = await response.clone().json().catch(() => null)
+    assert.equal(response.status, 200, `${username} 并发登录失败：${JSON.stringify(body)}`)
+    const cookie = response.headers.get('set-cookie')?.split(';')[0]
+    assert.ok(cookie)
+    return cookie
+  }
   const [editorCookie, warehouseCookie, warehouseLeadCookie, inspectorCookie, outsiderCookie] = await Promise.all([
     login('incoming-editor'), login('incoming-warehouse'), login('incoming-warehouse-lead'), login('incoming-inspector'), login('incoming-outsider'),
   ])

@@ -1,6 +1,6 @@
 {
-  "version": "0.1.385",
+  "version": "0.1.386",
   "impact": "none",
   "workflowIds": [],
-  "summary": "增加 GitHub Actions 可直接定位失败子检查的 annotation；不改变任何页面、在线帮助步骤或车间业务流程。"
+  "summary": "修复单实例 SQLite 下多个岗位同时登录时的认证写竞争；不改变任何页面、在线帮助步骤或车间业务流程。"
 }

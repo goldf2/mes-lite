@@ -1,6 +1,10 @@
 import type { NextRequest } from 'next/server'
 import { consumeAuthenticationThrottle } from '../server/authentication-throttle-service'
 
+const globalForAuthenticationWrites = globalThis as typeof globalThis & {
+  authenticationWriteTail?: Promise<void>
+}
+
 export type AuthenticationRequestScope = 'LOGIN' | 'REGISTER' | 'SETUP'
 
 const authenticationRequestPolicies: Record<AuthenticationRequestScope, {
@@ -25,6 +29,19 @@ export function authenticationClientKeyFromHeaders(headers: Pick<Headers, 'get'>
 
 export function authenticationClientKey(req: NextRequest) {
   return authenticationClientKeyFromHeaders(req.headers)
+}
+
+export async function serializeAuthenticationWrite<T>(operation: () => Promise<T>) {
+  const previous = globalForAuthenticationWrites.authenticationWriteTail ?? Promise.resolve()
+  let release!: () => void
+  const current = new Promise<void>((resolve) => { release = resolve })
+  globalForAuthenticationWrites.authenticationWriteTail = previous.then(() => current)
+  await previous
+  try {
+    return await operation()
+  } finally {
+    release()
+  }
 }
 
 export async function enforceAuthenticationRequestLimit(

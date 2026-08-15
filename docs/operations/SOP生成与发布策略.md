@@ -1,6 +1,6 @@
 # MES-lite SOP 生成与发布策略
 
-事实基线：`v0.1.385`。
+事实基线：`v0.1.386`。
 
 ## 1. 结论
 
@@ -48,9 +48,9 @@ SOP_PUBLIC_BASE_URL=https://downloads.example.com/mes-lite/sop
 
 ```text
 output/sop-release/
-├── v0.1.385/
-│   ├── MES-lite全流程作业指导书-v0.1.385.pdf
-│   ├── MES-lite全流程作业指导书-v0.1.385.docx
+├── v0.1.386/
+│   ├── MES-lite全流程作业指导书-v0.1.386.pdf
+│   ├── MES-lite全流程作业指导书-v0.1.386.docx
 │   └── manifest.json
 └── latest/
     └── manifest.json
