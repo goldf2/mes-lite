@@ -17,6 +17,14 @@ import {
 } from '../client/production-order-api'
 import { productionOrderActualCreationError } from '../domain/production-order-status'
 import { QualityLotCard, type QualityLotView } from '@/modules/quality'
+import {
+  ProductionActualExecutionContextPicker,
+  ProductionActualExecutionContextSummary,
+  type ProductionActualEquipmentOption,
+  type ProductionActualEquipmentSnapshot,
+  type ProductionActualWorkInstructionOption,
+  type ProductionActualWorkInstructionSnapshot,
+} from './ProductionActualExecutionContext'
 
 type BomSnapshot = {
   id: string
@@ -46,6 +54,10 @@ type ActualRecord = {
   actualDate: string
   workers: string
   note?: string | null
+  equipmentExceptionReason?: string | null
+  workInstructionExceptionReason?: string | null
+  equipmentSnapshots: ProductionActualEquipmentSnapshot[]
+  workInstructionSnapshots: ProductionActualWorkInstructionSnapshot[]
   status: 'DRAFT' | 'CONFIRMED' | 'REVERSED'
   inputs: Array<{
     id: string
@@ -89,6 +101,11 @@ type ActualData = {
   }
   locations: Array<{ id: string; code: string; name: string; isDefault: boolean }>
   employees: EmployeeChoice[]
+  executionContext: {
+    workCenterIds: string[]
+    equipment: ProductionActualEquipmentOption[]
+    workInstructions: ProductionActualWorkInstructionOption[]
+  }
 }
 
 type OutputDraft = { locationId: string; actualQty: number }
@@ -131,6 +148,10 @@ export default function ProductionOrderActualPanel({
   const [formOpen, setFormOpen] = useState(false)
   const [actualDate, setActualDate] = useState(today())
   const [employeeIds, setEmployeeIds] = useState<string[]>([])
+  const [equipmentIds, setEquipmentIds] = useState<string[]>([])
+  const [workInstructionIds, setWorkInstructionIds] = useState<string[]>([])
+  const [equipmentExceptionReason, setEquipmentExceptionReason] = useState('')
+  const [workInstructionExceptionReason, setWorkInstructionExceptionReason] = useState('')
   const [note, setNote] = useState('')
   const [outputs, setOutputs] = useState<Record<string, OutputDraft>>({})
   const [inputs, setInputs] = useState<Record<string, InputDraft>>({})
@@ -208,6 +229,10 @@ export default function ProductionOrderActualPanel({
     }])))
     setActualDate(today())
     setEmployeeIds([])
+    setEquipmentIds([])
+    setWorkInstructionIds([])
+    setEquipmentExceptionReason('')
+    setWorkInstructionExceptionReason('')
     setNote('')
     setFormOpen(true)
   }
@@ -215,6 +240,8 @@ export default function ProductionOrderActualPanel({
   const saveDraft = async () => {
     if (!snapshot || !primaryOutput) return onMessage('生产订单 BOM 快照无效')
     if (employeeIds.length === 0) return onMessage('请选择生产员工')
+    if (equipmentIds.length === 0 && equipmentExceptionReason.trim().length < 2) return onMessage('请选择实际设备或填写设备例外原因')
+    if (workInstructionIds.length === 0 && workInstructionExceptionReason.trim().length < 2) return onMessage('请选择作业文件或填写作业文件例外原因')
     if (primaryActualQty <= 0) return onMessage('主产出实际数量必须大于 0')
     if (snapshot.outputs.some((output) => !outputs[output.materialId]?.locationId)) return onMessage('请选择每项产出的入库库位')
     if (snapshot.items.some((item) => !inputs[item.materialId]?.locationId)) return onMessage('请选择每项投入物料的来源库位')
@@ -224,6 +251,10 @@ export default function ProductionOrderActualPanel({
       const payload = await createProductionOrderActual(orderId, {
           actualDate,
           employeeIds,
+          equipmentIds,
+          equipmentExceptionReason: equipmentIds.length === 0 ? equipmentExceptionReason.trim() : undefined,
+          workInstructionIds,
+          workInstructionExceptionReason: workInstructionIds.length === 0 ? workInstructionExceptionReason.trim() : undefined,
           note,
           outputs: snapshot.outputs.map((output) => ({
             materialId: output.materialId,
@@ -335,6 +366,12 @@ export default function ProductionOrderActualPanel({
                   {canReverse && actual.status === 'CONFIRMED' && <AppButton size="sm" variant="danger" onClick={() => { setReversing(actual); setReverseReason('') }} disabled={saving}>冲销</AppButton>}
                 </div>
               </div>
+              <ProductionActualExecutionContextSummary
+                equipmentSnapshots={actual.equipmentSnapshots}
+                workInstructionSnapshots={actual.workInstructionSnapshots}
+                equipmentExceptionReason={actual.equipmentExceptionReason}
+                workInstructionExceptionReason={actual.workInstructionExceptionReason}
+              />
               <div className="mt-3 grid gap-3 lg:grid-cols-2">
                 <div className="rounded-md bg-gray-50 p-3 text-sm">
                   <div className="mb-2 font-medium text-gray-700">投入物料</div>
@@ -368,6 +405,19 @@ export default function ProductionOrderActualPanel({
               <div className="mt-2"><EmployeeMultiSelect value={employeeIds} options={data.employees} onChange={setEmployeeIds} /></div>
             </div>
           </div>
+
+          <ProductionActualExecutionContextPicker
+            equipmentOptions={data.executionContext.equipment}
+            workInstructionOptions={data.executionContext.workInstructions}
+            equipmentIds={equipmentIds}
+            workInstructionIds={workInstructionIds}
+            equipmentExceptionReason={equipmentExceptionReason}
+            workInstructionExceptionReason={workInstructionExceptionReason}
+            onEquipmentIdsChange={setEquipmentIds}
+            onWorkInstructionIdsChange={setWorkInstructionIds}
+            onEquipmentExceptionReasonChange={setEquipmentExceptionReason}
+            onWorkInstructionExceptionReasonChange={setWorkInstructionExceptionReason}
+          />
 
           <div className="mt-5 grid gap-5 xl:grid-cols-2">
             <section className="rounded-lg border border-gray-200 p-4">

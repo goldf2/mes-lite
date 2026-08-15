@@ -2,7 +2,7 @@
 
 本目录是 MES-lite 的统一知识入口。第一次接触系统时，不建议从发布记录或单个专题开始阅读；先通过总手册建立整体认知，再进入对应领域。
 
-当前事实基线：`v0.1.375` / 2026-08-14。
+当前事实基线：`v0.1.376` / 2026-08-15。
 
 ## 1. 推荐阅读路径
 
@@ -25,7 +25,8 @@
 | 暂停的未来租户化候选 | [目标数据模型草案](./minierp/data-model.md) |
 | MES、MRP-lite、ERP-lite 如何分工 | [MES-MRP-ERP 功能矩阵](./architecture/MES-MRP-ERP功能矩阵.md) |
 | 作为 MES 还缺什么、接下来按什么顺序补齐 | [MES 核心能力缺口与建设路线](./architecture/MES核心能力缺口与建设路线.md) |
-| 如何按界面完成当前已交付的业务流程 | 站内“帮助中心”或顶部问号；快捷帮助和完整帮助都可新开全屏页面。离线交付见 [Markdown](./operations/user-guide/MES-lite全流程作业指导书-v0.1.375.md) / [DOCX](../output/docx/MES-lite全流程作业指导书-v0.1.375.docx) / [PDF](../output/pdf/MES-lite全流程作业指导书-v0.1.375.pdf) / [离线 Web](../output/web/MES-lite全流程作业指导书-v0.1.375/index.html) |
+| 如何按界面完成当前已交付的业务流程 | 站内“帮助中心”或顶部问号；快捷帮助和完整帮助都可新开全屏页面。离线交付见 [Markdown](./operations/user-guide/MES-lite全流程作业指导书-v0.1.376.md) / [DOCX](../output/docx/MES-lite全流程作业指导书-v0.1.376.docx) / [PDF](../output/pdf/MES-lite全流程作业指导书-v0.1.376.pdf) / [离线 Web](../output/web/MES-lite全流程作业指导书-v0.1.376/index.html) |
+| 如何登记并核对生产实绩的设备和作业文件版本 | [生产实绩执行上下文操作与回滚](./operations/生产实绩执行上下文操作与回滚.md) |
 | 如何登记设备开停机、故障和恢复 | [设备运行事件操作与回滚](./operations/设备运行事件操作与回滚.md) |
 | 如何建立并执行周期设备点检 | [设备点检操作与回滚](./operations/设备点检操作与回滚.md) |
 | 如何执行保养、维修和备件领用 | [设备维保与备件领用操作与回滚](./operations/设备维保与备件领用操作与回滚.md) |
@@ -92,7 +93,8 @@
 
 ### 权限、AI、附件与运维
 
-- MES-lite 全流程作业指导书（与站内帮助同源）：[Markdown](./operations/user-guide/MES-lite全流程作业指导书-v0.1.375.md) / [DOCX](../output/docx/MES-lite全流程作业指导书-v0.1.375.docx) / [PDF](../output/pdf/MES-lite全流程作业指导书-v0.1.375.pdf) / [离线 Web](../output/web/MES-lite全流程作业指导书-v0.1.375/index.html)
+- MES-lite 全流程作业指导书（与站内帮助同源）：[Markdown](./operations/user-guide/MES-lite全流程作业指导书-v0.1.376.md) / [DOCX](../output/docx/MES-lite全流程作业指导书-v0.1.376.docx) / [PDF](../output/pdf/MES-lite全流程作业指导书-v0.1.376.pdf) / [离线 Web](../output/web/MES-lite全流程作业指导书-v0.1.376/index.html)
+- [生产实绩执行上下文操作与回滚](./operations/生产实绩执行上下文操作与回滚.md)
 - [来料自动检验与红冲回滚](./operations/来料自动检验与红冲回滚.md)
 - [质量检验标准、抽样与趋势操作及回滚](./operations/质量检验标准抽样与趋势操作及回滚.md)
 - [设备维保与备件领用操作与回滚](./operations/设备维保与备件领用操作与回滚.md)

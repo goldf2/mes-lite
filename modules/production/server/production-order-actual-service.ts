@@ -13,6 +13,10 @@ import { ProductionOrderDomainError } from '../domain/production-order-errors'
 import { productionOrderActualCreationError } from '../domain/production-order-status'
 import { buildProductionOrderActualLines } from './production-order-actual-lines'
 import {
+  loadProductionActualExecutionContext,
+  resolveProductionActualExecutionContext,
+} from './production-order-actual-context-service'
+import {
   assertInventoryLocationDataScope,
   assertProductionActualDataScope,
   assertProductionOrderDataScope,
@@ -24,6 +28,21 @@ import {
 const actualInclude = {
   employees: {
     include: { employee: { select: { id: true, code: true, name: true, department: true, isActive: true } } },
+    orderBy: { createdAt: 'asc' as const },
+  },
+  equipmentSnapshots: {
+    select: {
+      id: true, sourceEquipmentId: true, equipmentCode: true, equipmentName: true, equipmentType: true,
+      equipmentModel: true, equipmentStatus: true, workCenterId: true, workCenterCode: true, workCenterName: true, createdAt: true,
+    },
+    orderBy: { createdAt: 'asc' as const },
+  },
+  workInstructionSnapshots: {
+    select: {
+      id: true, sourceWorkInstructionId: true, title: true, version: true, status: true,
+      categoryId: true, categoryName: true, materialId: true, materialCode: true, materialName: true,
+      workCentersJson: true, attachmentsJson: true, sourceUpdatedAt: true, createdAt: true,
+    },
     orderBy: { createdAt: 'asc' as const },
   },
   inputs: {
@@ -104,10 +123,12 @@ export async function getProductionOrderActualWorkspace(orderId: string, scope: 
   ])
   if (!order) throw new ProductionOrderDomainError('生产订单不存在或已归档', 404)
   assertProductionOrderDataScope(scope, order)
+  const executionContext = await loadProductionActualExecutionContext(prisma, order)
   return {
     order: { ...order, bomSnapshot: order.bomSnapshot ? parseProductionOrderBomSnapshot(order.bomSnapshot) : null },
     locations,
     employees,
+    executionContext,
   }
 }
 
@@ -139,6 +160,7 @@ export async function createProductionOrderActual(orderId: string, input: Create
     if (scope.productionMode === 'SELF' && employees.some((employee) => employee.id !== scope.employeeId)) {
       throw new DataScopeError('本人范围账号只能登记绑定员工的生产实绩')
     }
+    const executionContext = await resolveProductionActualExecutionContext(tx, order, input)
     const lines = await buildProductionOrderActualLines(tx, order.bomSnapshot, input.inputs, input.outputs)
     const { start, end } = productionActualDayRange(actualDate)
     const latestActual = await tx.productionOrderActual.findFirst({
@@ -154,7 +176,11 @@ export async function createProductionOrderActual(orderId: string, input: Create
         actualDate,
         workers: employeeNamesSnapshot(employees),
         note: input.note || null,
+        equipmentExceptionReason: executionContext.equipmentExceptionReason,
+        workInstructionExceptionReason: executionContext.workInstructionExceptionReason,
         employees: { create: employees.map((employee) => ({ employeeId: employee.id, employeeCode: employee.code, employeeName: employee.name })) },
+        equipmentSnapshots: { create: executionContext.equipmentSnapshots },
+        workInstructionSnapshots: { create: executionContext.workInstructionSnapshots },
         inputs: { create: lines.inputs },
         outputs: { create: lines.outputs },
       },

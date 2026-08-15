@@ -17,12 +17,15 @@ import { createProductionQualityInspection } from '@/modules/quality'
 import { parseProductionActualCostLayerSnapshot } from '../domain/production-order-actual-cost-snapshot'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
 import { recalculateProductionOrderTotals } from './production-order-actual-totals'
+import { assertProductionActualExecutionContext } from './production-order-actual-context-service'
 
 const roundQty = (value: number) => Number(value.toFixed(6))
 const tolerance = 0.000001
 
 const postingInclude = {
   employees: { select: { employeeId: true } },
+  equipmentSnapshots: { select: { id: true } },
+  workInstructionSnapshots: { select: { id: true } },
   order: {
     include: {
       dispatches: { where: { deletedAt: null }, select: { employeeId: true, step: { select: { workCenterId: true } } } },
@@ -87,6 +90,7 @@ export async function confirmProductionOrderActual(orderId: string, actualId: st
     const actual = await requireProductionOrderActual(tx, orderId, actualId, 'DRAFT')
     assertProductionActualDataScope(scope, actual)
     assertInventoryLocationDataScope(scope, [...actual.inputs.map((line) => line.locationId), ...actual.outputs.map((line) => line.locationId)])
+    assertProductionActualExecutionContext(actual)
     if (actual.inputs.length === 0 || actual.outputs.length === 0) {
       throw new ProductionOrderDomainError('班后生产实绩缺少投入或产出明细')
     }

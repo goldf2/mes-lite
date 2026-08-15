@@ -234,6 +234,22 @@ async function main() {
     data: { status: 'RELEASED', isActive: true, isDefault: true, releasedAt: fixedNow, releasedBy: admin.name },
   })
 
+  const parentCategory = await prisma.documentCategory.create({ data: { name: '生产作业文件', sortOrder: 10 } })
+  const childCategory = await prisma.documentCategory.create({ data: { name: '冷镦工序指导', parentId: parentCategory.id, sortOrder: 10 } })
+  const productionInstruction = await prisma.workInstruction.create({
+    data: {
+      categoryId: childCategory.id,
+      title: 'M8×30 冷镦成型作业指导',
+      version: 'v1.0',
+      status: 'ACTIVE',
+      materialId: bolt.id,
+      workCenters: { connect: [{ id: formingCenter.id }, { id: inspectionCenter.id }] },
+      contentJson: JSON.stringify({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '开机前确认模具、材料炉批和首件检验状态。' }] }] }),
+      contentText: '开机前确认模具、材料炉批和首件检验状态。',
+      note: '指导书演示文档',
+    },
+  })
+
   await prisma.$transaction(async (tx) => {
     await postInventoryReceipt(tx, { materialId: oil.id, stockQty: 180, valuationQty: 180, costAmount: 2700, type: 'OPENING', refType: 'DEMO', refId: 'oil-opening', note: '指导书演示期初库存', createdBy: admin.name, idempotencyKey: 'GUIDE:OIL:OPENING', locationId: rawLocation.id })
   })
@@ -333,6 +349,8 @@ async function main() {
     const actual = await createProductionOrderActual(releasedOrder.first.id, {
       actualDate: '2026-08-12',
       employeeIds: [employee.id],
+      equipmentIds: [equipmentId.get('EQ-CF-01')!],
+      workInstructionIds: [productionInstruction.id],
       note,
       inputs: [
         { materialId: wire.id, locationId: rawLocation.id, lossMode: 'PERCENT', lossValue: 0 },
@@ -358,6 +376,8 @@ async function main() {
   const traceDraftActual = await createProductionOrderActual(releasedOrder.first.id, {
     actualDate: '2026-08-13',
     employeeIds: [employee.id],
+    equipmentIds: [equipmentId.get('EQ-CF-01')!],
+    workInstructionIds: [productionInstruction.id],
     note: '指导书：待在浏览器确认并生成批次谱系',
     inputs: [
       { materialId: wire.id, locationId: rawLocation.id, lossMode: 'PERCENT', lossValue: 0 },
@@ -492,22 +512,6 @@ async function main() {
     note: '指导书：已收货且形成独立待检批次的退货单',
   }, fixedNow)
   await processManagedReturn(processedReturn.id, warehouseKeeper.name)
-
-  const parentCategory = await prisma.documentCategory.create({ data: { name: '生产作业文件', sortOrder: 10 } })
-  const childCategory = await prisma.documentCategory.create({ data: { name: '冷镦工序指导', parentId: parentCategory.id, sortOrder: 10 } })
-  await prisma.workInstruction.create({
-    data: {
-      categoryId: childCategory.id,
-      title: 'M8×30 冷镦成型作业指导',
-      version: 'v1.0',
-      status: 'ACTIVE',
-      materialId: bolt.id,
-      workCenters: { connect: [{ id: formingCenter.id }, { id: inspectionCenter.id }] },
-      contentJson: JSON.stringify({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '开机前确认模具、材料炉批和首件检验状态。' }] }] }),
-      contentText: '开机前确认模具、材料炉批和首件检验状态。',
-      note: '指导书演示文档',
-    },
-  })
 
   await ensureDefaultPermissions()
   const aiObserverGroup = await prisma.permissionGroup.create({

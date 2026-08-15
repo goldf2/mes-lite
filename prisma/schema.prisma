@@ -95,27 +95,28 @@ model Employee {
 }
 
 model Equipment {
-  id                String                          @id @default(cuid())
-  code              String                          @unique
-  name              String
-  equipmentType     String
-  model             String?
-  manufacturer      String?
-  serialNumber      String?
-  status            String                          @default("AVAILABLE")
-  location          String?
-  basicParameters   String?
-  note              String?
-  workCenterId      String
-  workCenter        WorkCenter                      @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
-  events            EquipmentEvent[]
-  inspectionPlans   EquipmentInspectionPlan[]
-  inspectionRecords EquipmentInspectionRecord[]
-  maintenancePlans  EquipmentMaintenancePlan[]
-  maintenanceOrders EquipmentMaintenanceWorkOrder[]
-  deletedAt         DateTime?
-  createdAt         DateTime                        @default(now())
-  updatedAt         DateTime                        @updatedAt
+  id                        String                           @id @default(cuid())
+  code                      String                           @unique
+  name                      String
+  equipmentType             String
+  model                     String?
+  manufacturer              String?
+  serialNumber              String?
+  status                    String                           @default("AVAILABLE")
+  location                  String?
+  basicParameters           String?
+  note                      String?
+  workCenterId              String
+  workCenter                WorkCenter                       @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
+  events                    EquipmentEvent[]
+  inspectionPlans           EquipmentInspectionPlan[]
+  inspectionRecords         EquipmentInspectionRecord[]
+  maintenancePlans          EquipmentMaintenancePlan[]
+  maintenanceOrders         EquipmentMaintenanceWorkOrder[]
+  productionActualSnapshots ProductionOrderActualEquipment[]
+  deletedAt                 DateTime?
+  createdAt                 DateTime                         @default(now())
+  updatedAt                 DateTime                         @updatedAt
 
   @@index([workCenterId])
   @@index([status])
@@ -803,28 +804,79 @@ model ProductionOrder {
 }
 
 model ProductionOrderActual {
-  id             String                          @id @default(cuid())
-  actualNo       String                          @unique
-  orderId        String
-  order          ProductionOrder                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  actualDate     DateTime
-  workers        String
-  note           String?
-  status         String                          @default("DRAFT")
-  confirmedAt    DateTime?
-  confirmedBy    String?
-  reversedAt     DateTime?
-  reversedBy     String?
-  reverseReason  String?
-  employees      ProductionOrderActualEmployee[]
-  inputs         ProductionOrderActualInput[]
-  outputs        ProductionOrderActualOutput[]
-  lotGenealogies InventoryLotGenealogy[]
-  createdAt      DateTime                        @default(now())
-  updatedAt      DateTime                        @updatedAt
+  id                             String                                 @id @default(cuid())
+  actualNo                       String                                 @unique
+  orderId                        String
+  order                          ProductionOrder                        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actualDate                     DateTime
+  workers                        String
+  note                           String?
+  equipmentExceptionReason       String?
+  workInstructionExceptionReason String?
+  status                         String                                 @default("DRAFT")
+  confirmedAt                    DateTime?
+  confirmedBy                    String?
+  reversedAt                     DateTime?
+  reversedBy                     String?
+  reverseReason                  String?
+  employees                      ProductionOrderActualEmployee[]
+  equipmentSnapshots             ProductionOrderActualEquipment[]
+  workInstructionSnapshots       ProductionOrderActualWorkInstruction[]
+  inputs                         ProductionOrderActualInput[]
+  outputs                        ProductionOrderActualOutput[]
+  lotGenealogies                 InventoryLotGenealogy[]
+  createdAt                      DateTime                               @default(now())
+  updatedAt                      DateTime                               @updatedAt
 
   @@index([orderId, actualDate])
   @@index([status])
+}
+
+model ProductionOrderActualEquipment {
+  id                String                @id @default(cuid())
+  actualId          String
+  actual            ProductionOrderActual @relation(fields: [actualId], references: [id], onDelete: Cascade)
+  sourceEquipmentId String?
+  sourceEquipment   Equipment?            @relation(fields: [sourceEquipmentId], references: [id], onDelete: SetNull)
+  equipmentCode     String
+  equipmentName     String
+  equipmentType     String
+  equipmentModel    String?
+  equipmentStatus   String
+  workCenterId      String
+  workCenterCode    String
+  workCenterName    String
+  createdAt         DateTime              @default(now())
+
+  @@unique([actualId, sourceEquipmentId])
+  @@index([sourceEquipmentId])
+  @@index([workCenterId])
+}
+
+model ProductionOrderActualWorkInstruction {
+  id                      String                @id @default(cuid())
+  actualId                String
+  actual                  ProductionOrderActual @relation(fields: [actualId], references: [id], onDelete: Cascade)
+  sourceWorkInstructionId String?
+  sourceWorkInstruction   WorkInstruction?      @relation(fields: [sourceWorkInstructionId], references: [id], onDelete: SetNull)
+  title                   String
+  version                 String
+  status                  String
+  categoryId              String
+  categoryName            String
+  materialId              String?
+  materialCode            String?
+  materialName            String?
+  workCentersJson         String                @default("[]")
+  contentJson             String?
+  contentText             String?
+  attachmentsJson         String                @default("[]")
+  sourceUpdatedAt         DateTime
+  createdAt               DateTime              @default(now())
+
+  @@unique([actualId, sourceWorkInstructionId])
+  @@index([sourceWorkInstructionId])
+  @@index([materialId])
 }
 
 model ProductionOrderActualEmployee {
@@ -1360,28 +1412,28 @@ model InventoryLotTransaction {
 }
 
 model QualityInspectionStandard {
-  id              String                          @id @default(cuid())
-  code            String
-  version         Int                             @default(1)
-  name            String
-  materialId      String
-  material        Material                        @relation(fields: [materialId], references: [id], onDelete: Restrict)
-  sourceType      String
-  samplingMode    String
-  sampleValue     Float                           @default(0)
-  minSampleQty    Float?
-  maxSampleQty    Float?
-  status          String                          @default("DRAFT")
-  changeReason    String
-  createdBy       String
-  releasedAt      DateTime?
-  releasedBy      String?
-  obsoleteAt      DateTime?
-  obsoleteBy      String?
-  items           QualityInspectionStandardItem[]
-  inspections     QualityInspection[]
-  createdAt       DateTime                        @default(now())
-  updatedAt       DateTime                        @updatedAt
+  id           String                          @id @default(cuid())
+  code         String
+  version      Int                             @default(1)
+  name         String
+  materialId   String
+  material     Material                        @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  sourceType   String
+  samplingMode String
+  sampleValue  Float                           @default(0)
+  minSampleQty Float?
+  maxSampleQty Float?
+  status       String                          @default("DRAFT")
+  changeReason String
+  createdBy    String
+  releasedAt   DateTime?
+  releasedBy   String?
+  obsoleteAt   DateTime?
+  obsoleteBy   String?
+  items        QualityInspectionStandardItem[]
+  inspections  QualityInspection[]
+  createdAt    DateTime                        @default(now())
+  updatedAt    DateTime                        @updatedAt
 
   @@unique([code, version])
   @@index([materialId, sourceType, status])
@@ -1404,21 +1456,21 @@ model QualityInspectionStandardItem {
 }
 
 model QualityInspection {
-  id                       String               @id @default(cuid())
-  inspectionNo             String               @unique
+  id                       String                       @id @default(cuid())
+  inspectionNo             String                       @unique
   lotId                    String
-  lot                      InventoryLot         @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  lot                      InventoryLot                 @relation(fields: [lotId], references: [id], onDelete: Restrict)
   sourceType               String
   sourceId                 String
-  round                    Int                  @default(1)
+  round                    Int                          @default(1)
   parentInspectionId       String?
-  parentInspection         QualityInspection?   @relation("QualityInspectionRounds", fields: [parentInspectionId], references: [id], onDelete: Restrict)
-  followUpInspections      QualityInspection[]  @relation("QualityInspectionRounds")
-  requestedByDispositionId String?              @unique
-  requestedByDisposition   QualityDisposition?  @relation("QualityDispositionFollowUp", fields: [requestedByDispositionId], references: [id], onDelete: Restrict)
-  dispositions             QualityDisposition[] @relation("QualityInspectionDispositions")
+  parentInspection         QualityInspection?           @relation("QualityInspectionRounds", fields: [parentInspectionId], references: [id], onDelete: Restrict)
+  followUpInspections      QualityInspection[]          @relation("QualityInspectionRounds")
+  requestedByDispositionId String?                      @unique
+  requestedByDisposition   QualityDisposition?          @relation("QualityDispositionFollowUp", fields: [requestedByDispositionId], references: [id], onDelete: Restrict)
+  dispositions             QualityDisposition[]         @relation("QualityInspectionDispositions")
   standardId               String?
-  standard                 QualityInspectionStandard? @relation(fields: [standardId], references: [id], onDelete: Restrict)
+  standard                 QualityInspectionStandard?   @relation(fields: [standardId], references: [id], onDelete: Restrict)
   standardCodeSnapshot     String?
   standardVersionSnapshot  Int?
   standardNameSnapshot     String?
@@ -1426,19 +1478,19 @@ model QualityInspection {
   samplingValueSnapshot    Float?
   minSampleQtySnapshot     Float?
   maxSampleQtySnapshot     Float?
-  suggestedSampleQty       Float                @default(0)
-  checkItems                QualityInspectionCheckItem[]
-  status                   String               @default("PENDING")
-  result                   String               @default("PENDING")
-  inspectedQty             Float                @default(0)
-  sampleQty                Float                @default(0)
-  goodQty                  Float                @default(0)
-  badQty                   Float                @default(0)
+  suggestedSampleQty       Float                        @default(0)
+  checkItems               QualityInspectionCheckItem[]
+  status                   String                       @default("PENDING")
+  result                   String                       @default("PENDING")
+  inspectedQty             Float                        @default(0)
+  sampleQty                Float                        @default(0)
+  goodQty                  Float                        @default(0)
+  badQty                   Float                        @default(0)
   inspector                String?
   checkedAt                DateTime?
   note                     String?
-  createdAt                DateTime             @default(now())
-  updatedAt                DateTime             @updatedAt
+  createdAt                DateTime                     @default(now())
+  updatedAt                DateTime                     @updatedAt
 
   @@index([lotId, status])
   @@index([status, createdAt])
@@ -1448,20 +1500,20 @@ model QualityInspection {
 }
 
 model QualityInspectionCheckItem {
-  id                         String                         @id @default(cuid())
-  inspectionId               String
-  inspection                 QualityInspection              @relation(fields: [inspectionId], references: [id], onDelete: Restrict)
-  standardItemId             String?
-  standardItem               QualityInspectionStandardItem? @relation(fields: [standardItemId], references: [id], onDelete: Restrict)
-  name                       String
-  method                     String
-  acceptanceCriteria         String
-  sortOrder                  Int                            @default(0)
-  result                     String                         @default("PENDING")
-  measuredValue              String?
-  note                       String?
-  checkedAt                  DateTime?
-  createdAt                  DateTime                       @default(now())
+  id                 String                         @id @default(cuid())
+  inspectionId       String
+  inspection         QualityInspection              @relation(fields: [inspectionId], references: [id], onDelete: Restrict)
+  standardItemId     String?
+  standardItem       QualityInspectionStandardItem? @relation(fields: [standardItemId], references: [id], onDelete: Restrict)
+  name               String
+  method             String
+  acceptanceCriteria String
+  sortOrder          Int                            @default(0)
+  result             String                         @default("PENDING")
+  measuredValue      String?
+  note               String?
+  checkedAt          DateTime?
+  createdAt          DateTime                       @default(now())
 
   @@unique([inspectionId, sortOrder])
   @@index([inspectionId, result])
@@ -1954,22 +2006,23 @@ model DocumentAttachment {
 // ==================== 作业指导书 ====================
 
 model WorkInstruction {
-  id          String           @id @default(cuid())
-  categoryId  String
-  category    DocumentCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  title       String
-  version     String           @default("v1")
-  status      String           @default("ACTIVE")
-  materialId  String?
-  material    Material?        @relation(fields: [materialId], references: [id], onDelete: Restrict)
-  workCenters WorkCenter[]
-  contentJson String?
-  contentText String?
-  note        String?
-  deletedAt   DateTime?
-  deletedBy   String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id                        String                                 @id @default(cuid())
+  categoryId                String
+  category                  DocumentCategory                       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  title                     String
+  version                   String                                 @default("v1")
+  status                    String                                 @default("ACTIVE")
+  materialId                String?
+  material                  Material?                              @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  workCenters               WorkCenter[]
+  productionActualSnapshots ProductionOrderActualWorkInstruction[]
+  contentJson               String?
+  contentText               String?
+  note                      String?
+  deletedAt                 DateTime?
+  deletedBy                 String?
+  createdAt                 DateTime                               @default(now())
+  updatedAt                 DateTime                               @updatedAt
 
   @@index([categoryId])
   @@index([status])

@@ -872,3 +872,11 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 七个命令是显式审批升级资源，既有角色、内置/自定义组和个人覆盖补齐时默认关闭。取消发货、拒绝退货和流程转移冲销必须填写原因；发货与退货状态命令另写请求级审计。
 - 页面复用既有发货、退货和流程转移工作区，只通过应用壳注入稳定的命令能力；仪表盘仓库待办使用正向命令资源，不因通用编辑权限出现。
 - `verify:role-task-permissions`、`verify:role-task-http-permissions`、销售与流程转移领域回归在隔离 SQLite 中覆盖普通执行、高风险主管动作、403 边界、原因审计以及库存/成本守恒；本版本不修改 Prisma Schema 或迁移。
+
+## 73. v0.1.376 生产实绩执行上下文边界
+
+- `modules/production/server/production-order-actual-context-service.ts` 统一拥有订单工作中心推导、设备/作业文件候选查询、选择 ID 校验、来源重新解析、快照装配和确认前上下文断言；Route Handler 与 UI 不复制这些规则。
+- 设备和文档仍分别由 `modules/equipment`、`modules/documents` 拥有主数据生命周期；生产领域只读取当前有效来源并生成实绩事实，不反向修改主数据，也不从其他模块导入 `server` 子路径。
+- UI 复用公共 `OneToManyRelationField` 和 `RelationSearch`，只提交来源 ID 与例外原因；`ProductionOrderActualPanel` 负责编排实际日期、人员、执行上下文、投入和产出，不把候选安全边界放在浏览器。
+- `ProductionOrderActualEquipment` 与 `ProductionOrderActualWorkInstruction` 是生产领域拥有的不可变快照。确认服务与数据库触发器同时要求每类“快照或原因”，并保护已确认/已冲销上下文不可更新或删除。
+- `verify:production-actual-context` 使用临时完整 SQLite，覆盖候选过滤、重复/非法 ID、快照、来源漂移隔离、例外原因、确认必填和数据库旁路；它进入 33 项 CI 领域基线。

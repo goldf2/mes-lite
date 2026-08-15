@@ -1,15 +1,10 @@
 {
-  "version": "0.1.375",
+  "version": "0.1.376",
   "impact": "updated",
   "workflowIds": [
-    "172-logistics-command-permissions",
-    "173-warehouse-shipment-dispatch",
-    "174-sales-shipment-delivery",
-    "175-lead-shipment-cancel",
-    "176-warehouse-return-receive",
-    "177-sales-return-reject",
-    "178-warehouse-flow-transfer-confirm",
-    "179-lead-flow-transfer-reverse"
+    "12-production-actual-entry",
+    "180-production-actual-context-snapshot",
+    "181-production-actual-context-exception"
   ],
-  "summary": "新增发货、签收、取消、退货收货/拒绝和流程转移确认/冲销的命令分权、岗位操作、原因与审计说明。"
+  "summary": "生产实绩新增实际设备、作业文件版本快照及无设备/无文件例外原因，并补充桌面核对和移动端操作流程。"
 }

@@ -18,6 +18,7 @@ const checks = [
   'verify:archive-resource-permissions',
   'verify:data-scopes',
   'verify:data-scope-http',
+  'verify:production-actual-context',
   'verify:production-quality-lots',
   'verify:inventory-lot-genealogy',
   'verify:shipment-return-lots',

@@ -68,6 +68,7 @@ async function main() {
     const actual = await prisma.productionOrderActual.create({
       data: {
         actualNo: `PA-${suffix}`, orderId: order.id, actualDate: new Date('2026-08-13T03:00:00.000Z'), workers: '生产员',
+        equipmentExceptionReason: '批次谱系验证未配置实际设备', workInstructionExceptionReason: '批次谱系验证未配置作业文件',
         inputs: { create: { materialId: raw.id, locationId: productionLocation.id, materialCode: raw.code, materialName: raw.name, quantityPerBatch: 1, plannedQty: 8, actualQty: 8, unit: 'kg' } },
         outputs: { create: { materialId: finished.id, locationId: location.id, materialCode: finished.code, materialName: finished.name, quantityPerBatch: 1, plannedQty: 10, actualQty: 10, unit: '件', isPrimary: true } },
       },
@@ -134,6 +135,7 @@ async function main() {
     const legacyActual = await prisma.productionOrderActual.create({
       data: {
         actualNo: `PA-LEGACY-${suffix}`, orderId: legacyOrder.id, actualDate: new Date('2026-08-13T04:00:00.000Z'), workers: '生产员',
+        equipmentExceptionReason: '历史批次验证未配置实际设备', workInstructionExceptionReason: '历史批次验证未配置作业文件',
         inputs: { create: { materialId: raw.id, locationId: location.id, materialCode: raw.code, materialName: raw.name, quantityPerBatch: 1, plannedQty: 2, actualQty: 2, unit: 'kg' } },
         outputs: { create: { materialId: finished.id, locationId: location.id, materialCode: finished.code, materialName: finished.name, quantityPerBatch: 1, plannedQty: 2, actualQty: 2, unit: '件', isPrimary: true } },
       }, include: { inputs: true },

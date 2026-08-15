@@ -82,6 +82,8 @@ async function main() {
           orderId: order.id,
           actualDate: new Date('2026-08-12T00:00:00.000Z'),
           workers: '质量闭环验证员',
+          equipmentExceptionReason: '质量闭环验证未配置实际设备',
+          workInstructionExceptionReason: '质量闭环验证未配置作业文件',
           inputs: {
             create: {
               materialId: raw.id, locationId: inputLocation.id,

@@ -45,6 +45,7 @@ async function main() {
     const order = await prisma.productionOrder.create({ data: { orderNo: `WO-PAN-${suffix}`, productId: product.id, materialId: finished.id, planQty: 8, status: 'COMPLETED' } })
     const actual = await prisma.productionOrderActual.create({ data: {
       actualNo: `PA-PAN-${suffix}`, orderId: order.id, actualDate: new Date(), workers: '全景验证员', status: 'CONFIRMED',
+      equipmentExceptionReason: '批次全景验证未配置实际设备', workInstructionExceptionReason: '批次全景验证未配置作业文件',
       inputs: { create: { materialId: raw.id, locationId: location.id, materialCode: raw.code, materialName: raw.name, quantityPerBatch: 1, plannedQty: 5, actualQty: 5, unit: 'kg' } },
       outputs: { create: { materialId: finished.id, locationId: location.id, materialCode: finished.code, materialName: finished.name, quantityPerBatch: 1, plannedQty: 8, actualQty: 8, unit: '件', isPrimary: true } },
     }, include: { inputs: true, outputs: true } })

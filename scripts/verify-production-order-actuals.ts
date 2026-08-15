@@ -126,6 +126,8 @@ async function main() {
     const actualInput = {
       actualDate: '2026-08-09',
       employeeIds: [employee.id],
+      equipmentExceptionReason: '验证环境未配置实际设备',
+      workInstructionExceptionReason: '验证环境未配置作业文件',
       note: '验证班后生产实绩',
       inputs: [{
         materialId: existingProduct.id,
