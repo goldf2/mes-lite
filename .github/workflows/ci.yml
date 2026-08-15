@@ -27,6 +27,9 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: Fetch production audit baseline
+        run: git fetch --no-tags --depth=1 origin be7e18f653bd684cb2367985c1f8c072801d79ec
+
       - name: Use Node.js 20
         uses: actions/setup-node@v5
         with:

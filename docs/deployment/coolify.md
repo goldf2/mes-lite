@@ -84,7 +84,21 @@ AI_AGENT_MAX_TOOL_ROUNDS=4
 
 也可以参考仓库内的 `.env.coolify.example`，在 Coolify 的 Environment Variables 页面逐项填写。不要把生产 `.env` 文件提交到 Git。
 
-主机先创建目录：
+### 3.0 持久存储的唯一配置来源
+
+MES-lite 的 `Dockerfile` 只通过 `mkdir -p` 创建 `/app/data`、`/app/public/uploads` 和 `/app/backups` 并设置运行时环境变量；它没有声明 `VOLUME`。创建容器内目录不等于持久化，生产也禁止依赖 Docker 为镜像 `VOLUME` 隐式创建的匿名卷。匿名卷使用随机 ID，无法从业务名称直接判断用途，且 Coolify 滚动替换、回滚、迁移或清理容器时不能把它视为已登记、可复用的交付资产。
+
+Dockerfile 部署必须在 Coolify 的 Persistent Storage 中显式登记三个 Directory 或 Volume，并以运行容器的 `docker inspect <容器> --format '{{json .Mounts}}'` 结果作为最终挂载证据。当前生产应用 `yjad2gnk1ycpeletd0aqlq4g` 实际使用 Coolify 管理的三个 Directory：
+
+```text
+/data/coolify/applications/yjad2gnk1ycpeletd0aqlq4g/data     -> /app/data
+/data/coolify/applications/yjad2gnk1ycpeletd0aqlq4g/uploads  -> /app/public/uploads
+/data/coolify/applications/yjad2gnk1ycpeletd0aqlq4g/backups  -> /app/backups
+```
+
+Coolify 页面、运行容器和宿主机目录三者必须一致。只看到两个目录、看到 `/opt/mes-lite/*`，或只在文件管理器中看到同名文件夹，都不能证明当前生产容器已经挂载；先确认所处应用是生产而不是演示，再核对三个 Destination Path。不得在运行中的 SQLite 实例上直接修改 Source Path 或搬迁目录。
+
+从零创建新环境且希望宿主机路径便于人工识别时，可以先创建：
 
 ```bash
 sudo mkdir -p /opt/mes-lite/data /opt/mes-lite/uploads /opt/mes-lite/backups
@@ -231,3 +245,5 @@ SQLite 数据目录只能由一个运行中的应用实例写入。需要多实�
 2026-08-13 应用上述配置时，第一次重建完成编译和镜像层组装后在 `exporting layers` 被 BuildKit `context canceled` 中断；旧健康容器未被移除。复核主机仍有 29 GB 可用空间、3.5 GiB 可用内存，随后把迁移前备份变量改为仅 Runtime 注入并重试。第二次构建复用既有镜像，启动日志先生成一致备份 `mes-lite-backup-2026-08-13T11-33-44-021Z-5330c3ab.tar.gz`（SHA-256 `cbcfe027ee518032247806768c2c35c811434e377a8020cabb5f6ab3be37999b`），再确认 76 个迁移无待处理，新容器健康后才移除旧容器并完成滚动更新。
 
 普通迭代当前采用“Git 推送 + Webhook 自动部署 + 运行验收”；涉及生产数据迁移、模型回填或高风险权限变更时，仍须在维护窗口临时关闭 Auto Deploy、固定批准提交并准备可回滚挂载。不得仅凭 `main` 最新提交或部署列表中的日志文案判断线上版本；必须同时核对 Coolify Running 链接、应用版本、首页静态文件和 `/api/health/ready`。
+
+2026-08-15 的生产与演示双 Webhook 构建造成 4 vCPU 主机失去响应。事故证据、已完成止血、未完成门禁和恢复验收见 [Coolify 双构建导致主机失去响应](../operations/incidents/2026-08-15-coolify双构建主机失联.md)。在关闭演示应用 Auto Deploy 或迁移到独立构建节点之前，不得推送新的 `main` 提交触发生产部署。
