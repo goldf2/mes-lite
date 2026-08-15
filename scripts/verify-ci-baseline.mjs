@@ -30,6 +30,7 @@ const checks = [
   'verify:runtime-operations',
   'verify:attachment-storage',
   'verify:production-database-audit',
+  'verify:production-schema-drift',
   'verify:sop',
   'verify:sop-fullscreen-help',
   'verify:release-notes',

@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.376",
+  "version": "0.1.377",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -37,8 +37,11 @@
     "verify:application-recovery-drill": "tsx scripts/verify-application-recovery-drill.ts",
     "verify:attachment-storage": "tsx scripts/verify-attachment-storage.ts",
     "audit:production-database": "node scripts/audit-production-database.mjs",
+    "audit:production-schema-drift": "node scripts/audit-production-schema-drift.mjs",
+    "prepare:production-schema-reconciliation": "node scripts/prepare-production-schema-reconciliation-candidate.mjs",
     "prepare:production-recovery-candidate": "npx -y node@20 scripts/prepare-production-recovery-candidate.mjs",
     "verify:production-database-audit": "node scripts/verify-production-database-audit.mjs",
+    "verify:production-schema-drift": "node scripts/verify-production-schema-drift.mjs",
     "audit:model-convergence": "tsx scripts/audit-model-convergence.ts",
     "migrate:product-material": "tsx scripts/product-material-migration.ts",
     "verify:model-convergence": "tsx scripts/verify-model-convergence.ts",

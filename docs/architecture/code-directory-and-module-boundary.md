@@ -880,3 +880,10 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - UI 复用公共 `OneToManyRelationField` 和 `RelationSearch`，只提交来源 ID 与例外原因；`ProductionOrderActualPanel` 负责编排实际日期、人员、执行上下文、投入和产出，不把候选安全边界放在浏览器。
 - `ProductionOrderActualEquipment` 与 `ProductionOrderActualWorkInstruction` 是生产领域拥有的不可变快照。确认服务与数据库触发器同时要求每类“快照或原因”，并保护已确认/已冲销上下文不可更新或删除。
 - `verify:production-actual-context` 使用临时完整 SQLite，覆盖候选过滤、重复/非法 ID、快照、来源漂移隔离、例外原因、确认必填和数据库旁路；它进入 33 项 CI 领域基线。
+
+## 74. v0.1.377 生产 Schema 漂移工具边界
+
+- `scripts/audit-production-schema-drift.mjs` 只负责稳定复制证据、从精确 Git 提交构建迁移基线、比较物理对象与 Prisma 语义 diff，以及生成不可覆盖报告；它不打开或修改源 SQLite。
+- `scripts/prepare-production-schema-reconciliation-candidate.mjs` 只消费哈希与提交一致的审计报告，先归档退役数据，再对新建 `.partial` 候选执行绑定 diff；完整性和后置零漂移通过后才原子更名。
+- 这两个脚本属于运维交付工具，不进入业务模块、Route Handler 或 Web 管理入口；生产切换仍必须使用一致备份、应用恢复演练、业务签字和可回切 Coolify 挂载。
+- `verify:production-schema-drift` 使用临时清洁库与合成漂移库，回归零漂移、有数据退役表、额外列、报告不覆盖、源哈希不变和收敛后零漂移；它进入 34 项 CI 领域/治理基线。

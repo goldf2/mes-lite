@@ -1,10 +1,8 @@
 {
-  "version": "0.1.376",
+  "version": "0.1.377",
   "impact": "updated",
   "workflowIds": [
-    "12-production-actual-entry",
-    "180-production-actual-context-snapshot",
-    "181-production-actual-context-exception"
+    "141-application-recovery-drill"
   ],
-  "summary": "生产实绩新增实际设备、作业文件版本快照及无设备/无文件例外原因，并补充桌面核对和移动端操作流程。"
+  "summary": "应用恢复演练前增加迁移基线 Schema 漂移审计、退役结构数据归档和非覆盖收敛候选，并将 RPO 超标保留为显式失败门禁。"
 }

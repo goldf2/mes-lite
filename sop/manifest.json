@@ -3935,26 +3935,28 @@
           "lastVerifiedVersion": "0.1.362"
         },
         {
-          "id": "141-application-recovery-drill",
-          "title": "执行应用级恢复演练",
-          "objective": "在不改写在线生产和源候选的前提下，证明恢复数据能够启动隔离应用并通过关键业务抽查。",
-          "steps": [
-            "准备已验证的恢复候选数据库和附件目录，并确认目标目录与报告文件不存在。",
-            "执行 npm run storage:drill:application，填写数据库、附件、目标、报告、环境和操作人参数。",
-            "等待全附件哈希、迁移、readiness、临时管理员登录、物料/库存/生产单和附件原文件抽查完成。",
-            "核对报告中所有检查为 PASS、RPO/RTO 达标，并确认临时管理员已清理、源候选 SHA-256 未变化。"
-          ],
-          "result": "隔离应用恢复验收通过，报告记录完整应用 RTO；在线生产和源候选未被改写，异地副本与真实 Coolify 挂载切换仍单独验收。",
+      "id": "141-application-recovery-drill",
+      "title": "执行应用级恢复演练",
+      "objective": "在不改写在线生产和源候选的前提下，先收敛恢复候选的 Schema 漂移，再证明它能启动隔离应用并通过关键业务抽查。",
+      "steps": [
+        "准备已验证的恢复候选数据库和附件目录，固定目标 Git 提交，并确认所有输出路径不存在。",
+        "执行 npm run audit:production-schema-drift，核对源证据哈希未变、目标迁移基线正确，并保存不可覆盖的 JSON 报告。",
+        "如审计返回漂移，先审批历史数据处置，再执行 npm run prepare:production-schema-reconciliation，生成退役结构归档和非覆盖收敛候选。",
+        "只有候选后置审计为 NO_SCHEMA_DRIFT时，才执行 npm run storage:drill:application，填写数据库、附件、目标、报告、环境、备份创建时间和操作人。",
+        "等待全附件哈希、迁移、readiness、临时管理员登录、物料/库存/生产单和附件原文件抽查完成。",
+        "核对 Schema 和应用报告：所有技术检查为 PASS、RPO/RTO 分别判定，临时管理员已清理，且源候选 SHA-256 全程未变。"
+      ],
+      "result": "Schema 收敛候选的后置审计为零漂移，隔离应用检查全部通过，且在线生产和源候选未被改写。备份超过 24 小时时 RPO 必须判定失败；异地副本与真实 Coolify 挂载切换仍单独验收。",
           "pageKey": "dataTools",
           "resource": "dataTools",
           "roles": [
             "运维管理员"
           ],
           "screenshot": {
-            "baseline": "0.1.366",
+            "baseline": "0.1.377",
             "file": "141-application-recovery-drill.png"
           },
-          "lastVerifiedVersion": "0.1.366"
+      "lastVerifiedVersion": "0.1.377"
         },
         {
           "id": "142-product-material-preflight",
