@@ -1,0 +1,84 @@
+{
+  "title": "MES-lite 主界面快速导览",
+  "voice": "Tingting",
+  "speechRate": 220,
+  "scenes": [
+    {
+      "style": "cover",
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/02-dashboard.png",
+      "title": "MES-lite 主界面快速导览",
+      "subtitle": "首页、页面模式与常用功能按钮",
+      "narration": "欢迎使用 MES-lite。本视频快速介绍首页、页面模式、导航和常用按钮。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/02-dashboard.png",
+      "title": "左上角：主模块与首页",
+      "subtitle": "MES-lite 是当前主模块；MRP 和 ERP 是可配置的预留项",
+      "narration": "左上角的 MES-lite 是主模块和首页按钮，点击后返回仪表盘。MRP 和 ERP 只是可改名、可隐藏的预留按钮。",
+      "spotlights": [
+        { "x": 8, "y": 68, "width": 168, "height": 38, "label": "点击 MES-lite 返回首页" }
+      ]
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/02-dashboard.png",
+      "title": "左侧导航：按任务进入功能",
+      "subtitle": "搜索、业务分组、当前页面高亮和版本信息使用同一公共导航",
+      "narration": "左侧是统一功能导航。可以搜索功能，也可以按业务分组进入；当前页保持高亮，版本显示在导航底部。",
+      "spotlights": [
+        { "x": 7, "y": 116, "width": 210, "height": 532, "label": "统一功能导航" }
+      ]
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/02-dashboard.png",
+      "title": "仪表盘：首页概览与岗位待办",
+      "subtitle": "常用功能、生产和库存指标、待办事项按当前账号权限展示",
+      "narration": "仪表盘汇总常用功能、生产库存指标和岗位待办。首页用于判断今天要处理什么，实际登记进入对应功能页完成。",
+      "spotlights": [
+        { "x": 246, "y": 83, "width": 998, "height": 548, "label": "概览与岗位待办" }
+      ]
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/55-display-settings.png",
+      "title": "页面模式：标准管理与画布工作",
+      "subtitle": "切换只改变布局，不改变页面、权限、筛选条件或业务数据",
+      "narration": "布局按钮可切换标准管理和画布工作。前者适合列表表单，后者提供更宽的主显示区；切换不会改变权限和业务数据。",
+      "spotlights": [
+        { "x": 283, "y": 216, "width": 928, "height": 75, "label": "两种页面模式" }
+      ]
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/02-dashboard.png",
+      "title": "顶部按钮：页面工具与全局功能",
+      "subtitle": "搜索和业务操作属于当前页；帮助、布局、AI、二维码和账户属于全局",
+      "narration": "顶部左侧是当前页的搜索、筛选和操作；右侧依次提供帮助、布局、AI、二维码和账户。悬停图标可查看说明。",
+      "spotlights": [
+        { "x": 239, "y": 8, "width": 1025, "height": 48, "label": "页面工具与全局按钮" }
+      ]
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/56-navigation-settings.png",
+      "title": "导航设置：名称、显隐与顺序",
+      "subtitle": "管理员可以配置模块按钮和统一工作台菜单，不改变内部页面 ID 与权限",
+      "narration": "管理员可在导航设置中修改按钮名称、预留按钮显隐和菜单顺序。重命名不会改变路由、权限和数据。",
+      "spotlights": [
+        { "x": 282, "y": 313, "width": 929, "height": 256, "label": "模块与菜单配置" }
+      ]
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.370/149-context-help-new-page.png",
+      "title": "帮助按钮：当前页帮助与完整帮助中心",
+      "subtitle": "按登录账号权限展示 SOP；快捷帮助和完整帮助都可在新页面全屏查看",
+      "narration": "遇到不熟悉的操作，点击问号打开当前页帮助。内容按账号权限过滤，也可新页全屏查看或进入完整帮助中心。",
+      "spotlights": [
+        { "x": 718, "y": 0, "width": 560, "height": 720, "label": "当前页面帮助" }
+      ]
+    },
+    {
+      "style": "cover",
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/02-dashboard.png",
+      "title": "推荐操作顺序",
+      "subtitle": "首页看待办 → 导航进功能 → 页面工具执行 → 帮助核对结果",
+      "narration": "日常使用记住四步：首页看待办，导航进功能，页面工具执行，最后按帮助核对结果。"
+    }
+  ]
+}

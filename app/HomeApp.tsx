@@ -205,7 +205,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <ControlTooltip label={transientNavigationOpen ? '收起功能导航' : '打开功能导航'} hidden={transientNavigationOpen} />
             </button>
           ) : (
-            <CapabilityModuleButtons config={workspaceNavigationConfig} compact />
+            <CapabilityModuleButtons
+              config={workspaceNavigationConfig}
+              compact
+              onOpenHome={() => navigateToTab('dashboard')}
+            />
           )}
         </div>
         {workspaceLayoutPreference.layout === 'canvas' && <DesktopTopNavigation groups={navigationGroups} />}
@@ -444,7 +448,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               </button>
             </div>
             <div className="shrink-0 border-b border-gray-200 px-4 py-3">
-              <CapabilityModuleButtons config={workspaceNavigationConfig} />
+              <CapabilityModuleButtons
+                config={workspaceNavigationConfig}
+                onOpenHome={() => navigateToTab('dashboard')}
+              />
             </div>
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
               <DesktopNavigation

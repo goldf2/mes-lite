@@ -7,7 +7,7 @@ import {
 } from '@/lib/workspace-navigation-config'
 
 const reservedDescriptions: Record<NavigationWorkspaceId, string> = {
-  mes: '当前主模块，进入统一制造业务导航',
+  mes: '当前主模块，点击返回工作台首页',
   mrp: 'MRP 模块预留；现有计划与 BOM 用量仍在统一菜单',
   erp: 'ERP 模块预留；现有销售履约仍在统一菜单',
 }
@@ -15,9 +15,11 @@ const reservedDescriptions: Record<NavigationWorkspaceId, string> = {
 export default function CapabilityModuleButtons({
   config,
   compact = false,
+  onOpenHome,
 }: {
   config: WorkspaceNavigationConfig
   compact?: boolean
+  onOpenHome: () => void
 }) {
   const visibleModules = navigationWorkspaceIds.filter((moduleId) => config.moduleButtons[moduleId].visible)
 
@@ -35,6 +37,7 @@ export default function CapabilityModuleButtons({
             key={moduleId}
             type="button"
             disabled={!active}
+            onClick={active ? onOpenHome : undefined}
             aria-current={active ? 'page' : undefined}
             aria-label={`${label}，${reservedDescriptions[moduleId]}`}
             title={reservedDescriptions[moduleId]}
