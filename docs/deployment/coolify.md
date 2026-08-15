@@ -63,6 +63,8 @@ SOP_PUBLIC_BASE_URL=
 
 最终交付的 PDF/DOCX 若发布到对象存储，只填写一个只读 HTTPS 基地址，例如 `SOP_PUBLIC_BASE_URL=https://downloads.example.com/mes-lite/sop`。地址不包含 Bucket 写入密钥、查询签名或具体文件名；应用按自身版本生成精确下载路径。未配置时帮助中心不显示离线下载按钮。生成目录、对象路径和校验步骤见 [SOP 生成与发布策略](../operations/SOP生成与发布策略.md)。
 
+`v0.1.384` 起运行镜像内置 `node scripts/sop-library-publication.mjs`。它可以只读下载 `SOP_PUBLIC_BASE_URL/v<当前版本>/manifest.json` 及对应 PDF/DOCX，校验版本、大小和 SHA-256 后登记到持久化产品文档库。该命令不会随 Webhook 自动部署或容器启动自动执行；先在 Coolify Terminal 运行 `--operator <文控账号> --from-oss` 预检，完成一致备份后再增加 `--apply --backup-reference <备份编号或清单路径>`。生产数据库和 `/app/public/uploads` 的变更必须由具有文档类别、产品文档和附件权限的启用账号发起，详细门禁和回滚步骤见上述 SOP 发布策略。
+
 启用全局 AI 协作助手时，在 Coolify 增加以下运行时变量。第一版默认使用阿里云百炼的 OpenAI 兼容接口，也可替换为其他国产兼容服务；密钥不得写入仓库或前端变量：
 
 ```env

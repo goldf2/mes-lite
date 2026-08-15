@@ -887,3 +887,11 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `scripts/prepare-production-schema-reconciliation-candidate.mjs` 只消费哈希与提交一致的审计报告，先归档退役数据，再对新建 `.partial` 候选执行绑定 diff；完整性和后置零漂移通过后才原子更名。
 - 这两个脚本属于运维交付工具，不进入业务模块、Route Handler 或 Web 管理入口；生产切换仍必须使用一致备份、应用恢复演练、业务签字和可回切 Coolify 挂载。
 - `verify:production-schema-drift` 使用临时清洁库与合成漂移库，回归零漂移、有数据退役表、额外列、报告不覆盖、源哈希不变和收敛后零漂移；它进入 34 项 CI 领域/治理基线。
+
+## 75. v0.1.384 系统 SOP 文档库发布边界
+
+- `scripts/sop-library-publication.ts` 是显式运维入口，不是新业务模块、页面或 Route Handler。它编排既有文档、附件、权限和审计数据，但不会被 Webhook、容器启动或数据库迁移调用。
+- 维护命令默认只读，生产写入需要当前应用精确版本、同一清单的 PDF/DOCX、启用的文控账号和一致备份引用。文件先进入 `DRAFT` 文档；最终状态切换、旧版归档和发布审计保持在同一 SQLite 事务。
+- `lib/audit-core.ts` 只拥有审计快照序列化和数据库写入，不依赖 Next.js；`lib/audit.ts` 继续拥有登录账号、IP 和 User-Agent 等 HTTP 上下文。既有业务服务仍从原入口使用事务审计，独立维护包只复用纯核心。
+- 生产构建将维护入口打包为 `.next/maintenance/sop-library-publication.mjs`，Docker 运行镜像只复制该包，不复制 TypeScript、`tsx`、最终 SOP 成品或完整开发依赖。
+- `verify:sop-library-publication` 使用运行后删除的全迁移临时 SQLite、附件目录和本地 OSS 模拟，覆盖零写入预检、权限、精确版本下载、备份门禁、断点续传、原子启用、旧版归档、幂等和内容漂移阻断；它进入 40 项 CI 领域/治理基线。

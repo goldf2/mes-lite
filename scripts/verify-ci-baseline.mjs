@@ -38,6 +38,7 @@ const checks = [
   'verify:sop',
   'verify:sop-fullscreen-help',
   'verify:sop-release',
+  'verify:sop-library-publication',
   'verify:release-notes',
   'verify:development-docs',
 ]

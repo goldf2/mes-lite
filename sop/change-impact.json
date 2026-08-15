@@ -1,8 +1,6 @@
 {
-  "version": "0.1.383",
-  "impact": "updated",
-  "workflowIds": [
-    "139-sop-help-center"
-  ],
-  "summary": "建立单一对象存储地址的版本化 PDF/DOCX 发布契约和 latest 清单；帮助中心仅在配置安全公开地址后显示当前应用版本下载入口，开发期仍只生成 Markdown。"
+  "version": "0.1.384",
+  "impact": "none",
+  "workflowIds": [],
+  "summary": "新增最终冻结 SOP 从本地成品或单一 OSS 地址受控登记到站内产品文档库的运维命令；不改变任何页面、在线帮助步骤或车间业务流程。"
 }
