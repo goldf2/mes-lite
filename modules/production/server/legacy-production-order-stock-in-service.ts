@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { createAuditLog, type AuditContext } from '@/lib/audit'
 import { changeStockLocationBalance } from '@/lib/inventory'
 import type { LegacyProductionOrderStockInInput } from '../contracts/legacy-production-order-execution-schema'
 import { legacyProductionCompatibilityError, legacyStockInStatusError } from '../domain/legacy-production-order-execution-rules'
@@ -10,6 +11,7 @@ export async function stockInLegacyProductionOrder(
   orderId: string,
   input: LegacyProductionOrderStockInInput,
   createdBy: string,
+  auditContext?: AuditContext,
 ) {
   try {
     return await prisma.$transaction(async (tx) => {
@@ -93,6 +95,15 @@ export async function stockInLegacyProductionOrder(
           completeQty: input.qty,
           completeTime: new Date(),
         },
+      })
+      if (auditContext) await createAuditLog(tx, auditContext, {
+        action: 'CREATE',
+        entityType: 'STOCK_IN',
+        entityId: stockIn.id,
+        entityLabel: order.orderNo,
+        beforeData: order,
+        afterData: { stockIn, order: updated },
+        note: '历史工单兼容入库',
       })
       return { order, stockIn, stock, updated }
     })

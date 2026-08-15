@@ -221,6 +221,10 @@ async function verifyDatabaseRules() {
 
   try {
     const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    const auditContext = {
+      operatorId: 'verify-production-order', operatorName: '生产订单审计验证员',
+      ipAddress: undefined, userAgent: undefined,
+    }
     const [outputMaterial, inputMaterial] = await Promise.all([
       prisma.material.create({ data: { code: `VERIFY-OUT-${suffix}`, name: '验证 生产成品', category: 'FINISHED', unit: '件', stockUnit: '件' } }),
       prisma.material.create({ data: { code: `VERIFY-IN-${suffix}`, name: '验证生产原料', category: 'RAW', unit: '件', stockUnit: '件' } }),
@@ -246,7 +250,7 @@ async function verifyDatabaseRules() {
         { targetId: outputMaterial.id, bomId: bom.id, planQty: 10 },
         { targetId: outputMaterial.id, bomId: bom.id, planQty: 20 },
       ],
-    }), fixedDate)
+    }), fixedDate, auditContext)
     assert.equal(created.items.length, 2, '多物料生产请求必须在同一事务创建全部订单行')
     assert.equal(created.items[0].orderNo, 'WO-20260809-001', '第一条生产订单必须使用组号')
     assert.equal(created.items[1].orderNo, 'WO-20260809-001-02', '后续生产订单必须使用组内行号')
@@ -285,7 +289,12 @@ async function verifyDatabaseRules() {
     const pick = await prisma.pickItem.create({
       data: { orderId: created.items[1].id, materialId: inputMaterial.id, requiredQty: 10, reservedValuationQty: 10, status: 'RESERVED' },
     })
-    await cancelProductionOrder(created.items[1].id, cancelProductionOrderSchema.parse({ reason: '验证取消' }), fixedDate)
+    await cancelProductionOrder(
+      created.items[1].id,
+      cancelProductionOrderSchema.parse({ reason: '验证取消' }),
+      fixedDate,
+      auditContext,
+    )
     const [cancelled, releasedStock, releasedBalance, cancelledPick] = await Promise.all([
       prisma.productionOrder.findUniqueOrThrow({ where: { id: created.items[1].id } }),
       prisma.stock.findUniqueOrThrow({ where: { id: stock.id } }),
@@ -297,6 +306,14 @@ async function verifyDatabaseRules() {
     assert.deepEqual([releasedBalance.reservedQty, releasedBalance.availableQty], [0, 100], '取消生产订单必须释放库位预留')
     assert.equal(cancelledPick.status, 'CANCELLED', '未实际领用的领料明细必须标记取消')
     await assert.rejects(() => cancelProductionOrder(created.items[1].id, { reason: '重复取消' }), ProductionOrderDomainError, '已取消订单不得重复取消')
+
+    const auditLogs = await prisma.auditLog.findMany({
+      where: { operatorId: auditContext.operatorId, entityType: 'ORDER' },
+      orderBy: { createdAt: 'asc' },
+    })
+    assert.deepEqual(auditLogs.map((log) => log.action), ['CREATE', 'CREATE', 'CANCEL'])
+    assert.equal(auditLogs.every((log) => Boolean(log.afterData)), true, '订单创建与取消审计必须保留结果快照')
+    assert.ok(auditLogs[2].beforeData, '订单取消审计必须保留取消前快照')
 
     const archived = await archiveProductionOrder(created.items[0].id)
     assert.ok(archived.updated.deletedAt, '生产订单归档必须由领域服务设置删除时间')

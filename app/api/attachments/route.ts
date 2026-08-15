@@ -50,6 +50,13 @@ export async function POST(req: NextRequest) {
     const input = parseAttachmentUploadForm(await req.formData())
     const { operator } = await requireManagedAttachmentOwnerAccess(input.ownerType, input.ownerId, 'upload')
     const attachment = await uploadManagedAttachment(input, operator.id)
+    await writeAuditLog(req, {
+      action: 'CREATE',
+      entityType: 'DOCUMENT_ATTACHMENT',
+      entityId: attachment.id,
+      entityLabel: attachment.originalName,
+      afterData: attachment,
+    })
     return NextResponse.json({ data: attachment }, { status: 201 })
   } catch (error) {
     return attachmentError(error, '上传附件失败')
@@ -62,7 +69,15 @@ export async function PATCH(req: NextRequest) {
     await requireManagedAttachmentAccess(input.id, 'update')
 
     if (input.action === 'SET_COVER') {
-      await setMaterialImageCover(input.id)
+      const attachment = await setMaterialImageCover(input.id)
+      await writeAuditLog(req, {
+        action: 'SET_COVER',
+        entityType: 'DOCUMENT_ATTACHMENT',
+        entityId: attachment.id,
+        entityLabel: attachment.originalName,
+        beforeData: { isCover: attachment.isCover },
+        afterData: { isCover: true },
+      })
       return NextResponse.json({ success: true, message: '封面已更新' })
     }
 
@@ -86,7 +101,15 @@ export async function DELETE(req: NextRequest) {
   try {
     const id = z.string().trim().min(1, '缺少附件 ID').parse(new URL(req.url).searchParams.get('id'))
     await requireManagedAttachmentAccess(id, 'archive')
-    await archiveManagedAttachment(id)
+    const { before, updated, nextCoverId } = await archiveManagedAttachment(id)
+    await writeAuditLog(req, {
+      action: 'ARCHIVE',
+      entityType: 'DOCUMENT_ATTACHMENT',
+      entityId: updated.id,
+      entityLabel: before.originalName,
+      beforeData: before,
+      afterData: { ...updated, nextCoverId },
+    })
     return NextResponse.json({ success: true, message: '附件已归档' })
   } catch (error) {
     return attachmentError(error, '归档附件失败')

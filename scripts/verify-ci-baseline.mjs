@@ -27,6 +27,7 @@ const checks = [
   'verify:quality-inspection-standards-http',
   'verify:incoming-quality-inspections',
   'verify:incoming-quality-inspections-http',
+  'verify:mutation-audit-coverage',
   'verify:runtime-operations',
   'verify:attachment-storage',
   'verify:production-database-audit',

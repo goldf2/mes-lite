@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'crypto'
 import type { WeChatUserProfile } from '@/lib/wechatAuth'
 import { WECHAT_WEB_PROVIDER } from '@/lib/wechatAuth'
 import { createOperatorSession, hashPassword, verifyPassword } from '@/lib/auth'
+import { createAuditLog, type AuditContext } from '@/lib/audit'
 import { prisma } from '@/lib/prisma'
 import type { InitialAdministratorInput, LoginInput, RegisterInput } from '../contracts/authentication'
 import {
@@ -96,16 +97,27 @@ export async function loginWithPassword(input: LoginInput, now = new Date()) {
   }
 }
 
-export async function registerOperator(input: RegisterInput) {
-  const existing = await prisma.operator.findUnique({ where: { username: input.username } })
-  if (existing) throw new AuthenticationError('账号已存在', 400)
-  return prisma.operator.create({
-    data: {
-      username: input.username, passwordHash: hashPassword(input.password), name: input.name,
-      phone: input.phone || undefined, role: 'OPERATOR', status: 'PENDING',
-      dataScope: { create: { productionMode: 'SELF', inventoryMode: 'LOCATIONS' } },
-    },
-    select: operatorPublicSelect,
+export async function registerOperator(input: RegisterInput, auditContext?: AuditContext) {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.operator.findUnique({ where: { username: input.username } })
+    if (existing) throw new AuthenticationError('账号已存在', 400)
+    const operator = await tx.operator.create({
+      data: {
+        username: input.username, passwordHash: hashPassword(input.password), name: input.name,
+        phone: input.phone || undefined, role: 'OPERATOR', status: 'PENDING',
+        dataScope: { create: { productionMode: 'SELF', inventoryMode: 'LOCATIONS' } },
+      },
+      select: operatorPublicSelect,
+    })
+    if (auditContext) await createAuditLog(tx, auditContext, {
+      action: 'REGISTER',
+      entityType: 'OPERATOR',
+      entityId: operator.id,
+      entityLabel: operator.username,
+      afterData: operator,
+      note: '公开注册提交待审批账号',
+    })
+    return operator
   })
 }
 

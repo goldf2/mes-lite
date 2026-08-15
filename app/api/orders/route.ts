@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
-import { writeAuditLog } from '@/lib/audit'
+import { getAuditContext, writeAuditLog } from '@/lib/audit'
 import { parseStatusFilter } from '@/lib/status-filter'
 import { createProductionOrderSchema } from '@/modules/production/contracts/production-order-schema'
 import {
@@ -17,7 +17,11 @@ export async function POST(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('orders', 'create')
     if (denied) return denied
-    const result = await createProductionOrders(createProductionOrderSchema.parse(await req.json()))
+    const result = await createProductionOrders(
+      createProductionOrderSchema.parse(await req.json()),
+      new Date(),
+      await getAuditContext(req),
+    )
 
     return NextResponse.json({
       data: result.first,

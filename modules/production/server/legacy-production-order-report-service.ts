@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { createAuditLog, type AuditContext } from '@/lib/audit'
 import type { LegacyProductionOrderReportInput } from '../contracts/legacy-production-order-execution-schema'
 import {
   areAllProductionStepsReported,
@@ -30,6 +31,7 @@ export async function reportLegacyProductionOrder(
   orderId: string,
   input: LegacyProductionOrderReportInput,
   scope: EffectiveDataScope = unrestrictedDataScope,
+  auditContext?: AuditContext,
 ) {
   await assertProductionOrderIdDataScope(scope, orderId)
   return prisma.$transaction(async (tx) => {
@@ -108,6 +110,15 @@ export async function reportLegacyProductionOrder(
         },
       })
     }
+    if (auditContext) await createAuditLog(tx, auditContext, {
+      action: existing ? 'UPDATE' : 'CREATE',
+      entityType: 'WORK_REPORT',
+      entityId: report.id,
+      entityLabel: `${order.orderNo} ${currentStep.name}`,
+      beforeData: existing,
+      afterData: { report, orderStatus: nextStatus },
+      note: '历史工单兼容报工',
+    })
     return { order, report, allStepsDone, nextStatus }
   })
 }

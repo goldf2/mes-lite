@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ZodError } from 'zod'
 import { getCurrentOperator } from '@/lib/auth'
+import { getAuditContext } from '@/lib/audit'
 import { requireResourcePermission } from '@/lib/permissions'
 import { parseStatusFilter } from '@/lib/status-filter'
 import { updateOperatorSchema } from '@/modules/identity-access/contracts/operator-admin'
@@ -33,7 +34,11 @@ export async function PATCH(req: NextRequest) {
   if (!current) return NextResponse.json({ error: '无权限' }, { status: 403 })
 
   try {
-    const operator = await updateOperatorAdministration(current, updateOperatorSchema.parse(await req.json()))
+    const operator = await updateOperatorAdministration(
+      current,
+      updateOperatorSchema.parse(await req.json()),
+      await getAuditContext(req),
+    )
     return NextResponse.json({ data: operator, message: '操作人员已更新' })
   } catch (error) {
     return operatorError(error)

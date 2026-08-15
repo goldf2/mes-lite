@@ -44,6 +44,14 @@ export async function DELETE(req: NextRequest) {
     const draftOwnerType = `DOCUMENT_DRAFT_${input.ownerType}`
     const { operator } = await requireManagedAttachmentOwnerAccess(draftOwnerType, input.draftOwnerId, 'discard')
     const result = await discardManagedDraftAttachments(input, operator.id)
+    if (result.count > 0) {
+      await writeAuditLog(req, {
+        action: 'DELETE', entityType: 'DOCUMENT_ATTACHMENT', entityId: input.draftOwnerId,
+        entityLabel: `${input.ownerType} 暂存附件`,
+        beforeData: { attachmentCount: result.count, draftOwnerType },
+        note: '未绑定的暂存附件已清理',
+      })
+    }
     return NextResponse.json({ success: true, count: result.count })
   } catch (error) {
     return draftError(error, '暂存附件清理失败')

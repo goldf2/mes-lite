@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getAuditContext } from '@/lib/audit'
 import { registerInputSchema } from '@/modules/identity-access/contracts/authentication'
 import { publicRegistrationEnabled } from '@/modules/identity-access/domain/authentication'
 import { authenticationHttpError } from '@/modules/identity-access/http/authentication-http'
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '公开注册未启用，请联系管理员创建或开放账号' }, { status: 403 })
     }
     await enforceAuthenticationRequestLimit(req, 'REGISTER')
-    const operator = await registerOperator(registerInputSchema.parse(await req.json()))
+    const operator = await registerOperator(registerInputSchema.parse(await req.json()), await getAuditContext(req))
     return NextResponse.json({
       data: operator,
       message: '注册已提交，请等待管理员审核',

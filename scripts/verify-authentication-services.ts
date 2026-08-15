@@ -116,10 +116,12 @@ async function main() {
       revokeOperatorSession,
     },
     { consumeAuthenticationThrottle },
+    { updateOperatorAdministration },
   ] = await Promise.all([
     import('../lib/prisma'),
     import('../modules/identity-access/server/authentication-service'),
     import('../modules/identity-access/server/authentication-throttle-service'),
+    import('../modules/identity-access/server/operator-admin-service'),
   ])
   try {
     const admin = await installInitialAdministrator(
@@ -138,9 +140,12 @@ async function main() {
       409,
     )
 
+    const registrationAuditContext = {
+      operatorId: undefined, operatorName: '公开注册访客', ipAddress: '192.0.2.20', userAgent: 'verify-agent',
+    }
     const registered = await registerOperator(registerInputSchema.parse({
       username: 'worker', password: 'worker-secret', name: '操作员',
-    }))
+    }), registrationAuditContext)
     assert.deepEqual([registered.role, registered.status], ['OPERATOR', 'PENDING'])
     assert.deepEqual(await prisma.operatorDataScope.findUnique({
       where: { operatorId: registered.id },
@@ -151,6 +156,23 @@ async function main() {
       400,
     )
     await rejectedAuthentication(() => loginWithPassword({ username: 'worker', password: 'worker-secret' }), 403)
+    assert.equal(await prisma.auditLog.count({
+      where: { action: 'REGISTER', entityType: 'OPERATOR', entityId: registered.id },
+    }), 1, '公开注册必须与待审批账号在同一事务记录审计')
+
+    const administrationAuditContext = {
+      operatorId: admin.id, operatorName: admin.name, ipAddress: undefined, userAgent: undefined,
+    }
+    const activated = await updateOperatorAdministration(
+      { id: admin.id, role: admin.role },
+      { id: registered.id, status: 'ACTIVE' },
+      administrationAuditContext,
+    )
+    assert.equal(activated.status, 'ACTIVE')
+    const administrationAudit = await prisma.auditLog.findFirstOrThrow({
+      where: { action: 'UPDATE', entityType: 'OPERATOR', entityId: registered.id },
+    })
+    assert.ok(administrationAudit.beforeData && administrationAudit.afterData, '人员状态审计必须保留前后快照')
 
     const firstFailureAt = new Date('2026-08-12T08:00:00.000Z')
     for (let attempt = 1; attempt < 5; attempt += 1) {

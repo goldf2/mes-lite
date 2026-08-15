@@ -5,6 +5,7 @@ import { workspaceUsageInputSchema } from '@/modules/workspace/contracts/workspa
 import { recordWorkspaceUsage } from '@/modules/workspace/server/workspace-preference-service'
 
 export async function POST(req: Request) {
+  // audit-exempt: 仅记录当前人员的功能使用频次，避免把界面遥测写入业务审计流。
   const operator = await getCurrentOperator()
   if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
   try {

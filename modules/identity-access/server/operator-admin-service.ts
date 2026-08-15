@@ -1,4 +1,5 @@
 import { canManage } from '@/lib/auth'
+import { createAuditLog, type AuditContext } from '@/lib/audit'
 import { hasResourcePermission } from '@/lib/permissions'
 import { prisma } from '@/lib/prisma'
 import { applyStatusFilter } from '@/lib/status-filter'
@@ -36,7 +37,11 @@ export function listOperators(statuses: string[]) {
   })
 }
 
-export async function updateOperatorAdministration(actor: PermissionActor, input: UpdateOperatorInput) {
+export async function updateOperatorAdministration(
+  actor: PermissionActor,
+  input: UpdateOperatorInput,
+  auditContext?: AuditContext,
+) {
   if (!(await hasResourcePermission(actor, 'operators', 'update'))) {
     throw new OperatorAdminError('无权限', 403)
   }
@@ -55,13 +60,27 @@ export async function updateOperatorAdministration(actor: PermissionActor, input
       updateData.approvedAt = new Date()
       updateData.approvedBy = actor.id
     }
-    if (input.status === 'REJECTED' || input.status === 'DISABLED') {
-      await prisma.operatorSession.deleteMany({ where: { operatorId: input.id } })
-    }
   }
 
   try {
-    return await prisma.operator.update({ where: { id: input.id }, data: updateData, select: operatorSelect })
+    return await prisma.$transaction(async (tx) => {
+      const before = await tx.operator.findUnique({ where: { id: input.id }, select: operatorSelect })
+      if (!before) throw new OperatorAdminError('操作人员不存在', 404)
+      if (input.status === 'REJECTED' || input.status === 'DISABLED') {
+        await tx.operatorSession.deleteMany({ where: { operatorId: input.id } })
+      }
+      const updated = await tx.operator.update({ where: { id: input.id }, data: updateData, select: operatorSelect })
+      if (auditContext) await createAuditLog(tx, auditContext, {
+        action: 'UPDATE',
+        entityType: 'OPERATOR',
+        entityId: updated.id,
+        entityLabel: updated.username,
+        beforeData: before,
+        afterData: updated,
+        note: input.status ? `账号状态调整为 ${input.status}` : '操作员角色已调整',
+      })
+      return updated
+    })
   } catch (error) {
     if (typeof error === 'object' && error && 'code' in error && error.code === 'P2025') {
       throw new OperatorAdminError('操作人员不存在', 404)

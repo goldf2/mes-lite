@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
+import { getAuditContext } from '@/lib/audit'
 import { recordScanEventSchema } from '@/modules/operations-tools/contracts/scan-print'
 import { ScanPrintServiceError } from '@/modules/operations-tools/domain/scan-print-errors'
 import { recordScanEvent, undoLastMatchedScan } from '@/modules/operations-tools/server/scan-session-command-service'
@@ -16,17 +17,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   try {
     const denied = await requireResourcePermission('scanPrint', 'update')
     if (denied) return denied
-    return NextResponse.json(await recordScanEvent(params.id, recordScanEventSchema.parse(await req.json())))
+    return NextResponse.json(await recordScanEvent(
+      params.id,
+      recordScanEventSchema.parse(await req.json()),
+      await getAuditContext(req),
+    ))
   } catch (error) {
     return errorResponse(error, '记录扫码失败')
   }
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const denied = await requireResourcePermission('scanPrint', 'update')
     if (denied) return denied
-    return NextResponse.json({ data: await undoLastMatchedScan(params.id) })
+    return NextResponse.json({ data: await undoLastMatchedScan(params.id, await getAuditContext(req)) })
   } catch (error) {
     return errorResponse(error, '撤销扫码失败')
   }

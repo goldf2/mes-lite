@@ -74,6 +74,7 @@ async function main() {
     { archiveManagedDispatch, createManagedDispatch },
     { getManagedDispatch, listManagedDispatches },
     { transitionManagedDispatch },
+    { unrestrictedDataScope },
   ] = await Promise.all([
     import('../lib/prisma'),
     import('../modules/production/contracts/dispatch-schema'),
@@ -83,10 +84,15 @@ async function main() {
     import('../modules/production/server/dispatch-command-service'),
     import('../modules/production/server/dispatch-query-service'),
     import('../modules/production/server/dispatch-status-service'),
+    import('../modules/identity-access'),
   ])
   try {
     verifyStaticBoundaries()
     const fixedNow = new Date('2026-08-10T09:00:00.000Z')
+    const auditContext = {
+      operatorId: 'verify-dispatch', operatorName: '派工审计验证员',
+      ipAddress: undefined, userAgent: undefined,
+    }
     const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`
     const customer = await prisma.customer.create({ data: { code: `VERIFY-C-${suffix}`, name: `验证客户 ${suffix}` } })
     const product = await prisma.product.create({
@@ -140,19 +146,19 @@ async function main() {
     })
     assert.equal(listed.items.some((item) => item.id === created.id), true, '派工查询必须支持状态、工人和客户组合过滤')
 
-    const dispatched = await transitionManagedDispatch(created.id, 'dispatch', fixedNow)
+    const dispatched = await transitionManagedDispatch(created.id, 'dispatch', fixedNow, unrestrictedDataScope, auditContext)
     assert.equal(dispatched.updated.status, 'DISPATCHED')
     assert.equal(dispatched.updated.dispatchedAt?.toISOString(), fixedNow.toISOString())
     await assert.rejects(() => transitionManagedDispatch(created.id, 'dispatch'), /只能确认待派工/)
-    const started = await transitionManagedDispatch(created.id, 'start', fixedNow)
+    const started = await transitionManagedDispatch(created.id, 'start', fixedNow, unrestrictedDataScope, auditContext)
     assert.equal(started.updated.status, 'IN_PROGRESS')
-    const completed = await transitionManagedDispatch(created.id, 'complete', fixedNow)
+    const completed = await transitionManagedDispatch(created.id, 'complete', fixedNow, unrestrictedDataScope, auditContext)
     assert.equal(completed.updated.status, 'COMPLETED')
     await assert.rejects(() => transitionManagedDispatch(created.id, 'cancel'), /只能取消待派工或已派工/)
 
     const cancellable = await createManagedDispatch({ ...input, stepId: route.steps[1].id }, fixedNow)
     assert.equal(cancellable.dispatchNo, 'DP-20260810-011')
-    const cancelled = await transitionManagedDispatch(cancellable.id, 'cancel', fixedNow)
+    const cancelled = await transitionManagedDispatch(cancellable.id, 'cancel', fixedNow, unrestrictedDataScope, auditContext)
     assert.equal(cancelled.updated.status, 'CANCELLED')
     await assert.rejects(() => transitionManagedDispatch(cancellable.id, 'start'), /只能开始已派工/)
 
@@ -167,6 +173,13 @@ async function main() {
     const archived = await archiveManagedDispatch(created.id)
     assert.ok(archived.updated.deletedAt)
     await assert.rejects(() => getManagedDispatch(created.id), DispatchDomainError)
+
+    const auditLogs = await prisma.auditLog.findMany({
+      where: { operatorId: auditContext.operatorId, entityType: 'DISPATCH' },
+      orderBy: { createdAt: 'asc' },
+    })
+    assert.deepEqual(auditLogs.map((log) => log.action), ['DISPATCH', 'START', 'COMPLETE', 'CANCEL'])
+    assert.equal(auditLogs.every((log) => Boolean(log.beforeData && log.afterData)), true, '派工状态审计必须保留前后快照')
 
     assert.equal(dispatchTransitionError('PENDING', 'dispatch'), null)
     assert.match(dispatchTransitionError('COMPLETED', 'cancel') ?? '', /只能取消/)

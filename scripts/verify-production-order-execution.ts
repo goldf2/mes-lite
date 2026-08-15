@@ -83,6 +83,10 @@ async function main() {
 
   try {
     const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    const auditContext = {
+      operatorId: 'verify-legacy-execution', operatorName: '兼容执行审计验证员',
+      ipAddress: undefined, userAgent: undefined,
+    }
     const location = await prisma.inventoryLocation.create({
       data: { code: `EXEC-${suffix}`, name: '兼容流程默认库位', isDefault: true },
     })
@@ -153,14 +157,19 @@ async function main() {
       (error: unknown) => error instanceof ProductionOrderDomainError && error.message.includes('粗加工'),
       '上一工序未完成时必须阻止跨序报工',
     )
-    await reportLegacyProductionOrder(order.id, { ...reportInput, stepId: route.steps[0].id })
+    await reportLegacyProductionOrder(order.id, { ...reportInput, stepId: route.steps[0].id }, undefined, auditContext)
     assert.equal((await prisma.productionOrder.findUniqueOrThrow({ where: { id: order.id } })).status, 'RUNNING')
-    const finalReport = await reportLegacyProductionOrder(order.id, { ...reportInput, stepId: route.steps[1].id })
+    const finalReport = await reportLegacyProductionOrder(order.id, { ...reportInput, stepId: route.steps[1].id }, undefined, auditContext)
     assert.deepEqual([finalReport.allStepsDone, finalReport.nextStatus], [true, 'QC_WAITING'])
     assert.equal((await listLegacyProductionOrderReports(order.id)).length, 2, '兼容报工查询必须返回完整工序记录')
 
     await prisma.productionOrder.update({ where: { id: order.id }, data: { status: 'QC_DONE' } })
-    const stocked = await stockInLegacyProductionOrder(order.id, { qty: 3, batchNo: 'BATCH-001', inBy: '验证仓管员' }, '登录验证员')
+    const stocked = await stockInLegacyProductionOrder(
+      order.id,
+      { qty: 3, batchNo: 'BATCH-001', inBy: '验证仓管员' },
+      '登录验证员',
+      auditContext,
+    )
     const [outputStock, outputBalance, stockInLogs] = await Promise.all([
       prisma.stock.findUniqueOrThrow({ where: { productId: product.id } }),
       prisma.stockLocationBalance.findFirstOrThrow({ where: { stock: { productId: product.id } } }),
@@ -171,6 +180,14 @@ async function main() {
     assert.deepEqual([outputBalance.qty, outputBalance.availableQty], [3, 3])
     assert.equal(stockInLogs.length, 1, '首次创建库存余额时也必须生成兼容入库流水')
     assert.equal(stockInLogs[0].createdBy, '登录验证员', '兼容入库库存流水必须使用服务端可信操作人')
+    const auditLogs = await prisma.auditLog.findMany({
+      where: { operatorId: auditContext.operatorId }, orderBy: { createdAt: 'asc' },
+    })
+    assert.deepEqual(
+      auditLogs.map((log) => `${log.entityType}:${log.action}`),
+      ['WORK_REPORT:CREATE', 'WORK_REPORT:CREATE', 'STOCK_IN:CREATE'],
+    )
+    assert.equal(auditLogs.every((log) => Boolean(log.afterData)), true, '兼容报工与入库审计必须保留结果快照')
     await assert.rejects(
       () => stockInLegacyProductionOrder(order.id, { qty: 1, inBy: '重复入库员' }, '登录验证员'),
       ProductionOrderDomainError,

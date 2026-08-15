@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentOperator, operatorDisplayName } from '@/lib/auth'
+import { getAuditContext } from '@/lib/audit'
 import { requireResourcePermission } from '@/lib/permissions'
 import { legacyProductionOrderStockInSchema } from '@/modules/production/contracts/legacy-production-order-execution-schema'
 import { productionOrderHttpError } from '@/modules/production/http/production-order-http'
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const operator = await getCurrentOperator()
     if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
     await assertProductionOrderIdDataScope(await loadEffectiveDataScope(operator), params.id)
-    await stockInLegacyProductionOrder(params.id, input, operatorDisplayName(operator))
+    await stockInLegacyProductionOrder(params.id, input, operatorDisplayName(operator), await getAuditContext(req))
     return NextResponse.json({ success: true, message: '入库成功' })
   } catch (error) {
     return productionOrderHttpError(error, '入库失败')

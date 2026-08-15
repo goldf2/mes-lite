@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { createAuditLog, type AuditContext } from '@/lib/audit'
 import { restoreMaterialCost } from '@/lib/costing'
 import { changeStockLocationBalance } from '@/lib/inventory'
 import type { CancelProductionOrderInput } from '../contracts/production-order-schema'
@@ -37,7 +38,12 @@ export async function confirmProductionOrder(id: string, now = new Date()) {
   }
 }
 
-export async function cancelProductionOrder(id: string, input: CancelProductionOrderInput, now = new Date()) {
+export async function cancelProductionOrder(
+  id: string,
+  input: CancelProductionOrderInput,
+  now = new Date(),
+  auditContext?: AuditContext,
+) {
   const order = await prisma.productionOrder.findUnique({
     where: { id },
     include: {
@@ -127,9 +133,18 @@ export async function cancelProductionOrder(id: string, input: CancelProductionO
     if (order.reports.length > 0) {
       await tx.workReport.updateMany({ where: { orderId: order.id }, data: { remark: '工单取消作废' } })
     }
-    await tx.productionOrder.update({
+    const updated = await tx.productionOrder.update({
       where: { id: order.id },
       data: { status: 'CANCELLED', cancelTime: now, cancelReason: input.reason },
+    })
+    if (auditContext) await createAuditLog(tx, auditContext, {
+      action: 'CANCEL',
+      entityType: 'ORDER',
+      entityId: updated.id,
+      entityLabel: updated.orderNo,
+      beforeData: order,
+      afterData: updated,
+      note: input.reason,
     })
   })
   return { orderNo: order.orderNo }

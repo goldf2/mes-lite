@@ -1,8 +1,8 @@
 {
-  "version": "0.1.377",
+  "version": "0.1.378",
   "impact": "updated",
   "workflowIds": [
-    "141-application-recovery-drill"
+    "61-audit-log"
   ],
-  "summary": "应用恢复演练前增加迁移基线 Schema 漂移审计、退役结构数据归档和非覆盖收敛候选，并将 RPO 超标保留为显式失败门禁。"
+  "summary": "查看操作记录增加关键写操作、结果快照、失败和幂等分支核对；代码侧建立全写接口审计覆盖与高风险事务审计门禁。"
 }

@@ -54,8 +54,11 @@ export async function createAuditLog(
 }
 
 export async function writeAuditLog(req: NextRequest | Request | null, input: AuditInput) {
+  await writeAuditLogWithContext(await getAuditContext(req), input)
+}
+
+export async function writeAuditLogWithContext(context: AuditContext, input: AuditInput) {
   try {
-    const context = await getAuditContext(req)
     await createAuditLog(prisma, context, input)
   } catch (error) {
     console.error('Write audit log error:', error)

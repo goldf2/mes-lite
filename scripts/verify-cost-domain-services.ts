@@ -72,6 +72,10 @@ async function main() {
 
   try {
     const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    const auditContext = {
+      operatorId: 'verify-production-cost', operatorName: '生产成本审计验证员',
+      ipAddress: undefined, userAgent: undefined,
+    }
     const costObject = await createCostObject(costObjectInputSchema.parse({
       code: `VERIFY-${suffix}`, name: '验证成本对象', objectType: 'MANUAL', unit: '件',
       materialCostPerUnit: 2, laborHoursPerUnit: 0.1, machineHoursPerUnit: 0.2, directCostPerUnit: 1,
@@ -116,11 +120,16 @@ async function main() {
 
     await createProductionCostRecord(productionCostRecordInputSchema.parse({
       costType: 'LABOR', category: '验证人工', amount: 12.5, date: '2026-08-10',
-    }), '验证员')
+    }), '验证员', auditContext)
     const list = await listProductionCostRecords({ page: 1, pageSize: 20 })
     const stats = await summarizeProductionCosts({})
     assert.deepEqual([list.pagination.total, stats.totalCost], [1, 12.5])
     assert.equal(list.data[0].createdBy, '验证员', '成本记录必须保存服务端可信操作人')
+    const auditLog = await prisma.auditLog.findFirstOrThrow({
+      where: { operatorId: auditContext.operatorId, entityType: 'COST_RECORD', action: 'CREATE' },
+    })
+    assert.equal(auditLog.entityId, list.data[0].id)
+    assert.ok(auditLog.afterData, '生产成本审计必须保留创建结果快照')
 
     console.log('成本领域服务验证通过：BOM 成本对象、锯切方案事务及生产成本记录均已脱离 HTTP 层并通过临时数据库回归。')
   } finally {

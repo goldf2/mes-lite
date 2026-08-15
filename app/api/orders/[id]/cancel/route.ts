@@ -5,6 +5,7 @@ import { cancelProductionOrderSchema } from '@/modules/production/contracts/prod
 import { ProductionOrderDomainError } from '@/modules/production/domain/production-order-errors'
 import { cancelProductionOrder } from '@/modules/production/server/production-order-status-service'
 import { getCurrentOperator } from '@/lib/auth'
+import { getAuditContext } from '@/lib/audit'
 import { assertProductionOrderIdDataScope, DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -14,7 +15,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const operator = await getCurrentOperator()
     if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
     await assertProductionOrderIdDataScope(await loadEffectiveDataScope(operator), params.id)
-    const result = await cancelProductionOrder(params.id, cancelProductionOrderSchema.parse(await req.json()))
+    const result = await cancelProductionOrder(
+      params.id,
+      cancelProductionOrderSchema.parse(await req.json()),
+      new Date(),
+      await getAuditContext(req),
+    )
     return NextResponse.json({ success: true, message: `工单 ${result.orderNo} 已取消，物料已退库` })
   } catch (error) {
     if (error instanceof z.ZodError) {

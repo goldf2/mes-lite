@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentOperator } from '@/lib/auth'
+import { getAuditContext } from '@/lib/audit'
 import { requireResourcePermission } from '@/lib/permissions'
 import { loadEffectiveDataScope } from '@/modules/identity-access'
 import { legacyProductionOrderReportSchema } from '@/modules/production/contracts/legacy-production-order-execution-schema'
@@ -16,6 +17,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       params.id,
       legacyProductionOrderReportSchema.parse(await req.json()),
       await loadEffectiveDataScope(operator),
+      await getAuditContext(req),
     )
     return NextResponse.json({ success: true, message: '报工成功' })
   } catch (error) {

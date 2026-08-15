@@ -82,6 +82,10 @@ async function main() {
 
   try {
     const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const auditContext = {
+      operatorId: 'verify-scan-count', operatorName: '扫码盘点审计验证员',
+      ipAddress: undefined, userAgent: undefined,
+    }
     const sessionInput = createScanSessionSchema.parse({
       clientRequestId: `VERIFY-SESSION-${suffix}`, name: '自动验证', expectedCode: 'MAT-VERIFY-CODE',
       expectedQty: 2, purpose: 'GENERAL_COUNT', referenceType: 'GENERAL', scannerModel: honeywell1900Profile.model,
@@ -89,16 +93,29 @@ async function main() {
     const session = await createScanSession(sessionInput, '验证员')
     assert.equal(session.expectedCode, 'VERIFY-CODE')
     assert.equal((await createScanSession(sessionInput, '重复请求')).id, session.id, '会话创建必须幂等')
-    await recordScanEvent(session.id, recordScanEventSchema.parse({ clientEventId: `EVENT-1-${suffix}`, rawValue: 'VERIFY-CODE', quantity: 1 }))
-    const second = await recordScanEvent(session.id, recordScanEventSchema.parse({ clientEventId: `EVENT-2-${suffix}`, rawValue: 'VERIFY-CODE', quantity: 1 }))
+    await recordScanEvent(session.id, recordScanEventSchema.parse({ clientEventId: `EVENT-1-${suffix}`, rawValue: 'VERIFY-CODE', quantity: 1 }), auditContext)
+    const second = await recordScanEvent(session.id, recordScanEventSchema.parse({ clientEventId: `EVENT-2-${suffix}`, rawValue: 'VERIFY-CODE', quantity: 1 }), auditContext)
     assert.equal(second.data.countedQty, 2)
-    assert.equal((await recordScanEvent(session.id, recordScanEventSchema.parse({ clientEventId: `EVENT-2-${suffix}`, rawValue: 'VERIFY-CODE', quantity: 1 }))).data.countedQty, 2, '扫码事件必须幂等')
-    const undone = await undoLastMatchedScan(session.id)
+    assert.equal((await recordScanEvent(session.id, recordScanEventSchema.parse({ clientEventId: `EVENT-2-${suffix}`, rawValue: 'VERIFY-CODE', quantity: 1 }), auditContext)).data.countedQty, 2, '扫码事件必须幂等')
+    const undone = await undoLastMatchedScan(session.id, auditContext)
     assert.equal(undone.countedQty, 1)
-    await assert.rejects(() => completeScanSession(session.id), ScanPrintServiceError)
-    await recordScanEvent(session.id, recordScanEventSchema.parse({ clientEventId: `EVENT-3-${suffix}`, rawValue: 'VERIFY-CODE', quantity: 1 }))
-    assert.equal((await completeScanSession(session.id)).data.status, 'COMPLETED')
+    await assert.rejects(() => completeScanSession(session.id, auditContext), ScanPrintServiceError)
+    await recordScanEvent(session.id, recordScanEventSchema.parse({ clientEventId: `EVENT-3-${suffix}`, rawValue: 'VERIFY-CODE', quantity: 1 }), auditContext)
+    assert.equal((await completeScanSession(session.id, auditContext)).data.status, 'COMPLETED')
     assert.equal((await listScanSessions({ purpose: 'GENERAL_COUNT' })).length, 1)
+
+    const auditLogs = await prisma.auditLog.findMany({
+      where: { operatorId: auditContext.operatorId },
+      orderBy: { createdAt: 'asc' },
+    })
+    assert.deepEqual(
+      auditLogs.map((log) => `${log.entityType}:${log.action}`),
+      [
+        'SCAN_COUNT_EVENT:CREATE', 'SCAN_COUNT_EVENT:CREATE', 'SCAN_COUNT_EVENT:REVERSE',
+        'SCAN_COUNT_EVENT:CREATE', 'SCAN_COUNT_SESSION:COMPLETE',
+      ],
+    )
+    assert.equal(auditLogs.every((log) => Boolean(log.afterData)), true, '扫码事件、撤销和完成审计必须保留结果快照')
 
     const jobInput = createLabelPrintJobSchema.parse({
       clientRequestId: `VERIFY-PRINT-${suffix}`, templateType: 'GENERIC_LABEL', referenceType: 'GENERAL',

@@ -61,6 +61,7 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE() {
+  // audit-exempt: 物料删除入口固定返回 405，实际归档使用独立已审计命令。
   return NextResponse.json({ error: '物料不允许删除，请使用归档' }, { status: 405 })
 }
 

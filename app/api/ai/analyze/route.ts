@@ -3,6 +3,7 @@ import { requireResourcePermission } from '@/lib/permissions'
 
 export async function POST(req: NextRequest) {
   try {
+    // audit-exempt: 该兼容接口固定返回 501，不执行任何状态写入。
     const denied = await requireResourcePermission('orders', 'read')
     if (denied) return denied
 

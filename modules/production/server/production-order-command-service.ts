@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client'
+import { createAuditLog, type AuditContext } from '@/lib/audit'
 import { prisma } from '@/lib/prisma'
 import { ensureProductForMaterial, isMaterialProductId, materialProductPrefix } from '@/lib/material-product'
 import type { CreateProductionOrderInput, ProductionOrderLineInput } from '../contracts/production-order-schema'
@@ -61,7 +62,11 @@ function requestedLines(input: CreateProductionOrderInput): ProductionOrderLineI
   }]
 }
 
-export async function createProductionOrders(input: CreateProductionOrderInput, now = new Date()) {
+export async function createProductionOrders(
+  input: CreateProductionOrderInput,
+  now = new Date(),
+  auditContext?: AuditContext,
+) {
   return prisma.$transaction(async (tx) => {
     const dayStart = new Date(now)
     dayStart.setHours(0, 0, 0, 0)
@@ -91,6 +96,17 @@ export async function createProductionOrders(input: CreateProductionOrderInput, 
           note: input.note,
         },
       }))
+      if (auditContext) {
+        const created = items[items.length - 1]
+        await createAuditLog(tx, auditContext, {
+          action: 'CREATE',
+          entityType: 'ORDER',
+          entityId: created.id,
+          entityLabel: created.orderNo,
+          afterData: created,
+          note: resolvedLines.length > 1 ? `批量计划组 ${groupNo}` : undefined,
+        })
+      }
     }
     return { first: items[0], items, groupNo: items.length > 1 ? groupNo : null }
   })

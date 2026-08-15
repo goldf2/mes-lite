@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
     const token = req.headers.get('x-mes-initial-admin-token')
     verifyInitialAdministratorToken(token)
     await enforceAuthenticationRequestLimit(req, 'SETUP')
+    // audit-covered-by: installInitialAdministrator
     const operator = await installInitialAdministrator(
       initialAdministratorInputSchema.parse(await req.json()),
       token,

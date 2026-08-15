@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { createAuditLog, type AuditContext } from '@/lib/audit'
 import type { ParsedCreateScanSessionInput, ParsedRecordScanEventInput } from '../contracts/scan-print'
 import { ScanPrintServiceError } from '../domain/scan-print-errors'
 import { classifyScan, normalizeScanCode, scanCountCompletionError, scanSessionNumber } from '../domain/scanning'
@@ -30,7 +31,11 @@ export async function createScanSession(input: ParsedCreateScanSessionInput, cre
   })
 }
 
-export async function recordScanEvent(sessionId: string, input: ParsedRecordScanEventInput) {
+export async function recordScanEvent(
+  sessionId: string,
+  input: ParsedRecordScanEventInput,
+  auditContext?: AuditContext,
+) {
   return prisma.$transaction(async (tx) => {
     const existingEvent = await tx.scanCountEvent.findUnique({ where: { clientEventId: input.clientEventId } })
     if (existingEvent) {
@@ -51,7 +56,7 @@ export async function recordScanEvent(sessionId: string, input: ParsedRecordScan
       expectedQty: session.expectedQty,
       quantity: input.quantity,
     })
-    await tx.scanCountEvent.create({
+    const event = await tx.scanCountEvent.create({
       data: {
         sessionId: session.id, clientEventId: input.clientEventId, rawValue: input.rawValue,
         code: classification.code, quantity: input.quantity, result: classification.result,
@@ -62,11 +67,18 @@ export async function recordScanEvent(sessionId: string, input: ParsedRecordScan
           where: { id: session.id }, data: { countedQty: { increment: input.quantity } }, include: scanSessionInclude,
         })
       : await tx.scanCountSession.findUniqueOrThrow({ where: { id: session.id }, include: scanSessionInclude })
+    if (auditContext) await createAuditLog(tx, auditContext, {
+      action: 'CREATE',
+      entityType: 'SCAN_COUNT_EVENT',
+      entityId: event.id,
+      entityLabel: session.sessionNo,
+      afterData: { event, countedQty: updated.countedQty },
+    })
     return { data: updated, scanResult: classification.result }
   })
 }
 
-export async function undoLastMatchedScan(sessionId: string) {
+export async function undoLastMatchedScan(sessionId: string, auditContext?: AuditContext) {
   return prisma.$transaction(async (tx) => {
     const session = await tx.scanCountSession.findUnique({ where: { id: sessionId } })
     if (!session) throw new ScanPrintServiceError('扫码会话不存在', 404)
@@ -76,15 +88,25 @@ export async function undoLastMatchedScan(sessionId: string) {
     })
     if (!event) throw new ScanPrintServiceError('没有可撤销的有效扫码', 409)
     await tx.scanCountEvent.delete({ where: { id: event.id } })
-    return tx.scanCountSession.update({
+    const updated = await tx.scanCountSession.update({
       where: { id: session.id },
       data: { countedQty: Math.max(0, session.countedQty - event.quantity) },
       include: scanSessionInclude,
     })
+    if (auditContext) await createAuditLog(tx, auditContext, {
+      action: 'REVERSE',
+      entityType: 'SCAN_COUNT_EVENT',
+      entityId: event.id,
+      entityLabel: session.sessionNo,
+      beforeData: event,
+      afterData: { countedQty: updated.countedQty },
+      note: '撤销最近一次有效扫码',
+    })
+    return updated
   })
 }
 
-export async function completeScanSession(sessionId: string) {
+export async function completeScanSession(sessionId: string, auditContext?: AuditContext) {
   return prisma.$transaction(async (tx) => {
     const before = await tx.scanCountSession.findUnique({ where: { id: sessionId } })
     if (!before) throw new ScanPrintServiceError('扫码会话不存在', 404)
@@ -93,6 +115,14 @@ export async function completeScanSession(sessionId: string) {
     if (completionError) throw new ScanPrintServiceError(completionError, 409)
     const data = await tx.scanCountSession.update({
       where: { id: before.id }, data: { status: 'COMPLETED', completedAt: new Date() }, include: scanSessionInclude,
+    })
+    if (auditContext) await createAuditLog(tx, auditContext, {
+      action: 'COMPLETE',
+      entityType: 'SCAN_COUNT_SESSION',
+      entityId: data.id,
+      entityLabel: data.sessionNo,
+      beforeData: before,
+      afterData: data,
     })
     return { before, data }
   })

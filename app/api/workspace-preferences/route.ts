@@ -11,6 +11,7 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
+  // audit-exempt: 仅保存当前人员的界面偏好，不改变业务事实、权限或库存。
   const operator = await getCurrentOperator()
   if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
   try {

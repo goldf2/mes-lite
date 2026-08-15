@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    // audit-exempt: 旧生产日报入口固定返回 410，不创建任何生产事实。
     const denied = await requireResourcePermission('stats', 'create')
     if (denied) return denied
 
