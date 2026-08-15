@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { BookOpen, Search } from 'lucide-react'
+import { BookOpen, Download, Search } from 'lucide-react'
 import SopWorkflowCard from './SopWorkflowCard'
 import { useSopCatalog } from './useSopCatalog'
 
@@ -14,6 +14,7 @@ export default function SopHelpCenterPage({ pageKey, standalone = false }: { pag
     return workflows.length > 0 ? [{ ...chapter, workflows }] : []
   }) || [], [catalog, normalized])
   const count = chapters.reduce((total, chapter) => total + chapter.workflows.length, 0)
+  const downloads = catalog?.downloads || []
 
   if (error) return <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">{error}</div>
   if (!catalog) return <div className="p-8 text-center text-sm text-slate-500">正在加载作业指导书…</div>
@@ -24,7 +25,12 @@ export default function SopHelpCenterPage({ pageKey, standalone = false }: { pag
         <div className="flex items-center gap-3"><BookOpen className="h-7 w-7" /><h2 className="text-2xl font-bold">{catalog.title}</h2></div>
         <p className="mt-3 max-w-4xl text-sm leading-6 text-blue-100">{pageKey ? '当前页面相关流程已在独立页面全屏展开；' : ''}按当前账号权限显示，内容、Web 帮助与 DOCX/PDF 均来自同一份 SOP 清单。</p>
         <div className="mt-5 flex flex-wrap gap-2 text-xs"><span className="rounded-full bg-white/10 px-3 py-1.5">系统 v{catalog.version}</span><span className="rounded-full bg-white/10 px-3 py-1.5">可读流程 {catalog.workflowCount}</span><span className="rounded-full bg-white/10 px-3 py-1.5">章节 {catalog.chapters.length}</span></div>
-        {standalone && pageKey && <a href="/help" className="mt-5 inline-flex rounded-lg border border-white/30 px-3 py-2 text-sm font-medium text-white hover:bg-white/10">查看全部流程</a>}
+        {(Boolean(standalone && pageKey) || downloads.length > 0) && <div className="mt-5 flex flex-wrap gap-2">
+          {standalone && pageKey && <a href="/help" className="inline-flex rounded-lg border border-white/30 px-3 py-2 text-sm font-medium text-white hover:bg-white/10">查看全部流程</a>}
+          {downloads.map((download) => <a key={download.format} href={download.url} target="_blank" rel="noopener noreferrer" download={download.fileName} className="inline-flex items-center gap-2 rounded-lg border border-white/30 px-3 py-2 text-sm font-medium text-white hover:bg-white/10">
+            <Download className="h-4 w-4" />{download.label}
+          </a>)}
+        </div>}
       </section>
       <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <Search className="h-5 w-5 text-slate-400" />

@@ -56,9 +56,12 @@ MES_LITE_BACKUP_MAX_AGE_HOURS=26
 MES_LITE_PRE_MIGRATION_BACKUP_ENABLED=true
 MES_TRUSTED_ORIGINS=https://mes.example.com
 MES_PUBLIC_REGISTRATION_ENABLED=false
+SOP_PUBLIC_BASE_URL=
 ```
 
 `MES_TRUSTED_ORIGINS` 必须填写浏览器实际访问的 HTTPS Origin（协议、域名和可选端口，不带路径）。所有 `POST / PUT / PATCH / DELETE` API 都会先执行同源校验；多个可信 Origin 使用英文逗号分隔。公开注册默认关闭，只有在受控注册时间窗口才临时把 `MES_PUBLIC_REGISTRATION_ENABLED` 改为 `true`，新账号仍统一进入待审核状态。
+
+最终交付的 PDF/DOCX 若发布到对象存储，只填写一个只读 HTTPS 基地址，例如 `SOP_PUBLIC_BASE_URL=https://downloads.example.com/mes-lite/sop`。地址不包含 Bucket 写入密钥、查询签名或具体文件名；应用按自身版本生成精确下载路径。未配置时帮助中心不显示离线下载按钮。生成目录、对象路径和校验步骤见 [SOP 生成与发布策略](../operations/SOP生成与发布策略.md)。
 
 启用全局 AI 协作助手时，在 Coolify 增加以下运行时变量。第一版默认使用阿里云百炼的 OpenAI 兼容接口，也可替换为其他国产兼容服务；密钥不得写入仓库或前端变量：
 
@@ -214,10 +217,10 @@ node /app/scripts/runtime-backup.mjs create
 
 SQLite 数据目录只能由一个运行中的应用实例写入。需要多实例或滚动部署时，应先迁移到 PostgreSQL，并将附件迁移到对象存储或共享文件存储。
 
-### 4.1 当前生产发布基线（2026-08-13）
+### 4.1 当前生产发布基线（2026-08-15）
 
-- 生产应用 `yjad2gnk1ycpeletd0aqlq4g` 固定到完整提交 `66a175d22bdf5295c19728e44a863ffc21d8cbbf`（`v0.1.361`）。
-- Auto Deploy 已关闭；代码推送不再直接触发生产部署。发布时必须先完成 CI、备份和维护窗口审批，再人工修改 Commit SHA 并 Redeploy。
+- 生产应用 ID 为 `yjad2gnk1ycpeletd0aqlq4g`；当前连接 `main` Webhook，Auto Deploy 已开启，推送会创建来源为 Webhook 的部署。
+- 自动触发不等于自动验收。每次推送仍必须先通过 CI；部署后同时核对 Coolify Running 提交、应用版本、首页静态版本和 `/api/health/ready`。长时间仍提供旧静态文件时，保留旧健康容器，不重复点击 Redeploy，先检查当前部署日志。
 - `/app/backups` 已持久挂载，`MES_LITE_PRE_MIGRATION_BACKUP_ENABLED=true` 已配置；非空数据库在每次迁移前先生成并校验一致备份。
 - `MES-lite 每日一致备份` 使用 `0 18 * * *`。该表达式仅因当前容器实测为 UTC，换算为北京时间 02:00；迁移服务器后必须重新验证时区。
 - Coolify 邮件通知已启用部署失败、备份失败、定时任务失败、容器状态和磁盘告警。
@@ -225,4 +228,4 @@ SQLite 数据目录只能由一个运行中的应用实例写入。需要多实�
 
 2026-08-13 应用上述配置时，第一次重建完成编译和镜像层组装后在 `exporting layers` 被 BuildKit `context canceled` 中断；旧健康容器未被移除。复核主机仍有 29 GB 可用空间、3.5 GiB 可用内存，随后把迁移前备份变量改为仅 Runtime 注入并重试。第二次构建复用既有镜像，启动日志先生成一致备份 `mes-lite-backup-2026-08-13T11-33-44-021Z-5330c3ab.tar.gz`（SHA-256 `cbcfe027ee518032247806768c2c35c811434e377a8020cabb5f6ab3be37999b`），再确认 76 个迁移无待处理，新容器健康后才移除旧容器并完成滚动更新。
 
-生产发布应使用两步控制：Git 提供可追溯提交，Coolify Commit SHA 决定实际部署版本。不得仅凭 `main` 最新提交或部署列表中的日志文案判断线上版本；必须同时核对 Coolify Running 链接、应用版本和 `/api/health/ready`。
+普通迭代当前采用“Git 推送 + Webhook 自动部署 + 运行验收”；涉及生产数据迁移、模型回填或高风险权限变更时，仍须在维护窗口临时关闭 Auto Deploy、固定批准提交并准备可回滚挂载。不得仅凭 `main` 最新提交或部署列表中的日志文案判断线上版本；必须同时核对 Coolify Running 链接、应用版本、首页静态文件和 `/api/health/ready`。

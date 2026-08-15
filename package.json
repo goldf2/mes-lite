@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.382",
+  "version": "0.1.383",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -27,8 +27,11 @@
     "db:seed:user-guide": "tsx scripts/seed-user-guide-demo.ts",
     "sop:build:source": "python3 scripts/build-user-guide.py --markdown-only",
     "sop:build": "npm run sop:build:source && python3 scripts/build-user-guide-artifacts.py docs/operations/user-guide/MES-lite全流程作业指导书-v$npm_package_version.md output/docx/MES-lite全流程作业指导书-v$npm_package_version.docx output/pdf/MES-lite全流程作业指导书-v$npm_package_version.pdf && python3 scripts/build-user-guide-web.py",
+    "sop:prepare:release": "node scripts/prepare-sop-release.mjs",
+    "sop:release": "npm run sop:build && npm run verify:sop:artifacts && npm run sop:prepare:release",
     "verify:sop": "node scripts/verify-sop-catalog.mjs",
     "verify:sop:artifacts": "SOP_VERIFY_ARTIFACTS=1 node scripts/verify-sop-catalog.mjs",
+    "verify:sop-release": "tsx scripts/verify-sop-release.ts",
     "db:studio": "prisma studio",
     "storage:fix": "sh scripts/fix-persistent-storage-permissions.sh",
     "storage:backup": "node scripts/runtime-backup.mjs create",

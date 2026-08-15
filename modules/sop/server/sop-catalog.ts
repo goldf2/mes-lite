@@ -4,9 +4,10 @@ import packageJson from '@/package.json'
 import manifest from '@/sop/manifest.json'
 import { getEffectivePermissionMap, type PermissionSubject } from '@/lib/permissions'
 import type { SopCatalog, SopChapter, SopWorkflow } from '../contracts/sop'
+import { buildSopDownloads } from '../domain/sop-downloads'
 
 const screenshotRoot = resolve(process.cwd(), 'docs/operations/user-guide/screenshots')
-const source = manifest as Omit<SopCatalog, 'version' | 'workflowCount'>
+const source = manifest as Omit<SopCatalog, 'version' | 'workflowCount' | 'downloads'>
 
 function allWorkflows() {
   return source.chapters.flatMap((chapter) => chapter.workflows)
@@ -33,6 +34,7 @@ export async function getReadableSopCatalog(subject: PermissionSubject, pageKey?
     version: packageJson.version,
     chapters,
     workflowCount: chapters.reduce((count, chapter) => count + chapter.workflows.length, 0),
+    downloads: buildSopDownloads(packageJson.version),
   }
 }
 

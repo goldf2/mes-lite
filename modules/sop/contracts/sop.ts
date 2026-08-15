@@ -23,6 +23,13 @@ export interface SopChapter {
   workflows: SopWorkflow[]
 }
 
+export interface SopDownload {
+  format: 'PDF' | 'DOCX'
+  label: string
+  fileName: string
+  url: string
+}
+
 export interface SopCatalog {
   schemaVersion: number
   version: string
@@ -32,4 +39,5 @@ export interface SopCatalog {
   governanceBoundaries: string[]
   chapters: SopChapter[]
   workflowCount: number
+  downloads?: SopDownload[]
 }
