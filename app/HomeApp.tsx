@@ -12,7 +12,7 @@ import TopBarPortal from './components/TopBarPortal'
 import DesktopNavigation from './components/navigation/DesktopNavigation'
 import DesktopTopNavigation from './components/navigation/DesktopTopNavigation'
 import MobileSiblingNavigation from './components/navigation/MobileSiblingNavigation'
-import WorkspaceDomainTabs from './components/navigation/WorkspaceDomainTabs'
+import CapabilityModuleButtons from './components/navigation/CapabilityModuleButtons'
 import PageQrCodeButton from './components/PageQrCodeButton'
 import ControlTooltip from './components/ControlTooltip'
 import dynamic from 'next/dynamic'
@@ -94,8 +94,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     canCreate,
     canUpdate,
     canDelete,
-    workspaceNavigationConfig,
     activeWorkspace,
+    workspaceNavigationConfig,
     workspaceFunctionItems,
     tab,
     setTab,
@@ -114,7 +114,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     setMobileNavOpen,
     openWorkspaceFunction,
     navigateToTab,
-    changeWorkspace,
   } = useApplicationNavigationController({
     operator,
     closeSystemMenu,
@@ -206,27 +205,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <ControlTooltip label={transientNavigationOpen ? '收起功能导航' : '打开功能导航'} hidden={transientNavigationOpen} />
             </button>
           ) : (
-            <>
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600">
-                <span className="text-lg font-bold text-white">M</span>
-              </div>
-              <div className="min-w-0">
-                <h1 className="truncate text-base font-bold text-gray-800">MES-lite</h1>
-                <p className="truncate text-[11px] text-gray-500">生产系统 · v{appVersion}</p>
-              </div>
-            </>
+            <CapabilityModuleButtons config={workspaceNavigationConfig} compact />
           )}
         </div>
-        {workspaceLayoutPreference.layout === 'canvas' && (
-          <div className="w-48 shrink-0 border-r border-gray-100 px-2">
-            <WorkspaceDomainTabs
-              config={workspaceNavigationConfig}
-              value={activeWorkspace}
-              onChange={changeWorkspace}
-              compact
-            />
-          </div>
-        )}
         {workspaceLayoutPreference.layout === 'canvas' && <DesktopTopNavigation groups={navigationGroups} />}
         <div
           id="topbar-actions-desktop"
@@ -316,14 +297,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         }`}
       >
         <div className="flex h-12 shrink-0 items-center gap-2 border-b border-gray-100 px-2">
-          <div className="min-w-0 flex-1">
-            <WorkspaceDomainTabs
-              config={workspaceNavigationConfig}
-              value={activeWorkspace}
-              onChange={changeWorkspace}
-              compact
-            />
-          </div>
+          <div className="min-w-0 flex-1 px-2 text-xs font-semibold tracking-wide text-gray-500">全部功能</div>
           <button
             type="button"
             aria-label={autoHideDesktopNavigation ? '固定导航' : '改为自动隐藏'}
@@ -335,6 +309,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
           </button>
         </div>
         <DesktopNavigation mode={desktopNavigationMode} groups={navigationGroups} displayMode={desktopNavigationDisplayMode} />
+        <div className="shrink-0 border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
+          系统版本 v{appVersion}
+        </div>
         <div
           role="separator"
           aria-label="调整左侧辅助功能区宽度"
@@ -456,10 +433,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 pb-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
-              <div>
-                <div className="text-base font-semibold text-gray-900">全部功能</div>
-                <div className="mt-0.5 text-xs text-gray-500">MES-lite v{appVersion}</div>
-              </div>
+              <div className="text-base font-semibold text-gray-900">全部功能</div>
               <button
                 type="button"
                 aria-label="关闭全部功能"
@@ -470,11 +444,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               </button>
             </div>
             <div className="shrink-0 border-b border-gray-200 px-4 py-3">
-              <WorkspaceDomainTabs
-                config={workspaceNavigationConfig}
-                value={activeWorkspace}
-                onChange={changeWorkspace}
-              />
+              <CapabilityModuleButtons config={workspaceNavigationConfig} />
             </div>
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
               <DesktopNavigation
@@ -482,6 +452,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 groups={navigationGroups}
                 displayMode={desktopNavigationDisplayMode}
               />
+              <div className="shrink-0 border-t border-gray-100 px-2 py-2 text-[11px] text-gray-400">
+                系统版本 v{appVersion}
+              </div>
             </div>
           </aside>
         </div>

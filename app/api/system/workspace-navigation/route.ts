@@ -19,9 +19,19 @@ const workspaceSchema = z.object({
   items: z.array(itemSchema).max(60),
 })
 
+const moduleButtonSchema = z.object({
+  visible: z.boolean(),
+  label: z.string().trim().max(20),
+})
+
 const updateSchema = z.object({
   version: z.literal(1).optional(),
   defaultWorkspace: z.enum(navigationWorkspaceIds),
+  moduleButtons: z.object({
+    mes: moduleButtonSchema,
+    mrp: moduleButtonSchema,
+    erp: moduleButtonSchema,
+  }).optional(),
   workspaces: z.object({
     mes: workspaceSchema,
     mrp: workspaceSchema,
@@ -37,7 +47,7 @@ export async function GET() {
     return NextResponse.json({ data: await getWorkspaceNavigationConfig() })
   } catch (error) {
     console.error('Get workspace navigation error:', error)
-    return NextResponse.json({ error: '获取工作区菜单配置失败' }, { status: 500 })
+    return NextResponse.json({ error: '获取导航菜单配置失败' }, { status: 500 })
   }
 }
 
@@ -48,7 +58,7 @@ export async function PUT(req: Request) {
   try {
     const parsed = updateSchema.safeParse(await req.json())
     if (!parsed.success) {
-      return NextResponse.json({ error: '工作区菜单配置格式无效', details: parsed.error.issues }, { status: 400 })
+      return NextResponse.json({ error: '导航菜单配置格式无效', details: parsed.error.issues }, { status: 400 })
     }
 
     const before = await getWorkspaceNavigationConfig()
@@ -56,14 +66,14 @@ export async function PUT(req: Request) {
     await writeAuditLog(req, {
       action: 'UPDATE_SETTINGS',
       entityType: 'WORKSPACE_NAVIGATION',
-      entityLabel: 'MES/MRP/ERP 工作区菜单',
+      entityLabel: 'MES-lite 混合系统导航',
       beforeData: before,
       afterData: after,
-      note: '更新工作区启用状态、一级菜单顺序、页面唯一归属、显示名称和顺序',
+      note: '更新统一 MES 工作台的模块按钮、一级菜单顺序、页面显示名称和顺序',
     })
-    return NextResponse.json({ data: after, message: '工作区菜单配置已发布' })
+    return NextResponse.json({ data: after, message: '导航菜单配置已发布' })
   } catch (error) {
     console.error('Save workspace navigation error:', error)
-    return NextResponse.json({ error: '保存工作区菜单配置失败' }, { status: 500 })
+    return NextResponse.json({ error: '保存导航菜单配置失败' }, { status: 500 })
   }
 }

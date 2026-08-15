@@ -17,14 +17,14 @@
   "chapters": [
     {
       "id": "01",
-      "title": "1. 登录与工作区导航",
+      "title": "1. 登录与功能导航",
       "workflows": [
         {
           "id": "139-sop-help-center",
           "title": "使用站内帮助中心",
           "objective": "按当前账号权限搜索并阅读当前版本的作业指导书。",
           "steps": [
-            "在任一工作区展开“工作台”菜单。",
+            "在任一页面展开“工作台”功能区。",
             "点击“帮助中心”。",
             "需要独立全屏查看时，在快捷帮助中点击“打开完整帮助中心”，系统会新开页面且保留当前业务页面。",
             "使用搜索框输入页面、单据、岗位或操作关键字。",
@@ -35,7 +35,7 @@
           "resource": "dashboard",
           "roles": ["全员"],
           "screenshot": {"baseline": "0.1.370", "file": "150-fullscreen-help-page.png"},
-          "lastVerifiedVersion": "0.1.370"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "140-context-help-drawer",
@@ -80,7 +80,8 @@
           "title": "查看工作台",
           "objective": "在班前确认生产、库存和待办概况。",
           "steps": [
-            "进入 MES 工作区。",
+            "从左上角当前主模块按钮进入统一 MES 工作台；默认名称为 MES-lite。",
+            "确认 MRP、ERP 若显示则带预留标识且不可切换业务菜单；系统版本显示在左侧导航底部。",
             "查看常用功能、生产负荷和待处理事项。",
             "发现红色或橙色预警时进入对应功能核查。"
           ],
@@ -94,7 +95,7 @@
             "baseline": "0.1.350",
             "file": "02-dashboard.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "03-all-functions",
@@ -119,14 +120,14 @@
         },
         {
           "id": "23-erp-all-functions",
-          "title": "切换 ERP 工作区",
-          "objective": "进入销售、发货和退货业务。",
+          "title": "进入销售履约功能区",
+          "objective": "在统一 MES 工作台进入销售、发货和退货业务。",
           "steps": [
-            "点击左上角“ERP”工作区。",
-            "点击“所有功能”。",
+            "打开左侧导航或“所有功能”。",
+            "展开“销售”功能区。",
             "选择销售订单、发货管理或退货管理。"
           ],
-          "result": "左侧菜单切换为 ERP 业务导航。",
+          "result": "无需切换系统即可进入销售履约页面，页面继续使用原权限和业务数据。",
           "pageKey": "allFunctions",
           "resource": "dashboard",
           "roles": [
@@ -136,7 +137,7 @@
             "baseline": "0.1.350",
             "file": "23-erp-all-functions.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.382"
         }
       ]
     },
@@ -149,7 +150,7 @@
           "title": "查询物料",
           "objective": "查询物料编码、规格、单位和库存概况。",
           "steps": [
-            "进入 MES > 物料 > 物料管理。",
+            "展开“物料”功能区，进入“物料管理”。",
             "使用顶部搜索框输入编码、名称或规格。",
             "需要时切换列表/卡片视图并打开详情。"
           ],
@@ -164,7 +165,7 @@
             "baseline": "0.1.350",
             "file": "04-material-list.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "05-material-create",
@@ -194,7 +195,7 @@
           "title": "进入 BOM 工作区",
           "objective": "查找物料并维护 BOM 版本。",
           "steps": [
-            "进入 MES > 物料 > BOM 设置。",
+            "展开“物料”功能区，进入“BOM 设置”。",
             "搜索并选择目标产出物料。",
             "查看当前版本、状态、输入项和输出项。"
           ],
@@ -208,7 +209,7 @@
             "baseline": "0.1.350",
             "file": "06-bom-workspace.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "07-bom-detail",
@@ -243,7 +244,7 @@
           "title": "查看生产订单",
           "objective": "查看生产计划及统一状态。",
           "steps": [
-            "进入 MES > 生产 > 生产订单。",
+            "展开“生产”功能区，进入“生产订单”。",
             "按订单号、物料或状态搜索。",
             "关注草稿、已发布、生产中、已完成和已取消状态。"
           ],
@@ -258,7 +259,7 @@
             "baseline": "0.1.350",
             "file": "08-production-order-list.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "09-production-order-create",
@@ -518,7 +519,7 @@
           "title": "核对库存状态",
           "objective": "在库存总账复核质量判定后的可用、待检和冻结数量。",
           "steps": [
-            "进入 MES > 库存 > 库存管理。",
+            "展开“库存”功能区，进入“库存管理”。",
             "搜索质检涉及的产出物料。",
             "核对总量、可用、待检、冻结及库位余额。"
           ],
@@ -533,14 +534,14 @@
             "baseline": "0.1.354",
             "file": "71-inventory-status-review.png"
           },
-          "lastVerifiedVersion": "0.1.354"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "72-inventory-quality-movements",
           "title": "核对质量状态流水",
           "objective": "确认放行或冻结可以从统一库存流水回放。",
           "steps": [
-            "进入 MES > 库存 > 库存流水。",
+            "展开“库存”功能区，进入“库存流水”。",
             "搜索产出物料或质量来源。",
             "核对 QUALITY RELEASE / QUALITY HOLD、批次、状态方向、操作人和时间。"
           ],
@@ -555,7 +556,7 @@
             "baseline": "0.1.354",
             "file": "72-inventory-quality-movements.png"
           },
-          "lastVerifiedVersion": "0.1.354"
+          "lastVerifiedVersion": "0.1.382"
         }
       ]
     },
@@ -568,7 +569,7 @@
           "title": "启用来料检验标准",
           "objective": "只为需要来料质量控制的物料显式启用入库待检。",
           "steps": [
-            "进入 MES > 生产 > 质量任务，点击“检验标准”。",
+            "展开“生产”功能区，进入“质量任务”，点击“检验标准”。",
             "新建或复制标准，选择物料和“来料入库待检”来源。",
             "配置抽样方式、最低/最高数量和逐项接收标准。",
             "完成质量审批后发布标准。"
@@ -578,14 +579,14 @@
           "resource": "qualityStandards",
           "roles": ["质量工程师", "质量主管"],
           "screenshot": {"baseline": "0.1.373", "file": "164-incoming-quality-standard.png"},
-          "lastVerifiedVersion": "0.1.373"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "163-incoming-quality-task",
           "title": "接收来料检验任务",
           "objective": "由质检岗位接收仓管收货后自动生成的来料检验任务。",
           "steps": [
-            "进入 MES > 生产 > 质量任务。",
+            "展开“生产”功能区，进入“质量任务”。",
             "在“待检任务”中按内部批号、物料或来料单搜索。",
             "核对来源显示“来料入库”、检验单号、标准快照和建议抽样数。",
             "展开检验项目快照，确认接收标准与来料检验计划一致。"
@@ -595,7 +596,7 @@
           "resource": "quality",
           "roles": ["质检员", "质量工程师"],
           "screenshot": {"baseline": "0.1.373", "file": "167-incoming-quality-task.png"},
-          "lastVerifiedVersion": "0.1.373"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "164-incoming-quality-decision",
@@ -653,7 +654,7 @@
           "title": "查看检验标准版本",
           "objective": "按物料和任务来源查看草稿、已发布和已停用标准。",
           "steps": [
-            "进入 MES > 生产 > 质量任务。",
+            "展开“生产”功能区，进入“质量任务”。",
             "点击页内“检验标准”。",
             "按标准编码、物料或状态搜索。",
             "展开检验项目，核对方法、接收标准和变更原因。"
@@ -663,7 +664,7 @@
           "resource": "qualityStandards",
           "roles": ["质检员", "质量工程师", "质量主管"],
           "screenshot": {"baseline": "0.1.372", "file": "159-quality-standard-versions.png"},
-          "lastVerifiedVersion": "0.1.372"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "156-quality-standard-create",
@@ -772,7 +773,7 @@
           "title": "进入质量任务工作台",
           "objective": "按车间待办集中查看待检和待处置批次。",
           "steps": [
-            "进入 MES > 生产 > 质量任务。",
+            "展开“生产”功能区，进入“质量任务”。",
             "先查看待检任务数量，再查看待处置批次数量。",
             "按检验单、批次、物料或来源单据搜索。"
           ],
@@ -787,7 +788,7 @@
             "baseline": "0.1.357",
             "file": "89-quality-task-workbench.png"
           },
-          "lastVerifiedVersion": "0.1.357"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "90-quality-partial-form",
@@ -1132,7 +1133,7 @@
           "title": "核对五类库存状态",
           "objective": "在库存总账确认可用、待检、冻结和返工中守恒。",
           "steps": [
-            "进入 MES > 库存 > 库存管理。",
+            "展开“库存”功能区，进入“库存管理”。",
             "搜索质量处置物料。",
             "核对总库存、预留、可用、待检、冻结和返工中。",
             "核对库位明细使用相同状态口径。"
@@ -1148,7 +1149,7 @@
             "baseline": "0.1.357",
             "file": "105-inventory-quality-statuses.png"
           },
-          "lastVerifiedVersion": "0.1.357"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "106-quality-permission-layers",
@@ -1183,7 +1184,7 @@
           "title": "核对来料内部批次",
           "objective": "确认收货后的内部批号与供应商炉批号并存。",
           "steps": [
-            "进入 MES > 物流 > 来料管理。",
+            "展开“物流”功能区，进入“来料管理”。",
             "打开状态为“已收货”的来料单详情。",
             "在物料明细的批次列同时核对供应批号和内部批号。"
           ],
@@ -1198,7 +1199,7 @@
             "baseline": "0.1.355",
             "file": "73-receipt-internal-lot.png"
           },
-          "lastVerifiedVersion": "0.1.355"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "74-receipt-lot-trace",
@@ -1324,7 +1325,7 @@
           "title": "查看派工",
           "objective": "查看生产任务的人员和工作中心分配。",
           "steps": [
-            "进入 MES > 生产 > 派工管理。",
+            "展开“生产”功能区，进入“派工管理”。",
             "按任务、人员或状态筛选。",
             "核对生产订单、工作中心和执行人员。"
           ],
@@ -1338,7 +1339,7 @@
             "baseline": "0.1.350",
             "file": "13-dispatch-list.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "14-dispatch-create",
@@ -1366,7 +1367,7 @@
           "title": "查看流程转移",
           "objective": "跟踪物料在流程节点或库位间的移动。",
           "steps": [
-            "进入 MES > 生产 > 流程转移。",
+            "展开“生产”功能区，进入“流程转移”。",
             "搜索转移单号、物料或员工。",
             "核对来源库位、目标库位、数量和状态。"
           ],
@@ -1381,7 +1382,7 @@
             "baseline": "0.1.350",
             "file": "15-flow-transfer.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "16-flow-transfer-create",
@@ -1417,7 +1418,7 @@
           "title": "查看来料单",
           "objective": "查看供应商来料及收货状态。",
           "steps": [
-            "进入 MES > 物流 > 来料管理。",
+            "展开“物流”功能区，进入“来料管理”。",
             "按单号、供应商或物料搜索。",
             "核对采购数量、实测数据、计价和状态。"
           ],
@@ -1432,7 +1433,7 @@
             "baseline": "0.1.350",
             "file": "17-receiving-list.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "18-receiving-create",
@@ -1484,7 +1485,7 @@
           "title": "确认启用质检的来料收货",
           "objective": "仓管员确认实物到厂，并把受控物料交接到待检库存。",
           "steps": [
-            "进入 MES > 物流 > 来料管理，搜索待收货单。",
+            "展开“物流”功能区，进入“来料管理”并搜索待收货单。",
             "核对供应商、物料、数量、供应批号和待检库位。",
             "点击“整单收货”。",
             "查看成功提示中的来料检验任务数量。"
@@ -1494,7 +1495,7 @@
           "resource": "materialIn",
           "roles": ["仓管员", "采购员"],
           "screenshot": {"baseline": "0.1.373", "file": "165-incoming-receipt-before.png"},
-          "lastVerifiedVersion": "0.1.373"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "168-incoming-quality-quarantine",
@@ -1535,7 +1536,7 @@
           "title": "查看库存",
           "objective": "按物料和库位核对库存、占用和可用量。",
           "steps": [
-            "进入 MES > 库存 > 库存管理。",
+            "展开“库存”功能区，进入“库存管理”。",
             "搜索目标物料。",
             "展开库位分布并核对总量、占用、可用和成本。"
           ],
@@ -1550,7 +1551,7 @@
             "baseline": "0.1.350",
             "file": "20-stock-list.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "21-stock-adjustment",
@@ -1573,14 +1574,14 @@
             "baseline": "0.1.379",
             "file": "21-stock-adjustment.png"
           },
-          "lastVerifiedVersion": "0.1.379"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "22-stock-movements",
           "title": "核对库存流水",
           "objective": "追溯每次数量和成本变化。",
           "steps": [
-            "进入 MES > 库存 > 库存流水。",
+            "展开“库存”功能区，进入“库存流水”。",
             "按物料、业务类型、时间、来源单据或关联流水 ID 筛选。",
             "核对来料、发货、退货、调整和生产实绩记录。",
             "对精确红冲同时核对原流水的“已由流水冲销”和冲销流水的“冲销原流水”；普通部分退货只显示关联来源。"
@@ -1596,7 +1597,7 @@
             "baseline": "0.1.379",
             "file": "22-stock-movements.png"
           },
-          "lastVerifiedVersion": "0.1.379"
+          "lastVerifiedVersion": "0.1.382"
         }
       ]
     },
@@ -1609,7 +1610,7 @@
           "title": "查看销售订单",
           "objective": "跟踪客户需求、占用、已发和未发数量。",
           "steps": [
-            "进入 ERP > 销售 > 销售订单。",
+            "展开“销售”功能区，进入“销售订单”。",
             "搜索客户、订单号或物料。",
             "查看草稿、已确认、部分发货和完成状态。"
           ],
@@ -1623,7 +1624,7 @@
             "baseline": "0.1.350",
             "file": "24-sales-order-list.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "25-sales-order-create",
@@ -1673,7 +1674,7 @@
           "title": "查看发货单",
           "objective": "查看待发、已发货和已签收记录。",
           "steps": [
-            "进入 ERP > 销售 > 发货管理。",
+            "展开“销售”功能区，进入“发货管理”。",
             "按发货单、订单、客户或物流号搜索。",
             "核对发货库位、数量、价格和状态。"
           ],
@@ -1688,7 +1689,7 @@
             "baseline": "0.1.350",
             "file": "27-shipment-list.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "28-shipment-create",
@@ -1740,7 +1741,7 @@
           "title": "核对发货批次追踪状态",
           "objective": "确认已发货或已签收单据已经记录真实内部批次，而不是只有总库存扣减。",
           "steps": [
-            "进入 ERP > 销售 > 发货管理。",
+            "展开“销售”功能区，进入“发货管理”。",
             "找到已签收发货单并核对客户、物料、库位和数量。",
             "打开“详情”，确认“客户发货批次”的追溯状态为“真实内部批次”。"
           ],
@@ -1755,7 +1756,7 @@
             "baseline": "0.1.356",
             "file": "79-shipment-list-tracked.png"
           },
-          "lastVerifiedVersion": "0.1.356"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "80-shipment-detail-lot-allocation",
@@ -1806,7 +1807,7 @@
           "title": "查看退货单",
           "objective": "查看客户退货、原因和处理状态。",
           "steps": [
-            "进入 ERP > 销售 > 退货管理。",
+            "展开“销售”功能区，进入“退货管理”。",
             "按退货单、物料、发货单或原因搜索。",
             "核对数量、退回库位和待处理状态。"
           ],
@@ -1822,7 +1823,7 @@
             "baseline": "0.1.350",
             "file": "30-return-list.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "31-return-create",
@@ -2045,7 +2046,7 @@
           "title": "查看受控文档",
           "objective": "按物料、客户和工作中心查找现场文件。",
           "steps": [
-            "进入 MES > 文档 > 产品文档。",
+            "展开“文档”功能区，进入“产品文档”。",
             "按标题、正文、产品或备注搜索。",
             "点击“在线阅读”或“详情”查看版本和附件。"
           ],
@@ -2060,7 +2061,7 @@
             "baseline": "0.1.350",
             "file": "33-document-list.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "34-document-create",
@@ -2090,7 +2091,7 @@
           "title": "查看设备台账",
           "objective": "核对设备基础资料、当前状态和运行事件入口。",
           "steps": [
-            "进入 MES > 设备 > 设备台账。",
+            "展开“设备”功能区，进入“设备台账”。",
             "搜索设备编码、名称、型号或工作中心。",
             "核对设备当前状态、现场位置和事件数量。"
           ],
@@ -2104,7 +2105,7 @@
             "baseline": "0.1.369",
             "file": "35-equipment-list.png"
           },
-          "lastVerifiedVersion": "0.1.369"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "36-equipment-create",
@@ -2343,9 +2344,9 @@
           "title": "进入业务配置",
           "objective": "按顺序建立业务运行依赖的主数据。",
           "steps": [
-            "展开 MES 的“业务配置”。",
+            "展开统一 MES 工作台的“业务配置”。",
             "建议依次维护单位、库位、员工、工作中心、工艺、路线和文档类别。",
-            "ERP 工作区维护供应商、客户和企业规则。"
+            "在同一功能区维护供应商、客户和企业规则。"
           ],
           "result": "业务单据下拉项来自已启用主数据。",
           "pageKey": "businessSettings",
@@ -2357,7 +2358,7 @@
             "baseline": "0.1.350",
             "file": "37-business-config-menu.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "38-employee-list",
@@ -2621,7 +2622,7 @@
           "title": "查看供应商",
           "objective": "维护来料业务的供应商档案。",
           "steps": [
-            "切换 ERP > 业务配置 > 供应商资料。",
+            "展开“业务配置”功能区，进入“供应商资料”。",
             "核对编码、名称、联系人、电话和状态。",
             "停用前确认没有未完成来料。"
           ],
@@ -2635,7 +2636,7 @@
             "baseline": "0.1.350",
             "file": "50-supplier-list.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "51-supplier-create",
@@ -2663,7 +2664,7 @@
           "title": "查看客户",
           "objective": "维护销售、库存和发货筛选所需客户档案。",
           "steps": [
-            "进入 ERP > 业务配置 > 客户资料。",
+            "展开“业务配置”功能区，进入“客户资料”。",
             "核对编码、名称、联系人、电话和地址。",
             "归档前确认没有未完成订单。"
           ],
@@ -2677,7 +2678,7 @@
             "baseline": "0.1.350",
             "file": "52-customer-list.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "53-customer-create",
@@ -2750,14 +2751,15 @@
         },
         {
           "id": "56-navigation-settings",
-          "title": "导航与工作区设置",
-          "objective": "配置页面在 MES/MRP/ERP 的唯一归属和顺序。",
+          "title": "导航设置",
+          "objective": "配置模块按钮，以及统一 MES 工作台的功能区、页面名称和顺序。",
           "steps": [
-            "进入导航与工作区。",
-            "调整页面归属、名称和顺序。",
-            "保存后逐个工作区核对菜单。"
+            "进入系统设置 > 导航设置。",
+            "按需修改模块按钮名称和 MRP/ERP 显隐；MES-lite 主按钮始终显示。",
+            "调整一级功能区顺序、页面名称和页面顺序。",
+            "保存后分别在桌面侧栏、顶部导航和移动端菜单核对结果。"
           ],
-          "result": "每个页面仅在一个工作区出现，导航符合现场任务流。",
+          "result": "模块按钮按设置显示且不切换业务域；所有已授权页面在统一 MES 工作台按功能区呈现，历史 MRP/ERP 配置已自动合并且业务数据不变。",
           "pageKey": "navigationSettings",
           "resource": "navigationSettings",
           "roles": [
@@ -2767,7 +2769,7 @@
             "baseline": "0.1.350",
             "file": "56-navigation-settings.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "57-ai-settings",
@@ -2979,7 +2981,7 @@
           "title": "进入批次追溯全景",
           "objective": "从统一入口按任意业务线索查找内部批次。",
           "steps": [
-            "进入 MES > 库存 > 批次追溯。",
+            "展开“库存”功能区，进入“批次追溯”。",
             "确认顶部搜索支持供应批号、内部批号、物料、供应商、来料/生产/检验/发货/退货单和客户。",
             "确认页面显示单次 100 条结果、300 个关联批次的安全上限。"
           ],
@@ -2995,7 +2997,7 @@
             "baseline": "0.1.358",
             "file": "107-lot-panorama-entry.png"
           },
-          "lastVerifiedVersion": "0.1.358"
+          "lastVerifiedVersion": "0.1.382"
         },
         {
           "id": "108-lot-panorama-supplier-search",

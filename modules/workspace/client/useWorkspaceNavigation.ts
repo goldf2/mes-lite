@@ -53,11 +53,5 @@ export default function useWorkspaceNavigation() {
     }
   }, [applyConfig])
 
-  const setActiveWorkspace = useCallback((workspace: NavigationWorkspaceId) => {
-    if (!config.workspaces[workspace].enabled) return
-    setActiveWorkspaceState(workspace)
-    window.localStorage.setItem(activeWorkspaceStorageKey, workspace)
-  }, [config])
-
-  return { config, activeWorkspace, setActiveWorkspace, ready }
+  return { config, activeWorkspace, ready }
 }

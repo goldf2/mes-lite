@@ -4,9 +4,14 @@ export const navigationWorkspaceIds = ['mes', 'mrp', 'erp'] as const
 export type NavigationWorkspaceId = (typeof navigationWorkspaceIds)[number]
 
 export const navigationWorkspaceLabels: Record<NavigationWorkspaceId, string> = {
-  mes: 'MES',
+  mes: 'MES-lite',
   mrp: 'MRP',
   erp: 'ERP',
+}
+
+export interface NavigationModuleButtonConfig {
+  visible: boolean
+  label: string
 }
 
 export const workspaceNavigationGroupKeys = [
@@ -39,6 +44,7 @@ export interface NavigationWorkspaceConfig {
 export interface WorkspaceNavigationConfig {
   version: 1
   defaultWorkspace: NavigationWorkspaceId
+  moduleButtons: Record<NavigationWorkspaceId, NavigationModuleButtonConfig>
   workspaces: Record<NavigationWorkspaceId, NavigationWorkspaceConfig>
 }
 
@@ -67,17 +73,11 @@ const defaultItems: Record<NavigationWorkspaceId, WorkspaceFunctionKey[]> = {
     'materialManagement', 'bomWorkspace', 'workInstructions', 'equipment', 'equipmentInspections', 'equipmentMaintenance',
     'orders', 'dispatch', 'flowTransfers', 'qualityTasks', 'employees', 'materialIn', 'stocks', 'stockMovements', 'lotPanorama', 'locationSettings',
     'unitSettings', 'documentCategories', 'workCenters', 'processTemplates', 'processRoutes',
-    'sawingCost', 'scanPrint',
+    'sawingCost', 'scanPrint', 'bomUsage', 'salesOrders', 'shipment', 'return', 'suppliers', 'customers', 'businessSettings',
   ],
-  mrp: ['bomUsage'],
-  erp: [
-    'salesOrders', 'shipment', 'return', 'suppliers', 'customers', 'businessSettings',
-  ],
+  mrp: [],
+  erp: [],
 }
-
-const defaultWorkspaceByFunctionKey = new Map<WorkspaceFunctionKey, NavigationWorkspaceId>(
-  navigationWorkspaceIds.flatMap((workspace) => defaultItems[workspace].map((functionKey) => [functionKey, workspace] as const)),
-)
 
 function defaultWorkspaceItems(workspace: NavigationWorkspaceId) {
   return defaultItems[workspace].map((functionKey) => ({ functionKey }))
@@ -91,10 +91,15 @@ export function createDefaultWorkspaceNavigationConfig(): WorkspaceNavigationCon
   return {
     version: 1,
     defaultWorkspace: 'mes',
+    moduleButtons: {
+      mes: { visible: true, label: navigationWorkspaceLabels.mes },
+      mrp: { visible: true, label: navigationWorkspaceLabels.mrp },
+      erp: { visible: true, label: navigationWorkspaceLabels.erp },
+    },
     workspaces: {
       mes: { enabled: true, groupOrder: defaultGroupOrder(), items: defaultWorkspaceItems('mes') },
-      mrp: { enabled: true, groupOrder: defaultGroupOrder(), items: defaultWorkspaceItems('mrp') },
-      erp: { enabled: true, groupOrder: defaultGroupOrder(), items: defaultWorkspaceItems('erp') },
+      mrp: { enabled: false, groupOrder: defaultGroupOrder(), items: [] },
+      erp: { enabled: false, groupOrder: defaultGroupOrder(), items: [] },
     },
   }
 }
@@ -105,6 +110,19 @@ function normalizeLabel(value: unknown) {
   if (typeof value !== 'string') return undefined
   const label = value.trim().slice(0, 20)
   return label || undefined
+}
+
+function normalizeModuleButton(
+  value: unknown,
+  moduleId: NavigationWorkspaceId,
+): NavigationModuleButtonConfig {
+  const source = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as { visible?: unknown; label?: unknown }
+    : {}
+  return {
+    visible: moduleId === 'mes' ? true : source.visible !== false,
+    label: normalizeLabel(source.label) || navigationWorkspaceLabels[moduleId],
+  }
 }
 
 function normalizeItems(value: unknown): WorkspaceNavigationItemConfig[] {
@@ -136,59 +154,60 @@ function normalizeGroupOrder(value: unknown): WorkspaceNavigationGroupKey[] {
   ]
 }
 
-function isWorkspaceId(value: unknown): value is NavigationWorkspaceId {
-  return typeof value === 'string' && navigationWorkspaceIds.includes(value as NavigationWorkspaceId)
-}
-
 export function normalizeWorkspaceNavigationConfig(value: unknown): WorkspaceNavigationConfig {
   const source = value && typeof value === 'object' && !Array.isArray(value)
-    ? value as { defaultWorkspace?: unknown; workspaces?: unknown }
+    ? value as { defaultWorkspace?: unknown; moduleButtons?: unknown; workspaces?: unknown }
+    : {}
+  const sourceModuleButtons = source.moduleButtons && typeof source.moduleButtons === 'object' && !Array.isArray(source.moduleButtons)
+    ? source.moduleButtons as Record<string, unknown>
     : {}
   const sourceWorkspaces = source.workspaces && typeof source.workspaces === 'object' && !Array.isArray(source.workspaces)
     ? source.workspaces as Record<string, unknown>
     : {}
 
-  const workspaces = Object.fromEntries(navigationWorkspaceIds.map((workspace) => {
+  const configuredItems = navigationWorkspaceIds.flatMap((workspace) => {
     const raw = sourceWorkspaces[workspace]
     const rawWorkspace = raw && typeof raw === 'object' && !Array.isArray(raw)
-      ? raw as { enabled?: unknown; groupOrder?: unknown; items?: unknown }
+      ? raw as { groupOrder?: unknown; items?: unknown }
       : undefined
-    return [workspace, {
-      enabled: rawWorkspace ? rawWorkspace.enabled !== false : true,
-      groupOrder: normalizeGroupOrder(rawWorkspace?.groupOrder),
-      items: rawWorkspace ? normalizeItems(rawWorkspace.items) : defaultWorkspaceItems(workspace),
-    }]
-  })) as Record<NavigationWorkspaceId, NavigationWorkspaceConfig>
-
-  for (const functionKey of configurableWorkspaceFunctionKeys) {
-    const configuredOwners = navigationWorkspaceIds.filter((workspace) => (
-      workspaces[workspace].items.some((item) => item.functionKey === functionKey)
-    ))
-    const defaultOwner = defaultWorkspaceByFunctionKey.get(functionKey) || 'mes'
-    const owner = configuredOwners.length === 1
-      ? configuredOwners[0]
-      : configuredOwners.includes(defaultOwner)
-        ? defaultOwner
-        : configuredOwners[0] || defaultOwner
-
-    for (const workspace of navigationWorkspaceIds) {
-      if (workspace === owner) continue
-      workspaces[workspace].items = workspaces[workspace].items.filter((item) => item.functionKey !== functionKey)
-    }
-    if (!workspaces[owner].items.some((item) => item.functionKey === functionKey)) {
-      workspaces[owner].items.push({ functionKey })
-    }
+    return normalizeItems(rawWorkspace?.items)
+  })
+  const seen = new Set<WorkspaceFunctionKey>()
+  const mergedItems = configuredItems.filter((item) => {
+    if (seen.has(item.functionKey)) return false
+    seen.add(item.functionKey)
+    return true
+  })
+  for (const functionKey of defaultItems.mes) {
+    if (seen.has(functionKey)) continue
+    seen.add(functionKey)
+    mergedItems.push({ functionKey })
   }
 
-  if (!navigationWorkspaceIds.some((workspace) => workspaces[workspace].enabled)) {
-    workspaces.mes.enabled = true
+  const rawMes = sourceWorkspaces.mes
+  const mesWorkspace = rawMes && typeof rawMes === 'object' && !Array.isArray(rawMes)
+    ? rawMes as { groupOrder?: unknown }
+    : undefined
+  const workspaces: Record<NavigationWorkspaceId, NavigationWorkspaceConfig> = {
+    mes: {
+      enabled: true,
+      groupOrder: normalizeGroupOrder(mesWorkspace?.groupOrder),
+      items: mergedItems,
+    },
+    mrp: { enabled: false, groupOrder: defaultGroupOrder(), items: [] },
+    erp: { enabled: false, groupOrder: defaultGroupOrder(), items: [] },
   }
-  const requestedDefault = isWorkspaceId(source.defaultWorkspace) ? source.defaultWorkspace : 'mes'
-  const defaultWorkspace = workspaces[requestedDefault].enabled
-    ? requestedDefault
-    : navigationWorkspaceIds.find((workspace) => workspaces[workspace].enabled) || 'mes'
 
-  return { version: 1, defaultWorkspace, workspaces }
+  return {
+    version: 1,
+    defaultWorkspace: 'mes',
+    moduleButtons: {
+      mes: normalizeModuleButton(sourceModuleButtons.mes, 'mes'),
+      mrp: normalizeModuleButton(sourceModuleButtons.mrp, 'mrp'),
+      erp: normalizeModuleButton(sourceModuleButtons.erp, 'erp'),
+    },
+    workspaces,
+  }
 }
 
 export function workspaceOwnerOfFunction(

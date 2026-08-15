@@ -17,7 +17,6 @@ import {
 import {
   workspaceContainsFunction,
   workspaceFunctionLabel,
-  type NavigationWorkspaceId,
 } from '@/lib/workspace-navigation-config'
 import type { WorkspaceFunctionKey } from '@/lib/workspace'
 import { getPageModuleDefinition, resolvePageModuleKey } from '@/lib/page-modules'
@@ -49,7 +48,7 @@ export default function useApplicationNavigationController({
   const canUpdate = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canUpdate)
   const canDelete = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canDelete)
 
-  const { config: workspaceNavigationConfig, activeWorkspace, setActiveWorkspace } = useWorkspaceNavigation()
+  const { config: workspaceNavigationConfig, activeWorkspace } = useWorkspaceNavigation()
   const canReadNavItem = (item: { key: TabType; resource: string }) => (
     item.key === 'materials'
       ? canRead('materials') || canRead('bom')
@@ -286,16 +285,6 @@ export default function useApplicationNavigationController({
     setTab(nextTab)
     closeNavigationSurfaces()
   }
-  const changeWorkspace = (nextWorkspace: NavigationWorkspaceId) => {
-    if (nextWorkspace === activeWorkspace) return
-    setActiveWorkspace(nextWorkspace)
-    setMobileNavOpen(false)
-    closeTransientNavigation()
-    if (!workspaceContainsFunction(workspaceNavigationConfig, nextWorkspace, activeFunctionKey)) {
-      setTab('dashboard')
-    }
-  }
-
   const navigationGroups: NavigationGroup[] = visibleBusinessGroups.map((group) => {
     const firstItem = group.tabs.map((key) => group.items.find((item) => item.key === key)).find(Boolean)
     const groupActive = !activeSystemTab && group.key === activeBusinessGroupKey
@@ -386,8 +375,8 @@ export default function useApplicationNavigationController({
     canCreate,
     canUpdate,
     canDelete,
-    workspaceNavigationConfig,
     activeWorkspace,
+    workspaceNavigationConfig,
     workspaceFunctionItems,
     tab,
     setTab,
@@ -408,6 +397,5 @@ export default function useApplicationNavigationController({
     setMobileNavOpen,
     openWorkspaceFunction,
     navigateToTab,
-    changeWorkspace,
   }
 }

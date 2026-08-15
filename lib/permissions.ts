@@ -67,7 +67,7 @@ export const permissionResources = [
   { key: 'processRoutes', label: '物料路线' },
   { key: 'businessSettings', label: '企业与业务规则' },
   { key: 'displaySettings', label: '显示设置' },
-  { key: 'navigationSettings', label: '导航与工作区' },
+  { key: 'navigationSettings', label: '导航设置' },
   { key: 'aiSettings', label: 'AI 服务配置' },
   { key: 'archive', label: '归档记录' },
   { key: 'auditLogs', label: '操作记录' },
