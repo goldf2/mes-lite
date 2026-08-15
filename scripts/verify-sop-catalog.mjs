@@ -11,6 +11,7 @@ const registrySource = readFileSync(join(root, 'lib/page-registry.ts'), 'utf8')
 const permissionsSource = readFileSync(join(root, 'lib/permissions.ts'), 'utf8')
 const workflows = catalog.chapters.flatMap((chapter) => chapter.workflows)
 const guideStem = `MES-lite全流程作业指导书-v${packageJson.version}`
+const verifyGeneratedArtifacts = process.env.SOP_VERIFY_ARTIFACTS === '1'
 
 assert.equal(catalog.schemaVersion, 1, 'SOP 清单版本必须为 1')
 assert.ok(catalog.chapters.length > 0, 'SOP 至少包含一个章节')
@@ -49,18 +50,23 @@ const markdownPath = join(root, 'docs/operations/user-guide', `${guideStem}.md`)
 const webPath = join(root, 'output/web', guideStem, 'index.html')
 const docxPath = join(root, 'output/docx', `${guideStem}.docx`)
 const pdfPath = join(root, 'output/pdf', `${guideStem}.pdf`)
-for (const artifactPath of [markdownPath, webPath, docxPath, pdfPath]) {
+for (const artifactPath of [markdownPath]) {
   assert.ok(existsSync(artifactPath), `当前版本 SOP 产物不存在：${artifactPath}`)
 }
 
 const markdown = readFileSync(markdownPath, 'utf8')
-const web = readFileSync(webPath, 'utf8')
 assert.match(markdown, new RegExp(`交付版本：v${packageJson.version.replaceAll('.', '\\.')}`), 'Markdown SOP 版本不是当前版本')
 assert.equal((markdown.match(/^### /gm) || []).length, workflows.length, 'Markdown SOP 流程数量与清单不一致')
-assert.match(web, new RegExp(`交付版本：v${packageJson.version.replaceAll('.', '\\.')}`), 'Web SOP 版本不是当前版本')
-assert.equal((web.match(/<article class="workflow"/g) || []).length, workflows.length, 'Web SOP 流程数量与清单不一致')
+if (verifyGeneratedArtifacts) {
+  for (const artifactPath of [webPath, docxPath, pdfPath]) {
+    assert.ok(existsSync(artifactPath), `当前版本 SOP 成品不存在：${artifactPath}`)
+  }
+  const web = readFileSync(webPath, 'utf8')
+  assert.match(web, new RegExp(`交付版本：v${packageJson.version.replaceAll('.', '\\.')}`), 'Web SOP 版本不是当前版本')
+  assert.equal((web.match(/<article class="workflow"/g) || []).length, workflows.length, 'Web SOP 流程数量与清单不一致')
+}
 
-console.log(`SOP 清单校验通过：${catalog.chapters.length} 章、${workflows.length} 个流程、${coveredPageKeys.size} 个页面；版本 v${packageJson.version} 影响=${impact.impact}。`)
+console.log(`SOP 清单校验通过：${catalog.chapters.length} 章、${workflows.length} 个流程、${coveredPageKeys.size} 个页面；版本 v${packageJson.version} 影响=${impact.impact}；成品校验=${verifyGeneratedArtifacts ? '开启' : '按最终交付执行'}。`)
 
 if (process.env.SOP_DIFF_BASE) {
   let changedFiles = []

@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 
 const checks = [
   'verify:docker-deps',
+  'verify:release-tree',
   'verify:module-boundaries',
   'verify:structural-goal',
   'verify:model-convergence',

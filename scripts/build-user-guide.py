@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the screenshot-based MES-lite operator guide in Markdown and DOCX."""
+"""Build the screenshot-based MES-lite operator guide source and optional DOCX."""
 
 from __future__ import annotations
 
@@ -8,14 +8,18 @@ import json
 from pathlib import Path
 from typing import Iterable
 
-from docx import Document
-from docx.enum.section import WD_ORIENT
-from docx.enum.style import WD_STYLE_TYPE
-from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml import OxmlElement
-from docx.oxml.ns import qn
-from docx.shared import Inches, Pt, RGBColor
+try:
+    from docx import Document
+    from docx.enum.section import WD_ORIENT
+    from docx.enum.style import WD_STYLE_TYPE
+    from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Inches, Pt, RGBColor
+    DOCX_IMPORT_ERROR: ModuleNotFoundError | None = None
+except ModuleNotFoundError as error:
+    DOCX_IMPORT_ERROR = error
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -557,11 +561,15 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--docx", type=Path, default=DOCX_DIR / f"MES-lite全流程作业指导书-v{VERSION}.docx")
     parser.add_argument("--markdown", type=Path, default=SOURCE_DIR / f"MES-lite全流程作业指导书-v{VERSION}.md")
+    parser.add_argument("--markdown-only", action="store_true", help="只生成受 CI 管理的 Markdown 源文件")
     args = parser.parse_args()
     build_markdown(args.markdown)
-    build_docx(args.docx)
     print(f"Created {args.markdown}")
-    print(f"Created {args.docx}")
+    if not args.markdown_only:
+        if DOCX_IMPORT_ERROR:
+            raise RuntimeError("生成 DOCX 需要安装 python-docx；开发期请使用 --markdown-only") from DOCX_IMPORT_ERROR
+        build_docx(args.docx)
+        print(f"Created {args.docx}")
 
 
 if __name__ == "__main__":

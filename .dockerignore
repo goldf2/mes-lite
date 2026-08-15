@@ -18,3 +18,4 @@ public/uploads/*
 !public/uploads/.gitkeep
 .runtime
 修复报告
+output

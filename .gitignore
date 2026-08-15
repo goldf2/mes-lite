@@ -21,3 +21,6 @@ public/uploads/*
 !public/uploads/.gitkeep
 public/pdfjs/*.mjs
 .runtime/
+
+# Generated delivery artifacts stay local. Keep source Markdown and screenshots in Git.
+/output/
