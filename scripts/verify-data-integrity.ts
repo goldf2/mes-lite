@@ -25,6 +25,10 @@ async function main() {
 
   try {
     await prisma.$transaction(async (tx) => {
+      // Current databases reject these rows. Drop the guards only inside this
+      // rollback-only fixture to keep coverage for cleaning historical anomalies.
+      await tx.$executeRawUnsafe('DROP TRIGGER "Stock_owner_insert_guard"')
+      await tx.$executeRawUnsafe('DROP TRIGGER "Stock_owner_update_guard"')
       const output = await tx.material.create({
         data: {
           code: `VERIFY-DATA-FIN-${suffix}`,
@@ -155,6 +159,9 @@ async function main() {
           quarantineCost: 20,
         },
       })
+      const dualOwnerStock = await tx.stock.create({
+        data: { materialId: output.id, productId: product.id },
+      })
 
       let reportData = await getDataIntegrityReport(tx)
       const issueTypesByEntity = new Set(reportData.issues.map((issue) => `${issue.type}:${issue.entityId}`))
@@ -167,6 +174,7 @@ async function main() {
       assert.ok(issueTypesByEntity.has(`OPEN_COST_LAYER_UNIT_MISMATCH:${layer.id}`), '应发现有效成本层单位不一致')
       assert.ok(issueTypesByEntity.has(`STOCK_OWNER_INVALID:${safeOrphanStock.id}`), '应发现可安全清理的孤立空库存')
       assert.ok(issueTypesByEntity.has(`STOCK_OWNER_INVALID:${riskyOrphanStock.id}`), '应发现包含余额的孤立库存风险')
+      assert.ok(issueTypesByEntity.has(`STOCK_OWNER_INVALID:${dualOwnerStock.id}`), '应发现同时关联 Material 和 Product 的双归属库存')
       assert.equal(
         reportData.issues.find((issue) => issue.id === `STOCK_OWNER_INVALID:${safeOrphanStock.id}`)?.actions[0]?.key,
         'DELETE_ORPHAN_STOCK',
@@ -176,6 +184,11 @@ async function main() {
         reportData.issues.find((issue) => issue.id === `STOCK_OWNER_INVALID:${riskyOrphanStock.id}`)?.actions.length,
         0,
         '仍有余额的孤立库存不得自动删除',
+      )
+      assert.equal(
+        reportData.issues.find((issue) => issue.id === `STOCK_OWNER_INVALID:${dualOwnerStock.id}`)?.actions.length,
+        0,
+        '双归属库存不得自动删除',
       )
 
       await applyDataIntegrityAction(

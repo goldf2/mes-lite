@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { copyFile, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -21,6 +21,40 @@ function sqliteTableExists(databasePath, tableName) {
 
 function sqliteColumnExists(databasePath, tableName, columnName) {
   return execFileSync('sqlite3', ['-readonly', databasePath, `SELECT COUNT(*) FROM pragma_table_info('${tableName}') WHERE name = '${columnName}';`], { encoding: 'utf8' }).trim() === '1'
+}
+
+function git(args) {
+  return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim()
+}
+
+async function deployCommittedMigrationBaseline(databasePath, temporaryRoot) {
+  const commit = git(['rev-parse', 'HEAD^{commit}'])
+  const expectedRoot = path.join(temporaryRoot, 'expected-release')
+  const prismaRoot = path.join(expectedRoot, 'prisma')
+  const migrationsRoot = path.join(prismaRoot, 'migrations')
+  await mkdir(migrationsRoot, { recursive: true })
+  await writeFile(path.join(prismaRoot, 'schema.prisma'), execFileSync('git', ['show', `${commit}:prisma/schema.prisma`], { cwd: root }))
+  const migrationNames = git(['ls-tree', '--name-only', `${commit}:prisma/migrations`])
+    .split('\n')
+    .filter((name) => /^\d{14}_.+/.test(name))
+  for (const migrationName of migrationNames) {
+    const migrationDirectory = path.join(migrationsRoot, migrationName)
+    await mkdir(migrationDirectory, { recursive: true })
+    await writeFile(
+      path.join(migrationDirectory, 'migration.sql'),
+      execFileSync('git', ['show', `${commit}:prisma/migrations/${migrationName}/migration.sql`], { cwd: root }),
+    )
+  }
+  sqlite(databasePath, 'VACUUM;')
+  const deploy = spawnSync(path.join(root, 'node_modules', '.bin', 'prisma'), [
+    'migrate', 'deploy', '--schema', path.join(prismaRoot, 'schema.prisma'),
+  ], {
+    cwd: expectedRoot,
+    env: { ...process.env, DATABASE_URL: `file:${databasePath}` },
+    encoding: 'utf8',
+    maxBuffer: 32 * 1024 * 1024,
+  })
+  assert.equal(deploy.status, 0, deploy.stderr || deploy.stdout)
 }
 
 function runAudit(databasePath, reportPath) {
@@ -48,14 +82,7 @@ async function main() {
   const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), 'mes-lite-production-schema-audit-verify-'))
   try {
     const cleanDatabasePath = path.join(temporaryRoot, 'clean.db')
-    sqlite(cleanDatabasePath, 'VACUUM;')
-    const deploy = spawnSync(path.join(root, 'node_modules', '.bin', 'prisma'), ['migrate', 'deploy'], {
-      cwd: root,
-      env: { ...process.env, DATABASE_URL: `file:${cleanDatabasePath}` },
-      encoding: 'utf8',
-      maxBuffer: 32 * 1024 * 1024,
-    })
-    assert.equal(deploy.status, 0, deploy.stderr || deploy.stdout)
+    await deployCommittedMigrationBaseline(cleanDatabasePath, temporaryRoot)
 
     const cleanBefore = await readFile(cleanDatabasePath)
     const cleanReportPath = path.join(temporaryRoot, 'clean-report.json')

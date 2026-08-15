@@ -1152,6 +1152,7 @@ model QCRecord {
 // ==================== 库存与入库 ====================
 
 model Stock {
+  /// Database triggers require exactly one owner: Material or legacy Product.
   id         String    @id @default(cuid())
   materialId String?   @unique
   material   Material? @relation(fields: [materialId], references: [id])

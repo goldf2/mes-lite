@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.379",
+  "version": "0.1.380",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -46,6 +46,7 @@
     "migrate:product-material": "tsx scripts/product-material-migration.ts",
     "verify:model-convergence": "tsx scripts/verify-model-convergence.ts",
     "verify:product-material-migration": "tsx scripts/verify-product-material-migration.ts",
+    "verify:stock-owner-invariant": "tsx scripts/verify-stock-owner-invariant.ts",
     "verify:permissions": "tsx scripts/verify-permissions.ts",
     "verify:role-task-permissions": "tsx scripts/verify-role-task-permissions.ts",
     "verify:role-task-http-permissions": "tsx scripts/verify-role-task-http-permissions.ts",

@@ -1,9 +1,6 @@
 {
-  "version": "0.1.379",
-  "impact": "updated",
-  "workflowIds": [
-    "21-stock-adjustment",
-    "22-stock-movements"
-  ],
-  "summary": "库存调整改为服务器会话身份并与审计同事务；库存流水增加原流水、冲销流水双向关系核对和关联 ID 搜索。"
+  "version": "0.1.380",
+  "impact": "none",
+  "workflowIds": [],
+  "summary": "仅增加库存所有者迁移门禁和数据库触发器；现有页面、岗位、按钮、操作步骤与截图均不变。"
 }

@@ -148,10 +148,10 @@ flowchart TD
 - 物料创建时在事务内同步创建 `Stock`。
 - 兼容 Product 解析不再同步创建 `Stock`。
 - `/api/stocks` 增加一致性检查，发现缺失或非法库存记录时返回 `409`，页面显示红色错误面板。
+- `v0.1.380` 增加迁移前历史异常门禁和 SQLite 新建/更新触发器，数据库拒绝 Material/Product 都为空或同时存在；Product-only 继续作为人工迁移前的合法兼容状态。
 
 仍需增强：
 
-- SQLite 层面无法直接用 Prisma 表达“`materialId` 与 `productId` 二选一”的强约束，建议后续增加数据库 CHECK 约束迁移或保持服务端统一校验。
 - 当前已增加 `InventoryLocation` 和 `StockLocationBalance`：库位保存主库存单位实物余额，总库存、双单位和成本继续由 `Stock` 汇总。仓库和库存状态仍未建模；后续若需要待检、冻结、在制和废料状态，应增加独立维度，而不是把状态塞进物料分类。
 - 金额和数量当前使用 `Float`，长期应改为整数分或 Decimal，避免尾差。
 

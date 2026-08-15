@@ -6,6 +6,7 @@ const checks = [
   'verify:structural-goal',
   'verify:model-convergence',
   'verify:product-material-migration',
+  'verify:stock-owner-invariant',
   'verify:equipment',
   'verify:equipment-events-http',
   'verify:equipment-inspections',
