@@ -1,6 +1,6 @@
 {
-  "version": "0.1.384",
+  "version": "0.1.385",
   "impact": "none",
   "workflowIds": [],
-  "summary": "新增最终冻结 SOP 从本地成品或单一 OSS 地址受控登记到站内产品文档库的运维命令；不改变任何页面、在线帮助步骤或车间业务流程。"
+  "summary": "增加 GitHub Actions 可直接定位失败子检查的 annotation；不改变任何页面、在线帮助步骤或车间业务流程。"
 }

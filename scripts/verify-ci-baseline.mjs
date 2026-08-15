@@ -45,13 +45,27 @@ const checks = [
 
 for (const check of checks) {
   console.log(`\n[ci] ${check}`)
+  const startedAt = Date.now()
   const result = spawnSync('npm', ['run', check], {
     cwd: process.cwd(),
     env: process.env,
     stdio: 'inherit',
   })
   if (result.error) throw result.error
-  if (result.status !== 0) process.exit(result.status ?? 1)
+  if (result.status !== 0) {
+    const exitCode = result.status ?? 1
+    const elapsedSeconds = ((Date.now() - startedAt) / 1000).toFixed(1)
+    const message = `${check} 失败：退出码 ${exitCode}，用时 ${elapsedSeconds}s`
+    console.error(`\n[ci] ${message}`)
+    if (process.env.GITHUB_ACTIONS === 'true') {
+      const escapeWorkflowCommand = (value) => String(value)
+        .replaceAll('%', '%25')
+        .replaceAll('\r', '%0D')
+        .replaceAll('\n', '%0A')
+      console.error(`::error title=MES-lite CI 子检查失败::${escapeWorkflowCommand(message)}`)
+    }
+    process.exit(exitCode)
+  }
 }
 
 console.log(`\nCI 领域基线通过：${checks.length} 项。`)
