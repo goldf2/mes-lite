@@ -72,12 +72,14 @@ async function main() {
     { pickLegacyProductionOrder },
     { listLegacyProductionOrderReports, reportLegacyProductionOrder },
     { stockInLegacyProductionOrder },
+    { cancelProductionOrder },
     { ProductionOrderDomainError },
   ] = await Promise.all([
     import('../lib/prisma'),
     import('../modules/production/server/legacy-production-order-pick-service'),
     import('../modules/production/server/legacy-production-order-report-service'),
     import('../modules/production/server/legacy-production-order-stock-in-service'),
+    import('../modules/production/server/production-order-status-service'),
     import('../modules/production/domain/production-order-errors'),
   ])
 
@@ -138,6 +140,29 @@ async function main() {
     assert.deepEqual([pickedBalance.qty, pickedBalance.reservedQty, pickedBalance.availableQty], [16, 0, 16])
     assert.equal(pickLogs.length, 1, '兼容领料必须生成库存流水')
     assert.equal(pickLogs[0].createdBy, '登录验证员', '兼容领料库存流水必须使用服务端可信操作人')
+
+    const cancelOrder = await prisma.productionOrder.create({
+      data: { orderNo: `EXEC-CANCEL-${suffix}`, productId: product.id, planQty: 2, status: 'CONFIRMED' },
+    })
+    const cancelPick = await prisma.pickItem.create({
+      data: { orderId: cancelOrder.id, materialId: inputMaterial.id, requiredQty: 2, reservedValuationQty: 2, status: 'RESERVED' },
+    })
+    await Promise.all([
+      prisma.stock.update({ where: { id: stock.id }, data: { reservedQty: { increment: 2 }, availableQty: { decrement: 2 }, reservedValuationQty: { increment: 2 }, availableValuationQty: { decrement: 2 } } }),
+      prisma.stockLocationBalance.update({ where: { stockId_locationId: { stockId: stock.id, locationId: location.id } }, data: { reservedQty: { increment: 2 }, availableQty: { decrement: 2 } } }),
+    ])
+    await pickLegacyProductionOrder(cancelOrder.id, { items: [{ pickItemId: cancelPick.id, actualQty: 2, pickedBy: '退料验证领料员' }] }, '登录验证员')
+    const cancelSource = await prisma.stockLog.findFirstOrThrow({ where: { refType: 'PICK', refId: cancelPick.id, type: 'PICK' } })
+    const cancelAuditContext = { ...auditContext, operatorId: 'verify-cancel-return', operatorName: '取消退料主管' }
+    await cancelProductionOrder(cancelOrder.id, { reason: '验证已领料工单取消' }, new Date('2026-08-10T08:30:00.000Z'), cancelAuditContext)
+    const [cancelReturn, linkedCancelSource, stockAfterCancel] = await Promise.all([
+      prisma.stockLog.findFirstOrThrow({ where: { refType: 'RETURN', refId: cancelPick.id, type: 'RETURN' } }),
+      prisma.stockLog.findUniqueOrThrow({ where: { id: cancelSource.id } }),
+      prisma.stock.findUniqueOrThrow({ where: { id: stock.id } }),
+    ])
+    assert.deepEqual([cancelReturn.sourceMovementId, linkedCancelSource.reversalMovementId], [cancelSource.id, cancelReturn.id], '取消退料必须与原领料流水双向关联')
+    assert.equal(cancelReturn.createdBy, cancelAuditContext.operatorName, '取消退料流水必须使用服务器审计身份')
+    assert.deepEqual([stockAfterCancel.qty, stockAfterCancel.totalCost], [pickedStock.qty, pickedStock.totalCost], '取消退料必须完整恢复领料前库存与成本')
 
     const route = await prisma.processRoute.create({
       data: {

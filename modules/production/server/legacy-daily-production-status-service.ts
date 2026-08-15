@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { changeStockLocationBalance, postInventoryIssue, postInventoryReceipt } from '@/lib/inventory'
+import { createInventoryReversalMovement } from '@/modules/inventory'
 import type { ReverseLegacyDailyProductionInput } from '../contracts/legacy-daily-production-schema'
 import { LegacyDailyProductionError } from '../domain/legacy-daily-production-errors'
 import {
@@ -158,8 +159,8 @@ async function reverseLegacyOutput(
     where: { refType: 'DAILY_PRODUCTION_REPORT', refId: report.id, type: 'PRODUCTION_IN' },
     orderBy: { createdAt: 'desc' },
   })
-  const reversalMovement = await tx.stockLog.create({
-    data: {
+  if (!sourceMovement) throw new LegacyDailyProductionError(`生产记录 ${report.reportNo} 的原产出流水缺失，不能建立可信冲销`)
+  await createInventoryReversalMovement(tx, sourceMovement.id, {
       stockId: finishedStock.id,
       locationId: outputLocation.id,
       type: 'PRODUCTION_REVERSE_OUT',
@@ -177,17 +178,12 @@ async function reverseLegacyOutput(
       conversionRateUsed: report.outputConversionRate,
       conversionSource: 'ORIGINAL_MOVEMENT',
       costingMethodSnapshot: report.finishedMaterial.costingMethod,
-      sourceMovementId: sourceMovement?.id,
       idempotencyKey: `DAILY_PRODUCTION:${report.id}:REVERSE_OUTPUT`,
       refType: 'DAILY_PRODUCTION_REPORT_REVERSE',
       refId: report.id,
       note: `冲销生产记录 ${report.reportNo}: ${reason}`,
       createdBy: reversedBy,
-    },
   })
-  if (sourceMovement) {
-    await tx.stockLog.update({ where: { id: sourceMovement.id }, data: { reversalMovementId: reversalMovement.id } })
-  }
 }
 
 async function restoreLegacyConsumption(
@@ -242,8 +238,8 @@ async function restoreLegacyConsumption(
     },
     orderBy: { createdAt: 'desc' },
   })
-  const reversalMovement = await tx.stockLog.create({
-    data: {
+  if (!sourceMovement) throw new LegacyDailyProductionError(`生产记录 ${report.reportNo} 的原耗用流水缺失，不能建立可信冲销`)
+  await createInventoryReversalMovement(tx, sourceMovement.id, {
       stockId: stock.id,
       locationId: consumptionLocation.id,
       type: 'PRODUCTION_REVERSE_CONSUME',
@@ -261,17 +257,12 @@ async function restoreLegacyConsumption(
       conversionRateUsed: line.conversionRateUsed,
       conversionSource: 'ORIGINAL_MOVEMENT',
       costingMethodSnapshot: line.costingMethod,
-      sourceMovementId: sourceMovement?.id,
       idempotencyKey: `DAILY_PRODUCTION:${report.id}:REVERSE_CONSUME:${line.id}`,
       refType: 'DAILY_PRODUCTION_REPORT_REVERSE',
       refId: report.id,
       note: `冲销生产记录 ${report.reportNo}，恢复原料`,
       createdBy: reversedBy,
-    },
   })
-  if (sourceMovement) {
-    await tx.stockLog.update({ where: { id: sourceMovement.id }, data: { reversalMovementId: reversalMovement.id } })
-  }
 }
 
 export async function reverseLegacyDailyProductionReport(

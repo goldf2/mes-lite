@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ZodError } from 'zod'
-import { writeAuditLog } from '@/lib/audit'
+import { getAuditContext, writeAuditLog } from '@/lib/audit'
 import { requireResourcePermission } from '@/lib/permissions'
 import { StockAdjustmentError } from '@/lib/stock-adjustment'
 import { parseStockListQuery, stockAdjustmentSchema } from '@/modules/inventory/contracts/stock-route'
 import { adjustStock, repairStockRecords } from '@/modules/inventory/server/stock-command-service'
 import { StockIntegrityError } from '@/modules/inventory/server/stock-integrity-service'
 import { listStocks } from '@/modules/inventory/server/stock-query-service'
-import { getCurrentOperator } from '@/lib/auth'
+import { getCurrentOperator, operatorDisplayName } from '@/lib/auth'
 import { DataScopeError, assertUnrestrictedInventoryDataScope, loadEffectiveDataScope } from '@/modules/identity-access'
 
 export async function GET(req: NextRequest) {
@@ -61,25 +61,12 @@ export async function POST(req: NextRequest) {
     const operator = await getCurrentOperator()
     if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
     const input = stockAdjustmentSchema.parse(await req.json())
-    const result = await adjustStock(input, await loadEffectiveDataScope(operator))
-    await writeAuditLog(req, {
-      action: 'ADJUST',
-      entityType: 'STOCK',
-      entityId: result.stock.id,
-      entityLabel: result.stock.material?.code || result.stock.product?.sku || result.stock.id,
-      beforeData: result.stock,
-      afterData: {
-        locationId: result.location.id,
-        location: `${result.location.code} ${result.location.name}`,
-        oldLocationQty: result.oldLocationQty,
-        newLocationQty: result.newLocationQty,
-        newQty: result.newQty,
-        newValuationQty: result.newValuationQty,
-        newTotalCost: result.newTotalCost,
-        reason: input.reason,
-        adjustedBy: input.adjustedBy,
-      },
-    })
+    await adjustStock(
+      input,
+      await loadEffectiveDataScope(operator),
+      operatorDisplayName(operator),
+      await getAuditContext(req),
+    )
     return NextResponse.json({ success: true, message: '存货调整完成' })
   } catch (error) {
     if (error instanceof ZodError) return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })

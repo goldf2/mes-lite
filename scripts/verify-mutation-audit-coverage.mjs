@@ -20,6 +20,7 @@ const transactionalAuditRequired = new Set([
   'scan-count-sessions/[id]/complete/route.ts#POST',
   'scan-count-sessions/[id]/events/route.ts#POST',
   'scan-count-sessions/[id]/events/route.ts#DELETE',
+  'stocks/route.ts#POST',
 ])
 
 async function listRouteFiles(directory) {

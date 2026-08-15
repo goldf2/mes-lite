@@ -9,6 +9,7 @@ import {
 import { changeStockLocationBalance, postInventoryIssue, postInventoryReceipt } from '@/lib/inventory'
 import {
   allocateAvailableInventoryLots,
+  createInventoryReversalMovement,
   createInventoryLotReceipt,
   createProductionLotGenealogies,
   reverseProductionLotAllocations,
@@ -292,8 +293,8 @@ async function reverseProductionOutput(
     where: { refType: 'PRODUCTION_ORDER_ACTUAL', refId: actual.id, type: 'PRODUCTION_IN', stockId: stock.id, locationId: location.id },
     orderBy: { createdAt: 'desc' },
   })
-  const reversalMovement = await tx.stockLog.create({
-    data: {
+  if (!sourceMovement) throw new ProductionOrderDomainError(`生产实绩 ${actual.actualNo} 的原产出流水缺失，不能建立可信冲销`)
+  const reversalMovement = await createInventoryReversalMovement(tx, sourceMovement.id, {
       stockId: stock.id,
       locationId: location.id,
       type: 'PRODUCTION_REVERSE_OUT',
@@ -314,17 +315,12 @@ async function reverseProductionOutput(
       lotId: line.inventoryLot?.id,
       inventoryStatus: inventoryStatus || 'AVAILABLE',
       fromInventoryStatus: inventoryStatus || 'AVAILABLE',
-      sourceMovementId: sourceMovement?.id,
       idempotencyKey: `PRODUCTION_ACTUAL:${actual.id}:REVERSE_OUTPUT:${line.id}`,
       refType: 'PRODUCTION_ORDER_ACTUAL_REVERSE',
       refId: actual.id,
       note: `冲销生产订单实绩 ${actual.actualNo}: ${reason}`,
       createdBy: reversedBy,
-    },
   })
-  if (sourceMovement) {
-    await tx.stockLog.update({ where: { id: sourceMovement.id }, data: { reversalMovementId: reversalMovement.id } })
-  }
   if (line.inventoryLot && lotBalance && (inventoryStatus === 'QUARANTINE' || inventoryStatus === 'HOLD')) {
     await tx.inventoryLotBalance.update({
       where: { id: lotBalance.id },
@@ -404,8 +400,8 @@ async function restoreProductionInput(
     where: { refType: 'PRODUCTION_ORDER_ACTUAL', refId: actual.id, type: 'PRODUCTION_CONSUME', stockId: stock.id, locationId: location.id },
     orderBy: { createdAt: 'desc' },
   })
-  const reversalMovement = await tx.stockLog.create({
-    data: {
+  if (!sourceMovement) throw new ProductionOrderDomainError(`生产实绩 ${actual.actualNo} 的原耗用流水缺失，不能建立可信冲销`)
+  await createInventoryReversalMovement(tx, sourceMovement.id, {
       stockId: stock.id,
       locationId: location.id,
       type: 'PRODUCTION_REVERSE_CONSUME',
@@ -423,17 +419,12 @@ async function restoreProductionInput(
       conversionRateUsed: line.conversionRateUsed,
       conversionSource: 'ORIGINAL_MOVEMENT',
       costingMethodSnapshot: line.costingMethod,
-      sourceMovementId: sourceMovement?.id,
       idempotencyKey: `PRODUCTION_ACTUAL:${actual.id}:REVERSE_INPUT:${line.id}`,
       refType: 'PRODUCTION_ORDER_ACTUAL_REVERSE',
       refId: actual.id,
       note: `冲销生产订单实绩 ${actual.actualNo}，恢复投入物料`,
       createdBy: reversedBy,
-    },
   })
-  if (sourceMovement) {
-    await tx.stockLog.update({ where: { id: sourceMovement.id }, data: { reversalMovementId: reversalMovement.id } })
-  }
 }
 
 export async function reverseProductionOrderActual(

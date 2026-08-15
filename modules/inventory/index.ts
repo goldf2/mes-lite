@@ -9,6 +9,8 @@ export type { InventoryLotPanorama, InventoryLotPanoramaEdge, InventoryLotPanora
 export { getInventoryLotTrace } from './server/inventory-lot-trace-service'
 export { getInventoryLotPanorama, searchInventoryLots } from './server/inventory-lot-panorama-service'
 export { issueInventoryForBusinessReference } from './server/inventory-posting-service'
+export { createInventoryReversalMovement, InventoryLedgerError } from '@/lib/inventory-ledger'
+export type { InventoryReversalMovementInput } from '@/lib/inventory-ledger'
 export {
   allocateAvailableInventoryLots,
   consumeAvailableInventoryLotsForReference,

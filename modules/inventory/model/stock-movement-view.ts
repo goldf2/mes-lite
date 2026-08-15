@@ -32,6 +32,29 @@ const referenceLabels: Record<string, string> = {
   PICK: '历史领料单',
 }
 
+const reversalMovementTypes = new Set([
+  'REVERSE_IN',
+  'PRODUCTION_REVERSE_OUT',
+  'PRODUCTION_REVERSE_CONSUME',
+  'FLOW_TRANSFER_REVERSE_OUT',
+  'FLOW_TRANSFER_REVERSE_IN',
+  'RETURN',
+])
+
+const shortMovementId = (value: string) => value.length > 10 ? `${value.slice(0, 8)}…` : value
+
+export function stockMovementRelationLabel(movement: {
+  type: string
+  sourceMovementId: string | null
+  reversalMovementId: string | null
+}) {
+  if (movement.reversalMovementId) return `已由流水 ${shortMovementId(movement.reversalMovementId)} 冲销`
+  if (!movement.sourceMovementId) return '-'
+  return reversalMovementTypes.has(movement.type)
+    ? `冲销原流水 ${shortMovementId(movement.sourceMovementId)}`
+    : `关联来源流水 ${shortMovementId(movement.sourceMovementId)}`
+}
+
 export function stockMovementTypeLabel(value: string) {
   return movementLabels[value] || value.replaceAll('_', ' ')
 }

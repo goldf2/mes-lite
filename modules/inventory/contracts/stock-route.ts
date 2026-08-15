@@ -31,7 +31,6 @@ export const stockAdjustmentSchema = z.object({
   newValuationQty: z.number().nonnegative().optional(),
   newTotalCost: z.number().nonnegative().optional(),
   reason: z.string().min(1, '调整原因必填'),
-  adjustedBy: z.string().min(1),
-})
+}).strict()
 
 export type StockAdjustmentCommand = z.infer<typeof stockAdjustmentSchema>

@@ -33,7 +33,6 @@ import StockDetailPanel from './StockDetailPanel'
 import StockIntegrityAlert from './StockIntegrityAlert'
 
 interface StockPageModuleProps {
-  operatorName: string
   canUpdateStock: boolean
   onMessage: (message: string) => void
   onStateSummaryChange?: (summary: string) => void
@@ -41,7 +40,7 @@ interface StockPageModuleProps {
 
 const allCategoryValues: string[] = materialCategoryFilterOptions.map((option) => option.value)
 
-export default function StockPageModule({ operatorName, canUpdateStock, onMessage, onStateSummaryChange }: StockPageModuleProps) {
+export default function StockPageModule({ canUpdateStock, onMessage, onStateSummaryChange }: StockPageModuleProps) {
   const [stocks, setStocks] = useState<Stock[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [inventoryLocations, setInventoryLocations] = useState<InventoryLocationOption[]>([])
@@ -227,7 +226,6 @@ export default function StockPageModule({ operatorName, canUpdateStock, onMessag
         newValuationQty: Number(stockAdjustForm.newValuationQty),
         newTotalCost: Number(stockAdjustForm.newTotalCost),
         reason: stockAdjustForm.reason.trim(),
-        adjustedBy: operatorName,
       })
       if (!result.ok) return onMessage(result.message)
       onMessage(result.message)

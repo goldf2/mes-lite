@@ -1,8 +1,9 @@
 {
-  "version": "0.1.378",
+  "version": "0.1.379",
   "impact": "updated",
   "workflowIds": [
-    "61-audit-log"
+    "21-stock-adjustment",
+    "22-stock-movements"
   ],
-  "summary": "查看操作记录增加关键写操作、结果快照、失败和幂等分支核对；代码侧建立全写接口审计覆盖与高风险事务审计门禁。"
+  "summary": "库存调整改为服务器会话身份并与审计同事务；库存流水增加原流水、冲销流水双向关系核对和关联 ID 搜索。"
 }

@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { consumeMaterialCost } from './costing'
+import { createInventoryReversalMovement } from './inventory-ledger'
 import { normalizeConversionRate } from './units'
 
 export type ConversionSource =
@@ -494,6 +495,25 @@ export async function postInventoryLocationTransfer(
     resolveInventoryLocation(tx, input.sourceLocationId),
     resolveInventoryLocation(tx, input.targetLocationId),
   ])
+  const reverseSources = input.reverse ? await Promise.all([
+    tx.stockLog.findFirst({
+      where: {
+        stockId: stock.id, locationId: sourceLocation.id, refType: 'FLOW_TRANSFER', refId: input.refId,
+        type: 'FLOW_TRANSFER_IN',
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+    tx.stockLog.findFirst({
+      where: {
+        stockId: stock.id, locationId: targetLocation.id, refType: 'FLOW_TRANSFER', refId: input.refId,
+        type: 'FLOW_TRANSFER_OUT',
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+  ]) : null
+  if (reverseSources && (!reverseSources[0] || !reverseSources[1])) {
+    throw new Error('原流程转移库存流水缺失，不能建立可信冲销')
+  }
   const transferQty = roundQty(input.stockQty)
   const sourceBalance = await tx.stockLocationBalance.findUnique({
     where: { stockId_locationId: { stockId: stock.id, locationId: sourceLocation.id } },
@@ -537,27 +557,28 @@ export async function postInventoryLocationTransfer(
     note: input.note,
     createdBy: input.createdBy || null,
   }
-  const outgoing = await tx.stockLog.create({
-    data: {
+  const outgoingData = {
       ...common,
       locationId: sourceLocation.id,
       type: `${typePrefix}_OUT`,
       qty: -transferQty,
       valuationQty: 0,
       costAmount: 0,
-    },
-  })
-  const incoming = await tx.stockLog.create({
-    data: {
+  }
+  const outgoing = reverseSources
+    ? await createInventoryReversalMovement(tx, reverseSources[0]!.id, outgoingData)
+    : await tx.stockLog.create({ data: outgoingData })
+  const incomingData = {
       ...common,
       locationId: targetLocation.id,
       type: `${typePrefix}_IN`,
       qty: transferQty,
       valuationQty: 0,
       costAmount: 0,
-      sourceMovementId: outgoing.id,
-    },
-  })
+  }
+  const incoming = reverseSources
+    ? await createInventoryReversalMovement(tx, reverseSources[1]!.id, incomingData)
+    : await tx.stockLog.create({ data: { ...incomingData, sourceMovementId: outgoing.id } })
 
   return {
     material,

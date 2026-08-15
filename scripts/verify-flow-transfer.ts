@@ -194,6 +194,14 @@ async function main() {
       [stockBefore.qty, stockBefore.availableQty, stockBefore.valuationQty, stockBefore.totalCost],
     )
     assert.deepEqual(layersAfterReverse, layersBefore)
+    const linkedTransferLogs = await prisma.stockLog.findMany({
+      where: { refType: 'FLOW_TRANSFER', refId: created.id },
+    })
+    const byType = new Map(linkedTransferLogs.map((log) => [log.type, log]))
+    assert.equal(byType.get('FLOW_TRANSFER_REVERSE_OUT')?.sourceMovementId, byType.get('FLOW_TRANSFER_IN')?.id)
+    assert.equal(byType.get('FLOW_TRANSFER_IN')?.reversalMovementId, byType.get('FLOW_TRANSFER_REVERSE_OUT')?.id)
+    assert.equal(byType.get('FLOW_TRANSFER_REVERSE_IN')?.sourceMovementId, byType.get('FLOW_TRANSFER_OUT')?.id)
+    assert.equal(byType.get('FLOW_TRANSFER_OUT')?.reversalMovementId, byType.get('FLOW_TRANSFER_REVERSE_IN')?.id)
     assert.equal(flowTransferTransitionError('DRAFT', 'confirm'), null)
     assert.match(flowTransferTransitionError('REVERSED', 'confirm') ?? '', /只有草稿/)
     assert.match(flowTransferTransitionError('DRAFT', 'reverse') ?? '', /只有已确认/)

@@ -139,5 +139,4 @@ export interface StockQuery {
 
 export interface StockAdjustmentInput extends StockAdjustmentDraft {
   stockId: string
-  adjustedBy: string
 }

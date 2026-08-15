@@ -190,13 +190,16 @@ async function main() {
       prisma.stock.findUniqueOrThrow({ where: { materialId: finished.id } }),
       prisma.stock.findUniqueOrThrow({ where: { materialId: scrap.id } }),
       prisma.productionOrder.findUniqueOrThrow({ where: { id: order.id } }),
-      prisma.stockLog.count({ where: { refType: 'PRODUCTION_ORDER_ACTUAL_REVERSE', refId: actual.id } }),
+      prisma.stockLog.findMany({ where: { refType: 'PRODUCTION_ORDER_ACTUAL_REVERSE', refId: actual.id } }),
     ])
     assert.deepEqual([restoredInput.qty, restoredInput.totalCost], [20, 200], '冲销必须恢复投入库存和原成本')
     assert.deepEqual([reversedOutput.qty, reversedOutput.totalCost], [0, 0], '冲销必须扣回主产出库存和成本')
     assert.equal(reversedScrap.qty, 0, '冲销必须扣回副产出库存')
     assert.deepEqual([resetOrder.completeQty, resetOrder.scrapQty, resetOrder.status], [0, 0, 'RELEASED'], '冲销后必须回到已发布，不得退回未发布草稿')
-    assert.equal(reversalLogs, 3, '一次冲销必须生成一条投入恢复和两条产出扣回流水')
+    assert.equal(reversalLogs.length, 3, '一次冲销必须生成一条投入恢复和两条产出扣回流水')
+    assert.equal(reversalLogs.every((log) => Boolean(log.sourceMovementId)), true, '生产冲销流水必须全部指向原流水')
+    const linkedOriginals = await prisma.stockLog.findMany({ where: { reversalMovementId: { in: reversalLogs.map((log) => log.id) } } })
+    assert.equal(linkedOriginals.length, 3, '生产原流水必须全部反向指向冲销流水')
     await assert.rejects(
       () => reverseProductionOrderActual(order.id, actual.id, { reason: '重复冲销' }, '验证员'),
       ProductionOrderDomainError,

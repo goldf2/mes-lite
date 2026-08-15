@@ -187,18 +187,20 @@ async function main() {
     await assert.rejects(() => updateManagedMaterialIn(created.first.id, updateInput), /只有待收货来料单可以修改/)
 
     await reverseManagedMaterialIn(created.first.id, { reason: '验证整单红冲' }, '验证冲销员')
-    const [reversed, reversedStock, reversedBalance, reversedLayer, reverseLog] = await Promise.all([
+    const [reversed, reversedStock, reversedBalance, reversedLayer, reverseLog, linkedReceivedLog] = await Promise.all([
       getMaterialInDetail(created.first.id),
       prisma.stock.findUniqueOrThrow({ where: { materialId: material.id } }),
       prisma.stockLocationBalance.findFirstOrThrow({ where: { locationId: location.id, stock: { materialId: material.id } } }),
       prisma.inventoryCostLayer.findFirstOrThrow({ where: { materialInId: edited.updated.items[0].id } }),
       prisma.stockLog.findFirstOrThrow({ where: { refType: 'MATERIAL_IN_REVERSE', refId: edited.updated.items[0].id } }),
+      prisma.stockLog.findUniqueOrThrow({ where: { id: receivedLog.id } }),
     ])
     assert.equal(reversed.status, 'REVERSED')
     assert.deepEqual([reversedStock.qty, reversedStock.valuationQty, reversedStock.totalCost], [0, 0, 0])
     assert.equal(reversedBalance.qty, 0)
     assert.equal(reversedLayer.status, 'REVERSED')
     assert.equal(reverseLog.costAmount, -60)
+    assert.deepEqual([reverseLog.sourceMovementId, linkedReceivedLog.reversalMovementId], [receivedLog.id, reverseLog.id], '来料红冲必须建立可信双向流水关系')
     assert.equal(reverseLog.createdBy, '验证冲销员', '来料红冲流水必须使用服务端可信操作人')
     await assert.rejects(() => reverseManagedMaterialIn(created.first.id, { reason: '重复红冲' }, '验证冲销员'), /只有已收货来料单可以红冲/)
 

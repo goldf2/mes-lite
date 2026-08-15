@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { createAuditLog, type AuditContext } from '@/lib/audit'
 import { restoreMaterialCost } from '@/lib/costing'
 import { changeStockLocationBalance } from '@/lib/inventory'
+import { createInventoryReversalMovement } from '@/modules/inventory'
 import type { CancelProductionOrderInput } from '../contracts/production-order-schema'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
 import {
@@ -62,6 +63,11 @@ export async function cancelProductionOrder(
       if (stockId) {
         const stock = await tx.stock.findUnique({ where: { id: stockId } })
         if (stock && pick.actualQty > 0) {
+          const sourceMovement = await tx.stockLog.findFirst({
+            where: { refType: 'PICK', refId: pick.id, type: 'PICK', stockId: stock.id },
+            orderBy: { createdAt: 'desc' },
+          })
+          if (!sourceMovement) throw new ProductionOrderDomainError(`领料 ${pick.id} 的原库存流水缺失，不能建立可信退料冲销`)
           await restoreMaterialCost(tx, { pickItemId: pick.id, costingMethod: pick.costingMethod })
           const beforeQty = Number(stock.qty)
           const beforeValuationQty = Number(stock.valuationQty)
@@ -86,8 +92,7 @@ export async function cancelProductionOrder(
             },
           })
           const { location } = await changeStockLocationBalance(tx, { stockId: stock.id, qtyDelta: returnQty })
-          await tx.stockLog.create({
-            data: {
+          await createInventoryReversalMovement(tx, sourceMovement.id, {
               stockId: stock.id,
               locationId: location.id,
               type: 'RETURN',
@@ -103,7 +108,7 @@ export async function cancelProductionOrder(
               refType: 'RETURN',
               refId: pick.id,
               note: `工单 ${order.orderNo} 取消退料`,
-            },
+              createdBy: auditContext?.operatorName || null,
           })
         } else if (stock) {
           const requiredQty = Number(pick.requiredQty)

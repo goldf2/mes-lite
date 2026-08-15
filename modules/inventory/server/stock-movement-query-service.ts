@@ -15,6 +15,8 @@ function keywordCondition(term: string): Prisma.StockLogWhereInput {
       { type: textContains(term) },
       { refType: textContains(term) },
       { refId: textContains(term) },
+      { sourceMovementId: textContains(term) },
+      { reversalMovementId: textContains(term) },
       { note: textContains(term) },
       { createdBy: textContains(term) },
       { stock: { material: { is: { code: textContains(term) } } } },

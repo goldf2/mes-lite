@@ -235,6 +235,9 @@ async function main() {
       [10, 10, 0],
       '冲销生产必须恢复原料来源库位并撤销产出库位库存',
     )
+    const dailyReversalLogs = await prisma.stockLog.findMany({ where: { refType: 'DAILY_PRODUCTION_REPORT_REVERSE', refId: created.id } })
+    assert.equal(dailyReversalLogs.every((log) => Boolean(log.sourceMovementId)), true, '历史生产冲销流水必须全部指向原流水')
+    assert.equal(await prisma.stockLog.count({ where: { reversalMovementId: { in: dailyReversalLogs.map((log) => log.id) } } }), dailyReversalLogs.length)
     await assert.rejects(
       () => reverseLegacyDailyProductionReport(created.id, { reason: '重复冲销' }, '验证主管'),
       /只有已确认生产记录可以冲销/,

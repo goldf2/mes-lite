@@ -4,6 +4,7 @@ import type { StockMovement, StockMovementWorkspace } from '../contracts/stock-m
 import {
   stockMovementAmountText,
   stockMovementQuantityText,
+  stockMovementRelationLabel,
   stockMovementReferenceLabel,
   stockMovementTone,
   stockMovementTypeLabel,
@@ -17,6 +18,10 @@ function SourceReference({ movement }: { movement: StockMovement }) {
       <div className="mt-0.5 max-w-52 truncate font-mono text-xs text-gray-500" title={movement.refId || undefined}>{movement.refId || '-'}</div>
     </div>
   )
+}
+function LedgerRelation({ movement }: { movement: StockMovement }) {
+  const relationId = movement.reversalMovementId || movement.sourceMovementId || undefined
+  return <span className={relationId ? 'text-blue-700' : 'text-gray-400'} title={relationId}>{stockMovementRelationLabel(movement)}</span>
 }
 function BalanceChange({ movement }: { movement: StockMovement }) {
   return (
@@ -103,6 +108,7 @@ export default function StockMovementCollectionView({
                 <dt className="text-gray-500">时间</dt><dd>{new Date(movement.createdAt).toLocaleString('zh-CN')}</dd>
                 <dt className="text-gray-500">库位</dt><dd>{movement.location ? `${movement.location.code} · ${movement.location.name}` : '-'}</dd>
                 <dt className="text-gray-500">来源</dt><dd><SourceReference movement={movement} /></dd>
+                <dt className="text-gray-500">账本关系</dt><dd><LedgerRelation movement={movement} /></dd>
                 <dt className="text-gray-500">操作人</dt><dd>{movement.createdBy || '-'}</dd>
                 <dt className="text-gray-500">备注</dt><dd className="line-clamp-2">{movement.note || '-'}</dd>
               </dl>
@@ -117,9 +123,9 @@ export default function StockMovementCollectionView({
   return (
     <>
       <div className="overflow-x-auto rounded-lg border border-gray-100">
-        <table className="w-full min-w-[1480px]">
+        <table className="w-full min-w-[1640px]">
           <thead className="bg-gray-50 text-left text-sm font-semibold text-gray-600"><tr>
-            <th className="px-4 py-3">时间</th><th className="px-4 py-3">流水类型</th><th className="px-4 py-3">库存对象</th><th className="px-4 py-3">库位</th><th className="px-4 py-3">本次变化</th><th className="px-4 py-3">库存前后</th><th className="px-4 py-3">核算 / 成本变化</th><th className="px-4 py-3">来源单据</th><th className="px-4 py-3">操作人 / 备注</th>
+            <th className="px-4 py-3">时间</th><th className="px-4 py-3">流水类型</th><th className="px-4 py-3">库存对象</th><th className="px-4 py-3">库位</th><th className="px-4 py-3">本次变化</th><th className="px-4 py-3">库存前后</th><th className="px-4 py-3">核算 / 成本变化</th><th className="px-4 py-3">来源单据</th><th className="px-4 py-3">账本关系</th><th className="px-4 py-3">操作人 / 备注</th>
           </tr></thead>
           <tbody className="divide-y divide-gray-100">
             {items.map((movement) => (
@@ -132,6 +138,7 @@ export default function StockMovementCollectionView({
                 <td className="px-4 py-3"><BalanceChange movement={movement} /></td>
                 <td className="px-4 py-3 text-sm"><div>{stockMovementQuantityText(movement.valuationQty, movement.valuationUnit)}</div><div className="mt-1 text-xs text-gray-500">{stockMovementAmountText(movement.costAmount)}</div></td>
                 <td className="px-4 py-3 text-sm"><SourceReference movement={movement} /></td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm"><LedgerRelation movement={movement} /></td>
                 <td className="px-4 py-3 text-sm"><div>{movement.createdBy || '-'}</div><div className="mt-1 max-w-60 line-clamp-2 text-xs text-gray-500" title={movement.note || undefined}>{movement.note || '-'}</div></td>
               </tr>
             ))}

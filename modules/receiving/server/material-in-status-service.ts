@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { changeStockLocationBalance, postInventoryReceipt, type ConversionSource } from '@/lib/inventory'
-import { createInventoryLotReceipt } from '@/modules/inventory'
+import { createInventoryLotReceipt, createInventoryReversalMovement } from '@/modules/inventory'
 import {
   createMaterialInQualityInspection,
   hasReleasedQualityInspectionStandard,
@@ -208,25 +208,21 @@ async function reverseMaterialInLine(
   const sourceMovement = await tx.stockLog.findFirst({
     where: { refType: 'MATERIAL_IN', refId: current.id, type: 'IN' }, orderBy: { createdAt: 'desc' },
   })
-  const reversalMovement = await tx.stockLog.create({
-    data: {
+  if (!sourceMovement) throw new MaterialInDomainError(`来料单 ${receiptNo} 的原入库流水缺失，不能建立可信红冲`)
+  const reversalMovement = await createInventoryReversalMovement(tx, sourceMovement.id, {
       stockId: stock.id, locationId: location.id, type: 'REVERSE_IN', qty: -qty,
       beforeQty: Number(stock.qty), afterQty: reversal.afterQty,
       valuationQty: -valuationQty, beforeValuationQty: Number(stock.valuationQty), afterValuationQty: reversal.afterValuationQty,
       costAmount: -reversal.reverseCostAmount, beforeCostAmount: Number(stock.totalCost), afterCostAmount: reversal.afterCostAmount,
       stockUnitSnapshot: current.unit, valuationUnitSnapshot: current.valuationUnit,
       conversionRateUsed: current.conversionRate, conversionSource: 'ORIGINAL_MOVEMENT',
-      costingMethodSnapshot: current.material.costingMethod, sourceMovementId: sourceMovement?.id,
+      costingMethodSnapshot: current.material.costingMethod,
       lotId: lot?.id,
       inventoryStatus: reversalInventoryStatus,
       fromInventoryStatus: reversalInventoryStatus,
       idempotencyKey: `MATERIAL_IN:${current.id}:REVERSE`, refType: 'MATERIAL_IN_REVERSE', refId: current.id,
       note: `红冲来料单 ${receiptNo} 第 ${current.lineNo} 行: ${input.reason}`, createdBy: reversedBy,
-    },
   })
-  if (sourceMovement) {
-    await tx.stockLog.update({ where: { id: sourceMovement.id }, data: { reversalMovementId: reversalMovement.id } })
-  }
   if (lot) {
     await tx.inventoryLotBalance.updateMany({
       where: { lotId: lot.id, inventoryStatus: reversalInventoryStatus },

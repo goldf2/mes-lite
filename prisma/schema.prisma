@@ -1222,7 +1222,7 @@ model StockLog {
   conversionSource      String?
   costingMethodSnapshot String?
   sourceMovementId      String?
-  reversalMovementId    String?
+  reversalMovementId    String? @unique
   idempotencyKey        String? @unique
   lotId                 String?
   inventoryStatus       String?
@@ -1237,6 +1237,7 @@ model StockLog {
   createdBy String?
 
   @@index([lotId])
+  @@index([sourceMovementId])
 }
 
 model InventoryLot {

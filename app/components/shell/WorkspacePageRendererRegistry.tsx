@@ -103,7 +103,6 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
   ),
   stocks: (context) => (
     <StockPageModule
-      operatorName={context.operator.name || context.operator.username}
       canUpdateStock={context.canUpdate('stocks')}
       onMessage={context.onMessage}
       onStateSummaryChange={context.onStockStateSummaryChange}
