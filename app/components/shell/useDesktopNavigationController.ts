@@ -29,8 +29,6 @@ export default function useDesktopNavigationController() {
   const [resizingMode, setResizingMode] = useState<DesktopNavigationMode | null>(null)
   const panelRef = useRef<HTMLElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const openTimerRef = useRef<number | null>(null)
-  const closeTimerRef = useRef<number | null>(null)
 
   const desktopNavigationMode = navigationPreference.mode
   const desktopNavigationDisplayMode = navigationPreference.displayMode
@@ -42,54 +40,18 @@ export default function useDesktopNavigationController() {
   const sidebarResizeMax = splitNavigationVisible ? maxDesktopSplitSidebarWidth : maxDesktopSidebarWidth
   const sidebarResizeValue = splitNavigationVisible ? splitSidebarWidth : sidebarWidth
 
-  const cancelClose = useCallback(() => {
-    if (closeTimerRef.current === null) return
-    window.clearTimeout(closeTimerRef.current)
-    closeTimerRef.current = null
-  }, [])
-
-  const cancelOpen = useCallback(() => {
-    if (openTimerRef.current === null) return
-    window.clearTimeout(openTimerRef.current)
-    openTimerRef.current = null
-  }, [])
-
   const closeTransientNavigation = useCallback(() => {
-    cancelOpen()
-    cancelClose()
     setTransientNavigationOpen(false)
-  }, [cancelClose, cancelOpen])
+  }, [])
 
-  const openTransientNavigation = useCallback(() => {
-    if (!autoHideDesktopNavigation) return
-    cancelOpen()
-    cancelClose()
-    setTransientNavigationOpen(true)
-  }, [autoHideDesktopNavigation, cancelClose, cancelOpen])
-
-  const scheduleOpen = useCallback(() => {
-    if (!autoHideDesktopNavigation || transientNavigationOpen || openTimerRef.current !== null) return
-    cancelClose()
-    openTimerRef.current = window.setTimeout(() => {
-      setTransientNavigationOpen(true)
-      openTimerRef.current = null
-    }, 120)
-  }, [autoHideDesktopNavigation, cancelClose, transientNavigationOpen])
-
-  const scheduleClose = useCallback(() => {
-    if (!autoHideDesktopNavigation || resizingMode) return
-    cancelClose()
-    closeTimerRef.current = window.setTimeout(() => {
+  const toggleDesktopNavigation = useCallback(() => {
+    if (persistentDesktopNavigation) {
+      setWorkspaceLayoutPreference({ navigationBehavior: 'auto-hide' })
       setTransientNavigationOpen(false)
-      closeTimerRef.current = null
-    }, 350)
-  }, [autoHideDesktopNavigation, cancelClose, resizingMode])
-
-  const toggleTransientNavigation = useCallback(() => {
-    cancelOpen()
-    cancelClose()
+      return
+    }
     setTransientNavigationOpen((open) => !open)
-  }, [cancelClose, cancelOpen])
+  }, [persistentDesktopNavigation, setWorkspaceLayoutPreference])
 
   const toggleWorkspaceLayout = useCallback(() => {
     closeTransientNavigation()
@@ -97,15 +59,13 @@ export default function useDesktopNavigationController() {
   }, [closeTransientNavigation, setWorkspaceLayoutPreference, workspaceLayoutPreference.layout])
 
   const toggleNavigationBehavior = useCallback(() => {
-    cancelOpen()
-    cancelClose()
     if (autoHideDesktopNavigation) {
       setWorkspaceLayoutPreference({ navigationBehavior: 'persistent' })
       return
     }
     setWorkspaceLayoutPreference({ navigationBehavior: 'auto-hide' })
     setTransientNavigationOpen(false)
-  }, [autoHideDesktopNavigation, cancelClose, cancelOpen, setWorkspaceLayoutPreference])
+  }, [autoHideDesktopNavigation, setWorkspaceLayoutPreference])
 
   useEffect(() => {
     if (autoHideDesktopNavigation) return
@@ -131,11 +91,6 @@ export default function useDesktopNavigationController() {
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [autoHideDesktopNavigation, closeTransientNavigation, transientNavigationOpen])
-
-  useEffect(() => () => {
-    cancelOpen()
-    cancelClose()
-  }, [cancelClose, cancelOpen])
 
   useEffect(() => {
     const savedWidth = Number(window.localStorage.getItem(desktopSidebarStorageKey))
@@ -196,10 +151,8 @@ export default function useDesktopNavigationController() {
 
   const handleSidebarResizePointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
     event.preventDefault()
-    cancelOpen()
-    cancelClose()
     setResizingMode(splitNavigationVisible ? 'split' : 'accordion')
-  }, [cancelClose, cancelOpen, splitNavigationVisible])
+  }, [splitNavigationVisible])
 
   const resetSidebarWidth = useCallback(() => {
     if (splitNavigationVisible) setSplitSidebarWidth(defaultDesktopSplitSidebarWidth)
@@ -234,11 +187,7 @@ export default function useDesktopNavigationController() {
     sidebarResizeValue,
     panelRef,
     triggerRef,
-    cancelOpen,
-    openTransientNavigation,
-    scheduleOpen,
-    scheduleClose,
-    toggleTransientNavigation,
+    toggleDesktopNavigation,
     closeTransientNavigation,
     toggleWorkspaceLayout,
     toggleNavigationBehavior,

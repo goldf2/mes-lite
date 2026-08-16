@@ -76,11 +76,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     sidebarResizeValue,
     panelRef: desktopNavigationPanelRef,
     triggerRef: desktopNavigationTriggerRef,
-    cancelOpen: cancelDesktopNavigationOpen,
-    openTransientNavigation: openTransientDesktopNavigation,
-    scheduleOpen: scheduleDesktopNavigationOpen,
-    scheduleClose: scheduleDesktopNavigationClose,
-    toggleTransientNavigation,
+    toggleDesktopNavigation,
     closeTransientNavigation: closeTransientDesktopNavigation,
     toggleWorkspaceLayout,
     toggleNavigationBehavior,
@@ -166,6 +162,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   const closeAiAssistant = useCallback(() => {
     setAiAssistantOpen(false)
   }, [])
+  const desktopNavigationTriggerLabel = persistentDesktopNavigation
+    ? '收起并自动隐藏功能导航'
+    : transientNavigationOpen
+      ? '收起功能导航'
+      : '打开功能导航'
+  const desktopNavigationExpanded = persistentDesktopNavigation || transientNavigationOpen
 
   return (
     <div
@@ -182,34 +184,36 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     >
       <InterfacePreferenceSync />
       <header className="fixed inset-x-0 top-0 z-50 hidden h-16 items-center border-b border-gray-200 bg-white lg:flex">
-        <div className={`flex h-full shrink-0 items-center border-r border-gray-200 ${
+        <div className={`flex h-full shrink-0 items-center border-r border-gray-200 transition-[width,padding] duration-200 motion-reduce:transition-none ${
           workspaceLayoutPreference.layout === 'canvas'
             ? 'w-44 gap-3 px-4'
-            : persistentDesktopNavigation
-              ? `w-[var(--mes-desktop-sidebar-width)] gap-3 px-4 ${desktopNavigationMode === 'split' ? 'xl:w-[var(--mes-desktop-split-sidebar-width)]' : ''}`
-              : 'w-16 justify-center px-2'
+            : `w-[var(--mes-desktop-sidebar-width)] gap-2 px-2 ${desktopNavigationMode === 'split' ? 'xl:w-[var(--mes-desktop-split-sidebar-width)]' : ''}`
         }`}>
-          {autoHideDesktopNavigation ? (
-            <button
-              ref={desktopNavigationTriggerRef}
-              type="button"
-              aria-label={transientNavigationOpen ? '收起功能导航' : '打开功能导航'}
-              aria-expanded={transientNavigationOpen}
-              onPointerEnter={scheduleDesktopNavigationOpen}
-              onPointerLeave={cancelDesktopNavigationOpen}
-              onFocus={scheduleDesktopNavigationOpen}
-              onClick={toggleTransientNavigation}
-              className="group relative flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm transition hover:bg-blue-700"
-            >
-              <Menu aria-hidden="true" className="h-5 w-5" />
-              <ControlTooltip label={transientNavigationOpen ? '收起功能导航' : '打开功能导航'} hidden={transientNavigationOpen} />
-            </button>
-          ) : (
+          {workspaceLayoutPreference.layout === 'canvas' ? (
             <CapabilityModuleButtons
               config={workspaceNavigationConfig}
               compact
               onOpenHome={() => navigateToTab('dashboard')}
             />
+          ) : (
+            <>
+              <button
+                ref={desktopNavigationTriggerRef}
+                type="button"
+                aria-label={desktopNavigationTriggerLabel}
+                aria-expanded={desktopNavigationExpanded}
+                onClick={toggleDesktopNavigation}
+                className="group relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm transition hover:bg-blue-700"
+              >
+                <Menu aria-hidden="true" className="h-5 w-5" />
+                <ControlTooltip label={desktopNavigationTriggerLabel} hidden={transientNavigationOpen} />
+              </button>
+              <CapabilityModuleButtons
+                config={workspaceNavigationConfig}
+                compact
+                onOpenHome={() => navigateToTab('dashboard')}
+              />
+            </>
           )}
         </div>
         {workspaceLayoutPreference.layout === 'canvas' && <DesktopTopNavigation groups={navigationGroups} />}
@@ -281,22 +285,14 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         className={`fixed bottom-0 right-0 top-16 z-30 hidden w-[var(--mes-desktop-tools-width)] border-l border-gray-200 bg-white ${workspaceLayoutPreference.layout === 'canvas' ? 'lg:flex' : 'lg:hidden'}`}
       />
 
-      {autoHideDesktopNavigation && !transientNavigationOpen && (
-        <div aria-hidden="true" onPointerEnter={scheduleDesktopNavigationOpen} onPointerLeave={cancelDesktopNavigationOpen} className="fixed bottom-0 left-0 top-16 z-30 hidden w-2 lg:block" />
-      )}
-
       <aside
         ref={desktopNavigationPanelRef}
-        onPointerEnter={autoHideDesktopNavigation ? openTransientDesktopNavigation : undefined}
-        onPointerLeave={autoHideDesktopNavigation ? scheduleDesktopNavigationClose : undefined}
-        onFocusCapture={autoHideDesktopNavigation ? openTransientDesktopNavigation : undefined}
-        onBlurCapture={autoHideDesktopNavigation ? scheduleDesktopNavigationClose : undefined}
-        className={`fixed bottom-0 left-0 top-16 hidden w-[var(--mes-desktop-sidebar-width)] flex-col border-r border-gray-200 bg-white transition-transform duration-200 motion-reduce:transition-none lg:flex ${
+        className={`fixed bottom-0 left-0 top-16 hidden w-[var(--mes-desktop-sidebar-width)] flex-col border-r border-gray-200 bg-white shadow-lg transition-transform duration-200 motion-reduce:transition-none lg:flex ${
           desktopNavigationMode === 'split' ? 'xl:w-[var(--mes-desktop-split-sidebar-width)]' : ''
         } ${workspaceLayoutPreference.layout === 'canvas'
           ? 'lg:hidden'
           : autoHideDesktopNavigation
-            ? `z-40 shadow-2xl ${transientNavigationOpen ? 'translate-x-0' : '-translate-x-full'}`
+            ? `z-40 ${transientNavigationOpen ? 'translate-x-0' : '-translate-x-full'}`
             : 'z-30 translate-x-0'
         }`}
       >
@@ -340,7 +336,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </div>
       </aside>
 
-      <main className={`mes-mobile-main min-w-0 p-3 sm:p-4 lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20 ${
+      <main className={`mes-mobile-main min-w-0 p-3 transition-[margin] duration-200 motion-reduce:transition-none sm:p-4 lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20 ${
         persistentDesktopNavigation
           ? `lg:ml-[var(--mes-desktop-sidebar-width)] ${desktopNavigationMode === 'split' ? 'xl:ml-[var(--mes-desktop-split-sidebar-width)]' : ''}`
           : 'lg:ml-0'

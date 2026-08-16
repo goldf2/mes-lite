@@ -1,6 +1,6 @@
 {
-  "version": "0.1.389",
+  "version": "0.1.390",
   "impact": "updated",
-  "workflowIds": ["139-sop-help-center", "140-context-help-drawer"],
-  "summary": "帮助中心增加按现有章节、流程、页面和权限关联的视频播放能力；更新完整帮助中心与快捷帮助两条操作说明，不改变车间业务流程。"
+  "workflowIds": ["55-display-settings"],
+  "summary": "桌面左栏改为点击式确定交互，并统一常驻与自动隐藏状态下的左上角入口、产品模块按钮和菜单外观；更新显示设置说明，不改变车间业务流程。"
 }

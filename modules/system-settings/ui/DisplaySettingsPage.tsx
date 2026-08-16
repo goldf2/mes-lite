@@ -80,7 +80,7 @@ export default function DisplaySettingsPage({ onMessage, canUpdate }: { onMessag
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {([
               { value: 'persistent' as const, label: '常驻显示', description: '导航固定显示，主内容始终保留侧栏空间', icon: Pin },
-              { value: 'auto-hide' as const, label: '自动隐藏', description: '收回后仅保留入口，鼠标靠近或点击时覆盖呼出', icon: MousePointer2 },
+              { value: 'auto-hide' as const, label: '自动隐藏', description: '入口和模块按钮保持不变；点击呼出，点击页面空白处收回', icon: MousePointer2 },
             ]).map((option) => <button key={option.value} type="button" onClick={() => setWorkspaceLayoutPreference({ navigationBehavior: option.value })} className={choiceClass(workspaceLayoutPreference.navigationBehavior === option.value)}><span className="flex items-center gap-2 text-sm font-semibold text-gray-900"><option.icon className="h-4 w-4" />{option.label}</span><span className="mt-1 block text-xs text-gray-500">{option.description}</span></button>)}
           </div>
         </section>
