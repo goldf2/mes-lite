@@ -219,6 +219,16 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 compact
                 onOpenHome={() => navigateToTab('dashboard')}
               />
+              <button
+                type="button"
+                aria-label={autoHideDesktopNavigation ? '固定导航' : '改为自动隐藏'}
+                aria-pressed={persistentDesktopNavigation}
+                onClick={toggleNavigationBehavior}
+                className="group relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:bg-blue-50 hover:text-blue-700"
+              >
+                {autoHideDesktopNavigation ? <Pin aria-hidden="true" className="h-4 w-4" /> : <PinOff aria-hidden="true" className="h-4 w-4" />}
+                <ControlTooltip label={autoHideDesktopNavigation ? '固定导航' : '改为自动隐藏'} />
+              </button>
             </>
           )}
         </div>
@@ -314,18 +324,6 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             : 'z-30 translate-x-0'
         }`}
       >
-        <div className="flex h-12 shrink-0 items-center gap-2 border-b border-gray-100 px-2">
-          <div className="min-w-0 flex-1 px-2 text-xs font-semibold tracking-wide text-gray-500">全部功能</div>
-          <button
-            type="button"
-            aria-label={autoHideDesktopNavigation ? '固定导航' : '改为自动隐藏'}
-            onClick={toggleNavigationBehavior}
-            className="group relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-blue-50 hover:text-blue-700"
-          >
-            {autoHideDesktopNavigation ? <Pin aria-hidden="true" className="h-4 w-4" /> : <PinOff aria-hidden="true" className="h-4 w-4" />}
-            <ControlTooltip label={autoHideDesktopNavigation ? '固定导航' : '改为自动隐藏'} />
-          </button>
-        </div>
         <DesktopNavigation mode={desktopNavigationMode} groups={navigationGroups} displayMode={desktopNavigationDisplayMode} />
         <div className="shrink-0 border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
           系统版本 v{appVersion}

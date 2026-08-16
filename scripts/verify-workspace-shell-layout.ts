@@ -35,6 +35,8 @@ assert.match(shellSource, /translate-x/, '自动隐藏左栏必须使用不推�
 assert.match(shellSource, /onClick=\{toggleDesktopNavigation\}/, '桌面左栏必须由固定位置的统一入口开合')
 assert.match(shellSource, /aria-label=\{desktopNavigationTriggerLabel\}/, '桌面左栏入口必须在常驻和自动隐藏状态下复用同一个按钮')
 assert.match(shellSource, /desktopNavigationTriggerRef[\s\S]*?CapabilityModuleButtons/, '标准管理布局必须同时保留左上角导航入口和产品模块按钮')
+assert.match(shellSource, /<CapabilityModuleButtons[\s\S]{0,500}?onOpenHome[\s\S]{0,500}?aria-label=\{autoHideDesktopNavigation \? '固定导航' : '改为自动隐藏'\}/, '导航固定按钮必须与 MES-lite 产品模块按钮位于同一顶部控制区')
+assert.doesNotMatch(shellSource, /text-gray-500">全部功能<\/div>/, '桌面侧栏不得保留无额外信息的“全部功能”标题行')
 assert.match(shellSource, /autoHideDesktopNavigation[\s\S]*?aria-hidden="true"[\s\S]*?onPointerEnter=\{scheduleDesktopNavigationOpen\}[\s\S]*?w-\[30px\]/, '自动隐藏左栏必须提供持续存在的屏幕左侧 30px 悬停感应带')
 assert.doesNotMatch(shellSource, /ref=\{desktopNavigationTriggerRef\}[\s\S]{0,360}?onPointerEnter/, '左上角固定导航按钮不得承担悬停呼出，避免与左侧感应带重复触发')
 assert.match(shellSource, /ref=\{desktopNavigationPanelRef\}[\s\S]*?onPointerEnter=\{keepDesktopNavigationOpen\}[\s\S]*?onPointerLeave=\{scheduleDesktopNavigationClose\}/, '鼠标从入口移入侧栏时必须保持面板打开')
