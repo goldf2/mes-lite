@@ -1,0 +1,76 @@
+{
+  "id": "production-output-release-v1",
+  "outputName": "MES-lite生产订单到产出放行",
+  "contentVersion": "0.1.394",
+  "title": "生产订单到产出放行",
+  "description": "从订单、派工、生产实绩到投入分配、产出质量放行和批次谱系。",
+  "chapterId": "03",
+  "workflowIds": ["08-production-order-list", "09-production-order-create", "10-production-order-release", "13-dispatch-list", "14-dispatch-create", "12-production-actual-entry", "180-production-actual-context-snapshot", "66-production-quality-lots", "67-quality-pass-form", "68-quality-pass-result", "75-production-trace-confirm"],
+  "resource": "orders",
+  "voice": "Tingting",
+  "speechRate": 205,
+  "scenes": [
+    {
+      "style": "cover",
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/08-production-order-list.png",
+      "title": "生产订单到产出放行",
+      "subtitle": "计划、执行、质量和追溯闭环",
+      "narration": "本视频演示生产订单、派工、班后实绩、产出检验和批次谱系。完成后，合格产出可以进入可用库存。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/09-production-order-create.png",
+      "title": "第一步：创建生产订单",
+      "subtitle": "选择物料、已发布 BOM、计划数量和日期",
+      "narration": "创建生产订单时，选择目标物料、已发布 BOM、计划数量和日期。系统会冻结当时的 BOM 输入输出快照。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/10-production-order-release.png",
+      "title": "第二步：发布订单",
+      "subtitle": "草稿发布后才允许派工和登记实绩",
+      "narration": "复核订单和 BOM 快照后发布订单。未发布的草稿不能派工，也不能登记正式生产实绩。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/14-dispatch-create.png",
+      "title": "第三步：建立派工",
+      "subtitle": "明确工序、工作中心、人员和计划数量",
+      "narration": "在派工管理中选择订单工序、工作中心、执行人员和计划数量，完成现场任务分派。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.376/183-production-actual-context-entry.png",
+      "title": "第四步：登记生产实绩",
+      "subtitle": "投入、产出、库位、员工、实际设备和作业文件",
+      "narration": "在订单详情登记班后实绩，填写实际投入和产出、来源和去向库位、员工、实际设备及作业文件版本。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.376/182-production-actual-context-snapshot.png",
+      "title": "第五步：确认执行上下文",
+      "subtitle": "系统冻结设备和文件版本，例外必须说明原因",
+      "narration": "确认前核对设备和作业文件快照。无法选择时必须填写明确例外原因，不能用空白绕过现场证据。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.354/66-production-quality-lots.png",
+      "title": "第六步：确认过账和待检产出",
+      "subtitle": "投入 FIFO、成本结转、产出批次和质量任务同事务完成",
+      "narration": "确认实绩后，系统按可用批次先进先出分配投入，结转成本，并为每项产出建立待检批次和质量任务。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.354/67-quality-pass-form.png",
+      "title": "第七步：提交产出检验",
+      "subtitle": "逐项记录后进行整批或部分判定",
+      "narration": "质量人员核对产出批次、抽样和检查项目，记录结果后提交整批或部分合格判定。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.354/68-quality-pass-result.png",
+      "title": "第八步：核对合格放行",
+      "subtitle": "待检转可用，库存和成本状态同步",
+      "narration": "判定合格后，检查产出批次和库位库存已从待检转为可用，数量与成本没有丢失。"
+    },
+    {
+      "style": "cover",
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.355/75-production-trace-confirm.png",
+      "title": "结果检查：批次谱系可追",
+      "subtitle": "从产出反查投入，也能从原料正查下游",
+      "narration": "最后打开批次追溯，确认产出可以反查投入来源，原料也能正向查询下游产出。只有安全条件满足时才允许冲销实绩。"
+    }
+  ]
+}

@@ -26,6 +26,8 @@ struct Scene: Decodable {
 
 struct TourManifest: Decodable {
     let title: String
+    let outputName: String?
+    let contentVersion: String?
     let voice: String
     let speechRate: Int
     let scenes: [Scene]
@@ -64,7 +66,7 @@ enum TourError: Error, CustomStringConvertible {
     var description: String {
         switch self {
         case .invalidArguments:
-            return "用法：swift scripts/build-main-interface-tour.swift <分镜 JSON>"
+            return "用法：swift scripts/build-main-interface-tour.swift <视频 SOP 分镜 JSON>"
         case .missingFile(let path):
             return "文件不存在：\(path)"
         case .commandFailed(let message), .imageRenderFailed(let message), .videoEncodingFailed(let message), .exportFailed(let message):
@@ -379,6 +381,23 @@ func writeSubtitles(scenes: [Scene], renderedScenes: [RenderedScene], outputURL:
     try content.write(to: outputURL, atomically: true, encoding: .utf8)
 }
 
+func writeNarrationScript(title: String, version: String, scenes: [Scene], renderedScenes: [RenderedScene], outputURL: URL) throws {
+    var cursor = 0.0
+    var sections = ["# \(title) 旁白稿", "", "版本：v\(version)", ""]
+    for (offset, pair) in zip(scenes, renderedScenes).enumerated() {
+        let start = cursor + narrationLeadIn
+        let end = start + pair.1.narrationDuration
+        sections.append("## \(offset + 1). \(pair.0.title)")
+        sections.append("")
+        sections.append("时间：\(srtTimestamp(start)) → \(srtTimestamp(end))")
+        sections.append("")
+        sections.append(pair.0.narration)
+        sections.append("")
+        cursor += pair.1.duration
+    }
+    try sections.joined(separator: "\n").write(to: outputURL, atomically: true, encoding: .utf8)
+}
+
 func writeVideoPreview(videoURL: URL, outputURL: URL, at seconds: Double) throws {
     if fileManager.fileExists(atPath: outputURL.path) { try fileManager.removeItem(at: outputURL) }
     let asset = AVURLAsset(url: videoURL)
@@ -402,7 +421,11 @@ do {
     let manifestURL = rootURL.appendingPathComponent(CommandLine.arguments[1])
     let manifest = try readJSON(TourManifest.self, from: manifestURL)
     let packageInfo = try readJSON(PackageInfo.self, from: rootURL.appendingPathComponent("package.json"))
-    let outputURL = rootURL.appendingPathComponent("output/tutorials/MES-lite主界面导览-v\(packageInfo.version)", isDirectory: true)
+    let outputName = manifest.outputName ?? "MES-lite主界面导览"
+    let contentVersion = manifest.contentVersion ?? packageInfo.version
+    let outputStem = "\(outputName)-v\(contentVersion)"
+    let usesLegacyMainInterfaceNames = manifest.outputName == nil
+    let outputURL = rootURL.appendingPathComponent("output/tutorials/\(outputStem)", isDirectory: true)
     let buildURL = outputURL.appendingPathComponent(".build", isDirectory: true)
     if fileManager.fileExists(atPath: buildURL.path) { try fileManager.removeItem(at: buildURL) }
     let slidesURL = buildURL.appendingPathComponent("slides", isDirectory: true)
@@ -419,8 +442,8 @@ do {
         let slideURL = slidesURL.appendingPathComponent("\(stem).png")
         let cleanSlideURL = slidesURL.appendingPathComponent("\(stem)-clean.png")
         let narrationURL = audioURL.appendingPathComponent("\(stem).aiff")
-        try renderSlide(scene: scene, sourceURL: sourceURL, destinationURL: slideURL, version: packageInfo.version, showNarration: true)
-        try renderSlide(scene: scene, sourceURL: sourceURL, destinationURL: cleanSlideURL, version: packageInfo.version, showNarration: false)
+        try renderSlide(scene: scene, sourceURL: sourceURL, destinationURL: slideURL, version: contentVersion, showNarration: true)
+        try renderSlide(scene: scene, sourceURL: sourceURL, destinationURL: cleanSlideURL, version: contentVersion, showNarration: false)
         if fileManager.fileExists(atPath: narrationURL.path) { try fileManager.removeItem(at: narrationURL) }
         _ = try runCommand("/usr/bin/say", ["-v", manifest.voice, "-r", String(manifest.speechRate), "-o", narrationURL.path, scene.narration])
         let narrationDuration = try estimatedAudioDuration(at: narrationURL)
@@ -429,46 +452,50 @@ do {
         print("[\(index)/\(manifest.scenes.count)] \(scene.title) · \(String(format: "%.1f", duration)) 秒")
     }
 
-    let timeline = RenderedTimeline(version: packageInfo.version, width: canvasWidth, height: canvasHeight, fps: Int(framesPerSecond), scenes: renderedScenes)
+    let timeline = RenderedTimeline(version: contentVersion, width: canvasWidth, height: canvasHeight, fps: Int(framesPerSecond), scenes: renderedScenes)
     let timelineURL = buildURL.appendingPathComponent("timeline.json")
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     try encoder.encode(timeline).write(to: timelineURL)
 
-    let silentVideoURL = buildURL.appendingPathComponent("main-interface-silent.mov")
-    let finalVideoURL = outputURL.appendingPathComponent("MES-lite主界面导览-v\(packageInfo.version)-全同步版.mp4")
-    let dubbingVideoURL = outputURL.appendingPathComponent("MES-lite主界面导览-v\(packageInfo.version)-剪映配音底版.mp4")
-    let previewURL = buildURL.appendingPathComponent("preview.png")
+    let silentVideoURL = buildURL.appendingPathComponent("silent.mov")
+    let finalVideoURL = outputURL.appendingPathComponent(usesLegacyMainInterfaceNames ? "\(outputStem)-全同步版.mp4" : "\(outputStem)-配音字幕预览.mp4")
+    let dubbingVideoURL = outputURL.appendingPathComponent(usesLegacyMainInterfaceNames ? "\(outputStem)-剪映配音底版.mp4" : "\(outputStem)-无配音母版.mp4")
+    let previewURL = outputURL.appendingPathComponent("\(outputStem)-preview.png")
     let navigationSettingsPreviewURL = buildURL.appendingPathComponent("navigation-settings-preview.png")
     let navigationSettingsBeforeSpeechPreviewURL = buildURL.appendingPathComponent("navigation-settings-before-speech.png")
     let navigationSettingsAfterSpeechPreviewURL = buildURL.appendingPathComponent("navigation-settings-after-speech.png")
-    let subtitleURL = outputURL.appendingPathComponent("MES-lite主界面导览-v\(packageInfo.version)-全同步版.srt")
+    let subtitleURL = outputURL.appendingPathComponent(usesLegacyMainInterfaceNames ? "\(outputStem)-全同步版.srt" : "\(outputStem).srt")
+    let narrationScriptURL = outputURL.appendingPathComponent("\(outputStem)-旁白稿.md")
     try writeSilentVideo(scenes: renderedScenes, to: silentVideoURL, includeNarrationCaptions: true)
     try combineVideoAndNarration(scenes: renderedScenes, silentVideoURL: silentVideoURL, outputURL: finalVideoURL)
     try writeSilentVideo(scenes: renderedScenes, to: dubbingVideoURL, includeNarrationCaptions: false)
     try writeSubtitles(scenes: manifest.scenes, renderedScenes: renderedScenes, outputURL: subtitleURL)
+    try writeNarrationScript(title: manifest.title, version: contentVersion, scenes: manifest.scenes, renderedScenes: renderedScenes, outputURL: narrationScriptURL)
     try writeVideoPreview(videoURL: finalVideoURL, outputURL: previewURL, at: 2)
-    let navigationSettingsStart = renderedScenes.prefix(6).reduce(0) { $0 + $1.duration }
-    let navigationSettingsScene = renderedScenes[6]
-    try writeVideoPreview(videoURL: finalVideoURL, outputURL: navigationSettingsBeforeSpeechPreviewURL, at: navigationSettingsStart + 0.2)
-    try writeVideoPreview(videoURL: finalVideoURL, outputURL: navigationSettingsPreviewURL, at: navigationSettingsStart + 2)
-    try writeVideoPreview(
-        videoURL: finalVideoURL,
-        outputURL: navigationSettingsAfterSpeechPreviewURL,
-        at: navigationSettingsStart + narrationLeadIn + navigationSettingsScene.narrationDuration + 0.2
-    )
+    if usesLegacyMainInterfaceNames && renderedScenes.count > 6 {
+        let navigationSettingsStart = renderedScenes.prefix(6).reduce(0) { $0 + $1.duration }
+        let navigationSettingsScene = renderedScenes[6]
+        try writeVideoPreview(videoURL: finalVideoURL, outputURL: navigationSettingsBeforeSpeechPreviewURL, at: navigationSettingsStart + 0.2)
+        try writeVideoPreview(videoURL: finalVideoURL, outputURL: navigationSettingsPreviewURL, at: navigationSettingsStart + 2)
+        try writeVideoPreview(
+            videoURL: finalVideoURL,
+            outputURL: navigationSettingsAfterSpeechPreviewURL,
+            at: navigationSettingsStart + narrationLeadIn + navigationSettingsScene.narrationDuration + 0.2
+        )
+    }
     let totalDuration = renderedScenes.reduce(0) { $0 + $1.duration }
     let legacyNames = [
-        "MES-lite主界面导览-v\(packageInfo.version).mp4",
-        "MES-lite主界面导览-v\(packageInfo.version).srt",
-        "MES-lite主界面导览-v\(packageInfo.version)-preview.png",
-        "MES-lite主界面导览-v\(packageInfo.version)-navigation-settings-preview.png",
-        "MES-lite主界面导览-v\(packageInfo.version)-navigation-settings-before-speech.png",
-        "MES-lite主界面导览-v\(packageInfo.version)-navigation-settings-after-speech.png",
-        "MES-lite主界面导览-v\(packageInfo.version)-方向修正版.mp4",
-        "MES-lite主界面导览-v\(packageInfo.version)-无遮挡修正版.mp4",
-        "MES-lite主界面导览-v\(packageInfo.version)-全同步修正版.mp4",
-        "MES-lite主界面导览-v\(packageInfo.version)-全同步修正版.srt",
+        "MES-lite主界面导览-v\(contentVersion).mp4",
+        "MES-lite主界面导览-v\(contentVersion).srt",
+        "MES-lite主界面导览-v\(contentVersion)-preview.png",
+        "MES-lite主界面导览-v\(contentVersion)-navigation-settings-preview.png",
+        "MES-lite主界面导览-v\(contentVersion)-navigation-settings-before-speech.png",
+        "MES-lite主界面导览-v\(contentVersion)-navigation-settings-after-speech.png",
+        "MES-lite主界面导览-v\(contentVersion)-方向修正版.mp4",
+        "MES-lite主界面导览-v\(contentVersion)-无遮挡修正版.mp4",
+        "MES-lite主界面导览-v\(contentVersion)-全同步修正版.mp4",
+        "MES-lite主界面导览-v\(contentVersion)-全同步修正版.srt",
         "timeline.json",
         "audio",
         "slides",
@@ -481,8 +508,9 @@ do {
     if fileManager.fileExists(atPath: buildURL.path) { try fileManager.removeItem(at: buildURL) }
 
     print("已生成：\(finalVideoURL.path)")
-    print("剪映配音底版：\(dubbingVideoURL.path)")
+    print("无配音母版：\(dubbingVideoURL.path)")
     print("字幕文件：\(subtitleURL.path)")
+    print("旁白稿：\(narrationScriptURL.path)")
     print("已完成最终视频抽帧检查并清理中间文件")
     print("规格：1920×1080 / H.264 MP4 / 中文旁白 / 烧录字幕 / \(String(format: "%.1f", totalDuration)) 秒")
 } catch {

@@ -1,0 +1,70 @@
+{
+  "id": "equipment-fault-recovery-v1",
+  "outputName": "MES-lite设备异常到维修恢复",
+  "contentVersion": "0.1.394",
+  "title": "设备异常到维修恢复",
+  "description": "从异常点检和故障事件，到维修工单、备件领用、恢复与历史复核。",
+  "chapterId": "10",
+  "workflowIds": ["145-equipment-inspection-due-tasks", "147-equipment-inspection-complete", "148-equipment-inspection-abnormal-history", "143-equipment-fault-command", "151-equipment-maintenance-create-repair", "152-equipment-maintenance-start-work-order", "153-equipment-maintenance-complete-with-spare", "154-equipment-maintenance-completed-history", "144-equipment-event-timeline"],
+  "resource": "equipmentMaintenance",
+  "voice": "Tingting",
+  "speechRate": 205,
+  "scenes": [
+    {
+      "style": "cover",
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.370/145-equipment-inspection-due-tasks.png",
+      "title": "设备异常到维修恢复",
+      "subtitle": "点检、故障、工单、备件和状态时间线",
+      "narration": "本视频演示设备异常从发现到恢复的完整证据链，包括点检、故障、维修工单、备件领用和事件时间线。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.370/147-equipment-inspection-complete.png",
+      "title": "第一步：逐项完成设备点检",
+      "subtitle": "按计划记录每个检查项目和现场附件",
+      "narration": "进入到期点检任务，逐项填写结果和备注，必要时上传现场附件。点检事实保存后不可覆盖改写。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.370/148-equipment-inspection-abnormal-history.png",
+      "title": "第二步：确认异常事实",
+      "subtitle": "异常点检自动形成故障状态和历史证据",
+      "narration": "发现异常时，检查异常项目、说明和附件是否完整。系统会联动故障事件，并把设备状态改为不可用。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.369/143-equipment-fault-command.png",
+      "title": "第三步：上报现场故障",
+      "subtitle": "非点检发现的故障也必须走受控事件命令",
+      "narration": "生产中直接发现故障时，从设备详情执行故障命令并填写原因。基础资料编辑不能直接修改运行状态。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.371/153-equipment-maintenance-create-repair.png",
+      "title": "第四步：创建纠正维修工单",
+      "subtitle": "关联设备、故障原因、负责人和维修要求",
+      "narration": "为故障设备建立纠正维修工单，关联故障事实、负责人和维修要求，避免口头维修没有记录。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.371/154-equipment-maintenance-start-work-order.png",
+      "title": "第五步：开始维修",
+      "subtitle": "工单进入进行中并记录实际开始时间",
+      "narration": "维修人员确认工单后执行开始命令，记录实际开始时间。未开始的工单不能直接伪装成已完成。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.371/155-equipment-maintenance-complete-with-spare.png",
+      "title": "第六步：完成维修并领用备件",
+      "subtitle": "备件按可用批次 FIFO 扣减库存和成本",
+      "narration": "完成维修时填写结果、附件和实际备件。系统按可用批次先进先出扣减备件库存与成本，并记录批次去向。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.371/156-equipment-maintenance-completed-history.png",
+      "title": "第七步：复核维保历史",
+      "subtitle": "工时、结果、附件和备件批次均可追溯",
+      "narration": "在已完成历史中核对工单时间、维修结果、附件和备件批次，确认库存流水与领用数量一致。"
+    },
+    {
+      "style": "cover",
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.369/144-equipment-event-timeline.png",
+      "title": "结果检查：设备恢复可用",
+      "subtitle": "关闭故障、记录恢复并保留完整时间线",
+      "narration": "最后确认故障已关闭，设备状态恢复为可用，点检、故障、维修、备件和恢复事件可以按时间顺序回放。"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.394",
+  "version": "0.1.395",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -32,6 +32,9 @@
     "sop:release": "npm run sop:build && npm run verify:sop:artifacts && npm run sop:prepare:release",
     "sop:publish:library": "tsx scripts/sop-library-publication.ts",
     "tutorial:build:main-interface": "swift scripts/build-main-interface-tour.swift docs/operations/user-guide/main-interface-tour.json",
+    "tutorial:verify:workflows": "node scripts/build-workflow-video-sops.mjs --check",
+    "tutorial:build:workflows": "node scripts/build-workflow-video-sops.mjs",
+    "tutorial:verify:outputs": "node scripts/verify-workflow-video-outputs.mjs",
     "verify:sop": "node scripts/verify-sop-catalog.mjs",
     "verify:sop:artifacts": "SOP_VERIFY_ARTIFACTS=1 node scripts/verify-sop-catalog.mjs",
     "verify:sop-release": "tsx scripts/verify-sop-release.ts",

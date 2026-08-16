@@ -1,0 +1,64 @@
+{
+  "id": "return-quality-loop-v1",
+  "outputName": "MES-lite客户退货与质量回流",
+  "contentVersion": "0.1.394",
+  "title": "客户退货与质量回流",
+  "description": "从原发货登记退货，到独立待检批次、质量判定和回流追溯。",
+  "chapterId": "09",
+  "workflowIds": ["30-return-list", "82-return-create-source-shipment", "176-warehouse-return-receive", "83-return-received-status", "84-return-source-and-pending-quality", "85-return-lot-source-genealogy", "86-return-quality-pass-form", "87-return-quality-released", "88-source-lot-return-descendant"],
+  "resource": "return",
+  "voice": "Tingting",
+  "speechRate": 205,
+  "scenes": [
+    {
+      "style": "cover",
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/30-return-list.png",
+      "title": "客户退货与质量回流",
+      "subtitle": "原发货、独立待检批次和最终库存去向",
+      "narration": "本视频演示客户退货接收和质量回流。退货不会直接回到可用库存，而是先建立独立待检批次。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.356/82-return-create-source-shipment.png",
+      "title": "第一步：从原发货登记退货",
+      "subtitle": "系统限制物料和剩余可退数量",
+      "narration": "新建退货时选择已发货或已签收的原发货单。物料自动继承，退货数量不能超过剩余可退数量。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.375/178-warehouse-return-receive.png",
+      "title": "第二步：仓管接收退货",
+      "subtitle": "接收入库和销售拒绝使用不同命令权限",
+      "narration": "仓管确认接收后，系统按原发货成本比例入账。若拒绝退货，应由有权限人员填写原因，且不改变库存。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.356/84-return-source-and-pending-quality.png",
+      "title": "第三步：核对待检批次",
+      "subtitle": "退货使用独立内部批号并关联原发货批次",
+      "narration": "接收后检查退货已经形成独立内部批号，状态为待检，并保留与原发货实际批次的回流关系。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.356/85-return-lot-source-genealogy.png",
+      "title": "第四步：反查原发货来源",
+      "subtitle": "确认客户、发货单和来源批次一致",
+      "narration": "从退货批次打开追溯，确认可以反查客户、原发货单和实际发出的内部批次。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.356/86-return-quality-pass-form.png",
+      "title": "第五步：执行退货检验",
+      "subtitle": "逐项记录后决定放行、冻结、返工或报废",
+      "narration": "质量人员按退货检验标准记录结果，再根据事实执行合格、冻结、返工、报废或授权放行。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.356/87-return-quality-released.png",
+      "title": "第六步：核对最终库存状态",
+      "subtitle": "只有合格或授权放行数量进入可用库存",
+      "narration": "合格后检查待检数量转为可用。不合格或返工中数量不能被普通生产和发货消耗。"
+    },
+    {
+      "style": "cover",
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.356/88-source-lot-return-descendant.png",
+      "title": "结果检查：退货回流闭环",
+      "subtitle": "原发货批次可以正向看到退货后代",
+      "narration": "最后从原发货批次正向查看退货回流，确认退货单、待检任务、最终质量结论和库存去向完整。"
+    }
+  ]
+}

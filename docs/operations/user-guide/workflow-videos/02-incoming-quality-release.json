@@ -1,0 +1,64 @@
+{
+  "id": "incoming-quality-release-v1",
+  "outputName": "MES-lite来料接收与质量放行",
+  "contentVersion": "0.1.394",
+  "title": "来料接收与质量放行",
+  "description": "从来料登记、收货隔离、质量任务到合格放行和趋势核对。",
+  "chapterId": "08",
+  "workflowIds": ["17-receiving-list", "18-receiving-create", "167-incoming-quality-receipt", "168-incoming-quality-quarantine", "163-incoming-quality-task", "164-incoming-quality-decision", "165-incoming-quality-release", "166-incoming-quality-trends"],
+  "resource": "materialIn",
+  "voice": "Tingting",
+  "speechRate": 205,
+  "scenes": [
+    {
+      "style": "cover",
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/17-receiving-list.png",
+      "title": "来料接收与质量放行",
+      "subtitle": "供应商批次到可用库存",
+      "narration": "本视频演示来料登记、收货隔离、逐项检验和合格放行。完成后，原料批次可以安全进入生产。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/18-receiving-create.png",
+      "title": "第一步：登记来料单",
+      "subtitle": "供应商、物料、实收数量、价格、批号和库位",
+      "narration": "新建来料单，填写供应商、物料、实收数量、计价信息、供应商批号和收货库位。保存后先保持待收货状态。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.373/165-incoming-receipt-before.png",
+      "title": "第二步：确认检验前提",
+      "subtitle": "已发布来料标准决定是否自动送检",
+      "narration": "收货前确认物料是否存在已发布的来料检验标准。有标准时自动进入待检，无标准时直接进入可用库存。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.373/166-incoming-receipt-quarantine.png",
+      "title": "第三步：确认收货与隔离",
+      "subtitle": "建立内部批次、成本层、库存流水和待检数量",
+      "narration": "仓管确认收货后，系统建立内部批次、成本层和库存流水。启用检验的数量进入待检状态，不能被普通领料或发货消耗。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.373/167-incoming-quality-task.png",
+      "title": "第四步：接收质量任务",
+      "subtitle": "核对标准版本、抽样建议和逐项检查清单",
+      "narration": "质量人员进入质量任务，核对来料来源、内部批号、标准版本、建议抽样数量和检查项目快照。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.373/168-incoming-quality-decision.png",
+      "title": "第五步：逐项记录并判定",
+      "subtitle": "填写结果、附件和最终结论",
+      "narration": "按检查项目逐项记录实测结果，必要时上传检验凭证，再提交合格或不合格判定。系统会同步批次和库存状态。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.373/169-incoming-quality-released.png",
+      "title": "第六步：核对合格放行",
+      "subtitle": "待检数量转为可用，数量和总成本不变",
+      "narration": "合格后检查批次状态变为可用，待检数量减少、可用数量增加，总数量和总成本保持一致。"
+    },
+    {
+      "style": "cover",
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.373/170-incoming-quality-trend.png",
+      "title": "结果检查：趋势与追溯完整",
+      "subtitle": "来料单、供应商批号、任务、结论和库存去向可追溯",
+      "narration": "最后在质量趋势和批次追溯中核对供应商、标准版本、检验结论和库存去向。异常批次不得误入可用库存。"
+    }
+  ]
+}

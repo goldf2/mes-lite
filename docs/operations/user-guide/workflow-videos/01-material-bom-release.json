@@ -1,0 +1,52 @@
+{
+  "id": "material-bom-release-v1",
+  "outputName": "MES-lite新物料到BOM发布",
+  "contentVersion": "0.1.394",
+  "title": "新物料到 BOM 发布",
+  "description": "从物料主档建立到发布不可变 BOM，为生产订单准备有效工程基础。",
+  "chapterId": "02",
+  "workflowIds": ["04-material-list", "05-material-create", "06-bom-workspace", "07-bom-detail"],
+  "resource": "bomStructure",
+  "voice": "Tingting",
+  "speechRate": 205,
+  "scenes": [
+    {
+      "style": "cover",
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/04-material-list.png",
+      "title": "新物料到 BOM 发布",
+      "subtitle": "工程准备的最小闭环",
+      "narration": "本视频演示从新建物料到发布正式 BOM。完成后，计划人员可以用已发布版本创建生产订单。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/04-material-list.png",
+      "title": "第一步：先查询物料",
+      "subtitle": "避免重复编码和重复主档",
+      "narration": "进入物料管理，先按编码、名称或规格查询。确认目标物料不存在后，再执行新建。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/05-material-create.png",
+      "title": "第二步：建立物料主档",
+      "subtitle": "填写编码、名称、分类、规格和主库存单位",
+      "narration": "新建物料时，核对唯一编码、分类、规格和主库存单位。保存后，物料才能进入 BOM、库存和业务单据。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/06-bom-workspace.png",
+      "title": "第三步：进入 BOM 工作区",
+      "subtitle": "选择用途和目标产出物料",
+      "narration": "进入 BOM 设置，选择生产或包装用途，并确认当前编辑的是目标产出物料。不要在正式版本上直接改结构。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/07-bom-detail.png",
+      "title": "第四步：维护投入与产出",
+      "subtitle": "按基准批量填写数量、损耗和唯一主产出",
+      "narration": "在草稿中添加全部投入和产出，按同一基准批量填写数量，并确认只有一个主产出。保存前核对单位换算和损耗。"
+    },
+    {
+      "style": "cover",
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/07-bom-detail.png",
+      "title": "结果检查：发布正式版本",
+      "subtitle": "发布后不可原地修改；变更必须复制新草稿",
+      "narration": "发布后检查状态为已发布，投入、产出和版本号正确。正式版本不可原地修改，后续变更必须复制为新草稿。"
+    }
+  ]
+}

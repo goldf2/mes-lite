@@ -1,0 +1,64 @@
+{
+  "id": "sales-shipment-trace-v1",
+  "outputName": "MES-lite销售订单到发货追溯",
+  "contentVersion": "0.1.394",
+  "title": "销售订单到发货追溯",
+  "description": "从销售订单、发货确认到库存扣减、实际批次分配和客户去向。",
+  "chapterId": "09",
+  "workflowIds": ["24-sales-order-list", "25-sales-order-create", "26-sales-order-detail", "27-shipment-list", "28-shipment-create", "173-warehouse-shipment-dispatch", "79-shipment-list-tracked", "80-shipment-detail-lot-allocation", "81-shipment-customer-genealogy"],
+  "resource": "shipment",
+  "voice": "Tingting",
+  "speechRate": 205,
+  "scenes": [
+    {
+      "style": "cover",
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/24-sales-order-list.png",
+      "title": "销售订单到发货追溯",
+      "subtitle": "客户需求、库存扣减和批次去向闭环",
+      "narration": "本视频演示销售订单、发货确认、库存扣减和客户批次追溯。只有显式关联订单的发货才会更新订单进度。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/25-sales-order-create.png",
+      "title": "第一步：创建销售订单",
+      "subtitle": "客户、物料、数量、价格和交期形成销售快照",
+      "narration": "创建销售订单，填写客户、多项物料、数量、单价和计划交期。订单保存需求，不会立即扣减库存。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/26-sales-order-detail.png",
+      "title": "第二步：复核订单详情",
+      "subtitle": "确认订单状态、价格和剩余待发数量",
+      "narration": "确认订单后，在详情核对物料、价格快照、已发数量和剩余待发数量。已发生发货后不能随意改写价格。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/28-shipment-create.png",
+      "title": "第三步：建立发货单",
+      "subtitle": "可关联订单，也可登记独立发货",
+      "narration": "创建发货单。关联订单时选择未发完明细；独立发货则直接选择客户、物料和库位。两种路径都要校验可用库存。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.375/175-warehouse-shipment-dispatch.png",
+      "title": "第四步：仓管确认发货",
+      "subtitle": "按可用批次 FIFO 扣减库存和成本",
+      "narration": "仓管使用发货确认权限执行出库。系统按库位可用批次先进先出扣减库存和成本，并保存实际分配。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.356/79-shipment-list-tracked.png",
+      "title": "第五步：核对追踪状态",
+      "subtitle": "新发货应显示真实批次已追踪",
+      "narration": "返回发货列表，确认新发货显示已追踪。历史数据若没有真实批次，只能显示明确的兼容状态，不能伪造来源。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.356/80-shipment-detail-lot-allocation.png",
+      "title": "第六步：查看实际批次分配",
+      "subtitle": "数量、成本和累计退回量均来自实际过账",
+      "narration": "在发货详情查看实际批次分配，核对内部批号、发出数量、成本和累计退回量。"
+    },
+    {
+      "style": "cover",
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.356/81-shipment-customer-genealogy.png",
+      "title": "结果检查：客户去向可追",
+      "subtitle": "从批次查客户，也能从发货查来源批次",
+      "narration": "最后从批次谱系核对客户去向。库存流水、发货单、实际批次和客户必须互相对应。"
+    }
+  ]
+}

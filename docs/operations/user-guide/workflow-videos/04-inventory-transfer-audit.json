@@ -1,0 +1,58 @@
+{
+  "id": "inventory-transfer-audit-v1",
+  "outputName": "MES-lite库内转移与库存查账",
+  "contentVersion": "0.1.394",
+  "title": "库内转移与库存查账",
+  "description": "从库存余额、流程转移确认到库存流水和批次追溯核对。",
+  "chapterId": "08",
+  "workflowIds": ["20-stock-list", "15-flow-transfer", "16-flow-transfer-create", "178-warehouse-flow-transfer-confirm", "22-stock-movements", "74-receipt-lot-trace"],
+  "resource": "stocks",
+  "voice": "Tingting",
+  "speechRate": 205,
+  "scenes": [
+    {
+      "style": "cover",
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/20-stock-list.png",
+      "title": "库内转移与库存查账",
+      "subtitle": "总量不变，库位、批次和流水一致",
+      "narration": "本视频演示库内流程转移和库存查账。目标是保证转移前后总库存不变，同时库位余额、批次和流水完全一致。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/20-stock-list.png",
+      "title": "第一步：核对转移前库存",
+      "subtitle": "确认物料、来源库位和可用数量",
+      "narration": "进入库存管理，确认目标物料在来源库位有足够可用数量。待检、冻结和返工中数量不能用于普通转移。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/15-flow-transfer.png",
+      "title": "第二步：进入流程转移",
+      "subtitle": "查看草稿、已确认和已冲销记录",
+      "narration": "进入流程转移页面，先检查是否已有相同业务记录，避免重复转移。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/16-flow-transfer-create.png",
+      "title": "第三步：创建转移草稿",
+      "subtitle": "选择同一物料、来源和目标库位、数量及员工",
+      "narration": "新建转移，选择物料、来源库位、不同的目标库位、数量和执行员工。保存草稿不会立即改变库存。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.375/180-warehouse-flow-transfer-confirm.png",
+      "title": "第四步：确认正向转移",
+      "subtitle": "服务端重新校验权限和来源余额",
+      "narration": "由有流程转移确认权限的仓管执行确认。系统重新校验来源余额，并在同一事务中完成成对库位流水。"
+    },
+    {
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.379/22-stock-movements.png",
+      "title": "第五步：核对库存流水",
+      "subtitle": "数量、库位、来源单据、操作人和前后值完整",
+      "narration": "在库存流水中按物料或转移单号查询，确认来源库位减少、目标库位增加，数量和核算数量相等。"
+    },
+    {
+      "style": "cover",
+      "sourceImage": "docs/operations/user-guide/screenshots/v0.1.355/74-receipt-lot-trace.png",
+      "title": "结果检查：批次位置可追",
+      "subtitle": "总库存和总成本不变；冲销必须填写原因",
+      "narration": "最后从批次追溯核对当前库位。转移前后总库存和总成本必须不变；需要撤销时，由主管填写原因执行受控冲销。"
+    }
+  ]
+}
