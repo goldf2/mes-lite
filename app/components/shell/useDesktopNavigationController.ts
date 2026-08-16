@@ -16,7 +16,6 @@ const maxDesktopSidebarWidth = 320
 const defaultDesktopSplitSidebarWidth = 296
 const minDesktopSplitSidebarWidth = 264
 const maxDesktopSplitSidebarWidth = 384
-const hoverOpenDelayMs = 160
 const hoverCloseDelayMs = 320
 
 type TransientNavigationMode = 'closed' | 'hover' | 'click'
@@ -33,7 +32,6 @@ export default function useDesktopNavigationController() {
   const [resizingMode, setResizingMode] = useState<DesktopNavigationMode | null>(null)
   const panelRef = useRef<HTMLElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const openTimerRef = useRef<number | null>(null)
   const closeTimerRef = useRef<number | null>(null)
 
   const desktopNavigationMode = navigationPreference.mode
@@ -47,12 +45,6 @@ export default function useDesktopNavigationController() {
   const sidebarResizeValue = splitNavigationVisible ? splitSidebarWidth : sidebarWidth
   const transientNavigationOpen = transientNavigationMode !== 'closed'
 
-  const cancelScheduledOpen = useCallback(() => {
-    if (openTimerRef.current === null) return
-    window.clearTimeout(openTimerRef.current)
-    openTimerRef.current = null
-  }, [])
-
   const cancelScheduledClose = useCallback(() => {
     if (closeTimerRef.current === null) return
     window.clearTimeout(closeTimerRef.current)
@@ -60,37 +52,29 @@ export default function useDesktopNavigationController() {
   }, [])
 
   const closeTransientNavigation = useCallback(() => {
-    cancelScheduledOpen()
     cancelScheduledClose()
     setTransientNavigationMode('closed')
-  }, [cancelScheduledClose, cancelScheduledOpen])
+  }, [cancelScheduledClose])
 
   const scheduleDesktopNavigationOpen = useCallback(() => {
     if (!autoHideDesktopNavigation) return
     cancelScheduledClose()
-    if (transientNavigationMode !== 'closed' || openTimerRef.current !== null) return
-    openTimerRef.current = window.setTimeout(() => {
-      setTransientNavigationMode((current) => current === 'closed' ? 'hover' : current)
-      openTimerRef.current = null
-    }, hoverOpenDelayMs)
-  }, [autoHideDesktopNavigation, cancelScheduledClose, transientNavigationMode])
+    setTransientNavigationMode((current) => current === 'closed' ? 'hover' : current)
+  }, [autoHideDesktopNavigation, cancelScheduledClose])
 
   const keepDesktopNavigationOpen = useCallback(() => {
-    cancelScheduledOpen()
     cancelScheduledClose()
-  }, [cancelScheduledClose, cancelScheduledOpen])
+  }, [cancelScheduledClose])
 
   const scheduleDesktopNavigationClose = useCallback(() => {
-    cancelScheduledOpen()
-    if (!autoHideDesktopNavigation || transientNavigationMode !== 'hover' || resizingMode || closeTimerRef.current !== null) return
+    if (!autoHideDesktopNavigation || resizingMode || closeTimerRef.current !== null) return
     closeTimerRef.current = window.setTimeout(() => {
       setTransientNavigationMode((current) => current === 'hover' ? 'closed' : current)
       closeTimerRef.current = null
     }, hoverCloseDelayMs)
-  }, [autoHideDesktopNavigation, cancelScheduledOpen, resizingMode, transientNavigationMode])
+  }, [autoHideDesktopNavigation, resizingMode])
 
   const toggleDesktopNavigation = useCallback(() => {
-    cancelScheduledOpen()
     cancelScheduledClose()
     if (persistentDesktopNavigation) {
       setWorkspaceLayoutPreference({ navigationBehavior: 'auto-hide' })
@@ -98,7 +82,7 @@ export default function useDesktopNavigationController() {
       return
     }
     setTransientNavigationMode((current) => current === 'click' ? 'closed' : 'click')
-  }, [cancelScheduledClose, cancelScheduledOpen, persistentDesktopNavigation, setWorkspaceLayoutPreference])
+  }, [cancelScheduledClose, persistentDesktopNavigation, setWorkspaceLayoutPreference])
 
   const toggleWorkspaceLayout = useCallback(() => {
     closeTransientNavigation()
@@ -106,7 +90,6 @@ export default function useDesktopNavigationController() {
   }, [closeTransientNavigation, setWorkspaceLayoutPreference, workspaceLayoutPreference.layout])
 
   const toggleNavigationBehavior = useCallback(() => {
-    cancelScheduledOpen()
     cancelScheduledClose()
     if (autoHideDesktopNavigation) {
       setWorkspaceLayoutPreference({ navigationBehavior: 'persistent' })
@@ -115,7 +98,7 @@ export default function useDesktopNavigationController() {
     }
     setWorkspaceLayoutPreference({ navigationBehavior: 'auto-hide' })
     setTransientNavigationMode('closed')
-  }, [autoHideDesktopNavigation, cancelScheduledClose, cancelScheduledOpen, setWorkspaceLayoutPreference])
+  }, [autoHideDesktopNavigation, cancelScheduledClose, setWorkspaceLayoutPreference])
 
   useEffect(() => {
     if (autoHideDesktopNavigation) return
@@ -143,9 +126,8 @@ export default function useDesktopNavigationController() {
   }, [autoHideDesktopNavigation, closeTransientNavigation, transientNavigationOpen])
 
   useEffect(() => () => {
-    cancelScheduledOpen()
     cancelScheduledClose()
-  }, [cancelScheduledClose, cancelScheduledOpen])
+  }, [cancelScheduledClose])
 
   useEffect(() => {
     const savedWidth = Number(window.localStorage.getItem(desktopSidebarStorageKey))

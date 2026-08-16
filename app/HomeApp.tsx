@@ -291,7 +291,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         className={`fixed bottom-0 right-0 top-16 z-30 hidden w-[var(--mes-desktop-tools-width)] border-l border-gray-200 bg-white ${workspaceLayoutPreference.layout === 'canvas' ? 'lg:flex' : 'lg:hidden'}`}
       />
 
-      {autoHideDesktopNavigation && !transientNavigationOpen && (
+      {autoHideDesktopNavigation && (
         <div
           aria-hidden="true"
           data-desktop-navigation-hover-zone="true"
