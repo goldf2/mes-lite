@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "videos": [
+    {
+      "id": "main-interface-tour-v0.1.388",
+      "title": "MES-lite 主界面快速导览",
+      "description": "介绍首页入口、统一导航、页面模式、顶部功能、导航设置和帮助中心。",
+      "provider": "file",
+      "version": "0.1.388",
+      "chapterId": "01",
+      "workflowIds": ["139-sop-help-center", "140-context-help-drawer", "02-dashboard", "55-display-settings", "56-navigation-settings"],
+      "sortOrder": 10,
+      "resource": "dashboard",
+      "objectPath": "v0.1.388/videos/MES-lite主界面导览-v0.1.388-全同步版.mp4"
+    }
+  ]
+}

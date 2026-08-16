@@ -7,7 +7,7 @@ const formats = [
   { format: 'DOCX', extension: 'docx', label: '下载 DOCX' },
 ] as const
 
-function normalizePublicBaseUrl(value: string | undefined, nodeEnv = process.env.NODE_ENV) {
+export function normalizePublicBaseUrl(value: string | undefined, nodeEnv = process.env.NODE_ENV) {
   const raw = value?.trim()
   if (!raw) return null
   try {

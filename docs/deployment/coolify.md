@@ -61,7 +61,7 @@ SOP_PUBLIC_BASE_URL=
 
 `MES_TRUSTED_ORIGINS` 必须填写浏览器实际访问的 HTTPS Origin（协议、域名和可选端口，不带路径）。所有 `POST / PUT / PATCH / DELETE` API 都会先执行同源校验；多个可信 Origin 使用英文逗号分隔。公开注册默认关闭，只有在受控注册时间窗口才临时把 `MES_PUBLIC_REGISTRATION_ENABLED` 改为 `true`，新账号仍统一进入待审核状态。
 
-最终交付的 PDF/DOCX 若发布到对象存储，只填写一个只读 HTTPS 基地址，例如 `SOP_PUBLIC_BASE_URL=https://downloads.example.com/mes-lite/sop`。地址不包含 Bucket 写入密钥、查询签名或具体文件名；应用按自身版本生成精确下载路径。未配置时帮助中心不显示离线下载按钮。生成目录、对象路径和校验步骤见 [SOP 生成与发布策略](../operations/SOP生成与发布策略.md)。
+最终交付的 PDF/DOCX 和自托管视频若发布到对象存储，只填写一个只读 HTTPS 基地址，例如 `SOP_PUBLIC_BASE_URL=https://downloads.example.com/mes-lite/sop`。地址不包含 Bucket 写入密钥、查询签名或具体文件名；应用按目录清单生成精确下载或播放路径。未配置时帮助中心不显示离线下载按钮和文件视频，在线 SOP 仍可使用；哔哩哔哩/YouTube 条目不依赖该地址。生成目录、对象路径和校验步骤见 [SOP 生成与发布策略](../operations/SOP生成与发布策略.md)及[视频帮助分类与发布](../operations/视频帮助分类与发布.md)。
 
 `v0.1.384` 起运行镜像内置 `node scripts/sop-library-publication.mjs`。它可以只读下载 `SOP_PUBLIC_BASE_URL/v<当前版本>/manifest.json` 及对应 PDF/DOCX，校验版本、大小和 SHA-256 后登记到持久化产品文档库。该命令不会随 Webhook 自动部署或容器启动自动执行；先在 Coolify Terminal 运行 `--operator <文控账号> --from-oss` 预检，完成一致备份后再增加 `--apply --backup-reference <备份编号或清单路径>`。生产数据库和 `/app/public/uploads` 的变更必须由具有文档类别、产品文档和附件权限的启用账号发起，详细门禁和回滚步骤见上述 SOP 发布策略。
 

@@ -30,6 +30,23 @@ export interface SopDownload {
   url: string
 }
 
+export type SopVideoProvider = 'file' | 'bilibili' | 'youtube'
+
+export interface SopVideo {
+  id: string
+  title: string
+  description: string
+  provider: SopVideoProvider
+  version: string
+  chapterId: string
+  workflowIds: string[]
+  sortOrder: number
+  resource: string
+  pageKeys: string[]
+  playbackUrl: string
+  sourceUrl: string
+}
+
 export interface SopCatalog {
   schemaVersion: number
   version: string
@@ -40,4 +57,5 @@ export interface SopCatalog {
   chapters: SopChapter[]
   workflowCount: number
   downloads?: SopDownload[]
+  videos?: SopVideo[]
 }

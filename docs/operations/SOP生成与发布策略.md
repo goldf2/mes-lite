@@ -1,6 +1,6 @@
 # MES-lite SOP 生成与发布策略
 
-事实基线：`v0.1.387`。
+事实基线：`v0.1.389`。
 
 ## 1. 结论
 
@@ -48,9 +48,9 @@ SOP_PUBLIC_BASE_URL=https://downloads.example.com/mes-lite/sop
 
 ```text
 output/sop-release/
-├── v0.1.387/
-│   ├── MES-lite全流程作业指导书-v0.1.387.pdf
-│   ├── MES-lite全流程作业指导书-v0.1.387.docx
+├── v0.1.389/
+│   ├── MES-lite全流程作业指导书-v0.1.389.pdf
+│   ├── MES-lite全流程作业指导书-v0.1.389.docx
 │   └── manifest.json
 └── latest/
     └── manifest.json
@@ -59,6 +59,12 @@ output/sop-release/
 发布人员或独立 CI 使用云厂商 CLI 将 `output/sop-release/` 同步到对应 Bucket 前缀，不启用删除旧对象。上传账号只授予该前缀写权限；公开域名只读。上传后按 `latest/manifest.json` 逐个下载文件并复核 SHA-256，再在 Coolify 配置 `SOP_PUBLIC_BASE_URL` 并重新部署。
 
 帮助中心不读取 `latest`，而是根据当前应用版本生成精确版本链接。应用回滚时会自动请求旧版本文档；未配置地址、地址不是 HTTPS 或地址包含凭据时，下载按钮隐藏，在线帮助保持可用。开发环境仅允许 `localhost`、`127.0.0.1` 的 HTTP 地址用于本地联调。
+
+### 视频帮助
+
+自托管视频与 PDF/DOCX 复用同一个 `SOP_PUBLIC_BASE_URL`，但视频内容版本可以与应用版本独立。例如 v0.1.389 应用仍可播放已验收的 `v0.1.388/videos/...mp4`。视频二进制不进入 `output/sop-release/` 的文档清单，也不会由站内文档登记命令写入数据库；发布人员把成品上传到 `sop/videos.json` 声明的对象路径即可。
+
+`sop/videos.json` 只保存分类、关联关系和安全的视频标识：`chapterId` 对应现有章节，`workflowIds` 对应现有流程，页面关联从流程自动推导，`resource` 复用现有读取权限。完整约定见[视频帮助分类与发布](./视频帮助分类与发布.md)。
 
 ## 5. 受控登记到站内产品文档库
 
