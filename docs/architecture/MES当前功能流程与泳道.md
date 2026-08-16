@@ -1,7 +1,8 @@
 # MES-lite 当前功能流程与泳道
 
 状态：当前代码事实
-日期：2026-08-15
+日期：2026-08-16
+事实基线：`v0.1.394`
 
 展示文件：[HTML 流程与泳道](../../public/mes-current-workflow.html) · [Excalidraw 可编辑源文件](../../public/mes-current-workflow.excalidraw)
 
@@ -12,6 +13,41 @@
 > `v0.1.376` 补充：来料、生产投入/产出、客户发货和退货回流均已形成内部批次关系；生产、退货及按已发布标准启用的来料质量任务支持标准版本、自动抽样、任务快照、逐项结果、附件、趋势和完整处置，批次追溯可多跳展开。班后实绩冻结实际设备与作业文件版本；岗位任务、生产命令、来料与物流状态命令、数据范围和临时授权已落地，业务资源现为 61 项；设备事件、周期点检、保养维修与备件库存/成本/批次领用已贯通。
 
 ## 2. 当前业务链
+
+### 2.0 端到端业务闭环
+
+```mermaid
+flowchart LR
+  SO["销售订单<br/>客户需求"] -."人工计划衔接".-> PO["生产订单<br/>冻结 BOM 快照"]
+  Supplier["供应商来料"] --> Receipt["来料登记<br/>接收 / 拒收"]
+  Receipt --> Standard{"存在已发布<br/>来料检验标准？"}
+  Standard -->|"否"| RawAvailable["原料批次 AVAILABLE"]
+  Standard -->|"是"| RawQc["原料批次 QUARANTINE<br/>创建质量任务"]
+  RawQc --> RawDecision{"质量判定 / 处置"}
+  RawDecision -->|"合格 / 让步"| RawAvailable
+  RawDecision -->|"失败 / 返工 / 报废"| Restricted["HOLD / REWORK / 扣减"]
+
+  PO --> Dispatch["发布 / 派工"]
+  RawAvailable --> Actual["生产实绩草稿<br/>人员 + 设备 + 文件版本"]
+  Dispatch --> Actual
+  Actual --> Confirm["确认过账<br/>投入 FIFO + 成本结转"]
+  Confirm --> Output["产出批次 QUARANTINE<br/>父子谱系 + 质量任务"]
+  Output --> OutputDecision{"逐项检验<br/>整批/部分判定与处置"}
+  OutputDecision -->|"合格 / 让步"| Finished["成品批次 AVAILABLE"]
+  OutputDecision -->|"冻结 / 返工"| Restricted
+
+  Finished --> Shipment["发货确认<br/>按批次扣减"]
+  SO --> Shipment
+  Shipment --> Customer["客户收货 / 批次去向"]
+  Customer --> Return["从原发货登记退货"]
+  Return --> ReturnLot["独立退货批次 QUARANTINE"]
+  ReturnLot --> OutputDecision
+
+  Confirm -."安全条件满足".-> ReverseActual["实绩冲销<br/>恢复投入 / 扣回产出"]
+  Receipt -."未被下游使用".-> ReverseReceipt["来料整单红冲"]
+```
+
+实线是当前主流程，虚线是人工衔接或受安全条件限制的逆向动作。销售订单不会自动生成生产订单；这不是系统丢失数据，而是当前明确保留的 MES/MRP/ERP 边界。
 
 ### 2.1 销售与履约
 
@@ -42,6 +78,68 @@
 - 新主流程使用 `QualityInspectionStandard` / `QualityInspectionStandardItem` 保存版本化标准，`QualityInspection` / `QualityInspectionCheckItem` 保存当时标准快照、抽样和逐项事实，`QualityDisposition` 保存每次复检、返工、报废、让步和解冻事实，并在一个事务内更新批次、库存、成本层与流水。旧 `QCRecord` 只保留历史兼容，不作为新生产实绩的质量事实。
 - 设备与工作中心已经具备台账和基础配置；运行状态只能通过受控事件或维保工单改变。周期点检按设备保存不可覆盖的逐项事实；保养/维修工单覆盖到期、故障、开始、完成、设备恢复和备件 FIFO 批次领用。自动采集、停机原因、节拍和 OEE 尚未贯通。
 - 附件、业务单据打印、二维码、权限、审计和数据维护作为公共模块被业务页面复用。
+
+### 2.6 设备运行与维保闭环
+
+```mermaid
+flowchart LR
+  Equipment["设备台账 / 工作中心"] --> Run["受控运行事件"]
+  Equipment --> Inspect["周期点检任务"]
+  Inspect --> Result{"点检是否异常？"}
+  Result -->|"否"| Evidence["保存不可覆盖的逐项事实"]
+  Result -->|"是"| Fault["记录 FAULT<br/>设备不可用"]
+  Run --> Fault
+  Plan["保养计划到期"] --> WorkOrder["预防/维修工单"]
+  Fault --> WorkOrder
+  WorkOrder --> Start["开始维修"]
+  Start --> Parts["备件 FIFO 领用<br/>库存 / 成本 / 批次流水"]
+  Parts --> Complete["完成工单 + 附件"]
+  Complete --> Recover["RECOVER<br/>设备恢复 AVAILABLE"]
+  Recover --> Timeline["事件 / 点检 / 工单 / 备件时间线"]
+  Evidence --> Timeline
+```
+
+### 2.7 角色交接泳道
+
+```mermaid
+flowchart LR
+  subgraph SalesLane["销售"]
+    S1["登记客户需求"] --> S2["创建销售订单"]
+    S3["查看发货与退货结果"]
+  end
+  subgraph PlanLane["计划 / 工程"]
+    P1["确认物料、BOM、工艺和文件"] --> P2["创建生产订单并派工"]
+  end
+  subgraph WarehouseLane["仓库"]
+    W1["接收来料"] --> W2["管理可用/待检批次"]
+    W3["发货并登记退货"]
+  end
+  subgraph ProductionLane["生产"]
+    M1["执行派工"] --> M2["登记并确认生产实绩"]
+  end
+  subgraph QualityLane["质量"]
+    Q1["维护并发布标准"] --> Q2["逐项检验与判定"] --> Q3["处置不合格批次"]
+  end
+  subgraph SystemLane["MES-lite 自动事务"]
+    A1["冻结 BOM/设备/文件快照"] --> A2["FIFO、库存、成本、批次谱系"] --> A3["质量任务与状态联动"] --> A4["审计、追溯与安全冲销"]
+  end
+
+  S2 --> P2
+  Q1 --> W1
+  W1 --> W2
+  W2 --> M1
+  P2 --> M1
+  P2 --> A1
+  M2 --> A2
+  A2 --> Q2
+  Q2 --> A3
+  Q3 --> A3
+  A3 --> W3
+  W3 --> S3
+  A3 --> A4
+```
+
+交接原则：角色负责确认业务事实，系统负责在同一事务内更新状态、库存、成本、批次关系和审计。系统不会代替计划人员自动决定生产订单，也不会代替质量人员做最终检验判定。
 
 ## 3. 当前边界
 
