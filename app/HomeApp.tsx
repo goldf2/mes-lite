@@ -64,6 +64,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     desktopNavigationDisplayMode,
     workspaceLayoutPreference,
     siblingNavigationEnabled,
+    transientNavigationMode,
     transientNavigationOpen,
     sidebarWidth,
     splitSidebarWidth,
@@ -76,6 +77,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     sidebarResizeValue,
     panelRef: desktopNavigationPanelRef,
     triggerRef: desktopNavigationTriggerRef,
+    scheduleDesktopNavigationOpen,
+    keepDesktopNavigationOpen,
+    scheduleDesktopNavigationClose,
     toggleDesktopNavigation,
     closeTransientNavigation: closeTransientDesktopNavigation,
     toggleWorkspaceLayout,
@@ -164,7 +168,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
   }, [])
   const desktopNavigationTriggerLabel = persistentDesktopNavigation
     ? '收起并自动隐藏功能导航'
-    : transientNavigationOpen
+    : transientNavigationMode === 'hover'
+      ? '点击保持功能导航打开'
+      : transientNavigationOpen
       ? '收起功能导航'
       : '打开功能导航'
   const desktopNavigationExpanded = persistentDesktopNavigation || transientNavigationOpen
@@ -285,8 +291,20 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         className={`fixed bottom-0 right-0 top-16 z-30 hidden w-[var(--mes-desktop-tools-width)] border-l border-gray-200 bg-white ${workspaceLayoutPreference.layout === 'canvas' ? 'lg:flex' : 'lg:hidden'}`}
       />
 
+      {autoHideDesktopNavigation && !transientNavigationOpen && (
+        <div
+          aria-hidden="true"
+          data-desktop-navigation-hover-zone="true"
+          onPointerEnter={scheduleDesktopNavigationOpen}
+          onPointerLeave={scheduleDesktopNavigationClose}
+          className="fixed bottom-0 left-0 top-16 z-30 hidden w-[30px] lg:block"
+        />
+      )}
+
       <aside
         ref={desktopNavigationPanelRef}
+        onPointerEnter={keepDesktopNavigationOpen}
+        onPointerLeave={scheduleDesktopNavigationClose}
         className={`fixed bottom-0 left-0 top-16 hidden w-[var(--mes-desktop-sidebar-width)] flex-col border-r border-gray-200 bg-white shadow-lg transition-transform duration-200 motion-reduce:transition-none lg:flex ${
           desktopNavigationMode === 'split' ? 'xl:w-[var(--mes-desktop-split-sidebar-width)]' : ''
         } ${workspaceLayoutPreference.layout === 'canvas'
