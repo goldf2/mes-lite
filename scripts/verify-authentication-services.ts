@@ -8,6 +8,7 @@ import {
   loginInputSchema,
   registerInputSchema,
 } from '../modules/identity-access/contracts/authentication'
+import { updateOperatorSchema } from '../modules/identity-access/contracts/operator-admin'
 import {
   AuthenticationError,
   operatorLoginStatusError,
@@ -51,6 +52,10 @@ assert.equal(registerInputSchema.safeParse({ username: 'a', password: '123', nam
 assert.equal(registerInputSchema.safeParse({ username: 'worker', password: '1234567890', name: '操作员' }).success, true)
 assert.equal(initialAdministratorInputSchema.safeParse({ username: 'admin', password: 'too-short', name: '管理员' }).success, false)
 assert.equal(loginInputSchema.safeParse({ username: 'admin', password: 'secret' }).success, true)
+assert.deepEqual(updateOperatorSchema.parse({
+  id: 'operator-1', username: ' renamed-user ', name: ' 新姓名 ', phone: ' 13800138000 ',
+}), { id: 'operator-1', username: 'renamed-user', name: '新姓名', phone: '13800138000' })
+assert.equal(updateOperatorSchema.safeParse({ id: 'operator-1', username: 'invalid account' }).success, false)
 assert.match(operatorLoginStatusError('PENDING')?.message || '', /待审核/)
 assert.equal(operatorLoginStatusError('ACTIVE'), null)
 assert.equal(weChatUsernameBase('o!pen@id-123', 'fallback'), 'wx_openid123')
@@ -221,6 +226,47 @@ async function main() {
     const removable = await registerOperator(registerInputSchema.parse({
       username: 'removable', password: 'removable-secret', name: '可删除测试账号',
     }), registrationAuditContext)
+    const renamedRemovable = await updateOperatorAdministration(
+      { id: admin.id, role: admin.role },
+      { id: removable.id, username: 'renamed-removable', name: '已修改姓名', phone: '13800138000' },
+      administrationAuditContext,
+    )
+    assert.deepEqual(
+      [renamedRemovable.username, renamedRemovable.name, renamedRemovable.phone],
+      ['renamed-removable', '已修改姓名', '13800138000'],
+    )
+    const clearedPhone = await updateOperatorAdministration(
+      { id: admin.id, role: admin.role },
+      { id: removable.id, phone: '' },
+      administrationAuditContext,
+    )
+    assert.equal(clearedPhone.phone, null, '管理员必须可以清除手机号')
+    const profileAudits = await prisma.auditLog.findMany({
+      where: { action: 'UPDATE', entityType: 'OPERATOR', entityId: removable.id },
+      select: { beforeData: true, afterData: true },
+    })
+    assert.ok(
+      profileAudits.some((audit) => audit.beforeData?.includes('removable') && audit.afterData?.includes('renamed-removable')),
+      '账号资料修改必须保留审计前后快照',
+    )
+    await assert.rejects(
+      () => updateOperatorAdministration(
+        { id: admin.id, role: 'AUDITOR' },
+        { id: removable.id, name: '越权修改姓名' },
+        administrationAuditContext,
+      ),
+      (error: unknown) => error instanceof Error && /只有管理员/.test(error.message),
+      '拥有人员更新权限的非管理员也不得修改账号资料',
+    )
+    await assert.rejects(
+      () => updateOperatorAdministration(
+        { id: admin.id, role: admin.role },
+        { id: removable.id, username: admin.username },
+        administrationAuditContext,
+      ),
+      (error: unknown) => error instanceof Error && /登录账号已存在/.test(error.message),
+      '管理员修改登录账号时必须阻止重名',
+    )
     await assert.rejects(
       () => deleteOperatorAdministration(
         { id: registered.id, role: registered.role }, removable.id, administrationAuditContext,
@@ -284,18 +330,29 @@ async function main() {
       { id: removable.id, status: 'DISABLED' },
       administrationAuditContext,
     )
+    const restoredRemovable = await updateOperatorAdministration(
+      { id: admin.id, role: admin.role },
+      { id: removable.id, status: 'ACTIVE' },
+      administrationAuditContext,
+    )
+    assert.equal(restoredRemovable.status, 'ACTIVE', '已停用账号必须可以恢复为启用状态')
+    await updateOperatorAdministration(
+      { id: admin.id, role: admin.role },
+      { id: removable.id, status: 'DISABLED' },
+      administrationAuditContext,
+    )
     const removed = await deleteOperatorAdministration(
       { id: admin.id, role: admin.role }, removable.id, administrationAuditContext,
     )
-    assert.equal(removed.username, 'removable')
+    assert.equal(removed.username, 'renamed-removable')
     assert.equal(await prisma.operator.findUnique({ where: { id: removable.id } }), null)
     assert.equal(await prisma.operatorDataScope.findUnique({ where: { operatorId: removable.id } }), null)
     const deletionAudit = await prisma.auditLog.findFirstOrThrow({
       where: { action: 'DELETE', entityType: 'OPERATOR', entityId: removable.id },
     })
     assert.equal(deletionAudit.operatorId, admin.id)
-    assert.match(deletionAudit.beforeData || '', /removable/)
-    console.log('身份认证服务验证通过：管理员安装、注册登录安全、微信待审及无关联人员受限删除均通过。')
+    assert.match(deletionAudit.beforeData || '', /renamed-removable/)
+    console.log('身份认证服务验证通过：管理员安装、注册登录安全、账号资料修改、停用恢复及无关联人员受限删除均通过。')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

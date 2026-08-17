@@ -1,6 +1,6 @@
 {
-  "version": "0.1.398",
+  "version": "0.1.399",
   "impact": "updated",
   "workflowIds": ["63-operator-management"],
-  "summary": "人员管理新增受限删除：具备 operators.delete 权限的管理员可删除非启用且无员工、业务、审计或授权关联的账号；有关联时保留记录并明确阻止原因。"
+  "summary": "人员管理新增管理员账号资料维护和停用恢复：可修改登录账号、姓名、手机号，重复账号被阻止，资料与状态变化保留审计。"
 }

@@ -2,6 +2,8 @@
 
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import type { CurrentOperator } from '@/app/components/AuthGate'
+import { appInputClassName } from '@/app/components/FormField'
+import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import { getStatusQuery } from '@/app/components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import TopBarPortal from '@/app/components/TopBarPortal'
@@ -55,6 +57,8 @@ export default function OperatorPageModule({
   const [operators, setOperators] = useState<OperatorAdminItem[]>([])
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [loading, setLoading] = useState(false)
+  const [editingOperator, setEditingOperator] = useState<OperatorAdminItem | null>(null)
+  const [profileForm, setProfileForm] = useState({ username: '', name: '', phone: '' })
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.operators.viewMode', 'list')
   const advancedSearchFields = useMemo(() => [{
     key: 'status',
@@ -101,11 +105,33 @@ export default function OperatorPageModule({
       await updateOperatorRequest(payload)
       onMessage('操作人员已更新')
       await fetchOperators()
+      return true
     } catch (error) {
       onMessage(error instanceof Error ? error.message : '更新失败')
+      return false
     } finally {
       setLoading(false)
     }
+  }
+
+  const editOperatorProfile = (operator: OperatorAdminItem) => {
+    setEditingOperator(operator)
+    setProfileForm({ username: operator.username, name: operator.name, phone: operator.phone || '' })
+  }
+
+  const saveOperatorProfile = async () => {
+    if (!editingOperator) return
+    if (!profileForm.username.trim() || !profileForm.name.trim()) {
+      onMessage('登录账号和姓名不能为空')
+      return
+    }
+    const updated = await updateOperator({
+      id: editingOperator.id,
+      username: profileForm.username,
+      name: profileForm.name,
+      phone: profileForm.phone,
+    })
+    if (updated) setEditingOperator(null)
   }
 
   const deleteOperator = async (operator: OperatorAdminItem) => {
@@ -213,6 +239,15 @@ export default function OperatorPageModule({
                 )}
               </div>
               <div className="mt-4 flex flex-wrap justify-end gap-2">
+                {canManage && (
+                  <button
+                    disabled={loading}
+                    onClick={() => editOperatorProfile(operator)}
+                    className="px-3 py-1 border border-blue-200 text-blue-700 rounded text-xs hover:bg-blue-50 disabled:opacity-50"
+                  >
+                    编辑资料
+                  </button>
+                )}
                 {operator.status !== 'ACTIVE' && operator.status !== 'DISABLED' && (
                   <button
                     disabled={loading}
@@ -238,6 +273,15 @@ export default function OperatorPageModule({
                     className="px-3 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50 disabled:opacity-50"
                   >
                     停用
+                  </button>
+                )}
+                {operator.status === 'DISABLED' && (
+                  <button
+                    disabled={loading}
+                    onClick={() => updateOperator({ id: operator.id, status: 'ACTIVE' })}
+                    className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
+                  >
+                    恢复
                   </button>
                 )}
                 {canDelete && operator.status !== 'ACTIVE' && operator.id !== currentOperator.id && (
@@ -296,7 +340,16 @@ export default function OperatorPageModule({
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-500">{new Date(operator.createdAt).toLocaleString('zh-CN')}</td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      {canManage && (
+                        <button
+                          disabled={loading}
+                          onClick={() => editOperatorProfile(operator)}
+                          className="px-3 py-1 border border-blue-200 text-blue-700 rounded text-xs hover:bg-blue-50 disabled:opacity-50"
+                        >
+                          编辑资料
+                        </button>
+                      )}
                       {operator.status !== 'ACTIVE' && operator.status !== 'DISABLED' && (
                         <button
                           disabled={loading}
@@ -324,6 +377,15 @@ export default function OperatorPageModule({
                           停用
                         </button>
                       )}
+                      {operator.status === 'DISABLED' && (
+                        <button
+                          disabled={loading}
+                          onClick={() => updateOperator({ id: operator.id, status: 'ACTIVE' })}
+                          className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
+                        >
+                          恢复
+                        </button>
+                      )}
                       {canDelete && operator.status !== 'ACTIVE' && operator.id !== currentOperator.id && (
                         <button
                           disabled={loading}
@@ -344,6 +406,59 @@ export default function OperatorPageModule({
 
       {operators.length === 0 && <div className="text-center py-12 text-gray-500">暂无操作人员</div>}
       </div>
+      {editingOperator && (
+        <ModalDialog
+          title={`编辑账号资料 · ${editingOperator.username}`}
+          description="仅管理员可以修改登录账号、姓名和手机号；修改内容会记录到审计日志。"
+          onClose={() => setEditingOperator(null)}
+          closeDisabled={loading}
+          fullscreenable={false}
+          footer={(
+            <ModalActions
+              onCancel={() => setEditingOperator(null)}
+              onConfirm={saveOperatorProfile}
+              confirmLabel="保存资料"
+              busy={loading}
+              disabled={!profileForm.username.trim() || !profileForm.name.trim()}
+            />
+          )}
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="text-sm font-medium text-gray-700">
+              登录账号 *
+              <input
+                value={profileForm.username}
+                onChange={(event) => setProfileForm({ ...profileForm, username: event.target.value })}
+                className={`mt-2 ${appInputClassName}`}
+                maxLength={32}
+                autoComplete="off"
+              />
+            </label>
+            <label className="text-sm font-medium text-gray-700">
+              姓名 *
+              <input
+                value={profileForm.name}
+                onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })}
+                className={`mt-2 ${appInputClassName}`}
+                maxLength={50}
+                autoComplete="off"
+              />
+            </label>
+            <label className="text-sm font-medium text-gray-700 sm:col-span-2">
+              手机号
+              <input
+                value={profileForm.phone}
+                onChange={(event) => setProfileForm({ ...profileForm, phone: event.target.value })}
+                className={`mt-2 ${appInputClassName}`}
+                maxLength={30}
+                inputMode="tel"
+                autoComplete="off"
+                placeholder="留空即清除手机号"
+              />
+            </label>
+          </div>
+        </ModalDialog>
+      )}
     </>
   )
 }

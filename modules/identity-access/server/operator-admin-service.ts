@@ -45,6 +45,9 @@ export async function updateOperatorAdministration(
   if (!(await hasResourcePermission(actor, 'operators', 'update'))) {
     throw new OperatorAdminError('无权限', 403)
   }
+  if ((input.username !== undefined || input.name !== undefined || input.phone !== undefined) && !canManage(actor.role)) {
+    throw new OperatorAdminError('只有管理员可以修改账号资料', 403)
+  }
   if (input.role && !canManage(actor.role)) {
     throw new OperatorAdminError('只有管理员可以调整角色', 403)
   }
@@ -53,6 +56,9 @@ export async function updateOperatorAdministration(
   }
 
   const updateData: Record<string, unknown> = {}
+  if (input.username !== undefined) updateData.username = input.username
+  if (input.name !== undefined) updateData.name = input.name
+  if (input.phone !== undefined) updateData.phone = input.phone || null
   if (input.role) updateData.role = input.role
   if (input.status) {
     updateData.status = input.status
@@ -77,13 +83,18 @@ export async function updateOperatorAdministration(
         entityLabel: updated.username,
         beforeData: before,
         afterData: updated,
-        note: input.status ? `账号状态调整为 ${input.status}` : '操作员角色已调整',
+        note: [
+          input.username !== undefined || input.name !== undefined || input.phone !== undefined ? '账号资料已调整' : null,
+          input.role ? '操作员角色已调整' : null,
+          input.status ? `账号状态调整为 ${input.status}` : null,
+        ].filter(Boolean).join('；'),
       })
       return updated
     })
   } catch (error) {
-    if (typeof error === 'object' && error && 'code' in error && error.code === 'P2025') {
-      throw new OperatorAdminError('操作人员不存在', 404)
+    if (typeof error === 'object' && error && 'code' in error) {
+      if (error.code === 'P2025') throw new OperatorAdminError('操作人员不存在', 404)
+      if (error.code === 'P2002') throw new OperatorAdminError('登录账号已存在', 409)
     }
     throw error
   }

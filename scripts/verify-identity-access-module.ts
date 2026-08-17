@@ -57,6 +57,9 @@ assert.match(client, /loadOperators/, '前端 client 必须统一封装人员数
 assert.match(client, /deleteOperator/, '前端 client 必须统一封装人员删除请求')
 assert.match(operatorRoute, /export async function DELETE/, '人员 API 必须提供 DELETE 适配层')
 assert.match(operatorPage, /deleteOperatorRequest/, '人员页面必须通过领域 client 执行受限删除')
+assert.match(operatorPage, /编辑资料/, '管理员人员页面必须提供账号资料编辑入口')
+assert.match(operatorPage, /operator\.status === 'DISABLED'/, '人员页面必须为已停用账号提供恢复入口')
+assert.match(operatorContracts, /operatorUsernameSchema/, '账号资料修改必须复用注册账号校验规则')
 assert.doesNotMatch(permissionPage, /\bfetch\(/, '权限页不得直接调用 fetch')
 assert.doesNotMatch(operatorPage, /\bfetch\(/, '人员页不得直接调用 fetch')
 

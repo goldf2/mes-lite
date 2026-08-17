@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { operatorNameSchema, operatorPhoneSchema, operatorUsernameSchema } from './authentication'
 
 export const operatorRoles = ['OPERATOR', 'AUDITOR', 'ADMIN'] as const
 export const operatorStatuses = ['PENDING', 'ACTIVE', 'REJECTED', 'DISABLED'] as const
@@ -22,6 +23,9 @@ export interface OperatorAdminItem {
 
 export const updateOperatorSchema = z.object({
   id: z.string().min(1),
+  username: operatorUsernameSchema.optional(),
+  name: operatorNameSchema.optional(),
+  phone: operatorPhoneSchema.optional(),
   status: z.enum(operatorStatuses).optional(),
   role: z.enum(operatorRoles).optional(),
 })
