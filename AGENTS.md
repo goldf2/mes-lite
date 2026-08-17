@@ -72,7 +72,7 @@ MES-lite 所有前端页面必须采用“公共页面骨架 + 资源配置 + �
 MES-lite 的标准生产构建由 GitHub Actions 执行，普通代码、配置和文档变更不再把本机 `npm run build` 作为发布前置步骤。
 
 - 本机只运行与改动直接相关的回归、静态检查或开发服务器验证；不要为了重复远端门禁而执行完整生产构建。
-- 待发布提交先推送到 `ci/<版本号>` 候选分支。工作流按顺序执行 Prisma 校验与生成、恢复演练校验、领域与治理基线、TypeScript、Lint 和 `npm run build`；只有该精确提交成功后，才允许推送或合并到 `main`。
+- 待发布提交先推送到 `ci/<版本号>` 候选分支。工作流执行 Prisma 校验与生成、`npm run build`、依赖该构建产物的恢复演练、领域与治理基线、TypeScript 和 Lint；只有该精确提交成功后，才允许推送或合并到 `main`。
 - 必须核对候选提交对应的 `MES-lite CI` run ID、提交 SHA 和结论。远端构建失败时不得把任务标为完成，也不得人工触发生产 Redeploy。
 - 工作流支持 `workflow_dispatch`，可以在 GitHub Actions 页面选择分支后手动重跑；手动成功不能替代“运行提交 SHA 与待发布提交一致”的检查。
 - 这套流程只替代开发机上的 Next.js 生产构建。当前 Coolify 仍从 `main` 源码执行 Docker BuildKit 构建和部署，并不直接消费 GitHub Actions 产物；若要消除部署服务器编译负载，需要另行采用 GHCR 镜像发布并切换 Coolify 部署来源。

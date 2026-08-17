@@ -8,7 +8,7 @@ MES-lite 当前使用 SQLite，适合单实例 Docker 部署。数据库和上�
 
 1. 完成本机针对性验证并提交代码。
 2. 将精确提交推送到 `ci/<版本号>` 候选分支，不先推送 `main`。
-3. 等待该 SHA 对应的 `MES-lite CI` 成功。工作流依次执行 Prisma 校验与生成、恢复演练校验、领域与治理基线、TypeScript、Lint 和生产构建。
+3. 等待该 SHA 对应的 `MES-lite CI` 成功。工作流执行 Prisma 校验与生成、生产构建、依赖该构建产物的恢复演练、领域与治理基线、TypeScript 和 Lint。
 4. 核对 run ID、提交 SHA 和结论后，把同一提交推送或合并到 `main`，再由 Coolify 的 main Webhook 部署。
 
 需要手动重跑时，可在 GitHub 的 Actions 页面选择 `MES-lite CI`，点击 `Run workflow` 并选择候选分支。远端构建失败时不得继续推送 `main` 或人工 Redeploy。
