@@ -1,10 +1,10 @@
-import { canManage } from '@/lib/auth'
+import { canManage, hashPassword } from '@/lib/auth'
 import { createAuditLog, type AuditContext } from '@/lib/audit'
 import { hasResourcePermission } from '@/lib/permissions'
 import { prisma } from '@/lib/prisma'
 import { applyStatusFilter } from '@/lib/status-filter'
 import type { PermissionActor } from '../contracts/permission-admin'
-import type { UpdateOperatorInput } from '../contracts/operator-admin'
+import type { ResetOperatorPasswordInput, UpdateOperatorInput } from '../contracts/operator-admin'
 
 export class OperatorAdminError extends Error {
   constructor(message: string, public readonly status: 400 | 403 | 404 | 409 = 400) {
@@ -183,4 +183,42 @@ export async function deleteOperatorAdministration(
     }
     throw error
   }
+}
+
+export async function resetOperatorPasswordAdministration(
+  actor: PermissionActor,
+  input: ResetOperatorPasswordInput,
+  auditContext?: AuditContext,
+) {
+  if (!(await hasResourcePermission(actor, 'operators', 'update')) || !canManage(actor.role)) {
+    throw new OperatorAdminError('只有管理员可以重置密码', 403)
+  }
+  const passwordHash = hashPassword(input.password)
+
+  return prisma.$transaction(async (tx) => {
+    const before = await tx.operator.findUnique({ where: { id: input.id }, select: operatorSelect })
+    if (!before) throw new OperatorAdminError('操作人员不存在', 404)
+    const activeSessionCount = await tx.operatorSession.count({ where: { operatorId: input.id } })
+    await tx.operatorSession.deleteMany({ where: { operatorId: input.id } })
+    const updated = await tx.operator.update({
+      where: { id: input.id },
+      data: {
+        passwordHash,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        lastFailedLoginAt: null,
+      },
+      select: operatorSelect,
+    })
+    if (auditContext) await createAuditLog(tx, auditContext, {
+      action: 'PASSWORD_RESET',
+      entityType: 'OPERATOR',
+      entityId: updated.id,
+      entityLabel: updated.username,
+      beforeData: { username: before.username, status: before.status, activeSessionCount },
+      afterData: { username: updated.username, status: updated.status, activeSessionCount: 0, loginLockCleared: true },
+      note: '管理员重置人员密码并撤销全部会话',
+    })
+    return updated
+  })
 }

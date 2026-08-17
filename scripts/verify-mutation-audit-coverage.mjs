@@ -13,6 +13,7 @@ const transactionalAuditRequired = new Set([
   'dispatches/[id]/dispatch/route.ts#PATCH',
   'dispatches/[id]/start/route.ts#PATCH',
   'operators/route.ts#PATCH',
+  'operators/password/route.ts#POST',
   'orders/route.ts#POST',
   'orders/[id]/cancel/route.ts#PATCH',
   'orders/[id]/reports/route.ts#POST',

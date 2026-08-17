@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { operatorNameSchema, operatorPhoneSchema, operatorUsernameSchema } from './authentication'
+import { operatorNameSchema, operatorPasswordSchema, operatorPhoneSchema, operatorUsernameSchema } from './authentication'
 
 export const operatorRoles = ['OPERATOR', 'AUDITOR', 'ADMIN'] as const
 export const operatorStatuses = ['PENDING', 'ACTIVE', 'REJECTED', 'DISABLED'] as const
@@ -35,3 +35,14 @@ export type UpdateOperatorInput = z.infer<typeof updateOperatorSchema>
 export const deleteOperatorSchema = z.object({
   id: z.string().min(1),
 })
+
+export const resetOperatorPasswordSchema = z.object({
+  id: z.string().min(1),
+  password: operatorPasswordSchema,
+  confirmPassword: z.string(),
+}).refine((input) => input.password === input.confirmPassword, {
+  message: '两次输入的密码不一致',
+  path: ['confirmPassword'],
+})
+
+export type ResetOperatorPasswordInput = z.infer<typeof resetOperatorPasswordSchema>

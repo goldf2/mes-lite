@@ -7,6 +7,7 @@ const root = process.cwd()
 const read = (path: string) => readFileSync(join(root, path), 'utf8')
 const route = read('app/api/permissions/route.ts')
 const operatorRoute = read('app/api/operators/route.ts')
+const passwordRoute = read('app/api/operators/password/route.ts')
 const contracts = read('modules/identity-access/contracts/permission-admin.ts')
 const operatorContracts = read('modules/identity-access/contracts/operator-admin.ts')
 const client = read('modules/identity-access/client/identity-access-api.ts')
@@ -23,7 +24,9 @@ const requiredFiles = [
   'modules/identity-access/server/operator-admin-service.ts',
   'modules/identity-access/server/permission-admin-service.ts',
   'modules/identity-access/ui/OperatorPageModule.tsx',
+  'modules/identity-access/ui/OperatorPasswordResetDialog.tsx',
   'modules/identity-access/ui/PermissionPageModule.tsx',
+  'app/api/operators/password/route.ts',
 ]
 
 for (const path of requiredFiles) {
@@ -33,6 +36,7 @@ assert.ok(route.split('\n').length <= 100, '权限 API 必须保持为不超过 
 assert.ok(operatorRoute.split('\n').length <= 70, '人员 API 必须保持为不超过 70 行的 HTTP 适配层')
 assert.doesNotMatch(route, /prisma\.|permissionGroup\.find|\$transaction/, '权限 API 不得直接执行查询或事务')
 assert.doesNotMatch(operatorRoute, /prisma\.|operator\.find|operator\.update/, '人员 API 不得直接访问数据库')
+assert.doesNotMatch(passwordRoute, /prisma\.|operator\.find|operator\.update/, '密码重置 API 不得直接访问数据库')
 assert.match(route, /listPermissionAdministration\(/, '权限 API 必须通过查询服务读取权限管理数据')
 assert.match(route, /updatePermissionAdministration\(/, '权限 API 必须通过命令服务保存权限')
 assert.match(route, /createPermissionGroup\(/, '权限 API 必须通过命令服务创建权限组')
@@ -40,12 +44,15 @@ assert.match(route, /writeAuditLog\(/, '权限 API 必须保留请求级审计')
 assert.match(contracts, /updatePermissionsSchema/, '权限输入契约必须由领域模块统一维护')
 assert.match(operatorContracts, /updateOperatorSchema/, '人员输入契约必须由领域模块统一维护')
 assert.match(operatorContracts, /deleteOperatorSchema/, '人员删除输入契约必须由领域模块统一维护')
+assert.match(operatorContracts, /resetOperatorPasswordSchema/, '密码重置输入契约必须由领域模块统一维护')
 assert.match(service, /ensureDefaultPermissions\(/, '权限服务必须在读写前建立默认权限基线')
 assert.match(service, /hasResourcePermission\(/, '权限服务必须执行资源级授权检查')
 assert.match(service, /prisma\.\$transaction\(/, '权限变更必须在事务内完成')
 assert.match(operatorService, /hasResourcePermission\(/, '人员管理服务必须执行资源级授权检查')
 assert.match(operatorService, /deleteOperatorAdministration/, '人员管理服务必须提供受限删除命令')
 assert.match(operatorService, /'operators', 'delete'/, '人员删除必须检查 operators.delete 权限')
+assert.match(operatorService, /resetOperatorPasswordAdministration/, '人员管理服务必须提供管理员密码重置命令')
+assert.match(operatorService, /operatorSession\.deleteMany/, '密码重置必须撤销目标人员全部会话')
 for (const relationCheck of [
   'employee.count', 'auditLog.count', 'equipmentEvent.count', 'equipmentInspectionRecord.count',
   'equipmentMaintenanceWorkOrder.count', 'approvedBy: operatorId', 'grantedBy: operatorId',
@@ -55,9 +62,11 @@ for (const relationCheck of [
 assert.match(client, /loadPermissionAdministration/, '前端 client 必须统一封装权限数据请求')
 assert.match(client, /loadOperators/, '前端 client 必须统一封装人员数据请求')
 assert.match(client, /deleteOperator/, '前端 client 必须统一封装人员删除请求')
+assert.match(client, /resetOperatorPassword/, '前端 client 必须统一封装密码重置请求')
 assert.match(operatorRoute, /export async function DELETE/, '人员 API 必须提供 DELETE 适配层')
 assert.match(operatorPage, /deleteOperatorRequest/, '人员页面必须通过领域 client 执行受限删除')
 assert.match(operatorPage, /编辑资料/, '管理员人员页面必须提供账号资料编辑入口')
+assert.match(operatorPage, /重置密码/, '管理员人员页面必须提供密码重置入口')
 assert.match(operatorPage, /operator\.status === 'DISABLED'/, '人员页面必须为已停用账号提供恢复入口')
 assert.match(operatorContracts, /operatorUsernameSchema/, '账号资料修改必须复用注册账号校验规则')
 assert.doesNotMatch(permissionPage, /\bfetch\(/, '权限页不得直接调用 fetch')

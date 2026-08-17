@@ -8,7 +8,7 @@ import {
   loginInputSchema,
   registerInputSchema,
 } from '../modules/identity-access/contracts/authentication'
-import { updateOperatorSchema } from '../modules/identity-access/contracts/operator-admin'
+import { resetOperatorPasswordSchema, updateOperatorSchema } from '../modules/identity-access/contracts/operator-admin'
 import {
   AuthenticationError,
   operatorLoginStatusError,
@@ -56,6 +56,15 @@ assert.deepEqual(updateOperatorSchema.parse({
   id: 'operator-1', username: ' renamed-user ', name: ' 新姓名 ', phone: ' 13800138000 ',
 }), { id: 'operator-1', username: 'renamed-user', name: '新姓名', phone: '13800138000' })
 assert.equal(updateOperatorSchema.safeParse({ id: 'operator-1', username: 'invalid account' }).success, false)
+assert.equal(resetOperatorPasswordSchema.safeParse({
+  id: 'operator-1', password: 'new-secret-123', confirmPassword: 'new-secret-123',
+}).success, true)
+assert.equal(resetOperatorPasswordSchema.safeParse({
+  id: 'operator-1', password: 'new-secret-123', confirmPassword: 'different-secret',
+}).success, false)
+assert.equal(resetOperatorPasswordSchema.safeParse({
+  id: 'operator-1', password: 'short', confirmPassword: 'short',
+}).success, false)
 assert.match(operatorLoginStatusError('PENDING')?.message || '', /待审核/)
 assert.equal(operatorLoginStatusError('ACTIVE'), null)
 assert.equal(weChatUsernameBase('o!pen@id-123', 'fallback'), 'wx_openid123')
@@ -121,7 +130,7 @@ async function main() {
       revokeOperatorSession,
     },
     { consumeAuthenticationThrottle },
-    { deleteOperatorAdministration, updateOperatorAdministration },
+    { deleteOperatorAdministration, resetOperatorPasswordAdministration, updateOperatorAdministration },
   ] = await Promise.all([
     import('../lib/prisma'),
     import('../modules/identity-access/server/authentication-service'),
@@ -178,6 +187,49 @@ async function main() {
       where: { action: 'UPDATE', entityType: 'OPERATOR', entityId: registered.id },
     })
     assert.ok(administrationAudit.beforeData && administrationAudit.afterData, '人员状态审计必须保留前后快照')
+
+    const workerSession = await loginWithPassword({ username: 'worker', password: 'worker-secret' })
+    assert.equal(await prisma.operatorSession.count({ where: { operatorId: registered.id } }), 1)
+    const workerFailureAt = new Date('2026-08-12T07:00:00.000Z')
+    for (let attempt = 1; attempt < 5; attempt += 1) {
+      await rejectedAuthentication(() => loginWithPassword({ username: 'worker', password: 'wrong-password' }, workerFailureAt), 401)
+    }
+    await rejectedAuthentication(() => loginWithPassword({ username: 'worker', password: 'wrong-password' }, workerFailureAt), 429)
+    await assert.rejects(
+      () => resetOperatorPasswordAdministration(
+        { id: admin.id, role: 'AUDITOR' },
+        resetOperatorPasswordSchema.parse({
+          id: registered.id, password: 'worker-reset-secret', confirmPassword: 'worker-reset-secret',
+        }),
+        administrationAuditContext,
+      ),
+      (error: unknown) => error instanceof Error && /只有管理员/.test(error.message),
+      '拥有人员更新权限的非管理员不得重置密码',
+    )
+    const passwordReset = await resetOperatorPasswordAdministration(
+      { id: admin.id, role: admin.role },
+      resetOperatorPasswordSchema.parse({
+        id: registered.id, password: 'worker-reset-secret', confirmPassword: 'worker-reset-secret',
+      }),
+      administrationAuditContext,
+    )
+    assert.deepEqual([passwordReset.username, passwordReset.status], ['worker', 'ACTIVE'])
+    assert.equal(await prisma.operatorSession.count({ where: { operatorId: registered.id } }), 0, '重置密码必须撤销全部会话')
+    const unlockedWorker = await prisma.operator.findUniqueOrThrow({ where: { id: registered.id } })
+    assert.deepEqual(
+      [unlockedWorker.failedLoginAttempts, unlockedWorker.lockedUntil, unlockedWorker.lastFailedLoginAt],
+      [0, null, null],
+      '重置密码必须清除登录失败和锁定状态',
+    )
+    await rejectedAuthentication(() => loginWithPassword({ username: 'worker', password: 'worker-secret' }), 401)
+    const resetLogin = await loginWithPassword({ username: 'worker', password: 'worker-reset-secret' })
+    await revokeOperatorSession(resetLogin.session.token)
+    await revokeOperatorSession(workerSession.session.token)
+    const passwordResetAudit = await prisma.auditLog.findFirstOrThrow({
+      where: { action: 'PASSWORD_RESET', entityType: 'OPERATOR', entityId: registered.id },
+    })
+    assert.match(passwordResetAudit.beforeData || '', /activeSessionCount/)
+    assert.doesNotMatch(`${passwordResetAudit.beforeData}${passwordResetAudit.afterData}`, /worker-reset-secret|passwordHash/)
 
     const firstFailureAt = new Date('2026-08-12T08:00:00.000Z')
     for (let attempt = 1; attempt < 5; attempt += 1) {
@@ -352,7 +404,7 @@ async function main() {
     })
     assert.equal(deletionAudit.operatorId, admin.id)
     assert.match(deletionAudit.beforeData || '', /renamed-removable/)
-    console.log('身份认证服务验证通过：管理员安装、注册登录安全、账号资料修改、停用恢复及无关联人员受限删除均通过。')
+    console.log('身份认证服务验证通过：管理员安装、注册登录安全、账号资料修改、密码重置、停用恢复及无关联人员受限删除均通过。')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

@@ -4,7 +4,7 @@ import type {
   PermissionGroup,
   UpdatePermissionsInput,
 } from '../contracts/permission-admin'
-import type { OperatorAdminItem, UpdateOperatorInput } from '../contracts/operator-admin'
+import type { OperatorAdminItem, ResetOperatorPasswordInput, UpdateOperatorInput } from '../contracts/operator-admin'
 
 interface ApiResponse<T> {
   data?: T
@@ -50,4 +50,8 @@ export function updateOperator(input: UpdateOperatorInput) {
 
 export function deleteOperator(id: string) {
   return request<OperatorAdminItem>(`/api/operators?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
+export function resetOperatorPassword(input: ResetOperatorPasswordInput) {
+  return request<OperatorAdminItem>('/api/operators/password', jsonRequest('POST', input))
 }

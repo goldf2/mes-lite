@@ -14,9 +14,11 @@ import { MappedResourceAdvancedSearch } from '@/app/components/resource'
 import {
   deleteOperator as deleteOperatorRequest,
   loadOperators,
+  resetOperatorPassword as resetOperatorPasswordRequest,
   updateOperator as updateOperatorRequest,
 } from '../client/identity-access-api'
 import type { OperatorAdminItem, OperatorRole, UpdateOperatorInput } from '../contracts/operator-admin'
+import OperatorPasswordResetDialog from './OperatorPasswordResetDialog'
 
 const roleLabels: Record<string, string> = {
   OPERATOR: '提交',
@@ -58,6 +60,7 @@ export default function OperatorPageModule({
   const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
   const [loading, setLoading] = useState(false)
   const [editingOperator, setEditingOperator] = useState<OperatorAdminItem | null>(null)
+  const [passwordResetOperator, setPasswordResetOperator] = useState<OperatorAdminItem | null>(null)
   const [profileForm, setProfileForm] = useState({ username: '', name: '', phone: '' })
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.operators.viewMode', 'list')
   const advancedSearchFields = useMemo(() => [{
@@ -146,6 +149,23 @@ export default function OperatorPageModule({
     } finally {
       setLoading(false)
     }
+  }
+
+  const resetOperatorPassword = async (password: string, confirmPassword: string) => {
+    if (!passwordResetOperator) return
+    let resetCurrentOperator = false
+    setLoading(true)
+    try {
+      await resetOperatorPasswordRequest({ id: passwordResetOperator.id, password, confirmPassword })
+      resetCurrentOperator = passwordResetOperator.id === currentOperator.id
+      setPasswordResetOperator(null)
+      onMessage('密码已重置，该账号的全部登录会话已撤销')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '密码重置失败')
+    } finally {
+      setLoading(false)
+    }
+    if (resetCurrentOperator) window.location.reload()
   }
 
   useEffect(() => {
@@ -248,6 +268,15 @@ export default function OperatorPageModule({
                     编辑资料
                   </button>
                 )}
+                {canManage && (
+                  <button
+                    disabled={loading}
+                    onClick={() => setPasswordResetOperator(operator)}
+                    className="px-3 py-1 border border-amber-300 text-amber-800 rounded text-xs hover:bg-amber-50 disabled:opacity-50"
+                  >
+                    重置密码
+                  </button>
+                )}
                 {operator.status !== 'ACTIVE' && operator.status !== 'DISABLED' && (
                   <button
                     disabled={loading}
@@ -348,6 +377,15 @@ export default function OperatorPageModule({
                           className="px-3 py-1 border border-blue-200 text-blue-700 rounded text-xs hover:bg-blue-50 disabled:opacity-50"
                         >
                           编辑资料
+                        </button>
+                      )}
+                      {canManage && (
+                        <button
+                          disabled={loading}
+                          onClick={() => setPasswordResetOperator(operator)}
+                          className="px-3 py-1 border border-amber-300 text-amber-800 rounded text-xs hover:bg-amber-50 disabled:opacity-50"
+                        >
+                          重置密码
                         </button>
                       )}
                       {operator.status !== 'ACTIVE' && operator.status !== 'DISABLED' && (
@@ -458,6 +496,15 @@ export default function OperatorPageModule({
             </label>
           </div>
         </ModalDialog>
+      )}
+      {passwordResetOperator && (
+        <OperatorPasswordResetDialog
+          operator={passwordResetOperator}
+          currentOperatorId={currentOperator.id}
+          busy={loading}
+          onClose={() => setPasswordResetOperator(null)}
+          onConfirm={resetOperatorPassword}
+        />
       )}
     </>
   )
