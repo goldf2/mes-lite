@@ -116,7 +116,7 @@ async function main() {
       revokeOperatorSession,
     },
     { consumeAuthenticationThrottle },
-    { updateOperatorAdministration },
+    { deleteOperatorAdministration, updateOperatorAdministration },
   ] = await Promise.all([
     import('../lib/prisma'),
     import('../modules/identity-access/server/authentication-service'),
@@ -217,7 +217,85 @@ async function main() {
     }), { productionMode: 'SELF', inventoryMode: 'LOCATIONS' })
     assert.equal((await resolveWeChatOperator({ openid: 'openid-verify', nickname: '更新昵称' })).operator.id, wechat.operator.id)
     assert.equal(await prisma.operatorAuthAccount.count(), 1)
-    console.log('身份认证服务验证通过：显式管理员安装、默认关闭注册、登录锁定、请求限流、同源校验、安全 Cookie 与微信待审均通过。')
+
+    const removable = await registerOperator(registerInputSchema.parse({
+      username: 'removable', password: 'removable-secret', name: '可删除测试账号',
+    }), registrationAuditContext)
+    await assert.rejects(
+      () => deleteOperatorAdministration(
+        { id: registered.id, role: registered.role }, removable.id, administrationAuditContext,
+      ),
+      (error: unknown) => error instanceof Error && /无权限/.test(error.message),
+      '没有 operators.delete 权限的账号不得删除人员',
+    )
+    await assert.rejects(
+      () => deleteOperatorAdministration(
+        { id: admin.id, role: admin.role }, admin.id, administrationAuditContext,
+      ),
+      (error: unknown) => error instanceof Error && /当前登录账号/.test(error.message),
+      '当前登录账号不得删除自身',
+    )
+
+    const employeeLinked = await registerOperator(registerInputSchema.parse({
+      username: 'employee-linked', password: 'employee-linked-secret', name: '员工绑定账号',
+    }), registrationAuditContext)
+    await prisma.employee.create({
+      data: { code: 'EMP-DELETE-BLOCK', name: '删除阻止员工', operatorId: employeeLinked.id },
+    })
+    await assert.rejects(
+      () => deleteOperatorAdministration(
+        { id: admin.id, role: admin.role }, employeeLinked.id, administrationAuditContext,
+      ),
+      (error: unknown) => error instanceof Error && /员工档案/.test(error.message),
+      '已绑定员工档案的账号不得删除',
+    )
+
+    const audited = await registerOperator(registerInputSchema.parse({
+      username: 'audited', password: 'audited-secret', name: '已有业务审计账号',
+    }), registrationAuditContext)
+    await prisma.auditLog.create({
+      data: {
+        operatorId: audited.id, operatorName: audited.name, action: 'CREATE',
+        entityType: 'VERIFY_BUSINESS', entityId: 'verify-business-record',
+      },
+    })
+    await assert.rejects(
+      () => deleteOperatorAdministration(
+        { id: admin.id, role: admin.role }, audited.id, administrationAuditContext,
+      ),
+      (error: unknown) => error instanceof Error && /操作或审计记录/.test(error.message),
+      '已经执行过业务操作的账号不得删除',
+    )
+
+    const activatedRemovable = await updateOperatorAdministration(
+      { id: admin.id, role: admin.role },
+      { id: removable.id, status: 'ACTIVE' },
+      administrationAuditContext,
+    )
+    await assert.rejects(
+      () => deleteOperatorAdministration(
+        { id: admin.id, role: admin.role }, activatedRemovable.id, administrationAuditContext,
+      ),
+      (error: unknown) => error instanceof Error && /先停用/.test(error.message),
+      '启用账号必须先停用再删除',
+    )
+    await updateOperatorAdministration(
+      { id: admin.id, role: admin.role },
+      { id: removable.id, status: 'DISABLED' },
+      administrationAuditContext,
+    )
+    const removed = await deleteOperatorAdministration(
+      { id: admin.id, role: admin.role }, removable.id, administrationAuditContext,
+    )
+    assert.equal(removed.username, 'removable')
+    assert.equal(await prisma.operator.findUnique({ where: { id: removable.id } }), null)
+    assert.equal(await prisma.operatorDataScope.findUnique({ where: { operatorId: removable.id } }), null)
+    const deletionAudit = await prisma.auditLog.findFirstOrThrow({
+      where: { action: 'DELETE', entityType: 'OPERATOR', entityId: removable.id },
+    })
+    assert.equal(deletionAudit.operatorId, admin.id)
+    assert.match(deletionAudit.beforeData || '', /removable/)
+    console.log('身份认证服务验证通过：管理员安装、注册登录安全、微信待审及无关联人员受限删除均通过。')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

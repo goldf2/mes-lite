@@ -47,3 +47,7 @@ export async function loadOperators(statusQuery = '') {
 export function updateOperator(input: UpdateOperatorInput) {
   return request<OperatorAdminItem>('/api/operators', jsonRequest('PATCH', input))
 }
+
+export function deleteOperator(id: string) {
+  return request<OperatorAdminItem>(`/api/operators?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+}

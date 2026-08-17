@@ -7,7 +7,7 @@ import type { PermissionActor } from '../contracts/permission-admin'
 import type { UpdateOperatorInput } from '../contracts/operator-admin'
 
 export class OperatorAdminError extends Error {
-  constructor(message: string, public readonly status: 400 | 403 | 404 = 400) {
+  constructor(message: string, public readonly status: 400 | 403 | 404 | 409 = 400) {
     super(message)
     this.name = 'OperatorAdminError'
   }
@@ -84,6 +84,91 @@ export async function updateOperatorAdministration(
   } catch (error) {
     if (typeof error === 'object' && error && 'code' in error && error.code === 'P2025') {
       throw new OperatorAdminError('操作人员不存在', 404)
+    }
+    throw error
+  }
+}
+
+export async function deleteOperatorAdministration(
+  actor: PermissionActor,
+  operatorId: string,
+  auditContext?: AuditContext,
+) {
+  if (!(await hasResourcePermission(actor, 'operators', 'delete'))) {
+    throw new OperatorAdminError('无权限', 403)
+  }
+  if (operatorId === actor.id) {
+    throw new OperatorAdminError('不能删除当前登录账号', 409)
+  }
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const before = await tx.operator.findUnique({ where: { id: operatorId }, select: operatorSelect })
+      if (!before) throw new OperatorAdminError('操作人员不存在', 404)
+      if (before.status === 'ACTIVE') {
+        throw new OperatorAdminError('启用账号不能删除，请先停用后再试', 409)
+      }
+
+      const [
+        employeeCount,
+        actorAuditCount,
+        equipmentEventCount,
+        inspectionCount,
+        maintenanceCount,
+        approvedOperatorCount,
+        grantedPermissionCount,
+        functionUsageCount,
+        workspacePreferenceCount,
+      ] = await Promise.all([
+        tx.employee.count({ where: { operatorId } }),
+        tx.auditLog.count({ where: { operatorId } }),
+        tx.equipmentEvent.count({ where: { operatorId } }),
+        tx.equipmentInspectionRecord.count({ where: { inspectorId: operatorId } }),
+        tx.equipmentMaintenanceWorkOrder.count({
+          where: {
+            OR: [
+              { createdById: operatorId },
+              { startedById: operatorId },
+              { completedById: operatorId },
+              { cancelledById: operatorId },
+            ],
+          },
+        }),
+        tx.operator.count({ where: { id: { not: operatorId }, approvedBy: operatorId } }),
+        tx.operatorPermissionOverride.count({ where: { operatorId: { not: operatorId }, grantedBy: operatorId } }),
+        tx.operatorFunctionUsage.count({ where: { operatorId } }),
+        tx.operatorWorkspacePreference.count({ where: { operatorId } }),
+      ])
+
+      const blockers = [
+        employeeCount > 0 ? '员工档案' : null,
+        before.lastLoginAt || actorAuditCount > 0 ? '登录、操作或审计记录' : null,
+        equipmentEventCount > 0 ? '设备运行事件' : null,
+        inspectionCount > 0 ? '设备点检记录' : null,
+        maintenanceCount > 0 ? '设备维修记录' : null,
+        approvedOperatorCount > 0 ? '账号审批记录' : null,
+        grantedPermissionCount > 0 ? '权限授权记录' : null,
+        functionUsageCount > 0 || workspacePreferenceCount > 0 ? '工作区使用记录' : null,
+      ].filter((item): item is string => Boolean(item))
+      if (blockers.length > 0) {
+        throw new OperatorAdminError(`该人员存在关联，不能删除：${blockers.join('、')}`, 409)
+      }
+
+      await tx.operator.delete({ where: { id: operatorId } })
+      if (auditContext) await createAuditLog(tx, auditContext, {
+        action: 'DELETE',
+        entityType: 'OPERATOR',
+        entityId: before.id,
+        entityLabel: before.username,
+        beforeData: before,
+        note: '删除无关联人员账号',
+      })
+      return before
+    })
+  } catch (error) {
+    if (typeof error === 'object' && error && 'code' in error) {
+      if (error.code === 'P2025') throw new OperatorAdminError('操作人员不存在', 404)
+      if (error.code === 'P2003') throw new OperatorAdminError('该人员仍存在关联数据，不能删除', 409)
     }
     throw error
   }

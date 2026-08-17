@@ -1,5 +1,6 @@
 {
-  "version": "0.1.397",
-  "impact": "none",
-  "summary": "新增开发结束与人工跟进事项清单，将未签字的生产验收和外部依赖转交企业人员；页面操作、权限、接口、模型及既有 SOP 步骤均未变化。"
+  "version": "0.1.398",
+  "impact": "updated",
+  "workflowIds": ["63-operator-management"],
+  "summary": "人员管理新增受限删除：具备 operators.delete 权限的管理员可删除非启用且无员工、业务、审计或授权关联的账号；有关联时保留记录并明确阻止原因。"
 }

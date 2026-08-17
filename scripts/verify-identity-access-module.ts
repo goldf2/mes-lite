@@ -39,12 +39,24 @@ assert.match(route, /createPermissionGroup\(/, '权限 API 必须通过命令服
 assert.match(route, /writeAuditLog\(/, '权限 API 必须保留请求级审计')
 assert.match(contracts, /updatePermissionsSchema/, '权限输入契约必须由领域模块统一维护')
 assert.match(operatorContracts, /updateOperatorSchema/, '人员输入契约必须由领域模块统一维护')
+assert.match(operatorContracts, /deleteOperatorSchema/, '人员删除输入契约必须由领域模块统一维护')
 assert.match(service, /ensureDefaultPermissions\(/, '权限服务必须在读写前建立默认权限基线')
 assert.match(service, /hasResourcePermission\(/, '权限服务必须执行资源级授权检查')
 assert.match(service, /prisma\.\$transaction\(/, '权限变更必须在事务内完成')
 assert.match(operatorService, /hasResourcePermission\(/, '人员管理服务必须执行资源级授权检查')
+assert.match(operatorService, /deleteOperatorAdministration/, '人员管理服务必须提供受限删除命令')
+assert.match(operatorService, /'operators', 'delete'/, '人员删除必须检查 operators.delete 权限')
+for (const relationCheck of [
+  'employee.count', 'auditLog.count', 'equipmentEvent.count', 'equipmentInspectionRecord.count',
+  'equipmentMaintenanceWorkOrder.count', 'approvedBy: operatorId', 'grantedBy: operatorId',
+]) {
+  assert.ok(operatorService.includes(relationCheck), `人员删除缺少关联校验：${relationCheck}`)
+}
 assert.match(client, /loadPermissionAdministration/, '前端 client 必须统一封装权限数据请求')
 assert.match(client, /loadOperators/, '前端 client 必须统一封装人员数据请求')
+assert.match(client, /deleteOperator/, '前端 client 必须统一封装人员删除请求')
+assert.match(operatorRoute, /export async function DELETE/, '人员 API 必须提供 DELETE 适配层')
+assert.match(operatorPage, /deleteOperatorRequest/, '人员页面必须通过领域 client 执行受限删除')
 assert.doesNotMatch(permissionPage, /\bfetch\(/, '权限页不得直接调用 fetch')
 assert.doesNotMatch(operatorPage, /\bfetch\(/, '人员页不得直接调用 fetch')
 

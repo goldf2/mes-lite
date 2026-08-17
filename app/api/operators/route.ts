@@ -4,8 +4,9 @@ import { getCurrentOperator } from '@/lib/auth'
 import { getAuditContext } from '@/lib/audit'
 import { requireResourcePermission } from '@/lib/permissions'
 import { parseStatusFilter } from '@/lib/status-filter'
-import { updateOperatorSchema } from '@/modules/identity-access/contracts/operator-admin'
+import { deleteOperatorSchema, updateOperatorSchema } from '@/modules/identity-access/contracts/operator-admin'
 import {
+  deleteOperatorAdministration,
   listOperators,
   OperatorAdminError,
   updateOperatorAdministration,
@@ -18,8 +19,8 @@ function operatorError(error: unknown) {
   if (error instanceof OperatorAdminError) {
     return NextResponse.json({ error: error.message }, { status: error.status })
   }
-  console.error('Update operator error:', error)
-  return NextResponse.json({ error: '更新失败' }, { status: 500 })
+  console.error('Operator administration error:', error)
+  return NextResponse.json({ error: '人员管理操作失败' }, { status: 500 })
 }
 
 export async function GET(req: NextRequest) {
@@ -40,6 +41,19 @@ export async function PATCH(req: NextRequest) {
       await getAuditContext(req),
     )
     return NextResponse.json({ data: operator, message: '操作人员已更新' })
+  } catch (error) {
+    return operatorError(error)
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const current = await getCurrentOperator()
+  if (!current) return NextResponse.json({ error: '无权限' }, { status: 403 })
+
+  try {
+    const { id } = deleteOperatorSchema.parse({ id: new URL(req.url).searchParams.get('id') })
+    const operator = await deleteOperatorAdministration(current, id, await getAuditContext(req))
+    return NextResponse.json({ data: operator, message: '人员账号已删除' })
   } catch (error) {
     return operatorError(error)
   }

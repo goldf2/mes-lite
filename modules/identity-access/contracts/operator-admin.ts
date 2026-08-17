@@ -27,3 +27,7 @@ export const updateOperatorSchema = z.object({
 })
 
 export type UpdateOperatorInput = z.infer<typeof updateOperatorSchema>
+
+export const deleteOperatorSchema = z.object({
+  id: z.string().min(1),
+})

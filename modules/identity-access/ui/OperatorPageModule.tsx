@@ -9,7 +9,11 @@ import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeT
 import SortableTableHeader from '@/app/components/SortableTableHeader'
 import useClientTableSort from '@/app/components/useClientTableSort'
 import { MappedResourceAdvancedSearch } from '@/app/components/resource'
-import { loadOperators, updateOperator as updateOperatorRequest } from '../client/identity-access-api'
+import {
+  deleteOperator as deleteOperatorRequest,
+  loadOperators,
+  updateOperator as updateOperatorRequest,
+} from '../client/identity-access-api'
 import type { OperatorAdminItem, OperatorRole, UpdateOperatorInput } from '../contracts/operator-admin'
 
 const roleLabels: Record<string, string> = {
@@ -69,6 +73,7 @@ export default function OperatorPageModule({
   }, 'createdAt', 'desc')
 
   const canManage = currentOperator.role === 'ADMIN'
+  const canDelete = currentOperator.permissions?.operators?.canDelete ?? currentOperator.role === 'ADMIN'
   const totalCount = operators.length
   const activeCount = operators.filter((operator) => operator.status === 'ACTIVE').length
   const pendingCount = operators.filter((operator) => operator.status === 'PENDING').length
@@ -98,6 +103,20 @@ export default function OperatorPageModule({
       await fetchOperators()
     } catch (error) {
       onMessage(error instanceof Error ? error.message : '更新失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const deleteOperator = async (operator: OperatorAdminItem) => {
+    if (!window.confirm(`确认删除人员账号“${operator.name}（${operator.username}）”？\n仅无员工、业务和审计关联的非启用账号可以删除；删除后无法撤销。`)) return
+    setLoading(true)
+    try {
+      await deleteOperatorRequest(operator.id)
+      onMessage('人员账号已删除')
+      await fetchOperators()
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '删除失败')
     } finally {
       setLoading(false)
     }
@@ -221,6 +240,15 @@ export default function OperatorPageModule({
                     停用
                   </button>
                 )}
+                {canDelete && operator.status !== 'ACTIVE' && operator.id !== currentOperator.id && (
+                  <button
+                    disabled={loading}
+                    onClick={() => deleteOperator(operator)}
+                    className="px-3 py-1 border border-red-200 text-red-700 rounded text-xs hover:bg-red-50 disabled:opacity-50"
+                  >
+                    删除
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -294,6 +322,15 @@ export default function OperatorPageModule({
                           className="px-3 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50 disabled:opacity-50"
                         >
                           停用
+                        </button>
+                      )}
+                      {canDelete && operator.status !== 'ACTIVE' && operator.id !== currentOperator.id && (
+                        <button
+                          disabled={loading}
+                          onClick={() => deleteOperator(operator)}
+                          className="px-3 py-1 border border-red-200 text-red-700 rounded text-xs hover:bg-red-50 disabled:opacity-50"
+                        >
+                          删除
                         </button>
                       )}
                     </div>
