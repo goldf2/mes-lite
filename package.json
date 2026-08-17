@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.401",
+  "version": "0.1.402",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -73,6 +73,7 @@
     "verify:document-recognition-module": "tsx scripts/verify-document-recognition-module.ts",
     "verify:sales-module": "tsx scripts/verify-sales-module.ts",
     "verify:ai-agent": "tsx scripts/verify-ai-agent.ts",
+    "verify:ai-assistant-multimodal": "tsx scripts/verify-ai-assistant-multimodal.ts",
     "verify:ai-mark": "tsx scripts/verify-ai-assistant-mark-config.ts",
     "verify:control-tooltips": "tsx scripts/verify-control-tooltips.tsx",
     "verify:dual-units": "tsx scripts/verify-dual-unit-flow.ts",
