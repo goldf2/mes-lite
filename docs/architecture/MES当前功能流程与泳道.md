@@ -2,7 +2,7 @@
 
 状态：当前代码事实
 日期：2026-08-16
-事实基线：`v0.1.396`
+事实基线：`v0.1.397`
 
 展示文件：[HTML 流程与泳道](../../public/mes-current-workflow.html) · [Excalidraw 可编辑源文件](../../public/mes-current-workflow.excalidraw)
 

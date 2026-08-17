@@ -2,7 +2,7 @@
 
 本目录是 MES-lite 的统一知识入口。第一次接触系统时，不建议从发布记录或单个专题开始阅读；先通过总手册建立整体认知，再进入对应领域。
 
-当前事实基线：`v0.1.396` / 2026-08-17。
+当前事实基线：`v0.1.397` / 2026-08-17。
 
 ## 1. 推荐阅读路径
 
@@ -30,7 +30,7 @@
 | 暂停的未来租户化候选 | [目标数据模型草案](./minierp/data-model.md) |
 | MES 主体与计划、经营辅助能力如何分工 | [MES-lite 混合系统功能边界矩阵](./architecture/MES-MRP-ERP功能矩阵.md) |
 | 作为 MES 还缺什么、接下来按什么顺序补齐 | [MES 核心能力缺口与建设路线](./architecture/MES核心能力缺口与建设路线.md) |
-| 如何按界面完成当前已交付的业务流程 | 站内“帮助中心”或顶部问号；快捷帮助和完整帮助都可新开全屏页面并播放关联视频。当前同源文件见 [Markdown](./operations/user-guide/MES-lite全流程作业指导书-v0.1.395.md)；首批跨页面视频分镜见[常用工作流视频 SOP](./operations/user-guide/workflow-videos/README.md)。DOCX、PDF、离线 Web 和视频按 [SOP 生成与发布策略](./operations/SOP生成与发布策略.md)及[视频帮助分类与发布](./operations/视频帮助分类与发布.md)管理，不进入 Git/Docker 发布树 |
+| 如何按界面完成当前已交付的业务流程 | 站内“帮助中心”或顶部问号；快捷帮助和完整帮助都可新开全屏页面并播放关联视频。当前同源文件见 [Markdown](./operations/user-guide/MES-lite全流程作业指导书-v0.1.397.md)；首批跨页面视频分镜见[常用工作流视频 SOP](./operations/user-guide/workflow-videos/README.md)。DOCX、PDF、离线 Web 和视频按 [SOP 生成与发布策略](./operations/SOP生成与发布策略.md)及[视频帮助分类与发布](./operations/视频帮助分类与发布.md)管理，不进入 Git/Docker 发布树 |
 | 如何登记并核对生产实绩的设备和作业文件版本 | [生产实绩执行上下文操作与回滚](./operations/生产实绩执行上下文操作与回滚.md) |
 | 如何登记设备开停机、故障和恢复 | [设备运行事件操作与回滚](./operations/设备运行事件操作与回滚.md) |
 | 如何建立并执行周期设备点检 | [设备点检操作与回滚](./operations/设备点检操作与回滚.md) |
@@ -56,6 +56,7 @@
 | 生产候选是否已收敛到当前迁移基线 | [2026-08-15 Schema 收敛与应用恢复证据](./operations/drills/2026-08-15-schema-reconciliation-candidate-v0.1.377.md) |
 | 商业交付如何签署范围、流程和发布门禁 | [单厂 MES 商业交付验收基线](./delivery/单厂MES商业交付验收基线.md) |
 | 当前开发是否可以冻结，距离生产验收还缺哪些唯一门禁 | [开发冻结与生产验收交接清单](./delivery/开发冻结与生产验收交接清单.md) |
+| 开发结束后还有哪些事项、由谁人工跟进 | [开发结束与人工跟进事项清单](./delivery/开发结束与人工跟进事项清单.md) |
 
 ## 2. 文档状态怎么判断
 
