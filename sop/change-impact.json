@@ -1,6 +1,6 @@
 {
-  "version": "0.1.400",
-  "impact": "updated",
-  "workflowIds": ["63-operator-management"],
-  "summary": "人员管理新增管理员密码重置：双重输入新密码，成功后撤销目标账号全部会话、清除登录锁定并保留不含凭据的审计。"
+  "version": "0.1.401",
+  "impact": "none",
+  "workflowIds": [],
+  "summary": "本版本仅调整 GitHub Actions 构建门禁和发布说明，不改变站内页面、业务流程或 SOP 操作步骤。"
 }

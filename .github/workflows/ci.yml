@@ -1,10 +1,12 @@
 name: MES-lite CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
       - main
+      - "ci/**"
 
 permissions:
   contents: read
@@ -44,9 +46,6 @@ jobs:
           npx prisma validate
           npx prisma generate
 
-      - name: Production build
-        run: npm run build
-
       - name: Verify application recovery drill
         run: npm run verify:application-recovery-drill
 
@@ -60,3 +59,6 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Production build
+        run: npm run build

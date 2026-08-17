@@ -55,7 +55,7 @@ npm run dev:admin
 
 ```bash
 npm run dev                  # 开发服务器
-npm run build                # 生产构建
+npm run build                # 生产构建（标准发布由 GitHub Actions 执行；本机仅排障时使用）
 npm run lint                 # ESLint
 npx tsc --noEmit             # TypeScript 检查
 npm run db:migrate           # 开发迁移
@@ -67,6 +67,8 @@ npm run verify:data-integrity # 关键数据一致性
 ```
 
 更多领域验证见 `package.json` 中的 `verify:*` 脚本。
+
+标准发布不在开发机重复执行完整生产构建：先将精确提交推送到 `ci/<版本号>` 候选分支，等待 `MES-lite CI` 完成回归、类型检查、Lint 和 `npm run build`，成功后再把同一提交推送或合并到 `main`。具体边界见 [Coolify 部署说明](./docs/deployment/coolify.md)。
 
 ## 架构入口
 

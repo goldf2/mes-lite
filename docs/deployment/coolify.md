@@ -2,7 +2,20 @@
 
 MES-lite 当前使用 SQLite，适合单实例 Docker 部署。数据库和上传附件必须挂载到主机持久目录，容器可以重建，主机数据目录不能随容器删除。
 
-## 1. 本地验证
+## 1. 开发机验证与 GitHub Actions 远端构建
+
+普通变更在开发机只运行受影响的回归、静态检查或开发服务器验证，不再重复运行完整 `npm run build`。标准发布顺序为：
+
+1. 完成本机针对性验证并提交代码。
+2. 将精确提交推送到 `ci/<版本号>` 候选分支，不先推送 `main`。
+3. 等待该 SHA 对应的 `MES-lite CI` 成功。工作流依次执行 Prisma 校验与生成、恢复演练校验、领域与治理基线、TypeScript、Lint 和生产构建。
+4. 核对 run ID、提交 SHA 和结论后，把同一提交推送或合并到 `main`，再由 Coolify 的 main Webhook 部署。
+
+需要手动重跑时，可在 GitHub 的 Actions 页面选择 `MES-lite CI`，点击 `Run workflow` 并选择候选分支。远端构建失败时不得继续推送 `main` 或人工 Redeploy。
+
+这项调整替代的是开发机上的 Next.js 生产构建，不是 Coolify 的 Docker 镜像构建。当前 Actions 不发布可部署镜像；Coolify 收到 `main` 后仍会从仓库执行 Dockerfile。若后续目标是降低 Coolify 主机 CPU，而不只是取消本机编译，应单独建立“Actions 构建并推送 GHCR 镜像、Coolify 仅拉取镜像”的发布链路，并先验证镜像权限、版本标签、三个持久挂载和回滚策略。
+
+仅在本机排查生产构建或启动差异时使用：
 
 ```bash
 npm ci
