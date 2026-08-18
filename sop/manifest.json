@@ -1446,9 +1446,10 @@
             "点击“新建来料单”。",
             "选择供应商、物料、收货库位。",
             "填写数量、实测重量、单价、凭据和附件。",
+            "添加多项物料时，在右侧“本单已加入”清单中滚动核对全部明细。",
             "创建后保留为待收货，等待现场确认。"
           ],
-          "result": "来料单生成，但库存尚未增加。",
+          "result": "右侧清单可滚动查看全部已加入物料，来料单生成后库存尚未增加。",
           "pageKey": "materialIn",
           "resource": "materialIn",
           "roles": [
@@ -1459,7 +1460,7 @@
             "baseline": "0.1.350",
             "file": "18-receiving-create.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.404"
         },
         {
           "id": "19-receiving-received",
