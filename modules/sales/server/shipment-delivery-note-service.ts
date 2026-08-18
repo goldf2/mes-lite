@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import PDFDocument from 'pdfkit'
+import QRCode from 'qrcode'
 import { getSystemSettings, type SystemSettings } from '@/lib/system-settings'
 import { SalesDomainError } from '../domain/sales-errors'
 import { getShipmentDeliveryNoteSource } from './fulfillment-query-service'
@@ -39,6 +40,12 @@ function drawCell(
 type DeliveryNoteShipment = Awaited<ReturnType<typeof getShipmentDeliveryNoteSource>>
 
 async function renderDeliveryNotePdf(shipment: DeliveryNoteShipment, settings: SystemSettings) {
+  const shipmentQrCode = await QRCode.toBuffer(shipment.shipmentNo, {
+    errorCorrectionLevel: 'M',
+    margin: 1,
+    width: 240,
+    color: { dark: '#000000', light: '#ffffff' },
+  })
   return new Promise<Buffer>((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 48 })
     const chunks: Buffer[] = []
@@ -58,6 +65,7 @@ async function renderDeliveryNotePdf(shipment: DeliveryNoteShipment, settings: S
     doc.fontSize(22).text('发货单', left, 48, { align: 'center', width: tableWidth })
     doc.moveDown(0.5)
     doc.fontSize(10).text(settings.companyName, left, 78, { align: 'center', width: tableWidth })
+    doc.image(shipmentQrCode, right - 52, 46, { width: 48, height: 48 })
     doc.fontSize(10)
     doc.text(`发货单号：${shipment.shipmentNo}`, left, 108)
     doc.text(`发货时间：${formatDate(shipment.shippedAt)}`, left + 280, 112)
@@ -109,10 +117,15 @@ async function renderDeliveryNotePdf(shipment: DeliveryNoteShipment, settings: S
     drawCell(doc, '合计', left, totalY, totalLabelWidth, 34, { align: 'right' })
     drawCell(doc, money(Number(shipment.totalAmount)), left + totalLabelWidth, totalY, widths[5], 34, { align: 'center' })
 
-    const noteY = totalY + 58
-    doc.fontSize(10).text(`物流单号：${shipment.trackingNo || '-'}`, left, noteY)
-    doc.text(`备注：${shipment.note || '-'}`, left, noteY + 24, { width: tableWidth })
-    const signY = noteY + 92
+    const packageSummary = shipment.packages.length > 0
+      ? shipment.packages.map((item) => `${item.packageNo}(${item.items.reduce((sum, row) => sum + Number(row.quantity), 0)} ${item.items[0]?.unitSnapshot || ''})`).join('；')
+      : '未启用货箱单据'
+    const noteY = totalY + 50
+    doc.fontSize(9).text(`货箱单据：${packageSummary}`, left, noteY, { width: tableWidth, ellipsis: true })
+    doc.fontSize(10)
+    doc.text(`物流单号：${shipment.trackingNo || '-'}`, left, noteY + 24)
+    doc.text(`备注：${shipment.note || '-'}`, left, noteY + 48, { width: tableWidth })
+    const signY = noteY + 108
     doc.text('乙方发货人：____________', left, signY)
     doc.text('甲方收货人：____________', left + 210, signY)
     doc.text('签收日期：______________', left + 390, signY)

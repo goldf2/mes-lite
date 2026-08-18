@@ -189,6 +189,8 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
       canDispatch={context.canUpdate('shipmentDispatch')}
       canDeliver={context.canUpdate('shipmentDeliver')}
       canCancel={context.canUpdate('shipmentCancel')}
+      canPackage={context.canUpdate('shipmentDispatch')}
+      canManagePackageAttachments={context.canUpdate('shipmentDispatch') && context.canCreate('attachments')}
     />
   ),
   return: (context) => (

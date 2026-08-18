@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode, useCallback, useMemo, useState, useEffect } from 'react'
+import { ReactNode, useCallback, useMemo, useRef, useState, useEffect } from 'react'
 import { AttachmentPanel } from '@/modules/attachments'
 import { getStatusQuery } from '@/app/components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
@@ -15,7 +15,8 @@ import { BusinessDocumentDetailDialog, BusinessDocumentPrintLink } from '@/modul
 import { InventoryLotTraceDialog } from '@/modules/inventory'
 import ShipmentCreateDialog from './ShipmentCreateDialog'
 import ShipmentStatusActions from './ShipmentStatusActions'
-import { loadShipments } from '../client/fulfillment-api'
+import ShipmentPackageSection from './ShipmentPackageSection'
+import { loadShipmentDetail, loadShipments } from '../client/fulfillment-api'
 import type { FulfillmentCustomer, Shipment } from '../contracts/fulfillment'
 import {
   shipmentStatusColors as statusColors,
@@ -29,6 +30,8 @@ export default function ShipmentPageModule({
   canDispatch,
   canDeliver,
   canCancel,
+  canPackage,
+  canManagePackageAttachments,
 }: {
   onMessage: (msg: string) => void
   onToolbarChange?: (actions: ReactNode | null) => void
@@ -36,6 +39,8 @@ export default function ShipmentPageModule({
   canDispatch: boolean
   canDeliver: boolean
   canCancel: boolean
+  canPackage: boolean
+  canManagePackageAttachments: boolean
 }) {
   const [shipments, setShipments] = useState<Shipment[]>([])
   const [customers, setCustomers] = useState<FulfillmentCustomer[]>([])
@@ -51,6 +56,7 @@ export default function ShipmentPageModule({
   const [detailItem, setDetailItem] = useState<Shipment | null>(null)
   const [traceLotId, setTraceLotId] = useState<string | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.shipment.viewMode', 'list')
+  const deepLinkHandledRef = useRef(false)
   const advancedSearchFields = useMemo(() => [
     { key: 'status', label: '状态', value: selectedStatuses.length === 1 ? selectedStatuses[0] : '', onChange: (value: string) => setSelectedStatuses(value ? [value] : statusOptions.map((option) => option.value)), options: statusOptions },
     { key: 'customerId', label: '客户', value: selectedCustomerId, onChange: setSelectedCustomerId, options: [{ value: '__UNASSIGNED__', label: '通用/未绑定' }, ...customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` }))] },
@@ -89,6 +95,15 @@ export default function ShipmentPageModule({
     void fetchShipments()
   }, [fetchShipments])
   useEffect(() => {
+    if (deepLinkHandledRef.current || typeof window === 'undefined') return
+    const shipmentId = new URL(window.location.href).searchParams.get('document')
+    if (!shipmentId) return
+    deepLinkHandledRef.current = true
+    loadShipmentDetail(shipmentId)
+      .then(setDetailItem)
+      .catch((error) => onMessage(error instanceof Error ? error.message : '获取扫码单据失败'))
+  }, [onMessage])
+  useEffect(() => {
     if (!onToolbarChange) return
 
     onToolbarChange(
@@ -108,6 +123,16 @@ export default function ShipmentPageModule({
     )
     return () => onToolbarChange(null)
   }, [advancedSearchFields, canCreate, onToolbarChange, keyword, selectedStatuses, selectedCustomerId, customers, viewMode, setViewMode])
+
+  const refreshDetail = useCallback(async () => {
+    if (!detailItem) return
+    try {
+      setDetailItem(await loadShipmentDetail(detailItem.id))
+      await fetchShipments()
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '刷新发货单详情失败')
+    }
+  }, [detailItem, fetchShipments, onMessage])
 
   return (
     <>
@@ -303,6 +328,13 @@ export default function ShipmentPageModule({
             <div><dt className="text-gray-500">发货时间</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.shippedAt ? new Date(detailItem.shippedAt).toLocaleString('zh-CN') : '-'}</dd></div>
             <div><dt className="text-gray-500">收货地址</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.address || '-'}</dd></div>
           </dl>
+          <ShipmentPackageSection
+            shipment={detailItem}
+            canManage={canPackage}
+            canManageAttachments={canManagePackageAttachments}
+            onRefresh={refreshDetail}
+            onMessage={onMessage}
+          />
           <section className="mt-5 border-t border-gray-200 pt-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-sm font-semibold text-gray-900">客户发货批次</h3>

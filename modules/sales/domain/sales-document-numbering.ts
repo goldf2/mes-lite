@@ -6,11 +6,11 @@ export function parseSalesDate(value: string, field: string) {
   return date
 }
 
-export function datedDocumentPrefix(kind: 'SO' | 'SH' | 'RT', date: Date) {
+export function datedDocumentPrefix(kind: 'SO' | 'SH' | 'RT' | 'BX', date: Date) {
   return `${kind}-${date.toISOString().slice(0, 10).replace(/-/g, '')}-`
 }
 
-export function nextDatedDocumentNo(kind: 'SO' | 'SH' | 'RT', date: Date, latestNo?: string | null) {
+export function nextDatedDocumentNo(kind: 'SO' | 'SH' | 'RT' | 'BX', date: Date, latestNo?: string | null) {
   const prefix = datedDocumentPrefix(kind, date)
   const latestSequence = latestNo?.startsWith(prefix) ? Number(latestNo.slice(prefix.length)) : 0
   const sequence = Number.isInteger(latestSequence) && latestSequence > 0 ? latestSequence + 1 : 1

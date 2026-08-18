@@ -12,6 +12,7 @@ export const attachmentOwnerPolicies = {
   DISPATCH: { resource: 'dispatch' },
   SALES_ORDER: { resource: 'salesOrder' },
   SHIPMENT: { resource: 'shipment' },
+  PACKAGE_DOCUMENT: { resource: 'shipment' },
   RETURN_ORDER: { resource: 'return' },
   FLOW_TRANSFER: { resource: 'flowTransfers' },
   EQUIPMENT_INSPECTION_RECORD: { resource: 'equipmentInspections' },

@@ -433,6 +433,7 @@ model Material {
   productionActualOutputs     ProductionOrderActualOutput[]    @relation("ProductionOrderActualOutputMaterial")
   flowTransfers               FlowTransfer[]
   shipments                   Shipment[]
+  packageDocumentItems        PackageDocumentItem[]
   salesOrderItems             SalesOrderItem[]
   returnOrders                ReturnOrder[]
   inventoryLots               InventoryLot[]
@@ -1267,6 +1268,7 @@ model InventoryLot {
   costLayers                  InventoryCostLayer[]
   productionInputAllocations  InventoryLotAllocation[]
   shipmentAllocations         ShipmentLotAllocation[]
+  packageDocumentItems        PackageDocumentItem[]
   returnedLotAllocations      ReturnLotAllocation[]                    @relation("ReturnedInventoryLot")
   maintenanceSpareAllocations EquipmentMaintenanceSpareLotAllocation[]
   parentGenealogies           InventoryLotGenealogy[]                  @relation("InventoryLotGenealogyParent")
@@ -1845,11 +1847,57 @@ model Shipment {
   deletedBy             String?
   returnOrders          ReturnOrder[]
   lotAllocations        ShipmentLotAllocation[]
+  packages              PackageDocument[]
   createdAt             DateTime                @default(now())
 
   @@index([materialId])
   @@index([salesOrderId])
   @@index([salesOrderItemId])
+}
+
+model PackageDocument {
+  id           String                @id @default(cuid())
+  packageNo    String                @unique
+  shipmentId   String
+  shipment     Shipment              @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  status       String                @default("PACKED")
+  packedBy     String
+  packedAt     DateTime              @default(now())
+  grossWeight  Float?
+  netWeight    Float?
+  weightUnit   String                @default("kg")
+  lengthMm     Float?
+  widthMm      Float?
+  heightMm     Float?
+  sealNo       String?
+  note         String?
+  deletedAt    DateTime?
+  deletedBy    String?
+  items        PackageDocumentItem[]
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  @@index([shipmentId, status])
+  @@index([packedAt])
+}
+
+model PackageDocumentItem {
+  id                String          @id @default(cuid())
+  packageDocumentId String
+  packageDocument   PackageDocument @relation(fields: [packageDocumentId], references: [id], onDelete: Restrict)
+  materialId        String
+  material          Material        @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  inventoryLotId    String?
+  inventoryLot      InventoryLot?   @relation(fields: [inventoryLotId], references: [id], onDelete: Restrict)
+  quantity          Float
+  unitSnapshot      String
+  lotNoSnapshot     String?
+  note              String?
+  createdAt         DateTime        @default(now())
+
+  @@index([packageDocumentId])
+  @@index([materialId])
+  @@index([inventoryLotId])
 }
 
 // ==================== 扫码计数与标签打印 ====================

@@ -354,10 +354,27 @@ SKU，实际库存单位。
 | qty / unit_price / total_amount | 本次发货数量、订单单价和金额 |
 | customer / customer_phone / address | 创建发货单时冻结的甲方快照 |
 | shipped_at | 实际确认发货时间 |
+| tracking_no | 承运商运单号；与系统发货二维码编号分离 |
 
 轻量版允许独立创建 `Shipment`，也允许显式关联一条销售订单明细；同一销售订单可关联多张发货单。关联时甲方来自订单客户，独立发货时由用户选择客户；乙方企业资料存放在 `SystemSetting` 的 `company.*` 键中并用于 PDF。销售订单页面不直接派生发货单。
 
 销售订单、发货与退货的读取、创建、状态流转和归档由 `modules/sales/server` 统一拥有。关联待发货数量从有效 `PENDING` 发货单汇总，确认发货才累计 `shipped_qty` 并原子扣减总库存、库位余额与成本；关联退货处理按原发货 `shippedValuationQty / shippedCostAmount` 比例恢复库存，库存流水幂等键阻止重复过账。
+
+### package_documents / package_document_items
+
+货箱采用独立单头和内容物明细建模，每个货箱码对应一张系统货箱单据，而不是直接对应文件或库存余额。
+
+| 模型/字段 | 含义 |
+| --- | --- |
+| `PackageDocument.packageNo` | 唯一货箱号，格式 `BX-YYYYMMDD-###` |
+| `shipmentId` | 所属发货单；送货单据汇总展示其全部有效货箱 |
+| `status` | `PACKED / SHIPPED / DELIVERED / CANCELLED / ARCHIVED` |
+| `packedBy / packedAt` | 包装人员和包装时间 |
+| `grossWeight / netWeight / weightUnit` | 毛重、净重和重量单位快照 |
+| `lengthMm / widthMm / heightMm / sealNo` | 外箱尺寸和封签号 |
+| `PackageDocumentItem` | 物料、数量、单位和可选内部批次快照 |
+
+装箱现场和实物照片通过 `DocumentAttachment(ownerType=PACKAGE_DOCUMENT, ownerId=货箱ID)` 维护。没有货箱记录的历史或简化发货保持兼容；一旦开始装箱，确认发货要求有效货箱数量合计与发货数量一致。
 
 ### inventory_balances
 
@@ -802,7 +819,7 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 ### label_print_jobs
 
-标签打印任务保存模板、通用引用、打印机配置、所选介质宽高、份数和标签数据快照。当前默认介质为 105 × 70 mm，但每次任务以 `labelWidthMm / labelHeightMm` 快照为准，历史记录不随后续默认值变化。`clientRequestId` 保证同一打印请求只登记一次。当前 `REQUESTED` 表示系统已经发起浏览器打印请求，不表示打印机已经物理出纸；后续独立打印桥接模块需扩展可确认的发送和设备回执状态。
+标签打印任务保存模板、通用引用、打印机配置、所选介质宽高、份数和标签数据快照。`GENERIC_LABEL` 用于通用 Code 128 标签；`DOCUMENT_QR` 用于 `PACKAGE_DOCUMENT` 货箱码和 `SHIPMENT` 发货码，二维码内容是系统业务单号，扫码后仍重新执行登录、资源权限和库存库位数据范围校验。当前默认介质为 105 × 70 mm，但每次任务以 `labelWidthMm / labelHeightMm` 快照为准，历史记录不随后续默认值变化。`clientRequestId` 保证同一打印请求只登记一次。当前 `REQUESTED` 表示系统已经发起浏览器打印请求，不表示打印机已经物理出纸；后续独立打印桥接模块需扩展可确认的发送和设备回执状态。
 
 ### document_categories / work_instructions
 

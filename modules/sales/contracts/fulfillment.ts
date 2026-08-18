@@ -75,6 +75,7 @@ export interface Shipment {
     lot: { id: string; lotNo: string; sourceType: string; supplierLotNo?: string | null; status: string }
     location: { id: string; code: string; name: string }
   }>
+  packages: import('./shipment-package').ShipmentPackage[]
 }
 
 export interface ReturnShipmentOption {

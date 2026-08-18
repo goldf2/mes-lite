@@ -13,7 +13,7 @@ export const createDefaultLabelData = (): LabelData => ({
   spec: '',
   quantity: 1,
   unit: '件',
-  note: '扫码与标签业务联动将在后续阶段接入',
+  note: '用于 PC310T 连通性与标签版式校准',
 })
 
 export function formatScanQuantity(value: number) {

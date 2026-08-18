@@ -2,3 +2,5 @@ export { default as OperationsToolsSectionPage, isOperationsToolsSection } from 
 export type { OperationsToolsSection } from './ui/OperationsToolsSectionPage'
 export { default as SawingCostCalculatorPageModule } from './ui/SawingCostCalculatorPageModule'
 export { default as ScanPrintPageModule } from './ui/ScanPrintPageModule'
+export { default as DocumentQrLabelDialog } from './ui/DocumentQrLabelDialog'
+export type { DocumentQrLabelData } from './ui/DocumentQrLabel'

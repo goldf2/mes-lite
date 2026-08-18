@@ -18,6 +18,19 @@ export async function shipManagedShipment(id: string, shippedBy: string, scope: 
     if (!shipment) throw new SalesDomainError('发货单不存在', 404)
     assertInventoryLocationDataScope(scope, [shipment.locationId])
     if (shipment.status !== 'PENDING') throw new SalesDomainError('只能确认待发货状态的发货单')
+    const packages = await tx.packageDocument.findMany({
+      where: { shipmentId: shipment.id, deletedAt: null },
+      include: { items: { select: { quantity: true } } },
+    })
+    if (packages.length > 0) {
+      const packedQty = packages.reduce(
+        (packageSum, packageDocument) => packageSum + packageDocument.items.reduce((itemSum, item) => itemSum + Number(item.quantity), 0),
+        0,
+      )
+      if (Math.abs(packedQty - Number(shipment.qty)) > 0.000001) {
+        throw new SalesDomainError(`货箱内容合计 ${Number(packedQty.toFixed(6))}，必须与发货数量 ${shipment.qty} 一致`)
+      }
+    }
     const materialId = await resolveMaterialIdForProduct(tx, shipment.productId, shipment.materialId)
     if (!materialId) throw new SalesDomainError('发货对象未关联统一物料档案')
     if (shipment.salesOrderItemId) {
@@ -53,6 +66,12 @@ export async function shipManagedShipment(id: string, shippedBy: string, scope: 
         conversionRateUsed: issue.conversionRateUsed, conversionSource: issue.conversionSource,
       },
     })
+    if (packages.length > 0) {
+      await tx.packageDocument.updateMany({
+        where: { shipmentId: shipment.id, deletedAt: null },
+        data: { status: 'SHIPPED' },
+      })
+    }
     if (shipment.salesOrderItemId && shipment.salesOrderId) {
       await tx.salesOrderItem.update({
         where: { id: shipment.salesOrderItemId }, data: { shippedQty: { increment: Number(shipment.qty) } },
@@ -68,8 +87,14 @@ export async function deliverManagedShipment(id: string, scope: EffectiveDataSco
   if (!before) throw new SalesDomainError('发货单不存在', 404)
   assertInventoryLocationDataScope(scope, [before.locationId])
   if (before.status !== 'SHIPPED') throw new SalesDomainError('只能确认已发货状态的发货单签收')
-  const updated = await prisma.shipment.update({ where: { id }, data: { status: 'DELIVERED' } })
-  return { before, updated }
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.shipment.update({ where: { id }, data: { status: 'DELIVERED' } })
+    await tx.packageDocument.updateMany({
+      where: { shipmentId: id, deletedAt: null, status: 'SHIPPED' },
+      data: { status: 'DELIVERED' },
+    })
+    return { before, updated }
+  })
 }
 
 export async function cancelManagedShipment(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
@@ -77,8 +102,14 @@ export async function cancelManagedShipment(id: string, scope: EffectiveDataScop
   if (!before) throw new SalesDomainError('发货单不存在', 404)
   assertInventoryLocationDataScope(scope, [before.locationId])
   if (before.status !== 'PENDING') throw new SalesDomainError('已发货的发货单不可取消，请走退货流程')
-  const updated = await prisma.shipment.update({ where: { id }, data: { status: 'CANCELLED' } })
-  return { before, updated }
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.shipment.update({ where: { id }, data: { status: 'CANCELLED' } })
+    await tx.packageDocument.updateMany({
+      where: { shipmentId: id, deletedAt: null, status: 'PACKED' },
+      data: { status: 'CANCELLED' },
+    })
+    return { before, updated }
+  })
 }
 
 export async function processManagedReturn(id: string, processedBy: string, scope: EffectiveDataScope = unrestrictedDataScope) {

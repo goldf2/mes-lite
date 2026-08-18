@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
 import { SalesDomainError } from '../domain/sales-errors'
+import { shipmentPackageInclude } from './shipment-package-query-service'
 import {
   assertInventoryLocationDataScope,
   returnDataScopeWhere,
@@ -61,6 +62,11 @@ export async function listShipments(input: FulfillmentQuery, scope: EffectiveDat
           },
           orderBy: { createdAt: 'asc' },
         },
+        packages: {
+          where: { deletedAt: null },
+          include: shipmentPackageInclude,
+          orderBy: [{ packedAt: 'asc' }, { createdAt: 'asc' }],
+        },
       },
       orderBy: { createdAt: 'desc' }, skip: (input.page - 1) * input.pageSize, take: input.pageSize,
     }),
@@ -119,11 +125,35 @@ export async function listReturnShipmentOptions(scope: EffectiveDataScope = unre
 export async function getShipmentDetail(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   const shipment = await prisma.shipment.findUnique({
     where: { id },
-    include: { product: true, location: true, returnOrders: { orderBy: { createdAt: 'desc' } } },
+    include: {
+      product: { select: { id: true, name: true, sku: true, unit: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
+      customerRef: { select: { id: true, code: true, name: true } },
+      location: { select: { id: true, code: true, name: true } },
+      salesOrder: { select: { id: true, orderNo: true, voucherNo: true } },
+      returnOrders: {
+        where: { deletedAt: null, status: { in: ['PENDING', 'PROCESSED'] } },
+        select: { qty: true },
+      },
+      lotAllocations: {
+        where: { status: 'ACTIVE' },
+        include: {
+          lot: { select: { id: true, lotNo: true, sourceType: true, supplierLotNo: true, status: true } },
+          location: { select: { id: true, code: true, name: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      },
+      packages: { where: { deletedAt: null }, include: shipmentPackageInclude, orderBy: [{ packedAt: 'asc' }, { createdAt: 'asc' }] },
+    },
   })
   if (!shipment) throw new SalesDomainError('发货单不存在', 404)
   assertInventoryLocationDataScope(scope, [shipment.locationId])
-  return shipment
+  const returnedQty = shipment.returnOrders.reduce((sum, item) => sum + Number(item.qty), 0)
+  return {
+    ...shipment,
+    returnedQty,
+    returnableQty: Math.max(0, Number((Number(shipment.qty) - returnedQty).toFixed(6))),
+    returnOrders: undefined,
+  }
 }
 
 export async function getShipmentDeliveryNoteSource(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
@@ -135,6 +165,11 @@ export async function getShipmentDeliveryNoteSource(id: string, scope: Effective
       location: { select: { code: true, name: true } },
       customerRef: { select: { phone: true, address: true } },
       salesOrder: { select: { orderNo: true, voucherNo: true } },
+      packages: {
+        where: { deletedAt: null },
+        include: shipmentPackageInclude,
+        orderBy: [{ packedAt: 'asc' }, { createdAt: 'asc' }],
+      },
     },
   })
   if (!shipment) throw new SalesDomainError('发货单不存在', 404)

@@ -11,6 +11,7 @@ import type {
   ShipmentMaterialOption,
   ShippableSalesItem,
 } from '../contracts/fulfillment'
+import type { ShipmentPackage, ShipmentPackageForm } from '../contracts/shipment-package'
 
 interface ApiPayload<T> {
   data?: T
@@ -36,6 +37,32 @@ const jsonPost = (body: unknown): RequestInit => ({
 export async function loadShipments(params: URLSearchParams) {
   const payload = await request<Shipment[]>(params.size ? `/api/shipments?${params}` : '/api/shipments')
   return { shipments: payload.data || [], customers: payload.customers || [] }
+}
+
+export async function loadShipmentDetail(id: string) {
+  const payload = await request<Shipment>(`/api/shipments/${id}`)
+  if (!payload.data) throw new Error('发货单详情返回为空')
+  return payload.data
+}
+
+export async function createShipmentPackage(shipmentId: string, input: ShipmentPackageForm) {
+  const payload = await request<ShipmentPackage>(`/api/shipments/${shipmentId}/packages`, jsonPost({
+    ...input,
+    packedBy: input.packedBy || undefined,
+    grossWeight: input.grossWeight || undefined,
+    netWeight: input.netWeight || undefined,
+    lengthMm: input.lengthMm || undefined,
+    widthMm: input.widthMm || undefined,
+    heightMm: input.heightMm || undefined,
+    sealNo: input.sealNo || undefined,
+    note: input.note || undefined,
+  }))
+  if (!payload.data) throw new Error('货箱单据返回为空')
+  return payload.data
+}
+
+export async function archiveShipmentPackage(shipmentId: string, packageId: string) {
+  await request<never>(`/api/shipments/${shipmentId}/packages/${packageId}`, { method: 'DELETE' })
 }
 
 export function transitionShipment(id: string, action: 'ship' | 'deliver' | 'cancel', input?: { reason: string }) {

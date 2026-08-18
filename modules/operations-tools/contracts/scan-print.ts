@@ -85,8 +85,8 @@ export interface RecordScanEventInput {
 
 export interface CreateLabelPrintJobInput {
   clientRequestId: string
-  templateType: 'GENERIC_LABEL'
-  referenceType: 'GENERAL'
+  templateType: 'GENERIC_LABEL' | 'DOCUMENT_QR'
+  referenceType: string
   referenceId: string
   copies: number
   printerIp?: string

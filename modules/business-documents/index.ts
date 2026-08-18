@@ -1,4 +1,6 @@
 export { default as BusinessDocumentDetailDialog } from './ui/BusinessDocumentDetailDialog'
 export { default as BusinessDocumentPrintLink } from './ui/BusinessDocumentPrintLink'
 export { businessDocumentPrintUrl } from './client/business-document-client'
+export { lookupScannableDocument } from './client/scannable-document-client'
 export type { BusinessDocumentKind } from './contracts/business-document'
+export type { ScannableDocumentResult, ScannableDocumentType } from './contracts/scannable-document'

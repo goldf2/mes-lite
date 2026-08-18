@@ -77,6 +77,16 @@ async function attachmentOwnerExists(ownerType: AttachmentOwnerType, ownerId: st
       where: { id: ownerId, deletedAt: null, ...shipmentDataScopeWhere(scope) }, select: { id: true },
     }))
   }
+  if (ownerType === 'PACKAGE_DOCUMENT') {
+    return Boolean(await prisma.packageDocument.findFirst({
+      where: {
+        id: ownerId,
+        deletedAt: null,
+        shipment: { is: { deletedAt: null, ...shipmentDataScopeWhere(scope) } },
+      },
+      select: { id: true },
+    }))
+  }
   if (ownerType === 'RETURN_ORDER') {
     return Boolean(await prisma.returnOrder.findFirst({
       where: { id: ownerId, deletedAt: null, ...returnDataScopeWhere(scope) }, select: { id: true },
@@ -133,9 +143,15 @@ async function requirePermission(
   context: AttachmentOwnerContext,
   operation: AttachmentAccessOperation,
 ) {
+  const ownerResource = context.targetOwnerType === 'PACKAGE_DOCUMENT' && operation !== 'read'
+    ? 'shipmentDispatch'
+    : context.resource
+  const ownerAction = context.targetOwnerType === 'PACKAGE_DOCUMENT' && operation !== 'read'
+    ? 'update'
+    : ownerPermissionAction(operation, context.draft)
   const [attachmentAllowed, ownerAllowed] = await Promise.all([
     hasResourcePermission(operator, 'attachments', attachmentPermissionAction[operation]),
-    hasResourcePermission(operator, context.resource, ownerPermissionAction(operation, context.draft)),
+    hasResourcePermission(operator, ownerResource, ownerAction),
   ])
   if (!attachmentAllowed || !ownerAllowed) throw new AttachmentDomainError('无权访问该业务对象的附件', 403)
 }

@@ -17,6 +17,9 @@ for (const path of [
   'modules/operations-tools/server/scan-session-command-service.ts',
   'modules/operations-tools/server/label-print-command-service.ts',
   'modules/operations-tools/ui/GenericLabel.tsx',
+  'modules/operations-tools/ui/DocumentQrLabel.tsx',
+  'modules/operations-tools/ui/DocumentQrLabelDialog.tsx',
+  'modules/operations-tools/ui/DocumentScanLookupPanel.tsx',
   'modules/operations-tools/ui/ScanPrintPageModule.tsx',
 ]) assert.ok(existsSync(join(root, path)), `运维工具领域缺少扫码打印模块文件：${path}`)
 
@@ -37,6 +40,7 @@ assert.ok(scanPageSource.split('\n').length <= 450, '扫码打印协调页应保
 assert.doesNotMatch(scanPageSource, /\bfetch\(/, '扫码打印页不得直接调用 fetch')
 assert.match(scanPageSource, /loadGeneralScanSessions\(/, '扫码打印页必须通过运维工具 client 读取会话')
 assert.match(registrySource, /ScanPrintPageModule/, '扫码打印页必须通过运维工具模块公开入口加载')
+assert.match(scanPageSource, /DocumentScanLookupPanel/, '扫码打印页必须提供单据码解析入口')
 assert.equal(existsSync(join(root, 'app/components/ScanPrintPage.tsx')), false, '根组件目录不得保留扫码打印领域页')
 
 assert.equal(normalizeScanCode(' mat-P12-001\r\n'), 'P12-001')
@@ -124,6 +128,18 @@ async function main() {
     const job = await createLabelPrintJob(jobInput, '验证员')
     assert.equal(job.printerDpi, 203)
     assert.equal((await createLabelPrintJob(jobInput, '重复请求')).id, job.id, '打印任务创建必须幂等')
+
+    const documentJob = await createLabelPrintJob(createLabelPrintJobSchema.parse({
+      clientRequestId: `VERIFY-DOCUMENT-PRINT-${suffix}`,
+      templateType: 'DOCUMENT_QR',
+      referenceType: 'PACKAGE_DOCUMENT',
+      referenceId: 'BX-VERIFY-CODE',
+      copies: 1,
+      labelWidthMm: 105,
+      labelHeightMm: 70,
+      payload: { code: 'BX-VERIFY-CODE' },
+    }), '验证员')
+    assert.equal(documentJob.templateType, 'DOCUMENT_QR')
 
     console.log('扫码与标签打印模块验证通过：纯规则、幂等会话/事件/任务、撤销和完成状态均通过临时数据库回归。')
   } finally {

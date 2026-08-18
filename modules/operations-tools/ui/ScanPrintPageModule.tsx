@@ -24,6 +24,7 @@ import {
 } from '../model/label-profiles'
 import { createClientRequestId, createDefaultLabelData, formatScanQuantity, scanResultLabels } from '../model/scan-print-view'
 import GenericLabel from './GenericLabel'
+import DocumentScanLookupPanel from './DocumentScanLookupPanel'
 
 export default function ScanPrintPageModule({ onMessage }: { onMessage: (message: string) => void }) {
   const [recentSessions, setRecentSessions] = useState<ScanSession[]>([])
@@ -239,8 +240,10 @@ export default function ScanPrintPageModule({ onMessage }: { onMessage: (message
     <div className="space-y-4">
       <header className="rounded-lg border border-gray-200 bg-white p-5">
         <h2 className="text-xl font-semibold text-gray-900">硬件工具</h2>
-        <p className="mt-1 text-sm text-gray-500">扫码计数与标签打印相互独立，当前先验证设备接入、计数和打印底座。</p>
+        <p className="mt-1 text-sm text-gray-500">扫码打开货箱与发货单据，并提供独立的扫码计数和通用标签打印底座。</p>
       </header>
+
+      <DocumentScanLookupPanel onMessage={onMessage} />
 
       <SplitWorkspace
         storageKey="mes-lite.hardwareTools.splitPercent"
