@@ -1,6 +1,8 @@
 {
-  "version": "0.1.405",
-  "impact": "none",
-  "workflowIds": [],
-  "summary": "只修复全局操作提示与磨砂遮罩的公共层级，不改变业务流程、页面入口、权限或 SOP 操作步骤。"
+  "version": "0.1.406",
+  "impact": "updated",
+  "workflowIds": [
+    "18-receiving-create"
+  ],
+  "summary": "来料单已加入清单新增逐项编辑、保存本项修改和取消编辑操作，需同步来料创建与修改步骤。"
 }

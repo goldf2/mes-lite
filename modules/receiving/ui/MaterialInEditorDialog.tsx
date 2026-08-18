@@ -26,7 +26,7 @@ interface MaterialInEditorDialogProps {
   draftAttachmentBusy: boolean
   draftAttachmentOwnerId: string
   draftItems: MaterialInDraftItem[]
-  setDraftItems: Dispatch<SetStateAction<MaterialInDraftItem[]>>
+  editingDraftItemId: string | null
   setDraftAttachmentBusy: Dispatch<SetStateAction<boolean>>
   suppliers: SupplierOption[]
   materials: ReceivingMaterialOption[]
@@ -54,6 +54,9 @@ interface MaterialInEditorDialogProps {
   onMaterialSearch: (keyword?: string) => void | Promise<void>
   onMaterialChange: (material: ReceivingMaterialOption | null) => void
   onAddCurrentItem: () => void
+  onCancelDraftItemEdit: () => void
+  onEditDraftItem: (item: MaterialInDraftItem) => void
+  onRemoveDraftItem: (id: string) => void
   onRecognized: (fields: Record<string, unknown>) => void
   onMessage: (message: string) => void
 }
@@ -74,7 +77,7 @@ export default function MaterialInEditorDialog({
   draftAttachmentBusy,
   draftAttachmentOwnerId,
   draftItems,
-  setDraftItems,
+  editingDraftItemId,
   setDraftAttachmentBusy,
   suppliers,
   materials,
@@ -102,11 +105,15 @@ export default function MaterialInEditorDialog({
   onMaterialSearch,
   onMaterialChange,
   onAddCurrentItem,
+  onCancelDraftItemEdit,
+  onEditDraftItem,
+  onRemoveDraftItem,
   onRecognized,
   onMessage,
 }: MaterialInEditorDialogProps) {
   if (!open) return null
   const priceUnitLabel = priceUsesValuation ? valuationUnitLabel : stockUnitLabel
+  const submitItemCount = draftItems.length + (form.materialId && !editingDraftItemId ? 1 : 0)
 
   return (
     <ModalDialog
@@ -122,7 +129,7 @@ export default function MaterialInEditorDialog({
         <ModalActions
           onCancel={onClose}
           onConfirm={onSubmit}
-          confirmLabel={editingItem ? `保存 ${draftItems.length + (form.materialId ? 1 : 0)} 项并输出 PDF` : `创建 ${draftItems.length + (form.materialId ? 1 : 0)} 项并输出 PDF`}
+          confirmLabel={editingItem ? `保存 ${submitItemCount} 项并输出 PDF` : `创建 ${submitItemCount} 项并输出 PDF`}
           busy={loading || draftAttachmentBusy}
         />
       )}
@@ -360,8 +367,13 @@ export default function MaterialInEditorDialog({
             />
           </div>
           {selectedMaterial && (
-            <div className="flex justify-end lg:col-span-12">
-              <AppButton variant="secondary" onClick={onAddCurrentItem}>添加本项并继续</AppButton>
+            <div className="flex justify-end gap-2 lg:col-span-12">
+              {editingDraftItemId && (
+                <AppButton variant="ghost" onClick={onCancelDraftItemEdit}>取消编辑</AppButton>
+              )}
+              <AppButton variant="secondary" onClick={onAddCurrentItem}>
+                {editingDraftItemId ? '保存本项修改' : '添加本项并继续'}
+              </AppButton>
             </div>
           )}
           {!editingItem && (
@@ -394,7 +406,10 @@ export default function MaterialInEditorDialog({
                   const material = materials.find((option) => option.id === item.materialId)
                   const location = locations.find((option) => option.id === item.locationId)
                   return (
-                    <div key={item.id} className="border-b border-gray-100 py-3 text-sm">
+                    <div
+                      key={item.id}
+                      className={`border-b py-3 text-sm ${editingDraftItemId === item.id ? 'border-blue-200 bg-blue-50/60' : 'border-gray-100'}`}
+                    >
                       <div className="flex items-start gap-2">
                         <span className="w-5 shrink-0 pt-0.5 text-xs tabular-nums text-gray-400">{index + 1}</span>
                         <div className="min-w-0 flex-1">
@@ -410,13 +425,22 @@ export default function MaterialInEditorDialog({
                             统一待分库：{location ? `${location.code} · ${location.name}` : item.locationId}
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setDraftItems((current) => current.filter((draft) => draft.id !== item.id))}
-                          className="shrink-0 rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-                        >
-                          移除
-                        </button>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => onEditDraftItem(item)}
+                            className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
+                          >
+                            {editingDraftItemId === item.id ? '编辑中' : '编辑'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onRemoveDraftItem(item.id)}
+                            className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                          >
+                            移除
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )

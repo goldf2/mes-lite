@@ -84,6 +84,7 @@ export default function MaterialInPage({
   const [editingItem, setEditingItem] = useState<MaterialIn | null>(null)
   const [detailItem, setDetailItem] = useState<MaterialIn | null>(null)
   const [draftItems, setDraftItems] = useState<MaterialInDraftItem[]>([])
+  const [editingDraftItemId, setEditingDraftItemId] = useState<string | null>(null)
   const [conversionHistory, setConversionHistory] = useState<MaterialInConversionHistory | null>(null)
   const [conversionHistoryLoading, setConversionHistoryLoading] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.materialIn.viewMode', 'list')
@@ -224,6 +225,7 @@ export default function MaterialInPage({
   const resetForm = () => {
     setEditingItem(null)
     setDraftItems([])
+    setEditingDraftItemId(null)
     setConversionHistory(null)
     setForm(createEmptyMaterialInForm(locations.find((item) => item.isDefault)?.id || locations[0]?.id || ''))
   }
@@ -278,11 +280,11 @@ export default function MaterialInPage({
     return null
   }
 
-  const buildCurrentItem = (): MaterialInDraftItem => {
+  const buildCurrentItem = (id?: string): MaterialInDraftItem => {
     const material = materials.find((item) => item.id === form.materialId)
     const stockUnit = material?.stockUnit || material?.unit || '个'
     return {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      id: id || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       materialId: form.materialId,
       locationId: form.locationId,
       qty: calculatedStockQty,
@@ -298,6 +300,7 @@ export default function MaterialInPage({
   }
 
   const resetCurrentItem = () => {
+    setEditingDraftItemId(null)
     setConversionHistory(null)
     setForm((current) => ({
       ...current,
@@ -318,9 +321,44 @@ export default function MaterialInPage({
       onMessage(error)
       return
     }
-    setDraftItems((current) => [...current, buildCurrentItem()])
+    const currentItem = buildCurrentItem(editingDraftItemId || undefined)
+    setDraftItems((current) => editingDraftItemId
+      ? current.map((item) => item.id === editingDraftItemId ? currentItem : item)
+      : [...current, currentItem])
+    const itemWasEdited = Boolean(editingDraftItemId)
     resetCurrentItem()
-    onMessage('物料明细已加入，可继续添加')
+    onMessage(itemWasEdited ? '物料明细已更新' : '物料明细已加入，可继续添加')
+  }
+
+  const editDraftItem = (item: MaterialInDraftItem) => {
+    if (editingDraftItemId) {
+      onMessage(editingDraftItemId === item.id ? '该物料明细正在编辑' : '请先保存或取消当前明细编辑')
+      return
+    }
+    if (form.materialId) {
+      onMessage('请先添加或清空当前未保存物料，再编辑已加入明细')
+      return
+    }
+    setConversionHistory(null)
+    setEditingDraftItemId(item.id)
+    setForm((current) => ({
+      ...current,
+      materialId: item.materialId,
+      locationId: item.locationId,
+      qty: item.qty,
+      valuationQty: item.valuationQty || 0,
+      unitPrice: item.unitPrice,
+      priceUnit: item.priceUnit,
+      totalAmount: item.totalAmount,
+      priceInputMode: 'TOTAL',
+      batchNo: item.batchNo || '',
+    }))
+    onMessage('已载入物料明细，修改后点击“保存本项修改”')
+  }
+
+  const removeDraftItem = (id: string) => {
+    setDraftItems((current) => current.filter((item) => item.id !== id))
+    if (editingDraftItemId === id) resetCurrentItem()
   }
 
   const handleSubmit = async () => {
@@ -339,7 +377,10 @@ export default function MaterialInPage({
         onMessage(error)
         return
       }
-      items = [...items, buildCurrentItem()]
+      const currentItem = buildCurrentItem(editingDraftItemId || undefined)
+      items = editingDraftItemId
+        ? items.map((item) => item.id === editingDraftItemId ? currentItem : item)
+        : [...items, currentItem]
     }
     if (items.length === 0) {
       onMessage('请至少添加一种物料')
@@ -456,6 +497,7 @@ export default function MaterialInPage({
     })
     setEditingItem(item)
     setDraftAttachmentOwnerId('')
+    setEditingDraftItemId(null)
     setDraftItems(item.items.map((line) => ({
       id: line.id,
       materialId: line.materialId,
@@ -601,7 +643,7 @@ export default function MaterialInPage({
         draftAttachmentBusy={draftAttachmentBusy}
         draftAttachmentOwnerId={draftAttachmentOwnerId}
         draftItems={draftItems}
-        setDraftItems={setDraftItems}
+        editingDraftItemId={editingDraftItemId}
         setDraftAttachmentBusy={setDraftAttachmentBusy}
         suppliers={suppliers}
         materials={materials}
@@ -629,6 +671,9 @@ export default function MaterialInPage({
         onMaterialSearch={fetchMaterials}
         onMaterialChange={updateSelectedMaterial}
         onAddCurrentItem={addCurrentItem}
+        onCancelDraftItemEdit={resetCurrentItem}
+        onEditDraftItem={editDraftItem}
+        onRemoveDraftItem={removeDraftItem}
         onRecognized={applyRecognizedMaterialIn}
         onMessage={onMessage}
       />
