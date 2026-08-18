@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 
@@ -10,8 +10,18 @@ const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const registrySource = readFileSync(join(root, 'lib/page-registry.ts'), 'utf8')
 const permissionsSource = readFileSync(join(root, 'lib/permissions.ts'), 'utf8')
 const workflows = catalog.chapters.flatMap((chapter) => chapter.workflows)
-const guideStem = `MES-lite全流程作业指导书-v${packageJson.version}`
 const verifyGeneratedArtifacts = process.env.SOP_VERIFY_ARTIFACTS === '1'
+
+function compareVersions(left, right) {
+  const leftParts = left.split('.').map(Number)
+  const rightParts = right.split('.').map(Number)
+  const length = Math.max(leftParts.length, rightParts.length)
+  for (let index = 0; index < length; index += 1) {
+    const difference = (leftParts[index] || 0) - (rightParts[index] || 0)
+    if (difference !== 0) return difference
+  }
+  return 0
+}
 
 assert.equal(catalog.schemaVersion, 1, 'SOP 清单版本必须为 1')
 assert.ok(catalog.chapters.length > 0, 'SOP 至少包含一个章节')
@@ -46,7 +56,23 @@ const coveredPageKeys = new Set(workflows.map((workflow) => workflow.pageKey))
 const missingCoverage = requiredPageKeys.filter((pageKey) => !coveredPageKeys.has(pageKey))
 assert.deepEqual(missingCoverage, [], `一级业务页面缺少 SOP：${missingCoverage.join(', ')}`)
 
-const markdownPath = join(root, 'docs/operations/user-guide', `${guideStem}.md`)
+const guideDirectory = join(root, 'docs/operations/user-guide')
+const currentGuideVersion = packageJson.version
+const currentGuideStem = `MES-lite全流程作业指导书-v${currentGuideVersion}`
+const currentMarkdownPath = join(guideDirectory, `${currentGuideStem}.md`)
+const availableGuideVersions = readdirSync(guideDirectory)
+  .flatMap((fileName) => fileName.match(/^MES-lite全流程作业指导书-v(\d+\.\d+\.\d+)\.md$/)?.[1] || [])
+  .filter((version) => compareVersions(version, currentGuideVersion) <= 0)
+  .sort(compareVersions)
+const guideVersion = existsSync(currentMarkdownPath)
+  ? currentGuideVersion
+  : availableGuideVersions.at(-1)
+assert.ok(guideVersion, '缺少可用的 SOP Markdown 基线')
+if (impact.impact === 'updated' || verifyGeneratedArtifacts) {
+  assert.equal(guideVersion, currentGuideVersion, '流程已变更或正在生成最终成品时，SOP Markdown 必须与当前版本一致')
+}
+const guideStem = `MES-lite全流程作业指导书-v${guideVersion}`
+const markdownPath = join(guideDirectory, `${guideStem}.md`)
 const webPath = join(root, 'output/web', guideStem, 'index.html')
 const docxPath = join(root, 'output/docx', `${guideStem}.docx`)
 const pdfPath = join(root, 'output/pdf', `${guideStem}.pdf`)
@@ -55,7 +81,7 @@ for (const artifactPath of [markdownPath]) {
 }
 
 const markdown = readFileSync(markdownPath, 'utf8')
-assert.match(markdown, new RegExp(`交付版本：v${packageJson.version.replaceAll('.', '\\.')}`), 'Markdown SOP 版本不是当前版本')
+assert.match(markdown, new RegExp(`交付版本：v${guideVersion.replaceAll('.', '\\.')}`), 'Markdown SOP 文件名与内容版本不一致')
 assert.equal((markdown.match(/^### /gm) || []).length, workflows.length, 'Markdown SOP 流程数量与清单不一致')
 if (verifyGeneratedArtifacts) {
   for (const artifactPath of [webPath, docxPath, pdfPath]) {
@@ -66,7 +92,7 @@ if (verifyGeneratedArtifacts) {
   assert.equal((web.match(/<article class="workflow"/g) || []).length, workflows.length, 'Web SOP 流程数量与清单不一致')
 }
 
-console.log(`SOP 清单校验通过：${catalog.chapters.length} 章、${workflows.length} 个流程、${coveredPageKeys.size} 个页面；版本 v${packageJson.version} 影响=${impact.impact}；成品校验=${verifyGeneratedArtifacts ? '开启' : '按最终交付执行'}。`)
+console.log(`SOP 清单校验通过：${catalog.chapters.length} 章、${workflows.length} 个流程、${coveredPageKeys.size} 个页面；代码 v${packageJson.version}，SOP 基线 v${guideVersion}，影响=${impact.impact}；成品校验=${verifyGeneratedArtifacts ? '开启' : '按最终交付执行'}。`)
 
 if (process.env.SOP_DIFF_BASE) {
   let changedFiles = []

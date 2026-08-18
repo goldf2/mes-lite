@@ -13,6 +13,23 @@ function assert(condition, message) {
   if (!condition) throw new Error(message)
 }
 
+function compareVersions(left, right) {
+  const leftParts = left.split('.').map(Number)
+  const rightParts = right.split('.').map(Number)
+  const length = Math.max(leftParts.length, rightParts.length)
+  for (let index = 0; index < length; index += 1) {
+    const difference = (leftParts[index] || 0) - (rightParts[index] || 0)
+    if (difference !== 0) return difference
+  }
+  return 0
+}
+
+function assertDocumentBaseline(source, pattern, label, packageVersion) {
+  const documentVersion = source.match(pattern)?.[1]
+  assert(documentVersion, `${label}缺少事实基线版本`)
+  assert(compareVersions(documentVersion, packageVersion) <= 0, `${label}事实基线 v${documentVersion} 不得领先代码 v${packageVersion}`)
+}
+
 function countRouteFiles(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).reduce((total, entry) => {
     const fullPath = path.join(directory, entry.name)
@@ -76,20 +93,20 @@ const moduleNames = fs.readdirSync(path.join(rootDir, 'modules'), { withFileType
   .sort()
 const moduleSourceFileCount = countTypeScriptFiles(path.join(rootDir, 'modules'))
 
-assert(handbook.includes(`事实基线：\`v${packageJson.version}\``), '开发手册版本基线与 package.json 不一致')
+assertDocumentBaseline(handbook, /事实基线：`v(\d+\.\d+\.\d+)`/, '开发手册', packageJson.version)
 assert(handbook.includes(`统一页面注册表共有 **${pageKeys.length} 个页面模块定义**`), '开发手册页面模块数量已过期')
 assert(handbook.includes(`包含 **${modelCount} 个数据模型**`), '开发手册 Prisma 模型数量已过期')
 assert(handbook.includes(`当前有 ${routeCount} 个 \`app/api/**/route.ts\` 文件`), '开发手册 API 路由数量已过期')
 assert(handbook.includes(`当前有 ${verifyScriptCount} 个 \`verify:*\` 命令`), '开发手册验证脚本数量已过期')
 assert(handbook.includes(`当前运行时有 ${permissionResourceCount} 个权限资源`), '开发手册权限资源数量已过期')
-assert(docsIndex.includes(`当前事实基线：\`v${packageJson.version}\``), '文档中心版本基线与 package.json 不一致')
-assert(pageMatrix.includes(`版本：\`v${packageJson.version}\``), '功能页面权限接口矩阵版本基线与 package.json 不一致')
-assert(databaseArchitecture.includes(`事实基线为 \`v${packageJson.version}\``), '数据库结构文档版本基线与 package.json 不一致')
-assert(panoramaIndex.includes(`事实基线：\`v${packageJson.version}\``), '系统全景索引版本基线与 package.json 不一致')
-assert(systemArchitecture.includes(`事实基线：\`v${packageJson.version}\``), '系统结构图版本基线与 package.json 不一致')
-assert(currentWorkflow.includes(`事实基线：\`v${packageJson.version}\``), '当前功能流程版本基线与 package.json 不一致')
-assert(systemSequences.includes(`记录 \`v${packageJson.version}\``), '系统时序图版本基线与 package.json 不一致')
-assert(capabilityAudit.includes(`事实基线：\`v${packageJson.version}\``), '功能完备性审查版本基线与 package.json 不一致')
+assertDocumentBaseline(docsIndex, /当前事实基线：`v(\d+\.\d+\.\d+)`/, '文档中心', packageJson.version)
+assertDocumentBaseline(pageMatrix, /版本：`v(\d+\.\d+\.\d+)`/, '功能页面权限接口矩阵', packageJson.version)
+assertDocumentBaseline(databaseArchitecture, /事实基线为 `v(\d+\.\d+\.\d+)`/, '数据库结构文档', packageJson.version)
+assertDocumentBaseline(panoramaIndex, /事实基线：`v(\d+\.\d+\.\d+)`/, '系统全景索引', packageJson.version)
+assertDocumentBaseline(systemArchitecture, /事实基线：`v(\d+\.\d+\.\d+)`/, '系统结构图', packageJson.version)
+assertDocumentBaseline(currentWorkflow, /事实基线：`v(\d+\.\d+\.\d+)`/, '当前功能流程', packageJson.version)
+assertDocumentBaseline(systemSequences, /记录 `v(\d+\.\d+\.\d+)`/, '系统时序图', packageJson.version)
+assertDocumentBaseline(capabilityAudit, /事实基线：`v(\d+\.\d+\.\d+)`/, '功能完备性审查', packageJson.version)
 assert(panoramaIndex.includes(`| 领域/平台模块 | ${moduleNames.length} |`), '系统全景索引模块数量已过期')
 assert(capabilityAudit.includes(`## 2. ${moduleNames.length} 个模块功能全景`), '功能完备性审查模块数量已过期')
 assert(moduleBoundary.includes(`| \`modules/\` | ${moduleSourceFileCount} 个 TypeScript/TSX 文件 |`), '模块边界文档的模块文件数量已过期')

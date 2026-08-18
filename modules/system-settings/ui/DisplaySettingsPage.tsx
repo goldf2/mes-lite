@@ -121,7 +121,7 @@ export default function DisplaySettingsPage({ onMessage, canUpdate }: { onMessag
         <ContrastModeSelector value={contrastMode} onChange={saveContrastMode} disabled={loading || saving || !canUpdate} />
       </section>
 
-      <TogglePreferenceRow title="弹窗背景磨砂玻璃" description="开启后弹窗出现时背景会模糊并遮罩；关闭后仅保留半透明遮罩，仍会屏蔽底层按钮响应。" hint="个人显示偏好，只保存在当前浏览器。" enabled={modalGlassEnabled} onChange={setModalGlassEnabled} />
+      <TogglePreferenceRow title="弹窗背景磨砂玻璃" description="开启后弹窗出现时背景会模糊并遮罩；关闭后仅保留半透明遮罩，仍会屏蔽底层按钮响应。全局操作提示始终保持在最上层。" hint="个人显示偏好，只保存在当前浏览器。" enabled={modalGlassEnabled} onChange={setModalGlassEnabled} />
     </SystemSettingsPageShell>
   )
 }

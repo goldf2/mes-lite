@@ -86,6 +86,7 @@ assert.match(pageRendererRegistrySource, /import\('\@\/modules\/sop'\)/, '帮助
 assert.match(pageRendererRegistrySource, /import\('\@\/modules\/receiving'\)/, '来料管理必须通过 receiving 模块公开出口加载')
 assert.doesNotMatch(pageRendererRegistrySource, /import\('\.\.\/(?:MaterialPage|MaterialPanoramaPage|BomOverviewPage|WorkInstructionPage|MaterialInPage)'\)/, '页面注册层不得越过领域公开出口加载领域页面')
 assert.match(workspacePageHostSource, /renderRegisteredWorkspacePage/, '页面宿主必须通过统一渲染注册表装配页面')
+assert.match(workspacePageHostSource, /z-\[400\]/, '公共提示横幅必须高于弹窗、全屏预览和磨砂遮罩')
 for (const rendererKey of rendererKeys) {
   assert.match(pageRendererRegistrySource, new RegExp(`(?:['\"]${rendererKey}['\"]|${rendererKey})\\s*:`), `渲染注册表缺少 ${rendererKey}`)
 }

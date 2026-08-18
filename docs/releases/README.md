@@ -260,6 +260,6 @@
 ## 发布要求
 
 1. 同步递增 `package.json` 与 `package-lock.json` 版本号。
-2. 新增 `docs/releases/v<版本号>.md`，不能覆盖旧版本记录。
-3. 更新本索引并保持最新版本在最上方。
-4. 推送前运行 `npm run verify:release-notes`。
+2. 常规小修复先记录到 [PENDING.md](./PENDING.md)，可在阶段收口时集中整理正式发布说明。
+3. 里程碑、数据迁移、权限/安全、部署或重要业务流程变更仍新增 `docs/releases/v<版本号>.md`，并更新本索引。
+4. 推送前运行 `npm run verify:release-notes`，确认当前版本已进入正式说明或待整理记录。

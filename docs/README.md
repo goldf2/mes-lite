@@ -131,7 +131,7 @@
 - [SaaS 数据与存储目标架构](./architecture/saas-data-and-storage-architecture.md)：暂停的 PostgreSQL、对象存储和多租户长期候选。
 - `docs/plans/`：模块化、PostgreSQL、OSS 和工作区实验等未来计划。
 - [MES 系统分阶段治理总目标](./plans/MES系统分阶段治理总目标.md)：当前正在执行的安全、模型、业务闭环、导航与商业交付治理路线。
-- [版本更新记录](./releases/README.md)：逐版本变更证据。
+- [版本更新记录](./releases/README.md)：已整理的阶段/重要版本变更证据；小修复先进入 [待整理版本记录](./releases/PENDING.md)。
 - `docs/archive/`：已失效或被取代的历史文档。
 
 ## 5. 维护规则
@@ -140,5 +140,6 @@
 2. 当前事实、目标设计和历史方案必须明确标注，不能混写。
 3. 页面、权限和入口变化同步更新功能页面权限接口矩阵。
 4. Prisma、流程、接口、权限或页面骨架变化，按仓库 `AGENTS.md` 同步对应专题文档。
-5. 发布前运行 `npm run verify:development-docs` 和 `npm run verify:release-notes`。
-6. 业务代码变化必须更新 `sop/change-impact.json`；流程变化继续更新 `sop/manifest.json`、验证版本和真实截图，先运行 `npm run sop:build` 生成站内帮助、Markdown、DOCX、PDF 和离线 Web，再运行 `npm run verify:sop`。CI 会用 Git 差异阻止业务代码变了但未声明 SOP 影响的提交。
+5. 发布前运行 `npm run verify:development-docs` 和 `npm run verify:release-notes`，确认当前版本已进入正式说明或待整理记录。
+   小修复期间文档事实基线允许落后于当前代码版本，但不得领先；后续按 `PENDING.md` 集中校对和更新。
+6. 业务代码变化必须更新 `sop/change-impact.json`；未改变操作步骤时可声明 `impact=none` 并沿用不领先于代码的最新 SOP 基线。流程变化继续更新 `sop/manifest.json`、验证版本和真实截图，并生成当前版本的站内帮助/Markdown；阶段或商业版本冻结时再集中生成 DOCX、PDF 和离线 Web。CI 会用 Git 差异阻止业务代码变了但未声明 SOP 影响的提交。

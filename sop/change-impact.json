@@ -1,6 +1,6 @@
 {
-  "version": "0.1.403",
-  "impact": "updated",
-  "workflowIds": ["26-sales-order-detail"],
-  "summary": "销售订单的物料名称和编码增加详情入口；在同一弹窗层级查看物料档案后可返回原订单详情。"
+  "version": "0.1.405",
+  "impact": "none",
+  "workflowIds": [],
+  "summary": "只修复全局操作提示与磨砂遮罩的公共层级，不改变业务流程、页面入口、权限或 SOP 操作步骤。"
 }
