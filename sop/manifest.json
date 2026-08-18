@@ -1687,9 +1687,10 @@
           "steps": [
             "展开“销售”功能区，进入“发货管理”。",
             "按发货单、订单、客户或物流号搜索。",
-            "核对发货库位、数量、价格和状态。"
+            "核对发货库位、数量、价格和状态。",
+            "打开详情，查看发货单码、货箱内容物、打包照片、客户发货批次和附件。"
           ],
-          "result": "每张发货单可追溯销售订单和客户。",
+          "result": "每张发货单可追溯销售订单、客户、货箱和打包现场。",
           "pageKey": "shipment",
           "resource": "shipment",
           "roles": [
@@ -1700,7 +1701,7 @@
             "baseline": "0.1.350",
             "file": "27-shipment-list.png"
           },
-          "lastVerifiedVersion": "0.1.382"
+          "lastVerifiedVersion": "0.1.409"
         },
         {
           "id": "28-shipment-create",
@@ -1711,9 +1712,11 @@
             "选择销售订单或独立发货。",
             "选择客户、物料、发货库位并填写数量、价格和物流信息。",
             "保存后先保持待发货。",
+            "在详情中按实际包装创建一个或多个货箱，录入打包人、重量、尺寸和封箱号，再上传货箱实物/打包现场照片。",
+            "核对货箱数量合计等于发货数量，分别打印箱码和发货单码；物流运单号仍独立维护。",
             "需要纸质单据时，在发货清单或详情点击“打印”。"
           ],
-          "result": "待发货记录生成并占用订单未发数量。",
+          "result": "待发货记录生成，货箱获得唯一箱码并保留内容物和打包证据。",
           "pageKey": "shipment",
           "resource": "shipment",
           "roles": [
@@ -1724,7 +1727,7 @@
             "baseline": "0.1.350",
             "file": "28-shipment-create.png"
           },
-          "lastVerifiedVersion": "0.1.407"
+          "lastVerifiedVersion": "0.1.409"
         },
         {
           "id": "29-shipment-confirm",
@@ -1733,9 +1736,10 @@
           "steps": [
             "在待发货记录点击“发货”。",
             "核对库位库存和发货数量。",
+            "如果已创建货箱，确认有效货箱内容数量合计与发货数量一致；否则系统会阻止发货。",
             "确认后查看成功提示，可继续办理签收。"
           ],
-          "result": "状态变为“已发货”，库存减少，销售订单已发数量增加。",
+          "result": "发货单和有效货箱同步变为“已发货”，库存减少，销售订单已发数量增加。",
           "pageKey": "shipment",
           "resource": "shipment",
           "roles": [
@@ -1746,7 +1750,7 @@
             "baseline": "0.1.350",
             "file": "29-shipment-confirm.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.409"
         },
         {
           "id": "79-shipment-list-tracked",
@@ -2831,15 +2835,16 @@
         },
         {
           "id": "59-hardware-tools",
-          "title": "扫码计数与标签打印",
-          "objective": "验证扫码枪计数和浏览器标签打印底座。",
+          "title": "单据扫码、扫码计数与标签打印",
+          "objective": "通过扫码枪打开货箱/发货单据，并验证独立计数和浏览器标签打印底座。",
           "steps": [
             "进入工具 > 硬件工具。",
+            "扫描或手工输入 `BX-` 货箱码/`SH-` 发货单码，以 Enter 或 Tab 结束，核对匹配结果后打开对应系统单据。",
             "扫码计数：填写任务与目标条码，创建会话后扫描。",
             "标签打印：填写条码、名称、规格、数量和介质尺寸。",
             "先做测试打印并校准纸张；当前打印机 IP 仅保存配置。"
           ],
-          "result": "扫码计数正确，测试标签尺寸和条码可读。",
+          "result": "货箱/发货单码能返回唯一单据，扫码计数正确，测试标签尺寸和条码可读。",
           "pageKey": "scanPrint",
           "resource": "scanPrint",
           "roles": [
@@ -2850,7 +2855,7 @@
             "baseline": "0.1.350",
             "file": "59-hardware-tools.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.409"
         },
         {
           "id": "60-archive-records",

@@ -1,8 +1,11 @@
 {
-  "version": "0.1.408",
+  "version": "0.1.409",
   "impact": "updated",
   "workflowIds": [
-    "18-receiving-create"
+    "27-shipment-list",
+    "28-shipment-create",
+    "29-shipment-confirm",
+    "59-hardware-tools"
   ],
-  "summary": "待收货来料单保存与关闭已分离，保存后保留编辑窗口以连续修改多条明细，需同步来料登记与编辑流程。"
+  "summary": "发货详情新增货箱单据、装箱完整性、现场照片、发货单码/箱码打印和单据扫码返回，需同步发货与硬件工具流程。"
 }
