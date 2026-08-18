@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import AppButton from '@/app/components/AppButton'
+import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
 import { AttachmentPanel } from '@/modules/attachments'
 import ModalDialog from '@/app/components/ModalDialog'
-import type { Material } from '../contracts'
-import { findMaterialByCode } from '../client'
+import type { Material, MaterialReference } from '../contracts'
 import { materialCategoryLabels, primaryMeasureLabels } from '../model/material-options'
+import useMaterialDetail from './useMaterialDetail'
 
 export default function MaterialDetailDialog({
   material,
@@ -16,32 +16,28 @@ export default function MaterialDetailDialog({
   onMessage,
   onAttachmentsChanged,
 }: {
-  material: Material | null
+  material: Material | MaterialReference | null
   onClose: () => void
-  onEdit: (material: Material) => void
-  onOpenPanorama: (material: Material) => void
+  onEdit?: (material: Material) => void
+  onOpenPanorama?: (material: Material) => void
   onMessage: (message: string) => void
-  onAttachmentsChanged: () => Promise<void> | void
+  onAttachmentsChanged?: () => Promise<void> | void
 }) {
-  const [detail, setDetail] = useState<Material | null>(material)
+  const { detail, loadFailed } = useMaterialDetail(material, onMessage)
 
-  useEffect(() => {
-    let cancelled = false
-    setDetail(material)
-    if (!material) return () => { cancelled = true }
+  if (!material) return null
 
-    findMaterialByCode(material.code, material.id)
-      .then((latest) => {
-        if (!cancelled && latest) setDetail(latest)
-      })
-      .catch(() => {
-        // 列表资料仍可用于详情；重新读取失败不阻塞查看。
-      })
-
-    return () => { cancelled = true }
-  }, [material])
-
-  if (!material || !detail) return null
+  if (!detail) {
+    return (
+      <ModalDialog title="物料详情" description={`${material.code} · ${material.name}`} onClose={onClose} size="xl">
+        {loadFailed ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-8 text-center text-sm text-amber-800">无法读取最新物料详情，请关闭后重试。</div>
+        ) : (
+          <AppLoadingIndicator label="正在加载物料详情..." />
+        )}
+      </ModalDialog>
+    )
+  }
 
   const stockUnit = detail.stockUnit || detail.unit
 
@@ -51,16 +47,12 @@ export default function MaterialDetailDialog({
       description={`${detail.code} · ${detail.name}`}
       onClose={onClose}
       size="xl"
-      headerActions={(
+      headerActions={(onOpenPanorama || onEdit) ? (
         <>
-          <AppButton onClick={() => onOpenPanorama(detail)} variant="create" size="sm">
-            全景
-          </AppButton>
-          <AppButton onClick={() => onEdit(detail)} size="sm">
-            编辑资料
-          </AppButton>
+          {onOpenPanorama && <AppButton onClick={() => onOpenPanorama(detail)} variant="create" size="sm">全景</AppButton>}
+          {onEdit && <AppButton onClick={() => onEdit(detail)} size="sm">编辑资料</AppButton>}
         </>
-      )}
+      ) : undefined}
       bodyClassName="space-y-6"
     >
       <div className="grid gap-6 md:grid-cols-[minmax(260px,0.9fr)_minmax(0,1.35fr)]">
@@ -166,9 +158,10 @@ export default function MaterialDetailDialog({
         documentType="MATERIAL_IMAGE"
         layout="gallery"
         allowCover
+        readOnly={!onEdit}
         onMessage={(message) => {
           onMessage(message)
-          onAttachmentsChanged()
+          void onAttachmentsChanged?.()
         }}
       />
     </ModalDialog>

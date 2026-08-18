@@ -81,7 +81,7 @@ export default function AttachmentPanel({
   const inputRef = useRef<HTMLInputElement | null>(null)
   const imageOnly = variant === 'image'
   const itemLabel = imageOnly ? '物料图片' : '附件'
-  const showAiRecognition = !imageOnly && (
+  const showAiRecognition = !readOnly && !imageOnly && (
     enableAiRecognition || supportsDocumentSourceCredentialRecognition(ownerType, documentType)
   )
 
@@ -258,58 +258,62 @@ export default function AttachmentPanel({
             <h3 className="text-base font-semibold text-gray-900">{title}</h3>
             <p className="mt-1 text-xs text-gray-500">{attachments.length} 张图片，点击可查看原图</p>
           </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xl sm:flex-row sm:items-center sm:justify-end">
-            {imageOnly && (
-              <input
-                type="text"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="填写图片说明"
-                maxLength={200}
-                className="min-w-0 flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm"
-              />
-            )}
-            <label className="inline-flex justify-center px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 cursor-pointer whitespace-nowrap">
-              {uploading ? '上传中...' : imageOnly ? '添加图片' : '添加附件'}
-              <input
-                ref={inputRef}
-                type="file"
-                accept={imageOnly ? 'image/*' : undefined}
-                multiple
-                className="hidden"
-                disabled={uploading}
-                onChange={(e) => {
-                  const files = e.target.files
-                  if (files) handleFiles(files)
-                }}
-              />
-            </label>
-          </div>
+          {!readOnly && (
+            <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xl sm:flex-row sm:items-center sm:justify-end">
+              {imageOnly && (
+                <input
+                  type="text"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="填写图片说明"
+                  maxLength={200}
+                  className="min-w-0 flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm"
+                />
+              )}
+              <label className="inline-flex justify-center px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 cursor-pointer whitespace-nowrap">
+                {uploading ? '上传中...' : imageOnly ? '添加图片' : '添加附件'}
+                <input
+                  ref={inputRef}
+                  type="file"
+                  accept={imageOnly ? 'image/*' : undefined}
+                  multiple
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const files = e.target.files
+                    if (files) handleFiles(files)
+                  }}
+                />
+              </label>
+            </div>
+          )}
         </div>
 
-        <div
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragEnter={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onClick={openFilePicker}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault()
-              openFilePicker()
-            }
-          }}
-          role="button"
-          tabIndex={uploading ? -1 : 0}
-          aria-disabled={uploading}
-          className={`mt-4 flex min-h-20 items-center justify-center rounded-md border border-dashed px-4 py-4 text-center text-sm transition ${
-            dragActive
-              ? 'border-blue-500 bg-blue-50 text-blue-700'
-              : 'border-gray-300 bg-gray-50 text-gray-500 hover:border-blue-300 hover:bg-blue-50/50'
-          } ${uploading ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-        >
-          {uploading ? '上传中...' : imageOnly ? '拖放图片到这里，或点击添加图片' : '拖放文件到这里，或点击添加附件'}
-        </div>
+        {!readOnly && (
+          <div
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={openFilePicker}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                openFilePicker()
+              }
+            }}
+            role="button"
+            tabIndex={uploading ? -1 : 0}
+            aria-disabled={uploading}
+            className={`mt-4 flex min-h-20 items-center justify-center rounded-md border border-dashed px-4 py-4 text-center text-sm transition ${
+              dragActive
+                ? 'border-blue-500 bg-blue-50 text-blue-700'
+                : 'border-gray-300 bg-gray-50 text-gray-500 hover:border-blue-300 hover:bg-blue-50/50'
+            } ${uploading ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+          >
+            {uploading ? '上传中...' : imageOnly ? '拖放图片到这里，或点击添加图片' : '拖放文件到这里，或点击添加附件'}
+          </div>
+        )}
 
         {attachments.length === 0 ? (
           <div className="mt-4 flex min-h-32 items-center justify-center border border-dashed border-gray-300 rounded-md bg-white text-sm text-gray-500">
@@ -340,12 +344,14 @@ export default function AttachmentPanel({
                   </a>
                   <div className="mt-1 flex items-center justify-between gap-2 text-xs text-gray-500">
                     <span>{formatSize(attachment.size)}</span>
-                    <div className="flex items-center gap-3">
-                      {allowCover && !attachment.isCover && (
-                        <button onClick={() => setCover(attachment.id)} className="text-blue-700 hover:text-blue-800">设为封面</button>
-                      )}
-                      <button onClick={() => deleteAttachment(attachment.id)} className="text-red-600 hover:text-red-700">归档</button>
-                    </div>
+                    {!readOnly && (
+                      <div className="flex items-center gap-3">
+                        {allowCover && !attachment.isCover && (
+                          <button onClick={() => setCover(attachment.id)} className="text-blue-700 hover:text-blue-800">设为封面</button>
+                        )}
+                        <button onClick={() => deleteAttachment(attachment.id)} className="text-red-600 hover:text-red-700">归档</button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </article>
@@ -364,68 +370,72 @@ export default function AttachmentPanel({
             <h3 className="font-semibold text-gray-900">{title}</h3>
             {!imageOnly && <p className="mt-1 text-xs text-gray-500">原始凭证及补充文件的上传、预览、下载和归档统一在此管理。</p>}
           </div>
-          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
-          {imageOnly && (
-            <input
-              type="text"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="图片说明，如：正面外观、包装标签"
-              maxLength={200}
-              className="min-w-[220px] flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm"
-            />
+          {!readOnly && (
+            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+              {imageOnly && (
+                <input
+                  type="text"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="图片说明，如：正面外观、包装标签"
+                  maxLength={200}
+                  className="min-w-[220px] flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+              )}
+              {showAiRecognition && (
+                <button
+                  type="button"
+                  onClick={() => void handleAiRecognition()}
+                  disabled={recognizingAttachmentId !== null}
+                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 text-sm font-medium text-violet-700 transition hover:border-violet-300 hover:bg-violet-100"
+                >
+                  <Sparkles aria-hidden="true" className="h-4 w-4" />
+                  {recognizingAttachmentId ? '识别中' : 'AI 识别并填充'}
+                </button>
+              )}
+              <label className="inline-flex h-10 cursor-pointer items-center rounded-lg bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700 whitespace-nowrap">
+                {uploading ? '上传中...' : imageOnly ? '选择图片' : '添加附件'}
+                <input
+                  ref={inputRef}
+                  type="file"
+                  accept={imageOnly ? 'image/*' : undefined}
+                  multiple
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const files = e.target.files
+                    if (files) handleFiles(files)
+                  }}
+                />
+              </label>
+            </div>
           )}
-          {showAiRecognition && (
-            <button
-              type="button"
-              onClick={() => void handleAiRecognition()}
-              disabled={recognizingAttachmentId !== null}
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 text-sm font-medium text-violet-700 transition hover:border-violet-300 hover:bg-violet-100"
-            >
-              <Sparkles aria-hidden="true" className="h-4 w-4" />
-              {recognizingAttachmentId ? '识别中' : 'AI 识别并填充'}
-            </button>
-          )}
-          <label className="inline-flex h-10 cursor-pointer items-center rounded-lg bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700 whitespace-nowrap">
-            {uploading ? '上传中...' : imageOnly ? '选择图片' : '添加附件'}
-            <input
-              ref={inputRef}
-              type="file"
-              accept={imageOnly ? 'image/*' : undefined}
-              multiple
-              className="hidden"
-              disabled={uploading}
-              onChange={(e) => {
-                const files = e.target.files
-                if (files) handleFiles(files)
-              }}
-            />
-          </label>
         </div>
-      </div>
-      <div
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragEnter={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onClick={openFilePicker}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            openFilePicker()
-          }
-        }}
-        role="button"
-        tabIndex={uploading ? -1 : 0}
-        aria-disabled={uploading}
-        className={`mb-3 flex min-h-20 items-center justify-center rounded-lg border border-dashed px-4 py-4 text-center text-sm transition ${
-          dragActive
-            ? 'border-blue-500 bg-blue-50 text-blue-700'
-            : 'border-gray-300 bg-gray-50 text-gray-500 hover:border-blue-300 hover:bg-blue-50/50'
-        } ${uploading ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-      >
-        {uploading ? '上传中...' : imageOnly ? '拖放图片到这里，或点击选择图片' : '拖放原始凭证或补充文件到这里，或点击添加附件'}
-      </div>
+        {!readOnly && (
+          <div
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={openFilePicker}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                openFilePicker()
+              }
+            }}
+            role="button"
+            tabIndex={uploading ? -1 : 0}
+            aria-disabled={uploading}
+            className={`mb-3 flex min-h-20 items-center justify-center rounded-lg border border-dashed px-4 py-4 text-center text-sm transition ${
+              dragActive
+                ? 'border-blue-500 bg-blue-50 text-blue-700'
+                : 'border-gray-300 bg-gray-50 text-gray-500 hover:border-blue-300 hover:bg-blue-50/50'
+            } ${uploading ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+          >
+            {uploading ? '上传中...' : imageOnly ? '拖放图片到这里，或点击选择图片' : '拖放原始凭证或补充文件到这里，或点击添加附件'}
+          </div>
+        )}
       {attachments.length === 0 ? (
         <div className="rounded-lg bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">{imageOnly ? '暂无物料图片' : '暂无附件，可上传图片、PDF、Office 文档或其他业务文件'}</div>
       ) : (
@@ -455,7 +465,7 @@ export default function AttachmentPanel({
                       {recognizingAttachmentId === attachment.id ? '识别中' : 'AI 识别'}
                     </button>
                   )}
-                  <button type="button" onClick={() => deleteAttachment(attachment.id)} className="text-red-600 hover:text-red-700">归档</button>
+                  {!readOnly && <button type="button" onClick={() => deleteAttachment(attachment.id)} className="text-red-600 hover:text-red-700">归档</button>}
                 </div>
               </div>
             </article>

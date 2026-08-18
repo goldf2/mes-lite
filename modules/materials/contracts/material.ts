@@ -11,6 +11,13 @@ export interface MaterialImage {
   isCover: boolean
 }
 
+export interface MaterialReference {
+  id: string
+  code: string
+  name: string
+  spec?: string | null
+}
+
 export interface Material {
   id: string
   code: string

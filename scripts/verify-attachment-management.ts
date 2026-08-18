@@ -36,6 +36,8 @@ assert.match(attachmentPanelSource, /DocumentFileViewer/, '附件管理必须复
 assert.match(attachmentPanelSource, /AI 识别并填充/, '附件管理必须保留 AI 识别并填充入口')
 assert.match(attachmentPanelSource, /handleAiRecognition\(attachment\)/, '多个附件必须可以分别选择后进入 AI 识别流程')
 assert.match(attachmentPanelSource, /onAiRecognize\?:\s*\(attachment:\s*ManagedAttachment\)/, 'AI 识别入口必须暴露基于附件的回调契约')
+assert.match(attachmentPanelSource, /const showAiRecognition = !readOnly &&/, '只读附件视图不得暴露 AI 识别入口')
+assert.ok((attachmentPanelSource.match(/\{!readOnly &&/g) || []).length >= 6, '只读附件视图必须在所有布局隐藏上传、拖放、设封面和归档命令')
 assert.match(attachmentPanelSource, /from '\.\.\/client\/attachment-api'/, '附件面板必须通过所属模块客户端访问 API')
 assert.doesNotMatch(attachmentPanelSource, /fetch\(['"]\/api\/attachments/, '公共附件面板不得重复实现附件请求')
 assert.match(attachmentClientSource, /export async function listAttachments/, '附件模块必须提供统一客户端契约')

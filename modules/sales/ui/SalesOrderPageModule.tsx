@@ -13,6 +13,8 @@ import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
 import { AttachmentPanel } from '@/modules/attachments'
 import { MappedResourceAdvancedSearch } from '@/app/components/resource'
 import { BusinessDocumentPrintLink, generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/modules/business-documents'
+import { MaterialDetailDialog, MaterialReferenceButton } from '@/modules/materials'
+import type { MaterialReference } from '@/modules/materials'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import SortableTableHeader from '@/app/components/SortableTableHeader'
 import useClientTableSort from '@/app/components/useClientTableSort'
@@ -73,6 +75,7 @@ export default function SalesOrderPageModule({
   const [draftAttachmentOwnerId, setDraftAttachmentOwnerId] = useState('')
   const [draftAttachmentBusy, setDraftAttachmentBusy] = useState(false)
   const [detailOrder, setDetailOrder] = useState<SalesOrder | null>(null)
+  const [detailMaterial, setDetailMaterial] = useState<MaterialReference | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.salesOrders.viewMode', 'card')
   const [form, setForm] = useState(emptyForm)
   const [pendingAction, setPendingAction] = useState<{ order: SalesOrder; action: 'confirm' | 'cancel' } | null>(null)
@@ -342,7 +345,7 @@ export default function SalesOrderPageModule({
                         <tbody className="divide-y divide-gray-100">
                           {order.items.map((item) => (
                             <tr key={item.id}>
-                              <td className="px-3 py-2"><div className="font-medium text-gray-900">{item.material.name}</div><div className="text-xs text-gray-500">{item.material.code}{item.material.spec ? ` · ${item.material.spec}` : ''}</div></td>
+                              <td className="px-3 py-2"><MaterialReferenceButton material={item.material} onOpen={setDetailMaterial} /></td>
                               <td className="px-3 py-2">{numberText(item.qty)} {item.unit}</td>
                               <td className="px-3 py-2 text-amber-700">{numberText(item.pendingQty)} {item.unit}</td>
                               <td className="px-3 py-2 text-emerald-700">{numberText(item.shippedQty)} {item.unit}</td>
@@ -405,12 +408,12 @@ export default function SalesOrderPageModule({
         </div>
       </div>
 
-      {detailOrder && (
+      {detailOrder && !detailMaterial && (
         <ModalDialog
           title="销售订单详情"
           description={`${detailOrder.orderNo} · ${detailOrder.customer.name}`}
           size="wide"
-          onClose={() => setDetailOrder(null)}
+          onClose={() => { setDetailMaterial(null); setDetailOrder(null) }}
           headerActions={<BusinessDocumentPrintLink kind="sales-order" id={detailOrder.id} />}
         >
           <div className="space-y-6">
@@ -440,7 +443,7 @@ export default function SalesOrderPageModule({
                   <tbody className="divide-y divide-gray-100">
                     {detailOrder.items.map((item) => (
                       <tr key={item.id}>
-                        <td className="px-3 py-2"><div className="font-medium text-gray-900">{item.material.name}</div><div className="text-xs text-gray-500">{item.material.code}{item.material.spec ? ` · ${item.material.spec}` : ''}</div></td>
+                        <td className="px-3 py-2"><MaterialReferenceButton material={item.material} onOpen={setDetailMaterial} /></td>
                         <td className="px-3 py-2">{numberText(item.qty)} {item.unit}</td>
                         <td className="px-3 py-2 text-amber-700">{numberText(item.pendingQty)} {item.unit}</td>
                         <td className="px-3 py-2 text-emerald-700">{numberText(item.shippedQty)} {item.unit}</td>
@@ -457,6 +460,13 @@ export default function SalesOrderPageModule({
           </div>
         </ModalDialog>
       )}
+
+      <MaterialDetailDialog
+        key={detailMaterial?.id || 'closed-material-detail'}
+        material={detailMaterial}
+        onClose={() => setDetailMaterial(null)}
+        onMessage={onMessage}
+      />
 
       {formOpen && (
         <ModalDialog

@@ -1,6 +1,6 @@
 {
-  "version": "0.1.401",
-  "impact": "none",
-  "workflowIds": [],
-  "summary": "本版本仅调整 GitHub Actions 构建门禁和发布说明，不改变站内页面、业务流程或 SOP 操作步骤。"
+  "version": "0.1.403",
+  "impact": "updated",
+  "workflowIds": ["26-sales-order-detail"],
+  "summary": "销售订单的物料名称和编码增加详情入口；在同一弹窗层级查看物料档案后可返回原订单详情。"
 }

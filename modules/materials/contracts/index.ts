@@ -3,6 +3,7 @@ export type {
   CustomerOption,
   Material,
   MaterialImage,
+  MaterialReference,
   MeasureType,
   PaginationState,
 } from './material'

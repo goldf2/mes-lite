@@ -1658,7 +1658,8 @@
           "steps": [
             "打开订单“详情”。",
             "核对客户、客户单号、日期、金额和附件。",
-            "确认订购、待发占用、已发和未发数量。"
+            "确认订购、待发占用、已发和未发数量。",
+            "点击物料名称或编码查看物料详情；关闭物料详情后返回原订单继续复核。"
           ],
           "result": "详情与列表及原始凭据一致。",
           "pageKey": "salesOrders",
@@ -1670,7 +1671,7 @@
             "baseline": "0.1.350",
             "file": "26-sales-order-detail.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.403"
         },
         {
           "id": "27-shipment-list",
