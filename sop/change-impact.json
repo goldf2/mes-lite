@@ -1,6 +1,6 @@
 {
-  "version": "0.1.403",
+  "version": "0.1.404",
   "impact": "updated",
-  "workflowIds": ["26-sales-order-detail"],
-  "summary": "销售订单的物料名称和编码增加详情入口；在同一弹窗层级查看物料档案后可返回原订单详情。"
+  "workflowIds": ["18-receiving-create"],
+  "summary": "来料新增和编辑弹窗的右侧已加入清单改为固定标题下的独立可见滚动区，多项物料不再被底部提交栏截断。"
 }

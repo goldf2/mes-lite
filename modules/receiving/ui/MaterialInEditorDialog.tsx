@@ -117,7 +117,7 @@ export default function MaterialInEditorDialog({
       size="wide"
       overlayClassName="z-[60]"
       panelClassName="!max-w-[min(96vw,1500px)]"
-      bodyClassName="xl:overflow-hidden"
+      bodyClassName="xl:flex xl:overflow-hidden"
       footer={(
         <ModalActions
           onCancel={onClose}
@@ -127,7 +127,7 @@ export default function MaterialInEditorDialog({
         />
       )}
     >
-      <div className="min-h-0 xl:grid xl:h-full xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="min-h-0 w-full xl:grid xl:flex-1 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-3 xl:min-h-0 xl:overflow-y-auto xl:pr-5 xl:gap-4">
           <div className="lg:col-span-3">
             <label className="mb-2 block text-sm font-medium text-gray-700">凭据号</label>
@@ -377,54 +377,59 @@ export default function MaterialInEditorDialog({
           )}
         </div>
 
-        <aside className="mt-5 border-t border-gray-200 pt-5 xl:mt-0 xl:min-h-0 xl:overflow-y-auto xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-          <div className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-white pb-3">
+        <aside className="mt-5 border-t border-gray-200 pt-5 xl:mt-0 xl:flex xl:min-h-0 xl:flex-col xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+          <div className="flex items-center justify-between gap-3 bg-white pb-3 xl:shrink-0">
             <div className="text-sm font-semibold text-gray-900">本单已加入</div>
             <div className="text-xs tabular-nums text-gray-500">{draftItems.length} 项</div>
           </div>
-          {draftItems.length === 0 ? (
-            <div className="border-y border-dashed border-gray-200 py-8 text-center text-sm text-gray-400">暂无已加入物料</div>
-          ) : (
-            <div className="border-t border-gray-200">
-              {draftItems.map((item, index) => {
-                const material = materials.find((option) => option.id === item.materialId)
-                const location = locations.find((option) => option.id === item.locationId)
-                return (
-                  <div key={item.id} className="border-b border-gray-100 py-3 text-sm">
-                    <div className="flex items-start gap-2">
-                      <span className="w-5 shrink-0 pt-0.5 text-xs tabular-nums text-gray-400">{index + 1}</span>
-                      <div className="min-w-0 flex-1">
-                        <div className="break-words font-medium text-gray-900">
-                          {material ? formatMaterialLabel(material) : item.materialId}
+          <div
+            aria-label="本单已加入清单"
+            className="mes-receipt-draft-scroll xl:min-h-0 xl:flex-1 xl:overflow-y-scroll xl:overscroll-contain xl:pr-2"
+          >
+            {draftItems.length === 0 ? (
+              <div className="border-y border-dashed border-gray-200 py-8 text-center text-sm text-gray-400">暂无已加入物料</div>
+            ) : (
+              <div className="border-t border-gray-200">
+                {draftItems.map((item, index) => {
+                  const material = materials.find((option) => option.id === item.materialId)
+                  const location = locations.find((option) => option.id === item.locationId)
+                  return (
+                    <div key={item.id} className="border-b border-gray-100 py-3 text-sm">
+                      <div className="flex items-start gap-2">
+                        <span className="w-5 shrink-0 pt-0.5 text-xs tabular-nums text-gray-400">{index + 1}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="break-words font-medium text-gray-900">
+                            {material ? formatMaterialLabel(material) : item.materialId}
+                          </div>
+                          <div className="mt-1 text-xs text-gray-500">
+                            {item.qty} {item.unit}
+                            {item.valuationQty ? ` · 实测 ${item.valuationQty} ${item.valuationUnit}` : ''}
+                            {' · '}¥{item.totalAmount.toFixed(2)}
+                          </div>
+                          <div className="mt-0.5 break-words text-xs text-gray-500">
+                            统一待分库：{location ? `${location.code} · ${location.name}` : item.locationId}
+                          </div>
                         </div>
-                        <div className="mt-1 text-xs text-gray-500">
-                          {item.qty} {item.unit}
-                          {item.valuationQty ? ` · 实测 ${item.valuationQty} ${item.valuationUnit}` : ''}
-                          {' · '}¥{item.totalAmount.toFixed(2)}
-                        </div>
-                        <div className="mt-0.5 break-words text-xs text-gray-500">
-                          统一待分库：{location ? `${location.code} · ${location.name}` : item.locationId}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDraftItems((current) => current.filter((draft) => draft.id !== item.id))}
+                          className="shrink-0 rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                        >
+                          移除
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setDraftItems((current) => current.filter((draft) => draft.id !== item.id))}
-                        className="shrink-0 rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-                      >
-                        移除
-                      </button>
                     </div>
-                  </div>
-                )
-              })}
-              <div className="flex items-center justify-between gap-3 border-b border-gray-200 py-3 text-sm">
-                <span className="text-gray-500">已加入合计</span>
-                <strong className="tabular-nums text-gray-900">
-                  ¥{draftItems.reduce((sum, item) => sum + item.totalAmount, 0).toFixed(2)}
-                </strong>
+                  )
+                })}
+                <div className="flex items-center justify-between gap-3 border-b border-gray-200 py-3 text-sm">
+                  <span className="text-gray-500">已加入合计</span>
+                  <strong className="tabular-nums text-gray-900">
+                    ¥{draftItems.reduce((sum, item) => sum + item.totalAmount, 0).toFixed(2)}
+                  </strong>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </aside>
       </div>
     </ModalDialog>

@@ -72,6 +72,8 @@ function verifyStaticBoundaries(
   assert.match(renderer, /canReverse=\{context\.canUpdate\('materialInReverse'\)\}/, '来料页面必须从应用壳获得独立红冲权限')
   assert.match(editor, /SearchableSelect[\s\S]*onSearch=/, '来料编辑必须复用支持异步联想的公共搜索选择器')
   assert.match(editor, /历史实测加权推算/, '来料编辑必须明确展示历史推算来源')
+  assert.match(editor, /bodyClassName="xl:flex xl:overflow-hidden"[\s\S]*xl:flex-1/, '宽屏来料双栏必须从弹窗正文获得受约束的可用高度')
+  assert.match(editor, /aria-label="本单已加入清单"[\s\S]*mes-receipt-draft-scroll[\s\S]*xl:overflow-y-scroll/, '宽屏来料右侧清单必须在固定标题下使用独立可见滚动区')
   assert.doesNotMatch(editor, /开启比例联动|实测快照|单件长度/, '普通来料界面不得继续依赖旧批次三字段联动')
   assert.match(select, /onSearch\?:[\s\S]*window\.setTimeout/, '公共搜索选择器必须提供防抖异步联想契约')
   assert.ok(page.split('\n').length <= 800, '来料主页必须保持在 800 行以内')
