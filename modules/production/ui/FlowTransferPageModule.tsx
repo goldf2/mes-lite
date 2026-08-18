@@ -12,7 +12,7 @@ import { appTextareaClassName } from '@/app/components/FormField'
 import MetricCard from '@/app/components/MetricCard'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
 import { MappedResourceAdvancedSearch } from '@/app/components/resource'
-import { BusinessDocumentPrintLink, generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/modules/business-documents'
+import { BusinessDocumentPrintLink } from '@/modules/business-documents'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import SortableTableHeader from '@/app/components/SortableTableHeader'
 import useClientTableSort from '@/app/components/useClientTableSort'
@@ -145,21 +145,13 @@ export default function FlowTransferPageModule({
     if (Number(form.quantity) <= 0) return onMessage('转移数量必须大于 0')
     if (!form.employeeId) return onMessage('请选择操作员工')
 
-    const printPreview = reserveBusinessDocumentPrintWindow()
     setSaving(true)
     try {
       const result = await saveFlowTransfer(form, editingTransfer?.id)
       onMessage(result.message || '流程转移草稿已保存')
-      const pdfGenerated = await generateBusinessDocumentPdfArchives('flow-transfer', [result.transfer.id])
-      if (pdfGenerated) printPreview.open('flow-transfer', result.transfer.id)
-      else {
-        printPreview.close()
-        onMessage('流程转移已保存，但 PDF 生成失败，可在列表中重新打印')
-      }
       setFormOpen(false)
       await loadData()
     } catch (error) {
-      printPreview.close()
       onMessage(error instanceof Error ? error.message : '保存流程转移失败')
     } finally {
       setSaving(false)
@@ -334,7 +326,7 @@ export default function FlowTransferPageModule({
           onClose={() => setFormOpen(false)}
           closeDisabled={saving}
           size="xl"
-          footer={<ModalActions onCancel={() => setFormOpen(false)} onConfirm={saveDraft} confirmLabel={editingTransfer ? '保存并输出 PDF' : '创建并输出 PDF'} busy={saving} />}
+          footer={<ModalActions onCancel={() => setFormOpen(false)} onConfirm={saveDraft} confirmLabel={editingTransfer ? '保存流程转移' : '创建流程转移'} busy={saving} />}
         >
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <label className="text-sm text-gray-700">

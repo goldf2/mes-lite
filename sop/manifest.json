@@ -271,7 +271,8 @@
           "steps": [
             "点击“新建生产订单”。",
             "选择产出物料、已发布 BOM、计划数量和计划日期。",
-            "填写班组或备注后保存。"
+            "填写班组或备注后保存。",
+            "需要纸质单据时，保存后在生产订单清单点击“打印”。"
           ],
           "result": "订单以“草稿”创建，此时不可登记实绩。",
           "pageKey": "orders",
@@ -284,7 +285,7 @@
             "baseline": "0.1.350",
             "file": "09-production-order-create.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.407"
         },
         {
           "id": "10-production-order-release",
@@ -1351,7 +1352,8 @@
           "steps": [
             "点击“新建派工”。",
             "选择生产订单、员工、工作中心和计划时间。",
-            "填写要求并保存。"
+            "填写要求并保存。",
+            "需要纸质单据时，保存后在派工清单点击“打印”。"
           ],
           "result": "派工记录出现在列表并可跟踪状态。",
           "pageKey": "dispatch",
@@ -1363,7 +1365,7 @@
             "baseline": "0.1.350",
             "file": "14-dispatch-create.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.407"
         },
         {
           "id": "15-flow-transfer",
@@ -1395,6 +1397,7 @@
             "点击“新建流程转移”。",
             "选择物料、来源库位、目标库位和数量。",
             "填写执行员工、节点和备注后保存。",
+            "需要纸质单据时，保存后在流程转移清单点击“打印”。",
             "审批/完成后检查库位库存。"
           ],
           "result": "转移完成后总库存不变，库位分布变化。",
@@ -1408,7 +1411,7 @@
             "baseline": "0.1.350",
             "file": "16-flow-transfer-create.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.407"
         }
       ]
     },
@@ -1447,7 +1450,8 @@
             "选择供应商、物料、收货库位。",
             "填写数量、实测重量、单价、凭据和附件。",
             "添加多项物料时，在右侧“本单已加入”清单中滚动核对全部明细；需要调整时点击“编辑”，在左侧修改后点击“保存本项修改”，或点击“取消编辑”放弃调整。",
-            "创建后保留为待收货，等待现场确认。"
+            "创建后保留为待收货，等待现场确认。",
+            "需要纸质单据时，保存后在来料清单或详情点击“打印”。"
           ],
           "result": "右侧清单可滚动查看全部已加入物料，并可编辑后按原项替换而不产生重复明细；来料单生成后库存尚未增加。",
           "pageKey": "materialIn",
@@ -1460,7 +1464,7 @@
             "baseline": "0.1.350",
             "file": "18-receiving-create.png"
           },
-          "lastVerifiedVersion": "0.1.406"
+          "lastVerifiedVersion": "0.1.407"
         },
         {
           "id": "19-receiving-received",
@@ -1638,7 +1642,8 @@
             "点击“新建销售订单”。",
             "选择客户并填写订单日期、交期和客户单号。",
             "添加物料、数量、单价和附件。",
-            "创建后复核并确认订单。"
+            "创建后复核并确认订单。",
+            "需要纸质单据时，在订单清单或详情点击“打印”。"
           ],
           "result": "草稿订单生成，确认后才可用于关联发货。",
           "pageKey": "salesOrders",
@@ -1650,7 +1655,7 @@
             "baseline": "0.1.350",
             "file": "25-sales-order-create.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.407"
         },
         {
           "id": "26-sales-order-detail",
@@ -1704,7 +1709,8 @@
             "点击“新建发货单”。",
             "选择销售订单或独立发货。",
             "选择客户、物料、发货库位并填写数量、价格和物流信息。",
-            "保存后先保持待发货。"
+            "保存后先保持待发货。",
+            "需要纸质单据时，在发货清单或详情点击“打印”。"
           ],
           "result": "待发货记录生成并占用订单未发数量。",
           "pageKey": "shipment",
@@ -1717,7 +1723,7 @@
             "baseline": "0.1.350",
             "file": "28-shipment-create.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.407"
         },
         {
           "id": "29-shipment-confirm",
@@ -1838,7 +1844,8 @@
             "点击“新建退货单”。",
             "选择物料并填写数量、退回库位和原因。",
             "按需填写外部凭据、备注和附件。",
-            "保存后等待授权人员处理。"
+            "保存后等待授权人员处理。",
+            "需要纸质单据时，在退货清单或详情点击“打印”。"
           ],
           "result": "新单状态为“待处理”，库存尚未返库。",
           "pageKey": "return",
@@ -1852,7 +1859,7 @@
             "baseline": "0.1.350",
             "file": "31-return-create.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.407"
         },
         {
           "id": "82-return-create-source-shipment",
@@ -2709,13 +2716,14 @@
         {
           "id": "54-business-settings",
           "title": "设置企业与业务规则",
-          "objective": "维护发货单乙方资料和全局业务规则。",
+          "objective": "维护发货单乙方资料、业务单据打印格式和全局业务规则。",
           "steps": [
             "进入“企业与业务规则”。",
             "填写企业名称、联系人、电话和地址并保存。",
+            "在“业务单据打印格式”选择紧凑或标准密度，并设置 8–20 mm 页面边距后保存；默认使用 10 mm 紧凑版。",
             "变更全局排序规则前评估所有客户端影响。"
           ],
-          "result": "发货 PDF 乙方信息和业务列表规则正确。",
+          "result": "发货 PDF 乙方信息、A4 打印密度、页面边距和业务列表规则正确；旧归档在下次打印时按新格式生成新版。",
           "pageKey": "businessSettings",
           "resource": "businessSettings",
           "roles": [
@@ -2725,7 +2733,7 @@
             "baseline": "0.1.350",
             "file": "54-business-settings.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.407"
         }
       ]
     },

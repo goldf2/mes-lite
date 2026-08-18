@@ -10,7 +10,6 @@ import { normalizeMaterialInPriceUnit } from '@/lib/material-in-quantity'
 import useClientTableSort from '@/app/components/useClientTableSort'
 import AppButton from '@/app/components/AppButton'
 import { MappedResourceAdvancedSearch } from '@/app/components/resource'
-import { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/modules/business-documents'
 import {
   createDraftDocumentAttachmentId,
   discardDraftDocumentAttachments,
@@ -386,7 +385,6 @@ export default function MaterialInPage({
       onMessage('请至少添加一种物料')
       return
     }
-    const printPreview = reserveBusinessDocumentPrintWindow()
     setLoading(true)
     try {
       const data = await saveMaterialInRecord(editingItem?.id || null, {
@@ -407,18 +405,11 @@ export default function MaterialInPage({
           onMessage(`来料单已创建，但${error instanceof Error ? error.message : '附件绑定失败'}`)
         }
       }
-      const pdfGenerated = await generateBusinessDocumentPdfArchives('material-in', [data.data.id])
-      if (pdfGenerated) printPreview.open('material-in', data.data.id)
-      else {
-        printPreview.close()
-        onMessage('来料单已保存，但部分 PDF 生成失败，可在来料列表中重新打印')
-      }
       setShowModal(false)
       setDraftAttachmentOwnerId('')
       resetForm()
       await fetchMaterialIns()
     } catch (err) {
-      printPreview.close()
       onMessage(err instanceof Error ? err.message : '创建来料单失败')
     }
     setLoading(false)

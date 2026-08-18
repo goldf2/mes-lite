@@ -10,7 +10,7 @@ import {
   GENERATED_BUSINESS_DOCUMENT_PDF_TYPE,
 } from '../domain/business-document-definition'
 import { BusinessDocumentError } from '../domain/business-document-errors'
-import { renderBusinessDocumentPdf } from './business-document-pdf'
+import { businessDocumentPrintProfile, renderBusinessDocumentPdf } from './business-document-pdf'
 import { loadBusinessDocumentPrintData } from './business-document-print-query-service'
 
 function latestArchivedPdf(kind: BusinessDocumentKind, id: string) {
@@ -38,18 +38,19 @@ export async function resolveBusinessDocumentPdf(
   const definition = businessDocumentDefinition(kind)
   if (!definition) throw new BusinessDocumentError('不支持的单据类型', 404)
 
-  const archivedPdf = await latestArchivedPdf(kind, id)
-  if (archivedPdf && !regenerate) {
+  const [archivedPdf, settings] = await Promise.all([
+    latestArchivedPdf(kind, id),
+    getSystemSettings(),
+  ])
+  const printProfile = businessDocumentPrintProfile(settings)
+  if (archivedPdf && !regenerate && archivedPdf.note?.includes(printProfile)) {
     return {
       pdf: await readFile(resolveAttachmentStoragePath(archivedPdf.storagePath)),
       filename: archivedPdf.originalName,
     }
   }
 
-  const [data, settings] = await Promise.all([
-    loadBusinessDocumentPrintData(kind, id),
-    getSystemSettings(),
-  ])
+  const data = await loadBusinessDocumentPrintData(kind, id)
   if (!data) throw new BusinessDocumentError('单据不存在或已归档', 404)
 
   const pdf = await renderBusinessDocumentPdf(data, settings)
@@ -70,7 +71,7 @@ export async function resolveBusinessDocumentPdf(
       size: pdf.byteLength,
       url: `/api/business-documents/${kind}/${id}/print`,
       storagePath,
-      note: regenerate && archivedPdf ? '单据保存后重新生成的归档版本' : '单据创建后自动生成的归档版本',
+      note: `${archivedPdf ? '按当前打印格式重新生成的归档版本' : '首次打印生成的归档版本'}；${printProfile}`,
     },
   })
   return { pdf, filename: originalName }

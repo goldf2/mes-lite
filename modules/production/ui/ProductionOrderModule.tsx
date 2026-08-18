@@ -14,8 +14,6 @@ import useClientTableSort from '@/app/components/useClientTableSort'
 import { MappedResourceAdvancedSearch } from '@/app/components/resource'
 import {
   BusinessDocumentPrintLink,
-  generateBusinessDocumentPdfArchives,
-  reserveBusinessDocumentPrintWindow,
 } from '@/modules/business-documents'
 import {
   DraftDocumentAttachmentPanel,
@@ -234,7 +232,6 @@ export default function ProductionOrderModule({
       onMessage('请至少添加一个产品')
       return
     }
-    const printPreview = reserveBusinessDocumentPrintWindow()
     setLoading(true)
     try {
       const payload = await createProductionOrders(buildProductionOrderCreateInput(lines, orderVoucherNo, orderNote))
@@ -248,15 +245,6 @@ export default function ProductionOrderModule({
         onMessage(error instanceof Error ? `生产订单已创建，但${error.message}` : '生产订单已创建，但附件绑定失败')
       }
       onMessage(payload.count > 1 ? `生产订单已保存：${payload.groupNo}，共 ${payload.count} 个产品` : `生产订单已保存：${payload.data.orderNo}`)
-      const pdfGenerated = await generateBusinessDocumentPdfArchives(
-        'production-order',
-        (payload.items || [payload.data]).map((item: { id: string }) => item.id),
-      )
-      if (pdfGenerated) printPreview.open('production-order', payload.data.id)
-      else {
-        printPreview.close()
-        onMessage('生产订单已保存，但部分 PDF 生成失败，可在生产订单列表中重新打印')
-      }
       setPlanQty(100)
       setOrderVoucherNo('')
       setOrderNote('')
@@ -267,7 +255,6 @@ export default function ProductionOrderModule({
       await fetchOrders()
       onModeChange('orders')
     } catch (error) {
-      printPreview.close()
       onMessage(error instanceof Error ? error.message : '创建失败')
     } finally {
       setLoading(false)
@@ -466,7 +453,7 @@ export default function ProductionOrderModule({
               onBusyChange={setDraftAttachmentBusy}
               onMessage={onMessage}
             />
-            <button onClick={() => void createOrder()} disabled={loading || draftAttachmentBusy} className="w-full rounded-lg bg-blue-600 px-4 py-3 font-medium text-white hover:bg-blue-700 disabled:opacity-50">{loading || draftAttachmentBusy ? '处理中...' : `创建生产订单并输出 PDF${orderDraftLines.length > 0 ? `（${orderDraftLines.length + (selectedMaterialId ? 1 : 0)} 个产品）` : ''}`}</button>
+            <button onClick={() => void createOrder()} disabled={loading || draftAttachmentBusy} className="w-full rounded-lg bg-blue-600 px-4 py-3 font-medium text-white hover:bg-blue-700 disabled:opacity-50">{loading || draftAttachmentBusy ? '处理中...' : `创建生产订单${orderDraftLines.length > 0 ? `（${orderDraftLines.length + (selectedMaterialId ? 1 : 0)} 个产品）` : ''}`}</button>
           </div>
         </div>
       )}

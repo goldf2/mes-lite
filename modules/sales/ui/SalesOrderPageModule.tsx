@@ -12,7 +12,7 @@ import TopBarPortal from '@/app/components/TopBarPortal'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
 import { AttachmentPanel } from '@/modules/attachments'
 import { MappedResourceAdvancedSearch } from '@/app/components/resource'
-import { BusinessDocumentPrintLink, generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/modules/business-documents'
+import { BusinessDocumentPrintLink } from '@/modules/business-documents'
 import { MaterialDetailDialog, MaterialReferenceButton } from '@/modules/materials'
 import type { MaterialReference } from '@/modules/materials'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
@@ -190,7 +190,6 @@ export default function SalesOrderPageModule({
       return onMessage('同一物料请合并为一条明细')
     }
 
-    const printPreview = reserveBusinessDocumentPrintWindow()
     setSaving(true)
     try {
       const order = await createSalesOrder({
@@ -203,18 +202,11 @@ export default function SalesOrderPageModule({
       } catch (error) {
         onMessage(`销售订单已创建，但${error instanceof Error ? error.message : '附件绑定失败'}`)
       }
-      const pdfGenerated = await generateBusinessDocumentPdfArchives('sales-order', [order.id])
-      if (pdfGenerated) printPreview.open('sales-order', order.id)
-      else {
-        printPreview.close()
-        onMessage('销售订单已创建，但 PDF 生成失败，可在订单列表中重新打印')
-      }
       setFormOpen(false)
       setDraftAttachmentOwnerId('')
       setForm(emptyForm())
       await loadOrders()
     } catch (error) {
-      printPreview.close()
       onMessage(error instanceof Error ? error.message : '创建销售订单失败')
     } finally {
       setSaving(false)
@@ -475,7 +467,7 @@ export default function SalesOrderPageModule({
           size="wide"
           onClose={closeCreateOrder}
           closeDisabled={saving || draftAttachmentBusy}
-          footer={<ModalActions onCancel={closeCreateOrder} onConfirm={saveOrder} confirmLabel="创建并输出 PDF" busy={saving || draftAttachmentBusy} />}
+          footer={<ModalActions onCancel={closeCreateOrder} onConfirm={saveOrder} confirmLabel="创建销售订单" busy={saving || draftAttachmentBusy} />}
         >
           <div className="space-y-5">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

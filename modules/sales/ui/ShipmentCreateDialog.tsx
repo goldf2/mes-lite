@@ -8,7 +8,6 @@ import {
   discardDraftDocumentAttachments,
   finalizeDraftDocumentAttachments,
 } from '@/modules/attachments'
-import { generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/modules/business-documents'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import SearchableSelect from '@/app/components/SearchableSelect'
 import { createShipment, loadShipmentCreateOptions } from '../client/fulfillment-api'
@@ -171,7 +170,6 @@ export default function ShipmentCreateDialog({
     if (!form.salesOrderItemId && (!form.customerId || !form.materialId)) {
       return onMessage('独立发货时请选择客户和物料')
     }
-    const printPreview = reserveBusinessDocumentPrintWindow()
     setSaving(true)
     try {
       const shipment = await createShipment(form)
@@ -181,16 +179,9 @@ export default function ShipmentCreateDialog({
         onMessage(error instanceof Error ? `发货单已创建，但${error.message}` : '发货单已创建，但附件绑定失败')
       }
       onMessage(`发货单创建成功：${shipment.shipmentNo}`)
-      const pdfGenerated = await generateBusinessDocumentPdfArchives('shipment', [shipment.id])
-      if (pdfGenerated) printPreview.open('shipment', shipment.id)
-      else {
-        printPreview.close()
-        onMessage('发货单已创建，但 PDF 生成失败，可在发货列表中重新打印')
-      }
       await onCreated?.(shipment)
       onClose()
     } catch (error) {
-      printPreview.close()
       onMessage(error instanceof Error ? error.message : '创建发货单失败')
     } finally {
       setSaving(false)
@@ -208,7 +199,7 @@ export default function ShipmentCreateDialog({
         <ModalActions
           onCancel={() => void closeDialog()}
           onConfirm={handleSubmit}
-          confirmLabel="创建并输出 PDF"
+          confirmLabel="创建发货单"
           busy={saving || draftAttachmentBusy}
           disabled={preparing}
         />

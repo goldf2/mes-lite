@@ -14,7 +14,7 @@ import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import FormField, { appInputClassName, appTextareaClassName } from '@/app/components/FormField'
 import AppButton from '@/app/components/AppButton'
 import { MappedResourceAdvancedSearch } from '@/app/components/resource'
-import { BusinessDocumentPrintLink, generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/modules/business-documents'
+import { BusinessDocumentPrintLink } from '@/modules/business-documents'
 import {
   DraftDocumentAttachmentPanel,
   createDraftDocumentAttachmentId,
@@ -196,7 +196,6 @@ export default function ReturnPageModule({
       onMessage(`退货数量不能超过剩余可退数量 ${selectedShipment.returnableQty}`)
       return
     }
-    const printPreview = reserveBusinessDocumentPrintWindow()
     setLoading(true)
     try {
       const returnOrder = await createReturn(form)
@@ -206,18 +205,11 @@ export default function ReturnPageModule({
         onMessage(error instanceof Error ? `退货单已创建，但${error.message}` : '退货单已创建，但附件绑定失败')
       }
       onMessage(`退货单创建成功：${returnOrder.returnNo}`)
-      const pdfGenerated = await generateBusinessDocumentPdfArchives('return', [returnOrder.id])
-      if (pdfGenerated) printPreview.open('return', returnOrder.id)
-      else {
-        printPreview.close()
-        onMessage('退货单已创建，但 PDF 生成失败，可在退货列表中重新打印')
-      }
       setShowModal(false)
       setDraftAttachmentOwnerId('')
       resetForm()
       await fetchReturns()
     } catch (error) {
-      printPreview.close()
       onMessage(error instanceof Error ? error.message : '创建退货单失败')
     } finally {
       setLoading(false)
@@ -397,7 +389,7 @@ export default function ReturnPageModule({
             <ModalActions
               onCancel={() => void closeCreate()}
               onConfirm={handleSubmit}
-              confirmLabel="创建并输出 PDF"
+              confirmLabel="创建退货单"
               busy={loading || draftAttachmentBusy}
             />
           )}

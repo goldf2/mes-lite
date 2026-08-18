@@ -4,6 +4,8 @@ export interface BusinessSettingsView {
   companyContact: string
   companyPhone: string
   companyAddress: string
+  businessDocumentPrintDensity: 'compact' | 'standard'
+  businessDocumentPrintMarginMm: number
 }
 
 type BusinessSettingsPatch = Partial<BusinessSettingsView>

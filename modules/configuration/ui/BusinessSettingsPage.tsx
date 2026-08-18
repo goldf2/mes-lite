@@ -16,6 +16,8 @@ const emptyProfile: BusinessSettingsView = {
   companyContact: '',
   companyPhone: '',
   companyAddress: '',
+  businessDocumentPrintDensity: 'compact',
+  businessDocumentPrintMarginMm: 10,
 }
 
 export default function BusinessSettingsPage({ onMessage, canUpdate }: { onMessage: (message: string) => void; canUpdate: boolean }) {
@@ -68,6 +70,21 @@ export default function BusinessSettingsPage({ onMessage, canUpdate }: { onMessa
     }
   }
 
+  const savePrintSettings = async () => {
+    setSaving(true)
+    try {
+      setSettings(await updateBusinessSettings({
+        businessDocumentPrintDensity: settings.businessDocumentPrintDensity,
+        businessDocumentPrintMarginMm: settings.businessDocumentPrintMarginMm,
+      }))
+      onMessage('业务单据打印格式已保存')
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '保存打印格式失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const updateField = (field: keyof Pick<BusinessSettingsView, 'companyName' | 'companyContact' | 'companyPhone' | 'companyAddress'>, value: string) => {
     setSettings((current) => ({ ...current, [field]: value }))
   }
@@ -91,6 +108,40 @@ export default function BusinessSettingsPage({ onMessage, canUpdate }: { onMessa
           <FormField label="企业地址"><input value={settings.companyAddress} onChange={(event) => updateField('companyAddress', event.target.value)} className={appInputClassName} disabled={loading || !canUpdate} /></FormField>
         </div>
         {canUpdate && <div className="mt-4 flex justify-end"><AppButton variant="primary" onClick={saveCompanyProfile} disabled={loading || saving}>{saving ? '保存中...' : '保存乙方资料'}</AppButton></div>}
+      </section>
+
+      <section className="mb-4 rounded-lg border border-gray-200 p-4">
+        <div className="mb-4">
+          <div className="font-medium text-gray-900">业务单据打印格式</div>
+          <div className="mt-1 text-sm text-gray-500">固定使用 A4 纵向版式；紧凑模式会缩短明细行高，14 条来料明细可排在一页内。超出容量时仍会自动分页。</div>
+          <div className="mt-2 text-xs text-gray-500">保存只保存业务数据；请在单据清单或详情中单独点击“打印”。旧归档会在下次打印时按新格式生成新版。</div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <FormField label="排版密度">
+            <select
+              value={settings.businessDocumentPrintDensity}
+              onChange={(event) => setSettings((current) => ({ ...current, businessDocumentPrintDensity: event.target.value as BusinessSettingsView['businessDocumentPrintDensity'] }))}
+              className={appInputClassName}
+              disabled={loading || !canUpdate}
+            >
+              <option value="compact">紧凑（推荐）</option>
+              <option value="standard">标准</option>
+            </select>
+          </FormField>
+          <FormField label="页面边距（毫米）" hint="可设置 8–20 mm；默认 10 mm。">
+            <input
+              type="number"
+              min={8}
+              max={20}
+              step={1}
+              value={settings.businessDocumentPrintMarginMm}
+              onChange={(event) => setSettings((current) => ({ ...current, businessDocumentPrintMarginMm: Number(event.target.value) }))}
+              className={appInputClassName}
+              disabled={loading || !canUpdate}
+            />
+          </FormField>
+        </div>
+        {canUpdate && <div className="mt-4 flex justify-end"><AppButton variant="primary" onClick={savePrintSettings} disabled={loading || saving}>{saving ? '保存中...' : '保存打印格式'}</AppButton></div>}
       </section>
 
       <section className="rounded-lg border border-gray-200 p-4">

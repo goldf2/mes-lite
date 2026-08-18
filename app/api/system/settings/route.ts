@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
-import { getSystemSettings, updateSystemSettings } from '@/lib/system-settings'
+import { BUSINESS_DOCUMENT_PRINT_DENSITIES, getSystemSettings, updateSystemSettings } from '@/lib/system-settings'
 import { CONTRAST_MODE_VALUES } from '@/lib/contrast-modes'
 
 export const dynamic = 'force-dynamic'
@@ -13,6 +13,8 @@ const businessUpdateSchema = z.object({
   companyContact: z.string().max(50).optional(),
   companyPhone: z.string().max(50).optional(),
   companyAddress: z.string().max(200).optional(),
+  businessDocumentPrintDensity: z.enum(BUSINESS_DOCUMENT_PRINT_DENSITIES).optional(),
+  businessDocumentPrintMarginMm: z.number().int().min(8).max(20).optional(),
 })
 const displayUpdateSchema = z.object({
   contrastMode: z.enum(CONTRAST_MODE_VALUES).optional(),
@@ -29,6 +31,8 @@ function scopedSettings(scope: z.infer<typeof scopeSchema>, settings: Awaited<Re
     naturalMaterialCodeSortEnabled: settings.naturalMaterialCodeSortEnabled,
     companyName: settings.companyName, companyContact: settings.companyContact,
     companyPhone: settings.companyPhone, companyAddress: settings.companyAddress,
+    businessDocumentPrintDensity: settings.businessDocumentPrintDensity,
+    businessDocumentPrintMarginMm: settings.businessDocumentPrintMarginMm,
   }
   if (scope === 'display') return { contrastMode: settings.contrastMode }
   return { aiLoadingIndicatorEnabled: settings.aiLoadingIndicatorEnabled }
@@ -68,7 +72,7 @@ export async function PATCH(req: NextRequest) {
       entityLabel: '系统设置',
       beforeData: before,
       afterData: after,
-      note: '更新系统设置及发货单供货方资料',
+      note: '更新企业资料、业务规则或业务单据打印格式',
     })
 
     return NextResponse.json({ data: scopedSettings(scope, after) })

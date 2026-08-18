@@ -21,11 +21,9 @@ process.env.MES_LITE_UPLOAD_DIR = uploadRoot
 const consumingPages = [
   'modules/receiving/ui/MaterialInCollectionView.tsx',
   'modules/receiving/ui/MaterialInDetailDialog.tsx',
-  'modules/receiving/ui/MaterialInPage.tsx',
   'modules/sales/ui/ReturnPageModule.tsx',
   'modules/sales/ui/SalesOrderPageModule.tsx',
   'modules/sales/ui/ShipmentPageModule.tsx',
-  'modules/sales/ui/ShipmentCreateDialog.tsx',
   'modules/production/ui/ProductionOrderModule.tsx',
   'modules/production/ui/FlowTransferPageModule.tsx',
   'modules/production/ui/DispatchPageModule.tsx',
@@ -81,27 +79,32 @@ function verifyStaticBoundaries() {
 
   const creationSources = [
     read('modules/receiving/ui/MaterialInPage.tsx'),
+    read('modules/receiving/ui/MaterialInEditorDialog.tsx'),
     read('modules/sales/ui/SalesOrderPageModule.tsx'),
     read('modules/sales/ui/ShipmentCreateDialog.tsx'),
     read('modules/sales/ui/ReturnPageModule.tsx'),
     read('modules/production/ui/FlowTransferPageModule.tsx'),
     read('modules/production/ui/DispatchPageModule.tsx'),
+    read('modules/production/ui/ProductionOrderModule.tsx'),
   ].join('\n')
-  assert.match(creationSources, /创建并输出 PDF/, '新建单据必须明确提示会输出 PDF')
-  assert.match(creationSources, /generateBusinessDocumentPdfArchives/, '单据创建后必须生成归档 PDF')
+  assert.doesNotMatch(creationSources, /(?:保存|创建).*输出 PDF/, '保存业务单据与输出 PDF 必须是两个独立动作')
+  assert.doesNotMatch(creationSources, /generateBusinessDocumentPdfArchives|reserveBusinessDocumentPrintWindow/, '保存流程不得生成或打开 PDF')
+  assert.match(read('modules/business-documents/ui/BusinessDocumentPrintLink.tsx'), /打印/, '单据列表和详情必须保留独立打印入口')
 }
 
 async function main() {
   const [
     { prisma },
+    { updateSystemSettings },
     { businessDocumentDefinition, GENERATED_BUSINESS_DOCUMENT_PDF_TYPE },
     { BusinessDocumentError },
     format,
-    { renderBusinessDocumentPdf },
+    { renderBusinessDocumentPdf, businessDocumentPrintProfile },
     { loadBusinessDocumentPrintData },
     printService,
   ] = await Promise.all([
     import('../lib/prisma'),
+    import('../lib/system-settings'),
     import('../modules/business-documents/domain/business-document-definition'),
     import('../modules/business-documents/domain/business-document-errors'),
     import('../modules/business-documents/domain/business-document-format'),
@@ -128,10 +131,47 @@ async function main() {
       rows: [{ index: '1', material: '测试物料', qty: '2 件' }],
     }, {
       naturalMaterialCodeSortEnabled: true, companyName: 'MES-lite 测试企业', companyContact: '',
-      companyPhone: '', companyAddress: '', aiLoadingIndicatorEnabled: true, contrastMode: 'standard',
+      companyPhone: '', companyAddress: '', businessDocumentPrintDensity: 'compact',
+      businessDocumentPrintMarginMm: 10, aiLoadingIndicatorEnabled: true, contrastMode: 'standard',
     })
     assert.equal(standalonePdf.subarray(0, 5).toString(), '%PDF-')
     assert.ok(standalonePdf.byteLength > 5_000, 'PDF 不应为空壳文件')
+    assert.equal(businessDocumentPrintProfile({
+      naturalMaterialCodeSortEnabled: true, companyName: '', companyContact: '', companyPhone: '', companyAddress: '',
+      businessDocumentPrintDensity: 'compact', businessDocumentPrintMarginMm: 10,
+      aiLoadingIndicatorEnabled: true, contrastMode: 'standard',
+    }), 'business-document-print:v2:compact:10')
+
+    const compactReceiptPdf = await renderBusinessDocumentPdf({
+      title: '来料单', documentNo: 'MI-VERIFY-014', status: '待分库', documentDate: '2026-08-18',
+      partyLabel: '供应商', partyName: '单页打印验证供应商',
+      summaryFields: [
+        { label: '凭据号', value: 'VOUCHER-014' },
+        { label: '待分库库位', value: 'DEFAULT · 默认库位' },
+        { label: '明细数量', value: '14 项' },
+      ],
+      columns: [
+        { label: '序号', key: 'index', width: 0.6, align: 'center' },
+        { label: '物料', key: 'material', width: 2.4 },
+        { label: '规格', key: 'spec', width: 1.4 },
+        { label: '数量', key: 'qty', width: 1, align: 'right' },
+        { label: '单价', key: 'price', width: 1, align: 'right' },
+        { label: '金额', key: 'amount', width: 1, align: 'right' },
+      ],
+      rows: Array.from({ length: 14 }, (_, index) => ({
+        index: String(index + 1), material: `验证物料 ${index + 1}`, spec: `B${String(index + 1).padStart(3, '0')}`,
+        qty: `${100 + index} kg`, price: '¥0.00', amount: '¥0.00',
+      })),
+      totalLabel: '合计', totalValue: '¥0.00', note: '紧凑版 A4 单页验证',
+    }, {
+      naturalMaterialCodeSortEnabled: true, companyName: 'MES-lite 测试企业', companyContact: '',
+      companyPhone: '', companyAddress: '', businessDocumentPrintDensity: 'compact',
+      businessDocumentPrintMarginMm: 10, aiLoadingIndicatorEnabled: true, contrastMode: 'standard',
+    })
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
+    const compactDocument = await getDocument({ data: new Uint8Array(compactReceiptPdf) }).promise
+    assert.equal(compactDocument.numPages, 1, '紧凑版 A4 必须容纳 14 条来料明细、备注和签字栏')
+    await compactDocument.destroy()
 
     const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`
     const [material, sourceLocation, targetLocation] = await Promise.all([
@@ -166,18 +206,26 @@ async function main() {
     assert.equal(cached.pdf.equals(generated.pdf), true, '普通补打必须复用已有归档 PDF')
     assert.equal(await prisma.documentAttachment.count({ where: { ownerType: 'FLOW_TRANSFER', ownerId: transfer.id } }), 1)
 
+    await updateSystemSettings({ businessDocumentPrintMarginMm: 12 })
+    await printService.resolveBusinessDocumentPdf('flow-transfer', transfer.id)
+    const reformatted = await prisma.documentAttachment.findMany({
+      where: { ownerType: 'FLOW_TRANSFER', ownerId: transfer.id }, orderBy: { createdAt: 'asc' },
+    })
+    assert.equal(reformatted.length, 2, '打印设置变化后，下次补打必须保留新格式归档')
+    assert.match(reformatted[1].note || '', /business-document-print:v2:compact:12/)
+
     await printService.resolveBusinessDocumentPdf('flow-transfer', transfer.id, true)
     const regenerated = await prisma.documentAttachment.findMany({
       where: { ownerType: 'FLOW_TRANSFER', ownerId: transfer.id }, orderBy: { createdAt: 'asc' },
     })
-    assert.equal(regenerated.length, 2, '强制重生成必须保留历史归档并新增版本')
-    assert.match(regenerated[1].note || '', /重新生成的归档版本/)
+    assert.equal(regenerated.length, 3, '强制重生成必须保留历史归档并新增版本')
+    assert.match(regenerated[2].note || '', /按当前打印格式重新生成的归档版本；business-document-print:v2:compact:12/)
     await assert.rejects(
       () => printService.resolveBusinessDocumentPdf('flow-transfer', 'missing-document'),
       (error: unknown) => error instanceof BusinessDocumentError && error.status === 404,
     )
 
-    console.log('业务单据打印验证通过：模块边界、7 类投影、A4 PDF、首次归档、缓存补打和重生成版本符合预期')
+    console.log('业务单据打印验证通过：保存/打印分离、7 类投影、14 条紧凑 A4 单页、首次归档、缓存补打和重生成版本符合预期')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

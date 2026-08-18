@@ -11,7 +11,7 @@ import useClientTableSort from '@/app/components/useClientTableSort'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import AppButton from '@/app/components/AppButton'
 import { MappedResourceAdvancedSearch } from '@/app/components/resource'
-import { BusinessDocumentDetailDialog, BusinessDocumentPrintLink, generateBusinessDocumentPdfArchives, reserveBusinessDocumentPrintWindow } from '@/modules/business-documents'
+import { BusinessDocumentDetailDialog, BusinessDocumentPrintLink } from '@/modules/business-documents'
 import {
   DraftDocumentAttachmentPanel,
   createDraftDocumentAttachmentId,
@@ -202,7 +202,6 @@ export default function DispatchPage({
       onMessage('请填写完整信息')
       return
     }
-    const printPreview = reserveBusinessDocumentPrintWindow()
     setLoading(true)
     try {
       const result = await createDispatch({
@@ -221,22 +220,14 @@ export default function DispatchPage({
         } catch (error) {
           onMessage(`派工单已创建，但${error instanceof Error ? error.message : '附件绑定失败'}`)
         }
-        const pdfGenerated = await generateBusinessDocumentPdfArchives('dispatch', [result.data.id])
-        if (pdfGenerated) printPreview.open('dispatch', result.data.id)
-        else {
-          printPreview.close()
-          onMessage('派工单已创建，但 PDF 生成失败，可在派工列表中重新打印')
-        }
         setShowModal(false)
         setDraftAttachmentOwnerId('')
         resetForm()
         await fetchDispatches()
       } else {
-        printPreview.close()
         onMessage(result.error || '创建派工单失败')
       }
     } catch (err) {
-      printPreview.close()
       onMessage('创建派工单失败')
     }
     setLoading(false)
@@ -532,7 +523,7 @@ export default function DispatchPage({
             <ModalActions
               onCancel={closeCreateDispatch}
               onConfirm={handleSubmit}
-              confirmLabel="创建并输出 PDF"
+              confirmLabel="创建派工单"
               busy={loading || draftAttachmentBusy}
             />
           )}
