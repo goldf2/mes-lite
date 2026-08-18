@@ -1,15 +1,8 @@
 {
-  "version": "0.1.407",
+  "version": "0.1.408",
   "impact": "updated",
   "workflowIds": [
-    "09-production-order-create",
-    "14-dispatch-create",
-    "16-flow-transfer-create",
-    "18-receiving-create",
-    "25-sales-order-create",
-    "28-shipment-create",
-    "31-return-create",
-    "54-business-settings"
+    "18-receiving-create"
   ],
-  "summary": "七类业务单据保存与打印已分离，并新增 A4 紧凑/标准密度和页面边距设置，需同步各新建流程及企业与业务规则。"
+  "summary": "待收货来料单保存与关闭已分离，保存后保留编辑窗口以连续修改多条明细，需同步来料登记与编辑流程。"
 }

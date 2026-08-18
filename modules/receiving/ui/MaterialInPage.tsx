@@ -48,6 +48,23 @@ import {
   saveMaterialInRecord,
 } from '../client/material-in-api'
 
+function createDraftItemsFromRecord(item: MaterialIn): MaterialInDraftItem[] {
+  return item.items.map((line) => ({
+    id: line.id,
+    materialId: line.materialId,
+    locationId: item.stagingLocationId,
+    qty: Number(line.qty),
+    valuationQty: line.conversionSource === 'DOCUMENT_ACTUAL' ? Number(line.valuationQty) : undefined,
+    unit: line.unit,
+    valuationUnit: line.valuationUnit,
+    unitPrice: Number(line.unitPrice),
+    totalAmount: Number(line.totalAmount),
+    priceUnit: normalizeMaterialInPriceUnit(line.priceUnit, line.material.primaryMeasure),
+    priceBasis: line.priceBasis === 'VALUATION' ? 'VALUATION' : 'STOCK',
+    batchNo: line.batchNo || undefined,
+  }))
+}
+
 export default function MaterialInPage({
   onMessage,
   onToolbarChange,
@@ -395,22 +412,26 @@ export default function MaterialInPage({
           note: form.note || undefined,
           items: items.map(({ id: _id, ...item }) => item),
       })
-      onMessage(editingItem
-        ? `来料单已修改：${data.data.inboundNo}`
-        : `来料单创建成功，共 ${data.count || items.length} 种物料`)
-      if (!editingItem) {
+      if (editingItem) {
+        setEditingItem(data.data)
+        setDraftItems(createDraftItemsFromRecord(data.data))
+        resetCurrentItem()
+        onMessage(`来料单已保存：${data.data.inboundNo}，可继续编辑其他明细`)
+        await fetchMaterialIns()
+      } else {
+        onMessage(`来料单创建成功，共 ${data.count || items.length} 种物料`)
         try {
           await finalizeDraftDocumentAttachments({ ownerType: 'MATERIAL_IN', draftOwnerId: draftAttachmentOwnerId, targetOwnerId: data.data.id })
         } catch (error) {
           onMessage(`来料单已创建，但${error instanceof Error ? error.message : '附件绑定失败'}`)
         }
+        setShowModal(false)
+        setDraftAttachmentOwnerId('')
+        resetForm()
+        await fetchMaterialIns()
       }
-      setShowModal(false)
-      setDraftAttachmentOwnerId('')
-      resetForm()
-      await fetchMaterialIns()
     } catch (err) {
-      onMessage(err instanceof Error ? err.message : '创建来料单失败')
+      onMessage(err instanceof Error ? err.message : editingItem ? '修改来料单失败' : '创建来料单失败')
     }
     setLoading(false)
   }
@@ -489,20 +510,7 @@ export default function MaterialInPage({
     setEditingItem(item)
     setDraftAttachmentOwnerId('')
     setEditingDraftItemId(null)
-    setDraftItems(item.items.map((line) => ({
-      id: line.id,
-      materialId: line.materialId,
-      locationId: item.stagingLocationId,
-      qty: Number(line.qty),
-      valuationQty: line.conversionSource === 'DOCUMENT_ACTUAL' ? Number(line.valuationQty) : undefined,
-      unit: line.unit,
-      valuationUnit: line.valuationUnit,
-      unitPrice: Number(line.unitPrice),
-      totalAmount: Number(line.totalAmount),
-      priceUnit: normalizeMaterialInPriceUnit(line.priceUnit, line.material.primaryMeasure),
-      priceBasis: line.priceBasis === 'VALUATION' ? 'VALUATION' : 'STOCK',
-      batchNo: line.batchNo || undefined,
-    })))
+    setDraftItems(createDraftItemsFromRecord(item))
     setConversionHistory(null)
     setForm({
       voucherNo: item.voucherNo || '',

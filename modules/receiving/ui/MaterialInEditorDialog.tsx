@@ -129,7 +129,8 @@ export default function MaterialInEditorDialog({
         <ModalActions
           onCancel={onClose}
           onConfirm={onSubmit}
-          confirmLabel={editingItem ? `保存 ${submitItemCount} 项` : `创建 ${submitItemCount} 项`}
+          cancelLabel={editingItem ? '关闭' : '取消'}
+          confirmLabel={editingItem ? `保存整单（${submitItemCount} 项）` : `创建 ${submitItemCount} 项`}
           busy={loading || draftAttachmentBusy}
         />
       )}

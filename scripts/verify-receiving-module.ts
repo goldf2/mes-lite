@@ -77,6 +77,8 @@ function verifyStaticBoundaries(
   assert.match(editor, /onEditDraftItem\(item\)[\s\S]*编辑[\s\S]*移除/, '来料右侧已加入明细必须同时提供编辑和移除操作')
   assert.match(page, /setDraftItems\(\(current\) => editingDraftItemId[\s\S]*current\.map/, '编辑已加入明细必须按原草稿 ID 替换，不能追加重复项')
   assert.match(page, /editingDraftItemId[\s\S]*priceInputMode: 'TOTAL'/, '编辑已加入明细必须回填原总价并保持计价快照')
+  assert.match(editor, /cancelLabel=\{editingItem \? '关闭' : '取消'\}[\s\S]*保存整单/, '已有来料单必须把保存整单与关闭弹窗拆成独立动作')
+  assert.match(page, /if \(editingItem\) \{[\s\S]*setEditingItem\(data\.data\)[\s\S]*setDraftItems[\s\S]*resetCurrentItem\(\)[\s\S]*await fetchMaterialIns\(\)[\s\S]*\} else \{[\s\S]*setShowModal\(false\)/, '已有来料单保存后必须停留在编辑弹窗并刷新草稿，新建成功才关闭')
   assert.doesNotMatch(editor, /开启比例联动|实测快照|单件长度/, '普通来料界面不得继续依赖旧批次三字段联动')
   assert.match(select, /onSearch\?:[\s\S]*window\.setTimeout/, '公共搜索选择器必须提供防抖异步联想契约')
   assert.ok(page.split('\n').length <= 800, '来料主页必须保持在 800 行以内')
