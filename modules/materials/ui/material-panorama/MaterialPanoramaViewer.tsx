@@ -2,7 +2,7 @@
 
 import ModalOverlay from '@/app/components/ModalOverlay'
 import { DocumentFileViewer } from '@/modules/attachments'
-import { attachmentPreviewKind } from '@/lib/attachment-file-types'
+import { attachmentPreviewHint, attachmentPreviewKind } from '@/lib/attachment-file-types'
 import type { PanoramaViewerState } from '../../contracts/material-panorama'
 import { formatSize } from '../../model/material-panorama-view'
 
@@ -18,6 +18,7 @@ export default function MaterialPanoramaViewer({ viewer, zoom, rotationSaving, o
   const attachment = viewer.attachments[viewer.index]
   if (!attachment) return null
   const previewKind = attachmentPreviewKind(attachment.originalName, attachment.mimeType)
+  const previewHint = attachmentPreviewHint(attachment.originalName, attachment.mimeType)
   const transformable = previewKind !== 'text' && previewKind !== 'none'
   return (
     <ModalOverlay onClose={onClose} className="!z-[300] !bg-slate-950 !p-0 !backdrop-blur-none">
@@ -39,7 +40,7 @@ export default function MaterialPanoramaViewer({ viewer, zoom, rotationSaving, o
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-hidden"><DocumentFileViewer attachment={attachment} zoom={zoom} /></div>
-        {['pdf', 'office'].includes(previewKind) && <div className="shrink-0 border-t border-white/10 px-4 py-2 text-xs text-white/60">多页文档可纵向滚动；Office 文件首次打开时由服务器生成 PDF 预览，原文件保持不变。</div>}
+        {previewHint && <div className="shrink-0 border-t border-white/10 px-4 py-2 text-xs text-white/60">{previewHint}</div>}
       </section>
     </ModalOverlay>
   )

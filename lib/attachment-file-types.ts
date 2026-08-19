@@ -19,6 +19,12 @@ export const officeAttachmentMimeTypes = [
 ] as const
 
 const officeMimeTypes = new Set<string>(officeAttachmentMimeTypes)
+const spreadsheetExtensions = new Set(['.xls', '.xlsx', '.ods'])
+const spreadsheetMimeTypes = new Set([
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.oasis.opendocument.spreadsheet',
+])
 
 const textExtensions = new Set(['.txt', '.md', '.csv', '.tsv', '.json', '.xml', '.log'])
 
@@ -63,6 +69,22 @@ export function attachmentPreviewKind(fileName: string, mimeType?: string | null
   if (normalizedMimeType.startsWith('text/') || textExtensions.has(extension)) return 'text'
   if (['application/json', 'application/xml'].includes(normalizedMimeType)) return 'text'
   return 'none'
+}
+
+export function isSpreadsheetAttachment(fileName: string, mimeType?: string | null) {
+  return spreadsheetExtensions.has(attachmentExtension(fileName))
+    || spreadsheetMimeTypes.has(normalizeAttachmentMimeType(fileName, mimeType))
+}
+
+export function attachmentPreviewHint(fileName: string, mimeType?: string | null) {
+  if (isSpreadsheetAttachment(fileName, mimeType)) {
+    return 'Excel 工作簿可在预览上方切换工作表；一个工作表包含多页时可纵向滚动。'
+  }
+  const kind = attachmentPreviewKind(fileName, mimeType)
+  if (kind === 'pdf' || kind === 'office') {
+    return '多页文档可纵向滚动；Office 文件首次打开时由服务器生成 PDF 预览，原文件保持不变。'
+  }
+  return null
 }
 
 export function attachmentTypeLabel(fileName: string, mimeType?: string | null) {

@@ -1,7 +1,12 @@
 'use client'
 
 import { FileText, Download } from 'lucide-react'
-import { attachmentPreviewKind, attachmentTypeLabel, type AttachmentPreviewKind } from '@/lib/attachment-file-types'
+import {
+  attachmentPreviewKind,
+  attachmentTypeLabel,
+  isSpreadsheetAttachment,
+  type AttachmentPreviewKind,
+} from '@/lib/attachment-file-types'
 import PdfDocumentViewer from './PdfDocumentViewer'
 
 export interface ViewableAttachment {
@@ -47,6 +52,7 @@ export default function DocumentFileViewer({
         title={attachment.originalName}
         rotation={attachment.rotation}
         zoom={zoom}
+        sheetNavigation={kind === 'office' && isSpreadsheetAttachment(attachment.originalName, attachment.mimeType)}
       />
     )
   }

@@ -1,11 +1,8 @@
 {
-  "version": "0.1.409",
+  "version": "0.1.410",
   "impact": "updated",
   "workflowIds": [
-    "27-shipment-list",
-    "28-shipment-create",
-    "29-shipment-confirm",
-    "59-hardware-tools"
+    "33-document-list"
   ],
-  "summary": "发货详情新增货箱单据、装箱完整性、现场照片、发货单码/箱码打印和单据扫码返回，需同步发货与硬件工具流程。"
+  "summary": "产品文档在线阅读新增多工作表 Excel/ODS 的工作表名称选择和前后切换，需同步受控文档查看流程。"
 }
