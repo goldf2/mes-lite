@@ -200,7 +200,7 @@ modules/<domain>/domain
 | `MaterialInPage.tsx`、`app/api/material-ins`、`material-in-*` | `modules/receiving` |
 | 生产订单、派工、班后实绩、流程转移 | `modules/production` |
 | `WorkInstructionPage.tsx`、文档类别、在线正文 | `modules/documents` |
-| 附件上传、缩略图、Office/PDF 预览、存储适配 | `modules/attachments`；通用文件底座可下沉 `lib/files` |
+| 附件上传、缩略图、Office/PDF/CAD 预览、存储适配 | `modules/attachments`；通用文件底座及 CAD 转换适配放在 `lib/files` |
 | 设备、工作中心归属 | `modules/equipment` |
 | 库存、库位余额、调整、包装穿透、成本层 | `modules/inventory` |
 | 销售订单、发货、退货 | `modules/sales` |
@@ -895,3 +895,10 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `lib/audit-core.ts` 只拥有审计快照序列化和数据库写入，不依赖 Next.js；`lib/audit.ts` 继续拥有登录账号、IP 和 User-Agent 等 HTTP 上下文。既有业务服务仍从原入口使用事务审计，独立维护包只复用纯核心。
 - 生产构建将维护入口打包为 `.next/maintenance/sop-library-publication.mjs`，Docker 运行镜像只复制该包，不复制 TypeScript、`tsx`、最终 SOP 成品或完整开发依赖。
 - `verify:sop-library-publication` 使用运行后删除的全迁移临时 SQLite、附件目录和本地 OSS 模拟，覆盖零写入预检、权限、精确版本下载、备份门禁、断点续传、原子启用、旧版归档、幂等和内容漂移阻断；它进入 40 项 CI 领域/治理基线。
+
+## 76. v0.1.412 CAD 图纸预览边界
+
+- `modules/attachments` 继续拥有附件权限、缩略图和公共文件查看器；DWG/DXF 识别、派生 URL 与 PDF 查看均进入既有附件链路，不建立 CAD 业务页面或第二套附件模型。
+- `lib/files/cad-document-preview.ts` 只实现通用内部转换协议、超时、响应校验、原子持久缓存和并发去重，不包含 ODA/Autodesk SDK，也不访问 Prisma。具体 CAD 引擎运行在隔离服务中，可在不改 MES 代码的情况下替换。
+- 原始 DWG/DXF 是唯一事实源，派生 PDF 和缩略图只是可重建缓存。CAD 服务未配置或不可用时 readiness 为警告，主业务、原文件下载和权限校验不受影响。
+- `verify:attachment-file-types` 锁定 CAD MIME/扩展名识别与统一查看器；`verify:cad-preview` 通过本机模拟服务验证 Bearer 令牌、健康检查、有效 PDF、持久缓存和非 CAD 拒绝。

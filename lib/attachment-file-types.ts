@@ -1,6 +1,6 @@
 export const MAX_ATTACHMENT_FILE_SIZE = 50 * 1024 * 1024
 
-export type AttachmentPreviewKind = 'image' | 'pdf' | 'office' | 'text' | 'none'
+export type AttachmentPreviewKind = 'image' | 'pdf' | 'office' | 'cad' | 'text' | 'none'
 
 const officeExtensions = new Set([
   '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.odt', '.ods', '.odp',
@@ -26,6 +26,21 @@ const spreadsheetMimeTypes = new Set([
   'application/vnd.oasis.opendocument.spreadsheet',
 ])
 
+const cadExtensions = new Set(['.dwg', '.dxf'])
+const cadMimeTypes = new Set([
+  'application/acad',
+  'application/autocad_dwg',
+  'application/dwg',
+  'application/dxf',
+  'application/vnd.dwg',
+  'application/vnd.dxf',
+  'application/x-acad',
+  'application/x-dwg',
+  'application/x-dxf',
+  'image/vnd.dwg',
+  'image/vnd.dxf',
+])
+
 const textExtensions = new Set(['.txt', '.md', '.csv', '.tsv', '.json', '.xml', '.log'])
 
 const extensionMimeTypes: Record<string, string> = {
@@ -38,6 +53,8 @@ const extensionMimeTypes: Record<string, string> = {
   '.odt': 'application/vnd.oasis.opendocument.text',
   '.ods': 'application/vnd.oasis.opendocument.spreadsheet',
   '.odp': 'application/vnd.oasis.opendocument.presentation',
+  '.dwg': 'application/vnd.dwg',
+  '.dxf': 'application/vnd.dxf',
   '.pdf': 'application/pdf',
   '.txt': 'text/plain',
   '.md': 'text/markdown',
@@ -63,6 +80,7 @@ export function normalizeAttachmentMimeType(fileName: string, mimeType?: string 
 export function attachmentPreviewKind(fileName: string, mimeType?: string | null): AttachmentPreviewKind {
   const normalizedMimeType = normalizeAttachmentMimeType(fileName, mimeType)
   const extension = attachmentExtension(fileName)
+  if (cadMimeTypes.has(normalizedMimeType) || cadExtensions.has(extension)) return 'cad'
   if (normalizedMimeType.startsWith('image/') && normalizedMimeType !== 'image/svg+xml') return 'image'
   if (normalizedMimeType === 'application/pdf' || extension === '.pdf') return 'pdf'
   if (officeMimeTypes.has(normalizedMimeType) || officeExtensions.has(extension)) return 'office'
@@ -76,9 +94,17 @@ export function isSpreadsheetAttachment(fileName: string, mimeType?: string | nu
     || spreadsheetMimeTypes.has(normalizeAttachmentMimeType(fileName, mimeType))
 }
 
+export function isCadAttachment(fileName: string, mimeType?: string | null) {
+  return cadExtensions.has(attachmentExtension(fileName))
+    || cadMimeTypes.has(normalizeAttachmentMimeType(fileName, mimeType))
+}
+
 export function attachmentPreviewHint(fileName: string, mimeType?: string | null) {
   if (isSpreadsheetAttachment(fileName, mimeType)) {
     return 'Excel/ODS 工作簿通过 LibreOffice 在线查看器直接打开，可在原生工作表标签间切换。'
+  }
+  if (isCadAttachment(fileName, mimeType)) {
+    return 'DWG/DXF 原文件保持不变；首次打开时由内部 CAD 转换服务生成只读 PDF 预览。'
   }
   const kind = attachmentPreviewKind(fileName, mimeType)
   if (kind === 'pdf' || kind === 'office') {
@@ -99,7 +125,7 @@ export function attachmentTypeLabel(fileName: string, mimeType?: string | null) 
 
 export function canGenerateAttachmentThumbnail(fileName: string, mimeType?: string | null) {
   const kind = attachmentPreviewKind(fileName, mimeType)
-  return kind === 'image' || kind === 'pdf' || kind === 'office'
+  return kind === 'image' || kind === 'pdf' || kind === 'office' || kind === 'cad'
 }
 
 export function shouldServeAttachmentInline(fileName: string, mimeType?: string | null) {

@@ -141,12 +141,14 @@ export default function PdfDocumentViewer({
   rotation = 0,
   zoom = 1,
   sheetNavigation = false,
+  errorLabel,
 }: {
   url: string
   title: string
   rotation?: number
   zoom?: number
   sheetNavigation?: boolean
+  errorLabel?: string
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null)
@@ -271,7 +273,7 @@ export default function PdfDocumentViewer({
           </div>
         )}
         {state === 'error' && (
-          <div className="flex h-full items-center justify-center text-sm text-red-200">{sheetNavigation ? '表格预览' : 'PDF'}打开失败，请下载原文件查看。</div>
+          <div className="flex h-full items-center justify-center px-6 text-center text-sm text-red-200">{errorLabel || `${sheetNavigation ? '表格预览' : 'PDF'}打开失败，请下载原文件查看。`}</div>
         )}
         {state === 'ready' && document && viewerSize.width > 0 && viewerSize.height > 0 && (
           <div className="flex min-h-full flex-col">

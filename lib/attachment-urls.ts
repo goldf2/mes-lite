@@ -52,7 +52,7 @@ export function withAttachmentUrls<T extends AttachmentWithPreviewFields>(attach
     ...attachment,
     url: attachmentFileUrl(attachment.id),
     previewKind,
-    previewUrl: previewKind === 'office' || previewKind === 'text'
+    previewUrl: previewKind === 'office' || previewKind === 'cad' || previewKind === 'text'
       ? attachmentPreviewUrl(attachment.id)
       : attachmentFileUrl(attachment.id),
     thumbnailUrl: canGenerateAttachmentThumbnail(attachment.originalName || '', attachment.mimeType)

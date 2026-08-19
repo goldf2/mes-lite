@@ -73,7 +73,7 @@ export default function DocumentPreviewThumb({
   return (
     <div className={`flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-gray-50 ${className}`}>
       {attachment ? (
-        previewKind === 'image' || previewKind === 'pdf' || previewKind === 'office' ? (
+        previewKind === 'image' || previewKind === 'pdf' || previewKind === 'office' || previewKind === 'cad' ? (
           <StoredDocumentPreview attachment={attachment} title={title} />
         ) : (
           <div className="flex flex-col items-center gap-2 px-3 text-center text-gray-500">

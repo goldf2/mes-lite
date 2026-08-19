@@ -3,6 +3,7 @@ import { readFile } from 'fs/promises'
 import { attachmentPreviewKind } from '@/lib/attachment-file-types'
 import { resolveAttachmentStoragePath } from '@/lib/attachment-storage'
 import { ensureOfficeDocumentPreview } from '@/lib/office-document-preview'
+import { ensureCadDocumentPreview } from '@/lib/files/cad-document-preview'
 import { AttachmentDomainError } from '@/modules/attachments/domain/attachment-errors'
 import { requireManagedAttachmentAccess } from '@/modules/attachments/server/attachment-authorization-service'
 
@@ -17,19 +18,21 @@ export async function GET(
     const { attachment } = await requireManagedAttachmentAccess(params.id, 'read')
 
     const kind = attachmentPreviewKind(attachment.originalName, attachment.mimeType)
-    if (kind !== 'office' && kind !== 'text') {
+    if (kind !== 'office' && kind !== 'cad' && kind !== 'text') {
       return NextResponse.redirect(new URL(`/api/attachments/${attachment.id}/file`, _req.url))
     }
 
     const previewPath = kind === 'office'
       ? await ensureOfficeDocumentPreview(attachment)
-      : resolveAttachmentStoragePath(attachment.storagePath)
+      : kind === 'cad'
+        ? await ensureCadDocumentPreview(attachment)
+        : resolveAttachmentStoragePath(attachment.storagePath)
     const file = await readFile(previewPath)
     return new NextResponse(new Uint8Array(file), {
       headers: {
-        'Content-Type': kind === 'office' ? 'application/pdf' : 'text/plain; charset=utf-8',
+        'Content-Type': kind === 'office' || kind === 'cad' ? 'application/pdf' : 'text/plain; charset=utf-8',
         'Content-Length': String(file.length),
-        'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(kind === 'office' ? `${attachment.originalName}.pdf` : attachment.originalName)}`,
+        'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(kind === 'office' || kind === 'cad' ? `${attachment.originalName}.pdf` : attachment.originalName)}`,
         'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'private, max-age=3600',
       },

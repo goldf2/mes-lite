@@ -74,6 +74,9 @@ MES_PUBLIC_BASE_URL=https://mes.example.com
 COLLABORA_PUBLIC_URL=https://office.example.com
 COLLABORA_DISCOVERY_URL=https://office.example.com/hosting/discovery
 WOPI_VIEW_TOKEN_TTL_SECONDS=7200
+CAD_PREVIEW_SERVICE_URL=http://cad-preview:8080
+CAD_PREVIEW_SERVICE_TOKEN=<至少 32 字符的随机服务令牌>
+CAD_PREVIEW_TIMEOUT_MS=120000
 ```
 
 `MES_TRUSTED_ORIGINS` 必须填写浏览器实际访问的 HTTPS Origin（协议、域名和可选端口，不带路径）。所有 `POST / PUT / PATCH / DELETE` API 都会先执行同源校验；多个可信 Origin 使用英文逗号分隔。公开注册默认关闭，只有在受控注册时间窗口才临时把 `MES_PUBLIC_REGISTRATION_ENABLED` 改为 `true`，新账号仍统一进入待审核状态。
@@ -92,6 +95,19 @@ Collabora 应部署为独立 Coolify Service 或独立主机，不与 MES-lite S
 4. 检查反向代理访问日志不会记录 POST 表单中的 `access_token`，并避免保存含令牌的完整查询串。
 
 未配置或 discovery 不可用时，readiness 只返回 `warn`，避免外部预览服务故障导致 MES-lite 重启循环；用户可改用兼容 PDF 或下载原文件。不得把生产附件上传到 Collabora 公网演示站验证。
+
+### 3.1 自托管 DWG/DXF 只读预览
+
+DWG/DXF 原文件继续保存在附件持久卷中，MES-lite 不在 Web 主进程加载 CAD SDK。首次打开图纸时，应用把受权附件发送给同一私有网络内的隔离转换服务，生成只读 PDF 派生文件并持久缓存；后续查看和缩略图复用现有 PDF 查看器。生产转换引擎建议采用具备正式授权的 ODA Drawings SDK；它官方支持 DWG/DXF 输入和 PDF 导出。Autodesk APS Model Derivative 可作为经企业批准的云端替代，但会把文件发送到外部服务，不是默认方案。
+
+转换服务必须实现以下内部契约：
+
+- `GET /health`：返回 2xx 表示可用。
+- `POST /v1/convert/pdf`：`multipart/form-data`，文件字段为 `file`，另有 `output=pdf`；成功时返回以 `%PDF-` 开头且不超过 100 MB 的 PDF。
+- 设置 `CAD_PREVIEW_SERVICE_TOKEN` 时，两条请求都必须校验 `Authorization: Bearer <token>`。
+- `CAD_PREVIEW_TIMEOUT_MS` 允许 5 秒至 10 分钟，默认 120 秒；readiness 健康探测固定最多等待 5 秒。
+
+转换容器使用只读输入、临时工作目录、CPU/内存/超时限制，不挂载数据库，不暴露公网入口，也不保留输入副本。`CAD_PREVIEW_SERVICE_URL` 未配置或服务离线时 readiness 只返回 `warn`，原文件上传、权限校验和下载仍正常；用户会看到明确的预览失败与下载降级提示。上线前用真实单页、多布局、中文字体和大尺寸 DWG/DXF 分别验证线宽、字体、图层、纸张、方向和缩略图，不得用 ODA 公网示例转换生产附件。
 
 最终交付的 PDF/DOCX 和自托管视频若发布到对象存储，只填写一个只读 HTTPS 基地址，例如 `SOP_PUBLIC_BASE_URL=https://downloads.example.com/mes-lite/sop`。地址不包含 Bucket 写入密钥、查询签名或具体文件名；应用按目录清单生成精确下载或播放路径。未配置时帮助中心不显示离线下载按钮和文件视频，在线 SOP 仍可使用；哔哩哔哩/YouTube 条目不依赖该地址。生成目录、对象路径和校验步骤见 [SOP 生成与发布策略](../operations/SOP生成与发布策略.md)及[视频帮助分类与发布](../operations/视频帮助分类与发布.md)。
 

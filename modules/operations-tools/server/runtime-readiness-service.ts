@@ -2,6 +2,7 @@ import { constants } from 'node:fs'
 import { access, readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { attachmentUploadRoot } from '@/lib/attachment-storage'
+import { checkCadPreviewService } from '@/lib/files/cad-document-preview'
 import { prisma } from '@/lib/prisma'
 import { loadWopiDiscovery } from '@/modules/attachments'
 
@@ -112,6 +113,18 @@ async function collaboraCheck(): Promise<RuntimeReadinessCheck> {
   }
 }
 
+async function cadPreviewCheck(): Promise<RuntimeReadinessCheck> {
+  try {
+    const result = await checkCadPreviewService()
+    if (!result.configured) return { status: 'warn', message: '未配置 DWG/DXF 预览转换服务' }
+    return result.available
+      ? { status: 'pass', message: 'DWG/DXF 预览转换服务可用' }
+      : { status: 'warn', message: 'DWG/DXF 预览转换服务不可用，主业务仍可运行' }
+  } catch {
+    return { status: 'warn', message: 'DWG/DXF 预览转换服务配置无效，主业务仍可运行' }
+  }
+}
+
 export async function evaluateRuntimeReadiness(): Promise<RuntimeReadiness> {
   const checks = {
     database: await databaseCheck(),
@@ -120,6 +133,7 @@ export async function evaluateRuntimeReadiness(): Promise<RuntimeReadiness> {
     attachmentStorage: await writableDirectoryCheck(attachmentUploadRoot(), '附件目录'),
     backupFreshness: await backupFreshnessCheck(),
     collabora: await collaboraCheck(),
+    cadPreview: await cadPreviewCheck(),
   }
   return {
     status: Object.values(checks).some((check) => check.status === 'fail') ? 'unready' : 'ready',

@@ -1,6 +1,6 @@
 {
-  "version": "0.1.411",
+  "version": "0.1.412",
   "impact": "updated",
   "workflowIds": ["33-document-list"],
-  "summary": "XLS/XLSX/ODS 默认使用自托管 LibreOffice 核心在线查看器直接浏览，保留兼容 PDF 与原文件下载降级。"
+  "summary": "产品文档新增 DWG/DXF 内部只读 PDF 预览；原文件保留，转换服务不可用时降级下载。"
 }

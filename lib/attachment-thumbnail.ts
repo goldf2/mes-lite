@@ -5,6 +5,7 @@ import { spawn } from 'child_process'
 import { createCanvas, loadImage } from '@napi-rs/canvas'
 import { normalizeAttachmentRotation } from './attachment-rotation'
 import { ensureOfficeDocumentPreview } from './office-document-preview'
+import { ensureCadDocumentPreview } from './files/cad-document-preview'
 import { attachmentPreviewKind } from './attachment-file-types'
 import { resolveAttachmentStoragePath } from './attachment-storage'
 
@@ -92,11 +93,13 @@ async function generateAttachmentThumbnail(source: ThumbnailSource, targetPath: 
   const sourcePath = resolveAttachmentStoragePath(source.storagePath)
   const rotation = normalizeAttachmentRotation(Number(source.rotation || 0))
   const previewKind = attachmentPreviewKind(source.originalName || sourcePath, source.mimeType)
-  if (previewKind === 'pdf' || previewKind === 'office') {
+  if (previewKind === 'pdf' || previewKind === 'office' || previewKind === 'cad') {
     await mkdir(path.dirname(targetPath), { recursive: true })
     const pdfPath = previewKind === 'office'
       ? await ensureOfficeDocumentPreview(source)
-      : sourcePath
+      : previewKind === 'cad'
+        ? await ensureCadDocumentPreview(source)
+        : sourcePath
     return renderPdfThumbnail(pdfPath, targetPath, rotation)
   }
   const png = previewKind === 'image'
@@ -146,6 +149,7 @@ export async function removeAttachmentStoredFiles(storagePath: string) {
     || (name.startsWith(`${baseName}.thumb-r`) && name.endsWith('.png'))
     || (name.startsWith(`${baseName}.image-`) && name.endsWith('.webp'))
     || (name.startsWith(`${baseName}.preview-v`) && name.endsWith('.pdf'))
+    || (name.startsWith(`${baseName}.preview-cad-v`) && name.endsWith('.pdf'))
   ))
   await Promise.all(storedNames.map((name) => rm(path.join(directory, name), { force: true })))
 }

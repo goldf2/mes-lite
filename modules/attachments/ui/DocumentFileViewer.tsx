@@ -60,14 +60,15 @@ export default function DocumentFileViewer({
     )
   }
 
-  if (kind === 'pdf' || kind === 'office') {
+  if (kind === 'pdf' || kind === 'office' || kind === 'cad') {
     return (
       <PdfDocumentViewer
-        url={kind === 'office' ? previewUrl : attachment.url}
+        url={kind === 'office' || kind === 'cad' ? previewUrl : attachment.url}
         title={attachment.originalName}
         rotation={attachment.rotation}
         zoom={zoom}
         sheetNavigation={spreadsheet}
+        errorLabel={kind === 'cad' ? 'CAD 图纸预览转换失败，请检查转换服务或下载原文件查看。' : undefined}
       />
     )
   }

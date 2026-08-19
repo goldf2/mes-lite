@@ -7,6 +7,7 @@ import {
   attachmentPreviewHint,
   attachmentTypeLabel,
   canGenerateAttachmentThumbnail,
+  isCadAttachment,
   isSpreadsheetAttachment,
   normalizeAttachmentMimeType,
   shouldServeAttachmentInline,
@@ -25,6 +26,9 @@ const cases = [
   ['ledger.xlsx', '', 'office'],
   ['training.ppt', 'application/vnd.ms-powerpoint', 'office'],
   ['training.pptx', 'application/octet-stream', 'office'],
+  ['fixture.dwg', 'application/octet-stream', 'cad'],
+  ['legacy.dwg', 'image/vnd.dwg', 'cad'],
+  ['profile.dxf', 'application/dxf', 'cad'],
   ['readme.txt', 'text/plain', 'text'],
   ['archive.zip', 'application/zip', 'none'],
 ] as const
@@ -38,6 +42,13 @@ assert.equal(
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 )
 assert.equal(attachmentTypeLabel('ledger.xlsx', ''), 'XLSX')
+assert.equal(normalizeAttachmentMimeType('fixture.dwg', 'application/octet-stream'), 'application/vnd.dwg')
+assert.equal(normalizeAttachmentMimeType('profile.dxf', ''), 'application/vnd.dxf')
+assert.equal(isCadAttachment('fixture.dwg', 'application/octet-stream'), true)
+assert.equal(isCadAttachment('photo.png', 'image/png'), false)
+assert.match(attachmentPreviewHint('fixture.dwg', '') || '', /内部 CAD 转换服务/)
+assert.equal(canGenerateAttachmentThumbnail('fixture.dwg', ''), true)
+assert.equal(shouldServeAttachmentInline('fixture.dwg', ''), false)
 assert.equal(isSpreadsheetAttachment('ledger.xlsx', ''), true)
 assert.equal(isSpreadsheetAttachment('legacy.xls', 'application/octet-stream'), true)
 assert.equal(isSpreadsheetAttachment('document.docx', 'application/octet-stream'), false)
@@ -68,6 +79,8 @@ assert.deepEqual(buildPageFallbackSections(2), [
 const documentViewerSource = readFileSync(join(process.cwd(), 'modules/attachments/ui/DocumentFileViewer.tsx'), 'utf8')
 const pdfViewerSource = readFileSync(join(process.cwd(), 'modules/attachments/ui/PdfDocumentViewer.tsx'), 'utf8')
 assert.match(documentViewerSource, /SpreadsheetDocumentViewer/, '公共文件查看器必须直接打开表格附件')
+assert.match(documentViewerSource, /kind === 'cad'/, '公共文件查看器必须复用 PDF 查看器显示 CAD 派生预览')
+assert.match(documentViewerSource, /CAD 图纸预览转换失败/, 'CAD 预览失败必须保留明确下载降级提示')
 assert.match(pdfViewerSource, /getOutline\(\)/, '表格预览必须读取 PDF 工作表目录')
 assert.match(pdfViewerSource, /visiblePages\.map/, '表格预览必须只渲染当前工作表页范围')
 
