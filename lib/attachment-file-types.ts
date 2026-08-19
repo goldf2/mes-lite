@@ -78,7 +78,7 @@ export function isSpreadsheetAttachment(fileName: string, mimeType?: string | nu
 
 export function attachmentPreviewHint(fileName: string, mimeType?: string | null) {
   if (isSpreadsheetAttachment(fileName, mimeType)) {
-    return 'Excel 工作簿可在预览上方切换工作表；一个工作表包含多页时可纵向滚动。'
+    return 'Excel/ODS 工作簿通过 LibreOffice 在线查看器直接打开，可在原生工作表标签间切换。'
   }
   const kind = attachmentPreviewKind(fileName, mimeType)
   if (kind === 'pdf' || kind === 'office') {

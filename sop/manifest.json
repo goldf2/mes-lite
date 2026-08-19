@@ -2065,9 +2065,9 @@
           "steps": [
             "展开“文档”功能区，进入“产品文档”。",
             "按标题、正文、产品或备注搜索。",
-            "点击“在线阅读”或“详情”查看版本和附件；Excel/ODS 可按工作表名称切换，一个工作表跨多页时纵向滚动。"
+            "点击“在线阅读”或“详情”查看版本和附件；XLS/XLSX/ODS 使用自托管 LibreOffice 核心查看器直接打开，可通过原生工作表标签切换并横向、纵向滚动。在线服务异常时选择“兼容 PDF”，或下载原文件。"
           ],
-          "result": "能确认文件标题、版本、状态和适用范围，并在系统内浏览多工作表表格。",
+          "result": "能确认文件标题、版本、状态和适用范围，并在系统内完整浏览多工作表表格；直览不可用时仍可使用兼容 PDF 或原文件。",
           "pageKey": "workInstructions",
           "resource": "workInstructions",
           "roles": [
@@ -2078,7 +2078,7 @@
             "baseline": "0.1.350",
             "file": "33-document-list.png"
           },
-          "lastVerifiedVersion": "0.1.410"
+          "lastVerifiedVersion": "0.1.411"
         },
         {
           "id": "34-document-create",

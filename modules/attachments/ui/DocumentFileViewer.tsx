@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { FileText, Download } from 'lucide-react'
 import {
   attachmentPreviewKind,
@@ -8,6 +9,7 @@ import {
   type AttachmentPreviewKind,
 } from '@/lib/attachment-file-types'
 import PdfDocumentViewer from './PdfDocumentViewer'
+import SpreadsheetDocumentViewer from './SpreadsheetDocumentViewer'
 
 export interface ViewableAttachment {
   id: string
@@ -26,8 +28,10 @@ export default function DocumentFileViewer({
   attachment: ViewableAttachment
   zoom?: number
 }) {
+  const [compatibilityPreview, setCompatibilityPreview] = useState(false)
   const kind = attachment.previewKind || attachmentPreviewKind(attachment.originalName, attachment.mimeType)
   const previewUrl = attachment.previewUrl || `/api/attachments/${attachment.id}/preview`
+  const spreadsheet = kind === 'office' && isSpreadsheetAttachment(attachment.originalName, attachment.mimeType)
 
   if (kind === 'image') {
     return (
@@ -45,6 +49,17 @@ export default function DocumentFileViewer({
     )
   }
 
+  if (spreadsheet && !compatibilityPreview) {
+    return (
+      <SpreadsheetDocumentViewer
+        attachmentId={attachment.id}
+        fileName={attachment.originalName}
+        downloadUrl={attachment.url}
+        onCompatibilityPreview={() => setCompatibilityPreview(true)}
+      />
+    )
+  }
+
   if (kind === 'pdf' || kind === 'office') {
     return (
       <PdfDocumentViewer
@@ -52,7 +67,7 @@ export default function DocumentFileViewer({
         title={attachment.originalName}
         rotation={attachment.rotation}
         zoom={zoom}
-        sheetNavigation={kind === 'office' && isSpreadsheetAttachment(attachment.originalName, attachment.mimeType)}
+        sheetNavigation={spreadsheet}
       />
     )
   }

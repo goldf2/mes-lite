@@ -3,6 +3,7 @@ import { access, readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { attachmentUploadRoot } from '@/lib/attachment-storage'
 import { prisma } from '@/lib/prisma'
+import { loadWopiDiscovery } from '@/modules/attachments'
 
 export type RuntimeReadinessCheck = {
   status: 'pass' | 'warn' | 'fail'
@@ -97,6 +98,20 @@ async function backupFreshnessCheck(): Promise<RuntimeReadinessCheck> {
   }
 }
 
+async function collaboraCheck(): Promise<RuntimeReadinessCheck> {
+  if (!process.env.COLLABORA_PUBLIC_URL && !process.env.COLLABORA_DISCOVERY_URL) {
+    return { status: 'warn', message: '未配置 LibreOffice 在线表格查看服务' }
+  }
+  try {
+    const discovery = await loadWopiDiscovery()
+    return discovery.actions.has('xlsx')
+      ? { status: 'pass', message: 'LibreOffice 在线表格查看服务可用' }
+      : { status: 'warn', message: '在线查看服务未声明 XLSX 能力' }
+  } catch {
+    return { status: 'warn', message: 'LibreOffice 在线表格查看服务不可用，主业务仍可运行' }
+  }
+}
+
 export async function evaluateRuntimeReadiness(): Promise<RuntimeReadiness> {
   const checks = {
     database: await databaseCheck(),
@@ -104,6 +119,7 @@ export async function evaluateRuntimeReadiness(): Promise<RuntimeReadiness> {
     dataStorage: await writableDirectoryCheck(runtimeDataDirectory(), '数据目录'),
     attachmentStorage: await writableDirectoryCheck(attachmentUploadRoot(), '附件目录'),
     backupFreshness: await backupFreshnessCheck(),
+    collabora: await collaboraCheck(),
   }
   return {
     status: Object.values(checks).some((check) => check.status === 'fail') ? 'unready' : 'ready',

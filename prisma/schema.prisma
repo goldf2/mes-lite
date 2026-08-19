@@ -2032,23 +2032,24 @@ model CostRecord {
 // ==================== 原始单据附件 ====================
 
 model DocumentAttachment {
-  id           String    @id @default(cuid())
-  ownerType    String
-  ownerId      String
-  documentType String    @default("ORIGINAL")
-  originalName String
-  fileName     String
-  mimeType     String
-  size         Int
-  url          String
-  storagePath  String
-  note         String?
-  uploadedBy   String?
-  isCover      Boolean   @default(false)
-  rotation     Int       @default(0)
-  deletedAt    DateTime?
-  deletedBy    String?
-  createdAt    DateTime  @default(now())
+  id               String            @id @default(cuid())
+  ownerType        String
+  ownerId          String
+  documentType     String            @default("ORIGINAL")
+  originalName     String
+  fileName         String
+  mimeType         String
+  size             Int
+  url              String
+  storagePath      String
+  note             String?
+  uploadedBy       String?
+  isCover          Boolean           @default(false)
+  rotation         Int               @default(0)
+  deletedAt        DateTime?
+  deletedBy        String?
+  createdAt        DateTime          @default(now())
+  wopiViewSessions WopiViewSession[]
 
   @@index([ownerType, ownerId])
 }
@@ -2112,6 +2113,7 @@ model Operator {
   lastFailedLoginAt   DateTime?
   employee            Employee?
   sessions            OperatorSession[]
+  wopiViewSessions    WopiViewSession[]
   authAccounts        OperatorAuthAccount[]
   permissionOverrides OperatorPermissionOverride[]
   permissionGroups    OperatorPermissionGroup[]
@@ -2285,6 +2287,23 @@ model OperatorSession {
   createdAt  DateTime @default(now())
 
   @@index([operatorId])
+}
+
+model WopiViewSession {
+  id             String             @id @default(cuid())
+  tokenHash      String             @unique
+  attachmentId   String
+  attachment     DocumentAttachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+  operatorId     String
+  operator       Operator           @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  lastAccessedAt DateTime?
+  createdAt      DateTime           @default(now())
+
+  @@index([attachmentId, expiresAt])
+  @@index([operatorId, expiresAt])
+  @@index([expiresAt])
 }
 
 model AuthenticationThrottle {

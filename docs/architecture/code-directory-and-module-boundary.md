@@ -22,17 +22,17 @@
 | `app/page.tsx` | 5 行 | 已收敛为应用入口；应用壳继续由 `HomeApp.tsx` 承担 |
 | `app/HomeApp.tsx` | 522 行 | 权限菜单、工作区过滤、页面连续性、偏好和桌面导航状态均已提取；当前只承担应用壳 JSX 装配与少量全局弹层状态 |
 | `app/components/shell/` | 9 个文件 | 已建立账号菜单、导航图标、页面宿主、渲染适配器和四类状态控制器的公共应用壳边界 |
-| `lib/page-registry.ts` | 39 个页面定义 | 页面元数据、权限资源、工作区入口、系统分区、打开方式和渲染键已集中为单一事实源 |
+| `lib/page-registry.ts` | 44 个页面定义 | 页面元数据、权限资源、工作区入口、系统分区、打开方式和渲染键已集中为单一事实源 |
 | `app/components/` 根目录 | 44 个文件 | 根级 `*Page.tsx` 只剩 31 行的 `SystemPage` 兼容分派层；业务单据打印/详情及此前领域实现均已迁入对应模块，根目录继续只承载无领域含义的公共组件和应用壳兼容入口 |
 | `modules/materials/ui/MaterialPage.tsx` | 709 行 | 数据契约、HTTP client、详情、编辑、导入、集合视图、页内选项、显示偏好、双形态工具栏、BOM 工作区和草稿编辑均已拆出；当前只保留物料/BOM 页面协调 |
 | `SystemPage.tsx` | 31 行 | 已收敛为业务配置、系统设置、运维工具和生产工程的纯领域分派兼容层 |
 | `modules/receiving/ui/MaterialInPage.tsx` | 684 行 | 集合、编辑和详情任务已拆出；主页只协调查询、分页与任务弹窗 |
 | `modules/documents/ui/WorkInstructionPage.tsx` | 591 行 | 只保留文档读写、搜索、分页与子模块状态协调；集合、表单、详情/附件和全屏查看已分离 |
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
-| `prisma/schema.prisma` | 1465 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
+| `prisma/schema.prisma` | 2322 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 50 个根文件 | 平台基础设施、格式化工具和少量跨领域兼容能力仍有混放；业务单据 PDF 引擎已迁出 |
-| `modules/` | 498 个 TypeScript/TSX 文件 | 当前有 17 个领域与平台模块；旧工单执行兼容契约、规则和事务也已归入生产领域 |
-| `app/api/` | 154 个 `route.ts` | 全部为薄 HTTP 适配层；直接访问 Prisma 的路由已清零，领域事务统一由所属模块服务承担 |
+| `modules/` | 503 个 TypeScript/TSX 文件 | 当前有 17 个领域与平台模块；附件模块新增表格直览的 client、查看器和 WOPI discovery/proof/session 服务 |
+| `app/api/` | 157 个 `route.ts` | 全部为薄 HTTP 适配层；新增表格查看会话、WOPI 文件信息和原文件流三条只读适配器，直接访问 Prisma 的路由仍为零 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
 

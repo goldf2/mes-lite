@@ -4,6 +4,8 @@
 
 已采纳，2026-08-07。
 
+> 2026-08-19 补充：XLS、XLSX、ODS 的默认预览已由 [ADR 0045](./0045-read-only-spreadsheet-viewing-with-collabora-wopi.md) 改为自托管 Collabora WOPI 只读直览；本 ADR 的 PDF 转换继续适用于这些表格的兼容预览和缩略图，以及 Word、PowerPoint 等其他 Office 文件。
+
 ## 背景
 
 产品文档原先只允许图片和 PDF。现场实际资料还包含 Word、Excel、PowerPoint 和 OpenDocument 文件；仅允许下载会打断连续浏览，而使用公网 Office 查看服务会要求外部服务访问企业内部文件，不符合生产资料的隐私边界。
@@ -12,7 +14,7 @@
 
 - 上传层允许 50 MB 以内的通用业务附件，并始终保留原文件。
 - 图片和 PDF 使用既有查看能力，安全文本通过同源只读响应展示。
-- Word、Excel、PowerPoint 和 OpenDocument 文件首次预览时，由应用容器内的 LibreOffice 无界面进程转换为 PDF。
+- Word、PowerPoint 和非表格 OpenDocument 文件首次预览时，由应用容器内的 LibreOffice 无界面进程转换为 PDF；电子表格的默认路径见 ADR 0045。
 - 转换结果和第一页缩略图作为可删除、可重建的派生缓存保存在原附件旁；业务记录仍只引用原文件。
 - 无法预览的格式显示类型和下载入口，不把文件发送给第三方预览服务。
 - 原文件接口仅对图片、PDF 和安全文本使用内联响应，其他格式强制下载并设置 `nosniff`。

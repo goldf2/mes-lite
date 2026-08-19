@@ -11,6 +11,7 @@ import {
   normalizeAttachmentMimeType,
   shouldServeAttachmentInline,
 } from '../lib/attachment-file-types'
+import { officePreviewConversionFormat } from '../lib/office-document-preview'
 import { buildPageFallbackSections, buildPdfSections } from '../modules/attachments/model/pdf-navigation'
 
 assert.equal(MAX_ATTACHMENT_FILE_SIZE, 50 * 1024 * 1024)
@@ -40,7 +41,13 @@ assert.equal(attachmentTypeLabel('ledger.xlsx', ''), 'XLSX')
 assert.equal(isSpreadsheetAttachment('ledger.xlsx', ''), true)
 assert.equal(isSpreadsheetAttachment('legacy.xls', 'application/octet-stream'), true)
 assert.equal(isSpreadsheetAttachment('document.docx', 'application/octet-stream'), false)
-assert.match(attachmentPreviewHint('ledger.xlsx', '') || '', /切换工作表/)
+assert.match(attachmentPreviewHint('ledger.xlsx', '') || '', /直接打开/)
+assert.match(
+  officePreviewConversionFormat('ledger.xlsx', ''),
+  /calc_pdf_Export.*SinglePageSheets/,
+  '表格预览必须忽略打印区域并把每张工作表完整导出为一页',
+)
+assert.equal(officePreviewConversionFormat('manual.docx', ''), 'pdf')
 assert.equal(canGenerateAttachmentThumbnail('training.pptx', ''), true)
 assert.equal(shouldServeAttachmentInline('unsafe.svg', 'image/svg+xml'), false)
 assert.equal(shouldServeAttachmentInline('readme.txt', 'text/plain'), true)
@@ -60,8 +67,11 @@ assert.deepEqual(buildPageFallbackSections(2), [
 
 const documentViewerSource = readFileSync(join(process.cwd(), 'modules/attachments/ui/DocumentFileViewer.tsx'), 'utf8')
 const pdfViewerSource = readFileSync(join(process.cwd(), 'modules/attachments/ui/PdfDocumentViewer.tsx'), 'utf8')
-assert.match(documentViewerSource, /sheetNavigation=.*isSpreadsheetAttachment/, '公共文件查看器必须为表格附件启用工作表导航')
+assert.match(documentViewerSource, /SpreadsheetDocumentViewer/, '公共文件查看器必须直接打开表格附件')
 assert.match(pdfViewerSource, /getOutline\(\)/, '表格预览必须读取 PDF 工作表目录')
 assert.match(pdfViewerSource, /visiblePages\.map/, '表格预览必须只渲染当前工作表页范围')
+
+const officePreviewSource = readFileSync(join(process.cwd(), 'lib/office-document-preview.ts'), 'utf8')
+assert.match(officePreviewSource, /previewVersion = 2/, '完整工作表导出必须失效旧版裁切 PDF 缓存')
 
 console.log('attachment file type verification passed')

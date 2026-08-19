@@ -1,8 +1,6 @@
 {
-  "version": "0.1.410",
+  "version": "0.1.411",
   "impact": "updated",
-  "workflowIds": [
-    "33-document-list"
-  ],
-  "summary": "产品文档在线阅读新增多工作表 Excel/ODS 的工作表名称选择和前后切换，需同步受控文档查看流程。"
+  "workflowIds": ["33-document-list"],
+  "summary": "XLS/XLSX/ODS 默认使用自托管 LibreOffice 核心在线查看器直接浏览，保留兼容 PDF 与原文件下载降级。"
 }

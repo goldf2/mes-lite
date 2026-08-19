@@ -10,6 +10,7 @@ export {
 } from './client/attachment-api'
 export type { AttachmentMutationInput, AttachmentUploadInput, DraftAttachmentInput } from './contracts/attachment-schema'
 export { attachmentUpdatePermissionResource } from './domain/attachment-policy'
+export { loadWopiDiscovery } from './server/wopi-discovery-service'
 export { default as AttachmentPanel } from './ui/AttachmentPanel'
 export type { ManagedAttachment } from './ui/AttachmentPanel'
 export {

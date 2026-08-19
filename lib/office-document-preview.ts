@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto'
 import os from 'os'
 import path from 'path'
 import { pathToFileURL } from 'url'
-import { attachmentPreviewKind } from './attachment-file-types'
+import { attachmentPreviewKind, isSpreadsheetAttachment } from './attachment-file-types'
 import { resolveAttachmentStoragePath } from './attachment-storage'
 
 type OfficePreviewSource = {
@@ -13,8 +13,13 @@ type OfficePreviewSource = {
   mimeType: string
 }
 
-const previewVersion = 1
+const previewVersion = 2
 const conversionTasks = new Map<string, Promise<string>>()
+
+export function officePreviewConversionFormat(fileName: string, mimeType: string) {
+  if (!isSpreadsheetAttachment(fileName, mimeType)) return 'pdf'
+  return 'pdf:calc_pdf_Export:{"SinglePageSheets":{"type":"boolean","value":"true"}}'
+}
 
 export function officePreviewStoragePath(storagePath: string) {
   return `${resolveAttachmentStoragePath(storagePath)}.preview-v${previewVersion}.pdf`
@@ -25,6 +30,10 @@ async function convertOfficeDocument(source: OfficePreviewSource, targetPath: st
   if (attachmentPreviewKind(source.originalName || sourcePath, source.mimeType) !== 'office') {
     throw new Error('该附件不是可转换的 Office 文档')
   }
+  const conversionFormat = officePreviewConversionFormat(
+    source.originalName || sourcePath,
+    source.mimeType
+  )
 
   const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), 'mes-lite-office-'))
   const outputDirectory = path.join(temporaryRoot, 'output')
@@ -41,7 +50,7 @@ async function convertOfficeDocument(source: OfficePreviewSource, targetPath: st
         '--nofirststartwizard',
         `-env:UserInstallation=${pathToFileURL(profileDirectory).href}`,
         '--convert-to',
-        'pdf',
+        conversionFormat,
         '--outdir',
         outputDirectory,
         sourcePath,

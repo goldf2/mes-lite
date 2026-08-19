@@ -70,9 +70,28 @@ MES_LITE_PRE_MIGRATION_BACKUP_ENABLED=true
 MES_TRUSTED_ORIGINS=https://mes.example.com
 MES_PUBLIC_REGISTRATION_ENABLED=false
 SOP_PUBLIC_BASE_URL=
+MES_PUBLIC_BASE_URL=https://mes.example.com
+COLLABORA_PUBLIC_URL=https://office.example.com
+COLLABORA_DISCOVERY_URL=https://office.example.com/hosting/discovery
+WOPI_VIEW_TOKEN_TTL_SECONDS=7200
 ```
 
 `MES_TRUSTED_ORIGINS` 必须填写浏览器实际访问的 HTTPS Origin（协议、域名和可选端口，不带路径）。所有 `POST / PUT / PATCH / DELETE` API 都会先执行同源校验；多个可信 Origin 使用英文逗号分隔。公开注册默认关闭，只有在受控注册时间窗口才临时把 `MES_PUBLIC_REGISTRATION_ENABLED` 改为 `true`，新账号仍统一进入待审核状态。
+
+### 3.0 自托管 Collabora 电子表格直览
+
+XLS、XLSX 和 ODS 默认由独立的 Collabora Online 服务直接打开，不先转换为 PDF。`MES_PUBLIC_BASE_URL` 是 Collabora 回调 MES-lite WOPI 接口时可访问的 HTTPS 根地址；`COLLABORA_PUBLIC_URL` 是浏览器访问 Collabora 的 HTTPS Origin；`COLLABORA_DISCOVERY_URL` 必须是同一 Origin 下的 discovery 地址。生产环境拒绝 HTTP，令牌有效期默认 2 小时，可在 300–28800 秒内调整。
+
+Collabora 应部署为独立 Coolify Service 或独立主机，不与 MES-lite SQLite 容器共享进程和扩缩容生命周期。反向代理必须支持 WebSocket 和长连接，并只允许其访问 MES-lite 的 `/api/wopi/*`。Collabora 侧只信任 `mes.example.com` 这个 WOPI Host；关闭宏执行、外部数据自动刷新和不需要的编辑能力。Community Development Edition 适合隔离试点，正式生产容量和支持等级应根据 Collabora 授权与并发需求另行确认。
+
+上线前必须完成以下验收：
+
+1. 从 MES-lite 容器访问 `$COLLABORA_DISCOVERY_URL`，确认响应包含 `xlsx`、`xls` 和 `ods` action 及 proof key。
+2. 使用测试附件验证 `CheckFileInfo` 与 `GetFile` 均成功，篡改令牌、proof、附件 ID 或撤销会话后均返回拒绝。
+3. 用真实 24 工作表 XLSX 验证原生工作表标签、横向/纵向滚动、缩放和第 22 张宽表完整显示；再验证“兼容 PDF”和“下载原文件”降级入口。
+4. 检查反向代理访问日志不会记录 POST 表单中的 `access_token`，并避免保存含令牌的完整查询串。
+
+未配置或 discovery 不可用时，readiness 只返回 `warn`，避免外部预览服务故障导致 MES-lite 重启循环；用户可改用兼容 PDF 或下载原文件。不得把生产附件上传到 Collabora 公网演示站验证。
 
 最终交付的 PDF/DOCX 和自托管视频若发布到对象存储，只填写一个只读 HTTPS 基地址，例如 `SOP_PUBLIC_BASE_URL=https://downloads.example.com/mes-lite/sop`。地址不包含 Bucket 写入密钥、查询签名或具体文件名；应用按目录清单生成精确下载或播放路径。未配置时帮助中心不显示离线下载按钮和文件视频，在线 SOP 仍可使用；哔哩哔哩/YouTube 条目不依赖该地址。生成目录、对象路径和校验步骤见 [SOP 生成与发布策略](../operations/SOP生成与发布策略.md)及[视频帮助分类与发布](../operations/视频帮助分类与发布.md)。
 
@@ -97,7 +116,7 @@ AI_AGENT_MAX_TOOL_ROUNDS=4
 
 也可以参考仓库内的 `.env.coolify.example`，在 Coolify 的 Environment Variables 页面逐项填写。不要把生产 `.env` 文件提交到 Git。
 
-### 3.0 持久存储的唯一配置来源
+### 3.1 持久存储的唯一配置来源
 
 MES-lite 的 `Dockerfile` 只通过 `mkdir -p` 创建 `/app/data`、`/app/public/uploads` 和 `/app/backups` 并设置运行时环境变量；它没有声明 `VOLUME`。创建容器内目录不等于持久化，生产也禁止依赖 Docker 为镜像 `VOLUME` 隐式创建的匿名卷。匿名卷使用随机 ID，无法从业务名称直接判断用途，且 Coolify 滚动替换、回滚、迁移或清理容器时不能把它视为已登记、可复用的交付资产。
 
@@ -130,7 +149,7 @@ sudo mkdir -p /opt/mes-lite/data /opt/mes-lite/uploads /opt/mes-lite/backups
 
 容器启动入口会先以 root 身份幂等修复 `/app/data`、`/app/public/uploads` 与 `/app/backups` 的所有者和读写权限，再立即通过 Debian 基础镜像内置的 `setpriv` 降权为 `node` 用户。已有 SQLite 非空且显式开启迁移前备份时，会先创建并验证数据库+附件备份，再清理兼容文件、执行 `prisma migrate deploy` 并启动 Next.js；备份失败则中止迁移。应用进程本身不会以 root 运行。已有数据库继续使用原账号；全新数据库必须按下一节显式安装首个管理员，任何密码或微信注册都不会按注册顺序自动提权。
 
-### 3.1 首位管理员显式安装
+### 3.2 首位管理员显式安装
 
 1. 使用 `openssl rand -hex 32` 生成一次性随机值，临时保存到 Coolify 环境变量 `MES_INITIAL_ADMIN_TOKEN` 后重新部署。
 2. 确认站点已经使用 HTTPS，并从受信任终端执行一次以下请求；管理员密码至少 12 位：
@@ -193,7 +212,7 @@ Prisma Client 生成使用独立缓存层，仅在 npm 依赖或 `prisma/` 发�
 - 启动日志是否出现“持久存储权限已就绪”；若未出现，检查挂载是否允许容器 root 用户执行 `chown`。
 - `/api/health/live` 是否正常；若 live 正常而 ready 失败，按 ready 响应中的具体检查项排查数据与迁移。
 
-### 3.2 国内部署镜像加速
+### 3.3 国内部署镜像加速
 
 只有 Coolify 的详细构建日志长时间停在拉取基础镜像、`load metadata`、`npm ci` 或下载 npm 包时，镜像站才是主要优化方向。若耗时集中在 `npm run build`，切换镜像站不会缩短编译时间。
 
@@ -208,7 +227,7 @@ DEBIAN_MIRROR=http://mirrors.aliyun.com
 
 系统包下载、npm 依赖和 Next.js 编译均应使用 BuildKit cache mount。缓存目录不得在同一构建步骤末尾删除，否则失败重试和后续版本无法复用已下载内容。慢网络操作必须设置有限重试与超时；依赖安装层应位于业务源码 `COPY` 之前，避免每次应用修改都重新下载。
 
-### 3.3 构建成功但导出镜像失败
+### 3.4 构建成功但导出镜像失败
 
 如果日志已出现 `Compiled successfully`、静态页生成完成和完整路由表，却在 `exporting layers` 立即失败，说明应用代码已构建成功，应优先检查部署主机的 Docker 存储，而不是把 lint warning 当作失败原因。
 

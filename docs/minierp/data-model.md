@@ -78,6 +78,23 @@
 | expires_at | 过期时间 |
 | created_at | 创建时间 |
 
+### wopi_view_sessions
+
+电子表格只读直览的短期 WOPI 会话，不保存文件正文或明文访问令牌。
+
+| 字段 | 含义 |
+| --- | --- |
+| id | 会话 ID |
+| token_hash | 随机访问令牌的 SHA-256 摘要，唯一 |
+| attachment_id | 原始表格附件 |
+| operator_id | 发起查看的登录账号 |
+| expires_at | 强制过期时间 |
+| revoked_at | 主动关闭或撤销时间 |
+| last_accessed_at | Collabora 最近一次有效回调时间 |
+| created_at | 创建时间 |
+
+每次 WOPI 回调除会话有效性外，还重新校验 Collabora proof key、账号启用状态、附件所属业务资源权限和人员数据范围；撤销、过期或权限失效后不能继续读取原文件。
+
 ### authentication_throttles
 
 登录、公开注册和管理员安装的来源级持久限流窗口。来源只保存 SHA-256 哈希，不保存原始 IP；未知账号也会受到限制。
@@ -538,7 +555,7 @@ SKU，实际库存单位。
 
 上传、预览、下载、归档和后续 AI 识别统一通过附件管理模块完成。AI 识别结果只能作为待确认字段建议，不得绕过业务表单校验直接修改单据。
 
-附件预览不增加数据库字段：服务端根据 `storage_path + size + rotation + profileVersion` 计算确定性文件名并保存在同一持久化附件目录。通用图片/PDF 可生成 PNG 缩略图，Office 文件先生成 PDF 预览再生成缩略图；物料图片另外生成 320px WebP 缩略图和 1600px WebP 展示图。原始文件始终作为不可变事实源保留，业务列表和详情只引用派生文件，用户明确下载时才读取原文件。原文件归档时保留派生缓存以支持恢复，永久删除附件所属业务记录时同时删除原文件及全部派生文件。
+附件派生预览不增加业务字段：服务端根据 `storage_path + size + rotation + profileVersion` 计算确定性文件名并保存在同一持久化附件目录。通用图片/PDF 可生成 PNG 缩略图；XLS/XLSX/ODS 默认直接读取原文件，兼容 PDF 和缩略图仍可按需生成；其他 Office 文件先生成 PDF 预览再生成缩略图。物料图片另外生成 320px WebP 缩略图和 1600px WebP 展示图。原始文件始终作为不可变事实源保留，用户明确下载或有效 WOPI 会话取件时才读取原文件。原文件归档时保留派生缓存以支持恢复，永久删除附件所属业务记录时同时删除原文件、全部派生文件和关联 WOPI 会话。
 
 ### sawing_cost_scenarios（当前 Prisma 已实现）
 
@@ -835,8 +852,9 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 | `WorkInstruction.workCenters` | 多对多工作中心 | 工艺文件可声明一个或多个适用工作中心；空集合表示不限工作中心 |
 | `DocumentAttachment` | `ownerType = WORK_INSTRUCTION`、`ownerId` | 保存产品文档的原始附件，包括图片、PDF、Office、文本和其他业务文件 |
 | `DocumentAttachment` | `rotation` | 文件显示方向校正角度，只允许 `0 / 90 / 180 / 270`；不修改原文件 |
+| `WopiViewSession` | `attachmentId`、`operatorId`、`tokenHash`、`expiresAt` | 表格直览短期会话；令牌只保存摘要，并关联原附件和发起账号 |
 
-正文 JSON 是可编辑事实源，纯文本只用于搜索，不允许由客户端单独写入。在线正文和附件可以独立存在，也可以同时维护；附件始终保留原文件，不嵌入正文 JSON。Office 预览是从原文件按需生成的 PDF 派生缓存，不是新的业务事实源。
+正文 JSON 是可编辑事实源，纯文本只用于搜索，不允许由客户端单独写入。在线正文和附件可以独立存在，也可以同时维护；附件始终保留原文件，不嵌入正文 JSON。XLS/XLSX/ODS 默认由自托管 Collabora 通过只读 WOPI 会话读取原文件；兼容 PDF、其他 Office PDF 和缩略图都是可重建派生缓存，不是新的业务事实源。
 
 默认数据包含“作业指导书、图纸、工艺文件、检验文件、包装文件、设备文件、其他”等一级类别，但它们是可维护的数据库记录。“作业指导书”下可增加“机床作业、环境作业”等二级类别。已有文档引用或仍有子类别时禁止删除类别。
 

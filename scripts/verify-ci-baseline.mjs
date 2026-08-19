@@ -33,6 +33,8 @@ const checks = [
   'verify:inventory-transaction-ledger',
   'verify:runtime-operations',
   'verify:attachment-storage',
+  'verify:wopi-viewer',
+  'verify:wopi-http',
   'verify:production-database-audit',
   'verify:production-schema-drift',
   'verify:sop',
