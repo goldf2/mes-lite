@@ -117,6 +117,8 @@ DWG/DXF 原文件继续保存在附件持久卷中，MES-lite 不在 Web 主进�
 4. Health Check 使用 `/health`；若令牌已启用而 Coolify 的 HTTP 健康检查不能添加请求头，则保留 Dockerfile 内置健康检查，不另建无鉴权公网探针。
 5. 先部署并确认转换器健康，再给 MES-lite 写入上述两个环境变量并重新部署；回滚时先移除 `CAD_PREVIEW_SERVICE_URL`，MES-lite 会退回下载原文件且 readiness 仅警告。
 
+逐字段配置、令牌生成、资源限制、部署顺序、常见故障、真实样本验收和回滚记录见 [LibreDWG CAD 预览服务 Coolify 配置手册](./LibreDWG-Coolify配置手册.md)。真实 Secret 只保存到 Coolify，不写入该手册或仓库。
+
 容器发布前必须使用企业真实样本建立验收集，至少覆盖：R2000、R2007+、单模型空间、多布局、中文字体、外部参照、块、尺寸标注、大图和已知复杂实体。LibreDWG 与 ezdxf 不保证所有版本和垂直产品实体的像素级兼容；任一样本转换失败或关键内容缺失，都应保留原文件下载/配套 PDF，并评估在同一内部契约后替换 ODA 等引擎。
 
 许可证边界必须随部署留档：LibreDWG 为 GPL-3.0-or-later，ezdxf 为 MIT，PyMuPDF 为 AGPL-3.0-or-later/商业双许可。转换器源码和镜像单独管理；如果向客户分发该镜像，应在交付前完成对应源代码提供、许可证文本和修改说明等合规复核。

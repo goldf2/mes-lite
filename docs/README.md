@@ -2,7 +2,7 @@
 
 本目录是 MES-lite 的统一知识入口。第一次接触系统时，不建议从发布记录或单个专题开始阅读；先通过总手册建立整体认知，再进入对应领域。
 
-当前事实基线：`v0.1.411` / 2026-08-19。
+当前事实基线：`v0.1.415` / 2026-08-20。
 
 ## 1. 推荐阅读路径
 
@@ -45,7 +45,7 @@
 | 人员、权限组和页面如何分配 | [人员权限组与页面矩阵](./architecture/人员权限组与页面矩阵.md) |
 | 页面为什么要使用公共骨架 | [公共前端模块使用指南](./minierp/公共前端模块使用指南.md) |
 | 新代码应该放在哪里 | [代码目录与模块边界规范](./architecture/code-directory-and-module-boundary.md) |
-| 如何本地启动和部署 | [系统开发与理解手册](./开发文档.md)、[Coolify 部署说明](./deployment/coolify.md) |
+| 如何本地启动和部署 | [系统开发与理解手册](./开发文档.md)、[Coolify 部署说明](./deployment/coolify.md)；CAD 转换器按 [LibreDWG Coolify 配置手册](./deployment/LibreDWG-Coolify配置手册.md) 单独部署 |
 | 如何备份、校验、恢复和做灾备演练 | [备份、恢复与灾备演练](./operations/备份恢复与灾备演练.md) |
 | 如何审计生产库物理 Schema 并生成非覆盖收敛候选 | [生产 Schema 漂移审计与收敛候选](./operations/生产Schema漂移审计与收敛候选.md) |
 | 如何审计、确认并回填 Product→Material | [Product 到 Material 映射与回填](./operations/Product到Material映射与回填.md) |
