@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { EffectiveDataScope } from '../modules/identity-access'
+import type { MaterialInSavePayload } from '../modules/receiving/contracts/material-in'
 
 const root = process.cwd()
 const read = (path: string) => readFileSync(join(root, path), 'utf8')
@@ -95,6 +96,7 @@ async function main() {
     { getMaterialInDetail, updateManagedMaterialIn },
     { receiveManagedMaterialIn, rejectManagedMaterialIn, reverseManagedMaterialIn },
     { loadMaterialInConversionHistory },
+    { saveMaterialInRecord },
   ] = await Promise.all([
     import('../lib/prisma'),
     import('../modules/receiving/contracts/material-in-schema'),
@@ -105,9 +107,81 @@ async function main() {
     import('../modules/receiving/server/material-in-detail-service'),
     import('../modules/receiving/server/material-in-status-service'),
     import('../modules/receiving/server/material-in-conversion-history-service'),
+    import('../modules/receiving/client/material-in-api'),
   ])
   try {
     verifyStaticBoundaries(createMaterialInSchema)
+    const savePayload: MaterialInSavePayload = {
+      supplierId: 'supplier',
+      voucherNo: 'V-001',
+      stagingLocationId: 'location',
+      receivedBy: '验证员',
+      note: '网络恢复验证',
+      items: [{
+        materialId: 'material', locationId: 'location', qty: 2, unit: '件', valuationUnit: '件',
+        unitPrice: 3, totalAmount: 6, priceUnit: '件', priceBasis: 'STOCK',
+      }],
+    }
+    const recoveredRecord = {
+      id: 'receipt', inboundNo: 'IN-VERIFY-001', supplierId: 'supplier', stagingLocationId: 'location',
+      voucherNo: 'V-001', receivedBy: '验证员', note: '网络恢复验证',
+      items: [{
+        materialId: 'material', locationId: 'location', lineNo: 1, qty: 2, unit: '件', valuationQty: 2,
+        valuationUnit: '件', conversionSource: 'SAME_UNIT', unitPrice: 3, totalAmount: 6,
+        priceUnit: '件', priceBasis: 'STOCK', batchNo: null,
+      }],
+    }
+    const originalFetch = globalThis.fetch
+    try {
+      let requestCount = 0
+      globalThis.fetch = async () => {
+        requestCount += 1
+        if (requestCount === 1) throw new TypeError('Failed to fetch')
+        return new Response(JSON.stringify({ data: recoveredRecord }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      const recoveredSave = await saveMaterialInRecord('receipt', savePayload)
+      assert.equal(recoveredSave.recovered, true, '编辑保存响应丢失后必须只读回查并确认服务器已保存')
+      assert.equal(requestCount, 2, '保存恢复只能追加一次只读详情回查，不能自动重发写请求')
+
+      requestCount = 0
+      globalThis.fetch = async () => {
+        requestCount += 1
+        if (requestCount === 1) throw new TypeError('Failed to fetch')
+        return new Response(JSON.stringify({
+          data: { ...recoveredRecord, items: [{ ...recoveredRecord.items[0], qty: 1, totalAmount: 3 }] },
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      await assert.rejects(
+        () => saveMaterialInRecord('receipt', savePayload),
+        (error: unknown) => error instanceof Error
+          && /网络连接中断/.test(error.message)
+          && !/Failed to fetch/.test(error.message),
+        '服务器内容不一致时必须保留当前草稿并显示中文可操作提示',
+      )
+      assert.equal(requestCount, 2, '内容不一致时也不得自动重发写请求')
+
+      requestCount = 0
+      globalThis.fetch = async () => {
+        requestCount += 1
+        throw new TypeError('Failed to fetch')
+      }
+      await assert.rejects(
+        () => saveMaterialInRecord(null, savePayload),
+        (error: unknown) => error instanceof Error
+          && /无法确认来料单是否创建/.test(error.message)
+          && !/Failed to fetch/.test(error.message),
+        '新建响应丢失时必须提示先核对列表，不能暴露浏览器原始英文异常',
+      )
+      assert.equal(requestCount, 1, '新建响应丢失时不得自动重发创建请求')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
     const fixedNow = new Date('2026-08-10T08:00:00.000Z')
     const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`
     const [supplier, location, otherLocation, material, secondMaterial] = await Promise.all([

@@ -4,14 +4,41 @@ import type {
   MaterialInLineRecord,
   MaterialInConversionHistory,
   MaterialInRecord,
+  MaterialInSavePayload,
   ReceivingMaterialOption,
   SupplierOption,
 } from '../contracts/material-in'
+import { materialInRecordMatchesSavePayload } from '../model/material-in-view'
+
+class MaterialInNetworkError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'MaterialInNetworkError'
+  }
+}
+
+function networkFailureMessage(fallback: string) {
+  if (fallback === '创建来料单失败') {
+    return '网络连接中断，无法确认来料单是否创建；请恢复网络后刷新列表，避免重复创建'
+  }
+  return `网络连接中断，${fallback}，请稍后重试`
+}
 
 async function requestJson<T>(input: RequestInfo | URL, init: RequestInit | undefined, fallback: string): Promise<T> {
-  const response = await fetch(input, init)
-  const payload = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(payload.error || fallback)
+  let response: Response
+  try {
+    response = await fetch(input, init)
+  } catch {
+    throw new MaterialInNetworkError(networkFailureMessage(fallback))
+  }
+  let payload: Record<string, unknown>
+  try {
+    payload = await response.json() as Record<string, unknown>
+  } catch {
+    if (response.ok) throw new MaterialInNetworkError(networkFailureMessage(fallback))
+    payload = {}
+  }
+  if (!response.ok) throw new Error(typeof payload.error === 'string' ? payload.error : fallback)
   return payload as T
 }
 
@@ -46,12 +73,35 @@ export async function getMaterialInConversionHistory(materialId: string) {
   return requestJson<{ data: MaterialInConversionHistory }>(`/api/material-ins/conversion-history?${params.toString()}`, undefined, '获取物料历史换算失败')
 }
 
-export async function saveMaterialInRecord(id: string | null, payload: Record<string, unknown>) {
-  return requestJson<{ data: MaterialInRecord; items?: MaterialInLineRecord[]; count?: number }>(
-    id ? `/api/material-ins/${id}` : '/api/material-ins',
-    { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
-    id ? '修改来料单失败' : '创建来料单失败',
-  )
+export async function getMaterialInRecord(id: string) {
+  return requestJson<{ data: MaterialInRecord }>(`/api/material-ins/${id}`, undefined, '重新读取来料单失败')
+}
+
+export async function saveMaterialInRecord(id: string | null, payload: MaterialInSavePayload): Promise<{
+  data: MaterialInRecord
+  items?: MaterialInLineRecord[]
+  count?: number
+  recovered?: boolean
+}> {
+  try {
+    return await requestJson<{ data: MaterialInRecord; items?: MaterialInLineRecord[]; count?: number }>(
+      id ? `/api/material-ins/${id}` : '/api/material-ins',
+      { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
+      id ? '修改来料单失败' : '创建来料单失败',
+    )
+  } catch (error) {
+    if (!id || !(error instanceof MaterialInNetworkError)) throw error
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 300))
+    try {
+      const recovered = await getMaterialInRecord(id)
+      if (materialInRecordMatchesSavePayload(recovered.data, payload)) {
+        return { data: recovered.data, recovered: true }
+      }
+    } catch {
+      // 保留原草稿；只读回查失败时不能自动重发写请求。
+    }
+    throw new Error('网络连接中断，暂时无法确认来料单是否保存；当前窗口内容已保留，请待网络恢复后再保存，勿连续点击')
+  }
 }
 
 export async function receiveMaterialInRecord(id: string) {

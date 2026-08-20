@@ -141,6 +141,17 @@ export interface MaterialInDraftItem {
   batchNo?: string
 }
 
+export type MaterialInSaveItem = Omit<MaterialInDraftItem, 'id'>
+
+export interface MaterialInSavePayload {
+  supplierId: string
+  voucherNo?: string
+  stagingLocationId?: string
+  receivedBy?: string
+  note?: string
+  items: MaterialInSaveItem[]
+}
+
 export interface MaterialInFormState {
   voucherNo: string
   supplierId: string

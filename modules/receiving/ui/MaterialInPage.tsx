@@ -416,7 +416,9 @@ export default function MaterialInPage({
         setEditingItem(data.data)
         setDraftItems(createDraftItemsFromRecord(data.data))
         resetCurrentItem()
-        onMessage(`来料单已保存：${data.data.inboundNo}，可继续编辑其他明细`)
+        onMessage(data.recovered
+          ? `来料单已保存：${data.data.inboundNo}；连接恢复后已从服务器核对，可继续编辑其他明细`
+          : `来料单已保存：${data.data.inboundNo}，可继续编辑其他明细`)
         await fetchMaterialIns()
       } else {
         onMessage(`来料单创建成功，共 ${data.count || items.length} 种物料`)
