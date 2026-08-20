@@ -43,13 +43,22 @@ jobs:
 
       - name: Build and smoke-test LibreDWG CAD preview image
         run: |
+          set +e
           docker buildx build \
+            --progress=plain \
             --load \
             --cache-from type=gha,scope=cad-preview \
             --cache-to type=gha,mode=max,scope=cad-preview \
             -f services/cad-preview/Dockerfile \
             -t mes-lite-cad-preview:${{ github.sha }} \
-            .
+            . 2>&1 | tee /tmp/cad-preview-build.log
+          build_status=${PIPESTATUS[0]}
+          set -e
+          if (( build_status != 0 )); then
+            details=$(tail -n 35 /tmp/cad-preview-build.log | sed 's/%/%25/g; s/\r/%0D/g' | awk 'BEGIN { ORS="%0A" } { print }')
+            echo "::error file=services/cad-preview/Dockerfile,title=CAD preview image build failed::$details"
+            exit "$build_status"
+          fi
 
       - name: Validate and generate Prisma client
         run: |

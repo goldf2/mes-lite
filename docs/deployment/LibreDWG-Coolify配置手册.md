@@ -1,7 +1,9 @@
 # LibreDWG CAD 预览服务 Coolify 配置手册
 
-适用版本：MES-lite `v0.1.415` 及以后  
-适用入口：`https://cool-con01.xiangshu.me/`  
+适用版本：MES-lite `v0.1.416` 及以后
+
+适用入口：`https://cool-con01.xiangshu.me/`
+
 MES 主入口：`https://mes.csyufeng.com/`
 
 本文用于在 Coolify 中手动部署仓库内的 `services/cad-preview/` 服务，并让 MES-lite 通过私有网络调用它。完成代码合并不等于转换服务已经上线；只有转换器健康、MES 主应用重新部署且真实 DWG/DXF 样本验收通过，才能标记为已启用。
@@ -223,4 +225,3 @@ https://mes.csyufeng.com/api/health/ready
 | MES readiness 状态 |  |
 | 验收样本清单位置 |  |
 | 回滚点或变更单编号 |  |
-

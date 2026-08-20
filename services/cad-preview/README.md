@@ -10,7 +10,7 @@ The service converts DWG to DXF with GNU LibreDWG and renders DXF layouts to a r
 Build from the repository root:
 
 ```bash
-docker build -f services/cad-preview/Dockerfile -t mes-lite-cad-preview:0.1.414 .
+docker build -f services/cad-preview/Dockerfile -t mes-lite-cad-preview:0.1.416 .
 ```
 
 Run on a private container network:
@@ -19,7 +19,7 @@ Run on a private container network:
 docker run --read-only --tmpfs /tmp:size=256m,mode=1777 \
   --cap-drop ALL --security-opt no-new-privileges \
   -e CAD_PREVIEW_SERVICE_TOKEN='<same-secret-as-mes-lite>' \
-  mes-lite-cad-preview:0.1.414
+  mes-lite-cad-preview:0.1.416
 ```
 
 This is a 2D trial engine, pinned to LibreDWG 0.14. LibreDWG and ezdxf do not provide pixel-perfect support for every recent or vertical-product DWG entity. Keep download-original and optional companion-PDF workflows available for drawings that fail acceptance.

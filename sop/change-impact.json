@@ -1,6 +1,6 @@
 {
-  "version": "0.1.415",
+  "version": "0.1.416",
   "impact": "none",
   "workflowIds": [],
-  "summary": "仅补充 LibreDWG 转换服务的 Coolify 手动配置、验收与回滚文档；业务页面和操作流程不变。"
+  "summary": "LibreDWG CAD 预览服务仅精简容器构建目标并增强 CI 失败诊断，不改变页面、业务流程、操作步骤或既有预览降级行为。"
 }
