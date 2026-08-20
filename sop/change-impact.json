@@ -1,6 +1,6 @@
 {
-  "version": "0.1.419",
+  "version": "0.1.420",
   "impact": "none",
   "workflowIds": [],
-  "summary": "修复 CAD 预览重建后文档库封面未同步刷新的客户端状态，不改变既有操作步骤。"
+  "summary": "修复 CAD 预览重建后全屏查看仍命中旧 PDF 的缓存策略，不改变既有操作步骤。"
 }

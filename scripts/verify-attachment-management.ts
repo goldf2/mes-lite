@@ -15,6 +15,7 @@ const attachmentSchemaSource = readFileSync(join(root, 'modules/attachments/cont
 const attachmentCommandSource = readFileSync(join(root, 'modules/attachments/server/attachment-command-service.ts'), 'utf8')
 const regeneratePreviewButtonSource = readFileSync(join(root, 'modules/attachments/ui/RegenerateAttachmentPreviewButton.tsx'), 'utf8')
 const attachmentThumbnailRouteSource = readFileSync(join(root, 'app/api/attachments/[id]/thumbnail/route.ts'), 'utf8')
+const attachmentPreviewRouteSource = readFileSync(join(root, 'app/api/attachments/[id]/preview/route.ts'), 'utf8')
 const attachmentAuthorizationSource = readFileSync(join(root, 'modules/attachments/server/attachment-authorization-service.ts'), 'utf8')
 const attachmentPolicySource = readFileSync(join(root, 'modules/attachments/domain/attachment-policy.ts'), 'utf8')
 const middlewareSource = readFileSync(join(root, 'middleware.ts'), 'utf8')
@@ -53,6 +54,8 @@ assert.match(regeneratePreviewButtonSource, /regenerateAttachmentPreview\(attach
 assert.match(attachmentPanelSource, /RegenerateAttachmentPreviewButton/, '公共附件管理面板必须复用 CAD 重新生成按钮')
 assert.match(attachmentThumbnailRouteSource, /stat\(thumbnailPath\)[\s\S]*mtimeMs/, 'CAD 缩略图 ETag 必须随派生文件更新')
 assert.match(attachmentThumbnailRouteSource, /previewKind === 'cad'[\s\S]*private, no-cache/, 'CAD 缩略图必须在再次打开时重新验证缓存')
+assert.match(attachmentPreviewRouteSource, /stat\(previewPath\)[\s\S]*mtimeMs/, 'CAD 全屏预览 ETag 必须随派生 PDF 更新')
+assert.match(attachmentPreviewRouteSource, /kind === 'cad'[\s\S]*private, no-cache/, 'CAD 全屏预览必须在再次打开时重新验证缓存')
 for (const modulePath of [
   'modules/attachments/contracts/attachment-schema.ts',
   'modules/attachments/domain/attachment-errors.ts',

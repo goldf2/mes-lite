@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { readFile } from 'fs/promises'
+import { readFile, stat } from 'fs/promises'
 import { attachmentPreviewKind } from '@/lib/attachment-file-types'
 import { resolveAttachmentStoragePath } from '@/lib/attachment-storage'
 import { ensureOfficeDocumentPreview } from '@/lib/office-document-preview'
@@ -27,6 +27,12 @@ export async function GET(
       : kind === 'cad'
         ? await ensureCadDocumentPreview(attachment)
         : resolveAttachmentStoragePath(attachment.storagePath)
+    const previewStat = await stat(previewPath)
+    const etag = `"attachment-preview-${attachment.id}-${previewStat.size}-${Math.trunc(previewStat.mtimeMs)}"`
+    const cacheControl = kind === 'cad' ? 'private, no-cache' : 'private, max-age=3600'
+    if (_req.headers.get('if-none-match') === etag) {
+      return new NextResponse(null, { status: 304, headers: { ETag: etag, 'Cache-Control': cacheControl } })
+    }
     const file = await readFile(previewPath)
     return new NextResponse(new Uint8Array(file), {
       headers: {
@@ -34,7 +40,8 @@ export async function GET(
         'Content-Length': String(file.length),
         'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(kind === 'office' || kind === 'cad' ? `${attachment.originalName}.pdf` : attachment.originalName)}`,
         'X-Content-Type-Options': 'nosniff',
-        'Cache-Control': 'private, max-age=3600',
+        'Cache-Control': cacheControl,
+        ETag: etag,
       },
     })
   } catch (error: any) {
