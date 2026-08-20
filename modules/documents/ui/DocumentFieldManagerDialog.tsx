@@ -15,6 +15,7 @@ export default function DocumentFieldManagerDialog({
   categories,
   initialCategoryId,
   canCreate,
+  canUpdate,
   canDelete,
   onChanged,
   onClose,
@@ -23,6 +24,7 @@ export default function DocumentFieldManagerDialog({
   categories: DocumentCategoryRecord[]
   initialCategoryId?: string
   canCreate: boolean
+  canUpdate: boolean
   canDelete: boolean
   onChanged: (categoryId: string) => void | Promise<void>
   onClose: () => void
@@ -33,6 +35,7 @@ export default function DocumentFieldManagerDialog({
   const [name, setName] = useState('')
   const [fieldType, setFieldType] = useState<DocumentFieldType>('TEXT')
   const [optionsText, setOptionsText] = useState('')
+  const [editingDefinition, setEditingDefinition] = useState<DocumentFieldDefinitionRecord | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const categoryOptions = useMemo(() => documentCategoryOptions(categories), [categories])
@@ -51,7 +54,21 @@ export default function DocumentFieldManagerDialog({
 
   useEffect(() => { void load() }, [load])
 
-  const addField = async () => {
+  const resetEditor = () => {
+    setEditingDefinition(null)
+    setName('')
+    setFieldType('TEXT')
+    setOptionsText('')
+  }
+
+  const startEditing = (definition: DocumentFieldDefinitionRecord) => {
+    setEditingDefinition(definition)
+    setName(definition.name)
+    setFieldType(definition.fieldType)
+    setOptionsText(parseFieldOptions(definition.optionsJson).join('\n'))
+  }
+
+  const saveField = async () => {
     if (!categoryId) return onMessage('请选择文档类别')
     if (!name.trim()) return onMessage('请输入字段名称')
     setSaving(true)
@@ -61,15 +78,14 @@ export default function DocumentFieldManagerDialog({
         name,
         fieldType,
         options: optionsText.split(/[\n,，]/).map((value) => value.trim()).filter(Boolean),
-      })
-      setName('')
-      setFieldType('TEXT')
-      setOptionsText('')
-      onMessage('扩展字段已添加')
+      }, editingDefinition?.id)
+      onMessage(editingDefinition ? '扩展字段已更新' : '扩展字段已添加')
+      resetEditor()
       await load()
       await onChanged(categoryId)
     } catch (error) {
-      onMessage(error instanceof Error ? error.message : '新增扩展字段失败')
+      const fallbackMessage = editingDefinition ? '更新扩展字段失败' : '新增扩展字段失败'
+      onMessage(error instanceof Error ? error.message : fallbackMessage)
     } finally {
       setSaving(false)
     }
@@ -80,6 +96,7 @@ export default function DocumentFieldManagerDialog({
     if (!confirm(`确定删除扩展字段“${definition.name}”吗？`)) return
     try {
       onMessage(await removeDocumentFieldDefinition(definition.id))
+      if (editingDefinition?.id === definition.id) resetEditor()
       await load()
       await onChanged(categoryId)
     } catch (error) {
@@ -90,13 +107,13 @@ export default function DocumentFieldManagerDialog({
   return (
     <ModalDialog
       title="字段设置"
-      description="每个文档类别可维护自己的扩展字段；基础字段固定且不可删除。"
+      description="每个文档类别可维护自己的扩展字段；基础字段固定且不可删除，已使用字段只能安全改名。"
       size="wide"
       onClose={onClose}
     >
       <div className="mb-5 max-w-xl">
         <label className="mb-2 block text-sm font-medium text-gray-700">文档类别</label>
-        <SearchableSelect value={categoryId} onChange={setCategoryId} options={categoryOptions} placeholder="输入类别名称筛选" />
+        <SearchableSelect value={categoryId} onChange={(value) => { setCategoryId(value); resetEditor() }} options={categoryOptions} placeholder="输入类别名称筛选" />
       </div>
 
       <section className="rounded-lg border border-gray-200 p-4">
@@ -113,18 +130,24 @@ export default function DocumentFieldManagerDialog({
         </div>
       </section>
 
-      {canCreate && categoryId && (
+      {categoryId && ((editingDefinition && canUpdate) || (!editingDefinition && canCreate)) && (
         <section className="mt-5 rounded-lg border border-blue-100 bg-blue-50/40 p-4">
-          <h4 className="text-sm font-semibold text-gray-900">添加扩展字段</h4>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900">{editingDefinition ? '编辑扩展字段' : '添加扩展字段'}</h4>
+              {editingDefinition?._count.values ? <p className="mt-1 text-xs text-amber-700">该字段已被 {editingDefinition._count.values} 篇文档使用，只能修改名称，类型和选项已锁定。</p> : null}
+            </div>
+            {editingDefinition && <AppButton variant="secondary" size="sm" onClick={resetEditor} disabled={saving}>取消编辑</AppButton>}
+          </div>
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_12rem_auto]">
             <input value={name} onChange={(event) => setName(event.target.value)} className={appInputClassName} placeholder="字段名称，如材料牌号" maxLength={40} />
-            <select value={fieldType} onChange={(event) => setFieldType(event.target.value as DocumentFieldType)} className={appSelectClassName}>
+            <select value={fieldType} onChange={(event) => setFieldType(event.target.value as DocumentFieldType)} className={appSelectClassName} disabled={Boolean(editingDefinition?._count.values)}>
               {documentFieldTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
-            <AppButton variant="primary" onClick={addField} disabled={saving}>{saving ? '添加中…' : '添加字段'}</AppButton>
+            <AppButton variant="primary" onClick={saveField} disabled={saving}>{saving ? '保存中…' : editingDefinition ? '保存修改' : '添加字段'}</AppButton>
           </div>
           {fieldType === 'SELECT' && (
-            <textarea value={optionsText} onChange={(event) => setOptionsText(event.target.value)} className={`${appTextareaClassName} mt-3`} rows={3} placeholder="输入下拉选项，每行一项或用逗号分隔" />
+            <textarea value={optionsText} onChange={(event) => setOptionsText(event.target.value)} className={`${appTextareaClassName} mt-3`} rows={3} placeholder="输入下拉选项，每行一项或用逗号分隔" disabled={Boolean(editingDefinition?._count.values)} />
           )}
         </section>
       )}
@@ -150,7 +173,10 @@ export default function DocumentFieldManagerDialog({
                       {` · ${definition._count.values} 篇文档已填写`}
                     </div>
                   </div>
-                  {canDelete && <AppButton variant="danger" size="sm" onClick={() => removeField(definition)} disabled={used} title={used ? '字段已被文档使用' : '删除扩展字段'}>删除</AppButton>}
+                  <div className="flex items-center gap-2">
+                    {canUpdate && <AppButton variant="secondary" size="sm" onClick={() => startEditing(definition)} disabled={saving}>编辑</AppButton>}
+                    {canDelete && <AppButton variant="danger" size="sm" onClick={() => removeField(definition)} disabled={used} title={used ? '字段已被文档使用' : '删除扩展字段'}>删除</AppButton>}
+                  </div>
                 </div>
               )
             })}

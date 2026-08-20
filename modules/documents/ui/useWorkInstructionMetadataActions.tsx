@@ -25,6 +25,7 @@ export default function useWorkInstructionMetadataActions({
   canBatchImport,
   canBulkUpdate,
   canCreateFields,
+  canUpdateFields,
   canDeleteFields,
   onMaterialSearch,
   onChanged,
@@ -41,6 +42,7 @@ export default function useWorkInstructionMetadataActions({
   canBatchImport: boolean
   canBulkUpdate: boolean
   canCreateFields: boolean
+  canUpdateFields: boolean
   canDeleteFields: boolean
   onMaterialSearch: (keyword?: string) => void | Promise<void>
   onChanged: () => Promise<void>
@@ -149,14 +151,14 @@ export default function useWorkInstructionMetadataActions({
   const actionButtons = (
     <>
       {canBatchImport && <AppButton variant="primary" onClick={() => void openBatchImport()}>批量导入</AppButton>}
-      {(canCreateFields || canDeleteFields) && <AppButton variant="secondary" onClick={() => setFieldManagerOpen(true)}>字段设置</AppButton>}
+      {(canCreateFields || canUpdateFields || canDeleteFields) && <AppButton variant="secondary" onClick={() => setFieldManagerOpen(true)}>字段设置</AppButton>}
       {canBulkUpdate && <AppButton variant="secondary" onClick={() => void openBulkEdit()} disabled={selectedIds.length === 0}>批量修改{selectedIds.length > 0 ? `（${selectedIds.length}）` : ''}</AppButton>}
     </>
   )
 
   const dialogs = (
     <>
-      {fieldManagerOpen && <DocumentFieldManagerDialog categories={categories} initialCategoryId={categoryOptions[0]?.value} canCreate={canCreateFields} canDelete={canDeleteFields} onChanged={onFieldDefinitionsChanged} onClose={() => setFieldManagerOpen(false)} onMessage={onMessage} />}
+      {fieldManagerOpen && <DocumentFieldManagerDialog categories={categories} initialCategoryId={categoryOptions[0]?.value} canCreate={canCreateFields} canUpdate={canUpdateFields} canDelete={canDeleteFields} onChanged={onFieldDefinitionsChanged} onClose={() => setFieldManagerOpen(false)} onMessage={onMessage} />}
       {batchOpen && <WorkInstructionBatchImportDialog form={batchForm} onFormChange={(next) => void changeBatchForm(next)} materials={materials} selectedMaterial={selectedBatchMaterial} onMaterialSearch={onMaterialSearch} categoryOptions={categoryOptions} workCenters={workCenters} fieldDefinitions={batchFieldDefinitions} files={batchFiles} inputRef={batchUploadInputRef} loading={batchLoading} onSelectFiles={selectBatchFiles} onRemoveFile={(file) => setBatchFiles((current) => current.filter((item) => item !== file))} onClose={() => !batchLoading && setBatchOpen(false)} onSubmit={submitBatchImport} />}
       {bulkOpen && <WorkInstructionBulkEditDialog selectedItems={selectedItems} materials={materials} workCenters={workCenters} fieldDefinitions={bulkFieldDefinitions} loading={bulkLoading} onClose={() => !bulkLoading && setBulkOpen(false)} onSubmit={submitBulkEdit} />}
     </>

@@ -1,6 +1,6 @@
 {
-  "version": "0.1.422",
+  "version": "0.1.423",
   "impact": "updated",
-  "workflowIds": ["33-document-list", "34-document-create"],
-  "summary": "产品文档新增一文件一文档的批量导入、按类别扩展字段设置和同类别多选批量修改；批量附件上传保持为服务端依赖。"
+  "workflowIds": ["33-document-list"],
+  "summary": "产品文档字段设置增加扩展字段编辑；未使用字段可修改名称、类型和选项，已使用字段只能安全改名，删除保护保持不变。"
 }

@@ -145,6 +145,7 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
       canBatchImport={context.canCreate('workInstructions') && context.canCreate('attachments')}
       canBulkUpdate={context.canUpdate('workInstructions')}
       canCreateFields={context.canCreate('documentCategories')}
+      canUpdateFields={context.canUpdate('documentCategories')}
       canDeleteFields={context.canDelete('documentCategories')}
     />
   ),

@@ -34,13 +34,13 @@ import WorkInstructionDetailDialog from './WorkInstructionDetailDialog'
 import WorkInstructionFullscreenViewer, { type WorkInstructionViewerState } from './WorkInstructionFullscreenViewer'
 import useWorkInstructionMetadataActions from './useWorkInstructionMetadataActions'
 import WorkInstructionToolbar from './WorkInstructionToolbar'
-
 export default function WorkInstructionPage({
   onMessage,
   canRegeneratePreviews,
   canBatchImport,
   canBulkUpdate,
   canCreateFields,
+  canUpdateFields,
   canDeleteFields,
 }: {
   onMessage: (msg: string) => void
@@ -48,6 +48,7 @@ export default function WorkInstructionPage({
   canBatchImport: boolean
   canBulkUpdate: boolean
   canCreateFields: boolean
+  canUpdateFields: boolean
   canDeleteFields: boolean
 }) {
   const [items, setItems] = useState<WorkInstruction[]>([])
@@ -528,6 +529,7 @@ export default function WorkInstructionPage({
     canBatchImport,
     canBulkUpdate,
     canCreateFields,
+    canUpdateFields,
     canDeleteFields,
     onMaterialSearch: fetchMaterials,
     onChanged: fetchInstructions,

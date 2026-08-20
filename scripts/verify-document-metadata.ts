@@ -47,6 +47,7 @@ function verifyStructure() {
   const page = read('modules/documents/ui/WorkInstructionPage.tsx')
   const metadataActions = read('modules/documents/ui/useWorkInstructionMetadataActions.tsx')
   const fieldManager = read('modules/documents/ui/DocumentFieldManagerDialog.tsx')
+  const pageRegistry = read('app/components/shell/WorkspacePageRendererRegistry.tsx')
   const batchDialog = read('modules/documents/ui/WorkInstructionBatchImportDialog.tsx')
   const bulkDialog = read('modules/documents/ui/WorkInstructionBulkEditDialog.tsx')
 
@@ -54,6 +55,7 @@ function verifyStructure() {
   assert.match(schema, /fieldDefinitionId[\s\S]*onDelete: Restrict/, '被使用字段必须由数据库外键保护')
   assert.match(migration, /CREATE TABLE "DocumentFieldDefinition"[\s\S]*CREATE TABLE "WorkInstructionFieldValue"/, '迁移必须创建字段定义和值表')
   assert.match(fieldRoute, /requireResourcePermission\('documentCategories'/, '扩展字段配置必须复用文档类别权限')
+  assert.match(fieldRoute, /export async function PUT[\s\S]*requireResourcePermission\('documentCategories', 'update'\)/, '扩展字段编辑必须校验文档类别修改权限')
   assert.match(batchRoute, /workInstructions[\s\S]*attachments[\s\S]*BATCH_IMPORT/, '批量导入必须同时校验文档和附件权限并审计')
   assert.match(bulkRoute, /workInstructions[\s\S]*BULK_UPDATE/, '批量修改必须校验文档权限并审计')
   assert.match(collection, /type="checkbox"[\s\S]*selectedIds/, '文档集合必须支持多选')
@@ -61,6 +63,9 @@ function verifyStructure() {
   assert.match(metadataActions, /批量导入[\s\S]*字段设置[\s\S]*批量修改/, '文档库必须提供三个明确入口')
   assert.match(fieldManager, /基础字段[\s\S]*不可删除[\s\S]*扩展字段/, '字段管理必须区分不可删除基础字段和扩展字段')
   assert.match(fieldManager, /_count\.values[\s\S]*disabled/, '被使用扩展字段必须禁用删除')
+  assert.match(fieldManager, /canUpdate[\s\S]*编辑[\s\S]*保存修改/, '字段管理必须提供已有扩展字段编辑入口')
+  assert.match(fieldManager, /editingDefinition[\s\S]*_count\.values[\s\S]*disabled/, '已使用字段编辑时必须锁定类型和选项')
+  assert.match(pageRegistry, /canUpdateFields=\{context\.canUpdate\('documentCategories'\)\}/, '字段编辑必须透传文档类别修改权限')
   assert.match(batchDialog, /multiple[\s\S]*每个文件将独立创建/, '批量导入必须明确一文件一文档')
   assert.match(bulkDialog, /应用此字段[\s\S]*同一类别/, '批量修改必须显式选择应用字段并说明类别边界')
 }
@@ -83,6 +88,11 @@ async function verifyDatabaseBehavior() {
     const textField = await fieldCommands.createDocumentFieldDefinition({ categoryId: category.id, name: '材料牌号', fieldType: 'TEXT', options: [] })
     const selectField = await fieldCommands.createDocumentFieldDefinition({ categoryId: category.id, name: '保密等级', fieldType: 'SELECT', options: ['公开', '内部'] })
     const unusedField = await fieldCommands.createDocumentFieldDefinition({ categoryId: category.id, name: '待删除', fieldType: 'DATE', options: [] })
+    const editableField = await fieldCommands.createDocumentFieldDefinition({ categoryId: category.id, name: '待修改', fieldType: 'TEXT', options: [] })
+    const editableResult = await fieldCommands.updateDocumentFieldDefinition({ id: editableField.id, categoryId: category.id, name: '表面处理', fieldType: 'SELECT', options: ['镀锌', '发黑'] })
+    assert.equal(editableResult.saved.name, '表面处理', '未使用字段必须允许修改名称')
+    assert.equal(editableResult.saved.fieldType, 'SELECT', '未使用字段必须允许修改类型')
+    assert.deepEqual(JSON.parse(editableResult.saved.optionsJson || '[]'), ['镀锌', '发黑'], '未使用下拉字段必须允许修改选项')
     await fieldCommands.deleteDocumentFieldDefinition(unusedField.id)
 
     const first = await instructionCommands.createWorkInstruction({
@@ -95,6 +105,18 @@ async function verifyDatabaseBehavior() {
     })
     assert.deepEqual(first.fieldValues.map((value) => value.valueText), ['SUS304', '内部'], '新建文档必须保存分类扩展字段')
     assert.equal((await listDocumentFieldDefinitions(category.id)).find((field) => field.id === textField.id)?._count.values, 2, '字段使用数必须反映已填写文档')
+    const renamed = await fieldCommands.updateDocumentFieldDefinition({ id: textField.id, categoryId: category.id, name: '材料牌号（标准）', fieldType: 'TEXT', options: [] })
+    assert.equal(renamed.saved.name, '材料牌号（标准）', '已使用字段必须允许安全改名')
+    await assert.rejects(
+      () => fieldCommands.updateDocumentFieldDefinition({ id: textField.id, categoryId: category.id, name: '材料牌号（标准）', fieldType: 'NUMBER', options: [] }),
+      (error: unknown) => error instanceof DocumentFieldError && error.status === 409,
+      '已使用字段不得修改类型',
+    )
+    await assert.rejects(
+      () => fieldCommands.updateDocumentFieldDefinition({ id: textField.id, categoryId: category.id, name: '保密等级', fieldType: 'TEXT', options: [] }),
+      (error: unknown) => error instanceof DocumentFieldError && error.status === 409,
+      '字段改名不得与同类别已有字段重名',
+    )
     await assert.rejects(
       () => fieldCommands.deleteDocumentFieldDefinition(textField.id),
       (error: unknown) => error instanceof DocumentFieldError && error.status === 409,
@@ -129,7 +151,7 @@ async function main() {
   try {
     verifyStructure()
     await verifyDatabaseBehavior()
-    console.log('文档批量导入、分类扩展字段与批量修改验证通过。')
+    console.log('文档批量导入、分类扩展字段编辑与批量修改验证通过。')
   } finally {
     rmSync(verifyRoot, { recursive: true, force: true })
   }
