@@ -116,6 +116,10 @@ export async function listWorkInstructions(query: WorkInstructionListQuery) {
         category: { select: { id: true, name: true, parentId: true, parent: { select: { id: true, name: true } } } },
         material: { select: { id: true, code: true, name: true, spec: true, category: true, stockUnit: true, valuationUnit: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
         workCenters: { select: { id: true, code: true, name: true, isActive: true } },
+        fieldValues: {
+          include: { fieldDefinition: { select: { id: true, name: true, fieldType: true, optionsJson: true, sortOrder: true } } },
+          orderBy: { fieldDefinition: { sortOrder: 'asc' } },
+        },
       },
       orderBy: { createdAt: 'desc' }, skip: (query.page - 1) * query.pageSize, take: query.pageSize,
     }),

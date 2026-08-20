@@ -1,8 +1,8 @@
 # MES-lite 当前功能流程与泳道
 
 状态：当前代码事实
-日期：2026-08-19
-事实基线：`v0.1.411`
+日期：2026-08-21
+事实基线：`v0.1.422`
 
 展示文件：[HTML 流程与泳道](../../public/mes-current-workflow.html) · [Excalidraw 可编辑源文件](../../public/mes-current-workflow.excalidraw)
 
@@ -80,6 +80,7 @@ flowchart LR
 
 - 新主流程使用 `QualityInspectionStandard` / `QualityInspectionStandardItem` 保存版本化标准，`QualityInspection` / `QualityInspectionCheckItem` 保存当时标准快照、抽样和逐项事实，`QualityDisposition` 保存每次复检、返工、报废、让步和解冻事实，并在一个事务内更新批次、库存、成本层与流水。旧 `QCRecord` 只保留历史兼容，不作为新生产实绩的质量事实。
 - 设备与工作中心已经具备台账和基础配置；运行状态只能通过受控事件或维保工单改变。周期点检按设备保存不可覆盖的逐项事实；保养/维修工单覆盖到期、故障、开始、完成、设备恢复和备件 FIFO 批次领用。自动采集、停机原因、节拍和 OEE 尚未贯通。
+- 产品文档支持同类文件按“一文件一文档”批量建档，每个类别独立维护扩展字段；基础字段不可删除，已使用扩展字段受引用保护。多篇文档共同修改时必须同类别，并只覆盖显式选择的字段。
 - 附件、业务单据打印、二维码、权限、审计和数据维护作为公共模块被业务页面复用。
 
 ### 2.6 设备运行与维保闭环

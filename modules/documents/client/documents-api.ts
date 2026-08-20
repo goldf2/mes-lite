@@ -9,6 +9,8 @@ import type {
   WorkInstructionSaveInput,
 } from '../contracts/work-instruction'
 import type { DocumentCategoryFieldsInput } from '../contracts/document-category-schema'
+import type { DocumentFieldDefinitionRecord, DocumentFieldInput, DocumentFieldUpdateInput } from '../contracts/document-field-schema'
+import type { WorkInstructionBatchImportMetadata, WorkInstructionBulkUpdateInput } from '../contracts/work-instruction-schema'
 import {
   archiveAttachment,
   listAttachments,
@@ -48,6 +50,25 @@ export async function saveDocumentCategory(input: DocumentCategoryFieldsInput, i
 export async function removeDocumentCategory(id: string) {
   const response = await fetch(`/api/document-categories?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
   return (await readEnvelope<never>(response, '删除文档类别失败')).message || '文档类别已删除'
+}
+
+export async function listDocumentFieldDefinitions(categoryId: string) {
+  const response = await fetch(`/api/document-field-definitions?categoryId=${encodeURIComponent(categoryId)}`)
+  return (await readEnvelope<DocumentFieldDefinitionRecord[]>(response, '获取扩展字段失败')).data || []
+}
+
+export async function saveDocumentFieldDefinition(input: DocumentFieldInput, id?: string) {
+  const response = await fetch('/api/document-field-definitions', {
+    method: id ? 'PUT' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(id ? ({ ...input, id } satisfies DocumentFieldUpdateInput) : input),
+  })
+  return (await readEnvelope<DocumentFieldDefinitionRecord>(response, '保存扩展字段失败')).data!
+}
+
+export async function removeDocumentFieldDefinition(id: string) {
+  const response = await fetch(`/api/document-field-definitions?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+  return (await readEnvelope<never>(response, '删除扩展字段失败')).message || '扩展字段已删除'
 }
 
 export async function listWorkInstructions(params: URLSearchParams) {
@@ -93,6 +114,27 @@ export async function saveWorkInstruction(input: WorkInstructionSaveInput, id?: 
     body: JSON.stringify(id ? { ...input, id } : input),
   })
   return (await readEnvelope<WorkInstruction>(response, '保存失败')).data!
+}
+
+export async function batchImportWorkInstructions(metadata: WorkInstructionBatchImportMetadata, files: File[]) {
+  const form = new FormData()
+  form.set('metadata', JSON.stringify(metadata))
+  files.forEach((file) => form.append('files', file))
+  const response = await fetch('/api/work-instructions/batch-import', { method: 'POST', body: form })
+  return (await readEnvelope<{
+    imported: { instruction: WorkInstruction; attachmentId: string }[]
+    failed: { fileName: string; error: string }[]
+  }>(response, '批量导入文档失败')).data!
+}
+
+export async function bulkUpdateWorkInstructions(input: WorkInstructionBulkUpdateInput) {
+  const response = await fetch('/api/work-instructions/bulk', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  const body = await readEnvelope<WorkInstruction[]>(response, '批量修改文档失败')
+  return { items: body.data || [], message: body.message || '批量修改已完成' }
 }
 
 export async function archiveWorkInstructionRecord(id: string) {

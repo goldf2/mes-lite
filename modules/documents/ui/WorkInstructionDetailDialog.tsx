@@ -13,6 +13,7 @@ import type {
   WorkInstruction,
   WorkInstructionForm,
 } from '../contracts/work-instruction'
+import type { DocumentFieldDefinitionRecord } from '../contracts/document-field-schema'
 import {
   formatFileSize,
   formatInstructionDate,
@@ -34,6 +35,7 @@ interface WorkInstructionDetailDialogProps {
   onMaterialSearch: (keyword: string) => void | Promise<void>
   categoryOptions: { value: string; label: string; keywords?: string }[]
   workCenters: WorkCenterOption[]
+  fieldDefinitions: DocumentFieldDefinitionRecord[]
   attachments: AttachmentItem[]
   selectedAttachment: AttachmentItem | null
   selectedAttachmentIndex: number
@@ -57,6 +59,13 @@ interface WorkInstructionDetailDialogProps {
   canRegeneratePreviews: boolean
 }
 
+function formatExtensionFieldValue(fieldValue: WorkInstruction['fieldValues'][number]) {
+  if (fieldValue.fieldDefinition.fieldType === 'BOOLEAN') {
+    return fieldValue.valueText === 'true' ? '是' : '否'
+  }
+  return fieldValue.valueText
+}
+
 export default function WorkInstructionDetailDialog({
   detail,
   editing,
@@ -67,6 +76,7 @@ export default function WorkInstructionDetailDialog({
   onMaterialSearch,
   categoryOptions,
   workCenters,
+  fieldDefinitions,
   attachments,
   selectedAttachment,
   selectedAttachmentIndex,
@@ -119,6 +129,7 @@ export default function WorkInstructionDetailDialog({
                 onMaterialSearch={onMaterialSearch}
                 categoryOptions={categoryOptions}
                 workCenters={workCenters}
+                fieldDefinitions={fieldDefinitions}
                 mode="detail"
               />
               <div className="mt-4 flex justify-end gap-2">
@@ -140,6 +151,19 @@ export default function WorkInstructionDetailDialog({
                 <div>工作中心：{detail.workCenters.length > 0 ? detail.workCenters.map((item) => `${item.code} · ${item.name}`).join('、') : '不限'}</div>
                 <div>创建时间：{formatInstructionDate(detail.createdAt)}</div>
               </div>
+              {detail.fieldValues.length > 0 && (
+                <div className="mt-4 border-t border-gray-100 pt-3">
+                  <div className="mb-2 text-xs font-semibold text-gray-500">扩展字段</div>
+                  <dl className="space-y-2 text-sm">
+                    {detail.fieldValues.map((fieldValue) => (
+                      <div key={fieldValue.id} className="grid grid-cols-[minmax(6rem,0.45fr)_minmax(0,1fr)] gap-3">
+                        <dt className="text-gray-500">{fieldValue.fieldDefinition.name}</dt>
+                        <dd className="break-words text-gray-800">{formatExtensionFieldValue(fieldValue)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
               {detail.note && <div className="mt-4 whitespace-pre-wrap rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600">{detail.note}</div>}
             </div>
           )}

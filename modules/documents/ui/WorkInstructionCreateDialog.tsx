@@ -4,6 +4,7 @@ import type { DragEvent, RefObject } from 'react'
 import { FileText, Image as ImageIcon, Upload, X } from 'lucide-react'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import type { MaterialOption, WorkCenterOption, WorkInstructionForm } from '../contracts/work-instruction'
+import type { DocumentFieldDefinitionRecord } from '../contracts/document-field-schema'
 import { formatFileSize } from '../model/work-instruction-view'
 import WorkInstructionFormFields from './WorkInstructionFormFields'
 
@@ -15,6 +16,7 @@ interface WorkInstructionCreateDialogProps {
   onMaterialSearch: (keyword: string) => void | Promise<void>
   categoryOptions: { value: string; label: string; keywords?: string }[]
   workCenters: WorkCenterOption[]
+  fieldDefinitions: DocumentFieldDefinitionRecord[]
   files: File[]
   loading: boolean
   dragActive: boolean
@@ -34,6 +36,7 @@ export default function WorkInstructionCreateDialog({
   onMaterialSearch,
   categoryOptions,
   workCenters,
+  fieldDefinitions,
   files,
   loading,
   dragActive,
@@ -113,6 +116,7 @@ export default function WorkInstructionCreateDialog({
         onMaterialSearch={onMaterialSearch}
         categoryOptions={categoryOptions}
         workCenters={workCenters}
+        fieldDefinitions={fieldDefinitions}
       />
       <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
         {files.length > 0 ? `保存时将同时上传 ${files.length} 个文件。` : '未选择文件时，可单独创建在线文档。'}

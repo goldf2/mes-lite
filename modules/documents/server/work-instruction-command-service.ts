@@ -2,11 +2,16 @@ import type { Prisma } from '@prisma/client'
 import { DocumentContentValidationError, normalizeDocumentContent } from '@/lib/document-content'
 import { prisma } from '@/lib/prisma'
 import type { WorkInstructionInput, WorkInstructionUpdateInput } from '../contracts/work-instruction-schema'
+import { syncWorkInstructionFieldValues } from './document-field-command-service'
 
 const instructionInclude = {
   category: { select: { id: true, name: true, parentId: true, parent: { select: { id: true, name: true } } } },
   material: { select: { id: true, code: true, name: true, spec: true, category: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
   workCenters: { select: { id: true, code: true, name: true, isActive: true } },
+  fieldValues: {
+    include: { fieldDefinition: { select: { id: true, name: true, fieldType: true, optionsJson: true, sortOrder: true } } },
+    orderBy: { fieldDefinition: { sortOrder: 'asc' } },
+  },
 } satisfies Prisma.WorkInstructionInclude
 
 export { DocumentContentValidationError }
@@ -59,7 +64,7 @@ export async function createWorkInstruction(data: WorkInstructionInput, now = ne
   return prisma.$transaction(async (tx) => {
     const relations = await validateRelations(tx, data)
     const normalized = instructionData(data, relations, now)
-    return tx.workInstruction.create({
+    const instruction = await tx.workInstruction.create({
       data: {
         categoryId: normalized.categoryId, title: normalized.title, version: normalized.version,
         status: normalized.status, materialId: normalized.materialId,
@@ -68,16 +73,18 @@ export async function createWorkInstruction(data: WorkInstructionInput, now = ne
       },
       include: instructionInclude,
     })
+    await syncWorkInstructionFieldValues(tx, instruction.id, normalized.categoryId, data.fieldValues)
+    return tx.workInstruction.findUniqueOrThrow({ where: { id: instruction.id }, include: instructionInclude })
   })
 }
 
 export async function updateWorkInstruction(data: WorkInstructionUpdateInput, now = new Date()) {
   return prisma.$transaction(async (tx) => {
-    const before = await tx.workInstruction.findUnique({ where: { id: data.id }, include: { workCenters: { select: { id: true, code: true, name: true } } } })
+    const before = await tx.workInstruction.findUnique({ where: { id: data.id }, include: { workCenters: { select: { id: true, code: true, name: true } }, fieldValues: true } })
     if (!before || before.deletedAt) throw new WorkInstructionNotFoundError()
     const relations = await validateRelations(tx, data)
     const normalized = instructionData(data, relations, now)
-    const instruction = await tx.workInstruction.update({
+    await tx.workInstruction.update({
       where: { id: data.id },
       data: {
         categoryId: normalized.categoryId, title: normalized.title, version: normalized.version,
@@ -87,6 +94,11 @@ export async function updateWorkInstruction(data: WorkInstructionUpdateInput, no
       },
       include: instructionInclude,
     })
+    if (before.categoryId !== normalized.categoryId) {
+      await tx.workInstructionFieldValue.deleteMany({ where: { workInstructionId: data.id } })
+    }
+    await syncWorkInstructionFieldValues(tx, data.id, normalized.categoryId, data.fieldValues)
+    const instruction = await tx.workInstruction.findUniqueOrThrow({ where: { id: data.id }, include: instructionInclude })
     return { before, instruction }
   })
 }

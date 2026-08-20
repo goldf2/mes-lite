@@ -1,4 +1,5 @@
 import type { AttachmentPreviewKind } from '@/lib/attachment-file-types'
+import type { WorkInstructionFieldValueRecord } from './document-field-schema'
 
 export interface DocumentCategoryRecord {
   id: string
@@ -59,6 +60,7 @@ export interface WorkInstruction {
   materialId?: string | null
   material?: MaterialOption | null
   workCenters: WorkCenterOption[]
+  fieldValues: WorkInstructionFieldValueRecord[]
   contentJson?: string | null
   contentText?: string | null
   note?: string | null
@@ -86,6 +88,7 @@ export interface WorkInstructionForm {
   workCenterIds: string[]
   contentJson: string
   note: string
+  fieldValues: Record<string, string>
 }
 
 export interface WorkInstructionSaveInput {
@@ -97,4 +100,5 @@ export interface WorkInstructionSaveInput {
   workCenterIds: string[]
   contentJson: string
   note?: string
+  fieldValues: Record<string, string>
 }

@@ -28,6 +28,7 @@ export function createEmptyWorkInstructionForm(): WorkInstructionForm {
     workCenterIds: [],
     contentJson: EMPTY_DOCUMENT_JSON,
     note: '',
+    fieldValues: {},
   }
 }
 

@@ -1856,26 +1856,26 @@ model Shipment {
 }
 
 model PackageDocument {
-  id           String                @id @default(cuid())
-  packageNo    String                @unique
-  shipmentId   String
-  shipment     Shipment              @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
-  status       String                @default("PACKED")
-  packedBy     String
-  packedAt     DateTime              @default(now())
-  grossWeight  Float?
-  netWeight    Float?
-  weightUnit   String                @default("kg")
-  lengthMm     Float?
-  widthMm      Float?
-  heightMm     Float?
-  sealNo       String?
-  note         String?
-  deletedAt    DateTime?
-  deletedBy    String?
-  items        PackageDocumentItem[]
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
+  id          String                @id @default(cuid())
+  packageNo   String                @unique
+  shipmentId  String
+  shipment    Shipment              @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  status      String                @default("PACKED")
+  packedBy    String
+  packedAt    DateTime              @default(now())
+  grossWeight Float?
+  netWeight   Float?
+  weightUnit  String                @default("kg")
+  lengthMm    Float?
+  widthMm     Float?
+  heightMm    Float?
+  sealNo      String?
+  note        String?
+  deletedAt   DateTime?
+  deletedBy   String?
+  items       PackageDocumentItem[]
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
 
   @@index([shipmentId, status])
   @@index([packedAt])
@@ -2067,6 +2067,7 @@ model WorkInstruction {
   materialId                String?
   material                  Material?                              @relation(fields: [materialId], references: [id], onDelete: Restrict)
   workCenters               WorkCenter[]
+  fieldValues               WorkInstructionFieldValue[]
   productionActualSnapshots ProductionOrderActualWorkInstruction[]
   contentJson               String?
   contentText               String?
@@ -2082,18 +2083,49 @@ model WorkInstruction {
 }
 
 model DocumentCategory {
-  id               String             @id @default(cuid())
+  id               String                    @id @default(cuid())
   name             String
   parentId         String?
-  parent           DocumentCategory?  @relation("DocumentCategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
-  children         DocumentCategory[] @relation("DocumentCategoryHierarchy")
-  sortOrder        Int                @default(0)
+  parent           DocumentCategory?         @relation("DocumentCategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children         DocumentCategory[]        @relation("DocumentCategoryHierarchy")
+  sortOrder        Int                       @default(0)
   workInstructions WorkInstruction[]
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  fieldDefinitions DocumentFieldDefinition[]
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
 
   @@index([parentId])
   @@index([sortOrder])
+}
+
+model DocumentFieldDefinition {
+  id          String                      @id @default(cuid())
+  categoryId  String
+  category    DocumentCategory            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name        String
+  fieldType   String                      @default("TEXT")
+  optionsJson String?
+  sortOrder   Int                         @default(0)
+  values      WorkInstructionFieldValue[]
+  createdAt   DateTime                    @default(now())
+  updatedAt   DateTime                    @updatedAt
+
+  @@unique([categoryId, name])
+  @@index([categoryId, sortOrder])
+}
+
+model WorkInstructionFieldValue {
+  id                String                  @id @default(cuid())
+  workInstructionId String
+  workInstruction   WorkInstruction         @relation(fields: [workInstructionId], references: [id], onDelete: Cascade)
+  fieldDefinitionId String
+  fieldDefinition   DocumentFieldDefinition @relation(fields: [fieldDefinitionId], references: [id], onDelete: Restrict)
+  valueText         String
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  @@unique([workInstructionId, fieldDefinitionId])
+  @@index([fieldDefinitionId])
 }
 
 // ==================== 操作人员与注册审核 ====================

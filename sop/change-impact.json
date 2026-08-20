@@ -1,6 +1,6 @@
 {
-  "version": "0.1.421",
-  "impact": "none",
-  "workflowIds": [],
-  "summary": "为 CAD 封面和全屏预览增加持久修订号，刷新页面也不会恢复旧缓存；不改变既有操作步骤。"
+  "version": "0.1.422",
+  "impact": "updated",
+  "workflowIds": ["33-document-list", "34-document-create"],
+  "summary": "产品文档新增一文件一文档的批量导入、按类别扩展字段设置，以及同类别多选批量修改。"
 }

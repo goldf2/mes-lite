@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { parseCsvFilter } from '@/lib/status-filter'
+import { documentFieldValuesSchema } from './document-field-schema'
 
 export const workInstructionAdvancedFieldSchema = z.enum([
   'title', 'categoryId', 'status', 'version', 'materialCode', 'materialName', 'materialSpec',
@@ -22,13 +23,30 @@ export const workInstructionInputSchema = z.object({
   workCenterIds: z.array(z.string()).default([]),
   contentJson: z.string().optional().nullable(),
   note: z.string().optional(),
+  fieldValues: documentFieldValuesSchema.optional().default({}),
 })
 
 export const workInstructionUpdateInputSchema = workInstructionInputSchema.extend({ id: z.string().min(1, '缺少产品文档 ID') })
 
+export const workInstructionBatchImportMetadataSchema = workInstructionInputSchema.omit({ title: true, contentJson: true })
+
+export const workInstructionBulkUpdateSchema = z.object({
+  ids: z.array(z.string().trim().min(1)).min(1, '请选择要修改的文档').max(100, '一次最多修改 100 篇文档'),
+  updates: z.object({
+    version: z.string().trim().min(1).max(80).optional(),
+    status: z.enum(['ACTIVE', 'DRAFT', 'ARCHIVED']).optional(),
+    materialId: z.string().trim().nullable().optional(),
+    workCenterIds: z.array(z.string().trim().min(1)).max(100).optional(),
+    note: z.string().max(2000).nullable().optional(),
+    fieldValues: documentFieldValuesSchema.optional(),
+  }).refine((updates) => Object.keys(updates).length > 0, '请至少选择一个要应用的字段'),
+})
+
 export type WorkInstructionAdvancedCondition = z.infer<typeof workInstructionAdvancedConditionSchema>
 export type WorkInstructionInput = z.infer<typeof workInstructionInputSchema>
 export type WorkInstructionUpdateInput = z.infer<typeof workInstructionUpdateInputSchema>
+export type WorkInstructionBatchImportMetadata = z.infer<typeof workInstructionBatchImportMetadataSchema>
+export type WorkInstructionBulkUpdateInput = z.infer<typeof workInstructionBulkUpdateSchema>
 
 export interface WorkInstructionListQuery {
   keyword: string

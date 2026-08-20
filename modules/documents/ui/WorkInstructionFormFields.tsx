@@ -7,11 +7,13 @@ import OneToManyRelationField from '@/app/components/relations/OneToManyRelation
 import OnlineDocumentEditor from './OnlineDocumentEditor'
 import { appInputClassName, appSelectClassName, appTextareaClassName } from '@/app/components/FormField'
 import type { MaterialOption, WorkCenterOption, WorkInstructionForm } from '../contracts/work-instruction'
+import type { DocumentFieldDefinitionRecord } from '../contracts/document-field-schema'
 import {
   formatMaterialLabel,
   instructionStatusOptions,
   materialIncludesKeyword,
 } from '../model/work-instruction-view'
+import DocumentExtensionFields from './DocumentExtensionFields'
 
 function MaterialSearchSelect({
   value,
@@ -108,7 +110,8 @@ interface WorkInstructionFormFieldsProps {
   onMaterialSearch: (keyword: string) => void | Promise<void>
   categoryOptions: { value: string; label: string; keywords?: string }[]
   workCenters: WorkCenterOption[]
-  mode?: 'create' | 'detail'
+  fieldDefinitions?: DocumentFieldDefinitionRecord[]
+  mode?: 'create' | 'detail' | 'batch'
 }
 
 export default function WorkInstructionFormFields({
@@ -119,17 +122,19 @@ export default function WorkInstructionFormFields({
   onMaterialSearch,
   categoryOptions,
   workCenters,
+  fieldDefinitions = [],
   mode = 'create',
 }: WorkInstructionFormFieldsProps) {
   const update = <Key extends keyof WorkInstructionForm>(key: Key, value: WorkInstructionForm[Key]) => onChange({ ...form, [key]: value })
-  const createMode = mode === 'create'
+  const createMode = mode !== 'detail'
+  const batchMode = mode === 'batch'
 
   return (
     <div className={createMode ? 'grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3' : 'grid grid-cols-1 gap-3'}>
-      <div className={createMode ? 'md:col-span-2 xl:col-span-3' : ''}>
+      {!batchMode && <div className={createMode ? 'md:col-span-2 xl:col-span-3' : ''}>
         <label className={createMode ? 'mb-2 block text-sm font-medium text-gray-700' : 'mb-1 block text-xs font-medium text-gray-600'}>文档标题（可选）</label>
         <input value={form.title} onChange={(event) => update('title', event.target.value)} className={appInputClassName} placeholder="留空后自动生成" maxLength={200} />
-      </div>
+      </div>}
       <div className={createMode ? 'md:col-span-2 xl:col-span-3' : ''}>
         <label className={createMode ? 'mb-2 block text-sm font-medium text-gray-700' : 'mb-1 block text-xs font-medium text-gray-600'}>关联产品（可选）</label>
         <MaterialSearchSelect value={form.materialId} options={materials} selectedOption={selectedMaterial} onSearch={onMaterialSearch} onChange={(value) => update('materialId', value)} placeholder="输入产品编码、名称或规格搜索" emptyLabel="不绑定产品（通用文档）" />
@@ -161,11 +166,17 @@ export default function WorkInstructionFormFields({
         <label className={createMode ? 'mb-2 block text-sm font-medium text-gray-700' : 'mb-1 block text-xs font-medium text-gray-600'}>适用工作中心</label>
         <WorkCenterPicker options={workCenters} value={form.workCenterIds} onChange={(value) => update('workCenterIds', value)} />
       </div>
+      <DocumentExtensionFields
+        definitions={fieldDefinitions}
+        values={form.fieldValues}
+        onChange={(fieldValues) => update('fieldValues', fieldValues)}
+        compact={!createMode}
+      />
       <div className={createMode ? 'md:col-span-2 xl:col-span-3' : ''}>
         <label className={createMode ? 'mb-2 block text-sm font-medium text-gray-700' : 'mb-1 block text-xs font-medium text-gray-600'}>备注</label>
         <textarea rows={createMode ? 4 : 3} value={form.note} onChange={(event) => update('note', event.target.value)} className={appTextareaClassName} placeholder={createMode ? '记录适用范围、注意事项、变更说明等通用信息' : undefined} />
       </div>
-      {createMode && <div className="md:col-span-2 xl:col-span-3">
+      {mode === 'create' && <div className="md:col-span-2 xl:col-span-3">
         <label className="mb-2 block text-sm font-medium text-gray-700">在线正文</label>
         <OnlineDocumentEditor value={form.contentJson} onChange={(contentJson) => update('contentJson', contentJson)} />
       </div>}

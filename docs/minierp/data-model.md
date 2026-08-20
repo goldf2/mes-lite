@@ -845,11 +845,13 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 | 模型 | 关键字段 | 含义 |
 | --- | --- | --- |
 | `DocumentCategory` | `name`、`parentId`、`sortOrder` | 文档类别；`parentId = null` 为一级类别，非空为二级类别，最多两级 |
+| `DocumentFieldDefinition` | `categoryId`、`name`、`fieldType`、`optionsJson`、`sortOrder` | 某一类别的扩展字段定义；支持文本、数字、日期、布尔和单选，同一类别内名称唯一 |
 | `WorkInstruction` | `title`、`categoryId` | 文档必须有独立标题并关联一个可用类别 |
 | `WorkInstruction` | `materialId` | 可空的成品物料关联；为空表示跨产品通用文档，客户仅从非空关联产品读取 |
 | `WorkInstruction` | `contentJson`、`contentText` | `contentJson` 保存 Tiptap 结构化正文，`contentText` 是服务器提取的纯文本搜索投影 |
 | `WorkInstruction` | `version`、`status`、`note` | 保存版本、状态和通用备注；不保存具体工序实绩 |
 | `WorkInstruction.workCenters` | 多对多工作中心 | 工艺文件可声明一个或多个适用工作中心；空集合表示不限工作中心 |
+| `WorkInstructionFieldValue` | `workInstructionId`、`fieldDefinitionId`、`valueText` | 文档的非空扩展字段值；同一文档、同一定义仅一条，定义被使用后禁止删除 |
 | `DocumentAttachment` | `ownerType = WORK_INSTRUCTION`、`ownerId` | 保存产品文档的原始附件，包括图片、PDF、Office、文本和其他业务文件 |
 | `DocumentAttachment` | `rotation` | 文件显示方向校正角度，只允许 `0 / 90 / 180 / 270`；不修改原文件 |
 | `DocumentAttachment` | `previewRevision` | 可重建预览的持久修订号；CAD PDF 与缩略图全部成功重建后递增，用于让封面和全屏 URL 同步失效 |
@@ -857,7 +859,9 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 正文 JSON 是可编辑事实源，纯文本只用于搜索，不允许由客户端单独写入。在线正文和附件可以独立存在，也可以同时维护；附件始终保留原文件，不嵌入正文 JSON。XLS/XLSX/ODS 默认由自托管 Collabora 通过只读 WOPI 会话读取原文件；兼容 PDF、其他 Office PDF 和缩略图都是可重建派生缓存，不是新的业务事实源。
 
-默认数据包含“作业指导书、图纸、工艺文件、检验文件、包装文件、设备文件、其他”等一级类别，但它们是可维护的数据库记录。“作业指导书”下可增加“机床作业、环境作业”等二级类别。已有文档引用或仍有子类别时禁止删除类别。
+标题、类别、产品、工作中心、版本、状态、备注和正文是代码定义的基础字段，所有类别共用且不能在字段设置中删除。扩展字段只属于所选类别；保存文档或批量修改时服务端重新校验字段归属和字段类型，切换类别会清除旧类别扩展值。扩展字段没有任何 `WorkInstructionFieldValue` 时才能删除；已有值时只能保留定义，避免历史文档失去含义。
+
+默认数据包含“作业指导书、图纸、工艺文件、检验文件、包装文件、设备文件、其他”等一级类别，但它们是可维护的数据库记录。“作业指导书”下可增加“机床作业、环境作业”等二级类别。已有文档引用或仍有子类别时禁止删除类别。批量导入对每个文件独立创建一篇文档和一个原始附件，共用本次录入的类别、基础字段和扩展字段；单次最多 50 个文件，允许返回逐文件成功或失败结果。批量修改只接受同一类别的文档，并且只覆盖操作者显式勾选的字段。
 
 ### work_centers / equipment
 

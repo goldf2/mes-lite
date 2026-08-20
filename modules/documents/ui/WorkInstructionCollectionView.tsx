@@ -76,6 +76,9 @@ interface WorkInstructionCollectionViewProps {
   onOpenPreview: (instruction: WorkInstruction) => void
   onOpenDetail: (instruction: WorkInstruction) => void
   onArchive: (instruction: WorkInstruction) => void
+  selectedIds: string[]
+  onToggleSelection: (id: string, selected: boolean) => void
+  onToggleAll: (ids: string[], selected: boolean) => void
 }
 
 export default function WorkInstructionCollectionView({
@@ -92,7 +95,12 @@ export default function WorkInstructionCollectionView({
   onOpenPreview,
   onOpenDetail,
   onArchive,
+  selectedIds,
+  onToggleSelection,
+  onToggleAll,
 }: WorkInstructionCollectionViewProps) {
+  const visibleIds = items.map((instruction) => instruction.id)
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id))
   if (items.length === 0) {
     return (
       <div className="rounded-lg bg-white py-10 text-center text-gray-500 shadow sm:bg-transparent sm:py-12 sm:shadow-none">
@@ -105,9 +113,17 @@ export default function WorkInstructionCollectionView({
   if (viewMode === 'card') {
     return (
       <>
+        <label className="mb-3 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600">
+          <input type="checkbox" checked={allVisibleSelected} onChange={(event) => onToggleAll(visibleIds, event.target.checked)} />
+          选择当前页（已选 {selectedIds.length} 篇）
+        </label>
         <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 2xl:grid-cols-3">
           {items.map((instruction) => (
-            <article key={instruction.id} className="flex flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:shadow-none">
+            <article key={instruction.id} className={`flex flex-col rounded-lg border bg-white p-3 shadow-sm sm:shadow-none ${selectedIds.includes(instruction.id) ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'}`}>
+              <label className="mb-2 inline-flex w-fit items-center gap-2 text-xs text-gray-600">
+                <input type="checkbox" checked={selectedIds.includes(instruction.id)} onChange={(event) => onToggleSelection(instruction.id, event.target.checked)} />
+                选择文档
+              </label>
               <button type="button" onClick={() => onOpenPreview(instruction)} aria-label={`全屏预览 ${instruction.title}`} className="text-left">
                 <DocumentPreviewThumb attachment={instruction.primaryAttachment} title={instruction.title} className="!aspect-auto h-[clamp(12rem,28vw,18rem)]" />
               </button>
@@ -149,6 +165,7 @@ export default function WorkInstructionCollectionView({
         <table className="w-full min-w-[1080px]">
           <thead className="bg-gray-50">
             <tr>
+              <th className="w-12 px-3 py-3 text-center"><input type="checkbox" aria-label="选择当前页全部文档" checked={allVisibleSelected} onChange={(event) => onToggleAll(visibleIds, event.target.checked)} /></th>
               <th className="w-24 px-4 py-3 text-left text-sm font-semibold text-gray-600">预览</th>
               <SortableTableHeader column="code" activeColumn={sortColumn} direction={sortDirection} onSort={onSort} className="w-44">关联产品</SortableTableHeader>
               <SortableTableHeader column="name" activeColumn={sortColumn} direction={sortDirection} onSort={onSort}>文档标题</SortableTableHeader>
@@ -163,6 +180,7 @@ export default function WorkInstructionCollectionView({
           <tbody className="divide-y divide-gray-100">
             {items.map((instruction) => (
               <tr key={instruction.id} className="align-top hover:bg-gray-50">
+                <td className="px-3 py-3 text-center"><input type="checkbox" aria-label={`选择 ${instruction.title}`} checked={selectedIds.includes(instruction.id)} onChange={(event) => onToggleSelection(instruction.id, event.target.checked)} /></td>
                 <td className="px-4 py-3">
                   <button type="button" onClick={() => onOpenPreview(instruction)} aria-label={`全屏预览 ${instruction.title}`} className="block h-14 w-20 overflow-hidden rounded">
                     <DocumentPreviewThumb attachment={instruction.primaryAttachment} title={instruction.title} />

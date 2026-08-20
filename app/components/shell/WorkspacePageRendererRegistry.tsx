@@ -142,6 +142,10 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
     <WorkInstructionPage
       onMessage={context.onMessage}
       canRegeneratePreviews={context.canUpdate('workInstructions') && context.canRead('attachments')}
+      canBatchImport={context.canCreate('workInstructions') && context.canCreate('attachments')}
+      canBulkUpdate={context.canUpdate('workInstructions')}
+      canCreateFields={context.canCreate('documentCategories')}
+      canDeleteFields={context.canDelete('documentCategories')}
     />
   ),
   'document-categories': (context) => (

@@ -1,34 +1,28 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import TopBarPortal from '@/app/components/TopBarPortal'
-import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
-import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
-import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
+import { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import { normalizeAttachmentRotation } from '@/lib/attachment-rotation'
 import useClientTableSort from '@/app/components/useClientTableSort'
-import AppButton from '@/app/components/AppButton'
 import { EMPTY_DOCUMENT_JSON } from '@/lib/document-content'
-import { ResourceAdvancedSearch } from '@/app/components/resource'
-import type { ResourceAdvancedSearchField, ResourceSearchCondition } from '@/lib/resource-search'
+import type { ResourceSearchCondition } from '@/lib/resource-search'
 import { MAX_ATTACHMENT_FILE_SIZE } from '@/lib/attachment-file-types'
 import { refreshAttachmentPreviewUrls } from '@/modules/attachments'
 import type {
   AttachmentItem, CustomerOption, DocumentCategoryRecord, MaterialOption, PaginationState,
   WorkCenterOption, WorkInstruction, WorkInstructionForm,
 } from '../contracts/work-instruction'
+import type { DocumentFieldDefinitionRecord } from '../contracts/document-field-schema'
 import {
   archiveInstructionAttachment, archiveWorkInstructionRecord, listDocumentCategories,
   listDocumentCustomers, listDocumentWorkCenters, listFinishedMaterialOptions,
   listInstructionAttachments, listWorkInstructions, saveWorkInstruction,
-  setInstructionAttachmentRotation, uploadInstructionAttachment,
+  setInstructionAttachmentRotation, uploadInstructionAttachment, listDocumentFieldDefinitions,
 } from '../client/documents-api'
 import {
   createEmptyWorkInstructionForm,
-  fileTypeOptions,
   getInstructionCategoryLabel,
   getInstructionCustomerName,
-  instructionStatusOptions,
   isSupportedDocumentFile,
   mergeSelectedFiles,
   statusLabels,
@@ -38,13 +32,23 @@ import WorkInstructionCollectionView from './WorkInstructionCollectionView'
 import WorkInstructionCreateDialog from './WorkInstructionCreateDialog'
 import WorkInstructionDetailDialog from './WorkInstructionDetailDialog'
 import WorkInstructionFullscreenViewer, { type WorkInstructionViewerState } from './WorkInstructionFullscreenViewer'
+import useWorkInstructionMetadataActions from './useWorkInstructionMetadataActions'
+import WorkInstructionToolbar from './WorkInstructionToolbar'
 
 export default function WorkInstructionPage({
   onMessage,
   canRegeneratePreviews,
+  canBatchImport,
+  canBulkUpdate,
+  canCreateFields,
+  canDeleteFields,
 }: {
   onMessage: (msg: string) => void
   canRegeneratePreviews: boolean
+  canBatchImport: boolean
+  canBulkUpdate: boolean
+  canCreateFields: boolean
+  canDeleteFields: boolean
 }) {
   const [items, setItems] = useState<WorkInstruction[]>([])
   const [categories, setCategories] = useState<DocumentCategoryRecord[]>([])
@@ -73,28 +77,12 @@ export default function WorkInstructionPage({
   const [viewerZoom, setViewerZoom] = useState(1)
   const [rotationSaving, setRotationSaving] = useState(false)
   const [focusUploadOnOpen, setFocusUploadOnOpen] = useState(false)
+  const [formFieldDefinitions, setFormFieldDefinitions] = useState<DocumentFieldDefinitionRecord[]>([])
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const uploadInputRef = useRef<HTMLInputElement>(null)
   const createUploadInputRef = useRef<HTMLInputElement>(null)
   const detailUploadRef = useRef<HTMLDivElement>(null)
   const availableCategoryOptions = useMemo(() => documentCategoryOptions(categories), [categories])
-  const advancedSearchFields = useMemo<readonly ResourceAdvancedSearchField<WorkInstruction>[]>(() => [
-    { key: 'title', label: '文档标题', type: 'text', read: (instruction) => instruction.title },
-    { key: 'categoryId', label: '文档类别', type: 'select', read: (instruction) => instruction.categoryId, options: availableCategoryOptions },
-    { key: 'status', label: '状态', type: 'select', read: (instruction) => instruction.status, options: instructionStatusOptions },
-    { key: 'version', label: '版本', type: 'text', read: (instruction) => instruction.version },
-    { key: 'materialCode', label: '产品编码', type: 'text', read: (instruction) => instruction.material?.code },
-    { key: 'materialName', label: '产品名称', type: 'text', read: (instruction) => instruction.material?.name },
-    { key: 'materialSpec', label: '产品规格', type: 'text', read: (instruction) => instruction.material?.spec },
-    { key: 'customerCode', label: '客户编码', type: 'text', read: (instruction) => instruction.material?.customer?.code },
-    { key: 'customerName', label: '客户名称', type: 'text', read: (instruction) => instruction.material?.customer?.name },
-    { key: 'workCenter', label: '工作中心', type: 'text', read: (instruction) => instruction.workCenters.map((item) => `${item.code} ${item.name}`).join(' ') },
-    { key: 'contentText', label: '在线正文', type: 'text', read: (instruction) => instruction.contentText },
-    { key: 'note', label: '备注', type: 'text', read: (instruction) => instruction.note },
-    { key: 'attachmentName', label: '附件名称', type: 'text', read: (instruction) => instruction.primaryAttachment?.originalName },
-    { key: 'fileType', label: '文件类型', type: 'select', read: () => '', options: fileTypeOptions.filter((option) => option.value !== 'all') },
-    { key: 'createdAt', label: '创建日期', type: 'date', read: (instruction) => instruction.createdAt },
-    { key: 'updatedAt', label: '更新日期', type: 'date', read: (instruction) => instruction.updatedAt },
-  ], [availableCategoryOptions])
   const instructionSort = useClientTableSort(items, {
     code: (instruction) => instruction.material?.code || '',
     name: (instruction) => instruction.title,
@@ -106,6 +94,17 @@ export default function WorkInstructionPage({
   }, 'code', 'asc')
   const selectedDetailAttachmentIndex = Math.max(0, detailAttachments.findIndex((attachment) => attachment.id === selectedDetailAttachmentId))
   const selectedDetailAttachment = detailAttachments[selectedDetailAttachmentIndex] || null
+  const selectedItems = useMemo(() => items.filter((instruction) => selectedIds.includes(instruction.id)), [items, selectedIds])
+
+  const loadFieldDefinitions = useCallback(async (categoryId: string) => {
+    if (!categoryId) return [] as DocumentFieldDefinitionRecord[]
+    try {
+      return await listDocumentFieldDefinitions(categoryId)
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '获取扩展字段失败')
+      return [] as DocumentFieldDefinitionRecord[]
+    }
+  }, [onMessage])
 
   useEffect(() => {
     fetchInstructions()
@@ -125,6 +124,18 @@ export default function WorkInstructionPage({
   useEffect(() => {
     if (detail) fetchAttachments(detail.id)
   }, [detail?.id])
+
+  useEffect(() => {
+    let active = true
+    void loadFieldDefinitions(form.categoryId).then((definitions) => {
+      if (!active) return
+      setFormFieldDefinitions(definitions)
+      const validIds = new Set(definitions.map((definition) => definition.id))
+      setForm((current) => ({ ...current, fieldValues: Object.fromEntries(Object.entries(current.fieldValues).filter(([id]) => validIds.has(id))) }))
+    })
+    return () => { active = false }
+  }, [form.categoryId, loadFieldDefinitions])
+
 
   useEffect(() => {
     if (!detail || !focusUploadOnOpen) return
@@ -174,6 +185,7 @@ export default function WorkInstructionPage({
       const nextItems = result.items
       const nextPagination = result.pagination || { page, pageSize, total: nextItems.length, totalPages: 1 }
       setItems(nextItems)
+      setSelectedIds((current) => current.filter((id) => nextItems.some((item) => item.id === id)))
       setPagination(nextPagination)
       if (nextPagination.total > 0 && nextPagination.page > nextPagination.totalPages) {
         setPage(nextPagination.totalPages)
@@ -280,6 +292,7 @@ export default function WorkInstructionPage({
       workCenterIds: instruction.workCenters.map((item) => item.id),
       contentJson: instruction.contentJson || EMPTY_DOCUMENT_JSON,
       note: instruction.note || '',
+      fieldValues: Object.fromEntries(instruction.fieldValues.map((fieldValue) => [fieldValue.fieldDefinitionId, fieldValue.valueText])),
     })
     setDetailEditing(true)
   }
@@ -328,6 +341,7 @@ export default function WorkInstructionPage({
         workCenterIds: form.workCenterIds,
         contentJson: form.contentJson,
         note: form.note.trim() || undefined,
+        fieldValues: form.fieldValues,
       }
       const savedInstruction = await saveWorkInstruction(payload, editing?.id)
         const wasEditing = Boolean(editing)
@@ -499,49 +513,41 @@ export default function WorkInstructionPage({
       setRotationSaving(false)
     }
   }
+
   const selectedMaterial = useMemo(
     () => materials.find((material) => material.id === form.materialId),
     [materials, form.materialId]
   )
-  const activeFilterLabels = useMemo(() => advancedConditions.map((condition) => {
-    const field = advancedSearchFields.find((candidate) => candidate.key === condition.field)
-    const option = field?.options?.find((candidate) => candidate.value === condition.value)
-    return `${field?.label || condition.field}：${option?.label || condition.value}`
-  }), [advancedConditions, advancedSearchFields])
-
-  const toolbar = (
-    <ResponsiveToolbarActions
-      primaryFilters={(
-        <SearchFieldWithPresets
-          storageKey="mes-lite.searchPresets.documents"
-          value={keyword}
-          onChange={setKeyword}
-          placeholder="搜索标题、正文、产品或备注"
-          conditions={advancedConditions}
-          onConditionsChange={setAdvancedConditions}
-          conditionLabel={`${advancedConditions.length} 个文档字段`}
-        />
-      )}
-      advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={advancedConditions} onChange={setAdvancedConditions} />}
-      filterCount={activeFilterLabels.length}
-      filterSummary={activeFilterLabels.slice(0, 3).map((label) => (
-        <span key={label} className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">{label}</span>
-      ))}
-      viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
-      actions={(
-        <AppButton
-          variant="create"
-          onClick={openAddModal}
-        >
-          新建文档
-        </AppButton>
-      )}
-    />
-  )
-
+  const metadataActions = useWorkInstructionMetadataActions({
+    categories,
+    categoryOptions: availableCategoryOptions,
+    materials,
+    workCenters,
+    selectedItems,
+    selectedIds,
+    canBatchImport,
+    canBulkUpdate,
+    canCreateFields,
+    canDeleteFields,
+    onMaterialSearch: fetchMaterials,
+    onChanged: fetchInstructions,
+    onFieldDefinitionsChanged: async (categoryId) => { if (form.categoryId === categoryId) setFormFieldDefinitions(await loadFieldDefinitions(categoryId)) },
+    onClearSelection: () => setSelectedIds([]),
+    onMessage,
+  })
   return (
     <>
-      <TopBarPortal>{toolbar}</TopBarPortal>
+      <WorkInstructionToolbar
+        keyword={keyword}
+        onKeywordChange={setKeyword}
+        conditions={advancedConditions}
+        onConditionsChange={setAdvancedConditions}
+        categoryOptions={availableCategoryOptions}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        onCreate={openAddModal}
+        metadataActions={metadataActions.actionButtons}
+      />
 
       <div className="rounded-lg bg-transparent p-0 shadow-none sm:bg-white sm:p-6 sm:shadow">
         <WorkInstructionCollectionView
@@ -558,6 +564,9 @@ export default function WorkInstructionPage({
           onOpenPreview={(instruction) => void openFullscreenPreview(instruction)}
           onOpenDetail={openDetail}
           onArchive={archiveInstruction}
+          selectedIds={selectedIds}
+          onToggleSelection={(id, selected) => setSelectedIds((current) => selected ? Array.from(new Set([...current, id])) : current.filter((candidate) => candidate !== id))}
+          onToggleAll={(ids, selected) => setSelectedIds((current) => selected ? Array.from(new Set([...current, ...ids])) : current.filter((id) => !ids.includes(id)))}
         />
       </div>
 
@@ -570,6 +579,7 @@ export default function WorkInstructionPage({
           onMaterialSearch={fetchMaterials}
           categoryOptions={availableCategoryOptions}
           workCenters={workCenters}
+          fieldDefinitions={formFieldDefinitions}
           files={createFiles}
           loading={loading}
           dragActive={createDragActive}
@@ -593,6 +603,7 @@ export default function WorkInstructionPage({
           onMaterialSearch={fetchMaterials}
           categoryOptions={availableCategoryOptions}
           workCenters={workCenters}
+          fieldDefinitions={formFieldDefinitions}
           attachments={detailAttachments}
           selectedAttachment={selectedDetailAttachment}
           selectedAttachmentIndex={selectedDetailAttachmentIndex}
@@ -616,6 +627,8 @@ export default function WorkInstructionPage({
           canRegeneratePreviews={canRegeneratePreviews}
         />
       )}
+
+      {metadataActions.dialogs}
 
       {viewer && (viewer.index === -1 || selectedViewerAttachment) && (
         <WorkInstructionFullscreenViewer

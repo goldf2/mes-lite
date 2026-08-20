@@ -33,6 +33,7 @@ const checks = [
   'verify:inventory-transaction-ledger',
   'verify:runtime-operations',
   'verify:attachment-storage',
+  'verify:document-metadata',
   'verify:cad-preview',
   'verify:libredwg-cad-preview',
   'verify:wopi-viewer',
