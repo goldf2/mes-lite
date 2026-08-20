@@ -66,13 +66,14 @@ function verifyStructure() {
 }
 
 async function verifyDatabaseBehavior() {
-  const [{ prisma }, fieldCommands, { listDocumentFieldDefinitions }, instructionCommands, { bulkUpdateWorkInstructions }, { batchImportWorkInstructions }, { DocumentFieldError }] = await Promise.all([
+  const [{ prisma }, fieldCommands, { listDocumentFieldDefinitions }, instructionCommands, { bulkUpdateWorkInstructions }, { batchImportWorkInstructions }, { uploadManagedAttachment }, { DocumentFieldError }] = await Promise.all([
     import('../lib/prisma'),
     import('../modules/documents/server/document-field-command-service'),
     import('../modules/documents/server/document-field-query-service'),
     import('../modules/documents/server/work-instruction-command-service'),
     import('../modules/documents/server/work-instruction-bulk-service'),
     import('../modules/documents/server/work-instruction-batch-import-service'),
+    import('../modules/attachments/server/attachment-command-service'),
     import('../modules/documents/domain/document-field-errors'),
   ])
   try {
@@ -113,7 +114,7 @@ async function verifyDatabaseBehavior() {
     const files = [new File(['dwg-a'], 'A.dwg'), new File(['dwg-b'], 'B.dwg')]
     const imported = await batchImportWorkInstructions({
       categoryId: category.id, materialId: material.id, version: 'v1', status: 'ACTIVE', workCenterIds: [], note: '批量导入', fieldValues: { [textField.id]: 'SUS304' },
-    }, files, 'verify-operator')
+    }, files, 'verify-operator', uploadManagedAttachment)
     assert.deepEqual([imported.imported.length, imported.failed.length], [2, 0], '合法文件必须全部导入')
     const importedRows = await prisma.workInstruction.findMany({ where: { id: { in: imported.imported.map((item) => item.instruction.id) } }, include: { fieldValues: true } })
     const importedAttachments = await prisma.documentAttachment.count({ where: { ownerId: { in: importedRows.map((item) => item.id) }, deletedAt: null } })

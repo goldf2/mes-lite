@@ -1,14 +1,19 @@
 import { prisma } from '@/lib/prisma'
-import { uploadManagedAttachment } from '@/modules/attachments'
 import type { WorkInstructionBatchImportMetadata } from '../contracts/work-instruction-schema'
 import { createWorkInstruction } from './work-instruction-command-service'
 
 export const MAX_DOCUMENT_BATCH_FILES = 50
 
+type UploadBatchAttachment = (
+  input: { ownerType: string; ownerId: string; documentType: string; file: File },
+  uploadedBy: string,
+) => Promise<{ id: string }>
+
 export async function batchImportWorkInstructions(
   metadata: WorkInstructionBatchImportMetadata,
   files: File[],
   uploadedBy: string,
+  uploadAttachment: UploadBatchAttachment,
 ) {
   if (files.length === 0) throw new Error('请至少选择一个文件')
   if (files.length > MAX_DOCUMENT_BATCH_FILES) throw new Error(`一次最多导入 ${MAX_DOCUMENT_BATCH_FILES} 个文件`)
@@ -25,7 +30,7 @@ export async function batchImportWorkInstructions(
         contentJson: null,
       })
       instructionId = instruction.id
-      const attachment = await uploadManagedAttachment({
+      const attachment = await uploadAttachment({
         ownerType: 'WORK_INSTRUCTION',
         ownerId: instruction.id,
         documentType: 'WORK_INSTRUCTION',

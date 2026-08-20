@@ -6,6 +6,7 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { workInstructionBatchImportMetadataSchema } from '@/modules/documents/contracts/work-instruction-schema'
 import { DocumentFieldError } from '@/modules/documents/domain/document-field-errors'
 import { batchImportWorkInstructions } from '@/modules/documents/server/work-instruction-batch-import-service'
+import { uploadManagedAttachment } from '@/modules/attachments/server/attachment-command-service'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
     if (typeof metadataRaw !== 'string') return NextResponse.json({ error: '缺少批量导入参数' }, { status: 400 })
     const metadata = workInstructionBatchImportMetadataSchema.parse(JSON.parse(metadataRaw))
     const files = form.getAll('files').filter((value): value is File => value instanceof File)
-    const result = await batchImportWorkInstructions(metadata, files, operator.id)
+    const result = await batchImportWorkInstructions(metadata, files, operator.id, uploadManagedAttachment)
 
     await writeAuditLog(req, {
       action: 'BATCH_IMPORT',
