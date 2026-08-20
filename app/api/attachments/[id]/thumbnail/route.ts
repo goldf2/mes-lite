@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { readFile } from 'fs/promises'
+import { readFile, stat } from 'fs/promises'
 import { ensureAttachmentThumbnail } from '@/lib/attachment-thumbnail'
 import { attachmentPreviewKind, canGenerateAttachmentThumbnail } from '@/lib/attachment-file-types'
 import { cadPreviewVersion } from '@/lib/files/cad-document-preview'
@@ -21,18 +21,19 @@ export async function GET(
 
     const previewKind = attachmentPreviewKind(attachment.originalName, attachment.mimeType)
     const cacheVersion = previewKind === 'cad' ? `-cad-v${cadPreviewVersion}` : ''
-    const etag = `"attachment-thumbnail-${attachment.id}-${attachment.rotation}${cacheVersion}"`
+    const thumbnailPath = await ensureAttachmentThumbnail(attachment)
+    const thumbnailStat = await stat(thumbnailPath)
+    const etag = `"attachment-thumbnail-${attachment.id}-${attachment.rotation}${cacheVersion}-${thumbnailStat.size}-${Math.trunc(thumbnailStat.mtimeMs)}"`
     if (req.headers.get('if-none-match') === etag) {
       return new NextResponse(null, { status: 304, headers: { ETag: etag } })
     }
 
-    const thumbnailPath = await ensureAttachmentThumbnail(attachment)
     const file = await readFile(thumbnailPath)
     return new NextResponse(new Uint8Array(file), {
       headers: {
         'Content-Type': 'image/png',
         'Content-Length': String(file.length),
-        'Cache-Control': 'private, max-age=86400',
+        'Cache-Control': previewKind === 'cad' ? 'private, no-cache' : 'private, max-age=86400',
         ETag: etag,
       },
     })

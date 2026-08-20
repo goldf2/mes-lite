@@ -58,6 +58,8 @@ function verifyBoundaries() {
   assert.doesNotMatch(page, /fetch\(/, '文档页面不得直接发出 HTTP 请求')
   assert.match(page, /WorkInstructionCollectionView[\s\S]*WorkInstructionCreateDialog[\s\S]*WorkInstructionDetailDialog[\s\S]*WorkInstructionFullscreenViewer/, '文档主页面必须仅编排集合、创建、详情与全屏查看子模块')
   assert.match(page, /openFullscreenPreview[\s\S]*listInstructionAttachments[\s\S]*contentText \? -1 : 0[\s\S]*onOpenPreview/, '文档列表全屏预览必须加载完整附件，并优先打开在线正文')
+  assert.match(page, /handlePreviewRegenerated[\s\S]*setItems\(\(current\)[\s\S]*primaryAttachment[\s\S]*refresh\(instruction\.primaryAttachment\)/, 'CAD 预览重建后必须刷新文档列表封面 URL')
+  assert.match(page, /handlePreviewRegenerated[\s\S]*setDetail\(\(current\)[\s\S]*primaryAttachment[\s\S]*refresh\(current\.primaryAttachment\)/, 'CAD 预览重建后必须刷新当前文档详情摘要')
   assert.match(page, /ResourceAdvancedSearch/, '文档主页面必须继续复用公共高级搜索组件')
   assert.ok(page.split('\n').length <= 650, '文档主页面必须保持在 650 行编排层以内')
   assert.match(collection, /DocumentPreviewThumb[\s\S]*SortableTableHeader/, '文档集合视图必须复用公共预览与排序表头')

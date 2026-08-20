@@ -434,6 +434,16 @@ export default function WorkInstructionPage({
       : attachment
     setDetailAttachments((current) => current.map(refresh))
     setViewer((current) => current ? { ...current, attachments: current.attachments.map(refresh) } : current)
+    setItems((current) => current.map((instruction) => (
+      instruction.primaryAttachment?.id === attachmentId
+        ? { ...instruction, primaryAttachment: refresh(instruction.primaryAttachment) }
+        : instruction
+    )))
+    setDetail((current) => (
+      current?.primaryAttachment?.id === attachmentId
+        ? { ...current, primaryAttachment: refresh(current.primaryAttachment) }
+        : current
+    ))
   }
 
   const openViewer = (instruction: WorkInstruction, attachments: AttachmentItem[], index = 0) => {
