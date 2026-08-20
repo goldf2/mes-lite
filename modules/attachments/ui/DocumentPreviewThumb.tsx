@@ -14,6 +14,7 @@ export interface PreviewAttachment {
   previewKind?: AttachmentPreviewKind
   note?: string | null
   rotation?: number
+  previewRevision?: number
 }
 
 function StoredDocumentPreview({
@@ -25,7 +26,7 @@ function StoredDocumentPreview({
 }) {
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   const thumbnailUrl = attachment.thumbnailUrl
-    || `/api/attachments/${attachment.id}/thumbnail?v=${Number(attachment.rotation || 0)}`
+    || `/api/attachments/${attachment.id}/thumbnail?v=${Number(attachment.previewRevision || 0)}-${Number(attachment.rotation || 0)}`
 
   useEffect(() => {
     setState('loading')

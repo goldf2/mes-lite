@@ -45,6 +45,7 @@ export interface AttachmentItem {
   documentType: string
   isCover: boolean
   rotation: number
+  previewRevision?: number
   createdAt: string
 }
 

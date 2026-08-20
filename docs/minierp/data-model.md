@@ -852,6 +852,7 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 | `WorkInstruction.workCenters` | 多对多工作中心 | 工艺文件可声明一个或多个适用工作中心；空集合表示不限工作中心 |
 | `DocumentAttachment` | `ownerType = WORK_INSTRUCTION`、`ownerId` | 保存产品文档的原始附件，包括图片、PDF、Office、文本和其他业务文件 |
 | `DocumentAttachment` | `rotation` | 文件显示方向校正角度，只允许 `0 / 90 / 180 / 270`；不修改原文件 |
+| `DocumentAttachment` | `previewRevision` | 可重建预览的持久修订号；CAD PDF 与缩略图全部成功重建后递增，用于让封面和全屏 URL 同步失效 |
 | `WopiViewSession` | `attachmentId`、`operatorId`、`tokenHash`、`expiresAt` | 表格直览短期会话；令牌只保存摘要，并关联原附件和发起账号 |
 
 正文 JSON 是可编辑事实源，纯文本只用于搜索，不允许由客户端单独写入。在线正文和附件可以独立存在，也可以同时维护；附件始终保留原文件，不嵌入正文 JSON。XLS/XLSX/ODS 默认由自托管 Collabora 通过只读 WOPI 会话读取原文件；兼容 PDF、其他 Office PDF 和缩略图都是可重建派生缓存，不是新的业务事实源。

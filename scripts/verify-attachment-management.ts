@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { withAttachmentUrls } from '../lib/attachment-urls'
 
 const root = process.cwd()
 const attachmentPanelSource = readFileSync(join(root, 'modules/attachments/ui/AttachmentPanel.tsx'), 'utf8')
@@ -13,6 +14,8 @@ const detailDialogSource = readFileSync(join(root, 'modules/business-documents/u
 const attachmentClientSource = readFileSync(join(root, 'modules/attachments/client/attachment-api.ts'), 'utf8')
 const attachmentSchemaSource = readFileSync(join(root, 'modules/attachments/contracts/attachment-schema.ts'), 'utf8')
 const attachmentCommandSource = readFileSync(join(root, 'modules/attachments/server/attachment-command-service.ts'), 'utf8')
+const attachmentUrlSource = readFileSync(join(root, 'lib/attachment-urls.ts'), 'utf8')
+const prismaSchemaSource = readFileSync(join(root, 'prisma/schema.prisma'), 'utf8')
 const regeneratePreviewButtonSource = readFileSync(join(root, 'modules/attachments/ui/RegenerateAttachmentPreviewButton.tsx'), 'utf8')
 const attachmentThumbnailRouteSource = readFileSync(join(root, 'app/api/attachments/[id]/thumbnail/route.ts'), 'utf8')
 const attachmentPreviewRouteSource = readFileSync(join(root, 'app/api/attachments/[id]/preview/route.ts'), 'utf8')
@@ -49,6 +52,15 @@ assert.match(attachmentClientSource, /export async function listAttachments/, '�
 assert.match(attachmentSchemaSource, /REGENERATE_PREVIEW/, '附件命令契约必须声明手动重新生成预览')
 assert.match(attachmentCommandSource, /regenerateManagedAttachmentPreview/, '附件领域服务必须集中编排 CAD 预览重新生成')
 assert.match(attachmentCommandSource, /regenerateCadDocumentPreview[\s\S]*removeAttachmentThumbnailFiles[\s\S]*ensureAttachmentThumbnail/, '重新生成必须先原子替换 PDF，再重建缩略图')
+assert.match(prismaSchemaSource, /model DocumentAttachment[\s\S]*previewRevision\s+Int\s+@default\(0\)/, '附件必须持久记录预览修订号')
+assert.match(attachmentCommandSource, /previewRevision:\s*\{\s*increment:\s*1\s*\}/, 'CAD 预览成功重建后必须递增持久修订号')
+assert.match(attachmentUrlSource, /previewRevision[\s\S]*attachmentThumbnailUrl[\s\S]*attachmentPreviewUrl/, '附件预览和封面 URL 必须携带持久修订号')
+const revisedCadUrls = withAttachmentUrls({
+  id: 'cad-revision-test', originalName: 'drawing.dwg', mimeType: 'application/vnd.dwg',
+  rotation: 90, previewRevision: 3,
+})
+assert.equal(revisedCadUrls.thumbnailUrl, '/api/attachments/cad-revision-test/thumbnail?v=3-90')
+assert.equal(revisedCadUrls.previewUrl, '/api/attachments/cad-revision-test/preview?v=3')
 assert.match(regeneratePreviewButtonSource, /previewKind !== 'cad'/, '重新生成预览按钮只能对 CAD 附件显示')
 assert.match(regeneratePreviewButtonSource, /regenerateAttachmentPreview\(attachment\.id\)/, '公共管理按钮必须调用附件模块统一客户端命令')
 assert.match(attachmentPanelSource, /RegenerateAttachmentPreviewButton/, '公共附件管理面板必须复用 CAD 重新生成按钮')

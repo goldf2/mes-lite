@@ -100,7 +100,11 @@ export async function regenerateManagedAttachmentPreview(id: string) {
   await regenerateCadDocumentPreview(attachment)
   await removeAttachmentThumbnailFiles(attachment)
   await ensureAttachmentThumbnail(attachment)
-  return withManagedAttachmentUrls(attachment)
+  const updated = await prisma.documentAttachment.update({
+    where: { id: attachment.id },
+    data: { previewRevision: { increment: 1 } },
+  })
+  return withManagedAttachmentUrls(updated)
 }
 
 export async function setMaterialImageCover(id: string) {

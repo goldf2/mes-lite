@@ -5,6 +5,7 @@ export type AttachmentWithPreviewFields = {
   originalName?: string | null
   mimeType?: string | null
   rotation?: number | null
+  previewRevision?: number | null
 }
 
 export type MaterialImageWithPreviewFields = AttachmentWithPreviewFields & {
@@ -15,12 +16,12 @@ export function attachmentFileUrl(id: string) {
   return `/api/attachments/${id}/file`
 }
 
-export function attachmentThumbnailUrl(id: string, rotation = 0) {
-  return `/api/attachments/${id}/thumbnail?v=${rotation}`
+export function attachmentThumbnailUrl(id: string, rotation = 0, previewRevision = 0) {
+  return `/api/attachments/${id}/thumbnail?v=${previewRevision}-${rotation}`
 }
 
-export function attachmentPreviewUrl(id: string) {
-  return `/api/attachments/${id}/preview`
+export function attachmentPreviewUrl(id: string, previewRevision = 0) {
+  return `/api/attachments/${id}/preview?v=${previewRevision}`
 }
 
 export function attachmentImageVariantUrl(
@@ -53,10 +54,14 @@ export function withAttachmentUrls<T extends AttachmentWithPreviewFields>(attach
     url: attachmentFileUrl(attachment.id),
     previewKind,
     previewUrl: previewKind === 'office' || previewKind === 'cad' || previewKind === 'text'
-      ? attachmentPreviewUrl(attachment.id)
+      ? attachmentPreviewUrl(attachment.id, Number(attachment.previewRevision || 0))
       : attachmentFileUrl(attachment.id),
     thumbnailUrl: canGenerateAttachmentThumbnail(attachment.originalName || '', attachment.mimeType)
-      ? attachmentThumbnailUrl(attachment.id, Number(attachment.rotation || 0))
+      ? attachmentThumbnailUrl(
+        attachment.id,
+        Number(attachment.rotation || 0),
+        Number(attachment.previewRevision || 0),
+      )
       : null,
   }
 }

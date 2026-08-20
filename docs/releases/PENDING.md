@@ -4,6 +4,7 @@
 
 | 版本 | 日期 | 变更记录 | 验证证据 | 待整理文档 |
 | --- | --- | --- | --- | --- |
+| v0.1.421 | 2026-08-20 | 修复 CAD 预览重新生成后刷新文档库仍可能恢复旧封面的问题；附件新增持久化 `previewRevision`，转换和缩略图全部成功后递增，列表封面与全屏预览 URL 均携带该修订号，从请求地址层面绕开浏览器或代理的旧缓存 | `verify:attachment-management` 回归先复现失败、修复后通过；`verify:cad-preview`、`verify:document-server`、Prisma 全新库迁移与 TypeScript 通过 | 新增非破坏性附件预览修订字段；不改变操作流程 |
 | v0.1.420 | 2026-08-20 | 修复 CAD 重新生成后封面已更新、全屏预览仍命中旧 PDF 的问题；CAD 全屏预览响应改为按派生 PDF 大小与修改时间生成 ETag，并要求浏览器每次重新验证缓存，转换结果变化后立即返回新文件 | `verify:attachment-management` 回归先复现失败、修复后通过；`verify:cad-preview`、`verify:document-server` 与 TypeScript 通过 | 无流程或数据模型变化 |
 | v0.1.419 | 2026-08-20 | 修复产品文档重新生成 CAD 预览后，详情与全屏已更新但文档库列表封面仍保留旧缩略图的问题；重建成功后同步刷新列表主附件和当前文档摘要的缓存版本，CAD 缩略图再次打开时按文件版本重新验证 | `verify:document-server` 与 `verify:attachment-management` 回归均先复现失败、修复后通过；TypeScript、定向 Lint（0 错误、3 个存量 Hook 警告）、本地 44 项 `verify:ci` 通过 | 无流程或数据模型变化 |
 | v0.1.418 | 2026-08-20 | CAD 转换器在图纸引用的 SHX 或大字体缺失时改用内置 Noto 中文字体，避免 DWG/DXF 中文显示为方框；CAD PDF 与缩略图缓存升级为 v2，使既有图纸在首次重开时自动生成修复后的预览；公共附件管理与产品文档详情增加“重新生成预览”，只重建当前 CAD 派生文件并保留原图、权限校验和审计 | `verify:cad-preview`、`verify:libredwg-cad-preview`、`verify:attachment-management`、`verify:document-server`、Python 编译检查、TypeScript、定向 Lint；使用生产真实 `7122.dwg` 临时转换，中文标题栏、材料、倒角和公司名称均可见，原图仍需在新镜像部署后复验 | 后续正式发布说明集中整理 |

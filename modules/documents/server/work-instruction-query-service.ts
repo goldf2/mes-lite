@@ -124,7 +124,7 @@ export async function listWorkInstructions(query: WorkInstructionListQuery) {
   const attachments = items.length === 0 ? [] : await prisma.documentAttachment.findMany({
     where: { ownerType: 'WORK_INSTRUCTION', ownerId: { in: items.map((item) => item.id) }, deletedAt: null },
     orderBy: [{ isCover: 'desc' }, { createdAt: 'desc' }],
-    select: { id: true, ownerId: true, originalName: true, mimeType: true, size: true, note: true, documentType: true, isCover: true, rotation: true, createdAt: true },
+    select: { id: true, ownerId: true, originalName: true, mimeType: true, size: true, note: true, documentType: true, isCover: true, rotation: true, previewRevision: true, createdAt: true },
   })
   const attachmentsByOwner = new Map<string, typeof attachments>()
   for (const attachment of attachments) attachmentsByOwner.set(attachment.ownerId, [...(attachmentsByOwner.get(attachment.ownerId) || []), attachment])
