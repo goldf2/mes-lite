@@ -21,6 +21,7 @@ assert.match(server, /\["dwg2dxf", "-y", "-o"/, 'DWG 必须先经 LibreDWG 转�
 assert.match(dockerfile, /ARG LIBREDWG_VERSION=0\.14/, 'LibreDWG 必须固定到已审查版本')
 assert.match(dockerfile, /ARG LIBREDWG_SHA256=[0-9a-f]{64}/, 'LibreDWG 源码必须校验 SHA-256')
 assert.match(dockerfile, /--max-time 600/, '源码下载必须有有限超时')
+assert.match(dockerfile, /--disable-bindings --disable-python/, 'LibreDWG 编译阶段不得引入未使用的语言绑定')
 assert.match(dockerfile, /USER cadpreview/, '运行容器必须使用非 root 用户')
 assert.match(dockerfile, /HEALTHCHECK/, '运行镜像必须提供容器健康检查')
 assert.match(dockerfile, /RUN python smoke_test\.py/, '镜像构建必须执行真实转换冒烟测试')

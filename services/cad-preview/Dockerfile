@@ -26,7 +26,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && mkdir -p /tmp/libredwg-src /opt/libredwg \
     && tar --extract --xz --file /tmp/libredwg.tar.xz --directory /tmp/libredwg-src --strip-components=1 \
     && cd /tmp/libredwg-src \
-    && ./configure --prefix=/usr/local --disable-bindings \
+    && ./configure --prefix=/usr/local --disable-bindings --disable-python \
     && make -j"$(nproc)" \
     && make DESTDIR=/opt/libredwg install
 
