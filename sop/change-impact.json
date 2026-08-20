@@ -1,6 +1,6 @@
 {
-  "version": "0.1.414",
+  "version": "0.1.415",
   "impact": "none",
   "workflowIds": [],
-  "summary": "仅新增与 Web 应用隔离的 LibreDWG CAD 转换容器及部署门禁；附件上传、详情、全屏预览和下载操作流程不变。"
+  "summary": "仅补充 LibreDWG 转换服务的 Coolify 手动配置、验收与回滚文档；业务页面和操作流程不变。"
 }
