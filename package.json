@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.413",
+  "version": "0.1.414",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -163,6 +163,7 @@
     "verify:account-menu-boundary": "tsx scripts/verify-account-menu-boundary.ts",
     "verify:attachment-file-types": "tsx scripts/verify-attachment-file-types.ts",
     "verify:cad-preview": "tsx scripts/verify-cad-preview.ts",
+    "verify:libredwg-cad-preview": "tsx scripts/verify-libredwg-cad-preview.ts",
     "verify:attachment-management": "tsx scripts/verify-attachment-management.ts",
     "verify:wopi-viewer": "tsx scripts/verify-wopi-viewer.ts",
     "verify:wopi-http": "tsx scripts/verify-wopi-http-integration.ts",

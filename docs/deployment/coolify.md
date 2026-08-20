@@ -98,7 +98,7 @@ Collabora 应部署为独立 Coolify Service 或独立主机，不与 MES-lite S
 
 ### 3.1 自托管 DWG/DXF 只读预览
 
-DWG/DXF 原文件继续保存在附件持久卷中，MES-lite 不在 Web 主进程加载 CAD SDK。首次打开图纸时，应用把受权附件发送给同一私有网络内的隔离转换服务，生成只读 PDF 派生文件并持久缓存；后续查看和缩略图复用现有 PDF 查看器。生产转换引擎建议采用具备正式授权的 ODA Drawings SDK；它官方支持 DWG/DXF 输入和 PDF 导出。Autodesk APS Model Derivative 可作为经企业批准的云端替代，但会把文件发送到外部服务，不是默认方案。
+DWG/DXF 原文件继续保存在附件持久卷中，MES-lite 不在 Web 主进程加载 CAD SDK。首次打开图纸时，应用把受权附件发送给同一私有网络内的隔离转换服务，生成只读 PDF 派生文件并持久缓存；后续查看和缩略图复用现有 PDF 查看器。仓库提供 `services/cad-preview/` 开源试用服务：LibreDWG 把 DWG 转为 DXF，再由 ezdxf/PyMuPDF 生成 PDF；DXF 直接进入相同渲染链路。
 
 转换服务必须实现以下内部契约：
 
@@ -108,6 +108,18 @@ DWG/DXF 原文件继续保存在附件持久卷中，MES-lite 不在 Web 主进�
 - `CAD_PREVIEW_TIMEOUT_MS` 允许 5 秒至 10 分钟，默认 120 秒；readiness 健康探测固定最多等待 5 秒。
 
 转换容器使用只读输入、临时工作目录、CPU/内存/超时限制，不挂载数据库，不暴露公网入口，也不保留输入副本。`CAD_PREVIEW_SERVICE_URL` 未配置或服务离线时 readiness 只返回 `warn`，原文件上传、权限校验和下载仍正常；用户会看到明确的预览失败与下载降级提示。上线前用真实单页、多布局、中文字体和大尺寸 DWG/DXF 分别验证线宽、字体、图层、纸张、方向和缩略图，不得用 ODA 公网示例转换生产附件。
+
+在 Coolify 中把转换器建成与 MES-lite 同一项目、同一环境下的第二个 Dockerfile Application：
+
+1. Repository 与 MES-lite 相同，Build Pack 选择 Dockerfile，Build Context 使用仓库根目录，Dockerfile Location 填写 `services/cad-preview/Dockerfile`。
+2. 不绑定域名、不暴露公网端口；容器仅在 Coolify 私有网络监听 `8080`。为转换器设置 `CAD_PREVIEW_SERVICE_TOKEN`，再在 MES-lite 设置同值令牌和 `CAD_PREVIEW_SERVICE_URL=http://<转换器内部别名>:8080`。
+3. 建议从 1 CPU、1 GiB 内存、256 MiB 临时空间和单实例开始，启用只读根文件系统、`/tmp` tmpfs、`no-new-privileges` 与 capability drop（以当前 Coolify 可用选项为准）。转换器不挂载数据库、附件目录或备份目录。
+4. Health Check 使用 `/health`；若令牌已启用而 Coolify 的 HTTP 健康检查不能添加请求头，则保留 Dockerfile 内置健康检查，不另建无鉴权公网探针。
+5. 先部署并确认转换器健康，再给 MES-lite 写入上述两个环境变量并重新部署；回滚时先移除 `CAD_PREVIEW_SERVICE_URL`，MES-lite 会退回下载原文件且 readiness 仅警告。
+
+容器发布前必须使用企业真实样本建立验收集，至少覆盖：R2000、R2007+、单模型空间、多布局、中文字体、外部参照、块、尺寸标注、大图和已知复杂实体。LibreDWG 与 ezdxf 不保证所有版本和垂直产品实体的像素级兼容；任一样本转换失败或关键内容缺失，都应保留原文件下载/配套 PDF，并评估在同一内部契约后替换 ODA 等引擎。
+
+许可证边界必须随部署留档：LibreDWG 为 GPL-3.0-or-later，ezdxf 为 MIT，PyMuPDF 为 AGPL-3.0-or-later/商业双许可。转换器源码和镜像单独管理；如果向客户分发该镜像，应在交付前完成对应源代码提供、许可证文本和修改说明等合规复核。
 
 最终交付的 PDF/DOCX 和自托管视频若发布到对象存储，只填写一个只读 HTTPS 基地址，例如 `SOP_PUBLIC_BASE_URL=https://downloads.example.com/mes-lite/sop`。地址不包含 Bucket 写入密钥、查询签名或具体文件名；应用按目录清单生成精确下载或播放路径。未配置时帮助中心不显示离线下载按钮和文件视频，在线 SOP 仍可使用；哔哩哔哩/YouTube 条目不依赖该地址。生成目录、对象路径和校验步骤见 [SOP 生成与发布策略](../operations/SOP生成与发布策略.md)及[视频帮助分类与发布](../operations/视频帮助分类与发布.md)。
 

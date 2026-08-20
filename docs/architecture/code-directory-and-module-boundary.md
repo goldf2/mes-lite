@@ -111,6 +111,8 @@ mes-lite/
 │   ├── search/                       # 公共搜索表达式与解析
 │   ├── files/                        # 通用文件类型、存储接口、预览底座
 │   └── shared/                       # 纯函数：排序、CSV、内部编码等
+├── services/                         # 与 Web 进程隔离、可独立部署的内部服务
+│   └── cad-preview/                  # DWG/DXF 转只读 PDF；不访问业务数据库
 ├── prisma/
 │   ├── schema.prisma                 # 当前继续保持单一事实源
 │   ├── migrations/
@@ -902,3 +904,10 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `lib/files/cad-document-preview.ts` 只实现通用内部转换协议、超时、响应校验、原子持久缓存和并发去重，不包含 ODA/Autodesk SDK，也不访问 Prisma。具体 CAD 引擎运行在隔离服务中，可在不改 MES 代码的情况下替换。
 - 原始 DWG/DXF 是唯一事实源，派生 PDF 和缩略图只是可重建缓存。CAD 服务未配置或不可用时 readiness 为警告，主业务、原文件下载和权限校验不受影响。
 - `verify:attachment-file-types` 锁定 CAD MIME/扩展名识别与统一查看器；`verify:cad-preview` 通过本机模拟服务验证 Bearer 令牌、健康检查、有效 PDF、持久缓存和非 CAD 拒绝。
+
+## 77. v0.1.414 LibreDWG 试用转换服务边界
+
+- `services/` 只容纳具有独立运行时、独立容器和明确内部协议的辅助服务，不作为跨领域业务代码的大筐目录；业务服务仍归所属 `modules/<domain>`。
+- `services/cad-preview/` 实现 v0.1.412 已冻结的内部协议：LibreDWG 只负责 DWG→DXF，ezdxf/PyMuPDF 只负责 DXF→PDF。它不读取 Prisma、会话、附件卷或其他业务数据，输入只存在于自动清理的临时目录。
+- 该服务为 2D 只读试用引擎。原 DWG/DXF 仍是唯一事实源，MES-lite 的权限、缓存、查看器和下载降级保持不变；引擎失败不能改变业务状态，也不能阻止主应用就绪。
+- GitHub Actions 构建独立镜像并在镜像内真实执行 DXF 直转及 DXF→DWG→DXF→PDF 冒烟；`verify:libredwg-cad-preview` 锁定协议、上传限制、鉴权、非 root、临时目录、依赖版本和部署/许可说明。

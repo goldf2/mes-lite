@@ -34,6 +34,7 @@ const checks = [
   'verify:runtime-operations',
   'verify:attachment-storage',
   'verify:cad-preview',
+  'verify:libredwg-cad-preview',
   'verify:wopi-viewer',
   'verify:wopi-http',
   'verify:production-database-audit',

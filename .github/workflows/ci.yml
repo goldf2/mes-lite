@@ -41,6 +41,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build and smoke-test LibreDWG CAD preview image
+        run: docker build -f services/cad-preview/Dockerfile -t mes-lite-cad-preview:${{ github.sha }} .
+
       - name: Validate and generate Prisma client
         run: |
           npx prisma validate
