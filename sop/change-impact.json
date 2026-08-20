@@ -2,5 +2,5 @@
   "version": "0.1.422",
   "impact": "updated",
   "workflowIds": ["33-document-list", "34-document-create"],
-  "summary": "产品文档新增一文件一文档的批量导入、按类别扩展字段设置，以及同类别多选批量修改。"
+  "summary": "产品文档新增一文件一文档的批量导入、按类别扩展字段设置和同类别多选批量修改；批量附件上传保持为服务端依赖。"
 }
