@@ -10,7 +10,7 @@ type CadPreviewSource = {
   mimeType: string
 }
 
-const previewVersion = 1
+export const cadPreviewVersion = 2
 const maxPreviewBytes = 100 * 1024 * 1024
 const conversionTasks = new Map<string, Promise<string>>()
 
@@ -28,7 +28,7 @@ export function cadPreviewServiceUrl() {
 }
 
 export function cadPreviewStoragePath(storagePath: string) {
-  return `${resolveAttachmentStoragePath(storagePath)}.preview-cad-v${previewVersion}.pdf`
+  return `${resolveAttachmentStoragePath(storagePath)}.preview-cad-v${cadPreviewVersion}.pdf`
 }
 
 function serviceEndpoint(pathname: string) {

@@ -18,6 +18,8 @@ assert.match(server, /startswith\(b"%PDF-"\)/, '服务必须校验 PDF 响应签
 assert.match(server, /extension not in \{"\.dwg", "\.dxf"\}/, '服务只能接受 DWG/DXF')
 assert.match(server, /command = \["dwg2dxf"\]/, 'DWG 必须先经 LibreDWG 转为 DXF')
 assert.match(server, /for minimal in \(False, True\)/, '完整 DXF 无法解析时必须降级到 LibreDWG 最小模式')
+assert.match(server, /apply_cad_font_fallbacks\(document\)/, 'DXF 渲染前必须应用 CAD 字体回退')
+assert.match(server, /NotoSansCJKsc-Regular\.otf/, '缺失 SHX 与大字体必须回退到内置中文字体')
 
 assert.match(dockerfile, /ARG LIBREDWG_VERSION=0\.14/, 'LibreDWG 必须固定到已审查版本')
 assert.match(dockerfile, /ARG LIBREDWG_SHA256=[0-9a-f]{64}/, 'LibreDWG 源码必须校验 SHA-256')
@@ -35,6 +37,7 @@ assert.match(dockerfile, /RUN python smoke_test\.py/, '镜像构建必须执行�
 assert.match(smokeTest, /convert_source_to_pdf\(source_dxf, dxf_pdf\)/, '镜像冒烟必须覆盖 DXF 直转')
 assert.match(smokeTest, /\["dxf2dwg", "-y", "-o"/, '镜像冒烟必须生成真实 DWG 测试夹具')
 assert.match(smokeTest, /convert_source_to_pdf\(source_dwg, dwg_pdf\)/, '镜像冒烟必须覆盖 DWG 转换')
+assert.match(smokeTest, /document\.styles\.add\("HZ", font="txt\.shx"\)/, '镜像冒烟必须覆盖缺失 SHX 中文字体回退')
 assert.match(requirements, /^ezdxf==/m, 'DXF 渲染依赖必须固定版本')
 assert.match(requirements, /^PyMuPDF==/m, 'PDF 渲染依赖必须固定版本')
 

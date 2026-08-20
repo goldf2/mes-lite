@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { readFile } from 'fs/promises'
 import { ensureAttachmentThumbnail } from '@/lib/attachment-thumbnail'
-import { canGenerateAttachmentThumbnail } from '@/lib/attachment-file-types'
+import { attachmentPreviewKind, canGenerateAttachmentThumbnail } from '@/lib/attachment-file-types'
+import { cadPreviewVersion } from '@/lib/files/cad-document-preview'
 import { AttachmentDomainError } from '@/modules/attachments/domain/attachment-errors'
 import { requireManagedAttachmentAccess } from '@/modules/attachments/server/attachment-authorization-service'
 
@@ -18,7 +19,9 @@ export async function GET(
       return NextResponse.json({ error: '该附件类型不支持缩略图' }, { status: 415 })
     }
 
-    const etag = `"attachment-thumbnail-${attachment.id}-${attachment.rotation}"`
+    const previewKind = attachmentPreviewKind(attachment.originalName, attachment.mimeType)
+    const cacheVersion = previewKind === 'cad' ? `-cad-v${cadPreviewVersion}` : ''
+    const etag = `"attachment-thumbnail-${attachment.id}-${attachment.rotation}${cacheVersion}"`
     if (req.headers.get('if-none-match') === etag) {
       return new NextResponse(null, { status: 304, headers: { ETag: etag } })
     }

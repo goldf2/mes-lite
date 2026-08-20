@@ -98,7 +98,7 @@ Collabora 应部署为独立 Coolify Service 或独立主机，不与 MES-lite S
 
 ### 3.1 自托管 DWG/DXF 只读预览
 
-DWG/DXF 原文件继续保存在附件持久卷中，MES-lite 不在 Web 主进程加载 CAD SDK。首次打开图纸时，应用把受权附件发送给同一私有网络内的隔离转换服务，生成只读 PDF 派生文件并持久缓存；后续查看和缩略图复用现有 PDF 查看器。仓库提供 `services/cad-preview/` 开源试用服务：LibreDWG 把 DWG 转为 DXF，再由 ezdxf/PyMuPDF 生成 PDF；DXF 直接进入相同渲染链路。
+DWG/DXF 原文件继续保存在附件持久卷中，MES-lite 不在 Web 主进程加载 CAD SDK。首次打开图纸时，应用把受权附件发送给同一私有网络内的隔离转换服务，生成只读 PDF 派生文件并持久缓存；后续查看和缩略图复用现有 PDF 查看器。仓库提供 `services/cad-preview/` 开源试用服务：LibreDWG 把 DWG 转为 DXF，再由 ezdxf/PyMuPDF 生成 PDF；DXF 直接进入相同渲染链路。图纸引用的 SHX 或 CAD 大字体不在镜像内时，转换器用随仓库交付的 Noto Sans CJK SC 替代，避免已经正确解码的中文显示为方框；替代字体的字宽和原始 SHX 可能不同，关键图纸仍需按真实样本验收版式。
 
 转换服务必须实现以下内部契约：
 

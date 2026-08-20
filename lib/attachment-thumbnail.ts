@@ -5,8 +5,8 @@ import { spawn } from 'child_process'
 import { createCanvas, loadImage } from '@napi-rs/canvas'
 import { normalizeAttachmentRotation } from './attachment-rotation'
 import { ensureOfficeDocumentPreview } from './office-document-preview'
-import { ensureCadDocumentPreview } from './files/cad-document-preview'
-import { attachmentPreviewKind } from './attachment-file-types'
+import { cadPreviewVersion, ensureCadDocumentPreview } from './files/cad-document-preview'
+import { attachmentPreviewKind, type AttachmentPreviewKind } from './attachment-file-types'
 import { resolveAttachmentStoragePath } from './attachment-storage'
 
 export { attachmentUploadRoot, resolveAttachmentStoragePath } from './attachment-storage'
@@ -22,9 +22,14 @@ type ThumbnailSource = {
   rotation?: number | null
 }
 
-export function attachmentThumbnailStoragePath(storagePath: string, rotation = 0) {
+export function attachmentThumbnailStoragePath(
+  storagePath: string,
+  rotation = 0,
+  previewKind: AttachmentPreviewKind = 'none'
+) {
   const resolved = resolveAttachmentStoragePath(storagePath)
-  return `${resolved}.thumb-r${normalizeAttachmentRotation(rotation)}.png`
+  const cadVersion = previewKind === 'cad' ? `-cad-v${cadPreviewVersion}` : ''
+  return `${resolved}.thumb${cadVersion}-r${normalizeAttachmentRotation(rotation)}.png`
 }
 
 function scaledSize(width: number, height: number) {
@@ -115,9 +120,12 @@ async function generateAttachmentThumbnail(source: ThumbnailSource, targetPath: 
 }
 
 export async function ensureAttachmentThumbnail(source: ThumbnailSource) {
+  const sourcePath = resolveAttachmentStoragePath(source.storagePath)
+  const previewKind = attachmentPreviewKind(source.originalName || sourcePath, source.mimeType)
   const targetPath = attachmentThumbnailStoragePath(
     source.storagePath,
-    Number(source.rotation || 0)
+    Number(source.rotation || 0),
+    previewKind
   )
 
   try {
@@ -146,7 +154,7 @@ export async function removeAttachmentStoredFiles(storagePath: string) {
   })
   const storedNames = entries.filter((name) => (
     name === baseName
-    || (name.startsWith(`${baseName}.thumb-r`) && name.endsWith('.png'))
+    || (name.startsWith(`${baseName}.thumb`) && name.endsWith('.png'))
     || (name.startsWith(`${baseName}.image-`) && name.endsWith('.webp'))
     || (name.startsWith(`${baseName}.preview-v`) && name.endsWith('.pdf'))
     || (name.startsWith(`${baseName}.preview-cad-v`) && name.endsWith('.pdf'))

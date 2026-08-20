@@ -6,7 +6,7 @@ from pathlib import Path
 
 import ezdxf
 
-from server import convert_source_to_pdf
+from server import CJK_FALLBACK_FONT, apply_cad_font_fallbacks, convert_source_to_pdf
 
 
 def assert_pdf(path: Path) -> None:
@@ -28,7 +28,13 @@ def main() -> None:
         modelspace.add_lwpolyline([(0, 0), (120, 0), (120, 60), (0, 60)], close=True)
         modelspace.add_circle((60, 30), radius=18)
         modelspace.add_line((0, 0), (120, 60))
+        chinese_style = document.styles.add("HZ", font="txt.shx")
+        chinese_style.dxf.bigfont = "hztxt.shx"
+        modelspace.add_text("中", dxfattribs={"style": "HZ", "height": 8}).set_placement((8, 8))
         document.saveas(source_dxf)
+
+        apply_cad_font_fallbacks(document)
+        assert document.styles.get("HZ").dxf.font == CJK_FALLBACK_FONT
 
         convert_source_to_pdf(source_dxf, dxf_pdf)
         assert_pdf(dxf_pdf)

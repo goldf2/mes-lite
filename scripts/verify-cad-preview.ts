@@ -62,7 +62,14 @@ async function main() {
     const sourcePath = join(verifyRoot, 'drawing.dwg')
     await writeFile(sourcePath, Buffer.from('synthetic-dwg-source'))
     const preview = await import('../lib/files/cad-document-preview')
+    const thumbnail = await import('../lib/attachment-thumbnail')
     assert.deepEqual(await preview.checkCadPreviewService(), { configured: true, available: true })
+    assert.equal(preview.cadPreviewVersion, 2)
+    assert.match(
+      thumbnail.attachmentThumbnailStoragePath(sourcePath, 0, 'cad'),
+      /\.thumb-cad-v2-r0\.png$/,
+      'CAD 缩略图必须随字体回退版本失效',
+    )
 
     const source = {
       storagePath: sourcePath,
@@ -72,6 +79,7 @@ async function main() {
     const firstPath = await preview.ensureCadDocumentPreview(source)
     const secondPath = await preview.ensureCadDocumentPreview(source)
     assert.equal(firstPath, secondPath)
+    assert.match(firstPath, /\.preview-cad-v2\.pdf$/, '字体回退变更必须使用新缓存版本重新生成 CAD 预览')
     assert.deepEqual(await readFile(firstPath), pdfBytes)
     assert.equal(conversionRequests, 1, 'CAD 派生 PDF 必须持久缓存，重复打开不得重复转换')
     assert.match(conversionBodies[0].toString('utf8'), /name="output"/)

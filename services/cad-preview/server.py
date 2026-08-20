@@ -19,12 +19,14 @@ except ImportError:  # PyMuPDF < 1.24 compatibility
 from ezdxf import recover
 from ezdxf.addons.drawing import Frontend, RenderContext, config, layout as drawing_layout
 from ezdxf.addons.drawing import pymupdf as drawing_pymupdf
+from ezdxf.fonts import fonts
 
 
 SERVICE_NAME = "mes-lite-libredwg-preview"
 MAX_UPLOAD_BYTES = min(max(int(os.getenv("CAD_PREVIEW_MAX_UPLOAD_BYTES", 50 * 1024 * 1024)), 1024), 100 * 1024 * 1024)
 COMMAND_TIMEOUT_SECONDS = min(max(int(os.getenv("CAD_PREVIEW_COMMAND_TIMEOUT_SECONDS", "90")), 5), 600)
 MAX_LAYOUTS = min(max(int(os.getenv("CAD_PREVIEW_MAX_LAYOUTS", "20")), 1), 100)
+CJK_FALLBACK_FONT = "NotoSansCJKsc-Regular.otf"
 
 
 class ConversionError(RuntimeError):
@@ -63,11 +65,33 @@ def _renderable_layouts(document: ezdxf.document.Drawing):
     return layouts[:MAX_LAYOUTS]
 
 
+def _font_is_available(font_name: str) -> bool:
+    if not font_name:
+        return False
+    if fonts.font_manager.has_font(font_name):
+        return True
+    resolved = fonts.resolve_shx_font_name(font_name, order="tsl")
+    return fonts.font_manager.has_font(resolved)
+
+
+def apply_cad_font_fallbacks(document: ezdxf.document.Drawing) -> None:
+    if not fonts.font_manager.has_font(CJK_FALLBACK_FONT):
+        raise ConversionError(f"CAD 中文回退字体不可用：{CJK_FALLBACK_FONT}")
+
+    for text_style in document.styles:
+        primary_font = str(text_style.dxf.get("font", "")).strip()
+        big_font = str(text_style.dxf.get("bigfont", "")).strip()
+        if big_font or (primary_font and not _font_is_available(primary_font)):
+            text_style.dxf.font = CJK_FALLBACK_FONT
+
+
 def render_dxf_to_pdf(source: Path, target: Path) -> None:
     try:
         document, _auditor = recover.readfile(source)
     except (OSError, ValueError, ezdxf.DXFError) as error:
         raise ConversionError(f"DXF 文件无法解析：{error}") from error
+
+    apply_cad_font_fallbacks(document)
 
     output = fitz.open()
     render_errors: list[str] = []
