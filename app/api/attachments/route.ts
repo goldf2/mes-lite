@@ -13,6 +13,7 @@ import {
 } from '@/modules/attachments/server/attachment-authorization-service'
 import {
   archiveManagedAttachment,
+  regenerateManagedAttachmentPreview,
   setManagedAttachmentRotation,
   setMaterialImageCover,
   uploadManagedAttachment,
@@ -79,6 +80,18 @@ export async function PATCH(req: NextRequest) {
         afterData: { isCover: true },
       })
       return NextResponse.json({ success: true, message: '封面已更新' })
+    }
+
+    if (input.action === 'REGENERATE_PREVIEW') {
+      const attachment = await regenerateManagedAttachmentPreview(input.id)
+      await writeAuditLog(req, {
+        action: 'REGENERATE_PREVIEW',
+        entityType: 'DOCUMENT_ATTACHMENT',
+        entityId: attachment.id,
+        entityLabel: attachment.originalName,
+        note: '手动原子替换 CAD PDF，并清理重建缩略图派生文件；原始附件未修改',
+      })
+      return NextResponse.json({ data: attachment, message: 'CAD 预览已重新生成' })
     }
 
     const { before, updated } = await setManagedAttachmentRotation(input.id, input.rotation)

@@ -4,7 +4,7 @@
 
 | 版本 | 日期 | 变更记录 | 验证证据 | 待整理文档 |
 | --- | --- | --- | --- | --- |
-| v0.1.418 | 2026-08-20 | CAD 转换器在图纸引用的 SHX 或大字体缺失时改用内置 Noto 中文字体，避免 DWG/DXF 中文显示为方框；CAD PDF 与缩略图缓存升级为 v2，使既有图纸在首次重开时自动生成修复后的预览 | `verify:cad-preview`、`verify:libredwg-cad-preview`、Python 编译检查；使用生产真实 `7122.dwg` 临时转换，中文标题栏、材料、倒角和公司名称均可见，原图仍需在新镜像部署后复验 | 后续正式发布说明集中整理 |
+| v0.1.418 | 2026-08-20 | CAD 转换器在图纸引用的 SHX 或大字体缺失时改用内置 Noto 中文字体，避免 DWG/DXF 中文显示为方框；CAD PDF 与缩略图缓存升级为 v2，使既有图纸在首次重开时自动生成修复后的预览；公共附件管理与产品文档详情增加“重新生成预览”，只重建当前 CAD 派生文件并保留原图、权限校验和审计 | `verify:cad-preview`、`verify:libredwg-cad-preview`、`verify:attachment-management`、`verify:document-server`、Python 编译检查、TypeScript、定向 Lint；使用生产真实 `7122.dwg` 临时转换，中文标题栏、材料、倒角和公司名称均可见，原图仍需在新镜像部署后复验 | 后续正式发布说明集中整理 |
 | v0.1.417 | 2026-08-20 | 来料单编辑保存发生网络响应中断时，停止展示浏览器原始 `Failed to fetch`；只读回查同一单据并逐项核对头部与明细，一致时按保存成功恢复，不一致时保留草稿并提示稍后重试，且不自动重发写请求 | `verify:receiving-module`（含响应丢失恢复、内容不一致和只读不重发断言）、TypeScript、定向 Lint；本地真实浏览器已验证正常保存停留编辑窗口，以及断网提示中文、草稿保留且不泄漏原始英文异常，生产环境待部署后复验 | 后续正式发布说明集中整理 |
 | v0.1.413 | 2026-08-20 | 产品文档列表将重复的“在线阅读”改为“全屏预览”并与“详情”拆分；全屏预览优先打开在线正文，无正文时打开首个附件，并支持在正文和全部附件间连续切换 | `verify:document-server`、`verify:fullscreen-dialogs`、`verify:sop`、TypeScript、定向 Lint | 后续正式发布说明集中整理 |
 | v0.1.412 | 2026-08-20 | DWG/DXF 接入统一附件查看器；首次打开经隔离内部 CAD 服务生成只读 PDF 和缩略图，原文件永久保留并缓存派生结果；未配置或离线时降级为下载且不影响主业务 readiness | `verify:cad-preview`、`verify:attachment-file-types`、`verify:attachment-management`、`verify:fullscreen-dialogs`、TypeScript、定向 Lint；内部协议使用模拟转换服务验证，真实 ODA 授权服务与真实图纸版式待部署后验收 | 后续正式发布说明集中整理 |

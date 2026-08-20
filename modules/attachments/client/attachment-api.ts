@@ -63,6 +63,28 @@ export async function setAttachmentRotation<T>(id: string, rotation: number) {
   return { attachment: body.data, message: body.message || '文件方向已保存' }
 }
 
+export async function regenerateAttachmentPreview(id: string) {
+  const response = await fetch('/api/attachments', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, action: 'REGENERATE_PREVIEW' }),
+  })
+  const body = await readAttachmentEnvelope<never>(response, '重新生成 CAD 预览失败')
+  return body.message || 'CAD 预览已重新生成'
+}
+
+export function refreshAttachmentPreviewUrls<T extends { previewUrl?: string | null; thumbnailUrl?: string | null }>(
+  attachment: T,
+  revision = Date.now()
+) {
+  const refresh = (url?: string | null) => url ? `${url.split('?')[0]}?preview=${revision}` : url
+  return {
+    ...attachment,
+    previewUrl: refresh(attachment.previewUrl),
+    thumbnailUrl: refresh(attachment.thumbnailUrl),
+  }
+}
+
 export async function finalizeDraftAttachments(input: { ownerType: string; draftOwnerId: string; targetOwnerId: string }) {
   const response = await fetch('/api/attachments/drafts', {
     method: 'POST',

@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { isCadAttachment } from '@/lib/attachment-file-types'
@@ -106,6 +106,36 @@ export async function ensureCadDocumentPreview(source: CadPreviewSource) {
   const running = conversionTasks.get(targetPath)
   if (running) return running
   const task = convertCadDocument(source, targetPath)
+    .finally(() => conversionTasks.delete(targetPath))
+  conversionTasks.set(targetPath, task)
+  return task
+}
+
+async function removeStaleCadDocumentPreviewFiles(storagePath: string, currentTarget: string) {
+  const sourcePath = resolveAttachmentStoragePath(storagePath)
+  const directory = path.dirname(sourcePath)
+  const baseName = path.basename(sourcePath)
+  const entries = await readdir(directory).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return []
+    throw error
+  })
+  const previews = entries.filter((name) => (
+    name.startsWith(`${baseName}.preview-cad-v`) && name.endsWith('.pdf')
+    && path.join(directory, name) !== currentTarget
+  ))
+  await Promise.all(previews.map((name) => rm(path.join(directory, name), { force: true })))
+}
+
+export async function regenerateCadDocumentPreview(source: CadPreviewSource) {
+  const targetPath = cadPreviewStoragePath(source.storagePath)
+  const running = conversionTasks.get(targetPath)
+  if (running) return running
+
+  const task = convertCadDocument(source, targetPath)
+    .then(async (result) => {
+      await removeStaleCadDocumentPreviewFiles(source.storagePath, targetPath)
+      return result
+    })
     .finally(() => conversionTasks.delete(targetPath))
   conversionTasks.set(targetPath, task)
   return task

@@ -4,6 +4,8 @@ export {
   discardDraftAttachments,
   finalizeDraftAttachments,
   listAttachments,
+  refreshAttachmentPreviewUrls,
+  regenerateAttachmentPreview,
   setAttachmentCover,
   setAttachmentRotation,
   uploadAttachment,
@@ -24,3 +26,4 @@ export type { ViewableAttachment } from './ui/DocumentFileViewer'
 export { default as DocumentPreviewThumb } from './ui/DocumentPreviewThumb'
 export type { PreviewAttachment } from './ui/DocumentPreviewThumb'
 export { default as PdfDocumentViewer } from './ui/PdfDocumentViewer'
+export { default as RegenerateAttachmentPreviewButton } from './ui/RegenerateAttachmentPreviewButton'

@@ -12,6 +12,7 @@ import { EMPTY_DOCUMENT_JSON } from '@/lib/document-content'
 import { ResourceAdvancedSearch } from '@/app/components/resource'
 import type { ResourceAdvancedSearchField, ResourceSearchCondition } from '@/lib/resource-search'
 import { MAX_ATTACHMENT_FILE_SIZE } from '@/lib/attachment-file-types'
+import { refreshAttachmentPreviewUrls } from '@/modules/attachments'
 import type {
   AttachmentItem, CustomerOption, DocumentCategoryRecord, MaterialOption, PaginationState,
   WorkCenterOption, WorkInstruction, WorkInstructionForm,
@@ -38,7 +39,13 @@ import WorkInstructionCreateDialog from './WorkInstructionCreateDialog'
 import WorkInstructionDetailDialog from './WorkInstructionDetailDialog'
 import WorkInstructionFullscreenViewer, { type WorkInstructionViewerState } from './WorkInstructionFullscreenViewer'
 
-export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: string) => void }) {
+export default function WorkInstructionPage({
+  onMessage,
+  canRegeneratePreviews,
+}: {
+  onMessage: (msg: string) => void
+  canRegeneratePreviews: boolean
+}) {
   const [items, setItems] = useState<WorkInstruction[]>([])
   const [categories, setCategories] = useState<DocumentCategoryRecord[]>([])
   const [customers, setCustomers] = useState<CustomerOption[]>([])
@@ -421,6 +428,14 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     }
   }
 
+  const handlePreviewRegenerated = (attachmentId: string, revision: number) => {
+    const refresh = (attachment: AttachmentItem) => attachment.id === attachmentId
+      ? refreshAttachmentPreviewUrls(attachment, revision)
+      : attachment
+    setDetailAttachments((current) => current.map(refresh))
+    setViewer((current) => current ? { ...current, attachments: current.attachments.map(refresh) } : current)
+  }
+
   const openViewer = (instruction: WorkInstruction, attachments: AttachmentItem[], index = 0) => {
     if (attachments.length === 0) {
       onMessage('暂无可预览文件')
@@ -586,6 +601,9 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           onSave={submitForm}
           onOpenViewer={(index) => openViewer(detail, detailAttachments, index)}
           onArchiveAttachment={archiveAttachment}
+          onPreviewRegenerated={handlePreviewRegenerated}
+          onMessage={onMessage}
+          canRegeneratePreviews={canRegeneratePreviews}
         />
       )}
 

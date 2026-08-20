@@ -1,6 +1,6 @@
 {
-  "version": "0.1.417",
-  "impact": "none",
-  "workflowIds": [],
-  "summary": "来料单编辑保存增加网络中断后的只读核对、中文提示和草稿保留，不改变正常保存、继续编辑或关闭窗口的操作步骤。"
+  "version": "0.1.418",
+  "impact": "updated",
+  "workflowIds": ["33-document-list"],
+  "summary": "产品文档详情为 DWG/DXF 增加重新生成预览动作，需同步说明权限、派生文件重建和原图保留行为。"
 }

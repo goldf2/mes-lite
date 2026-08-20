@@ -16,6 +16,7 @@ export const attachmentOwnerQuerySchema = z.object({
 export const attachmentMutationSchema = z.discriminatedUnion('action', [
   z.object({ id: attachmentIdSchema, action: z.literal('SET_COVER') }),
   z.object({ id: attachmentIdSchema, action: z.literal('SET_ROTATION'), rotation: rotationSchema }),
+  z.object({ id: attachmentIdSchema, action: z.literal('REGENERATE_PREVIEW') }),
 ])
 
 export const draftAttachmentSchema = z.object({

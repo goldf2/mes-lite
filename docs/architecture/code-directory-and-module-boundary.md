@@ -31,7 +31,7 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 2322 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 50 个根文件 | 平台基础设施、格式化工具和少量跨领域兼容能力仍有混放；业务单据 PDF 引擎已迁出 |
-| `modules/` | 503 个 TypeScript/TSX 文件 | 当前有 17 个领域与平台模块；附件模块新增表格直览的 client、查看器和 WOPI discovery/proof/session 服务 |
+| `modules/` | 504 个 TypeScript/TSX 文件 | 当前有 17 个领域与平台模块；附件模块统一承载表格直览、CAD 派生预览及手动重新生成管理动作 |
 | `app/api/` | 157 个 `route.ts` | 全部为薄 HTTP 适配层；新增表格查看会话、WOPI 文件信息和原文件流三条只读适配器，直接访问 Prisma 的路由仍为零 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。

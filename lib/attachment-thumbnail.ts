@@ -144,6 +144,28 @@ export async function ensureAttachmentThumbnail(source: ThumbnailSource) {
   return task
 }
 
+export async function removeAttachmentThumbnailFiles(source: ThumbnailSource) {
+  const sourcePath = resolveAttachmentStoragePath(source.storagePath)
+  const previewKind = attachmentPreviewKind(source.originalName || sourcePath, source.mimeType)
+  const currentTarget = attachmentThumbnailStoragePath(
+    source.storagePath,
+    Number(source.rotation || 0),
+    previewKind
+  )
+  await generationTasks.get(currentTarget)?.catch(() => undefined)
+
+  const directory = path.dirname(sourcePath)
+  const baseName = path.basename(sourcePath)
+  const entries = await readdir(directory).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return []
+    throw error
+  })
+  const thumbnails = entries.filter((name) => (
+    name.startsWith(`${baseName}.thumb`) && name.endsWith('.png')
+  ))
+  await Promise.all(thumbnails.map((name) => rm(path.join(directory, name), { force: true })))
+}
+
 export async function removeAttachmentStoredFiles(storagePath: string) {
   const sourcePath = resolveAttachmentStoragePath(storagePath)
   const directory = path.dirname(sourcePath)

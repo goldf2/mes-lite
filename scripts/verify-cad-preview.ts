@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createServer, type Server } from 'node:http'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -84,6 +84,19 @@ async function main() {
     assert.equal(conversionRequests, 1, 'CAD 派生 PDF 必须持久缓存，重复打开不得重复转换')
     assert.match(conversionBodies[0].toString('utf8'), /name="output"/)
     assert.match(conversionBodies[0].toString('utf8'), /name="file"; filename="drawing.dwg"/)
+
+    const thumbnailPath = thumbnail.attachmentThumbnailStoragePath(sourcePath, 0, 'cad')
+    await writeFile(thumbnailPath, Buffer.from('cached-thumbnail'))
+    await preview.regenerateCadDocumentPreview(source)
+    await thumbnail.removeAttachmentThumbnailFiles(source)
+    await assert.rejects(access(thumbnailPath), '手动重新生成必须清理该 CAD 附件的缩略图缓存')
+    assert.deepEqual(await readFile(firstPath), pdfBytes)
+    assert.equal(conversionRequests, 2, '手动重新生成必须绕过已有 PDF 缓存并重新请求转换服务')
+
+    invalidResponse = true
+    await assert.rejects(() => preview.regenerateCadDocumentPreview(source), /返回的 PDF 无效/)
+    assert.deepEqual(await readFile(firstPath), pdfBytes, '重新转换失败时必须保留上一份有效 CAD PDF')
+    invalidResponse = false
 
     const invalidPath = join(verifyRoot, 'invalid.dxf')
     await writeFile(invalidPath, Buffer.from('synthetic-dxf-source'))

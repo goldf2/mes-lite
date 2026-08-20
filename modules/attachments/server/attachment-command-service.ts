@@ -4,7 +4,13 @@ import path from 'node:path'
 import { prisma } from '@/lib/prisma'
 import { attachmentPreviewKind, MAX_ATTACHMENT_FILE_SIZE, normalizeAttachmentMimeType } from '@/lib/attachment-file-types'
 import { ensureAttachmentImageVariant } from '@/lib/attachment-image-variants'
-import { attachmentUploadRoot, ensureAttachmentThumbnail, removeAttachmentStoredFiles } from '@/lib/attachment-thumbnail'
+import {
+  attachmentUploadRoot,
+  ensureAttachmentThumbnail,
+  removeAttachmentStoredFiles,
+  removeAttachmentThumbnailFiles,
+} from '@/lib/attachment-thumbnail'
+import { regenerateCadDocumentPreview } from '@/lib/files/cad-document-preview'
 import { draftDocumentAttachmentOwnerType, isDocumentSourceCredentialOwnerType } from '@/lib/draft-document-attachments'
 import type { AttachmentUploadInput, DraftAttachmentInput } from '../contracts/attachment-schema'
 import { AttachmentDomainError } from '../domain/attachment-errors'
@@ -83,6 +89,18 @@ export async function setManagedAttachmentRotation(id: string, rotation: 0 | 90 
   const before = await requireActiveAttachment(id)
   const updated = await prisma.documentAttachment.update({ where: { id }, data: { rotation } })
   return { before, updated: withManagedAttachmentUrls(updated) }
+}
+
+export async function regenerateManagedAttachmentPreview(id: string) {
+  const attachment = await requireActiveAttachment(id)
+  if (attachmentPreviewKind(attachment.originalName, attachment.mimeType) !== 'cad') {
+    throw new AttachmentDomainError('只有 DWG/DXF 图纸支持重新生成预览')
+  }
+
+  await regenerateCadDocumentPreview(attachment)
+  await removeAttachmentThumbnailFiles(attachment)
+  await ensureAttachmentThumbnail(attachment)
+  return withManagedAttachmentUrls(attachment)
 }
 
 export async function setMaterialImageCover(id: string) {

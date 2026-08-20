@@ -138,7 +138,12 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
       <BomOverviewPage onMessage={context.onMessage} onOpenBom={context.onOpenBomEditor} />
     </div>
   ),
-  'work-instructions': (context) => <WorkInstructionPage onMessage={context.onMessage} />,
+  'work-instructions': (context) => (
+    <WorkInstructionPage
+      onMessage={context.onMessage}
+      canRegeneratePreviews={context.canUpdate('workInstructions') && context.canRead('attachments')}
+    />
+  ),
   'document-categories': (context) => (
     <DocumentCategorySettingsPage
       onMessage={context.onMessage}

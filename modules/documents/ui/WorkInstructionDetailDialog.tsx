@@ -3,7 +3,7 @@
 import type { DragEvent, RefObject } from 'react'
 import ModalDialog from '@/app/components/ModalDialog'
 import AppButton from '@/app/components/AppButton'
-import { DocumentFileViewer, DocumentPreviewThumb } from '@/modules/attachments'
+import { DocumentFileViewer, DocumentPreviewThumb, RegenerateAttachmentPreviewButton } from '@/modules/attachments'
 import OnlineDocumentEditor from './OnlineDocumentEditor'
 import { attachmentTypeLabel } from '@/lib/attachment-file-types'
 import type {
@@ -52,6 +52,9 @@ interface WorkInstructionDetailDialogProps {
   onSave: () => void
   onOpenViewer: (index: number) => void
   onArchiveAttachment: (attachment: AttachmentItem) => void
+  onPreviewRegenerated: (attachmentId: string, revision: number) => void
+  onMessage: (message: string) => void
+  canRegeneratePreviews: boolean
 }
 
 export default function WorkInstructionDetailDialog({
@@ -82,6 +85,9 @@ export default function WorkInstructionDetailDialog({
   onSave,
   onOpenViewer,
   onArchiveAttachment,
+  onPreviewRegenerated,
+  onMessage,
+  canRegeneratePreviews,
 }: WorkInstructionDetailDialogProps) {
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -180,6 +186,13 @@ export default function WorkInstructionDetailDialog({
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <button type="button" onClick={() => onOpenViewer(selectedAttachmentIndex)} className="rounded-md border border-blue-300 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-50">全屏预览</button>
+                  {canRegeneratePreviews && (
+                    <RegenerateAttachmentPreviewButton
+                      attachment={selectedAttachment}
+                      onMessage={onMessage}
+                      onRegenerated={(revision) => onPreviewRegenerated(selectedAttachment.id, revision)}
+                    />
+                  )}
                   <a href={`${selectedAttachment.url}?download=1`} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">下载原文件</a>
                 </div>
               </div>

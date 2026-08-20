@@ -11,6 +11,9 @@ const productionModuleSource = readFileSync(join(root, 'modules/production/ui/Pr
 const salesOrderSource = readFileSync(join(root, 'modules/sales/ui/SalesOrderPageModule.tsx'), 'utf8')
 const detailDialogSource = readFileSync(join(root, 'modules/business-documents/ui/BusinessDocumentDetailDialog.tsx'), 'utf8')
 const attachmentClientSource = readFileSync(join(root, 'modules/attachments/client/attachment-api.ts'), 'utf8')
+const attachmentSchemaSource = readFileSync(join(root, 'modules/attachments/contracts/attachment-schema.ts'), 'utf8')
+const attachmentCommandSource = readFileSync(join(root, 'modules/attachments/server/attachment-command-service.ts'), 'utf8')
+const regeneratePreviewButtonSource = readFileSync(join(root, 'modules/attachments/ui/RegenerateAttachmentPreviewButton.tsx'), 'utf8')
 const attachmentAuthorizationSource = readFileSync(join(root, 'modules/attachments/server/attachment-authorization-service.ts'), 'utf8')
 const attachmentPolicySource = readFileSync(join(root, 'modules/attachments/domain/attachment-policy.ts'), 'utf8')
 const middlewareSource = readFileSync(join(root, 'middleware.ts'), 'utf8')
@@ -41,6 +44,12 @@ assert.ok((attachmentPanelSource.match(/\{!readOnly &&/g) || []).length >= 6, '�
 assert.match(attachmentPanelSource, /from '\.\.\/client\/attachment-api'/, '附件面板必须通过所属模块客户端访问 API')
 assert.doesNotMatch(attachmentPanelSource, /fetch\(['"]\/api\/attachments/, '公共附件面板不得重复实现附件请求')
 assert.match(attachmentClientSource, /export async function listAttachments/, '附件模块必须提供统一客户端契约')
+assert.match(attachmentSchemaSource, /REGENERATE_PREVIEW/, '附件命令契约必须声明手动重新生成预览')
+assert.match(attachmentCommandSource, /regenerateManagedAttachmentPreview/, '附件领域服务必须集中编排 CAD 预览重新生成')
+assert.match(attachmentCommandSource, /regenerateCadDocumentPreview[\s\S]*removeAttachmentThumbnailFiles[\s\S]*ensureAttachmentThumbnail/, '重新生成必须先原子替换 PDF，再重建缩略图')
+assert.match(regeneratePreviewButtonSource, /previewKind !== 'cad'/, '重新生成预览按钮只能对 CAD 附件显示')
+assert.match(regeneratePreviewButtonSource, /regenerateAttachmentPreview\(attachment\.id\)/, '公共管理按钮必须调用附件模块统一客户端命令')
+assert.match(attachmentPanelSource, /RegenerateAttachmentPreviewButton/, '公共附件管理面板必须复用 CAD 重新生成按钮')
 for (const modulePath of [
   'modules/attachments/contracts/attachment-schema.ts',
   'modules/attachments/domain/attachment-errors.ts',

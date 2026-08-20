@@ -8,12 +8,14 @@ import { supportsDocumentSourceCredentialRecognition } from '@/lib/document-sour
 import {
   archiveAttachment,
   listAttachments,
+  refreshAttachmentPreviewUrls,
   setAttachmentCover,
   uploadAttachment,
 } from '../client/attachment-api'
 import DocumentFileViewer from './DocumentFileViewer'
 import DocumentPreviewThumb from './DocumentPreviewThumb'
 import ModalDialog from '@/app/components/ModalDialog'
+import RegenerateAttachmentPreviewButton from './RegenerateAttachmentPreviewButton'
 
 export interface ManagedAttachment {
   id: string
@@ -196,6 +198,14 @@ export default function AttachmentPanel({
     } finally {
       setRecognizingAttachmentId(null)
     }
+  }
+
+  const handlePreviewRegenerated = (attachmentId: string, revision: number) => {
+    const refresh = (attachment: ManagedAttachment) => attachment.id === attachmentId
+      ? refreshAttachmentPreviewUrls(attachment, revision)
+      : attachment
+    setAttachments((current) => current.map(refresh))
+    setPreviewAttachment((current) => current ? refresh(current) : current)
   }
 
   if (compact) {
@@ -464,6 +474,13 @@ export default function AttachmentPanel({
                     >
                       {recognizingAttachmentId === attachment.id ? '识别中' : 'AI 识别'}
                     </button>
+                  )}
+                  {!readOnly && (
+                    <RegenerateAttachmentPreviewButton
+                      attachment={attachment}
+                      onMessage={onMessage}
+                      onRegenerated={(revision) => handlePreviewRegenerated(attachment.id, revision)}
+                    />
                   )}
                   {!readOnly && <button type="button" onClick={() => deleteAttachment(attachment.id)} className="text-red-600 hover:text-red-700">归档</button>}
                 </div>
