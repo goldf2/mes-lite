@@ -42,7 +42,14 @@ jobs:
         run: npm ci
 
       - name: Build and smoke-test LibreDWG CAD preview image
-        run: docker build -f services/cad-preview/Dockerfile -t mes-lite-cad-preview:${{ github.sha }} .
+        run: |
+          docker buildx build \
+            --load \
+            --cache-from type=gha,scope=cad-preview \
+            --cache-to type=gha,mode=max,scope=cad-preview \
+            -f services/cad-preview/Dockerfile \
+            -t mes-lite-cad-preview:${{ github.sha }} \
+            .
 
       - name: Validate and generate Prisma client
         run: |

@@ -36,30 +36,25 @@ def _command_error(result: subprocess.CompletedProcess[str]) -> str:
     return detail[-4000:] if detail else f"exit={result.returncode}"
 
 
-def convert_dwg_to_dxf(source: Path, target: Path) -> None:
-    attempts = (
-        ["dwg2dxf", "-y", "-o", str(target), str(source)],
-        ["dwg2dxf", "-m", "-y", "-o", str(target), str(source)],
-    )
-    failures: list[str] = []
-    for command in attempts:
-        target.unlink(missing_ok=True)
-        try:
-            result = subprocess.run(
-                command,
-                cwd=source.parent,
-                capture_output=True,
-                check=False,
-                text=True,
-                timeout=COMMAND_TIMEOUT_SECONDS,
-            )
-        except subprocess.TimeoutExpired as error:
-            failures.append(f"转换超时：{error.timeout}s")
-            continue
-        if result.returncode == 0 and target.is_file() and target.stat().st_size > 0:
-            return
-        failures.append(_command_error(result))
-    raise ConversionError(f"LibreDWG 无法读取该 DWG：{'；'.join(failures)}")
+def convert_dwg_to_dxf(source: Path, target: Path, *, minimal: bool) -> None:
+    command = ["dwg2dxf"]
+    if minimal:
+        command.append("-m")
+    command.extend(["-y", "-o", str(target), str(source)])
+    target.unlink(missing_ok=True)
+    try:
+        result = subprocess.run(
+            command,
+            cwd=source.parent,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=COMMAND_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise ConversionError(f"LibreDWG 转换超时：{error.timeout}s") from error
+    if result.returncode != 0 or not target.is_file() or target.stat().st_size == 0:
+        raise ConversionError(f"LibreDWG 无法读取该 DWG：{_command_error(result)}")
 
 
 def _renderable_layouts(document: ezdxf.document.Drawing):
@@ -71,7 +66,7 @@ def _renderable_layouts(document: ezdxf.document.Drawing):
 def render_dxf_to_pdf(source: Path, target: Path) -> None:
     try:
         document, _auditor = recover.readfile(source)
-    except (OSError, ezdxf.DXFError) as error:
+    except (OSError, ValueError, ezdxf.DXFError) as error:
         raise ConversionError(f"DXF 文件无法解析：{error}") from error
 
     output = fitz.open()
@@ -111,8 +106,15 @@ def convert_source_to_pdf(source: Path, target: Path) -> None:
     if extension != ".dwg":
         raise ConversionError("仅支持 DWG 或 DXF 文件")
     converted = source.with_suffix(".converted.dxf")
-    convert_dwg_to_dxf(source, converted)
-    render_dxf_to_pdf(converted, target)
+    failures: list[str] = []
+    for minimal in (False, True):
+        try:
+            convert_dwg_to_dxf(source, converted, minimal=minimal)
+            render_dxf_to_pdf(converted, target)
+            return
+        except ConversionError as error:
+            failures.append(f"{'最小' if minimal else '完整'}模式：{error}")
+    raise ConversionError(f"LibreDWG 无法生成可预览图纸：{'；'.join(failures)}")
 
 
 def _authorized(headers) -> bool:
