@@ -2065,9 +2065,9 @@
           "steps": [
             "展开“文档”功能区，进入“产品文档”。",
             "按标题、正文、产品或备注搜索。",
-            "点击“在线阅读”或“详情”查看版本和附件；XLS/XLSX/ODS 使用自托管 LibreOffice 核心查看器直接打开。DWG/DXF 通过内部 CAD 服务生成只读 PDF；预览服务异常时下载原文件。"
+            "点击“全屏预览”直接阅读在线正文或首个附件，并可继续切换其他附件；点击“详情”查看版本、适用范围并管理附件。XLS/XLSX/ODS 使用自托管 LibreOffice 核心查看器直接打开。DWG/DXF 通过内部 CAD 服务生成只读 PDF；预览服务异常时下载原文件。"
           ],
-          "result": "能确认文件标题、版本、状态和适用范围，并在系统内浏览多工作表表格与 CAD 图纸；预览不可用时仍可下载原文件。",
+          "result": "全屏预览与详情职责分离：前者直接阅读正文和附件，后者用于确认版本、状态、适用范围及附件管理；预览不可用时仍可下载原文件。",
           "pageKey": "workInstructions",
           "resource": "workInstructions",
           "roles": [
@@ -2078,7 +2078,7 @@
             "baseline": "0.1.350",
             "file": "33-document-list.png"
           },
-          "lastVerifiedVersion": "0.1.412"
+          "lastVerifiedVersion": "0.1.413"
         },
         {
           "id": "34-document-create",

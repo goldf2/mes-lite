@@ -430,6 +430,20 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
     setViewerZoom(1)
   }
 
+  const openFullscreenPreview = async (instruction: WorkInstruction) => {
+    try {
+      const attachments = await listInstructionAttachments(instruction.id)
+      if (!instruction.contentText && attachments.length === 0) {
+        onMessage('暂无可预览内容')
+        return
+      }
+      setViewer({ instruction, attachments, index: instruction.contentText ? -1 : 0 })
+      setViewerZoom(1)
+    } catch (err) {
+      onMessage(err instanceof Error ? err.message : '获取预览内容失败')
+    }
+  }
+
   const selectedViewerAttachment = viewer?.attachments[viewer.index]
   const saveSelectedAttachmentRotation = async (delta: number) => {
     if (!selectedViewerAttachment || rotationSaving) return
@@ -516,7 +530,8 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
           onCreate={openAddModal}
-          onOpen={openDetail}
+          onOpenPreview={(instruction) => void openFullscreenPreview(instruction)}
+          onOpenDetail={openDetail}
           onArchive={archiveInstruction}
         />
       </div>
@@ -574,10 +589,10 @@ export default function WorkInstructionPage({ onMessage }: { onMessage: (msg: st
         />
       )}
 
-      {viewer && selectedViewerAttachment && (
+      {viewer && (viewer.index === -1 || selectedViewerAttachment) && (
         <WorkInstructionFullscreenViewer
           viewer={viewer}
-          attachment={selectedViewerAttachment}
+          attachment={selectedViewerAttachment || null}
           zoom={viewerZoom}
           rotationSaving={rotationSaving}
           onNavigate={(index) => setViewer({ ...viewer, index })}

@@ -73,7 +73,8 @@ interface WorkInstructionCollectionViewProps {
   onPageChange: (page: number) => void
   onPageSizeChange: (pageSize: number) => void
   onCreate: () => void
-  onOpen: (instruction: WorkInstruction) => void
+  onOpenPreview: (instruction: WorkInstruction) => void
+  onOpenDetail: (instruction: WorkInstruction) => void
   onArchive: (instruction: WorkInstruction) => void
 }
 
@@ -88,7 +89,8 @@ export default function WorkInstructionCollectionView({
   onPageChange,
   onPageSizeChange,
   onCreate,
-  onOpen,
+  onOpenPreview,
+  onOpenDetail,
   onArchive,
 }: WorkInstructionCollectionViewProps) {
   if (items.length === 0) {
@@ -106,7 +108,7 @@ export default function WorkInstructionCollectionView({
         <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 2xl:grid-cols-3">
           {items.map((instruction) => (
             <article key={instruction.id} className="flex flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:shadow-none">
-              <button type="button" onClick={() => onOpen(instruction)} className="text-left">
+              <button type="button" onClick={() => onOpenPreview(instruction)} aria-label={`全屏预览 ${instruction.title}`} className="text-left">
                 <DocumentPreviewThumb attachment={instruction.primaryAttachment} title={instruction.title} className="!aspect-auto h-[clamp(12rem,28vw,18rem)]" />
               </button>
               <div className="mt-3 min-w-0 flex-1">
@@ -129,8 +131,8 @@ export default function WorkInstructionCollectionView({
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap justify-end gap-2">
-                <button type="button" onClick={() => onOpen(instruction)} className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-700">在线阅读</button>
-                <button type="button" onClick={() => onOpen(instruction)} className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50">详情</button>
+                <button type="button" onClick={() => onOpenPreview(instruction)} className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-700">全屏预览</button>
+                <button type="button" onClick={() => onOpenDetail(instruction)} className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50">详情</button>
                 <button type="button" onClick={() => onArchive(instruction)} className="rounded border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-50">归档</button>
               </div>
             </article>
@@ -162,7 +164,7 @@ export default function WorkInstructionCollectionView({
             {items.map((instruction) => (
               <tr key={instruction.id} className="align-top hover:bg-gray-50">
                 <td className="px-4 py-3">
-                  <button type="button" onClick={() => onOpen(instruction)} className="block h-14 w-20 overflow-hidden rounded">
+                  <button type="button" onClick={() => onOpenPreview(instruction)} aria-label={`全屏预览 ${instruction.title}`} className="block h-14 w-20 overflow-hidden rounded">
                     <DocumentPreviewThumb attachment={instruction.primaryAttachment} title={instruction.title} />
                   </button>
                 </td>
@@ -179,8 +181,8 @@ export default function WorkInstructionCollectionView({
                 <td className="whitespace-nowrap px-4 py-3 text-sm">{instruction.contentText ? '在线 · ' : ''}{instruction.attachmentCount} 个附件</td>
                 <td className="whitespace-nowrap px-4 py-3">
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={() => onOpen(instruction)} className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700">在线阅读</button>
-                    <button onClick={() => onOpen(instruction)} className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50">详情</button>
+                    <button onClick={() => onOpenPreview(instruction)} className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700">全屏预览</button>
+                    <button onClick={() => onOpenDetail(instruction)} className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50">详情</button>
                     <button onClick={() => onArchive(instruction)} className="rounded border border-amber-300 px-3 py-1 text-xs text-amber-700 hover:bg-amber-50">归档</button>
                   </div>
                 </td>

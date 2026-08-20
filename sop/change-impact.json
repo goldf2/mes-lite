@@ -1,6 +1,6 @@
 {
-  "version": "0.1.412",
+  "version": "0.1.413",
   "impact": "updated",
   "workflowIds": ["33-document-list"],
-  "summary": "产品文档新增 DWG/DXF 内部只读 PDF 预览；原文件保留，转换服务不可用时降级下载。"
+  "summary": "产品文档将全屏预览与详情入口分离；全屏预览直接打开在线正文或首个附件，详情继续承担资料与附件管理。"
 }
