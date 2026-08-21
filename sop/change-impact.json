@@ -1,6 +1,6 @@
 {
-  "version": "0.1.424",
+  "version": "0.1.425",
   "impact": "updated",
-  "workflowIds": ["33-document-list", "145-equipment-inspection-due-tasks", "149-equipment-maintenance-due-plans", "89-quality-task-workbench", "155-quality-standard-versions", "107-lot-panorama-entry"],
-  "summary": "产品文档详情修复窄左栏布局；所有可搜索数据页由实际字段目录共同生成智能搜索和高级搜索，设备、质量与批次页面补齐公共高级搜索。"
+  "workflowIds": ["33-document-list", "34-document-create"],
+  "summary": "产品文档列表和编辑态重新分配可用宽度；公共可搜索选择器的下拉箭头改为可展开和收起的按钮。"
 }

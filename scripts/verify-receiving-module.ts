@@ -82,6 +82,8 @@ function verifyStaticBoundaries(
   assert.match(page, /if \(editingItem\) \{[\s\S]*setEditingItem\(data\.data\)[\s\S]*setDraftItems[\s\S]*resetCurrentItem\(\)[\s\S]*await fetchMaterialIns\(\)[\s\S]*\} else \{[\s\S]*setShowModal\(false\)/, '已有来料单保存后必须停留在编辑弹窗并刷新草稿，新建成功才关闭')
   assert.doesNotMatch(editor, /开启比例联动|实测快照|单件长度/, '普通来料界面不得继续依赖旧批次三字段联动')
   assert.match(select, /onSearch\?:[\s\S]*window\.setTimeout/, '公共搜索选择器必须提供防抖异步联想契约')
+  assert.match(select, /aria-label=\{open \? '收起选项' : '展开选项'\}[\s\S]*onClick=\{togglePopup\}/, '公共搜索选择器的下拉箭头必须是可操作按钮，不能依赖输入框重复聚焦')
+  assert.doesNotMatch(select, /pointer-events-none[\s\S]*>⌄<\/span>/, '公共搜索选择器不得继续使用不可操作的文字箭头')
   assert.ok(page.split('\n').length <= 800, '来料主页必须保持在 800 行以内')
 }
 

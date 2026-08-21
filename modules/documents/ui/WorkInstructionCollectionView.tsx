@@ -162,43 +162,49 @@ export default function WorkInstructionCollectionView({
   return (
     <>
       <div className="overflow-x-auto rounded-lg border border-gray-100">
-        <table className="w-full min-w-[1080px]">
+        <table className="w-full min-w-[1280px] table-fixed 2xl:min-w-[1600px]">
           <thead className="bg-gray-50">
             <tr>
               <th className="w-12 px-3 py-3 text-center"><input type="checkbox" aria-label="选择当前页全部文档" checked={allVisibleSelected} onChange={(event) => onToggleAll(visibleIds, event.target.checked)} /></th>
               <th className="w-24 px-4 py-3 text-left text-sm font-semibold text-gray-600">预览</th>
-              <SortableTableHeader column="code" activeColumn={sortColumn} direction={sortDirection} onSort={onSort} className="w-44">关联产品</SortableTableHeader>
-              <SortableTableHeader column="name" activeColumn={sortColumn} direction={sortDirection} onSort={onSort}>文档标题</SortableTableHeader>
+              <SortableTableHeader column="code" activeColumn={sortColumn} direction={sortDirection} onSort={onSort} className="w-52">关联产品</SortableTableHeader>
+              <SortableTableHeader column="name" activeColumn={sortColumn} direction={sortDirection} onSort={onSort} className="w-80">文档标题</SortableTableHeader>
               <SortableTableHeader column="category" activeColumn={sortColumn} direction={sortDirection} onSort={onSort} className="w-28">文档类别</SortableTableHeader>
               <SortableTableHeader column="status" activeColumn={sortColumn} direction={sortDirection} onSort={onSort} className="w-24">状态</SortableTableHeader>
-              <SortableTableHeader column="customer" activeColumn={sortColumn} direction={sortDirection} onSort={onSort} className="w-36">客户</SortableTableHeader>
-              <SortableTableHeader column="workCenters" activeColumn={sortColumn} direction={sortDirection} onSort={onSort} className="w-40">工作中心</SortableTableHeader>
-              <SortableTableHeader column="files" activeColumn={sortColumn} direction={sortDirection} onSort={onSort} className="w-28">文件</SortableTableHeader>
+              <SortableTableHeader column="customer" activeColumn={sortColumn} direction={sortDirection} onSort={onSort} className="hidden w-40 2xl:table-cell">客户</SortableTableHeader>
+              <SortableTableHeader column="workCenters" activeColumn={sortColumn} direction={sortDirection} onSort={onSort} className="hidden w-40 2xl:table-cell">工作中心</SortableTableHeader>
+              <SortableTableHeader column="files" activeColumn={sortColumn} direction={sortDirection} onSort={onSort} className="w-32">文件</SortableTableHeader>
               <th className="w-56 px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {items.map((instruction) => (
-              <tr key={instruction.id} className="align-top hover:bg-gray-50">
+              <tr key={instruction.id} className="align-middle hover:bg-gray-50">
                 <td className="px-3 py-3 text-center"><input type="checkbox" aria-label={`选择 ${instruction.title}`} checked={selectedIds.includes(instruction.id)} onChange={(event) => onToggleSelection(instruction.id, event.target.checked)} /></td>
                 <td className="px-4 py-3">
                   <button type="button" onClick={() => onOpenPreview(instruction)} aria-label={`全屏预览 ${instruction.title}`} className="block h-14 w-20 overflow-hidden rounded">
                     <DocumentPreviewThumb attachment={instruction.primaryAttachment} title={instruction.title} />
                   </button>
                 </td>
-                <td className="px-4 py-3 text-sm text-blue-700">{getInstructionScopeLabel(instruction)}</td>
+                <td className="px-4 py-3 text-sm">
+                  <div className="line-clamp-2 font-medium text-blue-700">{getInstructionScopeLabel(instruction)}</div>
+                  <div className="mt-1 space-y-0.5 text-xs text-gray-500 2xl:hidden">
+                    <div className="truncate">客户：{getInstructionCustomerName(instruction)}</div>
+                    <div className="line-clamp-1">中心：{instruction.workCenters.length > 0 ? instruction.workCenters.map((item) => item.name).join('、') : '不限'}</div>
+                  </div>
+                </td>
                 <td className="px-4 py-3">
-                  <div className="font-medium text-gray-900">{instruction.title}</div>
+                  <div className="line-clamp-2 break-words font-medium leading-6 text-gray-900">{instruction.title}</div>
                   <div className="mt-1 text-xs text-gray-500">{instruction.version || '-'}</div>
                   {instruction.note && <div className="mt-1 line-clamp-2 text-xs text-gray-500">备注：{instruction.note}</div>}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm">{getInstructionCategoryLabel(instruction)}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm">{statusLabels[instruction.status] || instruction.status}</td>
-                <td className="px-4 py-3 text-sm">{getInstructionCustomerName(instruction)}</td>
-                <td className="px-4 py-3 text-sm"><div className="line-clamp-2">{instruction.workCenters.length > 0 ? instruction.workCenters.map((item) => item.name).join('、') : '不限'}</div></td>
+                <td className="hidden px-4 py-3 text-sm 2xl:table-cell">{getInstructionCustomerName(instruction)}</td>
+                <td className="hidden px-4 py-3 text-sm 2xl:table-cell"><div className="line-clamp-2">{instruction.workCenters.length > 0 ? instruction.workCenters.map((item) => item.name).join('、') : '不限'}</div></td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm">{instruction.contentText ? '在线 · ' : ''}{instruction.attachmentCount} 个附件</td>
                 <td className="whitespace-nowrap px-4 py-3">
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-nowrap gap-2">
                     <button onClick={() => onOpenPreview(instruction)} className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700">全屏预览</button>
                     <button onClick={() => onOpenDetail(instruction)} className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50">详情</button>
                     <button onClick={() => onArchive(instruction)} className="rounded border border-amber-300 px-3 py-1 text-xs text-amber-700 hover:bg-amber-50">归档</button>

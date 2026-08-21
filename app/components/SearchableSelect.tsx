@@ -1,6 +1,7 @@
 'use client'
 
-import { ReactNode, useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import useDismissibleSearchPopup from './useDismissibleSearchPopup'
 import useSearchPopupPlacement from './useSearchPopupPlacement'
 import { appInputClassName } from './FormField'
@@ -42,6 +43,7 @@ export default function SearchableSelect({
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
+  const inputRef = useRef<HTMLInputElement>(null)
   const { openUpward, popupMaxHeight, updatePopupPlacement } = useSearchPopupPlacement()
   const selected = options.find((option) => option.value === value)
   const keyword = query.trim().toLocaleLowerCase()
@@ -74,9 +76,24 @@ export default function SearchableSelect({
     closePopup()
   }
 
+  const togglePopup = () => {
+    if (disabled) return
+    if (open) {
+      closePopup()
+      inputRef.current?.focus({ preventScroll: true })
+      return
+    }
+    if (inputRef.current) updatePopupPlacement(inputRef.current)
+    setQuery('')
+    setActiveIndex(-1)
+    setOpen(true)
+    inputRef.current?.focus({ preventScroll: true })
+  }
+
   return (
     <div ref={rootRef} className={`relative ${className}`}>
       <input
+        ref={inputRef}
         type="text"
         role="combobox"
         aria-label={placeholder}
@@ -118,11 +135,23 @@ export default function SearchableSelect({
             choose(filtered[activeIndex].value)
           }
         }}
-        className={`${appInputClassName} pr-10`}
+        className={`${appInputClassName} ${allowClear && value && !disabled ? 'pr-20' : 'pr-11'}`}
       />
-      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">⌄</span>
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={open ? '收起选项' : '展开选项'}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={togglePopup}
+        className="absolute right-1 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
       {allowClear && value && !disabled && (
-        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => choose('')} className="absolute right-7 top-1/2 -translate-y-1/2 rounded px-1 text-xs text-gray-400 hover:text-gray-700" aria-label="清除选择">×</button>
+        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => choose('')} className="absolute right-9 top-1/2 -translate-y-1/2 rounded px-1 text-xs text-gray-400 hover:text-gray-700" aria-label="清除选择">×</button>
       )}
       {open && !disabled && (
         <div

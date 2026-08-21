@@ -19,9 +19,9 @@ export default function DocumentExtensionFields({
   const update = (id: string, value: string) => onChange({ ...values, [id]: value })
 
   return (
-    <section className="md:col-span-2 xl:col-span-3">
+    <section className={compact ? 'md:col-span-2 xl:col-span-4' : 'md:col-span-2 xl:col-span-3'}>
       <div className={`${compact ? 'mb-2 text-xs' : 'mb-3 text-sm'} font-semibold text-gray-700`}>分类扩展字段</div>
-      <div className={`grid grid-cols-1 ${compact ? 'gap-3' : 'gap-4 md:grid-cols-2 xl:grid-cols-3'}`}>
+      <div className={`grid grid-cols-1 ${compact ? 'gap-3 md:grid-cols-2 xl:grid-cols-4' : 'gap-4 md:grid-cols-2 xl:grid-cols-3'}`}>
         {definitions.map((definition) => {
           const value = values[definition.id] || ''
           return (
