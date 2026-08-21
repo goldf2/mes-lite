@@ -53,6 +53,7 @@ export const sharedWorkspaceFunctionKeys = [
   'helpCenter',
   'displaySettings',
   'navigationSettings',
+  'cadPreviewSettings',
   'aiSettings',
   'archive',
   'auditLogs',

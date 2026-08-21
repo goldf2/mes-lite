@@ -1,6 +1,6 @@
 {
-  "version": "0.1.429",
+  "version": "0.1.430",
   "impact": "updated",
-  "workflowIds": ["33-document-list", "34-document-create"],
-  "summary": "修复产品文档缩略图原生懒加载与隐藏状态形成的请求死锁。"
+  "workflowIds": ["33-document-list", "56a-cad-preview-settings"],
+  "summary": "CAD 预览支持自动、LibreDWG、ACadSharp 与可选 QCAD，并按引擎隔离缓存。"
 }

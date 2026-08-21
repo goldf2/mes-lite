@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { isCadAttachment } from '@/lib/attachment-file-types'
 import { resolveAttachmentStoragePath } from '@/lib/attachment-storage'
+import { normalizeCadPreviewEngine, type CadPreviewEngine, type CadPreviewServiceStatus } from '@/lib/cad-preview-engines'
 
 type CadPreviewSource = {
   storagePath: string
@@ -10,7 +11,7 @@ type CadPreviewSource = {
   mimeType: string
 }
 
-export const cadPreviewVersion = 2
+export const cadPreviewVersion = 3
 const maxPreviewBytes = 100 * 1024 * 1024
 const conversionTasks = new Map<string, Promise<string>>()
 const conversionWaiters: Array<() => void> = []
@@ -48,8 +49,12 @@ export function cadPreviewServiceUrl() {
   return url
 }
 
-export function cadPreviewStoragePath(storagePath: string) {
-  return `${resolveAttachmentStoragePath(storagePath)}.preview-cad-v${cadPreviewVersion}.pdf`
+export function cadPreviewCacheKey(engine: CadPreviewEngine = 'auto') {
+  return `cad-v${cadPreviewVersion}-${normalizeCadPreviewEngine(engine)}`
+}
+
+export function cadPreviewStoragePath(storagePath: string, engine: CadPreviewEngine = 'auto') {
+  return `${resolveAttachmentStoragePath(storagePath)}.preview-${cadPreviewCacheKey(engine)}.pdf`
 }
 
 function serviceEndpoint(pathname: string) {
@@ -74,16 +79,32 @@ async function fetchWithTimeout(input: URL, init?: RequestInit, timeoutMs = conf
 }
 
 export async function checkCadPreviewService() {
-  if (!cadPreviewServiceUrl()) return { configured: false as const, available: false as const }
+  const unavailable: CadPreviewServiceStatus = { configured: false, available: false, autoOrder: [], engines: [] }
+  if (!cadPreviewServiceUrl()) return unavailable
   try {
     const response = await fetchWithTimeout(serviceEndpoint('/health'), { headers: serviceHeaders() }, 5_000)
-    return { configured: true as const, available: response.ok }
+    const payload = response.headers.get('content-type')?.includes('application/json')
+      ? await response.json() as { autoOrder?: unknown; engines?: unknown }
+      : {}
+    const engines = Array.isArray(payload.engines)
+      ? payload.engines.flatMap((item) => {
+        if (!item || typeof item !== 'object') return []
+        const source = item as { engine?: unknown; available?: unknown; detail?: unknown }
+        const engine = normalizeCadPreviewEngine(source.engine)
+        if (engine === 'auto') return []
+        return [{ engine, available: source.available === true, detail: typeof source.detail === 'string' ? source.detail : '' }]
+      })
+      : []
+    const autoOrder = Array.isArray(payload.autoOrder)
+      ? payload.autoOrder.map(normalizeCadPreviewEngine).filter((item): item is Exclude<CadPreviewEngine, 'auto'> => item !== 'auto')
+      : []
+    return { configured: true, available: response.ok, autoOrder, engines }
   } catch {
-    return { configured: true as const, available: false as const }
+    return { ...unavailable, configured: true }
   }
 }
 
-async function convertCadDocument(source: CadPreviewSource, targetPath: string) {
+async function convertCadDocument(source: CadPreviewSource, targetPath: string, engine: CadPreviewEngine) {
   const sourcePath = resolveAttachmentStoragePath(source.storagePath)
   if (!isCadAttachment(source.originalName || sourcePath, source.mimeType)) {
     throw new Error('该附件不是可转换的 DWG/DXF 图纸')
@@ -93,6 +114,7 @@ async function convertCadDocument(source: CadPreviewSource, targetPath: string) 
   const form = new FormData()
   form.append('file', new Blob([new Uint8Array(sourceFile)], { type: source.mimeType || 'application/octet-stream' }), source.originalName || path.basename(sourcePath))
   form.append('output', 'pdf')
+  form.append('engine', normalizeCadPreviewEngine(engine))
 
   const response = await fetchWithTimeout(serviceEndpoint('/v1/convert/pdf'), {
     method: 'POST',
@@ -115,8 +137,9 @@ async function convertCadDocument(source: CadPreviewSource, targetPath: string) 
   return targetPath
 }
 
-export async function ensureCadDocumentPreview(source: CadPreviewSource) {
-  const targetPath = cadPreviewStoragePath(source.storagePath)
+export async function ensureCadDocumentPreview(source: CadPreviewSource, engine: CadPreviewEngine = 'auto') {
+  const normalizedEngine = normalizeCadPreviewEngine(engine)
+  const targetPath = cadPreviewStoragePath(source.storagePath, normalizedEngine)
   try {
     await access(targetPath)
     return targetPath
@@ -126,7 +149,7 @@ export async function ensureCadDocumentPreview(source: CadPreviewSource) {
 
   const running = conversionTasks.get(targetPath)
   if (running) return running
-  const task = withConversionSlot(() => convertCadDocument(source, targetPath))
+  const task = withConversionSlot(() => convertCadDocument(source, targetPath, normalizedEngine))
     .finally(() => conversionTasks.delete(targetPath))
   conversionTasks.set(targetPath, task)
   return task
@@ -142,17 +165,19 @@ async function removeStaleCadDocumentPreviewFiles(storagePath: string, currentTa
   })
   const previews = entries.filter((name) => (
     name.startsWith(`${baseName}.preview-cad-v`) && name.endsWith('.pdf')
+    && !name.startsWith(`${baseName}.preview-cad-v${cadPreviewVersion}-`)
     && path.join(directory, name) !== currentTarget
   ))
   await Promise.all(previews.map((name) => rm(path.join(directory, name), { force: true })))
 }
 
-export async function regenerateCadDocumentPreview(source: CadPreviewSource) {
-  const targetPath = cadPreviewStoragePath(source.storagePath)
+export async function regenerateCadDocumentPreview(source: CadPreviewSource, engine: CadPreviewEngine = 'auto') {
+  const normalizedEngine = normalizeCadPreviewEngine(engine)
+  const targetPath = cadPreviewStoragePath(source.storagePath, normalizedEngine)
   const running = conversionTasks.get(targetPath)
   if (running) return running
 
-  const task = withConversionSlot(() => convertCadDocument(source, targetPath))
+  const task = withConversionSlot(() => convertCadDocument(source, targetPath, normalizedEngine))
     .then(async (result) => {
       await removeStaleCadDocumentPreviewFiles(source.storagePath, targetPath)
       return result

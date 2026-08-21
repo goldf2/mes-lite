@@ -14,12 +14,14 @@
 
 - DWG/DXF 继续使用现有 `DocumentAttachment`、对象权限和下载路由，不新增 CAD 专用数据库表或业务页面。
 - MES-lite 通过稳定内部 HTTP 契约调用隔离转换服务：`GET /health`；`POST /v1/convert/pdf` 接收 `file` 与 `output=pdf`，返回 PDF。服务可使用 Bearer 令牌。
-- 首次查看时按需转换，生成 `.preview-cad-v1.pdf` 并与原文件一起保存在附件持久卷；同一文件的并发请求合并，后续查看和缩略图复用缓存。
+- 首次查看时按需转换，按缓存版本和选择的引擎生成 `.preview-cad-v3-<engine>.pdf` 并与原文件一起保存在附件持久卷；同一文件、同一引擎的并发请求合并，后续查看和缩略图复用缓存，切换引擎不会命中旧引擎结果。
 - 返回内容必须以 `%PDF-` 开头且不超过 100 MB；写入先进入随机临时文件，再原子重命名，转换失败不得留下半成品。
-- 第一阶段采用仓库内可构建的开源试用引擎：GNU LibreDWG 负责 DWG→DXF，ezdxf/PyMuPDF 负责 DXF→只读 PDF。DXF 直接进入渲染器，DWG 与 DXF 共用同一后半段和应用协议。
+- 仓库内置两个可构建的免费适配器：GNU LibreDWG 0.14 和 MIT 许可的 ACadSharp 3.7.1 均负责 DWG→DXF；ezdxf/PyMuPDF 负责 DXF→只读 PDF。DXF 直接进入渲染器，DWG 与 DXF 共用同一后半段和应用协议。系统设置提供“自动、LibreDWG、ACadSharp、QCAD”四个选择，服务健康接口返回各引擎的实际可用状态。
+- 自动模式按 `CAD_PREVIEW_AUTO_ENGINE_ORDER` 选择当前可用引擎；每次转换后检查页数、图元组和文本量，命令返回成功但结果明显空白或稀疏时继续尝试下一引擎。该检查只能识别明显假成功，不能替代人工核对尺寸、字体、外部参照和关键实体。
+- QCAD 只作为可选外挂适配器：仓库和默认镜像不包含 QCAD 程序、许可证或下载逻辑。部署方必须自行合法取得 QCAD Professional，并通过 `CAD_PREVIEW_QCAD_COMMAND` 提供可由无特权转换用户调用的 `dwg2dwg` 命令；Community Edition 不具备 DWG 支持。
 - 转换引擎固定在 `services/cad-preview/` 独立容器中，使用非 root 用户、受限上传尺寸和命令超时，只写自动清理的临时目录；容器构建必须同时完成 DXF 与 DWG 真实转换冒烟。
 - MES 主应用与转换容器都限制活动转换并发，文档缩略图延迟加载；批量导入只保存原文件，不允许一个列表页面同时耗尽转换器。企业已授权字体通过 `/opt/cad-fonts` 外挂目录提供；受控入口短暂以 root 修为 `root:cadpreview` 的目录 `0750`、文件 `0640` 后立即降为 UID 10001，服务启动时检查所有者与有效权限、扫描并重建 ezdxf 字体缓存。字体二进制不进入默认仓库和应用容器。
-- LibreDWG 仍标记为 beta，ezdxf 也明确不覆盖全部 DXF 实体和像素级复现。因此该引擎只能在真实企业图纸验收通过后启用；失败图纸继续允许下载原文件或上传配套 PDF，不得把转换结果当作设计事实源。
+- LibreDWG、ACadSharp 和 ezdxf 均不覆盖全部 DWG/DXF 实体和像素级复现。因此每个启用引擎都必须以真实企业图纸验收；失败图纸继续允许下载原文件或上传配套 PDF，不得把转换结果当作设计事实源。
 - 若试用引擎对当前企业图纸的兼容率不足，可在保持内部 HTTP 契约不变的前提下替换为具备正式授权、可自托管的 ODA Drawings SDK。Autodesk APS Model Derivative 仅作为经审批的云端替代，不是企业内部图纸的默认数据路径。
 - 未配置或服务离线时 readiness 只警告，不让 MES 主容器重启；查看器显示明确降级提示并保留下载原文件。
 
@@ -27,6 +29,6 @@
 
 - MES 页面、附件权限、全屏层级、PDF 渲染和缩略图不新增分叉，后续替换转换引擎不需要修改业务页面。
 - 生产部署需要额外的 CAD 转换容器、字体资源、资源限制和真实图纸验收；仓库不包含 ODA 二进制或许可文件。
-- LibreDWG 为 GPL-3.0-or-later，ezdxf 为 MIT，PyMuPDF 为 AGPL-3.0-or-later/商业双许可。转换服务源码、镜像交付和替换生命周期与 MES-lite Web 应用分离；对外分发镜像前必须复核并履行相应许可证义务。
+- LibreDWG 为 GPL-3.0-or-later，ACadSharp 与 ezdxf 为 MIT，PyMuPDF 为 AGPL-3.0-or-later/商业双许可；QCAD Professional 遵循部署方取得的商业许可且不随仓库分发。转换服务源码、镜像交付和替换生命周期与 MES-lite Web 应用分离；对外分发镜像前必须复核并履行相应许可证义务。
 - 第一阶段只提供 2D 只读 PDF，不提供图层开关、对象属性查询、测量、批注或 DWG 编辑。若这些需求成立，再单独评审 Web CAD 查看器，而不是扩张本次转换契约。
 - 相关依据：[GNU LibreDWG](https://www.gnu.org/software/libredwg/)、[LibreDWG 命令行程序](https://www.gnu.org/software/libredwg/manual/html_node/Programs.html)、[ezdxf Drawing 插件](https://ezdxf.readthedocs.io/en/stable/addons/drawing.html)、[ODA Drawings SDK](https://www.opendesign.com/products/drawings)、[Autodesk Model Derivative API](https://aps.autodesk.com/model-derivative-api-2d-3d-conversions)。

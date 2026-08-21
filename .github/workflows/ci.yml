@@ -41,7 +41,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and smoke-test LibreDWG CAD preview image
+      - name: Build and smoke-test multi-engine CAD preview image
         run: |
           set +e
           docker buildx build \

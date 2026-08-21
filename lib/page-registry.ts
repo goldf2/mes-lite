@@ -15,7 +15,7 @@ export const applicationTabs = [
   'dispatch', 'stocks', 'stockMovements', 'lotPanorama', 'qualityTasks', 'salesOrders', 'shipment', 'return', 'flowTransfers', 'sawingCost', 'scanPrint',
   'suppliers', 'customers', 'employees', 'processTemplates', 'processRoutes', 'archive', 'auditLogs',
   'dataTools', 'unitSettings', 'locationSettings', 'workCenters', 'documentCategories', 'businessSettings',
-  'displaySettings', 'navigationSettings', 'aiSettings', 'operators', 'permissionUsers', 'permissionGroups',
+  'displaySettings', 'navigationSettings', 'cadPreviewSettings', 'aiSettings', 'operators', 'permissionUsers', 'permissionGroups',
   'create', 'detail',
 ] as const
 
@@ -38,6 +38,7 @@ export type RegisteredSystemSection =
   | 'businessSettings'
   | 'displaySettings'
   | 'navigationSettings'
+  | 'cadPreviewSettings'
   | 'aiSettings'
 
 export type PageRendererKey =
@@ -134,6 +135,7 @@ const registeredPages = [
   registerPage({ key: 'businessSettings', tab: 'businessSettings', kind: 'settings', title: '企业与业务规则', description: '维护企业资料和跨终端业务规则', renderer: 'system-section', groupKey: 'configuration', resource: 'businessSettings', primaryNavigation: true, systemSection: 'businessSettings', workspace: { functionKey: 'businessSettings', label: '企业与业务规则', icon: '业' } }),
   registerPage({ key: 'displaySettings', tab: 'displaySettings', kind: 'settings', title: '显示设置', description: '维护配色、对比度和界面显示效果', renderer: 'system-section', groupKey: 'system', resource: 'displaySettings', primaryNavigation: true, systemSection: 'displaySettings', workspace: { functionKey: 'displaySettings', label: '显示设置', icon: '显' } }),
   registerPage({ key: 'navigationSettings', tab: 'navigationSettings', kind: 'settings', title: '导航设置', description: '配置统一 MES 工作台的功能分区、名称和顺序', renderer: 'system-section', groupKey: 'system', resource: 'navigationSettings', primaryNavigation: true, systemSection: 'navigationSettings', workspace: { functionKey: 'navigationSettings', label: '导航设置', icon: '导' } }),
+  registerPage({ key: 'cadPreviewSettings', tab: 'cadPreviewSettings', kind: 'settings', title: '文件预览', description: '选择 CAD 转换引擎并检查服务端可用状态', renderer: 'system-section', groupKey: 'system', resource: 'cadPreviewSettings', primaryNavigation: true, systemSection: 'cadPreviewSettings', workspace: { functionKey: 'cadPreviewSettings', label: '文件预览', icon: '图' } }),
   registerPage({ key: 'aiSettings', tab: 'aiSettings', kind: 'settings', title: 'AI 服务', description: '维护 AI 模型、接口、密钥和助手外观', renderer: 'system-section', groupKey: 'system', resource: 'aiSettings', primaryNavigation: true, systemSection: 'aiSettings', workspace: { functionKey: 'aiSettings', label: 'AI 服务', icon: '智' } }),
   registerPage({ key: 'sawingCost', tab: 'sawingCost', kind: 'utility', title: '锯切成本', description: '计算锯切、损耗和直接加工成本', renderer: 'sawing-cost', groupKey: 'tools', resource: 'sawingCost', primaryNavigation: true, hostToolbarProvided: true, shellToolbarActions: true, workspace: { functionKey: 'sawingCost', label: '锯切成本', icon: '锯' } }),
   registerPage({ key: 'scanPrint', tab: 'scanPrint', kind: 'utility', title: '硬件工具', description: '使用扫码计数和标签测试打印', renderer: 'scan-print', groupKey: 'tools', resource: 'scanPrint', primaryNavigation: true, hostToolbarProvided: true, shellToolbarActions: true, workspace: { functionKey: 'scanPrint', label: '硬件工具', icon: '扫' } }),

@@ -1,8 +1,14 @@
 import type { ContrastMode } from '@/lib/contrast-modes'
+import type { CadPreviewEngine, CadPreviewServiceStatus } from '@/lib/cad-preview-engines'
 
 export interface SystemAppearanceSettings {
   contrastMode: ContrastMode
   aiLoadingIndicatorEnabled: boolean
+}
+
+export interface CadPreviewSettings {
+  engine: CadPreviewEngine
+  service: CadPreviewServiceStatus
 }
 
 export interface AiAgentConfigView {

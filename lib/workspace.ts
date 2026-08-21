@@ -35,6 +35,7 @@ export const workspaceFunctionKeys = [
   'businessSettings',
   'displaySettings',
   'navigationSettings',
+  'cadPreviewSettings',
   'aiSettings',
   'sawingCost',
   'scanPrint',

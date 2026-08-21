@@ -4,6 +4,8 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 import { BUSINESS_DOCUMENT_PRINT_DENSITIES, getSystemSettings, updateSystemSettings } from '@/lib/system-settings'
 import { CONTRAST_MODE_VALUES } from '@/lib/contrast-modes'
+import { CAD_PREVIEW_ENGINES } from '@/lib/cad-preview-engines'
+import { checkCadPreviewService } from '@/lib/files/cad-document-preview'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,11 +24,14 @@ const displayUpdateSchema = z.object({
 const aiAppearanceUpdateSchema = z.object({
   aiLoadingIndicatorEnabled: z.boolean().optional(),
 })
-const scopeSchema = z.enum(['business', 'display', 'ai'])
-const resourceByScope = { business: 'businessSettings', display: 'displaySettings', ai: 'aiSettings' } as const
-const updateSchemaByScope = { business: businessUpdateSchema, display: displayUpdateSchema, ai: aiAppearanceUpdateSchema }
+const cadPreviewUpdateSchema = z.object({
+  cadPreviewEngine: z.enum(CAD_PREVIEW_ENGINES),
+})
+const scopeSchema = z.enum(['business', 'display', 'ai', 'cadPreview'])
+const resourceByScope = { business: 'businessSettings', display: 'displaySettings', ai: 'aiSettings', cadPreview: 'cadPreviewSettings' } as const
+const updateSchemaByScope = { business: businessUpdateSchema, display: displayUpdateSchema, ai: aiAppearanceUpdateSchema, cadPreview: cadPreviewUpdateSchema }
 
-function scopedSettings(scope: z.infer<typeof scopeSchema>, settings: Awaited<ReturnType<typeof getSystemSettings>>) {
+async function scopedSettings(scope: z.infer<typeof scopeSchema>, settings: Awaited<ReturnType<typeof getSystemSettings>>) {
   if (scope === 'business') return {
     naturalMaterialCodeSortEnabled: settings.naturalMaterialCodeSortEnabled,
     companyName: settings.companyName, companyContact: settings.companyContact,
@@ -35,7 +40,8 @@ function scopedSettings(scope: z.infer<typeof scopeSchema>, settings: Awaited<Re
     businessDocumentPrintMarginMm: settings.businessDocumentPrintMarginMm,
   }
   if (scope === 'display') return { contrastMode: settings.contrastMode }
-  return { aiLoadingIndicatorEnabled: settings.aiLoadingIndicatorEnabled }
+  if (scope === 'ai') return { aiLoadingIndicatorEnabled: settings.aiLoadingIndicatorEnabled }
+  return { engine: settings.cadPreviewEngine, service: await checkCadPreviewService() }
 }
 
 export async function GET(req: NextRequest) {
@@ -44,7 +50,7 @@ export async function GET(req: NextRequest) {
     const denied = await requireResourcePermission(resourceByScope[scope], 'read')
     if (denied) return denied
 
-    return NextResponse.json({ data: scopedSettings(scope, await getSystemSettings()) })
+    return NextResponse.json({ data: await scopedSettings(scope, await getSystemSettings()) })
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: '系统设置范围无效' }, { status: 400 })
     console.error('Get system settings error:', error)
@@ -63,6 +69,17 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: '系统设置格式无效' }, { status: 400 })
     }
 
+    if (scope === 'cadPreview') {
+      const selectedEngine = (body.data as z.infer<typeof cadPreviewUpdateSchema>).cadPreviewEngine
+      if (selectedEngine !== 'auto') {
+        const service = await checkCadPreviewService()
+        const selectedStatus = service.engines.find((item) => item.engine === selectedEngine)
+        if (!service.available || selectedStatus?.available !== true) {
+          return NextResponse.json({ error: '所选 CAD 预览引擎当前不可用，请先完成服务端安装或选择其他引擎' }, { status: 422 })
+        }
+      }
+    }
+
     const before = await getSystemSettings()
     const after = await updateSystemSettings({ ...before, ...body.data })
 
@@ -72,10 +89,10 @@ export async function PATCH(req: NextRequest) {
       entityLabel: '系统设置',
       beforeData: before,
       afterData: after,
-      note: '更新企业资料、业务规则或业务单据打印格式',
+      note: scope === 'cadPreview' ? '更新 CAD 预览转换引擎' : '更新企业资料、业务规则或业务单据打印格式',
     })
 
-    return NextResponse.json({ data: scopedSettings(scope, after) })
+    return NextResponse.json({ data: await scopedSettings(scope, after) })
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: '系统设置范围无效' }, { status: 400 })
     console.error('Update system settings error:', error)

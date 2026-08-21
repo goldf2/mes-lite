@@ -35,6 +35,7 @@ const navigationGlyphs: Record<string, string> = {
   businessSettings: '业',
   displaySettings: '显',
   navigationSettings: '导',
+  cadPreviewSettings: '图',
   aiSettings: '智',
   operators: '人',
   permissionUsers: '权',

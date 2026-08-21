@@ -5,7 +5,8 @@ import { spawn } from 'child_process'
 import { createCanvas, loadImage } from '@napi-rs/canvas'
 import { normalizeAttachmentRotation } from './attachment-rotation'
 import { ensureOfficeDocumentPreview } from './office-document-preview'
-import { cadPreviewVersion, ensureCadDocumentPreview } from './files/cad-document-preview'
+import { cadPreviewCacheKey, ensureCadDocumentPreview } from './files/cad-document-preview'
+import type { CadPreviewEngine } from './cad-preview-engines'
 import { attachmentPreviewKind, type AttachmentPreviewKind } from './attachment-file-types'
 import { resolveAttachmentStoragePath } from './attachment-storage'
 
@@ -25,10 +26,11 @@ type ThumbnailSource = {
 export function attachmentThumbnailStoragePath(
   storagePath: string,
   rotation = 0,
-  previewKind: AttachmentPreviewKind = 'none'
+  previewKind: AttachmentPreviewKind = 'none',
+  cadEngine: CadPreviewEngine = 'auto',
 ) {
   const resolved = resolveAttachmentStoragePath(storagePath)
-  const cadVersion = previewKind === 'cad' ? `-cad-v${cadPreviewVersion}` : ''
+  const cadVersion = previewKind === 'cad' ? `-${cadPreviewCacheKey(cadEngine)}` : ''
   return `${resolved}.thumb${cadVersion}-r${normalizeAttachmentRotation(rotation)}.png`
 }
 
@@ -94,7 +96,7 @@ async function renderPdfThumbnail(sourcePath: string, targetPath: string, savedR
   return targetPath
 }
 
-async function generateAttachmentThumbnail(source: ThumbnailSource, targetPath: string) {
+async function generateAttachmentThumbnail(source: ThumbnailSource, targetPath: string, cadEngine: CadPreviewEngine) {
   const sourcePath = resolveAttachmentStoragePath(source.storagePath)
   const rotation = normalizeAttachmentRotation(Number(source.rotation || 0))
   const previewKind = attachmentPreviewKind(source.originalName || sourcePath, source.mimeType)
@@ -103,7 +105,7 @@ async function generateAttachmentThumbnail(source: ThumbnailSource, targetPath: 
     const pdfPath = previewKind === 'office'
       ? await ensureOfficeDocumentPreview(source)
       : previewKind === 'cad'
-        ? await ensureCadDocumentPreview(source)
+        ? await ensureCadDocumentPreview(source, cadEngine)
         : sourcePath
     return renderPdfThumbnail(pdfPath, targetPath, rotation)
   }
@@ -119,13 +121,14 @@ async function generateAttachmentThumbnail(source: ThumbnailSource, targetPath: 
   return targetPath
 }
 
-export async function ensureAttachmentThumbnail(source: ThumbnailSource) {
+export async function ensureAttachmentThumbnail(source: ThumbnailSource, cadEngine: CadPreviewEngine = 'auto') {
   const sourcePath = resolveAttachmentStoragePath(source.storagePath)
   const previewKind = attachmentPreviewKind(source.originalName || sourcePath, source.mimeType)
   const targetPath = attachmentThumbnailStoragePath(
     source.storagePath,
     Number(source.rotation || 0),
-    previewKind
+    previewKind,
+    cadEngine,
   )
 
   try {
@@ -138,19 +141,20 @@ export async function ensureAttachmentThumbnail(source: ThumbnailSource) {
   const running = generationTasks.get(targetPath)
   if (running) return running
 
-  const task = generateAttachmentThumbnail(source, targetPath)
+  const task = generateAttachmentThumbnail(source, targetPath, cadEngine)
     .finally(() => generationTasks.delete(targetPath))
   generationTasks.set(targetPath, task)
   return task
 }
 
-export async function removeAttachmentThumbnailFiles(source: ThumbnailSource) {
+export async function removeAttachmentThumbnailFiles(source: ThumbnailSource, cadEngine: CadPreviewEngine = 'auto') {
   const sourcePath = resolveAttachmentStoragePath(source.storagePath)
   const previewKind = attachmentPreviewKind(source.originalName || sourcePath, source.mimeType)
   const currentTarget = attachmentThumbnailStoragePath(
     source.storagePath,
     Number(source.rotation || 0),
-    previewKind
+    previewKind,
+    cadEngine,
   )
   await generationTasks.get(currentTarget)?.catch(() => undefined)
 

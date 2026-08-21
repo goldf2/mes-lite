@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
+ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:8.0-bookworm-slim
+
 FROM debian:bookworm-slim AS libredwg-builder
 
 ARG DEBIAN_MIRROR=http://mirrors.aliyun.com
@@ -37,6 +39,28 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && make -C src DESTDIR=/opt/libredwg install \
     && make -C programs DESTDIR=/opt/libredwg install
 
+FROM ${DOTNET_SDK_IMAGE} AS acadsharp-builder
+
+ARG NUGET_SOURCE=https://api.nuget.org/v3/index.json
+WORKDIR /src
+COPY services/cad-preview/engines/acadsharp/AcadSharpDwgToDxf.csproj ./
+RUN --mount=type=cache,target=/root/.nuget/packages,sharing=locked \
+    for attempt in 1 2 3; do \
+      timeout 600 dotnet restore AcadSharpDwgToDxf.csproj \
+        --source "${NUGET_SOURCE}" \
+        --disable-parallel \
+        && break; \
+      if [ "${attempt}" = 3 ]; then exit 1; fi; \
+      sleep "$((attempt * 5))"; \
+    done
+COPY services/cad-preview/engines/acadsharp/Program.cs ./
+RUN --mount=type=cache,target=/root/.nuget/packages,sharing=locked \
+    timeout 600 dotnet publish AcadSharpDwgToDxf.csproj \
+      --configuration Release \
+      --runtime linux-x64 \
+      --no-restore \
+      --output /out
+
 FROM python:3.12-slim-bookworm AS runtime
 
 ARG DEBIAN_MIRROR=http://mirrors.aliyun.com
@@ -50,12 +74,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     CAD_PREVIEW_MAX_LAYOUTS=20 \
     CAD_PREVIEW_MAX_CONCURRENT_CONVERSIONS=2 \
     CAD_PREVIEW_QUEUE_TIMEOUT_SECONDS=120 \
+    CAD_PREVIEW_LIBREDWG_COMMAND=dwg2dxf \
+    CAD_PREVIEW_ACADSHARP_COMMAND=/usr/local/bin/acadsharp-dwg2dxf \
+    CAD_PREVIEW_AUTO_ENGINE_ORDER=qcad,acadsharp,libredwg \
     CAD_PREVIEW_FONT_DIRS=/usr/local/share/fonts/mes-lite:/opt/cad-fonts \
     CAD_PREVIEW_MANAGED_FONT_DIRS=/opt/cad-fonts \
     MPLCONFIGDIR=/tmp/matplotlib \
     XDG_CACHE_HOME=/tmp/cache
 
 COPY --from=libredwg-builder /opt/libredwg/usr/local/ /usr/local/
+COPY --from=acadsharp-builder /out/AcadSharpDwgToDxf /usr/local/bin/acadsharp-dwg2dxf
 COPY services/cad-preview/requirements.txt /tmp/requirements.txt
 COPY assets/fonts/NotoSansCJKsc-Regular.otf /usr/local/share/fonts/mes-lite/NotoSansCJKsc-Regular.otf
 
@@ -73,8 +101,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && ldconfig \
     && fc-cache -f \
     && pip install --disable-pip-version-check --no-cache-dir --index-url "${PIP_INDEX_URL}" -r /tmp/requirements.txt \
+    && chmod 0755 /usr/local/bin/acadsharp-dwg2dxf \
     && command -v dwg2dxf >/dev/null \
     && command -v dxf2dwg >/dev/null \
+    && command -v acadsharp-dwg2dxf >/dev/null \
     && useradd --create-home --uid 10001 --shell /usr/sbin/nologin cadpreview \
     && mkdir -p /opt/cad-fonts \
     && chown cadpreview:cadpreview /opt/cad-fonts

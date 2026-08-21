@@ -132,14 +132,14 @@ async function main() {
     }, {
       naturalMaterialCodeSortEnabled: true, companyName: 'MES-lite 测试企业', companyContact: '',
       companyPhone: '', companyAddress: '', businessDocumentPrintDensity: 'compact',
-      businessDocumentPrintMarginMm: 10, aiLoadingIndicatorEnabled: true, contrastMode: 'standard',
+      businessDocumentPrintMarginMm: 10, aiLoadingIndicatorEnabled: true, contrastMode: 'standard', cadPreviewEngine: 'auto',
     })
     assert.equal(standalonePdf.subarray(0, 5).toString(), '%PDF-')
     assert.ok(standalonePdf.byteLength > 5_000, 'PDF 不应为空壳文件')
     assert.equal(businessDocumentPrintProfile({
       naturalMaterialCodeSortEnabled: true, companyName: '', companyContact: '', companyPhone: '', companyAddress: '',
       businessDocumentPrintDensity: 'compact', businessDocumentPrintMarginMm: 10,
-      aiLoadingIndicatorEnabled: true, contrastMode: 'standard',
+      aiLoadingIndicatorEnabled: true, contrastMode: 'standard', cadPreviewEngine: 'auto',
     }), 'business-document-print:v2:compact:10')
 
     const compactReceiptPdf = await renderBusinessDocumentPdf({
@@ -166,7 +166,7 @@ async function main() {
     }, {
       naturalMaterialCodeSortEnabled: true, companyName: 'MES-lite 测试企业', companyContact: '',
       companyPhone: '', companyAddress: '', businessDocumentPrintDensity: 'compact',
-      businessDocumentPrintMarginMm: 10, aiLoadingIndicatorEnabled: true, contrastMode: 'standard',
+      businessDocumentPrintMarginMm: 10, aiLoadingIndicatorEnabled: true, contrastMode: 'standard', cadPreviewEngine: 'auto',
     })
     const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
     const compactDocument = await getDocument({ data: new Uint8Array(compactReceiptPdf) }).promise

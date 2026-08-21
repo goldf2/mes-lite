@@ -6,6 +6,7 @@ import json
 import os
 import pwd
 import shutil
+import shlex
 import stat
 import subprocess
 import tempfile
@@ -27,7 +28,7 @@ from ezdxf.addons.drawing import pymupdf as drawing_pymupdf
 from ezdxf.fonts import fonts
 
 
-SERVICE_NAME = "mes-lite-libredwg-preview"
+SERVICE_NAME = "mes-lite-cad-preview"
 MAX_UPLOAD_BYTES = min(max(int(os.getenv("CAD_PREVIEW_MAX_UPLOAD_BYTES", 50 * 1024 * 1024)), 1024), 100 * 1024 * 1024)
 COMMAND_TIMEOUT_SECONDS = min(max(int(os.getenv("CAD_PREVIEW_COMMAND_TIMEOUT_SECONDS", "90")), 5), 600)
 MAX_LAYOUTS = min(max(int(os.getenv("CAD_PREVIEW_MAX_LAYOUTS", "20")), 1), 100)
@@ -36,6 +37,8 @@ CONVERSION_QUEUE_TIMEOUT_SECONDS = min(max(int(os.getenv("CAD_PREVIEW_QUEUE_TIME
 CJK_FALLBACK_FONT = "NotoSansCJKsc-Regular.otf"
 DEFAULT_FONT_DIRECTORIES = "/usr/local/share/fonts/mes-lite:/opt/cad-fonts"
 CONVERSION_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_CONVERSIONS)
+SUPPORTED_ENGINES = ("libredwg", "acadsharp", "qcad")
+DEFAULT_AUTO_ENGINE_ORDER = "qcad,acadsharp,libredwg"
 
 
 class ConversionError(RuntimeError):
@@ -132,11 +135,50 @@ def _command_error(result: subprocess.CompletedProcess[str]) -> str:
     return detail[-4000:] if detail else f"exit={result.returncode}"
 
 
-def convert_dwg_to_dxf(source: Path, target: Path, *, minimal: bool) -> None:
-    command = ["dwg2dxf"]
-    if minimal:
-        command.append("-m")
-    command.extend(["-y", "-o", str(target), str(source)])
+def _configured_command(environment_key: str, default: str = "") -> list[str]:
+    configured = os.getenv(environment_key, default).strip()
+    return shlex.split(configured) if configured else []
+
+
+def _command_available(command: list[str]) -> bool:
+    if not command:
+        return False
+    executable = command[0]
+    if os.path.sep in executable:
+        path = Path(executable)
+        return path.is_file() and os.access(path, os.X_OK)
+    return shutil.which(executable) is not None
+
+
+def configured_auto_engine_order() -> tuple[str, ...]:
+    configured = os.getenv("CAD_PREVIEW_AUTO_ENGINE_ORDER", DEFAULT_AUTO_ENGINE_ORDER)
+    values = configured.replace(":", ",").split(",")
+    order = tuple(dict.fromkeys(item.strip().lower() for item in values if item.strip().lower() in SUPPORTED_ENGINES))
+    return order or SUPPORTED_ENGINES
+
+
+def cad_engine_statuses() -> tuple[dict[str, object], ...]:
+    commands = {
+        "libredwg": _configured_command("CAD_PREVIEW_LIBREDWG_COMMAND", "dwg2dxf"),
+        "acadsharp": _configured_command("CAD_PREVIEW_ACADSHARP_COMMAND", "acadsharp-dwg2dxf"),
+        "qcad": _configured_command("CAD_PREVIEW_QCAD_COMMAND"),
+    }
+    labels = {"libredwg": "LibreDWG", "acadsharp": "ACadSharp", "qcad": "QCAD"}
+    statuses: list[dict[str, object]] = []
+    for engine in SUPPORTED_ENGINES:
+        command = commands[engine]
+        available = _command_available(command)
+        if engine == "qcad" and not command:
+            detail = "未配置 CAD_PREVIEW_QCAD_COMMAND；QCAD 需单独安装并持有合法授权"
+        elif available:
+            detail = f"{labels[engine]} 命令可用：{command[0]}"
+        else:
+            detail = f"{labels[engine]} 命令不可用：{command[0] if command else '未配置'}"
+        statuses.append({"engine": engine, "available": available, "detail": detail})
+    return tuple(statuses)
+
+
+def _run_converter(command: list[str], source: Path, target: Path, label: str) -> None:
     target.unlink(missing_ok=True)
     try:
         result = subprocess.run(
@@ -148,9 +190,36 @@ def convert_dwg_to_dxf(source: Path, target: Path, *, minimal: bool) -> None:
             timeout=COMMAND_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired as error:
-        raise ConversionError(f"LibreDWG 转换超时：{error.timeout}s") from error
+        raise ConversionError(f"{label} 转换超时：{error.timeout}s") from error
     if result.returncode != 0 or not target.is_file() or target.stat().st_size == 0:
-        raise ConversionError(f"LibreDWG 无法读取该 DWG：{_command_error(result)}")
+        raise ConversionError(f"{label} 无法读取该 DWG：{_command_error(result)}")
+
+
+def convert_libredwg_to_dxf(source: Path, target: Path, *, minimal: bool) -> None:
+    base_command = _configured_command("CAD_PREVIEW_LIBREDWG_COMMAND", "dwg2dxf")
+    if not _command_available(base_command):
+        raise ConversionError("LibreDWG 命令不可用")
+    command = [*base_command]
+    if minimal:
+        command.append("-m")
+    command.extend(["-y", "-o", str(target), str(source)])
+    _run_converter(command, source, target, "LibreDWG")
+
+
+def convert_acadsharp_to_dxf(source: Path, target: Path) -> None:
+    base_command = _configured_command("CAD_PREVIEW_ACADSHARP_COMMAND", "acadsharp-dwg2dxf")
+    if not _command_available(base_command):
+        raise ConversionError("ACadSharp 命令不可用")
+    _run_converter([*base_command, str(source), str(target)], source, target, "ACadSharp")
+
+
+def convert_qcad_to_dxf(source: Path, target: Path) -> None:
+    base_command = _configured_command("CAD_PREVIEW_QCAD_COMMAND")
+    if not base_command:
+        raise ConversionError("QCAD 未配置；请安装 QCAD Professional 并设置 CAD_PREVIEW_QCAD_COMMAND")
+    if not _command_available(base_command):
+        raise ConversionError(f"QCAD 命令不可用：{base_command[0]}")
+    _run_converter([*base_command, "-f", "-r", "R15", "-o", str(target), str(source)], source, target, "QCAD")
 
 
 def _renderable_layouts(document: ezdxf.document.Drawing):
@@ -219,23 +288,76 @@ def render_dxf_to_pdf(source: Path, target: Path) -> None:
         output.close()
 
 
-def convert_source_to_pdf(source: Path, target: Path) -> None:
+def validate_rendered_pdf(target: Path) -> None:
+    try:
+        document = fitz.open(target)
+    except Exception as error:
+        raise ConversionError(f"转换结果不是有效 PDF：{error}") from error
+    try:
+        if document.page_count == 0:
+            raise ConversionError("转换结果没有页面")
+        drawing_marks = 0
+        text_characters = 0
+        for page in document:
+            drawing_marks += len(page.get_drawings())
+            text_characters += len("".join(page.get_text("text").split()))
+        if drawing_marks < 3 and text_characters < 2:
+            raise ConversionError(
+                f"转换结果内容明显不足（图元组 {drawing_marks}，文本 {text_characters} 字），将尝试其他引擎"
+            )
+    finally:
+        document.close()
+
+
+def _convert_with_engine(source: Path, target: Path, engine: str) -> None:
+    converted = source.with_suffix(f".{engine}.converted.dxf")
+    if engine == "libredwg":
+        failures: list[str] = []
+        for minimal in (False, True):
+            try:
+                convert_libredwg_to_dxf(source, converted, minimal=minimal)
+                render_dxf_to_pdf(converted, target)
+                validate_rendered_pdf(target)
+                return
+            except ConversionError as error:
+                failures.append(f"{'最小' if minimal else '完整'}模式：{error}")
+        raise ConversionError(f"LibreDWG 无法生成可用预览：{'；'.join(failures)}")
+    if engine == "acadsharp":
+        convert_acadsharp_to_dxf(source, converted)
+    elif engine == "qcad":
+        convert_qcad_to_dxf(source, converted)
+    else:
+        raise ConversionError(f"不支持的 CAD 转换引擎：{engine}")
+    render_dxf_to_pdf(converted, target)
+    validate_rendered_pdf(target)
+
+
+def convert_source_to_pdf(source: Path, target: Path, engine: str = "auto") -> str:
     extension = source.suffix.lower()
     if extension == ".dxf":
         render_dxf_to_pdf(source, target)
-        return
+        validate_rendered_pdf(target)
+        return "dxf"
     if extension != ".dwg":
         raise ConversionError("仅支持 DWG 或 DXF 文件")
-    converted = source.with_suffix(".converted.dxf")
+
+    selected_engine = engine.strip().lower()
+    if selected_engine not in (*SUPPORTED_ENGINES, "auto"):
+        raise ConversionError(f"不支持的 CAD 转换引擎：{engine}")
+    candidates = configured_auto_engine_order() if selected_engine == "auto" else (selected_engine,)
+    available = {str(item["engine"]): item["available"] is True for item in cad_engine_statuses()}
     failures: list[str] = []
-    for minimal in (False, True):
+    for candidate in candidates:
+        if not available.get(candidate, False):
+            failures.append(f"{candidate}：引擎不可用")
+            continue
         try:
-            convert_dwg_to_dxf(source, converted, minimal=minimal)
-            render_dxf_to_pdf(converted, target)
-            return
+            target.unlink(missing_ok=True)
+            _convert_with_engine(source, target, candidate)
+            return candidate
         except ConversionError as error:
-            failures.append(f"{'最小' if minimal else '完整'}模式：{error}")
-    raise ConversionError(f"LibreDWG 无法生成可预览图纸：{'；'.join(failures)}")
+            failures.append(f"{candidate}：{error}")
+    raise ConversionError(f"CAD 图纸转换失败：{'；'.join(failures) or '没有可用引擎'}")
 
 
 def _authorized(headers) -> bool:
@@ -296,22 +418,24 @@ class CadPreviewHandler(BaseHTTPRequestHandler):
             return
         if not self._require_authorization():
             return
-        if shutil.which("dwg2dxf") is None:
-            self._text(HTTPStatus.SERVICE_UNAVAILABLE, "LibreDWG dwg2dxf unavailable")
-            return
         font_directory_status = current_cad_font_directory_status()
         fonts_ready = all(item["status"] == "ready" for item in font_directory_status)
+        engine_statuses = cad_engine_statuses()
+        engines_ready = any(item["available"] is True for item in engine_statuses)
+        service_ready = fonts_ready and engines_ready
         payload = json.dumps(
             {
-                "status": "ok" if fonts_ready else "unavailable",
-                "engine": "LibreDWG+ezdxf",
+                "status": "ok" if service_ready else "unavailable",
+                "engine": "multi+ezdxf",
+                "autoOrder": configured_auto_engine_order(),
+                "engines": engine_statuses,
                 "fontDirectories": font_directory_status,
             },
             ensure_ascii=False,
             separators=(",", ":"),
         ).encode("utf-8")
         self._send(
-            HTTPStatus.OK if fonts_ready else HTTPStatus.SERVICE_UNAVAILABLE,
+            HTTPStatus.OK if service_ready else HTTPStatus.SERVICE_UNAVAILABLE,
             payload,
             "application/json; charset=utf-8",
         )
@@ -347,11 +471,19 @@ class CadPreviewHandler(BaseHTTPRequestHandler):
                 source = Path(temporary_directory) / f"source{extension}"
                 target = Path(temporary_directory) / "preview.pdf"
                 source.write_bytes(file_bytes)
-                convert_source_to_pdf(source, target)
+                requested_engine = fields.get("engine", "auto").strip().lower()
+                selected_engine = convert_source_to_pdf(source, target, requested_engine)
                 converted = target.read_bytes()
             if not converted.startswith(b"%PDF-"):
                 raise ConversionError("转换结果不是有效 PDF")
-            self._send(HTTPStatus.OK, converted, "application/pdf")
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "application/pdf")
+            self.send_header("Content-Length", str(len(converted)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("X-CAD-Preview-Engine", selected_engine)
+            self.end_headers()
+            self.wfile.write(converted)
         except ConversionError as error:
             self._text(HTTPStatus.UNPROCESSABLE_ENTITY, str(error))
         except Exception as error:
@@ -370,7 +502,8 @@ def main() -> None:
     server = ThreadingHTTPServer((host, port), CadPreviewHandler)
     print(
         f"{SERVICE_NAME} listening on {host}:{port}; "
-        f"conversions={MAX_CONCURRENT_CONVERSIONS}; fonts={','.join(CAD_FONT_DIRECTORIES) or 'none'}",
+        f"conversions={MAX_CONCURRENT_CONVERSIONS}; engines={','.join(configured_auto_engine_order())}; "
+        f"fonts={','.join(CAD_FONT_DIRECTORIES) or 'none'}",
         flush=True,
     )
     for directory in CAD_FONT_DIRECTORY_STATUS:

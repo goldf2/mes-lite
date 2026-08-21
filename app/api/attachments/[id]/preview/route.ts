@@ -6,6 +6,7 @@ import { ensureOfficeDocumentPreview } from '@/lib/office-document-preview'
 import { ensureCadDocumentPreview } from '@/lib/files/cad-document-preview'
 import { AttachmentDomainError } from '@/modules/attachments/domain/attachment-errors'
 import { requireManagedAttachmentAccess } from '@/modules/attachments/server/attachment-authorization-service'
+import { getSystemSettings } from '@/lib/system-settings'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -22,10 +23,11 @@ export async function GET(
       return NextResponse.redirect(new URL(`/api/attachments/${attachment.id}/file`, _req.url))
     }
 
+    const cadPreviewEngine = kind === 'cad' ? (await getSystemSettings()).cadPreviewEngine : 'auto'
     const previewPath = kind === 'office'
       ? await ensureOfficeDocumentPreview(attachment)
       : kind === 'cad'
-        ? await ensureCadDocumentPreview(attachment)
+        ? await ensureCadDocumentPreview(attachment, cadPreviewEngine)
         : resolveAttachmentStoragePath(attachment.storagePath)
     const previewStat = await stat(previewPath)
     const etag = `"attachment-preview-${attachment.id}-${previewStat.size}-${Math.trunc(previewStat.mtimeMs)}"`

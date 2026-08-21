@@ -39,7 +39,15 @@ async function main() {
       return
     }
     if (request.url === '/health' && request.method === 'GET') {
-      response.writeHead(200, { 'Content-Type': 'application/json' }).end('{"status":"ok"}')
+      response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
+        status: 'ok',
+        autoOrder: ['qcad', 'acadsharp', 'libredwg'],
+        engines: [
+          { engine: 'libredwg', available: true, detail: 'LibreDWG ready' },
+          { engine: 'acadsharp', available: true, detail: 'ACadSharp ready' },
+          { engine: 'qcad', available: false, detail: 'QCAD not configured' },
+        ],
+      }))
       return
     }
     if (request.url === '/v1/convert/pdf' && request.method === 'POST') {
@@ -72,12 +80,21 @@ async function main() {
     await writeFile(sourcePath, Buffer.from('synthetic-dwg-source'))
     const preview = await import('../lib/files/cad-document-preview')
     const thumbnail = await import('../lib/attachment-thumbnail')
-    assert.deepEqual(await preview.checkCadPreviewService(), { configured: true, available: true })
-    assert.equal(preview.cadPreviewVersion, 2)
+    assert.deepEqual(await preview.checkCadPreviewService(), {
+      configured: true,
+      available: true,
+      autoOrder: ['qcad', 'acadsharp', 'libredwg'],
+      engines: [
+        { engine: 'libredwg', available: true, detail: 'LibreDWG ready' },
+        { engine: 'acadsharp', available: true, detail: 'ACadSharp ready' },
+        { engine: 'qcad', available: false, detail: 'QCAD not configured' },
+      ],
+    })
+    assert.equal(preview.cadPreviewVersion, 3)
     assert.match(
       thumbnail.attachmentThumbnailStoragePath(sourcePath, 0, 'cad'),
-      /\.thumb-cad-v2-r0\.png$/,
-      'CAD 缩略图必须随字体回退版本失效',
+      /\.thumb-cad-v3-auto-r0\.png$/,
+      'CAD 缩略图必须随转换版本和选择的引擎隔离',
     )
 
     const source = {
@@ -88,11 +105,17 @@ async function main() {
     const firstPath = await preview.ensureCadDocumentPreview(source)
     const secondPath = await preview.ensureCadDocumentPreview(source)
     assert.equal(firstPath, secondPath)
-    assert.match(firstPath, /\.preview-cad-v2\.pdf$/, '字体回退变更必须使用新缓存版本重新生成 CAD 预览')
+    assert.match(firstPath, /\.preview-cad-v3-auto\.pdf$/, '多引擎预览必须使用独立缓存版本')
     assert.deepEqual(await readFile(firstPath), pdfBytes)
     assert.equal(conversionRequests, 1, 'CAD 派生 PDF 必须持久缓存，重复打开不得重复转换')
     assert.match(conversionBodies[0].toString('utf8'), /name="output"/)
+    assert.match(conversionBodies[0].toString('utf8'), /name="engine"[\s\S]*auto/)
     assert.match(conversionBodies[0].toString('utf8'), /name="file"; filename="drawing.dwg"/)
+
+    const acadSharpPath = await preview.ensureCadDocumentPreview(source, 'acadsharp')
+    assert.match(acadSharpPath, /\.preview-cad-v3-acadsharp\.pdf$/, '显式引擎必须使用自己的派生 PDF 缓存')
+    assert.notEqual(acadSharpPath, firstPath)
+    assert.match(conversionBodies[1].toString('utf8'), /name="engine"[\s\S]*acadsharp/)
 
     const thumbnailPath = thumbnail.attachmentThumbnailStoragePath(sourcePath, 0, 'cad')
     await writeFile(thumbnailPath, Buffer.from('cached-thumbnail'))
@@ -100,7 +123,7 @@ async function main() {
     await thumbnail.removeAttachmentThumbnailFiles(source)
     await assert.rejects(access(thumbnailPath), '手动重新生成必须清理该 CAD 附件的缩略图缓存')
     assert.deepEqual(await readFile(firstPath), pdfBytes)
-    assert.equal(conversionRequests, 2, '手动重新生成必须绕过已有 PDF 缓存并重新请求转换服务')
+    assert.equal(conversionRequests, 3, '手动重新生成必须绕过已有 PDF 缓存并重新请求转换服务')
 
     invalidResponse = true
     await assert.rejects(() => preview.regenerateCadDocumentPreview(source), /返回的 PDF 无效/)

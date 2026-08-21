@@ -4,6 +4,7 @@
 
 | 版本 | 日期 | 变更记录 | 验证证据 | 待整理文档 |
 | --- | --- | --- | --- | --- |
+| v0.1.430 | 2026-08-21 | CAD 预览升级为可切换的多引擎链路：默认镜像内置 LibreDWG 与 MIT 许可 ACadSharp，支持部署方合法外挂 QCAD Professional；系统设置新增“文件预览”，显示各引擎健康状态并选择自动或指定引擎。自动模式按配置顺序回退并拒绝明显空白/稀疏的假成功结果，派生 PDF 与缩略图按引擎隔离缓存 | TypeScript、CAD 客户端/服务结构、系统设置模块、页面注册、权限迁移与工作区导航定向回归；候选 GitHub Actions 负责构建并运行多引擎 Docker 冒烟及完整 `verify:ci` | 已同步多引擎服务说明、ADR、Coolify 总册与专项手册、系统交互/流程/数据模型、页面模块和权限矩阵；生产仍需重新部署 `cad-preview` 与 MES-lite，并用真实企业图纸逐引擎验收 |
 | v0.1.429 | 2026-08-21 | 修复产品文档卡片缩略图长期停留在“正在读取缩略图”：原生懒加载图片不再在完成前使用 `display:none`，改为保留布局的透明图片与覆盖式加载/错误状态，避免浏览器因元素不可见而不发起请求 | `verify:libredwg-cad-preview` 先复现失败，修复后锁定懒加载图片不得隐藏且必须保留透明布局；TypeScript、Lint 与文档 SOP 校验 | 生产部署后确认卡片缩略图请求实际发出，成功显示图片、失败进入“预览不可用” |
 | v0.1.428 | 2026-08-21 | 统一外挂 CAD 字体卷的 Coolify 标准模式：卷在容器平台层保持可写，仅供 root 入口幂等修权；入口完成后转换进程仍为只读。修正专项手册遗留的“只读持久挂载”冲突，并在 Custom Docker Options 示例中完整保留启动修权和降权所需的六项 capability | `verify:libredwg-cad-preview` 新增挂载模式与 capability 完整性回归；完整 `verify:ci` | 生产 `cad-preview` 仍需核对新镜像、RW 字体卷、启动日志和 `/health.fontDirectories` |
 | v0.1.427 | 2026-08-21 | 外挂 CAD 字体目录采用受控 root 初始化、随后降权的标准模式：入口仅修复 `/opt/cad-fonts` 白名单，拒绝符号链接，统一为目录 `root:cadpreview 0750`、文件 `root:cadpreview 0640`，再清空 capability 集并以 UID 10001 运行转换器；启动与受令牌保护的 `/health` 同时报告路径所有者、UID/GID、权限位和有效读写状态，配置路径不可用时明确拒绝启动 | 非 root 真实入口冒烟覆盖可读目录、普通文件和无权限目录；`verify:libredwg-cad-preview` 锁定路径白名单、权限修复、capability 清空、健康诊断；Python 编译、Docker 镜像转换冒烟及完整 `verify:ci` | 已同步 CAD 服务说明、Coolify 专项手册、部署总册、ADR 与文档 SOP；生产部署后核对入口日志和 `/health.fontDirectories`，再上传授权字体复验 |

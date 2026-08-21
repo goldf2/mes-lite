@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { readFile, stat } from 'fs/promises'
 import { ensureAttachmentThumbnail } from '@/lib/attachment-thumbnail'
 import { attachmentPreviewKind, canGenerateAttachmentThumbnail } from '@/lib/attachment-file-types'
-import { cadPreviewVersion } from '@/lib/files/cad-document-preview'
+import { cadPreviewCacheKey } from '@/lib/files/cad-document-preview'
+import { getSystemSettings } from '@/lib/system-settings'
 import { AttachmentDomainError } from '@/modules/attachments/domain/attachment-errors'
 import { requireManagedAttachmentAccess } from '@/modules/attachments/server/attachment-authorization-service'
 
@@ -20,8 +21,9 @@ export async function GET(
     }
 
     const previewKind = attachmentPreviewKind(attachment.originalName, attachment.mimeType)
-    const cacheVersion = previewKind === 'cad' ? `-cad-v${cadPreviewVersion}` : ''
-    const thumbnailPath = await ensureAttachmentThumbnail(attachment)
+    const cadPreviewEngine = previewKind === 'cad' ? (await getSystemSettings()).cadPreviewEngine : 'auto'
+    const cacheVersion = previewKind === 'cad' ? `-${cadPreviewCacheKey(cadPreviewEngine)}` : ''
+    const thumbnailPath = await ensureAttachmentThumbnail(attachment, cadPreviewEngine)
     const thumbnailStat = await stat(thumbnailPath)
     const etag = `"attachment-thumbnail-${attachment.id}-${attachment.rotation}${cacheVersion}-${thumbnailStat.size}-${Math.trunc(thumbnailStat.mtimeMs)}"`
     if (req.headers.get('if-none-match') === etag) {

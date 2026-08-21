@@ -6,14 +6,22 @@ import tempfile
 from pathlib import Path
 
 import ezdxf
+try:
+    import pymupdf as fitz
+except ImportError:
+    import fitz
 
 from server import (
     CAD_FONT_DIRECTORIES,
     CAD_FONT_DIRECTORY_STATUS,
     CJK_FALLBACK_FONT,
     apply_cad_font_fallbacks,
+    cad_engine_statuses,
+    configured_auto_engine_order,
     convert_source_to_pdf,
     inspect_cad_font_directory,
+    validate_rendered_pdf,
+    ConversionError,
 )
 
 
@@ -49,7 +57,7 @@ def main() -> None:
         source_dxf = root / "drawing.dxf"
         source_dwg = root / "drawing.dwg"
         dxf_pdf = root / "dxf.pdf"
-        dwg_pdf = root / "dwg.pdf"
+        dwg_pdf = root / "dwg-auto.pdf"
 
         document = ezdxf.new("R2000")
         modelspace = document.modelspace()
@@ -68,8 +76,20 @@ def main() -> None:
         apply_cad_font_fallbacks(document)
         assert available_style.dxf.font == CJK_FALLBACK_FONT
 
-        convert_source_to_pdf(source_dxf, dxf_pdf)
+        assert convert_source_to_pdf(source_dxf, dxf_pdf) == "dxf"
         assert_pdf(dxf_pdf)
+
+        sparse_pdf = root / "sparse.pdf"
+        sparse = fitz.open()
+        sparse.new_page().draw_rect(fitz.Rect(20, 20, 80, 40), fill=(0, 0, 0))
+        sparse.save(sparse_pdf)
+        sparse.close()
+        try:
+            validate_rendered_pdf(sparse_pdf)
+        except ConversionError:
+            pass
+        else:
+            raise AssertionError("obviously sparse PDF must be rejected")
 
         result = subprocess.run(
             ["dxf2dwg", "-y", "-o", str(source_dwg), str(source_dxf)],
@@ -79,10 +99,21 @@ def main() -> None:
         )
         if result.returncode != 0 or not source_dwg.is_file():
             raise RuntimeError(f"LibreDWG DXF fixture conversion failed: {result.stdout}\n{result.stderr}")
-        convert_source_to_pdf(source_dwg, dwg_pdf)
+        statuses = {str(item["engine"]): item["available"] is True for item in cad_engine_statuses()}
+        assert statuses["libredwg"] is True
+        assert statuses["acadsharp"] is True
+        assert statuses["qcad"] is False
+        assert configured_auto_engine_order() == ("qcad", "acadsharp", "libredwg")
+
+        for engine in ("libredwg", "acadsharp"):
+            engine_pdf = root / f"dwg-{engine}.pdf"
+            assert convert_source_to_pdf(source_dwg, engine_pdf, engine) == engine
+            assert_pdf(engine_pdf)
+
+        assert convert_source_to_pdf(source_dwg, dwg_pdf, "auto") in {"acadsharp", "libredwg"}
         assert_pdf(dwg_pdf)
 
-    print("LibreDWG CAD preview smoke test passed")
+    print("Multi-engine CAD preview smoke test passed")
 
 
 if __name__ == "__main__":

@@ -99,12 +99,12 @@ Collabora 应部署为独立 Coolify Service 或独立主机，不与 MES-lite S
 
 ### 3.1 自托管 DWG/DXF 只读预览
 
-DWG/DXF 原文件继续保存在附件持久卷中，MES-lite 不在 Web 主进程加载 CAD SDK。首次打开图纸时，应用把受权附件发送给同一私有网络内的隔离转换服务，生成只读 PDF 派生文件并持久缓存；后续查看和缩略图复用现有 PDF 查看器。仓库提供 `services/cad-preview/` 开源试用服务：LibreDWG 把 DWG 转为 DXF，再由 ezdxf/PyMuPDF 生成 PDF；DXF 直接进入相同渲染链路。图纸引用的 SHX 或 CAD 大字体不在镜像内时，转换器用随仓库交付的 Noto Sans CJK SC 替代，避免已经正确解码的中文显示为方框；替代字体的字宽和原始 SHX 可能不同，关键图纸仍需按真实样本验收版式。MES 主应用和转换容器默认都把活动转换限制为 2 个，列表缩略图延迟加载，避免批量导入后同时打开大量转换请求。
+DWG/DXF 原文件继续保存在附件持久卷中，MES-lite 不在 Web 主进程加载 CAD SDK。首次打开图纸时，应用把受权附件发送给同一私有网络内的隔离转换服务，生成只读 PDF 派生文件并按引擎持久缓存；后续查看和缩略图复用现有 PDF 查看器。仓库提供 `services/cad-preview/` 多引擎服务：内置免费 LibreDWG 与 ACadSharp，把 DWG 转为 DXF，再由 ezdxf/PyMuPDF 生成 PDF；还可调用部署方单独安装并合法授权的 QCAD Professional。系统设置“文件预览”允许选择自动或指定引擎；自动模式会跳过不可用引擎，并在结果明显空白/稀疏时回退。DXF 直接进入相同渲染链路。图纸引用的 SHX 或 CAD 大字体不在镜像内时，转换器用随仓库交付的 Noto Sans CJK SC 替代，避免已经正确解码的中文显示为方框；替代字体的字宽和原始 SHX 可能不同，关键图纸仍需按真实样本验收版式。MES 主应用和转换容器默认都把活动转换限制为 2 个，列表缩略图延迟加载，避免批量导入后同时打开大量转换请求。
 
 转换服务必须实现以下内部契约：
 
-- `GET /health`：返回 2xx 表示可用。
-- `POST /v1/convert/pdf`：`multipart/form-data`，文件字段为 `file`，另有 `output=pdf`；成功时返回以 `%PDF-` 开头且不超过 100 MB 的 PDF。
+- `GET /health`：返回 2xx 表示至少一个引擎和字体目录可用，并返回 `autoOrder` 与每个引擎的可用状态。
+- `POST /v1/convert/pdf`：`multipart/form-data`，文件字段为 `file`，另有 `output=pdf` 与 `engine=auto|libredwg|acadsharp|qcad`；成功时返回以 `%PDF-` 开头且不超过 100 MB 的 PDF，并在 `X-CAD-Preview-Engine` 标明实际引擎。
 - 设置 `CAD_PREVIEW_SERVICE_TOKEN` 时，两条请求都必须校验 `Authorization: Bearer <token>`。
 - `CAD_PREVIEW_TIMEOUT_MS` 允许 5 秒至 10 分钟，默认 120 秒；readiness 健康探测固定最多等待 5 秒。
 
@@ -114,15 +114,15 @@ DWG/DXF 原文件继续保存在附件持久卷中，MES-lite 不在 Web 主进�
 
 1. Repository 与 MES-lite 相同，Build Pack 选择 Dockerfile，Build Context 使用仓库根目录，Dockerfile Location 填写 `services/cad-preview/Dockerfile`。
 2. 不绑定域名、不暴露公网端口；容器仅在 Coolify 私有网络监听 `8080`。为转换器设置 `CAD_PREVIEW_SERVICE_TOKEN`，再在 MES-lite 设置同值令牌和 `CAD_PREVIEW_SERVICE_URL=http://<转换器内部别名>:8080`。
-3. 建议从 1 CPU、1 GiB 内存、256 MiB 临时空间和单实例开始，启用只读根文件系统、`/tmp` tmpfs、`no-new-privileges` 与 capability drop（以当前 Coolify 可用选项为准）。转换器不挂载数据库、附件目录或备份目录；需要企业字体时仅增加 `/opt/cad-fonts` 持久挂载，并设置 `CAD_PREVIEW_FONT_DIRS=/usr/local/share/fonts/mes-lite:/opt/cad-fonts` 与 `CAD_PREVIEW_MANAGED_FONT_DIRS=/opt/cad-fonts`。该挂载须允许入口短暂以 root 修正为目录 `0750`、文件 `0640`；若平台支持 capability 配置，先 `drop ALL`，仅增加 `CHOWN`、`FOWNER`、`DAC_OVERRIDE`、`SETUID`、`SETGID`、`SETPCAP`。随后入口启用 no-new-privileges、清空 capability 集并降为无特权用户，转换进程对字体不可写；不得把受控修复范围扩大到其他路径。
+3. 建议从 1 CPU、1.5 GiB 内存、512 MiB 临时空间和单实例开始，启用只读根文件系统、`/tmp` tmpfs、`no-new-privileges` 与 capability drop（以当前 Coolify 可用选项为准）。转换器不挂载数据库、附件目录或备份目录；需要企业字体时仅增加 `/opt/cad-fonts` 持久挂载，并设置 `CAD_PREVIEW_FONT_DIRS=/usr/local/share/fonts/mes-lite:/opt/cad-fonts` 与 `CAD_PREVIEW_MANAGED_FONT_DIRS=/opt/cad-fonts`。该挂载须允许入口短暂以 root 修正为目录 `0750`、文件 `0640`；若平台支持 capability 配置，先 `drop ALL`，仅增加 `CHOWN`、`FOWNER`、`DAC_OVERRIDE`、`SETUID`、`SETGID`、`SETPCAP`。随后入口启用 no-new-privileges、清空 capability 集并降为无特权用户，转换进程对字体不可写；不得把受控修复范围扩大到其他路径。
 4. Health Check 使用 `/health`；若令牌已启用而 Coolify 的 HTTP 健康检查不能添加请求头，则保留 Dockerfile 内置健康检查，不另建无鉴权公网探针。
 5. 先部署并确认转换器健康，再给 MES-lite 写入上述两个环境变量并重新部署；回滚时先移除 `CAD_PREVIEW_SERVICE_URL`，MES-lite 会退回下载原文件且 readiness 仅警告。
 
-逐字段配置、令牌生成、外挂字体目录、资源限制、部署顺序、常见故障、真实样本验收和回滚记录见 [LibreDWG CAD 预览服务 Coolify 配置手册](./LibreDWG-Coolify配置手册.md)。真实 Secret 只保存到 Coolify，不写入该手册或仓库；受许可证限制的企业字体也不要提交到仓库。
+逐字段配置、令牌生成、外挂字体目录、资源限制、部署顺序、常见故障、真实样本验收和回滚记录见 [多引擎 CAD 预览服务 Coolify 配置手册](./LibreDWG-Coolify配置手册.md)。真实 Secret 只保存到 Coolify，不写入该手册或仓库；受许可证限制的企业字体也不要提交到仓库。
 
-容器发布前必须使用企业真实样本建立验收集，至少覆盖：R2000、R2007+、单模型空间、多布局、中文字体、外部参照、块、尺寸标注、大图和已知复杂实体。LibreDWG 与 ezdxf 不保证所有版本和垂直产品实体的像素级兼容；任一样本转换失败或关键内容缺失，都应保留原文件下载/配套 PDF，并评估在同一内部契约后替换 ODA 等引擎。
+容器发布前必须使用企业真实样本建立验收集，至少覆盖：R2000、R2007+、单模型空间、多布局、中文字体、外部参照、块、尺寸标注、大图和已知复杂实体。LibreDWG、ACadSharp、QCAD 与 ezdxf 均不能仅凭 HTTP 成功证明版式正确；任一样本转换失败或关键内容缺失，都应保留原文件下载/配套 PDF，并按样本选择其他已部署引擎。
 
-许可证边界必须随部署留档：LibreDWG 为 GPL-3.0-or-later，ezdxf 为 MIT，PyMuPDF 为 AGPL-3.0-or-later/商业双许可。转换器源码和镜像单独管理；如果向客户分发该镜像，应在交付前完成对应源代码提供、许可证文本和修改说明等合规复核。
+许可证边界必须随部署留档：LibreDWG 为 GPL-3.0-or-later，ACadSharp 与 ezdxf 为 MIT，PyMuPDF 为 AGPL-3.0-or-later/商业双许可。QCAD Professional 不在默认镜像中，只有部署方自行安装并满足商业授权时才可配置。转换器源码和镜像单独管理；如果向客户分发该镜像，应在交付前完成对应源代码提供、许可证文本和修改说明等合规复核。
 
 最终交付的 PDF/DOCX 和自托管视频若发布到对象存储，只填写一个只读 HTTPS 基地址，例如 `SOP_PUBLIC_BASE_URL=https://downloads.example.com/mes-lite/sop`。地址不包含 Bucket 写入密钥、查询签名或具体文件名；应用按目录清单生成精确下载或播放路径。未配置时帮助中心不显示离线下载按钮和文件视频，在线 SOP 仍可使用；哔哩哔哩/YouTube 条目不依赖该地址。生成目录、对象路径和校验步骤见 [SOP 生成与发布策略](../operations/SOP生成与发布策略.md)及[视频帮助分类与发布](../operations/视频帮助分类与发布.md)。
 

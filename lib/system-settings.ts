@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client'
 import { prisma } from './prisma'
 import { ContrastMode, DEFAULT_CONTRAST_MODE, normalizeContrastMode } from './contrast-modes'
+import { DEFAULT_CAD_PREVIEW_ENGINE, normalizeCadPreviewEngine, type CadPreviewEngine } from './cad-preview-engines'
 
 export const NATURAL_MATERIAL_CODE_SORT_KEY = 'sorting.materialCodeNatural'
 export const COMPANY_NAME_KEY = 'company.name'
@@ -11,6 +12,7 @@ export const BUSINESS_DOCUMENT_PRINT_DENSITY_KEY = 'businessDocument.printDensit
 export const BUSINESS_DOCUMENT_PRINT_MARGIN_MM_KEY = 'businessDocument.printMarginMm'
 export const AI_LOADING_INDICATOR_ENABLED_KEY = 'ai.loadingIndicator.enabled'
 export const CONTRAST_MODE_KEY = 'interface.contrastMode'
+export const CAD_PREVIEW_ENGINE_KEY = 'cadPreview.engine'
 
 export const BUSINESS_DOCUMENT_PRINT_DENSITIES = ['compact', 'standard'] as const
 export type BusinessDocumentPrintDensity = typeof BUSINESS_DOCUMENT_PRINT_DENSITIES[number]
@@ -40,11 +42,12 @@ export interface SystemSettings {
   businessDocumentPrintMarginMm: number
   aiLoadingIndicatorEnabled: boolean
   contrastMode: ContrastMode
+  cadPreviewEngine: CadPreviewEngine
 }
 
 export async function getSystemSettings(client: SettingsClient = prisma): Promise<SystemSettings> {
   const rows = await client.systemSetting.findMany({
-    where: { key: { in: [NATURAL_MATERIAL_CODE_SORT_KEY, COMPANY_NAME_KEY, COMPANY_CONTACT_KEY, COMPANY_PHONE_KEY, COMPANY_ADDRESS_KEY, BUSINESS_DOCUMENT_PRINT_DENSITY_KEY, BUSINESS_DOCUMENT_PRINT_MARGIN_MM_KEY, AI_LOADING_INDICATOR_ENABLED_KEY, CONTRAST_MODE_KEY] } },
+    where: { key: { in: [NATURAL_MATERIAL_CODE_SORT_KEY, COMPANY_NAME_KEY, COMPANY_CONTACT_KEY, COMPANY_PHONE_KEY, COMPANY_ADDRESS_KEY, BUSINESS_DOCUMENT_PRINT_DENSITY_KEY, BUSINESS_DOCUMENT_PRINT_MARGIN_MM_KEY, AI_LOADING_INDICATOR_ENABLED_KEY, CONTRAST_MODE_KEY, CAD_PREVIEW_ENGINE_KEY] } },
     select: { key: true, value: true },
   })
   const values = new Map(rows.map((row) => [row.key, row.value]))
@@ -59,6 +62,7 @@ export async function getSystemSettings(client: SettingsClient = prisma): Promis
     businessDocumentPrintMarginMm: normalizeBusinessDocumentPrintMarginMm(values.get(BUSINESS_DOCUMENT_PRINT_MARGIN_MM_KEY)),
     aiLoadingIndicatorEnabled: values.get(AI_LOADING_INDICATOR_ENABLED_KEY) !== 'false',
     contrastMode: normalizeContrastMode(values.get(CONTRAST_MODE_KEY) || DEFAULT_CONTRAST_MODE),
+    cadPreviewEngine: normalizeCadPreviewEngine(values.get(CAD_PREVIEW_ENGINE_KEY) || DEFAULT_CAD_PREVIEW_ENGINE),
   }
 }
 
@@ -76,6 +80,7 @@ export async function updateSystemSettings(
   if (settings.businessDocumentPrintMarginMm !== undefined) entries.push([BUSINESS_DOCUMENT_PRINT_MARGIN_MM_KEY, String(normalizeBusinessDocumentPrintMarginMm(settings.businessDocumentPrintMarginMm))])
   if (settings.aiLoadingIndicatorEnabled !== undefined) entries.push([AI_LOADING_INDICATOR_ENABLED_KEY, String(settings.aiLoadingIndicatorEnabled)])
   if (settings.contrastMode !== undefined) entries.push([CONTRAST_MODE_KEY, normalizeContrastMode(settings.contrastMode)])
+  if (settings.cadPreviewEngine !== undefined) entries.push([CAD_PREVIEW_ENGINE_KEY, normalizeCadPreviewEngine(settings.cadPreviewEngine)])
   for (const [key, value] of entries) {
     await client.systemSetting.upsert({
       where: { key },

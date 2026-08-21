@@ -73,11 +73,12 @@ async function main() {
     ] })
 
     await permissions.ensureDefaultPermissions()
-    assert.equal(permissions.permissionResources.length, 61, '权限资源应增加七个物流状态命令资源，形成 61 个')
+    assert.equal(permissions.permissionResources.length, 62, '权限资源应增加独立 CAD 预览设置资源，形成 62 个')
 
     const roleMap = await permissions.getRolePermissionMap('OPERATOR')
     assert.deepEqual(roleMap.suppliers, roleMap.system, '旧角色 system 必须继承到供应商资源')
     assert.deepEqual(roleMap.aiSettings, roleMap.system, '旧角色 system 必须继承到 AI 设置资源')
+    assert.deepEqual(roleMap.cadPreviewSettings, roleMap.system, '旧角色 system 必须继承到 CAD 预览设置资源')
     assert.deepEqual(roleMap.flowTransfers, roleMap.stats, '旧角色 stats 必须继承到流程转移资源')
     assert.deepEqual(roleMap.bom, roleMap.bomCost, '旧角色 bomCost 必须继承到 BOM 结构资源')
     assert.deepEqual(roleMap.documentCategories, roleMap.workInstructions, '旧角色文档权限必须继承到文档类别')
@@ -93,7 +94,7 @@ async function main() {
 
     const groupSettings = await prisma.permissionGroupSetting.findMany({ where: { groupId: customGroup.id } })
     const groupMap = new Map(groupSettings.map((setting) => [setting.resource, setting]))
-    assert.equal(groupSettings.length, 61, '旧自定义组必须补齐全部新资源')
+    assert.equal(groupSettings.length, 62, '旧自定义组必须补齐全部新资源')
     assert.equal(groupMap.get('customers')?.canUpdate, true, '旧自定义组 system.update 必须继承到客户资料')
     assert.equal(groupMap.get('flowTransfers')?.canCreate, true, '旧自定义组 stats.create 必须继承到流程转移')
     assert.equal(groupMap.get('bom')?.canUpdate, true, '旧自定义组 BOM 更新权限必须继承')
@@ -175,7 +176,7 @@ async function main() {
     assert.match(read('modules/business-documents/domain/business-document-definition.ts'), /'flow-transfer': \{ permissionResource: 'flowTransfers'/, '流程转移打印必须继承流程转移资源')
     assert.match(read('modules/bom/ui/BomDraftEditor.tsx'), /fieldset disabled=\{!editable \|\| !canEditCurrent\}/, 'BOM 只读岗位必须禁用两个编辑字段区')
 
-    console.log('细粒度权限迁移验证通过：61 个资源、来料与物流状态命令、设备/质量命令、旧权限安全升级和页面/API 映射均符合契约。')
+    console.log('细粒度权限迁移验证通过：62 个资源、来料与物流状态命令、设备/质量/CAD 设置、旧权限安全升级和页面/API 映射均符合契约。')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

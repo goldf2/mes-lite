@@ -11,6 +11,7 @@ import {
   removeAttachmentThumbnailFiles,
 } from '@/lib/attachment-thumbnail'
 import { regenerateCadDocumentPreview } from '@/lib/files/cad-document-preview'
+import { getSystemSettings } from '@/lib/system-settings'
 import { draftDocumentAttachmentOwnerType, isDocumentSourceCredentialOwnerType } from '@/lib/draft-document-attachments'
 import type { AttachmentUploadInput, DraftAttachmentInput } from '../contracts/attachment-schema'
 import { AttachmentDomainError } from '../domain/attachment-errors'
@@ -97,9 +98,10 @@ export async function regenerateManagedAttachmentPreview(id: string) {
     throw new AttachmentDomainError('只有 DWG/DXF 图纸支持重新生成预览')
   }
 
-  await regenerateCadDocumentPreview(attachment)
-  await removeAttachmentThumbnailFiles(attachment)
-  await ensureAttachmentThumbnail(attachment)
+  const { cadPreviewEngine } = await getSystemSettings()
+  await regenerateCadDocumentPreview(attachment, cadPreviewEngine)
+  await removeAttachmentThumbnailFiles(attachment, cadPreviewEngine)
+  await ensureAttachmentThumbnail(attachment, cadPreviewEngine)
   const updated = await prisma.documentAttachment.update({
     where: { id: attachment.id },
     data: { previewRevision: { increment: 1 } },

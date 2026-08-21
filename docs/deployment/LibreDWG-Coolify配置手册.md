@@ -1,6 +1,6 @@
-# LibreDWG CAD 预览服务 Coolify 配置手册
+# 多引擎 CAD 预览服务 Coolify 配置手册
 
-适用版本：MES-lite `v0.1.416` 及以后
+适用版本：MES-lite `v0.1.430` 及以后
 
 适用入口：`https://cool-con01.xiangshu.me/`
 
@@ -15,7 +15,7 @@ MES 主入口：`https://mes.csyufeng.com/`
   -> https://mes.csyufeng.com
      -> MES-lite 主应用
         -> http://cad-preview:8080
-           -> LibreDWG / ezdxf / PyMuPDF 转换容器
+           -> LibreDWG / ACadSharp / 可选 QCAD / ezdxf / PyMuPDF 转换容器
 ```
 
 - 浏览器只访问 MES-lite，不直接访问转换器。
@@ -91,9 +91,14 @@ CAD_PREVIEW_MAX_UPLOAD_BYTES=52428800
 CAD_PREVIEW_MAX_LAYOUTS=20
 CAD_PREVIEW_MAX_CONCURRENT_CONVERSIONS=2
 CAD_PREVIEW_QUEUE_TIMEOUT_SECONDS=120
+CAD_PREVIEW_LIBREDWG_COMMAND=dwg2dxf
+CAD_PREVIEW_ACADSHARP_COMMAND=/usr/local/bin/acadsharp-dwg2dxf
+CAD_PREVIEW_AUTO_ENGINE_ORDER=qcad,acadsharp,libredwg
 CAD_PREVIEW_FONT_DIRS=/usr/local/share/fonts/mes-lite:/opt/cad-fonts
 CAD_PREVIEW_MANAGED_FONT_DIRS=/opt/cad-fonts
 ```
+
+默认镜像已经包含 LibreDWG 与 ACadSharp 两个免费引擎。QCAD 不在仓库和默认镜像中；只有部署方自行安装 QCAD Professional、确认服务器使用方式符合许可证，并保证无特权 UID 10001 可执行 `dwg2dwg` 后，才能增加 `CAD_PREVIEW_QCAD_COMMAND=/opt/qcad/dwg2dwg`。Community Edition 不提供 DWG 支持。自动模式按 `CAD_PREVIEW_AUTO_ENGINE_ORDER` 顺序尝试可用引擎，并在生成结果明显空白或稀疏时回退；不希望自动使用 QCAD 时，可改为 `acadsharp,libredwg`。
 
 ## 6. 外挂企业 CAD 字体目录
 
@@ -122,7 +127,7 @@ CAD_PREVIEW_MANAGED_FONT_DIRS=/opt/cad-fonts
 | 项目 | 建议值 |
 | --- | --- |
 | CPU | `1` |
-| Memory Limit | `1 GiB` |
+| Memory Limit | `1.5 GiB` |
 | Memory Reservation | `512 MiB` |
 | 临时空间 | `/tmp` tmpfs `256 MiB` |
 | Instances | `1` |
@@ -153,7 +158,7 @@ Internal Port: 8080
 点击 `Deploy`，完成后检查：
 
 - Application 状态为 `Running (healthy)`。
-- 日志显示进程监听 `0.0.0.0:8080`。
+- 日志显示进程监听 `0.0.0.0:8080`，并列出自动引擎顺序。
 - 没有反复重启、内存不足或只读文件系统错误。
 - 没有配置 Domain 或 Port Mappings。
 
@@ -186,6 +191,7 @@ https://mes.csyufeng.com/api/health/ready
 
 - MES-lite 主应用仍为 ready。
 - CAD 预览检查不再是“未配置”或“服务不可达”。
+- 受令牌保护的 `/health` 中 `libredwg` 与 `acadsharp` 为 `available=true`；未配置 QCAD 时应明确为 `available=false`，这不影响整体健康。
 - 转换器故障只影响预览降级，不阻断原文件下载及 MES-lite 主业务启动。
 
 ### 11.2 真实文件
@@ -200,7 +206,7 @@ https://mes.csyufeng.com/api/health/ready
 - 含外部参照或已知复杂实体的图纸。
 - 接近企业日常上限的大尺寸图纸。
 
-逐项检查线宽、字体、图层、方向、纸张、布局、缩略图、全屏预览和下载原文件。LibreDWG/ezdxf 不是 AutoCAD 的像素级替代；关键内容缺失时必须保留原文件下载或配套 PDF，不得把有缺失的派生 PDF作为唯一生产依据。
+进入“系统设置 → 文件预览”，先分别选择 LibreDWG、ACadSharp 生成代表性样本，再选择自动模式验证回退；如已合法外挂 QCAD，再单独验收 QCAD。逐项检查线宽、字体、图层、方向、纸张、布局、缩略图、全屏预览和下载原文件。任何引擎都不是 AutoCAD 的像素级替代；关键内容缺失时必须保留原文件下载或配套 PDF，不得把有缺失的派生 PDF 作为唯一生产依据。
 
 ## 12. 常见故障
 
@@ -213,7 +219,8 @@ https://mes.csyufeng.com/api/health/ready
 | 转换超时 | 文件是否过大；先核对服务日志，再按样本风险调整命令超时或 MES 请求超时 |
 | 批量导入后全部显示预览不可用 | 检查转换器是否 OOM/重启；保持默认并发 `2`，确认列表缩略图为延迟加载，再分批重新生成 |
 | 中文变方框或字宽异常 | 从制图方取得图纸实际引用且已授权的 SHX/大字体，挂载到 `/opt/cad-fonts`，重启转换器并重新生成预览 |
-| PDF 空白或图元缺失 | 检查字体、外部参照、垂直产品实体和 DWG 版本；改用原文件或配套 PDF |
+| PDF 空白或图元缺失 | 在“系统设置 → 文件预览”切换 ACadSharp/LibreDWG/QCAD 后重新生成；仍异常时检查字体、外部参照、垂直产品实体和 DWG 版本，并改用原文件或配套 PDF |
+| 设置页显示某引擎未安装 | 查看 `/health.engines` 的 `detail`；内置免费引擎应随镜像存在，QCAD 必须由部署方另行安装和配置 |
 | `localhost:8080` 不通 | 主应用必须使用 `http://cad-preview:8080`，不能使用自身 localhost |
 
 ## 13. 回滚

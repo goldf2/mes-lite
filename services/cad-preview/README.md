@@ -1,16 +1,18 @@
-# LibreDWG CAD preview service
+# Multi-engine CAD preview service
 
 Private DWG/DXF-to-PDF service for MES-lite. It implements the existing internal contract:
 
 - `GET /health`
-- `POST /v1/convert/pdf` with multipart fields `file` and `output=pdf`
+- `POST /v1/convert/pdf` with multipart fields `file`, `output=pdf`, and `engine=auto|libredwg|acadsharp|qcad`
 
-The service converts DWG to DXF with GNU LibreDWG and renders DXF layouts to a read-only PDF with ezdxf/PyMuPDF. Missing SHX and CAD big-font references fall back to the bundled Noto Sans CJK SC font so decoded Chinese text remains visible. Original attachments remain in MES-lite; this service only uses an isolated temporary directory and does not retain uploads. Both MES-lite and the converter limit active conversions to two by default so a document page cannot exhaust a small converter with many simultaneous thumbnail requests.
+The image includes two free DWG-to-DXF engines: GNU LibreDWG and the MIT-licensed ACadSharp adapter. It can also call a separately installed and licensed QCAD Professional `dwg2dwg` command. All engines share the same ezdxf/PyMuPDF read-only PDF renderer. `auto` tries the configured available engines in order and rejects a technically valid but obviously empty/sparse PDF before falling back. The response header `X-CAD-Preview-Engine` reports the engine that succeeded.
+
+Missing SHX and CAD big-font references fall back to the bundled Noto Sans CJK SC font so decoded Chinese text remains visible. Original attachments remain in MES-lite; this service only uses an isolated temporary directory and does not retain uploads. Both MES-lite and the converter limit active conversions to two by default so a document page cannot exhaust a small converter with many simultaneous thumbnail requests.
 
 Build from the repository root:
 
 ```bash
-docker build -f services/cad-preview/Dockerfile -t mes-lite-cad-preview:0.1.427 .
+docker build -f services/cad-preview/Dockerfile -t mes-lite-cad-preview:0.1.430 .
 ```
 
 Run on a private container network:
@@ -23,8 +25,28 @@ docker run --read-only --tmpfs /tmp:size=256m,mode=1777 \
   --security-opt no-new-privileges \
   --mount type=bind,src=/srv/mes-lite/cad-fonts,dst=/opt/cad-fonts \
   -e CAD_PREVIEW_SERVICE_TOKEN='<same-secret-as-mes-lite>' \
-  mes-lite-cad-preview:0.1.427
+  mes-lite-cad-preview:0.1.430
 ```
+
+## Engines
+
+The built-in defaults are:
+
+```env
+CAD_PREVIEW_LIBREDWG_COMMAND=dwg2dxf
+CAD_PREVIEW_ACADSHARP_COMMAND=/usr/local/bin/acadsharp-dwg2dxf
+CAD_PREVIEW_AUTO_ENGINE_ORDER=qcad,acadsharp,libredwg
+```
+
+`GET /health` reports `autoOrder` and one availability record for each engine. MES-lite exposes these values at **系统设置 → 文件预览**. Selecting an explicit engine creates and reuses that engine's own derived PDF/thumbnail cache; `auto` uses a separate cache.
+
+QCAD is not included in this repository or image. To enable it, install QCAD Professional in a private derivative image or controlled mount according to its license, ensure its `dwg2dwg` command can run as UID 10001 without a desktop session, and set for example:
+
+```env
+CAD_PREVIEW_QCAD_COMMAND=/opt/qcad/dwg2dwg
+```
+
+The service appends `-f -r R15 -o <target.dxf> <source.dwg>`. A wrapper script may be configured instead when the licensed installation requires environment setup. Do not point this variable at an interactive GUI executable.
 
 ## External CAD fonts
 
@@ -43,12 +65,14 @@ The standard entrypoint starts as root only long enough to repair the allow-list
 
 Do not commit Autodesk, supplier, or customer font binaries to this repository unless their license explicitly permits redistribution. A private persistent mount managed by the guarded startup entrypoint is the preferred production path. After adding or replacing fonts, restart `cad-preview` and use MES-lite's **重新生成预览** action for cached drawings.
 
-This is a 2D trial engine, pinned to LibreDWG 0.14. LibreDWG and ezdxf do not provide pixel-perfect support for every recent or vertical-product DWG entity. Keep download-original and optional companion-PDF workflows available for drawings that fail acceptance.
+This is a 2D preview pipeline, pinned to LibreDWG 0.14 and ACadSharp 3.7.1. None of the engines or the shared renderer guarantees pixel-perfect support for every recent or vertical-product DWG entity. Keep download-original and optional companion-PDF workflows available for drawings that fail visual acceptance.
 
 ## Licensing
 
 - GNU LibreDWG is GPL-3.0-or-later.
+- ACadSharp is MIT licensed.
 - ezdxf is MIT licensed.
 - PyMuPDF is AGPL-3.0-or-later or available under a commercial license.
+- QCAD Professional is optional commercial software and must be installed, licensed, and operated separately by the deployer. QCAD Community Edition does not provide DWG support.
 
 The converter stays in a separate service boundary so its license, source delivery and replacement lifecycle remain distinct from the MES-lite Web application. Review distribution obligations before delivering the converter image outside the operator's own infrastructure.
