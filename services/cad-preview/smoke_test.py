@@ -6,7 +6,7 @@ from pathlib import Path
 
 import ezdxf
 
-from server import CJK_FALLBACK_FONT, apply_cad_font_fallbacks, convert_source_to_pdf
+from server import CAD_FONT_DIRECTORIES, CJK_FALLBACK_FONT, apply_cad_font_fallbacks, convert_source_to_pdf
 
 
 def assert_pdf(path: Path) -> None:
@@ -16,6 +16,7 @@ def assert_pdf(path: Path) -> None:
 
 
 def main() -> None:
+    assert "/usr/local/share/fonts/mes-lite" in CAD_FONT_DIRECTORIES
     with tempfile.TemporaryDirectory(prefix="cad-preview-smoke-") as temporary_directory:
         root = Path(temporary_directory)
         source_dxf = root / "drawing.dxf"
@@ -35,6 +36,10 @@ def main() -> None:
 
         apply_cad_font_fallbacks(document)
         assert document.styles.get("HZ").dxf.font == CJK_FALLBACK_FONT
+        assert document.styles.get("HZ").dxf.bigfont == ""
+        available_style = document.styles.add("CJK", font=CJK_FALLBACK_FONT)
+        apply_cad_font_fallbacks(document)
+        assert available_style.dxf.font == CJK_FALLBACK_FONT
 
         convert_source_to_pdf(source_dxf, dxf_pdf)
         assert_pdf(dxf_pdf)

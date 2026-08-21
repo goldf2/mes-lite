@@ -25,8 +25,11 @@ async function main() {
     CAD_PREVIEW_SERVICE_URL: process.env.CAD_PREVIEW_SERVICE_URL,
     CAD_PREVIEW_SERVICE_TOKEN: process.env.CAD_PREVIEW_SERVICE_TOKEN,
     CAD_PREVIEW_TIMEOUT_MS: process.env.CAD_PREVIEW_TIMEOUT_MS,
+    CAD_PREVIEW_MAX_CONCURRENT_CONVERSIONS: process.env.CAD_PREVIEW_MAX_CONCURRENT_CONVERSIONS,
   }
   let conversionRequests = 0
+  let activeConversions = 0
+  let maxObservedConversions = 0
   let invalidResponse = false
   const conversionBodies: Buffer[] = []
   const pdfBytes = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF')
@@ -45,7 +48,12 @@ async function main() {
       request.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
       request.once('end', () => {
         conversionBodies.push(Buffer.concat(chunks))
-        response.writeHead(200, { 'Content-Type': 'application/pdf' }).end(invalidResponse ? Buffer.from('not-a-pdf') : pdfBytes)
+        activeConversions += 1
+        maxObservedConversions = Math.max(maxObservedConversions, activeConversions)
+        setTimeout(() => {
+          response.writeHead(200, { 'Content-Type': 'application/pdf' }).end(invalidResponse ? Buffer.from('not-a-pdf') : pdfBytes)
+          activeConversions -= 1
+        }, 20)
       })
       return
     }
@@ -58,6 +66,7 @@ async function main() {
     process.env.CAD_PREVIEW_SERVICE_URL = `http://127.0.0.1:${port}`
     process.env.CAD_PREVIEW_SERVICE_TOKEN = 'verification-token'
     process.env.CAD_PREVIEW_TIMEOUT_MS = '5000'
+    process.env.CAD_PREVIEW_MAX_CONCURRENT_CONVERSIONS = '2'
 
     const sourcePath = join(verifyRoot, 'drawing.dwg')
     await writeFile(sourcePath, Buffer.from('synthetic-dwg-source'))
@@ -97,6 +106,17 @@ async function main() {
     await assert.rejects(() => preview.regenerateCadDocumentPreview(source), /返回的 PDF 无效/)
     assert.deepEqual(await readFile(firstPath), pdfBytes, '重新转换失败时必须保留上一份有效 CAD PDF')
     invalidResponse = false
+
+    const concurrentSources = await Promise.all(Array.from({ length: 5 }, async (_, index) => {
+      const storagePath = join(verifyRoot, `drawing-${index}.dwg`)
+      await writeFile(storagePath, Buffer.from(`synthetic-dwg-source-${index}`))
+      return { storagePath, originalName: `drawing-${index}.dwg`, mimeType: 'application/vnd.dwg' }
+    }))
+    const requestsBeforeQueueTest = conversionRequests
+    maxObservedConversions = 0
+    await Promise.all(concurrentSources.map((item) => preview.ensureCadDocumentPreview(item)))
+    assert.equal(conversionRequests, requestsBeforeQueueTest + concurrentSources.length)
+    assert.ok(maxObservedConversions <= 2, `CAD 转换请求并发数不得超过 2，实际 ${maxObservedConversions}`)
 
     const invalidPath = join(verifyRoot, 'invalid.dxf')
     await writeFile(invalidPath, Buffer.from('synthetic-dxf-source'))

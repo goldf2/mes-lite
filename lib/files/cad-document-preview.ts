@@ -13,6 +13,27 @@ type CadPreviewSource = {
 export const cadPreviewVersion = 2
 const maxPreviewBytes = 100 * 1024 * 1024
 const conversionTasks = new Map<string, Promise<string>>()
+const conversionWaiters: Array<() => void> = []
+let activeConversions = 0
+
+function maxConcurrentConversions() {
+  const value = Number(process.env.CAD_PREVIEW_MAX_CONCURRENT_CONVERSIONS || 2)
+  return Number.isInteger(value) && value >= 1 && value <= 8 ? value : 2
+}
+
+async function withConversionSlot<T>(task: () => Promise<T>) {
+  const limit = maxConcurrentConversions()
+  if (activeConversions >= limit) {
+    await new Promise<void>((resolve) => conversionWaiters.push(resolve))
+  }
+  activeConversions += 1
+  try {
+    return await task()
+  } finally {
+    activeConversions -= 1
+    conversionWaiters.shift()?.()
+  }
+}
 
 function configuredTimeout() {
   const value = Number(process.env.CAD_PREVIEW_TIMEOUT_MS || 120_000)
@@ -105,7 +126,7 @@ export async function ensureCadDocumentPreview(source: CadPreviewSource) {
 
   const running = conversionTasks.get(targetPath)
   if (running) return running
-  const task = convertCadDocument(source, targetPath)
+  const task = withConversionSlot(() => convertCadDocument(source, targetPath))
     .finally(() => conversionTasks.delete(targetPath))
   conversionTasks.set(targetPath, task)
   return task
@@ -131,7 +152,7 @@ export async function regenerateCadDocumentPreview(source: CadPreviewSource) {
   const running = conversionTasks.get(targetPath)
   if (running) return running
 
-  const task = convertCadDocument(source, targetPath)
+  const task = withConversionSlot(() => convertCadDocument(source, targetPath))
     .then(async (result) => {
       await removeStaleCadDocumentPreviewFiles(source.storagePath, targetPath)
       return result

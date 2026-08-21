@@ -48,6 +48,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     CAD_PREVIEW_COMMAND_TIMEOUT_SECONDS=90 \
     CAD_PREVIEW_MAX_UPLOAD_BYTES=52428800 \
     CAD_PREVIEW_MAX_LAYOUTS=20 \
+    CAD_PREVIEW_MAX_CONCURRENT_CONVERSIONS=2 \
+    CAD_PREVIEW_QUEUE_TIMEOUT_SECONDS=120 \
+    CAD_PREVIEW_FONT_DIRS=/usr/local/share/fonts/mes-lite:/opt/cad-fonts \
     MPLCONFIGDIR=/tmp/matplotlib \
     XDG_CACHE_HOME=/tmp/cache
 
@@ -70,12 +73,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && pip install --disable-pip-version-check --no-cache-dir --index-url "${PIP_INDEX_URL}" -r /tmp/requirements.txt \
     && command -v dwg2dxf >/dev/null \
     && command -v dxf2dwg >/dev/null \
-    && useradd --create-home --uid 10001 --shell /usr/sbin/nologin cadpreview
+    && useradd --create-home --uid 10001 --shell /usr/sbin/nologin cadpreview \
+    && mkdir -p /opt/cad-fonts \
+    && chown cadpreview:cadpreview /opt/cad-fonts
 
 WORKDIR /app
 COPY --chown=cadpreview:cadpreview services/cad-preview/server.py services/cad-preview/smoke_test.py ./
 
-RUN python smoke_test.py
+RUN python smoke_test.py \
+    && rm -rf /tmp/cache /tmp/matplotlib
 
 USER cadpreview
 EXPOSE 8080

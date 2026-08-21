@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
 from email import policy
 from email.parser import BytesParser
 from http import HTTPStatus
@@ -26,11 +27,30 @@ SERVICE_NAME = "mes-lite-libredwg-preview"
 MAX_UPLOAD_BYTES = min(max(int(os.getenv("CAD_PREVIEW_MAX_UPLOAD_BYTES", 50 * 1024 * 1024)), 1024), 100 * 1024 * 1024)
 COMMAND_TIMEOUT_SECONDS = min(max(int(os.getenv("CAD_PREVIEW_COMMAND_TIMEOUT_SECONDS", "90")), 5), 600)
 MAX_LAYOUTS = min(max(int(os.getenv("CAD_PREVIEW_MAX_LAYOUTS", "20")), 1), 100)
+MAX_CONCURRENT_CONVERSIONS = min(max(int(os.getenv("CAD_PREVIEW_MAX_CONCURRENT_CONVERSIONS", "2")), 1), 8)
+CONVERSION_QUEUE_TIMEOUT_SECONDS = min(max(int(os.getenv("CAD_PREVIEW_QUEUE_TIMEOUT_SECONDS", "120")), 5), 600)
 CJK_FALLBACK_FONT = "NotoSansCJKsc-Regular.otf"
+DEFAULT_FONT_DIRECTORIES = "/usr/local/share/fonts/mes-lite:/opt/cad-fonts"
+CONVERSION_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_CONVERSIONS)
 
 
 class ConversionError(RuntimeError):
     pass
+
+
+def configure_cad_font_directories() -> tuple[str, ...]:
+    configured = os.getenv("CAD_PREVIEW_FONT_DIRS", DEFAULT_FONT_DIRECTORIES)
+    directories = tuple(
+        str(Path(item.strip()).expanduser().resolve())
+        for item in configured.split(os.pathsep)
+        if item.strip() and Path(item.strip()).expanduser().is_dir()
+    )
+    ezdxf.options.support_dirs = list(dict.fromkeys([*ezdxf.options.support_dirs, *directories]))
+    fonts.build_system_font_cache()
+    return directories
+
+
+CAD_FONT_DIRECTORIES = configure_cad_font_directories()
 
 
 def _command_error(result: subprocess.CompletedProcess[str]) -> str:
@@ -81,8 +101,11 @@ def apply_cad_font_fallbacks(document: ezdxf.document.Drawing) -> None:
     for text_style in document.styles:
         primary_font = str(text_style.dxf.get("font", "")).strip()
         big_font = str(text_style.dxf.get("bigfont", "")).strip()
-        if big_font or (primary_font and not _font_is_available(primary_font)):
+        primary_missing = bool(primary_font) and not _font_is_available(primary_font)
+        big_font_missing = bool(big_font) and not _font_is_available(big_font)
+        if primary_missing or big_font_missing:
             text_style.dxf.font = CJK_FALLBACK_FONT
+            text_style.dxf.bigfont = ""
 
 
 def render_dxf_to_pdf(source: Path, target: Path) -> None:
@@ -220,8 +243,11 @@ class CadPreviewHandler(BaseHTTPRequestHandler):
         if content_length > MAX_UPLOAD_BYTES:
             self._text(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "CAD file too large")
             return
-        body = self.rfile.read(content_length)
+        if not CONVERSION_SLOTS.acquire(timeout=CONVERSION_QUEUE_TIMEOUT_SECONDS):
+            self._text(HTTPStatus.SERVICE_UNAVAILABLE, "CAD 转换队列繁忙，请稍后重试")
+            return
         try:
+            body = self.rfile.read(content_length)
             fields, (filename, file_bytes) = _multipart_fields(self.headers.get("Content-Type", ""), body)
             if fields.get("output", "pdf").strip().lower() != "pdf":
                 raise ConversionError("仅支持 PDF 输出")
@@ -242,6 +268,8 @@ class CadPreviewHandler(BaseHTTPRequestHandler):
         except Exception as error:
             self.log_error("conversion failed: %s", error)
             self._text(HTTPStatus.INTERNAL_SERVER_ERROR, "CAD 转换服务内部错误")
+        finally:
+            CONVERSION_SLOTS.release()
 
     def log_message(self, format: str, *args) -> None:
         print(f"{self.address_string()} - {format % args}", flush=True)
@@ -251,7 +279,11 @@ def main() -> None:
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8080"))
     server = ThreadingHTTPServer((host, port), CadPreviewHandler)
-    print(f"{SERVICE_NAME} listening on {host}:{port}", flush=True)
+    print(
+        f"{SERVICE_NAME} listening on {host}:{port}; "
+        f"conversions={MAX_CONCURRENT_CONVERSIONS}; fonts={','.join(CAD_FONT_DIRECTORIES) or 'none'}",
+        flush=True,
+    )
     server.serve_forever()
 
 

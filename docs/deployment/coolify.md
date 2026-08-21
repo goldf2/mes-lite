@@ -77,6 +77,7 @@ WOPI_VIEW_TOKEN_TTL_SECONDS=7200
 CAD_PREVIEW_SERVICE_URL=http://cad-preview:8080
 CAD_PREVIEW_SERVICE_TOKEN=<至少 32 字符的随机服务令牌>
 CAD_PREVIEW_TIMEOUT_MS=120000
+CAD_PREVIEW_MAX_CONCURRENT_CONVERSIONS=2
 ```
 
 `MES_TRUSTED_ORIGINS` 必须填写浏览器实际访问的 HTTPS Origin（协议、域名和可选端口，不带路径）。所有 `POST / PUT / PATCH / DELETE` API 都会先执行同源校验；多个可信 Origin 使用英文逗号分隔。公开注册默认关闭，只有在受控注册时间窗口才临时把 `MES_PUBLIC_REGISTRATION_ENABLED` 改为 `true`，新账号仍统一进入待审核状态。
@@ -98,7 +99,7 @@ Collabora 应部署为独立 Coolify Service 或独立主机，不与 MES-lite S
 
 ### 3.1 自托管 DWG/DXF 只读预览
 
-DWG/DXF 原文件继续保存在附件持久卷中，MES-lite 不在 Web 主进程加载 CAD SDK。首次打开图纸时，应用把受权附件发送给同一私有网络内的隔离转换服务，生成只读 PDF 派生文件并持久缓存；后续查看和缩略图复用现有 PDF 查看器。仓库提供 `services/cad-preview/` 开源试用服务：LibreDWG 把 DWG 转为 DXF，再由 ezdxf/PyMuPDF 生成 PDF；DXF 直接进入相同渲染链路。图纸引用的 SHX 或 CAD 大字体不在镜像内时，转换器用随仓库交付的 Noto Sans CJK SC 替代，避免已经正确解码的中文显示为方框；替代字体的字宽和原始 SHX 可能不同，关键图纸仍需按真实样本验收版式。
+DWG/DXF 原文件继续保存在附件持久卷中，MES-lite 不在 Web 主进程加载 CAD SDK。首次打开图纸时，应用把受权附件发送给同一私有网络内的隔离转换服务，生成只读 PDF 派生文件并持久缓存；后续查看和缩略图复用现有 PDF 查看器。仓库提供 `services/cad-preview/` 开源试用服务：LibreDWG 把 DWG 转为 DXF，再由 ezdxf/PyMuPDF 生成 PDF；DXF 直接进入相同渲染链路。图纸引用的 SHX 或 CAD 大字体不在镜像内时，转换器用随仓库交付的 Noto Sans CJK SC 替代，避免已经正确解码的中文显示为方框；替代字体的字宽和原始 SHX 可能不同，关键图纸仍需按真实样本验收版式。MES 主应用和转换容器默认都把活动转换限制为 2 个，列表缩略图延迟加载，避免批量导入后同时打开大量转换请求。
 
 转换服务必须实现以下内部契约：
 
@@ -113,11 +114,11 @@ DWG/DXF 原文件继续保存在附件持久卷中，MES-lite 不在 Web 主进�
 
 1. Repository 与 MES-lite 相同，Build Pack 选择 Dockerfile，Build Context 使用仓库根目录，Dockerfile Location 填写 `services/cad-preview/Dockerfile`。
 2. 不绑定域名、不暴露公网端口；容器仅在 Coolify 私有网络监听 `8080`。为转换器设置 `CAD_PREVIEW_SERVICE_TOKEN`，再在 MES-lite 设置同值令牌和 `CAD_PREVIEW_SERVICE_URL=http://<转换器内部别名>:8080`。
-3. 建议从 1 CPU、1 GiB 内存、256 MiB 临时空间和单实例开始，启用只读根文件系统、`/tmp` tmpfs、`no-new-privileges` 与 capability drop（以当前 Coolify 可用选项为准）。转换器不挂载数据库、附件目录或备份目录。
+3. 建议从 1 CPU、1 GiB 内存、256 MiB 临时空间和单实例开始，启用只读根文件系统、`/tmp` tmpfs、`no-new-privileges` 与 capability drop（以当前 Coolify 可用选项为准）。转换器不挂载数据库、附件目录或备份目录；需要企业字体时仅增加 `/opt/cad-fonts` 只读持久挂载，并设置 `CAD_PREVIEW_FONT_DIRS=/usr/local/share/fonts/mes-lite:/opt/cad-fonts`。
 4. Health Check 使用 `/health`；若令牌已启用而 Coolify 的 HTTP 健康检查不能添加请求头，则保留 Dockerfile 内置健康检查，不另建无鉴权公网探针。
 5. 先部署并确认转换器健康，再给 MES-lite 写入上述两个环境变量并重新部署；回滚时先移除 `CAD_PREVIEW_SERVICE_URL`，MES-lite 会退回下载原文件且 readiness 仅警告。
 
-逐字段配置、令牌生成、资源限制、部署顺序、常见故障、真实样本验收和回滚记录见 [LibreDWG CAD 预览服务 Coolify 配置手册](./LibreDWG-Coolify配置手册.md)。真实 Secret 只保存到 Coolify，不写入该手册或仓库。
+逐字段配置、令牌生成、外挂字体目录、资源限制、部署顺序、常见故障、真实样本验收和回滚记录见 [LibreDWG CAD 预览服务 Coolify 配置手册](./LibreDWG-Coolify配置手册.md)。真实 Secret 只保存到 Coolify，不写入该手册或仓库；受许可证限制的企业字体也不要提交到仓库。
 
 容器发布前必须使用企业真实样本建立验收集，至少覆盖：R2000、R2007+、单模型空间、多布局、中文字体、外部参照、块、尺寸标注、大图和已知复杂实体。LibreDWG 与 ezdxf 不保证所有版本和垂直产品实体的像素级兼容；任一样本转换失败或关键内容缺失，都应保留原文件下载/配套 PDF，并评估在同一内部契约后替换 ODA 等引擎。
 

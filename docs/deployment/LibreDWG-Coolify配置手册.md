@@ -89,9 +89,31 @@ PORT=8080
 CAD_PREVIEW_COMMAND_TIMEOUT_SECONDS=90
 CAD_PREVIEW_MAX_UPLOAD_BYTES=52428800
 CAD_PREVIEW_MAX_LAYOUTS=20
+CAD_PREVIEW_MAX_CONCURRENT_CONVERSIONS=2
+CAD_PREVIEW_QUEUE_TIMEOUT_SECONDS=120
+CAD_PREVIEW_FONT_DIRS=/usr/local/share/fonts/mes-lite:/opt/cad-fonts
 ```
 
-## 6. 资源与容器加固
+## 6. 外挂企业 CAD 字体目录
+
+在 `cad-preview` 的 **Persistent Storage** 新增目录/卷挂载，容器目标路径固定为：
+
+```text
+/opt/cad-fonts
+```
+
+源目录或 Volume 名可按服务器规范命名，例如 `mes-lite-cad-fonts`。字体由转换器只读使用；若 Coolify 支持只读挂载，应设为只读。把已经取得合法授权的 `.shx`、`.shp`、`.lff`、`.ttf`、`.ttc` 或 `.otf` 文件放入该持久目录，文件名应与 DWG/DXF 的文字样式引用完全一致。优先让制图方使用 AutoCAD eTransmit/字体缺失报告提供原图实际使用的字体，不要用来源不明的所谓“万能字库”。
+
+每次增加或替换字体后：
+
+1. 重新启动或 Redeploy `cad-preview`；服务启动时会递归扫描 `/opt/cad-fonts` 并自动重建 ezdxf 字体缓存。
+2. 查看启动日志，确认输出包含 `fonts=/usr/local/share/fonts/mes-lite,/opt/cad-fonts`。
+3. 在 MES-lite 对旧图纸点击“重新生成预览”；已有派生 PDF 不会仅因字体目录变化自动覆盖。
+4. 先验收一份已知缺字图纸，再分批重建其他图纸。
+
+不要把 Autodesk、供应商或客户字体提交到 Git 仓库，除非许可证明确允许再分发。字体挂载只属于 `cad-preview`，不挂载到 MES-lite 主应用。
+
+## 7. 资源与容器加固
 
 试运行建议从以下资源开始：
 
@@ -103,7 +125,7 @@ CAD_PREVIEW_MAX_LAYOUTS=20
 | 临时空间 | `/tmp` tmpfs `256 MiB` |
 | Instances | `1` |
 
-转换器不需要数据库、附件、备份或其他持久化挂载。
+转换器不需要数据库、附件或备份挂载；仅在需要企业 CAD 字体时增加 `/opt/cad-fonts` 只读持久挂载。
 
 如果当前 Coolify 支持 Custom Docker Options，可填写：
 
@@ -113,7 +135,7 @@ CAD_PREVIEW_MAX_LAYOUTS=20
 
 若 Coolify 当前版本不接受其中某项，首次部署可先清空 Custom Docker Options 验证基础链路，再逐项启用并重新验收；不能因为加固参数失败而改为公网暴露服务。
 
-## 7. 健康检查
+## 8. 健康检查
 
 镜像已经在 Dockerfile 中提供内置健康检查：
 
@@ -124,7 +146,7 @@ Internal Port: 8080
 
 内置检查会在设置 `CAD_PREVIEW_SERVICE_TOKEN` 后自动携带 Bearer Token。若 Coolify 的独立 HTTP Healthcheck 不能添加 `Authorization` 请求头，不要再启用第二个无鉴权检查，否则会把健康服务误判为失败。
 
-## 8. 先部署转换器
+## 9. 先部署转换器
 
 点击 `Deploy`，完成后检查：
 
@@ -135,7 +157,7 @@ Internal Port: 8080
 
 转换器未健康前，不修改 MES-lite 主应用环境变量。
 
-## 9. 接入 MES-lite 主应用
+## 10. 接入 MES-lite 主应用
 
 打开现有 MES-lite Application，在 Environment Variables 增加：
 
@@ -143,13 +165,14 @@ Internal Port: 8080
 CAD_PREVIEW_SERVICE_URL=http://cad-preview:8080
 CAD_PREVIEW_SERVICE_TOKEN=<与转换器完全相同的令牌>
 CAD_PREVIEW_TIMEOUT_MS=120000
+CAD_PREVIEW_MAX_CONCURRENT_CONVERSIONS=2
 ```
 
 保存后重新部署 MES-lite 主应用。不要把 `CAD_PREVIEW_SERVICE_URL` 写成 `localhost:8080`：两个 Application 位于不同容器，`localhost` 只指向 MES-lite 自己。
 
-## 10. 上线验收
+## 11. 上线验收
 
-### 10.1 系统健康
+### 11.1 系统健康
 
 访问：
 
@@ -163,7 +186,7 @@ https://mes.csyufeng.com/api/health/ready
 - CAD 预览检查不再是“未配置”或“服务不可达”。
 - 转换器故障只影响预览降级，不阻断原文件下载及 MES-lite 主业务启动。
 
-### 10.2 真实文件
+### 11.2 真实文件
 
 至少使用以下样本测试：
 
@@ -177,7 +200,7 @@ https://mes.csyufeng.com/api/health/ready
 
 逐项检查线宽、字体、图层、方向、纸张、布局、缩略图、全屏预览和下载原文件。LibreDWG/ezdxf 不是 AutoCAD 的像素级替代；关键内容缺失时必须保留原文件下载或配套 PDF，不得把有缺失的派生 PDF作为唯一生产依据。
 
-## 11. 常见故障
+## 12. 常见故障
 
 | 现象 | 首先检查 |
 | --- | --- |
@@ -186,10 +209,12 @@ https://mes.csyufeng.com/api/health/ready
 | 连接被拒绝 | `Ports Exposes` 是否为 `8080`；进程是否监听 `0.0.0.0:8080` |
 | Coolify 健康检查失败但容器日志正常 | 是否额外启用了不能携带 Bearer Token 的 HTTP Healthcheck |
 | 转换超时 | 文件是否过大；先核对服务日志，再按样本风险调整命令超时或 MES 请求超时 |
+| 批量导入后全部显示预览不可用 | 检查转换器是否 OOM/重启；保持默认并发 `2`，确认列表缩略图为延迟加载，再分批重新生成 |
+| 中文变方框或字宽异常 | 从制图方取得图纸实际引用且已授权的 SHX/大字体，挂载到 `/opt/cad-fonts`，重启转换器并重新生成预览 |
 | PDF 空白或图元缺失 | 检查字体、外部参照、垂直产品实体和 DWG 版本；改用原文件或配套 PDF |
 | `localhost:8080` 不通 | 主应用必须使用 `http://cad-preview:8080`，不能使用自身 localhost |
 
-## 12. 回滚
+## 13. 回滚
 
 需要停止试用时：
 
@@ -200,7 +225,7 @@ https://mes.csyufeng.com/api/health/ready
 
 回滚不删除原始 DWG/DXF，也不需要修改数据库。已经生成并缓存的派生 PDF 可按现有附件缓存规则处理。
 
-## 13. 许可证边界
+## 14. 许可证边界
 
 当前试用链路包含：
 
@@ -210,7 +235,7 @@ https://mes.csyufeng.com/api/health/ready
 
 在自有服务器内部试用仍应保留许可证和源码版本记录。若把转换器镜像交付客户、对外分发或改变商业部署方式，必须在交付前复核源码提供、许可证文本、修改说明以及 PyMuPDF 商业许可需求。
 
-## 14. 配置完成记录
+## 15. 配置完成记录
 
 配置人员完成后自行填写，不得记录真实 Secret：
 

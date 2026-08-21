@@ -37,6 +37,8 @@ function StoredDocumentPreview({
       <img
         src={thumbnailUrl}
         alt={attachment.note || `${title} · ${attachment.originalName}`}
+        loading="lazy"
+        decoding="async"
         onLoad={() => setState('ready')}
         onError={() => setState('error')}
         className={`h-full w-full bg-white object-contain ${state === 'ready' ? 'block' : 'hidden'}`}

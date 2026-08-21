@@ -8,6 +8,8 @@ const requirements = readFileSync('services/cad-preview/requirements.txt', 'utf8
 const readme = readFileSync('services/cad-preview/README.md', 'utf8')
 const adr = readFileSync('docs/adr/0046-isolated-cad-preview-converter.md', 'utf8')
 const deployment = readFileSync('docs/deployment/coolify.md', 'utf8')
+const cadClient = readFileSync('lib/files/cad-document-preview.ts', 'utf8')
+const thumbnail = readFileSync('modules/attachments/ui/DocumentPreviewThumb.tsx', 'utf8')
 
 assert.match(server, /self\.path != "\/health"/, '服务必须实现健康检查')
 assert.match(server, /self\.path != "\/v1\/convert\/pdf"/, '服务必须实现既有 PDF 转换契约')
@@ -20,6 +22,12 @@ assert.match(server, /command = \["dwg2dxf"\]/, 'DWG 必须先经 LibreDWG 转�
 assert.match(server, /for minimal in \(False, True\)/, '完整 DXF 无法解析时必须降级到 LibreDWG 最小模式')
 assert.match(server, /apply_cad_font_fallbacks\(document\)/, 'DXF 渲染前必须应用 CAD 字体回退')
 assert.match(server, /NotoSansCJKsc-Regular\.otf/, '缺失 SHX 与大字体必须回退到内置中文字体')
+assert.match(server, /CAD_PREVIEW_FONT_DIRS/, '转换器必须支持挂载企业 CAD 字体目录')
+assert.match(server, /fonts\.build_system_font_cache\(\)/, '挂载字体后必须重建 ezdxf 字体缓存')
+assert.match(server, /text_style\.dxf\.bigfont = ""/, '大字体缺失时必须清除失效引用再使用中文回退字体')
+assert.match(server, /BoundedSemaphore\(MAX_CONCURRENT_CONVERSIONS\)/, '转换器必须限制同时执行的 CAD 转换数量')
+assert.match(cadClient, /withConversionSlot/, 'MES 主应用必须在请求转换服务前排队')
+assert.match(thumbnail, /loading="lazy"/, '文档列表缩略图必须延迟加载，避免一次触发整页 CAD 转换')
 
 assert.match(dockerfile, /ARG LIBREDWG_VERSION=0\.14/, 'LibreDWG 必须固定到已审查版本')
 assert.match(dockerfile, /ARG LIBREDWG_SHA256=[0-9a-f]{64}/, 'LibreDWG 源码必须校验 SHA-256')
@@ -33,6 +41,7 @@ assert.match(dockerfile, /make -C programs/, 'LibreDWG 构建必须限定在命�
 assert.match(dockerfile, /USER cadpreview/, '运行容器必须使用非 root 用户')
 assert.match(dockerfile, /HEALTHCHECK/, '运行镜像必须提供容器健康检查')
 assert.match(dockerfile, /RUN python smoke_test\.py/, '镜像构建必须执行真实转换冒烟测试')
+assert.match(dockerfile, /CAD_PREVIEW_FONT_DIRS=\/usr\/local\/share\/fonts\/mes-lite:\/opt\/cad-fonts/, '镜像必须声明内置与外挂字体目录')
 
 assert.match(smokeTest, /convert_source_to_pdf\(source_dxf, dxf_pdf\)/, '镜像冒烟必须覆盖 DXF 直转')
 assert.match(smokeTest, /\["dxf2dwg", "-y", "-o"/, '镜像冒烟必须生成真实 DWG 测试夹具')
