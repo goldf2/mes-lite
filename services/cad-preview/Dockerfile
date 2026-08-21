@@ -51,6 +51,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     CAD_PREVIEW_MAX_CONCURRENT_CONVERSIONS=2 \
     CAD_PREVIEW_QUEUE_TIMEOUT_SECONDS=120 \
     CAD_PREVIEW_FONT_DIRS=/usr/local/share/fonts/mes-lite:/opt/cad-fonts \
+    CAD_PREVIEW_MANAGED_FONT_DIRS=/opt/cad-fonts \
     MPLCONFIGDIR=/tmp/matplotlib \
     XDG_CACHE_HOME=/tmp/cache
 
@@ -67,6 +68,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       fontconfig \
       libpcre2-8-0 \
       libxml2 \
+      util-linux \
       zlib1g \
     && ldconfig \
     && fc-cache -f \
@@ -79,14 +81,16 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 WORKDIR /app
 COPY --chown=cadpreview:cadpreview services/cad-preview/server.py services/cad-preview/smoke_test.py ./
+COPY services/cad-preview/entrypoint.sh /usr/local/bin/cad-preview-entrypoint.sh
 
-RUN python smoke_test.py \
+RUN chmod 0755 /usr/local/bin/cad-preview-entrypoint.sh \
+    && /usr/local/bin/cad-preview-entrypoint.sh python smoke_test.py \
     && rm -rf /tmp/cache /tmp/matplotlib
 
-USER cadpreview
 EXPOSE 8080
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=4 \
   CMD ["python", "-c", "import os,urllib.request; token=os.getenv('CAD_PREVIEW_SERVICE_TOKEN',''); request=urllib.request.Request('http://127.0.0.1:8080/health',headers={'Authorization':f'Bearer {token}'} if token else {}); raise SystemExit(0 if urllib.request.urlopen(request,timeout=4).status==200 else 1)"]
 
+ENTRYPOINT ["/usr/local/bin/cad-preview-entrypoint.sh"]
 CMD ["python", "server.py"]

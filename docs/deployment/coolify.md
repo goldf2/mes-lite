@@ -114,7 +114,7 @@ DWG/DXF 原文件继续保存在附件持久卷中，MES-lite 不在 Web 主进�
 
 1. Repository 与 MES-lite 相同，Build Pack 选择 Dockerfile，Build Context 使用仓库根目录，Dockerfile Location 填写 `services/cad-preview/Dockerfile`。
 2. 不绑定域名、不暴露公网端口；容器仅在 Coolify 私有网络监听 `8080`。为转换器设置 `CAD_PREVIEW_SERVICE_TOKEN`，再在 MES-lite 设置同值令牌和 `CAD_PREVIEW_SERVICE_URL=http://<转换器内部别名>:8080`。
-3. 建议从 1 CPU、1 GiB 内存、256 MiB 临时空间和单实例开始，启用只读根文件系统、`/tmp` tmpfs、`no-new-privileges` 与 capability drop（以当前 Coolify 可用选项为准）。转换器不挂载数据库、附件目录或备份目录；需要企业字体时仅增加 `/opt/cad-fonts` 只读持久挂载，并设置 `CAD_PREVIEW_FONT_DIRS=/usr/local/share/fonts/mes-lite:/opt/cad-fonts`。
+3. 建议从 1 CPU、1 GiB 内存、256 MiB 临时空间和单实例开始，启用只读根文件系统、`/tmp` tmpfs、`no-new-privileges` 与 capability drop（以当前 Coolify 可用选项为准）。转换器不挂载数据库、附件目录或备份目录；需要企业字体时仅增加 `/opt/cad-fonts` 持久挂载，并设置 `CAD_PREVIEW_FONT_DIRS=/usr/local/share/fonts/mes-lite:/opt/cad-fonts` 与 `CAD_PREVIEW_MANAGED_FONT_DIRS=/opt/cad-fonts`。该挂载须允许入口短暂以 root 修正为目录 `0750`、文件 `0640`；若平台支持 capability 配置，先 `drop ALL`，仅增加 `CHOWN`、`FOWNER`、`DAC_OVERRIDE`、`SETUID`、`SETGID`、`SETPCAP`。随后入口启用 no-new-privileges、清空 capability 集并降为无特权用户，转换进程对字体不可写；不得把受控修复范围扩大到其他路径。
 4. Health Check 使用 `/health`；若令牌已启用而 Coolify 的 HTTP 健康检查不能添加请求头，则保留 Dockerfile 内置健康检查，不另建无鉴权公网探针。
 5. 先部署并确认转换器健康，再给 MES-lite 写入上述两个环境变量并重新部署；回滚时先移除 `CAD_PREVIEW_SERVICE_URL`，MES-lite 会退回下载原文件且 readiness 仅警告。
 

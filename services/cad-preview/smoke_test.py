@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import tempfile
 from pathlib import Path
 
 import ezdxf
 
-from server import CAD_FONT_DIRECTORIES, CJK_FALLBACK_FONT, apply_cad_font_fallbacks, convert_source_to_pdf
+from server import (
+    CAD_FONT_DIRECTORIES,
+    CAD_FONT_DIRECTORY_STATUS,
+    CJK_FALLBACK_FONT,
+    apply_cad_font_fallbacks,
+    convert_source_to_pdf,
+    inspect_cad_font_directory,
+)
 
 
 def assert_pdf(path: Path) -> None:
@@ -17,8 +25,27 @@ def assert_pdf(path: Path) -> None:
 
 def main() -> None:
     assert "/usr/local/share/fonts/mes-lite" in CAD_FONT_DIRECTORIES
+    assert all(item["status"] == "ready" for item in CAD_FONT_DIRECTORY_STATUS)
     with tempfile.TemporaryDirectory(prefix="cad-preview-smoke-") as temporary_directory:
         root = Path(temporary_directory)
+        directory_status = inspect_cad_font_directory(root)
+        assert directory_status["status"] == "ready"
+        assert directory_status["ownerUid"] == os.geteuid()
+        assert directory_status["readable"] is True
+        assert directory_status["searchable"] is True
+
+        invalid_target = root / "font-file"
+        invalid_target.write_text("not a directory", encoding="utf-8")
+        assert inspect_cad_font_directory(invalid_target)["status"] == "not_directory"
+
+        restricted_target = root / "restricted-fonts"
+        restricted_target.mkdir()
+        restricted_target.chmod(0)
+        try:
+            assert inspect_cad_font_directory(restricted_target)["status"] == "permission_denied"
+        finally:
+            restricted_target.chmod(0o700)
+
         source_dxf = root / "drawing.dxf"
         source_dwg = root / "drawing.dwg"
         dxf_pdf = root / "dxf.pdf"

@@ -1,6 +1,6 @@
 {
-  "version": "0.1.426",
+  "version": "0.1.427",
   "impact": "updated",
   "workflowIds": ["33-document-list", "34-document-create"],
-  "summary": "产品文档布局与公共可搜索选择器交互修正；批量 CAD 缩略图限流，并支持外挂企业字体目录。"
+  "summary": "外挂 CAD 字体目录增加受控权限修复、立即降权与路径所有者健康诊断。"
 }

@@ -92,6 +92,7 @@ CAD_PREVIEW_MAX_LAYOUTS=20
 CAD_PREVIEW_MAX_CONCURRENT_CONVERSIONS=2
 CAD_PREVIEW_QUEUE_TIMEOUT_SECONDS=120
 CAD_PREVIEW_FONT_DIRS=/usr/local/share/fonts/mes-lite:/opt/cad-fonts
+CAD_PREVIEW_MANAGED_FONT_DIRS=/opt/cad-fonts
 ```
 
 ## 6. 外挂企业 CAD 字体目录
@@ -102,16 +103,17 @@ CAD_PREVIEW_FONT_DIRS=/usr/local/share/fonts/mes-lite:/opt/cad-fonts
 /opt/cad-fonts
 ```
 
-源目录或 Volume 名可按服务器规范命名，例如 `mes-lite-cad-fonts`。字体由转换器只读使用；若 Coolify 支持只读挂载，应设为只读。把已经取得合法授权的 `.shx`、`.shp`、`.lff`、`.ttf`、`.ttc` 或 `.otf` 文件放入该持久目录，文件名应与 DWG/DXF 的文字样式引用完全一致。优先让制图方使用 AutoCAD eTransmit/字体缺失报告提供原图实际使用的字体，不要用来源不明的所谓“万能字库”。
+源目录或 Volume 名可按服务器规范命名，例如 `mes-lite-cad-fonts`。标准模式要求该挂载允许容器入口在启动阶段执行一次受控权限修复，因此不要在 Coolify 把该挂载设为宿主层只读。入口只接受 `/opt/cad-fonts` 白名单路径，拒绝符号链接，把目录修为 `root:cadpreview 0750`、文件修为 `root:cadpreview 0640`，然后立即通过 `setpriv` 降为 UID 10001 的 `cadpreview` 进程、启用 no-new-privileges 并清空 capability 集；实际转换进程只能读取字体，不能改写字体目录或恢复 root 能力。若 Coolify 支持 capability 配置，采用 `drop ALL` 后仅为启动阶段增加 `CHOWN`、`FOWNER`、`DAC_OVERRIDE`、`SETUID`、`SETGID`、`SETPCAP`。把已经取得合法授权的 `.shx`、`.shp`、`.lff`、`.ttf`、`.ttc` 或 `.otf` 文件放入该持久目录，文件名应与 DWG/DXF 的文字样式引用完全一致。优先让制图方使用 AutoCAD eTransmit/字体缺失报告提供原图实际使用的字体，不要用来源不明的所谓“万能字库”。
 
 每次增加或替换字体后：
 
-1. 重新启动或 Redeploy `cad-preview`；服务启动时会递归扫描 `/opt/cad-fonts` 并自动重建 ezdxf 字体缓存。
-2. 查看启动日志，确认输出包含 `fonts=/usr/local/share/fonts/mes-lite,/opt/cad-fonts`。
-3. 在 MES-lite 对旧图纸点击“重新生成预览”；已有派生 PDF 不会仅因字体目录变化自动覆盖。
-4. 先验收一份已知缺字图纸，再分批重建其他图纸。
+1. 重新启动或 Redeploy `cad-preview`；入口先修复 `/opt/cad-fonts` 权限并降权，服务随后递归扫描字体并自动重建 ezdxf 缓存。
+2. 查看启动日志，确认先出现 `CAD 字体目录权限已就绪`，随后出现 `fonts=/usr/local/share/fonts/mes-lite,/opt/cad-fonts` 以及每个目录的 owner、UID/GID、mode 和有效读写权限。
+3. 调用受令牌保护的 `/health`，确认 `fontDirectories` 中两个目录均为 `status=ready`，外挂目录应显示 `owner=root`、`group=cadpreview`、`mode=0750`、`readable=true`、`searchable=true`、`writable=false`。
+4. 在 MES-lite 对旧图纸点击“重新生成预览”；已有派生 PDF 不会仅因字体目录变化自动覆盖。
+5. 先验收一份已知缺字图纸，再分批重建其他图纸。
 
-不要把 Autodesk、供应商或客户字体提交到 Git 仓库，除非许可证明确允许再分发。字体挂载只属于 `cad-preview`，不挂载到 MES-lite 主应用。
+不要扩大 `CAD_PREVIEW_MANAGED_FONT_DIRS` 到 `/opt/cad-fonts` 之外；入口会主动拒绝白名单外路径，防止 root 初始化误改其他挂载。不要把 Autodesk、供应商或客户字体提交到 Git 仓库，除非许可证明确允许再分发。字体挂载只属于 `cad-preview`，不挂载到 MES-lite 主应用。
 
 ## 7. 资源与容器加固
 

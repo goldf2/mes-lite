@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import grp
 import hmac
+import json
 import os
+import pwd
 import shutil
+import stat
 import subprocess
 import tempfile
 import threading
@@ -38,19 +42,89 @@ class ConversionError(RuntimeError):
     pass
 
 
-def configure_cad_font_directories() -> tuple[str, ...]:
+def _account_name(identifier: int, *, group: bool = False) -> str:
+    try:
+        return grp.getgrgid(identifier).gr_name if group else pwd.getpwuid(identifier).pw_name
+    except KeyError:
+        return str(identifier)
+
+
+def inspect_cad_font_directory(configured_path: str | Path) -> dict[str, object]:
+    configured = str(configured_path)
+    path = Path(configured).expanduser().resolve(strict=False)
+    result: dict[str, object] = {
+        "configuredPath": configured,
+        "resolvedPath": str(path),
+        "processUid": os.geteuid(),
+        "processGid": os.getegid(),
+    }
+    try:
+        metadata = path.stat()
+    except FileNotFoundError:
+        return {**result, "status": "missing", "message": "目标路径不存在"}
+    except OSError as error:
+        return {**result, "status": "unavailable", "message": str(error)}
+
+    is_directory = stat.S_ISDIR(metadata.st_mode)
+    readable = os.access(path, os.R_OK)
+    searchable = os.access(path, os.X_OK)
+    writable = os.access(path, os.W_OK)
+    if not is_directory:
+        status = "not_directory"
+        message = "目标路径不是目录"
+    elif not readable or not searchable:
+        status = "permission_denied"
+        message = "转换进程缺少读取或进入目录的权限"
+    else:
+        status = "ready"
+        message = "目录权限可用"
+    return {
+        **result,
+        "status": status,
+        "message": message,
+        "ownerUid": metadata.st_uid,
+        "owner": _account_name(metadata.st_uid),
+        "groupGid": metadata.st_gid,
+        "group": _account_name(metadata.st_gid, group=True),
+        "mode": f"{stat.S_IMODE(metadata.st_mode):04o}",
+        "permissions": stat.filemode(metadata.st_mode),
+        "ownedByProcess": metadata.st_uid == os.geteuid(),
+        "readable": readable,
+        "searchable": searchable,
+        "writable": writable,
+        "readOnly": not writable,
+    }
+
+
+def configure_cad_font_directories() -> tuple[tuple[str, ...], tuple[dict[str, object], ...]]:
     configured = os.getenv("CAD_PREVIEW_FONT_DIRS", DEFAULT_FONT_DIRECTORIES)
-    directories = tuple(
-        str(Path(item.strip()).expanduser().resolve())
+    configured_directories = tuple(dict.fromkeys(
+        item.strip()
         for item in configured.split(os.pathsep)
-        if item.strip() and Path(item.strip()).expanduser().is_dir()
-    )
+        if item.strip()
+    ))
+    statuses = tuple(inspect_cad_font_directory(item) for item in configured_directories)
+    invalid = tuple(item for item in statuses if item["status"] != "ready")
+    if invalid:
+        details = "; ".join(
+            f"{item['configuredPath']} [{item['status']}]: {item['message']}"
+            for item in invalid
+        )
+        raise RuntimeError(f"CAD 字体目录检查失败：{details}")
+    directories = tuple(str(item["resolvedPath"]) for item in statuses)
     ezdxf.options.support_dirs = list(dict.fromkeys([*ezdxf.options.support_dirs, *directories]))
     fonts.build_system_font_cache()
-    return directories
+    return directories, statuses
 
 
-CAD_FONT_DIRECTORIES = configure_cad_font_directories()
+CAD_FONT_DIRECTORIES, CAD_FONT_DIRECTORY_STATUS = configure_cad_font_directories()
+
+
+def current_cad_font_directory_status() -> tuple[dict[str, object], ...]:
+    return tuple(
+        inspect_cad_font_directory(str(item["configuredPath"]))
+        for item in CAD_FONT_DIRECTORY_STATUS
+    )
 
 
 def _command_error(result: subprocess.CompletedProcess[str]) -> str:
@@ -225,7 +299,22 @@ class CadPreviewHandler(BaseHTTPRequestHandler):
         if shutil.which("dwg2dxf") is None:
             self._text(HTTPStatus.SERVICE_UNAVAILABLE, "LibreDWG dwg2dxf unavailable")
             return
-        self._send(HTTPStatus.OK, b'{"status":"ok","engine":"LibreDWG+ezdxf"}', "application/json")
+        font_directory_status = current_cad_font_directory_status()
+        fonts_ready = all(item["status"] == "ready" for item in font_directory_status)
+        payload = json.dumps(
+            {
+                "status": "ok" if fonts_ready else "unavailable",
+                "engine": "LibreDWG+ezdxf",
+                "fontDirectories": font_directory_status,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        self._send(
+            HTTPStatus.OK if fonts_ready else HTTPStatus.SERVICE_UNAVAILABLE,
+            payload,
+            "application/json; charset=utf-8",
+        )
 
     def do_POST(self) -> None:
         if self.path != "/v1/convert/pdf":
@@ -284,6 +373,15 @@ def main() -> None:
         f"conversions={MAX_CONCURRENT_CONVERSIONS}; fonts={','.join(CAD_FONT_DIRECTORIES) or 'none'}",
         flush=True,
     )
+    for directory in CAD_FONT_DIRECTORY_STATUS:
+        print(
+            "CAD font directory ready: "
+            f"path={directory['resolvedPath']}; owner={directory['owner']}:{directory['group']}; "
+            f"uid={directory['ownerUid']}; gid={directory['groupGid']}; "
+            f"mode={directory['mode']}; readable={directory['readable']}; "
+            f"searchable={directory['searchable']}; writable={directory['writable']}",
+            flush=True,
+        )
     server.serve_forever()
 
 

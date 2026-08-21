@@ -10,17 +10,20 @@ The service converts DWG to DXF with GNU LibreDWG and renders DXF layouts to a r
 Build from the repository root:
 
 ```bash
-docker build -f services/cad-preview/Dockerfile -t mes-lite-cad-preview:0.1.426 .
+docker build -f services/cad-preview/Dockerfile -t mes-lite-cad-preview:0.1.427 .
 ```
 
 Run on a private container network:
 
 ```bash
 docker run --read-only --tmpfs /tmp:size=256m,mode=1777 \
-  --cap-drop ALL --security-opt no-new-privileges \
-  --mount type=bind,src=/srv/mes-lite/cad-fonts,dst=/opt/cad-fonts,readonly \
+  --cap-drop ALL \
+  --cap-add CHOWN --cap-add FOWNER --cap-add DAC_OVERRIDE \
+  --cap-add SETUID --cap-add SETGID --cap-add SETPCAP \
+  --security-opt no-new-privileges \
+  --mount type=bind,src=/srv/mes-lite/cad-fonts,dst=/opt/cad-fonts \
   -e CAD_PREVIEW_SERVICE_TOKEN='<same-secret-as-mes-lite>' \
-  mes-lite-cad-preview:0.1.426
+  mes-lite-cad-preview:0.1.427
 ```
 
 ## External CAD fonts
@@ -31,11 +34,14 @@ Override the directory list with a colon-separated value when required:
 
 ```env
 CAD_PREVIEW_FONT_DIRS=/usr/local/share/fonts/mes-lite:/opt/cad-fonts
+CAD_PREVIEW_MANAGED_FONT_DIRS=/opt/cad-fonts
 CAD_PREVIEW_MAX_CONCURRENT_CONVERSIONS=2
 CAD_PREVIEW_QUEUE_TIMEOUT_SECONDS=120
 ```
 
-Do not commit Autodesk, supplier, or customer font binaries to this repository unless their license explicitly permits redistribution. A private read-only persistent mount is the preferred production path. After adding or replacing fonts, restart `cad-preview` and use MES-lite's **重新生成预览** action for cached drawings.
+The standard entrypoint starts as root only long enough to repair the allow-listed `/opt/cad-fonts` mount. It rejects paths outside that tree and symbolic links, sets directories to `root:cadpreview 0750` and files to `root:cadpreview 0640`, then immediately starts the converter through `setpriv` as the unprivileged `cadpreview` user (UID 10001) with no-new-privileges and empty capability bounding, inheritable and ambient sets. The mount must therefore allow the short initialization repair and the container needs only `CHOWN`, `FOWNER`, `DAC_OVERRIDE`, `SETUID`, `SETGID` and `SETPCAP` during that phase; after privilege drop, the converter can read but cannot modify the font files or regain those capabilities. Startup logs and the protected `GET /health` response report the resolved path, owner UID/GID, mode and effective read/search/write access. Health rechecks the live paths on every request and returns 503 if a mounted directory later becomes unavailable. A configured path that is missing, not a directory or unreadable stops startup with an explicit error.
+
+Do not commit Autodesk, supplier, or customer font binaries to this repository unless their license explicitly permits redistribution. A private persistent mount managed by the guarded startup entrypoint is the preferred production path. After adding or replacing fonts, restart `cad-preview` and use MES-lite's **重新生成预览** action for cached drawings.
 
 This is a 2D trial engine, pinned to LibreDWG 0.14. LibreDWG and ezdxf do not provide pixel-perfect support for every recent or vertical-product DWG entity. Keep download-original and optional companion-PDF workflows available for drawings that fail acceptance.
 
