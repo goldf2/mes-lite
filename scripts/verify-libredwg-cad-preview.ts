@@ -9,6 +9,7 @@ const requirements = readFileSync('services/cad-preview/requirements.txt', 'utf8
 const readme = readFileSync('services/cad-preview/README.md', 'utf8')
 const adr = readFileSync('docs/adr/0046-isolated-cad-preview-converter.md', 'utf8')
 const deployment = readFileSync('docs/deployment/coolify.md', 'utf8')
+const cadDeployment = readFileSync('docs/deployment/LibreDWG-Coolify配置手册.md', 'utf8')
 const cadClient = readFileSync('lib/files/cad-document-preview.ts', 'utf8')
 const thumbnail = readFileSync('modules/attachments/ui/DocumentPreviewThumb.tsx', 'utf8')
 
@@ -77,5 +78,9 @@ assert.match(readme, /GPL-3\.0-or-later/, '交付说明必须写明 LibreDWG 许
 assert.match(readme, /AGPL-3\.0-or-later/, '交付说明必须写明 PyMuPDF 许可证')
 assert.match(deployment, /services\/cad-preview\/Dockerfile/, 'Coolify 文档必须给出独立服务 Dockerfile')
 assert.match(deployment, /不(?:得)?暴露公网/, 'Coolify 文档必须锁定私网边界')
+assert.doesNotMatch(cadDeployment, /\/opt\/cad-fonts` 只读持久挂载/, '外挂字体卷必须允许入口在启动阶段修复权限')
+for (const capability of ['CHOWN', 'FOWNER', 'DAC_OVERRIDE', 'SETUID', 'SETGID', 'SETPCAP']) {
+  assert.match(cadDeployment, new RegExp(`--cap-add ${capability}`), `Coolify 加固参数必须保留启动降权所需的 ${capability}`)
+}
 
 console.log('LibreDWG CAD 预览服务结构、协议、安全边界与发布说明验证通过')

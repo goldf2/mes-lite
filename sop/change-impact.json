@@ -1,6 +1,6 @@
 {
-  "version": "0.1.427",
+  "version": "0.1.428",
   "impact": "updated",
   "workflowIds": ["33-document-list", "34-document-create"],
-  "summary": "外挂 CAD 字体目录增加受控权限修复、立即降权与路径所有者健康诊断。"
+  "summary": "统一 Coolify 外挂 CAD 字体卷的受控 root 修权、立即降权和最小 capability 配置。"
 }

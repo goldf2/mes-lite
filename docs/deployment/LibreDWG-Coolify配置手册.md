@@ -127,12 +127,12 @@ CAD_PREVIEW_MANAGED_FONT_DIRS=/opt/cad-fonts
 | 临时空间 | `/tmp` tmpfs `256 MiB` |
 | Instances | `1` |
 
-转换器不需要数据库、附件或备份挂载；仅在需要企业 CAD 字体时增加 `/opt/cad-fonts` 只读持久挂载。
+转换器不需要数据库、附件或备份挂载；仅在需要企业 CAD 字体时增加 `/opt/cad-fonts` 持久挂载。该挂载在 Docker/Coolify 层必须保持可写，供入口短暂以 root 幂等修复所有者和权限；降权后的 `cadpreview` 转换进程只有读取权限。
 
 如果当前 Coolify 支持 Custom Docker Options，可填写：
 
 ```text
---read-only --tmpfs /tmp:size=256m,mode=1777 --cap-drop ALL --security-opt no-new-privileges
+--read-only --tmpfs /tmp:size=256m,mode=1777 --cap-drop ALL --cap-add CHOWN --cap-add FOWNER --cap-add DAC_OVERRIDE --cap-add SETUID --cap-add SETGID --cap-add SETPCAP --security-opt no-new-privileges
 ```
 
 若 Coolify 当前版本不接受其中某项，首次部署可先清空 Custom Docker Options 验证基础链路，再逐项启用并重新验收；不能因为加固参数失败而改为公网暴露服务。
