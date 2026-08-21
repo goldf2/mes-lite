@@ -1,6 +1,6 @@
 {
-  "version": "0.1.428",
+  "version": "0.1.429",
   "impact": "updated",
   "workflowIds": ["33-document-list", "34-document-create"],
-  "summary": "统一 Coolify 外挂 CAD 字体卷的受控 root 修权、立即降权和最小 capability 配置。"
+  "summary": "修复产品文档缩略图原生懒加载与隐藏状态形成的请求死锁。"
 }

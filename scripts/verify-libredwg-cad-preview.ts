@@ -34,6 +34,8 @@ assert.match(server, /text_style\.dxf\.bigfont = ""/, '大字体缺失时必须�
 assert.match(server, /BoundedSemaphore\(MAX_CONCURRENT_CONVERSIONS\)/, '转换器必须限制同时执行的 CAD 转换数量')
 assert.match(cadClient, /withConversionSlot/, 'MES 主应用必须在请求转换服务前排队')
 assert.match(thumbnail, /loading="lazy"/, '文档列表缩略图必须延迟加载，避免一次触发整页 CAD 转换')
+assert.doesNotMatch(thumbnail, /state === 'ready' \? 'block' : 'hidden'/, '懒加载图片不得在完成前使用 display:none，否则浏览器不会发出缩略图请求')
+assert.match(thumbnail, /state === 'ready' \? 'opacity-100' : 'opacity-0'/, '缩略图加载占位必须通过透明度保留图片布局')
 
 assert.match(dockerfile, /ARG LIBREDWG_VERSION=0\.14/, 'LibreDWG 必须固定到已审查版本')
 assert.match(dockerfile, /ARG LIBREDWG_SHA256=[0-9a-f]{64}/, 'LibreDWG 源码必须校验 SHA-256')

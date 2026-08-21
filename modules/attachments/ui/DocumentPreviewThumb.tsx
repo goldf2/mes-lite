@@ -33,7 +33,7 @@ function StoredDocumentPreview({
   }, [thumbnailUrl])
 
   return (
-    <>
+    <div className="relative h-full w-full">
       <img
         src={thumbnailUrl}
         alt={attachment.note || `${title} · ${attachment.originalName}`}
@@ -41,23 +41,23 @@ function StoredDocumentPreview({
         decoding="async"
         onLoad={() => setState('ready')}
         onError={() => setState('error')}
-        className={`h-full w-full bg-white object-contain ${state === 'ready' ? 'block' : 'hidden'}`}
+        className={`h-full w-full bg-white object-contain transition-opacity ${state === 'ready' ? 'opacity-100' : 'opacity-0'}`}
       />
       {state === 'loading' && (
-        <div className="flex flex-col items-center gap-1 text-xs text-gray-500">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-xs text-gray-500">
           <span className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
           正在读取缩略图
         </div>
       )}
       {state === 'error' && (
-        <div className="flex flex-col items-center gap-1 text-red-700">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-red-700">
           <span className="text-base font-semibold">
             {attachmentTypeLabel(attachment.originalName, attachment.mimeType)}
           </span>
           <span className="text-xs">预览不可用</span>
         </div>
       )}
-    </>
+    </div>
   )
 }
 
