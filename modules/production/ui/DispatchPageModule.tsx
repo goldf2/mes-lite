@@ -10,7 +10,9 @@ import SortableTableHeader from '@/app/components/SortableTableHeader'
 import useClientTableSort from '@/app/components/useClientTableSort'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import AppButton from '@/app/components/AppButton'
-import { MappedResourceAdvancedSearch } from '@/app/components/resource'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
+import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
+import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import { BusinessDocumentDetailDialog, BusinessDocumentPrintLink } from '@/modules/business-documents'
 import {
   DraftDocumentAttachmentPanel,
@@ -40,6 +42,7 @@ import {
   type DispatchProcessStep as ProcessStep,
   type DispatchRecord as Dispatch,
 } from '../contracts/dispatch'
+import { buildDispatchSearchCatalog } from '../model/production-search-fields'
 
 export default function DispatchPage({
   onMessage,
@@ -55,18 +58,17 @@ export default function DispatchPage({
   const [customers, setCustomers] = useState<Customer[]>([])
   const [steps, setSteps] = useState<ProcessStep[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
-  const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
-  const [selectedCustomerId, setSelectedCustomerId] = useState('')
+  const [keyword, setKeyword] = useState('')
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [draftAttachmentOwnerId, setDraftAttachmentOwnerId] = useState('')
   const [draftAttachmentBusy, setDraftAttachmentBusy] = useState(false)
   const [detailItem, setDetailItem] = useState<Dispatch | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.dispatch.viewMode.v2', 'card')
-  const advancedSearchFields = useMemo(() => [
-    { key: 'status', label: '状态', value: selectedStatuses.length === 1 ? selectedStatuses[0] : '', onChange: (value: string) => setSelectedStatuses(value ? [value] : statusOptions.map((option) => option.value)), options: statusOptions },
-    { key: 'customerId', label: '客户', value: selectedCustomerId, onChange: setSelectedCustomerId, options: [{ value: '__UNASSIGNED__', label: '通用/未绑定' }, ...customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` }))] },
-  ], [customers, selectedCustomerId, selectedStatuses])
+  const searchCatalog = useMemo(() => buildDispatchSearchCatalog(customers, employees), [customers, employees])
+  const advancedSearchFields = useMemo(() => resourceAdvancedFields(searchCatalog), [searchCatalog])
+  const selectedCustomerId = searchConditions.find((condition) => condition.field === 'customerId')?.value || ''
 
   const [form, setForm] = useState({
     voucherNo: '',
@@ -93,11 +95,11 @@ export default function DispatchPage({
     fetchOrders()
     fetchCustomers()
     fetchEmployees()
-  }, [selectedStatuses, selectedCustomerId])
+  }, [keyword, searchConditions, selectedCustomerId])
   const fetchDispatches = async () => {
     setLoading(true)
     try {
-      setDispatches(await listDispatches(selectedStatuses, statusOptions.map((option) => option.value), selectedCustomerId))
+      setDispatches(await listDispatches(statusOptions.map((option) => option.value), statusOptions.map((option) => option.value), '', keyword, searchConditions))
     } catch (err) {
       onMessage('获取派工单列表失败')
     }
@@ -254,7 +256,8 @@ export default function DispatchPage({
 
     onToolbarChange(
       <ResponsiveToolbarActions
-        advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
+        primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.dispatches" value={keyword} onChange={setKeyword} placeholder="搜索派工单、订单、物料、工序或员工" conditions={searchConditions} onConditionsChange={setSearchConditions} />}
+        advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
         viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
         actions={(
           <>
@@ -278,13 +281,14 @@ export default function DispatchPage({
     )
 
     return () => onToolbarChange(null)
-  }, [advancedSearchFields, onToolbarChange, selectedStatuses, selectedCustomerId, customers, onCreateOrder, viewMode, setViewMode])
+  }, [advancedSearchFields, keyword, onToolbarChange, onCreateOrder, searchConditions, viewMode, setViewMode])
 
   return (
     <>
       <TopBarPortal>
         <ResponsiveToolbarActions
-          advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
+          primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.dispatches" value={keyword} onChange={setKeyword} placeholder="搜索派工单、订单、物料、工序或员工" conditions={searchConditions} onConditionsChange={setSearchConditions} />}
+          advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
           viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
           actions={(
             <>

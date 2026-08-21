@@ -1,7 +1,6 @@
 'use client'
 
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-import { getStatusQuery } from '@/app/components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
@@ -9,7 +8,8 @@ import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
 import { normalizeMaterialInPriceUnit } from '@/lib/material-in-quantity'
 import useClientTableSort from '@/app/components/useClientTableSort'
 import AppButton from '@/app/components/AppButton'
-import { MappedResourceAdvancedSearch } from '@/app/components/resource'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
+import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import {
   createDraftDocumentAttachmentId,
   discardDraftDocumentAttachments,
@@ -32,6 +32,7 @@ import {
   materialInStatusLabels as statusLabels,
   materialInStatusOptions as statusOptions,
 } from '../model/material-in-view'
+import { buildMaterialInSearchCatalog } from '../model/material-in-search-fields'
 import MaterialInCollectionView from './MaterialInCollectionView'
 import MaterialInDetailDialog from './MaterialInDetailDialog'
 import MaterialInEditorDialog from './MaterialInEditorDialog'
@@ -86,13 +87,11 @@ export default function MaterialInPage({
   const [materials, setMaterials] = useState<Material[]>([])
   const [locations, setLocations] = useState<InventoryLocation[]>([])
   const [keyword, setKeyword] = useState('')
-  const [selectedStatuses, setSelectedStatuses] = useState(() => (
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>(() => (
     typeof window !== 'undefined' && new URL(window.location.href).searchParams.get('task') === 'material-in'
-      ? ['PENDING']
-      : statusOptions.map((option) => option.value)
+      ? [{ id: 'task-status', field: 'status', operator: 'equals', value: 'PENDING' }]
+      : []
   ))
-  const [selectedSupplierId, setSelectedSupplierId] = useState('')
-  const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [draftAttachmentOwnerId, setDraftAttachmentOwnerId] = useState('')
@@ -104,11 +103,8 @@ export default function MaterialInPage({
   const [conversionHistory, setConversionHistory] = useState<MaterialInConversionHistory | null>(null)
   const [conversionHistoryLoading, setConversionHistoryLoading] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.materialIn.viewMode', 'list')
-  const advancedSearchFields = useMemo(() => [
-    { key: 'status', label: '状态', value: selectedStatuses.length === 1 ? selectedStatuses[0] : '', onChange: (value: string) => setSelectedStatuses(value ? [value] : statusOptions.map((option) => option.value)), options: statusOptions },
-    { key: 'customerId', label: '归属客户', value: selectedCustomerId, onChange: setSelectedCustomerId, options: [{ value: '__UNASSIGNED__', label: '通用/未绑定' }, ...customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` }))] },
-    { key: 'supplierId', label: '供应商', value: selectedSupplierId, onChange: setSelectedSupplierId, options: suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name })) },
-  ], [customers, selectedCustomerId, selectedStatuses, selectedSupplierId, suppliers])
+  const searchCatalog = useMemo(() => buildMaterialInSearchCatalog({ customers, suppliers, locations }), [customers, locations, suppliers])
+  const advancedSearchFields = useMemo(() => resourceAdvancedFields(searchCatalog), [searchCatalog])
 
   const [form, setForm] = useState(createEmptyMaterialInForm)
   const selectedMaterial = materials.find((material) => material.id === form.materialId)
@@ -129,7 +125,7 @@ export default function MaterialInPage({
     fetchCustomers()
     fetchMaterials()
     fetchLocations()
-  }, [keyword, selectedStatuses, selectedSupplierId, selectedCustomerId])
+  }, [keyword, searchConditions])
 
   useEffect(() => {
     let cancelled = false
@@ -175,11 +171,9 @@ export default function MaterialInPage({
   const fetchMaterialIns = async () => {
     setLoading(true)
     try {
-      const query = getStatusQuery(selectedStatuses, statusOptions)
-      const params = new URLSearchParams(query)
+      const params = new URLSearchParams()
       if (keyword.trim()) params.set('keyword', keyword.trim())
-      if (selectedSupplierId) params.set('supplierId', selectedSupplierId)
-      if (selectedCustomerId) params.set('customerId', selectedCustomerId)
+      if (searchConditions.length > 0) params.set('advanced', JSON.stringify(searchConditions.map(({ field, operator, value }) => ({ field, operator, value }))))
       const { data } = await listMaterialInRecords(params)
       setMaterialIns(data)
     } catch (err) {
@@ -570,9 +564,11 @@ export default function MaterialInPage({
             value={keyword}
             onChange={setKeyword}
             placeholder="搜索来料单号、物料、供应商或批次"
+            conditions={searchConditions}
+            onConditionsChange={setSearchConditions}
           />
         )}
-        advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
+        advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
         viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
         actions={(
           <>
@@ -585,7 +581,7 @@ export default function MaterialInPage({
     )
 
     return () => onToolbarChange(null)
-  }, [advancedSearchFields, canCreate, onToolbarChange, keyword, selectedStatuses, selectedCustomerId, selectedSupplierId, customers, suppliers, viewMode, setViewMode])
+  }, [advancedSearchFields, canCreate, onToolbarChange, keyword, searchConditions, viewMode, setViewMode])
 
   return (
     <>
@@ -597,9 +593,11 @@ export default function MaterialInPage({
               value={keyword}
               onChange={setKeyword}
               placeholder="搜索来料单号、物料、供应商或批次"
+              conditions={searchConditions}
+              onConditionsChange={setSearchConditions}
             />
           )}
-          advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
+          advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
           viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
           actions={(
             <>

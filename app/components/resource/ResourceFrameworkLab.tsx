@@ -12,7 +12,7 @@ import ResourceFormDialog from './ResourceFormDialog'
 import ResourcePage from './ResourcePage'
 import { ResourceTableColumn } from './ResourceTable'
 import PageQrCodeButton from '../PageQrCodeButton'
-import { matchesKeywordValues, type ResourceAdvancedSearchField } from '@/lib/resource-search'
+import { defineResourceSearchCatalog, filterBySearchCatalog, resourceAdvancedFields } from '@/lib/resource-search'
 
 type LabState = 'ready' | 'loading' | 'empty' | 'error'
 type DocumentStatus = 'active' | 'archived'
@@ -41,13 +41,18 @@ const materials: MaterialRelationOption[] = [
 ]
 
 const labDisplayModes = ['icon', 'list', 'card', 'columns', 'gallery'] as const
-const labAdvancedSearchFields: readonly ResourceAdvancedSearchField<LabDocument>[] = [
+const labSearchCatalog = defineResourceSearchCatalog<LabDocument>('resource-framework-lab.actual-fields', [
   { key: 'code', label: '文档编码', type: 'text', read: (document) => document.code },
   { key: 'title', label: '文档标题', type: 'text', read: (document) => document.title },
   { key: 'category', label: '类别', type: 'text', read: (document) => document.category },
-  { key: 'status', label: '状态', type: 'select', read: (document) => document.status, options: [{ value: 'active', label: '启用' }, { value: 'archived', label: '已归档' }] },
+  { key: 'status', label: '状态', type: 'select', read: (document) => document.status === 'active' ? ['active', '启用'] : ['archived', '已归档'], options: [{ value: 'active', label: '启用' }, { value: 'archived', label: '已归档' }] },
   { key: 'updatedAt', label: '更新时间', type: 'date', read: (document) => document.updatedAt },
-]
+  { key: 'materials', label: '关联物料', type: 'text', read: (document) => document.materialIds.flatMap((id) => {
+    const material = materials.find((item) => item.id === id)
+    return material ? [material.code, material.name, material.spec] : []
+  }) },
+])
+const labAdvancedSearchFields = resourceAdvancedFields(labSearchCatalog)
 
 const initialDocuments: LabDocument[] = [
   {
@@ -124,16 +129,7 @@ export default function ResourceFrameworkLab() {
   const [pageUrlReady, setPageUrlReady] = useState(false)
   const pageUrlInitializedRef = useRef(false)
 
-  const visibleDocuments = useMemo(() => {
-    return documents.filter((document) => {
-      const relatedMaterials = document.materialIds
-        .map((id) => materials.find((material) => material.id === id))
-        .filter(Boolean)
-        .map((material) => `${material?.code} ${material?.name}`)
-        .join(' ')
-      return matchesKeywordValues(query, [document.code, document.title, document.category, relatedMaterials])
-    })
-  }, [documents, query])
+  const visibleDocuments = useMemo(() => filterBySearchCatalog(documents, query, labSearchCatalog, []), [documents, query])
 
   const displayedDocuments = labState === 'empty' ? [] : visibleDocuments
   const selected = documents.find((document) => document.id === selectedId) || null

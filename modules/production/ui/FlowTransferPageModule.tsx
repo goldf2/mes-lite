@@ -11,7 +11,8 @@ import TopBarPortal from '@/app/components/TopBarPortal'
 import { appTextareaClassName } from '@/app/components/FormField'
 import MetricCard from '@/app/components/MetricCard'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
-import { MappedResourceAdvancedSearch } from '@/app/components/resource'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
+import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import { BusinessDocumentPrintLink } from '@/modules/business-documents'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import SortableTableHeader from '@/app/components/SortableTableHeader'
@@ -29,6 +30,7 @@ import {
   flowTransferNumberText as numberText,
   flowTransferStatusMeta as statusMeta,
 } from '../model/flow-transfer-view'
+import { buildFlowTransferSearchCatalog } from '../model/production-search-fields'
 
 export default function FlowTransferPageModule({
   onMessage,
@@ -48,7 +50,7 @@ export default function FlowTransferPageModule({
   const [locations, setLocations] = useState<FlowTransferLocationOption[]>([])
   const [employees, setEmployees] = useState<FlowTransferEmployeeOption[]>([])
   const [keyword, setKeyword] = useState('')
-  const [status, setStatus] = useState('ALL')
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
@@ -58,24 +60,15 @@ export default function FlowTransferPageModule({
   const [confirmingTransfer, setConfirmingTransfer] = useState<FlowTransferRecord | null>(null)
   const [reversingTransfer, setReversingTransfer] = useState<FlowTransferRecord | null>(null)
   const [reverseReason, setReverseReason] = useState('')
-  const advancedSearchFields = useMemo(() => [{
-    key: 'status',
-    label: '状态',
-    value: status === 'ALL' ? '' : status,
-    onChange: (value: string) => setStatus(value || 'ALL'),
-    options: [
-      { value: 'DRAFT', label: '草稿' },
-      { value: 'CONFIRMED', label: '已确认' },
-      { value: 'REVERSED', label: '已冲销' },
-    ],
-  }], [status])
+  const searchCatalog = useMemo(() => buildFlowTransferSearchCatalog(locations, employees), [employees, locations])
+  const advancedSearchFields = useMemo(() => resourceAdvancedFields(searchCatalog), [searchCatalog])
 
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
       if (keyword.trim()) params.set('keyword', keyword.trim())
-      if (status !== 'ALL') params.set('status', status)
+      if (searchConditions.length > 0) params.set('advanced', JSON.stringify(searchConditions))
       const data = await loadFlowTransfers(params)
       setTransfers(data.transfers)
       setMaterials(data.materials)
@@ -86,7 +79,7 @@ export default function FlowTransferPageModule({
     } finally {
       setLoading(false)
     }
-  }, [keyword, onMessage, status])
+  }, [keyword, onMessage, searchConditions])
 
   useEffect(() => {
     const timer = window.setTimeout(loadData, 180)
@@ -218,9 +211,11 @@ export default function FlowTransferPageModule({
               value={keyword}
               onChange={setKeyword}
               placeholder="搜索转移单号、物料、操作人或备注"
+              conditions={searchConditions}
+              onConditionsChange={setSearchConditions}
             />
           )}
-          advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
+          advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
           viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
           actions={canCreate ? <AppButton variant="create" onClick={openCreate}>新建流程转移</AppButton> : undefined}
         />

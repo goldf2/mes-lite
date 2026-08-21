@@ -7,6 +7,8 @@ import { createSalesOrderSchema } from '@/modules/sales/contracts/sales-order-sc
 import { SalesDomainError } from '@/modules/sales/domain/sales-errors'
 import { createManagedSalesOrder } from '@/modules/sales/server/sales-order-command-service'
 import { listSalesOrders } from '@/modules/sales/server/sales-order-query-service'
+import { parseResourceSearchConditions } from '@/lib/resource-search'
+import { salesOrderSearchFieldKeys } from '@/modules/sales/model/sales-search-fields'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,8 +19,10 @@ export async function GET(req: NextRequest) {
     const params = new URL(req.url).searchParams
     const page = Math.max(1, Number(params.get('page') || 1))
     const pageSize = Math.min(100, Math.max(1, Number(params.get('pageSize') || 30)))
+    const advanced = parseResourceSearchConditions(params.get('advanced'), salesOrderSearchFieldKeys)
+    if (advanced.error) return NextResponse.json({ error: advanced.error }, { status: 400 })
     return NextResponse.json(await listSalesOrders({
-      statuses: parseStatusFilter(params), keyword: params.get('keyword'), customerId: params.get('customerId'), page, pageSize,
+      statuses: parseStatusFilter(params), keyword: params.get('keyword'), customerId: params.get('customerId'), advancedConditions: advanced.conditions, page, pageSize,
     }))
   } catch (error) {
     console.error('Get sales orders error:', error)

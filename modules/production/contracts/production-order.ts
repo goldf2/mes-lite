@@ -26,8 +26,8 @@ export interface ProductionOrder {
   completeQty: number
   scrapQty: number
   createdAt: string
-  product: { id: string; name: string; sku: string }
-  targetMaterial?: { id: string; name: string; code: string; category?: string; stockUnit?: string; unit?: string } | null
+  product: { id: string; name: string; sku: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null }
+  targetMaterial?: { id: string; name: string; code: string; category?: string; stockUnit?: string; unit?: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null } | null
   bom?: { id: string; name: string; version: string } | null
   bomName?: string | null
   bomVersion?: string | null

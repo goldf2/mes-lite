@@ -1,6 +1,6 @@
 {
-  "version": "0.1.423",
+  "version": "0.1.424",
   "impact": "updated",
-  "workflowIds": ["33-document-list"],
-  "summary": "产品文档字段设置增加扩展字段编辑；未使用字段可修改名称、类型和选项，已使用字段只能安全改名，删除保护保持不变。"
+  "workflowIds": ["33-document-list", "145-equipment-inspection-due-tasks", "149-equipment-maintenance-due-plans", "89-quality-task-workbench", "155-quality-standard-versions", "107-lot-panorama-entry"],
+  "summary": "产品文档详情修复窄左栏布局；所有可搜索数据页由实际字段目录共同生成智能搜索和高级搜索，设备、质量与批次页面补齐公共高级搜索。"
 }

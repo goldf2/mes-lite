@@ -2,14 +2,17 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
 import type { StockMovementQuery, StockMovementWorkspace } from '../contracts/stock-movement'
-import { stockMovementReferenceOptions, stockMovementTypeOptions } from '../model/stock-movement-view'
+import { stockMovementReferenceOptions, stockMovementReferenceSearchValues, stockMovementTypeOptions, stockMovementTypeSearchValues } from '../model/stock-movement-view'
 import { stockLogDataScopeWhere, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
+import type { ResourceSearchCondition } from '@/lib/resource-search'
 
 function textContains(value: string) {
   return { contains: value }
 }
 
 function keywordCondition(term: string): Prisma.StockLogWhereInput {
+  const number = Number(term)
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(term) ? new Date(`${term}T00:00:00+08:00`) : null
   return {
     OR: [
       { type: textContains(term) },
@@ -26,6 +29,12 @@ function keywordCondition(term: string): Prisma.StockLogWhereInput {
       { stock: { product: { is: { name: textContains(term) } } } },
       { location: { is: { code: textContains(term) } } },
       { location: { is: { name: textContains(term) } } },
+      ...stockMovementTypeSearchValues(term).map((type) => ({ type })),
+      ...stockMovementReferenceSearchValues(term).map((refType) => ({ refType })),
+      ...('增加库存'.includes(term) || '入库'.includes(term) ? [{ qty: { gt: 0 } }] : []),
+      ...('减少库存'.includes(term) || '出库'.includes(term) ? [{ qty: { lt: 0 } }] : []),
+      ...(Number.isFinite(number) ? [{ qty: number }, { beforeQty: number }, { afterQty: number }, { valuationQty: number }, { costAmount: number }] : []),
+      ...(date && !Number.isNaN(date.getTime()) ? [{ createdAt: { gte: date, lt: new Date(date.getTime() + 86_400_000) } }] : []),
     ],
   }
 }
@@ -38,8 +47,49 @@ function createdDateRange(value: string) {
   return { gte: start, lt: end }
 }
 
+function stringFilter(condition: ResourceSearchCondition) {
+  return condition.operator === 'equals' ? { equals: condition.value } : condition.operator === 'startsWith' ? { startsWith: condition.value } : { contains: condition.value }
+}
+
+function numberFilter(condition: ResourceSearchCondition) {
+  const value = Number(condition.value)
+  if (!Number.isFinite(value)) return undefined
+  return condition.operator === 'gt' ? { gt: value } : condition.operator === 'gte' ? { gte: value } : condition.operator === 'lt' ? { lt: value } : condition.operator === 'lte' ? { lte: value } : { equals: value }
+}
+
+function dateFilter(condition: ResourceSearchCondition) {
+  const start = new Date(`${condition.value}T00:00:00+08:00`)
+  if (Number.isNaN(start.getTime())) return undefined
+  if (condition.operator === 'gt') return { gt: new Date(start.getTime() + 86_400_000) }
+  if (condition.operator === 'gte') return { gte: start }
+  if (condition.operator === 'lt') return { lt: start }
+  if (condition.operator === 'lte') return { lt: new Date(start.getTime() + 86_400_000) }
+  return { gte: start, lt: new Date(start.getTime() + 86_400_000) }
+}
+
 function buildStockMovementWhere(query: StockMovementQuery): Prisma.StockLogWhereInput {
   const and: Prisma.StockLogWhereInput[] = tokenizeKeywordQuery(query.keyword).map(keywordCondition)
+  for (const condition of query.advancedConditions || []) {
+    const text = stringFilter(condition)
+    if (condition.field === 'objectCode') and.push({ OR: [{ stock: { material: { is: { code: text } } } }, { stock: { product: { is: { sku: text } } } }] })
+    else if (condition.field === 'objectName') and.push({ OR: [{ stock: { material: { is: { name: text } } } }, { stock: { product: { is: { name: text } } } }] })
+    else if (condition.field === 'objectSpec') and.push({ stock: { material: { is: { spec: text } } } })
+    else if (condition.field === 'objectKind') and.push(condition.value === 'material' ? { stock: { materialId: { not: null } } } : { stock: { productId: { not: null } } })
+    else if (condition.field === 'type') and.push({ type: condition.value })
+    else if (condition.field === 'direction') and.push({ qty: condition.value === 'in' ? { gt: 0 } : { lt: 0 } })
+    else if (condition.field === 'locationId') and.push({ locationId: condition.value })
+    else if (['qty', 'beforeQty', 'afterQty', 'valuationQty', 'costAmount'].includes(condition.field)) {
+      const value = numberFilter(condition)
+      if (value) and.push({ [condition.field]: value } as Prisma.StockLogWhereInput)
+    } else if (['stockUnit', 'valuationUnit', 'refId', 'operator', 'note', 'sourceMovementId', 'reversalMovementId'].includes(condition.field)) {
+      const field = condition.field === 'stockUnit' ? 'stockUnitSnapshot' : condition.field === 'valuationUnit' ? 'valuationUnitSnapshot' : condition.field === 'operator' ? 'createdBy' : condition.field
+      and.push({ [field]: text } as Prisma.StockLogWhereInput)
+    } else if (condition.field === 'refType') and.push({ refType: condition.value })
+    else if (condition.field === 'createdAt') {
+      const value = dateFilter(condition)
+      if (value) and.push({ createdAt: value })
+    }
+  }
   if (query.objectCode) and.push({ OR: [
     { stock: { material: { is: { code: textContains(query.objectCode) } } } },
     { stock: { product: { is: { sku: textContains(query.objectCode) } } } },

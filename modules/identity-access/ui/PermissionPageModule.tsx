@@ -9,8 +9,8 @@ import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import { ResourceAdvancedSearch } from '@/app/components/resource'
 import { OneToManyRelationField, RelationSearch } from '@/app/components/relations'
-import { filterByAdvancedSearch, matchesKeywordValues } from '@/lib/resource-search'
-import type { ResourceAdvancedSearchField, ResourceSearchCondition } from '@/lib/resource-search'
+import { defineResourceSearchCatalog, filterBySearchCatalog, resourceAdvancedFields } from '@/lib/resource-search'
+import type { ResourceSearchCondition } from '@/lib/resource-search'
 import {
   createPermissionGroup,
   loadPermissionAdministration,
@@ -50,12 +50,13 @@ const statusLabels: Record<string, string> = {
   DISABLED: '已停用',
 }
 
-const operatorAdvancedSearchFields: readonly ResourceAdvancedSearchField<PermissionOperator>[] = [
+const operatorSearchCatalog = defineResourceSearchCatalog<PermissionOperator>('permission-operator.actual-fields', [
   { key: 'username', label: '登录账号', type: 'text', read: (item) => item.username },
   { key: 'name', label: '姓名', type: 'text', read: (item) => item.name },
-  { key: 'role', label: '系统角色', type: 'select', read: (item) => item.role, options: Object.entries(roleLabels).map(([value, label]) => ({ value, label })) },
-  { key: 'status', label: '账号状态', type: 'select', read: (item) => item.status, options: Object.entries(statusLabels).map(([value, label]) => ({ value, label })) },
-]
+  { key: 'role', label: '系统角色', type: 'select', read: (item) => [item.role, roleLabels[item.role]], options: Object.entries(roleLabels).map(([value, label]) => ({ value, label })) },
+  { key: 'status', label: '账号状态', type: 'select', read: (item) => [item.status, statusLabels[item.status]], options: Object.entries(statusLabels).map(([value, label]) => ({ value, label })) },
+])
+const operatorAdvancedSearchFields = resourceAdvancedFields(operatorSearchCatalog)
 
 const blankFlags: PermissionFlags = {
   canRead: false,
@@ -140,14 +141,7 @@ export default function PermissionPageModule({
     memberCount: (group) => groupMemberCounts[group.id] || 0,
   }, 'name', 'asc')
   const filteredOperators = useMemo(() => {
-    const advancedOperators = filterByAdvancedSearch(operators, operatorAdvancedSearchFields, searchConditions)
-    if (!searchKeyword.trim()) return advancedOperators
-
-    return advancedOperators.filter((operator) => matchesKeywordValues(searchKeyword, [
-      operator.name,
-      operator.username,
-      roleLabels[operator.role] || operator.role,
-    ]))
+    return filterBySearchCatalog(operators, searchKeyword, operatorSearchCatalog, searchConditions)
   }, [operators, searchConditions, searchKeyword])
 
   const isAssigned = (operatorId: string, groupId: string) => {

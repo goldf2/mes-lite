@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { tokenizeKeywordQuery } from '@/lib/resource-search'
+import { tokenizeKeywordQuery, type ResourceSearchCondition } from '@/lib/resource-search'
 import { SalesDomainError } from '../domain/sales-errors'
 import { shipmentPackageInclude } from './shipment-package-query-service'
 import {
@@ -10,14 +10,40 @@ import {
   unrestrictedDataScope,
   type EffectiveDataScope,
 } from '@/modules/identity-access'
+import { returnStatusOptions, shipmentStatusOptions } from '../model/fulfillment-view'
 
 export type FulfillmentQuery = {
   statuses: string[]
   keyword?: string | null
   customerId?: string | null
   customer?: string | null
+  advancedConditions?: ResourceSearchCondition[]
   page: number
   pageSize: number
+}
+
+function stringFilter(condition: ResourceSearchCondition) {
+  return condition.operator === 'equals' ? { equals: condition.value } : condition.operator === 'startsWith' ? { startsWith: condition.value } : { contains: condition.value }
+}
+
+function numberFilter(condition: ResourceSearchCondition) {
+  const value = Number(condition.value)
+  if (!Number.isFinite(value)) return undefined
+  if (condition.operator === 'gt') return { gt: value }
+  if (condition.operator === 'gte') return { gte: value }
+  if (condition.operator === 'lt') return { lt: value }
+  if (condition.operator === 'lte') return { lte: value }
+  return { equals: value }
+}
+
+function dateFilter(condition: ResourceSearchCondition) {
+  const start = new Date(`${condition.value}T00:00:00+08:00`)
+  if (Number.isNaN(start.getTime())) return undefined
+  if (condition.operator === 'gt') return { gt: new Date(start.getTime() + 86_400_000) }
+  if (condition.operator === 'gte') return { gte: start }
+  if (condition.operator === 'lt') return { lt: start }
+  if (condition.operator === 'lte') return { lt: new Date(start.getTime() + 86_400_000) }
+  return { gte: start, lt: new Date(start.getTime() + 86_400_000) }
 }
 
 function applyStatuses<T extends { status?: string | { in: string[] } }>(where: T, statuses: string[]) {
@@ -33,14 +59,41 @@ export async function listShipments(input: FulfillmentQuery, scope: EffectiveDat
   if (input.customerId === '__UNASSIGNED__') where.customerId = null
   else if (input.customerId) where.customerId = input.customerId
   if (input.customer) andConditions.push({ customer: { contains: input.customer } })
-  andConditions.push(...tokenizeKeywordQuery(input.keyword || '').map((token): Prisma.ShipmentWhereInput => ({ OR: [
+  for (const condition of input.advancedConditions || []) {
+    const text = stringFilter(condition)
+    if (['shipmentNo', 'voucherNo', 'customer', 'customerPhone', 'address', 'trackingNo', 'shippedBy', 'note'].includes(condition.field)) {
+      andConditions.push({ [condition.field]: text } as Prisma.ShipmentWhereInput)
+    } else if (condition.field === 'status') andConditions.push({ status: condition.value })
+    else if (condition.field === 'customerId') andConditions.push({ customerId: condition.value === '__UNASSIGNED__' ? null : condition.value })
+    else if (condition.field === 'product') andConditions.push({ product: { is: { OR: [{ sku: text }, { name: text }] } } })
+    else if (condition.field === 'locationId') andConditions.push({ OR: [{ locationId: condition.value }, { location: { is: { code: text } } }, { location: { is: { name: text } } }] })
+    else if (condition.field === 'qty' || condition.field === 'unitPrice' || condition.field === 'totalAmount') {
+      const value = numberFilter(condition)
+      if (value) andConditions.push({ [condition.field]: value } as Prisma.ShipmentWhereInput)
+    } else if (condition.field === 'salesOrder') andConditions.push({ salesOrder: { is: { OR: [{ orderNo: text }, { voucherNo: text }] } } })
+    else if (condition.field === 'lotNo') andConditions.push({ lotAllocations: { some: { status: 'ACTIVE', lot: { is: { OR: [{ lotNo: text }, { supplierLotNo: text }] } } } } })
+    else if (condition.field === 'shippedAt' || condition.field === 'createdAt') {
+      const value = dateFilter(condition)
+      if (value) andConditions.push({ [condition.field]: value } as Prisma.ShipmentWhereInput)
+    }
+  }
+  andConditions.push(...tokenizeKeywordQuery(input.keyword || '').map((token): Prisma.ShipmentWhereInput => {
+    const number = Number(token)
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(token) ? new Date(`${token}T00:00:00+08:00`) : null
+    return { OR: [
     { shipmentNo: { contains: token } }, { voucherNo: { contains: token } }, { customer: { contains: token } },
     { customerPhone: { contains: token } }, { address: { contains: token } }, { trackingNo: { contains: token } },
     { shippedBy: { contains: token } }, { note: { contains: token } },
     { salesOrder: { is: { orderNo: { contains: token } } } },
     { product: { is: { sku: { contains: token } } } }, { product: { is: { name: { contains: token } } } },
     { customerRef: { is: { code: { contains: token } } } }, { customerRef: { is: { name: { contains: token } } } },
-  ] })))
+    { location: { is: { code: { contains: token } } } }, { location: { is: { name: { contains: token } } } },
+    { lotAllocations: { some: { status: 'ACTIVE', lot: { is: { OR: [{ lotNo: { contains: token } }, { supplierLotNo: { contains: token } }] } } } } },
+    ...shipmentStatusOptions.filter((option) => option.label.toLocaleLowerCase('zh-CN').includes(token)).map((option) => ({ status: option.value })),
+    ...(Number.isFinite(number) ? [{ qty: number }, { unitPrice: number }, { totalAmount: number }] : []),
+    ...(date && !Number.isNaN(date.getTime()) ? [{ shippedAt: { gte: date, lt: new Date(date.getTime() + 86_400_000) } }, { createdAt: { gte: date, lt: new Date(date.getTime() + 86_400_000) } }] : []),
+  ] }
+  }))
   if (andConditions.length > 0) where.AND = andConditions
   const [shipments, total, customers] = await Promise.all([
     prisma.shipment.findMany({
@@ -193,7 +246,29 @@ export async function listReturns(input: FulfillmentQuery, scope: EffectiveDataS
       { shipmentId: null, product: { is: { customerId: input.customerId } } },
     ] })
   }
-  andConditions.push(...tokenizeKeywordQuery(input.keyword || '').map((token): Prisma.ReturnOrderWhereInput => ({ OR: [
+  for (const condition of input.advancedConditions || []) {
+    const text = stringFilter(condition)
+    if (condition.field === 'returnNo' || condition.field === 'voucherNo' || condition.field === 'reason' || condition.field === 'note') andConditions.push({ [condition.field]: text } as Prisma.ReturnOrderWhereInput)
+    else if (condition.field === 'status') andConditions.push({ status: condition.value })
+    else if (condition.field === 'customerId') {
+      const customerId = condition.value === '__UNASSIGNED__' ? null : condition.value
+      andConditions.push({ OR: [{ shipment: { is: { customerId } } }, { shipmentId: null, product: { is: { customerId } } }] })
+    } else if (condition.field === 'product') andConditions.push({ product: { is: { OR: [{ sku: text }, { name: text }] } } })
+    else if (condition.field === 'shipmentNo') andConditions.push({ shipment: { is: { shipmentNo: text } } })
+    else if (condition.field === 'locationId') andConditions.push({ OR: [{ locationId: condition.value }, { location: { is: { code: text } } }, { location: { is: { name: text } } }] })
+    else if (condition.field === 'qty') {
+      const value = numberFilter(condition)
+      if (value) andConditions.push({ qty: value })
+    } else if (condition.field === 'lotNo') andConditions.push({ lotAllocations: { some: { status: 'ACTIVE', shipmentAllocation: { is: { lot: { is: { OR: [{ lotNo: text }, { supplierLotNo: text }] } } } } } } })
+    else if (condition.field === 'createdAt' || condition.field === 'processedAt') {
+      const value = dateFilter(condition)
+      if (value) andConditions.push({ [condition.field]: value } as Prisma.ReturnOrderWhereInput)
+    }
+  }
+  andConditions.push(...tokenizeKeywordQuery(input.keyword || '').map((token): Prisma.ReturnOrderWhereInput => {
+    const number = Number(token)
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(token) ? new Date(`${token}T00:00:00+08:00`) : null
+    return { OR: [
     { returnNo: { contains: token } }, { voucherNo: { contains: token } }, { reason: { contains: token } }, { note: { contains: token } },
     { product: { is: { sku: { contains: token } } } }, { product: { is: { name: { contains: token } } } },
     { product: { is: { customer: { is: { code: { contains: token } } } } } },
@@ -201,7 +276,13 @@ export async function listReturns(input: FulfillmentQuery, scope: EffectiveDataS
     { shipment: { is: { shipmentNo: { contains: token } } } },
     { shipment: { is: { voucherNo: { contains: token } } } },
     { shipment: { is: { customer: { contains: token } } } },
-  ] })))
+    { location: { is: { code: { contains: token } } } }, { location: { is: { name: { contains: token } } } },
+    { lotAllocations: { some: { status: 'ACTIVE', shipmentAllocation: { is: { lot: { is: { OR: [{ lotNo: { contains: token } }, { supplierLotNo: { contains: token } }] } } } } } } },
+    ...returnStatusOptions.filter((option) => option.label.toLocaleLowerCase('zh-CN').includes(token)).map((option) => ({ status: option.value })),
+    ...(Number.isFinite(number) ? [{ qty: number }] : []),
+    ...(date && !Number.isNaN(date.getTime()) ? [{ createdAt: { gte: date, lt: new Date(date.getTime() + 86_400_000) } }, { processedAt: { gte: date, lt: new Date(date.getTime() + 86_400_000) } }] : []),
+  ] }
+  }))
   if (andConditions.length > 0) where.AND = andConditions
   const [data, total] = await Promise.all([
     prisma.returnOrder.findMany({

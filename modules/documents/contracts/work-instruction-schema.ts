@@ -1,11 +1,12 @@
 import { z } from 'zod'
 import { parseCsvFilter } from '@/lib/status-filter'
 import { documentFieldValuesSchema } from './document-field-schema'
+import { documentBaseFieldDefinitions } from '../domain/document-field-rules'
 
-export const workInstructionAdvancedFieldSchema = z.enum([
-  'title', 'categoryId', 'status', 'version', 'materialCode', 'materialName', 'materialSpec',
-  'customerCode', 'customerName', 'workCenter', 'contentText', 'note', 'attachmentName',
-  'fileType', 'createdAt', 'updatedAt',
+const documentBaseAdvancedFieldKeys = documentBaseFieldDefinitions.map((field) => field.key) as [string, ...string[]]
+export const workInstructionAdvancedFieldSchema = z.union([
+  z.enum(documentBaseAdvancedFieldKeys),
+  z.string().regex(/^field:[A-Za-z0-9_-]{1,100}$/),
 ])
 
 export const workInstructionAdvancedConditionSchema = z.object({

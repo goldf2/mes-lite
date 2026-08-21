@@ -1,14 +1,17 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import AppButton from '@/app/components/AppButton'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
 import TopBarPortal from '@/app/components/TopBarPortal'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
+import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import { AttachmentPanel } from '@/modules/attachments'
 import { changeEquipmentInspectionPlan, loadEquipmentInspections } from '../client/equipment-inspection-api'
 import type { EquipmentInspectionPlan, EquipmentInspectionWorkspace } from '../contracts/equipment-inspection'
+import { buildEquipmentInspectionSearchCatalog } from '../model/equipment-operations-search-fields'
 import EquipmentInspectionCompleteDialog from './EquipmentInspectionCompleteDialog'
 import EquipmentInspectionPlanDialog from './EquipmentInspectionPlanDialog'
 
@@ -29,6 +32,7 @@ export default function EquipmentInspectionPageModule({ canCreate, canUpdate, ca
   const [workspace, setWorkspace] = useState(emptyWorkspace)
   const [filter, setFilter] = useState<InspectionFilter>('DUE')
   const [keyword, setKeyword] = useState('')
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [planOpen, setPlanOpen] = useState(false)
@@ -36,10 +40,10 @@ export default function EquipmentInspectionPageModule({ canCreate, canUpdate, ca
   const [changingId, setChangingId] = useState<string | null>(null)
   const load = useCallback(async () => {
     setLoading(true); setError('')
-    try { setWorkspace(await loadEquipmentInspections(filter, keyword)) }
+    try { setWorkspace(await loadEquipmentInspections(filter, keyword, searchConditions)) }
     catch (requestError) { const message = requestError instanceof Error ? requestError.message : '获取设备点检失败'; setError(message); onMessage(message) }
     finally { setLoading(false) }
-  }, [filter, keyword, onMessage])
+  }, [filter, keyword, onMessage, searchConditions])
   useEffect(() => { const timer = window.setTimeout(() => void load(), 180); return () => window.clearTimeout(timer) }, [load])
 
   const changeStatus = async (plan: EquipmentInspectionPlan) => {
@@ -51,9 +55,12 @@ export default function EquipmentInspectionPageModule({ canCreate, canUpdate, ca
     finally { setChangingId(null) }
   }
 
+  const searchCatalog = useMemo(() => buildEquipmentInspectionSearchCatalog(workspace.equipmentOptions), [workspace.equipmentOptions])
+  const advancedSearchFields = useMemo(() => resourceAdvancedFields(searchCatalog), [searchCatalog])
+
   return (
     <>
-      <TopBarPortal><ResponsiveToolbarActions primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.equipmentInspections" value={keyword} onChange={setKeyword} placeholder="搜索计划、设备或工作中心" />} actions={canCreate ? <AppButton variant="create" size="sm" onClick={() => setPlanOpen(true)}>新建点检计划</AppButton> : undefined} /></TopBarPortal>
+      <TopBarPortal><ResponsiveToolbarActions primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.equipmentInspections" value={keyword} onChange={setKeyword} placeholder="搜索计划、设备、检查项、记录或人员" conditions={searchConditions} onConditionsChange={setSearchConditions} />} advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />} actions={canCreate ? <AppButton variant="create" size="sm" onClick={() => setPlanOpen(true)}>新建点检计划</AppButton> : undefined} /></TopBarPortal>
       <section className="rounded-lg bg-white p-3 shadow sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="text-lg font-semibold text-gray-900">设备点检任务</h2><p className="mt-1 text-sm text-gray-500">按到期任务逐项记录标准、实测、结果与人员；异常自动进入设备故障时间线。</p></div><div className="flex gap-2 text-xs"><span className="rounded-full bg-amber-100 px-3 py-1 text-amber-800">到期 {workspace.counts.due}</span><span className="rounded-full bg-red-100 px-3 py-1 text-red-700">逾期 {workspace.counts.overdue}</span><span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">异常记录 {workspace.counts.abnormal}</span></div></div>
         <div className="mt-4 flex flex-wrap gap-2">{([['DUE', `到期任务 ${workspace.counts.due}`], ['ABNORMAL', `异常记录 ${workspace.counts.abnormal}`], ['ALL', '全部计划']] as Array<[InspectionFilter, string]>).map(([key, label]) => <AppButton key={key} size="sm" variant={filter === key ? 'primary' : 'secondary'} onClick={() => setFilter(key)}>{label}</AppButton>)}</div>

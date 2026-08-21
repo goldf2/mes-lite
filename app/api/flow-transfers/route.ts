@@ -8,6 +8,8 @@ import { createManagedFlowTransfer } from '@/modules/production/server/flow-tran
 import { loadManagedFlowTransferWorkspace } from '@/modules/production/server/flow-transfer-query-service'
 import { getCurrentOperator } from '@/lib/auth'
 import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
+import { parseResourceSearchConditions } from '@/lib/resource-search'
+import { flowTransferSearchFieldKeys } from '@/modules/production/model/production-search-fields'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,8 +21,10 @@ export async function GET(req: NextRequest) {
     if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
     const scope = await loadEffectiveDataScope(operator)
     const { searchParams } = new URL(req.url)
+    const advanced = parseResourceSearchConditions(searchParams.get('advanced'), flowTransferSearchFieldKeys)
+    if (advanced.error) return NextResponse.json({ error: advanced.error }, { status: 400 })
     const result = await loadManagedFlowTransferWorkspace({
-      keyword: searchParams.get('keyword'), status: searchParams.get('status'),
+      keyword: searchParams.get('keyword'), status: searchParams.get('status'), advancedConditions: advanced.conditions,
     }, scope)
     return NextResponse.json({
       data: result.transfers, materials: result.materials,

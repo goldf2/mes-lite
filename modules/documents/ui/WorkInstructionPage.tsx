@@ -8,10 +8,7 @@ import { EMPTY_DOCUMENT_JSON } from '@/lib/document-content'
 import type { ResourceSearchCondition } from '@/lib/resource-search'
 import { MAX_ATTACHMENT_FILE_SIZE } from '@/lib/attachment-file-types'
 import { refreshAttachmentPreviewUrls } from '@/modules/attachments'
-import type {
-  AttachmentItem, CustomerOption, DocumentCategoryRecord, MaterialOption, PaginationState,
-  WorkCenterOption, WorkInstruction, WorkInstructionForm,
-} from '../contracts/work-instruction'
+import type { AttachmentItem, CustomerOption, DocumentCategoryRecord, MaterialOption, PaginationState, WorkCenterOption, WorkInstruction, WorkInstructionForm } from '../contracts/work-instruction'
 import type { DocumentFieldDefinitionRecord } from '../contracts/document-field-schema'
 import {
   archiveInstructionAttachment, archiveWorkInstructionRecord, listDocumentCategories,
@@ -19,14 +16,7 @@ import {
   listInstructionAttachments, listWorkInstructions, saveWorkInstruction,
   setInstructionAttachmentRotation, uploadInstructionAttachment, listDocumentFieldDefinitions,
 } from '../client/documents-api'
-import {
-  createEmptyWorkInstructionForm,
-  getInstructionCategoryLabel,
-  getInstructionCustomerName,
-  isSupportedDocumentFile,
-  mergeSelectedFiles,
-  statusLabels,
-} from '../model/work-instruction-view'
+import { createEmptyWorkInstructionForm, getInstructionCategoryLabel, getInstructionCustomerName, isSupportedDocumentFile, mergeSelectedFiles, statusLabels } from '../model/work-instruction-view'
 import { documentCategoryOptions } from '../domain/document-category-rules'
 import WorkInstructionCollectionView from './WorkInstructionCollectionView'
 import WorkInstructionCreateDialog from './WorkInstructionCreateDialog'
@@ -34,6 +24,7 @@ import WorkInstructionDetailDialog from './WorkInstructionDetailDialog'
 import WorkInstructionFullscreenViewer, { type WorkInstructionViewerState } from './WorkInstructionFullscreenViewer'
 import useWorkInstructionMetadataActions from './useWorkInstructionMetadataActions'
 import WorkInstructionToolbar from './WorkInstructionToolbar'
+import useDocumentSearchFieldDefinitions from './useDocumentSearchFieldDefinitions'
 export default function WorkInstructionPage({
   onMessage,
   canRegeneratePreviews,
@@ -79,6 +70,7 @@ export default function WorkInstructionPage({
   const [rotationSaving, setRotationSaving] = useState(false)
   const [focusUploadOnOpen, setFocusUploadOnOpen] = useState(false)
   const [formFieldDefinitions, setFormFieldDefinitions] = useState<DocumentFieldDefinitionRecord[]>([])
+  const { definitions: searchFieldDefinitions, refresh: loadSearchFieldDefinitions } = useDocumentSearchFieldDefinitions(onMessage)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const uploadInputRef = useRef<HTMLInputElement>(null)
   const createUploadInputRef = useRef<HTMLInputElement>(null)
@@ -533,7 +525,10 @@ export default function WorkInstructionPage({
     canDeleteFields,
     onMaterialSearch: fetchMaterials,
     onChanged: fetchInstructions,
-    onFieldDefinitionsChanged: async (categoryId) => { if (form.categoryId === categoryId) setFormFieldDefinitions(await loadFieldDefinitions(categoryId)) },
+    onFieldDefinitionsChanged: async (categoryId) => {
+      if (form.categoryId === categoryId) setFormFieldDefinitions(await loadFieldDefinitions(categoryId))
+      await loadSearchFieldDefinitions()
+    },
     onClearSelection: () => setSelectedIds([]),
     onMessage,
   })
@@ -545,6 +540,7 @@ export default function WorkInstructionPage({
         conditions={advancedConditions}
         onConditionsChange={setAdvancedConditions}
         categoryOptions={availableCategoryOptions}
+        fieldDefinitions={searchFieldDefinitions}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         onCreate={openAddModal}

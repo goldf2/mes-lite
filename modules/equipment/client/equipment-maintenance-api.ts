@@ -4,6 +4,7 @@ import type {
   EquipmentMaintenancePlanInput,
 } from '../contracts/equipment-maintenance-schema'
 import type { EquipmentMaintenanceWorkspace } from '../contracts/equipment-maintenance'
+import type { ResourceSearchCondition } from '@/lib/resource-search'
 
 interface ApiPayload<T> { data?: T; error?: string }
 
@@ -18,9 +19,10 @@ const json = (method: string, body?: unknown): RequestInit => ({
   method, headers: { 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
 })
 
-export function loadEquipmentMaintenance(filter: 'DUE' | 'OPEN' | 'HISTORY' | 'ALL', keyword: string) {
+export function loadEquipmentMaintenance(filter: 'DUE' | 'OPEN' | 'HISTORY' | 'ALL', keyword: string, conditions: readonly ResourceSearchCondition[] = []) {
   const params = new URLSearchParams({ filter })
   if (keyword.trim()) params.set('keyword', keyword.trim())
+  if (conditions.length) params.set('advanced', JSON.stringify(conditions.map(({ field, operator, value }) => ({ field, operator, value }))))
   return request<EquipmentMaintenanceWorkspace>(`/api/equipment-maintenance?${params}`)
 }
 

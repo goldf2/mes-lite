@@ -13,8 +13,8 @@ import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import { ResourceAdvancedSearch } from '@/app/components/resource'
-import { filterByAdvancedSearch, matchesKeywordValues } from '@/lib/resource-search'
-import type { ResourceAdvancedSearchField, ResourceSearchCondition } from '@/lib/resource-search'
+import { defineResourceSearchCatalog, filterBySearchCatalog, resourceAdvancedFields } from '@/lib/resource-search'
+import type { ResourceSearchCondition } from '@/lib/resource-search'
 
 export interface WorkspaceFunctionItem {
   key: WorkspaceFunctionKey
@@ -25,11 +25,13 @@ export interface WorkspaceFunctionItem {
   icon: string
 }
 
-const functionAdvancedSearchFields: readonly ResourceAdvancedSearchField<WorkspaceFunctionItem>[] = [
+const functionSearchCatalog = defineResourceSearchCatalog<WorkspaceFunctionItem>('workspace-function.actual-fields', [
   { key: 'label', label: '功能名称', type: 'text', read: (item) => item.label },
-  { key: 'group', label: '业务分组', type: 'text', read: (item) => item.groupLabel },
+  { key: 'group', label: '业务分组', type: 'text', read: (item) => [item.groupKey, item.groupLabel] },
   { key: 'description', label: '功能说明', type: 'text', read: (item) => item.description },
-]
+  { key: 'key', label: '功能标识', type: 'text', read: (item) => item.key },
+])
+const functionAdvancedSearchFields = resourceAdvancedFields(functionSearchCatalog)
 
 const modeOptions: Array<{ key: WorkspaceMode; label: string; description: string }> = [
   { key: 'DEFAULT', label: '系统默认', description: '使用系统预置的常用顺序' },
@@ -299,10 +301,7 @@ export function AllFunctionsPage({
   const [keyword, setKeyword] = useState('')
   const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const usageByKey = new Map(preference.usage.map((item) => [item.functionKey, item]))
-  const advancedItems = filterByAdvancedSearch(items, functionAdvancedSearchFields, searchConditions)
-  const visibleItems = keyword.trim()
-    ? advancedItems.filter((item) => matchesKeywordValues(keyword, [item.label, item.groupLabel, item.description]))
-    : advancedItems
+  const visibleItems = filterBySearchCatalog(items, keyword, functionSearchCatalog, searchConditions)
   const groups = groupItems(visibleItems)
 
   return (

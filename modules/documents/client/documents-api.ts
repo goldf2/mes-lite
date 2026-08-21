@@ -52,8 +52,9 @@ export async function removeDocumentCategory(id: string) {
   return (await readEnvelope<never>(response, '删除文档类别失败')).message || '文档类别已删除'
 }
 
-export async function listDocumentFieldDefinitions(categoryId: string) {
-  const response = await fetch(`/api/document-field-definitions?categoryId=${encodeURIComponent(categoryId)}`)
+export async function listDocumentFieldDefinitions(categoryId?: string) {
+  const query = categoryId ? `?categoryId=${encodeURIComponent(categoryId)}` : ''
+  const response = await fetch(`/api/document-field-definitions${query}`)
   return (await readEnvelope<DocumentFieldDefinitionRecord[]>(response, '获取扩展字段失败')).data || []
 }
 

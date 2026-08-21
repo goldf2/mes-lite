@@ -8,6 +8,8 @@ import { EquipmentDomainError } from '@/modules/equipment/domain/equipment-error
 import { createEquipmentInspectionPlan } from '@/modules/equipment/server/equipment-inspection-command-service'
 import { getEquipmentInspectionWorkspace } from '@/modules/equipment/server/equipment-inspection-query-service'
 import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
+import { parseResourceSearchConditions } from '@/lib/resource-search'
+import { equipmentInspectionSearchFieldKeys } from '@/modules/equipment/model/equipment-operations-search-fields'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +28,9 @@ export async function GET(req: NextRequest) {
     if (!operator) return NextResponse.json({ error: '请先登录' }, { status: 401 })
     const requested = req.nextUrl.searchParams.get('filter')
     const filter = requested === 'ALL' || requested === 'ABNORMAL' ? requested : 'DUE'
-    const data = await getEquipmentInspectionWorkspace({ filter, keyword: req.nextUrl.searchParams.get('keyword') }, await loadEffectiveDataScope(operator))
+    const parsed = parseResourceSearchConditions(req.nextUrl.searchParams.get('advanced'), equipmentInspectionSearchFieldKeys)
+    if (parsed.error) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    const data = await getEquipmentInspectionWorkspace({ filter, keyword: req.nextUrl.searchParams.get('keyword'), advancedConditions: parsed.conditions }, await loadEffectiveDataScope(operator))
     return NextResponse.json({ data })
   } catch (error) { return equipmentInspectionError(error, '获取设备点检任务失败') }
 }

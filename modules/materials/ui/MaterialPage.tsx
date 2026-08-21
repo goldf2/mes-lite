@@ -10,10 +10,10 @@ import AppButton from '@/app/components/AppButton'
 import { useBomPagePreferences } from '../client/bom-page-preferences'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
 import {
-  filterByResourceSearch,
-  type ResourceAdvancedSearchField,
+  defineResourceSearchCatalog,
+  filterBySearchCatalog,
+  resourceAdvancedFields,
   type ResourceSearchCondition,
-  type ResourceSearchProfile,
 } from '@/lib/resource-search'
 import type {
   BomItem,
@@ -52,26 +52,18 @@ import {
   materialCategoryLabels,
 } from '../model/material-options'
 import { type MaterialSortBy, type SortDirection } from '../model/material-view'
+import { buildMaterialSearchCatalog } from '../model/material-search-fields'
 
-const bomSearchProfile: ResourceSearchProfile<BomSearchRow> = {
-  key: 'boms',
-  keywordFields: [
-    { key: 'output', label: '产出物料', read: ({ product, bom, material }) => [product.sku, product.name, material?.code, material?.name, material?.spec, ...bom.outputs.flatMap((output) => [output.material.code, output.material.name, output.material.spec])].filter(Boolean).join(' ') },
-    { key: 'input', label: '投入物料', read: ({ bom }) => bom.items.flatMap((item) => [item.material?.code, item.material?.name, item.material?.spec]).filter(Boolean).join(' ') },
-    { key: 'name', label: 'BOM 名称', read: ({ product, bom }) => `${product.description || ''} ${bom.name}` },
-    { key: 'version', label: '版本', read: ({ bom }) => bom.version },
-  ],
-}
-
-const bomAdvancedSearchFields: readonly ResourceAdvancedSearchField<BomSearchRow>[] = [
-  { key: 'output', label: '产出物料', type: 'text', read: ({ product, bom, material }) => [product.sku, product.name, material?.code, material?.name, material?.spec, ...bom.outputs.flatMap((output) => [output.material.code, output.material.name, output.material.spec])].filter(Boolean).join(' ') },
-  { key: 'input', label: '投入物料', type: 'text', read: ({ bom }) => bom.items.flatMap((item) => [item.material?.code, item.material?.name, item.material?.spec]).filter(Boolean).join(' ') },
-  { key: 'name', label: 'BOM 名称', type: 'text', read: ({ bom }) => bom.name },
+const bomSearchCatalog = defineResourceSearchCatalog<BomSearchRow>('boms.actual-fields', [
+  { key: 'output', label: '产出物料', type: 'text', read: ({ product, bom, material }) => [product.sku, product.name, material?.code, material?.name, material?.spec, ...bom.outputs.flatMap((output) => [output.material.code, output.material.name, output.material.spec])] },
+  { key: 'input', label: '投入物料', type: 'text', read: ({ bom }) => bom.items.flatMap((item) => [item.material?.code, item.material?.name, item.material?.spec]) },
+  { key: 'name', label: 'BOM 名称', type: 'text', read: ({ product, bom }) => [product.description, bom.name] },
   { key: 'version', label: '版本', type: 'text', read: ({ bom }) => bom.version },
   { key: 'purpose', label: '用途', type: 'select', read: ({ bom }) => bom.purpose, options: [{ value: 'PRODUCTION', label: '生产 BOM' }, { value: 'PACKAGING', label: '包装 BOM' }] },
   { key: 'status', label: '启用状态', type: 'select', read: ({ bom }) => bom.isActive ? 'active' : 'inactive', options: [{ value: 'active', label: '启用' }, { value: 'inactive', label: '停用' }] },
   { key: 'default', label: '默认方案', type: 'select', read: ({ bom }) => bom.isDefault ? 'default' : 'other', options: [{ value: 'default', label: '默认 BOM' }, { value: 'other', label: '非默认 BOM' }] },
-]
+])
+const bomAdvancedSearchFields = resourceAdvancedFields(bomSearchCatalog)
 
 const bomStatusOptions = [
   { value: 'all', label: '全部 BOM 状态' },
@@ -183,23 +175,8 @@ export default function MaterialPage({
   const bomStatusFilter: BomStatusFilter = bomStatusOptions.some((option) => option.value === selectedBomStatus)
     ? selectedBomStatus as BomStatusFilter
     : 'all'
-  const materialAdvancedSearchFields = useMemo<readonly ResourceAdvancedSearchField<Material>[]>(() => {
-    const fields: ResourceAdvancedSearchField<Material>[] = [
-      { key: 'code', label: '物料编码', type: 'text', read: (material) => material.code },
-      { key: 'name', label: '物料名称', type: 'text', read: (material) => material.name },
-      { key: 'spec', label: '规格', type: 'text', read: (material) => material.spec },
-      { key: 'category', label: '物料分类', type: 'select', read: (material) => material.category, options: materialCategoryFilterOptions },
-      { key: 'customerId', label: '归属客户', type: 'select', read: (material) => material.customerId || '__UNASSIGNED__', options: [{ value: '__UNASSIGNED__', label: '通用/未绑定' }, ...customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` }))] },
-      { key: 'primaryMeasure', label: '主计量方式', type: 'select', read: (material) => material.primaryMeasure, options: [{ value: 'LENGTH', label: '长度' }, { value: 'WEIGHT', label: '重量' }, { value: 'QUANTITY', label: '数量' }, { value: 'OTHER', label: '其他' }] },
-      { key: 'stockUnit', label: '库存单位', type: 'text', read: (material) => material.stockUnit },
-      { key: 'valuationUnit', label: '计价单位', type: 'text', read: (material) => material.valuationUnit },
-      { key: 'costingMethod', label: '计价方法', type: 'select', read: (material) => material.costingMethod, options: [{ value: 'WEIGHTED_AVERAGE', label: '加权平均' }, { value: 'FIFO', label: '先进先出' }] },
-      { key: 'note', label: '备注', type: 'text', read: (material) => material.note },
-      { key: 'createdAt', label: '创建日期', type: 'date', read: (material) => material.createdAt },
-    ]
-    if (canUseBomData) fields.splice(9, 0, { key: 'bomStatus', label: 'BOM 状态', type: 'select', read: () => '', options: bomStatusOptions.filter((option) => option.value !== 'all') })
-    return fields
-  }, [canUseBomData, customers])
+  const materialSearchCatalog = useMemo(() => buildMaterialSearchCatalog(customers, canUseBomData), [canUseBomData, customers])
+  const materialAdvancedSearchFields = useMemo(() => resourceAdvancedFields(materialSearchCatalog), [materialSearchCatalog])
   const existingBomRows = useMemo(() => {
     const rows: BomSearchRow[] = bomProducts.flatMap((product) => product.boms.map((bom) => {
       const materialId = bomMaterialIdOfProduct(product)
@@ -210,7 +187,7 @@ export default function MaterialPage({
         material: bomMaterialById.get(materialId) || null,
       }
     }))
-    return filterByResourceSearch(rows, bomKeyword, bomSearchProfile, bomAdvancedSearchFields, bomSearchConditions)
+    return filterBySearchCatalog(rows, bomKeyword, bomSearchCatalog, bomSearchConditions)
   }, [bomKeyword, bomMaterialById, bomProducts, bomSearchConditions])
   const fetchBomData = useCallback(async (preferredBomId?: string) => {
     setBomLoading(true)

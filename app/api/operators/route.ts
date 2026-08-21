@@ -11,6 +11,8 @@ import {
   OperatorAdminError,
   updateOperatorAdministration,
 } from '@/modules/identity-access/server/operator-admin-service'
+import { parseResourceSearchConditions } from '@/lib/resource-search'
+import { operatorSearchFieldKeys } from '@/modules/identity-access/model/operator-search-fields'
 
 function operatorError(error: unknown) {
   if (error instanceof ZodError) {
@@ -27,7 +29,10 @@ export async function GET(req: NextRequest) {
   const denied = await requireResourcePermission('operators', 'read')
   if (denied) return denied
 
-  return NextResponse.json({ data: await listOperators(parseStatusFilter(new URL(req.url).searchParams)) })
+  const searchParams = new URL(req.url).searchParams
+  const advanced = parseResourceSearchConditions(searchParams.get('advanced'), operatorSearchFieldKeys)
+  if (advanced.error) return NextResponse.json({ error: advanced.error }, { status: 400 })
+  return NextResponse.json({ data: await listOperators(parseStatusFilter(searchParams), searchParams.get('keyword') || '', advanced.conditions) })
 }
 
 export async function PATCH(req: NextRequest) {

@@ -3,6 +3,7 @@ import { withAttachmentUrls } from '@/lib/attachment-urls'
 import { officeAttachmentMimeTypes } from '@/lib/attachment-file-types'
 import { prisma } from '@/lib/prisma'
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
+import { instructionStatusOptions } from '../model/work-instruction-view'
 import type { WorkInstructionAdvancedCondition, WorkInstructionListQuery } from '../contracts/work-instruction-schema'
 
 function stringCondition(condition: WorkInstructionAdvancedCondition) {
@@ -74,33 +75,39 @@ async function buildWhere(query: WorkInstructionListQuery): Promise<Prisma.WorkI
   if (fileOwnerIds) where.id = { in: fileOwnerIds }
 
   for (const condition of query.advancedConditions) {
+    if (condition.field.startsWith('field:')) {
+      andFilters.push({
+        fieldValues: { some: { fieldDefinitionId: condition.field.slice('field:'.length), valueText: stringCondition(condition) } },
+      })
+      continue
+    }
     if (['title', 'version', 'contentText', 'note'].includes(condition.field)) {
       andFilters.push({ [condition.field]: stringCondition(condition) } as Prisma.WorkInstructionWhereInput)
     } else if (condition.field === 'categoryId' || condition.field === 'status') {
       andFilters.push({ [condition.field]: condition.value } as Prisma.WorkInstructionWhereInput)
-    } else if (condition.field === 'materialCode') andFilters.push({ material: { is: { code: stringCondition(condition) } } })
-    else if (condition.field === 'materialName') andFilters.push({ material: { is: { name: stringCondition(condition) } } })
-    else if (condition.field === 'materialSpec') andFilters.push({ material: { is: { spec: stringCondition(condition) } } })
-    else if (condition.field === 'customerCode') andFilters.push({ material: { is: { customer: { is: { code: stringCondition(condition) } } } } })
-    else if (condition.field === 'customerName') andFilters.push({ material: { is: { customer: { is: { name: stringCondition(condition) } } } } })
+    } else if (condition.field === 'material') {
+      const filter = stringCondition(condition)
+      andFilters.push({ material: { is: { OR: [
+        { code: filter }, { name: filter }, { spec: filter },
+        { customer: { is: { OR: [{ code: filter }, { name: filter }] } } },
+      ] } } })
+    }
     else if (condition.field === 'workCenter') {
       const filter = stringCondition(condition)
       andFilters.push({ workCenters: { some: { OR: [{ code: filter }, { name: filter }] } } })
     } else if (condition.field === 'attachmentName') {
       const ownerIds = await ownerIdsByAttachmentName(condition)
       andFilters.push({ id: { in: ownerIds } })
-    } else if (condition.field === 'fileType') {
-      andFilters.push({ id: { in: await ownerIdsByFileType(condition.value) || [] } })
-    } else if (condition.field === 'createdAt' || condition.field === 'updatedAt') {
-      const filter = dateCondition(condition)
-      if (filter) andFilters.push({ [condition.field]: filter })
     }
   }
   andFilters.push(...keywordTokens.map((token, index) => ({ OR: [
-    { title: { contains: token } }, { contentText: { contains: token } }, { note: { contains: token } },
+    { title: { contains: token } }, { version: { contains: token } }, { contentText: { contains: token } }, { note: { contains: token } },
     { category: { is: { name: { contains: token } } } }, { material: { is: { code: { contains: token } } } },
-    { material: { is: { name: { contains: token } } } }, { material: { is: { customer: { is: { code: { contains: token } } } } } },
+    { material: { is: { name: { contains: token } } } }, { material: { is: { spec: { contains: token } } } }, { material: { is: { customer: { is: { code: { contains: token } } } } } },
     { material: { is: { customer: { is: { name: { contains: token } } } } } },
+    { workCenters: { some: { OR: [{ code: { contains: token } }, { name: { contains: token } }] } } },
+    { fieldValues: { some: { valueText: { contains: token } } } },
+    ...instructionStatusOptions.filter((option) => option.label.includes(token)).map((option) => ({ status: option.value })),
     ...(attachmentOwnerIdsByToken[index].length > 0 ? [{ id: { in: attachmentOwnerIdsByToken[index] } }] : []),
   ] })))
   if (andFilters.length > 0) where.AND = andFilters

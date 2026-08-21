@@ -5,6 +5,7 @@ import type {
   ProductionOrderDetail,
   ProductionOrderMaterialOption,
 } from '../contracts/production-order'
+import type { ResourceSearchCondition } from '@/lib/resource-search'
 
 interface ApiPayload<T> {
   data?: T
@@ -19,10 +20,11 @@ async function request<T>(input: RequestInfo | URL, init?: RequestInit) {
   return payload
 }
 
-export async function loadProductionOrders(keyword: string, statuses: string[], allStatusCount: number) {
+export async function loadProductionOrders(keyword: string, statuses: string[], allStatusCount: number, conditions: readonly ResourceSearchCondition[] = []) {
   const params = new URLSearchParams()
   if (statuses.length !== allStatusCount) params.set('statuses', statuses.length > 0 ? statuses.join(',') : '__NONE__')
   if (keyword.trim()) params.set('keyword', keyword.trim())
+  if (conditions.length > 0) params.set('advanced', JSON.stringify(conditions))
   const payload = await request<ProductionOrder[]>(`/api/orders${params.size > 0 ? `?${params.toString()}` : ''}`)
   return payload.data || []
 }

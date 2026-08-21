@@ -1,4 +1,4 @@
-import type { ResourceAdvancedSearchField, ResourceSearchProfile } from '@/lib/resource-search'
+import { defineResourceSearchCatalog, resourceAdvancedFields, resourceKeywordProfile } from '@/lib/resource-search'
 import type { ConfiguredUnit, InventoryLocationConfig, MeasureType, PartyRecord } from '../contracts/reference-data'
 
 export type { ConfiguredUnit, InventoryLocationConfig, MeasureType, PartyRecord } from '../contracts/reference-data'
@@ -10,53 +10,34 @@ export const measureTypeOptions: Array<[MeasureType, string, string]> = [
   ['OTHER', '其他', '项'],
 ]
 
-export const partySearchProfile: ResourceSearchProfile<PartyRecord> = {
-  key: 'party.default',
-  keywordFields: [
-    { key: 'name', label: '名称', read: (item) => item.name, weight: 10 },
-    { key: 'code', label: '编码', read: (item) => item.code, weight: 8 },
-    { key: 'contact', label: '联系人', read: (item) => item.contact },
-    { key: 'phone', label: '电话', read: (item) => item.phone },
-    { key: 'address', label: '地址', read: (item) => item.address },
-  ],
-}
-
-export const partyAdvancedFields: readonly ResourceAdvancedSearchField<PartyRecord>[] = [
-  { key: 'code', label: '编码', type: 'text', read: (item) => item.code, operators: ['equals', 'startsWith'] },
-  { key: 'name', label: '名称', type: 'text', read: (item) => item.name },
+export const partySearchCatalog = defineResourceSearchCatalog<PartyRecord>('party.default', [
+  { key: 'name', label: '名称', type: 'text', read: (item) => item.name, weight: 10 },
+  { key: 'code', label: '编码', type: 'text', read: (item) => item.code, weight: 8, operators: ['equals', 'startsWith'] },
   { key: 'contact', label: '联系人', type: 'text', read: (item) => item.contact },
   { key: 'phone', label: '电话', type: 'text', read: (item) => item.phone },
   { key: 'address', label: '地址', type: 'text', read: (item) => item.address },
-]
+])
+export const partySearchProfile = resourceKeywordProfile(partySearchCatalog)
+export const partyAdvancedFields = resourceAdvancedFields(partySearchCatalog)
 
-export const locationSearchProfile: ResourceSearchProfile<InventoryLocationConfig> = {
-  key: 'inventory-location.default',
-  keywordFields: [
-    { key: 'code', label: '编码', read: (item) => item.code, weight: 10 },
-    { key: 'name', label: '名称', read: (item) => item.name, weight: 8 },
-    { key: 'note', label: '备注', read: (item) => item.note },
-  ],
-}
-
-export const locationAdvancedFields: readonly ResourceAdvancedSearchField<InventoryLocationConfig>[] = [
-  { key: 'code', label: '编码', type: 'text', read: (item) => item.code, operators: ['equals', 'startsWith'] },
-  { key: 'name', label: '名称', type: 'text', read: (item) => item.name },
-  { key: 'status', label: '状态', type: 'select', read: (item) => item.isDefault ? 'default' : item.isActive ? 'active' : 'archived', options: [{ value: 'default', label: '默认' }, { value: 'active', label: '启用' }, { value: 'archived', label: '已归档' }] },
+export const locationSearchCatalog = defineResourceSearchCatalog<InventoryLocationConfig>('inventory-location.default', [
+  { key: 'code', label: '编码', type: 'text', read: (item) => item.code, weight: 10, operators: ['equals', 'startsWith'] },
+  { key: 'name', label: '名称', type: 'text', read: (item) => item.name, weight: 8 },
+  { key: 'note', label: '备注', type: 'text', read: (item) => item.note },
+  { key: 'status', label: '状态', type: 'select', read: (item) => item.isDefault ? ['default', '默认'] : item.isActive ? ['active', '启用'] : ['archived', '已归档'], options: [{ value: 'default', label: '默认' }, { value: 'active', label: '启用' }, { value: 'archived', label: '已归档' }] },
   { key: 'materialCount', label: '物料数', type: 'number', read: (item) => item.materialCount },
-]
+  { key: 'qty', label: '库存数量', type: 'number', read: (item) => item.qty },
+  { key: 'reservedQty', label: '占用数量', type: 'number', read: (item) => item.reservedQty },
+  { key: 'availableQty', label: '可用数量', type: 'number', read: (item) => item.availableQty },
+])
+export const locationSearchProfile = resourceKeywordProfile(locationSearchCatalog)
+export const locationAdvancedFields = resourceAdvancedFields(locationSearchCatalog)
 
-export const unitSearchProfile: ResourceSearchProfile<ConfiguredUnit> = {
-  key: 'unit.default',
-  keywordFields: [
-    { key: 'code', label: '编码', read: (item) => item.code, weight: 10 },
-    { key: 'name', label: '名称', read: (item) => item.name, weight: 8 },
-    { key: 'measureType', label: '计量方式', read: (item) => measureTypeOptions.find(([value]) => value === item.measureType)?.[1] },
-  ],
-}
-
-export const unitAdvancedFields: readonly ResourceAdvancedSearchField<ConfiguredUnit>[] = [
-  { key: 'code', label: '编码', type: 'text', read: (item) => item.code, operators: ['equals', 'startsWith'] },
-  { key: 'name', label: '名称', type: 'text', read: (item) => item.name },
-  { key: 'measureType', label: '计量方式', type: 'select', read: (item) => item.measureType, options: measureTypeOptions.map(([value, label]) => ({ value, label })) },
+export const unitSearchCatalog = defineResourceSearchCatalog<ConfiguredUnit>('unit.default', [
+  { key: 'code', label: '编码', type: 'text', read: (item) => item.code, weight: 10, operators: ['equals', 'startsWith'] },
+  { key: 'name', label: '名称', type: 'text', read: (item) => item.name, weight: 8 },
+  { key: 'measureType', label: '计量方式', type: 'select', read: (item) => [item.measureType, measureTypeOptions.find(([value]) => value === item.measureType)?.[1]], options: measureTypeOptions.map(([value, label]) => ({ value, label })) },
   { key: 'usageCount', label: '使用次数', type: 'number', read: (item) => item.usageCount },
-]
+])
+export const unitSearchProfile = resourceKeywordProfile(unitSearchCatalog)
+export const unitAdvancedFields = resourceAdvancedFields(unitSearchCatalog)

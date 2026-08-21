@@ -5,6 +5,9 @@ import { prisma } from '@/lib/prisma'
 import { applyStatusFilter } from '@/lib/status-filter'
 import type { PermissionActor } from '../contracts/permission-admin'
 import type { ResetOperatorPasswordInput, UpdateOperatorInput } from '../contracts/operator-admin'
+import type { Prisma } from '@prisma/client'
+import { tokenizeKeywordQuery, type ResourceSearchCondition } from '@/lib/resource-search'
+import { operatorRoleOptions, operatorStatusOptions } from '../model/operator-search-fields'
 
 export class OperatorAdminError extends Error {
   constructor(message: string, public readonly status: 400 | 403 | 404 | 409 = 400) {
@@ -27,9 +30,44 @@ const operatorSelect = {
   updatedAt: true,
 } as const
 
-export function listOperators(statuses: string[]) {
-  const where: Record<string, unknown> = {}
-  applyStatusFilter(where, statuses)
+function stringFilter(condition: ResourceSearchCondition) {
+  return condition.operator === 'equals' ? { equals: condition.value } : condition.operator === 'startsWith' ? { startsWith: condition.value } : { contains: condition.value }
+}
+function dateFilter(condition: ResourceSearchCondition) {
+  const start = new Date(`${condition.value}T00:00:00+08:00`)
+  if (Number.isNaN(start.getTime())) return undefined
+  if (condition.operator === 'gt') return { gt: new Date(start.getTime() + 86_400_000) }
+  if (condition.operator === 'gte') return { gte: start }
+  if (condition.operator === 'lt') return { lt: start }
+  if (condition.operator === 'lte') return { lt: new Date(start.getTime() + 86_400_000) }
+  return { gte: start, lt: new Date(start.getTime() + 86_400_000) }
+}
+
+export function listOperators(statuses: string[], keyword = '', advancedConditions: readonly ResourceSearchCondition[] = []) {
+  const where: Prisma.OperatorWhereInput = {}
+  const statusWhere: { status?: string | { in: string[] } } = {}
+  applyStatusFilter(statusWhere, statuses)
+  Object.assign(where, statusWhere)
+  const and: Prisma.OperatorWhereInput[] = []
+  for (const condition of advancedConditions) {
+    const text = stringFilter(condition)
+    if (condition.field === 'username' || condition.field === 'name' || condition.field === 'phone' || condition.field === 'approvedBy') and.push({ [condition.field]: text } as Prisma.OperatorWhereInput)
+    else if (condition.field === 'role' || condition.field === 'status') and.push({ [condition.field]: condition.value } as Prisma.OperatorWhereInput)
+    else if (['approvedAt', 'lastLoginAt', 'createdAt', 'updatedAt'].includes(condition.field)) {
+      const value = dateFilter(condition)
+      if (value) and.push({ [condition.field]: value } as Prisma.OperatorWhereInput)
+    }
+  }
+  and.push(...tokenizeKeywordQuery(keyword).map((token): Prisma.OperatorWhereInput => {
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(token) ? new Date(`${token}T00:00:00+08:00`) : null
+    return { OR: [
+    { username: { contains: token } }, { name: { contains: token } }, { phone: { contains: token } }, { approvedBy: { contains: token } },
+    ...operatorRoleOptions.filter((option) => option.label.includes(token)).map((option) => ({ role: option.value })),
+    ...operatorStatusOptions.filter((option) => option.label.includes(token)).map((option) => ({ status: option.value })),
+    ...(date && !Number.isNaN(date.getTime()) ? [{ approvedAt: { gte: date, lt: new Date(date.getTime() + 86_400_000) } }, { lastLoginAt: { gte: date, lt: new Date(date.getTime() + 86_400_000) } }, { createdAt: { gte: date, lt: new Date(date.getTime() + 86_400_000) } }, { updatedAt: { gte: date, lt: new Date(date.getTime() + 86_400_000) } }] : []),
+  ] }
+  }))
+  if (and.length > 0) where.AND = and
   return prisma.operator.findMany({
     where,
     select: operatorSelect,

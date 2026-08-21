@@ -8,7 +8,7 @@ export interface InventoryLocationOption {
   id: string
   code: string
   name: string
-  isDefault: boolean
+  isDefault?: boolean
   isActive: boolean
 }
 
@@ -83,7 +83,7 @@ export interface Stock {
     id: string
     code: string
     name: string
-    spec: string
+    spec?: string | null
     category?: string
     customerId?: string | null
     customer?: Customer | null
@@ -91,7 +91,7 @@ export interface Stock {
     stockUnit: string
     valuationUnit: string
     conversionRate: number
-    deletedAt?: string | null
+    deletedAt?: string | Date | null
     primaryImage?: {
       id: string
       url: string
@@ -102,7 +102,7 @@ export interface Stock {
       mimeType: string
       isCover: boolean
     } | null
-  }
+  } | null
   product?: {
     id: string
     sku: string
@@ -111,7 +111,7 @@ export interface Stock {
     customerId?: string | null
     customer?: Customer | null
     unit: string
-  }
+  } | null
 }
 
 export interface StockIntegrityIssue {
@@ -135,6 +135,7 @@ export interface StockQuery {
   categories: string[]
   allCategories: readonly { value: string }[]
   includeInvalid: boolean
+  advancedConditions?: import('@/lib/resource-search').ResourceSearchCondition[]
 }
 
 export interface StockAdjustmentInput extends StockAdjustmentDraft {

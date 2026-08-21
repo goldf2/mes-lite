@@ -1,9 +1,19 @@
 import type { DocumentFieldType } from '../contracts/document-field-schema'
 import { DocumentFieldError } from './document-field-errors'
 
-export const documentBaseFields = [
-  '文档标题', '文档类别', '状态', '版本', '关联产品', '适用工作中心', '备注', '在线正文', '原始文件',
+export const documentBaseFieldDefinitions = [
+  { key: 'title', label: '文档标题', type: 'text' },
+  { key: 'categoryId', label: '文档类别', type: 'select' },
+  { key: 'status', label: '状态', type: 'select' },
+  { key: 'version', label: '版本', type: 'text' },
+  { key: 'material', label: '关联产品', type: 'text' },
+  { key: 'workCenter', label: '适用工作中心', type: 'text' },
+  { key: 'note', label: '备注', type: 'text' },
+  { key: 'contentText', label: '在线正文', type: 'text' },
+  { key: 'attachmentName', label: '原始文件', type: 'text' },
 ] as const
+
+export const documentBaseFields = documentBaseFieldDefinitions.map((field) => field.label)
 
 export const documentFieldTypeOptions: { value: DocumentFieldType; label: string }[] = [
   { value: 'TEXT', label: '文本' },

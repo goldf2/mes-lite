@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { parseCsvFilter } from '@/lib/status-filter'
+import { materialSearchFieldKeys } from '../model/material-search-fields'
 
 export const materialCategories = ['RAW', 'FINISHED', 'AUXILIARY', 'SCRAP', 'DEFECTIVE', 'PACKAGING', 'OTHER'] as const
 export const materialMeasures = ['LENGTH', 'WEIGHT', 'QUANTITY', 'OTHER'] as const
@@ -27,7 +28,7 @@ export const materialInputSchema = z.object({
 export const materialUpdateInputSchema = materialInputSchema.extend({ id: z.string().min(1, '缺少物料 ID') })
 
 export const materialAdvancedConditionSchema = z.object({
-  field: z.enum(['code', 'name', 'spec', 'category', 'customerId', 'primaryMeasure', 'stockUnit', 'valuationUnit', 'costingMethod', 'bomStatus', 'note', 'createdAt']),
+  field: z.enum(materialSearchFieldKeys),
   operator: z.enum(['equals', 'contains', 'startsWith', 'gt', 'gte', 'lt', 'lte']),
   value: z.string().trim().min(1).max(200),
 })

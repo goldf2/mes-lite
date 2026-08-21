@@ -1,16 +1,38 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { applyStatusFilter } from '@/lib/status-filter'
-import { tokenizeKeywordQuery } from '@/lib/resource-search'
+import { tokenizeKeywordQuery, type ResourceSearchCondition } from '@/lib/resource-search'
 import { expandProductionOrderStatusFilters } from '../domain/production-order-status'
 import { productionOrderDataScopeWhere, type EffectiveDataScope } from '@/modules/identity-access'
+import { productionOrderStatusOptions } from '../model/production-order-view'
 
 export interface ProductionOrderListQuery {
   statuses: string[]
   keyword?: string | null
   customerId?: string | null
+  advancedConditions?: ResourceSearchCondition[]
   page: number
   pageSize: number
+}
+
+function stringFilter(condition: ResourceSearchCondition) {
+  return condition.operator === 'equals' ? { equals: condition.value } : condition.operator === 'startsWith' ? { startsWith: condition.value } : { contains: condition.value }
+}
+
+function numberFilter(condition: ResourceSearchCondition) {
+  const value = Number(condition.value)
+  if (!Number.isFinite(value)) return undefined
+  return condition.operator === 'gt' ? { gt: value } : condition.operator === 'gte' ? { gte: value } : condition.operator === 'lt' ? { lt: value } : condition.operator === 'lte' ? { lte: value } : { equals: value }
+}
+
+function dateFilter(condition: ResourceSearchCondition) {
+  const start = new Date(`${condition.value}T00:00:00+08:00`)
+  if (Number.isNaN(start.getTime())) return undefined
+  if (condition.operator === 'gt') return { gt: new Date(start.getTime() + 86_400_000) }
+  if (condition.operator === 'gte') return { gte: start }
+  if (condition.operator === 'lt') return { lt: start }
+  if (condition.operator === 'lte') return { lt: new Date(start.getTime() + 86_400_000) }
+  return { gte: start, lt: new Date(start.getTime() + 86_400_000) }
 }
 
 export async function listProductionOrders(query: ProductionOrderListQuery, scope?: EffectiveDataScope) {
@@ -32,8 +54,28 @@ export async function listProductionOrders(query: ProductionOrderListQuery, scop
       { targetMaterial: { is: { customerId: query.customerId } } },
     ] })
   }
+  for (const condition of query.advancedConditions || []) {
+    const text = stringFilter(condition)
+    if (condition.field === 'orderNo' || condition.field === 'groupNo' || condition.field === 'voucherNo') andConditions.push({ [condition.field]: text } as Prisma.ProductionOrderWhereInput)
+    else if (condition.field === 'status') andConditions.push({ status: condition.value })
+    else if (condition.field === 'customerId') {
+      const customerId = condition.value === '__UNASSIGNED__' ? null : condition.value
+      andConditions.push({ OR: [{ product: { is: { customerId } } }, { targetMaterial: { is: { customerId } } }] })
+    } else if (condition.field === 'target') andConditions.push({ OR: [{ product: { is: { OR: [{ sku: text }, { name: text }] } } }, { targetMaterial: { is: { OR: [{ code: text }, { name: text }, { spec: text }] } } }] })
+    else if (condition.field === 'bom') andConditions.push({ OR: [{ bom: { is: { OR: [{ name: text }, { version: text }] } } }, { bomName: text }, { bomVersion: text }] })
+    else if (condition.field === 'planQty' || condition.field === 'completeQty' || condition.field === 'scrapQty') {
+      const value = numberFilter(condition)
+      if (value) andConditions.push({ [condition.field]: value } as Prisma.ProductionOrderWhereInput)
+    } else if (condition.field === 'createdAt') {
+      const value = dateFilter(condition)
+      if (value) andConditions.push({ createdAt: value })
+    }
+  }
 
-  andConditions.push(...tokenizeKeywordQuery(query.keyword || '').map((token): Prisma.ProductionOrderWhereInput => ({ OR: [
+  andConditions.push(...tokenizeKeywordQuery(query.keyword || '').map((token): Prisma.ProductionOrderWhereInput => {
+    const number = Number(token)
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(token) ? new Date(`${token}T00:00:00+08:00`) : null
+    return { OR: [
     { orderNo: { contains: token } },
     { groupNo: { contains: token } },
     { voucherNo: { contains: token } },
@@ -42,7 +84,14 @@ export async function listProductionOrders(query: ProductionOrderListQuery, scop
     { targetMaterial: { is: { code: { contains: token } } } },
     { targetMaterial: { is: { name: { contains: token } } } },
     { targetMaterial: { is: { spec: { contains: token } } } },
-  ] })))
+    { bom: { is: { name: { contains: token } } } }, { bom: { is: { version: { contains: token } } } },
+    { product: { is: { customer: { is: { OR: [{ code: { contains: token } }, { name: { contains: token } }] } } } } },
+    { targetMaterial: { is: { customer: { is: { OR: [{ code: { contains: token } }, { name: { contains: token } }] } } } } },
+    ...productionOrderStatusOptions.filter((option) => option.label.toLocaleLowerCase('zh-CN').includes(token)).map((option) => ({ status: option.value })),
+    ...(Number.isFinite(number) ? [{ planQty: number }, { completeQty: number }, { scrapQty: number }] : []),
+    ...(date && !Number.isNaN(date.getTime()) ? [{ createdAt: { gte: date, lt: new Date(date.getTime() + 86_400_000) } }] : []),
+  ] }
+  }))
   if (andConditions.length > 0) where.AND = andConditions
 
   const [items, total] = await Promise.all([

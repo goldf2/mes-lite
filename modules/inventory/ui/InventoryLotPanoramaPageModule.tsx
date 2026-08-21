@@ -6,11 +6,14 @@ import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
 import TopBarPortal from '@/app/components/TopBarPortal'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
+import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import type { InventoryLotPanorama, InventoryLotPanoramaEdge, InventoryLotSearchResult } from '../contracts/inventory-lot-panorama'
 import type { InventoryLotTraceNode } from '../contracts/inventory-lot-trace'
 import { loadInventoryLotPanorama, searchInventoryLots } from '../client/inventory-lot-api'
 import { inventoryStatusLabel } from '../domain/inventory-status'
 import InventoryLotTraceDialog from './InventoryLotTraceDialog'
+import { inventoryLotSearchCatalog } from '../model/inventory-search-fields'
 
 const emptySearch: InventoryLotSearchResult = { keyword: '', items: [], truncated: false }
 const numberText = (value: number) => Number(value || 0).toFixed(6).replace(/\.?0+$/, '')
@@ -72,6 +75,7 @@ function LotCard({ lot, active, edges, onTrace }: {
 
 export default function InventoryLotPanoramaPageModule({ onMessage }: { onMessage: (message: string) => void }) {
   const [keyword, setKeyword] = useState('')
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [searchResult, setSearchResult] = useState(emptySearch)
   const [searching, setSearching] = useState(false)
   const [selectedLotId, setSelectedLotId] = useState('')
@@ -83,7 +87,7 @@ export default function InventoryLotPanoramaPageModule({ onMessage }: { onMessag
   useEffect(() => {
     let active = true
     const normalized = keyword.trim()
-    if (!normalized) {
+    if (!normalized && searchConditions.length === 0) {
       setSearchResult(emptySearch)
       setSelectedLotId('')
       setPanorama(null)
@@ -96,7 +100,7 @@ export default function InventoryLotPanoramaPageModule({ onMessage }: { onMessag
     setError('')
     setSearching(true)
     const timer = window.setTimeout(() => {
-      void searchInventoryLots(normalized)
+      void searchInventoryLots(normalized, searchConditions)
         .then((result) => { if (active) setSearchResult(result) })
         .catch((requestError) => {
           if (!active) return
@@ -107,7 +111,7 @@ export default function InventoryLotPanoramaPageModule({ onMessage }: { onMessag
         .finally(() => { if (active) setSearching(false) })
     }, 220)
     return () => { active = false; window.clearTimeout(timer) }
-  }, [keyword, onMessage])
+  }, [keyword, onMessage, searchConditions])
 
   useEffect(() => {
     if (!selectedLotId) return
@@ -131,13 +135,16 @@ export default function InventoryLotPanoramaPageModule({ onMessage }: { onMessag
     for (const node of panorama?.nodes || []) groups.set(node.generation, [...(groups.get(node.generation) || []), node])
     return Array.from(groups.entries()).sort(([left], [right]) => left - right)
   }, [panorama])
+  const advancedSearchFields = useMemo(() => resourceAdvancedFields(inventoryLotSearchCatalog), [])
+  const hasSearch = Boolean(keyword.trim() || searchConditions.length)
 
   return (
     <>
       <TopBarPortal>
         <ResponsiveToolbarActions
           pageKey="lotPanorama"
-          primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.lotPanorama" value={keyword} onChange={setKeyword} placeholder="搜索供应批号、内部批号、供应商、客户或单据号" />}
+          primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.lotPanorama" value={keyword} onChange={setKeyword} placeholder="搜索批号、物料、单据、往来单位、库位或检验" conditions={searchConditions} onConditionsChange={setSearchConditions} />}
+          advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
         />
       </TopBarPortal>
       <section className="space-y-4 rounded-lg bg-white p-3 shadow sm:p-6">
@@ -146,7 +153,7 @@ export default function InventoryLotPanoramaPageModule({ onMessage }: { onMessag
           <div className="text-xs text-gray-500">单次最多显示 100 条搜索结果、300 个关联批次</div>
         </div>
         {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-        {!keyword.trim() ? (
+        {!hasSearch ? (
           <div className="rounded-xl border border-dashed border-blue-200 bg-blue-50/40 px-6 py-12 text-center">
             <div className="text-base font-semibold text-gray-900">先输入一个可追溯线索</div>
             <div className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-gray-500">支持供应批号、内部批号、物料、供应商、来料单、生产工单、实绩单、检验单、客户、发货单和退货单。</div>

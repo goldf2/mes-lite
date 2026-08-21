@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client'
 import { withMaterialImageUrls } from '@/lib/attachment-urls'
 import { buildPackagingInventoryAnalysis } from '@/lib/packaging-inventory'
 import { prisma } from '@/lib/prisma'
-import { matchesKeywordValues } from '@/lib/resource-search'
+import { filterBySearchCatalog } from '@/lib/resource-search'
 import type { StockListQuery } from '../contracts/stock-route'
 import { hasStockBalance, STOCK_BALANCE_TOLERANCE } from '../domain/stock-integrity'
 import {
@@ -10,6 +10,7 @@ import {
   StockIntegrityError,
 } from './stock-integrity-service'
 import { stockDataScopeWhere, type EffectiveDataScope } from '@/modules/identity-access'
+import { buildStockSearchCatalog } from '../model/inventory-search-fields'
 
 const stockInclude = {
   material: {
@@ -174,10 +175,5 @@ export async function listStocks(query: StockListQuery, scope: EffectiveDataScop
   })
   const visible = (query.includeInvalid ? enriched : enriched.filter((stock) => !stock.material?.deletedAt || hasStockBalance(stock)))
     .filter((stock) => stock.material || hasStockBalance(stock))
-  if (!query.keyword.trim()) return visible
-  return visible.filter((stock) => matchesKeywordValues(query.keyword, [
-    stock.material?.name, stock.material?.code, stock.material?.spec, stock.material?.customer?.name,
-    stock.product?.name, stock.product?.sku, stock.product?.customer?.name,
-    ...stock.locationBalances.flatMap((balance) => [balance.location.code, balance.location.name]),
-  ]))
+  return filterBySearchCatalog(visible, query.keyword, buildStockSearchCatalog(), query.advancedConditions)
 }

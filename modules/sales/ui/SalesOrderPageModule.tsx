@@ -7,11 +7,11 @@ import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import SearchableSelect from '@/app/components/SearchableSelect'
 import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
-import { getStatusQuery } from '@/app/components/StatusCheckboxFilter'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
 import { AttachmentPanel } from '@/modules/attachments'
-import { MappedResourceAdvancedSearch } from '@/app/components/resource'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
+import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import { BusinessDocumentPrintLink } from '@/modules/business-documents'
 import { MaterialDetailDialog, MaterialReferenceButton } from '@/modules/materials'
 import type { MaterialReference } from '@/modules/materials'
@@ -48,6 +48,7 @@ import {
   salesOrderStatusMeta as statusMeta,
   salesOrderStatusOptions as statusOptions,
 } from '../model/sales-order-view'
+import { buildSalesOrderSearchCatalog } from '../model/sales-search-fields'
 
 const emptyForm = () => ({
   voucherNo: '',
@@ -67,8 +68,7 @@ export default function SalesOrderPageModule({
   const [customers, setCustomers] = useState<SalesCustomerOption[]>([])
   const [materials, setMaterials] = useState<SalesMaterialOption[]>([])
   const [keyword, setKeyword] = useState('')
-  const [customerId, setCustomerId] = useState('')
-  const [statuses, setStatuses] = useState(statusOptions.map((option) => option.value))
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
@@ -80,24 +80,22 @@ export default function SalesOrderPageModule({
   const [form, setForm] = useState(emptyForm)
   const [pendingAction, setPendingAction] = useState<{ order: SalesOrder; action: 'confirm' | 'cancel' } | null>(null)
   const [priceEdit, setPriceEdit] = useState<SalesOrderPriceEdit | null>(null)
-  const advancedSearchFields = useMemo(() => [
-    { key: 'status', label: '状态', value: statuses.length === 1 ? statuses[0] : '', onChange: (value: string) => setStatuses(value ? [value] : statusOptions.map((option) => option.value)), options: statusOptions },
-    { key: 'customerId', label: '客户', value: customerId, onChange: setCustomerId, options: customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` })) },
-  ], [customerId, customers, statuses])
+  const searchCatalog = useMemo(() => buildSalesOrderSearchCatalog(customers), [customers])
+  const advancedSearchFields = useMemo(() => resourceAdvancedFields(searchCatalog), [searchCatalog])
 
   const loadOrders = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams(getStatusQuery(statuses, statusOptions))
+      const params = new URLSearchParams()
       if (keyword.trim()) params.set('keyword', keyword.trim())
-      if (customerId) params.set('customerId', customerId)
+      if (searchConditions.length > 0) params.set('advanced', JSON.stringify(searchConditions))
       setOrders(await loadSalesOrders(params))
     } catch (error) {
       onMessage(error instanceof Error ? error.message : '获取销售订单失败')
     } finally {
       setLoading(false)
     }
-  }, [customerId, keyword, onMessage, statuses])
+  }, [keyword, onMessage, searchConditions])
 
   const loadOptions = useCallback(async () => {
     try {
@@ -275,9 +273,11 @@ export default function SalesOrderPageModule({
           value={keyword}
           onChange={setKeyword}
           placeholder="搜索订单号、客户、物料或规格"
+          conditions={searchConditions}
+          onConditionsChange={setSearchConditions}
         />
       )}
-      advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
+      advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
       viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
       actions={<AppButton variant="create" onClick={openCreateOrder}>新建销售订单</AppButton>}
     />

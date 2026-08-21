@@ -6,14 +6,19 @@ import { qualityInspectionStandardInputSchema } from '@/modules/quality/contract
 import { qualityHttpError } from '@/modules/quality/http/quality-http'
 import { createQualityInspectionStandard } from '@/modules/quality/server/quality-inspection-standard-service'
 import { getQualityInspectionStandardWorkspace } from '@/modules/quality/server/quality-inspection-standard-query-service'
+import { parseResourceSearchConditions } from '@/lib/resource-search'
+import { qualityStandardSearchFieldKeys } from '@/modules/quality/model/quality-search-fields'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   const denied = await requireResourcePermission('qualityStandards', 'read')
   if (denied) return denied
+  const parsed = parseResourceSearchConditions(req.nextUrl.searchParams.get('advanced'), qualityStandardSearchFieldKeys)
+  if (parsed.error) return NextResponse.json({ error: parsed.error }, { status: 400 })
   return NextResponse.json({ data: await getQualityInspectionStandardWorkspace({
     keyword: req.nextUrl.searchParams.get('keyword') || '', status: req.nextUrl.searchParams.get('status') || '',
+    advancedConditions: parsed.conditions,
   }) })
 }
 

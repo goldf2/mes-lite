@@ -71,11 +71,13 @@ function verifyStructure() {
 }
 
 async function verifyDatabaseBehavior() {
-  const [{ prisma }, fieldCommands, { listDocumentFieldDefinitions }, instructionCommands, { bulkUpdateWorkInstructions }, { batchImportWorkInstructions }, { uploadManagedAttachment }, { DocumentFieldError }] = await Promise.all([
+    const [{ prisma }, fieldCommands, { listDocumentFieldDefinitions }, instructionCommands, instructionQueries, instructionContracts, { bulkUpdateWorkInstructions }, { batchImportWorkInstructions }, { uploadManagedAttachment }, { DocumentFieldError }] = await Promise.all([
     import('../lib/prisma'),
     import('../modules/documents/server/document-field-command-service'),
     import('../modules/documents/server/document-field-query-service'),
     import('../modules/documents/server/work-instruction-command-service'),
+    import('../modules/documents/server/work-instruction-query-service'),
+    import('../modules/documents/contracts/work-instruction-schema'),
     import('../modules/documents/server/work-instruction-bulk-service'),
     import('../modules/documents/server/work-instruction-batch-import-service'),
     import('../modules/attachments/server/attachment-command-service'),
@@ -104,6 +106,10 @@ async function verifyDatabaseBehavior() {
       fieldValues: { [textField.id]: '45#' },
     })
     assert.deepEqual(first.fieldValues.map((value) => value.valueText), ['SUS304', '内部'], '新建文档必须保存分类扩展字段')
+    const dynamicSearch = instructionContracts.parseWorkInstructionListQuery(new URLSearchParams({
+      advanced: JSON.stringify([{ field: `field:${textField.id}`, operator: 'equals', value: 'SUS304' }]),
+    })).data!
+    assert.deepEqual((await instructionQueries.listWorkInstructions(dynamicSearch)).data.map((instruction) => instruction.id), [first.id], '实际扩展字段必须可用于高级搜索')
     assert.equal((await listDocumentFieldDefinitions(category.id)).find((field) => field.id === textField.id)?._count.values, 2, '字段使用数必须反映已填写文档')
     const renamed = await fieldCommands.updateDocumentFieldDefinition({ id: textField.id, categoryId: category.id, name: '材料牌号（标准）', fieldType: 'TEXT', options: [] })
     assert.equal(renamed.saved.name, '材料牌号（标准）', '已使用字段必须允许安全改名')

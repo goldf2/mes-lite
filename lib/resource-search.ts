@@ -20,9 +20,40 @@ export interface ResourceAdvancedSearchField<T> {
   key: string
   label: string
   type: ResourceSearchFieldType
-  read: (item: T) => ResourceSearchValue
+  read: (item: T) => ResourceSearchValue | ResourceSearchValue[]
   options?: readonly ResourceSearchOption[]
   operators?: readonly ResourceSearchOperator[]
+}
+
+export interface ResourceSearchField<T> extends ResourceAdvancedSearchField<T> {
+  keyword?: boolean
+  advanced?: boolean
+  weight?: number
+}
+
+export interface ResourceSearchCatalog<T> {
+  key: string
+  fields: readonly ResourceSearchField<T>[]
+}
+
+export function defineResourceSearchCatalog<T>(key: string, fields: readonly ResourceSearchField<T>[]): ResourceSearchCatalog<T> {
+  return { key, fields }
+}
+
+export function resourceKeywordProfile<T>(catalog: ResourceSearchCatalog<T>): ResourceSearchProfile<T> {
+  return {
+    key: catalog.key,
+    keywordFields: catalog.fields.filter((field) => field.keyword !== false).map((field) => ({
+      key: field.key,
+      label: field.label,
+      read: field.read,
+      weight: field.weight,
+    })),
+  }
+}
+
+export function resourceAdvancedFields<T>(catalog: ResourceSearchCatalog<T>): readonly ResourceAdvancedSearchField<T>[] {
+  return catalog.fields.filter((field) => field.advanced !== false)
 }
 
 export interface ResourceSearchCondition {
@@ -30,6 +61,32 @@ export interface ResourceSearchCondition {
   field: string
   operator: ResourceSearchOperator
   value: string
+}
+
+const resourceSearchOperatorValues: readonly ResourceSearchOperator[] = ['equals', 'contains', 'startsWith', 'gt', 'gte', 'lt', 'lte']
+
+export function parseResourceSearchConditions(raw: string | null | undefined, allowedFields: readonly string[]) {
+  if (!raw) return { conditions: [] as ResourceSearchCondition[] }
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed) || parsed.length > 30) return { error: '高级搜索条件无效' }
+    const allowed = new Set(allowedFields)
+    const conditions: ResourceSearchCondition[] = []
+    for (let index = 0; index < parsed.length; index += 1) {
+      const value = parsed[index]
+      if (!value || typeof value !== 'object') return { error: '高级搜索条件无效' }
+      const field = String(value.field || '')
+      const operator = String(value.operator || '') as ResourceSearchOperator
+      const conditionValue = String(value.value || '').trim()
+      if (!allowed.has(field) || !resourceSearchOperatorValues.includes(operator) || !conditionValue || conditionValue.length > 200) {
+        return { error: '高级搜索条件无效' }
+      }
+      conditions.push({ id: `query-${field}-${index}`, field, operator, value: conditionValue })
+    }
+    return { conditions }
+  } catch {
+    return { error: '高级搜索条件格式错误' }
+  }
 }
 
 export function defaultResourceSearchOperators(type: ResourceSearchFieldType): readonly ResourceSearchOperator[] {
@@ -111,29 +168,35 @@ function conditionMatches<T>(item: T, condition: ResourceSearchCondition, fields
   const field = fields.find((candidate) => candidate.key === condition.field)
   if (!field || !condition.value.trim()) return true
   const actual = field.read(item)
+  const actualValues: ResourceSearchValue[] = Array.isArray(actual) ? actual : [actual]
   const expectedText = normalizeSearchValue(condition.value)
 
   if (field.type === 'number') {
-    const actualNumber = Number(actual)
     const expectedNumber = Number(condition.value)
-    if (!Number.isFinite(actualNumber) || !Number.isFinite(expectedNumber)) return false
-    if (condition.operator === 'gt') return actualNumber > expectedNumber
-    if (condition.operator === 'gte') return actualNumber >= expectedNumber
-    if (condition.operator === 'lt') return actualNumber < expectedNumber
-    if (condition.operator === 'lte') return actualNumber <= expectedNumber
-    return actualNumber === expectedNumber
+    if (!Number.isFinite(expectedNumber)) return false
+    return actualValues.some((actual) => {
+      const actualNumber = Number(actual)
+      if (!Number.isFinite(actualNumber)) return false
+      if (condition.operator === 'gt') return actualNumber > expectedNumber
+      if (condition.operator === 'gte') return actualNumber >= expectedNumber
+      if (condition.operator === 'lt') return actualNumber < expectedNumber
+      if (condition.operator === 'lte') return actualNumber <= expectedNumber
+      return actualNumber === expectedNumber
+    })
   }
 
-  const actualText = normalizeSearchValue(actual)
-  if (condition.operator === 'contains') return actualText.includes(expectedText)
-  if (condition.operator === 'startsWith') return actualText.startsWith(expectedText)
-  if (condition.operator === 'gt' || condition.operator === 'gte' || condition.operator === 'lt' || condition.operator === 'lte') {
-    if (condition.operator === 'gt') return actualText > expectedText
-    if (condition.operator === 'gte') return actualText >= expectedText
-    if (condition.operator === 'lt') return actualText < expectedText
-    return actualText <= expectedText
-  }
-  return actualText === expectedText
+  return actualValues.some((actual) => {
+    const actualText = normalizeSearchValue(actual)
+    if (condition.operator === 'contains') return actualText.includes(expectedText)
+    if (condition.operator === 'startsWith') return actualText.startsWith(expectedText)
+    if (condition.operator === 'gt' || condition.operator === 'gte' || condition.operator === 'lt' || condition.operator === 'lte') {
+      if (condition.operator === 'gt') return actualText > expectedText
+      if (condition.operator === 'gte') return actualText >= expectedText
+      if (condition.operator === 'lt') return actualText < expectedText
+      return actualText <= expectedText
+    }
+    return actualText === expectedText
+  })
 }
 
 export function filterByAdvancedSearch<T>(
@@ -157,4 +220,13 @@ export function filterByResourceSearch<T>(
     fields,
     conditions,
   )
+}
+
+export function filterBySearchCatalog<T>(
+  items: readonly T[],
+  query: string,
+  catalog: ResourceSearchCatalog<T>,
+  conditions: readonly ResourceSearchCondition[] = [],
+) {
+  return filterByResourceSearch(items, query, resourceKeywordProfile(catalog), resourceAdvancedFields(catalog), conditions)
 }

@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
   try {
     const denied = await requireAnyResourcePermission(['documentCategories', 'workInstructions'], 'read')
     if (denied) return denied
-    const categoryId = documentFieldCategoryIdSchema.parse(new URL(req.url).searchParams.get('categoryId'))
+    const categoryIdParam = new URL(req.url).searchParams.get('categoryId')
+    const categoryId = categoryIdParam ? documentFieldCategoryIdSchema.parse(categoryIdParam) : undefined
     return NextResponse.json({ data: await listDocumentFieldDefinitions(categoryId) })
   } catch (error) { return documentFieldHttpError(error, '获取扩展字段失败') }
 }

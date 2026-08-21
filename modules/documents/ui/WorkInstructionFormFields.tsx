@@ -130,7 +130,7 @@ export default function WorkInstructionFormFields({
   const batchMode = mode === 'batch'
 
   return (
-    <div className={createMode ? 'grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3' : 'grid grid-cols-1 gap-3'}>
+    <div className={createMode ? 'grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3' : 'grid min-w-0 grid-cols-1 gap-3'}>
       {!batchMode && <div className={createMode ? 'md:col-span-2 xl:col-span-3' : ''}>
         <label className={createMode ? 'mb-2 block text-sm font-medium text-gray-700' : 'mb-1 block text-xs font-medium text-gray-600'}>文档标题（可选）</label>
         <input value={form.title} onChange={(event) => update('title', event.target.value)} className={appInputClassName} placeholder="留空后自动生成" maxLength={200} />
@@ -140,7 +140,7 @@ export default function WorkInstructionFormFields({
         <MaterialSearchSelect value={form.materialId} options={materials} selectedOption={selectedMaterial} onSearch={onMaterialSearch} onChange={(value) => update('materialId', value)} placeholder="输入产品编码、名称或规格搜索" emptyLabel="不绑定产品（通用文档）" />
         {createMode && selectedMaterial?.spec && <div className="mt-1 text-xs text-gray-500">规格：{selectedMaterial.spec}</div>}
       </div>
-      <div className={createMode ? '' : 'grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-1'}>
+      <div className={createMode ? '' : 'grid min-w-0 grid-cols-1 gap-3'}>
         <div>
           <label className={createMode ? 'mb-2 block text-sm font-medium text-gray-700' : 'mb-1 block text-xs font-medium text-gray-600'}>文档类别</label>
           <SearchableSelect value={form.categoryId} onChange={(value) => update('categoryId', value)} options={categoryOptions} placeholder="输入文档类别筛选" />

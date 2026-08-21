@@ -39,8 +39,9 @@ export function createPermissionGroup(input: CreatePermissionGroupInput) {
   return request<PermissionGroup>('/api/permissions', jsonRequest('POST', input))
 }
 
-export async function loadOperators(statusQuery = '') {
-  const payload = await request<OperatorAdminItem[]>(statusQuery ? `/api/operators?${statusQuery}` : '/api/operators')
+export async function loadOperators(params: URLSearchParams = new URLSearchParams()) {
+  const query = params.toString()
+  const payload = await request<OperatorAdminItem[]>(query ? `/api/operators?${query}` : '/api/operators')
   return payload.data || []
 }
 

@@ -17,6 +17,11 @@ import {
   WorkInstructionValidationError,
 } from '@/modules/documents/server/work-instruction-command-service'
 import { listWorkInstructions } from '@/modules/documents/server/work-instruction-query-service'
+import { documentBaseFields } from '@/modules/documents/domain/document-field-rules'
+import {
+  buildWorkInstructionAdvancedSearchFields,
+  extensionFieldSearchKey,
+} from '@/modules/documents/model/document-search-fields'
 
 const root = process.cwd()
 const read = (path: string) => readFileSync(join(root, path), 'utf8')
@@ -26,10 +31,29 @@ function verifySchemasAndTitle() {
   assert.equal(parsed.data?.page, 1, '非法页码必须回退第一页')
   assert.equal(parsed.data?.pageSize, 200, '文档分页必须限制在 200')
   assert.equal(parseWorkInstructionListQuery(new URLSearchParams({ advanced: '{' })).error, '高级搜索条件格式错误', '损坏的高级搜索 JSON 必须拒绝')
+  const extensionSearch = parseWorkInstructionListQuery(new URLSearchParams({
+    advanced: JSON.stringify([{ field: extensionFieldSearchKey('field-1'), operator: 'equals', value: 'SUS304' }]),
+  }))
+  assert.equal(extensionSearch.error, undefined, '高级搜索必须接受实际扩展字段 ID')
   assert.equal(workInstructionInputSchema.safeParse({ categoryId: '' }).success, false, '文档类别不能为空')
   assert.equal(workInstructionUpdateInputSchema.safeParse({ categoryId: 'category' }).success, false, '更新必须提供文档 ID')
   const title = createAutomaticWorkInstructionTitle(null, { name: '作业指导书' }, new Date('2026-08-09T02:30:00.000Z'))
   assert.equal(title, '通用 · 作业指导书 · 2026-08-09 10:30', '自动标题必须固定使用上海时区')
+}
+
+function verifySearchFields() {
+  const fields = buildWorkInstructionAdvancedSearchFields(
+    [{ value: 'drawing', label: '图纸' }],
+    [{
+      id: 'field-1', categoryId: 'drawing', name: '材料牌号', fieldType: 'TEXT', optionsJson: null,
+      sortOrder: 10, _count: { values: 1 }, createdAt: '', updatedAt: '',
+    }],
+  )
+  assert.deepEqual(fields.slice(0, documentBaseFields.length).map((field) => field.label), [...documentBaseFields], '高级搜索基础项必须直接来自字段设置的基础字段列表')
+  assert.deepEqual(fields.slice(documentBaseFields.length).map((field) => [field.key, field.label]), [[extensionFieldSearchKey('field-1'), '图纸 · 材料牌号']], '高级搜索必须按实际类别扩展字段生成搜索项')
+  const extension = fields.find((field) => field.key === extensionFieldSearchKey('field-1'))
+  const item = { fieldValues: [{ fieldDefinitionId: 'field-1', valueText: 'SUS304' }] }
+  assert.equal(extension?.read(item as never), 'SUS304', '扩展字段搜索项必须读取对应字段值')
 }
 
 function verifyBoundaries() {
@@ -62,6 +86,11 @@ function verifyBoundaries() {
   assert.match(page, /handlePreviewRegenerated[\s\S]*setItems\(\(current\)[\s\S]*primaryAttachment[\s\S]*refresh\(instruction\.primaryAttachment\)/, 'CAD 预览重建后必须刷新文档列表封面 URL')
   assert.match(page, /handlePreviewRegenerated[\s\S]*setDetail\(\(current\)[\s\S]*primaryAttachment[\s\S]*refresh\(current\.primaryAttachment\)/, 'CAD 预览重建后必须刷新当前文档详情摘要')
   assert.match(toolbar, /ResourceAdvancedSearch/, '文档工具栏必须继续复用公共高级搜索组件')
+  assert.match(toolbar, /buildWorkInstructionSearchCatalog/, '文档智能搜索与高级搜索必须共用实际基础字段和扩展字段目录')
+  assert.doesNotMatch(toolbar, /key: 'materialCode'|key: 'customerName'|key: 'createdAt'/, '文档工具栏不得继续维护脱离字段设置的硬编码搜索清单')
+  assert.match(detailDialog, /editing[\s\S]*xl:grid-cols-\[minmax\(22rem,26rem\)_minmax\(0,1fr\)\]/, '详情编辑模式必须为表单保留可用宽度，并在较窄桌面堆叠显示')
+  assert.match(detailDialog, /min-w-0 space-y-3/, '详情左栏必须允许网格项目正确收缩')
+  assert.doesNotMatch(formFields, /sm:grid-cols-3 xl:grid-cols-1/, '固定侧栏内的表单不得使用视口断点强制三列')
   assert.ok(page.split('\n').length <= 650, '文档主页面必须保持在 650 行编排层以内')
   assert.match(page, /useWorkInstructionMetadataActions/, '批量导入、字段设置和批量修改不得再塞入主页面组件')
   assert.match(collection, /DocumentPreviewThumb[\s\S]*SortableTableHeader/, '文档集合视图必须复用公共预览与排序表头')
@@ -130,6 +159,7 @@ async function verifyDatabaseRules() {
 
 async function main() {
   verifySchemasAndTitle()
+  verifySearchFields()
   verifyBoundaries()
   if (process.env.VERIFY_DATABASE_INTEGRATION === '1') await verifyDatabaseRules()
   console.log(`文档服务校验通过：请求契约、薄 API、查询与写入边界${process.env.VERIFY_DATABASE_INTEGRATION === '1' ? '及临时数据库集成' : ''}符合模块化约束。`)

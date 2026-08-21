@@ -32,7 +32,7 @@ function verifyStaticBoundaries() {
   const renderer = read('app/components/shell/WorkspacePageRendererRegistry.tsx')
   assert.doesNotMatch(page, /\bfetch\(/, '库存流水页面不得直接发起 HTTP 请求')
   assert.match(page, /loadStockMovements\(/, '库存流水页面必须通过库存领域 client 读取数据')
-  assert.match(page, /MappedResourceAdvancedSearch/, '库存流水必须使用公共字段式高级搜索')
+  assert.match(page, /buildStockMovementSearchCatalog[\s\S]*ResourceAdvancedSearch/, '库存流水的智能搜索与高级搜索必须共用实际字段目录')
   assert.match(page, /usePersistedViewMode/, '库存流水必须保存卡片和列表偏好')
   assert.match(read('modules/inventory/ui/StockMovementCollectionView.tsx'), /stockMovementRelationLabel/, '库存流水必须显示原流水与冲销流水关系')
   assert.doesNotMatch(route, /@\/lib\/prisma|\bprisma\./, '库存流水 API 不得直接访问 Prisma')

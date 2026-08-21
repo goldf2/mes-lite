@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import { parseCsvFilter } from '@/lib/status-filter'
+import { parseResourceSearchConditions, type ResourceSearchCondition } from '@/lib/resource-search'
+import { stockSearchFieldKeys } from '../model/inventory-search-fields'
 
 export interface StockListQuery {
   type: 'material' | 'product' | null
@@ -9,10 +11,13 @@ export interface StockListQuery {
   customerId: string | null
   locationId: string | null
   includeInvalid: boolean
+  advancedConditions?: ResourceSearchCondition[]
 }
 
 export function parseStockListQuery(searchParams: URLSearchParams): StockListQuery {
   const requestedType = searchParams.get('type')
+  const advanced = parseResourceSearchConditions(searchParams.get('advanced'), stockSearchFieldKeys)
+  if (advanced.error) throw new Error(advanced.error)
   return {
     type: requestedType === 'material' || requestedType === 'product' ? requestedType : null,
     keyword: searchParams.get('keyword') || '',
@@ -21,6 +26,7 @@ export function parseStockListQuery(searchParams: URLSearchParams): StockListQue
     customerId: searchParams.get('customerId'),
     locationId: searchParams.get('locationId'),
     includeInvalid: searchParams.get('includeInvalid') === '1',
+    advancedConditions: advanced.conditions || [],
   }
 }
 

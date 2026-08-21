@@ -1,4 +1,6 @@
 import type { StockMovementDirection, StockMovementQuery } from './stock-movement'
+import { parseResourceSearchConditions } from '@/lib/resource-search'
+import { stockMovementSearchFieldKeys } from '../model/inventory-search-fields'
 
 function optionalValue(searchParams: URLSearchParams, key: string) {
   return searchParams.get(key)?.trim() || null
@@ -14,6 +16,8 @@ export function parseStockMovementQuery(searchParams: URLSearchParams): StockMov
   const direction: StockMovementDirection = requestedDirection === 'in' || requestedDirection === 'out'
     ? requestedDirection
     : null
+  const advanced = parseResourceSearchConditions(searchParams.get('advanced'), stockMovementSearchFieldKeys)
+  if (advanced.error) throw new Error(advanced.error)
   return {
     keyword: searchParams.get('keyword')?.trim() || '',
     page: positiveInteger(searchParams.get('page'), 1),
@@ -28,5 +32,6 @@ export function parseStockMovementQuery(searchParams: URLSearchParams): StockMov
     operator: optionalValue(searchParams, 'operator'),
     note: optionalValue(searchParams, 'note'),
     createdDate: optionalValue(searchParams, 'createdDate'),
+    advancedConditions: advanced.conditions || [],
   }
 }

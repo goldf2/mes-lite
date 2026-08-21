@@ -9,6 +9,8 @@ import { archiveManagedReturn, createManagedReturn } from '@/modules/sales/serve
 import { listReturns } from '@/modules/sales/server/fulfillment-query-service'
 import { getCurrentOperator } from '@/lib/auth'
 import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
+import { parseResourceSearchConditions } from '@/lib/resource-search'
+import { returnSearchFieldKeys } from '@/modules/sales/model/sales-search-fields'
 
 export async function GET(req: NextRequest) {
   try {
@@ -19,8 +21,10 @@ export async function GET(req: NextRequest) {
     const params = new URL(req.url).searchParams
     const page = Math.max(1, Number(params.get('page') || 1))
     const pageSize = Math.min(100, Math.max(1, Number(params.get('pageSize') || 20)))
+    const advanced = parseResourceSearchConditions(params.get('advanced'), returnSearchFieldKeys)
+    if (advanced.error) return NextResponse.json({ error: advanced.error }, { status: 400 })
     return NextResponse.json(await listReturns({
-      statuses: parseStatusFilter(params), keyword: params.get('keyword'), customerId: params.get('customerId'), page, pageSize,
+      statuses: parseStatusFilter(params), keyword: params.get('keyword'), customerId: params.get('customerId'), advancedConditions: advanced.conditions, page, pageSize,
     }, await loadEffectiveDataScope(operator)))
   } catch (error) {
     if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })

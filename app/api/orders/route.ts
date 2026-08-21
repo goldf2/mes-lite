@@ -4,14 +4,13 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { getAuditContext, writeAuditLog } from '@/lib/audit'
 import { parseStatusFilter } from '@/lib/status-filter'
 import { createProductionOrderSchema } from '@/modules/production/contracts/production-order-schema'
-import {
-  archiveProductionOrder,
-  createProductionOrders,
-} from '@/modules/production/server/production-order-command-service'
+import { archiveProductionOrder, createProductionOrders } from '@/modules/production/server/production-order-command-service'
 import { ProductionOrderDomainError } from '@/modules/production/domain/production-order-errors'
 import { listProductionOrders } from '@/modules/production/server/production-order-query-service'
 import { getCurrentOperator } from '@/lib/auth'
 import { assertProductionOrderIdDataScope, DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
+import { parseResourceSearchConditions } from '@/lib/resource-search'
+import { productionOrderSearchFieldKeys } from '@/modules/production/model/production-search-fields'
 
 export async function POST(req: NextRequest) {
   try {
@@ -48,10 +47,13 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const statuses = parseStatusFilter(searchParams)
+    const advanced = parseResourceSearchConditions(searchParams.get('advanced'), productionOrderSearchFieldKeys)
+    if (advanced.error) return NextResponse.json({ error: advanced.error }, { status: 400 })
     const result = await listProductionOrders({
       statuses,
       keyword: searchParams.get('keyword')?.trim(),
       customerId: searchParams.get('customerId'),
+      advancedConditions: advanced.conditions,
       page: Number(searchParams.get('page') ?? '1'),
       pageSize: Number(searchParams.get('pageSize') ?? '20'),
     }, await loadEffectiveDataScope(operator))

@@ -9,6 +9,8 @@ import { archiveManagedDispatch, createManagedDispatch } from '@/modules/product
 import { listManagedDispatchEmployees, listManagedDispatches } from '@/modules/production/server/dispatch-query-service'
 import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
 import { getCurrentOperator } from '@/lib/auth'
+import { parseResourceSearchConditions } from '@/lib/resource-search'
+import { dispatchSearchFieldKeys } from '@/modules/production/model/production-search-fields'
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,11 +23,15 @@ export async function GET(req: NextRequest) {
     if (searchParams.get('options') === 'employees') {
       return NextResponse.json({ data: await listManagedDispatchEmployees(scope) })
     }
+    const advanced = parseResourceSearchConditions(searchParams.get('advanced'), dispatchSearchFieldKeys)
+    if (advanced.error) return NextResponse.json({ error: advanced.error }, { status: 400 })
     const result = await listManagedDispatches({
       statuses: parseStatusFilter(searchParams),
       workerName: searchParams.get('workerName'),
       orderId: searchParams.get('orderId'),
       customerId: searchParams.get('customerId'),
+      keyword: searchParams.get('keyword'),
+      advancedConditions: advanced.conditions,
       page: Number(searchParams.get('page') ?? 1) || 1,
       pageSize: Number(searchParams.get('pageSize') ?? 20) || 20,
     }, scope)

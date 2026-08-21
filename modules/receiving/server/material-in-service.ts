@@ -2,19 +2,21 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { resolveInventoryLocation } from '@/lib/inventory'
 import { normalizeMaterialInPriceUnit, resolveMaterialInPricing } from '@/lib/material-in-quantity'
-import { tokenizeKeywordQuery } from '@/lib/resource-search'
+import { tokenizeKeywordQuery, type ResourceSearchCondition } from '@/lib/resource-search'
 import { resolveMaterialUnits } from '@/lib/units'
 import type { CreateMaterialInInput, MaterialInItemInput } from '../contracts/material-in-schema'
 import { MaterialInDomainError, runMaterialInDomainOperation } from '../domain/material-in-errors'
 import { materialInNumberPrefix, nextMaterialInNumber } from '../domain/material-in-numbering'
 import { loadMaterialInConversionHistory, materialInHistoryMinimumSamples } from './material-in-conversion-history-service'
 import { assertInventoryLocationDataScope, materialReceiptDataScopeWhere, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
+import { materialInStatusOptions } from '../model/material-in-view'
 
 export interface MaterialInListQuery {
   statuses: string[]
   keyword?: string | null
   supplierId?: string | null
   customerId?: string | null
+  advancedConditions?: ResourceSearchCondition[]
   page: number
   pageSize: number
 }
@@ -61,6 +63,29 @@ export function toMaterialInRecord(receipt: MaterialReceiptWithLines) {
   }
 }
 
+function numberMatches(actual: number, condition: ResourceSearchCondition) {
+  const expected = Number(condition.value)
+  if (!Number.isFinite(expected)) return false
+  if (condition.operator === 'gt') return actual > expected
+  if (condition.operator === 'gte') return actual >= expected
+  if (condition.operator === 'lt') return actual < expected
+  if (condition.operator === 'lte') return actual <= expected
+  return actual === expected
+}
+
+async function receiptIdsByLineAggregate(condition: ResourceSearchCondition) {
+  const rows = await prisma.materialIn.groupBy({
+    by: ['receiptId'],
+    where: { receiptId: { not: null }, deletedAt: null },
+    _count: { id: true },
+    _sum: { totalAmount: true },
+  })
+  return rows.flatMap((row) => {
+    const actual = condition.field === 'itemCount' ? row._count.id : Number(row._sum.totalAmount || 0)
+    return row.receiptId && numberMatches(actual, condition) ? [row.receiptId] : []
+  })
+}
+
 export async function listMaterialIns(query: MaterialInListQuery, scope: EffectiveDataScope = unrestrictedDataScope) {
   const page = Math.max(1, Number.isFinite(query.page) ? Math.floor(query.page) : 1)
   const pageSize = Math.min(100, Math.max(1, Number.isFinite(query.pageSize) ? Math.floor(query.pageSize) : 20))
@@ -72,18 +97,49 @@ export async function listMaterialIns(query: MaterialInListQuery, scope: Effecti
   if (query.supplierId) where.supplierId = query.supplierId
   if (query.customerId === '__UNASSIGNED__') andConditions.push({ lines: { some: { material: { is: { customerId: null } } } } })
   else if (query.customerId) andConditions.push({ lines: { some: { material: { is: { customerId: query.customerId } } } } })
-  andConditions.push(...tokenizeKeywordQuery(query.keyword || '').map((token) => ({ OR: [
+  for (const condition of query.advancedConditions || []) {
+    const stringFilter = condition.operator === 'equals' ? { equals: condition.value } : condition.operator === 'startsWith' ? { startsWith: condition.value } : { contains: condition.value }
+    if (['inboundNo', 'voucherNo', 'receivedBy', 'note'].includes(condition.field)) {
+      andConditions.push({ [condition.field]: stringFilter } as Prisma.MaterialReceiptWhereInput)
+    } else if (condition.field === 'status') andConditions.push({ status: condition.value })
+    else if (condition.field === 'supplierId') andConditions.push({ supplierId: condition.value })
+    else if (condition.field === 'customerId') andConditions.push({ lines: { some: { material: { is: { customerId: condition.value === '__UNASSIGNED__' ? null : condition.value } } } } })
+    else if (condition.field === 'material') andConditions.push({ lines: { some: { material: { is: { OR: [{ code: stringFilter }, { name: stringFilter }, { spec: stringFilter }] } } } } })
+    else if (condition.field === 'batchNo') andConditions.push({ lines: { some: { batchNo: stringFilter } } })
+    else if (condition.field === 'locationId') andConditions.push({ stagingLocationId: condition.value })
+    else if (condition.field === 'totalAmount' || condition.field === 'itemCount') {
+      andConditions.push({ id: { in: await receiptIdsByLineAggregate(condition) } })
+    }
+    else if (condition.field === 'inboundDate') {
+      const start = new Date(`${condition.value}T00:00:00+08:00`)
+      if (!Number.isNaN(start.getTime())) andConditions.push({ inboundDate: { gte: start, lt: new Date(start.getTime() + 86_400_000) } })
+    }
+  }
+  const keywordFilters = await Promise.all(tokenizeKeywordQuery(query.keyword || '').map(async (token): Promise<Prisma.MaterialReceiptWhereInput> => {
+    const number = Number(token)
+    const aggregateIds = Number.isFinite(number)
+      ? Array.from(new Set([...(await receiptIdsByLineAggregate({ id: 'keyword-total', field: 'totalAmount', operator: 'equals', value: token })), ...(await receiptIdsByLineAggregate({ id: 'keyword-count', field: 'itemCount', operator: 'equals', value: token }))]))
+      : []
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(token) ? new Date(`${token}T00:00:00+08:00`) : null
+    return { OR: [
     { inboundNo: { contains: token } },
     { voucherNo: { contains: token } },
     { receivedBy: { contains: token } },
     { note: { contains: token } },
     { supplier: { is: { code: { contains: token } } } },
     { supplier: { is: { name: { contains: token } } } },
+    { stagingLocation: { is: { code: { contains: token } } } }, { stagingLocation: { is: { name: { contains: token } } } },
     { lines: { some: { batchNo: { contains: token } } } },
     { lines: { some: { material: { is: { code: { contains: token } } } } } },
     { lines: { some: { material: { is: { name: { contains: token } } } } } },
     { lines: { some: { material: { is: { spec: { contains: token } } } } } },
-  ] })))
+    { lines: { some: { material: { is: { customer: { is: { OR: [{ code: { contains: token } }, { name: { contains: token } }] } } } } } } },
+    ...materialInStatusOptions.filter((option) => option.label.includes(token)).map((option) => ({ status: option.value })),
+    ...(aggregateIds.length > 0 ? [{ id: { in: aggregateIds } }] : []),
+    ...(date && !Number.isNaN(date.getTime()) ? [{ inboundDate: { gte: date, lt: new Date(date.getTime() + 86_400_000) } }] : []),
+  ] }
+  }))
+  andConditions.push(...keywordFilters)
   if (andConditions.length > 0) where.AND = andConditions
 
   const [receipts, total] = await Promise.all([

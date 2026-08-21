@@ -6,12 +6,13 @@ import useClientTableSort from '@/app/components/useClientTableSort'
 import AppButton from '@/app/components/AppButton'
 import ResourcePage from '@/app/components/resource/ResourcePage'
 import ResourceSortButton from '@/app/components/resource/ResourceSortButton'
-import type { ResourceAdvancedSearchField } from '@/lib/resource-search'
+import { resourceAdvancedFields } from '@/lib/resource-search'
 import { archiveEquipment, loadEquipment, loadEquipmentWorkCenters } from '../client/equipment-api'
 import type { EquipmentItem, EquipmentWorkCenterOption } from '../contracts/equipment'
 import {
   equipmentStatusLabels as statusLabels,
   equipmentStatusOptions as statusOptions,
+  buildEquipmentSearchCatalog,
 } from '../model/equipment-view'
 import EquipmentEditorDialog from './EquipmentEditorDialog'
 import EquipmentEventDialog from './EquipmentEventDialog'
@@ -77,20 +78,8 @@ export default function EquipmentPageModule({
     label: `${item.code} · ${item.name}`,
     keywords: item.name,
   })), [workCenters])
-  const advancedSearchFields = useMemo<readonly ResourceAdvancedSearchField<EquipmentItem>[]>(() => [
-    { key: 'code', label: '设备编码', type: 'text', read: (item) => item.code },
-    { key: 'name', label: '设备名称', type: 'text', read: (item) => item.name },
-    { key: 'equipmentType', label: '设备类型', type: 'text', read: (item) => item.equipmentType },
-    { key: 'workCenterId', label: '工作中心', type: 'select', read: (item) => item.workCenterId, options: workCenterOptions },
-    { key: 'status', label: '状态', type: 'select', read: (item) => item.status, options: statusOptions },
-    { key: 'manufacturer', label: '制造商', type: 'text', read: (item) => item.manufacturer },
-    { key: 'model', label: '型号', type: 'text', read: (item) => item.model },
-    { key: 'serialNumber', label: '出厂编号', type: 'text', read: (item) => item.serialNumber },
-    { key: 'location', label: '现场位置', type: 'text', read: (item) => item.location },
-    { key: 'basicParameters', label: '基础参数', type: 'text', read: (item) => item.basicParameters },
-    { key: 'note', label: '备注', type: 'text', read: (item) => item.note },
-    { key: 'createdAt', label: '创建日期', type: 'date', read: (item) => item.createdAt },
-  ], [workCenterOptions])
+  const searchCatalog = useMemo(() => buildEquipmentSearchCatalog(workCenterOptions), [workCenterOptions])
+  const advancedSearchFields = useMemo(() => resourceAdvancedFields(searchCatalog), [searchCatalog])
 
   const openCreate = () => {
     setEditing(null)

@@ -7,8 +7,8 @@ import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
 import { ResourceAdvancedSearch } from '@/app/components/resource'
-import { filterByAdvancedSearch, matchesKeywordValues } from '@/lib/resource-search'
-import type { ResourceAdvancedSearchField, ResourceSearchCondition } from '@/lib/resource-search'
+import { defineResourceSearchCatalog, filterBySearchCatalog, resourceAdvancedFields } from '@/lib/resource-search'
+import type { ResourceSearchCondition } from '@/lib/resource-search'
 import { BomApiError, listBoms } from '../client'
 
 interface MaterialOption {
@@ -93,14 +93,15 @@ const categoryLabels: Record<string, string> = {
   OTHER: '其他',
 }
 
-const materialAdvancedSearchFields: readonly ResourceAdvancedSearchField<MaterialOption>[] = [
+const materialSearchCatalog = defineResourceSearchCatalog<MaterialOption>('bom-material.actual-fields', [
   { key: 'code', label: '物料编码', type: 'text', read: (item) => item.code },
   { key: 'name', label: '物料名称', type: 'text', read: (item) => item.name },
   { key: 'spec', label: '规格', type: 'text', read: (item) => item.spec || '' },
-  { key: 'category', label: '分类', type: 'select', read: (item) => item.category, options: Object.entries(categoryLabels).map(([value, label]) => ({ value, label })) },
+  { key: 'category', label: '分类', type: 'select', read: (item) => [item.category, categoryLabels[item.category]], options: Object.entries(categoryLabels).map(([value, label]) => ({ value, label })) },
   { key: 'unit', label: '主单位', type: 'text', read: (item) => item.unit },
   { key: 'stockUnit', label: '库存单位', type: 'text', read: (item) => item.stockUnit },
-]
+])
+const materialAdvancedSearchFields = resourceAdvancedFields(materialSearchCatalog)
 
 function quantity(value: number) {
   return Number(value || 0).toLocaleString('zh-CN', { maximumFractionDigits: 6 })
@@ -194,8 +195,7 @@ export default function BomOverviewPage({
   }, [keyword, materials, relationCounts, selectedMaterialId])
 
   const filteredMaterials = useMemo(() => {
-    return filterByAdvancedSearch(materials, materialAdvancedSearchFields, searchConditions)
-      .filter((material) => matchesKeywordValues(keyword, [material.code, material.name, material.spec, categoryLabels[material.category]]))
+    return filterBySearchCatalog(materials, keyword, materialSearchCatalog, searchConditions)
       .sort((left, right) => {
         const leftCounts = relationCounts.get(left.id)
         const rightCounts = relationCounts.get(right.id)

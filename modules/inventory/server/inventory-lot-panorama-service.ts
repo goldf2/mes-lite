@@ -12,6 +12,8 @@ import type {
 } from '../contracts/inventory-lot-panorama'
 import type { InventoryLotCustomerShipment } from '../contracts/inventory-lot-trace'
 import { inventoryLotTraceInclude, loadInventoryLotTraceNodes } from './inventory-lot-trace-service'
+import type { Prisma } from '@prisma/client'
+import { tokenizeKeywordQuery, type ResourceSearchCondition } from '@/lib/resource-search'
 
 const maxSearchResults = 100
 const maxPanoramaLots = 300
@@ -21,6 +23,7 @@ function normalizeKeyword(value?: string) {
 }
 
 function matchedBy(lot: Awaited<ReturnType<typeof searchLotRows>>[number], keyword: string) {
+  if (!keyword) return ['高级条件']
   const needle = keyword.toLocaleLowerCase('zh-CN')
   const labels = new Set<string>()
   const match = (value: string | null | undefined) => Boolean(value?.toLocaleLowerCase('zh-CN').includes(needle))
@@ -37,32 +40,57 @@ function matchedBy(lot: Awaited<ReturnType<typeof searchLotRows>>[number], keywo
   return Array.from(labels)
 }
 
-function searchLotRows(keyword: string, scope: EffectiveDataScope) {
+function textFilter(condition: ResourceSearchCondition) {
+  return condition.operator === 'equals' ? { equals: condition.value } : condition.operator === 'startsWith' ? { startsWith: condition.value } : { contains: condition.value }
+}
+
+function numberFilter(condition: ResourceSearchCondition) {
+  const value = Number(condition.value)
+  if (!Number.isFinite(value)) return { equals: Number.NaN }
+  return condition.operator === 'gt' ? { gt: value } : condition.operator === 'gte' ? { gte: value } : condition.operator === 'lt' ? { lt: value } : condition.operator === 'lte' ? { lte: value } : { equals: value }
+}
+
+function dateFilter(condition: ResourceSearchCondition) {
+  const start = new Date(`${condition.value}T00:00:00`)
+  if (Number.isNaN(start.getTime())) return { equals: new Date(0) }
+  const next = new Date(start.getTime() + 86_400_000)
+  return condition.operator === 'gt' ? { gte: next } : condition.operator === 'gte' ? { gte: start } : condition.operator === 'lt' ? { lt: start } : condition.operator === 'lte' ? { lt: next } : { gte: start, lt: next }
+}
+
+function inventoryLotAdvancedWhere(condition: ResourceSearchCondition): Prisma.InventoryLotWhereInput {
+  const text = textFilter(condition)
+  if (condition.field === 'lotNo' || condition.field === 'supplierLotNo') return { [condition.field]: text }
+  if (condition.field === 'material') return { material: { is: { OR: [{ code: text }, { name: text }, { stockUnit: text }, { unit: text }] } } }
+  if (condition.field === 'sourceType') return { sourceType: text }
+  if (condition.field === 'sourceDocument') return { OR: [{ sourceId: text }, { materialIn: { is: { inboundNo: text } } }, { materialIn: { is: { receipt: { is: { inboundNo: text } } } } }, { productionOutput: { is: { actual: { is: { OR: [{ actualNo: text }, { order: { is: { orderNo: text } } }] } } } } }, { shipmentAllocations: { some: { status: 'ACTIVE', shipment: { is: { shipmentNo: text } } } } }, { returnOrder: { is: { OR: [{ returnNo: text }, { shipment: { is: { shipmentNo: text } } }] } } }] }
+  if (condition.field === 'supplier') return { materialIn: { is: { supplier: { is: { OR: [{ code: text }, { name: text }] } } } } }
+  if (condition.field === 'customer') return { OR: [{ shipmentAllocations: { some: { status: 'ACTIVE', shipment: { is: { OR: [{ customer: text }, { customerRef: { is: { OR: [{ code: text }, { name: text }] } } }] } } } } }, { returnOrder: { is: { shipment: { is: { OR: [{ customer: text }, { customerRef: { is: { OR: [{ code: text }, { name: text }] } } }] } } } } }] }
+  if (condition.field === 'location') return { balances: { some: { location: { is: { OR: [{ code: text }, { name: text }] } } } } }
+  if (condition.field === 'inventoryStatus') return { balances: { some: { inventoryStatus: condition.value } } }
+  if (condition.field === 'stockQty') return { balances: { some: { stockQty: numberFilter(condition) } } }
+  if (condition.field === 'inspection') return { inspections: { some: { OR: [{ inspectionNo: text }, { status: text }, { result: text }, { inspector: text }, { note: text }] } } }
+  if (condition.field === 'receivedAt') return { receivedAt: dateFilter(condition) }
+  return { id: '__INVALID_SEARCH_FIELD__' }
+}
+
+function inventoryLotKeywordWhere(keyword: string): Prisma.InventoryLotWhereInput {
+  const tokens = tokenizeKeywordQuery(keyword)
+  return tokens.length ? { AND: tokens.map((value) => ({ OR: [
+    { lotNo: { contains: value } }, { supplierLotNo: { contains: value } }, { sourceType: { contains: value } }, { sourceId: { contains: value } },
+    { material: { is: { OR: [{ code: { contains: value } }, { name: { contains: value } }, { stockUnit: { contains: value } }, { unit: { contains: value } }] } } },
+    { materialIn: { is: { OR: [{ inboundNo: { contains: value } }, { receipt: { is: { inboundNo: { contains: value } } } }, { supplier: { is: { OR: [{ code: { contains: value } }, { name: { contains: value } }] } } }] } } },
+    { productionOutput: { is: { actual: { is: { OR: [{ actualNo: { contains: value } }, { order: { is: { orderNo: { contains: value } } } }] } } } } },
+    { shipmentAllocations: { some: { status: 'ACTIVE', shipment: { is: { OR: [{ shipmentNo: { contains: value } }, { customer: { contains: value } }, { customerRef: { is: { OR: [{ code: { contains: value } }, { name: { contains: value } }] } } }] } } } } },
+    { returnOrder: { is: { OR: [{ returnNo: { contains: value } }, { shipment: { is: { OR: [{ shipmentNo: { contains: value } }, { customer: { contains: value } }] } } }] } } },
+    { balances: { some: { location: { is: { OR: [{ code: { contains: value } }, { name: { contains: value } }] } } } } },
+    { inspections: { some: { OR: [{ inspectionNo: { contains: value } }, { inspector: { contains: value } }, { note: { contains: value } }] } } },
+  ] })) } : {}
+}
+
+function searchLotRows(keyword: string, scope: EffectiveDataScope, advancedConditions: readonly ResourceSearchCondition[] = []) {
   return prisma.inventoryLot.findMany({
     where: {
-      AND: [inventoryLotDataScopeWhere(scope), { OR: [
-        { lotNo: { contains: keyword } },
-        { supplierLotNo: { contains: keyword } },
-        { material: { OR: [{ code: { contains: keyword } }, { name: { contains: keyword } }] } },
-        { materialIn: { inboundNo: { contains: keyword } } },
-        { materialIn: { receipt: { inboundNo: { contains: keyword } } } },
-        { materialIn: { supplier: { OR: [{ code: { contains: keyword } }, { name: { contains: keyword } }] } } },
-        { productionOutput: { actual: { OR: [
-          { actualNo: { contains: keyword } },
-          { order: { orderNo: { contains: keyword } } },
-        ] } } },
-        { shipmentAllocations: { some: { status: 'ACTIVE', shipment: { OR: [
-          { shipmentNo: { contains: keyword } },
-          { customer: { contains: keyword } },
-          { customerRef: { code: { contains: keyword } } },
-        ] } } } },
-        { returnOrder: { OR: [
-          { returnNo: { contains: keyword } },
-          { shipment: { shipmentNo: { contains: keyword } } },
-          { shipment: { customer: { contains: keyword } } },
-        ] } },
-        { inspections: { some: { inspectionNo: { contains: keyword } } } },
-      ] }],
+      AND: [inventoryLotDataScopeWhere(scope), inventoryLotKeywordWhere(keyword), ...advancedConditions.map(inventoryLotAdvancedWhere)],
     },
     include: {
       ...inventoryLotTraceInclude,
@@ -82,12 +110,12 @@ function searchLotRows(keyword: string, scope: EffectiveDataScope) {
 }
 
 export async function searchInventoryLots(
-  input: { keyword?: string },
+  input: { keyword?: string; advancedConditions?: readonly ResourceSearchCondition[] },
   scope: EffectiveDataScope = unrestrictedDataScope,
 ): Promise<InventoryLotSearchResult> {
   const keyword = normalizeKeyword(input.keyword)
-  if (!keyword) return { keyword, items: [], truncated: false }
-  const rows = await searchLotRows(keyword, scope)
+  if (!keyword && !input.advancedConditions?.length) return { keyword, items: [], truncated: false }
+  const rows = await searchLotRows(keyword, scope, input.advancedConditions)
   const nodesById = new Map((await loadInventoryLotTraceNodes(rows.slice(0, maxSearchResults).map((row) => row.id), scope)).map((node) => [node.id, node]))
   return {
     keyword,

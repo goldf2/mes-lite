@@ -6,10 +6,12 @@ import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
-import { MappedResourceAdvancedSearch } from '@/app/components/resource'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
+import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import { loadStockMovements, type StockMovementRequest } from '../client/stock-movement-api'
 import type { StockMovementWorkspace } from '../contracts/stock-movement'
 import StockMovementCollectionView from './StockMovementCollectionView'
+import { buildStockMovementSearchCatalog } from '../model/inventory-search-fields'
 
 const emptyWorkspace: StockMovementWorkspace = {
   items: [],
@@ -23,16 +25,7 @@ export default function StockMovementPageModule({ onMessage }: { onMessage: (mes
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
-  const [type, setType] = useState('')
-  const [direction, setDirection] = useState('')
-  const [objectCode, setObjectCode] = useState('')
-  const [objectName, setObjectName] = useState('')
-  const [locationId, setLocationId] = useState('')
-  const [refType, setRefType] = useState('')
-  const [refId, setRefId] = useState('')
-  const [operator, setOperator] = useState('')
-  const [note, setNote] = useState('')
-  const [createdDate, setCreatedDate] = useState('')
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -44,17 +37,9 @@ export default function StockMovementPageModule({ onMessage }: { onMessage: (mes
     keyword,
     page,
     pageSize,
-    type,
-    direction,
-    objectCode,
-    objectName,
-    locationId,
-    refType,
-    refId,
-    operator,
-    note,
-    createdDate,
-  }), [createdDate, direction, keyword, locationId, note, objectCode, objectName, operator, page, pageSize, refId, refType, type])
+    type: '', direction: '', objectCode: '', objectName: '', locationId: '', refType: '', refId: '', operator: '', note: '', createdDate: '',
+    advancedConditions: searchConditions,
+  }), [keyword, page, pageSize, searchConditions])
 
   useEffect(() => {
     let active = true
@@ -85,27 +70,17 @@ export default function StockMovementPageModule({ onMessage }: { onMessage: (mes
     }
   }, [onMessage, query])
 
-  const advancedSearchFields = useMemo(() => [
-    { key: 'objectCode', label: '物料编码', value: objectCode, onChange: updateFilter(setObjectCode) },
-    { key: 'objectName', label: '物料名称', value: objectName, onChange: updateFilter(setObjectName) },
-    { key: 'type', label: '流水类型', value: type, onChange: updateFilter(setType), options: workspace.options.types },
-    { key: 'direction', label: '收发方向', value: direction, onChange: updateFilter(setDirection), options: [{ value: 'in', label: '增加库存' }, { value: 'out', label: '减少库存' }] },
-    { key: 'locationId', label: '库位', value: locationId, onChange: updateFilter(setLocationId), options: workspace.options.locations },
-    { key: 'refType', label: '来源类型', value: refType, onChange: updateFilter(setRefType), options: workspace.options.refTypes },
-    { key: 'refId', label: '来源单据 ID', value: refId, onChange: updateFilter(setRefId) },
-    { key: 'operator', label: '操作人', value: operator, onChange: updateFilter(setOperator) },
-    { key: 'note', label: '备注', value: note, onChange: updateFilter(setNote) },
-    { key: 'createdDate', label: '发生日期', type: 'date' as const, value: createdDate, onChange: updateFilter(setCreatedDate) },
-  ], [createdDate, direction, locationId, note, objectCode, objectName, operator, refId, refType, type, workspace.options.locations, workspace.options.refTypes, workspace.options.types])
-  const filterCount = [type, direction, objectCode, objectName, locationId, refType, refId, operator, note, createdDate].filter(Boolean).length
+  const searchCatalog = useMemo(() => buildStockMovementSearchCatalog(workspace.options), [workspace.options])
+  const advancedSearchFields = useMemo(() => resourceAdvancedFields(searchCatalog), [searchCatalog])
+  const filterCount = searchConditions.length
 
   return (
     <>
       <TopBarPortal>
         <ResponsiveToolbarActions
           pageKey="stockMovements"
-          primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.stockMovements" value={keyword} onChange={updateFilter(setKeyword)} placeholder="搜索物料、流水类型、来源或人员" />}
-          advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
+          primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.stockMovements" value={keyword} onChange={updateFilter(setKeyword)} placeholder="搜索物料、流水类型、来源、库位或人员" conditions={searchConditions} onConditionsChange={(conditions) => { setSearchConditions(conditions); setPage(1) }} />}
+          advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={(conditions) => { setSearchConditions(conditions); setPage(1) }} />}
           filterCount={filterCount}
           viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
         />

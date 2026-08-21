@@ -24,6 +24,7 @@ export async function loadStocks(query: StockQuery): Promise<StockQueryResult> {
     params.set('categories', query.categories.length > 0 ? query.categories.join(',') : '__NONE__')
   }
   if (query.includeInvalid) params.set('includeInvalid', '1')
+  if (query.advancedConditions?.length) params.set('advanced', JSON.stringify(query.advancedConditions))
 
   const queryString = params.toString()
   const response = await fetch(`/api/stocks${queryString ? `?${queryString}` : ''}`)

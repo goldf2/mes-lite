@@ -1,4 +1,4 @@
-import type { ResourceAdvancedSearchField, ResourceSearchProfile } from '@/lib/resource-search'
+import { defineResourceSearchCatalog, resourceAdvancedFields, resourceKeywordProfile } from '@/lib/resource-search'
 import type { ProcessRoute, ProcessRouteForm, ProcessStepForm, ProcessTemplate, ProcessTemplateForm } from '../contracts/production-engineering'
 
 export const processCategoryOptions = [
@@ -41,36 +41,22 @@ export function routeCostPerThousand(route: ProcessRoute) {
 
 export const displayMaterialCode = (sku?: string | null) => sku?.startsWith('MAT-') ? sku.slice(4) : sku || ''
 
-export const processTemplateSearchProfile: ResourceSearchProfile<ProcessTemplate> = {
-  key: 'process-template.default',
-  keywordFields: [
-    { key: 'code', label: '编码', read: (item) => item.code, weight: 10 },
-    { key: 'name', label: '名称', read: (item) => item.name, weight: 8 },
-    { key: 'category', label: '类别', read: (item) => processCategoryLabel[item.category] || item.category },
-    { key: 'workstation', label: '工位', read: (item) => item.workstation },
-    { key: 'materials', label: '关联物料', read: (item) => item.materials.flatMap((material) => [material.code, material.name]) },
-  ],
-}
-
-export const processTemplateAdvancedFields: readonly ResourceAdvancedSearchField<ProcessTemplate>[] = [
-  { key: 'code', label: '编码', type: 'text', read: (item) => item.code, operators: ['equals', 'startsWith'] },
-  { key: 'name', label: '名称', type: 'text', read: (item) => item.name },
-  { key: 'category', label: '类别', type: 'select', read: (item) => item.category, options: processCategoryOptions.map(([value, label]) => ({ value, label })) },
+export const processTemplateSearchCatalog = defineResourceSearchCatalog<ProcessTemplate>('process-template.default', [
+  { key: 'code', label: '编码', type: 'text', read: (item) => item.code, weight: 10, operators: ['equals', 'startsWith'] },
+  { key: 'name', label: '名称', type: 'text', read: (item) => item.name, weight: 8 },
+  { key: 'category', label: '类别', type: 'select', read: (item) => [item.category, processCategoryLabel[item.category]], options: processCategoryOptions.map(([value, label]) => ({ value, label })) },
   { key: 'workstation', label: '工位', type: 'text', read: (item) => item.workstation },
-]
+  { key: 'materials', label: '关联物料', type: 'text', read: (item) => item.materials.flatMap((material) => [material.code, material.name]) },
+])
+export const processTemplateSearchProfile = resourceKeywordProfile(processTemplateSearchCatalog)
+export const processTemplateAdvancedFields = resourceAdvancedFields(processTemplateSearchCatalog)
 
-export const processRouteSearchProfile: ResourceSearchProfile<ProcessRoute> = {
-  key: 'process-route.default',
-  keywordFields: [
-    { key: 'material', label: '物料', read: (item) => [item.product?.sku, item.product?.name], weight: 10 },
-    { key: 'name', label: '路线名称', read: (item) => item.name, weight: 8 },
-    { key: 'steps', label: '工序', read: (item) => item.steps.flatMap((step) => [step.name, step.workstation, step.description]) },
-  ],
-}
-
-export const processRouteAdvancedFields: readonly ResourceAdvancedSearchField<ProcessRoute>[] = [
-  { key: 'material', label: '物料', type: 'text', read: (item) => `${item.product?.sku || ''} ${item.product?.name || ''}` },
-  { key: 'name', label: '路线名称', type: 'text', read: (item) => item.name },
-  { key: 'default', label: '默认路线', type: 'select', read: (item) => item.isDefault ? 'yes' : 'no', options: [{ value: 'yes', label: '是' }, { value: 'no', label: '否' }] },
+export const processRouteSearchCatalog = defineResourceSearchCatalog<ProcessRoute>('process-route.default', [
+  { key: 'material', label: '物料', type: 'text', read: (item) => [item.product?.sku, item.product?.name], weight: 10 },
+  { key: 'name', label: '路线名称', type: 'text', read: (item) => item.name, weight: 8 },
+  { key: 'steps', label: '工序', type: 'text', read: (item) => item.steps.flatMap((step) => [step.name, step.workstation, step.description]) },
+  { key: 'default', label: '默认路线', type: 'select', read: (item) => item.isDefault ? ['yes', '是'] : ['no', '否'], options: [{ value: 'yes', label: '是' }, { value: 'no', label: '否' }] },
   { key: 'stepCount', label: '工序数量', type: 'number', read: (item) => item.steps.length },
-]
+])
+export const processRouteSearchProfile = resourceKeywordProfile(processRouteSearchCatalog)
+export const processRouteAdvancedFields = resourceAdvancedFields(processRouteSearchCatalog)

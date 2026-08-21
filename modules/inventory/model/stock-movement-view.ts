@@ -87,3 +87,11 @@ export function stockMovementTypeOptions(values: string[]) {
 export function stockMovementReferenceOptions(values: string[]) {
   return values.map((value) => ({ value, label: stockMovementReferenceLabel(value) }))
 }
+
+export function stockMovementTypeSearchValues(term: string) {
+  return Object.entries(movementLabels).filter(([value, label]) => value.toLocaleLowerCase('zh-CN').includes(term) || label.includes(term)).map(([value]) => value)
+}
+
+export function stockMovementReferenceSearchValues(term: string) {
+  return Object.entries(referenceLabels).filter(([value, label]) => value.toLocaleLowerCase('zh-CN').includes(term) || label.includes(term)).map(([value]) => value)
+}

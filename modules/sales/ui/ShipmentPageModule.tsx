@@ -2,7 +2,6 @@
 
 import { ReactNode, useCallback, useMemo, useRef, useState, useEffect } from 'react'
 import { AttachmentPanel } from '@/modules/attachments'
-import { getStatusQuery } from '@/app/components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
@@ -10,7 +9,8 @@ import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
 import SortableTableHeader from '@/app/components/SortableTableHeader'
 import useClientTableSort from '@/app/components/useClientTableSort'
 import AppButton from '@/app/components/AppButton'
-import { MappedResourceAdvancedSearch } from '@/app/components/resource'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
+import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import { BusinessDocumentDetailDialog, BusinessDocumentPrintLink } from '@/modules/business-documents'
 import { InventoryLotTraceDialog } from '@/modules/inventory'
 import ShipmentCreateDialog from './ShipmentCreateDialog'
@@ -23,6 +23,7 @@ import {
   shipmentStatusLabels as statusLabels,
   shipmentStatusOptions as statusOptions,
 } from '../model/fulfillment-view'
+import { buildShipmentSearchCatalog } from '../model/sales-search-fields'
 export default function ShipmentPageModule({
   onMessage,
   onToolbarChange,
@@ -45,22 +46,19 @@ export default function ShipmentPageModule({
   const [shipments, setShipments] = useState<Shipment[]>([])
   const [customers, setCustomers] = useState<FulfillmentCustomer[]>([])
   const [keyword, setKeyword] = useState('')
-  const [selectedStatuses, setSelectedStatuses] = useState(() => (
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>(() => (
     typeof window !== 'undefined' && new URL(window.location.href).searchParams.get('task') === 'shipment'
-      ? ['PENDING']
-      : statusOptions.map((option) => option.value)
+      ? [{ id: 'task-status', field: 'status', operator: 'equals', value: 'PENDING' }]
+      : []
   ))
-  const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [detailItem, setDetailItem] = useState<Shipment | null>(null)
   const [traceLotId, setTraceLotId] = useState<string | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.shipment.viewMode', 'list')
   const deepLinkHandledRef = useRef(false)
-  const advancedSearchFields = useMemo(() => [
-    { key: 'status', label: '状态', value: selectedStatuses.length === 1 ? selectedStatuses[0] : '', onChange: (value: string) => setSelectedStatuses(value ? [value] : statusOptions.map((option) => option.value)), options: statusOptions },
-    { key: 'customerId', label: '客户', value: selectedCustomerId, onChange: setSelectedCustomerId, options: [{ value: '__UNASSIGNED__', label: '通用/未绑定' }, ...customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` }))] },
-  ], [customers, selectedCustomerId, selectedStatuses])
+  const searchCatalog = useMemo(() => buildShipmentSearchCatalog(customers), [customers])
+  const advancedSearchFields = useMemo(() => resourceAdvancedFields(searchCatalog), [searchCatalog])
 
   const shipmentSort = useClientTableSort(shipments, {
     shipmentNo: (item) => item.shipmentNo,
@@ -77,10 +75,9 @@ export default function ShipmentPageModule({
   const fetchShipments = useCallback(async () => {
     setLoading(true)
     try {
-      const query = getStatusQuery(selectedStatuses, statusOptions)
-      const params = new URLSearchParams(query)
+      const params = new URLSearchParams()
       if (keyword.trim()) params.set('keyword', keyword.trim())
-      if (selectedCustomerId) params.set('customerId', selectedCustomerId)
+      if (searchConditions.length > 0) params.set('advanced', JSON.stringify(searchConditions))
       const data = await loadShipments(params)
       setShipments(data.shipments)
       setCustomers(data.customers)
@@ -89,7 +86,7 @@ export default function ShipmentPageModule({
     } finally {
       setLoading(false)
     }
-  }, [keyword, onMessage, selectedCustomerId, selectedStatuses])
+  }, [keyword, onMessage, searchConditions])
 
   useEffect(() => {
     void fetchShipments()
@@ -114,15 +111,17 @@ export default function ShipmentPageModule({
             value={keyword}
             onChange={setKeyword}
             placeholder="搜索发货单号、物料、客户或物流号"
+            conditions={searchConditions}
+            onConditionsChange={setSearchConditions}
           />
         )}
-        advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
+        advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
         viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
         actions={canCreate ? <AppButton variant="create" onClick={() => setShowModal(true)}>新建发货单</AppButton> : undefined}
       />
     )
     return () => onToolbarChange(null)
-  }, [advancedSearchFields, canCreate, onToolbarChange, keyword, selectedStatuses, selectedCustomerId, customers, viewMode, setViewMode])
+  }, [advancedSearchFields, canCreate, onToolbarChange, keyword, searchConditions, viewMode, setViewMode])
 
   const refreshDetail = useCallback(async () => {
     if (!detailItem) return
@@ -144,9 +143,11 @@ export default function ShipmentPageModule({
               value={keyword}
               onChange={setKeyword}
               placeholder="搜索发货单号、物料、客户或物流号"
+              conditions={searchConditions}
+              onConditionsChange={setSearchConditions}
             />
           )}
-          advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
+          advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
           viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
           actions={canCreate ? <AppButton variant="create" onClick={() => setShowModal(true)}>新建发货单</AppButton> : undefined}
         />

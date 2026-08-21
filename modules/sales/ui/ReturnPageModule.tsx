@@ -2,7 +2,6 @@
 
 import { ReactNode, useCallback, useMemo, useState, useEffect } from 'react'
 import { AttachmentPanel } from '@/modules/attachments'
-import { getStatusQuery } from '@/app/components/StatusCheckboxFilter'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
@@ -13,7 +12,8 @@ import useClientTableSort from '@/app/components/useClientTableSort'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import FormField, { appInputClassName, appTextareaClassName } from '@/app/components/FormField'
 import AppButton from '@/app/components/AppButton'
-import { MappedResourceAdvancedSearch } from '@/app/components/resource'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
+import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import { BusinessDocumentPrintLink } from '@/modules/business-documents'
 import {
   DraftDocumentAttachmentPanel,
@@ -37,6 +37,7 @@ import {
   returnStatusLabels as statusLabels,
   returnStatusOptions as statusOptions,
 } from '../model/fulfillment-view'
+import { buildReturnSearchCatalog } from '../model/sales-search-fields'
 
 export default function ReturnPageModule({
   onMessage,
@@ -59,22 +60,19 @@ export default function ReturnPageModule({
   const [locations, setLocations] = useState<InventoryLocationOption[]>([])
   const [shipments, setShipments] = useState<ReturnShipmentOption[]>([])
   const [keyword, setKeyword] = useState('')
-  const [selectedStatuses, setSelectedStatuses] = useState(() => (
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>(() => (
     typeof window !== 'undefined' && new URL(window.location.href).searchParams.get('task') === 'return'
-      ? ['PENDING']
-      : statusOptions.map((option) => option.value)
+      ? [{ id: 'task-status', field: 'status', operator: 'equals', value: 'PENDING' }]
+      : []
   ))
-  const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [draftAttachmentOwnerId, setDraftAttachmentOwnerId] = useState('')
   const [draftAttachmentBusy, setDraftAttachmentBusy] = useState(false)
   const [detailItem, setDetailItem] = useState<ReturnOrder | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.return.viewMode', 'list')
-  const advancedSearchFields = useMemo(() => [
-    { key: 'status', label: '状态', value: selectedStatuses.length === 1 ? selectedStatuses[0] : '', onChange: (value: string) => setSelectedStatuses(value ? [value] : statusOptions.map((option) => option.value)), options: statusOptions },
-    { key: 'customerId', label: '客户', value: selectedCustomerId, onChange: setSelectedCustomerId, options: [{ value: '__UNASSIGNED__', label: '通用/未绑定' }, ...customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` }))] },
-  ], [customers, selectedCustomerId, selectedStatuses])
+  const searchCatalog = useMemo(() => buildReturnSearchCatalog(customers, locations), [customers, locations])
+  const advancedSearchFields = useMemo(() => resourceAdvancedFields(searchCatalog), [searchCatalog])
 
   const [form, setForm] = useState({
     voucherNo: '',
@@ -102,10 +100,9 @@ export default function ReturnPageModule({
   const fetchReturns = useCallback(async () => {
     setLoading(true)
     try {
-      const query = getStatusQuery(selectedStatuses, statusOptions)
-      const params = new URLSearchParams(query)
+      const params = new URLSearchParams()
       if (keyword.trim()) params.set('keyword', keyword.trim())
-      if (selectedCustomerId) params.set('customerId', selectedCustomerId)
+      if (searchConditions.length > 0) params.set('advanced', JSON.stringify(searchConditions))
       const nextReturns = await loadReturns(params)
       setReturns(nextReturns)
       setDetailItem((current) => current ? nextReturns.find((item) => item.id === current.id) || current : null)
@@ -114,7 +111,7 @@ export default function ReturnPageModule({
     } finally {
       setLoading(false)
     }
-  }, [keyword, onMessage, selectedCustomerId, selectedStatuses])
+  }, [keyword, onMessage, searchConditions])
 
   const fetchOptions = useCallback(async () => {
     try {
@@ -227,9 +224,11 @@ export default function ReturnPageModule({
             value={keyword}
             onChange={setKeyword}
             placeholder="搜索退货单号、物料、发货单或原因"
+            conditions={searchConditions}
+            onConditionsChange={setSearchConditions}
           />
         )}
-        advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
+        advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
         viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
         actions={canCreate ? <AppButton variant="create" onClick={openCreate}>新建退货单</AppButton> : undefined}
       />
@@ -248,9 +247,11 @@ export default function ReturnPageModule({
               value={keyword}
               onChange={setKeyword}
               placeholder="搜索退货单号、物料、发货单或原因"
+              conditions={searchConditions}
+              onConditionsChange={setSearchConditions}
             />
           )}
-          advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
+          advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
           viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
           actions={canCreate ? <AppButton variant="create" onClick={openCreate}>新建退货单</AppButton> : undefined}
         />

@@ -99,6 +99,9 @@ export default function WorkInstructionDetailDialog({
   onMessage,
   canRegeneratePreviews,
 }: WorkInstructionDetailDialogProps) {
+  const detailGridColumns = editing
+    ? 'xl:grid-cols-[minmax(22rem,26rem)_minmax(0,1fr)]'
+    : 'lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]'
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     event.stopPropagation()
@@ -116,10 +119,10 @@ export default function WorkInstructionDetailDialog({
       onClose={onClose}
       headerActions={<AppButton variant="secondary" size="sm" onClick={editing ? onCancelEdit : onStartEdit}>{editing ? '退出编辑' : '编辑文档'}</AppButton>}
     >
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
-        <section className={`${editing ? 'order-1' : 'order-2'} space-y-3 lg:order-1`}>
+      <div className={`grid grid-cols-1 gap-5 ${detailGridColumns}`}>
+        <section className={`${editing ? 'order-1 xl:order-1' : 'order-2 lg:order-1'} min-w-0 space-y-3`}>
           {editing ? (
-            <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-4">
+            <div className="min-w-0 rounded-lg border border-blue-200 bg-blue-50/30 p-4">
               <div className="mb-3 text-sm font-semibold text-gray-900">基础信息</div>
               <WorkInstructionFormFields
                 form={form}
@@ -200,7 +203,7 @@ export default function WorkInstructionDetailDialog({
           )}
         </section>
 
-        <section className={`${editing ? 'order-2' : 'order-1'} min-w-0 space-y-5 lg:order-2`}>
+        <section className={`${editing ? 'order-2 xl:order-2' : 'order-1 lg:order-2'} min-w-0 space-y-5`}>
           {selectedAttachment ? (
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">

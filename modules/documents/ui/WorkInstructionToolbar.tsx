@@ -8,8 +8,10 @@ import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
 import AppButton from '@/app/components/AppButton'
 import { ResourceAdvancedSearch } from '@/app/components/resource'
 import type { ResourceAdvancedSearchField, ResourceSearchCondition } from '@/lib/resource-search'
+import type { DocumentFieldDefinitionRecord } from '../contracts/document-field-schema'
 import type { WorkInstruction } from '../contracts/work-instruction'
-import { fileTypeOptions, instructionStatusOptions } from '../model/work-instruction-view'
+import { buildWorkInstructionSearchCatalog } from '../model/document-search-fields'
+import { resourceAdvancedFields } from '@/lib/resource-search'
 
 interface WorkInstructionToolbarProps {
   keyword: string
@@ -17,6 +19,7 @@ interface WorkInstructionToolbarProps {
   conditions: ResourceSearchCondition[]
   onConditionsChange: (conditions: ResourceSearchCondition[]) => void
   categoryOptions: { value: string; label: string; keywords?: string }[]
+  fieldDefinitions: DocumentFieldDefinitionRecord[]
   viewMode: ViewMode
   onViewModeChange: (value: ViewMode) => void
   onCreate: () => void
@@ -29,29 +32,16 @@ export default function WorkInstructionToolbar({
   conditions,
   onConditionsChange,
   categoryOptions,
+  fieldDefinitions,
   viewMode,
   onViewModeChange,
   onCreate,
   metadataActions,
 }: WorkInstructionToolbarProps) {
-  const fields = useMemo<readonly ResourceAdvancedSearchField<WorkInstruction>[]>(() => [
-    { key: 'title', label: '文档标题', type: 'text', read: (instruction) => instruction.title },
-    { key: 'categoryId', label: '文档类别', type: 'select', read: (instruction) => instruction.categoryId, options: categoryOptions },
-    { key: 'status', label: '状态', type: 'select', read: (instruction) => instruction.status, options: instructionStatusOptions },
-    { key: 'version', label: '版本', type: 'text', read: (instruction) => instruction.version },
-    { key: 'materialCode', label: '产品编码', type: 'text', read: (instruction) => instruction.material?.code },
-    { key: 'materialName', label: '产品名称', type: 'text', read: (instruction) => instruction.material?.name },
-    { key: 'materialSpec', label: '产品规格', type: 'text', read: (instruction) => instruction.material?.spec },
-    { key: 'customerCode', label: '客户编码', type: 'text', read: (instruction) => instruction.material?.customer?.code },
-    { key: 'customerName', label: '客户名称', type: 'text', read: (instruction) => instruction.material?.customer?.name },
-    { key: 'workCenter', label: '工作中心', type: 'text', read: (instruction) => instruction.workCenters.map((item) => `${item.code} ${item.name}`).join(' ') },
-    { key: 'contentText', label: '在线正文', type: 'text', read: (instruction) => instruction.contentText },
-    { key: 'note', label: '备注', type: 'text', read: (instruction) => instruction.note },
-    { key: 'attachmentName', label: '附件名称', type: 'text', read: (instruction) => instruction.primaryAttachment?.originalName },
-    { key: 'fileType', label: '文件类型', type: 'select', read: () => '', options: fileTypeOptions.filter((option) => option.value !== 'all') },
-    { key: 'createdAt', label: '创建日期', type: 'date', read: (instruction) => instruction.createdAt },
-    { key: 'updatedAt', label: '更新日期', type: 'date', read: (instruction) => instruction.updatedAt },
-  ], [categoryOptions])
+  const fields = useMemo<readonly ResourceAdvancedSearchField<WorkInstruction>[]>(
+    () => resourceAdvancedFields(buildWorkInstructionSearchCatalog(categoryOptions, fieldDefinitions)),
+    [categoryOptions, fieldDefinitions],
+  )
   const activeLabels = useMemo(() => conditions.map((condition) => {
     const field = fields.find((candidate) => candidate.key === condition.field)
     const option = field?.options?.find((candidate) => candidate.value === condition.value)

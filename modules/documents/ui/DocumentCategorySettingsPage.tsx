@@ -2,19 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ResourceAdvancedSearch, ResourcePageShell } from '@/app/components/resource'
-import { filterByAdvancedSearch, type ResourceAdvancedSearchField, type ResourceSearchCondition } from '@/lib/resource-search'
+import { defineResourceSearchCatalog, filterBySearchCatalog, resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import { listDocumentCategories } from '../client/documents-api'
 import type { DocumentCategoryRecord } from '../contracts/work-instruction'
 import DocumentCategoryManagerPanel from './DocumentCategoryManagerPanel'
 
-const categoryAdvancedSearchFields: readonly ResourceAdvancedSearchField<DocumentCategoryRecord>[] = [
+const categorySearchCatalog = defineResourceSearchCatalog<DocumentCategoryRecord>('document-category.actual-fields', [
   { key: 'name', label: '类别名称', type: 'text', read: (item) => item.name },
   { key: 'parent', label: '上级类别', type: 'text', read: (item) => item.parent?.name || '' },
   { key: 'level', label: '类别层级', type: 'select', read: (item) => item.parentId ? 'CHILD' : 'ROOT', options: [{ value: 'ROOT', label: '一级类别' }, { value: 'CHILD', label: '二级类别' }] },
   { key: 'sortOrder', label: '排序值', type: 'number', read: (item) => item.sortOrder },
   { key: 'children', label: '子类别数', type: 'number', read: (item) => item._count.children },
   { key: 'documents', label: '关联文档数', type: 'number', read: (item) => item._count.workInstructions },
-]
+])
+const categoryAdvancedSearchFields = resourceAdvancedFields(categorySearchCatalog)
 
 export default function DocumentCategorySettingsPage({ onMessage, canUpdate, canDelete }: { onMessage: (message: string) => void; canUpdate: boolean; canDelete: boolean }) {
   const [categories, setCategories] = useState<DocumentCategoryRecord[]>([])
@@ -36,17 +37,15 @@ export default function DocumentCategorySettingsPage({ onMessage, canUpdate, can
   useEffect(() => { void load() }, [load])
 
   const visibleCategories = useMemo(() => {
-    const advancedCategories = filterByAdvancedSearch(categories, categoryAdvancedSearchFields, conditions)
-    const query = keyword.trim().toLocaleLowerCase()
-    if (!query) return advancedCategories
+    const matchingCategories = filterBySearchCatalog(categories, keyword, categorySearchCatalog, conditions)
+    if (!keyword.trim()) return matchingCategories
     const visibleIds = new Set<string>()
-    for (const category of advancedCategories) {
-      if (!category.name.toLocaleLowerCase().includes(query)) continue
+    for (const category of matchingCategories) {
       visibleIds.add(category.id)
       if (category.parentId) visibleIds.add(category.parentId)
-      else advancedCategories.filter((item) => item.parentId === category.id).forEach((item) => visibleIds.add(item.id))
+      else categories.filter((item) => item.parentId === category.id).forEach((item) => visibleIds.add(item.id))
     }
-    return advancedCategories.filter((category) => visibleIds.has(category.id))
+    return categories.filter((category) => visibleIds.has(category.id))
   }, [categories, conditions, keyword])
 
   const rootCount = categories.filter((category) => !category.parentId).length

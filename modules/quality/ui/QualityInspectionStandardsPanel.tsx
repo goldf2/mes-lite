@@ -1,11 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import AppButton from '@/app/components/AppButton'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
 import { appTextareaClassName } from '@/app/components/FormField'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
+import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import {
   copyQualityInspectionStandard,
   loadQualityInspectionStandards,
@@ -13,6 +15,7 @@ import {
   releaseQualityInspectionStandard,
 } from '../client/quality-inspection-standard-api'
 import type { QualityInspectionStandardView, QualityInspectionStandardWorkspace } from '../contracts/quality-inspection-standard'
+import { buildQualityStandardSearchCatalog } from '../model/quality-search-fields'
 import QualityInspectionStandardDialog from './QualityInspectionStandardDialog'
 
 const emptyWorkspace: QualityInspectionStandardWorkspace = { standards: [], materials: [] }
@@ -34,6 +37,7 @@ export default function QualityInspectionStandardsPanel({ canCreate, canUpdate, 
   const [workspace, setWorkspace] = useState(emptyWorkspace)
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState('')
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<QualityInspectionStandardView | null | undefined>(undefined)
   const [reasonAction, setReasonAction] = useState<{ kind: 'COPY' | 'OBSOLETE'; standard: QualityInspectionStandardView } | null>(null)
@@ -42,15 +46,18 @@ export default function QualityInspectionStandardsPanel({ canCreate, canUpdate, 
 
   const load = useCallback(async () => {
     setLoading(true)
-    try { setWorkspace(await loadQualityInspectionStandards(keyword, status)) }
+    try { setWorkspace(await loadQualityInspectionStandards(keyword, status, searchConditions)) }
     catch (error) { onMessage(error instanceof Error ? error.message : '获取检验标准失败') }
     finally { setLoading(false) }
-  }, [keyword, onMessage, status])
+  }, [keyword, onMessage, searchConditions, status])
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 180)
     return () => window.clearTimeout(timer)
   }, [load])
+
+  const searchCatalog = useMemo(() => buildQualityStandardSearchCatalog(workspace.materials), [workspace.materials])
+  const advancedSearchFields = useMemo(() => resourceAdvancedFields(searchCatalog), [searchCatalog])
 
   const release = async (standard: QualityInspectionStandardView) => {
     if (!window.confirm(`确认发布 ${standard.code} v${standard.version}？\n发布后内容不可改写，同物料同来源的旧版会自动停用。`)) return
@@ -84,7 +91,8 @@ export default function QualityInspectionStandardsPanel({ canCreate, canUpdate, 
         {canCreate && <AppButton variant="create" onClick={() => setEditing(null)}>新建检验标准</AppButton>}
       </div>
       <div className="mt-4 flex flex-wrap gap-3">
-        <div className="min-w-[16rem] flex-1"><SearchFieldWithPresets storageKey="mes-lite.searchPresets.qualityStandards" value={keyword} onChange={setKeyword} placeholder="搜索标准、物料编码或名称" /></div>
+        <div className="min-w-[16rem] flex-1"><SearchFieldWithPresets storageKey="mes-lite.searchPresets.qualityStandards" value={keyword} onChange={setKeyword} placeholder="搜索标准、物料、抽样、检验项或人员" conditions={searchConditions} onConditionsChange={setSearchConditions} /></div>
+        <ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />
         <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700"><option value="">全部状态</option><option value="DRAFT">草稿</option><option value="RELEASED">已发布</option><option value="OBSOLETE">已停用</option></select>
       </div>
       <div className="mt-5">

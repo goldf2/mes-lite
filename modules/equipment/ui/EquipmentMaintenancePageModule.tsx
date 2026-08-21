@@ -1,11 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import AppButton from '@/app/components/AppButton'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
 import TopBarPortal from '@/app/components/TopBarPortal'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
+import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import { AttachmentPanel } from '@/modules/attachments'
 import {
   cancelEquipmentMaintenanceWorkOrder,
@@ -15,6 +17,7 @@ import {
   startEquipmentMaintenanceWorkOrder,
 } from '../client/equipment-maintenance-api'
 import type { EquipmentMaintenancePlan, EquipmentMaintenanceWorkOrder, EquipmentMaintenanceWorkspace } from '../contracts/equipment-maintenance'
+import { buildEquipmentMaintenanceSearchCatalog } from '../model/equipment-operations-search-fields'
 import EquipmentMaintenanceCompleteDialog from './EquipmentMaintenanceCompleteDialog'
 import EquipmentMaintenancePlanDialog from './EquipmentMaintenancePlanDialog'
 import EquipmentMaintenanceRepairDialog from './EquipmentMaintenanceRepairDialog'
@@ -40,6 +43,7 @@ export default function EquipmentMaintenancePageModule({ canCreate, canUpdate, c
   const [workspace, setWorkspace] = useState(emptyWorkspace)
   const [filter, setFilter] = useState<MaintenanceFilter>('DUE')
   const [keyword, setKeyword] = useState('')
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [planOpen, setPlanOpen] = useState(false)
@@ -49,10 +53,10 @@ export default function EquipmentMaintenancePageModule({ canCreate, canUpdate, c
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
-    try { setWorkspace(await loadEquipmentMaintenance(filter, keyword)) }
+    try { setWorkspace(await loadEquipmentMaintenance(filter, keyword, searchConditions)) }
     catch (requestError) { const message = requestError instanceof Error ? requestError.message : '获取设备维保任务失败'; setError(message); onMessage(message) }
     finally { setLoading(false) }
-  }, [filter, keyword, onMessage])
+  }, [filter, keyword, onMessage, searchConditions])
   useEffect(() => { const timer = window.setTimeout(() => void load(), 180); return () => window.clearTimeout(timer) }, [load])
 
   const generateOrder = async (plan: EquipmentMaintenancePlan) => {
@@ -87,9 +91,11 @@ export default function EquipmentMaintenancePageModule({ canCreate, canUpdate, c
   }
 
   const showPlans = filter === 'DUE' || filter === 'ALL'
+  const searchCatalog = useMemo(() => buildEquipmentMaintenanceSearchCatalog(workspace.equipmentOptions), [workspace.equipmentOptions])
+  const advancedSearchFields = useMemo(() => resourceAdvancedFields(searchCatalog), [searchCatalog])
   return (
     <>
-      <TopBarPortal><ResponsiveToolbarActions primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.equipmentMaintenance" value={keyword} onChange={setKeyword} placeholder="搜索计划、工单、设备或负责人" />} actions={canCreate ? <div className="flex gap-2"><AppButton variant="secondary" size="sm" onClick={() => setPlanOpen(true)}>新建保养计划</AppButton><AppButton variant="create" size="sm" onClick={() => setRepairOpen(true)}>新建维修工单</AppButton></div> : undefined} /></TopBarPortal>
+      <TopBarPortal><ResponsiveToolbarActions primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.equipmentMaintenance" value={keyword} onChange={setKeyword} placeholder="搜索计划、工单、设备、负责人、备件或记录" conditions={searchConditions} onConditionsChange={setSearchConditions} />} advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />} actions={canCreate ? <div className="flex gap-2"><AppButton variant="secondary" size="sm" onClick={() => setPlanOpen(true)}>新建保养计划</AppButton><AppButton variant="create" size="sm" onClick={() => setRepairOpen(true)}>新建维修工单</AppButton></div> : undefined} /></TopBarPortal>
       <section className="rounded-lg bg-white p-3 shadow sm:p-6">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between"><div><h2 className="text-lg font-semibold text-gray-900">设备保养与维修</h2><p className="mt-1 text-sm text-gray-500">从到期计划或故障创建工单，开始时锁定维修状态，完成时原子恢复设备并过账备件批次与成本。</p></div><div className="flex flex-wrap gap-2 text-xs"><span className="rounded-full bg-amber-100 px-3 py-1 text-amber-800">到期保养 {workspace.counts.duePlans}</span><span className="rounded-full bg-red-100 px-3 py-1 text-red-700">逾期 {workspace.counts.overduePlans}</span><span className="rounded-full bg-blue-100 px-3 py-1 text-blue-700">维修中 {workspace.counts.activeOrders}</span><span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">待处理 {workspace.counts.openOrders}</span></div></div>
         <div className="mt-4 flex flex-wrap gap-2">{([['DUE', `到期计划 ${workspace.counts.duePlans}`], ['OPEN', `待办工单 ${workspace.counts.openOrders + workspace.counts.activeOrders}`], ['HISTORY', `完成记录 ${workspace.counts.completedOrders}`], ['ALL', '全部计划与工单']] as Array<[MaintenanceFilter, string]>).map(([key, label]) => <AppButton key={key} size="sm" variant={filter === key ? 'primary' : 'secondary'} onClick={() => setFilter(key)}>{label}</AppButton>)}</div>

@@ -11,29 +11,17 @@ import ResourcePage from '@/app/components/resource/ResourcePage'
 import { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import ManyToOneRelationField from '@/app/components/relations/ManyToOneRelationField'
 import ResourceSortButton from '@/app/components/resource/ResourceSortButton'
-import type { ResourceAdvancedSearchField } from '@/lib/resource-search'
+import { resourceAdvancedFields } from '@/lib/resource-search'
 import { loadEmployees, saveEmployee } from '../client/employee-api'
 import type { EmployeeItem, EmployeeOperatorOption } from '../contracts/employee'
 import {
   createEmptyEmployeeForm,
+  employeeSearchCatalog,
   employeeOperatorRoleLabels as operatorRoleLabels,
   employeeOperatorStatusLabels as operatorStatusLabels,
 } from '../model/employee-view'
 
-const employeeAdvancedSearchFields: readonly ResourceAdvancedSearchField<EmployeeItem>[] = [
-  { key: 'code', label: '员工编码', type: 'text', read: (employee) => employee.code },
-  { key: 'name', label: '姓名', type: 'text', read: (employee) => employee.name },
-  { key: 'department', label: '部门', type: 'text', read: (employee) => employee.department },
-  { key: 'phone', label: '联系电话', type: 'text', read: (employee) => employee.phone },
-  { key: 'operatorUsername', label: '登录账号', type: 'text', read: (employee) => employee.operator?.username },
-  { key: 'operatorName', label: '账号姓名', type: 'text', read: (employee) => employee.operator?.name },
-  { key: 'operatorRole', label: '账号角色', type: 'select', read: (employee) => employee.operator?.role, options: Object.entries(operatorRoleLabels).map(([value, label]) => ({ value, label })) },
-  { key: 'operatorStatus', label: '账号状态', type: 'select', read: (employee) => employee.operator?.status, options: Object.entries(operatorStatusLabels).map(([value, label]) => ({ value, label })) },
-  { key: 'isActive', label: '员工状态', type: 'select', read: (employee) => employee.isActive, options: [{ value: 'true', label: '在职' }, { value: 'false', label: '已停用' }] },
-  { key: 'note', label: '备注', type: 'text', read: (employee) => employee.note },
-  { key: 'createdAt', label: '创建日期', type: 'date', read: (employee) => employee.createdAt },
-  { key: 'updatedAt', label: '更新日期', type: 'date', read: (employee) => employee.updatedAt },
-]
+const employeeAdvancedSearchFields = resourceAdvancedFields(employeeSearchCatalog)
 
 export default function EmployeePageModule({
   onMessage,

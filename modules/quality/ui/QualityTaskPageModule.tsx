@@ -1,13 +1,16 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
 import AppButton from '@/app/components/AppButton'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
 import TopBarPortal from '@/app/components/TopBarPortal'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
+import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import { loadQualityTasks } from '../client/quality-inspection-api'
 import type { QualityTaskFilter, QualityTaskWorkspace } from '../contracts/quality-task'
+import { qualityTaskSearchCatalog } from '../model/quality-search-fields'
 import QualityLotCard from './QualityLotCard'
 import QualityInspectionStandardsPanel from './QualityInspectionStandardsPanel'
 import QualityTrendPanel from './QualityTrendPanel'
@@ -45,27 +48,30 @@ export default function QualityTaskPageModule({
   const [workspace, setWorkspace] = useState(emptyWorkspace)
   const [filter, setFilter] = useState<QualityTaskFilter>(readInitialFilter)
   const [keyword, setKeyword] = useState('')
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
-    try { setWorkspace(await loadQualityTasks(filter, keyword)) } catch (requestError) {
+    try { setWorkspace(await loadQualityTasks(filter, keyword, searchConditions)) } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : '获取质量任务失败'
       setError(message)
       onMessage(message)
     } finally { setLoading(false) }
-  }, [filter, keyword, onMessage])
+  }, [filter, keyword, onMessage, searchConditions])
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 180)
     return () => window.clearTimeout(timer)
   }, [load])
 
+  const advancedSearchFields = useMemo(() => resourceAdvancedFields(qualityTaskSearchCatalog), [])
+
   return (
     <>
       {view === 'TASKS' && <TopBarPortal>
-        <ResponsiveToolbarActions primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.qualityTasks" value={keyword} onChange={setKeyword} placeholder="搜索检验单、批次、物料或来源单据" />} />
+        <ResponsiveToolbarActions primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.qualityTasks" value={keyword} onChange={setKeyword} placeholder="搜索检验、批次、物料、标准、项目或处置" conditions={searchConditions} onConditionsChange={setSearchConditions} />} advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />} />
       </TopBarPortal>}
       <section className="rounded-lg bg-white p-3 shadow sm:p-6">
       <div className="mb-5 flex flex-wrap gap-2 border-b border-gray-200 pb-3">

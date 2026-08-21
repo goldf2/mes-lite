@@ -4,9 +4,9 @@ export const documentFieldInclude = {
   _count: { select: { values: true } },
 } as const
 
-export function listDocumentFieldDefinitions(categoryId: string) {
+export function listDocumentFieldDefinitions(categoryId?: string) {
   return prisma.documentFieldDefinition.findMany({
-    where: { categoryId },
+    where: categoryId ? { categoryId } : undefined,
     include: documentFieldInclude,
     orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
   })

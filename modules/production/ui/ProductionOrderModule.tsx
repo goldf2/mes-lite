@@ -11,7 +11,8 @@ import SortableTableHeader from '@/app/components/SortableTableHeader'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import useClientTableSort from '@/app/components/useClientTableSort'
-import { MappedResourceAdvancedSearch } from '@/app/components/resource'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
+import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import {
   BusinessDocumentPrintLink,
 } from '@/modules/business-documents'
@@ -39,6 +40,7 @@ import {
   productionOrderStatusLabels,
   productionOrderStatusOptions,
 } from '../model/production-order-view'
+import { buildProductionOrderSearchCatalog } from '../model/production-search-fields'
 
 const AttachmentPanel = dynamic(() => import('@/modules/attachments').then((module) => module.AttachmentPanel), { loading: () => <AppLoadingIndicator label="正在加载附件..." /> })
 const ProductionOrderActualPanel = dynamic(() => import('./ProductionOrderActualPanel'), { loading: () => <AppLoadingIndicator label="正在加载生产实绩..." /> })
@@ -92,6 +94,7 @@ export default function ProductionOrderModule({
   const [orderDraftLines, setOrderDraftLines] = useState<ProductionOrderDraftLine[]>([])
   const [orderKeyword, setOrderKeyword] = useState(readInitialQuery)
   const [selectedOrderStatuses, setSelectedOrderStatuses] = useState<string[]>(readInitialStatuses)
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [orderViewMode, setOrderViewMode] = usePersistedViewMode('mes-lite.orders.viewMode', 'card')
   const [loading, setLoading] = useState(false)
   const [draftAttachmentOwnerId, setDraftAttachmentOwnerId] = useState('')
@@ -99,21 +102,16 @@ export default function ProductionOrderModule({
 
   const selectedOrderMaterial = orderMaterialOptions.find((material) => material.id === selectedMaterialId) || null
   const selectedOrderBoms = useMemo(() => selectedOrderMaterial?.boms || [], [selectedOrderMaterial])
-  const advancedSearchFields = useMemo(() => [{
-    key: 'status',
-    label: '订单状态',
-    value: selectedOrderStatuses.length === 1 ? selectedOrderStatuses[0] : '',
-    onChange: (value: string) => setSelectedOrderStatuses(value ? [value] : productionOrderStatusOptions.map((option) => option.value)),
-    options: productionOrderStatusOptions,
-  }], [selectedOrderStatuses])
+  const searchCatalog = useMemo(() => buildProductionOrderSearchCatalog(), [])
+  const advancedSearchFields = useMemo(() => resourceAdvancedFields(searchCatalog), [searchCatalog])
 
   const fetchOrders = useCallback(async () => {
     try {
-      setOrders(await loadProductionOrders(orderKeyword, selectedOrderStatuses, productionOrderStatusOptions.length))
+      setOrders(await loadProductionOrders(orderKeyword, selectedOrderStatuses, productionOrderStatusOptions.length, searchConditions))
     } catch (error) {
       onMessage(error instanceof Error ? error.message : '获取生产订单列表失败')
     }
-  }, [onMessage, orderKeyword, selectedOrderStatuses])
+  }, [onMessage, orderKeyword, searchConditions, selectedOrderStatuses])
 
   useEffect(() => {
     const requestedView = new URL(window.location.href).searchParams.get('view')
@@ -299,8 +297,8 @@ export default function ProductionOrderModule({
         {mode === 'orders' ? (
           <ResponsiveToolbarActions
             pageKey="orders"
-            primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.orders" value={orderKeyword} onChange={setOrderKeyword} placeholder="搜索生产订单号、凭据号或物料" />}
-            advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
+            primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.orders" value={orderKeyword} onChange={setOrderKeyword} placeholder="搜索生产订单号、凭据号或物料" conditions={searchConditions} onConditionsChange={setSearchConditions} />}
+            advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
             viewControl={<ViewModeToggle value={orderViewMode} onChange={setOrderViewMode} />}
             actions={canCreate ? <AppButton variant="create" onClick={() => onModeChange('create')}>新建生产订单</AppButton> : null}
           />

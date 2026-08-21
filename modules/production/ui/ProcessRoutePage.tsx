@@ -11,7 +11,7 @@ import SortableTableHeader from '@/app/components/SortableTableHeader'
 import useClientTableSort from '@/app/components/useClientTableSort'
 import useCompactViewport from '@/app/components/useCompactViewport'
 import { usePersistedViewMode } from '@/app/components/ViewModeToggle'
-import { filterByResourceSearch, type ResourceSearchCondition } from '@/lib/resource-search'
+import { filterBySearchCatalog, resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import { loadEngineeringProducts, loadProcessRoutes, loadProcessTemplates, loadProcessWorkCenters, saveProcessRoute } from '../client/production-engineering-api'
 import type { MaterialChoice, ProcessRoute, ProcessRouteForm, ProcessStepForm, ProcessTemplate, ProcessWorkCenterOption } from '../contracts/production-engineering'
 import {
@@ -19,8 +19,7 @@ import {
   emptyProcessRouteForm,
   emptyProcessStep,
   processCostPerThousand,
-  processRouteAdvancedFields,
-  processRouteSearchProfile,
+  processRouteSearchCatalog,
   routeCostPerThousand,
 } from '../model/production-engineering'
 import ProductionEngineeringPageShell from './ProductionEngineeringPageShell'
@@ -39,7 +38,7 @@ export default function ProcessRoutePage({ onMessage, actions, canCreate, canUpd
   const [form, setForm] = useState<ProcessRouteForm>(emptyProcessRouteForm)
   const effectiveViewMode = useCompactViewport(1023) ? 'card' : viewMode
 
-  const filteredRoutes = useMemo(() => filterByResourceSearch(routes, keyword, processRouteSearchProfile, processRouteAdvancedFields, conditions), [conditions, keyword, routes])
+  const filteredRoutes = useMemo(() => filterBySearchCatalog(routes, keyword, processRouteSearchCatalog, conditions), [conditions, keyword, routes])
   const routeSort = useClientTableSort(filteredRoutes, {
     manual: (route) => route.sortOrder,
     material: (route) => `${displayMaterialCode(route.product?.sku)} ${route.product?.name || ''}`,
@@ -131,7 +130,7 @@ export default function ProcessRoutePage({ onMessage, actions, canCreate, canUpd
   }
 
   return (
-    <ProductionEngineeringPageShell resourceKey="process-routes" title="BOM／工艺路线" description="维护物料工艺路线和工序。已产生派工或报工的工序不建议直接修改。" summary={`共 ${filteredRoutes.length} 项`} keyword={keyword} onKeywordChange={setKeyword} searchPlaceholder="输入物料编码、名称、路线或工序；空格分隔多个关键词" advancedFields={processRouteAdvancedFields} conditions={conditions} onConditionsChange={setConditions} conditionLabel="工艺路线组合条件" viewMode={viewMode} onViewModeChange={setViewMode} onCreate={canCreate ? openAdd : undefined} resourceLabel="工艺路线" actions={actions}>
+    <ProductionEngineeringPageShell resourceKey="process-routes" title="BOM／工艺路线" description="维护物料工艺路线和工序。已产生派工或报工的工序不建议直接修改。" summary={`共 ${filteredRoutes.length} 项`} keyword={keyword} onKeywordChange={setKeyword} searchPlaceholder="输入物料编码、名称、路线或工序；空格分隔多个关键词" advancedFields={resourceAdvancedFields(processRouteSearchCatalog)} conditions={conditions} onConditionsChange={setConditions} conditionLabel="工艺路线组合条件" viewMode={viewMode} onViewModeChange={setViewMode} onCreate={canCreate ? openAdd : undefined} resourceLabel="工艺路线" actions={actions}>
       {effectiveViewMode === 'card' && filteredRoutes.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 p-4 xl:grid-cols-2">{routeSort.sortedRows.map((route) => {
           const totals = routeCostPerThousand(route)

@@ -14,6 +14,7 @@ export interface StockMovementQuery {
   operator: string | null
   note: string | null
   createdDate: string | null
+  advancedConditions?: import('@/lib/resource-search').ResourceSearchCondition[]
 }
 
 export interface StockMovementObject {

@@ -1,5 +1,6 @@
 import type { CompleteEquipmentInspectionInput, EquipmentInspectionPlanInput } from '../contracts/equipment-inspection-schema'
 import type { EquipmentInspectionWorkspace } from '../contracts/equipment-inspection'
+import type { ResourceSearchCondition } from '@/lib/resource-search'
 
 interface ApiPayload<T> {
   data?: T
@@ -14,9 +15,10 @@ async function request<T>(input: RequestInfo | URL, init?: RequestInit) {
   return payload
 }
 
-export async function loadEquipmentInspections(filter: 'DUE' | 'ALL' | 'ABNORMAL', keyword: string) {
+export async function loadEquipmentInspections(filter: 'DUE' | 'ALL' | 'ABNORMAL', keyword: string, conditions: readonly ResourceSearchCondition[] = []) {
   const params = new URLSearchParams({ filter })
   if (keyword.trim()) params.set('keyword', keyword.trim())
+  if (conditions.length) params.set('advanced', JSON.stringify(conditions.map(({ field, operator, value }) => ({ field, operator, value }))))
   const payload = await request<EquipmentInspectionWorkspace>(`/api/equipment-inspections?${params}`)
   return payload.data!
 }

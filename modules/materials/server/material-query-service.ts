@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
 import { getSystemSettings } from '@/lib/system-settings'
 import type { MaterialAdvancedCondition, MaterialListQuery } from '../contracts/material-schema'
+import { materialCategoryFilterOptions } from '../model/material-options'
 
 const materialInclude = {
   stock: {
@@ -40,6 +41,16 @@ function dateCondition(condition: MaterialAdvancedCondition) {
   return null
 }
 
+function numberCondition(condition: MaterialAdvancedCondition) {
+  const value = Number(condition.value)
+  if (!Number.isFinite(value)) return null
+  if (condition.operator === 'gt') return { gt: value }
+  if (condition.operator === 'gte') return { gte: value }
+  if (condition.operator === 'lt') return { lt: value }
+  if (condition.operator === 'lte') return { lte: value }
+  return { equals: value }
+}
+
 function buildMaterialWhere(query: MaterialListQuery): Prisma.MaterialWhereInput {
   const where: Prisma.MaterialWhereInput = { deletedAt: null }
   const andFilters: Prisma.MaterialWhereInput[] = []
@@ -50,9 +61,9 @@ function buildMaterialWhere(query: MaterialListQuery): Prisma.MaterialWhereInput
   else if (query.customerId) where.customerId = query.customerId
   andFilters.push(...getBomStatusRelationFilters(query.bomStatus) as Prisma.MaterialWhereInput[])
   for (const condition of query.advancedConditions) {
-    if (['code', 'name', 'spec', 'stockUnit', 'valuationUnit', 'note'].includes(condition.field)) {
+    if (['code', 'name', 'spec', 'unit', 'stockUnit', 'valuationUnit', 'conversionNote', 'note'].includes(condition.field)) {
       andFilters.push({ [condition.field]: stringCondition(condition) } as Prisma.MaterialWhereInput)
-    } else if (condition.field === 'category' || condition.field === 'primaryMeasure' || condition.field === 'costingMethod') {
+    } else if (['category', 'primaryMeasure', 'referenceMeasure', 'costingMethod', 'salesCurrency'].includes(condition.field)) {
       andFilters.push({ [condition.field]: condition.value } as Prisma.MaterialWhereInput)
     } else if (condition.field === 'customerId') {
       andFilters.push({ customerId: condition.value === '__UNASSIGNED__' ? null : condition.value })
@@ -61,12 +72,30 @@ function buildMaterialWhere(query: MaterialListQuery): Prisma.MaterialWhereInput
     } else if (condition.field === 'createdAt') {
       const filter = dateCondition(condition)
       if (filter) andFilters.push({ createdAt: filter })
+    } else if (condition.field === 'conversionRate' || condition.field === 'defaultSalePrice') {
+      const filter = numberCondition(condition)
+      if (filter) andFilters.push({ [condition.field]: filter } as Prisma.MaterialWhereInput)
+    } else if (['stockQty', 'availableQty', 'valuationQty', 'totalCost'].includes(condition.field)) {
+      const filter = numberCondition(condition)
+      const stockField = condition.field === 'stockQty' ? 'qty' : condition.field
+      if (filter) andFilters.push({ stock: { is: { [stockField]: filter } } } as Prisma.MaterialWhereInput)
     }
   }
-  andFilters.push(...tokenizeKeywordQuery(query.keyword).map((token) => ({ OR: [
+  andFilters.push(...tokenizeKeywordQuery(query.keyword).map((token) => {
+    const number = Number(token)
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(token) ? new Date(`${token}T00:00:00+08:00`) : null
+    return ({ OR: [
     { name: { contains: token } }, { code: { contains: token } }, { spec: { contains: token } }, { note: { contains: token } },
+    { unit: { contains: token } }, { stockUnit: { contains: token } }, { valuationUnit: { contains: token } },
+    { conversionNote: { contains: token } }, { salesCurrency: { contains: token } },
     { customer: { is: { code: { contains: token } } } }, { customer: { is: { name: { contains: token } } } },
-  ] })))
+    ...materialCategoryFilterOptions.filter((option) => option.label.includes(token)).map((option) => ({ category: option.value })),
+    ...[{ value: 'LENGTH', label: '长度' }, { value: 'WEIGHT', label: '重量' }, { value: 'QUANTITY', label: '数量' }, { value: 'OTHER', label: '其他' }].filter((option) => option.label.includes(token)).flatMap((option) => [{ primaryMeasure: option.value }, { referenceMeasure: option.value }]),
+    ...[{ value: 'WEIGHTED_AVERAGE', label: '加权平均' }, { value: 'FIFO', label: '先进先出' }].filter((option) => option.label.includes(token)).map((option) => ({ costingMethod: option.value })),
+    ...('人民币'.includes(token) ? [{ salesCurrency: 'CNY' }] : []),
+    ...(Number.isFinite(number) ? [{ conversionRate: number }, { defaultSalePrice: number }, { stock: { is: { OR: [{ qty: number }, { availableQty: number }, { valuationQty: number }, { totalCost: number }] } } }] : []),
+    ...(date && !Number.isNaN(date.getTime()) ? [{ createdAt: { gte: date, lt: new Date(date.getTime() + 86_400_000) } }] : []),
+  ] }) }))
   if (andFilters.length > 0) where.AND = andFilters
   return where
 }

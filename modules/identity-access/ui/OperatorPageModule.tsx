@@ -4,13 +4,14 @@ import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import type { CurrentOperator } from '@/app/components/AuthGate'
 import { appInputClassName } from '@/app/components/FormField'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
-import { getStatusQuery } from '@/app/components/StatusCheckboxFilter'
+import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import SortableTableHeader from '@/app/components/SortableTableHeader'
 import useClientTableSort from '@/app/components/useClientTableSort'
-import { MappedResourceAdvancedSearch } from '@/app/components/resource'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
+import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import {
   deleteOperator as deleteOperatorRequest,
   loadOperators,
@@ -19,6 +20,7 @@ import {
 } from '../client/identity-access-api'
 import type { OperatorAdminItem, OperatorRole, UpdateOperatorInput } from '../contracts/operator-admin'
 import OperatorPasswordResetDialog from './OperatorPasswordResetDialog'
+import { operatorSearchCatalog } from '../model/operator-search-fields'
 
 const roleLabels: Record<string, string> = {
   OPERATOR: '提交',
@@ -57,19 +59,14 @@ export default function OperatorPageModule({
   onToolbarChange?: (actions: ReactNode | null) => void
 }) {
   const [operators, setOperators] = useState<OperatorAdminItem[]>([])
-  const [selectedStatuses, setSelectedStatuses] = useState(statusOptions.map((option) => option.value))
+  const [keyword, setKeyword] = useState('')
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [loading, setLoading] = useState(false)
   const [editingOperator, setEditingOperator] = useState<OperatorAdminItem | null>(null)
   const [passwordResetOperator, setPasswordResetOperator] = useState<OperatorAdminItem | null>(null)
   const [profileForm, setProfileForm] = useState({ username: '', name: '', phone: '' })
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.operators.viewMode', 'list')
-  const advancedSearchFields = useMemo(() => [{
-    key: 'status',
-    label: '账号状态',
-    value: selectedStatuses.length === 1 ? selectedStatuses[0] : '',
-    onChange: (value: string) => setSelectedStatuses(value ? [value] : statusOptions.map((option) => option.value)),
-    options: statusOptions,
-  }], [selectedStatuses])
+  const advancedSearchFields = useMemo(() => resourceAdvancedFields(operatorSearchCatalog), [])
   const operatorSort = useClientTableSort(operators, {
     username: (operator) => operator.username,
     name: (operator) => operator.name,
@@ -89,14 +86,16 @@ export default function OperatorPageModule({
   const fetchOperators = useCallback(async () => {
     setLoading(true)
     try {
-      const query = getStatusQuery(selectedStatuses, statusOptions)
-      setOperators(await loadOperators(query))
+      const params = new URLSearchParams()
+      if (keyword.trim()) params.set('keyword', keyword.trim())
+      if (searchConditions.length > 0) params.set('advanced', JSON.stringify(searchConditions))
+      setOperators(await loadOperators(params))
     } catch (error) {
       onMessage(error instanceof Error ? error.message : '获取操作人员失败')
     } finally {
       setLoading(false)
     }
-  }, [onMessage, selectedStatuses])
+  }, [keyword, onMessage, searchConditions])
 
   useEffect(() => {
     void fetchOperators()
@@ -173,7 +172,8 @@ export default function OperatorPageModule({
 
     onToolbarChange(
       <ResponsiveToolbarActions
-        advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
+        primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.operators" value={keyword} onChange={setKeyword} placeholder="搜索账号、姓名、手机号、角色或状态" conditions={searchConditions} onConditionsChange={setSearchConditions} />}
+        advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
         viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
         actions={(
           <>
@@ -192,7 +192,8 @@ export default function OperatorPageModule({
     <>
       <TopBarPortal>
         <ResponsiveToolbarActions
-          advancedSearch={<MappedResourceAdvancedSearch fields={advancedSearchFields} />}
+          primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.operators" value={keyword} onChange={setKeyword} placeholder="搜索账号、姓名、手机号、角色或状态" conditions={searchConditions} onConditionsChange={setSearchConditions} />}
+          advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
           viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
           actions={(
             <>

@@ -5,14 +5,11 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { parseStatusFilter } from '@/lib/status-filter'
 import { createMaterialInSchema } from '@/modules/receiving/contracts/material-in-schema'
 import { MaterialInDomainError } from '@/modules/receiving/domain/material-in-errors'
-import {
-  archiveMaterialIn,
-  createMaterialIns,
-  listMaterialIns,
-} from '@/modules/receiving/server/material-in-service'
+import { archiveMaterialIn, createMaterialIns, listMaterialIns } from '@/modules/receiving/server/material-in-service'
 import { getCurrentOperator } from '@/lib/auth'
 import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
-
+import { parseResourceSearchConditions } from '@/lib/resource-search'
+import { materialInSearchFieldKeys } from '@/modules/receiving/model/material-in-search-fields'
 export async function GET(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('materialIn', 'read')
@@ -21,11 +18,14 @@ export async function GET(req: NextRequest) {
     if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
 
     const { searchParams } = new URL(req.url)
+    const advanced = parseResourceSearchConditions(searchParams.get('advanced'), materialInSearchFieldKeys)
+    if (advanced.error) return NextResponse.json({ error: advanced.error }, { status: 400 })
     const result = await listMaterialIns({
       statuses: parseStatusFilter(searchParams),
       keyword: searchParams.get('keyword'),
       supplierId: searchParams.get('supplierId'),
       customerId: searchParams.get('customerId'),
+      advancedConditions: advanced.conditions || [],
       page: Number(searchParams.get('page') ?? '1'),
       pageSize: Number(searchParams.get('pageSize') ?? '20'),
     }, await loadEffectiveDataScope(operator))

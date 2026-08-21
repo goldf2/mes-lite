@@ -4,6 +4,7 @@ import type {
   QualityInspectionStandardWorkspace,
   QualityTrendWorkspace,
 } from '../contracts/quality-inspection-standard'
+import type { ResourceSearchCondition } from '@/lib/resource-search'
 
 interface ApiPayload<T> {
   data?: T
@@ -17,10 +18,11 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return payload.data
 }
 
-export async function loadQualityInspectionStandards(keyword = '', status = '') {
+export async function loadQualityInspectionStandards(keyword = '', status = '', conditions: readonly ResourceSearchCondition[] = []) {
   const params = new URLSearchParams()
   if (keyword.trim()) params.set('keyword', keyword.trim())
   if (status) params.set('status', status)
+  if (conditions.length) params.set('advanced', JSON.stringify(conditions.map(({ field, operator, value }) => ({ field, operator, value }))))
   return request<QualityInspectionStandardWorkspace>(`/api/quality-inspection-standards?${params.toString()}`)
 }
 

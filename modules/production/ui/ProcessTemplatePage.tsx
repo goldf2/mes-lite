@@ -9,7 +9,7 @@ import SortableTableHeader from '@/app/components/SortableTableHeader'
 import useClientTableSort from '@/app/components/useClientTableSort'
 import useCompactViewport from '@/app/components/useCompactViewport'
 import { usePersistedViewMode } from '@/app/components/ViewModeToggle'
-import { filterByResourceSearch, type ResourceSearchCondition } from '@/lib/resource-search'
+import { filterBySearchCatalog, resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import { loadEngineeringMaterials, loadProcessTemplates, saveProcessTemplate } from '../client/production-engineering-api'
 import type { ProcessTemplate } from '../contracts/production-engineering'
 import {
@@ -17,8 +17,7 @@ import {
   processCategoryLabel,
   processCategoryOptions,
   processCostPerThousand,
-  processTemplateAdvancedFields,
-  processTemplateSearchProfile,
+  processTemplateSearchCatalog,
 } from '../model/production-engineering'
 import ProductionEngineeringPageShell from './ProductionEngineeringPageShell'
 
@@ -39,7 +38,7 @@ export default function ProcessTemplatePage({ onMessage, actions, canCreate, can
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.system.processTemplates.viewMode', 'card')
   const effectiveViewMode = useCompactViewport(1023) ? 'card' : viewMode
 
-  const filteredTemplates = useMemo(() => filterByResourceSearch(templates, keyword, processTemplateSearchProfile, processTemplateAdvancedFields, conditions), [conditions, keyword, templates])
+  const filteredTemplates = useMemo(() => filterBySearchCatalog(templates, keyword, processTemplateSearchCatalog, conditions), [conditions, keyword, templates])
   const templateSort = useClientTableSort(filteredTemplates, {
     manual: (template) => template.sortOrder,
     name: (template) => `${template.code} ${template.name}`,
@@ -90,7 +89,7 @@ export default function ProcessTemplatePage({ onMessage, actions, canCreate, can
   }
 
   return (
-    <ProductionEngineeringPageShell resourceKey="process-templates" title="加工工艺" description="按类别维护可复用工艺，并关联到物料全景。" summary={`共 ${filteredTemplates.length} 项`} keyword={keyword} onKeywordChange={setKeyword} searchPlaceholder="输入工艺编码、名称、类别、工位或关联物料" advancedFields={processTemplateAdvancedFields} conditions={conditions} onConditionsChange={setConditions} conditionLabel="加工工艺组合条件" viewMode={viewMode} onViewModeChange={setViewMode} onCreate={canCreate ? openAdd : undefined} resourceLabel="加工工艺" actions={actions}>
+    <ProductionEngineeringPageShell resourceKey="process-templates" title="加工工艺" description="按类别维护可复用工艺，并关联到物料全景。" summary={`共 ${filteredTemplates.length} 项`} keyword={keyword} onKeywordChange={setKeyword} searchPlaceholder="输入工艺编码、名称、类别、工位或关联物料" advancedFields={resourceAdvancedFields(processTemplateSearchCatalog)} conditions={conditions} onConditionsChange={setConditions} conditionLabel="加工工艺组合条件" viewMode={viewMode} onViewModeChange={setViewMode} onCreate={canCreate ? openAdd : undefined} resourceLabel="加工工艺" actions={actions}>
       {effectiveViewMode === 'card' ? (
         <div className="grid grid-cols-1 gap-3 p-4 lg:grid-cols-2">
           {templateSort.sortedRows.map((template) => {

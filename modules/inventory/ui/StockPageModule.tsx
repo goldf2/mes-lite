@@ -6,7 +6,8 @@ import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import useClientTableSort from '@/app/components/useClientTableSort'
-import { MappedResourceAdvancedSearch } from '@/app/components/resource'
+import { ResourceAdvancedSearch } from '@/app/components/resource'
+import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import {
   loadInventoryLocations,
   loadStockCustomers,
@@ -31,6 +32,7 @@ import { StockAdjustmentDialog, StockAdjustmentHelpDialog } from './StockAdjustm
 import StockCollectionView from './StockCollectionView'
 import StockDetailPanel from './StockDetailPanel'
 import StockIntegrityAlert from './StockIntegrityAlert'
+import { buildStockSearchCatalog } from '../model/inventory-search-fields'
 
 interface StockPageModuleProps {
   canUpdateStock: boolean
@@ -54,47 +56,13 @@ export default function StockPageModule({ canUpdateStock, onMessage, onStateSumm
   const [showInvalidStocks, setShowInvalidStocks] = useState(false)
   const [showStockHelp, setShowStockHelp] = useState(false)
   const [stockDataError, setStockDataError] = useState<{ message: string; issues: StockIntegrityIssue[] } | null>(null)
+  const [searchConditions, setSearchConditions] = useState<ResourceSearchCondition[]>([])
   const [loading, setLoading] = useState(false)
   const [adjustingStock, setAdjustingStock] = useState<Stock | null>(null)
   const [stockAdjustForm, setStockAdjustForm] = useState<StockAdjustmentDraft>({ locationId: '', newLocationQty: 0, newValuationQty: 0, newTotalCost: 0, reason: '' })
 
-  const stockAdvancedSearchFields = useMemo(() => [
-    {
-      key: 'customerId',
-      label: '客户',
-      value: stockCustomerFilter,
-      onChange: setStockCustomerFilter,
-      options: [{ value: '__UNASSIGNED__', label: '通用/未绑定' }, ...customers.map((customer) => ({ value: customer.id, label: customer.name }))],
-    },
-    {
-      key: 'locationId',
-      label: '库位',
-      value: stockLocationFilter,
-      onChange: setStockLocationFilter,
-      options: inventoryLocations.map((location) => ({ value: location.id, label: `${location.code} · ${location.name}` })),
-    },
-    {
-      key: 'stockType',
-      label: '库存对象',
-      value: stockFilter === 'all' ? '' : stockFilter,
-      onChange: (value: string) => setStockFilter(value === 'material' || value === 'product' ? value : 'all'),
-      options: [{ value: 'material', label: '物料库存' }, { value: 'product', label: '成品库存' }],
-    },
-    {
-      key: 'category',
-      label: '物料分类',
-      value: selectedStockCategories.length === 1 ? selectedStockCategories[0] : '',
-      onChange: (value: string) => setSelectedStockCategories(value ? [value] : allCategoryValues),
-      options: materialCategoryFilterOptions,
-    },
-    {
-      key: 'showInvalid',
-      label: '归档无库存',
-      value: showInvalidStocks ? 'true' : '',
-      onChange: (value: string) => setShowInvalidStocks(value === 'true'),
-      options: [{ value: 'true', label: '显示' }],
-    },
-  ], [customers, inventoryLocations, selectedStockCategories, showInvalidStocks, stockCustomerFilter, stockFilter, stockLocationFilter])
+  const stockSearchCatalog = useMemo(() => buildStockSearchCatalog(customers, inventoryLocations), [customers, inventoryLocations])
+  const stockAdvancedSearchFields = useMemo(() => resourceAdvancedFields(stockSearchCatalog), [stockSearchCatalog])
 
   useEffect(() => {
     const url = new URL(window.location.href)
@@ -115,7 +83,7 @@ export default function StockPageModule({ canUpdateStock, onMessage, onStateSumm
     void fetchStocks()
     // 请求参数就是下面这些筛选状态；函数保持模块内部，避免应用壳持有业务请求。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stockKeyword, selectedStockCategories, stockCustomerFilter, stockLocationFilter, showInvalidStocks])
+  }, [searchConditions, stockKeyword, selectedStockCategories, stockCustomerFilter, stockLocationFilter, showInvalidStocks])
 
   useEffect(() => {
     void loadStockCustomers().then(setCustomers).catch(() => undefined)
@@ -148,6 +116,7 @@ export default function StockPageModule({ canUpdateStock, onMessage, onStateSumm
         categories: selectedStockCategories,
         allCategories: materialCategoryFilterOptions,
         includeInvalid: showInvalidStocks,
+        advancedConditions: searchConditions,
       })
       if (!result.ok) {
         if (result.status === 409 && !options.skipAutoBackfill && canUpdateStock && canBackfillStockIssues(result.issues)) {
@@ -258,8 +227,8 @@ export default function StockPageModule({ canUpdateStock, onMessage, onStateSumm
       <TopBarPortal>
         <ResponsiveToolbarActions
           pageKey="stocks"
-          primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.stocks" value={stockKeyword} onChange={setStockKeyword} placeholder="搜索物料或编码" />}
-          advancedSearch={<MappedResourceAdvancedSearch fields={stockAdvancedSearchFields} />}
+          primaryFilters={<SearchFieldWithPresets storageKey="mes-lite.searchPresets.stocks" value={stockKeyword} onChange={setStockKeyword} placeholder="搜索物料、客户、库位、单位或分类" conditions={searchConditions} onConditionsChange={setSearchConditions} />}
+          advancedSearch={<ResourceAdvancedSearch fields={stockAdvancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
           viewControl={<ViewModeToggle value={stockViewMode} onChange={setStockViewMode} />}
           actions={<button onClick={() => setShowStockHelp(true)} className="shrink-0 whitespace-nowrap rounded-lg border border-blue-300 px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-50 sm:px-4 sm:py-2 sm:text-sm">调整</button>}
         />

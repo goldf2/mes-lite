@@ -5,10 +5,12 @@ interface QualityInspectionApiPayload<T> {
 }
 
 import type { QualityTaskFilter, QualityTaskWorkspace } from '../contracts/quality-task'
+import type { ResourceSearchCondition } from '@/lib/resource-search'
 
-export async function loadQualityTasks(filter: QualityTaskFilter, keyword: string): Promise<QualityTaskWorkspace> {
+export async function loadQualityTasks(filter: QualityTaskFilter, keyword: string, conditions: readonly ResourceSearchCondition[] = []): Promise<QualityTaskWorkspace> {
   const params = new URLSearchParams({ filter })
   if (keyword.trim()) params.set('keyword', keyword.trim())
+  if (conditions.length) params.set('advanced', JSON.stringify(conditions.map(({ field, operator, value }) => ({ field, operator, value }))))
   const response = await fetch(`/api/quality-inspections?${params.toString()}`)
   const payload = await response.json()
   if (!response.ok) throw new Error(payload.error || '获取质量任务失败')

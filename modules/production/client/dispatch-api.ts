@@ -6,6 +6,7 @@ import type {
   DispatchProcessStep,
   DispatchRecord,
 } from '../contracts/dispatch'
+import type { ResourceSearchCondition } from '@/lib/resource-search'
 
 async function responseData<T>(response: Response): Promise<{ ok: boolean; data?: T; error?: string; message?: string }> {
   const payload = await response.json()
@@ -18,12 +19,14 @@ export async function listDispatchEmployees() {
   return ((await response.json()).data || []) as DispatchEmployeeOption[]
 }
 
-export async function listDispatches(selectedStatuses: string[], allStatuses: string[], customerId: string) {
+export async function listDispatches(selectedStatuses: string[], allStatuses: string[], customerId: string, keyword = '', conditions: readonly ResourceSearchCondition[] = []) {
   const params = new URLSearchParams()
   if (selectedStatuses.length !== allStatuses.length) {
     params.set('statuses', selectedStatuses.length > 0 ? selectedStatuses.join(',') : '__NONE__')
   }
   if (customerId) params.set('customerId', customerId)
+  if (keyword.trim()) params.set('keyword', keyword.trim())
+  if (conditions.length > 0) params.set('advanced', JSON.stringify(conditions))
   const response = await fetch(params.size > 0 ? `/api/dispatches?${params}` : '/api/dispatches')
   if (!response.ok) throw new Error('获取派工单列表失败')
   return ((await response.json()).data || []) as DispatchRecord[]

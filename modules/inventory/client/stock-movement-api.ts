@@ -11,6 +11,7 @@ export type StockMovementRequest = Omit<StockMovementQuery, 'type' | 'direction'
   operator: string
   note: string
   createdDate: string
+  advancedConditions: import('@/lib/resource-search').ResourceSearchCondition[]
 }
 
 export async function loadStockMovements(query: StockMovementRequest): Promise<StockMovementWorkspace> {
@@ -20,7 +21,7 @@ export async function loadStockMovements(query: StockMovementRequest): Promise<S
   })
   for (const [key, value] of Object.entries(query)) {
     if (key === 'page' || key === 'pageSize' || !String(value).trim()) continue
-    params.set(key, String(value).trim())
+    params.set(key === 'advancedConditions' ? 'advanced' : key, key === 'advancedConditions' ? JSON.stringify(value) : String(value).trim())
   }
   const response = await fetch(`/api/stock-movements?${params.toString()}`)
   const payload = await response.json()
