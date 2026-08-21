@@ -58,6 +58,8 @@ assert.match(entrypoint, /--bounding-set=-all/, '降权时必须清空 capabilit
 assert.match(entrypoint, /--inh-caps=-all/, '降权时必须清空 inheritable capabilities')
 assert.match(entrypoint, /--ambient-caps=-all/, '降权时必须清空 ambient capabilities')
 assert.match(entrypoint, /--no-new-privs/, '降权时必须禁止重新获得更高权限')
+assert.match(entrypoint, /export HOME=\/home\/cadpreview/, '降权后必须切换到专用用户主目录')
+assert.match(entrypoint, /export XDG_CONFIG_HOME=\/home\/cadpreview\/\.config/, '降权后不得继续读取 root 配置目录')
 assert.match(entrypoint, /-type l -print -quit/, '权限修复前必须拒绝字体目录中的符号链接')
 
 assert.match(smokeTest, /convert_source_to_pdf\(source_dxf, dxf_pdf\)/, '镜像冒烟必须覆盖 DXF 直转')

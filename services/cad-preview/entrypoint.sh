@@ -36,6 +36,11 @@ done <<EOF
 $(printf '%s' "$managed_font_directories" | tr ':' '\n')
 EOF
 
+export HOME=/home/cadpreview
+export USER=cadpreview
+export LOGNAME=cadpreview
+export XDG_CONFIG_HOME=/home/cadpreview/.config
+
 exec setpriv \
   --reuid=cadpreview \
   --regid=cadpreview \
