@@ -104,7 +104,7 @@ async function main() {
     assert.deepEqual([dailyResult.adjusted.length, dailyResult.unchangedCount], [1, 1], '生产日报必须跳过账实一致行')
     assert.equal((await prisma.stock.findUniqueOrThrow({ where: { id: dailyStockA.id } })).qty, 6)
     const dailyLog = await prisma.stockLog.findFirstOrThrow({ where: { stockId: dailyStockA.id, type: 'ADJUST' }, orderBy: { createdAt: 'desc' } })
-    assert.match(dailyLog.note || '', /生产日报 2026-08-22：班后实盘核对/)
+    assert.match(dailyLog.note || '', /库存盘点 2026-08-22：班后实盘核对/)
     const dailyAudit = await prisma.auditLog.findFirstOrThrow({ where: { entityType: 'STOCK', entityId: dailyStockA.id, action: 'RECONCILE' } })
     assert.match(dailyAudit.note || '', /不创建生产实绩或质量记录/)
     assert.equal(await prisma.inventoryLot.count({ where: { materialId: dailyMaterialA.id, sourceType: 'DAILY_INVENTORY_COUNT' } }), 1, '盘盈必须建立可追溯的盘点批次')
@@ -123,7 +123,7 @@ async function main() {
         countDate: '2026-08-22', locationId: finishedLocation.id, reason: '重复物品',
         items: [{ stockId: dailyStockA.id, countedQty: 6 }, { stockId: dailyStockA.id, countedQty: 7 }],
       }, unrestrictedDataScope, adjustedBy, auditContext),
-      /同一物品不能在一张生产日报中重复盘点/,
+      /同一物品不能在一张库存盘点单中重复盘点/,
     )
 
     await prisma.stockLocationBalance.update({
@@ -158,7 +158,7 @@ async function main() {
     assert.equal(auditLogs.every((log) => log.operatorName === adjustedBy), true)
     assert.equal(await prisma.auditLog.count({ where: { entityType: 'STOCK', entityId: stock.id } }), auditCountBeforeFailure, '失败调整不得留下孤立审计日志')
 
-    console.log('存货调整与生产日报整单盘点的库位归属、可信操作人、事务审计、流水、账实一致跳过及流程隔离校验通过')
+    console.log('存货调整与库存整单盘点的库位归属、可信操作人、事务审计、流水、账实一致跳过及流程隔离校验通过')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })
