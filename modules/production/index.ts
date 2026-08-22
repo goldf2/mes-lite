@@ -20,5 +20,6 @@ export {
 } from './domain/production-order-status'
 export { default as DispatchPageModule } from './ui/DispatchPageModule'
 export { default as FlowTransferPageModule } from './ui/FlowTransferPageModule'
+export { default as DailyProductionPage } from './ui/DailyProductionPage'
 export { default as ProductionEngineeringSectionPage, isProductionEngineeringSection, productionEngineeringSections } from './ProductionEngineeringSectionPage'
 export type { ProductionEngineeringSection } from './ProductionEngineeringSectionPage'

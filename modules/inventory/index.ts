@@ -3,6 +3,8 @@ export { default as StockMovementPageModule } from './ui/StockMovementPageModule
 export { default as DailyInventoryCountPage } from './ui/DailyInventoryCountPage'
 export { default as InventoryLotTraceDialog } from './ui/InventoryLotTraceDialog'
 export { default as InventoryLotPanoramaPageModule } from './ui/InventoryLotPanoramaPageModule'
+export { loadInventoryLocations } from './client/stock-api'
+export type { InventoryLocationOption } from './contracts/stock'
 export { inventoryStatusLabel, inventoryStatuses } from './domain/inventory-status'
 export type { InventoryStatus } from './domain/inventory-status'
 export type { InventoryLotCustomerReturn, InventoryLotCustomerShipment, InventoryLotTrace, InventoryLotTraceNode, InventoryLotTraceRelation } from './contracts/inventory-lot-trace'

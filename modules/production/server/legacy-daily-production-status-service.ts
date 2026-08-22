@@ -26,15 +26,25 @@ export async function confirmLegacyDailyProductionReport(
   confirmedBy: string,
   confirmedAt = new Date(),
 ) {
-  return runLegacyDailyProductionOperation(() => prisma.$transaction(async (tx) => {
-    const report = await tx.dailyProductionReport.findUnique({
-      where: { id }, include: legacyDailyProductionStatusInclude,
-    })
-    if (!report) throw new LegacyDailyProductionError('生产记录不存在', 404)
-    assertLegacyDailyProductionDraft(report.status, '确认')
-    if (report.consumptions.length === 0) {
-      throw new LegacyDailyProductionError('生产记录没有 BOM 原料耗用快照')
-    }
+  return runLegacyDailyProductionOperation(() => prisma.$transaction((tx) => (
+    confirmLegacyDailyProductionReportInTransaction(tx, id, confirmedBy, confirmedAt)
+  )))
+}
+
+export async function confirmLegacyDailyProductionReportInTransaction(
+  tx: Prisma.TransactionClient,
+  id: string,
+  confirmedBy: string,
+  confirmedAt = new Date(),
+) {
+  const report = await tx.dailyProductionReport.findUnique({
+    where: { id }, include: legacyDailyProductionStatusInclude,
+  })
+  if (!report) throw new LegacyDailyProductionError('生产记录不存在', 404)
+  assertLegacyDailyProductionDraft(report.status, '确认')
+  if (report.consumptions.length === 0) {
+    throw new LegacyDailyProductionError('生产记录没有 BOM 原料耗用快照')
+  }
 
     let totalConsumedCost = 0
     for (const line of report.consumptions) {
@@ -99,8 +109,7 @@ export async function confirmLegacyDailyProductionReport(
       },
       include: legacyDailyProductionStatusInclude,
     })
-    return { before: report, result }
-  }))
+  return { before: report, result }
 }
 
 async function reverseLegacyOutput(

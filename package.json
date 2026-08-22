@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.432",
+  "version": "0.1.433",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -117,6 +117,7 @@
     "verify:inventory-transaction-ledger": "tsx scripts/verify-inventory-transaction-ledger.ts",
     "verify:release-notes": "node scripts/verify-release-notes.mjs",
     "verify:daily-production-locations": "tsx scripts/verify-daily-production-bom-locations.ts",
+    "verify:daily-production-shortcut": "tsx scripts/verify-daily-production-shortcut.ts",
     "verify:flow-transfer": "tsx scripts/verify-flow-transfer.ts",
     "verify:stock-location-adjustment": "tsx scripts/verify-stock-location-adjustment.ts",
     "verify:daily-inventory-count": "tsx scripts/verify-daily-inventory-count.ts",

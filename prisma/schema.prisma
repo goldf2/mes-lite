@@ -1008,7 +1008,7 @@ model WorkReport {
   createdAt DateTime @default(now())
 }
 
-// ==================== 旧独立生产记录（入口已移除，待每日盘点切片清理） ====================
+// ==================== BOM 快捷生产日报（独立于生产订单，不创建派工/报工/质检） ====================
 
 model DailyProductionReport {
   id                     String                          @id @default(cuid())

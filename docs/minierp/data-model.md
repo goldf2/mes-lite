@@ -690,11 +690,11 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 草稿保存时按冻结 BOM 中每条投入绑定的产出实际量分别计算投入，再按投入物料汇总，并校验来源库位可用量；旧快照缺少绑定字段时兼容回退到主产出。确认在单一事务内扣减所有投入、按库位可用批次先进先出分配、增加全部产出、建立投入父批次到产出子批次的谱系，并累计订单完成数量；当前全部投入成本归集到主产出，其他产出零成本入库。冲销要求本次产出尚未被后续业务消耗，并反向恢复库存、库位余额、成本层、投入批次余额和订单累计，同时将分配与谱系边标记为已冲销。
 
-`DailyProductionReport` 是旧生产过账模型，其中 `bomType` 仅为旧快照字段，不再来自 BOM 方案类型。新的生产过账统一使用 `ProductionOrderActual`；`v0.1.349` 起创建接口返回 `410`，只保留既有历史记录的查询、修改、确认和冲销。下线前必须先盘点、备份并提供可回滚迁移，不得把本机测试数据结论直接套用到服务器。
+`DailyProductionReport` 同时承担 BOM 快捷生产日报与历史记录兼容，其中 `bomType` 仅为旧快照字段，不再来自 BOM 方案类型。`v0.1.433` 的专用快捷入口只接受已发布 BOM 和单一主产出，在一个事务中创建并确认投入、产出、库存、成本和审计，不创建生产订单、派工、报工或质检记录；旧通用创建接口从 `v0.1.349` 起仍返回 `410`。需要完整的多产出、设备、人员、作业文件、质量与批次谱系时，继续使用 `ProductionOrderActual`。
 
 `PickItem`、`WorkReport` 和 `StockIn` 是更早的生产订单执行记录。当前页面不再调用 `/api/orders/:id/pick`、`reports` 或 `stock-in`，正式过账由 `ProductionOrderActual` 一次表达实际投入和全部产出；三条 URL 仅允许处理 `materialId=null` 的历史工单，物料工单返回 `410`。历史兼容规则仍归 `modules/production`。
 
-旧生产记录通过 `DailyProductionReportEmployee` 保留多名员工快照，仅用于清理前的历史数据解释。新流程的员工快照由 `ProductionOrderActualEmployee` 保存。
+`DailyProductionReportEmployee` 只保留旧记录的员工快照；BOM 快捷生产日报不采集人员，`workers` 固定标识为快捷过账。完整订单实绩的员工快照仍由 `ProductionOrderActualEmployee` 保存。
 
 `DailyProductionConsumption` 的损耗与耗用字段：
 

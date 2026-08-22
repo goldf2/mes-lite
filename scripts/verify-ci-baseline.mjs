@@ -9,6 +9,7 @@ const checks = [
   'verify:product-material-migration',
   'verify:stock-owner-invariant',
   'verify:daily-inventory-count',
+  'verify:daily-production-shortcut',
   'verify:stock-location-adjustment',
   'verify:equipment',
   'verify:equipment-events-http',

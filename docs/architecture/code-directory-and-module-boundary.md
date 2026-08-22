@@ -31,8 +31,8 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 2355 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 50 个根文件 | 平台基础设施、格式化工具和少量跨领域兼容能力仍有混放；业务单据 PDF 引擎已迁出 |
-| `modules/` | 531 个 TypeScript/TSX 文件 | 当前有 17 个领域与平台模块；库存模块新增生产日报每日盘点页，文档模块承载批量导入、分类字段和同类别批量修改，附件模块统一承载表格直览与 CAD 派生预览，系统设置模块管理多引擎切换 |
-| `app/api/` | 161 个 `route.ts` | 全部为薄 HTTP 适配层；新增生产日报盘点整单适配器，直接访问 Prisma 的路由仍为零 |
+| `modules/` | 536 个 TypeScript/TSX 文件 | 当前有 17 个领域与平台模块；生产模块新增 BOM 快捷生产日报，库存模块继续承载独立盘点校准，文档模块承载批量导入、分类字段和同类别批量修改，附件模块统一承载表格直览与 CAD 派生预览，系统设置模块管理多引擎切换 |
+| `app/api/` | 162 个 `route.ts` | 全部为薄 HTTP 适配层；新增生产日报 BOM 快捷原子过账适配器，直接访问 Prisma 的路由仍为零 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
 
@@ -509,12 +509,12 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - 全景读取和附件方向保存统一进入 `client/materials-api.ts`，协调页和纯展示子模块均不得直接调用 `fetch`。
 - `MaterialPanoramaPage.tsx` 从 1,485 行降至 187 行并退出巨型页面基线；`verify:material-bom-modules` 将协调页上限固定为 250 行，并检查所有稳定任务持续存在。
 
-## 29. 生产实绩唯一入口与旧日报兼容边界
+## 29. 完整生产实绩与 BOM 快捷日报边界
 
-- 生产订单详情中的 `ProductionOrderActualPanel` 是当前唯一可达生产实绩入口，覆盖草稿、确认过账、投入与多产出库存原子更新、删除草稿和冲销。
+- 生产订单详情中的 `ProductionOrderActualPanel` 是完整生产实绩入口，覆盖人员、设备、作业文件、投入、多产出、待检批次、谱系、确认和冲销。
 - 旧 `StatsPage.tsx` 自生产订单实绩闭环上线后已不在页面注册、导航或应用壳中，继续拆分只会维护第二套不可达交互，因此删除其 936 行前端实现。
 - 工作台功能键删除失效的 `stats` 快捷入口，历史浏览器偏好中的该键在规范化时自动丢弃；权限资源 `stats` 只保留统计接口兼容。自 `v0.1.360` 起流程转移页面使用 `flowTransfers`，自 `v0.1.375` 起确认和冲销再分别使用独立命令资源，不与工作台键混为一谈。
-- 服务器可能存在 `DailyProductionReport` 历史正式数据，因此本轮不删除 Prisma 模型、迁移、关联保护或 `/api/daily-production-reports*` 兼容接口。是否迁移并下线旧数据模型必须另行执行可回滚的数据迁移。
+- `v0.1.433` 通过 `DailyProductionPage` / `DailyProductionBomEntry` 和专用 `daily-production-shortcut` 薄接口复用 `DailyProductionReport`，形成不带人员、设备、工序和质检的正式 BOM 快捷转换；旧通用创建接口继续返回 410，避免恢复已删除的大型旧页面。
 - 根级存量领域页面从 14 个降至 13 个，超过 800 行的页面从 3 个降至 2 个。
 
 ## 30. 库存前端垂直模块归属
@@ -523,7 +523,7 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `client/stock-api.ts` 封装库存查询、缺失库存补齐、客户与库位选项以及库存调整提交，协调页不再直接调用 `fetch`。
 - `model/stock-view.ts` 集中分类标签、数量格式、占用库位、展示名称、调整草稿和调整后总量等纯规则。
 - `StockCollectionView.tsx`、`StockDetailPanel.tsx`、`StockAdjustmentDialog.tsx` 与 `StockIntegrityAlert.tsx` 分别拥有集合、详情、调整和一致性处理任务。
-- `DailyInventoryCountPage.tsx` 是生产日报快捷盘点任务：复用库存 client、物料库存候选和库位选项，把多物品实盘数整单提交到库存命令服务；页面不依赖生产或质量模块。
+- `DailyInventoryCountPage.tsx` 是生产日报内的库存盘点校准子任务：复用库存 client、物料库存候选和库位选项，把多物品实盘数整单提交到库存命令服务；不承载 BOM 生产事实。
 - `StockPageModule.tsx` 从 853 行降至 304 行，只保留筛选与 URL 状态、任务协调、自动补齐编排和选择态；库存页退出 800 行巨型页面基线。
 - `verify:inventory-module` 锁定 350 行协调层上限、无直接 HTTP、四个稳定任务和领域 client/model 边界；系统当前只剩 1 个超过 800 行的页面。
 
