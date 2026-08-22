@@ -29,11 +29,15 @@ async function main() {
 
   try {
     const page = readFileSync(join(root, 'modules/production/ui/DailyProductionBomEntry.tsx'), 'utf8')
+    const wrapper = readFileSync(join(root, 'modules/production/ui/DailyProductionPage.tsx'), 'utf8')
     const route = readFileSync(join(root, 'app/api/daily-production-shortcut/route.ts'), 'utf8')
     const service = readFileSync(join(root, 'modules/production/server/daily-production-shortcut-service.ts'), 'utf8')
     assert.doesNotMatch(page, /\bfetch\(/, '生产日报页面必须通过领域 client 调用接口')
     assert.match(page, /BOM 快捷生产过账/, '页面必须明确 BOM 快捷转换语义')
     assert.match(page, /生产订单、派工、报工和质检/, '页面必须说明被绕过的复杂流程')
+    assert.match(wrapper, /标准流程/, '生产日报入口必须说明完整生产路径')
+    assert.match(wrapper, /快捷流程（当前页）/, '生产日报入口必须说明独立快捷路径')
+    assert.match(wrapper, /同一批实物只能选择其中一条/, '双轨生产必须提示避免重复登记')
     assert.match(route, /requireResourcePermission\('stocks', 'update'\)/, '快捷过账必须复用库存更新权限')
     assert.doesNotMatch(route, /prisma\./, 'HTTP 适配层不得直接访问数据库')
     assert.match(service, /prisma\.\$transaction/, '日报创建、投入扣减和产出入库必须位于同一事务')
