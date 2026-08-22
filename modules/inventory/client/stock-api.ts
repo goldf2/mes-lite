@@ -78,6 +78,6 @@ export async function submitDailyInventoryCount(input: DailyInventoryCountInput)
   const payload = await response.json()
   return {
     ok: response.ok,
-    message: payload.message || payload.error || (response.ok ? '生产日报已过账' : '生产日报盘点失败'),
+    message: payload.message || payload.error || (response.ok ? '库存盘点已过账' : '库存盘点失败'),
   }
 }

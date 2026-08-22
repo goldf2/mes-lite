@@ -1,6 +1,6 @@
 {
-  "version": "0.1.433",
+  "version": "0.1.434",
   "impact": "updated",
-  "workflowIds": ["183-daily-inventory-count"],
-  "summary": "生产日报增加正式 BOM 快捷转换：按 BOM 扣减投入并生成主产出，可选择直接可用或创建待检批次和质量任务；每日盘点保持独立。"
+  "workflowIds": ["183-daily-inventory-count", "184-daily-production-shortcut"],
+  "summary": "将库存盘点从生产日报双模式页面拆出，作为库存菜单下的独立页面；生产日报继续只承载 BOM 快捷转换。"
 }

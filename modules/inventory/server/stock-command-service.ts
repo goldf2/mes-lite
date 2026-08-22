@@ -52,7 +52,7 @@ export function reconcileDailyInventory(
 ) {
   assertInventoryLocationDataScope(scope, [input.locationId])
   const stockIds = input.items.map((item) => item.stockId)
-  if (new Set(stockIds).size !== stockIds.length) throw new StockAdjustmentError('同一物品不能在一张生产日报中重复盘点')
+  if (new Set(stockIds).size !== stockIds.length) throw new StockAdjustmentError('同一物品不能在一张库存盘点单中重复盘点')
 
   return prisma.$transaction(async (tx) => {
     const currentStocks = await tx.stock.findMany({
@@ -67,7 +67,7 @@ export function reconcileDailyInventory(
     })
     if (currentStocks.length !== stockIds.length) throw new StockAdjustmentError('盘点物品中存在已删除或无效的库存记录')
     const currentStockById = new Map(currentStocks.map((stock) => [stock.id, stock]))
-    const reason = `生产日报 ${input.countDate}：${input.reason.trim()}`
+    const reason = `库存盘点 ${input.countDate}：${input.reason.trim()}`
     const adjusted: Array<{ stockId: string; oldLocationQty: number; countedQty: number; difference: number }> = []
     let unchangedCount = 0
 
@@ -91,7 +91,7 @@ export function reconcileDailyInventory(
         reason,
         adjustedBy,
       })
-      if (!result.stock.material) throw new StockAdjustmentError('生产日报只支持物料库存盘点')
+      if (!result.stock.material) throw new StockAdjustmentError('库存盘点只支持物料库存')
       const valuationDifference = roundDailyAmount(result.newValuationQty - Number(result.stock.valuationQty))
       const costDifference = roundDailyAmount(result.newTotalCost - Number(result.stock.totalCost))
       if (difference < 0) {
@@ -143,7 +143,7 @@ export function reconcileDailyInventory(
           reason: input.reason.trim(),
           adjustedBy,
         },
-        note: '生产日报快捷盘点；不创建生产实绩或质量记录',
+        note: '库存盘点校准；不创建生产实绩或质量记录',
       })
       adjusted.push({ stockId: item.stockId, oldLocationQty, countedQty: item.countedQty, difference })
     }

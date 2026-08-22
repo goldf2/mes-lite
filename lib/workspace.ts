@@ -23,6 +23,7 @@ export const workspaceFunctionKeys = [
   'shipment',
   'return',
   'stocks',
+  'inventoryCount',
   'stockMovements',
   'lotPanorama',
   'suppliers',

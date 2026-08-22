@@ -23,7 +23,7 @@ export default function DailyInventoryCountPage({ canUpdate, onMessage }: { canU
   const [locations, setLocations] = useState<InventoryLocationOption[]>([])
   const [locationId, setLocationId] = useState('')
   const [countDate, setCountDate] = useState(todayInShanghai)
-  const [reason, setReason] = useState('每日生产结束账实核对')
+  const [reason, setReason] = useState('库存账实核对')
   const [lines, setLines] = useState<CountLine[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -112,18 +112,18 @@ export default function DailyInventoryCountPage({ canUpdate, onMessage }: { canU
         countedQty: locationQty(refreshedById.get(line.stockId) || stockById.get(line.stockId)!, locationId),
       })))
     } catch {
-      onMessage('生产日报盘点失败')
+      onMessage('库存盘点失败')
     } finally {
       setSaving(false)
     }
   }
 
-  if (loading && stocks.length === 0) return <AppLoadingIndicator label="正在读取生产日报库存..." />
+  if (loading && stocks.length === 0) return <AppLoadingIndicator label="正在读取盘点库存..." />
 
   return (
     <div className="space-y-4">
       <section className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950">
-        <h2 className="text-base font-semibold">生产日报（每日盘点）</h2>
+        <h2 className="text-base font-semibold">库存盘点</h2>
         <p className="mt-1 leading-6">直接录入库位实盘数，系统按差异更新可用库存并写入库存流水和操作记录；不要求生产人员、设备、工序或质量作业，也不会生成生产实绩或质检记录。</p>
         <p className="mt-1 text-amber-800">FIFO 物料以及含待检、冻结、返工库存的物料仍受保护，必须走对应业务流程。</p>
       </section>
@@ -138,7 +138,7 @@ export default function DailyInventoryCountPage({ canUpdate, onMessage }: { canU
             <SearchableSelect value={locationId} onChange={changeLocation} options={locations.map((location) => ({ value: location.id, label: `${location.code} · ${location.name}` }))} placeholder="输入库位编码或名称" />
           </div>
           <label className="text-sm font-medium text-gray-700">差异原因
-            <input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={200} className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2" placeholder="例如：每日生产结束账实核对" />
+            <input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={200} className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2" placeholder="例如：月末仓库盘点" />
           </label>
         </div>
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end">

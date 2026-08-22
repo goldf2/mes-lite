@@ -12,6 +12,7 @@ const navigationGlyphs: Record<string, string> = {
   dispatch: '派',
   stocks: '库',
   dailyInventory: '报',
+  inventoryCount: '盘',
   stockMovements: '流',
   lotPanorama: '溯',
   salesOrders: '销',

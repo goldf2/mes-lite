@@ -523,7 +523,7 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `client/stock-api.ts` 封装库存查询、缺失库存补齐、客户与库位选项以及库存调整提交，协调页不再直接调用 `fetch`。
 - `model/stock-view.ts` 集中分类标签、数量格式、占用库位、展示名称、调整草稿和调整后总量等纯规则。
 - `StockCollectionView.tsx`、`StockDetailPanel.tsx`、`StockAdjustmentDialog.tsx` 与 `StockIntegrityAlert.tsx` 分别拥有集合、详情、调整和一致性处理任务。
-- `DailyInventoryCountPage.tsx` 是生产日报内的库存盘点校准子任务：复用库存 client、物料库存候选和库位选项，把多物品实盘数整单提交到库存命令服务；不承载 BOM 生产事实。
+- `DailyInventoryCountPage.tsx` 是库存菜单下的独立盘点页面：复用库存 client、物料库存候选和库位选项，把多物品实盘数整单提交到库存命令服务；不承载 BOM 生产事实。
 - `StockPageModule.tsx` 从 853 行降至 304 行，只保留筛选与 URL 状态、任务协调、自动补齐编排和选择态；库存页退出 800 行巨型页面基线。
 - `verify:inventory-module` 锁定 350 行协调层上限、无直接 HTTP、四个稳定任务和领域 client/model 边界；系统当前只剩 1 个超过 800 行的页面。
 

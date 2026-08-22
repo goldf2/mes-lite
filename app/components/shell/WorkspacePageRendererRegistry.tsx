@@ -35,6 +35,7 @@ const DashboardPage = dynamic(() => import('@/modules/workspace'), { loading: Fe
 const ProductionOrderModule = dynamic(() => import('@/modules/production'), { loading: FeaturePageLoading })
 const StockPageModule = dynamic(() => import('@/modules/inventory'), { loading: FeaturePageLoading })
 const DailyProductionPage = dynamic(() => import('@/modules/production').then((module) => module.DailyProductionPage), { loading: FeaturePageLoading })
+const DailyInventoryCountPage = dynamic(() => import('@/modules/inventory').then((module) => module.DailyInventoryCountPage), { loading: FeaturePageLoading })
 const StockMovementPageModule = dynamic(() => import('@/modules/inventory').then((module) => module.StockMovementPageModule), { loading: FeaturePageLoading })
 const InventoryLotPanoramaPageModule = dynamic(() => import('@/modules/inventory').then((module) => module.InventoryLotPanoramaPageModule), { loading: FeaturePageLoading })
 const QualityTaskPageModule = dynamic(() => import('@/modules/quality').then((module) => module.QualityTaskPageModule), { loading: FeaturePageLoading })
@@ -104,6 +105,9 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
   ),
   'daily-inventory': (context) => (
     <DailyProductionPage canUpdate={context.canUpdate('stocks')} onMessage={context.onMessage} />
+  ),
+  'inventory-count': (context) => (
+    <DailyInventoryCountPage canUpdate={context.canUpdate('stocks')} onMessage={context.onMessage} />
   ),
   stocks: (context) => (
     <StockPageModule

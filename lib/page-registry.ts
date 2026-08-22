@@ -12,7 +12,7 @@ export interface PagePresentationDefinition {
 
 export const applicationTabs = [
   'dashboard', 'allFunctions', 'helpCenter', 'orders', 'materials', 'workInstructions', 'equipment', 'equipmentInspections', 'equipmentMaintenance', 'materialIn',
-  'dispatch', 'dailyInventory', 'stocks', 'stockMovements', 'lotPanorama', 'qualityTasks', 'salesOrders', 'shipment', 'return', 'flowTransfers', 'sawingCost', 'scanPrint',
+  'dispatch', 'dailyInventory', 'stocks', 'inventoryCount', 'stockMovements', 'lotPanorama', 'qualityTasks', 'salesOrders', 'shipment', 'return', 'flowTransfers', 'sawingCost', 'scanPrint',
   'suppliers', 'customers', 'employees', 'processTemplates', 'processRoutes', 'archive', 'auditLogs',
   'dataTools', 'unitSettings', 'locationSettings', 'workCenters', 'documentCategories', 'businessSettings',
   'displaySettings', 'navigationSettings', 'cadPreviewSettings', 'aiSettings', 'operators', 'permissionUsers', 'permissionGroups',
@@ -48,6 +48,7 @@ export type PageRendererKey =
   | 'production-orders'
   | 'daily-inventory'
   | 'stocks'
+  | 'inventory-count'
   | 'stock-movements'
   | 'lot-panorama'
   | 'quality-tasks'
@@ -114,7 +115,7 @@ const registeredPages = [
   registerPage({ key: 'equipmentInspections', tab: 'equipmentInspections', kind: 'transaction', title: '设备点检', description: '建立周期计划并逐项执行到期设备点检', renderer: 'equipment-inspections', groupKey: 'equipment', resource: 'equipmentInspections', primaryNavigation: true, workspace: { functionKey: 'equipmentInspections', label: '设备点检', icon: '检' } }),
   registerPage({ key: 'equipmentMaintenance', tab: 'equipmentMaintenance', kind: 'transaction', title: '设备维保', description: '管理周期保养、故障维修和备件领用闭环', renderer: 'equipment-maintenance', groupKey: 'equipment', resource: 'equipmentMaintenance', primaryNavigation: true, workspace: { functionKey: 'equipmentMaintenance', label: '设备维保', icon: '修' } }),
   registerPage({ key: 'orders', tab: 'orders', kind: 'transaction', title: '生产订单', description: '先保存生产计划，班后再登记实际产量', renderer: 'production-orders', groupKey: 'production', resource: 'orders', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' }, workspace: { functionKey: 'orders', label: '生产订单', icon: '工' } }),
-  registerPage({ key: 'dailyInventory', tab: 'dailyInventory', kind: 'transaction', title: '生产日报', description: '按正式 BOM 快捷完成投入扣减和产出入库，并保留库存盘点校准', renderer: 'daily-inventory', groupKey: 'production', resource: 'stocks', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' }, workspace: { functionKey: 'dailyInventory', label: '生产日报', icon: '报' } }),
+  registerPage({ key: 'dailyInventory', tab: 'dailyInventory', kind: 'transaction', title: '生产日报', description: '按正式 BOM 快捷完成投入扣减和产出入库', renderer: 'daily-inventory', groupKey: 'production', resource: 'stocks', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' }, workspace: { functionKey: 'dailyInventory', label: '生产日报', icon: '报' } }),
   registerPage({ key: 'dispatch', tab: 'dispatch', kind: 'transaction', title: '派工管理', description: '将生产任务派发到人员与工作中心', renderer: 'dispatch', groupKey: 'production', resource: 'dispatch', primaryNavigation: true, workspace: { functionKey: 'dispatch', label: '派工管理', icon: '派' } }),
   registerPage({ key: 'flowTransfers', tab: 'flowTransfers', kind: 'transaction', title: '流程转移', description: '同一物料在库位或流程节点之间转移', renderer: 'flow-transfers', groupKey: 'production', resource: 'flowTransfers', primaryNavigation: true, workspace: { functionKey: 'flowTransfers', label: '流程转移', icon: '转' } }),
   registerPage({ key: 'qualityTasks', tab: 'qualityTasks', kind: 'transaction', title: '质量任务', description: '处理待检、冻结、返工、复检、报废和授权放行', renderer: 'quality-tasks', groupKey: 'production', resource: 'quality', primaryNavigation: true, workspace: { functionKey: 'qualityTasks', label: '质量任务', icon: '质' } }),
@@ -123,6 +124,7 @@ const registeredPages = [
   registerPage({ key: 'shipment', tab: 'shipment', kind: 'transaction', title: '发货管理', description: '按客户登记多条实际发货物料，确认后扣减库存', renderer: 'shipment', groupKey: 'sales', resource: 'shipment', primaryNavigation: true, workspace: { functionKey: 'shipment', label: '发货管理', icon: '发' } }),
   registerPage({ key: 'return', tab: 'return', kind: 'transaction', title: '退货管理', description: '登记退货、审核并处理返库', renderer: 'return', groupKey: 'sales', resource: 'return', primaryNavigation: true, workspace: { functionKey: 'return', label: '退货管理', icon: '退' } }),
   registerPage({ key: 'stocks', tab: 'stocks', kind: 'master-detail', title: '库存管理', description: '查看库存、库位余额和成本', renderer: 'stocks', groupKey: 'inventory', resource: 'stocks', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' }, workspace: { functionKey: 'stocks', label: '库存管理', icon: '库' } }),
+  registerPage({ key: 'inventoryCount', tab: 'inventoryCount', kind: 'transaction', title: '库存盘点', description: '按库位录入多种物品实盘数并整单校准账实差异', renderer: 'inventory-count', groupKey: 'inventory', resource: 'stocks', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' }, workspace: { functionKey: 'inventoryCount', label: '库存盘点', icon: '盘' } }),
   registerPage({ key: 'stockMovements', tab: 'stockMovements', kind: 'transaction', title: '库存流水', description: '追踪库存、核算数量和成本的每次变化及业务来源', renderer: 'stock-movements', groupKey: 'inventory', resource: 'stocks', primaryNavigation: true, workspace: { functionKey: 'stockMovements', label: '库存流水', icon: '流' } }),
   registerPage({ key: 'lotPanorama', tab: 'lotPanorama', kind: 'master-detail', title: '批次追溯', description: '从供应、生产、质量、客户发货与退货线索展开批次全景', renderer: 'lot-panorama', groupKey: 'inventory', resource: 'stocks', primaryNavigation: true, workspace: { functionKey: 'lotPanorama', label: '批次追溯', icon: '溯' } }),
   registerPage({ key: 'suppliers', tab: 'suppliers', kind: 'resource', title: '供应商资料', description: '维护供应商基础资料', renderer: 'system-section', groupKey: 'configuration', resource: 'suppliers', primaryNavigation: true, systemSection: 'suppliers', workspace: { functionKey: 'suppliers', label: '供应商资料', icon: '供' } }),
