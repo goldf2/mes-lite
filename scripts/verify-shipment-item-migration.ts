@@ -75,13 +75,13 @@ async function main() {
 
     applyTargetMigration(database)
     const migratedItem = database.prepare(`
-      SELECT "id", "shipmentId", "materialId", "productId", "locationId", "qty",
+      SELECT "id", "shipmentId", "materialId", "locationId", "qty",
              "unitSnapshot", "unitPrice", "totalAmount", "shippedCostAmount"
       FROM "ShipmentItem" WHERE "shipmentId" = 'shipment-1'
     `).get() as Record<string, unknown>
     assert.deepEqual({ ...migratedItem }, {
       id: 'shipment-item-shipment-1', shipmentId: 'shipment-1', materialId: 'material-1',
-      productId: 'product-1', locationId: 'location-1', qty: 8, unitSnapshot: '件',
+      locationId: 'location-1', qty: 8, unitSnapshot: '件',
       unitPrice: 12.5, totalAmount: 100, shippedCostAmount: 40,
     })
     assert.equal(

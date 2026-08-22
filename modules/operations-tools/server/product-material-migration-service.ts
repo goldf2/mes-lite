@@ -143,7 +143,7 @@ export async function buildProductMaterialMappingPlan(db: PrismaClient): Promise
       db.sawingCostScenario.findMany({ where: { productId: product.id }, select: { materialId: true } }),
       db.productionOrder.findMany({ where: { productId: product.id }, select: { materialId: true } }),
       db.stockIn.findMany({ where: { productId: product.id }, select: { materialId: true } }),
-      db.shipmentItem.findMany({
+      db.shipment.findMany({
         where: { productId: product.id },
         select: {
           material: { select: { id: true, code: true, name: true } },
@@ -175,7 +175,7 @@ export async function buildProductMaterialMappingPlan(db: PrismaClient): Promise
     for (const order of productionOrders) addCandidate(candidateMap, order.materialId ? materialById.get(order.materialId) : null, '生产订单 materialId')
     for (const stockIn of stockIns) addCandidate(candidateMap, stockIn.materialId ? materialById.get(stockIn.materialId) : null, '历史生产入库 materialId')
     for (const shipment of shipments) {
-      addCandidate(candidateMap, shipment.material, '发货明细 materialId')
+      addCandidate(candidateMap, shipment.material, '发货单 materialId')
     }
     for (const returned of returns) {
       addCandidate(candidateMap, returned.material, '退货单 materialId')
@@ -285,7 +285,7 @@ async function prepareProductMaterialMapping(
       db.sawingCostScenario.findMany({ where: { productId: product.id }, select: { materialId: true } }),
       db.productionOrder.findMany({ where: { productId: product.id }, select: { materialId: true } }),
       db.stockIn.findMany({ where: { productId: product.id }, select: { materialId: true } }),
-      db.shipmentItem.findMany({ where: { productId: product.id }, select: { materialId: true } }),
+      db.shipment.findMany({ where: { productId: product.id }, select: { materialId: true } }),
       db.returnOrder.findMany({ where: { productId: product.id }, select: { materialId: true, shipmentItem: { select: { materialId: true } } } }),
       db.stock.findUnique({ where: { productId: product.id }, include: { logs: { select: { id: true }, take: 1 }, locationBalances: true } }),
       db.stock.findUnique({ where: { materialId }, select: { id: true } }),

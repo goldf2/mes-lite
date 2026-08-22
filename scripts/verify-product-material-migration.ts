@@ -106,7 +106,7 @@ async function main() {
         shipmentNo: 'SH-MAP-001', productId: product.id,
         locationId: shipmentLocation.id, customerId: shipmentCustomer.id, customer: shipmentCustomer.name, qty: 2,
         items: { create: {
-          productId: product.id, materialId: material.id, locationId: shipmentLocation.id,
+          materialId: material.id, locationId: shipmentLocation.id,
           qty: 2, unitSnapshot: material.stockUnit,
         } },
       },
@@ -139,7 +139,6 @@ async function main() {
     assert.equal(originalPlan.products[0].candidates[0].materialId, material.id)
     assert.deepEqual(originalPlan.products[0].candidates[0].evidence, [
       'BOM 主产出',
-      '发货明细 materialId',
       '来源发货明细',
       '编码候选 FG-M8',
     ])

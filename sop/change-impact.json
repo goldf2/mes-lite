@@ -2,5 +2,5 @@
   "version": "0.1.431",
   "impact": "updated",
   "workflowIds": ["12-production-actual-entry", "180-production-actual-context-snapshot", "24-sales-order-list", "25-sales-order-create", "26-sales-order-detail", "27-shipment-list", "28-shipment-create", "29-shipment-confirm", "33-document-list", "173-warehouse-shipment-dispatch"],
-  "summary": "销售订单与多明细发货完全解耦，客户物料交付参考进入页面和仪表盘，文档移除工作中心关系。"
+  "summary": "销售订单与多明细发货完全解耦，发货明细保持 Material 原生模型，客户物料交付参考进入页面和仪表盘，文档移除工作中心关系。"
 }

@@ -389,7 +389,6 @@ model Product {
   productionOrders ProductionOrder[]
   stockIns         StockIn[]
   shipments        Shipment[]
-  shipmentItems    ShipmentItem[]
   returnOrders     ReturnOrder[]
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
@@ -1861,8 +1860,6 @@ model ShipmentItem {
   sortOrder                Int                     @default(0)
   materialId               String
   material                 Material                @relation(fields: [materialId], references: [id], onDelete: Restrict)
-  productId                String?
-  product                  Product?                @relation(fields: [productId], references: [id], onDelete: Restrict)
   locationId               String
   location                 InventoryLocation       @relation(fields: [locationId], references: [id], onDelete: Restrict)
   qty                      Float
@@ -1883,7 +1880,6 @@ model ShipmentItem {
 
   @@index([shipmentId, sortOrder])
   @@index([materialId])
-  @@index([productId])
   @@index([locationId])
 }
 

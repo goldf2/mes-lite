@@ -14,7 +14,6 @@ const shipmentInclude = {
   items: {
     include: {
       material: true,
-      product: true,
       location: true,
     },
     orderBy: { sortOrder: 'asc' as const },
@@ -105,7 +104,6 @@ export async function createManagedShipment(data: CreateShipmentCommand, now = n
           create: prepared.map((item, sortOrder) => ({
             sortOrder,
             materialId: item.materialId,
-            productId: item.productId,
             locationId: item.locationId,
             qty: item.qty,
             unitSnapshot: item.unitSnapshot,
@@ -132,7 +130,7 @@ export async function createManagedReturn(input: CreateReturnCommand, now = new 
   return runSalesDomainOperation(() => prisma.$transaction(async (tx) => {
     const item = await tx.shipmentItem.findUnique({
       where: { id: input.shipmentItemId },
-      include: { shipment: true, material: true, product: true },
+      include: { shipment: true, material: true },
     })
     if (!item || item.shipmentId !== input.shipmentId || item.shipment.deletedAt) throw new SalesDomainError('原发货明细不存在', 404)
     if (!['SHIPPED', 'DELIVERED'].includes(item.shipment.status)) throw new SalesDomainError('只有已发货或已签收单据可以退货')
@@ -149,13 +147,14 @@ export async function createManagedReturn(input: CreateReturnCommand, now = new 
         orderBy: { returnNo: 'desc' }, select: { returnNo: true },
       }),
     ])
+    const productId = await resolveProductId(tx, `${materialProductPrefix}${item.materialId}`, { description: '由退货物料自动映射。' })
     return tx.returnOrder.create({
       data: {
         returnNo: nextDatedDocumentNo('RT', now, latest?.returnNo),
         voucherNo: input.voucherNo?.trim() || null,
         shipmentId: item.shipmentId,
         shipmentItemId: item.id,
-        productId: item.productId,
+        productId,
         materialId: item.materialId,
         locationId: location.id,
         qty: input.qty,

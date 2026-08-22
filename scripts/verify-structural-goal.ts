@@ -39,7 +39,7 @@ const allowedRootComponents = new Set([
   'ModalOverlay.tsx', 'NumberInputField.tsx', 'PageQrCodeButton.tsx',
   'ResponsiveToolbarActions.tsx', 'SavedSearchPresets.tsx', 'SearchableSelect.tsx',
   'SortableTableHeader.tsx', 'StatusCheckboxFilter.tsx', 'SystemPage.tsx',
-  'ToolbarOrderSettings.tsx', 'TopBarPortal.tsx', 'ViewModeToggle.tsx',
+  'ToolbarOrderSettings.tsx', 'TopBarPortal.tsx', 'ViewModeToggle.tsx', 'VisibleFieldControl.tsx',
   'interfacePreferences.tsx', 'useClientTableSort.ts', 'useCompactViewport.ts',
   'useDismissibleSearchPopup.ts', 'useSearchPopupPlacement.ts',
 ])

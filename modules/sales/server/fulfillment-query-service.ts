@@ -54,7 +54,6 @@ function applyStatuses<T extends { status?: string | { in: string[] } }>(where: 
 
 const shipmentItemsInclude = {
   material: { select: { id: true, code: true, name: true, spec: true, stockUnit: true } },
-  product: { select: { id: true, sku: true, name: true, unit: true } },
   location: { select: { id: true, code: true, name: true, isDefault: true } },
   returnOrders: { where: { deletedAt: null, status: { in: ['PENDING', 'PROCESSED'] } }, select: { qty: true } },
   lotAllocations: {
@@ -96,7 +95,7 @@ export async function listShipments(input: FulfillmentQuery, scope: EffectiveDat
       andConditions.push({ [condition.field]: text } as Prisma.ShipmentWhereInput)
     } else if (condition.field === 'status') andConditions.push({ status: condition.value })
     else if (condition.field === 'customerId') andConditions.push({ customerId: condition.value === '__UNASSIGNED__' ? null : condition.value })
-    else if (condition.field === 'product') andConditions.push({ items: { some: { OR: [{ product: { is: { OR: [{ sku: text }, { name: text }] } } }, { material: { is: { OR: [{ code: text }, { name: text }, { spec: text }] } } }] } } })
+    else if (condition.field === 'product') andConditions.push({ items: { some: { material: { is: { OR: [{ code: text }, { name: text }, { spec: text }] } } } } })
     else if (condition.field === 'locationId') andConditions.push({ items: { some: { OR: [{ locationId: condition.value }, { location: { is: { code: text } } }, { location: { is: { name: text } } }] } } })
     else if (condition.field === 'qty' || condition.field === 'unitPrice' || condition.field === 'totalAmount') {
       const value = numberFilter(condition)
@@ -115,7 +114,6 @@ export async function listShipments(input: FulfillmentQuery, scope: EffectiveDat
     { shipmentNo: { contains: token } }, { voucherNo: { contains: token } }, { customer: { contains: token } },
     { customerPhone: { contains: token } }, { address: { contains: token } }, { trackingNo: { contains: token } },
     { shippedBy: { contains: token } }, { note: { contains: token } },
-    { items: { some: { product: { is: { OR: [{ sku: { contains: token } }, { name: { contains: token } }] } } } } },
     { items: { some: { material: { is: { OR: [{ code: { contains: token } }, { name: { contains: token } }, { spec: { contains: token } }] } } } } },
     { customerRef: { is: { code: { contains: token } } } }, { customerRef: { is: { name: { contains: token } } } },
     { items: { some: { location: { is: { OR: [{ code: { contains: token } }, { name: { contains: token } }] } } } } },
@@ -192,8 +190,6 @@ export async function listReturnShipmentOptions(scope: EffectiveDataScope = unre
       shipmentId: shipment.id,
       shipmentItemId: item.id,
       shipmentNo: shipment.shipmentNo,
-      productId: item.productId,
-      product: item.product,
       material: item.material,
       location: item.location,
       customer: shipment.customer,
@@ -255,7 +251,6 @@ export async function getShipmentDeliveryNoteSource(id: string, scope: Effective
       items: {
         include: {
           material: { select: { code: true, name: true, spec: true, stockUnit: true } },
-          product: { select: { sku: true, name: true, unit: true } },
           location: { select: { code: true, name: true } },
         },
         orderBy: { sortOrder: 'asc' },
@@ -289,7 +284,7 @@ export async function listReturns(input: FulfillmentQuery, scope: EffectiveDataS
     else if (condition.field === 'customerId') {
       const customerId = condition.value === '__UNASSIGNED__' ? null : condition.value
       andConditions.push({ shipment: { is: { customerId } } })
-    } else if (condition.field === 'product') andConditions.push({ shipmentItem: { is: { OR: [{ product: { is: { OR: [{ sku: text }, { name: text }] } } }, { material: { is: { OR: [{ code: text }, { name: text }, { spec: text }] } } }] } } })
+    } else if (condition.field === 'product') andConditions.push({ OR: [{ product: { is: { OR: [{ sku: text }, { name: text }] } } }, { shipmentItem: { is: { material: { is: { OR: [{ code: text }, { name: text }, { spec: text }] } } } } }] })
     else if (condition.field === 'shipmentNo') andConditions.push({ shipment: { is: { shipmentNo: text } } })
     else if (condition.field === 'locationId') andConditions.push({ OR: [{ locationId: condition.value }, { location: { is: { code: text } } }, { location: { is: { name: text } } }] })
     else if (condition.field === 'qty') {
@@ -306,7 +301,7 @@ export async function listReturns(input: FulfillmentQuery, scope: EffectiveDataS
     const date = /^\d{4}-\d{2}-\d{2}$/.test(token) ? new Date(`${token}T00:00:00+08:00`) : null
     return { OR: [
     { returnNo: { contains: token } }, { voucherNo: { contains: token } }, { reason: { contains: token } }, { note: { contains: token } },
-    { shipmentItem: { is: { product: { is: { OR: [{ sku: { contains: token } }, { name: { contains: token } }] } } } } },
+    { product: { is: { OR: [{ sku: { contains: token } }, { name: { contains: token } }] } } },
     { shipmentItem: { is: { material: { is: { OR: [{ code: { contains: token } }, { name: { contains: token } }, { spec: { contains: token } }] } } } } },
     { shipment: { is: { shipmentNo: { contains: token } } } },
     { shipment: { is: { voucherNo: { contains: token } } } },

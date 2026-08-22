@@ -163,7 +163,7 @@ export default function ReturnPageModule({
     const material = recognizedText(fields, 'material')
     const qty = recognizedNumber(fields, 'qty')
     const shipmentNo = recognizedText(fields, 'shipmentNo')
-    const matchedShipment = shipments.find((shipment) => matchesRecognizedValue(shipmentNo, [shipment.shipmentNo]) && (!material || matchesRecognizedValue(material, [shipment.material.code, shipment.material.name, shipment.material.spec, shipment.product?.sku, shipment.product?.name])))
+    const matchedShipment = shipments.find((shipment) => matchesRecognizedValue(shipmentNo, [shipment.shipmentNo]) && (!material || matchesRecognizedValue(material, [shipment.material.code, shipment.material.name, shipment.material.spec])))
     setForm((current) => ({
       ...current,
       voucherNo: recognizedText(fields, 'voucherNo') || recognizedText(fields, 'shipmentNo') || current.voucherNo,
@@ -410,7 +410,7 @@ export default function ReturnPageModule({
                   options={shipments.map((shipment) => ({
                     value: shipment.shipmentItemId,
                     label: `${shipment.shipmentNo} · ${shipment.customerRef?.name || shipment.customer} · ${shipment.material.code} · ${shipment.material.name} · 可退 ${shipment.returnableQty} ${shipment.material.stockUnit}`,
-                    keywords: `${shipment.product?.sku || ''} ${shipment.product?.name || ''} ${shipment.material.spec || ''}`,
+                    keywords: `${shipment.material.code} ${shipment.material.name} ${shipment.material.spec || ''}`,
                   }))}
                   placeholder="输入发货单号、客户或物料筛选"
                 />

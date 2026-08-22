@@ -47,14 +47,14 @@ export async function loadBusinessDocumentPrintData(
   }
 
   if (kind === 'shipment') {
-    const item = await prisma.shipment.findFirst({ where: { id, deletedAt: null }, include: { customerRef: true, items: { include: { material: true, product: true, location: true }, orderBy: { sortOrder: 'asc' } } } })
+    const item = await prisma.shipment.findFirst({ where: { id, deletedAt: null }, include: { customerRef: true, items: { include: { material: true, location: true }, orderBy: { sortOrder: 'asc' } } } })
     if (!item) return null
     return {
       title: '发货单', documentNo: item.shipmentNo, status: statusLabels[item.status] || item.status,
       documentDate: dateText(item.shippedAt || item.createdAt), referenceNo: item.voucherNo, partyLabel: '客户', partyName: item.customer,
       summaryFields: [{ label: '明细项数', value: `${item.items.length} 项` }, { label: '发货库位', value: Array.from(new Set(item.items.map((line) => line.location.code))).join('、') }, { label: '物流单号', value: item.trackingNo || '-' }],
       columns: [{ label: '序号', key: 'index', width: 0.6, align: 'center' }, { label: '物料编码', key: 'code', width: 1.4 }, { label: '物料名称/规格', key: 'material', width: 2.7 }, { label: '数量', key: 'qty', width: 1.1, align: 'right' }, { label: '单价', key: 'price', width: 1, align: 'right' }, { label: '金额', key: 'amount', width: 1.1, align: 'right' }],
-      rows: item.items.map((line, index) => ({ index: String(index + 1), code: line.material.code || line.product?.sku || '', material: `${line.material.name}${line.material.spec ? ` · ${line.material.spec}` : ''}`, qty: `${numberText(line.qty)} ${line.unitSnapshot}`, price: money(line.unitPrice), amount: money(line.totalAmount) })),
+      rows: item.items.map((line, index) => ({ index: String(index + 1), code: line.material.code, material: `${line.material.name}${line.material.spec ? ` · ${line.material.spec}` : ''}`, qty: `${numberText(line.qty)} ${line.unitSnapshot}`, price: money(line.unitPrice), amount: money(line.totalAmount) })),
       totalLabel: '发货金额', totalValue: money(item.totalAmount), note: item.note, signatures: ['发货人', '承运人', '客户签收'],
     }
   }

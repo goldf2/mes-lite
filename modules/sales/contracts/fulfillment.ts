@@ -85,7 +85,6 @@ export interface ShipmentItem {
   id: string
   sortOrder: number
   materialId: string
-  productId?: string | null
   locationId: string
   qty: number
   unitSnapshot: string
@@ -94,7 +93,6 @@ export interface ShipmentItem {
   returnedQty: number
   returnableQty: number
   material: { id: string; code: string; name: string; spec?: string | null; stockUnit: string; primaryImage?: MaterialImage | null }
-  product?: { id: string; sku: string; name: string; unit: string } | null
   location: InventoryLocationOption
   lotAllocations: Shipment['lotAllocations']
 }
@@ -104,8 +102,6 @@ export interface ReturnShipmentOption {
   shipmentId: string
   shipmentItemId: string
   shipmentNo: string
-  productId?: string | null
-  product?: { id: string; sku: string; name: string; unit: string } | null
   material: { id: string; code: string; name: string; spec?: string | null; stockUnit: string }
   location: InventoryLocationOption
   customer: string

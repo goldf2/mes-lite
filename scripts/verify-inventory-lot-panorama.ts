@@ -68,7 +68,7 @@ async function main() {
         shipmentNo: `SH-PAN-${suffix}`, productId: product.id, materialId: finished.id, locationId: location.id,
         customerId: customer.id, customer: customer.name, qty: 3, status: 'DELIVERED', lotTraceStatus: 'TRACKED', shippedAt: new Date(),
         items: { create: {
-          productId: product.id, materialId: finished.id, locationId: location.id,
+          materialId: finished.id, locationId: location.id,
           qty: 3, unitSnapshot: finished.stockUnit,
         } },
       },

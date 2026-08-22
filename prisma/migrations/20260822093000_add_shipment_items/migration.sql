@@ -20,7 +20,6 @@ CREATE TABLE "ShipmentItem" (
     "shipmentId" TEXT NOT NULL,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
     "materialId" TEXT NOT NULL,
-    "productId" TEXT,
     "locationId" TEXT NOT NULL,
     "qty" REAL NOT NULL,
     "unitSnapshot" TEXT NOT NULL,
@@ -36,12 +35,11 @@ CREATE TABLE "ShipmentItem" (
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "ShipmentItem_shipmentId_fkey" FOREIGN KEY ("shipmentId") REFERENCES "Shipment" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "ShipmentItem_materialId_fkey" FOREIGN KEY ("materialId") REFERENCES "Material" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT "ShipmentItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT "ShipmentItem_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "InventoryLocation" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
 INSERT INTO "ShipmentItem" (
-    "id", "shipmentId", "sortOrder", "materialId", "productId",
+    "id", "shipmentId", "sortOrder", "materialId",
     "locationId", "qty", "unitSnapshot", "unitPrice", "totalAmount",
     "shippedValuationQty", "shippedCostAmount", "stockUnitSnapshot",
     "valuationUnitSnapshot", "conversionRateUsed", "conversionSource", "createdAt", "updatedAt"
@@ -51,7 +49,6 @@ SELECT
     s."id",
     0,
     COALESCE(s."materialId", p."materialId"),
-    s."productId",
     s."locationId",
     s."qty",
     COALESCE(s."stockUnitSnapshot", m."stockUnit", p."unit", m."unit", '件'),
@@ -245,7 +242,6 @@ CREATE INDEX "Shipment_materialId_idx" ON "Shipment"("materialId");
 
 CREATE INDEX "ShipmentItem_shipmentId_sortOrder_idx" ON "ShipmentItem"("shipmentId", "sortOrder");
 CREATE INDEX "ShipmentItem_materialId_idx" ON "ShipmentItem"("materialId");
-CREATE INDEX "ShipmentItem_productId_idx" ON "ShipmentItem"("productId");
 CREATE INDEX "ShipmentItem_locationId_idx" ON "ShipmentItem"("locationId");
 
 DROP TABLE "_ShipmentItemMigrationGuard";

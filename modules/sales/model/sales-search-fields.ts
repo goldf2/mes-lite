@@ -30,7 +30,7 @@ export function buildShipmentSearchCatalog(customers: readonly FulfillmentCustom
     { key: 'voucherNo', label: '凭据号', type: 'text', read: (item) => item.voucherNo },
     { key: 'status', label: '状态', type: 'select', read: (item) => [item.status, shipmentStatusLabels[item.status]], options: shipmentStatusOptions },
     { key: 'customerId', label: '客户', type: 'select', read: (item) => [item.customerId || '__UNASSIGNED__', item.customerRef?.code, item.customerRef?.name, item.customer], options: [{ value: '__UNASSIGNED__', label: '通用/未绑定' }, ...customers.map((customer) => ({ value: customer.id, label: `${customer.code} · ${customer.name}` }))] },
-    { key: 'product', label: '物料', type: 'text', read: (item) => item.items.flatMap((line) => [line.material.code, line.material.name, line.material.spec, line.product?.sku, line.product?.name]) },
+    { key: 'product', label: '物料', type: 'text', read: (item) => item.items.flatMap((line) => [line.material.code, line.material.name, line.material.spec]) },
     { key: 'locationId', label: '发货库位', type: locations.length ? 'select' : 'text', read: (item) => item.items.flatMap((line) => [line.locationId, line.location.code, line.location.name]), options: locations.length ? locations.map((location) => ({ value: location.id, label: `${location.code} · ${location.name}` })) : undefined },
     { key: 'qty', label: '发货数量', type: 'number', read: (item) => item.qty },
     { key: 'unitPrice', label: '单价', type: 'number', read: (item) => item.unitPrice },

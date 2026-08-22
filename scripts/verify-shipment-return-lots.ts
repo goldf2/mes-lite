@@ -126,7 +126,7 @@ async function main() {
         shipmentNo: `SH-LEGACY-${suffix}`, productId: product.id, materialId: material.id, locationId: location.id,
         customerId: customer.id, qty: 2, customer: customer.name, status: 'DELIVERED', shippedAt: new Date('2026-07-01T00:00:00.000Z'),
         shippedValuationQty: 2, shippedCostAmount: 20,
-        items: { create: { materialId: material.id, productId: product.id, locationId: location.id, qty: 2, unitSnapshot: material.stockUnit, shippedValuationQty: 2, shippedCostAmount: 20 } },
+        items: { create: { materialId: material.id, locationId: location.id, qty: 2, unitSnapshot: material.stockUnit, shippedValuationQty: 2, shippedCostAmount: 20 } },
       },
       include: { items: true },
     })
