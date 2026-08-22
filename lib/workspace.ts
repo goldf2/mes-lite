@@ -13,6 +13,7 @@ export const workspaceFunctionKeys = [
   'equipmentInspections',
   'equipmentMaintenance',
   'orders',
+  'dailyInventory',
   'dispatch',
   'flowTransfers',
   'qualityTasks',
@@ -64,13 +65,13 @@ export interface WorkspacePreferenceValue {
 
 export const defaultWorkspaceLayout: WorkspaceFunctionKey[] = [
   'dashboard',
+  'dailyInventory',
   'materialIn',
   'salesOrders',
   'shipment',
   'materialManagement',
   'bomWorkspace',
   'stocks',
-  'stockMovements',
   'workInstructions',
   'orders',
 ]

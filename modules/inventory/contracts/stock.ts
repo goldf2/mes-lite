@@ -141,3 +141,10 @@ export interface StockQuery {
 export interface StockAdjustmentInput extends StockAdjustmentDraft {
   stockId: string
 }
+
+export interface DailyInventoryCountInput {
+  countDate: string
+  locationId: string
+  reason: string
+  items: Array<{ stockId: string; countedQty: number }>
+}

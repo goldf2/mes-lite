@@ -40,3 +40,15 @@ export const stockAdjustmentSchema = z.object({
 }).strict()
 
 export type StockAdjustmentCommand = z.infer<typeof stockAdjustmentSchema>
+
+export const dailyInventoryCountSchema = z.object({
+  countDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '盘点日期格式错误'),
+  locationId: z.string().min(1, '库位必填'),
+  reason: z.string().trim().min(2, '差异原因至少填写 2 个字符').max(200),
+  items: z.array(z.object({
+    stockId: z.string().min(1),
+    countedQty: z.number().nonnegative('实盘数量不能小于 0'),
+  }).strict()).min(1, '至少加入一条盘点物品').max(200, '单次最多盘点 200 条物品'),
+}).strict()
+
+export type DailyInventoryCountCommand = z.infer<typeof dailyInventoryCountSchema>

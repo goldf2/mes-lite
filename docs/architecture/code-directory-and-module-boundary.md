@@ -31,8 +31,8 @@
 | `modules/materials/ui/MaterialPanoramaPage.tsx` | 187 行 | 契约、视图模型、六组业务展示任务、布局弹层和文件查看器均已拆出，只保留协调职责 |
 | `prisma/schema.prisma` | 2355 行 | 当前继续作为单一事实源，不为目录整齐强拆 Schema |
 | `lib/` | 50 个根文件 | 平台基础设施、格式化工具和少量跨领域兼容能力仍有混放；业务单据 PDF 引擎已迁出 |
-| `modules/` | 530 个 TypeScript/TSX 文件 | 当前有 17 个领域与平台模块；文档模块承载批量导入、分类字段和同类别批量修改，附件模块统一承载表格直览与 CAD 派生预览，系统设置模块管理多引擎切换 |
-| `app/api/` | 160 个 `route.ts` | 全部为薄 HTTP 适配层；文档字段、批量导入与批量修改新增三条适配器，直接访问 Prisma 的路由仍为零 |
+| `modules/` | 531 个 TypeScript/TSX 文件 | 当前有 17 个领域与平台模块；库存模块新增生产日报每日盘点页，文档模块承载批量导入、分类字段和同类别批量修改，附件模块统一承载表格直览与 CAD 派生预览，系统设置模块管理多引擎切换 |
+| `app/api/` | 161 个 `route.ts` | 全部为薄 HTTP 适配层；新增生产日报盘点整单适配器，直接访问 Prisma 的路由仍为零 |
 
 已有的 `app/components/resource`、`relations`、`layout`、`navigation` 和 `page-modules` 是正确方向，应保留并归入公共框架层，而不是重新创建平行实现。
 
@@ -523,6 +523,7 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `client/stock-api.ts` 封装库存查询、缺失库存补齐、客户与库位选项以及库存调整提交，协调页不再直接调用 `fetch`。
 - `model/stock-view.ts` 集中分类标签、数量格式、占用库位、展示名称、调整草稿和调整后总量等纯规则。
 - `StockCollectionView.tsx`、`StockDetailPanel.tsx`、`StockAdjustmentDialog.tsx` 与 `StockIntegrityAlert.tsx` 分别拥有集合、详情、调整和一致性处理任务。
+- `DailyInventoryCountPage.tsx` 是生产日报快捷盘点任务：复用库存 client、物料库存候选和库位选项，把多物品实盘数整单提交到库存命令服务；页面不依赖生产或质量模块。
 - `StockPageModule.tsx` 从 853 行降至 304 行，只保留筛选与 URL 状态、任务协调、自动补齐编排和选择态；库存页退出 800 行巨型页面基线。
 - `verify:inventory-module` 锁定 350 行协调层上限、无直接 HTTP、四个稳定任务和领域 client/model 边界；系统当前只剩 1 个超过 800 行的页面。
 
@@ -539,7 +540,7 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 - `contracts/stock-route.ts` 统一库存查询参数与库位调整请求校验，HTTP 路由不再手工解释筛选字段。
 - `domain/stock-integrity.ts` 以纯函数表达总量、预留、可用量、核算量和库位合计不变式，可在不连接数据库时回归验证。
 - `server/stock-query-service.ts` 拥有库存筛选、主图、包装 BOM 穿透、库位关键词和归档零余额显示规则。
-- `server/stock-integrity-service.ts` 负责读取异常记录和受控补齐缺失的零余额；`server/stock-command-service.ts` 统一修复与原子库存调整入口。
+- `server/stock-integrity-service.ts` 负责读取异常记录和受控补齐缺失的零余额；`server/stock-command-service.ts` 统一修复、单条库存调整和生产日报多物品盘点入口，盘点整单复用相同保护规则并原子写入流水与审计。
 - `app/api/stocks/route.ts` 从 449 行降至 79 行，只保留权限、HTTP 解析、审计和错误映射，并退出巨型路由递减基线。
 - `verify:inventory-module` 同时锁定前端协调层、薄 API、服务调用和库存不变式样例；系统超过 300 行的存量 API 从 6 个降至 5 个。
 

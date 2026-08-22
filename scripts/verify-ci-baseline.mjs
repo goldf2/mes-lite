@@ -8,6 +8,8 @@ const checks = [
   'verify:model-convergence',
   'verify:product-material-migration',
   'verify:stock-owner-invariant',
+  'verify:daily-inventory-count',
+  'verify:stock-location-adjustment',
   'verify:equipment',
   'verify:equipment-events-http',
   'verify:equipment-inspections',

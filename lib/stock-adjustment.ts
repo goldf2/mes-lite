@@ -87,7 +87,7 @@ export async function postStockLocationAdjustment(
     qtyDelta: qtyDiff,
     availableDelta: qtyDiff,
   })
-  await tx.stockLog.create({
+  const stockLog = await tx.stockLog.create({
     data: {
       stockId: stock.id,
       locationId: location.id,
@@ -121,5 +121,6 @@ export async function postStockLocationAdjustment(
     newQty: targetQty,
     newValuationQty: targetValuationQty,
     newTotalCost: targetTotalCost,
+    stockLog,
   }
 }

@@ -14,11 +14,12 @@ execFileSync(join(process.cwd(), 'node_modules', '.bin', 'prisma'), ['migrate', 
 process.env.DATABASE_URL = databaseUrl
 
 async function main() {
-  const [{ prisma }, { postInventoryReceipt }, { adjustStock }, { unrestrictedDataScope }] = await Promise.all([
+  const [{ prisma }, { postInventoryReceipt }, { adjustStock, reconcileDailyInventory }, { unrestrictedDataScope }, { findStockIntegrityIssues }] = await Promise.all([
     import('../lib/prisma'),
     import('../lib/inventory'),
     import('../modules/inventory/server/stock-command-service'),
     import('../modules/identity-access'),
+    import('../modules/inventory/server/stock-integrity-service'),
   ])
   try {
     const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -82,6 +83,49 @@ async function main() {
     assert.equal(total.qty, 10)
     assert.equal(balances.reduce((sum, item) => sum + Number(item.qty), 0), total.qty)
 
+    const [dailyMaterialA, dailyMaterialB] = await Promise.all([
+      prisma.material.create({ data: { code: `DAILY-A-${suffix}`, name: '日报盘点物料 A', category: 'FINISHED', unit: '件', stockUnit: '件', valuationUnit: '件', conversionRate: 1 } }),
+      prisma.material.create({ data: { code: `DAILY-B-${suffix}`, name: '日报盘点物料 B', category: 'FINISHED', unit: '件', stockUnit: '件', valuationUnit: '件', conversionRate: 1 } }),
+    ])
+    await prisma.$transaction(async (tx) => {
+      await postInventoryReceipt(tx, { materialId: dailyMaterialA.id, stockQty: 5, valuationQty: 5, costAmount: 50, type: 'VERIFY_IN', refType: 'VERIFY', refId: 'daily-a', note: '日报验证入库', locationId: finishedLocation.id })
+      await postInventoryReceipt(tx, { materialId: dailyMaterialB.id, stockQty: 8, valuationQty: 8, costAmount: 80, type: 'VERIFY_IN', refType: 'VERIFY', refId: 'daily-b', note: '日报验证入库', locationId: finishedLocation.id })
+    })
+    const [dailyStockA, dailyStockB] = await Promise.all([
+      prisma.stock.findUniqueOrThrow({ where: { materialId: dailyMaterialA.id } }),
+      prisma.stock.findUniqueOrThrow({ where: { materialId: dailyMaterialB.id } }),
+    ])
+    const dailyResult = await reconcileDailyInventory({
+      countDate: '2026-08-22',
+      locationId: finishedLocation.id,
+      reason: '班后实盘核对',
+      items: [{ stockId: dailyStockA.id, countedQty: 6 }, { stockId: dailyStockB.id, countedQty: 8 }],
+    }, unrestrictedDataScope, adjustedBy, auditContext)
+    assert.deepEqual([dailyResult.adjusted.length, dailyResult.unchangedCount], [1, 1], '生产日报必须跳过账实一致行')
+    assert.equal((await prisma.stock.findUniqueOrThrow({ where: { id: dailyStockA.id } })).qty, 6)
+    const dailyLog = await prisma.stockLog.findFirstOrThrow({ where: { stockId: dailyStockA.id, type: 'ADJUST' }, orderBy: { createdAt: 'desc' } })
+    assert.match(dailyLog.note || '', /生产日报 2026-08-22：班后实盘核对/)
+    const dailyAudit = await prisma.auditLog.findFirstOrThrow({ where: { entityType: 'STOCK', entityId: dailyStockA.id, action: 'RECONCILE' } })
+    assert.match(dailyAudit.note || '', /不创建生产实绩或质量记录/)
+    assert.equal(await prisma.inventoryLot.count({ where: { materialId: dailyMaterialA.id, sourceType: 'DAILY_INVENTORY_COUNT' } }), 1, '盘盈必须建立可追溯的盘点批次')
+    const dailyLossResult = await reconcileDailyInventory({
+      countDate: '2026-08-22', locationId: finishedLocation.id, reason: '复盘确认盘亏',
+      items: [{ stockId: dailyStockA.id, countedQty: 4 }, { stockId: dailyStockB.id, countedQty: 8 }],
+    }, unrestrictedDataScope, adjustedBy, auditContext)
+    assert.deepEqual([dailyLossResult.adjusted.length, dailyLossResult.unchangedCount], [1, 1], '盘亏整单必须仅过账差异行')
+    assert.equal((await prisma.stock.findUniqueOrThrow({ where: { id: dailyStockA.id } })).qty, 4)
+    assert.equal(await prisma.inventoryLotTransaction.count({ where: { refType: 'DAILY_INVENTORY_COUNT', type: 'DAILY_COUNT_OUT' } }), 1, '盘亏必须同步扣减内部批次余额')
+    assert.deepEqual(await findStockIntegrityIssues(), [], '生产日报过账后必须保持库存、库位与内部批次余额一致')
+    assert.equal(await prisma.dailyProductionReport.count(), 0, '快捷盘点不得恢复旧生产日报记录')
+    assert.equal(await prisma.qualityInspection.count(), 0, '快捷盘点不得伪造质量作业')
+    assert.throws(
+      () => reconcileDailyInventory({
+        countDate: '2026-08-22', locationId: finishedLocation.id, reason: '重复物品',
+        items: [{ stockId: dailyStockA.id, countedQty: 6 }, { stockId: dailyStockA.id, countedQty: 7 }],
+      }, unrestrictedDataScope, adjustedBy, auditContext),
+      /同一物品不能在一张生产日报中重复盘点/,
+    )
+
     await prisma.stockLocationBalance.update({
       where: { stockId_locationId: { stockId: stock.id, locationId: rawLocation.id } },
       data: { reservedQty: 2, availableQty: 4 },
@@ -114,7 +158,7 @@ async function main() {
     assert.equal(auditLogs.every((log) => log.operatorName === adjustedBy), true)
     assert.equal(await prisma.auditLog.count({ where: { entityType: 'STOCK', entityId: stock.id } }), auditCountBeforeFailure, '失败调整不得留下孤立审计日志')
 
-    console.log('存货调整库位归属、服务器可信操作人、事务审计、总库存汇总、流水及库位预留校验通过')
+    console.log('存货调整与生产日报整单盘点的库位归属、可信操作人、事务审计、流水、账实一致跳过及流程隔离校验通过')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

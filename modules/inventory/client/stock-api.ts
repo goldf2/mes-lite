@@ -1,5 +1,6 @@
 import type {
   Customer,
+  DailyInventoryCountInput,
   InventoryLocationOption,
   Stock,
   StockAdjustmentInput,
@@ -66,4 +67,17 @@ export async function submitStockAdjustment(input: StockAdjustmentInput) {
   })
   const payload = await response.json()
   return { ok: response.ok, message: payload.message || payload.error || (response.ok ? '存货调整完成' : '存货调整失败') }
+}
+
+export async function submitDailyInventoryCount(input: DailyInventoryCountInput) {
+  const response = await fetch('/api/stocks/daily-count', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  const payload = await response.json()
+  return {
+    ok: response.ok,
+    message: payload.message || payload.error || (response.ok ? '生产日报已过账' : '生产日报盘点失败'),
+  }
 }
