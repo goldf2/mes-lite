@@ -10,6 +10,19 @@ export interface DashboardStockAlert {
   product?: { name?: string; sku?: string } | null
 }
 
+export interface DashboardSalesDeliveryReference {
+  customerId: string
+  materialId: string
+  customer: { code: string; name: string } | null
+  material: { code: string; name: string } | null
+  orderedQty: number
+  pendingQty: number
+  shippedQty: number
+  remainingQty: number
+  overQty: number
+  unit: string
+}
+
 export interface DashboardData {
   todayOrderCount?: number
   todayOrders?: number
@@ -35,6 +48,7 @@ export interface DashboardData {
   orderStatusDist?: DashboardStatusItem[]
   productionActualStatusDistribution?: DashboardStatusItem[]
   roleTaskSections?: import('../model/role-task-view').RoleTaskSection[]
+  salesDeliveryReferences?: DashboardSalesDeliveryReference[]
 }
 
 export interface DashboardView {
@@ -52,6 +66,7 @@ export interface DashboardView {
   statusDistribution: DashboardStatusItem[]
   productionActualStatusDistribution: DashboardStatusItem[]
   roleTaskSections: import('../model/role-task-view').RoleTaskSection[]
+  salesDeliveryReferences: DashboardSalesDeliveryReference[]
 }
 
 export interface DashboardMetricItem {

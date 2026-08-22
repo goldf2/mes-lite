@@ -16,6 +16,7 @@ export function normalizeDashboard(data: DashboardData): DashboardView {
     statusDistribution: data.statusDistribution ?? data.orderStatusDist ?? [],
     productionActualStatusDistribution: data.productionActualStatusDistribution ?? [],
     roleTaskSections: data.roleTaskSections ?? [],
+    salesDeliveryReferences: data.salesDeliveryReferences ?? [],
   }
 }
 

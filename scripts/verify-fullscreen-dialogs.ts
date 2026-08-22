@@ -30,5 +30,8 @@ assert.doesNotMatch(`${documentPageSource}\n${documentDetailSource}`, /type="che
 assert.match(documentViewerSource, /<ModalOverlay[\s\S]*!z-\[300\]/, '文档全屏预览必须通过公共顶层浮层显示在详情弹窗之上')
 assert.match(materialViewerSource, /<ModalOverlay[\s\S]*!z-\[300\]/, '物料全景文件预览必须通过公共顶层浮层显示在详情弹窗之上')
 assert.match(overlaySource, /rootRef\.current\?\.contains\(activeDialog\)/, '多层公共弹窗必须只允许最上层响应键盘关闭与焦点圈定')
+assert.match(overlaySource, /dismissOnBackdrop = false/, '公共遮罩必须默认禁止点击空白区域关闭业务弹窗')
+assert.match(overlaySource, /dismissOnBackdrop && event\.target === event\.currentTarget/, '只有显式声明的临时浮层才允许点击遮罩收起')
+assert.match(modalSource, /dismissOnBackdrop=\{false\}/, '业务弹窗必须显式关闭遮罩退出能力')
 
 console.log('页面形态验证通过：公共弹窗只保留一个可逆的全屏切换按钮。')

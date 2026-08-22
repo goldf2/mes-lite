@@ -98,11 +98,11 @@ async function verifyDatabaseBehavior() {
     await fieldCommands.deleteDocumentFieldDefinition(unusedField.id)
 
     const first = await instructionCommands.createWorkInstruction({
-      title: '图纸 A', categoryId: category.id, materialId: material.id, workCenterIds: [], contentJson: null,
+      title: '图纸 A', categoryId: category.id, materialId: material.id, contentJson: null,
       fieldValues: { [textField.id]: 'SUS304', [selectField.id]: '内部' },
     })
     const second = await instructionCommands.createWorkInstruction({
-      title: '图纸 B', categoryId: category.id, materialId: null, workCenterIds: [], contentJson: null,
+      title: '图纸 B', categoryId: category.id, materialId: null, contentJson: null,
       fieldValues: { [textField.id]: '45#' },
     })
     assert.deepEqual(first.fieldValues.map((value) => value.valueText), ['SUS304', '内部'], '新建文档必须保存分类扩展字段')
@@ -136,12 +136,12 @@ async function verifyDatabaseBehavior() {
     assert.equal(bulk.updated.every((instruction) => instruction.status === 'DRAFT' && instruction.note === '统一备注'), true, '批量修改必须应用勾选基础字段')
     assert.deepEqual(await prisma.workInstructionFieldValue.findMany({ where: { fieldDefinitionId: textField.id }, select: { valueText: true }, orderBy: { workInstructionId: 'asc' } }), [{ valueText: 'SUS316' }, { valueText: 'SUS316' }], '批量修改必须应用共同扩展字段')
 
-    const other = await instructionCommands.createWorkInstruction({ title: '检验 A', categoryId: otherCategory.id, materialId: null, workCenterIds: [], contentJson: null, fieldValues: {} })
+    const other = await instructionCommands.createWorkInstruction({ title: '检验 A', categoryId: otherCategory.id, materialId: null, contentJson: null, fieldValues: {} })
     await assert.rejects(() => bulkUpdateWorkInstructions({ ids: [first.id, other.id], updates: { status: 'ACTIVE' } }), /同一类别/, '跨类别文档不得批量修改')
 
     const files = [new File(['dwg-a'], 'A.dwg'), new File(['dwg-b'], 'B.dwg')]
     const imported = await batchImportWorkInstructions({
-      categoryId: category.id, materialId: material.id, version: 'v1', status: 'ACTIVE', workCenterIds: [], note: '批量导入', fieldValues: { [textField.id]: 'SUS304' },
+      categoryId: category.id, materialId: material.id, version: 'v1', status: 'ACTIVE', note: '批量导入', fieldValues: { [textField.id]: 'SUS304' },
     }, files, 'verify-operator', uploadManagedAttachment)
     assert.deepEqual([imported.imported.length, imported.failed.length], [2, 0], '合法文件必须全部导入')
     const importedRows = await prisma.workInstruction.findMany({ where: { id: { in: imported.imported.map((item) => item.instruction.id) } }, include: { fieldValues: true } })

@@ -20,6 +20,7 @@ const pageSource = readFileSync(join(root, 'modules/workspace/ui/DashboardPage.t
 const clientSource = readFileSync(join(root, 'modules/workspace/client/dashboard-api.ts'), 'utf8')
 const routeSource = readFileSync(join(root, 'app/api/stats/dashboard/route.ts'), 'utf8')
 const serviceSource = readFileSync(join(root, 'modules/workspace/server/dashboard-query-service.ts'), 'utf8')
+const panelsSource = readFileSync(join(root, 'modules/workspace/ui/DashboardPanels.tsx'), 'utf8')
 assert.ok(pageSource.split('\n').length <= 100, '工作台协调页应保持在 100 行内')
 assert.doesNotMatch(pageSource, /\bfetch\(/, '工作台页面不得直接调用 fetch')
 assert.match(pageSource, /loadDashboard\(/, '工作台页面必须通过领域 client 读取统计')
@@ -28,6 +29,9 @@ assert.ok(routeSource.split('\n').length <= 35, '仪表盘 API 必须保持为 3
 assert.doesNotMatch(routeSource, /prisma\.|Promise\.all|hasStockBalance/, '仪表盘 API 不得直接查询或装配业务统计')
 assert.match(routeSource, /getDashboardData\(/, '仪表盘 API 必须调用工作台查询服务')
 assert.match(serviceSource, /Promise\.all/, '工作台查询服务必须并行读取独立统计')
+assert.match(serviceSource, /listCustomerMaterialDeliveryReferences/, '仪表盘必须读取客户＋物料交付参考')
+assert.match(pageSource, /DashboardSalesDeliveryPanel/, '仪表盘必须展示客户＋物料交付参考面板')
+assert.match(panelsSource, /按客户＋物料动态汇总，不绑定订单，也不限制超发/, '交付参考必须明确与订单解耦')
 
 const orderActualFlow = buildProductionFlowDashboard({
   todayOrderCount: 2,
@@ -65,10 +69,15 @@ const normalized = normalizeDashboard({
   pendingReturns: 1,
   alertStocks: [{ id: 'stock-1', availableQty: 2 }],
   orderStatusDist: [{ status: 'DRAFT', count: 4 }],
+  salesDeliveryReferences: [{
+    customerId: 'customer-1', materialId: 'material-1', customer: { code: 'C1', name: '客户' }, material: { code: 'M1', name: '物料' },
+    orderedQty: 10, pendingQty: 2, shippedQty: 3, remainingQty: 5, overQty: 0, unit: '件',
+  }],
 })
 assert.equal(normalized.todayOrderCount, 4, '工作台必须兼容旧订单统计字段')
 assert.equal(normalized.pendingMaterialInCount, 2, '工作台必须兼容旧待收货字段')
 assert.equal(normalized.lowStocks.length, 1, '工作台必须兼容旧库存预警字段')
+assert.equal(normalized.salesDeliveryReferences[0].remainingQty, 5, '仪表盘必须保留未发参考数量')
 const metrics = buildDashboardMetricItems(normalized)
 assert.equal(metrics.length, 8)
 assert.equal(metrics.find((item) => item.label === '库存预警')?.value, 1)

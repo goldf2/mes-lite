@@ -3,7 +3,7 @@
 import type { DragEvent, RefObject } from 'react'
 import { FileText, Image as ImageIcon, Upload, X } from 'lucide-react'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
-import type { MaterialOption, WorkCenterOption, WorkInstructionForm } from '../contracts/work-instruction'
+import type { MaterialOption, WorkInstructionForm } from '../contracts/work-instruction'
 import type { DocumentFieldDefinitionRecord } from '../contracts/document-field-schema'
 import { formatFileSize } from '../model/work-instruction-view'
 import WorkInstructionFormFields from './WorkInstructionFormFields'
@@ -15,7 +15,6 @@ interface WorkInstructionCreateDialogProps {
   selectedMaterial?: MaterialOption | null
   onMaterialSearch: (keyword: string) => void | Promise<void>
   categoryOptions: { value: string; label: string; keywords?: string }[]
-  workCenters: WorkCenterOption[]
   fieldDefinitions: DocumentFieldDefinitionRecord[]
   files: File[]
   loading: boolean
@@ -35,7 +34,6 @@ export default function WorkInstructionCreateDialog({
   selectedMaterial,
   onMaterialSearch,
   categoryOptions,
-  workCenters,
   fieldDefinitions,
   files,
   loading,
@@ -115,7 +113,6 @@ export default function WorkInstructionCreateDialog({
         selectedMaterial={selectedMaterial}
         onMaterialSearch={onMaterialSearch}
         categoryOptions={categoryOptions}
-        workCenters={workCenters}
         fieldDefinitions={fieldDefinitions}
       />
       <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">

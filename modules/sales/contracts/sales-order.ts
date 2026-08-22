@@ -1,3 +1,5 @@
+import type { MaterialImage } from '@/modules/materials'
+
 export interface SalesCustomerOption {
   id: string
   code: string
@@ -17,14 +19,18 @@ export interface SalesMaterialOption {
   unit: string
   defaultSalePrice?: number | null
   salesCurrency: string
+  primaryImage?: MaterialImage | null
 }
 
 export interface SalesOrderItem {
   id: string
   qty: number
   shippedQty: number
-  pendingQty: number
-  remainingQty: number
+  referenceOrderedQty: number
+  referencePendingQty: number
+  referenceShippedQty: number
+  referenceRemainingQty: number
+  referenceOverQty: number
   unit: string
   unitPrice: number
   totalAmount: number
@@ -50,7 +56,6 @@ export interface SalesOrder {
   note?: string | null
   customer: SalesCustomerOption
   items: SalesOrderItem[]
-  _count: { shipments: number }
 }
 
 export interface SalesOrderDraftLine {

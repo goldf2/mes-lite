@@ -343,7 +343,7 @@ SKU，实际库存单位。
 | sales_order_id | 销售订单 ID |
 | material_id | 统一物料 ID |
 | qty | 销售数量 |
-| shipped_qty | 已确认发货数量；待发货单数量另由关联 `Shipment` 汇总 |
+| shipped_qty | 历史兼容字段；当前发货不再回写，未发/超发参考按客户与物料动态汇总 |
 | unit | 下单时物料库存单位快照 |
 | unit_price | 单价 |
 | total_amount | 金额 |
@@ -353,29 +353,36 @@ SKU，实际库存单位。
 | price_adjusted_at / by / reason | 后续手工调价时间、操作人和原因 |
 | note | 明细备注 |
 
-### shipments
+### shipments / shipment_items
 
-销售出库单。
+销售出库单采用单头与多条实际发货明细。发货单不保存销售订单或销售订单明细 ID。
 
 | 字段 | 含义 |
 | --- | --- |
 | id | 出库单 ID |
 | tenant_id | 租户 ID |
 | shipment_no | 单号 |
-| sales_order_id | 可选来源销售订单 ID；独立发货为空 |
-| sales_order_item_id | 可选来源销售订单明细 ID；关联时用于控制未发数量和回写进度 |
 | customer_id | 客户 ID |
-| warehouse_id | 出库仓库 |
 | status | `PENDING / SHIPPED / DELIVERED / CANCELLED` |
-| location_id | 实际发货库位 |
-| qty / unit_price / total_amount | 本次发货数量、订单单价和金额 |
+| total_amount | 全部有效发货明细金额合计 |
 | customer / customer_phone / address | 创建发货单时冻结的甲方快照 |
 | shipped_at | 实际确认发货时间 |
 | tracking_no | 承运商运单号；与系统发货二维码编号分离 |
 
-轻量版允许独立创建 `Shipment`，也允许显式关联一条销售订单明细；同一销售订单可关联多张发货单。关联时甲方来自订单客户，独立发货时由用户选择客户；乙方企业资料存放在 `SystemSetting` 的 `company.*` 键中并用于 PDF。销售订单页面不直接派生发货单。
+| `ShipmentItem` 字段 | 含义 |
+| --- | --- |
+| shipment_id / sort_order | 所属发货单及单内顺序 |
+| material_id / product_id | 统一物料和旧产品兼容投影 |
+| location_id | 该明细实际发货库位 |
+| qty / unit_snapshot | 发货数量和单位快照 |
+| unit_price / total_amount | 发货单价和明细金额 |
+| shipped_valuation_qty / shipped_cost_amount | 实际出库核算量和成本快照 |
+| stock_unit_snapshot / valuation_unit_snapshot | 库存和核算单位快照 |
+| conversion_rate_used / conversion_source | 发货时采用的单位换算事实 |
 
-销售订单、发货与退货的读取、创建、状态流转和归档由 `modules/sales/server` 统一拥有。关联待发货数量从有效 `PENDING` 发货单汇总，确认发货才累计 `shipped_qty` 并原子扣减总库存、库位余额与成本；关联退货处理按原发货 `shippedValuationQty / shippedCostAmount` 比例恢复库存，库存流水幂等键阻止重复过账。
+一张 `Shipment` 只对应一个客户，可包含一至多条 `ShipmentItem`。销售订单只表达客户需求，发货单只表达实际发出了什么；两者不保存外键、不互相派生，也不回写状态或已发数量。乙方企业资料存放在 `SystemSetting` 的 `company.*` 键中并用于 PDF。
+
+销售订单、发货与退货的读取、创建、状态流转和归档由 `modules/sales/server` 统一拥有。页面参考量按“客户 + 物料”动态汇总：需求量来自 `CONFIRMED / PARTIAL / COMPLETED` 销售订单明细，待发量来自 `PENDING` 发货明细，已发量来自 `SHIPPED / DELIVERED` 发货明细；未发量与超发量只作参考，允许实际发货超过订单需求。确认发货按明细原子扣减总库存、库位余额、批次和成本；退货处理按原发货明细的核算量和成本比例恢复库存，库存流水幂等键阻止重复过账。
 
 ### package_documents / package_document_items
 
@@ -677,7 +684,7 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 `ProductionOrderActual` 是订单下可重复登记的班后生产实绩，状态为 `DRAFT → CONFIRMED → REVERSED`。`ProductionOrderActualEmployee` 保存员工引用及工号/姓名快照；`ProductionOrderActualEquipment` 保存实际设备及设备编码、名称、类型、型号、状态和所属工作中心快照；`ProductionOrderActualWorkInstruction` 保存当时作业文件的标题、版本、状态、类别、适用物料/工作中心、正文和附件清单快照；`ProductionOrderActualInput` 保存任意类别投入物料、来源库位、基准批量用量、损耗、计划/实际耗用、成本和成本层快照；`ProductionOrderActualOutput` 保存全部产出、去向库位、主产出标识、计划/实际数量及入库成本。
 
-实际设备候选只包含订单派工或默认工艺路线工作中心内、未归档且当前可用/运行中的设备；作业文件候选只包含未归档且已生效，并明确适用于订单主产出物料或这些工作中心的文档。保存草稿时，服务端按提交 ID 重新解析来源并写入完整快照，禁止前端自行提交显示字段。来源设备或文档后续更新、停用或归档不回算历史实绩。
+实际设备候选只包含订单派工或默认工艺路线工作中心内、未归档且当前可用/运行中的设备；作业文件候选只包含未归档且已生效，并明确适用于订单主产出物料或未绑定物料的通用文档，不再通过文档工作中心关系过滤。保存草稿时，服务端按提交 ID 重新解析来源并写入完整快照，禁止前端自行提交显示字段。来源设备或文档后续更新、停用或归档不回算历史实绩。
 
 每张实绩必须满足“至少一台实际设备，或填写 `equipmentExceptionReason`”以及“至少一份作业文件，或填写 `workInstructionExceptionReason`”。两个原因均限制为 2 到 200 个字符。第 82 个迁移为历史实绩写入明确的迁移原因；确认时服务层和数据库触发器同时复检，已确认或已冲销实绩的设备快照、文件快照与例外原因不可更新或删除。作业文件快照保存正文和附件元数据清单，不复制附件二进制；受监管场景若要求精确文件原件长期固化，还需另行建立附件内容哈希与保留策略。
 
@@ -859,7 +866,7 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 正文 JSON 是可编辑事实源，纯文本只用于搜索，不允许由客户端单独写入。在线正文和附件可以独立存在，也可以同时维护；附件始终保留原文件，不嵌入正文 JSON。XLS/XLSX/ODS 默认由自托管 Collabora 通过只读 WOPI 会话读取原文件；兼容 PDF、其他 Office PDF 和缩略图都是可重建派生缓存，不是新的业务事实源。
 
-标题、类别、产品、工作中心、版本、状态、备注和正文是代码定义的基础字段，所有类别共用且不能在字段设置中删除。扩展字段只属于所选类别；保存文档或批量修改时服务端重新校验字段归属和字段类型，切换类别会清除旧类别扩展值。扩展字段没有任何 `WorkInstructionFieldValue` 时可修改名称、类型和选项，也可删除；已有值时只允许安全改名，类型、选项和定义本身保持锁定，避免历史值失去含义。
+标题、类别、产品、版本、状态、备注和正文是代码定义的基础字段，所有类别共用且不能在字段设置中删除；工作中心不属于文档字段。扩展字段只属于所选类别；保存文档或批量修改时服务端重新校验字段归属和字段类型，切换类别会清除旧类别扩展值。扩展字段没有任何 `WorkInstructionFieldValue` 时可修改名称、类型和选项，也可删除；已有值时只允许安全改名，类型、选项和定义本身保持锁定，避免历史值失去含义。
 
 默认数据包含“作业指导书、图纸、工艺文件、检验文件、包装文件、设备文件、其他”等一级类别，但它们是可维护的数据库记录。“作业指导书”下可增加“机床作业、环境作业”等二级类别。已有文档引用或仍有子类别时禁止删除类别。批量导入对每个文件独立创建一篇文档和一个原始附件，共用本次录入的类别、基础字段和扩展字段；单次最多 50 个文件，允许返回逐文件成功或失败结果。批量修改只接受同一类别的文档，并且只覆盖操作者显式勾选的字段。
 
@@ -876,7 +883,7 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 | `EquipmentEvent` | `eventType`、`sourceStatus`、`targetStatus`、`reason` | 开机、停机、故障、恢复、归档的只追加命令事实 |
 | `EquipmentEvent` | `operatorId`、`operatorName`、`occurredAt`、`durationSeconds`、`endedAt` | 操作人快照、发生时间；恢复时仅为被关闭事件补齐结束时间和持续时间 |
 
-工作中心归档前必须先调整其全部设备归属，普通更新不得绕过引用检查直接停用。设备只能归属启用且未归档的工作中心；基础资料不能直接写 `status`，状态由服务端事件状态机原子更新。恢复会把持续时间写回最近一条未结束的故障/停机/维护事件；设备归档同时进入 `STOPPED` 并写 `ARCHIVE` 事件。工艺文档后续修改适用工作中心时使用显式保存。
+工作中心归档前必须先调整其全部设备归属，普通更新不得绕过引用检查直接停用。设备只能归属启用且未归档的工作中心；基础资料不能直接写 `status`，状态由服务端事件状态机原子更新。恢复会把持续时间写回最近一条未结束的故障/停机/维护事件；设备归档同时进入 `STOPPED` 并写 `ARCHIVE` 事件。文档不保存工作中心关系。
 
 ### system_settings
 

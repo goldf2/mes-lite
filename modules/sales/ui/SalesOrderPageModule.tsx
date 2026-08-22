@@ -18,6 +18,7 @@ import type { MaterialReference } from '@/modules/materials'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
 import SortableTableHeader from '@/app/components/SortableTableHeader'
 import useClientTableSort from '@/app/components/useClientTableSort'
+import VisibleFieldControl, { usePersistedVisibleFields, type VisibleFieldOption } from '@/app/components/VisibleFieldControl'
 import {
   DraftDocumentAttachmentPanel,
   createDraftDocumentAttachmentId,
@@ -50,6 +51,13 @@ import {
 } from '../model/sales-order-view'
 import { buildSalesOrderSearchCatalog } from '../model/sales-search-fields'
 
+type SalesOrderVisibleField = 'image' | 'voucher' | 'deliveryDate' | 'status' | 'amount' | 'attachments'
+const salesOrderVisibleFieldOptions: readonly VisibleFieldOption<SalesOrderVisibleField>[] = [
+  { key: 'image', label: '物料图片' }, { key: 'voucher', label: '客户单号' }, { key: 'deliveryDate', label: '交付日期' },
+  { key: 'status', label: '状态' }, { key: 'amount', label: '金额' }, { key: 'attachments', label: '附件' },
+]
+const defaultSalesOrderVisibleFields: SalesOrderVisibleField[] = ['voucher', 'deliveryDate', 'status', 'amount', 'attachments']
+
 const emptyForm = () => ({
   voucherNo: '',
   customerId: '',
@@ -77,6 +85,8 @@ export default function SalesOrderPageModule({
   const [detailOrder, setDetailOrder] = useState<SalesOrder | null>(null)
   const [detailMaterial, setDetailMaterial] = useState<MaterialReference | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.salesOrders.viewMode', 'card')
+  const [visibleFields, setVisibleFields] = usePersistedVisibleFields('mes-lite.salesOrders.visibleFields', defaultSalesOrderVisibleFields, salesOrderVisibleFieldOptions)
+  const showField = (field: SalesOrderVisibleField) => visibleFields.includes(field)
   const [form, setForm] = useState(emptyForm)
   const [pendingAction, setPendingAction] = useState<{ order: SalesOrder; action: 'confirm' | 'cancel' } | null>(null)
   const [priceEdit, setPriceEdit] = useState<SalesOrderPriceEdit | null>(null)
@@ -127,7 +137,7 @@ export default function SalesOrderPageModule({
     deliveryDate: (order) => order.deliveryDate ? new Date(order.deliveryDate) : null,
     status: (order) => statusMeta[order.status]?.label || order.status,
     amount: (order) => order.totalAmount,
-    shipments: (order) => order._count.shipments,
+    itemCount: (order) => order.items.length,
   }, 'orderDate', 'desc')
 
   const formTotal = form.items.reduce((sum, item) => sum + Number(item.qty || 0) * Number(item.unitPrice || 0), 0)
@@ -278,7 +288,7 @@ export default function SalesOrderPageModule({
         />
       )}
       advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
-      viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
+      viewControl={<div className="flex items-center gap-2"><ViewModeToggle value={viewMode} onChange={setViewMode} /><VisibleFieldControl options={salesOrderVisibleFieldOptions} value={visibleFields} onChange={setVisibleFields} /></div>}
       actions={<AppButton variant="create" onClick={openCreateOrder}>新建销售订单</AppButton>}
     />
   )
@@ -318,30 +328,30 @@ export default function SalesOrderPageModule({
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-mono text-sm font-semibold text-blue-700">{order.orderNo}</span>
-                          <span className={`rounded px-2 py-1 text-xs font-medium ${meta.className}`}>{meta.label}</span>
+                          {showField('status') && <span className={`rounded px-2 py-1 text-xs font-medium ${meta.className}`}>{meta.label}</span>}
                         </div>
                         <div className="mt-1 text-sm font-medium text-gray-900">{order.customer.name}</div>
-                        <div className="mt-1 text-xs text-gray-500">订单日期 {dateText(order.orderDate)} · 交付日期 {dateText(order.deliveryDate)} · 客户单号 {order.voucherNo || '-'}</div>
+                        <div className="mt-1 text-xs text-gray-500">订单日期 {dateText(order.orderDate)}{showField('deliveryDate') ? ` · 交付日期 ${dateText(order.deliveryDate)}` : ''}{showField('voucher') ? ` · 客户单号 ${order.voucherNo || '-'}` : ''}</div>
                       </div>
-                      <div className="text-right">
+                      {showField('amount') && <div className="text-right">
                         <div className="text-xs text-gray-500">订单金额</div>
                         <div className="mt-1 text-lg font-semibold text-gray-900">{money(order.totalAmount)}</div>
-                      </div>
+                      </div>}
                     </div>
 
                     <div className="mt-4 overflow-x-auto border-y border-gray-100">
                       <table className="w-full min-w-[720px] text-sm">
                         <thead className="bg-gray-50 text-left text-xs text-gray-500">
-                          <tr><th className="px-3 py-2 font-medium">物料</th><th className="px-3 py-2 font-medium">订购</th><th className="px-3 py-2 font-medium">待发占用</th><th className="px-3 py-2 font-medium">已发</th><th className="px-3 py-2 font-medium">未发数量</th><th className="px-3 py-2 text-right font-medium">价格 / 金额</th></tr>
+                          <tr><th className="px-3 py-2 font-medium">物料</th><th className="px-3 py-2 font-medium">本单订购</th><th className="px-3 py-2 font-medium">客户物料待发</th><th className="px-3 py-2 font-medium">客户物料已发</th><th className="px-3 py-2 font-medium">未发参考</th><th className="px-3 py-2 text-right font-medium">价格 / 金额</th></tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                           {order.items.map((item) => (
                             <tr key={item.id}>
-                              <td className="px-3 py-2"><MaterialReferenceButton material={item.material} onOpen={setDetailMaterial} /></td>
+                              <td className="px-3 py-2"><MaterialReferenceButton material={item.material} onOpen={setDetailMaterial} showImage={showField('image')} /></td>
                               <td className="px-3 py-2">{numberText(item.qty)} {item.unit}</td>
-                              <td className="px-3 py-2 text-amber-700">{numberText(item.pendingQty)} {item.unit}</td>
-                              <td className="px-3 py-2 text-emerald-700">{numberText(item.shippedQty)} {item.unit}</td>
-                              <td className="px-3 py-2 font-medium text-blue-700">{numberText(item.remainingQty)} {item.unit}</td>
+                              <td className="px-3 py-2 text-amber-700">{numberText(item.referencePendingQty)} {item.unit}</td>
+                              <td className="px-3 py-2 text-emerald-700">{numberText(item.referenceShippedQty)} {item.unit}</td>
+                              <td className="px-3 py-2 font-medium text-blue-700">{numberText(item.referenceRemainingQty)} {item.unit}{item.referenceOverQty > 0 && <div className="text-xs text-red-600">超发 {numberText(item.referenceOverQty)}</div>}</td>
                               <td className="px-3 py-2 text-right"><div>{money(item.totalAmount)}</div><div className="text-xs text-gray-500">{money(item.unitPrice)} / {item.unit} · {item.priceSource === 'MATERIAL_DEFAULT' ? '物料默认价' : '手工价'}</div></td>
                             </tr>
                           ))}
@@ -351,8 +361,8 @@ export default function SalesOrderPageModule({
 
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                       <div className="space-y-2">
-                        <div className="text-xs text-gray-500">{order.note || `已关联 ${order._count.shipments} 张发货单`}</div>
-                        <AttachmentPanel ownerType="SALES_ORDER" ownerId={order.id} compact compactMode="summary" onMessage={onMessage} />
+                        <div className="text-xs text-gray-500">{order.note || '发货参考按客户＋物料动态汇总，不表示订单关联。'}</div>
+                        {showField('attachments') && <AttachmentPanel ownerType="SALES_ORDER" ownerId={order.id} compact compactMode="summary" onMessage={onMessage} />}
                       </div>
                       {orderActions(order)}
                     </div>
@@ -366,13 +376,14 @@ export default function SalesOrderPageModule({
                 <thead className="bg-gray-50">
                   <tr>
                     <SortableTableHeader column="orderNo" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>销售订单</SortableTableHeader>
+                    {showField('image') && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">图片</th>}
                     <SortableTableHeader column="customer" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>客户</SortableTableHeader>
                     <SortableTableHeader column="orderDate" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>订单日期</SortableTableHeader>
-                    <SortableTableHeader column="deliveryDate" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>交付日期</SortableTableHeader>
-                    <SortableTableHeader column="status" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>状态</SortableTableHeader>
-                    <SortableTableHeader column="amount" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>金额</SortableTableHeader>
-                    <SortableTableHeader column="shipments" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>发货单</SortableTableHeader>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">附件</th>
+                    {showField('deliveryDate') && <SortableTableHeader column="deliveryDate" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>交付日期</SortableTableHeader>}
+                    {showField('status') && <SortableTableHeader column="status" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>状态</SortableTableHeader>}
+                    {showField('amount') && <SortableTableHeader column="amount" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>金额</SortableTableHeader>}
+                    <SortableTableHeader column="itemCount" activeColumn={orderSort.sortColumn} direction={orderSort.sortDirection} onSort={orderSort.toggleSort}>物料项</SortableTableHeader>
+                    {showField('attachments') && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">附件</th>}
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                   </tr>
                 </thead>
@@ -381,14 +392,15 @@ export default function SalesOrderPageModule({
                     const meta = statusMeta[order.status] || { label: order.status, className: 'bg-gray-100 text-gray-700' }
                     return (
                       <tr key={order.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3"><div className="font-mono font-semibold text-blue-700">{order.orderNo}</div><div className="text-xs text-gray-500">客户单号：{order.voucherNo || '-'}</div></td>
+                        <td className="px-4 py-3"><div className="font-mono font-semibold text-blue-700">{order.orderNo}</div>{showField('voucher') && <div className="text-xs text-gray-500">客户单号：{order.voucherNo || '-'}</div>}</td>
+                        {showField('image') && <td className="px-4 py-3">{order.items[0]?.material.primaryImage ? <img src={order.items[0].material.primaryImage.thumbnailUrl || order.items[0].material.primaryImage.url} alt={order.items[0].material.name} className="h-12 w-12 rounded border border-gray-200 object-cover" /> : <span className="text-xs text-gray-400">无图</span>}</td>}
                         <td className="px-4 py-3"><div className="font-medium text-gray-900">{order.customer.name}</div><div className="text-xs text-gray-500">{order.customer.code}</div></td>
                         <td className="px-4 py-3 text-gray-700">{dateText(order.orderDate)}</td>
-                        <td className="px-4 py-3 text-gray-700">{dateText(order.deliveryDate)}</td>
-                        <td className="px-4 py-3"><span className={`rounded px-2 py-1 text-xs font-medium ${meta.className}`}>{meta.label}</span></td>
-                        <td className="px-4 py-3 font-medium text-gray-900">{money(order.totalAmount)}</td>
-                        <td className="px-4 py-3 text-gray-700">{order._count.shipments} 张</td>
-                        <td className="px-4 py-3"><AttachmentPanel ownerType="SALES_ORDER" ownerId={order.id} compact compactMode="summary" onMessage={onMessage} /></td>
+                        {showField('deliveryDate') && <td className="px-4 py-3 text-gray-700">{dateText(order.deliveryDate)}</td>}
+                        {showField('status') && <td className="px-4 py-3"><span className={`rounded px-2 py-1 text-xs font-medium ${meta.className}`}>{meta.label}</span></td>}
+                        {showField('amount') && <td className="px-4 py-3 font-medium text-gray-900">{money(order.totalAmount)}</td>}
+                        <td className="px-4 py-3 text-gray-700">{order.items.length} 项</td>
+                        {showField('attachments') && <td className="px-4 py-3"><AttachmentPanel ownerType="SALES_ORDER" ownerId={order.id} compact compactMode="summary" onMessage={onMessage} /></td>}
                         <td className="px-4 py-3">{orderActions(order, true)}</td>
                       </tr>
                     )
@@ -430,16 +442,16 @@ export default function SalesOrderPageModule({
               <div className="overflow-x-auto rounded-lg border border-gray-200">
                 <table className="w-full min-w-[720px] text-sm">
                   <thead className="bg-gray-50 text-left text-xs text-gray-500">
-                    <tr><th className="px-3 py-2 font-medium">物料</th><th className="px-3 py-2 font-medium">订购</th><th className="px-3 py-2 font-medium">待发占用</th><th className="px-3 py-2 font-medium">已发</th><th className="px-3 py-2 font-medium">未发数量</th><th className="px-3 py-2 text-right font-medium">价格 / 金额</th></tr>
+                    <tr><th className="px-3 py-2 font-medium">物料</th><th className="px-3 py-2 font-medium">本单订购</th><th className="px-3 py-2 font-medium">客户物料待发</th><th className="px-3 py-2 font-medium">客户物料已发</th><th className="px-3 py-2 font-medium">未发参考</th><th className="px-3 py-2 text-right font-medium">价格 / 金额</th></tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {detailOrder.items.map((item) => (
                       <tr key={item.id}>
                         <td className="px-3 py-2"><MaterialReferenceButton material={item.material} onOpen={setDetailMaterial} /></td>
                         <td className="px-3 py-2">{numberText(item.qty)} {item.unit}</td>
-                        <td className="px-3 py-2 text-amber-700">{numberText(item.pendingQty)} {item.unit}</td>
-                        <td className="px-3 py-2 text-emerald-700">{numberText(item.shippedQty)} {item.unit}</td>
-                        <td className="px-3 py-2 font-medium text-blue-700">{numberText(item.remainingQty)} {item.unit}</td>
+                        <td className="px-3 py-2 text-amber-700">{numberText(item.referencePendingQty)} {item.unit}</td>
+                        <td className="px-3 py-2 text-emerald-700">{numberText(item.referenceShippedQty)} {item.unit}</td>
+                        <td className="px-3 py-2 font-medium text-blue-700">{numberText(item.referenceRemainingQty)} {item.unit}{item.referenceOverQty > 0 && <div className="text-xs text-red-600">超发 {numberText(item.referenceOverQty)}</div>}</td>
                         <td className="px-3 py-2 text-right"><div>{money(item.totalAmount)}</div><div className="text-xs text-gray-500">{money(item.unitPrice)} / {item.unit} · {item.priceSource === 'MATERIAL_DEFAULT' ? '物料默认价' : '手工价'}</div></td>
                       </tr>
                     ))}

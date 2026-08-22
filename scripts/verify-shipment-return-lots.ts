@@ -65,7 +65,7 @@ async function main() {
     })
 
     const shipment = await createManagedShipment({
-      materialId: material.id, customerId: customer.id, locationId: location.id, qty: 12,
+      customerId: customer.id, items: [{ materialId: material.id, locationId: location.id, qty: 12 }],
     }, new Date('2026-08-13T12:00:00.000Z'))
     await shipManagedShipment(shipment.id, '发货验证员')
     const shipped = await prisma.shipment.findUniqueOrThrow({
@@ -80,9 +80,9 @@ async function main() {
     assert.equal(shipmentTrace.customerShipments[0]?.customer, customer.name)
 
     const optionsBeforeReturn = await listReturnShipmentOptions()
-    close(optionsBeforeReturn.find((item) => item.id === shipment.id)?.returnableQty || 0, 12, '退货前可退数量')
+    close(optionsBeforeReturn.find((item) => item.shipmentItemId === shipment.items[0].id)?.returnableQty || 0, 12, '退货前可退数量')
     const returnOrder = await createManagedReturn({
-      shipmentId: shipment.id, productId: product.id, locationId: returnLocation.id,
+      shipmentId: shipment.id, shipmentItemId: shipment.items[0].id, locationId: returnLocation.id,
       qty: 5, reason: '客户抽检退回', note: '验证退货独立待检批次',
     }, new Date('2026-08-13T13:00:00.000Z'))
     await processManagedReturn(returnOrder.id, '退货收货员')
@@ -119,17 +119,19 @@ async function main() {
     const releasedStock = await prisma.stock.findUniqueOrThrow({ where: { materialId: material.id } })
     close(Number(releasedStock.availableQty), 13, '退货质检放行后可用库存')
     close(Number(releasedStock.quarantineQty), 0, '退货质检放行后待检库存')
-    close((await listReturnShipmentOptions()).find((item) => item.id === shipment.id)?.returnableQty || 0, 7, '退货登记后剩余可退数量')
+    close((await listReturnShipmentOptions()).find((item) => item.shipmentItemId === shipment.items[0].id)?.returnableQty || 0, 7, '退货登记后剩余可退数量')
 
     const historicalShipment = await prisma.shipment.create({
       data: {
         shipmentNo: `SH-LEGACY-${suffix}`, productId: product.id, materialId: material.id, locationId: location.id,
         customerId: customer.id, qty: 2, customer: customer.name, status: 'DELIVERED', shippedAt: new Date('2026-07-01T00:00:00.000Z'),
         shippedValuationQty: 2, shippedCostAmount: 20,
+        items: { create: { materialId: material.id, productId: product.id, locationId: location.id, qty: 2, unitSnapshot: material.stockUnit, shippedValuationQty: 2, shippedCostAmount: 20 } },
       },
+      include: { items: true },
     })
     const historicalReturn = await createManagedReturn({
-      shipmentId: historicalShipment.id, productId: product.id, locationId: returnLocation.id,
+      shipmentId: historicalShipment.id, shipmentItemId: historicalShipment.items[0].id, locationId: returnLocation.id,
       qty: 1, reason: '迁移前历史发货退回',
     }, new Date('2026-08-13T14:00:00.000Z'))
     await processManagedReturn(historicalReturn.id, '历史退货收货员')

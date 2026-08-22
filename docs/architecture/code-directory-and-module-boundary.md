@@ -708,10 +708,10 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 ## 54. 销售订单与履约服务端垂直模块归属
 
 - `contracts/sales-order-schema.ts` 与 `fulfillment-schema.ts` 集中订单、调价、发货和退货输入约束；Route Handler 不再各自维护 Zod Schema。
-- `domain/sales-document-numbering.ts`、`sales-order-pricing.ts` 与 `sales-order-status.ts` 分别拥有日期编号、默认销售价快照和订单履约状态纯规则；领域错误统一承接库存、库位和兼容物料映射的可预期失败。
-- `server/sales-order-*` 拥有订单查询、候选项、创建、确认、取消、调价审计、待发占用和状态回写；`server/fulfillment-*` 拥有发货/退货查询、创建、归档、过账和状态事务，送货单 PDF 也不再由路由绘制。
-- 销售订单、发货和退货共 16 条 Route Handler 现为 16–62 行，只保留权限、Schema、领域服务、请求级审计和 HTTP 错误映射；扁平 `lib/sales-orders.ts` 已删除，直接访问 Prisma 的 API 从 72 条降至 56 条。
-- `verify:sales-order-flow` 使用运行后删除的临时完整 SQLite 覆盖默认价、受控调价、订单占用、分批发货、库存成本、送达/PDF、退货恢复、拒绝、独立发货、查询、归档和重复状态拒绝；`verify:sales-module` 防止 16 条路由重新承载 Prisma 或事务规则。
+- `domain/sales-document-numbering.ts`、`sales-order-pricing.ts` 与 `sales-order-status.ts` 分别拥有日期编号、默认销售价快照和订单自身状态纯规则；领域错误统一承接库存、库位和兼容物料映射的可预期失败。
+- `server/sales-order-*` 拥有订单查询、客户物料交付参考、创建、确认、取消和调价审计；`server/fulfillment-*` 拥有多明细发货/退货查询、创建、归档、过账和状态事务，送货单 PDF 也不再由路由绘制。两组服务不保存彼此外键，也不互相回写。
+- 销售订单、发货、货箱和退货共 19 条 Route Handler 保持薄层，只保留权限、Schema、领域服务、请求级审计和 HTTP 错误映射；扁平 `lib/sales-orders.ts` 已删除。
+- `verify:sales-order-flow`、`verify:shipment-multi-item` 与 `verify:shipment-item-migration` 使用运行后删除的临时完整 SQLite，覆盖默认价、受控调价、客户物料动态参考、多明细发货、库存成本、送达/PDF、退货恢复、拒绝、查询、归档、历史单行迁移和重复状态拒绝；`verify:sales-module` 防止路由重新承载 Prisma 或事务规则。
 
 ## 55. 来料详情与状态事务归属
 

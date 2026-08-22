@@ -9,7 +9,6 @@ import { attachmentTypeLabel } from '@/lib/attachment-file-types'
 import type {
   AttachmentItem,
   MaterialOption,
-  WorkCenterOption,
   WorkInstruction,
   WorkInstructionForm,
 } from '../contracts/work-instruction'
@@ -34,7 +33,6 @@ interface WorkInstructionDetailDialogProps {
   selectedMaterial?: MaterialOption | null
   onMaterialSearch: (keyword: string) => void | Promise<void>
   categoryOptions: { value: string; label: string; keywords?: string }[]
-  workCenters: WorkCenterOption[]
   fieldDefinitions: DocumentFieldDefinitionRecord[]
   attachments: AttachmentItem[]
   selectedAttachment: AttachmentItem | null
@@ -75,7 +73,6 @@ export default function WorkInstructionDetailDialog({
   selectedMaterial,
   onMaterialSearch,
   categoryOptions,
-  workCenters,
   fieldDefinitions,
   attachments,
   selectedAttachment,
@@ -131,7 +128,6 @@ export default function WorkInstructionDetailDialog({
                 selectedMaterial={selectedMaterial}
                 onMaterialSearch={onMaterialSearch}
                 categoryOptions={categoryOptions}
-                workCenters={workCenters}
                 fieldDefinitions={fieldDefinitions}
                 mode="detail"
               />
@@ -151,7 +147,6 @@ export default function WorkInstructionDetailDialog({
                 <div>客户：{getInstructionCustomerName(detail)}</div>
                 <div>产品：{detail.material ? `${detail.material.code} · ${detail.material.name}` : '未绑定'}</div>
                 {detail.material?.spec && <div>规格：{detail.material.spec}</div>}
-                <div>工作中心：{detail.workCenters.length > 0 ? detail.workCenters.map((item) => `${item.code} · ${item.name}`).join('、') : '不限'}</div>
                 <div>创建时间：{formatInstructionDate(detail.createdAt)}</div>
               </div>
               {detail.fieldValues.length > 0 && (

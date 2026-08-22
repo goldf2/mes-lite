@@ -28,14 +28,11 @@ export function productionOrderContextWorkCenterIds(order: ProductionOrderContex
   return Array.from(new Set(ids)).sort()
 }
 
-function workInstructionWhere(order: ProductionOrderContextSource, workCenterIds: string[]): Prisma.WorkInstructionWhereInput {
-  const applicability: Prisma.WorkInstructionWhereInput[] = []
-  if (order.materialId) applicability.push({ materialId: order.materialId })
-  if (workCenterIds.length > 0) applicability.push({ workCenters: { some: { id: { in: workCenterIds } } } })
+function workInstructionWhere(order: ProductionOrderContextSource): Prisma.WorkInstructionWhereInput {
   return {
     deletedAt: null,
     status: 'ACTIVE',
-    ...(applicability.length > 0 ? { OR: applicability } : { id: '__NO_APPLICABLE_WORK_INSTRUCTION__' }),
+    ...(order.materialId ? { OR: [{ materialId: order.materialId }, { materialId: null }] } : {}),
   }
 }
 
@@ -88,12 +85,11 @@ export async function loadProductionActualExecutionContext(db: ContextDatabase, 
       orderBy: [{ workCenter: { code: 'asc' } }, { code: 'asc' }],
     }),
     db.workInstruction.findMany({
-      where: workInstructionWhere(order, workCenterIds),
+      where: workInstructionWhere(order),
       select: {
         id: true, title: true, version: true, status: true, updatedAt: true,
         category: { select: { id: true, name: true } },
         material: { select: { id: true, code: true, name: true } },
-        workCenters: { select: { id: true, code: true, name: true }, orderBy: { code: 'asc' } },
       },
       orderBy: [{ title: 'asc' }, { version: 'asc' }],
     }),
@@ -156,12 +152,11 @@ export async function resolveProductionActualExecutionContext(
       },
     }),
     workInstructionIds.length === 0 ? [] : db.workInstruction.findMany({
-      where: { id: { in: workInstructionIds }, ...workInstructionWhere(order, workCenterIds) },
+      where: { id: { in: workInstructionIds }, ...workInstructionWhere(order) },
       select: {
         id: true, title: true, version: true, status: true, contentJson: true, contentText: true, updatedAt: true,
         category: { select: { id: true, name: true } },
         material: { select: { id: true, code: true, name: true } },
-        workCenters: { select: { id: true, code: true, name: true }, orderBy: { code: 'asc' } },
       },
     }),
   ])
@@ -169,7 +164,7 @@ export async function resolveProductionActualExecutionContext(
     throw new ProductionOrderDomainError('所选设备不可用于当前生产订单；请检查工作中心、归档状态或设备状态')
   }
   if (instructions.length !== workInstructionIds.length) {
-    throw new ProductionOrderDomainError('所选作业文件不可用于当前生产订单；请检查产品、工作中心、归档状态或生效状态')
+    throw new ProductionOrderDomainError('所选作业文件不可用于当前生产订单；请检查关联产品、归档状态或生效状态')
   }
   const attachments = await attachmentsByInstruction(db, instructions.map((item) => item.id))
   const equipmentById = new Map(equipment.map((item) => [item.id, item]))
@@ -204,7 +199,7 @@ export async function resolveProductionActualExecutionContext(
         materialId: item.material?.id || null,
         materialCode: item.material?.code || null,
         materialName: item.material?.name || null,
-        workCentersJson: JSON.stringify(item.workCenters),
+        workCentersJson: '[]',
         contentJson: item.contentJson,
         contentText: item.contentText,
         attachmentsJson: JSON.stringify(attachments.get(item.id) || []),

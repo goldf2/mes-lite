@@ -4,6 +4,7 @@ import { buildProductionFlowDashboard } from '../domain/dashboard-production'
 import type { PermissionMap } from '@/lib/permissions'
 import { buildRoleTaskSections } from '../model/role-task-view'
 import { equipmentInspectionScopeWhere, equipmentMaintenanceScopeWhere } from '@/modules/equipment'
+import { listCustomerMaterialDeliveryReferences } from '@/modules/sales'
 import {
   materialReceiptDataScopeWhere,
   productionActualDataScopeWhere,
@@ -58,6 +59,7 @@ export async function getDashboardData(now = new Date(), permissions?: Permissio
     openEquipmentMaintenanceCount,
     pendingOperatorCount,
     lowStocks,
+    salesDeliveryReferences,
   ] = await Promise.all([
     prisma.productionOrder.count({ where: { createdAt: { gte: todayStart }, ...productionOrderDataScopeWhere(scope) } }),
     prisma.productionOrder.count({ where: { createdAt: { gte: monthStart }, ...productionOrderDataScopeWhere(scope) } }),
@@ -93,6 +95,7 @@ export async function getDashboardData(now = new Date(), permissions?: Permissio
         },
       },
     }),
+    listCustomerMaterialDeliveryReferences(scope),
   ])
 
   return {
@@ -112,6 +115,7 @@ export async function getDashboardData(now = new Date(), permissions?: Permissio
     pendingMaterialInCount,
     pendingShipmentCount,
     pendingReturnCount,
+    salesDeliveryReferences,
     roleTaskSections: permissions ? buildRoleTaskSections({
       draftOrderCount,
       executableOrderCount,

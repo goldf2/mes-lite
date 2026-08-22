@@ -4,7 +4,6 @@ import type {
   DocumentCategoryRecord,
   MaterialOption,
   PaginationState,
-  WorkCenterOption,
   WorkInstruction,
   WorkInstructionSaveInput,
 } from '../contracts/work-instruction'
@@ -92,11 +91,6 @@ export async function listFinishedMaterialOptions(keyword = '') {
 
 export async function listInstructionAttachments(instructionId: string) {
   return listAttachments<AttachmentItem>('WORK_INSTRUCTION', instructionId)
-}
-
-export async function listDocumentWorkCenters() {
-  const response = await fetch('/api/work-centers')
-  return (await readEnvelope<WorkCenterOption[]>(response, '获取工作中心失败')).data || []
 }
 
 export async function uploadInstructionAttachment(instructionId: string, file: File) {

@@ -141,7 +141,6 @@ export default function WorkInstructionCollectionView({
                   <div className="truncate">产品：{instruction.material ? instruction.material.name : '未绑定'}</div>
                   {instruction.material?.spec && <div className="truncate">规格：{instruction.material.spec}</div>}
                   <div className="truncate">客户：{getInstructionCustomerName(instruction)}</div>
-                  <div className="line-clamp-2">工作中心：{instruction.workCenters.length > 0 ? instruction.workCenters.map((item) => item.name).join('、') : '不限'}</div>
                   <div>内容：{instruction.contentText ? '在线正文' : '无正文'} · {instruction.attachmentCount} 个附件</div>
                   {instruction.note && <div className="line-clamp-2">备注：{instruction.note}</div>}
                 </div>
@@ -172,7 +171,6 @@ export default function WorkInstructionCollectionView({
               <SortableTableHeader column="category" activeColumn={sortColumn} direction={sortDirection} onSort={onSort} className="w-28">文档类别</SortableTableHeader>
               <SortableTableHeader column="status" activeColumn={sortColumn} direction={sortDirection} onSort={onSort} className="w-24">状态</SortableTableHeader>
               <SortableTableHeader column="customer" activeColumn={sortColumn} direction={sortDirection} onSort={onSort} className="hidden w-40 2xl:table-cell">客户</SortableTableHeader>
-              <SortableTableHeader column="workCenters" activeColumn={sortColumn} direction={sortDirection} onSort={onSort} className="hidden w-40 2xl:table-cell">工作中心</SortableTableHeader>
               <SortableTableHeader column="files" activeColumn={sortColumn} direction={sortDirection} onSort={onSort} className="w-32">文件</SortableTableHeader>
               <th className="w-56 px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
             </tr>
@@ -190,7 +188,6 @@ export default function WorkInstructionCollectionView({
                   <div className="line-clamp-2 font-medium text-blue-700">{getInstructionScopeLabel(instruction)}</div>
                   <div className="mt-1 space-y-0.5 text-xs text-gray-500 2xl:hidden">
                     <div className="truncate">客户：{getInstructionCustomerName(instruction)}</div>
-                    <div className="line-clamp-1">中心：{instruction.workCenters.length > 0 ? instruction.workCenters.map((item) => item.name).join('、') : '不限'}</div>
                   </div>
                 </td>
                 <td className="px-4 py-3">
@@ -201,7 +198,6 @@ export default function WorkInstructionCollectionView({
                 <td className="whitespace-nowrap px-4 py-3 text-sm">{getInstructionCategoryLabel(instruction)}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm">{statusLabels[instruction.status] || instruction.status}</td>
                 <td className="hidden px-4 py-3 text-sm 2xl:table-cell">{getInstructionCustomerName(instruction)}</td>
-                <td className="hidden px-4 py-3 text-sm 2xl:table-cell"><div className="line-clamp-2">{instruction.workCenters.length > 0 ? instruction.workCenters.map((item) => item.name).join('、') : '不限'}</div></td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm">{instruction.contentText ? '在线 · ' : ''}{instruction.attachmentCount} 个附件</td>
                 <td className="whitespace-nowrap px-4 py-3">
                   <div className="flex flex-nowrap gap-2">

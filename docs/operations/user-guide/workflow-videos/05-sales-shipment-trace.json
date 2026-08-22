@@ -1,9 +1,9 @@
 {
   "id": "sales-shipment-trace-v1",
   "outputName": "MES-lite销售订单到发货追溯",
-  "contentVersion": "0.1.394",
-  "title": "销售订单到发货追溯",
-  "description": "从销售订单、发货确认到库存扣减、实际批次分配和客户去向。",
+  "contentVersion": "0.1.431",
+  "title": "销售需求与发货追溯",
+  "description": "从客户物料需求参考、独立发货确认到库存扣减、实际批次分配和客户去向。",
   "chapterId": "09",
   "workflowIds": ["24-sales-order-list", "25-sales-order-create", "26-sales-order-detail", "27-shipment-list", "28-shipment-create", "173-warehouse-shipment-dispatch", "79-shipment-list-tracked", "80-shipment-detail-lot-allocation", "81-shipment-customer-genealogy"],
   "resource": "shipment",
@@ -13,9 +13,9 @@
     {
       "style": "cover",
       "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/24-sales-order-list.png",
-      "title": "销售订单到发货追溯",
-      "subtitle": "客户需求、库存扣减和批次去向闭环",
-      "narration": "本视频演示销售订单、发货确认、库存扣减和客户批次追溯。只有显式关联订单的发货才会更新订单进度。"
+      "title": "销售需求与发货追溯",
+      "subtitle": "需求参考、独立发货、库存扣减和批次去向",
+      "narration": "本视频演示客户物料需求参考、独立发货确认、库存扣减和客户批次追溯。销售订单与发货单不保存关联，也不互相回写。"
     },
     {
       "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/25-sales-order-create.png",
@@ -26,14 +26,14 @@
     {
       "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/26-sales-order-detail.png",
       "title": "第二步：复核订单详情",
-      "subtitle": "确认订单状态、价格和剩余待发数量",
-      "narration": "确认订单后，在详情核对物料、价格快照、已发数量和剩余待发数量。已发生发货后不能随意改写价格。"
+      "subtitle": "确认订单状态、价格和客户物料交付参考",
+      "narration": "确认订单后，在详情核对物料和价格快照，并查看客户与物料维度的待发、已发、未发或超发参考。参考不形成订单履约关系。"
     },
     {
       "sourceImage": "docs/operations/user-guide/screenshots/v0.1.350/28-shipment-create.png",
       "title": "第三步：建立发货单",
-      "subtitle": "可关联订单，也可登记独立发货",
-      "narration": "创建发货单。关联订单时选择未发完明细；独立发货则直接选择客户、物料和库位。两种路径都要校验可用库存。"
+      "subtitle": "一个客户可连续加入多条实际发货物料",
+      "narration": "创建发货单，先选择客户，再逐条加入物料、库位、数量和价格，核对整单后保存。发货数量不受销售需求限制，但必须通过实际可用库存校验。"
     },
     {
       "sourceImage": "docs/operations/user-guide/screenshots/v0.1.375/175-warehouse-shipment-dispatch.png",

@@ -26,13 +26,6 @@ export interface MaterialOption {
   customer?: CustomerOption | null
 }
 
-export interface WorkCenterOption {
-  id: string
-  code: string
-  name: string
-  isActive: boolean
-}
-
 export interface AttachmentItem {
   id: string
   originalName: string
@@ -59,7 +52,6 @@ export interface WorkInstruction {
   status: string
   materialId?: string | null
   material?: MaterialOption | null
-  workCenters: WorkCenterOption[]
   fieldValues: WorkInstructionFieldValueRecord[]
   contentJson?: string | null
   contentText?: string | null
@@ -85,7 +77,6 @@ export interface WorkInstructionForm {
   version: string
   status: string
   materialId: string
-  workCenterIds: string[]
   contentJson: string
   note: string
   fieldValues: Record<string, string>
@@ -97,7 +88,6 @@ export interface WorkInstructionSaveInput {
   categoryId: string
   version: string
   status: string
-  workCenterIds: string[]
   contentJson: string
   note?: string
   fieldValues: Record<string, string>

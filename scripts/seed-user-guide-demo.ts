@@ -243,7 +243,6 @@ async function main() {
       version: 'v1.0',
       status: 'ACTIVE',
       materialId: bolt.id,
-      workCenters: { connect: [{ id: formingCenter.id }, { id: inspectionCenter.id }] },
       contentJson: JSON.stringify({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '开机前确认模具、材料炉批和首件检验状态。' }] }] }),
       contentText: '开机前确认模具、材料炉批和首件检验状态。',
       note: '指导书演示文档',
@@ -468,17 +467,15 @@ async function main() {
   await confirmManagedSalesOrder(confirmedSalesOrder.id)
 
   await createManagedShipment({
-    salesOrderItemId: confirmedSalesOrder.items[0].id,
-    locationId: finishedLocation.id,
-    qty: 80,
+    customerId: backupCustomer.id,
+    items: [{ materialId: bolt.id, locationId: finishedLocation.id, qty: 80 }],
     trackingNo: 'SF-DEMO-PENDING',
     shippedBy: warehouseKeeper.name,
     note: '指导书：待发货单',
   }, fixedNow)
   const deliveredShipment = await createManagedShipment({
-    salesOrderItemId: confirmedSalesOrder.items[0].id,
-    locationId: finishedLocation.id,
-    qty: 60,
+    customerId: backupCustomer.id,
+    items: [{ materialId: bolt.id, locationId: finishedLocation.id, qty: 60 }],
     trackingNo: 'SF-DEMO-DELIVERED',
     shippedBy: warehouseKeeper.name,
     note: '指导书：已签收退货来源单',
@@ -486,9 +483,8 @@ async function main() {
   await shipManagedShipment(deliveredShipment.id, warehouseKeeper.name)
   await deliverManagedShipment(deliveredShipment.id)
   const shippedShipment = await createManagedShipment({
-    salesOrderItemId: confirmedSalesOrder.items[0].id,
-    locationId: finishedLocation.id,
-    qty: 40,
+    customerId: backupCustomer.id,
+    items: [{ materialId: bolt.id, locationId: finishedLocation.id, qty: 40 }],
     trackingNo: 'SF-DEMO-SHIPPED',
     shippedBy: warehouseKeeper.name,
     note: '指导书：待销售确认签收',
@@ -497,7 +493,7 @@ async function main() {
 
   await createManagedReturn({
     shipmentId: deliveredShipment.id,
-    productId: product.id,
+    shipmentItemId: deliveredShipment.items[0].id,
     locationId: returnLocation.id,
     qty: 10,
     reason: '客户抽检尺寸超差',
@@ -505,7 +501,7 @@ async function main() {
   }, fixedNow)
   const processedReturn = await createManagedReturn({
     shipmentId: deliveredShipment.id,
-    productId: product.id,
+    shipmentItemId: deliveredShipment.items[0].id,
     locationId: returnLocation.id,
     qty: 8,
     reason: '客户复测发现螺纹通止规异常',

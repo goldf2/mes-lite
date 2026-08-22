@@ -6,7 +6,6 @@ import { WorkInstructionValidationError } from './work-instruction-command-servi
 
 const bulkInstructionInclude = {
   material: { select: { id: true, code: true, name: true } },
-  workCenters: { select: { id: true, code: true, name: true } },
   fieldValues: true,
 } satisfies Prisma.WorkInstructionInclude
 
@@ -28,19 +27,12 @@ export async function bulkUpdateWorkInstructions(input: WorkInstructionBulkUpdat
       })
       if (!material) throw new WorkInstructionValidationError('关联产品不存在或已归档')
     }
-    if (updates.workCenterIds) {
-      const uniqueWorkCenterIds = Array.from(new Set(updates.workCenterIds))
-      const count = await tx.workCenter.count({ where: { id: { in: uniqueWorkCenterIds }, isActive: true, deletedAt: null } })
-      if (count !== uniqueWorkCenterIds.length) throw new WorkInstructionValidationError('存在无效或已停用的工作中心')
-    }
-
     const updated = []
     for (const instruction of before) {
       const data: Prisma.WorkInstructionUpdateInput = { updatedAt: new Date() }
       if (updates.version !== undefined) data.version = updates.version
       if (updates.status !== undefined) data.status = updates.status
       if ('materialId' in updates) data.material = updates.materialId ? { connect: { id: updates.materialId } } : { disconnect: true }
-      if (updates.workCenterIds !== undefined) data.workCenters = { set: Array.from(new Set(updates.workCenterIds)).map((id) => ({ id })) }
       if ('note' in updates) data.note = updates.note || null
       await tx.workInstruction.update({ where: { id: instruction.id }, data })
       if (updates.fieldValues) {

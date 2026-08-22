@@ -1,133 +1,117 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
+import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
+import SearchableSelect from '@/app/components/SearchableSelect'
 import {
   DraftDocumentAttachmentPanel,
   createDraftDocumentAttachmentId,
   discardDraftDocumentAttachments,
   finalizeDraftDocumentAttachments,
 } from '@/modules/attachments'
-import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
-import SearchableSelect from '@/app/components/SearchableSelect'
 import { createShipment, loadShipmentCreateOptions } from '../client/fulfillment-api'
 import type {
+  CustomerMaterialDeliveryReference,
   FulfillmentCustomer,
-  ShipmentMaterialOption,
   InventoryLocationOption,
   ShipmentCreated,
   ShipmentForm,
-  ShippableSalesItem,
+  ShipmentFormItem,
+  ShipmentMaterialOption,
 } from '../contracts/fulfillment'
 
-const emptyForm: ShipmentForm = {
-  salesOrderItemId: '',
+const newItem = (locations: InventoryLocationOption[] = []): ShipmentFormItem => ({
+  id: crypto.randomUUID(),
   materialId: '',
+  unitPrice: 0,
+  locationId: locations.find((item) => item.isDefault)?.id || locations[0]?.id || '',
+  qty: 0,
+})
+
+const emptyForm: ShipmentForm = {
   customerId: '',
   voucherNo: '',
-  unitPrice: 0,
-  locationId: '',
-  qty: 0,
   trackingNo: '',
   shippedBy: '',
   note: '',
+  items: [],
 }
 
-export default function ShipmentCreateDialog({
-  initialSalesOrderId,
-  onClose,
-  onCreated,
-  onMessage,
-}: {
-  initialSalesOrderId?: string
+export default function ShipmentCreateDialog({ onClose, onCreated, onMessage }: {
   onClose: () => void
   onCreated?: (shipment: ShipmentCreated) => void | Promise<void>
   onMessage: (message: string) => void
 }) {
-  const [shippableItems, setShippableItems] = useState<ShippableSalesItem[]>([])
+  const [references, setReferences] = useState<CustomerMaterialDeliveryReference[]>([])
   const [customers, setCustomers] = useState<FulfillmentCustomer[]>([])
   const [materials, setMaterials] = useState<ShipmentMaterialOption[]>([])
   const [locations, setLocations] = useState<InventoryLocationOption[]>([])
   const [form, setForm] = useState<ShipmentForm>(emptyForm)
+  const [current, setCurrent] = useState<ShipmentFormItem>(() => newItem())
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [preparing, setPreparing] = useState(true)
   const [saving, setSaving] = useState(false)
   const [draftAttachmentOwnerId] = useState(createDraftDocumentAttachmentId)
   const [draftAttachmentBusy, setDraftAttachmentBusy] = useState(false)
 
-  const selectedSalesItem = useMemo(
-    () => shippableItems.find((item) => item.id === form.salesOrderItemId),
-    [form.salesOrderItemId, shippableItems],
-  )
-  const selectedMaterial = useMemo(() => materials.find((item) => item.id === form.materialId), [form.materialId, materials])
-  const activeMaterial = selectedSalesItem?.material || selectedMaterial
-  const selectedLocationBalance = activeMaterial?.stock?.locationBalances.find(
-    (item) => item.locationId === form.locationId,
-  )
-
-  const applySalesItemSelection = useCallback((salesOrderItemId: string, items: ShippableSalesItem[], locationOptions: InventoryLocationOption[]) => {
-    const item = items.find((option) => option.id === salesOrderItemId)
-    const bestBalance = item?.material.stock?.locationBalances
-      .filter((balance) => locationOptions.some((location) => location.id === balance.locationId))
-      .sort((left, right) => Number(right.availableQty) - Number(left.availableQty))[0]
-    const locationId = bestBalance?.locationId
-      || locationOptions.find((location) => location.isDefault)?.id
-      || locationOptions[0]?.id
-      || ''
-    setForm((current) => ({
-      ...current,
-      salesOrderItemId,
-      materialId: '',
-      customerId: '',
-      voucherNo: '',
-      unitPrice: 0,
-      locationId,
-      qty: Number(item?.remainingQty || 0),
-    }))
-  }, [])
-
-  const selectSalesItem = useCallback((salesOrderItemId: string) => {
-    if (!salesOrderItemId) {
-      setForm((current) => ({
-        ...current,
-        salesOrderItemId: '',
-        materialId: '',
-        customerId: '',
-        voucherNo: '',
-        unitPrice: 0,
-        qty: 0,
-      }))
-      return
-    }
-    applySalesItemSelection(salesOrderItemId, shippableItems, locations)
-  }, [applySalesItemSelection, locations, shippableItems])
+  const selectedMaterial = useMemo(() => materials.find((item) => item.id === current.materialId), [current.materialId, materials])
+  const selectedLocationBalance = selectedMaterial?.stock?.locationBalances.find((item) => item.locationId === current.locationId)
+  const selectedReference = references.find((item) => item.customerId === form.customerId && item.materialId === current.materialId)
+  const totalAmount = form.items.reduce((sum, item) => sum + item.qty * item.unitPrice, 0)
 
   useEffect(() => {
     let active = true
-    const prepare = async () => {
-      try {
-        const data = await loadShipmentCreateOptions()
-        if (!active) return
-        const nextItems = data.items
-        const nextLocations = data.locations
-        setShippableItems(nextItems)
-        setLocations(nextLocations)
-        setCustomers(data.customers)
-        setMaterials(data.materials)
-        const preferredItem = nextItems.find((item) => item.salesOrderId === initialSalesOrderId)
-        if (preferredItem) applySalesItemSelection(preferredItem.id, nextItems, nextLocations)
-        else setForm((current) => ({
-          ...current,
-          locationId: nextLocations.find((location) => location.isDefault)?.id || nextLocations[0]?.id || '',
-        }))
-      } catch {
-        if (active) onMessage('获取发货选项或库位失败')
-      } finally {
-        if (active) setPreparing(false)
-      }
-    }
-    void prepare()
+    void loadShipmentCreateOptions().then((data) => {
+      if (!active) return
+      setReferences(data.references)
+      setCustomers(data.customers)
+      setMaterials(data.materials)
+      setLocations(data.locations)
+      setCurrent(newItem(data.locations))
+    }).catch(() => {
+      if (active) onMessage('获取发货选项或库位失败')
+    }).finally(() => {
+      if (active) setPreparing(false)
+    })
     return () => { active = false }
-  }, [applySalesItemSelection, initialSalesOrderId, onMessage])
+  }, [onMessage])
+
+  const resetCurrent = () => {
+    setCurrent(newItem(locations))
+    setEditingId(null)
+  }
+
+  const selectMaterial = (materialId: string) => {
+    const material = materials.find((item) => item.id === materialId)
+    const bestBalance = material?.stock?.locationBalances
+      .filter((balance) => locations.some((location) => location.id === balance.locationId))
+      .slice()
+      .sort((left, right) => Number(right.availableQty) - Number(left.availableQty))[0]
+    setCurrent((value) => ({
+      ...value,
+      materialId,
+      unitPrice: Number(material?.defaultSalePrice || 0),
+      locationId: bestBalance?.locationId || value.locationId,
+    }))
+  }
+
+  const saveCurrent = () => {
+    if (!form.customerId) return onMessage('请先选择客户')
+    if (!current.materialId) return onMessage('请选择发货物料')
+    if (!current.locationId || current.qty <= 0) return onMessage('请选择发货库位并填写大于 0 的数量')
+    if (selectedMaterial?.customerId && selectedMaterial.customerId !== form.customerId) return onMessage('该物料不属于所选客户')
+    if (current.qty > Number(selectedLocationBalance?.availableQty || 0) + 0.000001) return onMessage('当前库位库存不足')
+    if (form.items.some((item) => item.id !== editingId && item.materialId === current.materialId && item.locationId === current.locationId)) {
+      return onMessage('同一物料和库位不能重复，请编辑已有明细')
+    }
+    const saved = { ...current, id: editingId || current.id }
+    setForm((value) => ({
+      ...value,
+      items: editingId ? value.items.map((item) => item.id === editingId ? saved : item) : [...value.items, saved],
+    }))
+    resetCurrent()
+  }
 
   const closeDialog = async () => {
     if (saving || draftAttachmentBusy) return
@@ -136,40 +120,27 @@ export default function ShipmentCreateDialog({
   }
 
   const applyRecognizedShipment = (fields: Record<string, unknown>) => {
-    const salesOrderNo = recognizedText(fields, 'salesOrderNo')
-    const material = recognizedText(fields, 'material')
-    const matchedItem = shippableItems.find((item) => (
-      matchesRecognizedValue(salesOrderNo, [item.salesOrder.orderNo, item.salesOrder.voucherNo])
-      || matchesRecognizedValue(material, [item.material.code, item.material.name, item.material.spec])
-    ))
-    if (matchedItem) selectSalesItem(matchedItem.id)
-    const customer = recognizedText(fields, 'customer')
-    const matchedCustomer = customers.find((item) => matchesRecognizedValue(customer, [item.code, item.name]))
-    const matchedMaterial = materials.find((item) => matchesRecognizedValue(material, [item.code, item.name, item.spec]))
-    const qty = recognizedNumber(fields, 'qty')
-    const unitPrice = recognizedNumber(fields, 'unitPrice')
-    setForm((current) => ({
-      ...current,
-      salesOrderItemId: matchedItem?.id || current.salesOrderItemId,
-      customerId: matchedItem ? '' : (matchedCustomer?.id || current.customerId),
-      materialId: matchedItem ? '' : (matchedMaterial?.id || current.materialId),
-      qty: qty > 0 ? qty : (matchedItem ? Number(matchedItem.remainingQty) : current.qty),
-      unitPrice: unitPrice > 0 ? unitPrice : current.unitPrice,
-      voucherNo: recognizedText(fields, 'voucherNo') || current.voucherNo,
-      trackingNo: recognizedText(fields, 'trackingNo') || current.trackingNo,
-      shippedBy: recognizedText(fields, 'shippedBy') || current.shippedBy,
-      note: recognizedText(fields, 'note') || current.note,
+    const customer = customers.find((item) => matchesRecognizedValue(recognizedText(fields, 'customer'), [item.code, item.name]))
+    const material = materials.find((item) => matchesRecognizedValue(recognizedText(fields, 'material'), [item.code, item.name, item.spec]))
+    setForm((value) => ({
+      ...value,
+      customerId: customer?.id || value.customerId,
+      voucherNo: recognizedText(fields, 'voucherNo') || value.voucherNo,
+      trackingNo: recognizedText(fields, 'trackingNo') || value.trackingNo,
+      shippedBy: recognizedText(fields, 'shippedBy') || value.shippedBy,
+      note: recognizedText(fields, 'note') || value.note,
+    }))
+    if (material) selectMaterial(material.id)
+    setCurrent((value) => ({
+      ...value,
+      qty: recognizedNumber(fields, 'qty') || value.qty,
+      unitPrice: recognizedNumber(fields, 'unitPrice') || value.unitPrice,
     }))
   }
 
   const handleSubmit = async () => {
     if (draftAttachmentBusy) return onMessage('请等待附件上传或 AI 识别完成')
-    if (!form.locationId || form.qty <= 0) {
-      return onMessage('请选择发货库位并填写数量')
-    }
-    if (!form.salesOrderItemId && (!form.customerId || !form.materialId)) {
-      return onMessage('独立发货时请选择客户和物料')
-    }
+    if (!form.customerId || form.items.length === 0) return onMessage('请选择客户并至少加入一项发货明细')
     setSaving(true)
     try {
       const shipment = await createShipment(form)
@@ -191,168 +162,47 @@ export default function ShipmentCreateDialog({
   return (
     <ModalDialog
       title="新建发货单"
-      description={initialSalesOrderId ? '已带入当前销售订单；也可以取消关联，改为独立发货。' : '独立登记发货，可按需关联已确认销售订单。'}
+      description="一张发货单只确定一个客户，可加入多条发货物料；不关联销售订单。"
       onClose={() => void closeDialog()}
       closeDisabled={saving || draftAttachmentBusy}
-      size="lg"
-      footer={(
-        <ModalActions
-          onCancel={() => void closeDialog()}
-          onConfirm={handleSubmit}
-          confirmLabel="创建发货单"
-          busy={saving || draftAttachmentBusy}
-          disabled={preparing}
-        />
-      )}
+      size="xl"
+      footer={<ModalActions onCancel={() => void closeDialog()} onConfirm={handleSubmit} confirmLabel={`保存整单（${form.items.length} 项）`} busy={saving || draftAttachmentBusy} disabled={preparing || form.items.length === 0} />}
     >
-      <div className="space-y-4">
-        <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700">来源销售订单（可选）</label>
-          <SearchableSelect
-            value={form.salesOrderItemId}
-            options={[
-              { value: '', label: '不关联销售订单（独立发货）', keywords: '独立 手工' },
-              ...shippableItems.map((item) => ({
-                value: item.id,
-                label: `${item.salesOrder.orderNo} · ${item.salesOrder.customer.name} · ${item.material.name}`,
-                keywords: `${item.salesOrder.voucherNo || ''} ${item.material.code} ${item.material.spec || ''}`,
-              })),
-            ]}
-            onChange={selectSalesItem}
-            placeholder={preparing ? '正在读取发货选项…' : '不关联，或输入订单号、客户、物料筛选'}
-            emptyText="没有可关联的销售订单明细，可继续独立发货"
-          />
-          {!preparing && shippableItems.length === 0 && (
-            <div className="mt-2 rounded bg-blue-50 px-3 py-2 text-xs text-blue-800">没有可关联的销售订单明细，仍可独立登记发货。</div>
-          )}
-        </div>
+      <div className="space-y-5">
+        <section className="grid gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-4">
+          <div><label className="mb-2 block text-sm font-medium text-gray-700">客户</label><SearchableSelect value={form.customerId} options={customers.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}`, keywords: `${item.phone || ''} ${item.address || ''}` }))} onChange={(customerId) => setForm((value) => ({ ...value, customerId }))} placeholder="输入客户编码或名称" /></div>
+          <label className="text-sm font-medium text-gray-700">外部凭证号<input value={form.voucherNo} onChange={(event) => setForm((value) => ({ ...value, voucherNo: event.target.value }))} className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2" /></label>
+          <label className="text-sm font-medium text-gray-700">物流单号<input value={form.trackingNo} onChange={(event) => setForm((value) => ({ ...value, trackingNo: event.target.value }))} className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2" /></label>
+          <label className="text-sm font-medium text-gray-700">发货人<input value={form.shippedBy} onChange={(event) => setForm((value) => ({ ...value, shippedBy: event.target.value }))} className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2" /></label>
+        </section>
 
-        {selectedSalesItem && (
-          <div className="grid gap-3 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm sm:grid-cols-3">
-            <div><span className="text-blue-600">客户</span><div className="mt-1 font-medium text-blue-950">{selectedSalesItem.salesOrder.customer.name}</div></div>
-            <div><span className="text-blue-600">物料</span><div className="mt-1 font-medium text-blue-950">{selectedSalesItem.material.code} · {selectedSalesItem.material.name}</div></div>
-            <div><span className="text-blue-600">未发数量</span><div className="mt-1 font-medium text-blue-950">{selectedSalesItem.remainingQty} {selectedSalesItem.unit}</div></div>
-          </div>
-        )}
-
-        {!selectedSalesItem && (
-          <div className="grid gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">客户</label>
-              <SearchableSelect
-                value={form.customerId}
-                options={customers.map((customer) => ({
-                  value: customer.id,
-                  label: `${customer.code} · ${customer.name}`,
-                  keywords: `${customer.phone || ''} ${customer.address || ''}`,
-                }))}
-                onChange={(customerId) => setForm((current) => ({ ...current, customerId }))}
-                placeholder="输入客户编码、名称、电话或地址"
-                emptyText="没有可用客户"
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">物料</label>
-              <SearchableSelect
-                value={form.materialId}
-                options={materials.map((materialOption) => ({
-                  value: materialOption.id,
-                  label: `${materialOption.code} · ${materialOption.name}`,
-                  keywords: materialOption.spec || '',
-                }))}
-                onChange={(materialId) => {
-                  const materialOption = materials.find((item) => item.id === materialId)
-                  const bestBalance = materialOption?.stock?.locationBalances
-                    .filter((balance) => locations.some((location) => location.id === balance.locationId))
-                    .sort((left, right) => Number(right.availableQty) - Number(left.availableQty))[0]
-                  setForm((current) => ({
-                    ...current,
-                    materialId,
-                    unitPrice: Number(materialOption?.defaultSalePrice || 0),
-                    locationId: bestBalance?.locationId || current.locationId,
-                  }))
-                }}
-                placeholder="输入物料编码、名称或规格"
-                emptyText="没有可用物料"
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">外部凭证号（可选）</label>
-              <input
-                type="text"
-                value={form.voucherNo}
-                onChange={(event) => setForm((current) => ({ ...current, voucherNo: event.target.value }))}
-                className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">销售单价（{selectedMaterial?.salesCurrency || 'CNY'}）</label>
-              <input
-                type="number"
-                step="0.01"
-                min={0}
-                value={form.unitPrice || ''}
-                onChange={(event) => setForm((current) => ({ ...current, unitPrice: Number(event.target.value) }))}
-                className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-              />
-              <div className="mt-1 text-xs text-gray-500">
-                {selectedMaterial?.defaultSalePrice != null ? `已带入物料默认价 ${selectedMaterial.defaultSalePrice}` : '物料未设置默认销售价，可手工填写'}
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
+          <section className="rounded-xl border border-gray-200 p-4">
+            <div className="mb-4 flex items-center justify-between"><h3 className="font-semibold text-gray-900">当前明细</h3>{editingId && <button type="button" onClick={resetCurrent} className="text-sm text-gray-500">取消编辑</button>}</div>
+            <div className="space-y-4">
+              <div><label className="mb-2 block text-sm font-medium text-gray-700">发货物料</label><SearchableSelect value={current.materialId} options={materials.filter((item) => !form.customerId || !item.customerId || item.customerId === form.customerId).map((item) => ({ value: item.id, label: `${item.code} · ${item.name}`, keywords: item.spec || '' }))} onChange={selectMaterial} placeholder="输入物料编码、名称或规格" /></div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div><label className="mb-2 block text-sm font-medium text-gray-700">发货库位</label><SearchableSelect value={current.locationId} options={locations.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} onChange={(locationId) => setCurrent((value) => ({ ...value, locationId }))} placeholder="选择库位" /></div>
+                <label className="text-sm font-medium text-gray-700">数量<input type="number" min="0" step="any" value={current.qty || ''} onChange={(event) => setCurrent((value) => ({ ...value, qty: Number(event.target.value) }))} className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2" /></label>
+                <label className="text-sm font-medium text-gray-700">单价<input type="number" min="0" step="0.01" value={current.unitPrice || ''} onChange={(event) => setCurrent((value) => ({ ...value, unitPrice: Number(event.target.value) }))} className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2" /></label>
               </div>
+              {selectedMaterial && <div className={`rounded-lg px-3 py-2 text-xs ${current.qty > Number(selectedLocationBalance?.availableQty || 0) ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>当前库位可用 {selectedLocationBalance?.availableQty || 0} {selectedMaterial.stockUnit}{selectedReference ? `；客户-物料总体参考：订购 ${selectedReference.orderedQty}，待发 ${selectedReference.pendingQty}，已发 ${selectedReference.shippedQty}，未发 ${selectedReference.remainingQty}${selectedReference.overQty > 0 ? `，超发 ${selectedReference.overQty}` : ''} ${selectedReference.unit}` : '；暂无销售需求参考'}</div>}
+              <button type="button" onClick={saveCurrent} className="w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white hover:bg-blue-700">{editingId ? '保存本项修改' : '添加本项并继续'}</button>
             </div>
-          </div>
-        )}
+          </section>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">发货库位</label>
-            <SearchableSelect
-              value={form.locationId}
-              onChange={(locationId) => setForm((current) => ({ ...current, locationId }))}
-              options={locations.map((location) => ({ value: location.id, label: `${location.code} · ${location.name}` }))}
-              placeholder="输入库位编码或名称筛选"
-            />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">数量{selectedSalesItem ? ` (${selectedSalesItem.unit})` : ''}</label>
-            <input
-              type="number"
-              step="any"
-              value={form.qty || ''}
-              onChange={(event) => setForm((current) => ({ ...current, qty: Number(event.target.value) }))}
-              min={0}
-              className="w-full rounded-lg border border-gray-200 px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <section className="rounded-xl border border-gray-200 p-4">
+            <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold text-gray-900">本单已加入</h3><span className="text-sm text-gray-500">{form.items.length} 项</span></div>
+            <div className="max-h-[430px] space-y-3 overflow-y-auto">
+              {form.items.length === 0 && <div className="rounded-lg bg-gray-50 px-4 py-10 text-center text-sm text-gray-500">尚未加入明细</div>}
+              {form.items.map((item, index) => { const material = materials.find((option) => option.id === item.materialId); const location = locations.find((option) => option.id === item.locationId); return <div key={item.id} className="rounded-lg border border-gray-200 p-3"><div className="flex items-start justify-between gap-3"><div><div className="font-medium text-gray-900">{index + 1}. {material?.code} · {material?.name}</div><div className="mt-1 text-xs text-gray-500">{item.qty} {material?.stockUnit} · {location?.code} · ¥{item.unitPrice.toFixed(2)}</div></div><div className="flex gap-2 text-sm"><button type="button" onClick={() => { setCurrent({ ...item }); setEditingId(item.id) }} className="text-blue-600">编辑</button><button type="button" onClick={() => setForm((value) => ({ ...value, items: value.items.filter((row) => row.id !== item.id) }))} className="text-red-600">移除</button></div></div></div> })}
+            </div>
+            <div className="mt-4 flex justify-between border-t border-gray-200 pt-4 text-sm"><span className="text-gray-500">已加入合计</span><strong className="text-gray-900">¥{totalAmount.toFixed(2)}</strong></div>
+          </section>
         </div>
-        {activeMaterial && (
-          <div className={`rounded px-3 py-2 text-xs ${form.qty > Number(selectedLocationBalance?.availableQty || 0) ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>
-            当前可用：<strong>{selectedLocationBalance?.availableQty || 0} {selectedSalesItem?.unit || selectedMaterial?.stockUnit}</strong>
-            {selectedSalesItem && <>；本次最多可按订单发出 {selectedSalesItem.remainingQty} {selectedSalesItem.unit}</>}。
-            {form.qty > Number(selectedLocationBalance?.availableQty || 0) && ' 当前库位库存不足，不能生成发货单。'}
-          </div>
-        )}
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">物流单号</label>
-            <input type="text" value={form.trackingNo} onChange={(event) => setForm((current) => ({ ...current, trackingNo: event.target.value }))} className="w-full rounded-lg border border-gray-200 px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">发货人</label>
-            <input type="text" value={form.shippedBy} onChange={(event) => setForm((current) => ({ ...current, shippedBy: event.target.value }))} className="w-full rounded-lg border border-gray-200 px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500" />
-          </div>
-        </div>
-        <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700">备注</label>
-          <textarea value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} rows={3} className="w-full rounded-lg border border-gray-200 px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <DraftDocumentAttachmentPanel
-          ownerType="SHIPMENT"
-          draftOwnerId={draftAttachmentOwnerId}
-          onRecognized={applyRecognizedShipment}
-          onBusyChange={setDraftAttachmentBusy}
-          onMessage={onMessage}
-        />
+        <label className="block text-sm font-medium text-gray-700">备注<textarea rows={3} value={form.note} onChange={(event) => setForm((value) => ({ ...value, note: event.target.value }))} className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2" /></label>
+        <DraftDocumentAttachmentPanel ownerType="SHIPMENT" draftOwnerId={draftAttachmentOwnerId} onRecognized={applyRecognizedShipment} onBusyChange={setDraftAttachmentBusy} onMessage={onMessage} />
       </div>
     </ModalDialog>
   )

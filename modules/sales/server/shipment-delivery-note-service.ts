@@ -84,35 +84,47 @@ async function renderDeliveryNotePdf(shipment: DeliveryNoteShipment, settings: S
     doc.text(`电话/地址：${settings.companyPhone || '-'} / ${settings.companyAddress || '-'}`, left + partyWidth + 8, partyTop + 66, { width: partyWidth - 16, ellipsis: true })
 
     doc.fontSize(9)
-    doc.text(`销售订单：${shipment.salesOrder?.orderNo || '历史单据'}`, left, 242)
-    doc.text(`客户订单号：${shipment.salesOrder?.voucherNo || shipment.voucherNo || '-'}`, left + 220, 242)
-    doc.text(`发货库位：${shipment.location ? `${shipment.location.code} · ${shipment.location.name}` : '默认库位'}`, left + 390, 242)
+    const locations = Array.from(new Set(shipment.items.map((item) => `${item.location.code} · ${item.location.name}`)))
+    doc.text(`明细项数：${shipment.items.length} 项`, left, 242)
+    doc.text(`客户凭证号：${shipment.voucherNo || '-'}`, left + 220, 242)
+    doc.text(`发货库位：${locations.join('、')}`, left + 390, 242, { width: 155, ellipsis: true })
 
     const tableTop = 264
     const headerHeight = 34
-    const rowHeight = 44
+    const rowHeight = 40
     const widths = [48, 100, 150, 54, 66, 81]
     const headers = ['序号', '物料编码', '物料名称', '数量', '单价', '金额']
-    let x = left
-    doc.fontSize(10)
-    headers.forEach((header, index) => {
-      drawCell(doc, header, x, tableTop, widths[index], headerHeight, { align: 'center' })
-      x += widths[index]
+    const drawHeader = (y: number) => {
+      let headerX = left
+      doc.fontSize(10)
+      headers.forEach((header, index) => {
+        drawCell(doc, header, headerX, y, widths[index], headerHeight, { align: 'center' })
+        headerX += widths[index]
+      })
+      return y + headerHeight
+    }
+    let rowY = drawHeader(tableTop)
+    shipment.items.forEach((item, rowIndex) => {
+      if (rowY + rowHeight > doc.page.height - 130) {
+        doc.addPage()
+        rowY = drawHeader(52)
+      }
+      let rowX = left
+      const values = [
+        String(rowIndex + 1),
+        displayMaterialCode(item.material.code || item.product?.sku),
+        `${item.material.name}${item.material.spec ? ` ${item.material.spec}` : ''}`,
+        `${item.qty} ${item.unitSnapshot}`,
+        money(Number(item.unitPrice)),
+        money(Number(item.totalAmount)),
+      ]
+      values.forEach((value, index) => {
+        drawCell(doc, value, rowX, rowY, widths[index], rowHeight, { align: index === 2 ? 'left' : 'center' })
+        rowX += widths[index]
+      })
+      rowY += rowHeight
     })
-    x = left
-    const values = [
-      '1',
-      displayMaterialCode(shipment.material?.code || shipment.product.sku),
-      `${shipment.material?.name || shipment.product.name}${shipment.material?.spec ? ` ${shipment.material.spec}` : ''}`,
-      `${shipment.qty} ${shipment.material?.stockUnit || shipment.product.unit || ''}`.trim(),
-      money(Number(shipment.unitPrice)),
-      money(Number(shipment.totalAmount)),
-    ]
-    values.forEach((value, index) => {
-      drawCell(doc, value, x, tableTop + headerHeight, widths[index], rowHeight, { align: index === 2 ? 'left' : 'center' })
-      x += widths[index]
-    })
-    const totalY = tableTop + headerHeight + rowHeight
+    const totalY = rowY
     const totalLabelWidth = widths.slice(0, 5).reduce((sum, width) => sum + width, 0)
     drawCell(doc, '合计', left, totalY, totalLabelWidth, 34, { align: 'right' })
     drawCell(doc, money(Number(shipment.totalAmount)), left + totalLabelWidth, totalY, widths[5], 34, { align: 'center' })

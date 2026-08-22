@@ -37,6 +37,7 @@ model InventoryLocation {
   outgoingTransfers        FlowTransfer[]                           @relation("FlowTransferSourceLocation")
   incomingTransfers        FlowTransfer[]                           @relation("FlowTransferTargetLocation")
   shipments                Shipment[]
+  shipmentItems            ShipmentItem[]
   returnOrders             ReturnOrder[]
   inventoryLotBalances     InventoryLotBalance[]
   inventoryLotTransactions InventoryLotTransaction[]
@@ -61,7 +62,6 @@ model WorkCenter {
   sortOrder        Int                       @default(0)
   deletedAt        DateTime?
   equipment        Equipment[]
-  workInstructions WorkInstruction[]
   processSteps     ProcessStep[]
   operatorScopes   OperatorWorkCenterScope[]
   createdAt        DateTime                  @default(now())
@@ -389,6 +389,7 @@ model Product {
   productionOrders ProductionOrder[]
   stockIns         StockIn[]
   shipments        Shipment[]
+  shipmentItems    ShipmentItem[]
   returnOrders     ReturnOrder[]
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
@@ -433,6 +434,7 @@ model Material {
   productionActualOutputs     ProductionOrderActualOutput[]    @relation("ProductionOrderActualOutputMaterial")
   flowTransfers               FlowTransfer[]
   shipments                   Shipment[]
+  shipmentItems               ShipmentItem[]
   packageDocumentItems        PackageDocumentItem[]
   salesOrderItems             SalesOrderItem[]
   returnOrders                ReturnOrder[]
@@ -1332,6 +1334,8 @@ model ShipmentLotAllocation {
   id                   String                @id @default(cuid())
   shipmentId           String
   shipment             Shipment              @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  shipmentItemId       String
+  shipmentItem         ShipmentItem          @relation(fields: [shipmentItemId], references: [id], onDelete: Restrict)
   lotId                String
   lot                  InventoryLot          @relation(fields: [lotId], references: [id], onDelete: Restrict)
   locationId           String
@@ -1347,8 +1351,9 @@ model ShipmentLotAllocation {
   createdAt            DateTime              @default(now())
   returnAllocations    ReturnLotAllocation[]
 
-  @@unique([shipmentId, lotId, locationId])
+  @@unique([shipmentItemId, lotId, locationId])
   @@index([shipmentId, status])
+  @@index([shipmentItemId, status])
   @@index([lotId, status])
   @@index([locationId, status])
 }
@@ -1605,7 +1610,6 @@ model SalesOrder {
   deletedAt    DateTime?
   deletedBy    String?
   items        SalesOrderItem[]
-  shipments    Shipment[]
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
@@ -1631,7 +1635,6 @@ model SalesOrderItem {
   priceAdjustedBy          String?
   priceAdjustReason        String?
   note                     String?
-  shipments                Shipment[]
   createdAt                DateTime   @default(now())
 
   @@index([salesOrderId])
@@ -1813,19 +1816,15 @@ model Shipment {
   id                    String                  @id @default(cuid())
   shipmentNo            String                  @unique
   voucherNo             String?
-  productId             String
-  product               Product                 @relation(fields: [productId], references: [id])
+  productId             String?
+  product               Product?                @relation(fields: [productId], references: [id])
   materialId            String?
   material              Material?               @relation(fields: [materialId], references: [id])
   locationId            String?
   location              InventoryLocation?      @relation(fields: [locationId], references: [id])
   customerId            String?
   customerRef           Customer?               @relation(fields: [customerId], references: [id])
-  salesOrderId          String?
-  salesOrder            SalesOrder?             @relation(fields: [salesOrderId], references: [id])
-  salesOrderItemId      String?
-  salesOrderItem        SalesOrderItem?         @relation(fields: [salesOrderItemId], references: [id])
-  qty                   Float
+  qty                   Float                   @default(0)
   unitPrice             Float                   @default(0)
   totalAmount           Float                   @default(0)
   customer              String
@@ -1846,13 +1845,46 @@ model Shipment {
   deletedAt             DateTime?
   deletedBy             String?
   returnOrders          ReturnOrder[]
+  items                 ShipmentItem[]
   lotAllocations        ShipmentLotAllocation[]
   packages              PackageDocument[]
   createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
 
   @@index([materialId])
-  @@index([salesOrderId])
-  @@index([salesOrderItemId])
+}
+
+model ShipmentItem {
+  id                       String                  @id @default(cuid())
+  shipmentId               String
+  shipment                 Shipment                @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  sortOrder                Int                     @default(0)
+  materialId               String
+  material                 Material                @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  productId                String?
+  product                  Product?                @relation(fields: [productId], references: [id], onDelete: Restrict)
+  locationId               String
+  location                 InventoryLocation       @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  qty                      Float
+  unitSnapshot             String
+  unitPrice                Float                   @default(0)
+  totalAmount              Float                   @default(0)
+  shippedValuationQty      Float                   @default(0)
+  shippedCostAmount        Float                   @default(0)
+  stockUnitSnapshot        String?
+  valuationUnitSnapshot    String?
+  conversionRateUsed       Float?
+  conversionSource         String?
+  lotAllocations           ShipmentLotAllocation[]
+  returnOrders             ReturnOrder[]
+  packageItems             PackageDocumentItem[]
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+
+  @@index([shipmentId, sortOrder])
+  @@index([materialId])
+  @@index([productId])
+  @@index([locationId])
 }
 
 model PackageDocument {
@@ -1885,6 +1917,8 @@ model PackageDocumentItem {
   id                String          @id @default(cuid())
   packageDocumentId String
   packageDocument   PackageDocument @relation(fields: [packageDocumentId], references: [id], onDelete: Restrict)
+  shipmentItemId    String
+  shipmentItem      ShipmentItem    @relation(fields: [shipmentItemId], references: [id], onDelete: Restrict)
   materialId        String
   material          Material        @relation(fields: [materialId], references: [id], onDelete: Restrict)
   inventoryLotId    String?
@@ -1896,6 +1930,7 @@ model PackageDocumentItem {
   createdAt         DateTime        @default(now())
 
   @@index([packageDocumentId])
+  @@index([shipmentItemId])
   @@index([materialId])
   @@index([inventoryLotId])
 }
@@ -1965,10 +2000,12 @@ model ReturnOrder {
   id                    String                @id @default(cuid())
   returnNo              String                @unique
   voucherNo             String?
-  shipmentId            String?
-  shipment              Shipment?             @relation(fields: [shipmentId], references: [id])
-  productId             String
-  product               Product               @relation(fields: [productId], references: [id])
+  shipmentId            String
+  shipment              Shipment              @relation(fields: [shipmentId], references: [id])
+  shipmentItemId        String
+  shipmentItem          ShipmentItem          @relation(fields: [shipmentItemId], references: [id], onDelete: Restrict)
+  productId             String?
+  product               Product?              @relation(fields: [productId], references: [id])
   materialId            String?
   material              Material?             @relation(fields: [materialId], references: [id])
   locationId            String?
@@ -1992,6 +2029,7 @@ model ReturnOrder {
   createdAt             DateTime              @default(now())
 
   @@index([materialId])
+  @@index([shipmentItemId])
 }
 
 model AuditLog {
@@ -2066,7 +2104,6 @@ model WorkInstruction {
   status                    String                                 @default("ACTIVE")
   materialId                String?
   material                  Material?                              @relation(fields: [materialId], references: [id], onDelete: Restrict)
-  workCenters               WorkCenter[]
   fieldValues               WorkInstructionFieldValue[]
   productionActualSnapshots ProductionOrderActualWorkInstruction[]
   contentJson               String?

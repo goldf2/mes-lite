@@ -95,7 +95,8 @@ export function materialInDataScopeWhere(scope: EffectiveDataScope): Prisma.Mate
 
 export function shipmentDataScopeWhere(scope: EffectiveDataScope): Prisma.ShipmentWhereInput {
   if (scope.inventoryMode === 'ALL') return {}
-  return { locationId: { in: scope.locationIds.length > 0 ? scope.locationIds : [impossibleId] } }
+  const ids = scope.locationIds.length > 0 ? scope.locationIds : [impossibleId]
+  return { AND: [{ items: { some: {} } }, { items: { every: { locationId: { in: ids } } } }] }
 }
 
 export function returnDataScopeWhere(scope: EffectiveDataScope): Prisma.ReturnOrderWhereInput {

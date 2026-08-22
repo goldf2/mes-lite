@@ -8,7 +8,7 @@ import {
   bulkUpdateWorkInstructions,
   listDocumentFieldDefinitions,
 } from '../client/documents-api'
-import type { DocumentCategoryRecord, MaterialOption, WorkCenterOption, WorkInstruction, WorkInstructionForm } from '../contracts/work-instruction'
+import type { DocumentCategoryRecord, MaterialOption, WorkInstruction, WorkInstructionForm } from '../contracts/work-instruction'
 import type { WorkInstructionBulkUpdateInput } from '../contracts/work-instruction-schema'
 import { createEmptyWorkInstructionForm, isSupportedDocumentFile, mergeSelectedFiles } from '../model/work-instruction-view'
 import DocumentFieldManagerDialog from './DocumentFieldManagerDialog'
@@ -19,7 +19,6 @@ export default function useWorkInstructionMetadataActions({
   categories,
   categoryOptions,
   materials,
-  workCenters,
   selectedItems,
   selectedIds,
   canBatchImport,
@@ -36,7 +35,6 @@ export default function useWorkInstructionMetadataActions({
   categories: DocumentCategoryRecord[]
   categoryOptions: { value: string; label: string; keywords?: string }[]
   materials: MaterialOption[]
-  workCenters: WorkCenterOption[]
   selectedItems: WorkInstruction[]
   selectedIds: string[]
   canBatchImport: boolean
@@ -109,7 +107,6 @@ export default function useWorkInstructionMetadataActions({
         materialId: batchForm.materialId || null,
         version: batchForm.version.trim() || 'v1',
         status: batchForm.status as 'ACTIVE' | 'DRAFT' | 'ARCHIVED',
-        workCenterIds: batchForm.workCenterIds,
         note: batchForm.note.trim() || undefined,
         fieldValues: batchForm.fieldValues,
       }, batchFiles)
@@ -159,8 +156,8 @@ export default function useWorkInstructionMetadataActions({
   const dialogs = (
     <>
       {fieldManagerOpen && <DocumentFieldManagerDialog categories={categories} initialCategoryId={categoryOptions[0]?.value} canCreate={canCreateFields} canUpdate={canUpdateFields} canDelete={canDeleteFields} onChanged={onFieldDefinitionsChanged} onClose={() => setFieldManagerOpen(false)} onMessage={onMessage} />}
-      {batchOpen && <WorkInstructionBatchImportDialog form={batchForm} onFormChange={(next) => void changeBatchForm(next)} materials={materials} selectedMaterial={selectedBatchMaterial} onMaterialSearch={onMaterialSearch} categoryOptions={categoryOptions} workCenters={workCenters} fieldDefinitions={batchFieldDefinitions} files={batchFiles} inputRef={batchUploadInputRef} loading={batchLoading} onSelectFiles={selectBatchFiles} onRemoveFile={(file) => setBatchFiles((current) => current.filter((item) => item !== file))} onClose={() => !batchLoading && setBatchOpen(false)} onSubmit={submitBatchImport} />}
-      {bulkOpen && <WorkInstructionBulkEditDialog selectedItems={selectedItems} materials={materials} workCenters={workCenters} fieldDefinitions={bulkFieldDefinitions} loading={bulkLoading} onClose={() => !bulkLoading && setBulkOpen(false)} onSubmit={submitBulkEdit} />}
+      {batchOpen && <WorkInstructionBatchImportDialog form={batchForm} onFormChange={(next) => void changeBatchForm(next)} materials={materials} selectedMaterial={selectedBatchMaterial} onMaterialSearch={onMaterialSearch} categoryOptions={categoryOptions} fieldDefinitions={batchFieldDefinitions} files={batchFiles} inputRef={batchUploadInputRef} loading={batchLoading} onSelectFiles={selectBatchFiles} onRemoveFile={(file) => setBatchFiles((current) => current.filter((item) => item !== file))} onClose={() => !batchLoading && setBatchOpen(false)} onSubmit={submitBatchImport} />}
+      {bulkOpen && <WorkInstructionBulkEditDialog selectedItems={selectedItems} materials={materials} fieldDefinitions={bulkFieldDefinitions} loading={bulkLoading} onClose={() => !bulkLoading && setBulkOpen(false)} onSubmit={submitBulkEdit} />}
     </>
   )
 

@@ -9,6 +9,7 @@ import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
 import SortableTableHeader from '@/app/components/SortableTableHeader'
 import useClientTableSort from '@/app/components/useClientTableSort'
 import AppButton from '@/app/components/AppButton'
+import VisibleFieldControl, { usePersistedVisibleFields, type VisibleFieldOption } from '@/app/components/VisibleFieldControl'
 import { ResourceAdvancedSearch } from '@/app/components/resource'
 import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/resource-search'
 import { BusinessDocumentDetailDialog, BusinessDocumentPrintLink } from '@/modules/business-documents'
@@ -24,6 +25,16 @@ import {
   shipmentStatusOptions as statusOptions,
 } from '../model/fulfillment-view'
 import { buildShipmentSearchCatalog } from '../model/sales-search-fields'
+
+type ShipmentVisibleField = 'image' | 'voucher' | 'location' | 'quantity' | 'unitPrice' | 'amount' | 'customer' | 'status' | 'shippedAt' | 'attachments'
+const shipmentVisibleFieldOptions: readonly VisibleFieldOption<ShipmentVisibleField>[] = [
+  { key: 'image', label: '物料图片' }, { key: 'voucher', label: '凭据号' }, { key: 'location', label: '发货库位' },
+  { key: 'quantity', label: '数量' }, { key: 'unitPrice', label: '单价' }, { key: 'amount', label: '总金额' },
+  { key: 'customer', label: '客户' }, { key: 'status', label: '状态' }, { key: 'shippedAt', label: '发货日期' },
+  { key: 'attachments', label: '附件' },
+]
+const defaultShipmentVisibleFields: ShipmentVisibleField[] = ['voucher', 'location', 'quantity', 'unitPrice', 'amount', 'customer', 'status', 'shippedAt', 'attachments']
+
 export default function ShipmentPageModule({
   onMessage,
   onToolbarChange,
@@ -56,6 +67,8 @@ export default function ShipmentPageModule({
   const [detailItem, setDetailItem] = useState<Shipment | null>(null)
   const [traceLotId, setTraceLotId] = useState<string | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.shipment.viewMode', 'list')
+  const [visibleFields, setVisibleFields] = usePersistedVisibleFields('mes-lite.shipments.visibleFields', defaultShipmentVisibleFields, shipmentVisibleFieldOptions)
+  const showField = (field: ShipmentVisibleField) => visibleFields.includes(field)
   const deepLinkHandledRef = useRef(false)
   const searchCatalog = useMemo(() => buildShipmentSearchCatalog(customers), [customers])
   const advancedSearchFields = useMemo(() => resourceAdvancedFields(searchCatalog), [searchCatalog])
@@ -63,8 +76,8 @@ export default function ShipmentPageModule({
   const shipmentSort = useClientTableSort(shipments, {
     shipmentNo: (item) => item.shipmentNo,
     voucherNo: (item) => item.voucherNo,
-    material: (item) => `${item.product?.sku || ''} ${item.product?.name || ''}`,
-    location: (item) => item.location ? `${item.location.code} ${item.location.name}` : null,
+    material: (item) => item.items.map((row) => `${row.material.code} ${row.material.name}`).join(' '),
+    location: (item) => item.items.map((row) => `${row.location.code} ${row.location.name}`).join(' '),
     qty: (item) => item.qty,
     unitPrice: (item) => item.unitPrice,
     totalAmount: (item) => item.totalAmount,
@@ -116,12 +129,12 @@ export default function ShipmentPageModule({
           />
         )}
         advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
-        viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
+        viewControl={<div className="flex items-center gap-2"><ViewModeToggle value={viewMode} onChange={setViewMode} /><VisibleFieldControl options={shipmentVisibleFieldOptions} value={visibleFields} onChange={setVisibleFields} /></div>}
         actions={canCreate ? <AppButton variant="create" onClick={() => setShowModal(true)}>新建发货单</AppButton> : undefined}
       />
     )
     return () => onToolbarChange(null)
-  }, [advancedSearchFields, canCreate, onToolbarChange, keyword, searchConditions, viewMode, setViewMode])
+  }, [advancedSearchFields, canCreate, onToolbarChange, keyword, searchConditions, viewMode, setViewMode, visibleFields, setVisibleFields])
 
   const refreshDetail = useCallback(async () => {
     if (!detailItem) return
@@ -148,7 +161,7 @@ export default function ShipmentPageModule({
             />
           )}
           advancedSearch={<ResourceAdvancedSearch fields={advancedSearchFields} conditions={searchConditions} onChange={setSearchConditions} />}
-          viewControl={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
+          viewControl={<div className="flex items-center gap-2"><ViewModeToggle value={viewMode} onChange={setViewMode} /><VisibleFieldControl options={shipmentVisibleFieldOptions} value={visibleFields} onChange={setVisibleFields} /></div>}
           actions={canCreate ? <AppButton variant="create" onClick={() => setShowModal(true)}>新建发货单</AppButton> : undefined}
         />
       </TopBarPortal>
@@ -164,44 +177,47 @@ export default function ShipmentPageModule({
             {shipmentSort.sortedRows.map((item) => (
               <div key={item.id} className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="font-mono text-sm font-semibold text-blue-700">{item.shipmentNo}</div>
-                    <div className="mt-1 text-xs text-gray-500">来源：{item.salesOrder?.orderNo || '独立发货'}</div>
-                    <div className="mt-1 text-xs text-gray-500">凭据号：{item.voucherNo || '-'}</div>
-                    <div className="mt-1 text-xs text-gray-500">{item.shippedAt ? new Date(item.shippedAt).toLocaleString('zh-CN') : '未发货'}</div>
+                  <div className="flex min-w-0 items-start gap-3">
+                    {showField('image') && item.items[0]?.material.primaryImage && <img src={item.items[0].material.primaryImage.thumbnailUrl || item.items[0].material.primaryImage.url} alt={item.items[0].material.primaryImage.note || item.items[0].material.name} className="h-14 w-14 shrink-0 rounded-lg border border-gray-200 bg-gray-50 object-cover" />}
+                    <div className="min-w-0">
+                      <div className="font-mono text-sm font-semibold text-blue-700">{item.shipmentNo}</div>
+                      <div className="mt-1 text-xs text-gray-500">发货物料 · {item.items.length} 项</div>
+                      {showField('voucher') && <div className="mt-1 text-xs text-gray-500">凭据号：{item.voucherNo || '-'}</div>}
+                      {showField('shippedAt') && <div className="mt-1 text-xs text-gray-500">{item.shippedAt ? new Date(item.shippedAt).toLocaleString('zh-CN') : '未发货'}</div>}
+                    </div>
                   </div>
-                  <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[item.status]}`}>
+                  {showField('status') && <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[item.status]}`}>
                     {statusLabels[item.status] || item.status}
-                  </span>
+                  </span>}
                 </div>
                 <div className="mt-3 grid gap-3 md:grid-cols-2 sm:mt-4">
                   <div>
                     <div className="text-xs text-gray-500">物料</div>
-                    <div className="mt-1 font-medium text-gray-900">{item.product?.name}</div>
-                    <div className="text-xs text-gray-500">{item.product?.sku}</div>
-                    <div className="mt-1 text-xs text-blue-700">库位：{item.location ? `${item.location.code} · ${item.location.name}` : '默认库位'}</div>
+                    <div className="mt-1 font-medium text-gray-900">{item.items[0]?.material.name}{item.items.length > 1 ? ` 等 ${item.items.length} 项` : ''}</div>
+                    <div className="text-xs text-gray-500">{item.items.map((row) => row.material.code).join('、')}</div>
+                    {showField('location') && <div className="mt-1 text-xs text-blue-700">库位：{Array.from(new Set(item.items.map((row) => row.location.code))).join('、')}</div>}
                   </div>
-                  <div>
+                  {showField('customer') && <div>
                     <div className="text-xs text-gray-500">客户</div>
                     <div className="mt-1 font-medium text-gray-900">{item.customer}</div>
                     <div className="text-xs text-gray-500">{item.customerRef ? `客户档案：${item.customerRef.name}` : '未绑定客户档案'}</div>
                     {item.customerPhone && <div className="text-xs text-gray-500">{item.customerPhone}</div>}
-                  </div>
+                  </div>}
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4 sm:gap-3">
-                  <div className="rounded bg-gray-50 p-2 sm:p-3">
+                {(showField('quantity') || showField('unitPrice') || showField('amount')) && <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4 sm:gap-3">
+                  {showField('quantity') && <div className="rounded bg-gray-50 p-2 sm:p-3">
                     <div className="text-xs text-gray-500">数量</div>
                     <div className="mt-1 font-semibold">{item.qty}</div>
-                  </div>
-                  <div className="rounded bg-gray-50 p-2 sm:p-3">
+                  </div>}
+                  {showField('unitPrice') && <div className="rounded bg-gray-50 p-2 sm:p-3">
                     <div className="text-xs text-gray-500">单价</div>
                     <div className="mt-1 font-semibold">¥{item.unitPrice.toFixed(2)}</div>
-                  </div>
-                  <div className="rounded bg-gray-50 p-2 sm:p-3">
+                  </div>}
+                  {showField('amount') && <div className="rounded bg-gray-50 p-2 sm:p-3">
                     <div className="text-xs text-gray-500">金额</div>
                     <div className="mt-1 font-semibold">¥{item.totalAmount.toFixed(2)}</div>
-                  </div>
-                </div>
+                  </div>}
+                </div>}
                 {(item.address || item.trackingNo || item.note) && (
                   <div className="mt-3 rounded bg-gray-50 p-3 text-xs text-gray-600">
                     {item.address && <div>地址：{item.address}</div>}
@@ -210,7 +226,7 @@ export default function ShipmentPageModule({
                   </div>
                 )}
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                  <AttachmentPanel ownerType="SHIPMENT" ownerId={item.id} compact compactMode="summary" onMessage={onMessage} />
+                  {showField('attachments') ? <AttachmentPanel ownerType="SHIPMENT" ownerId={item.id} compact compactMode="summary" onMessage={onMessage} /> : <span />}
                   <div className="flex flex-wrap gap-2">
                     <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
                     <BusinessDocumentPrintLink kind="shipment" id={item.id} />
@@ -237,17 +253,18 @@ export default function ShipmentPageModule({
               <thead className="bg-gray-50">
                 <tr>
                   <SortableTableHeader column="shipmentNo" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>发货单号</SortableTableHeader>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">来源销售订单</th>
-                  <SortableTableHeader column="voucherNo" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>凭据号</SortableTableHeader>
+                  {showField('image') && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">图片</th>}
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">明细项</th>
+                  {showField('voucher') && <SortableTableHeader column="voucherNo" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>凭据号</SortableTableHeader>}
                   <SortableTableHeader column="material" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>物料</SortableTableHeader>
-                  <SortableTableHeader column="location" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>发货库位</SortableTableHeader>
-                  <SortableTableHeader column="qty" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>数量</SortableTableHeader>
-                  <SortableTableHeader column="unitPrice" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>单价</SortableTableHeader>
-                  <SortableTableHeader column="totalAmount" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>总金额</SortableTableHeader>
-                  <SortableTableHeader column="customer" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>客户</SortableTableHeader>
-                  <SortableTableHeader column="status" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>状态</SortableTableHeader>
-                  <SortableTableHeader column="shippedAt" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>发货日期</SortableTableHeader>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">附件</th>
+                  {showField('location') && <SortableTableHeader column="location" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>发货库位</SortableTableHeader>}
+                  {showField('quantity') && <SortableTableHeader column="qty" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>数量</SortableTableHeader>}
+                  {showField('unitPrice') && <SortableTableHeader column="unitPrice" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>单价</SortableTableHeader>}
+                  {showField('amount') && <SortableTableHeader column="totalAmount" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>总金额</SortableTableHeader>}
+                  {showField('customer') && <SortableTableHeader column="customer" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>客户</SortableTableHeader>}
+                  {showField('status') && <SortableTableHeader column="status" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>状态</SortableTableHeader>}
+                  {showField('shippedAt') && <SortableTableHeader column="shippedAt" activeColumn={shipmentSort.sortColumn} direction={shipmentSort.sortDirection} onSort={shipmentSort.toggleSort}>发货日期</SortableTableHeader>}
+                  {showField('attachments') && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">附件</th>}
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
                 </tr>
               </thead>
@@ -255,34 +272,35 @@ export default function ShipmentPageModule({
                 {shipmentSort.sortedRows.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono text-blue-600">{item.shipmentNo}</td>
-                    <td className="px-4 py-3 font-mono text-sm text-gray-700">{item.salesOrder?.orderNo || '独立发货'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{item.voucherNo || '-'}</td>
+                    {showField('image') && <td className="px-4 py-3">{item.items[0]?.material.primaryImage ? <img src={item.items[0].material.primaryImage.thumbnailUrl || item.items[0].material.primaryImage.url} alt={item.items[0].material.primaryImage.note || item.items[0].material.name} className="h-12 w-12 rounded border border-gray-200 bg-gray-50 object-cover" /> : <span className="text-xs text-gray-400">无图片</span>}</td>}
+                    <td className="px-4 py-3 text-sm text-gray-700">{item.items.length} 项物料</td>
+                    {showField('voucher') && <td className="px-4 py-3 text-sm text-gray-700">{item.voucherNo || '-'}</td>}
                     <td className="px-4 py-3">
-                      <div className="font-medium">{item.product?.name}</div>
-                      <div className="text-xs text-gray-500">{item.product?.sku}</div>
+                      <div className="font-medium">{item.items[0]?.material.name}{item.items.length > 1 ? ` 等 ${item.items.length} 项` : ''}</div>
+                      <div className="text-xs text-gray-500">{item.items.map((row) => row.material.code).join('、')}</div>
                     </td>
-                    <td className="px-4 py-3 text-sm">{item.location ? <><div>{item.location.name}</div><div className="font-mono text-xs text-gray-500">{item.location.code}</div></> : '默认库位'}</td>
-                    <td className="px-4 py-3">{item.qty}</td>
-                    <td className="px-4 py-3">¥{item.unitPrice.toFixed(2)}</td>
-                    <td className="px-4 py-3 font-medium">¥{item.totalAmount.toFixed(2)}</td>
-	                    <td className="px-4 py-3">
+                    {showField('location') && <td className="px-4 py-3 text-sm">{Array.from(new Set(item.items.map((row) => row.location.code))).join('、')}</td>}
+                    {showField('quantity') && <td className="px-4 py-3">{item.qty}</td>}
+                    {showField('unitPrice') && <td className="px-4 py-3">¥{item.unitPrice.toFixed(2)}</td>}
+                    {showField('amount') && <td className="px-4 py-3 font-medium">¥{item.totalAmount.toFixed(2)}</td>}
+	                    {showField('customer') && <td className="px-4 py-3">
 	                      <div className="font-medium">{item.customer}</div>
 	                      <div className="text-xs text-gray-500">{item.customerRef ? `客户档案：${item.customerRef.name}` : '未绑定客户档案'}</div>
 	                      {item.customerPhone && (
 	                        <div className="text-xs text-gray-500">{item.customerPhone}</div>
 	                      )}
-                    </td>
-                    <td className="px-4 py-3">
+                    </td>}
+                    {showField('status') && <td className="px-4 py-3">
                       <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[item.status]}`}>
                         {statusLabels[item.status] || item.status}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
+                    </td>}
+                    {showField('shippedAt') && <td className="px-4 py-3 text-sm text-gray-500">
                       {item.shippedAt ? new Date(item.shippedAt).toLocaleString('zh-CN') : '-'}
-                    </td>
-                    <td className="px-4 py-3">
+                    </td>}
+                    {showField('attachments') && <td className="px-4 py-3">
                       <AttachmentPanel ownerType="SHIPMENT" ownerId={item.id} compact compactMode="summary" onMessage={onMessage} />
-                    </td>
+                    </td>}
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
                         <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
@@ -312,7 +330,7 @@ export default function ShipmentPageModule({
       {detailItem && (
         <BusinessDocumentDetailDialog
           title={`发货单 ${detailItem.shipmentNo}`}
-          description={`来源：${detailItem.salesOrder?.orderNo || '独立发货'} · ${statusLabels[detailItem.status] || detailItem.status}`}
+          description={`${detailItem.items.length} 项明细 · ${statusLabels[detailItem.status] || detailItem.status}`}
           ownerType="SHIPMENT"
           ownerId={detailItem.id}
           onClose={() => setDetailItem(null)}
@@ -320,15 +338,19 @@ export default function ShipmentPageModule({
           headerActions={<BusinessDocumentPrintLink kind="shipment" id={detailItem.id} />}
         >
           <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-            <div><dt className="text-gray-500">物料</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.product?.name}</dd><dd className="text-xs text-gray-500">{detailItem.product?.sku}</dd></div>
+            <div><dt className="text-gray-500">明细数量</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.items.length} 项</dd></div>
             <div><dt className="text-gray-500">客户</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.customer}</dd><dd className="text-xs text-gray-500">{detailItem.customerPhone || '-'}</dd></div>
-            <div><dt className="text-gray-500">发货库位</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.location ? `${detailItem.location.code} · ${detailItem.location.name}` : '默认库位'}</dd></div>
+            <div><dt className="text-gray-500">发货库位</dt><dd className="mt-1 font-medium text-gray-900">{Array.from(new Set(detailItem.items.map((row) => row.location.code))).join('、')}</dd></div>
             <div><dt className="text-gray-500">物流单号</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.trackingNo || '-'}</dd></div>
             <div><dt className="text-gray-500">数量</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.qty}</dd></div>
             <div><dt className="text-gray-500">金额</dt><dd className="mt-1 font-medium text-gray-900">¥{detailItem.totalAmount.toFixed(2)}</dd></div>
             <div><dt className="text-gray-500">发货时间</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.shippedAt ? new Date(detailItem.shippedAt).toLocaleString('zh-CN') : '-'}</dd></div>
             <div><dt className="text-gray-500">收货地址</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.address || '-'}</dd></div>
           </dl>
+          <section className="mt-5 border-t border-gray-200 pt-4">
+            <h3 className="text-sm font-semibold text-gray-900">发货明细</h3>
+            <div className="mt-2 overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50 text-left text-xs text-gray-500"><tr><th className="px-3 py-2">序号</th><th className="px-3 py-2">物料</th><th className="px-3 py-2">库位</th><th className="px-3 py-2">数量</th><th className="px-3 py-2">金额</th></tr></thead><tbody className="divide-y divide-gray-100">{detailItem.items.map((row, index) => <tr key={row.id}><td className="px-3 py-2">{index + 1}</td><td className="px-3 py-2"><div className="font-medium">{row.material.code} · {row.material.name}</div><div className="text-xs text-gray-500">{row.material.spec || '-'}</div></td><td className="px-3 py-2">{row.location.code}</td><td className="px-3 py-2">{row.qty} {row.unitSnapshot}</td><td className="px-3 py-2">¥{row.totalAmount.toFixed(2)}</td></tr>)}</tbody></table></div>
+          </section>
           <ShipmentPackageSection
             shipment={detailItem}
             canManage={canPackage}
@@ -349,7 +371,7 @@ export default function ShipmentPageModule({
                   <div key={allocation.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs">
                     <div>
                       <div className="font-mono font-medium text-gray-900">{allocation.lot.lotNo}</div>
-                      <div className="mt-0.5 text-gray-500">发出 {allocation.stockQty} {detailItem.product.unit} · 已退 {allocation.returnedStockQty} · {allocation.location.code}</div>
+                      <div className="mt-0.5 text-gray-500">发出 {allocation.stockQty} · 已退 {allocation.returnedStockQty} · {allocation.location.code}</div>
                       {allocation.lot.sourceType === 'LEGACY_SHIPMENT' && <div className="mt-0.5 text-amber-700">历史发货未保存真实批次，本记录仅显式标识兼容来源。</div>}
                     </div>
                     <AppButton size="sm" variant="secondary" onClick={() => setTraceLotId(allocation.lot.id)}>查看谱系</AppButton>

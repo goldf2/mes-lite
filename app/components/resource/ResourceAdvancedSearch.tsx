@@ -140,7 +140,7 @@ export default function ResourceAdvancedSearch<T>({
       </button>
 
       {open && (modalPresentation ? (
-        <ModalOverlay onClose={() => setOpen(false)}>
+        <ModalOverlay onClose={() => setOpen(false)} dismissOnBackdrop>
           <div role="dialog" aria-modal="true" aria-label="高级搜索" tabIndex={-1} className="flex max-h-[calc(100dvh-2rem)] w-[min(92vw,42rem)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
             {panelContent}
           </div>

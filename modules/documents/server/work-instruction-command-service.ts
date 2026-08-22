@@ -7,7 +7,6 @@ import { syncWorkInstructionFieldValues } from './document-field-command-service
 const instructionInclude = {
   category: { select: { id: true, name: true, parentId: true, parent: { select: { id: true, name: true } } } },
   material: { select: { id: true, code: true, name: true, spec: true, category: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
-  workCenters: { select: { id: true, code: true, name: true, isActive: true } },
   fieldValues: {
     include: { fieldDefinition: { select: { id: true, name: true, fieldType: true, optionsJson: true, sortOrder: true } } },
     orderBy: { fieldDefinition: { sortOrder: 'asc' } },
@@ -37,15 +36,13 @@ export function createAutomaticWorkInstructionTitle(
 
 async function validateRelations(tx: Prisma.TransactionClient, data: WorkInstructionInput) {
   const materialId = data.materialId || null
-  const [material, category, workCenterCount] = await Promise.all([
+  const [material, category] = await Promise.all([
     materialId ? tx.material.findFirst({ where: { id: materialId, category: 'FINISHED', deletedAt: null }, select: { id: true, code: true, name: true } }) : null,
     tx.documentCategory.findUnique({ where: { id: data.categoryId }, select: { id: true, name: true } }),
-    tx.workCenter.count({ where: { id: { in: data.workCenterIds }, isActive: true, deletedAt: null } }),
   ])
   if (materialId && !material) throw new WorkInstructionValidationError('关联产品不存在或已归档')
   if (!category) throw new WorkInstructionValidationError('文档类别不存在')
-  if (workCenterCount !== new Set(data.workCenterIds).size) throw new WorkInstructionValidationError('存在无效或已停用的工作中心')
-  return { material, category, workCenterIds: Array.from(new Set(data.workCenterIds)) }
+  return { material, category }
 }
 
 function instructionData(data: WorkInstructionInput, relations: Awaited<ReturnType<typeof validateRelations>>, now?: Date) {
@@ -68,7 +65,6 @@ export async function createWorkInstruction(data: WorkInstructionInput, now = ne
       data: {
         categoryId: normalized.categoryId, title: normalized.title, version: normalized.version,
         status: normalized.status, materialId: normalized.materialId,
-        workCenters: { connect: relations.workCenterIds.map((id) => ({ id })) },
         ...normalized.content, note: normalized.note,
       },
       include: instructionInclude,
@@ -80,7 +76,7 @@ export async function createWorkInstruction(data: WorkInstructionInput, now = ne
 
 export async function updateWorkInstruction(data: WorkInstructionUpdateInput, now = new Date()) {
   return prisma.$transaction(async (tx) => {
-    const before = await tx.workInstruction.findUnique({ where: { id: data.id }, include: { workCenters: { select: { id: true, code: true, name: true } }, fieldValues: true } })
+    const before = await tx.workInstruction.findUnique({ where: { id: data.id }, include: { fieldValues: true } })
     if (!before || before.deletedAt) throw new WorkInstructionNotFoundError()
     const relations = await validateRelations(tx, data)
     const normalized = instructionData(data, relations, now)
@@ -89,7 +85,6 @@ export async function updateWorkInstruction(data: WorkInstructionUpdateInput, no
       data: {
         categoryId: normalized.categoryId, title: normalized.title, version: normalized.version,
         status: normalized.status, materialId: normalized.materialId,
-        workCenters: { set: relations.workCenterIds.map((id) => ({ id })) },
         ...normalized.content, note: normalized.note,
       },
       include: instructionInclude,

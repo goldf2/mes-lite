@@ -16,6 +16,7 @@ export interface MaterialReference {
   code: string
   name: string
   spec?: string | null
+  primaryImage?: MaterialImage | null
 }
 
 export interface Material {

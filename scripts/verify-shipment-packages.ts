@@ -92,13 +92,12 @@ async function main() {
     })
 
     const shipment = await createManagedShipment({
-      materialId: material.id,
       customerId: customer.id,
-      locationId: location.id,
-      qty: 4,
+      items: [{ materialId: material.id, locationId: location.id, qty: 4 }],
       trackingNo: `TRACK-${suffix}`,
     }, new Date('2026-08-19T01:00:00.000Z'))
     const firstPackage = await createShipmentPackage(shipment.id, {
+      shipmentItemId: shipment.items[0].id,
       quantity: 2,
       packedBy: '装箱验证员',
       grossWeight: 2.2,
@@ -127,6 +126,7 @@ async function main() {
     assert.equal(shipmentScan?.referenceId, shipment.id)
 
     const secondPackage = await createShipmentPackage(shipment.id, {
+      shipmentItemId: shipment.items[0].id,
       quantity: 2,
       packedBy: '装箱验证员',
       weightUnit: 'kg',
@@ -134,6 +134,7 @@ async function main() {
     assert.notEqual(secondPackage.packageNo, firstPackage.packageNo, '同日货箱单号不得重复')
     await assert.rejects(
       () => createShipmentPackage(shipment.id, {
+        shipmentItemId: shipment.items[0].id,
         quantity: 1,
         packedBy: '装箱验证员',
         weightUnit: 'kg',
@@ -150,12 +151,11 @@ async function main() {
     assert.deepEqual(deliveredPackages.map((item) => item.status), ['DELIVERED', 'DELIVERED'])
 
     const archiveShipment = await createManagedShipment({
-      materialId: material.id,
       customerId: customer.id,
-      locationId: location.id,
-      qty: 1,
+      items: [{ materialId: material.id, locationId: location.id, qty: 1 }],
     }, new Date('2026-08-19T02:00:00.000Z'))
     const archivedCandidate = await createShipmentPackage(archiveShipment.id, {
+      shipmentItemId: archiveShipment.items[0].id,
       quantity: 1,
       packedBy: '装箱验证员',
       weightUnit: 'kg',

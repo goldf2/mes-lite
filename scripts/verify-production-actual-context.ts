@@ -109,7 +109,6 @@ async function main() {
           materialId: finished.id,
           contentJson: '{"type":"doc","content":[]}',
           contentText: '装模后完成首件确认。',
-          workCenters: { connect: { id: orderCenter.id } },
         },
       }),
       prisma.workInstruction.create({
@@ -117,7 +116,6 @@ async function main() {
           categoryId: category.id,
           title: '无关产品作业文件',
           materialId: unrelatedMaterial.id,
-          workCenters: { connect: { id: otherCenter.id } },
         },
       }),
       prisma.workInstruction.create({
@@ -126,7 +124,6 @@ async function main() {
           title: '未生效文件',
           status: 'DRAFT',
           materialId: finished.id,
-          workCenters: { connect: { id: orderCenter.id } },
         },
       }),
     ])

@@ -50,13 +50,19 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
     }),
     prisma.shipment.findMany({
       where: { deletedAt: null, lotTraceStatus: { in: ['TRACKED', 'LEGACY'] } },
-      include: { lotAllocations: { where: { status: 'ACTIVE' } } },
+      include: {
+        items: {
+          include: { lotAllocations: { where: { status: 'ACTIVE' } } },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
     }),
     prisma.shipmentLotAllocation.findMany({
       where: { status: 'ACTIVE' },
       include: {
         lot: { select: { materialId: true, status: true, lotNo: true } },
-        shipment: { select: { materialId: true, shipmentNo: true, status: true } },
+        shipment: { select: { shipmentNo: true, status: true } },
+        shipmentItem: { select: { materialId: true, sortOrder: true } },
       },
     }),
     prisma.returnOrder.findMany({
@@ -66,7 +72,7 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
     prisma.returnLotAllocation.findMany({
       where: { status: 'ACTIVE' },
       include: {
-        returnOrder: { select: { returnNo: true, shipmentId: true, status: true } },
+        returnOrder: { select: { returnNo: true, shipmentId: true, shipmentItemId: true, status: true } },
         returnedLot: { select: { id: true, returnOrderId: true, materialId: true, status: true, lotNo: true } },
         shipmentAllocation: {
           include: {
@@ -196,11 +202,12 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
       || Number(allocation.stockQty) <= 0
       || returnedQty < -0.000001
       || returnedQty - Number(allocation.stockQty) > 0.000001
-      || (allocation.shipment.materialId && allocation.shipment.materialId !== allocation.lot.materialId)
+      || allocation.shipmentItem.materialId !== allocation.lot.materialId
     ) {
       invalidShipmentAllocations.push({
         id: allocation.id,
         shipmentNo: allocation.shipment.shipmentNo,
+        shipmentItemId: allocation.shipmentItemId,
         lotNo: allocation.lot.lotNo,
         stockQty: allocation.stockQty,
         returnedStockQty: allocation.returnedStockQty,
@@ -208,9 +215,17 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
     }
   }
   for (const shipment of tracedShipments) {
-    const allocatedQty = shipment.lotAllocations.reduce((sum, item) => sum + Number(item.stockQty), 0)
-    if (Math.abs(allocatedQty - Number(shipment.qty)) > 0.000001) {
-      invalidShipmentAllocations.push({ id: shipment.id, shipmentNo: shipment.shipmentNo, shipmentQty: shipment.qty, allocatedQty, reason: '发货批次合计与发货数量不一致' })
+    for (const item of shipment.items) {
+      const allocatedQty = item.lotAllocations.reduce((sum, allocation) => sum + Number(allocation.stockQty), 0)
+      if (Math.abs(allocatedQty - Number(item.qty)) > 0.000001) {
+        invalidShipmentAllocations.push({
+          id: item.id,
+          shipmentNo: shipment.shipmentNo,
+          shipmentItemQty: item.qty,
+          allocatedQty,
+          reason: '发货明细批次合计与明细数量不一致',
+        })
+      }
     }
   }
   if (invalidShipmentAllocations.length > 0) {
@@ -225,6 +240,7 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
     if (
       allocation.returnOrder.status !== 'PROCESSED'
       || allocation.returnOrder.shipmentId !== allocation.shipmentAllocation.shipment.id
+      || allocation.returnOrder.shipmentItemId !== allocation.shipmentAllocation.shipmentItemId
       || allocation.returnedLot.returnOrderId !== allocation.returnOrderId
       || allocation.returnedLot.status !== 'OPEN'
       || allocation.shipmentAllocation.lot.status !== 'OPEN'

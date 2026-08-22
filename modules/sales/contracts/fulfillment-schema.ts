@@ -1,31 +1,30 @@
 import { z } from 'zod'
 
-export const createShipmentSchema = z.object({
-  salesOrderItemId: z.string().optional(),
-  materialId: z.string().optional(),
-  customerId: z.string().optional(),
-  voucherNo: z.string().optional(),
+const createShipmentItemSchema = z.object({
+  materialId: z.string().min(1, '请选择发货物料'),
   unitPrice: z.number().finite().nonnegative().optional(),
-  locationId: z.string().min(1, '发货库位必填').optional(),
+  locationId: z.string().min(1, '发货库位必填'),
   qty: z.number().finite().positive(),
+}).strict()
+
+export const createShipmentSchema = z.object({
+  customerId: z.string().min(1, '请选择客户'),
+  voucherNo: z.string().optional(),
   trackingNo: z.string().optional(),
   note: z.string().optional(),
   shippedBy: z.string().optional(),
-}).superRefine((data, context) => {
-  if (data.salesOrderItemId) return
-  if (!data.materialId) context.addIssue({ code: z.ZodIssueCode.custom, path: ['materialId'], message: '请选择发货物料' })
-  if (!data.customerId) context.addIssue({ code: z.ZodIssueCode.custom, path: ['customerId'], message: '请选择客户' })
-})
+  items: z.array(createShipmentItemSchema).min(1, '至少添加一项发货明细').max(100, '单张发货单最多 100 项'),
+}).strict()
 
 export const createReturnSchema = z.object({
   voucherNo: z.string().optional(),
   shipmentId: z.string().min(1, '请选择原发货单'),
-  productId: z.string().min(1),
+  shipmentItemId: z.string().min(1, '请选择原发货明细'),
   locationId: z.string().min(1, '退回库位必填'),
   qty: z.number().finite().positive(),
   reason: z.string().trim().min(1, '退货原因必填'),
   note: z.string().optional(),
-})
+}).strict()
 
 export const processReturnSchema = z.object({})
 

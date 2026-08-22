@@ -63,15 +63,24 @@ async function main() {
       inputAllocationId: allocation.id, parentLotId: rawLot.id, childLotId: finishedLot.id,
       actualId: actual.id, outputId: actual.outputs[0].id,
     } })
-    const shipment = await prisma.shipment.create({ data: {
-      shipmentNo: `SH-PAN-${suffix}`, productId: product.id, materialId: finished.id, locationId: location.id,
-      customerId: customer.id, customer: customer.name, qty: 3, status: 'DELIVERED', lotTraceStatus: 'TRACKED', shippedAt: new Date(),
-    } })
+    const shipment = await prisma.shipment.create({
+      data: {
+        shipmentNo: `SH-PAN-${suffix}`, productId: product.id, materialId: finished.id, locationId: location.id,
+        customerId: customer.id, customer: customer.name, qty: 3, status: 'DELIVERED', lotTraceStatus: 'TRACKED', shippedAt: new Date(),
+        items: { create: {
+          productId: product.id, materialId: finished.id, locationId: location.id,
+          qty: 3, unitSnapshot: finished.stockUnit,
+        } },
+      },
+      include: { items: true },
+    })
     const shipmentAllocation = await prisma.shipmentLotAllocation.create({ data: {
-      shipmentId: shipment.id, lotId: finishedLot.id, locationId: location.id, stockQty: 3, valuationQty: 3, costAmount: 37.5,
+      shipmentId: shipment.id, shipmentItemId: shipment.items[0].id,
+      lotId: finishedLot.id, locationId: location.id, stockQty: 3, valuationQty: 3, costAmount: 37.5,
     } })
     const returnOrder = await prisma.returnOrder.create({ data: {
-      returnNo: `RT-PAN-${suffix}`, shipmentId: shipment.id, productId: product.id, materialId: finished.id,
+      returnNo: `RT-PAN-${suffix}`, shipmentId: shipment.id, shipmentItemId: shipment.items[0].id,
+      productId: product.id, materialId: finished.id,
       locationId: location.id, qty: 1, reason: '全景验证退货', status: 'PROCESSED', processedAt: new Date(),
     } })
     const returnLot = await prisma.inventoryLot.create({ data: {

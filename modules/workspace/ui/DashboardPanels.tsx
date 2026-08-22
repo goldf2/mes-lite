@@ -1,4 +1,4 @@
-import type { DashboardMetricItem, DashboardStatusItem, DashboardStockAlert } from '../contracts/dashboard'
+import type { DashboardMetricItem, DashboardSalesDeliveryReference, DashboardStatusItem, DashboardStockAlert } from '../contracts/dashboard'
 import type { RoleTaskSection } from '../model/role-task-view'
 import type { WorkspaceFunctionKey } from '@/lib/workspace'
 
@@ -39,6 +39,15 @@ export function DashboardKpiGrid({ items }: { items: DashboardMetricItem[] }) {
       })}
     </div>
   )
+}
+
+function quantityText(value: number) {
+  return Number(value || 0).toFixed(3).replace(/\.?0+$/, '') || '0'
+}
+
+export function DashboardSalesDeliveryPanel({ references, onOpen }: { references: DashboardSalesDeliveryReference[]; onOpen: () => void }) {
+  const visible = references.filter((item) => item.remainingQty > 0 || item.overQty > 0).slice(0, 8)
+  return <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm"><div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-gray-900">客户物料交付参考</h3><p className="mt-1 text-xs text-gray-500">按客户＋物料动态汇总，不绑定订单，也不限制超发。</p></div><button type="button" onClick={onOpen} className="text-sm font-medium text-blue-700 hover:underline">查看销售订单</button></div>{visible.length === 0 ? <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">当前没有未发或超发参考项</div> : <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">{visible.map((item) => <div key={`${item.customerId}:${item.materialId}`} className="rounded-lg border border-gray-100 bg-gray-50 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><div className="truncate text-sm font-semibold text-gray-900">{item.material ? `${item.material.code} · ${item.material.name}` : item.materialId}</div><div className="mt-0.5 truncate text-xs text-gray-500">{item.customer ? `${item.customer.code} · ${item.customer.name}` : item.customerId}</div></div>{item.overQty > 0 ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">超发 {quantityText(item.overQty)} {item.unit}</span> : <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800">未发 {quantityText(item.remainingQty)} {item.unit}</span>}</div><div className="mt-3 grid grid-cols-3 gap-2 text-xs text-gray-600"><div>需求 <strong className="text-gray-900">{quantityText(item.orderedQty)}</strong></div><div>待发 <strong className="text-gray-900">{quantityText(item.pendingQty)}</strong></div><div>已发 <strong className="text-gray-900">{quantityText(item.shippedQty)}</strong></div></div></div>)}</div>}</section>
 }
 
 export function DashboardBarPanel({ title, items }: { title: string; items: Array<Omit<DashboardMetricItem, 'hint'>> }) {

@@ -7,7 +7,7 @@ import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/works
 import { loadDashboard } from '../client/dashboard-api'
 import type { DashboardData } from '../contracts/dashboard'
 import { buildDashboardMetricItems, buildDashboardPendingItems, buildDashboardWorkloadItems, normalizeDashboard } from '../model/dashboard-view'
-import { DashboardBarPanel, DashboardKpiGrid, DashboardSignalGrid, ProductionStatusOverview, RoleTaskBoard, StockAlertList } from './DashboardPanels'
+import { DashboardBarPanel, DashboardKpiGrid, DashboardSalesDeliveryPanel, DashboardSignalGrid, ProductionStatusOverview, RoleTaskBoard, StockAlertList } from './DashboardPanels'
 
 interface DashboardPageProps {
   items: WorkspaceFunctionItem[]
@@ -58,6 +58,7 @@ export default function DashboardPage({
         onSave={onSave}
       />
       <DashboardKpiGrid items={metricItems} />
+      <DashboardSalesDeliveryPanel references={view.salesDeliveryReferences} onOpen={() => onOpen('salesOrders')} />
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <DashboardBarPanel title="生产负荷" items={workloadItems} />
         <DashboardSignalGrid title="待处理事项" items={pendingItems} />

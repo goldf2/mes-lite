@@ -28,7 +28,6 @@ const requiredFiles = [
   'modules/sales/domain/sales-document-numbering.ts',
   'modules/sales/domain/sales-order-pricing.ts',
   'modules/sales/domain/sales-order-status.ts',
-  'modules/sales/server/sales-order-availability-service.ts',
   'modules/sales/server/sales-order-query-service.ts',
   'modules/sales/server/sales-order-command-service.ts',
   'modules/sales/server/fulfillment-query-service.ts',
@@ -39,6 +38,7 @@ const requiredFiles = [
   'modules/sales/server/shipment-package-command-service.ts',
   'modules/sales/ui/ShipmentPackageCreateDialog.tsx',
   'modules/sales/ui/ShipmentPackageSection.tsx',
+  'modules/materials/server/material-image-query-service.ts',
 ]
 
 for (const path of requiredFiles) {
@@ -72,6 +72,10 @@ assert.match(fulfillmentClient, /loadShipmentCreateOptions/, '销售履约 clien
 assert.match(fulfillmentClient, /transitionReturn/, '销售履约 client 必须封装退货状态变更')
 assert.match(registry, /ShipmentPageModule/, '发货页必须通过销售模块公开入口加载')
 assert.match(registry, /ReturnPageModule/, '退货页必须通过销售模块公开入口加载')
+assert.match(page, /VisibleFieldControl/, '销售订单列表必须支持可见项配置')
+assert.match(shipmentPage, /VisibleFieldControl/, '发货单列表必须支持可见项配置')
+assert.match(page, /primaryImage/, '销售订单必须支持显示物料图片')
+assert.match(shipmentPage, /primaryImage/, '发货单必须支持显示物料图片')
 
 const serverRoutes = [
   'app/api/sales-orders/route.ts',

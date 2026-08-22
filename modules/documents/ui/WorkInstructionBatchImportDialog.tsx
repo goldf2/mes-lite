@@ -4,7 +4,7 @@ import type { RefObject } from 'react'
 import { FileText, Upload, X } from 'lucide-react'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import type { DocumentFieldDefinitionRecord } from '../contracts/document-field-schema'
-import type { MaterialOption, WorkCenterOption, WorkInstructionForm } from '../contracts/work-instruction'
+import type { MaterialOption, WorkInstructionForm } from '../contracts/work-instruction'
 import { formatFileSize } from '../model/work-instruction-view'
 import WorkInstructionFormFields from './WorkInstructionFormFields'
 
@@ -15,7 +15,6 @@ export default function WorkInstructionBatchImportDialog({
   selectedMaterial,
   onMaterialSearch,
   categoryOptions,
-  workCenters,
   fieldDefinitions,
   files,
   inputRef,
@@ -31,7 +30,6 @@ export default function WorkInstructionBatchImportDialog({
   selectedMaterial?: MaterialOption | null
   onMaterialSearch: (keyword: string) => void | Promise<void>
   categoryOptions: { value: string; label: string; keywords?: string }[]
-  workCenters: WorkCenterOption[]
   fieldDefinitions: DocumentFieldDefinitionRecord[]
   files: File[]
   inputRef: RefObject<HTMLInputElement>
@@ -80,7 +78,6 @@ export default function WorkInstructionBatchImportDialog({
         selectedMaterial={selectedMaterial}
         onMaterialSearch={onMaterialSearch}
         categoryOptions={categoryOptions}
-        workCenters={workCenters}
         fieldDefinitions={fieldDefinitions}
         mode="batch"
       />

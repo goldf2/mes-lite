@@ -50,6 +50,7 @@ export default function ModalDialog({
   return (
     <ModalOverlay
       onClose={dismiss}
+      dismissOnBackdrop={false}
       className={`${fullscreen ? '!bg-white !p-0' : ''} ${overlayClassName}`}
     >
       <section

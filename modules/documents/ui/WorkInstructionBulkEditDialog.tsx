@@ -5,7 +5,7 @@ import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import SearchableSelect from '@/app/components/SearchableSelect'
 import { appInputClassName, appSelectClassName, appTextareaClassName } from '@/app/components/FormField'
 import type { DocumentFieldDefinitionRecord } from '../contracts/document-field-schema'
-import type { MaterialOption, WorkCenterOption, WorkInstruction } from '../contracts/work-instruction'
+import type { MaterialOption, WorkInstruction } from '../contracts/work-instruction'
 import type { WorkInstructionBulkUpdateInput } from '../contracts/work-instruction-schema'
 import { parseFieldOptions } from '../domain/document-field-rules'
 import { documentCategoryLabel } from '../domain/document-category-rules'
@@ -16,7 +16,6 @@ type BulkUpdates = WorkInstructionBulkUpdateInput['updates']
 export default function WorkInstructionBulkEditDialog({
   selectedItems,
   materials,
-  workCenters,
   fieldDefinitions,
   loading,
   onClose,
@@ -24,7 +23,6 @@ export default function WorkInstructionBulkEditDialog({
 }: {
   selectedItems: WorkInstruction[]
   materials: MaterialOption[]
-  workCenters: WorkCenterOption[]
   fieldDefinitions: DocumentFieldDefinitionRecord[]
   loading: boolean
   onClose: () => void
@@ -34,7 +32,6 @@ export default function WorkInstructionBulkEditDialog({
   const [version, setVersion] = useState('v1')
   const [status, setStatus] = useState('ACTIVE')
   const [materialId, setMaterialId] = useState('')
-  const [workCenterIds, setWorkCenterIds] = useState<string[]>([])
   const [note, setNote] = useState('')
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
   const categoryIds = useMemo(() => Array.from(new Set(selectedItems.map((item) => item.categoryId))), [selectedItems])
@@ -49,7 +46,6 @@ export default function WorkInstructionBulkEditDialog({
     if (enabled.version) updates.version = version.trim() || 'v1'
     if (enabled.status) updates.status = status as 'ACTIVE' | 'DRAFT' | 'ARCHIVED'
     if (enabled.materialId) updates.materialId = materialId || null
-    if (enabled.workCenterIds) updates.workCenterIds = workCenterIds
     if (enabled.note) updates.note = note.trim() || null
     const extensionValues = Object.fromEntries(fieldDefinitions.filter((definition) => enabled[`field:${definition.id}`]).map((definition) => [definition.id, fieldValues[definition.id] || '']))
     if (Object.keys(extensionValues).length > 0) updates.fieldValues = extensionValues
@@ -88,12 +84,6 @@ export default function WorkInstructionBulkEditDialog({
           <ApplyField label="状态" enabled={Boolean(enabled.status)} onChange={(value) => toggle('status', value)}><select value={status} onChange={(event) => setStatus(event.target.value)} className={appSelectClassName}>{instructionStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></ApplyField>
           <ApplyField label="关联产品" enabled={Boolean(enabled.materialId)} onChange={(value) => toggle('materialId', value)}>
             <SearchableSelect value={materialId} onChange={setMaterialId} options={[{ value: '', label: '清空关联产品' }, ...materials.map((material) => ({ value: material.id, label: formatMaterialLabel(material), keywords: `${material.code} ${material.name} ${material.spec || ''}` }))]} placeholder="输入产品编码或名称筛选" />
-          </ApplyField>
-          <ApplyField label="适用工作中心" enabled={Boolean(enabled.workCenterIds)} onChange={(value) => toggle('workCenterIds', value)}>
-            <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
-              {workCenters.map((workCenter) => <label key={workCenter.id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-gray-50"><input type="checkbox" checked={workCenterIds.includes(workCenter.id)} onChange={(event) => setWorkCenterIds((current) => event.target.checked ? [...current, workCenter.id] : current.filter((id) => id !== workCenter.id))} />{workCenter.code} · {workCenter.name}</label>)}
-              {workCenters.length === 0 && <div className="px-2 py-1 text-sm text-gray-400">暂无工作中心</div>}
-            </div>
           </ApplyField>
           <ApplyField label="备注" enabled={Boolean(enabled.note)} onChange={(value) => toggle('note', value)} className="md:col-span-2"><textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} className={appTextareaClassName} placeholder="留空将清空备注" /></ApplyField>
         </div>

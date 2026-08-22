@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma'
-import { resolveMaterialIdForProduct } from '@/lib/material-product'
 import {
   assertInventoryLocationDataScope,
   unrestrictedDataScope,
@@ -22,26 +21,22 @@ export async function createShipmentPackage(
   return runSalesDomainOperation(() => prisma.$transaction(async (tx) => {
     const shipment = await tx.shipment.findFirst({
       where: { id: shipmentId, deletedAt: null },
-      include: { product: { select: { unit: true } }, material: { select: { id: true, stockUnit: true } } },
+      include: { items: { include: { material: { select: { id: true, code: true, stockUnit: true } }, location: true } } },
     })
     if (!shipment) throw new SalesDomainError('发货单不存在', 404)
-    assertInventoryLocationDataScope(scope, [shipment.locationId])
+    assertInventoryLocationDataScope(scope, shipment.items.map((item) => item.locationId))
     if (shipment.status !== 'PENDING') throw new SalesDomainError('只有待发货单可以新增货箱')
 
-    const materialId = await resolveMaterialIdForProduct(tx, shipment.productId, shipment.materialId)
-    if (!materialId) throw new SalesDomainError('发货物料未关联统一物料档案')
-    const material = shipment.material?.id === materialId
-      ? shipment.material
-      : await tx.material.findUnique({ where: { id: materialId }, select: { id: true, stockUnit: true } })
-    if (!material) throw new SalesDomainError('发货物料不存在', 404)
+    const shipmentItem = shipment.items.find((item) => item.id === input.shipmentItemId)
+    if (!shipmentItem) throw new SalesDomainError('所选发货明细不属于当前发货单', 404)
 
     const packed = await tx.packageDocumentItem.aggregate({
-      where: { packageDocument: { is: { shipmentId, deletedAt: null } } },
+      where: { shipmentItemId: shipmentItem.id, packageDocument: { is: { shipmentId, deletedAt: null } } },
       _sum: { quantity: true },
     })
-    const remainingQty = Number((Number(shipment.qty) - Number(packed._sum.quantity || 0)).toFixed(6))
+    const remainingQty = Number((Number(shipmentItem.qty) - Number(packed._sum.quantity || 0)).toFixed(6))
     if (input.quantity > remainingQty + quantityTolerance) {
-      throw new SalesDomainError(`装箱数量超过未装数量 ${remainingQty} ${material.stockUnit || shipment.product.unit}`)
+      throw new SalesDomainError(`装箱数量超过明细未装数量 ${remainingQty} ${shipmentItem.unitSnapshot}`)
     }
 
     const latest = await tx.packageDocument.findFirst({
@@ -65,9 +60,10 @@ export async function createShipmentPackage(
         note: input.note || null,
         items: {
           create: {
-            materialId,
+            shipmentItemId: shipmentItem.id,
+            materialId: shipmentItem.materialId,
             quantity: input.quantity,
-            unitSnapshot: material.stockUnit || shipment.product.unit,
+            unitSnapshot: shipmentItem.unitSnapshot,
           },
         },
       },
@@ -85,10 +81,10 @@ export async function archiveShipmentPackage(
   return runSalesDomainOperation(() => prisma.$transaction(async (tx) => {
     const packageDocument = await tx.packageDocument.findFirst({
       where: { id: packageId, shipmentId, deletedAt: null },
-      include: { shipment: { select: { status: true, locationId: true } } },
+      include: { shipment: { include: { items: { select: { locationId: true } } } } },
     })
     if (!packageDocument) throw new SalesDomainError('货箱单据不存在', 404)
-    assertInventoryLocationDataScope(scope, [packageDocument.shipment.locationId])
+    assertInventoryLocationDataScope(scope, packageDocument.shipment.items.map((item) => item.locationId))
     if (packageDocument.shipment.status !== 'PENDING') throw new SalesDomainError('已发货货箱不可归档')
     const updated = await tx.packageDocument.update({
       where: { id: packageId },

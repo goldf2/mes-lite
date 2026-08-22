@@ -36,6 +36,7 @@ function verifySchemasAndTitle() {
   }))
   assert.equal(extensionSearch.error, undefined, '高级搜索必须接受实际扩展字段 ID')
   assert.equal(workInstructionInputSchema.safeParse({ categoryId: '' }).success, false, '文档类别不能为空')
+  assert.equal(workInstructionInputSchema.safeParse({ categoryId: 'category', workCenterIds: [] }).success, false, '文档保存 API 必须拒绝已移除的工作中心字段')
   assert.equal(workInstructionUpdateInputSchema.safeParse({ categoryId: 'category' }).success, false, '更新必须提供文档 ID')
   const title = createAutomaticWorkInstructionTitle(null, { name: '作业指导书' }, new Date('2026-08-09T02:30:00.000Z'))
   assert.equal(title, '通用 · 作业指导书 · 2026-08-09 10:30', '自动标题必须固定使用上海时区')
@@ -102,7 +103,8 @@ function verifyBoundaries() {
   assert.match(detailDialog, /DocumentFileViewer[\s\S]*OnlineDocumentEditor[\s\S]*WorkInstructionFormFields/, '详情工作区必须复用公共文件预览、正文编辑与文档表单')
   assert.match(fullscreenViewer, /OnlineDocumentEditor/, '全屏查看器必须复用公共在线正文阅读能力')
   assert.match(fullscreenViewer, /DocumentFileViewer[\s\S]*attachmentPreviewKind/, '全屏查看器必须复用公共文件预览与类型判定')
-  assert.match(formFields, /OneToManyRelationField[\s\S]*OnlineDocumentEditor/, '文档表单必须复用公共一对多关联与在线正文组件')
+  assert.doesNotMatch(formFields, /工作中心|WorkCenterPicker|OneToManyRelationField/, '文档表单不得继续承担工作中心分配职责')
+  assert.doesNotMatch(`${command}\n${query}\n${page}\n${collection}`, /workCenterIds|workCenters|适用工作中心/, '文档写入、查询和页面不得继续暴露工作中心关系')
   assert.match(client, /from '@\/modules\/attachments'[\s\S]*\/api\/work-instructions/, '文档 client 必须通过附件领域公开能力和文档 API 封装请求')
   assert.doesNotMatch(client, /\/api\/attachments/, '文档 client 不得绕过附件领域公开 client')
   assert.match(renderer, /import\('\@\/modules\/documents'\)/, '页面注册层必须从 documents 公开出口加载文档页面')
@@ -110,9 +112,8 @@ function verifyBoundaries() {
 
 async function verifyDatabaseRules() {
   const suffix = randomUUID().slice(0, 8)
-  const [category, workCenter, material, rawMaterial] = await Promise.all([
+  const [category, material, rawMaterial] = await Promise.all([
     prisma.documentCategory.create({ data: { name: `验证类别-${suffix}` } }),
-    prisma.workCenter.create({ data: { code: `WC-${suffix}`, name: '验证中心' } }),
     prisma.material.create({ data: { code: `DOC-${suffix}`, name: '验证成品', unit: '件', category: 'FINISHED' } }),
     prisma.material.create({ data: { code: `RAW-${suffix}`, name: '验证原料', unit: '件', category: 'RAW' } }),
   ])
@@ -120,13 +121,11 @@ async function verifyDatabaseRules() {
   const input = workInstructionInputSchema.parse({
     categoryId: category.id,
     materialId: material.id,
-    workCenterIds: [workCenter.id, workCenter.id],
     contentJson,
   })
   const created = await createWorkInstruction(input, new Date('2026-08-09T02:30:00.000Z'))
   assert.match(created.title, new RegExp(`^${material.code} ${material.name}`), '空标题必须按产品与类别自动生成')
   assert.equal(created.contentText, '现场验证正文', '在线正文必须规范化为可搜索文本')
-  assert.equal(created.workCenters.length, 1, '重复工作中心必须去重')
 
   await prisma.documentAttachment.create({
     data: {
@@ -141,10 +140,9 @@ async function verifyDatabaseRules() {
   assert.equal(listed.data[0]?.attachmentCount, 1, '文档列表必须装配附件数量')
   assert.equal(listed.data[0]?.pdfCount, 1, '文档列表必须装配 PDF 数量')
 
-  const updateInput = workInstructionUpdateInputSchema.parse({ ...input, id: created.id, title: '更新后的指导书', workCenterIds: [] })
+  const updateInput = workInstructionUpdateInputSchema.parse({ ...input, id: created.id, title: '更新后的指导书' })
   const updated = await updateWorkInstruction(updateInput)
   assert.equal(updated.before.title, created.title, '文档更新必须返回审计前快照')
-  assert.equal(updated.instruction.workCenters.length, 0, '工作中心集合必须支持原子替换')
   await assert.rejects(
     () => createWorkInstruction(workInstructionInputSchema.parse({ ...input, materialId: rawMaterial.id })),
     WorkInstructionValidationError,

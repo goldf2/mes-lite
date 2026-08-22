@@ -95,11 +95,29 @@ async function main() {
       data: { orderNo: 'WO-MAP-001', productId: product.id, bomId: bom.id, planQty: 10, status: 'RELEASED' },
     })
     await prisma.stockIn.create({ data: { orderId: order.id, productId: product.id, qty: 10 } })
+    const shipmentLocation = await prisma.inventoryLocation.create({
+      data: { code: 'SHIP-MAP-001', name: '产品物料迁移验证库位', isDefault: true },
+    })
+    const shipmentCustomer = await prisma.customer.create({
+      data: { code: 'CUS-MAP-001', name: '测试客户' },
+    })
     const shipment = await prisma.shipment.create({
-      data: { shipmentNo: 'SH-MAP-001', productId: product.id, qty: 2, customer: '测试客户' },
+      data: {
+        shipmentNo: 'SH-MAP-001', productId: product.id,
+        locationId: shipmentLocation.id, customerId: shipmentCustomer.id, customer: shipmentCustomer.name, qty: 2,
+        items: { create: {
+          productId: product.id, materialId: material.id, locationId: shipmentLocation.id,
+          qty: 2, unitSnapshot: material.stockUnit,
+        } },
+      },
+      include: { items: true },
     })
     await prisma.returnOrder.create({
-      data: { returnNo: 'RT-MAP-001', shipmentId: shipment.id, productId: product.id, qty: 1, reason: '测试退货' },
+      data: {
+        returnNo: 'RT-MAP-001', shipmentId: shipment.id, shipmentItemId: shipment.items[0].id,
+        productId: product.id, locationId: shipmentLocation.id,
+        qty: 1, reason: '测试退货',
+      },
     })
     await prisma.stock.create({ data: { materialId: material.id } })
     const productStock = await prisma.stock.create({ data: { productId: product.id } })
@@ -119,7 +137,12 @@ async function main() {
     assert.equal(originalPlan.materialCatalog.find((item: { materialId: string }) => item.materialId === material.id).materialStockExists, true)
     assert.equal(originalPlan.products[0].candidates.length, 1)
     assert.equal(originalPlan.products[0].candidates[0].materialId, material.id)
-    assert.deepEqual(originalPlan.products[0].candidates[0].evidence, ['BOM 主产出', '编码候选 FG-M8'])
+    assert.deepEqual(originalPlan.products[0].candidates[0].evidence, [
+      'BOM 主产出',
+      '发货明细 materialId',
+      '来源发货明细',
+      '编码候选 FG-M8',
+    ])
     assert.equal(originalPlan.products[0].decision.stockDisposition, 'DELETE_EMPTY_PRODUCT_STOCK')
 
     const { applyProductMaterialMapping, ProductMaterialMigrationError } = await import('../modules/operations-tools/server/product-material-migration-service')
@@ -225,7 +248,7 @@ async function main() {
     conflictPlan.products[0].decision.materialCode = conflictMaterial.code
     await assert.rejects(
       () => applyProductMaterialMapping(prisma!, conflictPlan),
-      (error: unknown) => error instanceof ProductMaterialMigrationError && /BOM 主产出.*冲突/.test(error.message),
+      (error: unknown) => error instanceof ProductMaterialMigrationError && /现有单据投影.*冲突/.test(error.message),
     )
 
     const bomWithoutOutput = await prisma.bOM.create({

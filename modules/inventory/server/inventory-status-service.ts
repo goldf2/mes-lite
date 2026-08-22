@@ -456,6 +456,7 @@ export async function allocateShipmentInventoryLots(
   tx: Prisma.TransactionClient,
   input: {
     shipmentId: string
+    shipmentItemId: string
     materialId: string
     materialCode: string
     locationId: string
@@ -468,7 +469,7 @@ export async function allocateShipmentInventoryLots(
   },
 ) {
   const existing = await tx.shipmentLotAllocation.findMany({
-    where: { shipmentId: input.shipmentId, status: 'ACTIVE' }, include: { lot: true }, orderBy: { createdAt: 'asc' },
+    where: { shipmentItemId: input.shipmentItemId, status: 'ACTIVE' }, include: { lot: true }, orderBy: { createdAt: 'asc' },
   })
   if (existing.length > 0) return existing
   const consumed = await consumeAvailableInventoryLots(tx, input)
@@ -483,7 +484,7 @@ export async function allocateShipmentInventoryLots(
     allocatedCostAmount = roundQty(allocatedCostAmount + costAmount)
     await tx.shipmentLotAllocation.create({
       data: {
-        shipmentId: input.shipmentId, lotId: item.lotId, locationId: input.locationId,
+        shipmentId: input.shipmentId, shipmentItemId: input.shipmentItemId, lotId: item.lotId, locationId: input.locationId,
         inventoryStatus: 'AVAILABLE', stockQty: item.stockQty, valuationQty, costAmount,
       },
     })
@@ -492,7 +493,7 @@ export async function allocateShipmentInventoryLots(
         lotId: item.lotId, locationId: input.locationId, type: 'SHIPMENT_OUT', fromStatus: 'AVAILABLE',
         stockQty: -item.stockQty, valuationQty: -item.balanceValuationQty, costAmount: -item.balanceCostAmount,
         refType: 'SHIPMENT', refId: input.shipmentId, stockLogId: input.stockLogId || null,
-        idempotencyKey: `SHIPMENT:${input.shipmentId}:LOT:${item.lotId}`,
+        idempotencyKey: `SHIPMENT:${input.shipmentId}:ITEM:${input.shipmentItemId}:LOT:${item.lotId}`,
         note: '发货单内部批次分配', createdBy: input.createdBy || null,
       },
     })
@@ -500,7 +501,7 @@ export async function allocateShipmentInventoryLots(
   const allocatedStockQty = consumed.reduce((sum, item) => sum + item.stockQty, 0)
   if (Math.abs(allocatedStockQty - input.stockQty) > tolerance) throw new Error('发货批次分配数量与库存出库数量不一致')
   return tx.shipmentLotAllocation.findMany({
-    where: { shipmentId: input.shipmentId, status: 'ACTIVE' }, include: { lot: true }, orderBy: { createdAt: 'asc' },
+    where: { shipmentItemId: input.shipmentItemId, status: 'ACTIVE' }, include: { lot: true }, orderBy: { createdAt: 'asc' },
   })
 }
 
@@ -508,6 +509,7 @@ export async function createHistoricalShipmentLotAllocation(
   tx: Prisma.TransactionClient,
   input: {
     shipmentId: string
+    shipmentItemId: string
     shipmentNo: string
     materialId: string
     materialCode: string
@@ -520,7 +522,7 @@ export async function createHistoricalShipmentLotAllocation(
   },
 ) {
   const existing = await tx.shipmentLotAllocation.findMany({
-    where: { shipmentId: input.shipmentId, status: 'ACTIVE' }, include: { lot: true }, orderBy: { createdAt: 'asc' },
+    where: { shipmentItemId: input.shipmentItemId, status: 'ACTIVE' }, include: { lot: true }, orderBy: { createdAt: 'asc' },
   })
   if (existing.length > 0) return existing
   const safeShipmentNo = input.shipmentNo.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 48)
@@ -535,7 +537,7 @@ export async function createHistoricalShipmentLotAllocation(
   const returnedRatio = input.stockQty > tolerance ? returnedStockQty / input.stockQty : 0
   await tx.shipmentLotAllocation.create({
     data: {
-      shipmentId: input.shipmentId, lotId: lot.id, locationId: input.locationId,
+      shipmentId: input.shipmentId, shipmentItemId: input.shipmentItemId, lotId: lot.id, locationId: input.locationId,
       stockQty: input.stockQty, valuationQty: input.valuationQty, costAmount: input.costAmount,
       returnedStockQty,
       returnedValuationQty: roundQty(input.valuationQty * returnedRatio),
@@ -547,13 +549,13 @@ export async function createHistoricalShipmentLotAllocation(
       lotId: lot.id, locationId: input.locationId, type: 'LEGACY_SHIPMENT_OUT', fromStatus: 'AVAILABLE',
       stockQty: -input.stockQty, valuationQty: -input.valuationQty, costAmount: -input.costAmount,
       refType: 'SHIPMENT', refId: input.shipmentId,
-      idempotencyKey: `LEGACY_SHIPMENT:${input.shipmentId}:LOT`,
+      idempotencyKey: `LEGACY_SHIPMENT:${input.shipmentId}:ITEM:${input.shipmentItemId}:LOT`,
       note: `历史发货单 ${input.shipmentNo} 未记录真实内部批次，仅作显式兼容`, createdBy: input.createdBy || null,
     },
   })
   await tx.shipment.update({ where: { id: input.shipmentId }, data: { lotTraceStatus: 'LEGACY' } })
   return tx.shipmentLotAllocation.findMany({
-    where: { shipmentId: input.shipmentId, status: 'ACTIVE' }, include: { lot: true }, orderBy: { createdAt: 'asc' },
+    where: { shipmentItemId: input.shipmentItemId, status: 'ACTIVE' }, include: { lot: true }, orderBy: { createdAt: 'asc' },
   })
 }
 
@@ -561,7 +563,7 @@ export async function allocateReturnToShipmentLots(
   tx: Prisma.TransactionClient,
   input: {
     returnOrderId: string
-    shipmentId: string
+    shipmentItemId: string
     returnedLotId: string
     stockQty: number
     valuationQty: number
@@ -573,7 +575,7 @@ export async function allocateReturnToShipmentLots(
   })
   if (existing.length > 0) return existing
   const allocations = await tx.shipmentLotAllocation.findMany({
-    where: { shipmentId: input.shipmentId, status: 'ACTIVE' }, orderBy: { createdAt: 'asc' },
+    where: { shipmentItemId: input.shipmentItemId, status: 'ACTIVE' }, orderBy: { createdAt: 'asc' },
   })
   let remainingStockQty = roundQty(input.stockQty)
   let allocatedValuationQty = 0

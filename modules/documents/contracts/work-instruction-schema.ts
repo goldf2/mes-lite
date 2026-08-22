@@ -21,11 +21,10 @@ export const workInstructionInputSchema = z.object({
   categoryId: z.string().min(1, '请选择文档类别'),
   version: z.string().optional(),
   status: z.enum(['ACTIVE', 'DRAFT', 'ARCHIVED']).optional(),
-  workCenterIds: z.array(z.string()).default([]),
   contentJson: z.string().optional().nullable(),
   note: z.string().optional(),
   fieldValues: documentFieldValuesSchema.optional().default({}),
-})
+}).strict()
 
 export const workInstructionUpdateInputSchema = workInstructionInputSchema.extend({ id: z.string().min(1, '缺少产品文档 ID') })
 
@@ -37,11 +36,10 @@ export const workInstructionBulkUpdateSchema = z.object({
     version: z.string().trim().min(1).max(80).optional(),
     status: z.enum(['ACTIVE', 'DRAFT', 'ARCHIVED']).optional(),
     materialId: z.string().trim().nullable().optional(),
-    workCenterIds: z.array(z.string().trim().min(1)).max(100).optional(),
     note: z.string().max(2000).nullable().optional(),
     fieldValues: documentFieldValuesSchema.optional(),
-  }).refine((updates) => Object.keys(updates).length > 0, '请至少选择一个要应用的字段'),
-})
+  }).strict().refine((updates) => Object.keys(updates).length > 0, '请至少选择一个要应用的字段'),
+}).strict()
 
 export type WorkInstructionAdvancedCondition = z.infer<typeof workInstructionAdvancedConditionSchema>
 export type WorkInstructionInput = z.infer<typeof workInstructionInputSchema>

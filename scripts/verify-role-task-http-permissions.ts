@@ -131,16 +131,22 @@ async function main() {
     idempotencyKey: `VERIFY:LOGISTICS_COMMAND:${suffix}`, locationId: sourceLocation.id,
   }))
   const fixedNow = new Date('2026-08-14T08:00:00.000Z')
-  const shipmentToShip = await createManagedShipment({ materialId: material.id, customerId: customer.id, locationId: sourceLocation.id, qty: 10 }, fixedNow)
-  const shipmentToCancel = await createManagedShipment({ materialId: material.id, customerId: customer.id, locationId: sourceLocation.id, qty: 5 }, fixedNow)
-  const shipmentToDeliver = await createManagedShipment({ materialId: material.id, customerId: customer.id, locationId: sourceLocation.id, qty: 30 }, fixedNow)
+  const shipmentToShip = await createManagedShipment({
+    customerId: customer.id, items: [{ materialId: material.id, locationId: sourceLocation.id, qty: 10 }],
+  }, fixedNow)
+  const shipmentToCancel = await createManagedShipment({
+    customerId: customer.id, items: [{ materialId: material.id, locationId: sourceLocation.id, qty: 5 }],
+  }, fixedNow)
+  const shipmentToDeliver = await createManagedShipment({
+    customerId: customer.id, items: [{ materialId: material.id, locationId: sourceLocation.id, qty: 30 }],
+  }, fixedNow)
   await shipManagedShipment(shipmentToDeliver.id, '验证预置发货员')
   const returnToReceive = await createManagedReturn({
-    shipmentId: shipmentToDeliver.id, productId: shipmentToDeliver.productId,
+    shipmentId: shipmentToDeliver.id, shipmentItemId: shipmentToDeliver.items[0].id,
     locationId: returnLocation.id, qty: 5, reason: '验证接收入库',
   }, fixedNow)
   const returnToReject = await createManagedReturn({
-    shipmentId: shipmentToDeliver.id, productId: shipmentToDeliver.productId,
+    shipmentId: shipmentToDeliver.id, shipmentItemId: shipmentToDeliver.items[0].id,
     locationId: returnLocation.id, qty: 5, reason: '验证拒绝退货',
   }, fixedNow)
   const transferInput = {

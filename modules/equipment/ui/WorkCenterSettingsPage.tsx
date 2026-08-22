@@ -29,7 +29,6 @@ export default function WorkCenterSettingsPage({ onMessage, canCreate, canUpdate
     center: (item) => `${item.code} ${item.name}`,
     category: (item) => item.category || '',
     equipment: (item) => item._count.equipment,
-    documents: (item) => item._count.workInstructions,
     status: (item) => item.isActive ? '启用' : '已归档',
   }, 'manual', 'asc')
 
@@ -86,7 +85,6 @@ export default function WorkCenterSettingsPage({ onMessage, canCreate, canUpdate
     { key: 'center', label: <ResourceSortLabel column="center" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>工作中心</ResourceSortLabel>, render: (item) => <div><div className="font-medium text-gray-900">{item.name}</div><div className="font-mono text-xs text-blue-700">{item.code}</div>{item.note && <div className="mt-1 line-clamp-2 text-xs text-gray-500">{item.note}</div>}</div> },
     { key: 'category', label: <ResourceSortLabel column="category" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>类别</ResourceSortLabel>, render: (item) => item.category || '-', hideBelow: 'sm' },
     { key: 'equipment', label: <ResourceSortLabel column="equipment" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>设备</ResourceSortLabel>, render: (item) => item._count.equipment, hideBelow: 'md' },
-    { key: 'documents', label: <ResourceSortLabel column="documents" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>工艺文档</ResourceSortLabel>, render: (item) => item._count.workInstructions, hideBelow: 'md' },
     { key: 'status', label: <ResourceSortLabel column="status" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>状态</ResourceSortLabel>, render: (item) => <span className={`rounded px-2 py-1 text-xs ${item.isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{item.isActive ? '启用' : '已归档'}</span> },
     { key: 'actions', label: <span className="block text-right">操作</span>, render: (item) => <div className="flex justify-end gap-2">{canUpdate && <AppButton size="sm" onClick={() => openEdit(item)}>{item.isActive ? '编辑' : '恢复'}</AppButton>}{canDelete && item.isActive && <AppButton size="sm" variant="warning" onClick={() => void archive(item)}>归档</AppButton>}</div>, className: 'text-right' },
   ]
@@ -96,11 +94,11 @@ export default function WorkCenterSettingsPage({ onMessage, canCreate, canUpdate
       <ResourcePage
         resourceKey="work-centers"
         title="工作中心"
-        description="工作中心表示锯切、钻孔、检验等生产能力区域；设备归属工作中心，工艺文档引用适用工作中心。"
+        description="工作中心表示锯切、钻孔、检验等生产能力区域；由设备、工艺路线、生产计划和派工业务引用。"
         items={tableSort.sortedRows}
         getKey={(item) => item.id}
         columns={columns}
-        renderCard={({ item }) => <article className="h-full rounded-xl border border-gray-200 bg-white p-4 shadow-sm"><div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold text-gray-900">{item.name}</h2><p className="font-mono text-xs text-blue-700">{item.code}</p></div><span className={`rounded px-2 py-1 text-xs ${item.isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{item.isActive ? '启用' : '已归档'}</span></div><p className="mt-3 text-sm text-gray-600">{item.category || '未分类'}</p><p className="mt-2 line-clamp-2 text-xs text-gray-500">{item.note || '暂无备注'}</p><div className="mt-4 flex items-center justify-between text-xs text-gray-500"><span>设备 {item._count.equipment} · 文档 {item._count.workInstructions}</span>{canUpdate && <AppButton size="sm" onClick={() => openEdit(item)}>{item.isActive ? '编辑' : '恢复'}</AppButton>}</div></article>}
+        renderCard={({ item }) => <article className="h-full rounded-xl border border-gray-200 bg-white p-4 shadow-sm"><div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold text-gray-900">{item.name}</h2><p className="font-mono text-xs text-blue-700">{item.code}</p></div><span className={`rounded px-2 py-1 text-xs ${item.isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{item.isActive ? '启用' : '已归档'}</span></div><p className="mt-3 text-sm text-gray-600">{item.category || '未分类'}</p><p className="mt-2 line-clamp-2 text-xs text-gray-500">{item.note || '暂无备注'}</p><div className="mt-4 flex items-center justify-between text-xs text-gray-500"><span>设备 {item._count.equipment}</span>{canUpdate && <AppButton size="sm" onClick={() => openEdit(item)}>{item.isActive ? '编辑' : '恢复'}</AppButton>}</div></article>}
         loading={loading}
         emptyLabel="暂无工作中心"
         searchValue={keyword}

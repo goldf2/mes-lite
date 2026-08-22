@@ -13,7 +13,6 @@ const baseFieldReaders: Record<(typeof documentBaseFieldDefinitions)[number]['ke
   material: (instruction) => instruction.material
     ? [instruction.material.code, instruction.material.name, instruction.material.spec, instruction.material.customer?.code, instruction.material.customer?.name].filter(Boolean).join(' ')
     : '',
-  workCenter: (instruction) => instruction.workCenters.map((item) => `${item.code} ${item.name}`).join(' '),
   note: (instruction) => instruction.note,
   contentText: (instruction) => instruction.contentText,
   attachmentName: (instruction) => instruction.primaryAttachment?.originalName,

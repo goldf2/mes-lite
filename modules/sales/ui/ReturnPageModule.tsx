@@ -28,7 +28,6 @@ import ReturnStatusActions from './ReturnStatusActions'
 import type {
   FulfillmentCustomer,
   InventoryLocationOption,
-  ReturnMaterialOption,
   ReturnOrder,
   ReturnShipmentOption,
 } from '../contracts/fulfillment'
@@ -55,7 +54,6 @@ export default function ReturnPageModule({
   canReject: boolean
 }) {
   const [returns, setReturns] = useState<ReturnOrder[]>([])
-  const [products, setProducts] = useState<ReturnMaterialOption[]>([])
   const [customers, setCustomers] = useState<FulfillmentCustomer[]>([])
   const [locations, setLocations] = useState<InventoryLocationOption[]>([])
   const [shipments, setShipments] = useState<ReturnShipmentOption[]>([])
@@ -77,7 +75,7 @@ export default function ReturnPageModule({
   const [form, setForm] = useState({
     voucherNo: '',
     shipmentId: '',
-    productId: '',
+    shipmentItemId: '',
     locationId: '',
     qty: 0,
     reason: '',
@@ -94,8 +92,7 @@ export default function ReturnPageModule({
     status: (item) => statusLabels[item.status] || item.status,
     createdAt: (item) => new Date(item.createdAt),
   }, 'createdAt', 'desc')
-  const selectedProduct = products.find((item) => item.id === form.productId)
-  const selectedShipment = shipments.find((item) => item.id === form.shipmentId)
+  const selectedShipment = shipments.find((item) => item.shipmentItemId === form.shipmentItemId)
 
   const fetchReturns = useCallback(async () => {
     setLoading(true)
@@ -117,7 +114,6 @@ export default function ReturnPageModule({
     try {
       const data = await loadReturnOptions()
       setCustomers(data.customers)
-      setProducts(data.products)
       setLocations(data.locations)
       setShipments(data.shipments)
       setForm((current) => current.locationId ? current : {
@@ -141,7 +137,7 @@ export default function ReturnPageModule({
     setForm({
       voucherNo: '',
       shipmentId: '',
-      productId: '',
+      shipmentItemId: '',
       locationId: locations.find((location) => location.isDefault)?.id || locations[0]?.id || '',
       qty: 0,
       reason: '',
@@ -165,15 +161,14 @@ export default function ReturnPageModule({
 
   const applyRecognizedReturn = async (fields: Record<string, unknown>) => {
     const material = recognizedText(fields, 'material')
-    const matchedProduct = products.find((product) => matchesRecognizedValue(material, [product.sku, product.name]))
     const qty = recognizedNumber(fields, 'qty')
     const shipmentNo = recognizedText(fields, 'shipmentNo')
-    const matchedShipment = shipments.find((shipment) => matchesRecognizedValue(shipmentNo, [shipment.shipmentNo]))
+    const matchedShipment = shipments.find((shipment) => matchesRecognizedValue(shipmentNo, [shipment.shipmentNo]) && (!material || matchesRecognizedValue(material, [shipment.material.code, shipment.material.name, shipment.material.spec, shipment.product?.sku, shipment.product?.name])))
     setForm((current) => ({
       ...current,
       voucherNo: recognizedText(fields, 'voucherNo') || recognizedText(fields, 'shipmentNo') || current.voucherNo,
-      shipmentId: matchedShipment?.id || current.shipmentId,
-      productId: matchedShipment?.productId || matchedProduct?.id || current.productId,
+      shipmentId: matchedShipment?.shipmentId || current.shipmentId,
+      shipmentItemId: matchedShipment?.shipmentItemId || current.shipmentItemId,
       qty: qty > 0 ? qty : current.qty,
       reason: recognizedText(fields, 'reason') || current.reason,
       note: recognizedText(fields, 'note') || current.note,
@@ -185,7 +180,7 @@ export default function ReturnPageModule({
       onMessage('请等待附件上传或 AI 识别完成')
       return
     }
-    if (!form.shipmentId || !form.productId || !form.locationId || form.qty <= 0 || !form.reason) {
+    if (!form.shipmentId || !form.shipmentItemId || !form.locationId || form.qty <= 0 || !form.reason) {
       onMessage('请选择原发货单和退回库位，并填写数量和退货原因')
       return
     }
@@ -407,24 +402,25 @@ export default function ReturnPageModule({
               </FormField>
               <FormField label="原发货单" required hint="仅显示已发货/已签收且仍有可退数量的单据。">
                 <SearchableSelect
-                  value={form.shipmentId}
-                  onChange={(shipmentId) => {
-                    const shipment = shipments.find((item) => item.id === shipmentId)
-                    setForm((current) => ({ ...current, shipmentId, productId: shipment?.productId || '', qty: 0 }))
+                  value={form.shipmentItemId}
+                  onChange={(shipmentItemId) => {
+                    const shipment = shipments.find((item) => item.shipmentItemId === shipmentItemId)
+                    setForm((current) => ({ ...current, shipmentId: shipment?.shipmentId || '', shipmentItemId, qty: 0 }))
                   }}
                   options={shipments.map((shipment) => ({
-                    value: shipment.id,
-                    label: `${shipment.shipmentNo} · ${shipment.customerRef?.name || shipment.customer} · ${shipment.product.sku} · 可退 ${shipment.returnableQty} ${shipment.product.unit}`,
+                    value: shipment.shipmentItemId,
+                    label: `${shipment.shipmentNo} · ${shipment.customerRef?.name || shipment.customer} · ${shipment.material.code} · ${shipment.material.name} · 可退 ${shipment.returnableQty} ${shipment.material.stockUnit}`,
+                    keywords: `${shipment.product?.sku || ''} ${shipment.product?.name || ''} ${shipment.material.spec || ''}`,
                   }))}
                   placeholder="输入发货单号、客户或物料筛选"
                 />
               </FormField>
               <FormField label="退货物料">
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
-                  {selectedShipment ? `${selectedShipment.product.sku} · ${selectedShipment.product.name}` : '选择原发货单后自动带出'}
+                  {selectedShipment ? `${selectedShipment.material.code} · ${selectedShipment.material.name}` : '选择原发货明细后自动带出'}
                 </div>
               </FormField>
-              <FormField label={`数量${selectedProduct ? `（${selectedProduct.unit}）` : ''}`} required hint={selectedShipment ? `剩余可退 ${selectedShipment.returnableQty} ${selectedShipment.product.unit}` : '请先选择原发货单'}>
+              <FormField label={`数量${selectedShipment ? `（${selectedShipment.material.stockUnit}）` : ''}`} required hint={selectedShipment ? `剩余可退 ${selectedShipment.returnableQty} ${selectedShipment.material.stockUnit}` : '请先选择原发货明细'}>
                 <input
                   type="number"
                   step="any"

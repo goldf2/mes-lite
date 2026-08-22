@@ -2,10 +2,9 @@
 
 import { useMemo } from 'react'
 import SearchableSelect from '@/app/components/SearchableSelect'
-import OneToManyRelationField from '@/app/components/relations/OneToManyRelationField'
 import OnlineDocumentEditor from './OnlineDocumentEditor'
 import { appInputClassName, appSelectClassName, appTextareaClassName } from '@/app/components/FormField'
-import type { MaterialOption, WorkCenterOption, WorkInstructionForm } from '../contracts/work-instruction'
+import type { MaterialOption, WorkInstructionForm } from '../contracts/work-instruction'
 import type { DocumentFieldDefinitionRecord } from '../contracts/document-field-schema'
 import {
   formatMaterialLabel,
@@ -64,23 +63,6 @@ function MaterialSearchSelect({
   )
 }
 
-function WorkCenterPicker({ options, value, onChange }: { options: WorkCenterOption[]; value: string[]; onChange: (ids: string[]) => void }) {
-  const selected = options.filter((item) => value.includes(item.id))
-  const available = options.filter((item) => !value.includes(item.id)).map((item) => ({ value: item.id, label: `${item.code} · ${item.name}`, keywords: item.name }))
-
-  return (
-    <OneToManyRelationField
-      title="已选工作中心"
-      items={selected}
-      getKey={(item) => item.id}
-      selector={<SearchableSelect value="" onChange={(id) => id && onChange([...value, id])} options={available} placeholder={available.length > 0 ? '输入工作中心筛选并添加' : '已选择全部工作中心'} />}
-      renderIdentity={(item) => <><div className="text-sm font-medium text-gray-900">{item.name}</div><div className="font-mono text-xs text-gray-500">{item.code}</div></>}
-      onRemove={(item) => onChange(value.filter((id) => id !== item.id))}
-      emptyText="未指定时表示不限制工作中心"
-    />
-  )
-}
-
 interface WorkInstructionFormFieldsProps {
   form: WorkInstructionForm
   onChange: (form: WorkInstructionForm) => void
@@ -88,7 +70,6 @@ interface WorkInstructionFormFieldsProps {
   selectedMaterial?: MaterialOption | null
   onMaterialSearch: (keyword: string) => void | Promise<void>
   categoryOptions: { value: string; label: string; keywords?: string }[]
-  workCenters: WorkCenterOption[]
   fieldDefinitions?: DocumentFieldDefinitionRecord[]
   mode?: 'create' | 'detail' | 'batch'
 }
@@ -100,7 +81,6 @@ export default function WorkInstructionFormFields({
   selectedMaterial,
   onMaterialSearch,
   categoryOptions,
-  workCenters,
   fieldDefinitions = [],
   mode = 'create',
 }: WorkInstructionFormFieldsProps) {
@@ -141,10 +121,6 @@ export default function WorkInstructionFormFields({
         <label className={labelClassName}>版本</label>
         <input value={form.version} onChange={(event) => update('version', event.target.value)} className={appInputClassName} placeholder="v1" />
       </div>}
-      <div className={fullRowClassName}>
-        <label className={labelClassName}>适用工作中心</label>
-        <WorkCenterPicker options={workCenters} value={form.workCenterIds} onChange={(value) => update('workCenterIds', value)} />
-      </div>
       <DocumentExtensionFields
         definitions={fieldDefinitions}
         values={form.fieldValues}

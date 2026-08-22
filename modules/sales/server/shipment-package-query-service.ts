@@ -11,6 +11,7 @@ export const shipmentPackageInclude = {
   items: {
     include: {
       material: { select: { id: true, code: true, name: true, spec: true } },
+      shipmentItem: { select: { id: true, sortOrder: true, unitSnapshot: true } },
       inventoryLot: { select: { id: true, lotNo: true } },
     },
     orderBy: { createdAt: 'asc' as const },
@@ -23,10 +24,10 @@ export async function listShipmentPackages(
 ) {
   const shipment = await prisma.shipment.findFirst({
     where: { id: shipmentId, deletedAt: null, ...shipmentDataScopeWhere(scope) },
-    select: { id: true, locationId: true },
+    select: { id: true, items: { select: { locationId: true } } },
   })
   if (!shipment) throw new SalesDomainError('发货单不存在或无权访问', 404)
-  assertInventoryLocationDataScope(scope, [shipment.locationId])
+  assertInventoryLocationDataScope(scope, shipment.items.map((item) => item.locationId))
   return prisma.packageDocument.findMany({
     where: { shipmentId, deletedAt: null },
     include: shipmentPackageInclude,
@@ -46,9 +47,9 @@ export async function getShipmentPackage(
       deletedAt: null,
       shipment: { is: { deletedAt: null, ...shipmentDataScopeWhere(scope) } },
     },
-    include: { ...shipmentPackageInclude, shipment: { select: { locationId: true, shipmentNo: true } } },
+    include: { ...shipmentPackageInclude, shipment: { select: { shipmentNo: true, items: { select: { locationId: true } } } } },
   })
   if (!packageDocument) throw new SalesDomainError('货箱单据不存在或无权访问', 404)
-  assertInventoryLocationDataScope(scope, [packageDocument.shipment.locationId])
+  assertInventoryLocationDataScope(scope, packageDocument.shipment.items.map((item) => item.locationId))
   return packageDocument
 }

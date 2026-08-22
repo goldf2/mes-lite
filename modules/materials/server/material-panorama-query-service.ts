@@ -91,7 +91,6 @@ export async function getMaterialPanorama(materialId: string) {
           id: true, code: true, name: true, spec: true,
           customer: { select: { id: true, code: true, name: true } },
         } },
-        workCenters: { select: { id: true, code: true, name: true } },
       },
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     }),

@@ -28,12 +28,12 @@ export async function resolveScannableDocument(rawValue: string, scope: Effectiv
       shipment: { is: { deletedAt: null, ...shipmentDataScopeWhere(scope) } },
     },
     include: {
-      shipment: { include: { product: { select: { name: true } } } },
-      items: { select: { quantity: true, unitSnapshot: true } },
+      shipment: { include: { items: { include: { material: { select: { name: true } } } } } },
+      items: { select: { quantity: true, unitSnapshot: true, material: { select: { name: true } } } },
     },
   })
   if (packageDocument) {
-    assertInventoryLocationDataScope(scope, [packageDocument.shipment.locationId])
+    assertInventoryLocationDataScope(scope, packageDocument.shipment.items.map((item) => item.locationId))
     const quantity = packageDocument.items.reduce((sum, item) => sum + Number(item.quantity), 0)
     const unit = packageDocument.items[0]?.unitSnapshot || ''
     return {
@@ -42,7 +42,7 @@ export async function resolveScannableDocument(rawValue: string, scope: Effectiv
       shipmentId: packageDocument.shipmentId,
       documentNo: packageDocument.packageNo,
       title: `货箱 ${packageDocument.packageNo}`,
-      description: `${packageDocument.shipment.product.name} · ${quantity} ${unit} · 发货单 ${packageDocument.shipment.shipmentNo}`,
+      description: `${packageDocument.items[0]?.material.name || '发货明细'} · ${quantity} ${unit} · 发货单 ${packageDocument.shipment.shipmentNo}`,
       status: packageDocument.status,
       href: `/?page=shipment&document=${encodeURIComponent(packageDocument.shipmentId)}&package=${encodeURIComponent(packageDocument.id)}`,
     }
@@ -50,17 +50,17 @@ export async function resolveScannableDocument(rawValue: string, scope: Effectiv
 
   const shipment = await prisma.shipment.findFirst({
     where: { shipmentNo: code, deletedAt: null, ...shipmentDataScopeWhere(scope) },
-    include: { product: { select: { name: true, unit: true } } },
+    include: { items: { include: { material: { select: { name: true } } }, orderBy: { sortOrder: 'asc' } } },
   })
   if (!shipment) return null
-  assertInventoryLocationDataScope(scope, [shipment.locationId])
+  assertInventoryLocationDataScope(scope, shipment.items.map((item) => item.locationId))
   return {
     type: 'SHIPMENT' as const,
     referenceId: shipment.id,
     shipmentId: shipment.id,
     documentNo: shipment.shipmentNo,
     title: `发货单 ${shipment.shipmentNo}`,
-    description: `${shipment.customer} · ${shipment.product.name} · ${shipment.qty} ${shipment.product.unit}`,
+    description: `${shipment.customer} · ${shipment.items[0]?.material.name || '发货明细'}${shipment.items.length > 1 ? ` 等 ${shipment.items.length} 项` : ''}`,
     status: shipment.status,
     href: `/?page=shipment&document=${encodeURIComponent(shipment.id)}`,
   }

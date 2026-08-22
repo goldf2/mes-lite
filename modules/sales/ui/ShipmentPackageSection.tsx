@@ -47,8 +47,10 @@ export default function ShipmentPackageSection({
     data: DocumentQrLabelData
   } | null>(null)
   const packedQty = useMemo(() => shipment.packages.reduce((sum, item) => sum + quantityOf(item), 0), [shipment.packages])
-  const unit = shipment.packages[0]?.items[0]?.unitSnapshot || shipment.product.unit
-  const packagingComplete = shipment.packages.length > 0 && Math.abs(packedQty - shipment.qty) <= 0.000001
+  const packedByItem = useMemo(() => new Map(shipment.items.map((item) => [item.id, shipment.packages.reduce((sum, packageDocument) => sum + packageDocument.items.filter((row) => row.shipmentItemId === item.id).reduce((itemSum, row) => itemSum + Number(row.quantity), 0), 0)])), [shipment.items, shipment.packages])
+  const packagingComplete = shipment.packages.length > 0 && shipment.items.every((item) => Math.abs((packedByItem.get(item.id) || 0) - item.qty) <= 0.000001)
+  const hasUnpackedItem = shipment.items.some((item) => (packedByItem.get(item.id) || 0) < item.qty - 0.000001)
+  const firstMaterialName = shipment.items[0]?.material.name || '发货明细'
 
   const openShipmentQr = () => setQrTarget({
     referenceType: 'SHIPMENT',
@@ -56,8 +58,8 @@ export default function ShipmentPackageSection({
     data: {
       title: `发货单 ${shipment.shipmentNo}`,
       code: shipment.shipmentNo,
-      description: `${shipment.customer} · ${shipment.product.name}`,
-      details: [`数量：${shipment.qty} ${shipment.product.unit}`, `物流单号：${shipment.trackingNo || '待补充'}`, `货箱：${shipment.packages.length} 个`],
+      description: `${shipment.customer} · ${firstMaterialName}${shipment.items.length > 1 ? ` 等 ${shipment.items.length} 项` : ''}`,
+      details: [`明细：${shipment.items.length} 项`, `物流单号：${shipment.trackingNo || '待补充'}`, `货箱：${shipment.packages.length} 个`],
     },
   })
 
@@ -67,9 +69,9 @@ export default function ShipmentPackageSection({
     data: {
       title: `货箱 ${packageDocument.packageNo}`,
       code: packageDocument.packageNo,
-      description: `${shipment.product.name} · 发货单 ${shipment.shipmentNo}`,
+      description: `${firstMaterialName} · 发货单 ${shipment.shipmentNo}`,
       details: [
-        `内容：${quantityOf(packageDocument)} ${packageDocument.items[0]?.unitSnapshot || shipment.product.unit}`,
+        `内容：${packageDocument.items.map((item) => `${item.quantity} ${item.unitSnapshot}`).join('、')}`,
         `打包人：${packageDocument.packedBy}`,
         `打包时间：${new Date(packageDocument.packedAt).toLocaleString('zh-CN')}`,
         `封箱号：${packageDocument.sealNo || '-'}`,
@@ -94,13 +96,13 @@ export default function ShipmentPackageSection({
         <div>
           <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900"><Box className="h-4 w-4" />货箱与打包单据</h3>
           <div className="mt-1 text-xs text-gray-500">
-            {shipment.packages.length === 0 ? '未启用货箱管理，旧发货流程仍可继续。' : `已装 ${packedQty} / ${shipment.qty} ${unit}`}
+            {shipment.packages.length === 0 ? '未启用货箱管理，发货流程仍可继续。' : `已装合计 ${packedQty}；系统按每条发货明细核对。`}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <AppButton size="sm" variant="secondary" onClick={openShipmentQr}><QrCode className="h-4 w-4" />发货单码</AppButton>
           {canManage && shipment.status === 'PENDING' && (
-            <AppButton size="sm" onClick={() => setCreateOpen(true)} disabled={packedQty >= shipment.qty - 0.000001}><Plus className="h-4 w-4" />新增货箱</AppButton>
+            <AppButton size="sm" onClick={() => setCreateOpen(true)} disabled={!hasUnpackedItem}><Plus className="h-4 w-4" />新增货箱</AppButton>
           )}
         </div>
       </div>

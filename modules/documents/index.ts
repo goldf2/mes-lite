@@ -10,7 +10,6 @@ export type {
   DocumentCategoryRecord,
   MaterialOption,
   PaginationState,
-  WorkCenterOption,
   WorkInstruction,
   WorkInstructionForm,
 } from './contracts/work-instruction'

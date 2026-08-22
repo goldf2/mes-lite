@@ -92,10 +92,7 @@ async function buildWhere(query: WorkInstructionListQuery): Promise<Prisma.WorkI
         { customer: { is: { OR: [{ code: filter }, { name: filter }] } } },
       ] } } })
     }
-    else if (condition.field === 'workCenter') {
-      const filter = stringCondition(condition)
-      andFilters.push({ workCenters: { some: { OR: [{ code: filter }, { name: filter }] } } })
-    } else if (condition.field === 'attachmentName') {
+    else if (condition.field === 'attachmentName') {
       const ownerIds = await ownerIdsByAttachmentName(condition)
       andFilters.push({ id: { in: ownerIds } })
     }
@@ -105,7 +102,6 @@ async function buildWhere(query: WorkInstructionListQuery): Promise<Prisma.WorkI
     { category: { is: { name: { contains: token } } } }, { material: { is: { code: { contains: token } } } },
     { material: { is: { name: { contains: token } } } }, { material: { is: { spec: { contains: token } } } }, { material: { is: { customer: { is: { code: { contains: token } } } } } },
     { material: { is: { customer: { is: { name: { contains: token } } } } } },
-    { workCenters: { some: { OR: [{ code: { contains: token } }, { name: { contains: token } }] } } },
     { fieldValues: { some: { valueText: { contains: token } } } },
     ...instructionStatusOptions.filter((option) => option.label.includes(token)).map((option) => ({ status: option.value })),
     ...(attachmentOwnerIdsByToken[index].length > 0 ? [{ id: { in: attachmentOwnerIdsByToken[index] } }] : []),
@@ -122,7 +118,6 @@ export async function listWorkInstructions(query: WorkInstructionListQuery) {
       include: {
         category: { select: { id: true, name: true, parentId: true, parent: { select: { id: true, name: true } } } },
         material: { select: { id: true, code: true, name: true, spec: true, category: true, stockUnit: true, valuationUnit: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
-        workCenters: { select: { id: true, code: true, name: true, isActive: true } },
         fieldValues: {
           include: { fieldDefinition: { select: { id: true, name: true, fieldType: true, optionsJson: true, sortOrder: true } } },
           orderBy: { fieldDefinition: { sortOrder: 'asc' } },

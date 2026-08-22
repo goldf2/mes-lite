@@ -7,7 +7,6 @@ export const documentBaseFieldDefinitions = [
   { key: 'status', label: '状态', type: 'select' },
   { key: 'version', label: '版本', type: 'text' },
   { key: 'material', label: '关联产品', type: 'text' },
-  { key: 'workCenter', label: '适用工作中心', type: 'text' },
   { key: 'note', label: '备注', type: 'text' },
   { key: 'contentText', label: '在线正文', type: 'text' },
   { key: 'attachmentName', label: '原始文件', type: 'text' },

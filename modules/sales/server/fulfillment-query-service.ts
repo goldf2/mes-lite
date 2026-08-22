@@ -11,6 +11,7 @@ import {
   type EffectiveDataScope,
 } from '@/modules/identity-access'
 import { returnStatusOptions, shipmentStatusOptions } from '../model/fulfillment-view'
+import { loadPrimaryMaterialImageMap, type MaterialImage } from '@/modules/materials'
 
 export type FulfillmentQuery = {
   statuses: string[]
@@ -51,6 +52,36 @@ function applyStatuses<T extends { status?: string | { in: string[] } }>(where: 
   else if (statuses.length > 1) where.status = { in: statuses }
 }
 
+const shipmentItemsInclude = {
+  material: { select: { id: true, code: true, name: true, spec: true, stockUnit: true } },
+  product: { select: { id: true, sku: true, name: true, unit: true } },
+  location: { select: { id: true, code: true, name: true, isDefault: true } },
+  returnOrders: { where: { deletedAt: null, status: { in: ['PENDING', 'PROCESSED'] } }, select: { qty: true } },
+  lotAllocations: {
+    where: { status: 'ACTIVE' },
+    include: {
+      lot: { select: { id: true, lotNo: true, sourceType: true, supplierLotNo: true, status: true } },
+      location: { select: { id: true, code: true, name: true } },
+    },
+    orderBy: { createdAt: 'asc' },
+  },
+} satisfies Prisma.ShipmentItemInclude
+
+type ShipmentItemWithDetails = Prisma.ShipmentItemGetPayload<{ include: typeof shipmentItemsInclude }>
+
+function serializeShipmentItems(items: ShipmentItemWithDetails[], images: ReadonlyMap<string, MaterialImage> = new Map()) {
+  return items.map((item) => {
+    const returnedQty = item.returnOrders.reduce((sum, value) => sum + Number(value.qty), 0)
+    return {
+      ...item,
+      material: { ...item.material, primaryImage: images.get(item.materialId) || null },
+      returnedQty,
+      returnableQty: Math.max(0, Number((Number(item.qty) - returnedQty).toFixed(6))),
+      returnOrders: undefined,
+    }
+  })
+}
+
 export async function listShipments(input: FulfillmentQuery, scope: EffectiveDataScope = unrestrictedDataScope) {
   const where: Prisma.ShipmentWhereInput = { deletedAt: null }
   const andConditions: Prisma.ShipmentWhereInput[] = []
@@ -65,13 +96,13 @@ export async function listShipments(input: FulfillmentQuery, scope: EffectiveDat
       andConditions.push({ [condition.field]: text } as Prisma.ShipmentWhereInput)
     } else if (condition.field === 'status') andConditions.push({ status: condition.value })
     else if (condition.field === 'customerId') andConditions.push({ customerId: condition.value === '__UNASSIGNED__' ? null : condition.value })
-    else if (condition.field === 'product') andConditions.push({ product: { is: { OR: [{ sku: text }, { name: text }] } } })
-    else if (condition.field === 'locationId') andConditions.push({ OR: [{ locationId: condition.value }, { location: { is: { code: text } } }, { location: { is: { name: text } } }] })
+    else if (condition.field === 'product') andConditions.push({ items: { some: { OR: [{ product: { is: { OR: [{ sku: text }, { name: text }] } } }, { material: { is: { OR: [{ code: text }, { name: text }, { spec: text }] } } }] } } })
+    else if (condition.field === 'locationId') andConditions.push({ items: { some: { OR: [{ locationId: condition.value }, { location: { is: { code: text } } }, { location: { is: { name: text } } }] } } })
     else if (condition.field === 'qty' || condition.field === 'unitPrice' || condition.field === 'totalAmount') {
       const value = numberFilter(condition)
       if (value) andConditions.push({ [condition.field]: value } as Prisma.ShipmentWhereInput)
-    } else if (condition.field === 'salesOrder') andConditions.push({ salesOrder: { is: { OR: [{ orderNo: text }, { voucherNo: text }] } } })
-    else if (condition.field === 'lotNo') andConditions.push({ lotAllocations: { some: { status: 'ACTIVE', lot: { is: { OR: [{ lotNo: text }, { supplierLotNo: text }] } } } } })
+    }
+    else if (condition.field === 'lotNo') andConditions.push({ items: { some: { lotAllocations: { some: { status: 'ACTIVE', lot: { is: { OR: [{ lotNo: text }, { supplierLotNo: text }] } } } } } } })
     else if (condition.field === 'shippedAt' || condition.field === 'createdAt') {
       const value = dateFilter(condition)
       if (value) andConditions.push({ [condition.field]: value } as Prisma.ShipmentWhereInput)
@@ -84,11 +115,11 @@ export async function listShipments(input: FulfillmentQuery, scope: EffectiveDat
     { shipmentNo: { contains: token } }, { voucherNo: { contains: token } }, { customer: { contains: token } },
     { customerPhone: { contains: token } }, { address: { contains: token } }, { trackingNo: { contains: token } },
     { shippedBy: { contains: token } }, { note: { contains: token } },
-    { salesOrder: { is: { orderNo: { contains: token } } } },
-    { product: { is: { sku: { contains: token } } } }, { product: { is: { name: { contains: token } } } },
+    { items: { some: { product: { is: { OR: [{ sku: { contains: token } }, { name: { contains: token } }] } } } } },
+    { items: { some: { material: { is: { OR: [{ code: { contains: token } }, { name: { contains: token } }, { spec: { contains: token } }] } } } } },
     { customerRef: { is: { code: { contains: token } } } }, { customerRef: { is: { name: { contains: token } } } },
-    { location: { is: { code: { contains: token } } } }, { location: { is: { name: { contains: token } } } },
-    { lotAllocations: { some: { status: 'ACTIVE', lot: { is: { OR: [{ lotNo: { contains: token } }, { supplierLotNo: { contains: token } }] } } } } },
+    { items: { some: { location: { is: { OR: [{ code: { contains: token } }, { name: { contains: token } }] } } } } },
+    { items: { some: { lotAllocations: { some: { status: 'ACTIVE', lot: { is: { OR: [{ lotNo: { contains: token } }, { supplierLotNo: { contains: token } }] } } } } } } },
     ...shipmentStatusOptions.filter((option) => option.label.toLocaleLowerCase('zh-CN').includes(token)).map((option) => ({ status: option.value })),
     ...(Number.isFinite(number) ? [{ qty: number }, { unitPrice: number }, { totalAmount: number }] : []),
     ...(date && !Number.isNaN(date.getTime()) ? [{ shippedAt: { gte: date, lt: new Date(date.getTime() + 86_400_000) } }, { createdAt: { gte: date, lt: new Date(date.getTime() + 86_400_000) } }] : []),
@@ -102,7 +133,7 @@ export async function listShipments(input: FulfillmentQuery, scope: EffectiveDat
         product: { select: { id: true, name: true, sku: true, unit: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
         customerRef: { select: { id: true, code: true, name: true } },
         location: { select: { id: true, code: true, name: true } },
-        salesOrder: { select: { id: true, orderNo: true, voucherNo: true } },
+        items: { include: shipmentItemsInclude, orderBy: { sortOrder: 'asc' } },
         returnOrders: {
           where: { deletedAt: null, status: { in: ['PENDING', 'PROCESSED'] } },
           select: { qty: true },
@@ -129,10 +160,13 @@ export async function listShipments(input: FulfillmentQuery, scope: EffectiveDat
       select: { id: true, code: true, name: true, contact: true, phone: true, address: true },
     }),
   ])
+  const images = await loadPrimaryMaterialImageMap(shipments.flatMap((shipment) => shipment.items.map((item) => item.materialId)))
   const data = shipments.map((shipment) => {
-    const returnedQty = shipment.returnOrders.reduce((sum, item) => sum + Number(item.qty), 0)
+    const items = serializeShipmentItems(shipment.items, images)
+    const returnedQty = items.reduce((sum, item) => sum + item.returnedQty, 0)
     return {
       ...shipment,
+      items,
       returnedQty,
       returnableQty: Math.max(0, Number((Number(shipment.qty) - returnedQty).toFixed(6))),
       returnOrders: undefined,
@@ -145,33 +179,31 @@ export async function listReturnShipmentOptions(scope: EffectiveDataScope = unre
   const shipments = await prisma.shipment.findMany({
     where: { deletedAt: null, status: { in: ['SHIPPED', 'DELIVERED'] }, ...shipmentDataScopeWhere(scope) },
     include: {
-      product: { select: { id: true, sku: true, name: true, unit: true } },
       customerRef: { select: { id: true, code: true, name: true } },
-      returnOrders: {
-        where: { deletedAt: null, status: { in: ['PENDING', 'PROCESSED'] } },
-        select: { qty: true },
-      },
+      items: { include: shipmentItemsInclude, orderBy: { sortOrder: 'asc' } },
     },
     orderBy: [{ shippedAt: 'desc' }, { createdAt: 'desc' }],
     take: 200,
   })
+  const images = await loadPrimaryMaterialImageMap(shipments.flatMap((shipment) => shipment.items.map((item) => item.materialId)))
   return shipments.flatMap((shipment) => {
-    const returnedQty = shipment.returnOrders.reduce((sum, item) => sum + Number(item.qty), 0)
-    const returnableQty = Math.max(0, Number((Number(shipment.qty) - returnedQty).toFixed(6)))
-    if (returnableQty <= 0.000001) return []
-    return [{
-      id: shipment.id,
+    return serializeShipmentItems(shipment.items, images).flatMap((item) => item.returnableQty <= 0.000001 ? [] : [{
+      id: item.id,
+      shipmentId: shipment.id,
+      shipmentItemId: item.id,
       shipmentNo: shipment.shipmentNo,
-      productId: shipment.productId,
-      product: shipment.product,
+      productId: item.productId,
+      product: item.product,
+      material: item.material,
+      location: item.location,
       customer: shipment.customer,
       customerRef: shipment.customerRef,
       status: shipment.status,
       shippedAt: shipment.shippedAt?.toISOString() || null,
-      qty: Number(shipment.qty),
-      returnedQty,
-      returnableQty,
-    }]
+      qty: Number(item.qty),
+      returnedQty: item.returnedQty,
+      returnableQty: item.returnableQty,
+    }])
   })
 }
 
@@ -182,7 +214,7 @@ export async function getShipmentDetail(id: string, scope: EffectiveDataScope = 
       product: { select: { id: true, name: true, sku: true, unit: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
       customerRef: { select: { id: true, code: true, name: true } },
       location: { select: { id: true, code: true, name: true } },
-      salesOrder: { select: { id: true, orderNo: true, voucherNo: true } },
+      items: { include: shipmentItemsInclude, orderBy: { sortOrder: 'asc' } },
       returnOrders: {
         where: { deletedAt: null, status: { in: ['PENDING', 'PROCESSED'] } },
         select: { qty: true },
@@ -199,10 +231,13 @@ export async function getShipmentDetail(id: string, scope: EffectiveDataScope = 
     },
   })
   if (!shipment) throw new SalesDomainError('发货单不存在', 404)
-  assertInventoryLocationDataScope(scope, [shipment.locationId])
-  const returnedQty = shipment.returnOrders.reduce((sum, item) => sum + Number(item.qty), 0)
+  assertInventoryLocationDataScope(scope, shipment.items.map((item) => item.locationId))
+  const images = await loadPrimaryMaterialImageMap(shipment.items.map((item) => item.materialId))
+  const items = serializeShipmentItems(shipment.items, images)
+  const returnedQty = items.reduce((sum, item) => sum + item.returnedQty, 0)
   return {
     ...shipment,
+    items,
     returnedQty,
     returnableQty: Math.max(0, Number((Number(shipment.qty) - returnedQty).toFixed(6))),
     returnOrders: undefined,
@@ -217,7 +252,14 @@ export async function getShipmentDeliveryNoteSource(id: string, scope: Effective
       material: { select: { code: true, name: true, spec: true, stockUnit: true } },
       location: { select: { code: true, name: true } },
       customerRef: { select: { phone: true, address: true } },
-      salesOrder: { select: { orderNo: true, voucherNo: true } },
+      items: {
+        include: {
+          material: { select: { code: true, name: true, spec: true, stockUnit: true } },
+          product: { select: { sku: true, name: true, unit: true } },
+          location: { select: { code: true, name: true } },
+        },
+        orderBy: { sortOrder: 'asc' },
+      },
       packages: {
         where: { deletedAt: null },
         include: shipmentPackageInclude,
@@ -226,7 +268,7 @@ export async function getShipmentDeliveryNoteSource(id: string, scope: Effective
     },
   })
   if (!shipment) throw new SalesDomainError('发货单不存在', 404)
-  assertInventoryLocationDataScope(scope, [shipment.locationId])
+  assertInventoryLocationDataScope(scope, shipment.items.map((item) => item.locationId))
   return shipment
 }
 
@@ -236,15 +278,9 @@ export async function listReturns(input: FulfillmentQuery, scope: EffectiveDataS
   andConditions.push(returnDataScopeWhere(scope))
   applyStatuses(where as { status?: string | { in: string[] } }, input.statuses)
   if (input.customerId === '__UNASSIGNED__') {
-    andConditions.push({ OR: [
-      { shipment: { is: { customerId: null } } },
-      { shipmentId: null, product: { is: { customerId: null } } },
-    ] })
+    andConditions.push({ shipment: { is: { customerId: null } } })
   } else if (input.customerId) {
-    andConditions.push({ OR: [
-      { shipment: { is: { customerId: input.customerId } } },
-      { shipmentId: null, product: { is: { customerId: input.customerId } } },
-    ] })
+    andConditions.push({ shipment: { is: { customerId: input.customerId } } })
   }
   for (const condition of input.advancedConditions || []) {
     const text = stringFilter(condition)
@@ -252,8 +288,8 @@ export async function listReturns(input: FulfillmentQuery, scope: EffectiveDataS
     else if (condition.field === 'status') andConditions.push({ status: condition.value })
     else if (condition.field === 'customerId') {
       const customerId = condition.value === '__UNASSIGNED__' ? null : condition.value
-      andConditions.push({ OR: [{ shipment: { is: { customerId } } }, { shipmentId: null, product: { is: { customerId } } }] })
-    } else if (condition.field === 'product') andConditions.push({ product: { is: { OR: [{ sku: text }, { name: text }] } } })
+      andConditions.push({ shipment: { is: { customerId } } })
+    } else if (condition.field === 'product') andConditions.push({ shipmentItem: { is: { OR: [{ product: { is: { OR: [{ sku: text }, { name: text }] } } }, { material: { is: { OR: [{ code: text }, { name: text }, { spec: text }] } } }] } } })
     else if (condition.field === 'shipmentNo') andConditions.push({ shipment: { is: { shipmentNo: text } } })
     else if (condition.field === 'locationId') andConditions.push({ OR: [{ locationId: condition.value }, { location: { is: { code: text } } }, { location: { is: { name: text } } }] })
     else if (condition.field === 'qty') {
@@ -270,9 +306,8 @@ export async function listReturns(input: FulfillmentQuery, scope: EffectiveDataS
     const date = /^\d{4}-\d{2}-\d{2}$/.test(token) ? new Date(`${token}T00:00:00+08:00`) : null
     return { OR: [
     { returnNo: { contains: token } }, { voucherNo: { contains: token } }, { reason: { contains: token } }, { note: { contains: token } },
-    { product: { is: { sku: { contains: token } } } }, { product: { is: { name: { contains: token } } } },
-    { product: { is: { customer: { is: { code: { contains: token } } } } } },
-    { product: { is: { customer: { is: { name: { contains: token } } } } } },
+    { shipmentItem: { is: { product: { is: { OR: [{ sku: { contains: token } }, { name: { contains: token } }] } } } } },
+    { shipmentItem: { is: { material: { is: { OR: [{ code: { contains: token } }, { name: { contains: token } }, { spec: { contains: token } }] } } } } },
     { shipment: { is: { shipmentNo: { contains: token } } } },
     { shipment: { is: { voucherNo: { contains: token } } } },
     { shipment: { is: { customer: { contains: token } } } },
@@ -290,6 +325,7 @@ export async function listReturns(input: FulfillmentQuery, scope: EffectiveDataS
       include: {
         product: { include: { customer: { select: { id: true, code: true, name: true } } } },
         shipment: { include: { customerRef: { select: { id: true, code: true, name: true } } } },
+        shipmentItem: { include: shipmentItemsInclude },
         location: true,
         inventoryLot: {
           include: {
@@ -323,6 +359,7 @@ export async function getReturnDetail(id: string, scope: EffectiveDataScope = un
     include: {
       product: true,
       shipment: true,
+      shipmentItem: { include: shipmentItemsInclude },
       location: true,
       inventoryLot: { include: { balances: true, inspections: { include: { checkItems: { orderBy: { sortOrder: 'asc' } } }, orderBy: { createdAt: 'desc' } } } },
       lotAllocations: { include: { shipmentAllocation: { include: { lot: true, location: true } } } },

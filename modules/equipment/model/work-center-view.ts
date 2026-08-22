@@ -14,7 +14,6 @@ export const workCenterSearchCatalog = defineResourceSearchCatalog<WorkCenterCon
     options: [{ value: 'active', label: '启用' }, { value: 'archived', label: '已归档' }],
   },
   { key: 'equipmentCount', label: '设备数', type: 'number', read: (item) => item._count.equipment },
-  { key: 'documentCount', label: '工艺文档数', type: 'number', read: (item) => item._count.workInstructions },
 ])
 export const workCenterSearchProfile = resourceKeywordProfile(workCenterSearchCatalog)
 export const workCenterAdvancedFields = resourceAdvancedFields(workCenterSearchCatalog)

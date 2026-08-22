@@ -59,7 +59,7 @@ export interface WorkCenterConfig {
   note?: string | null
   isActive: boolean
   deletedAt?: string | null
-  _count: { equipment: number; workInstructions: number }
+  _count: { equipment: number }
   sortOrder: number
 }
 

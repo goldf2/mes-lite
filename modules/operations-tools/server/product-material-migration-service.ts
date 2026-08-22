@@ -143,18 +143,17 @@ export async function buildProductMaterialMappingPlan(db: PrismaClient): Promise
       db.sawingCostScenario.findMany({ where: { productId: product.id }, select: { materialId: true } }),
       db.productionOrder.findMany({ where: { productId: product.id }, select: { materialId: true } }),
       db.stockIn.findMany({ where: { productId: product.id }, select: { materialId: true } }),
-      db.shipment.findMany({
+      db.shipmentItem.findMany({
         where: { productId: product.id },
         select: {
           material: { select: { id: true, code: true, name: true } },
-          salesOrderItem: { select: { material: { select: { id: true, code: true, name: true } } } },
         },
       }),
       db.returnOrder.findMany({
         where: { productId: product.id },
         select: {
           material: { select: { id: true, code: true, name: true } },
-          shipment: { select: { material: { select: { id: true, code: true, name: true } } } },
+          shipmentItem: { select: { material: { select: { id: true, code: true, name: true } } } },
         },
       }),
       db.stock.findUnique({
@@ -176,12 +175,11 @@ export async function buildProductMaterialMappingPlan(db: PrismaClient): Promise
     for (const order of productionOrders) addCandidate(candidateMap, order.materialId ? materialById.get(order.materialId) : null, '生产订单 materialId')
     for (const stockIn of stockIns) addCandidate(candidateMap, stockIn.materialId ? materialById.get(stockIn.materialId) : null, '历史生产入库 materialId')
     for (const shipment of shipments) {
-      addCandidate(candidateMap, shipment.material, '发货单 materialId')
-      addCandidate(candidateMap, shipment.salesOrderItem?.material, '销售订单明细')
+      addCandidate(candidateMap, shipment.material, '发货明细 materialId')
     }
     for (const returned of returns) {
       addCandidate(candidateMap, returned.material, '退货单 materialId')
-      addCandidate(candidateMap, returned.shipment?.material, '来源发货单')
+      addCandidate(candidateMap, returned.shipmentItem?.material, '来源发货明细')
     }
     const risky = stockRisk(stock)
     const candidates = Array.from(candidateMap.values()).map((candidate) => ({
@@ -287,8 +285,8 @@ async function prepareProductMaterialMapping(
       db.sawingCostScenario.findMany({ where: { productId: product.id }, select: { materialId: true } }),
       db.productionOrder.findMany({ where: { productId: product.id }, select: { materialId: true } }),
       db.stockIn.findMany({ where: { productId: product.id }, select: { materialId: true } }),
-      db.shipment.findMany({ where: { productId: product.id }, select: { materialId: true, salesOrderItem: { select: { materialId: true } } } }),
-      db.returnOrder.findMany({ where: { productId: product.id }, select: { materialId: true, shipment: { select: { materialId: true } } } }),
+      db.shipmentItem.findMany({ where: { productId: product.id }, select: { materialId: true } }),
+      db.returnOrder.findMany({ where: { productId: product.id }, select: { materialId: true, shipmentItem: { select: { materialId: true } } } }),
       db.stock.findUnique({ where: { productId: product.id }, include: { logs: { select: { id: true }, take: 1 }, locationBalances: true } }),
       db.stock.findUnique({ where: { materialId }, select: { id: true } }),
     ])
@@ -296,8 +294,8 @@ async function prepareProductMaterialMapping(
       ...boms.map((item) => item.materialId), ...bomCostRuns.map((item) => item.materialId),
       ...processRoutes.map((item) => item.materialId), ...sawingScenarios.map((item) => item.materialId),
       ...productionOrders.map((item) => item.materialId), ...stockIns.map((item) => item.materialId),
-      ...shipments.flatMap((item) => [item.materialId, item.salesOrderItem?.materialId]),
-      ...returns.flatMap((item) => [item.materialId, item.shipment?.materialId]),
+      ...shipments.map((item) => item.materialId),
+      ...returns.flatMap((item) => [item.materialId, item.shipmentItem?.materialId]),
     ].filter((id): id is string => Boolean(id))
     if (projectionValues.some((id) => id !== materialId)) {
       throw new ProductMaterialMigrationError(`Product ${product.sku} 的现有单据投影与人工映射冲突`)

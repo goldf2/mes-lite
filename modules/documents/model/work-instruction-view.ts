@@ -25,7 +25,6 @@ export function createEmptyWorkInstructionForm(): WorkInstructionForm {
     version: 'v1',
     status: 'ACTIVE',
     materialId: '',
-    workCenterIds: [],
     contentJson: EMPTY_DOCUMENT_JSON,
     note: '',
     fieldValues: {},

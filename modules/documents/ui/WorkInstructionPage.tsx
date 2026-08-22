@@ -8,11 +8,11 @@ import { EMPTY_DOCUMENT_JSON } from '@/lib/document-content'
 import type { ResourceSearchCondition } from '@/lib/resource-search'
 import { MAX_ATTACHMENT_FILE_SIZE } from '@/lib/attachment-file-types'
 import { refreshAttachmentPreviewUrls } from '@/modules/attachments'
-import type { AttachmentItem, CustomerOption, DocumentCategoryRecord, MaterialOption, PaginationState, WorkCenterOption, WorkInstruction, WorkInstructionForm } from '../contracts/work-instruction'
+import type { AttachmentItem, CustomerOption, DocumentCategoryRecord, MaterialOption, PaginationState, WorkInstruction, WorkInstructionForm } from '../contracts/work-instruction'
 import type { DocumentFieldDefinitionRecord } from '../contracts/document-field-schema'
 import {
   archiveInstructionAttachment, archiveWorkInstructionRecord, listDocumentCategories,
-  listDocumentCustomers, listDocumentWorkCenters, listFinishedMaterialOptions,
+  listDocumentCustomers, listFinishedMaterialOptions,
   listInstructionAttachments, listWorkInstructions, saveWorkInstruction,
   setInstructionAttachmentRotation, uploadInstructionAttachment, listDocumentFieldDefinitions,
 } from '../client/documents-api'
@@ -46,7 +46,6 @@ export default function WorkInstructionPage({
   const [categories, setCategories] = useState<DocumentCategoryRecord[]>([])
   const [customers, setCustomers] = useState<CustomerOption[]>([])
   const [materials, setMaterials] = useState<MaterialOption[]>([])
-  const [workCenters, setWorkCenters] = useState<WorkCenterOption[]>([])
   const [keyword, setKeyword] = useState('')
   const [advancedConditions, setAdvancedConditions] = useState<ResourceSearchCondition[]>([])
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.workInstructions.viewMode', 'card')
@@ -83,7 +82,6 @@ export default function WorkInstructionPage({
     status: (instruction) => statusLabels[instruction.status] || instruction.status,
     customer: (instruction) => getInstructionCustomerName(instruction),
     files: (instruction) => instruction.attachmentCount,
-    workCenters: (instruction) => instruction.workCenters.map((item) => `${item.code} ${item.name}`).join(' '),
   }, 'code', 'asc')
   const selectedDetailAttachmentIndex = Math.max(0, detailAttachments.findIndex((attachment) => attachment.id === selectedDetailAttachmentId))
   const selectedDetailAttachment = detailAttachments[selectedDetailAttachmentIndex] || null
@@ -111,7 +109,6 @@ export default function WorkInstructionPage({
     fetchCategories()
     fetchCustomers()
     fetchMaterials()
-    fetchWorkCenters()
   }, [])
 
   useEffect(() => {
@@ -222,14 +219,6 @@ export default function WorkInstructionPage({
     return [] as AttachmentItem[]
   }
 
-  const fetchWorkCenters = async () => {
-    try {
-      setWorkCenters(await listDocumentWorkCenters())
-    } catch (err) {
-      // 通用文档允许不限制工作中心，读取失败不阻塞其余内容。
-    }
-  }
-
   const openAddModal = () => {
     setEditing(null)
     setDetailEditing(false)
@@ -282,7 +271,6 @@ export default function WorkInstructionPage({
       version: instruction.version || 'v1',
       status: instruction.status || 'ACTIVE',
       materialId: instruction.materialId || '',
-      workCenterIds: instruction.workCenters.map((item) => item.id),
       contentJson: instruction.contentJson || EMPTY_DOCUMENT_JSON,
       note: instruction.note || '',
       fieldValues: Object.fromEntries(instruction.fieldValues.map((fieldValue) => [fieldValue.fieldDefinitionId, fieldValue.valueText])),
@@ -331,7 +319,6 @@ export default function WorkInstructionPage({
         categoryId: form.categoryId,
         version: form.version.trim() || 'v1',
         status: form.status,
-        workCenterIds: form.workCenterIds,
         contentJson: form.contentJson,
         note: form.note.trim() || undefined,
         fieldValues: form.fieldValues,
@@ -515,7 +502,6 @@ export default function WorkInstructionPage({
     categories,
     categoryOptions: availableCategoryOptions,
     materials,
-    workCenters,
     selectedItems,
     selectedIds,
     canBatchImport,
@@ -576,7 +562,6 @@ export default function WorkInstructionPage({
           selectedMaterial={selectedMaterial}
           onMaterialSearch={fetchMaterials}
           categoryOptions={availableCategoryOptions}
-          workCenters={workCenters}
           fieldDefinitions={formFieldDefinitions}
           files={createFiles}
           loading={loading}
@@ -600,7 +585,6 @@ export default function WorkInstructionPage({
           selectedMaterial={selectedMaterial}
           onMaterialSearch={fetchMaterials}
           categoryOptions={availableCategoryOptions}
-          workCenters={workCenters}
           fieldDefinitions={formFieldDefinitions}
           attachments={detailAttachments}
           selectedAttachment={selectedDetailAttachment}

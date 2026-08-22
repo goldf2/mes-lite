@@ -9,7 +9,7 @@ import type {
   ShipmentCreated,
   ShipmentForm,
   ShipmentMaterialOption,
-  ShippableSalesItem,
+  CustomerMaterialDeliveryReference,
 } from '../contracts/fulfillment'
 import type { ShipmentPackage, ShipmentPackageForm } from '../contracts/shipment-package'
 
@@ -74,11 +74,11 @@ export function transitionShipment(id: string, action: 'ship' | 'deliver' | 'can
 
 export async function loadShipmentCreateOptions() {
   const [items, locations] = await Promise.all([
-    request<ShippableSalesItem[]>('/api/sales-orders/shippable'),
+    request<CustomerMaterialDeliveryReference[]>('/api/sales-orders/shippable'),
     request<InventoryLocationOption[]>('/api/inventory-locations?context=shipment'),
   ])
   return {
-    items: items.data || [],
+    references: items.data || [],
     customers: items.customers || [],
     materials: items.materials || [],
     locations: locations.data || [],

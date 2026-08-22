@@ -7,7 +7,8 @@ import { createShipmentPackage } from '../client/fulfillment-api'
 import type { Shipment } from '../contracts/fulfillment'
 import type { ShipmentPackageForm } from '../contracts/shipment-package'
 
-const emptyForm = (remainingQty: number): ShipmentPackageForm => ({
+const emptyForm = (shipmentItemId: string, remainingQty: number): ShipmentPackageForm => ({
+  shipmentItemId,
   quantity: remainingQty,
   packedBy: '',
   weightUnit: 'kg',
@@ -31,12 +32,14 @@ export default function ShipmentPackageCreateDialog({
   onCreated: () => void | Promise<void>
   onMessage: (message: string) => void
 }) {
-  const packedQty = useMemo(() => shipment.packages.reduce(
-    (sum, packageDocument) => sum + packageDocument.items.reduce((itemSum, item) => itemSum + Number(item.quantity), 0),
-    0,
-  ), [shipment.packages])
-  const remainingQty = Math.max(0, Number((shipment.qty - packedQty).toFixed(6)))
-  const [form, setForm] = useState(() => emptyForm(remainingQty))
+  const remainingByItem = useMemo(() => new Map(shipment.items.map((item) => {
+    const packedQty = shipment.packages.reduce((sum, packageDocument) => sum + packageDocument.items.filter((row) => row.shipmentItemId === item.id).reduce((itemSum, row) => itemSum + Number(row.quantity), 0), 0)
+    return [item.id, Math.max(0, Number((item.qty - packedQty).toFixed(6)))]
+  })), [shipment.items, shipment.packages])
+  const firstItem = shipment.items.find((item) => (remainingByItem.get(item.id) || 0) > 0) || shipment.items[0]
+  const [form, setForm] = useState(() => emptyForm(firstItem?.id || '', firstItem ? remainingByItem.get(firstItem.id) || 0 : 0))
+  const selectedItem = shipment.items.find((item) => item.id === form.shipmentItemId)
+  const remainingQty = selectedItem ? remainingByItem.get(selectedItem.id) || 0 : 0
   const [saving, setSaving] = useState(false)
 
   const submit = async () => {
@@ -60,14 +63,19 @@ export default function ShipmentPackageCreateDialog({
   return (
     <ModalDialog
       title="新增货箱"
-      description={`发货单 ${shipment.shipmentNo} · 未装 ${remainingQty} ${shipment.product.unit}`}
+      description={`发货单 ${shipment.shipmentNo} · 按发货明细记录货箱数量`}
       onClose={onClose}
       closeDisabled={saving}
       size="lg"
       footer={<ModalActions onCancel={onClose} onConfirm={() => void submit()} confirmLabel="创建货箱" busy={saving} disabled={remainingQty <= 0} />}
     >
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <FormField label="装箱数量" required hint={`最多 ${remainingQty} ${shipment.product.unit}`}>
+        <FormField label="发货明细" required className="sm:col-span-2">
+          <select value={form.shipmentItemId} onChange={(event) => { const shipmentItemId = event.target.value; setForm((current) => ({ ...current, shipmentItemId, quantity: remainingByItem.get(shipmentItemId) || 0 })) }} className={appInputClassName}>
+            {shipment.items.map((item, index) => <option key={item.id} value={item.id}>{index + 1}. {item.material.code} · {item.material.name} · 未装 {remainingByItem.get(item.id) || 0} {item.unitSnapshot}</option>)}
+          </select>
+        </FormField>
+        <FormField label="装箱数量" required hint={`最多 ${remainingQty} ${selectedItem?.unitSnapshot || ''}`}>
           <input type="number" min="0.000001" max={remainingQty} step="any" value={form.quantity || ''} onChange={(event) => setForm((current) => ({ ...current, quantity: Number(event.target.value) }))} className={appInputClassName} />
         </FormField>
         <FormField label="打包人员" hint="留空时记录当前操作人">

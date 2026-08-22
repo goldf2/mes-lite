@@ -1,5 +1,6 @@
 export interface ShipmentPackageItem {
   id: string
+  shipmentItemId: string
   materialId: string
   inventoryLotId?: string | null
   quantity: number
@@ -30,6 +31,7 @@ export interface ShipmentPackage {
 }
 
 export interface ShipmentPackageForm {
+  shipmentItemId: string
   quantity: number
   packedBy: string
   grossWeight?: number

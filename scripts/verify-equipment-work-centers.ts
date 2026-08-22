@@ -224,16 +224,8 @@ async function main() {
     const restoredCenter = await updateManagedWorkCenter({ id: cutting.id, isActive: true, name: '锯切中心恢复' })
     assert.deepEqual([restoredCenter.saved.isActive, restoredCenter.saved.deletedAt, restoredCenter.saved.name], [true, null, '锯切中心恢复'])
 
-    const material = await prisma.material.create({ data: { code: 'EQ-VERIFY-MAT', name: '设备验证物料', unit: '件' } })
-    const category = await prisma.documentCategory.create({ data: { name: '设备验证工艺文件' } })
-    await prisma.workInstruction.create({
-      data: {
-        title: '设备工作中心文档验证', materialId: material.id, categoryId: category.id,
-        workCenters: { connect: { id: cutting.id } },
-      },
-    })
     const listedCenter = (await listManagedWorkCenters(true)).find((item) => item.id === cutting.id)
-    assert.equal(listedCenter?._count.workInstructions, 1, '工作中心查询必须集中装配工艺文档引用计数')
+    assert.equal(listedCenter?._count.equipment, 0, '工作中心查询必须集中装配设备引用计数并反映设备已移出')
 
     const stoppedAt = new Date('2026-08-14T01:50:00.000Z')
     await recordEquipmentEvent(equipment.id, { action: 'STOP', reason: '计划停机归档' }, actor, stoppedAt)

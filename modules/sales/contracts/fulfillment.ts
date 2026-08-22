@@ -1,3 +1,5 @@
+import type { MaterialImage } from '@/modules/materials'
+
 export interface FulfillmentCustomer {
   id: string
   code: string
@@ -25,6 +27,7 @@ export interface ShipmentMaterialOption {
   customer?: { id: string; code: string; name: string } | null
   defaultSalePrice?: number | null
   salesCurrency?: string
+  primaryImage?: MaterialImage | null
   stock?: { locationBalances: Array<{ locationId: string; availableQty: number }> } | null
 }
 
@@ -42,7 +45,7 @@ export interface Shipment {
   id: string
   shipmentNo: string
   voucherNo?: string | null
-  productId: string
+  productId?: string | null
   locationId?: string | null
   customerId?: string | null
   qty: number
@@ -58,10 +61,10 @@ export interface Shipment {
   trackingNo?: string
   note?: string
   createdAt: string
-  product: { id: string; name: string; sku: string; unit: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null }
+  product?: { id: string; name: string; sku: string; unit: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null } | null
   customerRef?: { id: string; code: string; name: string } | null
   location?: { id: string; code: string; name: string } | null
-  salesOrder?: { id: string; orderNo: string; voucherNo?: string | null } | null
+  items: ShipmentItem[]
   returnedQty: number
   returnableQty: number
   lotAllocations: Array<{
@@ -78,11 +81,33 @@ export interface Shipment {
   packages: import('./shipment-package').ShipmentPackage[]
 }
 
+export interface ShipmentItem {
+  id: string
+  sortOrder: number
+  materialId: string
+  productId?: string | null
+  locationId: string
+  qty: number
+  unitSnapshot: string
+  unitPrice: number
+  totalAmount: number
+  returnedQty: number
+  returnableQty: number
+  material: { id: string; code: string; name: string; spec?: string | null; stockUnit: string; primaryImage?: MaterialImage | null }
+  product?: { id: string; sku: string; name: string; unit: string } | null
+  location: InventoryLocationOption
+  lotAllocations: Shipment['lotAllocations']
+}
+
 export interface ReturnShipmentOption {
   id: string
+  shipmentId: string
+  shipmentItemId: string
   shipmentNo: string
-  productId: string
-  product: { id: string; sku: string; name: string; unit: string }
+  productId?: string | null
+  product?: { id: string; sku: string; name: string; unit: string } | null
+  material: { id: string; code: string; name: string; spec?: string | null; stockUnit: string }
+  location: InventoryLocationOption
   customer: string
   customerRef?: { id: string; code: string; name: string } | null
   status: string
@@ -92,26 +117,32 @@ export interface ReturnShipmentOption {
   returnableQty: number
 }
 
-export interface ShippableSalesItem {
-  id: string
-  salesOrderId: string
+export interface CustomerMaterialDeliveryReference {
+  customerId: string
+  materialId: string
+  orderedQty: number
+  pendingQty: number
+  shippedQty: number
   remainingQty: number
+  overQty: number
   unit: string
-  salesOrder: { id: string; orderNo: string; voucherNo?: string | null; customer: FulfillmentCustomer }
-  material: ShipmentMaterialOption
 }
 
 export interface ShipmentForm {
-  salesOrderItemId: string
-  materialId: string
   customerId: string
   voucherNo: string
-  unitPrice: number
-  locationId: string
-  qty: number
   trackingNo: string
   shippedBy: string
   note: string
+  items: ShipmentFormItem[]
+}
+
+export interface ShipmentFormItem {
+  id: string
+  materialId: string
+  unitPrice: number
+  locationId: string
+  qty: number
 }
 
 export interface ShipmentCreated {
@@ -123,16 +154,18 @@ export interface ReturnOrder {
   id: string
   returnNo: string
   voucherNo?: string | null
-  shipmentId?: string | null
-  productId: string
+  shipmentId: string
+  shipmentItemId: string
+  productId?: string | null
   qty: number
   reason: string
   status: string
   note?: string
   createdAt: string
   processedAt?: string
-  product: { id: string; name: string; sku: string; unit: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null }
-  shipment?: { id: string; shipmentNo: string; customerId?: string | null; customer?: string; customerRef?: { id: string; code: string; name: string } | null } | null
+  product?: { id: string; name: string; sku: string; unit: string; customerId?: string | null; customer?: { id: string; code: string; name: string } | null } | null
+  shipment: { id: string; shipmentNo: string; customerId?: string | null; customer?: string; customerRef?: { id: string; code: string; name: string } | null }
+  shipmentItem: ShipmentItem
   location?: InventoryLocationOption | null
   inventoryLot?: {
     id: string
@@ -169,7 +202,7 @@ export interface ReturnOrder {
 export interface ReturnForm {
   voucherNo: string
   shipmentId: string
-  productId: string
+  shipmentItemId: string
   locationId: string
   qty: number
   reason: string

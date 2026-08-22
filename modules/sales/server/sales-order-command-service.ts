@@ -47,13 +47,9 @@ export async function confirmManagedSalesOrder(id: string) {
 }
 
 export async function cancelManagedSalesOrder(id: string) {
-  const before = await prisma.salesOrder.findFirst({
-    where: { id, deletedAt: null },
-    include: { shipments: { where: { status: { not: 'CANCELLED' }, deletedAt: null }, select: { id: true } } },
-  })
+  const before = await prisma.salesOrder.findFirst({ where: { id, deletedAt: null } })
   if (!before) throw new SalesDomainError('销售订单不存在', 404)
   if (!['DRAFT', 'CONFIRMED'].includes(before.status)) throw new SalesDomainError('当前状态不能取消销售订单')
-  if (before.shipments.length > 0) throw new SalesDomainError('订单已有发货单，请先取消待发货单')
   const updated = await prisma.salesOrder.update({ where: { id }, data: { status: 'CANCELLED' } })
   return { before, updated }
 }
@@ -65,11 +61,10 @@ export async function updateManagedSalesOrderPrices(
 ) {
   const order = await prisma.salesOrder.findFirst({
     where: { id, deletedAt: null },
-    include: { items: { orderBy: { createdAt: 'asc' }, include: { shipments: { where: { deletedAt: null }, select: { id: true } } } } },
+    include: { items: { orderBy: { createdAt: 'asc' } } },
   })
   if (!order) throw new SalesDomainError('销售订单不存在或已归档', 404)
   if (!['DRAFT', 'CONFIRMED'].includes(order.status)) throw new SalesDomainError('只有草稿或尚未执行的已确认订单可以调整价格')
-  if (order.items.some((item) => item.shipments.length > 0)) throw new SalesDomainError('订单已经产生发货记录，价格已锁定')
   if (order.status !== 'DRAFT' && !input.reason) throw new SalesDomainError('已确认订单调价必须填写原因')
   const inputById = new Map(input.items.map((item) => [item.id, item.unitPrice]))
   if (inputById.size !== order.items.length || order.items.some((item) => !inputById.has(item.id))) {

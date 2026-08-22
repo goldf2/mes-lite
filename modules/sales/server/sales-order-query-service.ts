@@ -1,7 +1,8 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { tokenizeKeywordQuery, type ResourceSearchCondition } from '@/lib/resource-search'
-import { unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
+import { shipmentDataScopeWhere, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
+import { loadPrimaryMaterialImageMap } from '@/modules/materials'
 import { salesOrderStatusOptions } from '../model/sales-order-view'
 
 export type SalesOrderQuery = {
@@ -40,9 +41,6 @@ function stringFilter(condition: ResourceSearchCondition) {
 async function salesOrderIdsByRelationCount(condition: ResourceSearchCondition) {
   const expected = Number(condition.value)
   if (!Number.isFinite(expected)) return []
-  const rows = condition.field === 'itemCount'
-    ? await prisma.salesOrderItem.groupBy({ by: ['salesOrderId'], _count: { id: true } })
-    : await prisma.shipment.groupBy({ by: ['salesOrderId'], where: { salesOrderId: { not: null }, deletedAt: null }, _count: { id: true } })
   const matches = (actual: number) => {
     if (condition.operator === 'gt') return actual > expected
     if (condition.operator === 'gte') return actual >= expected
@@ -50,7 +48,84 @@ async function salesOrderIdsByRelationCount(condition: ResourceSearchCondition) 
     if (condition.operator === 'lte') return actual <= expected
     return actual === expected
   }
-  return rows.flatMap((row) => row.salesOrderId && matches(row._count.id) ? [row.salesOrderId] : [])
+  const rows = await prisma.salesOrderItem.groupBy({ by: ['salesOrderId'], _count: { id: true } })
+  return rows.flatMap((row) => matches(row._count.id) ? [row.salesOrderId] : [])
+}
+
+type DeliveryReference = {
+  customerId: string
+  materialId: string
+  orderedQty: number
+  pendingQty: number
+  shippedQty: number
+  remainingQty: number
+  overQty: number
+  unit: string
+}
+
+const deliveryReferenceKey = (customerId: string, materialId: string) => `${customerId}:${materialId}`
+
+async function loadCustomerMaterialDeliveryReferences(pairs?: Array<{ customerId: string; materialId: string }>, scope: EffectiveDataScope = unrestrictedDataScope) {
+  const uniquePairs = Array.from(new Map((pairs || []).map((pair) => [deliveryReferenceKey(pair.customerId, pair.materialId), pair])).values())
+  if (pairs && uniquePairs.length === 0) return new Map<string, DeliveryReference>()
+  const orderPairWhere = uniquePairs.length > 0
+    ? { OR: uniquePairs.map((pair) => ({ materialId: pair.materialId, salesOrder: { is: { customerId: pair.customerId } } })) }
+    : {}
+  const shipmentPairWhere = uniquePairs.length > 0
+    ? { OR: uniquePairs.map((pair) => ({ materialId: pair.materialId, shipment: { is: { customerId: pair.customerId } } })) }
+    : {}
+  const [orderItems, shipmentItems] = await Promise.all([
+    prisma.salesOrderItem.findMany({
+      where: {
+        ...orderPairWhere,
+        salesOrder: { is: { deletedAt: null, status: { in: ['CONFIRMED', 'PARTIAL', 'COMPLETED'] } } },
+      },
+      select: { materialId: true, qty: true, unit: true, salesOrder: { select: { customerId: true } } },
+    }),
+    prisma.shipmentItem.findMany({
+      where: {
+        ...shipmentPairWhere,
+        shipment: { is: { deletedAt: null, customerId: { not: null }, status: { in: ['PENDING', 'SHIPPED', 'DELIVERED'] }, ...shipmentDataScopeWhere(scope) } },
+      },
+      select: { materialId: true, qty: true, unitSnapshot: true, shipment: { select: { customerId: true, status: true } } },
+    }),
+  ])
+  const references = new Map<string, DeliveryReference>()
+  const ensure = (customerId: string, materialId: string, unit: string) => {
+    const key = deliveryReferenceKey(customerId, materialId)
+    const current = references.get(key) || { customerId, materialId, orderedQty: 0, pendingQty: 0, shippedQty: 0, remainingQty: 0, overQty: 0, unit }
+    references.set(key, current)
+    return current
+  }
+  for (const item of orderItems) ensure(item.salesOrder.customerId, item.materialId, item.unit).orderedQty += Number(item.qty)
+  for (const item of shipmentItems) {
+    if (!item.shipment.customerId) continue
+    const reference = ensure(item.shipment.customerId, item.materialId, item.unitSnapshot)
+    if (item.shipment.status === 'PENDING') reference.pendingQty += Number(item.qty)
+    else reference.shippedQty += Number(item.qty)
+  }
+  for (const reference of Array.from(references.values())) {
+    const balance = Number((reference.orderedQty - reference.pendingQty - reference.shippedQty).toFixed(6))
+    reference.remainingQty = Math.max(0, balance)
+    reference.overQty = Math.max(0, -balance)
+  }
+  return references
+}
+
+export async function listCustomerMaterialDeliveryReferences(scope: EffectiveDataScope = unrestrictedDataScope) {
+  const references = Array.from((await loadCustomerMaterialDeliveryReferences(undefined, scope)).values())
+  if (references.length === 0) return []
+  const [customers, materials] = await Promise.all([
+    prisma.customer.findMany({ where: { id: { in: references.map((item) => item.customerId) } }, select: { id: true, code: true, name: true } }),
+    prisma.material.findMany({ where: { id: { in: references.map((item) => item.materialId) } }, select: { id: true, code: true, name: true } }),
+  ])
+  const customerMap = new Map(customers.map((item) => [item.id, item]))
+  const materialMap = new Map(materials.map((item) => [item.id, item]))
+  return references.map((reference) => ({
+    ...reference,
+    customer: customerMap.get(reference.customerId) || null,
+    material: materialMap.get(reference.materialId) || null,
+  })).sort((left, right) => right.remainingQty - left.remainingQty || right.overQty - left.overQty)
 }
 
 export async function listSalesOrders(input: SalesOrderQuery) {
@@ -72,13 +147,13 @@ export async function listSalesOrders(input: SalesOrderQuery) {
       const value = numberFilter(condition)
       if (value) advancedFilters.push({ totalAmount: value })
     } else if (condition.field === 'currency') advancedFilters.push({ currency: condition.value })
-    else if (condition.field === 'itemCount' || condition.field === 'shipmentCount') advancedFilters.push({ id: { in: await salesOrderIdsByRelationCount(condition) } })
+    else if (condition.field === 'itemCount') advancedFilters.push({ id: { in: await salesOrderIdsByRelationCount(condition) } })
   }
   const keywordFilters = await Promise.all(tokenizeKeywordQuery(input.keyword || '').map(async (token): Promise<Prisma.SalesOrderWhereInput> => {
     const number = Number(token)
     const date = /^\d{4}-\d{2}-\d{2}$/.test(token) ? new Date(`${token}T00:00:00+08:00`) : null
     const countIds = Number.isFinite(number)
-      ? Array.from(new Set([...(await salesOrderIdsByRelationCount({ id: 'keyword-items', field: 'itemCount', operator: 'equals', value: token })), ...(await salesOrderIdsByRelationCount({ id: 'keyword-shipments', field: 'shipmentCount', operator: 'equals', value: token }))]))
+      ? await salesOrderIdsByRelationCount({ id: 'keyword-items', field: 'itemCount', operator: 'equals', value: token })
       : []
     return { OR: [
     { orderNo: { contains: token } },
@@ -106,10 +181,8 @@ export async function listSalesOrders(input: SalesOrderQuery) {
           orderBy: { createdAt: 'asc' },
           include: {
             material: { select: { id: true, code: true, name: true, spec: true, category: true, stockUnit: true, unit: true } },
-            shipments: { where: { status: 'PENDING', deletedAt: null }, select: { qty: true } },
           },
         },
-        _count: { select: { shipments: true } },
       },
       orderBy: [{ orderDate: 'desc' }, { createdAt: 'desc' }],
       skip: (input.page - 1) * input.pageSize,
@@ -117,14 +190,23 @@ export async function listSalesOrders(input: SalesOrderQuery) {
     }),
     prisma.salesOrder.count({ where }),
   ])
+  const materialIds = orders.flatMap((order) => order.items.map((item) => item.material.id))
+  const [references, images] = await Promise.all([
+    loadCustomerMaterialDeliveryReferences(orders.flatMap((order) => order.items.map((item) => ({ customerId: order.customerId, materialId: item.material.id })))),
+    loadPrimaryMaterialImageMap(materialIds),
+  ])
   const data = orders.map((order) => ({
     ...order,
-    items: order.items.map(({ shipments, ...item }) => {
-      const pendingQty = shipments.reduce((sum, shipment) => sum + Number(shipment.qty), 0)
+    items: order.items.map((item) => {
+      const reference = references.get(deliveryReferenceKey(order.customerId, item.materialId))
       return {
         ...item,
-        pendingQty,
-        remainingQty: Math.max(0, Number((Number(item.qty) - Number(item.shippedQty) - pendingQty).toFixed(6))),
+        material: { ...item.material, primaryImage: images.get(item.materialId) || null },
+        referenceOrderedQty: reference?.orderedQty || 0,
+        referencePendingQty: reference?.pendingQty || 0,
+        referenceShippedQty: reference?.shippedQty || 0,
+        referenceRemainingQty: reference?.remainingQty || 0,
+        referenceOverQty: reference?.overQty || 0,
       }
     }),
   }))
@@ -148,35 +230,15 @@ export async function getSalesOrderOptions() {
       },
     }),
   ])
-  return { customers, materials }
+  const images = await loadPrimaryMaterialImageMap(materials.map((material) => material.id))
+  return { customers, materials: materials.map((material) => ({ ...material, primaryImage: images.get(material.id) || null })) }
 }
 
-export async function listShippableSalesOrderItems(scope: EffectiveDataScope = unrestrictedDataScope) {
+export async function getShipmentCreateOptions(scope: EffectiveDataScope = unrestrictedDataScope) {
   const locationBalanceWhere = scope.inventoryMode === 'LOCATIONS'
     ? { locationId: { in: scope.locationIds } }
     : undefined
-  const [items, customers, materials] = await Promise.all([
-    prisma.salesOrderItem.findMany({
-      where: {
-        salesOrder: { is: { status: { in: ['CONFIRMED', 'PARTIAL'] }, deletedAt: null } },
-        material: { is: { deletedAt: null } },
-      },
-      include: {
-        salesOrder: { include: { customer: { select: { id: true, code: true, name: true, phone: true, address: true } } } },
-        material: {
-          select: {
-            id: true, code: true, name: true, spec: true, category: true, stockUnit: true, unit: true,
-            stock: {
-              select: {
-                locationBalances: { where: locationBalanceWhere, select: { locationId: true, availableQty: true } },
-              },
-            },
-          },
-        },
-        shipments: { where: { status: 'PENDING', deletedAt: null }, select: { qty: true } },
-      },
-      orderBy: { salesOrder: { orderDate: 'desc' } },
-    }),
+  const [customers, materials, references] = await Promise.all([
     prisma.customer.findMany({
       where: { deletedAt: null }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       select: { id: true, code: true, name: true, phone: true, address: true },
@@ -193,11 +255,8 @@ export async function listShippableSalesOrderItems(scope: EffectiveDataScope = u
         },
       },
     }),
+    loadCustomerMaterialDeliveryReferences(undefined, scope),
   ])
-  const data = items.flatMap(({ shipments, ...item }) => {
-    const pendingQty = shipments.reduce((sum, shipment) => sum + Number(shipment.qty), 0)
-    const remainingQty = Number((Number(item.qty) - Number(item.shippedQty) - pendingQty).toFixed(6))
-    return remainingQty > 0 ? [{ ...item, pendingQty, remainingQty }] : []
-  })
-  return { data, customers, materials }
+  const images = await loadPrimaryMaterialImageMap(materials.map((material) => material.id))
+  return { data: Array.from(references.values()), customers, materials: materials.map((material) => ({ ...material, primaryImage: images.get(material.id) || null })) }
 }

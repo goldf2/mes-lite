@@ -7,10 +7,12 @@ export default function ModalOverlay({
   children,
   onClose,
   className = '',
+  dismissOnBackdrop = false,
 }: {
   children: ReactNode
   onClose?: () => void
   className?: string
+  dismissOnBackdrop?: boolean
 }) {
   const [mounted, setMounted] = useState(false)
   const onCloseRef = useRef(onClose)
@@ -85,7 +87,7 @@ export default function ModalOverlay({
       role="presentation"
       onClick={(event) => {
         event.stopPropagation()
-        if (event.target === event.currentTarget) onClose?.()
+        if (dismissOnBackdrop && event.target === event.currentTarget) onClose?.()
       }}
       className={`fixed inset-0 z-[200] flex items-center justify-center overflow-y-auto mes-modal-overlay p-4 ${className}`}
     >

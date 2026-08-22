@@ -47,27 +47,27 @@ export async function loadBusinessDocumentPrintData(
   }
 
   if (kind === 'shipment') {
-    const item = await prisma.shipment.findFirst({ where: { id, deletedAt: null }, include: { product: true, material: true, customerRef: true, location: true, salesOrder: true } })
+    const item = await prisma.shipment.findFirst({ where: { id, deletedAt: null }, include: { customerRef: true, items: { include: { material: true, product: true, location: true }, orderBy: { sortOrder: 'asc' } } } })
     if (!item) return null
     return {
       title: '发货单', documentNo: item.shipmentNo, status: statusLabels[item.status] || item.status,
-      documentDate: dateText(item.shippedAt || item.createdAt), referenceNo: item.voucherNo || item.salesOrder?.voucherNo, partyLabel: '客户', partyName: item.customer,
-      summaryFields: [{ label: '销售订单', value: item.salesOrder?.orderNo || '历史单据' }, { label: '发货库位', value: item.location ? `${item.location.code} · ${item.location.name}` : '默认库位' }, { label: '物流单号', value: item.trackingNo || '-' }],
+      documentDate: dateText(item.shippedAt || item.createdAt), referenceNo: item.voucherNo, partyLabel: '客户', partyName: item.customer,
+      summaryFields: [{ label: '明细项数', value: `${item.items.length} 项` }, { label: '发货库位', value: Array.from(new Set(item.items.map((line) => line.location.code))).join('、') }, { label: '物流单号', value: item.trackingNo || '-' }],
       columns: [{ label: '序号', key: 'index', width: 0.6, align: 'center' }, { label: '物料编码', key: 'code', width: 1.4 }, { label: '物料名称/规格', key: 'material', width: 2.7 }, { label: '数量', key: 'qty', width: 1.1, align: 'right' }, { label: '单价', key: 'price', width: 1, align: 'right' }, { label: '金额', key: 'amount', width: 1.1, align: 'right' }],
-      rows: [{ index: '1', code: item.material?.code || item.product.sku, material: `${item.material?.name || item.product.name}${item.material?.spec ? ` · ${item.material.spec}` : ''}`, qty: `${numberText(item.qty)} ${item.material?.stockUnit || item.product.unit}`, price: money(item.unitPrice), amount: money(item.totalAmount) }],
+      rows: item.items.map((line, index) => ({ index: String(index + 1), code: line.material.code || line.product?.sku || '', material: `${line.material.name}${line.material.spec ? ` · ${line.material.spec}` : ''}`, qty: `${numberText(line.qty)} ${line.unitSnapshot}`, price: money(line.unitPrice), amount: money(line.totalAmount) })),
       totalLabel: '发货金额', totalValue: money(item.totalAmount), note: item.note, signatures: ['发货人', '承运人', '客户签收'],
     }
   }
 
   if (kind === 'return') {
-    const item = await prisma.returnOrder.findFirst({ where: { id, deletedAt: null }, include: { product: { include: { customer: true } }, material: true, location: true, shipment: { include: { customerRef: true } } } })
+    const item = await prisma.returnOrder.findFirst({ where: { id, deletedAt: null }, include: { product: true, material: true, shipmentItem: { include: { material: true } }, location: true, shipment: { include: { customerRef: true } } } })
     if (!item) return null
     return {
       title: '销售退货单', documentNo: item.returnNo, status: statusLabels[item.status] || item.status,
-      documentDate: dateText(item.processedAt || item.createdAt), referenceNo: item.voucherNo, partyLabel: '客户', partyName: item.shipment?.customerRef?.name || item.product.customer?.name || '-',
-      summaryFields: [{ label: '原发货单', value: item.shipment?.shipmentNo || '-' }, { label: '退回库位', value: item.location ? `${item.location.code} · ${item.location.name}` : '默认库位' }, { label: '退货原因', value: item.reason }],
+      documentDate: dateText(item.processedAt || item.createdAt), referenceNo: item.voucherNo, partyLabel: '客户', partyName: item.shipment.customerRef?.name || item.shipment.customer || '-',
+      summaryFields: [{ label: '原发货单', value: item.shipment.shipmentNo }, { label: '退回库位', value: item.location ? `${item.location.code} · ${item.location.name}` : '默认库位' }, { label: '退货原因', value: item.reason }],
       columns: [{ label: '序号', key: 'index', width: 0.6, align: 'center' }, { label: '物料编码', key: 'code', width: 1.4 }, { label: '物料名称/规格', key: 'material', width: 3 }, { label: '退货数量', key: 'qty', width: 1.3, align: 'right' }, { label: '处理成本', key: 'amount', width: 1.2, align: 'right' }],
-      rows: [{ index: '1', code: item.material?.code || item.product.sku, material: `${item.material?.name || item.product.name}${item.material?.spec ? ` · ${item.material.spec}` : ''}`, qty: `${numberText(item.qty)} ${item.stockUnitSnapshot || item.material?.stockUnit || item.product.unit}`, amount: money(item.processedCostAmount) }],
+      rows: [{ index: '1', code: item.shipmentItem.material.code, material: `${item.shipmentItem.material.name}${item.shipmentItem.material.spec ? ` · ${item.shipmentItem.material.spec}` : ''}`, qty: `${numberText(item.qty)} ${item.stockUnitSnapshot || item.shipmentItem.unitSnapshot}`, amount: money(item.processedCostAmount) }],
       totalLabel: '退货成本', totalValue: money(item.processedCostAmount), note: item.note, signatures: ['制单人', '仓管员', '客户确认'],
     }
   }
