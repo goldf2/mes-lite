@@ -7,6 +7,7 @@ export const dailyProductionShortcutSchema = z.object({
   consumptionLocationId: z.string().trim().min(1, '请选择投入来源库位'),
   outputLocationId: z.string().trim().min(1, '请选择产出入库库位'),
   outputQty: z.number().finite().positive('主产出数量必须大于 0'),
+  outputDisposition: z.enum(['DIRECT_AVAILABLE', 'QUALITY_INSPECTION']).default('DIRECT_AVAILABLE'),
   note: z.string().trim().max(500).optional(),
   consumptions: z.array(z.object({
     materialId: z.string().trim().min(1),

@@ -1008,7 +1008,7 @@ model WorkReport {
   createdAt DateTime @default(now())
 }
 
-// ==================== BOM 快捷生产日报（独立于生产订单，不创建派工/报工/质检） ====================
+// ==================== BOM 快捷生产日报（独立于生产订单，不创建派工/报工，可选质检） ====================
 
 model DailyProductionReport {
   id                     String                          @id @default(cuid())

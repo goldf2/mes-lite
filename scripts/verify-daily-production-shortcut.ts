@@ -20,11 +20,15 @@ async function main() {
     { postInventoryReceipt },
     { unrestrictedDataScope },
     { createAndConfirmDailyProductionShortcut, listDailyProductionShortcutWorkspace },
+    { reverseLegacyDailyProductionReport },
+    { decideQualityInspection },
   ] = await Promise.all([
     import('../lib/prisma'),
     import('../lib/inventory'),
     import('../modules/identity-access'),
     import('../modules/production/server/daily-production-shortcut-service'),
+    import('../modules/production/server/legacy-daily-production-status-service'),
+    import('../modules/quality/server/quality-inspection-service'),
   ])
 
   try {
@@ -34,7 +38,8 @@ async function main() {
     const service = readFileSync(join(root, 'modules/production/server/daily-production-shortcut-service.ts'), 'utf8')
     assert.doesNotMatch(page, /\bfetch\(/, '生产日报页面必须通过领域 client 调用接口')
     assert.match(page, /BOM 快捷生产过账/, '页面必须明确 BOM 快捷转换语义')
-    assert.match(page, /生产订单、派工、报工和质检/, '页面必须说明被绕过的复杂流程')
+    assert.match(page, /绕过生产订单、派工和报工/, '页面必须说明被缩减的生产组织流程')
+    assert.match(page, /进入待检并生成后续质量任务/, '页面必须提供可选的后续质检路径')
     assert.match(wrapper, /标准流程/, '生产日报入口必须说明完整生产路径')
     assert.match(wrapper, /快捷流程（当前页）/, '生产日报入口必须说明独立快捷路径')
     assert.match(wrapper, /同一批实物只能选择其中一条/, '双轨生产必须提示避免重复登记')
@@ -85,6 +90,7 @@ async function main() {
       consumptionLocationId: inputLocation.id,
       outputLocationId: outputLocation.id,
       outputQty: 20,
+      outputDisposition: 'DIRECT_AVAILABLE' as const,
       note: '快捷日报验证',
       consumptions: [{
         materialId: raw.id,
@@ -112,8 +118,118 @@ async function main() {
     )
     assert.equal(await prisma.productionOrder.count(), 0, '快捷日报不得创建生产订单')
     assert.equal(await prisma.productionOrderActual.count(), 0, '快捷日报不得创建生产订单实绩')
-    assert.equal(await prisma.qualityInspection.count(), 0, '快捷日报不得创建质检任务')
-    assert.equal(await prisma.auditLog.count({ where: { entityType: 'DAILY_PRODUCTION_REPORT', action: 'CONFIRM' } }), 1)
+    assert.equal(await prisma.qualityInspection.count(), 0, '直接入库模式不得创建质检任务')
+
+    const qualityReport = await createAndConfirmDailyProductionShortcut(
+      {
+        ...commonInput,
+        outputQty: 2,
+        outputDisposition: 'QUALITY_INSPECTION',
+        consumptions: [{ ...commonInput.consumptions[0], actualQty: 1 }],
+      },
+      unrestrictedDataScope,
+      '验证管理员',
+      { operatorName: '验证管理员' },
+    )
+    const qualityInspection = await prisma.qualityInspection.findFirst({
+      where: { sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT', sourceId: qualityReport.id },
+      include: { lot: { include: { balances: true } } },
+    })
+    assert.ok(qualityInspection, '待检模式必须创建后续质量任务')
+    assert.equal(qualityInspection.status, 'PENDING')
+    assert.equal(qualityInspection.lot.sourceType, 'DAILY_PRODUCTION_REPORT')
+    assert.equal(qualityInspection.lot.balances[0]?.inventoryStatus, 'QUARANTINE')
+    await decideQualityInspection(
+      qualityInspection.id,
+      {
+        decision: 'PASS',
+        sampleQty: 2,
+        goodQty: 2,
+        badQty: 0,
+        note: '快捷日报后续质检通过',
+      },
+      '验证质检员',
+      unrestrictedDataScope,
+    )
+    const completedInspection = await prisma.qualityInspection.findUniqueOrThrow({ where: { id: qualityInspection.id } })
+    assert.deepEqual(
+      [completedInspection.status, completedInspection.result, completedInspection.inspector],
+      ['COMPLETED', 'PASS', '验证质检员'],
+      '快捷日报创建的质量任务必须能够沿用统一质量判定流程',
+    )
+
+    const reverseableReport = await createAndConfirmDailyProductionShortcut(
+      {
+        ...commonInput,
+        outputQty: 2,
+        outputDisposition: 'QUALITY_INSPECTION',
+        consumptions: [{ ...commonInput.consumptions[0], actualQty: 1 }],
+      },
+      unrestrictedDataScope,
+      '验证管理员',
+      { operatorName: '验证管理员' },
+    )
+    const reverseableInspection = await prisma.qualityInspection.findFirstOrThrow({
+      where: { sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT', sourceId: reverseableReport.id },
+      include: { lot: true },
+    })
+    await reverseLegacyDailyProductionReport(
+      reverseableReport.id,
+      { reason: '验证待检日报冲销' },
+      '验证管理员',
+    )
+    const [reversedReport, reversedInspection, reversedLot] = await Promise.all([
+      prisma.dailyProductionReport.findUniqueOrThrow({ where: { id: reverseableReport.id } }),
+      prisma.qualityInspection.findUniqueOrThrow({ where: { id: reverseableInspection.id } }),
+      prisma.inventoryLot.findUniqueOrThrow({ where: { id: reverseableInspection.lotId } }),
+    ])
+    assert.equal(reversedReport.status, 'REVERSED', '待检日报必须允许在质量判定前完整冲销')
+    assert.equal(reversedInspection.status, 'REVERSED', '待检日报冲销必须同步关闭质量任务')
+    assert.equal(reversedLot.status, 'REVERSED', '待检日报冲销必须同步关闭产出批次')
+
+    const heldReport = await createAndConfirmDailyProductionShortcut(
+      {
+        ...commonInput,
+        outputQty: 2,
+        outputDisposition: 'QUALITY_INSPECTION',
+        consumptions: [{ ...commonInput.consumptions[0], actualQty: 1 }],
+      },
+      unrestrictedDataScope,
+      '验证管理员',
+      { operatorName: '验证管理员' },
+    )
+    const heldInspection = await prisma.qualityInspection.findFirstOrThrow({
+      where: { sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT', sourceId: heldReport.id },
+    })
+    await decideQualityInspection(
+      heldInspection.id,
+      {
+        decision: 'FAIL',
+        sampleQty: 2,
+        goodQty: 0,
+        badQty: 2,
+        note: '验证整批冻结后日报冲销',
+      },
+      '验证质检员',
+      unrestrictedDataScope,
+    )
+    await reverseLegacyDailyProductionReport(
+      heldReport.id,
+      { reason: '验证冻结日报冲销' },
+      '验证管理员',
+    )
+    const reversedHeldInspection = await prisma.qualityInspection.findUniqueOrThrow({ where: { id: heldInspection.id } })
+    assert.equal(reversedHeldInspection.status, 'REVERSED', '整批冻结但未发生后续处置时必须允许日报受控冲销')
+
+    const finishedStock = await prisma.stock.findUniqueOrThrow({ where: { materialId: finished.id } })
+    assert.deepEqual(
+      [Number(finishedStock.qty), Number(finishedStock.availableQty), Number(finishedStock.quarantineQty), Number(finishedStock.holdQty)],
+      [22, 22, 0, 0],
+      '待检产出放行与待检日报冲销后必须保持库存状态和总量一致',
+    )
+    const rawStock = await prisma.stock.findUniqueOrThrow({ where: { materialId: raw.id } })
+    assert.equal(Number(rawStock.qty), 9, '待检日报冲销必须恢复原料耗用')
+    assert.equal(await prisma.auditLog.count({ where: { entityType: 'DAILY_PRODUCTION_REPORT', action: 'CONFIRM' } }), 4)
     const restrictedWorkspace = await listDailyProductionShortcutWorkspace({
       ...unrestrictedDataScope, inventoryMode: 'LOCATIONS', locationIds: [outputLocation.id],
     })
@@ -121,7 +237,7 @@ async function main() {
     const authorizedWorkspace = await listDailyProductionShortcutWorkspace({
       ...unrestrictedDataScope, inventoryMode: 'LOCATIONS', locationIds: [inputLocation.id, outputLocation.id],
     })
-    assert.equal(authorizedWorkspace.reports.length, 1, '投入和产出库位均获授权时应返回日报')
+    assert.equal(authorizedWorkspace.reports.length, 4, '投入和产出库位均获授权时应返回日报')
 
     const reportsBeforeFailure = await prisma.dailyProductionReport.count()
     await assert.rejects(
@@ -134,7 +250,7 @@ async function main() {
       /库存不足/,
     )
     assert.equal(await prisma.dailyProductionReport.count(), reportsBeforeFailure, '扣料失败时不得留下日报草稿')
-    console.log('生产日报 BOM 快捷转换验证通过：正式 BOM、原子扣料入库、成本审计、无订单与无质检、失败回滚均符合预期')
+    console.log('生产日报 BOM 快捷转换验证通过：正式 BOM、直接/待检入库、质量放行、待检/冻结冲销、成本审计、无订单派工和失败回滚均符合预期')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

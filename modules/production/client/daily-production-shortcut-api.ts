@@ -47,6 +47,7 @@ export interface DailyProductionReportSummary {
   outputLocation?: { code: string; name: string } | null
   finishedMaterial: { code: string; name: string; stockUnit: string; unit: string }
   consumptions: Array<{ id: string; materialCode: string; materialName: string; actualQty: number; unit: string }>
+  qualityInspection?: { id: string; inspectionNo: string; status: string; result: string } | null
 }
 
 export async function loadDailyProductionShortcutWorkspace() {

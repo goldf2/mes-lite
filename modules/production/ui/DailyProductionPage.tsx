@@ -17,7 +17,7 @@ export default function DailyProductionPage({ canUpdate, onMessage }: { canUpdat
         </div>
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
           <div className="text-sm font-semibold text-blue-950">快捷流程（当前页）</div>
-          <div className="mt-1 text-sm leading-6 text-blue-900">来料形成可用库存 → BOM 生产日报 → 直接入库</div>
+          <div className="mt-1 text-sm leading-6 text-blue-900">来料形成可用库存 → BOM 生产日报 → 可选质检 → 入库</div>
           <div className="mt-1 text-xs text-blue-800">两套流程互不关联；同一批实物只能选择其中一条，避免重复扣料和重复报产。</div>
         </div>
       </section>

@@ -31,6 +31,7 @@ export default function DailyProductionBomEntry({ canUpdate, onMessage }: { canU
   const [outputQty, setOutputQty] = useState(0)
   const [consumptionLocationId, setConsumptionLocationId] = useState('')
   const [outputLocationId, setOutputLocationId] = useState('')
+  const [outputDisposition, setOutputDisposition] = useState<'DIRECT_AVAILABLE' | 'QUALITY_INSPECTION'>('DIRECT_AVAILABLE')
   const [note, setNote] = useState('')
   const [actualInputByMaterial, setActualInputByMaterial] = useState<Record<string, number | null>>({})
   const [loading, setLoading] = useState(true)
@@ -101,6 +102,7 @@ export default function DailyProductionBomEntry({ canUpdate, onMessage }: { canU
         consumptionLocationId,
         outputLocationId,
         outputQty,
+        outputDisposition,
         note: note.trim() || undefined,
         consumptions: inputPreview.flatMap((line) => line.material ? [{
           materialId: line.material.id,
@@ -129,7 +131,7 @@ export default function DailyProductionBomEntry({ canUpdate, onMessage }: { canU
     <div className="space-y-4">
       <section className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950">
         <h2 className="text-base font-semibold">BOM 快捷生产过账</h2>
-        <p className="mt-1 leading-6">绕过生产订单、派工、报工和质检，只按已发布 BOM 将投入物料转换为产出物料；投入扣减、产出入库、成本与审计在同一事务完成。</p>
+        <p className="mt-1 leading-6">绕过生产订单、派工和报工，按已发布 BOM 将投入物料转换为产出物料；产出可直接进入可用库存，也可先进入待检并生成后续质量任务。</p>
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -144,6 +146,12 @@ export default function DailyProductionBomEntry({ canUpdate, onMessage }: { canU
           </label>
           <div><label className="mb-2 block text-sm font-medium text-gray-700">投入来源库位</label><SearchableSelect value={consumptionLocationId} onChange={setConsumptionLocationId} options={locations.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} placeholder="选择原料库位" /></div>
           <div><label className="mb-2 block text-sm font-medium text-gray-700">产出入库库位</label><SearchableSelect value={outputLocationId} onChange={setOutputLocationId} options={locations.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} placeholder="选择成品库位" /></div>
+          <label className="text-sm font-medium text-gray-700">产出处置
+            <select value={outputDisposition} onChange={(event) => setOutputDisposition(event.target.value as typeof outputDisposition)} className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2">
+              <option value="DIRECT_AVAILABLE">直接进入可用库存</option>
+              <option value="QUALITY_INSPECTION">进入待检并生成质量任务</option>
+            </select>
+          </label>
         </div>
         <label className="mt-4 block text-sm font-medium text-gray-700">备注（可选）<input value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2" placeholder="例如：夜班汇总、补录原因" /></label>
       </section>
@@ -168,6 +176,7 @@ export default function DailyProductionBomEntry({ canUpdate, onMessage }: { canU
                   ? report.consumptions.map((item) => `${item.materialCode} · ${numberText(item.actualQty)} ${item.unit}`).join('；')
                   : '无投入记录'}
                 {report.outputLocation ? `；入库 ${report.outputLocation.code} · ${report.outputLocation.name}` : ''}
+                {report.qualityInspection ? `；质检 ${report.qualityInspection.inspectionNo} · ${report.qualityInspection.status}` : '；直接可用'}
               </div>
             </div>
           ))}
