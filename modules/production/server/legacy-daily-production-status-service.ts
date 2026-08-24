@@ -76,45 +76,66 @@ export async function confirmLegacyDailyProductionReportInTransaction(
       totalConsumedCost = roundLegacyDailyProductionQty(totalConsumedCost + Number(issue.costAmount))
     }
 
-    const outputQty = Number(report.outputQty)
-    const outputCostAmount = outputQty > 0 ? totalConsumedCost : 0
-    let outputValuationQty = 0
-    let outputStockUnit: string | null = null
-    let outputValuationUnit: string | null = null
-    let outputConversionRate: number | null = null
-    if (outputQty > 0) {
+    const persistedOutputs = report.outputs.length > 0
+    const outputLines = persistedOutputs ? report.outputs : [{
+      id: report.id,
+      materialId: report.finishedMaterialId,
+      locationId: report.outputLocationId,
+      actualQty: report.outputQty,
+      isPrimary: true,
+      materialCode: report.finishedMaterial.code,
+      material: report.finishedMaterial,
+    }]
+    let primaryReceipt: {
+      valuationQty: number
+      costAmount: number
+      stockUnit: string | null
+      valuationUnit: string | null
+      conversionRate: number | null
+    } | null = null
+    for (const line of outputLines) {
+      const outputQty = Number(line.actualQty)
+      if (outputQty <= 0) continue
+      if (!line.locationId) throw new LegacyDailyProductionError(`产出 ${line.materialCode} 没有入库库位`)
+      const outputCostAmount = line.isPrimary ? totalConsumedCost : 0
+      const sourceType = persistedOutputs ? 'DAILY_PRODUCTION_REPORT_OUTPUT' : 'DAILY_PRODUCTION_REPORT'
+      const sourceId = persistedOutputs ? line.id : report.id
       const receipt = await postInventoryReceipt(tx, {
-        materialId: report.finishedMaterialId,
+        materialId: line.materialId,
         stockQty: outputQty,
         conversionSource: 'MASTER_DEFAULT',
         costAmount: outputCostAmount,
         type: 'PRODUCTION_IN',
-        refType: 'DAILY_PRODUCTION_REPORT',
-        refId: report.id,
+        refType: sourceType,
+        refId: sourceId,
         note: `生产记录 ${report.reportNo} 产出入库`,
         createdBy: confirmedBy,
-        idempotencyKey: `DAILY_PRODUCTION:${report.id}:OUTPUT`,
-        locationId: report.outputLocationId,
+        idempotencyKey: `DAILY_PRODUCTION:${report.id}:OUTPUT:${line.id}`,
+        locationId: line.locationId,
         inventoryStatus: options.createQualityInspection ? 'QUARANTINE' : 'AVAILABLE',
       })
-      outputValuationQty = Number(receipt.quantities?.valuationQty || 0)
-      outputStockUnit = receipt.material?.stockUnit || null
-      outputValuationUnit = receipt.material?.valuationUnit || null
-      outputConversionRate = Number(receipt.quantities?.conversionRateUsed || 0)
+      const receiptValues = {
+        valuationQty: Number(receipt.quantities?.valuationQty || 0),
+        costAmount: outputCostAmount,
+        stockUnit: receipt.material?.stockUnit || null,
+        valuationUnit: receipt.material?.valuationUnit || null,
+        conversionRate: Number(receipt.quantities?.conversionRateUsed || 0),
+      }
+      if (line.isPrimary) primaryReceipt = receiptValues
       if (options.createQualityInspection) {
         if (!receipt.movement || !receipt.location) throw new LegacyDailyProductionError('待检产出入库没有生成库存流水')
         const lot = await createInventoryLotReceipt(tx, {
-          lotNo: `${report.reportNo}-${report.finishedMaterial.code}`,
-          materialId: report.finishedMaterialId,
-          sourceType: 'DAILY_PRODUCTION_REPORT',
-          sourceId: report.id,
+          lotNo: `${report.reportNo}-${line.materialCode}`,
+          materialId: line.materialId,
+          sourceType,
+          sourceId,
           locationId: receipt.location.id,
           inventoryStatus: 'QUARANTINE',
           stockQty: outputQty,
-          valuationQty: outputValuationQty,
+          valuationQty: receiptValues.valuationQty,
           costAmount: outputCostAmount,
           stockLogId: receipt.movement.id,
-          idempotencyKey: `DAILY_PRODUCTION:${report.id}:LOT_RECEIPT`,
+          idempotencyKey: `DAILY_PRODUCTION:${report.id}:LOT_RECEIPT:${line.id}`,
           note: `生产日报 ${report.reportNo} 产出批次待检入库`,
           createdBy: confirmedBy,
         })
@@ -130,18 +151,36 @@ export async function confirmLegacyDailyProductionReportInTransaction(
           createProductionQualityInspection(tx, {
             inspectionNo: `QI-${lot.lotNo}`,
             lotId: lot.id,
-            sourceId: report.id,
+            sourceId,
             inspectedQty: outputQty,
           }),
         ])
       }
+      if (persistedOutputs) {
+        await tx.dailyProductionOutput.update({
+          where: { id: line.id },
+          data: {
+            valuationQty: receiptValues.valuationQty,
+            costAmount: outputCostAmount,
+            stockUnit: receiptValues.stockUnit,
+            valuationUnit: receiptValues.valuationUnit,
+            conversionRateUsed: receiptValues.conversionRate,
+            conversionSource: 'MASTER_DEFAULT',
+          },
+        })
+      }
     }
+    if (!primaryReceipt) throw new LegacyDailyProductionError('生产记录没有有效主产出')
 
     const result = await tx.dailyProductionReport.update({
       where: { id: report.id },
       data: {
-        status: 'CONFIRMED', confirmedAt, confirmedBy, outputValuationQty, outputCostAmount,
-        outputStockUnit, outputValuationUnit, outputConversionRate,
+        status: 'CONFIRMED', confirmedAt, confirmedBy,
+        outputValuationQty: primaryReceipt.valuationQty,
+        outputCostAmount: primaryReceipt.costAmount,
+        outputStockUnit: primaryReceipt.stockUnit,
+        outputValuationUnit: primaryReceipt.valuationUnit,
+        outputConversionRate: primaryReceipt.conversionRate,
         outputConversionSource: 'MASTER_DEFAULT',
       },
       include: legacyDailyProductionStatusInclude,
@@ -149,18 +188,36 @@ export async function confirmLegacyDailyProductionReportInTransaction(
   return { before: report, result }
 }
 
-async function reverseLegacyOutput(
+type LegacyOutputView = {
+  id: string
+  materialId: string
+  locationId: string | null
+  actualQty: number
+  valuationQty: number
+  costAmount: number
+  stockUnit: string | null
+  valuationUnit: string | null
+  conversionRateUsed: number | null
+  materialCode: string
+  material: Prisma.MaterialGetPayload<Record<string, never>>
+}
+
+async function reverseLegacyOutputLine(
   tx: Prisma.TransactionClient,
   report: Prisma.DailyProductionReportGetPayload<{ include: typeof legacyDailyProductionStatusInclude }>,
+  output: LegacyOutputView,
   reason: string,
   reversedBy: string,
+  persistedOutput: boolean,
 ) {
-  const outputQty = Number(report.outputQty)
+  const outputQty = Number(output.actualQty)
   if (outputQty <= 0) return
-  const finishedStock = await tx.stock.findUnique({ where: { materialId: report.finishedMaterialId } })
-  if (!finishedStock) throw new LegacyDailyProductionError('成品库存记录不存在，无法冲销')
+  const finishedStock = await tx.stock.findUnique({ where: { materialId: output.materialId } })
+  if (!finishedStock) throw new LegacyDailyProductionError(`产出 ${output.materialCode} 的库存记录不存在，无法冲销`)
+  const sourceType = persistedOutput ? 'DAILY_PRODUCTION_REPORT_OUTPUT' : 'DAILY_PRODUCTION_REPORT'
+  const sourceId = persistedOutput ? output.id : report.id
   const outputLot = await tx.inventoryLot.findFirst({
-    where: { sourceType: 'DAILY_PRODUCTION_REPORT', sourceId: report.id },
+    where: { sourceType, sourceId },
     include: { balances: true, inspections: true },
   })
   const positiveLotBalances = outputLot?.balances.filter((balance) => Number(balance.stockQty) > tolerance) || []
@@ -175,11 +232,11 @@ async function reverseLegacyOutput(
   if (!outputLot && Number(finishedStock.availableQty) + tolerance < outputQty) {
     throw new LegacyDailyProductionError(`成品可用库存不足，无法冲销；当前可用 ${finishedStock.availableQty}，需退回 ${outputQty}`)
   }
-  if (Number(finishedStock.totalCost) + tolerance < Number(report.outputCostAmount)) {
+  if (Number(finishedStock.totalCost) + tolerance < Number(output.costAmount)) {
     throw new LegacyDailyProductionError('成品库存金额不足，无法冲销；请先检查后续发货或库存调整')
   }
   const outputLayers = await tx.inventoryCostLayer.findMany({
-    where: { sourceType: 'DAILY_PRODUCTION_REPORT', sourceId: report.id },
+    where: { sourceType, sourceId },
   })
   if (outputLayers.some((layer) => (
     Math.abs(Number(layer.remainingStockQty) - Number(layer.stockQty)) > tolerance
@@ -188,15 +245,15 @@ async function reverseLegacyOutput(
     throw new LegacyDailyProductionError('本次生产入库已被后续发货或生产消耗，不能直接冲销')
   }
   await tx.inventoryCostLayer.deleteMany({
-    where: { sourceType: 'DAILY_PRODUCTION_REPORT', sourceId: report.id },
+    where: { sourceType, sourceId },
   })
 
   const beforeQty = Number(finishedStock.qty)
   const beforeValuationQty = Number(finishedStock.valuationQty)
   const beforeCost = Number(finishedStock.totalCost)
   const afterQty = roundLegacyDailyProductionQty(beforeQty - outputQty)
-  const afterValuationQty = Math.max(0, roundLegacyDailyProductionQty(beforeValuationQty - Number(report.outputValuationQty)))
-  const afterCost = Math.max(0, roundLegacyDailyProductionQty(beforeCost - Number(report.outputCostAmount)))
+  const afterValuationQty = Math.max(0, roundLegacyDailyProductionQty(beforeValuationQty - Number(output.valuationQty)))
+  const afterCost = Math.max(0, roundLegacyDailyProductionQty(beforeCost - Number(output.costAmount)))
   const isQuarantine = inventoryStatus === 'QUARANTINE'
   const isHold = inventoryStatus === 'HOLD'
   await tx.stock.update({
@@ -208,20 +265,20 @@ async function reverseLegacyOutput(
       holdQty: roundLegacyDailyProductionQty(Number(finishedStock.holdQty) - (isHold ? outputQty : 0)),
       valuationQty: afterValuationQty,
       availableValuationQty: Math.max(0, roundLegacyDailyProductionQty(
-        Number(finishedStock.availableValuationQty) - (!outputLot ? Number(report.outputValuationQty) : 0),
+        Number(finishedStock.availableValuationQty) - (!outputLot ? Number(output.valuationQty) : 0),
       )),
       quarantineValuationQty: Math.max(0, roundLegacyDailyProductionQty(
-        Number(finishedStock.quarantineValuationQty) - (isQuarantine ? Number(report.outputValuationQty) : 0),
+        Number(finishedStock.quarantineValuationQty) - (isQuarantine ? Number(output.valuationQty) : 0),
       )),
       holdValuationQty: Math.max(0, roundLegacyDailyProductionQty(
-        Number(finishedStock.holdValuationQty) - (isHold ? Number(report.outputValuationQty) : 0),
+        Number(finishedStock.holdValuationQty) - (isHold ? Number(output.valuationQty) : 0),
       )),
       totalCost: afterCost,
       quarantineCost: Math.max(0, roundLegacyDailyProductionQty(
-        Number(finishedStock.quarantineCost) - (isQuarantine ? Number(report.outputCostAmount) : 0),
+        Number(finishedStock.quarantineCost) - (isQuarantine ? Number(output.costAmount) : 0),
       )),
       holdCost: Math.max(0, roundLegacyDailyProductionQty(
-        Number(finishedStock.holdCost) - (isHold ? Number(report.outputCostAmount) : 0),
+        Number(finishedStock.holdCost) - (isHold ? Number(output.costAmount) : 0),
       )),
       valuationUnitCost: afterValuationQty > 0 ? afterCost / afterValuationQty : 0,
       stockUnitCost: afterQty > 0 ? afterCost / afterQty : 0,
@@ -229,14 +286,14 @@ async function reverseLegacyOutput(
   })
   const { location: outputLocation } = await changeStockLocationBalance(tx, {
     stockId: finishedStock.id,
-    locationId: lotBalance?.locationId || report.outputLocationId,
+    locationId: lotBalance?.locationId || output.locationId,
     qtyDelta: -outputQty,
     availableDelta: !outputLot ? -outputQty : 0,
     quarantineDelta: isQuarantine ? -outputQty : 0,
     holdDelta: isHold ? -outputQty : 0,
   })
   const sourceMovement = await tx.stockLog.findFirst({
-    where: { refType: 'DAILY_PRODUCTION_REPORT', refId: report.id, type: 'PRODUCTION_IN' },
+    where: { refType: sourceType, refId: sourceId, type: 'PRODUCTION_IN' },
     orderBy: { createdAt: 'desc' },
   })
   if (!sourceMovement) throw new LegacyDailyProductionError(`生产记录 ${report.reportNo} 的原产出流水缺失，不能建立可信冲销`)
@@ -247,21 +304,21 @@ async function reverseLegacyOutput(
       qty: -outputQty,
       beforeQty,
       afterQty,
-      valuationQty: -Number(report.outputValuationQty),
+      valuationQty: -Number(output.valuationQty),
       beforeValuationQty,
       afterValuationQty,
-      costAmount: -Number(report.outputCostAmount),
+      costAmount: -Number(output.costAmount),
       beforeCostAmount: beforeCost,
       afterCostAmount: afterCost,
-      stockUnitSnapshot: report.outputStockUnit || report.finishedMaterial.stockUnit || report.finishedMaterial.unit,
-      valuationUnitSnapshot: report.outputValuationUnit || report.finishedMaterial.valuationUnit || report.finishedMaterial.unit,
-      conversionRateUsed: report.outputConversionRate,
+      stockUnitSnapshot: output.stockUnit || output.material.stockUnit || output.material.unit,
+      valuationUnitSnapshot: output.valuationUnit || output.material.valuationUnit || output.material.unit,
+      conversionRateUsed: output.conversionRateUsed,
       conversionSource: 'ORIGINAL_MOVEMENT',
-      costingMethodSnapshot: report.finishedMaterial.costingMethod,
+      costingMethodSnapshot: output.material.costingMethod,
       lotId: outputLot?.id,
       inventoryStatus: inventoryStatus || 'AVAILABLE',
       fromInventoryStatus: inventoryStatus || 'AVAILABLE',
-      idempotencyKey: `DAILY_PRODUCTION:${report.id}:REVERSE_OUTPUT`,
+      idempotencyKey: `DAILY_PRODUCTION:${report.id}:REVERSE_OUTPUT:${output.id}`,
       refType: 'DAILY_PRODUCTION_REPORT_REVERSE',
       refId: report.id,
       note: `冲销生产记录 ${report.reportNo}: ${reason}`,
@@ -279,12 +336,12 @@ async function reverseLegacyOutput(
         type: 'REVERSE_RECEIPT',
         fromStatus: inventoryStatus,
         stockQty: outputQty,
-        valuationQty: Number(report.outputValuationQty),
-        costAmount: Number(report.outputCostAmount),
+        valuationQty: Number(output.valuationQty),
+        costAmount: Number(output.costAmount),
         refType: 'DAILY_PRODUCTION_REPORT_REVERSE',
         refId: report.id,
         stockLogId: reversalMovement.id,
-        idempotencyKey: `DAILY_PRODUCTION:${report.id}:LOT_REVERSE`,
+        idempotencyKey: `DAILY_PRODUCTION:${report.id}:LOT_REVERSE:${output.id}`,
         note: `冲销生产记录 ${report.reportNo}: ${reason}`,
         createdBy: reversedBy,
       },
@@ -391,7 +448,37 @@ export async function reverseLegacyDailyProductionReport(
     })
     if (!report) throw new LegacyDailyProductionError('生产记录不存在', 404)
     assertLegacyDailyProductionConfirmed(report.status)
-    await reverseLegacyOutput(tx, report, input.reason, reversedBy)
+    if (report.outputs.length > 0) {
+      for (const output of report.outputs) {
+        await reverseLegacyOutputLine(tx, report, {
+          id: output.id,
+          materialId: output.materialId,
+          locationId: output.locationId,
+          actualQty: Number(output.actualQty),
+          valuationQty: Number(output.valuationQty),
+          costAmount: Number(output.costAmount),
+          stockUnit: output.stockUnit,
+          valuationUnit: output.valuationUnit,
+          conversionRateUsed: output.conversionRateUsed,
+          materialCode: output.materialCode,
+          material: output.material,
+        }, input.reason, reversedBy, true)
+      }
+    } else {
+      await reverseLegacyOutputLine(tx, report, {
+        id: report.id,
+        materialId: report.finishedMaterialId,
+        locationId: report.outputLocationId,
+        actualQty: Number(report.outputQty),
+        valuationQty: Number(report.outputValuationQty),
+        costAmount: Number(report.outputCostAmount),
+        stockUnit: report.outputStockUnit,
+        valuationUnit: report.outputValuationUnit,
+        conversionRateUsed: report.outputConversionRate,
+        materialCode: report.finishedMaterial.code,
+        material: report.finishedMaterial,
+      }, input.reason, reversedBy, false)
+    }
     for (const line of report.consumptions) await restoreLegacyConsumption(tx, report, line, reversedBy)
     const result = await tx.dailyProductionReport.update({
       where: { id: report.id },

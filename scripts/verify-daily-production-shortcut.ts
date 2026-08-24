@@ -39,9 +39,9 @@ async function main() {
     const route = readFileSync(join(root, 'app/api/daily-production-shortcut/route.ts'), 'utf8')
     const service = readFileSync(join(root, 'modules/production/server/daily-production-shortcut-service.ts'), 'utf8')
     assert.doesNotMatch(page, /\bfetch\(/, '生产日报页面必须通过领域 client 调用接口')
-    assert.match(page, /BOM 快捷生产过账/, '页面必须明确 BOM 快捷转换语义')
-    assert.match(page, /绕过生产订单、派工和报工/, '页面必须说明被缩减的生产组织流程')
-    assert.match(page, /进入待检并生成后续质量任务/, '页面必须提供可选的后续质检路径')
+    assert.match(page, /快捷生产 \/ 转换过账/, '页面必须明确快捷生产与转换语义')
+    assert.match(page, /BOM 是可选预设/, '页面必须明确 BOM 不是实际过账的强制约束')
+    assert.match(page, /多个实际产出/, '页面必须支持多产出')
     assert.match(page, /投入物料/, '生产日报必须先提供投入物料选择')
     assert.match(page, /dailyProductionBomCandidates/, '生产日报必须按投入物料反查正式 BOM')
     assert.match(wrapper, /标准流程/, '生产日报入口必须说明完整生产路径')
@@ -56,9 +56,10 @@ async function main() {
       prisma.inventoryLocation.create({ data: { code: 'RAW', name: '原料库' } }),
       prisma.inventoryLocation.create({ data: { code: 'FIN', name: '成品库' } }),
     ])
-    const [raw, finished] = await Promise.all([
+    const [raw, finished, byproduct] = await Promise.all([
       prisma.material.create({ data: { code: 'RAW-01', name: '原料', category: 'RAW', unit: 'kg', stockUnit: 'kg', valuationUnit: 'kg' } }),
       prisma.material.create({ data: { code: 'FIN-01', name: '成品', category: 'FINISHED', unit: '件', stockUnit: '件', valuationUnit: '件' } }),
+      prisma.material.create({ data: { code: 'BY-01', name: '回收料', category: 'OTHER', unit: 'kg', stockUnit: 'kg', valuationUnit: 'kg' } }),
     ])
     const product = await prisma.product.create({ data: { sku: finished.code, name: finished.name, category: 'FINISHED', unit: '件' } })
     const bom = await prisma.bOM.create({
@@ -69,6 +70,10 @@ async function main() {
         outputQuantity: 10,
         outputUnit: '件',
         items: { create: [{ materialId: raw.id, quantity: 5, unit: 'kg' }] },
+        outputs: { create: [
+          { materialId: finished.id, quantity: 10, unit: '件', isPrimary: true },
+          { materialId: byproduct.id, quantity: 1, unit: 'kg', isPrimary: false },
+        ] },
       },
     })
     await prisma.bOM.update({
@@ -89,6 +94,10 @@ async function main() {
         isActive: true,
         outputQuantity: bom.outputQuantity,
         outputUnit: bom.outputUnit,
+        outputs: [
+          { id: `${bom.id}-out-main`, materialId: finished.id, quantity: 10, unit: '件', isPrimary: true, material: { id: finished.id, code: finished.code, name: finished.name, stockUnit: finished.stockUnit, unit: finished.unit } },
+          { id: `${bom.id}-out-by`, materialId: byproduct.id, quantity: 1, unit: 'kg', isPrimary: false, material: { id: byproduct.id, code: byproduct.code, name: byproduct.name, stockUnit: byproduct.stockUnit, unit: byproduct.unit } },
+        ],
         items: [{
           id: `${bom.id}-raw`,
           quantity: 5,
@@ -125,11 +134,7 @@ async function main() {
 
     const commonInput = {
       reportDate: '2026-08-22',
-      finishedMaterialId: finished.id,
       bomId: bom.id,
-      consumptionLocationId: inputLocation.id,
-      outputLocationId: outputLocation.id,
-      outputQty: 20,
       outputDisposition: 'DIRECT_AVAILABLE' as const,
       note: '快捷日报验证',
       consumptions: [{
@@ -139,6 +144,10 @@ async function main() {
         lossValue: 0,
         actualQty: 10,
       }],
+      outputs: [
+        { materialId: finished.id, locationId: outputLocation.id, actualQty: 20, isPrimary: true },
+        { materialId: byproduct.id, locationId: outputLocation.id, actualQty: 2, isPrimary: false },
+      ],
     }
     const report = await createAndConfirmDailyProductionShortcut(
       commonInput,
@@ -149,11 +158,13 @@ async function main() {
     assert.equal(report.status, 'CONFIRMED')
     assert.equal(report.bomId, bom.id)
     assert.equal(report.workers, '快捷生产日报')
+    assert.equal(report.outputs.length, 2, '正式 BOM 快捷过账必须保存全部实际产出明细')
     const balances = await prisma.stockLocationBalance.findMany()
-    const balanceByLocation = new Map(balances.map((item) => [item.locationId, Number(item.qty)]))
+    const balanceByLocation = new Map<string, number>()
+    for (const balance of balances) balanceByLocation.set(balance.locationId, Number(balanceByLocation.get(balance.locationId) || 0) + Number(balance.qty))
     assert.deepEqual(
       [balanceByLocation.get(inputLocation.id), balanceByLocation.get(outputLocation.id)],
-      [10, 20],
+      [10, 22],
       '必须按 BOM 原子扣减投入并增加产出',
     )
     assert.equal(await prisma.productionOrder.count(), 0, '快捷日报不得创建生产订单')
@@ -163,7 +174,7 @@ async function main() {
     const qualityReport = await createAndConfirmDailyProductionShortcut(
       {
         ...commonInput,
-        outputQty: 2,
+        outputs: commonInput.outputs.map((line) => ({ ...line, actualQty: line.isPrimary ? 2 : 0.2 })),
         outputDisposition: 'QUALITY_INSPECTION',
         consumptions: [{ ...commonInput.consumptions[0], actualQty: 1 }],
       },
@@ -172,12 +183,12 @@ async function main() {
       { operatorName: '验证管理员' },
     )
     const qualityInspection = await prisma.qualityInspection.findFirst({
-      where: { sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT', sourceId: qualityReport.id },
+      where: { sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT', sourceId: qualityReport.outputs.find((line) => line.isPrimary)!.id },
       include: { lot: { include: { balances: true } } },
     })
     assert.ok(qualityInspection, '待检模式必须创建后续质量任务')
     assert.equal(qualityInspection.status, 'PENDING')
-    assert.equal(qualityInspection.lot.sourceType, 'DAILY_PRODUCTION_REPORT')
+    assert.equal(qualityInspection.lot.sourceType, 'DAILY_PRODUCTION_REPORT_OUTPUT')
     assert.equal(qualityInspection.lot.balances[0]?.inventoryStatus, 'QUARANTINE')
     await decideQualityInspection(
       qualityInspection.id,
@@ -201,7 +212,7 @@ async function main() {
     const reverseableReport = await createAndConfirmDailyProductionShortcut(
       {
         ...commonInput,
-        outputQty: 2,
+        outputs: commonInput.outputs.map((line) => ({ ...line, actualQty: line.isPrimary ? 2 : 0.2 })),
         outputDisposition: 'QUALITY_INSPECTION',
         consumptions: [{ ...commonInput.consumptions[0], actualQty: 1 }],
       },
@@ -210,7 +221,7 @@ async function main() {
       { operatorName: '验证管理员' },
     )
     const reverseableInspection = await prisma.qualityInspection.findFirstOrThrow({
-      where: { sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT', sourceId: reverseableReport.id },
+      where: { sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT', sourceId: reverseableReport.outputs.find((line) => line.isPrimary)!.id },
       include: { lot: true },
     })
     await reverseLegacyDailyProductionReport(
@@ -230,7 +241,7 @@ async function main() {
     const heldReport = await createAndConfirmDailyProductionShortcut(
       {
         ...commonInput,
-        outputQty: 2,
+        outputs: commonInput.outputs.map((line) => ({ ...line, actualQty: line.isPrimary ? 2 : 0.2 })),
         outputDisposition: 'QUALITY_INSPECTION',
         consumptions: [{ ...commonInput.consumptions[0], actualQty: 1 }],
       },
@@ -239,7 +250,7 @@ async function main() {
       { operatorName: '验证管理员' },
     )
     const heldInspection = await prisma.qualityInspection.findFirstOrThrow({
-      where: { sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT', sourceId: heldReport.id },
+      where: { sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT', sourceId: heldReport.outputs.find((line) => line.isPrimary)!.id },
     })
     await decideQualityInspection(
       heldInspection.id,
@@ -279,10 +290,25 @@ async function main() {
     })
     assert.equal(authorizedWorkspace.reports.length, 4, '投入和产出库位均获授权时应返回日报')
 
+    const temporaryReport = await createAndConfirmDailyProductionShortcut(
+      {
+        reportDate: '2026-08-23',
+        outputDisposition: 'DIRECT_AVAILABLE',
+        note: '无 BOM 临时转换',
+        consumptions: [{ materialId: raw.id, locationId: inputLocation.id, lossMode: 'PERCENT', lossValue: 0, actualQty: 1 }],
+        outputs: [{ materialId: finished.id, locationId: outputLocation.id, actualQty: 1, isPrimary: true }],
+      },
+      unrestrictedDataScope,
+      '验证管理员',
+      { operatorName: '验证管理员' },
+    )
+    assert.equal(temporaryReport.bomVersion, '无 BOM', '无 BOM 临时生产必须保存明确快照标识')
+    assert.equal(temporaryReport.outputs.length, 1, '无 BOM 临时生产也必须保存实际产出明细')
+
     const reportsBeforeFailure = await prisma.dailyProductionReport.count()
     await assert.rejects(
       () => createAndConfirmDailyProductionShortcut(
-        { ...commonInput, outputQty: 40, consumptions: [{ ...commonInput.consumptions[0], actualQty: 30 }] },
+        { ...commonInput, outputs: commonInput.outputs.map((line) => ({ ...line, actualQty: line.isPrimary ? 40 : 4 })), consumptions: [{ ...commonInput.consumptions[0], actualQty: 30 }] },
         unrestrictedDataScope,
         '验证管理员',
         { operatorName: '验证管理员' },
@@ -290,7 +316,7 @@ async function main() {
       /库存不足/,
     )
     assert.equal(await prisma.dailyProductionReport.count(), reportsBeforeFailure, '扣料失败时不得留下日报草稿')
-    console.log('生产日报 BOM 快捷转换验证通过：正式 BOM、直接/待检入库、质量放行、待检/冻结冲销、成本审计、无订单派工和失败回滚均符合预期')
+    console.log('快捷生产/转换验证通过：BOM 可选预设、多投入多产出、无 BOM 临时生产、直接/待检入库、质量放行、冲销和失败回滚均符合预期')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

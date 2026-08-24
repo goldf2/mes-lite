@@ -1,10 +1,8 @@
 {
-  "version": "0.1.437",
+  "version": "0.1.438",
   "impact": "updated",
   "workflowIds": [
-    "09-production-order-create",
-    "10-production-order-release",
-    "12-production-actual-entry"
+    "184-daily-production-shortcut"
   ],
-  "summary": "生产订单改为目标产出必选、BOM 可选；班后实绩允许按实际增删投入和产出，无 BOM 或 BOM 偏差必须填写说明。"
+  "summary": "生产日报快捷入口改为 BOM 可选预设，允许无 BOM 临时生产或转换，并按本次实际明细登记多投入、多产出及各自库位。"
 }

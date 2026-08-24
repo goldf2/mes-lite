@@ -24,9 +24,8 @@ export function dailyProductionBomCandidates(
   materials: DailyProductionMaterialOption[],
   inputMaterialId: string,
 ): DailyProductionBomCandidate[] {
-  if (!inputMaterialId) return []
   return materials.flatMap((outputMaterial) => outputMaterial.boms
-    .filter((bom) => bom.items.some((item) => item.material?.id === inputMaterialId))
+    .filter((bom) => !inputMaterialId || bom.items.some((item) => item.material?.id === inputMaterialId))
     .map((bom) => ({ bom, outputMaterial })))
     .sort((left, right) => (
       Number(right.bom.isDefault) - Number(left.bom.isDefault)

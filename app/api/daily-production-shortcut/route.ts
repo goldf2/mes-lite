@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       operatorDisplayName(operator),
       await getAuditContext(req),
     )
-    return NextResponse.json({ data, message: `生产日报 ${data.reportNo} 已过账，BOM 投入与产出库存已同步` })
+    return NextResponse.json({ data, message: `生产 / 转换记录 ${data.reportNo} 已过账，实际投入与全部产出库存已同步` })
   } catch (error) {
     if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
     return legacyDailyProductionHttpError(error, '生产日报过账失败', true)

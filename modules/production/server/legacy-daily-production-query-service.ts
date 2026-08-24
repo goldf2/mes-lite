@@ -30,11 +30,27 @@ export const legacyDailyProductionReportInclude = {
     },
     orderBy: { createdAt: 'asc' as const },
   },
+  outputs: {
+    include: {
+      location: { select: { id: true, code: true, name: true } },
+      material: {
+        select: {
+          id: true, code: true, name: true, primaryMeasure: true,
+          stockUnit: true, unit: true,
+        },
+      },
+    },
+    orderBy: [{ isPrimary: 'desc' as const }, { createdAt: 'asc' as const }],
+  },
 } satisfies Prisma.DailyProductionReportInclude
 
 export const legacyDailyProductionStatusInclude = {
   finishedMaterial: true,
   consumptions: { include: { material: true }, orderBy: { createdAt: 'asc' as const } },
+  outputs: {
+    include: { material: true, location: true },
+    orderBy: [{ isPrimary: 'desc' as const }, { createdAt: 'asc' as const }],
+  },
 } satisfies Prisma.DailyProductionReportInclude
 
 export async function listLegacyDailyProductionWorkspace(input: {
@@ -90,6 +106,18 @@ export async function listLegacyDailyProductionWorkspace(input: {
               select: {
                 id: true, name: true, version: true, isDefault: true, isActive: true,
                 outputQuantity: true, outputUnit: true,
+                outputs: {
+                  orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+                  select: {
+                    id: true, materialId: true, quantity: true, unit: true, isPrimary: true,
+                    material: {
+                      select: {
+                        id: true, code: true, name: true, spec: true,
+                        primaryMeasure: true, stockUnit: true, unit: true,
+                      },
+                    },
+                  },
+                },
                 items: {
                   where: { itemType: 'MATERIAL', materialId: { not: null } },
                   select: {
@@ -130,10 +158,7 @@ export async function listLegacyDailyProductionWorkspace(input: {
   const materialsWithBom = materials.map((material) => {
     const product = productBySku.get(material.code) || productBySku.get(`MAT-${material.code}`)
     const image = primaryImageByMaterial.get(material.id)
-    const compatibleBoms = (product?.boms || []).map((bom) => ({
-      ...bom,
-      items: bom.items.filter((item) => !item.outputMaterialId || item.outputMaterialId === material.id),
-    }))
+    const compatibleBoms = product?.boms || []
     return {
       ...material,
       bom: compatibleBoms[0] || null,
