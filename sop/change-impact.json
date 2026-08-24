@@ -1,6 +1,6 @@
 {
-  "version": "0.1.435",
-  "impact": "updated",
-  "workflowIds": ["184-daily-production-shortcut"],
-  "summary": "生产日报改为先选择任一实际投入物料，再反查已发布 BOM 和对应主产出；过账仍展开所选 BOM 的全部投入。"
+  "version": "0.1.436",
+  "impact": "none",
+  "workflowIds": [],
+  "summary": "仅新增 BOM 数据结构改造前后对比 ER 图说明页，不改变现有业务操作步骤或 SOP。"
 }
