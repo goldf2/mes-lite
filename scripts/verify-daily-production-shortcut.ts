@@ -22,7 +22,7 @@ async function main() {
     { createAndConfirmDailyProductionShortcut, listDailyProductionShortcutWorkspace },
     { reverseLegacyDailyProductionReport },
     { decideQualityInspection },
-    { dailyProductionBomCandidates, dailyProductionInputMaterials },
+    { dailyProductionBomCandidates, dailyProductionInputMaterials, dailyProductionOutputMaterials },
   ] = await Promise.all([
     import('../lib/prisma'),
     import('../lib/inventory'),
@@ -42,8 +42,9 @@ async function main() {
     assert.match(page, /快捷生产 \/ 转换过账/, '页面必须明确快捷生产与转换语义')
     assert.match(page, /BOM 是可选预设/, '页面必须明确 BOM 不是实际过账的强制约束')
     assert.match(page, /多个实际产出/, '页面必须支持多产出')
-    assert.match(page, /投入物料/, '生产日报必须先提供投入物料选择')
-    assert.match(page, /dailyProductionBomCandidates/, '生产日报必须按投入物料反查正式 BOM')
+    assert.match(page, /计划产出/, '生产日报必须默认提供计划产出选择')
+    assert.match(page, /已有投入物料/, '生产日报必须保留投入物料辅助选择')
+    assert.match(page, /dailyProductionBomCandidates/, '生产日报必须按产出、投入或两者交集反查正式 BOM')
     assert.match(wrapper, /标准流程/, '生产日报入口必须说明完整生产路径')
     assert.match(wrapper, /快捷流程（当前页）/, '生产日报入口必须说明独立快捷路径')
     assert.match(wrapper, /同一批实物只能选择其中一条/, '双轨生产必须提示避免重复登记')
@@ -115,11 +116,35 @@ async function main() {
     }]
     assert.deepEqual(dailyProductionInputMaterials(selectionMaterials).map((item) => item.id), [raw.id])
     assert.deepEqual(
-      dailyProductionBomCandidates(selectionMaterials, raw.id).map((candidate) => [candidate.bom.id, candidate.outputMaterial.id]),
+      dailyProductionOutputMaterials(selectionMaterials).map((item) => item.id),
+      [byproduct.id, finished.id],
+      '可生产对象必须包含主产出和副产出，不能把复杂 BOM 简化成一对一',
+    )
+    assert.deepEqual(
+      dailyProductionBomCandidates(selectionMaterials, { outputMaterialId: finished.id }).map((candidate) => [candidate.bom.id, candidate.outputMaterial.id, candidate.matchedOutputMaterial.id]),
+      [[bom.id, finished.id, finished.id]],
+      '选择主产出必须反查出对应正式 BOM',
+    )
+    assert.deepEqual(
+      dailyProductionBomCandidates(selectionMaterials, { outputMaterialId: byproduct.id }).map((candidate) => [candidate.bom.id, candidate.outputMaterial.id, candidate.matchedOutputMaterial.id]),
+      [[bom.id, finished.id, byproduct.id]],
+      '选择副产出也必须反查出整个复杂 BOM，并保留主产出身份',
+    )
+    assert.deepEqual(
+      dailyProductionBomCandidates(selectionMaterials, { inputMaterialId: raw.id }).map((candidate) => [candidate.bom.id, candidate.outputMaterial.id]),
       [[bom.id, finished.id]],
       '选择投入物料必须反查出对应正式 BOM 和主产出',
     )
-    assert.deepEqual(dailyProductionBomCandidates(selectionMaterials, finished.id), [], '主产出不能误作为投入命中 BOM')
+    assert.deepEqual(
+      dailyProductionBomCandidates(selectionMaterials, { outputMaterialId: finished.id, inputMaterialId: raw.id }).map((candidate) => candidate.bom.id),
+      [bom.id],
+      '同时选择产出和投入时必须取交集',
+    )
+    assert.deepEqual(
+      dailyProductionBomCandidates(selectionMaterials, { outputMaterialId: finished.id, inputMaterialId: finished.id }),
+      [],
+      '不满足投入条件的 BOM 不得出现在双条件结果中',
+    )
     await prisma.$transaction((tx) => postInventoryReceipt(tx, {
       materialId: raw.id,
       stockQty: 20,

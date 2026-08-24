@@ -1,8 +1,8 @@
 {
-  "version": "0.1.438",
+  "version": "0.1.439",
   "impact": "updated",
   "workflowIds": [
     "184-daily-production-shortcut"
   ],
-  "summary": "生产日报快捷入口改为 BOM 可选预设，允许无 BOM 临时生产或转换，并按本次实际明细登记多投入、多产出及各自库位。"
+  "summary": "生产日报快捷入口优先按计划产出筛选 BOM，也可按已有投入物料辅助筛选或取两者交集；复杂 BOM 仍按整套投入与全部产出展开。"
 }

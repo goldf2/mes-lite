@@ -14,7 +14,11 @@ import {
   type DailyProductionMaterialOption,
   type DailyProductionReportSummary,
 } from '../client/daily-production-shortcut-api'
-import { dailyProductionBomCandidates, dailyProductionInputMaterials } from '../model/daily-production-bom-selection'
+import {
+  dailyProductionBomCandidates,
+  dailyProductionInputMaterials,
+  dailyProductionOutputMaterials,
+} from '../model/daily-production-bom-selection'
 
 type InputDraft = { locationId: string; lossMode: ProductionLossMode; lossValue: number; actualQty?: number }
 type OutputDraft = { locationId: string; actualQty: number; isPrimary: boolean }
@@ -29,6 +33,7 @@ export default function DailyProductionBomEntry({ canUpdate, onMessage }: { canU
   const [reports, setReports] = useState<DailyProductionReportSummary[]>([])
   const [locations, setLocations] = useState<InventoryLocationOption[]>([])
   const [reportDate, setReportDate] = useState(todayInShanghai)
+  const [outputMaterialId, setOutputMaterialId] = useState('')
   const [inputMaterialId, setInputMaterialId] = useState('')
   const [bomId, setBomId] = useState('')
   const [inputs, setInputs] = useState<Record<string, InputDraft>>({})
@@ -58,10 +63,14 @@ export default function DailyProductionBomEntry({ canUpdate, onMessage }: { canU
 
   const defaultLocationId = locations.find((item) => item.isDefault)?.id || locations[0]?.id || ''
   const materialById = useMemo(() => new Map(materials.map((material) => [material.id, material])), [materials])
+  const outputMaterials = useMemo(() => dailyProductionOutputMaterials(materials), [materials])
   const inputMaterials = useMemo(() => dailyProductionInputMaterials(materials), [materials])
-  const bomCandidates = useMemo(() => dailyProductionBomCandidates(materials, inputMaterialId), [inputMaterialId, materials])
+  const bomCandidates = useMemo(() => dailyProductionBomCandidates(materials, {
+    outputMaterialId,
+    inputMaterialId,
+  }), [inputMaterialId, materials, outputMaterialId])
   const selectedCandidate = bomCandidates.find((candidate) => candidate.bom.id === bomId)
-    || dailyProductionBomCandidates(materials, '').find((candidate) => candidate.bom.id === bomId)
+    || dailyProductionBomCandidates(materials).find((candidate) => candidate.bom.id === bomId)
   const selectedBom = selectedCandidate?.bom || null
   const primaryMaterialId = Object.entries(outputs).find(([, output]) => output.isPrimary)?.[0] || ''
   const primaryActualQty = Number(outputs[primaryMaterialId]?.actualQty || 0)
@@ -96,7 +105,7 @@ export default function DailyProductionBomEntry({ canUpdate, onMessage }: { canU
   function applyBom(nextBomId: string) {
     setBomId(nextBomId)
     if (!nextBomId) return
-    const candidate = dailyProductionBomCandidates(materials, '').find((item) => item.bom.id === nextBomId)
+    const candidate = dailyProductionBomCandidates(materials).find((item) => item.bom.id === nextBomId)
     if (!candidate) return
     const bom = candidate.bom
     const presetOutputs = bom.outputs.length > 0 ? bom.outputs : [{
@@ -144,7 +153,7 @@ export default function DailyProductionBomEntry({ canUpdate, onMessage }: { canU
       })
       onMessage(result.message)
       if (!result.ok) return
-      setBomId(''); setInputMaterialId(''); setInputs({}); setOutputs({}); setNote('')
+      setBomId(''); setOutputMaterialId(''); setInputMaterialId(''); setInputs({}); setOutputs({}); setNote('')
       await loadData()
     } catch (error) {
       onMessage(error instanceof Error ? error.message : '快捷生产过账失败')
@@ -159,14 +168,15 @@ export default function DailyProductionBomEntry({ canUpdate, onMessage }: { canU
   return <div className="space-y-4">
     <section className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950">
       <h2 className="text-base font-semibold">快捷生产 / 转换过账</h2>
-      <p className="mt-1 leading-6">BOM 是可选预设。可按投入物料反查已发布 BOM，也可不选 BOM，直接登记本次实际投入与多个实际产出；系统按整笔事务同步库存。</p>
+      <p className="mt-1 leading-6">BOM 是可选预设。默认按计划产出反查，也可按已有投入物料辅助筛选，或同时使用两项条件；选定后仍完整带出 BOM 的全部投入和多个实际产出。</p>
     </section>
 
     <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <label className="text-sm font-medium text-gray-700">生产日期<input type="date" value={reportDate} onChange={(event) => setReportDate(event.target.value)} className={`${appInputClassName} mt-2`} /></label>
-        <div><label className="mb-2 block text-sm font-medium text-gray-700">按投入物料筛选 BOM（可选）</label><SearchableSelect value={inputMaterialId} onChange={setInputMaterialId} options={inputMaterials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}${item.spec ? ` · ${item.spec}` : ''}` }))} placeholder="输入物料编码、名称或规格" allowClear /></div>
-        <div><label className="mb-2 block text-sm font-medium text-gray-700">BOM 预设（可选）</label><SearchableSelect value={bomId} onChange={applyBom} options={bomCandidates.map(({ bom, outputMaterial }) => ({ value: bom.id, label: `${outputMaterial.code} · ${outputMaterial.name} ← ${bom.name} · ${bom.version}${bom.isDefault ? ' · 默认' : ''}` }))} placeholder={inputMaterialId ? '选择匹配投入的已发布 BOM' : '选择已发布 BOM，或保持无 BOM'} emptyText="没有匹配的已发布 BOM" allowClear /></div>
+        <div><label className="mb-2 block text-sm font-medium text-gray-700">按计划产出筛选 BOM（推荐）</label><SearchableSelect value={outputMaterialId} onChange={setOutputMaterialId} options={outputMaterials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}${item.spec ? ` · ${item.spec}` : ''}` }))} placeholder="选择准备生产的主产品、副产品或其它产出" allowClear /></div>
+        <div><label className="mb-2 block text-sm font-medium text-gray-700">按已有投入物料辅助筛选（可选）</label><SearchableSelect value={inputMaterialId} onChange={setInputMaterialId} options={inputMaterials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}${item.spec ? ` · ${item.spec}` : ''}` }))} placeholder="选择现场已有或准备投入的物料" allowClear /></div>
+        <div><label className="mb-2 block text-sm font-medium text-gray-700">BOM 预设（可选）</label><SearchableSelect value={bomId} onChange={applyBom} options={bomCandidates.map(({ bom, outputMaterial, matchedOutputMaterial }) => ({ value: bom.id, label: `${matchedOutputMaterial.code} · ${matchedOutputMaterial.name}${matchedOutputMaterial.id === outputMaterial.id ? '' : `（主产出 ${outputMaterial.code}）`} ← ${bom.name} · ${bom.version}${bom.isDefault ? ' · 默认' : ''}` }))} placeholder={outputMaterialId && inputMaterialId ? '选择同时匹配产出与投入的已发布 BOM' : outputMaterialId ? '选择能够形成该产出的已发布 BOM' : inputMaterialId ? '选择包含该投入的已发布 BOM' : '选择已发布 BOM，或保持无 BOM'} emptyText={outputMaterialId && inputMaterialId ? '没有同时满足当前条件的已发布 BOM' : outputMaterialId ? '没有能形成该产出的已发布 BOM' : inputMaterialId ? '没有包含该投入的已发布 BOM' : '暂无已发布 BOM'} allowClear /></div>
         <label className="text-sm font-medium text-gray-700">产出处置<select value={outputDisposition} onChange={(event) => setOutputDisposition(event.target.value as typeof outputDisposition)} className={`${appInputClassName} mt-2 bg-white`}><option value="DIRECT_AVAILABLE">直接进入可用库存</option><option value="QUALITY_INSPECTION">进入待检并生成质量任务</option></select></label>
       </div>
       <label className="mt-4 block text-sm font-medium text-gray-700">备注<textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} rows={2} className={`${appTextareaClassName} mt-2`} placeholder="无 BOM 或计划外投入产出时必填；也可记录班次、补录原因" /></label>
