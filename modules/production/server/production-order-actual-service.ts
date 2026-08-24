@@ -87,7 +87,7 @@ const actualInclude = {
 } satisfies Prisma.ProductionOrderActualInclude
 
 export async function getProductionOrderActualWorkspace(orderId: string, scope: EffectiveDataScope = unrestrictedDataScope) {
-  const [order, locations, employees] = await Promise.all([
+  const [order, locations, employees, materials] = await Promise.all([
     prisma.productionOrder.findFirst({
       where: { id: orderId, deletedAt: null },
       include: {
@@ -120,6 +120,11 @@ export async function getProductionOrderActualWorkspace(orderId: string, scope: 
       select: { id: true, code: true, name: true, department: true },
       orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
     }),
+    prisma.material.findMany({
+      where: { deletedAt: null },
+      select: { id: true, code: true, name: true, spec: true, category: true, unit: true, stockUnit: true },
+      orderBy: { code: 'asc' },
+    }),
   ])
   if (!order) throw new ProductionOrderDomainError('生产订单不存在或已归档', 404)
   assertProductionOrderDataScope(scope, order)
@@ -128,6 +133,7 @@ export async function getProductionOrderActualWorkspace(orderId: string, scope: 
     order: { ...order, bomSnapshot: order.bomSnapshot ? parseProductionOrderBomSnapshot(order.bomSnapshot) : null },
     locations,
     employees,
+    materials,
     executionContext,
   }
 }
@@ -154,14 +160,20 @@ export async function createProductionOrderActual(orderId: string, input: Create
     assertProductionOrderDataScope(scope, order)
     const creationError = productionOrderActualCreationError(order.status, order.materialId)
     if (creationError) throw new ProductionOrderDomainError(creationError)
-    if (!order.bomSnapshot) throw new ProductionOrderDomainError('生产订单没有 BOM 快照，请重新创建生产订单')
+    if (!order.materialId) throw new ProductionOrderDomainError('历史生产订单没有目标物料，无法登记新生产实绩')
 
     const employees = await resolveActiveEmployees(tx, input.employeeIds)
     if (scope.productionMode === 'SELF' && employees.some((employee) => employee.id !== scope.employeeId)) {
       throw new DataScopeError('本人范围账号只能登记绑定员工的生产实绩')
     }
     const executionContext = await resolveProductionActualExecutionContext(tx, order, input)
-    const lines = await buildProductionOrderActualLines(tx, order.bomSnapshot, input.inputs, input.outputs)
+    const lines = await buildProductionOrderActualLines(tx, {
+      bomSnapshotValue: order.bomSnapshot,
+      targetMaterialId: order.materialId,
+    }, input.inputs, input.outputs)
+    if ((!order.bomSnapshot || lines.hasBomDeviation) && (input.note?.trim().length || 0) < 2) {
+      throw new ProductionOrderDomainError('临时生产或计划外投入产出必须填写备注')
+    }
     const { start, end } = productionActualDayRange(actualDate)
     const latestActual = await tx.productionOrderActual.findFirst({
       where: { actualDate: { gte: start, lt: end } },

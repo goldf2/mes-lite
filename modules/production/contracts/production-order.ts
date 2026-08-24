@@ -41,7 +41,7 @@ export interface ProductionOrderDetail extends ProductionOrder {
 export interface ProductionOrderDraftLine {
   id: string
   targetId: string
-  bomId: string
+  bomId?: string
   planQty: number
 }
 

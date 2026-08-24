@@ -134,6 +134,7 @@ assert.doesNotMatch(actualServiceSource + actualStatusSource, /NextRequest|NextR
 
 assert.equal(createProductionOrderSchema.safeParse({ items: [] }).success, false, '生产订单必须包含至少一项物料')
 assert.equal(createProductionOrderSchema.safeParse({ targetId: 'material', bomId: 'bom', planQty: 1 }).success, true, '旧单行请求契约必须继续兼容')
+assert.equal(createProductionOrderSchema.safeParse({ items: [{ targetId: 'material', planQty: 1 }] }).success, true, '临时生产订单必须允许不选 BOM')
 assert.equal(createProductionOrderSchema.safeParse({ items: Array.from({ length: 51 }, () => ({ targetId: 'material', bomId: 'bom', planQty: 1 })) }).success, false, '单张生产订单最多允许 50 项')
 const fixedDate = new Date('2026-08-09T08:00:00.000Z')
 assert.equal(buildProductionOrderGroupNo(fixedDate, 0), 'WO-20260809-001', '生产订单组号必须按日期和当日序号生成')
@@ -200,6 +201,13 @@ assert.deepEqual(buildProductionOrderCreateInput([
   voucherNo: 'PO-001',
   note: '加急',
 })
+assert.deepEqual(buildProductionOrderCreateInput([
+  { id: 'temporary', targetId: 'material-2', planQty: 2 },
+], '', '临时转换'), {
+  items: [{ targetId: 'material-2', planQty: 2 }],
+  voucherNo: undefined,
+  note: '临时转换',
+}, '创建契约必须保留无 BOM 生产明细')
 
 async function verifyDatabaseRules() {
   const verifyRoot = mkdtempSync(join(tmpdir(), 'ml-production-order-'))
@@ -225,9 +233,10 @@ async function verifyDatabaseRules() {
       operatorId: 'verify-production-order', operatorName: '生产订单审计验证员',
       ipAddress: undefined, userAgent: undefined,
     }
-    const [outputMaterial, inputMaterial] = await Promise.all([
+    const [outputMaterial, inputMaterial, temporaryMaterial] = await Promise.all([
       prisma.material.create({ data: { code: `VERIFY-OUT-${suffix}`, name: '验证 生产成品', category: 'FINISHED', unit: '件', stockUnit: '件' } }),
       prisma.material.create({ data: { code: `VERIFY-IN-${suffix}`, name: '验证生产原料', category: 'RAW', unit: '件', stockUnit: '件' } }),
+      prisma.material.create({ data: { code: `VERIFY-TEMP-${suffix}`, name: '验证临时产出', category: 'OTHER', unit: '件', stockUnit: '件' } }),
     ])
     const product = await prisma.product.create({ data: { sku: `MAT-${outputMaterial.code}`, name: outputMaterial.name, category: outputMaterial.category, unit: '件' } })
     const bom = await prisma.bOM.create({
@@ -266,6 +275,15 @@ async function verifyDatabaseRules() {
     assert.equal(detail?.groupLines.length, 2, '生产订单详情必须装配同组订单行')
     assert.equal(detail?.currentStepId, detail?.routeSteps[0]?.id, '生产订单详情必须计算当前待报工工序')
     assert.equal(options.find((item) => item.id === outputMaterial.id)?.boms[0]?.id, bom.id, '生产订单候选项必须按主产出物料归组启用 BOM')
+    assert.deepEqual(options.find((item) => item.id === temporaryMaterial.id)?.boms, [], '无 BOM 物料也必须可作为临时生产目标')
+
+    const temporary = await createProductionOrders(createProductionOrderSchema.parse({
+      items: [{ targetId: temporaryMaterial.id, planQty: 3 }],
+      note: '临时生产验证',
+    }), fixedDate)
+    assert.equal(temporary.first.materialId, temporaryMaterial.id)
+    assert.equal(temporary.first.bomId, null, '无 BOM 生产订单不得伪造 BOM 引用')
+    assert.equal(temporary.first.bomSnapshot, null, '无 BOM 生产订单必须明确保留空快照')
 
     const confirmed = await confirmProductionOrder(created.items[0].id, fixedDate)
     assert.equal(confirmed.updated.status, 'RELEASED', 'Material 生产订单确认后必须进入统一已发布状态')

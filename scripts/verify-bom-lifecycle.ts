@@ -36,7 +36,9 @@ async function main() {
       },
     })
 
-    assert.deepEqual(await listProductionOrderOptions(), [], '草稿 BOM 不得进入生产订单候选')
+    const draftOptions = await listProductionOrderOptions()
+    assert.equal(draftOptions.some((item) => item.id === output.id), true, '无已发布 BOM 的启用物料仍应允许临时生产')
+    assert.deepEqual(draftOptions.flatMap((item) => item.boms), [], '草稿 BOM 不得进入生产订单 BOM 候选')
     const releasedV1 = await releaseBomVersion(draft.id, 'tester')
     assert.equal(releasedV1.status, 'RELEASED')
     assert.equal(releasedV1.isDefault, true)

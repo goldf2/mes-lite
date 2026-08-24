@@ -44,6 +44,7 @@ import { buildProductionOrderSearchCatalog } from '../model/production-search-fi
 
 const AttachmentPanel = dynamic(() => import('@/modules/attachments').then((module) => module.AttachmentPanel), { loading: () => <AppLoadingIndicator label="正在加载附件..." /> })
 const ProductionOrderActualPanel = dynamic(() => import('./ProductionOrderActualPanel'), { loading: () => <AppLoadingIndicator label="正在加载生产实绩..." /> })
+const NO_BOM_VALUE = '__NO_BOM__'
 
 interface ProductionOrderModuleProps {
   mode: ProductionOrderMode
@@ -119,10 +120,15 @@ export default function ProductionOrderModule({
   }, [setOrderViewMode])
 
   useEffect(() => {
+    if (!selectedMaterialId) {
+      if (selectedOrderBomId) setSelectedOrderBomId('')
+      return
+    }
+    if (selectedOrderBomId === NO_BOM_VALUE) return
     if (selectedOrderBoms.some((bom) => bom.id === selectedOrderBomId)) return
     const preferred = selectedOrderBoms.find((bom) => bom.isDefault) || selectedOrderBoms[0]
-    setSelectedOrderBomId(preferred?.id || '')
-  }, [selectedOrderBomId, selectedOrderBoms])
+    setSelectedOrderBomId(preferred?.id || NO_BOM_VALUE)
+  }, [selectedMaterialId, selectedOrderBomId, selectedOrderBoms])
 
   useEffect(() => {
     onStateSummaryChange?.(`视图：${orderViewMode === 'card' ? '卡片' : '列表'} · 状态筛选：${selectedOrderStatuses.length} 项`)
@@ -216,15 +222,15 @@ export default function ProductionOrderModule({
     }
     let lines = [...orderDraftLines]
     if (selectedMaterialId) {
-      if (!selectedOrderBomId || planQty <= 0) {
-        onMessage('请为当前产品选择 BOM 方案并输入有效计划数量')
+      if (planQty <= 0) {
+        onMessage('请输入有效计划数量')
         return
       }
       if (lines.some((line) => line.targetId === selectedMaterialId)) {
         onMessage('当前产品已经在订单明细中')
         return
       }
-      lines = [...lines, { id: 'current', targetId: selectedMaterialId, bomId: selectedOrderBomId, planQty }]
+      lines = [...lines, { id: 'current', targetId: selectedMaterialId, bomId: selectedOrderBomId === NO_BOM_VALUE ? undefined : selectedOrderBomId, planQty }]
     }
     if (lines.length === 0) {
       onMessage('请至少添加一个产品')
@@ -260,8 +266,8 @@ export default function ProductionOrderModule({
   }
 
   function addOrderDraftLine() {
-    if (!selectedMaterialId || !selectedOrderBomId || planQty <= 0) {
-      onMessage('请选择产品、BOM 方案并输入有效计划数量')
+    if (!selectedMaterialId || planQty <= 0) {
+      onMessage('请选择目标物料并输入有效计划数量')
       return
     }
     if (orderDraftLines.some((line) => line.targetId === selectedMaterialId)) {
@@ -271,7 +277,7 @@ export default function ProductionOrderModule({
     setOrderDraftLines((current) => [...current, {
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       targetId: selectedMaterialId,
-      bomId: selectedOrderBomId,
+      bomId: selectedOrderBomId === NO_BOM_VALUE ? undefined : selectedOrderBomId,
       planQty,
     }])
     setSelectedMaterialId('')
@@ -338,7 +344,7 @@ export default function ProductionOrderModule({
                         <div key={order.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                           <div className="min-w-0">
                             <div className="font-medium text-gray-900">{order.targetMaterial?.name || order.product.name}</div>
-                            <div className="mt-0.5 text-xs text-gray-500">{order.targetMaterial?.code || displayProductionMaterialCode(order.product.sku)} · BOM {order.bom?.name || order.bomName || '-'} {order.bom?.version || order.bomVersion || ''}</div>
+                            <div className="mt-0.5 text-xs text-gray-500">{order.targetMaterial?.code || displayProductionMaterialCode(order.product.sku)} · {order.bom?.name || order.bomName ? `BOM ${order.bom?.name || order.bomName} ${order.bom?.version || order.bomVersion || ''}` : '临时生产 / 转换（无 BOM）'}</div>
                             <div className="mt-1 text-xs text-gray-500">计划 {order.planQty} · 完成 {order.completeQty} · 报废 {order.scrapQty}</div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -393,7 +399,7 @@ export default function ProductionOrderModule({
           <div className="mb-6 flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold">生产订单详情</h2><span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">系统生成单据</span></div><p className="text-sm text-gray-500">{orderDetail.groupNo || orderDetail.orderNo}{orderDetail.groupNo ? ` · 第 ${orderDetail.lineNo} 项` : ''}</p><p className="text-sm text-gray-500">凭据号：{orderDetail.voucherNo || '-'}</p></div><div className="flex flex-wrap items-center gap-2">{canRelease && orderDetail.status === 'DRAFT' && <AppButton variant="primary" onClick={() => void releaseOrder()} disabled={loading}>发布生产订单</AppButton>}<BusinessDocumentPrintLink kind="production-order" id={orderDetail.id} /></div></div>
           <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
             <InfoCard label="目标"><div className="font-medium">{orderDetail.targetMaterial?.name || orderDetail.product.name}</div><div className="text-xs text-gray-400">物料 {orderDetail.targetMaterial?.code || displayProductionMaterialCode(orderDetail.product.sku)}</div></InfoCard>
-            <InfoCard label="BOM 方案"><div className="font-medium">{orderDetail.bomName || orderDetail.bom?.name || '-'}</div><div className="text-xs text-gray-400">{orderDetail.bomVersion || orderDetail.bom?.version || '-'}</div></InfoCard>
+            <InfoCard label="BOM 预设"><div className="font-medium">{orderDetail.bomName || orderDetail.bom?.name || '无 BOM · 临时生产'}</div><div className="text-xs text-gray-400">{orderDetail.bomVersion || orderDetail.bom?.version || '实际投入产出手工登记'}</div></InfoCard>
             <InfoCard label="状态"><span className={`inline-block rounded px-2 py-1 text-xs font-medium ${productionOrderStatusColors[orderDetail.status]}`}>{productionOrderStatusLabels[orderDetail.status]}</span></InfoCard>
             <InfoCard label="计划/完成"><div className="font-medium">{orderDetail.planQty} / {orderDetail.completeQty}</div></InfoCard>
             <InfoCard label="报废"><div className="font-medium text-red-600">{orderDetail.scrapQty}</div></InfoCard>
@@ -421,13 +427,13 @@ export default function ProductionOrderModule({
       {mode === 'create' && (
         <div className="max-w-4xl rounded-lg bg-white p-6 shadow">
           <h2 className="mb-2 text-xl font-semibold">创建生产订单</h2>
-          <p className="mb-6 text-sm text-gray-500">一张订单可加入多个产品；这里不指定库位，班后登记实际投入和产出时再选择对应库位。</p>
+          <p className="mb-6 text-sm text-gray-500">BOM 仅作为标准投入产出预设；可不选 BOM 创建临时生产，班后再登记实际投入、产出和库位。</p>
           <div className="space-y-4">
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="mb-4 text-sm font-semibold text-gray-900">添加产品明细</div>
               <div className="grid gap-4 md:grid-cols-3">
-                <label className="block text-sm font-medium text-gray-700">主产出物料<SearchableSelect value={selectedMaterialId} onChange={setSelectedMaterialId} options={orderMaterialOptions.map((material) => ({ value: material.id, label: `${material.code} · ${material.name} · ${productionMaterialCategoryLabels[material.category] || material.category}` }))} placeholder="输入可生产物料的编码、名称或分类筛选" /><span className="mt-1 block text-xs font-normal text-gray-500">仅显示已有启用 BOM 的物料；BOM 投入可包含原材料、半成品或已有产品。</span></label>
-                <label className="block text-sm font-medium text-gray-700">BOM 方案<SearchableSelect value={selectedOrderBomId} onChange={setSelectedOrderBomId} options={selectedOrderBoms.map((bom) => ({ value: bom.id, label: `${bom.name} · ${bom.version}${bom.isDefault ? ' · 默认' : ''}` }))} placeholder={selectedMaterialId ? '输入方案名称或版本筛选' : '请先选择主产出物料'} /></label>
+                <label className="block text-sm font-medium text-gray-700">目标产出物料<SearchableSelect value={selectedMaterialId} onChange={setSelectedMaterialId} options={orderMaterialOptions.map((material) => ({ value: material.id, label: `${material.code} · ${material.name} · ${productionMaterialCategoryLabels[material.category] || material.category}` }))} placeholder="输入物料编码、名称或分类筛选" /><span className="mt-1 block text-xs font-normal text-gray-500">全部未归档物料均可作为临时生产目标。</span></label>
+                <label className="block text-sm font-medium text-gray-700">BOM 预设（可选）<SearchableSelect value={selectedOrderBomId} onChange={setSelectedOrderBomId} options={[{ value: NO_BOM_VALUE, label: '不使用 BOM · 临时生产 / 转换' }, ...selectedOrderBoms.map((bom) => ({ value: bom.id, label: `${bom.name} · ${bom.version}${bom.isDefault ? ' · 默认' : ''}` }))]} placeholder={selectedMaterialId ? '选择 BOM 预设或临时生产' : '请先选择目标物料'} /></label>
                 <label className="block text-sm font-medium text-gray-700">计划产量<input type="number" value={planQty} onChange={(event) => setPlanQty(Number(event.target.value))} min="0.000001" step="0.000001" className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-3" /></label>
               </div>
               <div className="mt-4 flex justify-end"><AppButton variant="secondary" onClick={addOrderDraftLine}>添加产品</AppButton></div>
@@ -438,7 +444,7 @@ export default function ProductionOrderModule({
                 <div className="space-y-2">{orderDraftLines.map((line, index) => {
                   const material = orderMaterialOptions.find((item) => item.id === line.targetId)
                   const bom = material?.boms.find((item) => item.id === line.bomId)
-                  return <div key={line.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-blue-100 bg-white px-3 py-2 text-sm"><div className="min-w-0"><span className="mr-2 text-xs text-gray-400">{index + 1}</span><span className="font-medium text-gray-900">{material?.code} · {material?.name}</span><span className="ml-2 text-xs text-gray-500">{bom?.name} {bom?.version} · 计划 {line.planQty}</span></div><button type="button" onClick={() => setOrderDraftLines((current) => current.filter((item) => item.id !== line.id))} className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50">移除</button></div>
+                  return <div key={line.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-blue-100 bg-white px-3 py-2 text-sm"><div className="min-w-0"><span className="mr-2 text-xs text-gray-400">{index + 1}</span><span className="font-medium text-gray-900">{material?.code} · {material?.name}</span><span className="ml-2 text-xs text-gray-500">{bom ? `${bom.name} ${bom.version}` : '无 BOM 临时生产'} · 计划 {line.planQty}</span></div><button type="button" onClick={() => setOrderDraftLines((current) => current.filter((item) => item.id !== line.id))} className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50">移除</button></div>
                 })}</div>
               </div>
             )}

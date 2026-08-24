@@ -270,11 +270,11 @@
           "objective": "建立物料化生产计划。",
           "steps": [
             "点击“新建生产订单”。",
-            "选择产出物料、已发布 BOM、计划数量和计划日期。",
+            "选择目标产出物料和计划数量；需要标准预设时选择已发布 BOM，试制或临时转换时选择“不使用 BOM”。",
             "填写班组或备注后保存。",
             "需要纸质单据时，保存后在生产订单清单点击“打印”。"
           ],
-          "result": "订单以“草稿”创建，此时不可登记实绩。",
+          "result": "订单以“草稿”创建；使用 BOM 时冻结版本快照，不使用时保留空 BOM 引用。此时不可登记实绩。",
           "pageKey": "orders",
           "resource": "orders",
           "roles": [
@@ -285,7 +285,7 @@
             "baseline": "0.1.350",
             "file": "09-production-order-create.png"
           },
-          "lastVerifiedVersion": "0.1.407"
+          "lastVerifiedVersion": "0.1.437"
         },
         {
           "id": "10-production-order-release",
@@ -293,7 +293,7 @@
           "objective": "将已复核计划转为可执行任务。",
           "steps": [
             "打开草稿订单详情。",
-            "核对物料、数量、日期和 BOM。",
+            "核对目标产出、数量、日期以及可选 BOM 预设；临时生产应明确显示“无 BOM”。",
             "点击“发布订单”并确认。"
           ],
           "result": "状态由“草稿”变为“已发布”。",
@@ -307,7 +307,7 @@
             "baseline": "0.1.350",
             "file": "10-production-order-release.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.437"
         },
         {
           "id": "11-production-order-released",
@@ -340,10 +340,11 @@
             "填写实际日期并从启用员工中选择一人或多人。",
             "从订单工作中心范围内选择本次实际使用的设备。",
             "选择适用于订单物料或通用的已生效作业文件；工作中心由派工或路线决定。",
-            "按现场记录填写实际投入、主产出、副产出及库位。",
+            "以 BOM 预填明细为参考，按现场记录增删或修正实际投入、目标产出、其他产出及库位；无 BOM 订单从空投入和目标产出开始登记。",
+            "无 BOM 或增删了 BOM 预设明细时填写本次临时转换或偏差说明。",
             "保存后先核对实绩草稿中的人员、设备和文件版本快照，再执行确认。"
           ],
-          "result": "实绩草稿保存成功；确认前必须同时具备设备和作业文件快照，或分别填写明确的例外原因。",
+          "result": "实绩草稿按本批实际输入和输出保存；确认前必须具备设备和作业文件快照或对应例外原因，并为无 BOM/偏差实绩保留说明。",
           "pageKey": "orders",
           "resource": "orders",
           "roles": [
@@ -354,7 +355,7 @@
             "baseline": "0.1.376",
             "file": "183-production-actual-context-entry.png"
           },
-          "lastVerifiedVersion": "0.1.431"
+          "lastVerifiedVersion": "0.1.437"
         },
         {
           "id": "180-production-actual-context-snapshot",

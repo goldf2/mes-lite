@@ -8,6 +8,7 @@ import SearchableSelect from '@/app/components/SearchableSelect'
 import { appInputClassName, appTextareaClassName } from '@/app/components/FormField'
 import { calculateProductionConsumption, ProductionLossMode } from '@/lib/production-consumption'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
+import { MaterialRelationIdentity, MaterialRelationSearch, OneToManyRelationField, type MaterialRelationOption } from '@/app/components/relations'
 import {
   confirmProductionOrderActual,
   createProductionOrderActual,
@@ -30,6 +31,7 @@ type BomSnapshot = {
   id: string
   name: string
   version: string
+  outputQuantity?: number
   outputs: Array<{
     id: string
     materialId: string
@@ -61,6 +63,7 @@ type ActualRecord = {
   status: 'DRAFT' | 'CONFIRMED' | 'REVERSED'
   inputs: Array<{
     id: string
+    bomItemId?: string | null
     materialCode: string
     materialName: string
     actualQty: number
@@ -76,6 +79,8 @@ type ActualRecord = {
   }>
   outputs: Array<{
     id: string
+    bomOutputId?: string | null
+    materialId: string
     materialCode: string
     materialName: string
     actualQty: number
@@ -97,10 +102,12 @@ type ActualData = {
     bomName?: string | null
     bomVersion?: string | null
     bomSnapshot: BomSnapshot | null
+    targetMaterial?: MaterialRelationOption | null
     actuals: ActualRecord[]
   }
   locations: Array<{ id: string; code: string; name: string; isDefault: boolean }>
   employees: EmployeeChoice[]
+  materials: MaterialRelationOption[]
   executionContext: {
     workCenterIds: string[]
     equipment: ProductionActualEquipmentOption[]
@@ -173,9 +180,10 @@ export default function ProductionOrderActualPanel({
   useEffect(() => { load() }, [load])
 
   const snapshot = data?.order.bomSnapshot || null
-  const primaryOutput = snapshot?.outputs.find((output) => output.isPrimary) || null
-  const primaryActualQty = primaryOutput ? Number(outputs[primaryOutput.materialId]?.actualQty || 0) : 0
-  const primaryBasis = Number(primaryOutput?.quantity || 1)
+  const targetMaterialId = data?.order.materialId || ''
+  const primaryOutput = snapshot?.outputs.find((output) => output.isPrimary && output.materialId === targetMaterialId) || null
+  const primaryActualQty = Number(outputs[targetMaterialId]?.actualQty || 0)
+  const primaryBasis = Number(primaryOutput?.quantity || snapshot?.outputQuantity || 1)
   const batchFactor = primaryBasis > 0 ? primaryActualQty / primaryBasis : 0
 
   const calculatedInputs = useMemo(() => {
@@ -185,9 +193,17 @@ export default function ProductionOrderActualPanel({
       relations.push(item)
       relationsByMaterial.set(item.materialId, relations)
     }
-    return Array.from(relationsByMaterial.values()).map((relations) => {
+    return Object.keys(inputs).map((materialId) => {
+      const relations = relationsByMaterial.get(materialId) || []
       const item = relations[0]
-      const draft = inputs[item.materialId]
+      const material = data?.materials.find((candidate) => candidate.id === materialId) || {
+        id: materialId,
+        code: item?.material.code || materialId,
+        name: item?.material.name || '未知物料',
+        unit: item?.material.unit,
+        stockUnit: item?.material.stockUnit,
+      }
+      const draft = inputs[materialId]
       const sharedBatchInputs = relations.filter((relation) => !relation.outputMaterialId)
       const plannedBaseQty = sharedBatchInputs.length > 0
         ? sharedBatchInputs.reduce((sum, relation) => sum + Number(relation.quantity), 0) * batchFactor
@@ -206,23 +222,24 @@ export default function ProductionOrderActualPanel({
           actualQty: Number(draft?.actualQty || 0) > 0 ? Number(draft.actualQty) : undefined,
         })
       : { baseQty: 0, lossQty: 0, plannedQty: 0, actualQty: Number(draft?.actualQty || 0) }
-      return { item, relations, draft, calculated }
+      return { material, relations, draft, calculated, unit: item?.unit || material.stockUnit || material.unit || '' }
     })
-  }, [batchFactor, inputs, outputs, primaryActualQty, snapshot?.items, snapshot?.outputs])
+  }, [batchFactor, data?.materials, inputs, outputs, primaryActualQty, snapshot?.items, snapshot?.outputs])
 
   const openForm = () => {
-    if (!data?.order.bomSnapshot) return onMessage('该生产订单没有 BOM 快照，请重新创建生产订单')
+    if (!data?.order.materialId) return onMessage('该历史生产订单没有目标物料，无法登记实绩')
     const creationError = productionOrderActualCreationError(data.order.status, data.order.materialId)
     if (creationError) return onMessage(creationError)
     const defaultLocationId = data.locations.find((location) => location.isDefault)?.id || data.locations[0]?.id || ''
     const remaining = Math.max(0, Number(data.order.planQty) - Number(data.order.completeQty))
-    const main = data.order.bomSnapshot.outputs.find((output) => output.isPrimary)!
-    const factor = remaining > 0 ? remaining / Number(main.quantity || 1) : 1
-    setOutputs(Object.fromEntries(data.order.bomSnapshot.outputs.map((output) => [output.materialId, {
+    const main = data.order.bomSnapshot?.outputs.find((output) => output.isPrimary)
+    const factor = main && remaining > 0 ? remaining / Number(main.quantity || 1) : 1
+    const presetOutputs = data.order.bomSnapshot?.outputs || [{ materialId: data.order.materialId, quantity: remaining || data.order.planQty }]
+    setOutputs(Object.fromEntries(presetOutputs.map((output) => [output.materialId, {
       locationId: defaultLocationId,
       actualQty: Number((Number(output.quantity) * factor).toFixed(6)),
     }])))
-    setInputs(Object.fromEntries(data.order.bomSnapshot.items.map((item) => [item.materialId, {
+    setInputs(Object.fromEntries((data.order.bomSnapshot?.items || []).map((item) => [item.materialId, {
       locationId: defaultLocationId,
       lossMode: 'PERCENT' as const,
       lossValue: 0,
@@ -238,14 +255,25 @@ export default function ProductionOrderActualPanel({
   }
 
   const saveDraft = async () => {
-    if (!snapshot || !primaryOutput) return onMessage('生产订单 BOM 快照无效')
+    if (!targetMaterialId) return onMessage('生产订单目标物料无效')
     if (employeeIds.length === 0) return onMessage('请选择生产员工')
     if (equipmentIds.length === 0 && equipmentExceptionReason.trim().length < 2) return onMessage('请选择实际设备或填写设备例外原因')
     if (workInstructionIds.length === 0 && workInstructionExceptionReason.trim().length < 2) return onMessage('请选择作业文件或填写作业文件例外原因')
     if (primaryActualQty <= 0) return onMessage('主产出实际数量必须大于 0')
-    if (snapshot.outputs.some((output) => !outputs[output.materialId]?.locationId)) return onMessage('请选择每项产出的入库库位')
-    if (snapshot.items.some((item) => !inputs[item.materialId]?.locationId)) return onMessage('请选择每项投入物料的来源库位')
+    if (Object.keys(inputs).length === 0) return onMessage('请至少添加一项实际投入')
+    if (!outputs[targetMaterialId]) return onMessage('目标产出不能移除')
+    if (Object.values(outputs).some((output) => !output.locationId)) return onMessage('请选择每项产出的入库库位')
+    if (Object.values(inputs).some((input) => !input.locationId)) return onMessage('请选择每项投入物料的来源库位')
     if (calculatedInputs.some((line) => line.calculated.actualQty <= 0)) return onMessage('投入实际数量必须大于 0')
+    const presetInputs = new Set((snapshot?.items || []).map((item) => item.materialId))
+    const presetOutputs = new Set((snapshot?.outputs || []).map((output) => output.materialId))
+    const inputIds = new Set(Object.keys(inputs))
+    const outputIds = new Set(Object.keys(outputs))
+    const hasBomDeviation = Object.keys(inputs).some((id) => !presetInputs.has(id))
+      || Object.keys(outputs).some((id) => !presetOutputs.has(id))
+      || Array.from(presetInputs).some((id) => !inputIds.has(id))
+      || Array.from(presetOutputs).some((id) => !outputIds.has(id))
+    if ((!snapshot || hasBomDeviation) && note.trim().length < 2) return onMessage('临时生产或计划外投入产出必须填写备注')
     setSaving(true)
     try {
       const payload = await createProductionOrderActual(orderId, {
@@ -256,13 +284,13 @@ export default function ProductionOrderActualPanel({
           workInstructionIds,
           workInstructionExceptionReason: workInstructionIds.length === 0 ? workInstructionExceptionReason.trim() : undefined,
           note,
-          outputs: snapshot.outputs.map((output) => ({
-            materialId: output.materialId,
-            locationId: outputs[output.materialId].locationId,
-            actualQty: Number(outputs[output.materialId].actualQty),
+          outputs: Object.entries(outputs).map(([materialId, output]) => ({
+            materialId,
+            locationId: output.locationId,
+            actualQty: Number(output.actualQty),
           })),
-          inputs: calculatedInputs.map(({ item, draft, calculated }) => ({
-            materialId: item.materialId,
+          inputs: calculatedInputs.map(({ material, draft, calculated }) => ({
+            materialId: material.id,
             locationId: draft.locationId,
             lossMode: draft.lossMode,
             lossValue: Number(draft.lossValue || 0),
@@ -335,7 +363,7 @@ export default function ProductionOrderActualPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="font-semibold text-gray-900">班后生产实绩</h3>
-          <p className="mt-1 text-sm text-gray-500">订单发布后，班后按 BOM 快照登记全部投入和产出，确认后再更新库存。</p>
+          <p className="mt-1 text-sm text-gray-500">BOM 只预填标准转换关系；实际投入和产出可增删，无 BOM 订单也可登记临时生产。</p>
         </div>
         {canEnter && <AppButton
           variant="create"
@@ -375,11 +403,11 @@ export default function ProductionOrderActualPanel({
               <div className="mt-3 grid gap-3 lg:grid-cols-2">
                 <div className="rounded-md bg-gray-50 p-3 text-sm">
                   <div className="mb-2 font-medium text-gray-700">投入物料</div>
-                  {actual.inputs.map((line) => <div key={line.id} className="py-1 text-gray-600"><div className="flex justify-between gap-3"><span>{line.materialCode} · {line.materialName}</span><span className="shrink-0">{numberText(line.actualQty)} {line.unit} · {line.location.code}</span></div>{(line.lotAllocations || []).length > 0 && <div className="mt-1 space-y-1 pl-2 text-xs text-slate-500">{line.lotAllocations!.map((allocation) => <div key={allocation.id} className="flex flex-wrap justify-between gap-2"><span className="font-mono">批次 {allocation.lot.lotNo}{allocation.lot.supplierLotNo ? ` · 供应批号 ${allocation.lot.supplierLotNo}` : allocation.lot.sourceType === 'LEGACY_INVENTORY' ? ' · 历史未追踪' : ''}</span><span>{numberText(allocation.stockQty)} {line.unit}</span></div>)}</div>}</div>)}
+                  {actual.inputs.map((line) => <div key={line.id} className="py-1 text-gray-600"><div className="flex justify-between gap-3"><span>{line.materialCode} · {line.materialName}<span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] ${line.bomItemId ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>{line.bomItemId ? 'BOM 预设' : '临时添加'}</span></span><span className="shrink-0">{numberText(line.actualQty)} {line.unit} · {line.location.code}</span></div>{(line.lotAllocations || []).length > 0 && <div className="mt-1 space-y-1 pl-2 text-xs text-slate-500">{line.lotAllocations!.map((allocation) => <div key={allocation.id} className="flex flex-wrap justify-between gap-2"><span className="font-mono">批次 {allocation.lot.lotNo}{allocation.lot.supplierLotNo ? ` · 供应批号 ${allocation.lot.supplierLotNo}` : allocation.lot.sourceType === 'LEGACY_INVENTORY' ? ' · 历史未追踪' : ''}</span><span>{numberText(allocation.stockQty)} {line.unit}</span></div>)}</div>}</div>)}
                 </div>
                 <div className="rounded-md bg-blue-50/60 p-3 text-sm">
                   <div className="mb-2 font-medium text-blue-800">产出物料</div>
-                  {actual.outputs.map((line) => <div key={line.id} className="py-1 text-blue-800"><div className="flex justify-between gap-3"><span>{line.isPrimary ? '主产出 · ' : ''}{line.materialCode} · {line.materialName}</span><span className="shrink-0">{numberText(line.actualQty)} {line.unit} · {line.location.code}</span></div>{line.inventoryLot && <QualityLotCard lot={line.inventoryLot} canDecide={canQualityUpdate} onMessage={onMessage} onChanged={load} />}</div>)}
+                  {actual.outputs.map((line) => <div key={line.id} className="py-1 text-blue-800"><div className="flex justify-between gap-3"><span>{line.isPrimary ? '主产出 · ' : ''}{line.materialCode} · {line.materialName}<span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] ${line.bomOutputId ? 'bg-blue-100 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>{line.bomOutputId ? 'BOM 预设' : '临时添加'}</span></span><span className="shrink-0">{numberText(line.actualQty)} {line.unit} · {line.location.code}</span></div>{line.inventoryLot && <QualityLotCard lot={line.inventoryLot} canDecide={canQualityUpdate} onMessage={onMessage} onChanged={load} />}</div>)}
                 </div>
               </div>
               {actual.note && <div className="mt-3 text-sm text-gray-500">备注：{actual.note}</div>}
@@ -388,10 +416,10 @@ export default function ProductionOrderActualPanel({
         })}
       </div>
 
-      {formOpen && snapshot && (
+      {formOpen && (
         <ModalDialog
           title="登记班后生产实绩"
-          description={`${data.order.orderNo} · ${data.order.bomName || snapshot.name} ${data.order.bomVersion || snapshot.version}`}
+          description={`${data.order.orderNo} · ${snapshot ? `${data.order.bomName || snapshot.name} ${data.order.bomVersion || snapshot.version} · BOM 仅作预填` : '临时生产 / 转换（无 BOM）'}`}
           onClose={() => !saving && setFormOpen(false)}
           closeDisabled={saving}
           size="wide"
@@ -419,65 +447,36 @@ export default function ProductionOrderActualPanel({
             onWorkInstructionExceptionReasonChange={setWorkInstructionExceptionReason}
           />
 
-          <div className="mt-5 grid gap-5 xl:grid-cols-2">
-            <section className="rounded-lg border border-gray-200 p-4">
-              <h4 className="font-semibold text-gray-900">投入物料</h4>
-              <p className="mt-1 text-xs text-gray-500">允许原材料、半成品或已有产品作为投入；系统按每项实际产出及其专属 BOM 比例汇总计算。</p>
-              <div className="mt-4 space-y-4">
-                {calculatedInputs.map(({ item, draft, calculated }) => (
-                  <div key={item.materialId} className="rounded-lg bg-gray-50 p-3">
-                    <div className="font-medium text-gray-900">{item.material.code} · {item.material.name}</div>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <div className="mb-1 text-xs text-gray-500">来源库位</div>
-                        <SearchableSelect value={draft?.locationId || ''} onChange={(locationId) => setInputs((current) => ({ ...current, [item.materialId]: { ...current[item.materialId], locationId } }))} options={data.locations.map((location) => ({ value: location.id, label: `${location.code} · ${location.name}` }))} placeholder="输入库位筛选" />
-                      </div>
-                      <div>
-                        <div className="mb-1 text-xs text-gray-500">计划外额外耗用</div>
-                        <SearchableSelect value={draft?.lossMode || 'PERCENT'} onChange={(lossMode) => setInputs((current) => ({ ...current, [item.materialId]: { ...current[item.materialId], lossMode: lossMode as ProductionLossMode } }))} options={[{ value: 'PERCENT', label: '按基准耗用百分比' }, { value: 'FIXED_PER_UNIT', label: '每主产出单位固定增加' }]} placeholder="输入额外耗用方式筛选" />
-                      </div>
-                      <label className="block text-xs text-gray-500">额外耗用值
-                        <input type="number" min="0" step="0.000001" value={draft?.lossValue ?? 0} onChange={(event) => setInputs((current) => ({ ...current, [item.materialId]: { ...current[item.materialId], lossValue: Number(event.target.value) } }))} className={`${appInputClassName} mt-1`} />
-                      </label>
-                      <label className="block text-xs text-gray-500">实际投入（{item.unit}）
-                        <input type="number" min="0.000001" step="0.000001" value={draft?.actualQty ?? calculated.actualQty} onChange={(event) => setInputs((current) => ({ ...current, [item.materialId]: { ...current[item.materialId], actualQty: Number(event.target.value) } }))} className={`${appInputClassName} mt-1`} />
-                      </label>
-                    </div>
-                    <div className="mt-2 text-xs text-gray-500">比例计划 {numberText(calculated.plannedQty)} {item.unit}，其中损耗 {numberText(calculated.lossQty)} {item.unit}</div>
-                  </div>
-                ))}
-              </div>
-            </section>
+          <div className="mt-5 grid overflow-hidden rounded-lg border border-gray-200 xl:grid-cols-2 xl:divide-x">
+            <OneToManyRelationField
+              title="实际投入"
+              items={calculatedInputs}
+              getKey={(line) => line.material.id}
+              emptyText="请至少添加一项实际投入"
+              selector={<MaterialRelationSearch materials={data.materials} disabledIds={Object.keys(inputs)} onAdd={(materialId) => setInputs((current) => ({ ...current, [materialId]: { locationId: data.locations.find((location) => location.isDefault)?.id || data.locations[0]?.id || '', lossMode: 'PERCENT', lossValue: 0, actualQty: 0 } }))} placeholder="添加临时或计划内投入物料" />}
+              renderIdentity={({ material, relations, draft, calculated, unit }) => <div><MaterialRelationIdentity material={material} fallbackId={material.id} badge={<span className={`rounded px-1.5 py-0.5 text-[10px] ${relations.length ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>{relations.length ? 'BOM 预设' : '临时添加'}</span>} /><div className="mt-3 grid gap-2 sm:grid-cols-2"><SearchableSelect value={draft.locationId} onChange={(locationId) => setInputs((current) => ({ ...current, [material.id]: { ...current[material.id], locationId } }))} options={data.locations.map((location) => ({ value: location.id, label: `${location.code} · ${location.name}` }))} placeholder="来源库位" />{relations.length > 0 && <SearchableSelect value={draft.lossMode} onChange={(lossMode) => setInputs((current) => ({ ...current, [material.id]: { ...current[material.id], lossMode: lossMode as ProductionLossMode } }))} options={[{ value: 'PERCENT', label: '损耗：按百分比' }, { value: 'FIXED_PER_UNIT', label: '损耗：每主产出固定增加' }]} placeholder="损耗方式" />} {relations.length > 0 && <input aria-label="额外耗用值" type="number" min="0" step="0.000001" value={draft.lossValue} onChange={(event) => setInputs((current) => ({ ...current, [material.id]: { ...current[material.id], lossValue: Number(event.target.value) } }))} className={appInputClassName} placeholder="额外耗用值" />}<input aria-label={`实际投入 ${material.name}`} type="number" min="0.000001" step="0.000001" value={draft.actualQty ?? calculated.actualQty} onChange={(event) => setInputs((current) => ({ ...current, [material.id]: { ...current[material.id], actualQty: Number(event.target.value) } }))} className={appInputClassName} placeholder={`实际投入（${unit}）`} /></div><div className="mt-2 text-xs text-gray-500">{relations.length ? `BOM 比例计划 ${numberText(calculated.plannedQty)} ${unit}，损耗 ${numberText(calculated.lossQty)} ${unit}` : '无 BOM 计划数，按实际数量领用'}</div></div>}
+              onRemove={(line) => setInputs((current) => { const next = { ...current }; delete next[line.material.id]; return next })}
+            />
 
-            <section className="rounded-lg border border-blue-100 bg-blue-50/30 p-4">
-              <h4 className="font-semibold text-gray-900">产出物料</h4>
-              <p className="mt-1 text-xs text-gray-500">一次实绩可同时登记主产品、副产品、可回收料或废料。</p>
-              <div className="mt-4 space-y-4">
-                {snapshot.outputs.map((output) => {
-                  const draft = outputs[output.materialId]
-                  const plannedQty = Number(output.quantity) * batchFactor
-                  return (
-                    <div key={output.materialId} className="rounded-lg border border-blue-100 bg-white p-3">
-                      <div className="flex flex-wrap items-center gap-2"><span className="font-medium text-gray-900">{output.material.code} · {output.material.name}</span>{output.isPrimary && <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">主产出</span>}</div>
-                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                        <div>
-                          <div className="mb-1 text-xs text-gray-500">入库库位</div>
-                          <SearchableSelect value={draft?.locationId || ''} onChange={(locationId) => setOutputs((current) => ({ ...current, [output.materialId]: { ...current[output.materialId], locationId } }))} options={data.locations.map((location) => ({ value: location.id, label: `${location.code} · ${location.name}` }))} placeholder="输入库位筛选" />
-                        </div>
-                        <label className="block text-xs text-gray-500">实际产出（{output.unit}）
-                          <input type="number" min={output.isPrimary ? '0.000001' : '0'} step="0.000001" value={draft?.actualQty ?? 0} onChange={(event) => setOutputs((current) => ({ ...current, [output.materialId]: { ...current[output.materialId], actualQty: Number(event.target.value) } }))} className={`${appInputClassName} mt-1`} />
-                        </label>
-                      </div>
-                      <div className="mt-2 text-xs text-gray-500">按主产出批次计划 {numberText(plannedQty)} {output.unit}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
+            <OneToManyRelationField
+              title="实际产出"
+              items={Object.keys(outputs)}
+              getKey={(materialId) => materialId}
+              emptyText="目标产出不能为空"
+              selector={<MaterialRelationSearch materials={data.materials} disabledIds={Object.keys(outputs)} onAdd={(materialId) => setOutputs((current) => ({ ...current, [materialId]: { locationId: data.locations.find((location) => location.isDefault)?.id || data.locations[0]?.id || '', actualQty: 0 } }))} placeholder="添加副产品、回收料或其它产出" />}
+              renderIdentity={(materialId) => {
+                const material = data.materials.find((candidate) => candidate.id === materialId)
+                const preset = snapshot?.outputs.find((output) => output.materialId === materialId)
+                const draft = outputs[materialId]
+                const unit = preset?.unit || material?.stockUnit || material?.unit || ''
+                return <div><MaterialRelationIdentity material={material} fallbackId={materialId} badge={<span className={`rounded px-1.5 py-0.5 text-[10px] ${preset ? 'bg-blue-100 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>{materialId === targetMaterialId ? '目标主产出' : preset ? 'BOM 预设' : '临时添加'}</span>} /><div className="mt-3 grid gap-2 sm:grid-cols-2"><SearchableSelect value={draft.locationId} onChange={(locationId) => setOutputs((current) => ({ ...current, [materialId]: { ...current[materialId], locationId } }))} options={data.locations.map((location) => ({ value: location.id, label: `${location.code} · ${location.name}` }))} placeholder="入库库位" /><input aria-label={`实际产出 ${material?.name || materialId}`} type="number" min={materialId === targetMaterialId ? '0.000001' : '0'} step="0.000001" value={draft.actualQty} onChange={(event) => setOutputs((current) => ({ ...current, [materialId]: { ...current[materialId], actualQty: Number(event.target.value) } }))} className={appInputClassName} placeholder={`实际产出（${unit}）`} /></div><div className="mt-2 text-xs text-gray-500">{preset ? `BOM 比例计划 ${numberText(Number(preset.quantity) * batchFactor)} ${unit}` : '无 BOM 计划数，作为本次实际产出'}</div></div>
+              }}
+              onRemove={(materialId) => materialId === targetMaterialId ? onMessage('生产订单目标主产出不能移除') : setOutputs((current) => { const next = { ...current }; delete next[materialId]; return next })}
+            />
           </div>
 
           <label className="mt-5 block text-sm font-medium text-gray-700">备注
-            <textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} className={`${appTextareaClassName} mt-2`} placeholder="班次、异常、设备或其它说明" />
+            <textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} className={`${appTextareaClassName} mt-2`} placeholder="班次、异常或其它说明；无 BOM 或存在临时投入产出时必填" />
           </label>
         </ModalDialog>
       )}

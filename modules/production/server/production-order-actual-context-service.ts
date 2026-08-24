@@ -100,6 +100,7 @@ export async function loadProductionActualExecutionContext(db: ContextDatabase, 
     equipment,
     workInstructions: instructions.map((instruction) => ({
       ...instruction,
+      workCenters: [],
       attachments: attachments.get(instruction.id) || [],
     })),
   }

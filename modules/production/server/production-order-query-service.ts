@@ -160,31 +160,39 @@ export async function getProductionOrderDetail(id: string, scope?: EffectiveData
 }
 
 export async function listProductionOrderOptions() {
-  const boms = await prisma.bOM.findMany({
-    where: { status: 'RELEASED' },
-    select: {
-      id: true,
-      name: true,
-      version: true,
-      isDefault: true,
-      outputs: {
-        where: { isPrimary: true },
-        select: { material: { select: { id: true, code: true, name: true, spec: true, category: true, unit: true, stockUnit: true, valuationUnit: true } } },
+  const [materials, boms] = await Promise.all([
+    prisma.material.findMany({
+      where: { deletedAt: null },
+      select: { id: true, code: true, name: true, spec: true, category: true, unit: true, stockUnit: true, valuationUnit: true },
+      orderBy: { code: 'asc' },
+    }),
+    prisma.bOM.findMany({
+      where: { status: 'RELEASED' },
+      select: {
+        id: true,
+        name: true,
+        version: true,
+        isDefault: true,
+        outputs: {
+          where: { isPrimary: true },
+          select: { materialId: true },
+        },
       },
-    },
-    orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
-    take: 1000,
-  })
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+      take: 1000,
+    }),
+  ])
   const byMaterial = new Map<string, {
     id: string; code: string; name: string; spec: string | null; category: string; unit: string; stockUnit: string; valuationUnit: string
     boms: Array<{ id: string; name: string; version: string; isDefault: boolean }>
   }>()
+  for (const material of materials) byMaterial.set(material.id, { ...material, boms: [] })
   for (const bom of boms) {
-    const material = bom.outputs[0]?.material
-    if (!material) continue
-    const current = byMaterial.get(material.id) || { ...material, boms: [] }
+    const materialId = bom.outputs[0]?.materialId
+    if (!materialId) continue
+    const current = byMaterial.get(materialId)
+    if (!current) continue
     current.boms.push({ id: bom.id, name: bom.name, version: bom.version, isDefault: bom.isDefault })
-    byMaterial.set(material.id, current)
   }
   return Array.from(byMaterial.values()).sort((left, right) => left.code.localeCompare(right.code, 'zh-CN', { numeric: true }))
 }

@@ -694,10 +694,10 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 ## 52. 生产实绩服务端垂直模块归属
 
 - `contracts/production-order-actual-schema.ts` 集中草稿、确认和冲销输入契约；`domain/production-order-bom-snapshot.ts`、`production-order-actual-cost-snapshot.ts` 与 `production-order-actual-numbering.ts` 分别拥有 BOM 快照、成本层快照和日期编号纯规则。
-- `server/production-order-actual-lines.ts` 根据订单冻结 BOM 计算共同投入、多产出、损耗和库位可用量；`production-order-actual-totals.ts` 统一重算订单完工、废料和状态。
+- `server/production-order-actual-lines.ts` 将订单冻结 BOM 作为可选预设：有快照时计算标准共同投入和多产出，没有快照时接受临时转换；两种模式都校验实际投入、实际产出和库位可用量。与 BOM 对应的明细保留来源 ID，人工增补项来源 ID 为空；`production-order-actual-totals.ts` 统一重算订单完工、废料和状态。
 - `server/production-order-actual-service.ts` 拥有工作区查询、草稿创建和删除；`production-order-actual-status-service.ts` 拥有确认投入/产出过账、成本快照、冲销库存/成本层恢复及状态事务。
 - 四条实绩 Route Handler 现为 26–43 行，只保留权限、Schema、操作人、领域服务调用、审计和 HTTP 错误映射；扁平 `lib/production-order-actual.ts` 已删除，直接访问 Prisma 的 API 从 82 个降至 78 个。
-- 实绩编号改为读取当日最大历史序号，删除中间草稿后不会复用已存在编号。`verify:production-order-module` 锁定边界与纯规则，`verify:production-order-actuals` 在运行后删除的临时完整 SQLite 中覆盖工作区、草稿、确认、冲销、删除、断号、多产出和库存成本一致性。
+- 实绩输入/产出界面复用公共 `OneToManyRelationField`、关系搜索和身份展示骨架，不另建生产专用多行控件。实绩编号改为读取当日最大历史序号，删除中间草稿后不会复用已存在编号。`verify:production-order-module` 锁定边界、无 BOM 订单和纯规则，`verify:production-order-actuals` 在运行后删除的临时完整 SQLite 中覆盖 BOM 预设偏差、临时输入/输出、无 BOM 转换、说明门禁、确认、冲销、删除、断号、多产出和库存成本一致性。
 
 ## 53. 通用附件生命周期模块归属
 

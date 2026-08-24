@@ -20,7 +20,7 @@ async function resolveOrderLine(tx: Prisma.TransactionClient, input: ProductionO
     defaultRoute: true,
     description: `由物料 ${material.code} 自动映射，用于简易生产工单。`,
   })
-  const bom = await tx.bOM.findFirst({
+  const bom = input.bomId ? await tx.bOM.findFirst({
     where: { id: input.bomId, productId, status: 'RELEASED' },
     select: {
       id: true,
@@ -43,11 +43,11 @@ async function resolveOrderLine(tx: Prisma.TransactionClient, input: ProductionO
         },
       },
     },
-  })
-  if (!bom || bom.outputs.length === 0 || bom.items.length === 0) {
-    throw new ProductionOrderDomainError(`物料 ${material.code} 缺少已发布且结构完整的 BOM`)
+  }) : null
+  if (input.bomId && (!bom || bom.outputs.length === 0 || bom.items.length === 0)) {
+    throw new ProductionOrderDomainError(`物料 ${material.code} 所选 BOM 不存在、未发布或结构不完整`)
   }
-  if (bom.outputs.filter((output) => output.isPrimary).length !== 1) {
+  if (bom && bom.outputs.filter((output) => output.isPrimary).length !== 1) {
     throw new ProductionOrderDomainError(`物料 ${material.code} 的 BOM 必须且只能有一项主产出`)
   }
   return { material, productId, bom, planQty: input.planQty }
@@ -57,7 +57,7 @@ function requestedLines(input: CreateProductionOrderInput): ProductionOrderLineI
   if (input.items?.length) return input.items
   return [{
     targetId: (input.targetId ?? input.materialId ?? input.productId)!,
-    bomId: input.bomId!,
+    bomId: input.bomId,
     planQty: input.planQty!,
   }]
 }
@@ -87,10 +87,10 @@ export async function createProductionOrders(
           voucherNo: input.voucherNo?.trim() || null,
           productId: line.productId,
           materialId: line.material.id,
-          bomId: line.bom.id,
-          bomName: line.bom.name,
-          bomVersion: line.bom.version,
-          bomSnapshot: JSON.stringify(line.bom),
+          bomId: line.bom?.id || null,
+          bomName: line.bom?.name || null,
+          bomVersion: line.bom?.version || null,
+          bomSnapshot: line.bom ? JSON.stringify(line.bom) : null,
           planQty: line.planQty,
           status: 'DRAFT',
           note: input.note,

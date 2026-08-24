@@ -150,6 +150,7 @@ async function main() {
     assert.deepEqual(workspace.executionContext.workCenterIds, [orderCenter.id], '实绩候选必须从派工/默认路线解析订单工作中心')
     assert.deepEqual(workspace.executionContext.equipment.map((item) => item.id), [validEquipment.id], '候选设备必须排除其它中心和故障设备')
     assert.deepEqual(workspace.executionContext.workInstructions.map((item) => item.id), [validInstruction.id], '候选文件必须只包含适用且已生效版本')
+    assert.deepEqual(workspace.executionContext.workInstructions[0].workCenters, [], '未配置工作中心关系的作业文件必须返回空数组而不是缺失字段')
     assert.equal(workspace.executionContext.workInstructions[0].attachments[0]?.originalName, '冷镦首件-v3.pdf', '候选文件应说明当前附件版本')
 
     const baseInput = {

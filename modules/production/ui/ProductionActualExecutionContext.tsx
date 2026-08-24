@@ -134,7 +134,7 @@ export function ProductionActualExecutionContextPicker({
               items={workInstructionOptions}
               getKey={(item) => item.id}
               getLabel={(item) => `${item.title} · ${item.version}`}
-              getKeywords={(item) => `${item.category.name} ${item.material?.code || ''} ${item.material?.name || ''} ${item.workCenters.map((center) => `${center.code} ${center.name}`).join(' ')}`}
+              getKeywords={(item) => `${item.category.name} ${item.material?.code || ''} ${item.material?.name || ''} ${(item.workCenters || []).map((center) => `${center.code} ${center.name}`).join(' ')}`}
               disabledIds={workInstructionIds}
               onSelect={(item) => {
                 onWorkInstructionIdsChange([...workInstructionIds, item.id])
