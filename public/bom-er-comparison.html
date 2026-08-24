@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MES-lite BOM 数据结构改造前后对比 ER 图</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --page: #f4f7fb;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --text: #172033;
+      --muted: #657085;
+      --border: #d8e0ec;
+      --line: #78859a;
+      --blue: #2563eb;
+      --blue-soft: #eaf2ff;
+      --green: #07885f;
+      --green-soft: #e8f8f1;
+      --red: #c53f3f;
+      --red-soft: #fff0f0;
+      --amber: #ad6800;
+      --amber-soft: #fff7e6;
+      --shadow: 0 12px 32px rgb(23 32 51 / 8%);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      line-height: 1.6;
+    }
+
+    main {
+      width: min(1600px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 42px 0 64px;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      margin-bottom: 10px;
+      font-size: clamp(28px, 3vw, 42px);
+      line-height: 1.25;
+    }
+
+    h2 {
+      margin-bottom: 6px;
+      font-size: clamp(22px, 2vw, 30px);
+    }
+
+    .lead {
+      max-width: 1050px;
+      margin-bottom: 22px;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 20px;
+      margin-bottom: 30px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .legend i {
+      width: 26px;
+      height: 4px;
+      border-radius: 999px;
+      background: var(--line);
+    }
+
+    .legend .removed { background: var(--red); }
+    .legend .added { background: var(--green); }
+    .legend .frozen { background: var(--blue); }
+
+    .diagram-section {
+      margin-top: 26px;
+      padding: 26px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .diagram-section > p {
+      margin-bottom: 18px;
+      color: var(--muted);
+    }
+
+    .diagram-scroll {
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      min-width: 1180px;
+      height: auto;
+      border-radius: 16px;
+      background: var(--surface-soft);
+    }
+
+    .entity {
+      fill: var(--surface);
+      stroke: var(--border);
+      stroke-width: 2;
+      filter: drop-shadow(0 5px 12px rgb(23 32 51 / 7%));
+    }
+
+    .entity-header { fill: var(--blue-soft); }
+    .entity-header.changed { fill: var(--green-soft); }
+    .entity-header.problem { fill: var(--red-soft); }
+    .entity-header.warn { fill: var(--amber-soft); }
+    .entity-divider { stroke: var(--border); stroke-width: 1; }
+    .entity-title { fill: var(--text); font-size: 19px; font-weight: 700; }
+    .entity-subtitle { fill: var(--muted); font-size: 12px; font-weight: 500; }
+    .field { fill: var(--text); font-size: 14px; }
+    .field-muted { fill: var(--muted); font-size: 13px; }
+    .field-danger { fill: var(--red); font-size: 14px; font-weight: 700; }
+    .field-added { fill: var(--green); font-size: 14px; font-weight: 700; }
+    .pk { fill: var(--blue); font-weight: 700; }
+
+    .relation {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 2.2;
+    }
+
+    .relation.removed {
+      stroke: var(--red);
+      stroke-width: 3;
+      stroke-dasharray: 10 7;
+    }
+
+    .relation.added {
+      stroke: var(--green);
+      stroke-width: 3;
+    }
+
+    .relation.frozen {
+      stroke: var(--blue);
+      stroke-width: 3;
+    }
+
+    .relation-label {
+      fill: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      paint-order: stroke;
+      stroke: var(--surface-soft);
+      stroke-width: 6px;
+      stroke-linejoin: round;
+    }
+
+    .relation-label.removed { fill: var(--red); }
+    .relation-label.added { fill: var(--green); }
+    .relation-label.frozen { fill: var(--blue); }
+    .cardinality { fill: var(--text); font-size: 13px; font-weight: 700; }
+
+    .note-box {
+      fill: var(--amber-soft);
+      stroke: var(--amber);
+      stroke-width: 1.5;
+    }
+
+    .note-text { fill: var(--amber); font-size: 14px; font-weight: 650; }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 28px;
+    }
+
+    .summary article {
+      padding: 20px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--surface);
+    }
+
+    .summary h3 { margin-bottom: 8px; font-size: 18px; }
+    .summary p { margin-bottom: 0; color: var(--muted); }
+    .summary .red { border-top: 4px solid var(--red); }
+    .summary .green { border-top: 4px solid var(--green); }
+    .summary .blue { border-top: 4px solid var(--blue); }
+
+    .formula {
+      margin-top: 24px;
+      padding: 22px;
+      border-left: 5px solid var(--green);
+      border-radius: 12px;
+      background: var(--green-soft);
+      color: var(--text);
+    }
+
+    .formula code {
+      color: var(--green);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-weight: 700;
+    }
+
+    footer {
+      margin-top: 26px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 820px) {
+      main { width: min(100% - 20px, 1600px); padding-top: 24px; }
+      .diagram-section { padding: 16px; border-radius: 16px; }
+      .summary { grid-template-columns: 1fr; }
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --page: #0f1420;
+        --surface: #171d2a;
+        --surface-soft: #121824;
+        --text: #ecf1fa;
+        --muted: #aab4c5;
+        --border: #30394b;
+        --line: #8c98aa;
+        --blue: #78a6ff;
+        --blue-soft: #1d3155;
+        --green: #50d5a6;
+        --green-soft: #153a31;
+        --red: #ff8585;
+        --red-soft: #432326;
+        --amber: #ffc566;
+        --amber-soft: #3d311e;
+        --shadow: 0 12px 32px rgb(0 0 0 / 26%);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>BOM 数据结构改造前后对比 ER 图</h1>
+      <p class="lead">
+        对比 MES-lite 当前结构与建议的“BOM 是最小可计算生产单元”结构。图中只保留 BOM、投入、产出、工艺和生产订单的核心关系。
+      </p>
+      <div class="legend" aria-label="图例">
+        <span><i></i>保留关系</span>
+        <span><i class="removed"></i>建议删除的关系</span>
+        <span><i class="added"></i>建议新增的关系</span>
+        <span><i class="frozen"></i>发布或下单时冻结的快照</span>
+      </div>
+    </header>
+
+    <section class="diagram-section" aria-labelledby="before-title">
+      <h2 id="before-title">改造前：当前结构</h2>
+      <p>问题集中在“投入物料直接指定对应产出物料”，以及 BOM 版本没有直接冻结工艺路线。</p>
+      <div class="diagram-scroll">
+        <svg viewBox="0 0 1460 930" role="img" aria-labelledby="before-svg-title before-svg-desc">
+          <title id="before-svg-title">MES-lite 当前 BOM 数据结构 ER 图</title>
+          <desc id="before-svg-desc">当前结构中，BOM投入表通过对应产出物料ID关联物料表，工艺路线只属于产品，未直接绑定BOM版本。</desc>
+          <defs>
+            <marker id="arrow-before" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="var(--line)" />
+            </marker>
+            <marker id="arrow-red" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="var(--red)" />
+            </marker>
+          </defs>
+
+          <!-- 关系线 -->
+          <path class="relation" marker-end="url(#arrow-before)" d="M365 166 C365 198, 365 210, 365 242" />
+          <text class="cardinality" x="376" y="190">1</text>
+          <text class="cardinality" x="376" y="232">0..N</text>
+          <text class="relation-label" x="392" y="214">拥有多个 BOM 版本</text>
+
+          <path class="relation" marker-end="url(#arrow-before)" d="M290 500 C250 550, 235 565, 215 620" />
+          <text class="relation-label" x="85" y="564">包含投入</text>
+          <text class="cardinality" x="265" y="523">1</text>
+          <text class="cardinality" x="210" y="608">0..N</text>
+
+          <path class="relation" marker-end="url(#arrow-before)" d="M440 500 C485 550, 505 570, 520 620" />
+          <text class="relation-label" x="455" y="563">包含产出</text>
+          <text class="cardinality" x="445" y="523">1</text>
+          <text class="cardinality" x="500" y="608">1..N</text>
+
+          <path class="relation" marker-end="url(#arrow-before)" d="M835 166 C835 198, 835 210, 835 242" />
+          <text class="relation-label" x="858" y="214">产品拥有路线</text>
+          <text class="cardinality" x="846" y="190">1</text>
+          <text class="cardinality" x="846" y="232">0..N</text>
+
+          <path class="relation" marker-end="url(#arrow-before)" d="M835 456 C835 515, 835 550, 835 620" />
+          <text class="relation-label" x="858" y="548">包含工序</text>
+
+          <path class="relation" marker-end="url(#arrow-before)" d="M620 472 C790 522, 930 558, 1090 558" />
+          <text class="relation-label" x="805" y="536">生产订单引用 BOM</text>
+          <text class="cardinality" x="630" y="488">1</text>
+          <text class="cardinality" x="1060" y="548">0..N</text>
+
+          <path class="relation" marker-end="url(#arrow-before)" d="M250 800 C330 850, 535 858, 640 822" />
+          <text class="relation-label" x="342" y="873">投入物料</text>
+
+          <path class="relation" marker-end="url(#arrow-before)" d="M545 800 C580 824, 610 830, 640 822" />
+          <text class="relation-label" x="530" y="858">产出物料</text>
+
+          <path class="relation removed" marker-end="url(#arrow-red)" d="M250 758 C415 716, 520 718, 640 758" />
+          <text class="relation-label removed" x="350" y="704">对应产出物料 ID（歧义关系）</text>
+
+          <!-- 实体：产品 -->
+          <g transform="translate(210 40)">
+            <rect class="entity" width="310" height="126" rx="14" />
+            <path class="entity-header" d="M14 0 H296 A14 14 0 0 1 310 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">产品</text>
+            <text class="entity-subtitle" x="86" y="30">PRODUCT</text>
+            <line class="entity-divider" x1="0" y1="48" x2="310" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID</text>
+            <text class="field" x="18" y="104">关联物料 ID</text>
+          </g>
+
+          <!-- 实体：BOM -->
+          <g transform="translate(110 242)">
+            <rect class="entity" width="510" height="258" rx="14" />
+            <path class="entity-header" d="M14 0 H496 A14 14 0 0 1 510 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">BOM 主表</text>
+            <text class="entity-subtitle" x="130" y="30">BOM</text>
+            <line class="entity-divider" x1="0" y1="48" x2="510" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID</text>
+            <text class="field" x="18" y="104"><tspan class="pk">FK</tspan>　产品 ID</text>
+            <text class="field" x="18" y="132">名称、用途、版本、状态</text>
+            <text class="field" x="18" y="160">默认/启用标记</text>
+            <text class="field" x="18" y="188">旧主产出数量、旧主产出单位</text>
+            <text class="field" x="18" y="216">来源 BOM、变更原因、发布时间</text>
+            <text class="field-muted" x="18" y="244">唯一约束：产品 ID + 版本</text>
+          </g>
+
+          <!-- 实体：工艺路线 -->
+          <g transform="translate(680 242)">
+            <rect class="entity" width="310" height="214" rx="14" />
+            <path class="entity-header warn" d="M14 0 H296 A14 14 0 0 1 310 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">工艺路线</text>
+            <text class="entity-subtitle" x="120" y="30">PROCESS_ROUTE</text>
+            <line class="entity-divider" x1="0" y1="48" x2="310" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID</text>
+            <text class="field" x="18" y="104"><tspan class="pk">FK</tspan>　产品 ID</text>
+            <text class="field" x="18" y="132">路线名称</text>
+            <text class="field" x="18" y="160">默认路线、排序</text>
+            <text class="field-danger" x="18" y="192">未直接绑定 BOM 版本</text>
+          </g>
+
+          <!-- 实体：生产订单 -->
+          <g transform="translate(1090 326)">
+            <rect class="entity" width="310" height="274" rx="14" />
+            <path class="entity-header" d="M14 0 H296 A14 14 0 0 1 310 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">生产订单</text>
+            <text class="entity-subtitle" x="120" y="30">PRODUCTION_ORDER</text>
+            <line class="entity-divider" x1="0" y1="48" x2="310" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID</text>
+            <text class="field" x="18" y="104">订单编号</text>
+            <text class="field" x="18" y="132"><tspan class="pk">FK</tspan>　BOM ID</text>
+            <text class="field" x="18" y="160">BOM 名称、BOM 版本</text>
+            <text class="field" x="18" y="188">BOM 快照</text>
+            <text class="field" x="18" y="216">计划数量、完成数量</text>
+            <text class="field" x="18" y="244">订单状态</text>
+          </g>
+
+          <!-- 实体：投入 -->
+          <g transform="translate(45 620)">
+            <rect class="entity" width="410" height="180" rx="14" />
+            <path class="entity-header problem" d="M14 0 H396 A14 14 0 0 1 410 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">BOM 投入</text>
+            <text class="entity-subtitle" x="124" y="30">BOM_ITEM</text>
+            <line class="entity-divider" x1="0" y1="48" x2="410" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID　 <tspan class="pk">FK</tspan>　BOM ID</text>
+            <text class="field" x="18" y="104"><tspan class="pk">FK</tspan>　投入物料 ID</text>
+            <text class="field-danger" x="18" y="132"><tspan class="pk">FK</tspan>　对应产出物料 ID</text>
+            <text class="field" x="18" y="160">类型、数量、单位、损耗率</text>
+          </g>
+
+          <!-- 实体：产出 -->
+          <g transform="translate(485 620)">
+            <rect class="entity" width="310" height="180" rx="14" />
+            <path class="entity-header" d="M14 0 H296 A14 14 0 0 1 310 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">BOM 产出</text>
+            <text class="entity-subtitle" x="124" y="30">BOM_OUTPUT</text>
+            <line class="entity-divider" x1="0" y1="48" x2="310" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID</text>
+            <text class="field" x="18" y="104"><tspan class="pk">FK</tspan>　BOM ID、物料 ID</text>
+            <text class="field" x="18" y="132">数量、单位</text>
+            <text class="field" x="18" y="160">是否主产出</text>
+          </g>
+
+          <!-- 实体：工序 -->
+          <g transform="translate(805 620)">
+            <rect class="entity" width="270" height="180" rx="14" />
+            <path class="entity-header" d="M14 0 H256 A14 14 0 0 1 270 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">工序</text>
+            <text class="entity-subtitle" x="72" y="30">PROCESS_STEP</text>
+            <line class="entity-divider" x1="0" y1="48" x2="270" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID</text>
+            <text class="field" x="18" y="104"><tspan class="pk">FK</tspan>　工艺路线 ID</text>
+            <text class="field" x="18" y="132">工序顺序</text>
+            <text class="field" x="18" y="160">工序名称</text>
+          </g>
+
+          <!-- 实体：物料 -->
+          <g transform="translate(640 735)">
+            <rect class="entity" width="300" height="145" rx="14" />
+            <path class="entity-header" d="M14 0 H286 A14 14 0 0 1 300 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">物料</text>
+            <text class="entity-subtitle" x="72" y="30">MATERIAL</text>
+            <line class="entity-divider" x1="0" y1="48" x2="300" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID</text>
+            <text class="field" x="18" y="104">物料编码、名称、规格</text>
+            <text class="field" x="18" y="132">库存主单位</text>
+          </g>
+        </svg>
+      </div>
+    </section>
+
+    <section class="diagram-section" aria-labelledby="after-title">
+      <h2 id="after-title">改造后：BOM 作为最小可计算生产单元</h2>
+      <p>投入和产出只分别关联 BOM；发布时冻结工艺路线，下单时冻结完整 BOM 版本，实际投入与实际产出独立记账。</p>
+      <div class="diagram-scroll">
+        <svg viewBox="0 0 1460 1080" role="img" aria-labelledby="after-svg-title after-svg-desc">
+          <title id="after-svg-title">建议改造后的 BOM 数据结构 ER 图</title>
+          <desc id="after-svg-desc">改造后所有投入共同属于一个BOM批次，多个产出共同按同一倍率计算，BOM发布时冻结工艺路线，生产订单冻结完整BOM快照。</desc>
+          <defs>
+            <marker id="arrow-after" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="var(--line)" />
+            </marker>
+            <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="var(--green)" />
+            </marker>
+            <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="var(--blue)" />
+            </marker>
+          </defs>
+
+          <!-- 关系线 -->
+          <path class="relation" marker-end="url(#arrow-after)" d="M285 156 C285 195, 360 207, 450 242" />
+          <text class="relation-label" x="300" y="202">拥有多个不可变 BOM 版本</text>
+          <text class="cardinality" x="296" y="178">1</text>
+          <text class="cardinality" x="422" y="232">0..N</text>
+
+          <path class="relation added" marker-end="url(#arrow-green)" d="M1125 214 C1030 245, 955 270, 890 304" />
+          <text class="relation-label added" x="940" y="232">发布前选择路线</text>
+          <text class="cardinality" x="1098" y="224">1</text>
+          <text class="cardinality" x="900" y="292">0..N</text>
+
+          <path class="relation frozen" marker-end="url(#arrow-blue)" d="M890 370 C1005 388, 1040 395, 1090 405" />
+          <text class="relation-label frozen" x="915" y="385">发布时写入工艺快照</text>
+
+          <path class="relation" marker-end="url(#arrow-after)" d="M480 516 C415 560, 375 585, 330 625" />
+          <text class="relation-label" x="320" y="570">整批共同投入</text>
+          <text class="cardinality" x="458" y="536">1</text>
+          <text class="cardinality" x="332" y="612">0..N</text>
+
+          <path class="relation" marker-end="url(#arrow-after)" d="M710 516 C770 560, 810 585, 855 625" />
+          <text class="relation-label" x="742" y="570">整批同时产出</text>
+          <text class="cardinality" x="720" y="536">1</text>
+          <text class="cardinality" x="835" y="612">1..N</text>
+
+          <path class="relation frozen" marker-end="url(#arrow-blue)" d="M595 516 C595 560, 595 580, 595 625" />
+          <text class="relation-label frozen" x="610" y="575">下单冻结完整快照</text>
+          <text class="cardinality" x="575" y="540">1</text>
+          <text class="cardinality" x="575" y="612">0..N</text>
+
+          <path class="relation" marker-end="url(#arrow-after)" d="M475 820 C415 855, 375 875, 330 910" />
+          <text class="relation-label" x="310" y="865">实际投入</text>
+
+          <path class="relation" marker-end="url(#arrow-after)" d="M715 820 C775 855, 815 875, 860 910" />
+          <text class="relation-label" x="765" y="865">实际产出</text>
+
+          <path class="relation" marker-end="url(#arrow-after)" d="M255 802 C255 820, 255 825, 255 842" />
+          <path class="relation" marker-end="url(#arrow-after)" d="M875 802 C875 820, 875 825, 875 842" />
+
+          <path class="relation" marker-end="url(#arrow-after)" d="M1175 430 C1175 472, 1175 500, 1175 545" />
+          <text class="relation-label" x="1192" y="500">包含工序</text>
+
+          <!-- 产品 -->
+          <g transform="translate(130 30)">
+            <rect class="entity" width="310" height="126" rx="14" />
+            <path class="entity-header" d="M14 0 H296 A14 14 0 0 1 310 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">产品</text>
+            <text class="entity-subtitle" x="86" y="30">PRODUCT</text>
+            <line class="entity-divider" x1="0" y1="48" x2="310" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID</text>
+            <text class="field" x="18" y="104">关联物料 ID</text>
+          </g>
+
+          <!-- 工艺路线 -->
+          <g transform="translate(1020 30)">
+            <rect class="entity" width="310" height="184" rx="14" />
+            <path class="entity-header changed" d="M14 0 H296 A14 14 0 0 1 310 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">工艺路线</text>
+            <text class="entity-subtitle" x="120" y="30">PROCESS_ROUTE</text>
+            <line class="entity-divider" x1="0" y1="48" x2="310" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID</text>
+            <text class="field" x="18" y="104"><tspan class="pk">FK</tspan>　产品 ID</text>
+            <text class="field" x="18" y="132">路线名称</text>
+            <text class="field" x="18" y="160">默认路线、排序</text>
+          </g>
+
+          <!-- BOM -->
+          <g transform="translate(320 242)">
+            <rect class="entity" width="570" height="274" rx="14" />
+            <path class="entity-header changed" d="M14 0 H556 A14 14 0 0 1 570 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">BOM 主表</text>
+            <text class="entity-subtitle" x="130" y="30">BOM</text>
+            <line class="entity-divider" x1="0" y1="48" x2="570" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID</text>
+            <text class="field" x="18" y="104"><tspan class="pk">FK</tspan>　产品 ID</text>
+            <text class="field" x="18" y="132">名称、用途、版本、状态</text>
+            <text class="field-added" x="18" y="160"><tspan class="pk">FK</tspan>　工艺路线 ID</text>
+            <text class="field-added" x="18" y="188">工艺路线快照</text>
+            <text class="field" x="18" y="216">来源 BOM、变更原因、发布信息</text>
+            <text class="field-muted" x="18" y="246">唯一约束：产品 ID + 版本</text>
+          </g>
+
+          <!-- 快照说明 -->
+          <g transform="translate(1020 286)">
+            <rect class="note-box" width="350" height="144" rx="14" />
+            <text class="note-text" x="18" y="34">BOM 发布后：</text>
+            <text class="field" x="18" y="64">• 投入、产出不可直接修改</text>
+            <text class="field" x="18" y="92">• 工艺路线快照不可漂移</text>
+            <text class="field" x="18" y="120">• 修改必须复制并发布新版本</text>
+          </g>
+
+          <!-- 投入 -->
+          <g transform="translate(50 625)">
+            <rect class="entity" width="410" height="177" rx="14" />
+            <path class="entity-header changed" d="M14 0 H396 A14 14 0 0 1 410 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">BOM 投入</text>
+            <text class="entity-subtitle" x="124" y="30">BOM_ITEM</text>
+            <line class="entity-divider" x1="0" y1="48" x2="410" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID　 <tspan class="pk">FK</tspan>　BOM ID</text>
+            <text class="field" x="18" y="104"><tspan class="pk">FK</tspan>　投入物料 ID</text>
+            <text class="field" x="18" y="132">行号、类型、数量、单位、损耗率</text>
+            <text class="field-added" x="18" y="160">不再指定对应产出物料</text>
+          </g>
+
+          <!-- 生产订单 -->
+          <g transform="translate(475 625)">
+            <rect class="entity" width="240" height="195" rx="14" />
+            <path class="entity-header changed" d="M14 0 H226 A14 14 0 0 1 240 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">生产订单</text>
+            <text class="entity-subtitle" x="120" y="30">ORDER</text>
+            <line class="entity-divider" x1="0" y1="48" x2="240" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID</text>
+            <text class="field" x="18" y="104"><tspan class="pk">FK</tspan>　BOM ID</text>
+            <text class="field" x="18" y="132">BOM 版本</text>
+            <text class="field-added" x="18" y="160">完整 BOM 快照</text>
+            <text class="field" x="18" y="188">计划数量、状态</text>
+          </g>
+
+          <!-- 产出 -->
+          <g transform="translate(730 625)">
+            <rect class="entity" width="360" height="177" rx="14" />
+            <path class="entity-header changed" d="M14 0 H346 A14 14 0 0 1 360 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">BOM 产出</text>
+            <text class="entity-subtitle" x="124" y="30">BOM_OUTPUT</text>
+            <line class="entity-divider" x1="0" y1="48" x2="360" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID</text>
+            <text class="field" x="18" y="104"><tspan class="pk">FK</tspan>　BOM ID、产出物料 ID</text>
+            <text class="field-added" x="18" y="132">行号、产出类型</text>
+            <text class="field" x="18" y="160">数量、单位、是否主产出</text>
+          </g>
+
+          <!-- 工序 -->
+          <g transform="translate(1120 545)">
+            <rect class="entity" width="270" height="177" rx="14" />
+            <path class="entity-header" d="M14 0 H256 A14 14 0 0 1 270 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">工序</text>
+            <text class="entity-subtitle" x="72" y="30">PROCESS_STEP</text>
+            <line class="entity-divider" x1="0" y1="48" x2="270" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID</text>
+            <text class="field" x="18" y="104"><tspan class="pk">FK</tspan>　工艺路线 ID</text>
+            <text class="field" x="18" y="132">顺序、名称、工作中心</text>
+            <text class="field" x="18" y="160">标准工时</text>
+          </g>
+
+          <!-- 实际投入 -->
+          <g transform="translate(95 842)">
+            <rect class="entity" width="320" height="172" rx="14" />
+            <path class="entity-header" d="M14 0 H306 A14 14 0 0 1 320 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">实际投入</text>
+            <text class="entity-subtitle" x="120" y="30">ACTUAL_INPUT</text>
+            <line class="entity-divider" x1="0" y1="48" x2="320" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID</text>
+            <text class="field" x="18" y="104"><tspan class="pk">FK</tspan>　生产订单、物料</text>
+            <text class="field" x="18" y="132">实际数量、单位</text>
+            <text class="field" x="18" y="160">批次号</text>
+          </g>
+
+          <!-- 物料 -->
+          <g transform="translate(475 872)">
+            <rect class="entity" width="240" height="126" rx="14" />
+            <path class="entity-header" d="M14 0 H226 A14 14 0 0 1 240 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">物料</text>
+            <text class="entity-subtitle" x="72" y="30">MATERIAL</text>
+            <line class="entity-divider" x1="0" y1="48" x2="240" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID</text>
+            <text class="field" x="18" y="104">编码、名称、主单位</text>
+          </g>
+
+          <!-- 实际产出 -->
+          <g transform="translate(750 842)">
+            <rect class="entity" width="340" height="172" rx="14" />
+            <path class="entity-header" d="M14 0 H326 A14 14 0 0 1 340 14 V48 H0 V14 A14 14 0 0 1 14 0Z" />
+            <text class="entity-title" x="18" y="30">实际产出</text>
+            <text class="entity-subtitle" x="120" y="30">ACTUAL_OUTPUT</text>
+            <line class="entity-divider" x1="0" y1="48" x2="340" y2="48" />
+            <text class="field" x="18" y="76"><tspan class="pk">PK</tspan>　内部 ID</text>
+            <text class="field" x="18" y="104"><tspan class="pk">FK</tspan>　生产订单、物料</text>
+            <text class="field" x="18" y="132">实际数量、单位、产出类型</text>
+            <text class="field" x="18" y="160">批次号</text>
+          </g>
+        </svg>
+      </div>
+    </section>
+
+    <section class="summary" aria-label="改造要点">
+      <article class="red">
+        <h3>删除错误分配关系</h3>
+        <p>删除“BOM 投入 → 对应产出物料”。投入不再被强行分摊给某个产出。</p>
+      </article>
+      <article class="green">
+        <h3>建立批次共同计算</h3>
+        <p>一个 BOM 的全部投入和全部产出使用同一个批次倍率，符合多投入、多产出的实际生产关系。</p>
+      </article>
+      <article class="blue">
+        <h3>冻结版本与工艺</h3>
+        <p>BOM 发布时冻结工艺路线；生产订单创建时再冻结完整 BOM 快照，历史订单不随新版本漂移。</p>
+      </article>
+    </section>
+
+    <div class="formula">
+      统一计算规则：<code>批次倍率 = 计划主产出数量 ÷ BOM 基准主产出数量</code>；所有投入和所有产出均乘以同一个批次倍率。
+    </div>
+
+    <footer>
+      当前结构依据 MES-lite origin/main 的 Prisma Schema；改造后结构为目标方案，尚不代表数据库迁移已经完成。
+    </footer>
+  </main>
+</body>
+</html>
