@@ -12,6 +12,10 @@ import {
   type DailyProductionMaterialOption,
   type DailyProductionReportSummary,
 } from '../client/daily-production-shortcut-api'
+import {
+  dailyProductionBomCandidates,
+  dailyProductionInputMaterials,
+} from '../model/daily-production-bom-selection'
 
 const numberText = (value: number) => Number(value || 0).toFixed(6).replace(/\.?0+$/, '')
 
@@ -26,7 +30,7 @@ export default function DailyProductionBomEntry({ canUpdate, onMessage }: { canU
   const [reports, setReports] = useState<DailyProductionReportSummary[]>([])
   const [locations, setLocations] = useState<InventoryLocationOption[]>([])
   const [reportDate, setReportDate] = useState(todayInShanghai)
-  const [materialId, setMaterialId] = useState('')
+  const [inputMaterialId, setInputMaterialId] = useState('')
   const [bomId, setBomId] = useState('')
   const [outputQty, setOutputQty] = useState(0)
   const [consumptionLocationId, setConsumptionLocationId] = useState('')
@@ -62,8 +66,14 @@ export default function DailyProductionBomEntry({ canUpdate, onMessage }: { canU
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const selectedMaterial = materials.find((material) => material.id === materialId)
-  const selectedBom = selectedMaterial?.boms.find((bom) => bom.id === bomId)
+  const inputMaterials = useMemo(() => dailyProductionInputMaterials(materials), [materials])
+  const bomCandidates = useMemo(
+    () => dailyProductionBomCandidates(materials, inputMaterialId),
+    [inputMaterialId, materials],
+  )
+  const selectedCandidate = bomCandidates.find((candidate) => candidate.bom.id === bomId)
+  const selectedMaterial = selectedCandidate?.outputMaterial
+  const selectedBom = selectedCandidate?.bom
   const inputPreview = useMemo(() => (selectedBom?.items || []).flatMap((item) => {
     if (!item.material) return []
     const quantityPerUnit = Number(item.quantity) / Number(selectedBom?.outputQuantity || 1)
@@ -79,17 +89,16 @@ export default function DailyProductionBomEntry({ canUpdate, onMessage }: { canU
     return [{ ...item, quantityPerUnit, ...calculated }]
   }), [actualInputByMaterial, outputQty, selectedBom])
 
-  function selectMaterial(nextMaterialId: string) {
-    const material = materials.find((item) => item.id === nextMaterialId)
-    const defaultBom = material?.boms.find((item) => item.isDefault) || material?.boms[0]
-    setMaterialId(nextMaterialId)
-    setBomId(defaultBom?.id || '')
+  function selectInputMaterial(nextInputMaterialId: string) {
+    const candidates = dailyProductionBomCandidates(materials, nextInputMaterialId)
+    setInputMaterialId(nextInputMaterialId)
+    setBomId(candidates.length === 1 ? candidates[0].bom.id : '')
     setActualInputByMaterial({})
   }
 
   async function submit() {
     if (!canUpdate) return onMessage('当前账号没有库存过账权限')
-    if (!selectedMaterial || !selectedBom) return onMessage('请选择带有正式 BOM 的主产出物料')
+    if (!selectedMaterial || !selectedBom) return onMessage('请先选择投入物料，再选择正式 BOM')
     if (outputQty <= 0) return onMessage('主产出数量必须大于 0')
     if (!consumptionLocationId || !outputLocationId) return onMessage('请选择投入来源库位和产出入库库位')
     if (inputPreview.length === 0 || inputPreview.some((line) => line.actualQty <= 0)) return onMessage('正式 BOM 缺少可计算的投入明细')
@@ -131,7 +140,7 @@ export default function DailyProductionBomEntry({ canUpdate, onMessage }: { canU
     <div className="space-y-4">
       <section className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950">
         <h2 className="text-base font-semibold">BOM 快捷生产过账</h2>
-        <p className="mt-1 leading-6">绕过生产订单、派工和报工，按已发布 BOM 将投入物料转换为产出物料；产出可直接进入可用库存，也可先进入待检并生成后续质量任务。</p>
+        <p className="mt-1 leading-6">先按任一实际投入物料反查已发布 BOM，再由所选 BOM 确定主产出并展开完整投入；产出可直接进入可用库存，也可先进入待检并生成后续质量任务。该快捷流程绕过生产订单、派工和报工。</p>
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -139,8 +148,8 @@ export default function DailyProductionBomEntry({ canUpdate, onMessage }: { canU
           <label className="text-sm font-medium text-gray-700">生产日期
             <input type="date" value={reportDate} onChange={(event) => setReportDate(event.target.value)} className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2" />
           </label>
-          <div><label className="mb-2 block text-sm font-medium text-gray-700">主产出物料</label><SearchableSelect value={materialId} onChange={selectMaterial} options={materials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}${item.spec ? ` · ${item.spec}` : ''}` }))} placeholder="输入物料编码、名称或规格" /></div>
-          <div><label className="mb-2 block text-sm font-medium text-gray-700">正式 BOM</label><SearchableSelect value={bomId} onChange={(value) => { setBomId(value); setActualInputByMaterial({}) }} options={(selectedMaterial?.boms || []).map((item) => ({ value: item.id, label: `${item.name} · ${item.version}${item.isDefault ? ' · 默认' : ''}` }))} placeholder="选择已发布 BOM" disabled={!selectedMaterial} /></div>
+          <div><label className="mb-2 block text-sm font-medium text-gray-700">投入物料</label><SearchableSelect value={inputMaterialId} onChange={selectInputMaterial} options={inputMaterials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}${item.spec ? ` · ${item.spec}` : ''}`, keywords: item.spec || '' }))} placeholder="输入实际投入的物料编码、名称或规格" emptyText="没有投入该物料的正式 BOM" allowClear /></div>
+          <div><label className="mb-2 block text-sm font-medium text-gray-700">正式 BOM／主产出</label><SearchableSelect value={bomId} onChange={(value) => { setBomId(value); setActualInputByMaterial({}) }} options={bomCandidates.map(({ bom, outputMaterial }) => ({ value: bom.id, label: `${outputMaterial.code} · ${outputMaterial.name} ← ${bom.name} · ${bom.version}${bom.isDefault ? ' · 默认' : ''}`, keywords: `${outputMaterial.name} ${outputMaterial.spec || ''} ${bom.name} ${bom.version}` }))} placeholder={inputMaterialId ? '选择包含该投入物料的已发布 BOM' : '请先选择投入物料'} emptyText="没有包含该投入物料的正式 BOM" disabled={!inputMaterialId} /></div>
           <label className="text-sm font-medium text-gray-700">主产出实际数量
             <span className="mt-2 flex overflow-hidden rounded-lg border border-gray-200"><input type="number" min={0} step="any" value={outputQty || ''} onChange={(event) => setOutputQty(Math.max(0, Number(event.target.value)))} className="min-w-0 flex-1 px-3 py-2" /><span className="flex items-center bg-gray-50 px-3 text-xs text-gray-600">{selectedMaterial?.stockUnit || selectedMaterial?.unit || '单位'}</span></span>
           </label>
@@ -158,7 +167,7 @@ export default function DailyProductionBomEntry({ canUpdate, onMessage }: { canU
 
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3"><div><h3 className="font-semibold text-gray-900">BOM 投入／产出预览</h3><p className="mt-0.5 text-xs text-gray-500">实际投入可按当天实耗修正；产出以主产出实际数量为准</p></div><AppButton variant="primary" onClick={() => void submit()} disabled={saving || !selectedBom || outputQty <= 0 || !canUpdate}>{saving ? '正在原子过账...' : '确认投入并产出'}</AppButton></div>
-        <div className="border-b border-gray-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"><span className="font-medium">产出：</span>{selectedMaterial ? `${selectedMaterial.code} · ${selectedMaterial.name} · ${numberText(outputQty)} ${selectedMaterial.stockUnit || selectedMaterial.unit}` : '请选择主产出物料'}</div>
+        <div className="border-b border-gray-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"><span className="font-medium">产出：</span>{selectedMaterial ? `${selectedMaterial.code} · ${selectedMaterial.name} · ${numberText(outputQty)} ${selectedMaterial.stockUnit || selectedMaterial.unit}` : '请选择投入物料和正式 BOM'}</div>
         {inputPreview.length === 0 ? <div className="px-4 py-10 text-center text-sm text-gray-500">选择正式 BOM 并填写产出数量后，系统自动展开投入。</div> : <div className="divide-y divide-gray-100">{inputPreview.map((line) => line.material && <div key={line.id} className="grid grid-cols-1 gap-3 px-4 py-3 md:grid-cols-[minmax(16rem,1fr)_12rem_12rem] md:items-center"><div><div className="font-medium text-gray-900">{line.material.code} · {line.material.name}</div><div className="mt-1 text-xs text-gray-500">BOM 比例 {numberText(line.quantityPerUnit)} {line.material.stockUnit || line.material.unit} / {selectedMaterial?.stockUnit || selectedMaterial?.unit}</div></div><div className="text-sm text-gray-600">理论投入 <span className="font-medium text-gray-900">{numberText(line.plannedQty)}</span> {line.material.stockUnit || line.material.unit}</div><label className="text-xs text-gray-600">实际投入<input type="number" min={0} step="any" value={actualInputByMaterial[line.material.id] ?? ''} placeholder={numberText(line.plannedQty)} onChange={(event) => setActualInputByMaterial((current) => ({ ...current, [line.material!.id]: event.target.value === '' ? null : Math.max(0, Number(event.target.value)) }))} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" /></label></div>)}</div>}
       </section>
 
