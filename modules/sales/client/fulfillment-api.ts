@@ -88,6 +88,7 @@ export async function loadShipmentCreateOptions() {
 export async function createShipment(input: ShipmentForm) {
   const payload = await request<ShipmentCreated>('/api/shipments', jsonPost({
     ...input,
+    items: input.items.map(({ clientKey: _clientKey, ...item }) => item),
     trackingNo: input.trackingNo || undefined,
     shippedBy: input.shippedBy || undefined,
     note: input.note || undefined,

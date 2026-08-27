@@ -1,8 +1,8 @@
 {
-  "version": "0.1.440",
+  "version": "0.1.441",
   "impact": "updated",
   "workflowIds": [
     "184-daily-production-shortcut"
   ],
-  "summary": "生产日报按计划产出、BOM 和计划主产出数量同比例预填实际明细，并在同页提供不可覆盖流水与有原因受控冲销。"
+  "summary": "生产日报将 BOM 数量直接填入可编辑的实际投入和产出行，逐行显示权限范围库存；发货提交剥离前端临时键并返回明确参数错误。"
 }

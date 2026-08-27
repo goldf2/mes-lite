@@ -134,7 +134,7 @@ export interface ShipmentForm {
 }
 
 export interface ShipmentFormItem {
-  id: string
+  clientKey: string
   materialId: string
   unitPrice: number
   locationId: string

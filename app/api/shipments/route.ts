@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json({ data: shipment }, { status: 201 })
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
+    if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors[0]?.message || '参数错误', details: error.errors }, { status: 400 })
     if (error instanceof SalesDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Create shipment error:', error)

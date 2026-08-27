@@ -43,10 +43,13 @@ async function main() {
     assert.doesNotMatch(page, /\bfetch\(/, '生产日报页面必须通过领域 client 调用接口')
     assert.match(page, /快捷生产 \/ 转换过账/, '页面必须明确快捷生产与转换语义')
     assert.match(page, /BOM 是可选预设/, '页面必须明确 BOM 不是实际过账的强制约束')
-    assert.match(page, /多个实际产出/, '页面必须支持多产出')
+    assert.match(page, /Object\.keys\(outputs\)/, '页面必须以多行集合维护实际产出')
+    assert.match(page, /添加主产品、副产品、回收料或其它产出/, '页面必须允许追加多个实际产出')
     assert.match(page, /计划产出/, '生产日报必须默认提供计划产出选择')
-    assert.match(page, /计划主产出数量/, '选择 BOM 后必须先填写计划主产出数量')
-    assert.match(page, /BOM 将按该数量同比例预填/, '页面必须说明计划数量用于预填实际投入和全部产出')
+    assert.doesNotMatch(page, /计划主产出数量/, '生产日报不得在实际产出之外重复提供主产出数量输入框')
+    assert.match(page, /修改主产出会同比例重算/, '主产出原位修改必须继续驱动 BOM 比例展开')
+    assert.match(page, /来源库位可用/, '实际投入必须显示来源库位可用库存')
+    assert.match(page, /目标库位入库前可用/, '实际产出必须显示目标库位入库前库存')
     assert.match(page, /已有投入物料/, '生产日报必须保留投入物料辅助选择')
     assert.match(page, /dailyProductionBomCandidates/, '生产日报必须按产出、投入或两者交集反查正式 BOM')
     assert.match(page, /生产日报流水/, '快捷生产页面必须展示不可覆盖的日报流水')
@@ -62,6 +65,7 @@ async function main() {
     assert.doesNotMatch(route, /prisma\./, 'HTTP 适配层不得直接访问数据库')
     assert.match(service, /prisma\.\$transaction/, '日报创建、投入扣减和产出入库必须位于同一事务')
     assert.match(service, /confirmLegacyDailyProductionReportInTransaction/, '快捷服务必须复用既有 BOM 库存过账规则')
+    assert.match(service, /stockDataScopeWhere\(scope\)/, '生产日报库存参考必须遵守账号库存数据范围')
 
     const [inputLocation, outputLocation] = await Promise.all([
       prisma.inventoryLocation.create({ data: { code: 'RAW', name: '原料库' } }),
@@ -97,6 +101,7 @@ async function main() {
       name: finished.name,
       stockUnit: finished.stockUnit,
       unit: finished.unit,
+      inventory: { availableQty: 0, restricted: false, locationBalances: [] },
       boms: [{
         id: bom.id,
         name: bom.name,
@@ -166,6 +171,23 @@ async function main() {
       note: '验证原料入库',
       locationId: inputLocation.id,
     }))
+    const unrestrictedInventoryWorkspace = await listDailyProductionShortcutWorkspace(unrestrictedDataScope)
+    const unrestrictedRawInventory = unrestrictedInventoryWorkspace.materials.find((material) => material.id === raw.id)?.inventory
+    assert.equal(unrestrictedRawInventory?.availableQty, 20, '生产日报必须返回物料总可用库存作为录入参考')
+    assert.deepEqual(
+      unrestrictedRawInventory?.locationBalances.map((balance) => [balance.locationId, balance.availableQty]),
+      [[inputLocation.id, 20]],
+      '生产日报必须返回逐库位可用库存',
+    )
+    const hiddenInventoryWorkspace = await listDailyProductionShortcutWorkspace({
+      ...unrestrictedDataScope, inventoryMode: 'LOCATIONS', locationIds: [outputLocation.id],
+    })
+    const hiddenRawInventory = hiddenInventoryWorkspace.materials.find((material) => material.id === raw.id)?.inventory
+    assert.deepEqual(
+      [hiddenRawInventory?.availableQty, hiddenRawInventory?.locationBalances.length, hiddenRawInventory?.restricted],
+      [0, 0, true],
+      '库存参考不得泄露账号无权查看的库位余额',
+    )
 
     const commonInput = {
       reportDate: '2026-08-22',

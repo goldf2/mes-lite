@@ -40,6 +40,11 @@ export interface DailyProductionMaterialOption {
   spec?: string | null
   stockUnit: string
   unit: string
+  inventory: {
+    availableQty: number
+    restricted: boolean
+    locationBalances: Array<{ locationId: string; qty: number; availableQty: number }>
+  }
   boms: DailyProductionBomOption[]
 }
 

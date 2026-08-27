@@ -26,6 +26,26 @@ type InputDraft = { locationId: string; lossMode: ProductionLossMode; lossValue:
 type OutputDraft = { locationId: string; actualQty?: number; isPrimary: boolean }
 
 const numberText = (value: number) => Number(value || 0).toFixed(6).replace(/\.?0+$/, '')
+function InventoryReference({
+  material,
+  locationId,
+  requestedQty,
+  direction,
+}: {
+  material?: DailyProductionMaterialOption
+  locationId: string
+  requestedQty?: number
+  direction: 'INPUT' | 'OUTPUT'
+}) {
+  if (!material) return null
+  const locationAvailable = Number(material.inventory.locationBalances.find((item) => item.locationId === locationId)?.availableQty || 0)
+  const totalAvailable = Number(material.inventory.availableQty || 0)
+  const insufficient = direction === 'INPUT' && Number(requestedQty || 0) > locationAvailable + 0.000001
+  const unit = material.stockUnit || material.unit
+  return <div className={`mt-2 rounded-md px-2.5 py-1.5 text-xs ${insufficient ? 'bg-amber-50 text-amber-800' : 'bg-slate-50 text-slate-600'}`}>
+    库存参考：{direction === 'INPUT' ? '来源库位可用' : '目标库位入库前可用'} {numberText(locationAvailable)} {unit}；{material.inventory.restricted ? '权限范围总可用' : '总可用'} {numberText(totalAvailable)} {unit}
+  </div>
+}
 const dateTimeText = (value?: string | null) => value
   ? new Date(value).toLocaleString('zh-CN', { hour12: false })
   : '—'
@@ -222,27 +242,14 @@ export default function DailyProductionBomEntry({
   return <div className="space-y-4">
     <section className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950">
       <h2 className="text-base font-semibold">快捷生产 / 转换过账</h2>
-      <p className="mt-1 leading-6">BOM 是可选预设。先选择计划产出，再选择合适的 BOM 和计划主产出数量；系统按比例预填下方多个实际产出和全部投入，操作员审核并修正现场实际数量后再确认过账。</p>
+      <p className="mt-1 leading-6">BOM 是可选预设。先选择计划产出和合适的 BOM；系统把预设数量直接填入下方实际投入与实际产出，操作员可在原位置审核、修正后确认过账。</p>
     </section>
 
     <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <label className="text-sm font-medium text-gray-700">生产日期<input type="date" value={reportDate} onChange={(event) => setReportDate(event.target.value)} className={`${appInputClassName} mt-2`} /></label>
         <div><label className="mb-2 block text-sm font-medium text-gray-700">按计划产出筛选 BOM（推荐）</label><SearchableSelect value={outputMaterialId} onChange={setOutputMaterialId} options={outputMaterials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}${item.spec ? ` · ${item.spec}` : ''}` }))} placeholder="选择准备生产的主产品、副产品或其它产出" allowClear /></div>
         <div><label className="mb-2 block text-sm font-medium text-gray-700">选择生产方案（BOM）</label><SearchableSelect value={bomId} onChange={applyBom} options={bomCandidates.map(({ bom, outputMaterial, matchedOutputMaterial }) => ({ value: bom.id, label: `${matchedOutputMaterial.code} · ${matchedOutputMaterial.name}${matchedOutputMaterial.id === outputMaterial.id ? '' : `（主产出 ${outputMaterial.code}）`} ← ${bom.name} · ${bom.version}${bom.isDefault ? ' · 默认' : ''}` }))} placeholder={outputMaterialId && inputMaterialId ? '选择同时匹配产出与投入的已发布 BOM' : outputMaterialId ? '选择能够形成该产出的已发布 BOM' : inputMaterialId ? '选择包含该投入的已发布 BOM' : '选择已发布 BOM，或保持无 BOM'} emptyText={outputMaterialId && inputMaterialId ? '没有同时满足当前条件的已发布 BOM' : outputMaterialId ? '没有能形成该产出的已发布 BOM' : inputMaterialId ? '没有包含该投入的已发布 BOM' : '暂无已发布 BOM'} allowClear /></div>
-        <label className="text-sm font-medium text-gray-700">计划主产出数量
-          <input
-            type="number"
-            min="0.000001"
-            step="0.000001"
-            value={selectedBom && plannedOutputQty > 0 ? plannedOutputQty : ''}
-            onChange={(event) => setPlannedOutputQty(Number(event.target.value))}
-            disabled={!selectedBom}
-            className={`${appInputClassName} mt-2 disabled:bg-gray-100`}
-            placeholder={selectedBom ? `输入计划数量（${presetPrimary?.unit || selectedBom.outputUnit}）` : '请先选择 BOM'}
-          />
-          <span className="mt-1 block text-xs font-normal text-gray-500">BOM 将按该数量同比例预填实际投入和全部产出。</span>
-        </label>
       </div>
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         <div><label className="mb-2 block text-sm font-medium text-gray-700">按已有投入物料辅助筛选（可选）</label><SearchableSelect value={inputMaterialId} onChange={setInputMaterialId} options={inputMaterials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}${item.spec ? ` · ${item.spec}` : ''}` }))} placeholder="选择现场已有或准备投入的物料" allowClear /></div>
@@ -252,7 +259,7 @@ export default function DailyProductionBomEntry({
     </section>
 
     <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3"><div><h3 className="font-semibold text-gray-900">实际投入 / 产出</h3><p className="mt-0.5 text-xs text-gray-500">系统按计划数量预填；操作员审核、修正后保存本次实际明细</p></div><AppButton variant="primary" onClick={() => void submit()} disabled={saving || !canUpdate || !primaryMaterialId}>{saving ? '正在原子过账...' : '确认实际投入并产出'}</AppButton></div>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3"><div><h3 className="font-semibold text-gray-900">实际投入 / 产出</h3><p className="mt-0.5 text-xs text-gray-500">BOM 数量直接作为可编辑初值；修改主产出会同比例重算尚未手工修正的其它行</p></div><AppButton variant="primary" onClick={() => void submit()} disabled={saving || !canUpdate || !primaryMaterialId}>{saving ? '正在原子过账...' : '确认实际投入并产出'}</AppButton></div>
       <div className="grid xl:grid-cols-2 xl:divide-x">
         <OneToManyRelationField
           title="实际投入"
@@ -260,7 +267,15 @@ export default function DailyProductionBomEntry({
           getKey={(line) => line.materialId}
           emptyText="请添加本次实际消耗的物料"
           selector={<MaterialRelationSearch materials={materials} disabledIds={Object.keys(inputs)} onAdd={(materialId) => setInputs((current) => ({ ...current, [materialId]: { locationId: defaultLocationId, lossMode: 'PERCENT', lossValue: 0 } }))} placeholder="添加投入物料" />}
-          renderIdentity={({ materialId, material, relations, draft, calculated, unit }) => <div><MaterialRelationIdentity material={material} fallbackId={materialId} badge={<span className={`rounded px-1.5 py-0.5 text-[10px] ${relations.length ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>{relations.length ? 'BOM 预设' : '临时添加'}</span>} /><div className="mt-3 grid gap-2 sm:grid-cols-2"><SearchableSelect value={draft.locationId} onChange={(locationId) => setInputs((current) => ({ ...current, [materialId]: { ...current[materialId], locationId } }))} options={locationOptions} placeholder="来源库位" /><input aria-label={`实际投入 ${material?.name || materialId}`} type="number" min="0.000001" step="0.000001" value={draft.actualQty ?? (calculated.plannedQty > 0 ? calculated.plannedQty : '')} onChange={(event) => { const value = event.target.value; setInputs((current) => ({ ...current, [materialId]: { ...current[materialId], actualQty: value === '' ? undefined : Number(value) } })) }} className={appInputClassName} placeholder={calculated.plannedQty > 0 ? `计划 ${numberText(calculated.plannedQty)} ${unit}` : `实际数量 ${unit}`} /></div><div className="mt-2 text-xs text-gray-500">{relations.length ? `BOM 计划 ${numberText(calculated.plannedQty)} ${unit}；可按实耗覆盖，清空后恢复计划值` : '无 BOM 计划数，按实际数量领用'}</div></div>}
+          renderIdentity={({ materialId, material, relations, draft, calculated, unit }) => <div>
+            <MaterialRelationIdentity material={material} fallbackId={materialId} badge={<span className={`rounded px-1.5 py-0.5 text-[10px] ${relations.length ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>{relations.length ? 'BOM 预设' : '临时添加'}</span>} />
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <SearchableSelect value={draft.locationId} onChange={(locationId) => setInputs((current) => ({ ...current, [materialId]: { ...current[materialId], locationId } }))} options={locationOptions} placeholder="来源库位" />
+              <input aria-label={`实际投入 ${material?.name || materialId}`} type="number" min="0.000001" step="0.000001" value={draft.actualQty ?? (calculated.plannedQty > 0 ? calculated.plannedQty : '')} onChange={(event) => { const value = event.target.value; setInputs((current) => ({ ...current, [materialId]: { ...current[materialId], actualQty: value === '' ? undefined : Number(value) } })) }} className={appInputClassName} placeholder={calculated.plannedQty > 0 ? `计划 ${numberText(calculated.plannedQty)} ${unit}` : `实际数量 ${unit}`} />
+            </div>
+            <InventoryReference material={material} locationId={draft.locationId} requestedQty={calculated.actualQty} direction="INPUT" />
+            <div className="mt-2 text-xs text-gray-500">{relations.length ? `BOM 初值 ${numberText(calculated.plannedQty)} ${unit}；当前输入框即本次实际耗用，清空后恢复 BOM 初值` : '无 BOM 初值，当前输入框即本次实际耗用'}</div>
+          </div>}
           onRemove={(line) => setInputs((current) => { const next = { ...current }; delete next[line.materialId]; return next })}
         />
         <OneToManyRelationField
@@ -274,7 +289,40 @@ export default function DailyProductionBomEntry({
             const preset = selectedBom?.outputs.find((output) => output.materialId === materialId)
             const unit = preset?.unit || material?.stockUnit || material?.unit || ''
             const plannedQty = plannedOutputQuantity(materialId)
-            return <div><MaterialRelationIdentity material={material} fallbackId={materialId} badge={<span className={`rounded px-1.5 py-0.5 text-[10px] ${draft.isPrimary ? 'bg-emerald-50 text-emerald-700' : preset ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>{draft.isPrimary ? '主产出' : preset ? 'BOM 预设' : '临时添加'}</span>} /><div className="mt-3 grid gap-2 sm:grid-cols-2"><SearchableSelect value={draft.locationId} onChange={(locationId) => setOutputs((current) => ({ ...current, [materialId]: { ...current[materialId], locationId } }))} options={locationOptions} placeholder="入库库位" /><input aria-label={`实际产出 ${material?.name || materialId}`} type="number" min="0.000001" step="0.000001" value={draft.actualQty ?? (plannedQty > 0 ? plannedQty : '')} onChange={(event) => { const value = event.target.value; setOutputs((current) => ({ ...current, [materialId]: { ...current[materialId], actualQty: value === '' ? undefined : Number(value) } })) }} className={appInputClassName} placeholder={`实际数量 ${unit}`} /></div>{!draft.isPrimary && !selectedBom && <button type="button" onClick={() => setOutputs((current) => Object.fromEntries(Object.entries(current).map(([id, item]) => [id, { ...item, isPrimary: id === materialId }]))) } className="mt-2 text-xs font-medium text-blue-600">设为主产出</button>}<div className="mt-2 text-xs text-gray-500">{preset ? `BOM 比例计划 ${numberText(plannedQty)} ${unit}；可按实产覆盖，清空后恢复计划值` : '无 BOM 计划数，作为本次实际产出'}</div></div>
+            const displayedQty = draft.isPrimary && selectedBom
+              ? (plannedQty > 0 ? plannedQty : '')
+              : (draft.actualQty ?? (plannedQty > 0 ? plannedQty : ''))
+            return <div>
+              <MaterialRelationIdentity material={material} fallbackId={materialId} badge={<span className={`rounded px-1.5 py-0.5 text-[10px] ${draft.isPrimary ? 'bg-emerald-50 text-emerald-700' : preset ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>{draft.isPrimary ? '主产出' : preset ? 'BOM 预设' : '临时添加'}</span>} />
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <SearchableSelect value={draft.locationId} onChange={(locationId) => setOutputs((current) => ({ ...current, [materialId]: { ...current[materialId], locationId } }))} options={locationOptions} placeholder="入库库位" />
+                <input
+                  aria-label={`实际产出 ${material?.name || materialId}`}
+                  type="number"
+                  min="0.000001"
+                  step="0.000001"
+                  value={displayedQty}
+                  onChange={(event) => {
+                    const value = event.target.value
+                    if (draft.isPrimary && selectedBom) {
+                      setPlannedOutputQty(value === '' ? 0 : Number(value))
+                      setOutputs((current) => ({ ...current, [materialId]: { ...current[materialId], actualQty: undefined } }))
+                      return
+                    }
+                    setOutputs((current) => ({ ...current, [materialId]: { ...current[materialId], actualQty: value === '' ? undefined : Number(value) } }))
+                  }}
+                  className={appInputClassName}
+                  placeholder={`实际数量 ${unit}`}
+                />
+              </div>
+              <InventoryReference material={material} locationId={draft.locationId} direction="OUTPUT" />
+              {!draft.isPrimary && !selectedBom && <button type="button" onClick={() => setOutputs((current) => Object.fromEntries(Object.entries(current).map(([id, item]) => [id, { ...item, isPrimary: id === materialId }]))) } className="mt-2 text-xs font-medium text-blue-600">设为主产出</button>}
+              <div className="mt-2 text-xs text-gray-500">{preset
+                ? draft.isPrimary
+                  ? `BOM 基准 ${numberText(primaryBasis)} ${unit}；直接修改当前主产出数量会同比例重算尚未手工修正的投入和其它产出`
+                  : `BOM 初值 ${numberText(plannedQty)} ${unit}；当前输入框即本次实际产出，清空后恢复比例初值`
+                : '无 BOM 初值，当前输入框即本次实际产出'}</div>
+            </div>
           }}
           onRemove={(materialId) => outputs[materialId].isPrimary ? onMessage('请先将另一项设为主产出，再移除当前主产出') : setOutputs((current) => { const next = { ...current }; delete next[materialId]; return next })}
         />

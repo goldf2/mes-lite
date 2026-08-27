@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { createAuditLog, type AuditContext } from '@/lib/audit'
 import { prisma } from '@/lib/prisma'
-import { assertInventoryLocationDataScope, type EffectiveDataScope } from '@/modules/identity-access'
+import { assertInventoryLocationDataScope, stockDataScopeWhere, type EffectiveDataScope } from '@/modules/identity-access'
 import type { DailyProductionShortcutInput } from '../contracts/daily-production-shortcut-schema'
 import { LegacyDailyProductionError } from '../domain/legacy-daily-production-errors'
 import {
@@ -154,14 +154,29 @@ export async function listDailyProductionShortcutWorkspace(scope: EffectiveDataS
         && report.consumptions.every((line) => scope.locationIds.includes(line.locationId))
       ))
   const outputIds = reports.flatMap((report) => report.outputs.map((output) => output.id))
-  const inspections = reports.length === 0 ? [] : await prisma.qualityInspection.findMany({
-    where: {
-      sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT',
-      sourceId: { in: [...reports.map((report) => report.id), ...outputIds] },
-    },
-    select: { id: true, sourceId: true, inspectionNo: true, status: true, result: true },
-  })
+  const materialIds = workspace.materials.map((material) => material.id)
+  const [inspections, stocks] = await Promise.all([
+    reports.length === 0 ? [] : prisma.qualityInspection.findMany({
+      where: {
+        sourceType: 'PRODUCTION_ORDER_ACTUAL_OUTPUT',
+        sourceId: { in: [...reports.map((report) => report.id), ...outputIds] },
+      },
+      select: { id: true, sourceId: true, inspectionNo: true, status: true, result: true },
+    }),
+    materialIds.length === 0 ? [] : prisma.stock.findMany({
+      where: { AND: [{ materialId: { in: materialIds } }, stockDataScopeWhere(scope)] },
+      select: {
+        materialId: true,
+        availableQty: true,
+        locationBalances: {
+          where: scope.inventoryMode === 'ALL' ? {} : { locationId: { in: scope.locationIds } },
+          select: { locationId: true, qty: true, availableQty: true },
+        },
+      },
+    }),
+  ])
   const inspectionByReport = new Map(inspections.map((inspection) => [inspection.sourceId, inspection]))
+  const stockByMaterial = new Map(stocks.flatMap((stock) => stock.materialId ? [[stock.materialId, stock] as const] : []))
   return {
     reports: reports.map((report) => ({
       ...report,
@@ -169,6 +184,23 @@ export async function listDailyProductionShortcutWorkspace(scope: EffectiveDataS
         || inspectionByReport.get(report.id)
         || null,
     })),
-    materials: workspace.materials,
+    materials: workspace.materials.map((material) => {
+      const stock = stockByMaterial.get(material.id)
+      const locationBalances = stock?.locationBalances.map((balance) => ({
+        locationId: balance.locationId,
+        qty: Number(balance.qty),
+        availableQty: Number(balance.availableQty),
+      })) || []
+      return {
+        ...material,
+        inventory: {
+          availableQty: scope.inventoryMode === 'ALL'
+            ? Number(stock?.availableQty || 0)
+            : locationBalances.reduce((sum, balance) => sum + balance.availableQty, 0),
+          restricted: scope.inventoryMode !== 'ALL',
+          locationBalances,
+        },
+      }
+    }),
   }
 }

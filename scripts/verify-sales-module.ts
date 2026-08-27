@@ -69,6 +69,8 @@ assert.doesNotMatch(shipmentPage, /\bfetch\(/, '发货单页不得直接调用 f
 assert.doesNotMatch(shipmentDialog, /\bfetch\(/, '发货单创建对话框不得直接调用 fetch')
 assert.doesNotMatch(returnPage, /\bfetch\(/, '退货单页不得直接调用 fetch')
 assert.match(fulfillmentClient, /loadShipmentCreateOptions/, '销售履约 client 必须封装发货选项读取')
+assert.match(fulfillmentClient, /items: input\.items\.map\(\(\{ clientKey: _clientKey, \.\.\.item \}\) => item\)/, '发货提交必须剥离仅用于前端编辑的临时键')
+assert.match(shipmentDialog, /clientKey: crypto\.randomUUID\(\)/, '发货明细应使用明确的前端临时键，不能与数据库正式 ID 混淆')
 assert.match(fulfillmentClient, /transitionReturn/, '销售履约 client 必须封装退货状态变更')
 assert.match(registry, /ShipmentPageModule/, '发货页必须通过销售模块公开入口加载')
 assert.match(registry, /ReturnPageModule/, '退货页必须通过销售模块公开入口加载')
