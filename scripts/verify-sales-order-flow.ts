@@ -94,7 +94,7 @@ async function main() {
     const listedShipments = await listShipments({ statuses: [], page: 1, pageSize: 20 })
     assert.equal(listedShipments.data[0].items[0].material.primaryImage?.id, materialImage.id, '发货列表必须提供可选物料图片')
 
-    await deliverManagedShipment(shipment.id)
+    await deliverManagedShipment(shipment.id, '验证签收员')
     const returned = await createManagedReturn({
       shipmentId: shipment.id, shipmentItemId: shipment.items[0].id, locationId: location.id,
       qty: 10, reason: '客户退回验证',

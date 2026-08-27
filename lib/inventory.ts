@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client'
-import { consumeMaterialCost } from './costing'
+import { consumeMaterialCost, type CostLayerConsumptionInput } from './costing'
 import { createInventoryReversalMovement } from './inventory-ledger'
 import { normalizeConversionRate } from './units'
 
@@ -469,6 +469,128 @@ export async function postInventoryIssue(
     layerConsumptions: costResult.layerConsumptions,
     duplicate: false,
   }
+}
+
+export async function reverseInventoryIssue(
+  tx: Prisma.TransactionClient,
+  input: {
+    sourceMovementId: string
+    refType: string
+    refId: string
+    note: string
+    createdBy?: string | null
+    idempotencyKey: string
+    layerConsumptions?: CostLayerConsumptionInput[]
+  },
+) {
+  const existing = await tx.stockLog.findUnique({ where: { idempotencyKey: input.idempotencyKey } })
+  if (existing) return { movement: existing, duplicate: true }
+
+  const source = await tx.stockLog.findUnique({
+    where: { id: input.sourceMovementId },
+    include: { stock: { include: { material: true } }, location: true },
+  })
+  if (!source) throw new Error('原发货库存流水不存在，不能冲销')
+  if (source.reversalMovementId) throw new Error('原发货库存流水已经冲销，不能重复冲销')
+  if (source.refType !== 'SHIPMENT' || source.type !== 'OUT') throw new Error('所选库存流水不是可冲销的发货出库流水')
+  if (!source.locationId || !source.location) throw new Error('原发货库存流水缺少库位，不能冲销')
+  if (!source.stock.materialId || !source.stock.material) throw new Error('原发货库存流水缺少物料，不能冲销')
+
+  const stockQty = Math.abs(Number(source.qty))
+  const valuationQty = Math.abs(Number(source.valuationQty || 0))
+  const costAmount = Math.abs(Number(source.costAmount || 0))
+  const stock = source.stock
+  const material = source.stock.material
+  const materialId = source.stock.materialId
+  const beforeQty = Number(stock.qty)
+  const beforeValuationQty = Number(stock.valuationQty)
+  const beforeCostAmount = Number(stock.totalCost)
+  const afterQty = roundQty(beforeQty + stockQty)
+  const afterValuationQty = roundQty(beforeValuationQty + valuationQty)
+  const afterCostAmount = roundQty(beforeCostAmount + costAmount)
+
+  await changeStockLocationBalance(tx, {
+    stockId: stock.id,
+    locationId: source.locationId,
+    qtyDelta: stockQty,
+  })
+  await tx.stock.update({
+    where: { id: stock.id },
+    data: {
+      qty: afterQty,
+      availableQty: roundQty(Number(stock.availableQty) + stockQty),
+      valuationQty: afterValuationQty,
+      availableValuationQty: roundQty(Number(stock.availableValuationQty) + valuationQty),
+      totalCost: afterCostAmount,
+      valuationUnitCost: afterValuationQty > 0 ? afterCostAmount / afterValuationQty : 0,
+      stockUnitCost: afterQty > 0 ? afterCostAmount / afterQty : 0,
+    },
+  })
+
+  const consumptions = input.layerConsumptions || []
+  if (source.costingMethodSnapshot === 'FIFO' && consumptions.length > 0) {
+    for (const consumption of consumptions) {
+      const layer = await tx.inventoryCostLayer.findFirst({
+        where: { id: consumption.costLayerId, materialId },
+      })
+      if (!layer) throw new Error('原发货 FIFO 成本层不存在，不能建立可信冲销')
+      await tx.inventoryCostLayer.update({
+        where: { id: layer.id },
+        data: {
+          remainingStockQty: { increment: consumption.stockQty },
+          remainingValuationQty: { increment: consumption.valuationQty },
+          remainingAmount: { increment: consumption.costAmount },
+          status: 'OPEN',
+        },
+      })
+    }
+  } else if (source.costingMethodSnapshot === 'FIFO') {
+    await tx.inventoryCostLayer.create({
+      data: {
+        materialId,
+        sourceType: input.refType,
+        sourceId: input.refId,
+        stockQty,
+        remainingStockQty: stockQty,
+        valuationQty,
+        remainingValuationQty: valuationQty,
+        stockUnit: source.stockUnitSnapshot || material.stockUnit || material.unit,
+        valuationUnit: source.valuationUnitSnapshot || material.valuationUnit || material.unit,
+        valuationUnitCost: valuationQty > 0 ? costAmount / valuationQty : 0,
+        stockUnitCost: stockQty > 0 ? costAmount / stockQty : 0,
+        totalAmount: costAmount,
+        remainingAmount: costAmount,
+        inventoryStatus: 'AVAILABLE',
+      },
+    })
+  }
+
+  const movement = await createInventoryReversalMovement(tx, source.id, {
+    stockId: stock.id,
+    locationId: source.locationId,
+    type: 'SHIPMENT_REVERSE_IN',
+    qty: stockQty,
+    beforeQty,
+    afterQty,
+    valuationQty,
+    beforeValuationQty,
+    afterValuationQty,
+    costAmount,
+    beforeCostAmount,
+    afterCostAmount,
+    stockUnitSnapshot: source.stockUnitSnapshot,
+    valuationUnitSnapshot: source.valuationUnitSnapshot,
+    conversionRateUsed: source.conversionRateUsed,
+    conversionSource: 'ORIGINAL_MOVEMENT',
+    costingMethodSnapshot: source.costingMethodSnapshot,
+    inventoryStatus: 'AVAILABLE',
+    idempotencyKey: input.idempotencyKey,
+    refType: input.refType,
+    refId: input.refId,
+    note: input.note,
+    createdBy: input.createdBy || null,
+  })
+  return { movement, duplicate: false }
 }
 
 export async function postInventoryLocationTransfer(

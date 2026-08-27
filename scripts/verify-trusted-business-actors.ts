@@ -15,6 +15,9 @@ const trustedActorRoutes = [
   'app/api/material-ins/[id]/receive/route.ts',
   'app/api/material-ins/[id]/reverse/route.ts',
   'app/api/shipments/[id]/ship/route.ts',
+  'app/api/shipments/[id]/deliver/route.ts',
+  'app/api/shipments/[id]/cancel/route.ts',
+  'app/api/shipments/[id]/reverse/route.ts',
   'app/api/returns/[id]/process/route.ts',
   'app/api/orders/[id]/pick/route.ts',
   'app/api/orders/[id]/stock-in/route.ts',
@@ -55,5 +58,8 @@ assert.match(receivingStatus, /createdBy: receivedBy/, '来料库存流水必须
 const salesStatus = read('modules/sales/server/fulfillment-status-service.ts')
 assert.match(salesStatus, /shipManagedShipment\(id: string, shippedBy: string(?:,|\))/, '确认发货必须显式接收可信操作人')
 assert.match(salesStatus, /createdBy: shippedBy/, '发货库存流水必须记录可信操作人')
+assert.match(salesStatus, /deliverManagedShipment\(id: string, deliveredBy: string(?:,|\))/, '确认签收必须显式接收可信操作人')
+assert.match(salesStatus, /cancelManagedShipment\(id: string, cancelledBy: string, reason: string(?:,|\))/, '取消发货必须显式接收可信操作人及原因')
+assert.match(salesStatus, /reverseManagedShipment\([\s\S]*?id: string,[\s\S]*?reversedBy: string,[\s\S]*?reason: string/, '发货冲销必须显式接收可信操作人及原因')
 
 console.log('可信操作人验证通过：确认、冲销、收货、发货、退货、兼容过账和成本记录均只使用服务端登录身份。')

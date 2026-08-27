@@ -57,7 +57,7 @@ const shipmentItemsInclude = {
   location: { select: { id: true, code: true, name: true, isDefault: true } },
   returnOrders: { where: { deletedAt: null, status: { in: ['PENDING', 'PROCESSED'] } }, select: { qty: true } },
   lotAllocations: {
-    where: { status: 'ACTIVE' },
+    where: { status: { in: ['ACTIVE', 'REVERSED'] } },
     include: {
       lot: { select: { id: true, lotNo: true, sourceType: true, supplierLotNo: true, status: true } },
       location: { select: { id: true, code: true, name: true } },
@@ -137,7 +137,7 @@ export async function listShipments(input: FulfillmentQuery, scope: EffectiveDat
           select: { qty: true },
         },
         lotAllocations: {
-          where: { status: 'ACTIVE' },
+          where: { status: { in: ['ACTIVE', 'REVERSED'] } },
           include: {
             lot: { select: { id: true, lotNo: true, sourceType: true, supplierLotNo: true, status: true } },
             location: { select: { id: true, code: true, name: true } },
@@ -216,7 +216,7 @@ export async function getShipmentDetail(id: string, scope: EffectiveDataScope = 
         select: { qty: true },
       },
       lotAllocations: {
-        where: { status: 'ACTIVE' },
+        where: { status: { in: ['ACTIVE', 'REVERSED'] } },
         include: {
           lot: { select: { id: true, lotNo: true, sourceType: true, supplierLotNo: true, status: true } },
           location: { select: { id: true, code: true, name: true } },

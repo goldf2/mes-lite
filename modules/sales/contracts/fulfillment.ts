@@ -58,6 +58,14 @@ export interface Shipment {
   lotTraceStatus: string
   shippedAt?: string
   shippedBy?: string
+  deliveredAt?: string
+  deliveredBy?: string
+  cancelledAt?: string
+  cancelledBy?: string
+  cancelReason?: string
+  reversedAt?: string
+  reversedBy?: string
+  reverseReason?: string
   trackingNo?: string
   note?: string
   createdAt: string
@@ -69,6 +77,7 @@ export interface Shipment {
   returnableQty: number
   lotAllocations: Array<{
     id: string
+    status: string
     stockQty: number
     valuationQty: number
     costAmount: number

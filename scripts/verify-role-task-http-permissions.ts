@@ -205,6 +205,7 @@ async function main() {
   assert.equal(await requestStatus(genericEditorCookie, '/api/shipments/not-found/ship'), 403, '发货单通用编辑不得执行库存发出')
   assert.equal(await requestStatus(genericEditorCookie, '/api/shipments/not-found/deliver'), 403, '发货单通用编辑不得确认客户签收')
   assert.equal(await requestStatus(genericEditorCookie, '/api/shipments/not-found/cancel'), 403, '发货单通用编辑不得取消单据')
+  assert.equal(await requestStatus(genericEditorCookie, '/api/shipments/not-found/reverse', { reason: '验证越权' }), 403, '发货单通用编辑不得冲销已发货单')
   assert.equal(await requestStatus(genericEditorCookie, '/api/returns/not-found/process', {}), 403, '退货单通用编辑不得执行退货收货')
   assert.equal(await requestStatus(genericEditorCookie, '/api/returns/not-found/reject'), 403, '退货单通用编辑不得拒绝退货')
   assert.equal(await requestStatus(genericEditorCookie, '/api/flow-transfers/not-found/confirm', {}), 403, '流程转移通用编辑不得移动库存')
@@ -214,6 +215,7 @@ async function main() {
   assert.notEqual(await requestStatus(warehouseCookie, '/api/shipments/not-found/ship'), 403, '普通仓管发货执行必须通过命令门禁')
   assert.equal(await requestStatus(warehouseCookie, '/api/shipments/not-found/deliver'), 403, '普通仓管不得代替销售确认客户签收')
   assert.equal(await requestStatus(warehouseCookie, '/api/shipments/not-found/cancel'), 403, '普通仓管不得取消发货单')
+  assert.equal(await requestStatus(warehouseCookie, '/api/shipments/not-found/reverse', { reason: '验证越权' }), 403, '普通仓管不得冲销已发货单')
   assert.notEqual(await requestStatus(warehouseCookie, '/api/returns/not-found/process', {}), 403, '普通仓管退货收货必须通过命令门禁')
   assert.equal(await requestStatus(warehouseCookie, '/api/returns/not-found/reject'), 403, '普通仓管不得拒绝退货')
   assert.notEqual(await requestStatus(warehouseCookie, '/api/flow-transfers/not-found/confirm', {}), 403, '普通仓管移库确认必须通过命令门禁')
@@ -221,6 +223,7 @@ async function main() {
 
   const warehouseLeadCookie = await login('verify-warehouse-lead')
   assert.notEqual(await requestStatus(warehouseLeadCookie, '/api/shipments/not-found/cancel'), 403, '仓库主管取消发货必须通过命令门禁')
+  assert.notEqual(await requestStatus(warehouseLeadCookie, '/api/shipments/not-found/reverse', { reason: '验证主管冲销' }), 403, '仓库主管发货冲销必须通过命令门禁')
   assert.notEqual(await requestStatus(warehouseLeadCookie, '/api/returns/not-found/reject'), 403, '仓库主管拒绝退货必须通过命令门禁')
   assert.notEqual(await requestStatus(warehouseLeadCookie, '/api/flow-transfers/not-found/reverse', { reason: '验证主管冲销' }), 403, '仓库主管移库冲销必须通过命令门禁')
 
@@ -228,10 +231,12 @@ async function main() {
   assert.equal(await requestStatus(salesCookie, '/api/shipments/not-found/ship'), 403, '销售跟单不得执行库存发出')
   assert.notEqual(await requestStatus(salesCookie, '/api/shipments/not-found/deliver'), 403, '销售跟单确认客户签收必须通过命令门禁')
   assert.notEqual(await requestStatus(salesCookie, '/api/shipments/not-found/cancel'), 403, '销售跟单取消待发货单必须通过命令门禁')
+  assert.equal(await requestStatus(salesCookie, '/api/shipments/not-found/reverse', { reason: '验证越权' }), 403, '销售跟单不得冲销已发货单')
   assert.equal(await requestStatus(salesCookie, '/api/returns/not-found/process', {}), 403, '销售跟单不得执行退货入库')
   assert.notEqual(await requestStatus(salesCookie, '/api/returns/not-found/reject'), 403, '销售跟单拒绝退货必须通过命令门禁')
 
   assert.equal(await requestStatus(warehouseCookie, `/api/shipments/${shipmentToShip.id}/ship`), 200, '普通仓管必须能真实执行库存发出')
+  assert.equal(await requestStatus(warehouseLeadCookie, `/api/shipments/${shipmentToShip.id}/reverse`, { reason: '验证错发冲销' }), 200, '仓库主管必须能有原因冲销已发货单')
   assert.equal(await requestStatus(salesCookie, `/api/shipments/${shipmentToDeliver.id}/deliver`), 200, '销售跟单必须能真实确认客户签收')
   assert.equal(await requestStatus(warehouseLeadCookie, `/api/shipments/${shipmentToCancel.id}/cancel`, { reason: '客户撤销发货' }), 200, '仓库主管必须能有原因取消待发货单')
   assert.equal(await requestStatus(warehouseCookie, `/api/returns/${returnToReceive.id}/process`, {}), 200, '普通仓管必须能真实接收入库退货')
@@ -244,7 +249,8 @@ async function main() {
     prisma.auditLog.findMany({ where: { entityType: 'RETURN', entityId: { in: [returnToReceive.id, returnToReject.id] } }, orderBy: { createdAt: 'asc' } }),
     prisma.auditLog.findMany({ where: { entityType: 'FLOW_TRANSFER', entityId: { in: [transferToConfirm.id, transferToReverse.id] } }, orderBy: { createdAt: 'asc' } }),
   ])
-  assert.deepEqual(new Set(shipmentActions.map((item) => item.action)), new Set(['SHIP', 'DELIVER', 'CANCEL']), '发货三个状态动作必须写入审计')
+  assert.deepEqual(new Set(shipmentActions.map((item) => item.action)), new Set(['SHIP', 'REVERSE', 'DELIVER', 'CANCEL']), '发货、冲销、签收和取消动作必须写入审计')
+  assert.equal(shipmentActions.find((item) => item.action === 'REVERSE')?.note, '验证错发冲销', '发货冲销必须保存原因')
   assert.equal(shipmentActions.find((item) => item.action === 'CANCEL')?.note, '客户撤销发货', '发货取消必须保存原因')
   assert.deepEqual(new Set(returnActions.map((item) => item.action)), new Set(['RECEIVE', 'REJECT']), '退货收货和拒绝必须写入审计')
   assert.equal(returnActions.find((item) => item.action === 'REJECT')?.note, '退货不符合协议', '退货拒绝必须保存原因')

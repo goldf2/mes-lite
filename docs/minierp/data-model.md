@@ -363,10 +363,13 @@ SKU，实际库存单位。
 | tenant_id | 租户 ID |
 | shipment_no | 单号 |
 | customer_id | 客户 ID |
-| status | `PENDING / SHIPPED / DELIVERED / CANCELLED` |
+| status | `PENDING / SHIPPED / DELIVERED / CANCELLED / REVERSED` |
 | total_amount | 全部有效发货明细金额合计 |
 | customer / customer_phone / address | 创建发货单时冻结的甲方快照 |
-| shipped_at | 实际确认发货时间 |
+| shipped_at / shipped_by | 实际确认发货时间和操作人 |
+| delivered_at / delivered_by | 客户签收确认时间和操作人 |
+| cancelled_at / cancelled_by / cancel_reason | 待发货取消的时间、操作人和原因 |
+| reversed_at / reversed_by / reverse_reason | 已发货冲销的时间、操作人和原因 |
 | tracking_no | 承运商运单号；与系统发货二维码编号分离 |
 
 | `ShipmentItem` 字段 | 含义 |
@@ -379,10 +382,11 @@ SKU，实际库存单位。
 | shipped_valuation_qty / shipped_cost_amount | 实际出库核算量和成本快照 |
 | stock_unit_snapshot / valuation_unit_snapshot | 库存和核算单位快照 |
 | conversion_rate_used / conversion_source | 发货时采用的单位换算事实 |
+| cost_layer_snapshot | 本明细确认发货时实际消耗的 FIFO 成本层 JSON 快照，供精确冲销恢复 |
 
 一张 `Shipment` 只对应一个客户，可包含一至多条 `ShipmentItem`。销售订单只表达客户需求，发货单只表达实际发出了什么；两者不保存外键、不互相派生，也不回写状态或已发数量。乙方企业资料存放在 `SystemSetting` 的 `company.*` 键中并用于 PDF。
 
-销售订单、发货与退货的读取、创建、状态流转和归档由 `modules/sales/server` 统一拥有。页面参考量按“客户 + 物料”动态汇总：需求量来自 `CONFIRMED / PARTIAL / COMPLETED` 销售订单明细，待发量来自 `PENDING` 发货明细，已发量来自 `SHIPPED / DELIVERED` 发货明细；未发量与超发量只作参考，允许实际发货超过订单需求。确认发货按明细原子扣减总库存、库位余额、批次和成本；退货处理按原发货明细的核算量和成本比例恢复库存，库存流水幂等键阻止重复过账。
+销售订单、发货与退货的读取、创建、状态流转和归档由 `modules/sales/server` 统一拥有。页面参考量按“客户 + 物料”动态汇总：需求量来自 `CONFIRMED / PARTIAL / COMPLETED` 销售订单明细，待发量来自 `PENDING` 发货明细，已发量来自 `SHIPPED / DELIVERED` 发货明细；未发量与超发量只作参考，允许实际发货超过订单需求。确认发货按明细原子扣减总库存、库位余额、批次和成本并保存成本层快照。待发货取消不碰库存；已发货冲销在同一事务恢复原库存、库位、金额、FIFO 成本层和批次，追加与原流水关联的 `SHIPMENT_REVERSE_IN` 反向流水，并将发货单、发货批次分配和货箱标为 `REVERSED`。已签收或已有退货依赖的发货单禁止直接冲销，实际回流继续走退货单；库存流水幂等键阻止重复过账。
 
 ### package_documents / package_document_items
 
@@ -392,7 +396,7 @@ SKU，实际库存单位。
 | --- | --- |
 | `PackageDocument.packageNo` | 唯一货箱号，格式 `BX-YYYYMMDD-###` |
 | `shipmentId` | 所属发货单；送货单据汇总展示其全部有效货箱 |
-| `status` | `PACKED / SHIPPED / DELIVERED / CANCELLED / ARCHIVED` |
+| `status` | `PACKED / SHIPPED / DELIVERED / CANCELLED / REVERSED / ARCHIVED` |
 | `packedBy / packedAt` | 包装人员和包装时间 |
 | `grossWeight / netWeight / weightUnit` | 毛重、净重和重量单位快照 |
 | `lengthMm / widthMm / heightMm / sealNo` | 外箱尺寸和封签号 |
@@ -928,10 +932,9 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 | `DailyProductionReport.outputQty` | 产出入库数量 | 日报确认时增加到物料总库存和所选产出库位 |
 | `DailyProductionReport.outputLocationId` | 产出入库库位 | 表达产出的实际去向；成品、不良、报废等由可配置库位区分 |
 | `FlowTransfer.sourceLocationId / targetLocationId` | 转移来源/目标库位 | 确认时只在两个库位余额之间等量移动 |
-| `Shipment.locationId` | 发货库位 | 确认发货时同时校验并扣减该库位和总库存 |
-| `Shipment.salesOrderId / salesOrderItemId` | 可选销售来源 | 关联时必须绑定已确认订单明细；独立发货允许为空 |
+| `ShipmentItem.locationId` | 逐项发货库位 | 确认发货时同时校验并扣减各明细库位和总库存 |
 | `Shipment.lotTraceStatus` | 发货批次事实状态 | `PENDING` 待发货；`TRACKED` 真实内部批次；`LEGACY` 迁移前历史发货兼容批次 |
-| `ShipmentLotAllocation` | 发货批次分配 | 保存发货单、内部批次、库位、数量/核算量/成本及累计退回量 |
+| `ShipmentLotAllocation` | 发货批次分配 | 保存发货单、内部批次、库位、数量/核算量/成本及累计退回量；冲销后保留记录并标为 `REVERSED`，同时记录操作人、时间和原因 |
 | `ReturnOrder.locationId` | 退回待检库位 | 退货确认收货时增加该库位和总库存，但先计入 `QUARANTINE` |
 | `InventoryLot.returnOrderId` | 独立退货批次来源 | 一张已收货退货单最多形成一个可质检内部批次 |
 | `ReturnLotAllocation` | 退货来源分配 | 将独立退货批次逐项连接到原 `ShipmentLotAllocation`，保存退回数量、核算量和成本 |

@@ -12,6 +12,7 @@ export default function ShipmentStatusActions({
   canDispatch,
   canDeliver,
   canCancel,
+  canReverse,
   onChanged,
   onMessage,
 }: {
@@ -19,20 +20,21 @@ export default function ShipmentStatusActions({
   canDispatch: boolean
   canDeliver: boolean
   canCancel: boolean
+  canReverse: boolean
   onChanged: () => Promise<void>
   onMessage: (message: string) => void
 }) {
   const [busy, setBusy] = useState(false)
-  const [cancelOpen, setCancelOpen] = useState(false)
-  const [cancelReason, setCancelReason] = useState('')
+  const [reasonAction, setReasonAction] = useState<'cancel' | 'reverse' | null>(null)
+  const [reason, setReason] = useState('')
 
-  const run = async (action: 'ship' | 'deliver' | 'cancel', input?: { reason: string }) => {
+  const run = async (action: 'ship' | 'deliver' | 'cancel' | 'reverse', input?: { reason: string }) => {
     setBusy(true)
     try {
       const data = await transitionShipment(shipment.id, action, input)
       onMessage(data.message || '操作成功')
-      setCancelOpen(false)
-      setCancelReason('')
+      setReasonAction(null)
+      setReason('')
       await onChanged()
     } catch (error) {
       onMessage(error instanceof Error ? error.message : '操作失败')
@@ -50,19 +52,24 @@ export default function ShipmentStatusActions({
         <AppButton size="sm" variant="create" disabled={busy} onClick={() => void run('deliver')}>确认签收</AppButton>
       )}
       {canCancel && shipment.status === 'PENDING' && (
-        <AppButton size="sm" variant="danger" disabled={busy} onClick={() => setCancelOpen(true)}>取消发货</AppButton>
+        <AppButton size="sm" variant="danger" disabled={busy} onClick={() => setReasonAction('cancel')}>取消发货</AppButton>
       )}
-      {cancelOpen && (
+      {canReverse && shipment.status === 'SHIPPED' && (
+        <AppButton size="sm" variant="danger" disabled={busy} onClick={() => setReasonAction('reverse')}>冲销发货</AppButton>
+      )}
+      {reasonAction && (
         <ModalDialog
-          title="取消待发货单"
-          description={`发货单 ${shipment.shipmentNo} 取消后不能再执行库存发出。`}
-          onClose={() => setCancelOpen(false)}
+          title={reasonAction === 'reverse' ? '冲销已发货单' : '取消待发货单'}
+          description={reasonAction === 'reverse'
+            ? `发货单 ${shipment.shipmentNo} 的库存、成本和批次发出将以逆向流水恢复；原记录永久保留。`
+            : `发货单 ${shipment.shipmentNo} 取消后不能再执行库存发出。`}
+          onClose={() => setReasonAction(null)}
           closeDisabled={busy}
-          footer={<ModalActions onCancel={() => setCancelOpen(false)} onConfirm={() => void run('cancel', { reason: cancelReason.trim() })} confirmLabel="确认取消" confirmVariant="danger" disabled={cancelReason.trim().length < 2} busy={busy} />}
+          footer={<ModalActions onCancel={() => setReasonAction(null)} onConfirm={() => void run(reasonAction, { reason: reason.trim() })} confirmLabel={reasonAction === 'reverse' ? '确认冲销' : '确认取消'} confirmVariant="danger" disabled={reason.trim().length < 2} busy={busy} />}
         >
           <label className="block text-sm text-gray-700">
-            取消原因
-            <textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} rows={3} maxLength={200} placeholder="至少填写 2 个字，原因将写入操作记录" className={`mt-1 ${appTextareaClassName}`} />
+            {reasonAction === 'reverse' ? '冲销原因' : '取消原因'}
+            <textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={3} maxLength={200} placeholder="至少填写 2 个字，原因将写入单据和操作记录" className={`mt-1 ${appTextareaClassName}`} />
           </label>
         </ModalDialog>
       )}

@@ -73,7 +73,7 @@ async function main() {
     ] })
 
     await permissions.ensureDefaultPermissions()
-    assert.equal(permissions.permissionResources.length, 62, '权限资源应增加独立 CAD 预览设置资源，形成 62 个')
+    assert.equal(permissions.permissionResources.length, 63, '权限资源应增加独立发货冲销资源，形成 63 个')
 
     const roleMap = await permissions.getRolePermissionMap('OPERATOR')
     assert.deepEqual(roleMap.suppliers, roleMap.system, '旧角色 system 必须继承到供应商资源')
@@ -88,13 +88,13 @@ async function main() {
     assert.deepEqual(roleMap.qualityStandards, roleMap.quality, '旧角色质量查看权限必须继承到检验标准')
     assert.equal(roleMap.materialInReceive.canUpdate, false, '旧角色的来料通用更新不得自动升级为收货命令')
     assert.equal(roleMap.materialInReverse.canUpdate, false, '旧角色的来料通用更新不得自动升级为红冲命令')
-    for (const resource of ['shipmentDispatch', 'shipmentDeliver', 'shipmentCancel', 'returnReceive', 'returnReject', 'flowTransferConfirm', 'flowTransferReverse'] as const) {
+    for (const resource of ['shipmentDispatch', 'shipmentDeliver', 'shipmentCancel', 'shipmentReverse', 'returnReceive', 'returnReject', 'flowTransferConfirm', 'flowTransferReverse'] as const) {
       assert.equal(roleMap[resource].canUpdate, false, `旧角色不得自动获得 ${resource} 命令`)
     }
 
     const groupSettings = await prisma.permissionGroupSetting.findMany({ where: { groupId: customGroup.id } })
     const groupMap = new Map(groupSettings.map((setting) => [setting.resource, setting]))
-    assert.equal(groupSettings.length, 62, '旧自定义组必须补齐全部新资源')
+    assert.equal(groupSettings.length, 63, '旧自定义组必须补齐全部新资源')
     assert.equal(groupMap.get('customers')?.canUpdate, true, '旧自定义组 system.update 必须继承到客户资料')
     assert.equal(groupMap.get('flowTransfers')?.canCreate, true, '旧自定义组 stats.create 必须继承到流程转移')
     assert.equal(groupMap.get('bom')?.canUpdate, true, '旧自定义组 BOM 更新权限必须继承')
@@ -116,7 +116,7 @@ async function main() {
     assert.equal(groupMap.get('qualityStandards')?.canRead, false, '未配置质量资源的旧自定义组不得额外获得检验标准权限')
     assert.equal(groupMap.get('materialInReceive')?.canUpdate, false, '旧自定义组不得由 materialIn.update 自动获得收货命令')
     assert.equal(groupMap.get('materialInReverse')?.canUpdate, false, '旧自定义组不得由 materialIn.update 自动获得红冲命令')
-    for (const resource of ['shipmentDispatch', 'shipmentDeliver', 'shipmentCancel', 'returnReceive', 'returnReject', 'flowTransferConfirm', 'flowTransferReverse']) {
+    for (const resource of ['shipmentDispatch', 'shipmentDeliver', 'shipmentCancel', 'shipmentReverse', 'returnReceive', 'returnReject', 'flowTransferConfirm', 'flowTransferReverse']) {
       assert.equal(groupMap.get(resource)?.canUpdate, false, `旧自定义组不得自动获得 ${resource} 命令`)
     }
 
@@ -152,7 +152,7 @@ async function main() {
     const warehouseMap = new Map(warehouseGroup?.settings.map((setting) => [setting.resource, setting]))
     assert.equal(warehouseMap.get('materialInReceive')?.canUpdate, false, '升级时不得替企业已修改仓库组自动授予收货命令')
     assert.equal(warehouseMap.get('materialInReverse')?.canUpdate, false, '升级时不得替企业已修改仓库组自动授予红冲命令')
-    for (const resource of ['shipmentDispatch', 'shipmentDeliver', 'shipmentCancel', 'returnReceive', 'returnReject', 'flowTransferConfirm', 'flowTransferReverse']) {
+    for (const resource of ['shipmentDispatch', 'shipmentDeliver', 'shipmentCancel', 'shipmentReverse', 'returnReceive', 'returnReject', 'flowTransferConfirm', 'flowTransferReverse']) {
       assert.equal(warehouseMap.get(resource)?.canUpdate, false, `升级时不得替企业已修改仓库组自动授予 ${resource}`)
     }
     const warehouseLeadGroup = await prisma.permissionGroup.findUnique({ where: { code: 'warehouse_lead' }, include: { settings: true } })
@@ -162,6 +162,7 @@ async function main() {
     assert.equal(warehouseLeadMap.get('shipmentDispatch')?.canUpdate, true, '新安装仓库主管组必须能执行发货')
     assert.equal(warehouseLeadMap.get('shipmentDeliver')?.canUpdate, false, '仓库主管不得代替销售确认客户签收')
     assert.equal(warehouseLeadMap.get('shipmentCancel')?.canUpdate, true, '新安装仓库主管组必须能取消待发货单')
+    assert.equal(warehouseLeadMap.get('shipmentReverse')?.canUpdate, true, '新安装仓库主管组必须能执行有原因发货冲销')
     assert.equal(warehouseLeadMap.get('returnReceive')?.canUpdate, true, '新安装仓库主管组必须能接收入库退货')
     assert.equal(warehouseLeadMap.get('returnReject')?.canUpdate, true, '新安装仓库主管组必须能拒绝不符合条件的退货')
     assert.equal(warehouseLeadMap.get('flowTransferConfirm')?.canUpdate, true, '新安装仓库主管组必须能确认移库')
@@ -176,7 +177,7 @@ async function main() {
     assert.match(read('modules/business-documents/domain/business-document-definition.ts'), /'flow-transfer': \{ permissionResource: 'flowTransfers'/, '流程转移打印必须继承流程转移资源')
     assert.match(read('modules/bom/ui/BomDraftEditor.tsx'), /fieldset disabled=\{!editable \|\| !canEditCurrent\}/, 'BOM 只读岗位必须禁用两个编辑字段区')
 
-    console.log('细粒度权限迁移验证通过：62 个资源、来料与物流状态命令、设备/质量/CAD 设置、旧权限安全升级和页面/API 映射均符合契约。')
+    console.log('细粒度权限迁移验证通过：63 个资源、来料与物流状态命令、设备/质量/CAD 设置、旧权限安全升级和页面/API 映射均符合契约。')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

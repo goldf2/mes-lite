@@ -1,10 +1,12 @@
 import { prisma } from '@/lib/prisma'
-import { postInventoryIssue, postInventoryReceipt } from '@/lib/inventory'
+import { postInventoryIssue, postInventoryReceipt, reverseInventoryIssue } from '@/lib/inventory'
+import type { CostLayerConsumptionInput } from '@/lib/costing'
 import {
   allocateReturnToShipmentLots,
   allocateShipmentInventoryLots,
   createHistoricalShipmentLotAllocation,
   createInventoryLotReceipt,
+  reverseShipmentInventoryLots,
 } from '@/modules/inventory'
 import { createReturnQualityInspection } from '@/modules/quality'
 import { runSalesDomainOperation, SalesDomainError } from '../domain/sales-errors'
@@ -89,6 +91,7 @@ export async function shipManagedShipment(id: string, shippedBy: string, scope: 
           valuationUnitSnapshot: issue.material?.valuationUnit,
           conversionRateUsed: issue.conversionRateUsed,
           conversionSource: issue.conversionSource,
+          costLayerSnapshot: issue.layerConsumptions.length > 0 ? JSON.stringify(issue.layerConsumptions) : null,
         },
       })
       shippedValuationQty += Number(issue.valuationQty)
@@ -124,28 +127,92 @@ export async function shipManagedShipment(id: string, shippedBy: string, scope: 
   }))
 }
 
-export async function deliverManagedShipment(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
+export async function deliverManagedShipment(id: string, deliveredBy: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   const before = await prisma.shipment.findUnique({ where: { id }, include: { items: { select: { locationId: true } } } })
   if (!before) throw new SalesDomainError('发货单不存在', 404)
   assertInventoryLocationDataScope(scope, before.items.map((item) => item.locationId))
   if (before.status !== 'SHIPPED') throw new SalesDomainError('只能确认已发货状态的发货单签收')
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.shipment.update({ where: { id }, data: { status: 'DELIVERED' } })
+    const updated = await tx.shipment.update({ where: { id }, data: { status: 'DELIVERED', deliveredAt: new Date(), deliveredBy } })
     await tx.packageDocument.updateMany({ where: { shipmentId: id, deletedAt: null, status: 'SHIPPED' }, data: { status: 'DELIVERED' } })
     return { before, updated }
   })
 }
 
-export async function cancelManagedShipment(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
+export async function cancelManagedShipment(id: string, cancelledBy: string, reason: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   const before = await prisma.shipment.findUnique({ where: { id }, include: { items: { select: { locationId: true } } } })
   if (!before) throw new SalesDomainError('发货单不存在', 404)
   assertInventoryLocationDataScope(scope, before.items.map((item) => item.locationId))
-  if (before.status !== 'PENDING') throw new SalesDomainError('已发货的发货单不可取消，请走退货流程')
+  if (before.status !== 'PENDING') throw new SalesDomainError('只有待发货单可以取消；已发货请冲销，已签收请登记退货')
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.shipment.update({ where: { id }, data: { status: 'CANCELLED' } })
+    const updated = await tx.shipment.update({ where: { id }, data: { status: 'CANCELLED', cancelledAt: new Date(), cancelledBy, cancelReason: reason } })
     await tx.packageDocument.updateMany({ where: { shipmentId: id, deletedAt: null, status: 'PACKED' }, data: { status: 'CANCELLED' } })
     return { before, updated }
   })
+}
+
+export async function reverseManagedShipment(
+  id: string,
+  reversedBy: string,
+  reason: string,
+  scope: EffectiveDataScope = unrestrictedDataScope,
+) {
+  return runSalesDomainOperation(() => prisma.$transaction(async (tx) => {
+    const shipment = await tx.shipment.findUnique({
+      where: { id },
+      include: {
+        items: { include: { material: true, location: true }, orderBy: { sortOrder: 'asc' } },
+        returnOrders: { select: { id: true, returnNo: true, status: true } },
+      },
+    })
+    if (!shipment) throw new SalesDomainError('发货单不存在', 404)
+    assertInventoryLocationDataScope(scope, shipment.items.map((item) => item.locationId))
+    if (shipment.status === 'DELIVERED') throw new SalesDomainError('发货单已经签收，不能冲销发货，请登记客户退货')
+    if (shipment.status !== 'SHIPPED') throw new SalesDomainError('只能冲销已发货、尚未签收的发货单')
+    const activeReturn = shipment.returnOrders.find((item) => item.status === 'PENDING' || item.status === 'PROCESSED')
+    if (activeReturn) throw new SalesDomainError(`发货单已有退货单 ${activeReturn.returnNo}，不能再整单冲销`)
+
+    for (const item of shipment.items) {
+      const sourceMovement = await tx.stockLog.findUnique({
+        where: { idempotencyKey: `SHIPMENT:${shipment.id}:ITEM:${item.id}:SHIP` },
+      })
+      if (!sourceMovement) throw new SalesDomainError(`明细 ${item.material.code} 缺少原发货库存流水，不能冲销`)
+      let layerConsumptions: CostLayerConsumptionInput[] = []
+      if (item.costLayerSnapshot) {
+        try {
+          layerConsumptions = JSON.parse(item.costLayerSnapshot) as CostLayerConsumptionInput[]
+        } catch {
+          throw new SalesDomainError(`明细 ${item.material.code} 的 FIFO 成本快照损坏，不能冲销`)
+        }
+      }
+      const reversal = await reverseInventoryIssue(tx, {
+        sourceMovementId: sourceMovement.id,
+        refType: 'SHIPMENT_REVERSAL',
+        refId: shipment.id,
+        note: `发货单 ${shipment.shipmentNo} 冲销：${reason}`,
+        createdBy: reversedBy,
+        idempotencyKey: `SHIPMENT:${shipment.id}:ITEM:${item.id}:REVERSE`,
+        layerConsumptions,
+      })
+      await reverseShipmentInventoryLots(tx, {
+        shipmentId: shipment.id,
+        shipmentItemId: item.id,
+        stockLogId: reversal.movement.id,
+        reason,
+        reversedBy,
+      })
+    }
+
+    const updated = await tx.shipment.update({
+      where: { id: shipment.id },
+      data: { status: 'REVERSED', lotTraceStatus: 'REVERSED', reversedAt: new Date(), reversedBy, reverseReason: reason },
+    })
+    await tx.packageDocument.updateMany({
+      where: { shipmentId: shipment.id, deletedAt: null, status: 'SHIPPED' },
+      data: { status: 'REVERSED' },
+    })
+    return { before: shipment, updated }
+  }))
 }
 
 export async function processManagedReturn(id: string, processedBy: string, scope: EffectiveDataScope = unrestrictedDataScope) {

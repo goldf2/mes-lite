@@ -65,7 +65,7 @@ export async function archiveShipmentPackage(shipmentId: string, packageId: stri
   await request<never>(`/api/shipments/${shipmentId}/packages/${packageId}`, { method: 'DELETE' })
 }
 
-export function transitionShipment(id: string, action: 'ship' | 'deliver' | 'cancel', input?: { reason: string }) {
+export function transitionShipment(id: string, action: 'ship' | 'deliver' | 'cancel' | 'reverse', input?: { reason: string }) {
   return request<never>(`/api/shipments/${id}/${action}`, {
     method: 'PATCH',
     ...(input ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) } : {}),

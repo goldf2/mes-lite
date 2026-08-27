@@ -146,7 +146,7 @@ async function main() {
     await shipManagedShipment(shipment.id, '发货验证员')
     const shippedPackages = await listShipmentPackages(shipment.id)
     assert.deepEqual(shippedPackages.map((item) => item.status), ['SHIPPED', 'SHIPPED'])
-    await deliverManagedShipment(shipment.id)
+    await deliverManagedShipment(shipment.id, '验证签收员')
     const deliveredPackages = await listShipmentPackages(shipment.id)
     assert.deepEqual(deliveredPackages.map((item) => item.status), ['DELIVERED', 'DELIVERED'])
 

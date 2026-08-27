@@ -19,6 +19,7 @@ export {
   consumeAvailableInventoryLotsForReference,
   allocateReturnToShipmentLots,
   allocateShipmentInventoryLots,
+  reverseShipmentInventoryLots,
   createInventoryLotReceipt,
   createHistoricalShipmentLotAllocation,
   createProductionLotGenealogies,

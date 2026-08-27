@@ -32,6 +32,10 @@ export const shipmentCancelSchema = z.object({
   reason: z.string().trim().min(2, '取消原因至少 2 个字').max(200, '取消原因不能超过 200 个字'),
 })
 
+export const shipmentReverseSchema = z.object({
+  reason: z.string().trim().min(2, '冲销原因至少 2 个字').max(200, '冲销原因不能超过 200 个字'),
+})
+
 export const returnRejectSchema = z.object({
   reason: z.string().trim().min(2, '拒绝原因至少 2 个字').max(200, '拒绝原因不能超过 200 个字'),
 })

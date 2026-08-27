@@ -15,6 +15,7 @@ const packageStatusLabels: Record<string, string> = {
   SHIPPED: '已发货',
   DELIVERED: '已签收',
   CANCELLED: '已取消',
+  REVERSED: '已冲销',
   ARCHIVED: '已归档',
 }
 

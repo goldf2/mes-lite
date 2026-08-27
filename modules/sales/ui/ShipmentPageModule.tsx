@@ -15,6 +15,8 @@ import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/reso
 import { BusinessDocumentDetailDialog, BusinessDocumentPrintLink } from '@/modules/business-documents'
 import { InventoryLotTraceDialog } from '@/modules/inventory'
 import ShipmentCreateDialog from './ShipmentCreateDialog'
+import ShipmentLifecycleSection from './ShipmentLifecycleSection'
+import ShipmentLotTraceSection from './ShipmentLotTraceSection'
 import ShipmentStatusActions from './ShipmentStatusActions'
 import ShipmentPackageSection from './ShipmentPackageSection'
 import { loadShipmentDetail, loadShipments } from '../client/fulfillment-api'
@@ -42,6 +44,7 @@ export default function ShipmentPageModule({
   canDispatch,
   canDeliver,
   canCancel,
+  canReverse,
   canPackage,
   canManagePackageAttachments,
 }: {
@@ -51,6 +54,7 @@ export default function ShipmentPageModule({
   canDispatch: boolean
   canDeliver: boolean
   canCancel: boolean
+  canReverse: boolean
   canPackage: boolean
   canManagePackageAttachments: boolean
 }) {
@@ -230,7 +234,7 @@ export default function ShipmentPageModule({
                   <div className="flex flex-wrap gap-2">
                     <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
                     <BusinessDocumentPrintLink kind="shipment" id={item.id} />
-                    <ShipmentStatusActions shipment={item} canDispatch={canDispatch} canDeliver={canDeliver} canCancel={canCancel} onChanged={fetchShipments} onMessage={onMessage} />
+                    <ShipmentStatusActions shipment={item} canDispatch={canDispatch} canDeliver={canDeliver} canCancel={canCancel} canReverse={canReverse} onChanged={fetchShipments} onMessage={onMessage} />
                     {(item.status === 'SHIPPED' || item.status === 'DELIVERED') && (
                       <a
                         href={`/api/shipments/${item.id}/delivery-note`}
@@ -305,7 +309,7 @@ export default function ShipmentPageModule({
                       <div className="flex flex-wrap gap-2">
                         <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
                         <BusinessDocumentPrintLink kind="shipment" id={item.id} />
-                        <ShipmentStatusActions shipment={item} canDispatch={canDispatch} canDeliver={canDeliver} canCancel={canCancel} onChanged={fetchShipments} onMessage={onMessage} />
+                        <ShipmentStatusActions shipment={item} canDispatch={canDispatch} canDeliver={canDeliver} canCancel={canCancel} canReverse={canReverse} onChanged={fetchShipments} onMessage={onMessage} />
                         {(item.status === 'SHIPPED' || item.status === 'DELIVERED') && (
                           <a
                             href={`/api/shipments/${item.id}/delivery-note`}
@@ -347,6 +351,15 @@ export default function ShipmentPageModule({
             <div><dt className="text-gray-500">发货时间</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.shippedAt ? new Date(detailItem.shippedAt).toLocaleString('zh-CN') : '-'}</dd></div>
             <div><dt className="text-gray-500">收货地址</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.address || '-'}</dd></div>
           </dl>
+          <ShipmentLifecycleSection
+            shipment={detailItem}
+            canDispatch={canDispatch}
+            canDeliver={canDeliver}
+            canCancel={canCancel}
+            canReverse={canReverse}
+            onChanged={refreshDetail}
+            onMessage={onMessage}
+          />
           <section className="mt-5 border-t border-gray-200 pt-4">
             <h3 className="text-sm font-semibold text-gray-900">发货明细</h3>
             <div className="mt-2 overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50 text-left text-xs text-gray-500"><tr><th className="px-3 py-2">序号</th><th className="px-3 py-2">物料</th><th className="px-3 py-2">库位</th><th className="px-3 py-2">数量</th><th className="px-3 py-2">金额</th></tr></thead><tbody className="divide-y divide-gray-100">{detailItem.items.map((row, index) => <tr key={row.id}><td className="px-3 py-2">{index + 1}</td><td className="px-3 py-2"><div className="font-medium">{row.material.code} · {row.material.name}</div><div className="text-xs text-gray-500">{row.material.spec || '-'}</div></td><td className="px-3 py-2">{row.location.code}</td><td className="px-3 py-2">{row.qty} {row.unitSnapshot}</td><td className="px-3 py-2">¥{row.totalAmount.toFixed(2)}</td></tr>)}</tbody></table></div>
@@ -358,28 +371,7 @@ export default function ShipmentPageModule({
             onRefresh={refreshDetail}
             onMessage={onMessage}
           />
-          <section className="mt-5 border-t border-gray-200 pt-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-gray-900">客户发货批次</h3>
-              <span className="text-xs text-gray-500">追溯状态：{detailItem.lotTraceStatus === 'TRACKED' ? '真实内部批次' : detailItem.lotTraceStatus === 'LEGACY' ? '历史兼容批次' : '待发货'}</span>
-            </div>
-            {detailItem.lotAllocations.length === 0 ? (
-              <div className="mt-2 rounded-lg border border-dashed border-gray-200 px-3 py-5 text-center text-xs text-gray-500">待确认发货后生成内部批次分配。</div>
-            ) : (
-              <div className="mt-2 space-y-2">
-                {detailItem.lotAllocations.map((allocation) => (
-                  <div key={allocation.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs">
-                    <div>
-                      <div className="font-mono font-medium text-gray-900">{allocation.lot.lotNo}</div>
-                      <div className="mt-0.5 text-gray-500">发出 {allocation.stockQty} · 已退 {allocation.returnedStockQty} · {allocation.location.code}</div>
-                      {allocation.lot.sourceType === 'LEGACY_SHIPMENT' && <div className="mt-0.5 text-amber-700">历史发货未保存真实批次，本记录仅显式标识兼容来源。</div>}
-                    </div>
-                    <AppButton size="sm" variant="secondary" onClick={() => setTraceLotId(allocation.lot.id)}>查看谱系</AppButton>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
+          <ShipmentLotTraceSection shipment={detailItem} onTraceLot={setTraceLotId} />
         </BusinessDocumentDetailDialog>
       )}
 

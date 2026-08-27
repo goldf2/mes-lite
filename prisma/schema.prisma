@@ -1380,6 +1380,9 @@ model ShipmentLotAllocation {
   returnedValuationQty Float                 @default(0)
   returnedCostAmount   Float                 @default(0)
   status               String                @default("ACTIVE")
+  reversedAt           DateTime?
+  reversedBy           String?
+  reverseReason        String?
   createdAt            DateTime              @default(now())
   returnAllocations    ReturnLotAllocation[]
 
@@ -1865,6 +1868,14 @@ model Shipment {
   status                String                  @default("PENDING")
   shippedAt             DateTime?
   shippedBy             String?
+  deliveredAt           DateTime?
+  deliveredBy           String?
+  cancelledAt           DateTime?
+  cancelledBy           String?
+  cancelReason          String?
+  reversedAt            DateTime?
+  reversedBy            String?
+  reverseReason         String?
   lotTraceStatus        String                  @default("PENDING")
   shippedValuationQty   Float                   @default(0)
   shippedCostAmount     Float                   @default(0)
@@ -1905,6 +1916,7 @@ model ShipmentItem {
   valuationUnitSnapshot String?
   conversionRateUsed    Float?
   conversionSource      String?
+  costLayerSnapshot     String?
   lotAllocations        ShipmentLotAllocation[]
   returnOrders          ReturnOrder[]
   packageItems          PackageDocumentItem[]

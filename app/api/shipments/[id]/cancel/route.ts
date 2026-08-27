@@ -5,7 +5,7 @@ import { requireResourcePermission } from '@/lib/permissions'
 import { shipmentCancelSchema } from '@/modules/sales/contracts/fulfillment-schema'
 import { SalesDomainError } from '@/modules/sales/domain/sales-errors'
 import { cancelManagedShipment } from '@/modules/sales/server/fulfillment-status-service'
-import { getCurrentOperator } from '@/lib/auth'
+import { getCurrentOperator, operatorDisplayName } from '@/lib/auth'
 import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -15,7 +15,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const input = shipmentCancelSchema.parse(await req.json())
     const operator = await getCurrentOperator()
     if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
-    const { before, updated } = await cancelManagedShipment(params.id, await loadEffectiveDataScope(operator))
+    const { before, updated } = await cancelManagedShipment(params.id, operatorDisplayName(operator), input.reason, await loadEffectiveDataScope(operator))
     await writeAuditLog(req, {
       action: 'CANCEL', entityType: 'SHIPMENT', entityId: updated.id,
       entityLabel: updated.shipmentNo, beforeData: before, afterData: updated, note: input.reason,

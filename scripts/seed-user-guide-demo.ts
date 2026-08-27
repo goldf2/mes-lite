@@ -481,7 +481,7 @@ async function main() {
     note: '指导书：已签收退货来源单',
   }, fixedNow)
   await shipManagedShipment(deliveredShipment.id, warehouseKeeper.name)
-  await deliverManagedShipment(deliveredShipment.id)
+  await deliverManagedShipment(deliveredShipment.id, '演示签收员')
   const shippedShipment = await createManagedShipment({
     customerId: backupCustomer.id,
     items: [{ materialId: bolt.id, locationId: finishedLocation.id, qty: 40 }],

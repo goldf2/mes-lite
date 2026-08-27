@@ -505,6 +505,84 @@ export async function allocateShipmentInventoryLots(
   })
 }
 
+export async function reverseShipmentInventoryLots(
+  tx: Prisma.TransactionClient,
+  input: {
+    shipmentId: string
+    shipmentItemId: string
+    stockLogId: string
+    reason: string
+    reversedBy: string
+  },
+) {
+  const allocations = await tx.shipmentLotAllocation.findMany({
+    where: { shipmentId: input.shipmentId, shipmentItemId: input.shipmentItemId, status: 'ACTIVE' },
+    orderBy: { createdAt: 'asc' },
+  })
+  if (allocations.length === 0) throw new Error('原发货批次分配不存在，不能建立可信冲销')
+
+  for (const allocation of allocations) {
+    if (Number(allocation.returnedStockQty) > tolerance) {
+      throw new Error('原发货明细已经发生退货，不能再整单冲销')
+    }
+    const sourceTransaction = await tx.inventoryLotTransaction.findUnique({
+      where: { idempotencyKey: `SHIPMENT:${input.shipmentId}:ITEM:${input.shipmentItemId}:LOT:${allocation.lotId}` },
+    })
+    if (!sourceTransaction) throw new Error('原发货批次流水不存在，不能建立可信冲销')
+    const reversalKey = `SHIPMENT:${input.shipmentId}:ITEM:${input.shipmentItemId}:LOT:${allocation.lotId}:REVERSE`
+    const existing = await tx.inventoryLotTransaction.findUnique({ where: { idempotencyKey: reversalKey } })
+    if (existing) throw new Error('原发货批次流水已经冲销，不能重复冲销')
+
+    const stockQty = Math.abs(Number(sourceTransaction.stockQty))
+    const valuationQty = Math.abs(Number(sourceTransaction.valuationQty))
+    const costAmount = Math.abs(Number(sourceTransaction.costAmount))
+    await tx.inventoryLotBalance.upsert({
+      where: {
+        lotId_locationId_inventoryStatus: {
+          lotId: allocation.lotId,
+          locationId: allocation.locationId,
+          inventoryStatus: allocation.inventoryStatus,
+        },
+      },
+      update: {
+        stockQty: { increment: stockQty },
+        valuationQty: { increment: valuationQty },
+        costAmount: { increment: costAmount },
+      },
+      create: {
+        lotId: allocation.lotId,
+        locationId: allocation.locationId,
+        inventoryStatus: allocation.inventoryStatus,
+        stockQty,
+        valuationQty,
+        costAmount,
+      },
+    })
+    await tx.inventoryLotTransaction.create({
+      data: {
+        lotId: allocation.lotId,
+        locationId: allocation.locationId,
+        type: 'SHIPMENT_REVERSE_IN',
+        toStatus: allocation.inventoryStatus,
+        stockQty,
+        valuationQty,
+        costAmount,
+        refType: 'SHIPMENT_REVERSAL',
+        refId: input.shipmentId,
+        stockLogId: input.stockLogId,
+        idempotencyKey: reversalKey,
+        note: `发货冲销：${input.reason}`,
+        createdBy: input.reversedBy,
+      },
+    })
+    await tx.shipmentLotAllocation.update({
+      where: { id: allocation.id },
+      data: { status: 'REVERSED', reversedAt: new Date(), reversedBy: input.reversedBy, reverseReason: input.reason },
+    })
+  }
+  return allocations
+}
+
 export async function createHistoricalShipmentLotAllocation(
   tx: Prisma.TransactionClient,
   input: {
