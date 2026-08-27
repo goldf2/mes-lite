@@ -33,3 +33,16 @@ export async function submitDailyProductionShortcut(input: DailyProductionShortc
     message: payload.message || payload.error || (response.ok ? '生产日报已过账' : '生产日报过账失败'),
   }
 }
+
+export async function reverseDailyProductionShortcut(reportId: string, reason: string) {
+  const response = await fetch(`/api/daily-production-reports/${encodeURIComponent(reportId)}/reverse`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  })
+  const payload = await response.json()
+  return {
+    ok: response.ok,
+    message: payload.message || payload.error || (response.ok ? '生产日报已冲销' : '生产日报冲销失败'),
+  }
+}

@@ -1,8 +1,8 @@
 {
-  "version": "0.1.439",
+  "version": "0.1.440",
   "impact": "updated",
   "workflowIds": [
     "184-daily-production-shortcut"
   ],
-  "summary": "生产日报快捷入口优先按计划产出筛选 BOM，也可按已有投入物料辅助筛选或取两者交集；复杂 BOM 仍按整套投入与全部产出展开。"
+  "summary": "生产日报按计划产出、BOM 和计划主产出数量同比例预填实际明细，并在同页提供不可覆盖流水与有原因受控冲销。"
 }

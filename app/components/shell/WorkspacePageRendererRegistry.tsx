@@ -104,7 +104,11 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
     />
   ),
   'daily-inventory': (context) => (
-    <DailyProductionPage canUpdate={context.canUpdate('stocks')} onMessage={context.onMessage} />
+    <DailyProductionPage
+      canUpdate={context.canUpdate('stocks')}
+      canReverse={context.canUpdate('productionActualReverse')}
+      onMessage={context.onMessage}
+    />
   ),
   'inventory-count': (context) => (
     <DailyInventoryCountPage canUpdate={context.canUpdate('stocks')} onMessage={context.onMessage} />

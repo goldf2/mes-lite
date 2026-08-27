@@ -153,6 +153,7 @@ async function main() {
     assert.match(read('app/api/orders/[id]/actuals/route.ts'), /requireResourcePermission\('productionActualEntry', 'update'\)/, '实绩登记 API 必须使用独立权限')
     assert.match(read('app/api/orders/[id]/actuals/[actualId]/confirm/route.ts'), /requireResourcePermission\('productionActualConfirm', 'update'\)/, '实绩确认 API 必须使用独立权限')
     assert.match(read('app/api/orders/[id]/actuals/[actualId]/reverse/route.ts'), /requireResourcePermission\('productionActualReverse', 'update'\)/, '实绩冲销 API 必须使用独立权限')
+    assert.match(read('app/api/daily-production-reports/[id]/reverse/route.ts'), /requireResourcePermission\('productionActualReverse', 'update'\)/, '生产日报冲销 API 必须复用独立生产实绩冲销权限')
     assert.match(read('app/api/material-ins/[id]/receive/route.ts'), /requireResourcePermission\('materialInReceive', 'update'\)/, '来料收货 API 必须使用独立权限')
     assert.match(read('app/api/material-ins/[id]/reject/route.ts'), /requireResourcePermission\('materialInReceive', 'update'\)/, '来料拒收 API 必须使用收货决策权限')
     assert.match(read('app/api/material-ins/[id]/reverse/route.ts'), /requireResourcePermission\('materialInReverse', 'update'\)/, '来料红冲 API 必须使用独立权限')

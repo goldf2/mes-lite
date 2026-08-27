@@ -1,6 +1,14 @@
 import DailyProductionBomEntry from './DailyProductionBomEntry'
 
-export default function DailyProductionPage({ canUpdate, onMessage }: { canUpdate: boolean; onMessage: (message: string) => void }) {
+export default function DailyProductionPage({
+  canUpdate,
+  canReverse,
+  onMessage,
+}: {
+  canUpdate: boolean
+  canReverse: boolean
+  onMessage: (message: string) => void
+}) {
   return (
     <div className="space-y-4">
       <section className="grid gap-3 lg:grid-cols-2">
@@ -15,7 +23,7 @@ export default function DailyProductionPage({ canUpdate, onMessage }: { canUpdat
           <div className="mt-1 text-xs text-blue-800">两套流程互不关联；同一批实物只能选择其中一条，避免重复扣料和重复报产。</div>
         </div>
       </section>
-      <DailyProductionBomEntry canUpdate={canUpdate} onMessage={onMessage} />
+      <DailyProductionBomEntry canUpdate={canUpdate} canReverse={canReverse} onMessage={onMessage} />
     </div>
   )
 }

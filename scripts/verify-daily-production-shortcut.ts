@@ -37,14 +37,24 @@ async function main() {
     const page = readFileSync(join(root, 'modules/production/ui/DailyProductionBomEntry.tsx'), 'utf8')
     const wrapper = readFileSync(join(root, 'modules/production/ui/DailyProductionPage.tsx'), 'utf8')
     const route = readFileSync(join(root, 'app/api/daily-production-shortcut/route.ts'), 'utf8')
+    const reverseRoute = readFileSync(join(root, 'app/api/daily-production-reports/[id]/reverse/route.ts'), 'utf8')
+    const client = readFileSync(join(root, 'modules/production/client/daily-production-shortcut-api.ts'), 'utf8')
     const service = readFileSync(join(root, 'modules/production/server/daily-production-shortcut-service.ts'), 'utf8')
     assert.doesNotMatch(page, /\bfetch\(/, '生产日报页面必须通过领域 client 调用接口')
     assert.match(page, /快捷生产 \/ 转换过账/, '页面必须明确快捷生产与转换语义')
     assert.match(page, /BOM 是可选预设/, '页面必须明确 BOM 不是实际过账的强制约束')
     assert.match(page, /多个实际产出/, '页面必须支持多产出')
     assert.match(page, /计划产出/, '生产日报必须默认提供计划产出选择')
+    assert.match(page, /计划主产出数量/, '选择 BOM 后必须先填写计划主产出数量')
+    assert.match(page, /BOM 将按该数量同比例预填/, '页面必须说明计划数量用于预填实际投入和全部产出')
     assert.match(page, /已有投入物料/, '生产日报必须保留投入物料辅助选择')
     assert.match(page, /dailyProductionBomCandidates/, '生产日报必须按产出、投入或两者交集反查正式 BOM')
+    assert.match(page, /生产日报流水/, '快捷生产页面必须展示不可覆盖的日报流水')
+    assert.match(page, /冲销日报/, '已确认日报必须提供受控冲销入口')
+    assert.match(page, /reverseDailyProductionShortcut/, '日报冲销必须通过领域 client 调用接口')
+    assert.match(client, /daily-production-reports\/\$\{encodeURIComponent\(reportId\)\}\/reverse/, '领域 client 必须调用日报冲销 API')
+    assert.match(reverseRoute, /requireResourcePermission\('productionActualReverse', 'update'\)/, '日报冲销必须使用独立生产实绩冲销权限')
+    assert.match(reverseRoute, /loadEffectiveDataScope/, '日报冲销必须校验操作人的库存库位范围')
     assert.match(wrapper, /标准流程/, '生产日报入口必须说明完整生产路径')
     assert.match(wrapper, /快捷流程（当前页）/, '生产日报入口必须说明独立快捷路径')
     assert.match(wrapper, /同一批实物只能选择其中一条/, '双轨生产必须提示避免重复登记')
@@ -253,6 +263,8 @@ async function main() {
       reverseableReport.id,
       { reason: '验证待检日报冲销' },
       '验证管理员',
+      new Date(),
+      { scope: unrestrictedDataScope, auditContext: { operatorName: '验证管理员' } },
     )
     const [reversedReport, reversedInspection, reversedLot] = await Promise.all([
       prisma.dailyProductionReport.findUniqueOrThrow({ where: { id: reverseableReport.id } }),
@@ -262,6 +274,25 @@ async function main() {
     assert.equal(reversedReport.status, 'REVERSED', '待检日报必须允许在质量判定前完整冲销')
     assert.equal(reversedInspection.status, 'REVERSED', '待检日报冲销必须同步关闭质量任务')
     assert.equal(reversedLot.status, 'REVERSED', '待检日报冲销必须同步关闭产出批次')
+    const reversalLogs = await prisma.stockLog.findMany({
+      where: { refType: 'DAILY_PRODUCTION_REPORT_REVERSE', refId: reverseableReport.id },
+    })
+    assert.ok(reversalLogs.length > 0, '日报冲销必须追加反向库存流水')
+    assert.equal(reversalLogs.every((log) => Boolean(log.sourceMovementId)), true, '每条反向流水必须引用原库存流水')
+    assert.equal(
+      await prisma.stockLog.count({ where: { reversalMovementId: { in: reversalLogs.map((log) => log.id) } } }),
+      reversalLogs.length,
+      '原库存流水必须反向记录对应的冲销流水',
+    )
+    assert.equal(
+      await prisma.auditLog.count({ where: { entityType: 'DAILY_PRODUCTION_REPORT', entityId: reverseableReport.id, action: 'REVERSE' } }),
+      1,
+      '日报状态、反向库存流水和冲销审计必须在同一事务内落账',
+    )
+    await assert.rejects(
+      () => reverseLegacyDailyProductionReport(reverseableReport.id, { reason: '重复冲销' }, '验证管理员'),
+      /只有已确认生产记录可以冲销/,
+    )
 
     const heldReport = await createAndConfirmDailyProductionShortcut(
       {

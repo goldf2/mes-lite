@@ -1,7 +1,9 @@
 import type { Prisma } from '@prisma/client'
+import { createAuditLog, type AuditContext } from '@/lib/audit'
 import { prisma } from '@/lib/prisma'
 import { changeStockLocationBalance, postInventoryIssue, postInventoryReceipt } from '@/lib/inventory'
 import { createInventoryLotReceipt, createInventoryReversalMovement } from '@/modules/inventory'
+import { assertInventoryLocationDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 import { createProductionQualityInspection } from '@/modules/quality'
 import type { ReverseLegacyDailyProductionInput } from '../contracts/legacy-daily-production-schema'
 import { LegacyDailyProductionError } from '../domain/legacy-daily-production-errors'
@@ -441,6 +443,7 @@ export async function reverseLegacyDailyProductionReport(
   input: ReverseLegacyDailyProductionInput,
   reversedBy: string,
   reversedAt = new Date(),
+  options: { scope?: EffectiveDataScope; auditContext?: AuditContext } = {},
 ) {
   return runLegacyDailyProductionOperation(() => prisma.$transaction(async (tx) => {
     const report = await tx.dailyProductionReport.findUnique({
@@ -448,6 +451,13 @@ export async function reverseLegacyDailyProductionReport(
     })
     if (!report) throw new LegacyDailyProductionError('生产记录不存在', 404)
     assertLegacyDailyProductionConfirmed(report.status)
+    if (options.scope) {
+      assertInventoryLocationDataScope(options.scope, [
+        ...report.consumptions.map((line) => line.locationId),
+        ...report.outputs.flatMap((line) => line.locationId ? [line.locationId] : []),
+        ...(report.outputs.length === 0 && report.outputLocationId ? [report.outputLocationId] : []),
+      ])
+    }
     if (report.outputs.length > 0) {
       for (const output of report.outputs) {
         await reverseLegacyOutputLine(tx, report, {
@@ -487,6 +497,17 @@ export async function reverseLegacyDailyProductionReport(
       },
       include: legacyDailyProductionStatusInclude,
     })
+    if (options.auditContext) {
+      await createAuditLog(tx, options.auditContext, {
+        action: 'REVERSE',
+        entityType: 'DAILY_PRODUCTION_REPORT',
+        entityId: result.id,
+        entityLabel: result.reportNo,
+        beforeData: report,
+        afterData: result,
+        note: input.reason,
+      })
+    }
     return { before: report, result }
   }))
 }

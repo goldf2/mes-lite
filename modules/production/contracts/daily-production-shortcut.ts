@@ -49,8 +49,14 @@ export interface DailyProductionReportSummary {
   reportDate: string
   outputQty: number
   status: string
+  note?: string | null
   bomName?: string | null
   bomVersion?: string | null
+  confirmedAt?: string | null
+  confirmedBy?: string | null
+  reversedAt?: string | null
+  reversedBy?: string | null
+  reverseReason?: string | null
   outputLocation?: { code: string; name: string } | null
   finishedMaterial: { code: string; name: string; stockUnit: string; unit: string }
   consumptions: Array<{ id: string; materialCode: string; materialName: string; actualQty: number; unit: string }>
