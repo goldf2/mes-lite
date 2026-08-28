@@ -1,13 +1,8 @@
 {
-  "version": "0.1.442",
+  "version": "0.1.443",
   "impact": "updated",
   "workflowIds": [
-    "27-shipment-list",
-    "29-shipment-confirm",
-    "172-logistics-command-permissions",
-    "173-warehouse-shipment-dispatch",
-    "174-sales-shipment-delivery",
-    "175-lead-shipment-cancel"
+    "185-warehouse-digital-twin"
   ],
-  "summary": "发货流程明确待发货取消、已发货签收或主管冲销、已签收退货的状态边界；冲销原子恢复库存、成本、批次和货箱并保留正反向流水。"
+  "summary": "库存菜单新增只读二维仓库全景：复用现有库位与库存事实，支持物料搜索高亮、状态着色、缩放平移和库位详情，不建立第二套库存账。"
 }

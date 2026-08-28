@@ -1564,6 +1564,31 @@
           "lastVerifiedVersion": "0.1.382"
         },
         {
+          "id": "185-warehouse-digital-twin",
+          "title": "查看仓库数字孪生全景",
+          "objective": "在不建立第二套库存账的情况下，按授权库位直观查看物料分布和库存状态。",
+          "steps": [
+            "展开“库存”功能区，进入“仓库全景”。",
+            "核对授权库位、有库存库位、物料分布行、待检/冻结和空库位摘要。",
+            "输入物料编码、名称、规格或库位，按回车或点击“搜索”，确认匹配库位高亮。",
+            "拖动空白处平移白板，使用放大、缩小和复位按钮调整视图。",
+            "点击库位，核对每种物料的原单位总量、可用、待检、冻结和返工数量；需要修改时点击“进入库存管理”。"
+          ],
+          "result": "页面只读投影现有库存和库位事实，显示范围与当前账号 stocks.read 和库位数据范围一致；白板不执行调拨或保存第二套余额。",
+          "pageKey": "warehouseDigitalTwin",
+          "resource": "stocks",
+          "roles": [
+            "仓管员",
+            "仓库主管",
+            "财务/管理"
+          ],
+          "screenshot": {
+            "baseline": "0.1.443",
+            "file": "185-warehouse-digital-twin.png"
+          },
+          "lastVerifiedVersion": "0.1.443"
+        },
+        {
           "id": "21-stock-adjustment",
           "title": "库存调整",
           "objective": "在授权和有凭据时，以当前登录身份纠正账实差异。",
