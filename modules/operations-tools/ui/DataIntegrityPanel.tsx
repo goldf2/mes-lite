@@ -1,7 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import AppButton from '@/app/components/AppButton'
 import { executeDataIntegrityAction, loadDataIntegrityReport } from '../client/maintenance-api'
+import {
+  buildDataIntegrityFaultCsv,
+  dataIntegrityFaultFilename,
+} from '../domain/data-integrity-export'
 
 type IntegrityAction = {
   key: string
@@ -100,6 +105,20 @@ export default function DataIntegrityPanel({ onMessage, canUpdate, canDelete }: 
     }
   }
 
+  const exportFaultDetails = () => {
+    if (!report || report.issues.length === 0) return
+    const blob = new Blob([buildDataIntegrityFaultCsv(report)], { type: 'text/csv;charset=utf-8' })
+    const href = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = href
+    link.download = dataIntegrityFaultFilename(report.checkedAt)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(href)
+    onMessage(`已导出 ${report.issues.length} 条数据故障明细`)
+  }
+
   return (
     <div className="rounded-lg border border-gray-200 p-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -108,14 +127,23 @@ export default function DataIntegrityPanel({ onMessage, canUpdate, canDelete }: 
           <div className="mt-1 text-sm text-gray-500">检查库存归属、物料、BOM、生产耗用和库存成本层之间的关键关系。</div>
           <div className="mt-2 text-xs text-gray-500">零余额、无库位、无流水的孤立库存可安全清理；涉及有效库存、成本或流水的问题仅提示人工处理。</div>
         </div>
-        <button
-          type="button"
-          onClick={loadReport}
-          disabled={loading || Boolean(executingIssueId)}
-          className="shrink-0 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {loading ? '检查中...' : '重新检查'}
-        </button>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <AppButton
+            variant="secondary"
+            onClick={exportFaultDetails}
+            disabled={loading || Boolean(executingIssueId) || !report?.issues.length}
+            title={report?.issues.length ? `导出当前 ${report.issues.length} 条故障明细` : '当前没有可导出的故障明细'}
+          >
+            导出故障明细
+          </AppButton>
+          <AppButton
+            variant="secondary"
+            onClick={loadReport}
+            disabled={loading || Boolean(executingIssueId)}
+          >
+            {loading ? '检查中...' : '重新检查'}
+          </AppButton>
+        </div>
       </div>
 
       {loading && !report ? (
