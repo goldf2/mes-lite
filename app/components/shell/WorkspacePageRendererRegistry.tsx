@@ -38,6 +38,7 @@ const DailyProductionPage = dynamic(() => import('@/modules/production').then((m
 const DailyInventoryCountPage = dynamic(() => import('@/modules/inventory').then((module) => module.DailyInventoryCountPage), { loading: FeaturePageLoading })
 const StockMovementPageModule = dynamic(() => import('@/modules/inventory').then((module) => module.StockMovementPageModule), { loading: FeaturePageLoading })
 const InventoryLotPanoramaPageModule = dynamic(() => import('@/modules/inventory').then((module) => module.InventoryLotPanoramaPageModule), { loading: FeaturePageLoading })
+const WarehouseDigitalTwinPageModule = dynamic(() => import('@/modules/inventory').then((module) => module.WarehouseDigitalTwinPageModule), { loading: FeaturePageLoading })
 const QualityTaskPageModule = dynamic(() => import('@/modules/quality').then((module) => module.QualityTaskPageModule), { loading: FeaturePageLoading })
 const SopHelpCenterPage = dynamic(() => import('@/modules/sop').then((module) => module.SopHelpCenterPage), { loading: FeaturePageLoading })
 
@@ -118,6 +119,12 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
       canUpdateStock={context.canUpdate('stocks')}
       onMessage={context.onMessage}
       onStateSummaryChange={context.onStockStateSummaryChange}
+    />
+  ),
+  'warehouse-digital-twin': (context) => (
+    <WarehouseDigitalTwinPageModule
+      onMessage={context.onMessage}
+      onOpenStocks={() => context.onOpenWorkspaceFunction('stocks')}
     />
   ),
   'stock-movements': (context) => <StockMovementPageModule onMessage={context.onMessage} />,
