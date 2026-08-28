@@ -1,8 +1,6 @@
 {
-  "version": "0.1.443",
-  "impact": "updated",
-  "workflowIds": [
-    "185-warehouse-digital-twin"
-  ],
-  "summary": "库存菜单新增只读二维仓库全景：复用现有库位与库存事实，支持物料搜索高亮、状态着色、缩放平移和库位详情，不建立第二套库存账。"
+  "version": "0.1.444",
+  "impact": "none",
+  "workflowIds": [],
+  "summary": "仓库全景仅修正异常容错：通用库存完整性门禁不再使只读白板整页失效，操作步骤不变。"
 }

@@ -12,6 +12,7 @@ import WarehouseTwinDetailPanel from './WarehouseTwinDetailPanel'
 const emptyTwin: WarehouseDigitalTwin = {
   locations: [], occupiedLocationCount: 0, materialLineCount: 0,
   statusLocationCounts: { EMPTY: 0, AVAILABLE: 0, QUARANTINE: 0, HOLD: 0, REWORK: 0 },
+  integrityIssueTypeCount: 0,
 }
 
 export default function WarehouseDigitalTwinPageModule({
@@ -92,6 +93,12 @@ export default function WarehouseDigitalTwinPageModule({
           <AppButton size="icon" aria-label="刷新库存白板" onClick={() => void reload()}><RefreshCcw size={17} /></AppButton>
         </div>
       </section>
+
+      {twin.integrityIssueTypeCount > 0 && !error && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+          检测到 {twin.integrityIssueTypeCount} 类库存完整性问题；当前白板按库位余额只读展示，库存过账前仍需在“数据维护与关系检查”中完成处理。
+        </div>
+      )}
 
       {loading && twin.locations.length === 0 ? <AppLoadingIndicator label="正在生成仓库白板..." /> : error ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">{error}</div>

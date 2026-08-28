@@ -1,13 +1,8 @@
-import { loadInventoryLocations, loadStocks } from './stock-api'
-import { buildWarehouseDigitalTwin } from '../model/warehouse-digital-twin'
+import type { WarehouseDigitalTwin } from '../model/warehouse-digital-twin'
 
 export async function loadWarehouseDigitalTwin() {
-  const [stockResult, locations] = await Promise.all([
-    loadStocks({
-      keyword: '', customerId: '', locationId: '', categories: [], allCategories: [], includeInvalid: false,
-    }),
-    loadInventoryLocations(),
-  ])
-  if (!stockResult.ok) throw new Error(stockResult.error)
-  return buildWarehouseDigitalTwin(stockResult.data, locations)
+  const response = await fetch('/api/stocks/warehouse-twin')
+  const payload = await response.json()
+  if (!response.ok) throw new Error(payload.error || '获取仓库数字孪生失败')
+  return payload.data as WarehouseDigitalTwin
 }

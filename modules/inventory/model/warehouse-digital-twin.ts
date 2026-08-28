@@ -1,4 +1,4 @@
-import type { InventoryLocationOption, Stock } from '../contracts/stock'
+import type { InventoryLocationOption } from '../contracts/stock'
 
 export type WarehouseTwinStatus = 'EMPTY' | 'AVAILABLE' | 'QUARANTINE' | 'HOLD' | 'REWORK'
 
@@ -30,6 +30,32 @@ export interface WarehouseDigitalTwin {
   occupiedLocationCount: number
   materialLineCount: number
   statusLocationCounts: Record<WarehouseTwinStatus, number>
+  integrityIssueTypeCount: number
+}
+
+export interface WarehouseTwinStockFact {
+  id: string
+  material?: {
+    id: string
+    code: string
+    name: string
+    spec?: string | null
+    unit: string
+    stockUnit: string
+  } | null
+  product?: {
+    sku: string
+    name: string
+    unit: string
+  } | null
+  locationBalances: Array<{
+    locationId: string
+    qty: number
+    availableQty: number
+    quarantineQty: number
+    holdQty: number
+    reworkQty: number
+  }>
 }
 
 const positive = (value: number) => Number(value || 0) > 0.000001
@@ -43,8 +69,9 @@ function locationStatus(materials: WarehouseTwinMaterialBalance[]): WarehouseTwi
 }
 
 export function buildWarehouseDigitalTwin(
-  stocks: Stock[],
+  stocks: WarehouseTwinStockFact[],
   locations: InventoryLocationOption[],
+  integrityIssueTypeCount = 0,
 ): WarehouseDigitalTwin {
   const materialsByLocation = new Map<string, WarehouseTwinMaterialBalance[]>()
 
@@ -118,6 +145,7 @@ export function buildWarehouseDigitalTwin(
     occupiedLocationCount: twinLocations.filter((location) => location.materials.length > 0).length,
     materialLineCount: twinLocations.reduce((total, location) => total + location.materials.length, 0),
     statusLocationCounts,
+    integrityIssueTypeCount,
   }
 }
 
