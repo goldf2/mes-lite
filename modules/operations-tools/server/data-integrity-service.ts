@@ -95,6 +95,22 @@ function immutableBomHint(status: string) {
   return status === 'DRAFT' ? '' : '已发布或已作废版本保持不变；请复制新版本后修复。'
 }
 
+function bomUnitMismatchSeverity(status: string): DataIntegritySeverity {
+  if (status === 'DRAFT') return 'BLOCKING'
+  if (status === 'RELEASED') return 'WARNING'
+  return 'INFO'
+}
+
+function bomUnitMismatchHint(status: string) {
+  if (status === 'DRAFT') {
+    return '草稿必须按当前主库存单位保存；仅在换算关系明确时修复。'
+  }
+  if (status === 'RELEASED') {
+    return '已发布可执行版本保留发布时的单位快照，不得原地修改；后续需要按当前主单位执行时，请在换算关系明确后复制新版本。'
+  }
+  return '已作废历史版本保留原单位快照，不参与后续选择且不得原地修改。'
+}
+
 function issueId(type: string, entityId: string) {
   return `${type}:${entityId}`
 }
@@ -116,13 +132,14 @@ export async function getDataIntegrityReport(
     }),
     db.bOM.findMany({
       include: {
-        outputs: { select: { materialId: true } },
+        outputs: { select: { materialId: true, isPrimary: true } },
         product: {
           select: {
             id: true,
             sku: true,
             name: true,
             unit: true,
+            materialId: true,
           },
         },
       },
@@ -229,28 +246,62 @@ export async function getDataIntegrityReport(
   ])
 
   const issues: DataIntegrityIssue[] = []
-  const materialByCode = new Map(materials.map((material) => [material.code, material]))
+  const materialById = new Map(materials.map((material) => [material.id, material]))
   const bomItemIdSet = new Set(bomItems.map((item) => item.id))
   const outputMaterialIdsByBomId = new Map(boms.map((bom) => [bom.id, new Set(bom.outputs.map((output) => output.materialId))]))
 
   for (const bom of boms) {
-    const exact = materialByCode.get(bom.product.sku)
-    const prefixed = bom.product.sku.startsWith('MAT-')
-      ? materialByCode.get(bom.product.sku.slice(4))
-      : undefined
-    const candidates = Array.from(new Map(
-      [exact, prefixed].filter(Boolean).map((material) => [material!.id, material!]),
-    ).values())
+    let outputMaterial: (typeof materials)[number] | undefined
+    let unresolvedDetail: string | undefined
 
-    if (candidates.length !== 1) {
+    if (bom.outputs.length > 0) {
+      const primaryOutputs = bom.outputs.filter((output) => output.isPrimary)
+      const uniqueOutput = primaryOutputs.length === 1
+        ? primaryOutputs[0]
+        : primaryOutputs.length === 0 && bom.outputs.length === 1
+          ? bom.outputs[0]
+          : undefined
+      if (uniqueOutput) {
+        outputMaterial = materialById.get(uniqueOutput.materialId)
+        if (!outputMaterial) unresolvedDetail = 'BOM 主产出引用的物料不存在。'
+      } else {
+        unresolvedDetail = primaryOutputs.length > 1
+          ? 'BOM 同时标记了多个主产出，无法确定唯一主产出物料。'
+          : 'BOM 存在多个产出但没有唯一主产出标记，无法确定主产出物料。'
+      }
+    } else if (bom.materialId) {
+      outputMaterial = materialById.get(bom.materialId)
+      if (!outputMaterial) unresolvedDetail = `BOM 直接关联的产出物料 ${bom.materialId} 不存在。`
+    } else if (bom.product.materialId) {
+      outputMaterial = materialById.get(bom.product.materialId)
+      if (!outputMaterial) unresolvedDetail = `兼容产品直接关联的产出物料 ${bom.product.materialId} 不存在。`
+    } else {
+      const normalizedSku = bom.product.sku.toLowerCase()
+      const normalizedCodes = new Set([
+        normalizedSku,
+        normalizedSku.startsWith('mat-') ? normalizedSku.slice(4) : normalizedSku,
+      ])
+      const candidates = Array.from(new Map(
+        materials
+          .filter((material) => normalizedCodes.has(material.code.toLowerCase()))
+          .map((material) => [material.id, material]),
+      ).values())
+      if (candidates.length === 1) {
+        outputMaterial = candidates[0]
+      } else {
+        unresolvedDetail = candidates.length === 0
+          ? `兼容产品 ${bom.product.sku} 没有对应的物料编码；可能是旧产品或物料改码后未同步。`
+          : `兼容产品 ${bom.product.sku} 同时匹配多个物料，无法确定产出物料。`
+      }
+    }
+
+    if (!outputMaterial) {
       issues.push({
         id: issueId('BOM_OUTPUT_MATERIAL_UNRESOLVED', bom.id),
         type: 'BOM_OUTPUT_MATERIAL_UNRESOLVED',
         severity: 'WARNING',
         title: 'BOM 无法唯一关联产出物料',
-        detail: candidates.length === 0
-          ? `兼容产品 ${bom.product.sku} 没有对应的物料编码；可能是旧产品或物料改码后未同步。`
-          : `兼容产品 ${bom.product.sku} 同时匹配多个物料，无法确定产出物料。`,
+        detail: unresolvedDetail || `兼容产品 ${bom.product.sku} 无法确定产出物料。`,
         entityType: 'BOM',
         entityId: bom.id,
         entityLabel: `${bom.product.sku} · ${bom.product.name}`,
@@ -259,17 +310,16 @@ export async function getDataIntegrityReport(
       continue
     }
 
-    const outputMaterial = candidates[0]
     const outputMaterialIds = outputMaterialIdsByBomId.get(bom.id)
-    if (outputMaterialIds && outputMaterialIds.size === 0) outputMaterialIds.add(outputMaterial.id)
+    if (outputMaterialIds && bom.outputs.length === 0) outputMaterialIds.add(outputMaterial.id)
     const expectedUnit = outputMaterial.stockUnit || outputMaterial.unit
     if (bom.outputUnit !== expectedUnit) {
       issues.push({
         id: issueId('BOM_OUTPUT_UNIT_MISMATCH', bom.id),
         type: 'BOM_OUTPUT_UNIT_MISMATCH',
-        severity: 'BLOCKING',
+        severity: bomUnitMismatchSeverity(bom.status),
         title: 'BOM 产出单位与物料主单位不一致',
-        detail: `BOM 保存的是 ${bom.outputUnit || '空'}，产出物料当前主库存单位是 ${expectedUnit}。${immutableBomHint(bom.status)}`,
+        detail: `BOM 保存的是 ${bom.outputUnit || '空'}，产出物料当前主库存单位是 ${expectedUnit}。${bomUnitMismatchHint(bom.status)}`,
         entityType: 'BOM',
         entityId: bom.id,
         entityLabel: `${outputMaterial.code} · ${outputMaterial.name}`,
@@ -412,9 +462,9 @@ export async function getDataIntegrityReport(
       issues.push({
         id: issueId('BOM_UNIT_MISMATCH', item.id),
         type: 'BOM_UNIT_MISMATCH',
-        severity: 'BLOCKING',
+        severity: bomUnitMismatchSeverity(item.bom.status),
         title: 'BOM 原料单位与当前主单位不一致',
-        detail: `${productLabel} 使用 ${materialLabel}：BOM 保存单位为 ${item.unit || '空'}，物料当前主库存单位为 ${expectedUnit}。修复只更新单位标签，不换算每批数量。${repairHint}`,
+        detail: `${productLabel} 使用 ${materialLabel}：BOM 保存单位为 ${item.unit || '空'}，物料当前主库存单位为 ${expectedUnit}。${bomUnitMismatchHint(item.bom.status)}`,
         entityType: 'BOM_ITEM',
         entityId: item.id,
         entityLabel: `${productLabel} → ${materialLabel}`,

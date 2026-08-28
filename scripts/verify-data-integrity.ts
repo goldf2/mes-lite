@@ -64,6 +64,198 @@ async function main() {
           outputUnit: '个',
         },
       })
+      const bomOutputMaterial = await tx.material.create({
+        data: {
+          code: `VERIFY-DATA-OUTPUT-${suffix}`,
+          name: 'BOMOutput 优先产出',
+          category: 'FINISHED',
+          unit: '件',
+          stockUnit: '件',
+          valuationUnit: '件',
+        },
+      })
+      const secondaryOutputMaterial = await tx.material.create({
+        data: {
+          code: `VERIFY-DATA-SECONDARY-${suffix}`,
+          name: 'BOMOutput 副产出',
+          category: 'FINISHED',
+          unit: '套',
+          stockUnit: '套',
+          valuationUnit: '套',
+        },
+      })
+      const bomLinkedMaterial = await tx.material.create({
+        data: {
+          code: `VERIFY-DATA-BOM-LINK-${suffix}`,
+          name: 'BOM 直接关联产出',
+          category: 'FINISHED',
+          unit: 'kg',
+          stockUnit: 'kg',
+          valuationUnit: 'kg',
+        },
+      })
+      const productLinkedMaterial = await tx.material.create({
+        data: {
+          code: `VERIFY-DATA-PRODUCT-LINK-${suffix}`,
+          name: 'Product 直接关联产出',
+          category: 'FINISHED',
+          unit: 'm',
+          stockUnit: 'm',
+          valuationUnit: 'm',
+        },
+      })
+      const skuLinkedMaterial = await tx.material.create({
+        data: {
+          code: `VERIFY-DATA-SKU-LINK-${suffix}`,
+          name: 'SKU 兼容产出',
+          category: 'FINISHED',
+          unit: 'L',
+          stockUnit: 'L',
+          valuationUnit: 'L',
+        },
+      })
+      const bomProductConflictMaterial = await tx.material.create({
+        data: {
+          code: `VERIFY-DATA-BOM-PRODUCT-CONFLICT-${suffix}`,
+          name: 'BOM 关系下的 Product 冲突产出',
+          category: 'FINISHED',
+          unit: 'm',
+          stockUnit: 'm',
+          valuationUnit: 'm',
+        },
+      })
+      const bomSkuConflictMaterial = await tx.material.create({
+        data: {
+          code: `VERIFY-DATA-BOM-SKU-CONFLICT-${suffix}`,
+          name: 'BOM 关系下的 SKU 冲突产出',
+          category: 'FINISHED',
+          unit: 'L',
+          stockUnit: 'L',
+          valuationUnit: 'L',
+        },
+      })
+      const productSkuConflictMaterial = await tx.material.create({
+        data: {
+          code: `VERIFY-DATA-PRODUCT-SKU-CONFLICT-${suffix}`,
+          name: 'Product 关系下的 SKU 冲突产出',
+          category: 'FINISHED',
+          unit: '卷',
+          stockUnit: '卷',
+          valuationUnit: '卷',
+        },
+      })
+      const precedenceProduct = await tx.product.create({
+        data: {
+          sku: `MAT-${skuLinkedMaterial.code}`,
+          materialId: productLinkedMaterial.id,
+          name: '产出解析优先级验证',
+          category: 'FINISHED',
+          unit: bomOutputMaterial.stockUnit,
+        },
+      })
+      const precedenceBom = await tx.bOM.create({
+        data: {
+          productId: precedenceProduct.id,
+          materialId: bomLinkedMaterial.id,
+          outputQuantity: 1,
+          outputUnit: bomOutputMaterial.stockUnit,
+          outputs: {
+            create: [
+              { materialId: bomOutputMaterial.id, quantity: 1, unit: '件', isPrimary: true },
+              { materialId: secondaryOutputMaterial.id, quantity: 1, unit: '套', isPrimary: false },
+            ],
+          },
+        },
+      })
+      const bomLinkedProduct = await tx.product.create({
+        data: {
+          sku: `MAT-${bomSkuConflictMaterial.code}`,
+          materialId: bomProductConflictMaterial.id,
+          name: 'BOM 直接关系验证',
+          category: 'FINISHED',
+          unit: bomLinkedMaterial.stockUnit,
+        },
+      })
+      const bomLinkedBom = await tx.bOM.create({
+        data: {
+          productId: bomLinkedProduct.id,
+          materialId: bomLinkedMaterial.id,
+          outputQuantity: 1,
+          outputUnit: bomLinkedMaterial.stockUnit,
+        },
+      })
+      const productOnlyMaterial = await tx.material.create({
+        data: {
+          code: `VERIFY-DATA-PRODUCT-ONLY-${suffix}`,
+          name: '仅 Product 直接关联产出',
+          category: 'FINISHED',
+          unit: '箱',
+          stockUnit: '箱',
+          valuationUnit: '箱',
+        },
+      })
+      const productLinkedProduct = await tx.product.create({
+        data: {
+          sku: `MAT-${productSkuConflictMaterial.code}`,
+          materialId: productOnlyMaterial.id,
+          name: 'Product 直接关系验证',
+          category: 'FINISHED',
+          unit: productOnlyMaterial.stockUnit,
+        },
+      })
+      const productLinkedBom = await tx.bOM.create({
+        data: {
+          productId: productLinkedProduct.id,
+          outputQuantity: 1,
+          outputUnit: productOnlyMaterial.stockUnit,
+        },
+      })
+      const legacyMaterial = await tx.material.create({
+        data: {
+          code: `VERIFY-DATA-LEGACY-${suffix}`.toUpperCase(),
+          name: '旧 SKU 大小写兼容产出',
+          category: 'FINISHED',
+          unit: '件',
+          stockUnit: '件',
+          valuationUnit: '件',
+        },
+      })
+      const legacyProduct = await tx.product.create({
+        data: {
+          sku: `mat-${legacyMaterial.code.toLowerCase()}`,
+          name: legacyMaterial.name,
+          category: 'FINISHED',
+          unit: legacyMaterial.stockUnit,
+        },
+      })
+      const legacyBom = await tx.bOM.create({
+        data: {
+          productId: legacyProduct.id,
+          outputQuantity: 1,
+          outputUnit: legacyMaterial.stockUnit,
+        },
+      })
+      const ambiguousProduct = await tx.product.create({
+        data: {
+          sku: `MAT-${legacyMaterial.code}-AMBIGUOUS`,
+          name: '多产出无主标记验证',
+          category: 'FINISHED',
+          unit: '件',
+        },
+      })
+      const ambiguousBom = await tx.bOM.create({
+        data: {
+          productId: ambiguousProduct.id,
+          outputQuantity: 1,
+          outputUnit: '件',
+          outputs: {
+            create: [
+              { materialId: bomOutputMaterial.id, quantity: 1, unit: '件' },
+              { materialId: secondaryOutputMaterial.id, quantity: 1, unit: '套' },
+            ],
+          },
+        },
+      })
       const mismatched = await tx.bOMItem.create({
         data: {
           bomId: bom.id,
@@ -166,6 +358,32 @@ async function main() {
       let reportData = await getDataIntegrityReport(tx)
       const issueTypesByEntity = new Set(reportData.issues.map((issue) => `${issue.type}:${issue.entityId}`))
       assert.ok(issueTypesByEntity.has(`BOM_UNIT_MISMATCH:${mismatched.id}`), '应发现 BOM 原料单位不一致')
+      assert.equal(
+        reportData.issues.find((issue) => issue.id === `BOM_UNIT_MISMATCH:${mismatched.id}`)?.severity,
+        'BLOCKING',
+        '草稿 BOM 单位漂移必须阻塞发布',
+      )
+      assert.equal(
+        reportData.issues.find((issue) => issue.id === `BOM_UNIT_MISMATCH:${mismatched.id}`)?.actions[0]?.key,
+        'SYNC_BOM_ITEM_UNIT',
+        '草稿 BOM 单位漂移应保留受控修复动作',
+      )
+      for (const resolvedBom of [precedenceBom, bomLinkedBom, productLinkedBom, legacyBom]) {
+        assert.equal(
+          reportData.issues.some((issue) => issue.id === `BOM_OUTPUT_MATERIAL_UNRESOLVED:${resolvedBom.id}`),
+          false,
+          '直接关系或唯一旧 SKU 命中时不得报告产出物料未解析',
+        )
+        assert.equal(
+          reportData.issues.some((issue) => issue.id === `BOM_OUTPUT_UNIT_MISMATCH:${resolvedBom.id}`),
+          false,
+          '产出单位检查必须使用最高优先级解析出的物料',
+        )
+      }
+      assert.ok(
+        issueTypesByEntity.has(`BOM_OUTPUT_MATERIAL_UNRESOLVED:${ambiguousBom.id}`),
+        '多个 BOMOutput 且无唯一主产出时不得用低优先级关系覆盖',
+      )
       assert.ok(issueTypesByEntity.has(`BOM_DUPLICATE_MATERIAL:${duplicate.id}`), '应发现 BOM 重复原料')
       assert.ok(issueTypesByEntity.has(`BOM_SELF_REFERENCE:${selfReference.id}`), '应发现 BOM 自引用')
       assert.ok(issueTypesByEntity.has(`BOM_OUTPUT_UNIT_MISMATCH:${bom.id}`), '应发现 BOM 产出单位不一致')
@@ -240,17 +458,50 @@ async function main() {
 
       await tx.bOM.update({
         where: { id: bom.id },
-        data: { status: 'RELEASED', isActive: true, isDefault: true, releasedAt: new Date() },
+        data: {
+          status: 'RELEASED',
+          isActive: true,
+          isDefault: true,
+          releasedAt: new Date(),
+          outputUnit: 'kg',
+        },
       })
       await tx.material.update({ where: { id: raw.id }, data: { stockUnit: 'kg' } })
-      const immutableIssue = (await getDataIntegrityReport(tx)).issues.find(
+      const releasedReport = await getDataIntegrityReport(tx)
+      const immutableIssue = releasedReport.issues.find(
         (issue) => issue.id === `BOM_UNIT_MISMATCH:${mismatched.id}`,
       )
+      const immutableOutputIssue = releasedReport.issues.find(
+        (issue) => issue.id === `BOM_OUTPUT_UNIT_MISMATCH:${bom.id}`,
+      )
+      assert.equal(immutableIssue?.severity, 'WARNING', '已发布 BOM 的投入单位快照差异应为警告')
       assert.equal(immutableIssue?.actions.length, 0, '已发布 BOM 的一致性问题只允许告警，不得原地修复')
+      assert.equal(immutableOutputIssue?.severity, 'WARNING', '已发布 BOM 的产出单位快照差异应为警告')
+      assert.equal(immutableOutputIssue?.actions.length, 0, '已发布 BOM 的产出单位不得原地修复')
       await assert.rejects(
         () => applyDataIntegrityAction(tx, immutableIssue!.id, 'SYNC_BOM_ITEM_UNIT'),
         /已不存在|不再适用/,
         '维护工具不得绕过已发布 BOM 不可变规则',
+      )
+      await tx.bOM.update({
+        where: { id: bom.id },
+        data: { status: 'OBSOLETE', isActive: false, isDefault: false, obsoleteAt: new Date() },
+      })
+      const obsoleteReport = await getDataIntegrityReport(tx)
+      const obsoleteIssue = obsoleteReport.issues.find(
+        (issue) => issue.id === `BOM_UNIT_MISMATCH:${mismatched.id}`,
+      )
+      const obsoleteOutputIssue = obsoleteReport.issues.find(
+        (issue) => issue.id === `BOM_OUTPUT_UNIT_MISMATCH:${bom.id}`,
+      )
+      assert.equal(obsoleteIssue?.severity, 'INFO', '已作废 BOM 的投入单位快照差异应为提示')
+      assert.equal(obsoleteIssue?.actions.length, 0, '已作废 BOM 的投入单位不得原地修复')
+      assert.equal(obsoleteOutputIssue?.severity, 'INFO', '已作废 BOM 的产出单位快照差异应为提示')
+      assert.equal(obsoleteOutputIssue?.actions.length, 0, '已作废 BOM 的产出单位不得原地修复')
+      await assert.rejects(
+        () => applyDataIntegrityAction(tx, obsoleteIssue!.id, 'SYNC_BOM_ITEM_UNIT'),
+        /已不存在|不再适用/,
+        '维护工具不得绕过已作废 BOM 不可变规则',
       )
 
       throw rollbackMarker
