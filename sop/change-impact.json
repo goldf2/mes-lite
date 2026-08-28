@@ -1,6 +1,8 @@
 {
-  "version": "0.1.445",
-  "impact": "none",
-  "workflowIds": [],
-  "summary": "数据关系检查仅修正 BOM 产出解析优先级和冻结版本告警级别；页面入口、人工确认和修复操作步骤不变。"
+  "version": "0.1.446",
+  "impact": "updated",
+  "workflowIds": [
+    "62-data-tools"
+  ],
+  "summary": "数据工具的数据关系检查新增故障明细 CSV 导出，便于把当前检查结果离线转交和排查。"
 }

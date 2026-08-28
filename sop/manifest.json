@@ -3006,9 +3006,10 @@
             "进入工具 > 数据工具。",
             "先点击“重新检查”。",
             "查看阻塞、警告和可安全修复项。",
+            "需要离线排查或转交时，点击“导出故障明细”，保存当前检查结果 CSV。",
             "修改/清理前备份，完成后再次检查。"
           ],
-          "result": "检查无阻塞问题；所有维护动作写入审计记录。",
+          "result": "检查无阻塞问题；故障明细可完整导出；所有维护动作写入审计记录。",
           "pageKey": "dataTools",
           "resource": "dataTools",
           "roles": [
@@ -3018,7 +3019,7 @@
             "baseline": "0.1.350",
             "file": "62-data-tools.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.446"
         },
         {
           "id": "63-operator-management",
