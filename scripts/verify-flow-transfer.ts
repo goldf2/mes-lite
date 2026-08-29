@@ -27,6 +27,8 @@ function verifyStaticBoundaries() {
     'modules/production/server/flow-transfer-query-service.ts',
     'modules/production/server/flow-transfer-command-service.ts',
     'modules/production/server/flow-transfer-status-service.ts',
+    'modules/production/ui/FlowTransferEntryDialog.tsx',
+    'modules/production/ui/FlowTransferQuickDialog.tsx',
     'modules/production/ui/FlowTransferPageModule.tsx',
   ]
   for (const path of requiredModuleFiles) assert.ok(existsSync(join(root, path)), `生产领域缺少流程转移模块文件：${path}`)
@@ -37,6 +39,7 @@ function verifyStaticBoundaries() {
   assert.ok(pageSource.split('\n').length <= 520, '流程转移协调页应保持在 520 行内')
   assert.doesNotMatch(pageSource, /\bfetch\(/, '流程转移页不得直接调用 fetch')
   assert.match(pageSource, /loadFlowTransfers\(/, '流程转移页必须通过生产领域 client 读取数据')
+  assert.match(pageSource, /FlowTransferEntryDialog/, '流程转移页与仓库白板必须复用同一录入弹窗')
   assert.match(registrySource, /FlowTransferPageModule/, '流程转移页必须通过生产模块公开入口加载')
 
   const routes = [

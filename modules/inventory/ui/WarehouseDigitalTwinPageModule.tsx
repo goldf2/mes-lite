@@ -4,8 +4,10 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { Boxes, RefreshCcw, Search, Warehouse } from 'lucide-react'
 import AppButton from '@/app/components/AppButton'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
+import ModalDialog from '@/app/components/ModalDialog'
+import { FlowTransferQuickDialog } from '@/modules/production'
 import { loadWarehouseDigitalTwin } from '../client/warehouse-digital-twin-api'
-import type { WarehouseDigitalTwin } from '../model/warehouse-digital-twin'
+import type { WarehouseDigitalTwin, WarehouseTwinLocation, WarehouseTwinMaterialBalance } from '../model/warehouse-digital-twin'
 import WarehouseTwinCanvas from './WarehouseTwinCanvas'
 import WarehouseTwinDetailPanel from './WarehouseTwinDetailPanel'
 
@@ -18,9 +20,13 @@ const emptyTwin: WarehouseDigitalTwin = {
 export default function WarehouseDigitalTwinPageModule({
   onMessage,
   onOpenStocks,
+  canCreateFlowTransfer,
+  canConfirmFlowTransfer,
 }: {
   onMessage: (message: string) => void
   onOpenStocks: () => void
+  canCreateFlowTransfer: boolean
+  canConfirmFlowTransfer: boolean
 }) {
   const [twin, setTwin] = useState(emptyTwin)
   const [loading, setLoading] = useState(true)
@@ -28,6 +34,8 @@ export default function WarehouseDigitalTwinPageModule({
   const [draftKeyword, setDraftKeyword] = useState('')
   const [keyword, setKeyword] = useState('')
   const [selectedLocationId, setSelectedLocationId] = useState('')
+  const [fullscreenOpen, setFullscreenOpen] = useState(false)
+  const [transferTarget, setTransferTarget] = useState<{ sourceLocationId: string; materialId: string } | null>(null)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -60,6 +68,11 @@ export default function WarehouseDigitalTwinPageModule({
     setKeyword(draftKeyword.trim())
   }
 
+  const startTransfer = (location: WarehouseTwinLocation, material: WarehouseTwinMaterialBalance) => {
+    if (!material.materialId) return onMessage('该库存没有关联物料资料，不能创建流程转移')
+    setTransferTarget({ sourceLocationId: location.id, materialId: material.materialId })
+  }
+
   return (
     <div className="min-w-0 space-y-4 p-4 lg:p-6">
       <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:flex-row xl:items-center xl:justify-between">
@@ -68,19 +81,7 @@ export default function WarehouseDigitalTwinPageModule({
           <h2 className="mt-1 text-2xl font-semibold text-slate-950">库存空间白板</h2>
           <p className="mt-1 text-sm text-slate-500">使用现有库存、库位和状态事实生成只读空间视图，不建立第二套库存账。</p>
         </div>
-        <form className="flex min-w-0 flex-1 gap-2 xl:max-w-2xl" onSubmit={submitSearch}>
-          <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100">
-            <Search size={18} className="shrink-0 text-slate-400" />
-            <input
-              value={draftKeyword}
-              onChange={(event) => setDraftKeyword(event.target.value)}
-              className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none"
-              placeholder="输入物料、规格或库位，按回车搜索"
-            />
-          </label>
-          <AppButton variant="primary" type="submit">搜索</AppButton>
-          {keyword && <AppButton onClick={() => { setDraftKeyword(''); setKeyword('') }}>清除</AppButton>}
-        </form>
+        <WarehouseTwinSearchForm draftKeyword={draftKeyword} keyword={keyword} onDraftKeywordChange={setDraftKeyword} onSubmit={submitSearch} onClear={() => { setDraftKeyword(''); setKeyword('') }} />
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -105,16 +106,131 @@ export default function WarehouseDigitalTwinPageModule({
       ) : twin.locations.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-20 text-center text-slate-500"><Boxes className="mx-auto mb-3" />当前权限范围内没有可展示的库位</div>
       ) : (
-        <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <WarehouseTwinCanvas
-            locations={twin.locations}
-            keyword={keyword}
-            selectedLocationId={selectedLocationId}
-            onSelectLocation={setSelectedLocationId}
-          />
-          <WarehouseTwinDetailPanel location={selectedLocation} onOpenStocks={onOpenStocks} />
-        </section>
+        <WarehouseTwinBoard
+          twin={twin}
+          keyword={keyword}
+          selectedLocation={selectedLocation}
+          selectedLocationId={selectedLocationId}
+          canCreateFlowTransfer={canCreateFlowTransfer}
+          onSelectLocation={setSelectedLocationId}
+          onOpenStocks={onOpenStocks}
+          onStartTransfer={startTransfer}
+          onOpenFullscreen={() => setFullscreenOpen(true)}
+        />
+      )}
+
+      {fullscreenOpen && (
+        <ModalDialog
+          title="库存空间白板"
+          description="全屏查看库位、库存状态并直接发起库位转移"
+          onClose={() => setFullscreenOpen(false)}
+          initialFullscreen
+          size="wide"
+          bodyClassName="flex min-h-0 flex-col !overflow-y-auto !p-4 xl:!overflow-hidden"
+        >
+          <div className="mb-3 shrink-0">
+            <WarehouseTwinSearchForm draftKeyword={draftKeyword} keyword={keyword} onDraftKeywordChange={setDraftKeyword} onSubmit={submitSearch} onClear={() => { setDraftKeyword(''); setKeyword('') }} />
+          </div>
+          <div className="min-h-0 flex-1">
+            <WarehouseTwinBoard
+              twin={twin}
+              keyword={keyword}
+              selectedLocation={selectedLocation}
+              selectedLocationId={selectedLocationId}
+              canCreateFlowTransfer={canCreateFlowTransfer}
+              fillHeight
+              onSelectLocation={setSelectedLocationId}
+              onOpenStocks={onOpenStocks}
+              onStartTransfer={startTransfer}
+            />
+          </div>
+        </ModalDialog>
+      )}
+
+      {transferTarget && (
+        <FlowTransferQuickDialog
+          sourceLocationId={transferTarget.sourceLocationId}
+          materialId={transferTarget.materialId}
+          canConfirm={canConfirmFlowTransfer}
+          onMessage={onMessage}
+          onClose={() => setTransferTarget(null)}
+          onInventoryChanged={reload}
+        />
       )}
     </div>
+  )
+}
+
+function WarehouseTwinSearchForm({
+  draftKeyword,
+  keyword,
+  onDraftKeywordChange,
+  onSubmit,
+  onClear,
+}: {
+  draftKeyword: string
+  keyword: string
+  onDraftKeywordChange: (keyword: string) => void
+  onSubmit: (event: FormEvent) => void
+  onClear: () => void
+}) {
+  return (
+    <form className="flex min-w-0 flex-1 gap-2 xl:ml-auto xl:max-w-2xl" onSubmit={onSubmit}>
+      <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100">
+        <Search size={18} className="shrink-0 text-slate-400" />
+        <input
+          value={draftKeyword}
+          onChange={(event) => onDraftKeywordChange(event.target.value)}
+          className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none"
+          placeholder="输入物料、规格或库位，按回车搜索"
+        />
+      </label>
+      <AppButton variant="primary" type="submit">搜索</AppButton>
+      {keyword && <AppButton onClick={onClear}>清除</AppButton>}
+    </form>
+  )
+}
+
+function WarehouseTwinBoard({
+  twin,
+  keyword,
+  selectedLocation,
+  selectedLocationId,
+  canCreateFlowTransfer,
+  fillHeight = false,
+  onSelectLocation,
+  onOpenStocks,
+  onStartTransfer,
+  onOpenFullscreen,
+}: {
+  twin: WarehouseDigitalTwin
+  keyword: string
+  selectedLocation: WarehouseTwinLocation | null
+  selectedLocationId: string
+  canCreateFlowTransfer: boolean
+  fillHeight?: boolean
+  onSelectLocation: (locationId: string) => void
+  onOpenStocks: () => void
+  onStartTransfer: (location: WarehouseTwinLocation, material: WarehouseTwinMaterialBalance) => void
+  onOpenFullscreen?: () => void
+}) {
+  return (
+    <section className={`grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] ${fillHeight ? 'xl:h-full xl:min-h-0' : ''}`}>
+      <WarehouseTwinCanvas
+        locations={twin.locations}
+        keyword={keyword}
+        selectedLocationId={selectedLocationId}
+        fillHeight={fillHeight}
+        onSelectLocation={onSelectLocation}
+        onOpenFullscreen={onOpenFullscreen}
+      />
+      <WarehouseTwinDetailPanel
+        location={selectedLocation}
+        onOpenStocks={onOpenStocks}
+        canTransfer={canCreateFlowTransfer}
+        fillHeight={fillHeight}
+        onStartTransfer={onStartTransfer}
+      />
+    </section>
   )
 }

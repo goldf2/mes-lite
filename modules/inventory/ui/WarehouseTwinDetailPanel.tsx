@@ -1,8 +1,8 @@
 'use client'
 
-import { ArrowRight, Box, MapPin } from 'lucide-react'
+import { ArrowRight, ArrowRightLeft, Box, MapPin } from 'lucide-react'
 import AppButton from '@/app/components/AppButton'
-import type { WarehouseTwinLocation } from '../model/warehouse-digital-twin'
+import type { WarehouseTwinLocation, WarehouseTwinMaterialBalance } from '../model/warehouse-digital-twin'
 import { warehouseTwinStatusLabel } from './WarehouseTwinCanvas'
 
 const numberText = (value: number) => Number(value || 0).toFixed(6).replace(/\.?0+$/, '') || '0'
@@ -15,16 +15,22 @@ function QuantityRow({ label, value, unit, tone = 'text-slate-700' }: { label: s
 export default function WarehouseTwinDetailPanel({
   location,
   onOpenStocks,
+  canTransfer = false,
+  fillHeight = false,
+  onStartTransfer,
 }: {
   location: WarehouseTwinLocation | null
   onOpenStocks: () => void
+  canTransfer?: boolean
+  fillHeight?: boolean
+  onStartTransfer?: (location: WarehouseTwinLocation, material: WarehouseTwinMaterialBalance) => void
 }) {
   if (!location) {
     return <aside className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">选择一个库位查看库存明细。</aside>
   }
 
   return (
-    <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <aside className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${fillHeight ? 'xl:flex xl:min-h-0 xl:flex-col' : ''}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs font-semibold text-blue-700"><MapPin size={15} /> {location.code}</div>
@@ -34,16 +40,23 @@ export default function WarehouseTwinDetailPanel({
         {location.isDefault && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">默认</span>}
       </div>
 
-      <div className="mt-5 max-h-[520px] space-y-3 overflow-y-auto pr-1">
+      <div className={`mt-5 space-y-3 overflow-y-auto pr-1 ${fillHeight ? 'max-h-[640px] xl:max-h-none xl:min-h-0 xl:flex-1' : 'max-h-[640px]'}`}>
         {location.materials.map((material) => (
           <article key={material.stockId} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <div className="flex items-start gap-3">
-              <span className="rounded-lg bg-white p-2 text-slate-500 shadow-sm"><Box size={17} /></span>
-              <div className="min-w-0">
-                <div className="font-mono text-xs font-semibold text-blue-700">{material.code}</div>
-                <div className="mt-0.5 text-sm font-semibold text-slate-900">{material.name}</div>
-                {material.spec && <div className="mt-0.5 text-xs text-slate-500">{material.spec}</div>}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="rounded-lg bg-white p-2 text-slate-500 shadow-sm"><Box size={17} /></span>
+                <div className="min-w-0">
+                  <div className="font-mono text-xs font-semibold text-blue-700">{material.code}</div>
+                  <div className="mt-0.5 text-sm font-semibold text-slate-900">{material.name}</div>
+                  {material.spec && <div className="mt-0.5 text-xs text-slate-500">{material.spec}</div>}
+                </div>
               </div>
+              {canTransfer && material.materialId && material.availableQty > 0.000001 && onStartTransfer && (
+                <AppButton size="sm" variant="primary" onClick={() => onStartTransfer(location, material)}>
+                  <ArrowRightLeft size={14} /> 转移
+                </AppButton>
+              )}
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5">
               <QuantityRow label="总量" value={material.qty} unit={material.unit} />

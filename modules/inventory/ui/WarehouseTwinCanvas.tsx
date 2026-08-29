@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { LocateFixed, Minus, Plus, Warehouse } from 'lucide-react'
+import { LocateFixed, Maximize2, Minus, Plus, Warehouse } from 'lucide-react'
 import AppButton from '@/app/components/AppButton'
 import type { WarehouseTwinLocation, WarehouseTwinStatus } from '../model/warehouse-digital-twin'
 import { warehouseTwinLocationMatches } from '../model/warehouse-digital-twin'
@@ -29,11 +29,15 @@ export default function WarehouseTwinCanvas({
   keyword,
   selectedLocationId,
   onSelectLocation,
+  fillHeight = false,
+  onOpenFullscreen,
 }: {
   locations: WarehouseTwinLocation[]
   keyword: string
   selectedLocationId: string
   onSelectLocation: (locationId: string) => void
+  fillHeight?: boolean
+  onOpenFullscreen?: () => void
 }) {
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 18, y: 18 })
@@ -50,7 +54,7 @@ export default function WarehouseTwinCanvas({
   }
 
   return (
-    <div className="relative min-h-[580px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-inner">
+    <div className={`relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-inner ${fillHeight ? 'h-full min-h-[560px] xl:min-h-0' : 'h-[calc(100dvh-16rem)] min-h-[720px] max-h-[960px]'}`}>
       <div className="pointer-events-none absolute inset-0 opacity-60 [background-image:linear-gradient(#cbd5e1_1px,transparent_1px),linear-gradient(90deg,#cbd5e1_1px,transparent_1px)] [background-size:24px_24px]" />
       <div className="absolute left-4 top-4 z-20 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs text-slate-600 shadow-sm backdrop-blur">
         拖动空白处平移 · 点击库位查看详情
@@ -60,6 +64,7 @@ export default function WarehouseTwinCanvas({
         <span className="flex min-w-14 items-center justify-center text-xs font-semibold text-slate-600">{Math.round(zoom * 100)}%</span>
         <AppButton size="icon" aria-label="放大白板" onClick={() => setZoom((value) => Math.min(1.65, Number((value + 0.15).toFixed(2))))}><Plus size={17} /></AppButton>
         <AppButton size="icon" aria-label="复位白板" onClick={resetView}><LocateFixed size={17} /></AppButton>
+        {onOpenFullscreen && <AppButton size="icon" aria-label="全屏显示仓库白板" title="全屏显示" onClick={onOpenFullscreen}><Maximize2 size={17} /></AppButton>}
       </div>
       <div
         className="absolute inset-0 cursor-grab touch-none active:cursor-grabbing"

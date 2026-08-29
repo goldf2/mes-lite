@@ -1,8 +1,8 @@
 {
-  "version": "0.1.446",
+  "version": "0.1.447",
   "impact": "updated",
   "workflowIds": [
-    "62-data-tools"
+    "185-warehouse-digital-twin"
   ],
-  "summary": "数据工具的数据关系检查新增故障明细 CSV 导出，便于把当前检查结果离线转交和排查。"
+  "summary": "仓库全景扩大普通画布并增加全屏查看；库位详情可复用流程转移单据和权限直接发起库位间转移。"
 }

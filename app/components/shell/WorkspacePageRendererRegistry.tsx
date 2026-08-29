@@ -125,6 +125,8 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
     <WarehouseDigitalTwinPageModule
       onMessage={context.onMessage}
       onOpenStocks={() => context.onOpenWorkspaceFunction('stocks')}
+      canCreateFlowTransfer={context.canRead('flowTransfers') && context.canCreate('flowTransfers')}
+      canConfirmFlowTransfer={context.canUpdate('flowTransferConfirm')}
     />
   ),
   'stock-movements': (context) => <StockMovementPageModule onMessage={context.onMessage} />,

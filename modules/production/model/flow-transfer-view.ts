@@ -16,6 +16,15 @@ export const createEmptyFlowTransferForm = (): FlowTransferForm => ({
   note: '',
 })
 
+export function flowTransferFormError(form: FlowTransferForm) {
+  if (!form.materialId) return '请选择转移物料'
+  if (!form.sourceLocationId || !form.targetLocationId) return '请选择来源和目标库位'
+  if (form.sourceLocationId === form.targetLocationId) return '来源库位和目标库位不能相同'
+  if (Number(form.quantity) <= 0) return '转移数量必须大于 0'
+  if (!form.employeeId) return '请选择操作员工'
+  return ''
+}
+
 export const flowTransferStatusMeta: Record<FlowTransferStatus, { label: string; className: string }> = {
   DRAFT: { label: '草稿', className: 'bg-gray-100 text-gray-700' },
   CONFIRMED: { label: '已确认', className: 'bg-emerald-50 text-emerald-700' },
