@@ -694,7 +694,7 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 草稿保存时按冻结 BOM 中每条投入绑定的产出实际量分别计算投入，再按投入物料汇总，并校验来源库位可用量；旧快照缺少绑定字段时兼容回退到主产出。确认在单一事务内扣减所有投入、按库位可用批次先进先出分配、增加全部产出、建立投入父批次到产出子批次的谱系，并累计订单完成数量；当前全部投入成本归集到主产出，其他产出零成本入库。冲销要求本次产出尚未被后续业务消耗，并反向恢复库存、库位余额、成本层、投入批次余额和订单累计，同时将分配与谱系边标记为已冲销。
 
-`DailyProductionReport` 同时承担快捷生产/转换与历史记录兼容，其中 `bomType` 仅为兼容快照字段。`v0.1.438` 起 BOM 改为可选预设，`DailyProductionConsumption` 保存本次实际投入，新增 `DailyProductionOutput` 保存多项实际产出、主产出、库位、折算和成本事实；日报原有 `finishedMaterialId / outputQty / outputLocationId` 仅保留主产出兼容投影。无 BOM 或计划外明细必须填写说明。系统在一个事务中扣减全部投入、逐项增加产出、把耗用成本归集到主产出并写审计；全部产出可直接可用，也可分别建立待检批次与 `QualityInspection`。旧通用创建接口从 `v0.1.349` 起仍返回 `410`。需要订单、派工、设备、人员、作业文件和投入产出批次谱系时，继续使用 `ProductionOrderActual`。
+`DailyProductionReport` 同时承担快捷生产/转换与历史记录兼容，其中 `bomType` 仅为兼容快照字段。`v0.1.438` 起 BOM 改为可选预设，`DailyProductionConsumption` 保存本次实际投入，新增 `DailyProductionOutput` 保存多项实际产出、主产出、库位、折算和成本事实；日报原有 `finishedMaterialId / outputQty / outputLocationId` 仅保留主产出兼容投影。无 BOM 或计划外明细必须填写说明。系统在一个事务中扣减全部投入、按库位可用批次 FIFO 写入关联 `DailyProductionConsumption` 和正式 `StockLog` 的 `InventoryLotTransaction`、逐项增加产出、把耗用成本归集到主产出并写审计。冲销不重跑当前 FIFO，而是按原批次事务精确恢复原库位可用余额；批次依据缺失或与正式耗用流水不一致时，整笔冲销回滚。全部产出可直接可用，也可分别建立待检批次与 `QualityInspection`。旧通用创建接口从 `v0.1.349` 起仍返回 `410`。需要订单、派工、设备、人员、作业文件和投入产出批次谱系时，继续使用 `ProductionOrderActual`。
 
 `PickItem`、`WorkReport` 和 `StockIn` 是更早的生产订单执行记录。当前页面不再调用 `/api/orders/:id/pick`、`reports` 或 `stock-in`，正式过账由 `ProductionOrderActual` 一次表达实际投入和全部产出；三条 URL 仅允许处理 `materialId=null` 的历史工单，物料工单返回 `410`。历史兼容规则仍归 `modules/production`。
 

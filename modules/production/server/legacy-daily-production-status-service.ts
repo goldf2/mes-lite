@@ -2,7 +2,12 @@ import type { Prisma } from '@prisma/client'
 import { createAuditLog, type AuditContext } from '@/lib/audit'
 import { prisma } from '@/lib/prisma'
 import { changeStockLocationBalance, postInventoryIssue, postInventoryReceipt } from '@/lib/inventory'
-import { createInventoryLotReceipt, createInventoryReversalMovement } from '@/modules/inventory'
+import {
+  consumeAvailableInventoryLotsForReference,
+  createInventoryLotReceipt,
+  createInventoryReversalMovement,
+  restoreInventoryLotsForReference,
+} from '@/modules/inventory'
 import { assertInventoryLocationDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 import { createProductionQualityInspection } from '@/modules/quality'
 import type { ReverseLegacyDailyProductionInput } from '../contracts/legacy-daily-production-schema'
@@ -62,6 +67,25 @@ export async function confirmLegacyDailyProductionReportInTransaction(
         createdBy: confirmedBy,
         idempotencyKey: `DAILY_PRODUCTION:${report.id}:CONSUME:${line.id}`,
         locationId: line.locationId,
+      })
+      if (!issue.location || !issue.movement) {
+        throw new LegacyDailyProductionError(`生产记录 ${report.reportNo} 的投入扣料没有生成完整库存流水`)
+      }
+      await consumeAvailableInventoryLotsForReference(tx, {
+        materialId: line.materialId,
+        materialCode: line.material.code,
+        locationId: line.locationId,
+        locationCode: issue.location.code,
+        stockQty: Number(line.actualQty),
+        issueValuationQty: Number(issue.valuationQty),
+        issueCostAmount: Number(issue.costAmount),
+        refType: 'DAILY_PRODUCTION_CONSUMPTION',
+        refId: line.id,
+        transactionType: 'PRODUCTION_CONSUME',
+        idempotencyPrefix: `DAILY_PRODUCTION:${report.id}:INPUT:${line.id}`,
+        note: `生产记录 ${report.reportNo} 投入批次分配`,
+        stockLogId: issue.movement.id,
+        createdBy: confirmedBy,
       })
       await tx.dailyProductionConsumption.update({
         where: { id: line.id },
@@ -412,7 +436,7 @@ async function restoreLegacyConsumption(
     orderBy: { createdAt: 'desc' },
   })
   if (!sourceMovement) throw new LegacyDailyProductionError(`生产记录 ${report.reportNo} 的原耗用流水缺失，不能建立可信冲销`)
-  await createInventoryReversalMovement(tx, sourceMovement.id, {
+  const reversalMovement = await createInventoryReversalMovement(tx, sourceMovement.id, {
       stockId: stock.id,
       locationId: consumptionLocation.id,
       type: 'PRODUCTION_REVERSE_CONSUME',
@@ -435,6 +459,20 @@ async function restoreLegacyConsumption(
       refId: report.id,
       note: `冲销生产记录 ${report.reportNo}，恢复原料`,
       createdBy: reversedBy,
+  })
+  await restoreInventoryLotsForReference(tx, {
+    originalRefType: 'DAILY_PRODUCTION_CONSUMPTION',
+    originalRefId: line.id,
+    originalTransactionType: 'PRODUCTION_CONSUME',
+    originalStockLogId: sourceMovement.id,
+    reversalRefType: 'DAILY_PRODUCTION_CONSUMPTION_REVERSE',
+    reversalRefId: line.id,
+    reversalTransactionType: 'PRODUCTION_REVERSE_CONSUME',
+    idempotencyPrefix: `DAILY_PRODUCTION:${report.id}:RESTORE_INPUT:${line.id}`,
+    note: `冲销生产记录 ${report.reportNo}，恢复原投入批次`,
+    stockLogId: reversalMovement.id,
+    createdBy: reversedBy,
+    missingMessage: `生产记录 ${report.reportNo} 的原耗用批次事务缺失，不能建立可信批次恢复`,
   })
 }
 

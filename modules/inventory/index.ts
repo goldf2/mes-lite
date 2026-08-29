@@ -18,6 +18,7 @@ export type { InventoryReversalMovementInput } from '@/lib/inventory-ledger'
 export {
   allocateAvailableInventoryLots,
   consumeAvailableInventoryLotsForReference,
+  restoreInventoryLotsForReference,
   allocateReturnToShipmentLots,
   allocateShipmentInventoryLots,
   reverseShipmentInventoryLots,

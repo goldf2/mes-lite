@@ -399,7 +399,109 @@ export async function consumeAvailableInventoryLotsForReference(
   }
   const allocatedStockQty = result.reduce((sum, item) => sum + item.stockQty, 0)
   if (Math.abs(allocatedStockQty - input.stockQty) > tolerance) throw new Error('业务批次分配数量与库存出库数量不一致')
+  const recordedValuationQty = result.reduce((sum, item) => sum + Math.abs(Number(item.transaction.valuationQty)), 0)
+  const recordedCostAmount = result.reduce((sum, item) => sum + Math.abs(Number(item.transaction.costAmount)), 0)
+  if (
+    Math.abs(recordedValuationQty - input.issueValuationQty) > tolerance
+    || Math.abs(recordedCostAmount - input.issueCostAmount) > tolerance
+  ) {
+    throw new Error('业务批次估值与正式库存出库流水不一致')
+  }
   return result
+}
+
+export async function restoreInventoryLotsForReference(
+  tx: Prisma.TransactionClient,
+  input: {
+    originalRefType: string
+    originalRefId: string
+    originalTransactionType: string
+    originalStockLogId: string
+    reversalRefType: string
+    reversalRefId: string
+    reversalTransactionType: string
+    idempotencyPrefix: string
+    note: string
+    stockLogId: string
+    createdBy?: string | null
+    missingMessage?: string
+  },
+) {
+  const originalTransactions = await tx.inventoryLotTransaction.findMany({
+    where: {
+      refType: input.originalRefType,
+      refId: input.originalRefId,
+      type: input.originalTransactionType,
+      stockQty: { lt: -tolerance },
+    },
+    include: { lot: true },
+    orderBy: { createdAt: 'asc' },
+  })
+  if (originalTransactions.length === 0) {
+    throw new Error(input.missingMessage || '原批次事务缺失，不能建立可信批次恢复')
+  }
+
+  for (const transaction of originalTransactions) {
+    if (
+      transaction.lot.status !== 'OPEN'
+      || transaction.fromStatus !== 'AVAILABLE'
+      || transaction.locationId.length === 0
+      || transaction.stockLogId !== input.originalStockLogId
+    ) {
+      throw new Error('原批次事务与正式耗用流水不一致，不能建立可信批次恢复')
+    }
+    const reversalKey = `${input.idempotencyPrefix}:LOT_TRANSACTION:${transaction.id}`
+    if (await tx.inventoryLotTransaction.findUnique({ where: { idempotencyKey: reversalKey } })) {
+      throw new Error('原批次事务已经恢复，不能重复冲销')
+    }
+  }
+
+  const restored = []
+  for (const transaction of originalTransactions) {
+    const stockQty = Math.abs(Number(transaction.stockQty))
+    const valuationQty = Math.abs(Number(transaction.valuationQty))
+    const costAmount = Math.abs(Number(transaction.costAmount))
+    await tx.inventoryLotBalance.upsert({
+      where: {
+        lotId_locationId_inventoryStatus: {
+          lotId: transaction.lotId,
+          locationId: transaction.locationId,
+          inventoryStatus: 'AVAILABLE',
+        },
+      },
+      update: {
+        stockQty: { increment: stockQty },
+        valuationQty: { increment: valuationQty },
+        costAmount: { increment: costAmount },
+      },
+      create: {
+        lotId: transaction.lotId,
+        locationId: transaction.locationId,
+        inventoryStatus: 'AVAILABLE',
+        stockQty,
+        valuationQty,
+        costAmount,
+      },
+    })
+    restored.push(await tx.inventoryLotTransaction.create({
+      data: {
+        lotId: transaction.lotId,
+        locationId: transaction.locationId,
+        type: input.reversalTransactionType,
+        toStatus: 'AVAILABLE',
+        stockQty,
+        valuationQty,
+        costAmount,
+        refType: input.reversalRefType,
+        refId: input.reversalRefId,
+        stockLogId: input.stockLogId,
+        idempotencyKey: `${input.idempotencyPrefix}:LOT_TRANSACTION:${transaction.id}`,
+        note: input.note,
+        createdBy: input.createdBy || null,
+      },
+    }))
+  }
+  return restored
 }
 
 function distributeIssueValue(total: number, stockQty: number, totalStockQty: number, allocated: number, last: boolean) {

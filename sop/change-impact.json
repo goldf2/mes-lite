@@ -1,8 +1,8 @@
 {
-  "version": "0.1.447",
+  "version": "0.1.448",
   "impact": "updated",
   "workflowIds": [
-    "185-warehouse-digital-twin"
+    "184-daily-production-shortcut"
   ],
-  "summary": "仓库全景扩大普通画布并增加全屏查看；库位详情可复用流程转移单据和权限直接发起库位间转移。"
+  "summary": "生产日报确认与冲销现在同步闭环正式库存、成本层和投入批次；冲销精确恢复原批次，依据缺失时整笔回滚。"
 }
