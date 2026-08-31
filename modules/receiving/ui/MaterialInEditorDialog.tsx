@@ -2,7 +2,7 @@
 
 import type { Dispatch, SetStateAction } from 'react'
 import AppButton from '@/app/components/AppButton'
-import { DraftDocumentAttachmentPanel } from '@/modules/attachments'
+import { AttachmentPanel, DraftDocumentAttachmentPanel } from '@/modules/attachments'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import SearchableSelect from '@/app/components/SearchableSelect'
 import type { MaterialInPriceUnit } from '@/lib/material-in-quantity'
@@ -16,6 +16,7 @@ import type {
   SupplierOption,
 } from '../contracts/material-in'
 import { formatReceivingMaterialLabel as formatMaterialLabel } from '../model/material-in-view'
+import MaterialInDetailDialog from './MaterialInDetailDialog'
 
 interface MaterialInEditorDialogProps {
   open: boolean
@@ -112,6 +113,9 @@ export default function MaterialInEditorDialog({
   onMessage,
 }: MaterialInEditorDialogProps) {
   if (!open) return null
+  if (editingItem && editingItem.status !== 'PENDING') {
+    return <MaterialInDetailDialog item={editingItem} editAttachments onClose={onClose} onMessage={onMessage} />
+  }
   const priceUnitLabel = priceUsesValuation ? valuationUnitLabel : stockUnitLabel
   const submitItemCount = draftItems.length + (form.materialId && !editingDraftItemId ? 1 : 0)
 
@@ -183,21 +187,23 @@ export default function MaterialInEditorDialog({
               options={materials.map((material) => ({
                 value: material.id,
                 label: formatMaterialLabel(material),
-                keywords: [material.code, material.name, material.spec].filter(Boolean).join(' '),
+                keywords: [material.code, material.name, material.spec, material.note].filter(Boolean).join(' '),
                 code: material.code,
                 name: material.name,
                 spec: material.spec,
+                note: material.note,
               }))}
               onChange={(materialId) => onMaterialChange(materials.find((material) => material.id === materialId) || null)}
               onSearch={onMaterialSearch}
               allowClear
-              placeholder="输入物料名称、编码或规格"
+              placeholder="输入物料名称、编码、规格或备注"
               emptyText="没有匹配物料"
-              searchHint="输入名称、编码或规格继续筛选"
+              searchHint="输入名称、编码、规格或备注继续筛选；可选择半成品"
               renderOption={(option) => (
                 <>
                   <div className="truncate font-medium">{option.code as string} · {option.name as string}</div>
                   <div className="mt-0.5 truncate text-xs text-gray-500">{(option.spec as string) || '无规格'}</div>
+                  {Boolean(option.note) && <div className="mt-0.5 whitespace-pre-wrap break-words text-xs text-gray-600">备注：{option.note as string}</div>}
                 </>
               )}
             />
@@ -217,6 +223,7 @@ export default function MaterialInEditorDialog({
 
           {selectedMaterial && (
             <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4 lg:col-span-7">
+              {selectedMaterial.note && <p className="mb-3 whitespace-pre-wrap break-words text-sm text-gray-700">物料备注（当前资料）：{selectedMaterial.note}</p>}
               <div className="mb-3">
                 <div className="text-sm font-medium text-gray-800">来料实收数量</div>
                 <div className="mt-0.5 text-xs text-gray-500">主单位数量必须实填；辅助单位优先实测，未填时仅可使用有效历史实测推算。</div>
@@ -359,11 +366,12 @@ export default function MaterialInEditorDialog({
             </div>
           </div>
           <div className="lg:col-span-8">
-            <label className="mb-2 block text-sm font-medium text-gray-700">备注</label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">整单备注</label>
             <textarea
               value={form.note}
               onChange={(event) => setForm({ ...form, note: event.target.value })}
               rows={2}
+              placeholder="记录本批来料的加工情况、收货说明等；物料通用说明请在物料资料的备注中维护"
               className="w-full rounded-lg border border-gray-200 px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -377,8 +385,19 @@ export default function MaterialInEditorDialog({
               </AppButton>
             </div>
           )}
-          {!editingItem && (
-            <div className="lg:col-span-12">
+          <div className="lg:col-span-12">
+            {editingItem ? (
+              <section className="space-y-2 border-t border-gray-100 pt-5">
+                <AttachmentPanel
+                  ownerType="MATERIAL_IN"
+                  ownerId={editingItem.id}
+                  enableAiRecognition={false}
+                  onBusyChange={setDraftAttachmentBusy}
+                  onMessage={onMessage}
+                />
+                <p className="text-xs text-gray-500">附件上传、归档立即生效，不需要保存整单；关闭不会撤销。归档保留原文件。</p>
+              </section>
+            ) : (
               <DraftDocumentAttachmentPanel
                 ownerType="MATERIAL_IN"
                 draftOwnerId={draftAttachmentOwnerId}
@@ -386,8 +405,8 @@ export default function MaterialInEditorDialog({
                 onBusyChange={setDraftAttachmentBusy}
                 onMessage={onMessage}
               />
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         <aside className="mt-5 border-t border-gray-200 pt-5 xl:mt-0 xl:flex xl:min-h-0 xl:flex-col xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
@@ -417,6 +436,7 @@ export default function MaterialInEditorDialog({
                           <div className="break-words font-medium text-gray-900">
                             {material ? formatMaterialLabel(material) : item.materialId}
                           </div>
+                          {material?.note && <div className="mt-1 whitespace-pre-wrap break-words text-xs text-gray-600">物料备注：{material.note}</div>}
                           <div className="mt-1 text-xs text-gray-500">
                             {item.qty} {item.unit}
                             {item.valuationQty ? ` · 实测 ${item.valuationQty} ${item.valuationUnit}` : ''}

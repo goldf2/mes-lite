@@ -19,23 +19,33 @@ export default function MaterialInDetailDialog({
   item,
   onClose,
   onMessage,
+  onEdit,
+  editAttachments = false,
 }: {
   item: MaterialInRecord
   onClose: () => void
   onMessage: (message: string) => void
+  onEdit?: () => void
+  editAttachments?: boolean
 }) {
   const [traceLotId, setTraceLotId] = useState<string | null>(null)
+  const [attachmentBusy, setAttachmentBusy] = useState(false)
   return (
     <>
     <BusinessDocumentDetailDialog
-      title={`来料单 ${item.inboundNo}`}
+      title={`${editAttachments ? '编辑来料单附件' : '来料单'} ${item.inboundNo}`}
       description={`凭据号：${item.voucherNo || '-'} · ${materialInStatusLabels[item.status] || item.status} · ${item.itemCount} 项物料`}
       ownerType="MATERIAL_IN"
       ownerId={item.id}
-      onClose={onClose}
+      onClose={() => { if (!attachmentBusy) onClose() }}
+      closeDisabled={attachmentBusy}
       onMessage={onMessage}
-      headerActions={<BusinessDocumentPrintLink kind="material-in" id={item.id} />}
+      readOnly={!editAttachments}
+      enableAiRecognition={false}
+      onAttachmentBusyChange={setAttachmentBusy}
+      headerActions={<>{onEdit && !editAttachments && <AppButton onClick={onEdit}>{item.status === 'PENDING' ? '编辑' : '编辑附件'}</AppButton>}<BusinessDocumentPrintLink kind="material-in" id={item.id} /></>}
     >
+      {editAttachments && <p className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">单据已{materialInStatusLabels[item.status]?.replace(/^已/, '') || '处理'}，业务数据已锁定；仅可管理附件。附件上传、归档立即生效，关闭不会撤销；归档保留原文件。</p>}
       <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div><dt className="text-gray-500">供应商</dt><dd className="mt-1 font-medium text-gray-900">{item.supplier?.name || '-'}</dd></div>
         <div><dt className="text-gray-500">待分库库位</dt><dd className="mt-1 font-medium text-gray-900">{item.location.code} · {item.location.name}</dd></div>
@@ -53,7 +63,7 @@ export default function MaterialInDetailDialog({
               return (
               <tr key={line.id}>
                 <td className="px-4 py-3 text-gray-500">{line.lineNo}</td>
-                <td className="px-4 py-3"><div className="font-medium text-gray-900">{line.material.code} · {line.material.name}</div><div className="text-xs text-gray-500">{line.material.spec || '无规格'}</div></td>
+                <td className="px-4 py-3"><div className="font-medium text-gray-900">{line.material.code} · {line.material.name}</div><div className="text-xs text-gray-500">{line.material.spec || '无规格'}</div>{line.material.note && <div className="mt-1 whitespace-pre-wrap break-words text-xs text-gray-600">物料备注（当前资料）：{line.material.note}</div>}</td>
                 <td className="px-4 py-3 font-medium">{line.qty} {line.unit}</td>
                 <td className="px-4 py-3"><div>{line.valuationQty} {line.valuationUnit}</div><div className="mt-0.5 text-xs text-gray-500">{conversionSourceLabel(line.conversionSource, line.conversionSampleCount)}</div></td>
                 <td className="px-4 py-3 text-gray-600">1 {line.unit} = {line.conversionRate} {line.valuationUnit}</td>
@@ -65,6 +75,7 @@ export default function MaterialInDetailDialog({
           </tbody>
         </table>
       </div>
+      {item.note && <div className="mt-4 text-sm"><div className="text-gray-500">整单备注</div><p className="mt-1 whitespace-pre-wrap break-words text-gray-900">{item.note}</p></div>}
     </BusinessDocumentDetailDialog>
     {traceLotId && <InventoryLotTraceDialog lotId={traceLotId} onClose={() => setTraceLotId(null)} onMessage={onMessage} />}
     </>

@@ -57,6 +57,17 @@ function verifyStaticBoundaries(
   const collection = read('modules/receiving/ui/MaterialInCollectionView.tsx')
   const renderer = read('app/components/shell/WorkspacePageRendererRegistry.tsx')
   const editor = read('modules/receiving/ui/MaterialInEditorDialog.tsx')
+  const detail = read('modules/receiving/ui/MaterialInDetailDialog.tsx')
+  const documentDialog = read('modules/business-documents/ui/BusinessDocumentDetailDialog.tsx')
+  assert.match(detail, /editAttachments = false/, '来料详情默认必须只读')
+  assert.match(detail, /readOnly=\{!editAttachments\}/, '来料详情只读模式必须传递到公共附件模块')
+  assert.match(documentDialog, /readOnly=\{readOnly\}/, '公共单据弹窗必须传递附件只读边界')
+  assert.match(editor, /editingItem && editingItem\.status !== 'PENDING'[\s\S]*editAttachments/, '非待收货单只能进入附件编辑，不得重开业务字段')
+  assert.match(editor, /<AttachmentPanel[\s\S]*ownerType="MATERIAL_IN"[\s\S]*ownerId=\{editingItem\.id\}/, '已有来料编辑必须按单头 ID 管理附件')
+  assert.match(detail, /line\.material\.note/, '来料详情必须展示物料备注')
+  assert.match(detail, /item\.note/, '来料详情必须展示整单备注')
+  assert.match(editor, /material\.note[\s\S]*selectedMaterial\.note/, '来料选择与录入必须展示物料备注')
+  assert.match(collection, /canUpdate[\s\S]*编辑附件/, '已收货单必须保留受编辑权限控制的附件入口')
   const select = read('app/components/SearchableSelect.tsx')
   assert.doesNotMatch(service + statusService, /NextRequest|NextResponse|requireResourcePermission|writeAuditLog/, '来料领域服务不得依赖 HTTP、权限或请求审计')
   assert.match(service, /tokenizeKeywordQuery/, '来料查询必须保留空格分隔的多关键词搜索')
@@ -200,6 +211,7 @@ async function main() {
         data: {
           code: `VERIFY-AUX-${suffix}`, name: `验证辅料 ${suffix}`, unit: '件', stockUnit: '件', valuationUnit: '件',
           primaryMeasure: 'QUANTITY', referenceMeasure: 'QUANTITY', conversionRate: 1,
+          category: 'OTHER', note: '半成品；已锯切，待钻孔',
         },
       }),
     ])
@@ -230,6 +242,11 @@ async function main() {
     )
     assert.equal(nextMaterialInNumber(fixedNow, 'IN-20260810-009'), 'IN-20260810-010')
     assert.equal((await getMaterialInDetail(created.first.id)).supplierId, supplier.id)
+    assert.equal((await getMaterialInDetail(created.first.id)).items[1].material.note, '半成品；已锯切，待钻孔', '来料可以接收半成品，详情保留当前物料备注')
+    const receiptAttachment = await prisma.documentAttachment.create({ data: {
+      ownerType: 'MATERIAL_IN', ownerId: created.first.id, documentType: 'ORIGINAL', originalName: '来料凭证.txt',
+      fileName: 'receipt.txt', mimeType: 'text/plain', size: 4, url: '/test-receipt.txt', storagePath: '/test-receipt.txt',
+    } })
 
     const updateInput = updateMaterialInSchema.parse({
       supplierId: supplier.id, stagingLocationId: location.id,
@@ -247,6 +264,8 @@ async function main() {
       ],
     })
     const edited = await updateManagedMaterialIn(created.first.id, updateInput)
+    assert.equal((await prisma.documentAttachment.findUniqueOrThrow({ where: { id: receiptAttachment.id } })).ownerId, edited.updated.id, '整单保存重建明细不得丢失单头附件关联')
+    assert.equal(edited.updated.note, '编辑验证', '整单备注必须保存并返回')
     assert.deepEqual(
       [edited.updated.items[0].qty, edited.updated.items[0].valuationQty, edited.updated.items[0].totalAmount, edited.updated.items[0].batchNo],
       [6, 15, 60, 'BATCH-EDIT'],

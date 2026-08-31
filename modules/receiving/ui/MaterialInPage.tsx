@@ -96,6 +96,7 @@ export default function MaterialInPage({
   const [showModal, setShowModal] = useState(false)
   const [draftAttachmentOwnerId, setDraftAttachmentOwnerId] = useState('')
   const [draftAttachmentBusy, setDraftAttachmentBusy] = useState(false)
+  const [attachmentRevision, setAttachmentRevision] = useState(0)
   const [editingItem, setEditingItem] = useState<MaterialIn | null>(null)
   const [detailItem, setDetailItem] = useState<MaterialIn | null>(null)
   const [draftItems, setDraftItems] = useState<MaterialInDraftItem[]>([])
@@ -248,6 +249,7 @@ export default function MaterialInPage({
 
   const closeMaterialInForm = () => {
     if (loading || draftAttachmentBusy) return
+    setAttachmentRevision((current) => current + 1)
     if (!editingItem) void discardDraftDocumentAttachments('MATERIAL_IN', draftAttachmentOwnerId)
     setDraftAttachmentOwnerId('')
     setShowModal(false)
@@ -493,10 +495,8 @@ export default function MaterialInPage({
   }
 
   const handleEdit = (item: MaterialIn) => {
-    if (item.status !== 'PENDING') {
-      onMessage('只有待收货来料单可以修改')
-      return
-    }
+    if (!canUpdate) return
+    setDetailItem(null)
 
     setMaterials((current) => {
       const merged = new Map(current.map((material) => [material.id, material]))
@@ -611,6 +611,7 @@ export default function MaterialInPage({
       <div className="space-y-4">
       <div className="rounded-lg bg-white p-3 shadow sm:p-6">
         <MaterialInCollectionView
+          attachmentRevision={attachmentRevision}
           items={materialInSort.sortedRows}
           viewMode={viewMode}
           loading={loading}
@@ -630,7 +631,7 @@ export default function MaterialInPage({
       </div>
 
       {detailItem && (
-        <MaterialInDetailDialog item={detailItem} onClose={() => setDetailItem(null)} onMessage={onMessage} />
+        <MaterialInDetailDialog item={detailItem} onClose={() => setDetailItem(null)} onMessage={onMessage} onEdit={canUpdate ? () => handleEdit(detailItem) : undefined} />
       )}
 
       <MaterialInEditorDialog

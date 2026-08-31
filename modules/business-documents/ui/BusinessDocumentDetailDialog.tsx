@@ -12,6 +12,10 @@ export default function BusinessDocumentDetailDialog({
   onClose,
   onMessage,
   headerActions,
+  readOnly = false,
+  closeDisabled = false,
+  enableAiRecognition = true,
+  onAttachmentBusyChange,
   children,
 }: {
   title: ReactNode
@@ -21,6 +25,10 @@ export default function BusinessDocumentDetailDialog({
   onClose: () => void
   onMessage: (message: string) => void
   headerActions?: ReactNode
+  readOnly?: boolean
+  closeDisabled?: boolean
+  enableAiRecognition?: boolean
+  onAttachmentBusyChange?: (busy: boolean) => void
   children: ReactNode
 }) {
   return (
@@ -29,13 +37,14 @@ export default function BusinessDocumentDetailDialog({
       description={description}
       headerActions={headerActions}
       onClose={onClose}
+      closeDisabled={closeDisabled}
       size="wide"
       bodyClassName="space-y-6"
     >
       <section>
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">系统生成单据</span>
-          <span className="text-xs text-gray-500">业务数据由系统维护，上传文件统一归入附件管理。</span>
+          <span className="text-xs text-gray-500">{readOnly ? '只读查看；如需修改资料或附件，请进入编辑。' : '业务数据由系统维护，上传文件统一归入附件管理。'}</span>
         </div>
         <div className="rounded-lg border border-gray-200 bg-gray-50/70 p-4 sm:p-5">
           {children}
@@ -47,7 +56,9 @@ export default function BusinessDocumentDetailDialog({
           ownerType={ownerType}
           ownerId={ownerId}
           title="附件管理"
-          enableAiRecognition
+          readOnly={readOnly}
+          enableAiRecognition={enableAiRecognition}
+          onBusyChange={onAttachmentBusyChange}
           onMessage={onMessage}
         />
       </section>

@@ -45,6 +45,8 @@ assert.match(attachmentPanelSource, /AI 识别并填充/, '附件管理必须保
 assert.match(attachmentPanelSource, /handleAiRecognition\(attachment\)/, '多个附件必须可以分别选择后进入 AI 识别流程')
 assert.match(attachmentPanelSource, /onAiRecognize\?:\s*\(attachment:\s*ManagedAttachment\)/, 'AI 识别入口必须暴露基于附件的回调契约')
 assert.match(attachmentPanelSource, /const showAiRecognition = !readOnly &&/, '只读附件视图不得暴露 AI 识别入口')
+assert.match(attachmentPanelSource, /enableAiRecognition \?\? supportsDocumentSourceCredentialRecognition/, '明确关闭 AI 回填时不得被单据类型自动重新开启')
+assert.match(detailDialogSource, /readOnly = false[\s\S]*readOnly=\{readOnly\}/, '公共单据弹窗应支持只读附件且不改变旧调用方默认行为')
 assert.ok((attachmentPanelSource.match(/\{!readOnly &&/g) || []).length >= 6, '只读附件视图必须在所有布局隐藏上传、拖放、设封面和归档命令')
 assert.match(attachmentPanelSource, /from '\.\.\/client\/attachment-api'/, '附件面板必须通过所属模块客户端访问 API')
 assert.doesNotMatch(attachmentPanelSource, /fetch\(['"]\/api\/attachments/, '公共附件面板不得重复实现附件请求')
@@ -194,6 +196,23 @@ async function verifyAttachmentLifecycle() {
       () => authorization.requireManagedAttachmentOwnerAccessForOperator(scopedOperator, 'MATERIAL_IN', blockedReceipt.id, 'read'),
       (error: unknown) => error instanceof AttachmentDomainError && error.status === 404,
       '即使拥有来料和附件功能权限，也不得读取未授权库位的附件',
+    )
+    await prisma.materialReceipt.update({ where: { id: allowedReceipt.id }, data: { status: 'RECEIVED' } })
+    await authorization.requireManagedAttachmentOwnerAccessForOperator(admin, 'MATERIAL_IN', allowedReceipt.id, 'upload')
+    const receiptFile = await command.uploadManagedAttachment({
+      ownerType: 'MATERIAL_IN', ownerId: allowedReceipt.id, documentType: 'ORIGINAL',
+      file: new File(['received evidence'], 'receiving.txt', { type: 'text/plain' }),
+    }, admin.id)
+    assert.equal((await query.listManagedAttachments('MATERIAL_IN', allowedReceipt.id))[0].id, receiptFile.id, '已收货来料仍可补充原单据附件')
+    await authorization.requireManagedAttachmentAccessForOperator(admin, receiptFile.id, 'archive')
+    await command.archiveManagedAttachment(receiptFile.id)
+    assert.equal((await query.listManagedAttachments('MATERIAL_IN', allowedReceipt.id)).length, 0)
+    assert.ok((await prisma.documentAttachment.findUniqueOrThrow({ where: { id: receiptFile.id } })).deletedAt, '归档保留附件记录')
+    assert.equal((await prisma.materialReceipt.findUniqueOrThrow({ where: { id: allowedReceipt.id } })).status, 'RECEIVED', '附件修改不得改变单据状态')
+    await assert.rejects(
+      () => authorization.requireManagedAttachmentOwnerAccessForOperator(scopedOperator, 'MATERIAL_IN', allowedReceipt.id, 'upload'),
+      (error: unknown) => error instanceof AttachmentDomainError && error.status === 403,
+      '只有来料读取权限的人员不能上传附件',
     )
 
     const uploaded = await command.uploadManagedAttachment({

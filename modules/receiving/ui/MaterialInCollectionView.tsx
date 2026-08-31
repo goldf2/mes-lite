@@ -8,6 +8,7 @@ import type { MaterialInRecord } from '../contracts/material-in'
 import { materialInLineQualityStatus, materialInStatusColors, materialInStatusLabels } from '../model/material-in-view'
 
 interface MaterialInCollectionViewProps {
+  attachmentRevision?: number
   items: MaterialInRecord[]
   viewMode: string
   loading: boolean
@@ -50,9 +51,9 @@ function ItemActions({ item, compact = false, ...props }: {
     <div className="flex flex-wrap gap-2">
       <AppButton size="sm" variant="secondary" onClick={() => props.onDetail(item)}>详情</AppButton>
       <BusinessDocumentPrintLink kind="material-in" id={item.id} compact={compact} />
+      {props.canUpdate && <AppButton size="sm" variant="secondary" onClick={() => props.onEdit(item)} disabled={props.loading}>{item.status === 'PENDING' ? '编辑' : '编辑附件'}</AppButton>}
       {item.status === 'PENDING' && (
         <>
-          {props.canUpdate && <button type="button" onClick={() => props.onEdit(item)} disabled={props.loading} className="rounded bg-blue-600 px-3 py-1 text-xs text-white transition hover:bg-blue-700 disabled:opacity-50">编辑</button>}
           {props.canReceive && <button type="button" onClick={() => props.onReceive(item.id)} disabled={props.loading} className="rounded bg-green-600 px-3 py-1 text-xs text-white transition hover:bg-green-700 disabled:opacity-50">整单收货</button>}
           {props.canReceive && <button type="button" onClick={() => props.onReject(item.id)} disabled={props.loading} className="rounded bg-red-600 px-3 py-1 text-xs text-white transition hover:bg-red-700 disabled:opacity-50">整单拒收</button>}
         </>
@@ -114,7 +115,7 @@ export default function MaterialInCollectionView(props: MaterialInCollectionView
               <span>{item.itemCount} 项 · 合计 <strong>¥{item.totalAmount.toFixed(2)}</strong></span>
             </div>
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <AttachmentPanel ownerType="MATERIAL_IN" ownerId={item.id} compact compactMode="summary" onMessage={props.onMessage} />
+              <AttachmentPanel key={props.attachmentRevision} ownerType="MATERIAL_IN" ownerId={item.id} compact compactMode="summary" onMessage={props.onMessage} />
               <ItemActions item={item} loading={props.loading} canUpdate={props.canUpdate} canReceive={props.canReceive} canReverse={props.canReverse} onDetail={props.onDetail} onEdit={props.onEdit} onReceive={props.onReceive} onReject={props.onReject} onReverse={props.onReverse} />
             </div>
           </article>
@@ -150,7 +151,7 @@ export default function MaterialInCollectionView(props: MaterialInCollectionView
               <td className="px-4 py-3 font-medium">¥{item.totalAmount.toFixed(2)}</td>
               <td className="px-4 py-3"><StatusBadge item={item} /></td>
               <td className="px-4 py-3 text-gray-500">{new Date(item.inboundDate).toLocaleString('zh-CN')}</td>
-              <td className="px-4 py-3"><AttachmentPanel ownerType="MATERIAL_IN" ownerId={item.id} compact compactMode="summary" onMessage={props.onMessage} /></td>
+              <td className="px-4 py-3"><AttachmentPanel key={props.attachmentRevision} ownerType="MATERIAL_IN" ownerId={item.id} compact compactMode="summary" onMessage={props.onMessage} /></td>
               <td className="px-4 py-3"><ItemActions item={item} compact loading={props.loading} canUpdate={props.canUpdate} canReceive={props.canReceive} canReverse={props.canReverse} onDetail={props.onDetail} onEdit={props.onEdit} onReceive={props.onReceive} onReject={props.onReject} onReverse={props.onReverse} /></td>
             </tr>
           ))}

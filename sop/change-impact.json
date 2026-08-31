@@ -1,8 +1,9 @@
 {
-  "version": "0.1.448",
+  "version": "0.1.449",
   "impact": "updated",
   "workflowIds": [
-    "184-daily-production-shortcut"
+    "17-receiving-list",
+    "18-receiving-create"
   ],
-  "summary": "生产日报确认与冲销现在同步闭环正式库存、成本层和投入批次；冲销精确恢复原批次，依据缺失时整笔回滚。"
+  "summary": "来料详情只读、编辑统一管理附件；已处理单据锁定业务字段。选料与详情展示物料当前备注，整单备注记录本批说明，不新增变体表。"
 }

@@ -68,7 +68,7 @@ export default function AttachmentPanel({
   layout = 'default',
   allowCover = false,
   compactMode = 'manage',
-  enableAiRecognition = false,
+  enableAiRecognition,
   onAiRecognize,
   onBusyChange,
   onMessage,
@@ -76,6 +76,7 @@ export default function AttachmentPanel({
 }: AttachmentPanelProps) {
   const [attachments, setAttachments] = useState<ManagedAttachment[]>([])
   const [uploading, setUploading] = useState(false)
+  const [archivingId, setArchivingId] = useState<string | null>(null)
   const [recognizingAttachmentId, setRecognizingAttachmentId] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const [note, setNote] = useState('')
@@ -84,7 +85,7 @@ export default function AttachmentPanel({
   const imageOnly = variant === 'image'
   const itemLabel = imageOnly ? '物料图片' : '附件'
   const showAiRecognition = !readOnly && !imageOnly && (
-    enableAiRecognition || supportsDocumentSourceCredentialRecognition(ownerType, documentType)
+    enableAiRecognition ?? supportsDocumentSourceCredentialRecognition(ownerType, documentType)
   )
 
   const fetchAttachments = useCallback(async () => {
@@ -100,8 +101,8 @@ export default function AttachmentPanel({
   }, [fetchAttachments])
 
   useEffect(() => {
-    onBusyChange?.(uploading || Boolean(recognizingAttachmentId))
-  }, [onBusyChange, recognizingAttachmentId, uploading])
+    onBusyChange?.(uploading || Boolean(archivingId) || Boolean(recognizingAttachmentId))
+  }, [archivingId, onBusyChange, recognizingAttachmentId, uploading])
 
   const uploadFile = async (file: File) => {
     setUploading(true)
@@ -160,13 +161,17 @@ export default function AttachmentPanel({
   }
 
   const deleteAttachment = async (id: string) => {
+    if (archivingId) return
     if (!confirm(`确定归档这张${itemLabel}吗？归档后文件仍会保留。`)) return
+    setArchivingId(id)
     try {
       await archiveAttachment(id)
       onMessage(`${itemLabel}已归档`)
       await fetchAttachments()
     } catch (error) {
       onMessage(error instanceof Error ? error.message : '归档失败')
+    } finally {
+      setArchivingId(null)
     }
   }
 
@@ -378,7 +383,7 @@ export default function AttachmentPanel({
         <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="font-semibold text-gray-900">{title}</h3>
-            {!imageOnly && <p className="mt-1 text-xs text-gray-500">原始凭证及补充文件的上传、预览、下载和归档统一在此管理。</p>}
+            {!imageOnly && <p className="mt-1 text-xs text-gray-500">{readOnly ? '只读预览与下载原始凭证及补充文件。' : '原始凭证及补充文件的上传、预览、下载和归档统一在此管理。'}</p>}
           </div>
           {!readOnly && (
             <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
@@ -447,7 +452,7 @@ export default function AttachmentPanel({
           </div>
         )}
       {attachments.length === 0 ? (
-        <div className="rounded-lg bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">{imageOnly ? '暂无物料图片' : '暂无附件，可上传图片、PDF、Office 文档或其他业务文件'}</div>
+        <div className="rounded-lg bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">{imageOnly ? '暂无物料图片' : readOnly ? '暂无附件' : '暂无附件，可上传图片、PDF、Office 文档或其他业务文件'}</div>
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {attachments.map((attachment) => (

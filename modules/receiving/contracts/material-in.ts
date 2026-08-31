@@ -28,6 +28,7 @@ export interface ReceivingMaterialOption {
   code: string
   name: string
   spec?: string
+  note?: string | null
   primaryMeasure: MaterialMeasure
   referenceMeasure?: MaterialMeasure | null
   unit: string
