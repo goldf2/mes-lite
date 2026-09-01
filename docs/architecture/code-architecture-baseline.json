@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "limits": {
+    "deepCrossModuleImports": 0,
+    "crossModuleEdges": 47,
+    "routeDirectPrisma": 0,
+    "uiDirectFetch": 0,
+    "pagesOver800": 0,
+    "routesOver300": 0,
+    "exactCloneExcessLines": 112,
+    "structuralCloneExcessLines": 436,
+    "productMaterialDualModels": 9
+  },
+  "allowedModuleCycleGroups": [
+    "bom<->configuration<->equipment<->inventory<->materials<->production<->quality"
+  ],
+  "allowedBidirectionalPairs": [
+    "bom<->materials",
+    "configuration<->equipment",
+    "inventory<->production"
+  ],
+  "largeUiFileLineBudgets": {
+    "modules/identity-access/ui/PermissionPageModule.tsx": 794,
+    "modules/materials/ui/MaterialPage.tsx": 721,
+    "app/components/AiAssistantPanel.tsx": 718,
+    "modules/receiving/ui/MaterialInPage.tsx": 683,
+    "modules/production/ui/DispatchPageModule.tsx": 639,
+    "modules/documents/ui/WorkInstructionPage.tsx": 629
+  },
+  "largeCoreFileLineBudgets": {
+    "modules/inventory/server/inventory-status-service.ts": 1237,
+    "lib/inventory.ts": 715
+  }
+}

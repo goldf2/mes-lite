@@ -1,9 +1,6 @@
 {
-  "version": "0.1.449",
-  "impact": "updated",
-  "workflowIds": [
-    "17-receiving-list",
-    "18-receiving-create"
-  ],
-  "summary": "来料详情只读、编辑统一管理附件；已处理单据锁定业务字段。选料与详情展示物料当前备注，整单备注记录本批说明，不新增变体表。"
+  "version": "0.1.450",
+  "impact": "none",
+  "workflowIds": [],
+  "summary": "仅新增代码架构量化与非回退门禁，并把既有 SOP 目录请求迁入模块 client；页面入口、操作步骤、权限和业务结果不变。"
 }

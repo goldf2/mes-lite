@@ -27,7 +27,7 @@ assert.deepEqual(directPrismaRoutes.map(projectPath), [], 'Route Handler 不得�
 
 const uiFiles = [
   ...walk(join(root, 'app')).filter((path) => sourcePattern.test(path) && !path.includes(`${sep}api${sep}`)),
-  ...walk(join(root, 'modules')).filter((path) => path.endsWith('.tsx')),
+  ...walk(join(root, 'modules')).filter((path) => sourcePattern.test(path) && path.includes(`${sep}ui${sep}`)),
 ]
 const directFetchUi = uiFiles.filter((path) => /\bfetch\s*\(/.test(source(path)))
 assert.deepEqual(directFetchUi.map(projectPath), [], '页面、组件和 UI Hook 必须通过所属模块 client 访问 HTTP')

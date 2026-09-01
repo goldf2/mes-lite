@@ -5,6 +5,7 @@ const checks = [
   'verify:release-tree',
   'verify:module-boundaries',
   'verify:structural-goal',
+  'verify:architecture-baseline',
   'verify:model-convergence',
   'verify:product-material-migration',
   'verify:stock-owner-invariant',

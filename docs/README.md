@@ -91,6 +91,7 @@
 - [系统时序图](./architecture/系统时序图.md)
 - [数据库结构](./architecture/数据库结构.md)
 - [代码目录与模块边界规范](./architecture/code-directory-and-module-boundary.md)
+- [代码架构量化基线](./architecture/代码架构量化基线.md)
 
 ### 页面与交互
 
