@@ -28,7 +28,6 @@
     "modules/documents/ui/WorkInstructionPage.tsx": 629
   },
   "largeCoreFileLineBudgets": {
-    "modules/inventory/server/inventory-status-service.ts": 795,
     "lib/inventory.ts": 715
   }
 }
