@@ -12,7 +12,19 @@ export type { InventoryLotCustomerReturn, InventoryLotCustomerShipment, Inventor
 export type { InventoryLotPanorama, InventoryLotPanoramaEdge, InventoryLotPanoramaNode, InventoryLotSearchItem, InventoryLotSearchResult } from './contracts/inventory-lot-panorama'
 export { getInventoryLotTrace } from './server/inventory-lot-trace-service'
 export { getInventoryLotPanorama, searchInventoryLots } from './server/inventory-lot-panorama-service'
-export { issueInventoryForBusinessReference } from './server/inventory-posting-service'
+export {
+  assertInventoryIssueAvailability,
+  changeStockLocationBalance,
+  defaultInventoryLocationId,
+  issueInventoryForBusinessReference,
+  postInventoryIssue,
+  postInventoryReceipt,
+  resolveInventoryLocation,
+  resolveReceiptQuantities,
+  reverseInventoryIssue,
+} from './server/inventory-posting-service'
+export type { ConversionSource, InventoryReceiptStatus } from './server/inventory-posting-service'
+export { postInventoryLocationTransfer } from './server/inventory-location-transfer-service'
 export { createInventoryReversalMovement, InventoryLedgerError } from '@/lib/inventory-ledger'
 export type { InventoryReversalMovementInput } from '@/lib/inventory-ledger'
 export {

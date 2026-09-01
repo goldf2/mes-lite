@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { createAuditLog, type AuditContext } from '@/lib/audit'
 import { restoreMaterialCost } from '@/lib/costing'
-import { changeStockLocationBalance } from '@/lib/inventory'
+import { changeStockLocationBalance } from '@/modules/inventory'
 import { createInventoryReversalMovement } from '@/modules/inventory'
 import type { CancelProductionOrderInput } from '../contracts/production-order-schema'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'

@@ -27,7 +27,5 @@
     "modules/production/ui/DispatchPageModule.tsx": 639,
     "modules/documents/ui/WorkInstructionPage.tsx": 629
   },
-  "largeCoreFileLineBudgets": {
-    "lib/inventory.ts": 715
-  }
+  "largeCoreFileLineBudgets": {}
 }

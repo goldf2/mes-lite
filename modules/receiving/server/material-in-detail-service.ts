@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { assertInventoryLocationDataScope, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
-import { resolveInventoryLocation } from '@/lib/inventory'
+import { resolveInventoryLocation } from '@/modules/inventory'
 import type { UpdateMaterialInInput } from '../contracts/material-in-schema'
 import { MaterialInDomainError, runMaterialInDomainOperation } from '../domain/material-in-errors'
 import {

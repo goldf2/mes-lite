@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { resolveInventoryLocation } from '@/lib/inventory'
+import { resolveInventoryLocation } from '@/modules/inventory'
 import { normalizeMaterialInPriceUnit, resolveMaterialInPricing } from '@/lib/material-in-quantity'
 import { tokenizeKeywordQuery, type ResourceSearchCondition } from '@/lib/resource-search'
 import { resolveMaterialUnits } from '@/lib/units'

@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { postInventoryIssue, postInventoryReceipt, reverseInventoryIssue } from '@/lib/inventory'
+import { postInventoryIssue, postInventoryReceipt, reverseInventoryIssue } from '@/modules/inventory'
 import type { CostLayerConsumptionInput } from '@/lib/costing'
 import {
   allocateReturnToShipmentLots,

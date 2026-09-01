@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { assertInventoryIssueAvailability, resolveInventoryLocation } from '@/lib/inventory'
+import { assertInventoryIssueAvailability, resolveInventoryLocation } from '@/modules/inventory'
 import { materialProductPrefix, resolveProductId } from '@/lib/material-product'
 import type { CreateReturnCommand, CreateShipmentCommand } from '../contracts/fulfillment-schema'
 import { datedDocumentPrefix, nextDatedDocumentNo } from '../domain/sales-document-numbering'

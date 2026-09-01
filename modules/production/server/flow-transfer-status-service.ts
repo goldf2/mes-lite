@@ -1,4 +1,4 @@
-import { postInventoryLocationTransfer } from '@/lib/inventory'
+import { postInventoryLocationTransfer } from '@/modules/inventory'
 import { transferAvailableInventoryLots } from '@/modules/inventory'
 import { prisma } from '@/lib/prisma'
 import type { ReverseFlowTransferInput } from '../contracts/flow-transfer-schema'

@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client'
-import { assertInventoryIssueAvailability } from '@/lib/inventory'
+import { assertInventoryIssueAvailability } from '@/modules/inventory'
 import { prisma } from '@/lib/prisma'
 import type { FlowTransferInput } from '../contracts/flow-transfer-schema'
 import { FlowTransferDomainError, runFlowTransferDomainOperation } from '../domain/flow-transfer-errors'

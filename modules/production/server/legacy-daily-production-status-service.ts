@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { createAuditLog, type AuditContext } from '@/lib/audit'
 import { prisma } from '@/lib/prisma'
-import { changeStockLocationBalance, postInventoryIssue, postInventoryReceipt } from '@/lib/inventory'
+import { changeStockLocationBalance, postInventoryIssue, postInventoryReceipt } from '@/modules/inventory'
 import {
   consumeAvailableInventoryLotsForReference,
   createInventoryLotReceipt,

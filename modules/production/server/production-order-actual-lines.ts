@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { calculateProductionConsumption, type ProductionLossMode } from '@/lib/production-consumption'
-import { assertInventoryIssueAvailability, resolveInventoryLocation } from '@/lib/inventory'
+import { assertInventoryIssueAvailability, resolveInventoryLocation } from '@/modules/inventory'
 import { parseProductionOrderBomSnapshot } from '../domain/production-order-bom-snapshot'
 
 const roundQty = (value: number) => Number(value.toFixed(6))

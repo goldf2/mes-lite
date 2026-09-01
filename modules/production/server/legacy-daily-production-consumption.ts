@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { simpleProductSku } from '@/lib/material-product'
 import { calculateProductionConsumption, type ProductionLossMode } from '@/lib/production-consumption'
-import { assertInventoryIssueAvailability } from '@/lib/inventory'
+import { assertInventoryIssueAvailability } from '@/modules/inventory'
 import { LegacyDailyProductionError } from '../domain/legacy-daily-production-errors'
 import { roundLegacyDailyProductionQty } from '../domain/legacy-daily-production-rules'
 

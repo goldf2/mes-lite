@@ -6,7 +6,7 @@ import {
   unrestrictedDataScope,
   type EffectiveDataScope,
 } from '@/modules/identity-access'
-import { changeStockLocationBalance, postInventoryIssue, postInventoryReceipt } from '@/lib/inventory'
+import { changeStockLocationBalance, postInventoryIssue, postInventoryReceipt } from '@/modules/inventory'
 import {
   allocateAvailableInventoryLots,
   createInventoryReversalMovement,

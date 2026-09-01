@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { changeStockLocationBalance, postInventoryReceipt, type ConversionSource } from '@/lib/inventory'
+import { changeStockLocationBalance, postInventoryReceipt, type ConversionSource } from '@/modules/inventory'
 import { createInventoryLotReceipt, createInventoryReversalMovement } from '@/modules/inventory'
 import {
   createMaterialInQualityInspection,

@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { consumeMaterialCost } from '@/lib/costing'
-import { changeStockLocationBalance } from '@/lib/inventory'
+import { changeStockLocationBalance } from '@/modules/inventory'
 import type { LegacyProductionOrderPickInput } from '../contracts/legacy-production-order-execution-schema'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
 import { legacyPickStatusError, legacyProductionCompatibilityError } from '../domain/legacy-production-order-execution-rules'

@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { createAuditLog, type AuditContext } from '@/lib/audit'
-import { changeStockLocationBalance } from '@/lib/inventory'
+import { changeStockLocationBalance } from '@/modules/inventory'
 import type { LegacyProductionOrderStockInInput } from '../contracts/legacy-production-order-execution-schema'
 import { legacyProductionCompatibilityError, legacyStockInStatusError } from '../domain/legacy-production-order-execution-rules'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
