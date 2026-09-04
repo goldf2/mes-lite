@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode, useState } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import { SplitWorkspace } from '@/app/components/layout'
 import type {
   AttachmentItem,
@@ -92,8 +92,14 @@ export default function MaterialPanoramaDashboard({
 
   const toggleSection = (id: PanoramaModuleId) => setActiveSectionId((current) => togglePanoramaSection(current, id))
 
+  useEffect(() => {
+    if (activeSectionId && !modules.some((module) => module.visible && module.id === activeSectionId)) {
+      setActiveSectionId(null)
+    }
+  }, [activeSectionId, modules])
+
   return (
-    <SplitWorkspace storageKey="mes-lite.materialPanorama.splitPercent.v1" primaryLabel="物料纵览" secondaryLabel="物料明细" defaultPrimaryPercent={35} minPrimaryPercent={28} maxPrimaryPercent={48}>
+    <SplitWorkspace storageKey="mes-lite.materialPanorama.splitPercent.v1" primaryLabel="物料纵览" secondaryLabel="物料明细" defaultPrimaryPercent={35} minPrimaryPercent={28} maxPrimaryPercent={42}>
       <aside className="space-y-3 xl:sticky xl:top-0" data-panorama-overview>
         <section aria-label="物料纵览" className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-100 px-4 py-3 sm:px-5">

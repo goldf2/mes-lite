@@ -8,7 +8,7 @@ import { AttachmentList, EmptyText, Metric, Panel } from './MaterialPanoramaPrim
 export function MaterialPanoramaSummaryModule({ data, coverImage }: { data: PanoramaData; coverImage?: AttachmentItem }) {
   const { material, stock } = data
   return (
-    <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+    <div className="grid grid-cols-1 items-start gap-3 2xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
       <Panel title="物料档案">
         <div className="grid gap-4 md:grid-cols-[160px_minmax(0,1fr)]">
           <a href={coverImage?.originalUrl || coverImage?.url} target={coverImage ? '_blank' : undefined} rel={coverImage ? 'noreferrer' : undefined} className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md bg-gray-100">

@@ -28,16 +28,25 @@ export default function SplitWorkspace({
   const [dragging, setDragging] = useState(false)
 
   useEffect(() => {
-    const saved = Number(window.localStorage.getItem(storageKey))
-    if (Number.isFinite(saved) && saved >= minPrimaryPercent && saved <= maxPrimaryPercent) {
-      setPrimaryPercent(saved)
+    try {
+      const saved = Number(window.localStorage.getItem(storageKey))
+      if (Number.isFinite(saved) && saved >= minPrimaryPercent && saved <= maxPrimaryPercent) {
+        setPrimaryPercent(saved)
+      }
+    } catch {
+      // 浏览器禁用站点存储时回退到调用方提供的默认比例。
+    } finally {
+      setStorageReady(true)
     }
-    setStorageReady(true)
   }, [maxPrimaryPercent, minPrimaryPercent, storageKey])
 
   useEffect(() => {
     if (!storageReady) return
-    window.localStorage.setItem(storageKey, String(primaryPercent))
+    try {
+      window.localStorage.setItem(storageKey, String(primaryPercent))
+    } catch {
+      // 浏览器禁用站点存储时仍使用当前会话中的默认或已调整比例。
+    }
   }, [primaryPercent, storageKey, storageReady])
 
   useEffect(() => {
