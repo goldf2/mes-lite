@@ -161,6 +161,7 @@ export async function confirmLegacyDailyProductionReportInTransaction(
           valuationQty: receiptValues.valuationQty,
           costAmount: outputCostAmount,
           stockLogId: receipt.movement.id,
+          costLayerId: receipt.costLayer?.id,
           idempotencyKey: `DAILY_PRODUCTION:${report.id}:LOT_RECEIPT:${line.id}`,
           note: `生产日报 ${report.reportNo} 产出批次待检入库`,
           createdBy: confirmedBy,

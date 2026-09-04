@@ -136,6 +136,7 @@ export async function changeStockLocationBalance(
     quarantineDelta?: number
     holdDelta?: number
     reworkDelta?: number
+    allowNegativeStock?: boolean
   },
 ) {
   const location = await resolveInventoryLocation(tx, input.locationId)
@@ -152,7 +153,16 @@ export async function changeStockLocationBalance(
   const quarantineQty = roundQty(Number(current.quarantineQty) + Number(input.quarantineDelta || 0))
   const holdQty = roundQty(Number(current.holdQty) + Number(input.holdDelta || 0))
   const reworkQty = roundQty(Number(current.reworkQty) + Number(input.reworkDelta || 0))
-  if (qty < -tolerance || reservedQty < -tolerance || availableQty < -tolerance || quarantineQty < -tolerance || holdQty < -tolerance || reworkQty < -tolerance) {
+  const negativeQtyWorsened = qty < -tolerance && qty < Number(current.qty) - tolerance
+  const negativeAvailableQtyWorsened = availableQty < -tolerance
+    && availableQty < Number(current.availableQty) - tolerance
+  if (
+    (!input.allowNegativeStock && (negativeQtyWorsened || negativeAvailableQtyWorsened))
+    || reservedQty < -tolerance
+    || quarantineQty < -tolerance
+    || holdQty < -tolerance
+    || reworkQty < -tolerance
+  ) {
     throw new Error(
       `库位 ${location.code} ${location.name} 库存不足：可用 ${current.availableQty}，本次变动 ${input.availableDelta ?? input.qtyDelta}`,
     )
@@ -163,9 +173,9 @@ export async function changeStockLocationBalance(
   const balance = await tx.stockLocationBalance.update({
     where: { id: current.id },
     data: {
-      qty: Math.max(0, qty),
+      qty,
       reservedQty: Math.max(0, reservedQty),
-      availableQty: Math.max(0, availableQty),
+      availableQty,
       quarantineQty: Math.max(0, quarantineQty),
       holdQty: Math.max(0, holdQty),
       reworkQty: Math.max(0, reworkQty),
@@ -372,26 +382,42 @@ export async function postInventoryIssue(
     createdBy?: string | null
     idempotencyKey?: string
     locationId?: string | null
+    allowNegativeStock?: boolean
   },
 ) {
   if (input.idempotencyKey) {
     const existing = await tx.stockLog.findUnique({ where: { idempotencyKey: input.idempotencyKey } })
     if (existing) return { movement: existing, duplicate: true, layerConsumptions: [] }
   }
-  const { material, stock, issueQty, location } = await assertInventoryIssueAvailability(tx, input)
+  const issueQty = roundQty(input.stockQty)
+  if (!Number.isFinite(issueQty) || issueQty <= 0) throw new Error('出库数量必须大于 0')
+  const material = await getMaterialPolicy(tx, input.materialId)
+  const stock = await getOrCreateStock(tx, material.id)
+  const location = await resolveInventoryLocation(tx, input.locationId)
+  const locationBalance = await tx.stockLocationBalance.upsert({
+    where: { stockId_locationId: { stockId: stock.id, locationId: location.id } },
+    update: {},
+    create: { stockId: stock.id, locationId: location.id },
+  })
+  if (!input.allowNegativeStock) {
+    await assertInventoryIssueAvailability(tx, input)
+  }
+  const allocatedStockQty = input.allowNegativeStock
+    ? roundQty(Math.min(issueQty, Math.max(0, Number(stock.availableQty)), Math.max(0, Number(locationBalance.availableQty))))
+    : issueQty
   await ensureFifoOpeningLayer(tx, material, {
     qty: Number(stock.qty),
     valuationQty: Number(stock.valuationQty),
     totalCost: Number(stock.totalCost),
     stockUnitCost: Number(stock.stockUnitCost),
     valuationUnitCost: Number(stock.valuationUnitCost),
-    eligibleStockQty: roundQty(Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty) - Number(stock.reworkQty)),
+    eligibleStockQty: Math.max(0, roundQty(Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty) - Number(stock.reworkQty))),
     eligibleValuationQty: roundQty(Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty) - Number(stock.reworkValuationQty)),
     eligibleCostAmount: roundQty(Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost) - Number(stock.reworkCost)),
   })
-  const costResult = await consumeMaterialCost(tx, {
+  const costResult = allocatedStockQty > tolerance ? await consumeMaterialCost(tx, {
     materialId: material.id,
-    issueStockQty: issueQty,
+    issueStockQty: allocatedStockQty,
     stock: {
       id: stock.id,
       qty: roundQty(Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty) - Number(stock.reworkQty)),
@@ -405,7 +431,13 @@ export async function postInventoryIssue(
       costingMethod: material.costingMethod,
       conversionRate: material.conversionRate,
     },
-  })
+  }) : {
+    issueValuationQty: 0,
+    costAmount: 0,
+    conversionRateUsed: 0,
+    conversionSource: material.costingMethod === 'FIFO' ? 'STOCK_AVERAGE_FIFO' : 'STOCK_AVERAGE',
+    layerConsumptions: [],
+  }
   const beforeQty = Number(stock.qty)
   const beforeValuationQty = Number(stock.valuationQty)
   const beforeCostAmount = Number(stock.totalCost)
@@ -429,6 +461,7 @@ export async function postInventoryIssue(
     stockId: stock.id,
     locationId: location.id,
     qtyDelta: -issueQty,
+    allowNegativeStock: input.allowNegativeStock,
   })
   const conversionSource: ConversionSource = material.costingMethod === 'FIFO' ? 'FIFO_LAYER' : 'STOCK_AVERAGE'
   const movement = await tx.stockLog.create({
@@ -447,7 +480,7 @@ export async function postInventoryIssue(
       afterCostAmount,
       stockUnitSnapshot: material.stockUnit,
       valuationUnitSnapshot: material.valuationUnit,
-      conversionRateUsed: costResult.issueValuationQty > 0 ? roundQty(costResult.issueValuationQty / issueQty) : 0,
+      conversionRateUsed: allocatedStockQty > tolerance && costResult.issueValuationQty > 0 ? roundQty(costResult.issueValuationQty / allocatedStockQty) : 0,
       conversionSource,
       costingMethodSnapshot: material.costingMethod,
       idempotencyKey: input.idempotencyKey,
@@ -462,8 +495,10 @@ export async function postInventoryIssue(
     material,
     location,
     stockQty: issueQty,
+    allocatedStockQty,
+    negativeStockQty: roundQty(issueQty - allocatedStockQty),
     valuationQty: costResult.issueValuationQty,
-    conversionRateUsed: costResult.issueValuationQty > 0 ? roundQty(costResult.issueValuationQty / issueQty) : 0,
+    conversionRateUsed: allocatedStockQty > tolerance && costResult.issueValuationQty > 0 ? roundQty(costResult.issueValuationQty / allocatedStockQty) : 0,
     conversionSource,
     costAmount: costResult.costAmount,
     layerConsumptions: costResult.layerConsumptions,

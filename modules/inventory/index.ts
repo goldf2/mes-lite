@@ -25,6 +25,11 @@ export {
 } from './server/inventory-posting-service'
 export type { ConversionSource, InventoryReceiptStatus } from './server/inventory-posting-service'
 export { postInventoryLocationTransfer } from './server/inventory-location-transfer-service'
+export {
+  recordShipmentStockShortage,
+  reverseShipmentStockShortages,
+  settleShipmentStockShortagesWithLot,
+} from './server/shipment-stock-shortage-service'
 export { createInventoryReversalMovement, InventoryLedgerError } from '@/lib/inventory-ledger'
 export type { InventoryReversalMovementInput } from '@/lib/inventory-ledger'
 export {

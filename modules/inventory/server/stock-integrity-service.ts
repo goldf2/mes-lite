@@ -25,6 +25,7 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
     activeShipmentAllocations,
     tracedReturns,
     activeReturnAllocations,
+    openShipmentShortages,
   ] = await Promise.all([
     prisma.material.findMany({
       where: { deletedAt: null, stock: null },
@@ -82,9 +83,53 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
         },
       },
     }),
+    prisma.shipmentStockShortage.findMany({
+      where: { status: 'OPEN' },
+      include: {
+        shipment: { select: { id: true, shipmentNo: true, status: true, deletedAt: true } },
+        shipmentItem: { select: { shipmentId: true, materialId: true, locationId: true, qty: true } },
+      },
+    }),
   ])
 
   const issues: StockIntegrityIssue[] = []
+  const shortageByMaterial = new Map<string, number>()
+  const shortageByMaterialLocation = new Map<string, number>()
+  const invalidShipmentShortages: Array<Record<string, unknown>> = []
+  for (const shortage of openShipmentShortages) {
+    const outstanding = Number((Number(shortage.stockQty) - Number(shortage.settledStockQty)).toFixed(6))
+    if (
+      Number(shortage.stockQty) <= 0.000001
+      || Number(shortage.settledStockQty) < -0.000001
+      || outstanding <= 0.000001
+      || shortage.shipment.deletedAt
+      || !['SHIPPED', 'DELIVERED'].includes(shortage.shipment.status)
+      || shortage.shipmentId !== shortage.shipmentItem.shipmentId
+      || shortage.materialId !== shortage.shipmentItem.materialId
+      || shortage.locationId !== shortage.shipmentItem.locationId
+      || Number(shortage.stockQty) - Number(shortage.shipmentItem.qty) > 0.000001
+    ) {
+      invalidShipmentShortages.push({
+        id: shortage.id,
+        shipmentNo: shortage.shipment.shipmentNo,
+        shipmentItemId: shortage.shipmentItemId,
+        stockQty: shortage.stockQty,
+        settledStockQty: shortage.settledStockQty,
+        reason: '开放欠库的单据状态、明细、物料、库位或数量关系不一致',
+      })
+      continue
+    }
+    shortageByMaterial.set(shortage.materialId, Number(((shortageByMaterial.get(shortage.materialId) || 0) + outstanding).toFixed(6)))
+    const key = `${shortage.materialId}:${shortage.locationId}`
+    shortageByMaterialLocation.set(key, Number(((shortageByMaterialLocation.get(key) || 0) + outstanding).toFixed(6)))
+  }
+  if (invalidShipmentShortages.length > 0) {
+    issues.push({
+      type: 'INVALID_SHIPMENT_STOCK_SHORTAGE',
+      message: '存在不能作为负库存依据的发货欠库记录',
+      records: invalidShipmentShortages.slice(0, 20),
+    })
+  }
   if (materialsWithoutStock.length > 0) {
     issues.push({
       type: 'MATERIAL_WITHOUT_STOCK',
@@ -118,9 +163,11 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
       totalCost, quarantineCost, holdCost, reworkCost, hasMaterial, hasProduct,
       materialExists: Boolean(stock.material),
       productExists: Boolean(stock.product),
+      negativeStockAllowance: stock.materialId ? shortageByMaterial.get(stock.materialId) || 0 : 0,
       locationBalances: stock.locationBalances.map((item) => ({
         qty: Number(item.qty), reservedQty: Number(item.reservedQty), availableQty: Number(item.availableQty),
         quarantineQty: Number(item.quarantineQty), holdQty: Number(item.holdQty), reworkQty: Number(item.reworkQty),
+        negativeStockAllowance: stock.materialId ? shortageByMaterialLocation.get(`${stock.materialId}:${item.locationId}`) || 0 : 0,
       })),
     })
 
@@ -160,8 +207,9 @@ export async function findStockIntegrityIssues(): Promise<StockIntegrityIssue[]>
         ['REWORK', Number(location.reworkQty)],
       ] as const) {
         const tracked = Number(balanceSums.get(`${stock.materialId}:${location.locationId}:${status}`) || 0)
-        if (tracked - expected > 0.000001) {
-          invalidLotBalances.push({ materialId: stock.materialId, locationId: location.locationId, status, tracked, expected, reason: '有效批次余额大于对应库位状态余额' })
+        const traceableExpected = status === 'AVAILABLE' ? Math.max(0, expected) : expected
+        if (tracked - traceableExpected > 0.000001) {
+          invalidLotBalances.push({ materialId: stock.materialId, locationId: location.locationId, status, tracked, expected: traceableExpected, reason: '有效批次余额大于对应库位状态余额' })
         }
       }
     }

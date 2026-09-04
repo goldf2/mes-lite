@@ -28,6 +28,7 @@ const checks = [
   'verify:production-quality-lots',
   'verify:inventory-lot-genealogy',
   'verify:shipment-return-lots',
+  'verify:shipment-negative-stock',
   'verify:quality-dispositions',
   'verify:quality-inspection-standards',
   'verify:quality-inspection-standards-http',

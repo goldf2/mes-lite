@@ -6,6 +6,8 @@ import {
   allocateShipmentInventoryLots,
   createHistoricalShipmentLotAllocation,
   createInventoryLotReceipt,
+  recordShipmentStockShortage,
+  reverseShipmentStockShortages,
   reverseShipmentInventoryLots,
 } from '@/modules/inventory'
 import { createReturnQualityInspection } from '@/modules/quality'
@@ -51,6 +53,7 @@ export async function shipManagedShipment(id: string, shippedBy: string, scope: 
 
     let shippedValuationQty = 0
     let shippedCostAmount = 0
+    let hasStockShortage = false
     let singleItemSnapshot: {
       stockUnit: string | null
       valuationUnit: string | null
@@ -68,20 +71,34 @@ export async function shipManagedShipment(id: string, shippedBy: string, scope: 
         createdBy: shippedBy,
         idempotencyKey: `SHIPMENT:${shipment.id}:ITEM:${item.id}:SHIP`,
         locationId: item.locationId,
+        allowNegativeStock: true,
       })
-      await allocateShipmentInventoryLots(tx, {
-        shipmentId: shipment.id,
-        shipmentItemId: item.id,
-        materialId: item.materialId,
-        materialCode: issue.material!.code,
-        locationId: issue.location!.id,
-        locationCode: issue.location!.code,
-        stockQty: Number(item.qty),
-        issueValuationQty: Number(issue.valuationQty),
-        issueCostAmount: Number(issue.costAmount),
-        stockLogId: issue.movement!.id,
-        createdBy: shippedBy,
-      })
+      if (Number(issue.allocatedStockQty) > tolerance) {
+        await allocateShipmentInventoryLots(tx, {
+          shipmentId: shipment.id,
+          shipmentItemId: item.id,
+          materialId: item.materialId,
+          materialCode: issue.material!.code,
+          locationId: issue.location!.id,
+          locationCode: issue.location!.code,
+          stockQty: Number(issue.allocatedStockQty),
+          locationStockQtyAdjustment: Number(item.qty),
+          issueValuationQty: Number(issue.valuationQty),
+          issueCostAmount: Number(issue.costAmount),
+          stockLogId: issue.movement!.id,
+          createdBy: shippedBy,
+        })
+      }
+      if (Number(issue.negativeStockQty) > tolerance) {
+        hasStockShortage = true
+        await recordShipmentStockShortage(tx, {
+          shipmentId: shipment.id,
+          shipmentItemId: item.id,
+          materialId: item.materialId,
+          locationId: issue.location!.id,
+          stockQty: Number(issue.negativeStockQty),
+        })
+      }
       await tx.shipmentItem.update({
         where: { id: item.id },
         data: {
@@ -111,7 +128,7 @@ export async function shipManagedShipment(id: string, shippedBy: string, scope: 
       data: {
         status: 'SHIPPED',
         shippedAt: new Date(),
-        lotTraceStatus: 'TRACKED',
+        lotTraceStatus: hasStockShortage ? 'SHORTAGE' : 'TRACKED',
         shippedValuationQty,
         shippedCostAmount,
         stockUnitSnapshot: singleItemSnapshot?.stockUnit || null,
@@ -194,12 +211,19 @@ export async function reverseManagedShipment(
         idempotencyKey: `SHIPMENT:${shipment.id}:ITEM:${item.id}:REVERSE`,
         layerConsumptions,
       })
+      const shortageReversal = await reverseShipmentStockShortages(tx, {
+        shipmentId: shipment.id,
+        shipmentItemId: item.id,
+        reversedBy,
+        reason,
+      })
       await reverseShipmentInventoryLots(tx, {
         shipmentId: shipment.id,
         shipmentItemId: item.id,
         stockLogId: reversal.movement.id,
         reason,
         reversedBy,
+        allowEmpty: shortageReversal.hadShortage,
       })
     }
 
@@ -290,6 +314,7 @@ export async function processManagedReturn(id: string, processedBy: string, scop
       valuationQty: returnValuationQty,
       costAmount: returnCostAmount,
       stockLogId: receipt.movement!.id,
+      costLayerId: receipt.costLayer?.id,
       idempotencyKey: `RETURN:${returnOrder.id}:LOT_RECEIPT`,
       note: `退货单 ${returnOrder.returnNo} 独立待检批次`,
       createdBy: processedBy,

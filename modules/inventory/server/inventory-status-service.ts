@@ -5,6 +5,7 @@ import {
   roundQty,
   tolerance,
 } from './inventory-lot-issue-service'
+import { settleShipmentStockShortagesWithLot } from './shipment-stock-shortage-service'
 
 export {
   allocateAvailableInventoryLots,
@@ -422,6 +423,9 @@ export async function transitionInventoryLotStatus(
       createdBy: input.createdBy || null,
     },
   })
+  if (input.toStatus === 'AVAILABLE') {
+    await settleShipmentStockShortagesWithLot(tx, { lotId: lot.id, createdBy: input.createdBy })
+  }
   return { transaction, movement, duplicate: false }
 }
 

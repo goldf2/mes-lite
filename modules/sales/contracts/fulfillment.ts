@@ -104,6 +104,12 @@ export interface ShipmentItem {
   material: { id: string; code: string; name: string; spec?: string | null; stockUnit: string; primaryImage?: MaterialImage | null }
   location: InventoryLocationOption
   lotAllocations: Shipment['lotAllocations']
+  stockShortage?: {
+    id: string
+    stockQty: number
+    settledStockQty: number
+    status: string
+  } | null
 }
 
 export interface ReturnShipmentOption {

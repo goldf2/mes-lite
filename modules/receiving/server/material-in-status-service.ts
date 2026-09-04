@@ -69,6 +69,7 @@ export async function receiveManagedMaterialIn(id: string, receivedBy: string, s
         valuationQty: Number(posted.quantities?.valuationQty || line.valuationQty),
         costAmount: Number(line.totalAmount),
         stockLogId: posted.movement!.id,
+        costLayerId: posted.costLayer?.id,
         idempotencyKey: `MATERIAL_IN:${line.id}:LOT_RECEIPT`,
         note: `来料单 ${current.inboundNo} 第 ${line.lineNo} 行内部批次`,
         createdBy: receivedBy,

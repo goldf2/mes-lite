@@ -60,22 +60,26 @@ async function main() {
     assert.equal((await prisma.stock.findUniqueOrThrow({ where: { materialId: materialA.id } })).qty, 46, '退回 B 明细不得改变 A 库存')
     assert.equal((await prisma.stock.findUniqueOrThrow({ where: { materialId: materialB.id } })).qty, 40)
 
-    const rollbackShipment = await createManagedShipment({ customerId: customer.id, items: [
+    const shortageShipment = await createManagedShipment({ customerId: customer.id, items: [
       { materialId: materialA.id, locationId: locationA.id, qty: 3 },
       { materialId: materialB.id, locationId: locationB.id, qty: 30 },
     ] }, fixedNow)
     await prisma.$transaction((tx) => postInventoryIssue(tx, { materialId: materialB.id, stockQty: 15, type: 'VERIFY_OUT', refType: 'VERIFY', refId: suffix, note: '制造库存不足', idempotencyKey: `VERIFY:MULTI:DEPLETION:${suffix}`, locationId: locationB.id }))
-    const stockABeforeRollback = await prisma.stock.findUniqueOrThrow({ where: { materialId: materialA.id } })
-    await assert.rejects(() => shipManagedShipment(rollbackShipment.id, '回滚验证员'), /库存不足/)
-    const [stockAAfterRollback, rollbackHeader, rollbackLogs] = await Promise.all([
+    await shipManagedShipment(shortageShipment.id, '欠库验证员')
+    const [stockAAfterShortage, stockBAfterShortage, shortageHeader, shortages, shortageLogs] = await Promise.all([
       prisma.stock.findUniqueOrThrow({ where: { materialId: materialA.id } }),
-      prisma.shipment.findUniqueOrThrow({ where: { id: rollbackShipment.id } }),
-      prisma.stockLog.count({ where: { refType: 'SHIPMENT', refId: rollbackShipment.id } }),
+      prisma.stock.findUniqueOrThrow({ where: { materialId: materialB.id } }),
+      prisma.shipment.findUniqueOrThrow({ where: { id: shortageShipment.id } }),
+      prisma.shipmentStockShortage.findMany({ where: { shipmentId: shortageShipment.id } }),
+      prisma.stockLog.count({ where: { refType: 'SHIPMENT', refId: shortageShipment.id } }),
     ])
-    assert.deepEqual([stockAAfterRollback.qty, stockAAfterRollback.totalCost], [stockABeforeRollback.qty, stockABeforeRollback.totalCost])
-    assert.deepEqual([rollbackHeader.status, rollbackLogs], ['PENDING', 0])
+    assert.deepEqual([stockAAfterShortage.qty, stockAAfterShortage.totalCost], [43, 215])
+    assert.deepEqual([stockBAfterShortage.qty, stockBAfterShortage.availableQty, stockBAfterShortage.quarantineQty, stockBAfterShortage.totalCost], [-5, -7, 2, 16])
+    assert.deepEqual([shortageHeader.status, shortageHeader.lotTraceStatus], ['SHIPPED', 'SHORTAGE'])
+    assert.deepEqual(shortages.map((item) => [item.materialId, item.stockQty, item.status]), [[materialB.id, 7, 'OPEN']])
+    assert.equal(shortageLogs, 2, '有库存与欠库的多物料发货均应形成库存流水')
 
-    console.log('多明细发货验证通过：同客户多物料、逐行库存/成本/批次/退货和整单事务回滚符合预期。')
+    console.log('多明细发货验证通过：同客户多物料、逐行库存/成本/批次/退货，以及单行欠库均符合预期。')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

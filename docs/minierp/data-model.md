@@ -386,7 +386,22 @@ SKU，实际库存单位。
 
 一张 `Shipment` 只对应一个客户，可包含一至多条 `ShipmentItem`。销售订单只表达客户需求，发货单只表达实际发出了什么；两者不保存外键、不互相派生，也不回写状态或已发数量。乙方企业资料存放在 `SystemSetting` 的 `company.*` 键中并用于 PDF。
 
-销售订单、发货与退货的读取、创建、状态流转和归档由 `modules/sales/server` 统一拥有。页面参考量按“客户 + 物料”动态汇总：需求量来自 `CONFIRMED / PARTIAL / COMPLETED` 销售订单明细，待发量来自 `PENDING` 发货明细，已发量来自 `SHIPPED / DELIVERED` 发货明细；未发量与超发量只作参考，允许实际发货超过订单需求。确认发货按明细原子扣减总库存、库位余额、批次和成本并保存成本层快照。待发货取消不碰库存；已发货冲销在同一事务恢复原库存、库位、金额、FIFO 成本层和批次，追加与原流水关联的 `SHIPMENT_REVERSE_IN` 反向流水，并将发货单、发货批次分配和货箱标为 `REVERSED`。已签收或已有退货依赖的发货单禁止直接冲销，实际回流继续走退货单；库存流水幂等键阻止重复过账。
+销售订单、发货与退货的读取、创建、状态流转和归档由 `modules/sales/server` 统一拥有。页面参考量按“客户 + 物料”动态汇总：需求量来自 `CONFIRMED / PARTIAL / COMPLETED` 销售订单明细，待发量来自 `PENDING` 发货明细，已发量来自 `SHIPPED / DELIVERED` 发货明细；未发量与超发量只作参考，允许实际发货超过订单需求。确认发货按明细原子扣减总库存和库位余额，已有可用数量立即分配批次与成本，不足数量写入发货欠库；后续同物料、同库位的可用入库按时间顺序补齐批次和成本。待发货取消不碰库存；已发货冲销在同一事务恢复原库存、库位、金额、FIFO 成本层、批次和欠库补账，追加与原流水关联的反向流水，并将发货单、发货批次分配、欠库和货箱标为 `REVERSED`。已签收或已有退货依赖的发货单禁止直接冲销，欠库未补齐的发货明细禁止登记退货；库存流水幂等键阻止重复过账。
+
+### shipment_stock_shortages / shipment_stock_shortage_settlements
+
+发货负库存不是无来源的普通负数，而是由发货明细唯一支撑的欠库事实。
+
+| 模型/字段 | 含义 |
+| --- | --- |
+| `ShipmentStockShortage.shipmentItemId` | 一条发货明细最多一条欠库记录，数据库唯一 |
+| `materialId / locationId` | 欠库必须按物料和实际发货库位补齐 |
+| `stockQty / settledStockQty` | 原欠库数量和已由后续可用批次补齐的数量 |
+| `settledValuationQty / settledCostAmount` | 后补批次实际转入该发货单的核算量和成本 |
+| `status` | `OPEN / SETTLED / REVERSED` |
+| `ShipmentStockShortageSettlement` | 每次补账连接欠库、内部批次、成本层、库存流水和发货批次分配 |
+
+可用入库增加总数量后，补账只从新批次、核算库存和库存金额中转出相应部分，不再次扣减总数量。这样负数量被本次入库自然抵消，同时客户批次和发货成本按真实后补批次补齐。有效负库存上限等于尚未补齐的发货欠库；预留、待检、冻结、返工和核算数量仍不得为负。
 
 ### package_documents / package_document_items
 
@@ -934,14 +949,16 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 | `DailyProductionReport.outputQty` | 产出入库数量 | 日报确认时增加到物料总库存和所选产出库位 |
 | `DailyProductionReport.outputLocationId` | 产出入库库位 | 表达产出的实际去向；成品、不良、报废等由可配置库位区分 |
 | `FlowTransfer.sourceLocationId / targetLocationId` | 转移来源/目标库位 | 确认时只在两个库位余额之间等量移动 |
-| `ShipmentItem.locationId` | 逐项发货库位 | 确认发货时同时校验并扣减各明细库位和总库存 |
-| `Shipment.lotTraceStatus` | 发货批次事实状态 | `PENDING` 待发货；`TRACKED` 真实内部批次；`LEGACY` 迁移前历史发货兼容批次 |
+| `ShipmentItem.locationId` | 逐项发货库位 | 确认发货时扣减各明细库位和总库存；可用不足时允许形成该库位欠库 |
+| `Shipment.lotTraceStatus` | 发货批次事实状态 | `PENDING` 待发货；`SHORTAGE` 尚有批次/成本待补；`TRACKED` 已有真实内部批次；`LEGACY` 迁移前历史发货兼容批次 |
 | `ShipmentLotAllocation` | 发货批次分配 | 保存发货单、内部批次、库位、数量/核算量/成本及累计退回量；冲销后保留记录并标为 `REVERSED`，同时记录操作人、时间和原因 |
+| `ShipmentStockShortage` | 发货欠库 | 保存发货明细在指定库位尚未获得真实可用批次的数量 |
+| `ShipmentStockShortageSettlement` | 欠库补账 | 将后续可用入库连接到原欠库、发货分配、批次、成本层和库存流水 |
 | `ReturnOrder.locationId` | 退回待检库位 | 退货确认收货时增加该库位和总库存，但先计入 `QUARANTINE` |
 | `InventoryLot.returnOrderId` | 独立退货批次来源 | 一张已收货退货单最多形成一个可质检内部批次 |
 | `ReturnLotAllocation` | 退货来源分配 | 将独立退货批次逐项连接到原 `ShipmentLotAllocation`，保存退回数量、核算量和成本 |
 
-生产、来料、发货、退货等正常过账和冲销在同一事务内更新 `Stock`、`StockLocationBalance`、成本层和 `StockLog`。流程转移是例外：它只更新库位余额并写入成对流水，不改变总库存或成本层。各库位的数量、占用和可用合计必须分别等于总库存对应字段；数据检查接口会把不一致视为库存完整性错误。
+生产、来料、发货、退货等正常过账和冲销在同一事务内更新 `Stock`、`StockLocationBalance`、成本层和 `StockLog`。流程转移是例外：它只更新库位余额并写入成对流水，不改变总库存或成本层。各库位的数量、占用和可用合计必须分别等于总库存对应字段；没有有效发货欠库支撑的负数，或超过尚未补齐数量的负数，仍被数据检查视为库存完整性错误。
 
 系统必须始终保留一个启用的默认库位：没有有效默认库位时，新建库位自动成为启用默认库位；设置其他库位为默认时在同一事务清除旧默认，并自动恢复目标库位。默认库位不能停用或归档。有效库位不能通过普通更新直接写成停用，必须走归档命令；归档事务会复检非零库存/占用，以及待处理来料、生产、流程转移、发货和退货引用，任一存在时整笔拒绝。
 
@@ -1005,6 +1022,6 @@ erDiagram
 - 无有效业务引用的归档主数据和未生效单据可以由管理员永久删除；完整红冲、净影响为零且没有下游引用的来料库存流水和成本层可随主体事务清理。主体自有附件随主体删除；扫码打印等独立弱引用继续阻断，所有永久删除均写入审计记录。
 - 库存流水不允许修改，只能追加更正流水。
 - 原始单据附件不直接写入业务表，通过统一附件表关联。
-- 出库确认时必须校验库存不能为负，除非租户明确开启负库存。
+- 生产领料、调拨和普通调整不得扩大负库存；确认发货可以形成由 `ShipmentStockShortage` 支撑的负库存，后续同物料、同库位可用入库自动补账。
 - 所有查询必须带 `tenant_id`，后台运维查询也要记录审计日志。
 - 微信 openid 不能直接当员工账号，必须绑定到 `users` 和 `tenant_members`。

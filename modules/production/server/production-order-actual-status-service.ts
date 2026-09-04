@@ -165,6 +165,7 @@ export async function confirmProductionOrderActual(orderId: string, actualId: st
         valuationQty: Number(receipt.quantities?.valuationQty || 0),
         costAmount,
         stockLogId: receipt.movement!.id,
+        costLayerId: receipt.costLayer?.id,
         idempotencyKey: `PRODUCTION_ACTUAL:${actual.id}:LOT_RECEIPT:${line.id}`,
         note: `生产订单实绩 ${actual.actualNo} 产出批次待检入库`,
         createdBy: confirmedBy,

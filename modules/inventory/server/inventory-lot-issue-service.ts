@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import type { InventoryStatus } from '../domain/inventory-status'
+import { settleShipmentStockShortagesWithLot } from './shipment-stock-shortage-service'
 
 export const roundQty = (value: number) => Number(value.toFixed(6))
 export const tolerance = 0.000001
@@ -22,12 +23,13 @@ export async function createInventoryLotReceipt(
     valuationQty: number
     costAmount: number
     stockLogId?: string | null
+    costLayerId?: string | null
     idempotencyKey: string
     note?: string | null
     createdBy?: string | null
   },
 ) {
-  return tx.inventoryLot.create({
+  const lot = await tx.inventoryLot.create({
     data: {
       lotNo: input.lotNo,
       materialId: input.materialId,
@@ -66,6 +68,14 @@ export async function createInventoryLotReceipt(
     },
     include: { balances: true },
   })
+  if (input.inventoryStatus === 'AVAILABLE') {
+    await settleShipmentStockShortagesWithLot(tx, {
+      lotId: lot.id,
+      costLayerId: input.costLayerId,
+      createdBy: input.createdBy,
+    })
+  }
+  return lot
 }
 
 export type InventoryLotIssueAllocation = {
@@ -183,6 +193,7 @@ export async function consumeAvailableInventoryLots(
     locationId: string
     locationCode: string
     stockQty: number
+    locationStockQtyAdjustment?: number
     issueValuationQty: number
     issueCostAmount: number
     createdBy?: string | null

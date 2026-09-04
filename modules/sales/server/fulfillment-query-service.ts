@@ -56,6 +56,9 @@ const shipmentItemsInclude = {
   material: { select: { id: true, code: true, name: true, spec: true, stockUnit: true } },
   location: { select: { id: true, code: true, name: true, isDefault: true } },
   returnOrders: { where: { deletedAt: null, status: { in: ['PENDING', 'PROCESSED'] } }, select: { qty: true } },
+  stockShortage: {
+    select: { id: true, stockQty: true, settledStockQty: true, status: true },
+  },
   lotAllocations: {
     where: { status: { in: ['ACTIVE', 'REVERSED'] } },
     include: {

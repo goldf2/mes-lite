@@ -44,6 +44,7 @@ model InventoryLocation {
   inventoryLotTransactions InventoryLotTransaction[]
   inventoryLotAllocations  InventoryLotAllocation[]
   shipmentLotAllocations   ShipmentLotAllocation[]
+  shipmentStockShortages   ShipmentStockShortage[]
   maintenanceSpareUsages   EquipmentMaintenanceSpareUsage[]
   maintenanceSpareLots     EquipmentMaintenanceSpareLotAllocation[]
   operatorScopes           OperatorInventoryLocationScope[]
@@ -436,6 +437,7 @@ model Material {
   flowTransfers               FlowTransfer[]
   shipments                   Shipment[]
   shipmentItems               ShipmentItem[]
+  shipmentStockShortages      ShipmentStockShortage[]
   packageDocumentItems        PackageDocumentItem[]
   salesOrderItems             SalesOrderItem[]
   returnOrders                ReturnOrder[]
@@ -1269,8 +1271,9 @@ model StockLog {
   refId   String?
   note    String?
 
-  createdAt DateTime @default(now())
-  createdBy String?
+  createdAt           DateTime                          @default(now())
+  createdBy           String?
+  shortageSettlements ShipmentStockShortageSettlement[]
 
   @@index([lotId])
   @@index([sourceMovementId])
@@ -1302,6 +1305,7 @@ model InventoryLot {
   costLayers                  InventoryCostLayer[]
   productionInputAllocations  InventoryLotAllocation[]
   shipmentAllocations         ShipmentLotAllocation[]
+  shortageSettlements         ShipmentStockShortageSettlement[]
   packageDocumentItems        PackageDocumentItem[]
   returnedLotAllocations      ReturnLotAllocation[]                    @relation("ReturnedInventoryLot")
   maintenanceSpareAllocations EquipmentMaintenanceSpareLotAllocation[]
@@ -1363,34 +1367,89 @@ model InventoryLotGenealogy {
 }
 
 model ShipmentLotAllocation {
-  id                   String                @id @default(cuid())
+  id                   String                            @id @default(cuid())
   shipmentId           String
-  shipment             Shipment              @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  shipment             Shipment                          @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
   shipmentItemId       String
-  shipmentItem         ShipmentItem          @relation(fields: [shipmentItemId], references: [id], onDelete: Restrict)
+  shipmentItem         ShipmentItem                      @relation(fields: [shipmentItemId], references: [id], onDelete: Restrict)
   lotId                String
-  lot                  InventoryLot          @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  lot                  InventoryLot                      @relation(fields: [lotId], references: [id], onDelete: Restrict)
   locationId           String
-  location             InventoryLocation     @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  inventoryStatus      String                @default("AVAILABLE")
+  location             InventoryLocation                 @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  inventoryStatus      String                            @default("AVAILABLE")
   stockQty             Float
-  valuationQty         Float                 @default(0)
-  costAmount           Float                 @default(0)
-  returnedStockQty     Float                 @default(0)
-  returnedValuationQty Float                 @default(0)
-  returnedCostAmount   Float                 @default(0)
-  status               String                @default("ACTIVE")
+  valuationQty         Float                             @default(0)
+  costAmount           Float                             @default(0)
+  returnedStockQty     Float                             @default(0)
+  returnedValuationQty Float                             @default(0)
+  returnedCostAmount   Float                             @default(0)
+  status               String                            @default("ACTIVE")
   reversedAt           DateTime?
   reversedBy           String?
   reverseReason        String?
-  createdAt            DateTime              @default(now())
+  createdAt            DateTime                          @default(now())
   returnAllocations    ReturnLotAllocation[]
+  shortageSettlements  ShipmentStockShortageSettlement[]
 
   @@unique([shipmentItemId, lotId, locationId])
   @@index([shipmentId, status])
   @@index([shipmentItemId, status])
   @@index([lotId, status])
   @@index([locationId, status])
+}
+
+model ShipmentStockShortage {
+  id                  String                            @id @default(cuid())
+  shipmentId          String
+  shipment            Shipment                          @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  shipmentItemId      String                            @unique
+  shipmentItem        ShipmentItem                      @relation(fields: [shipmentItemId], references: [id], onDelete: Restrict)
+  materialId          String
+  material            Material                          @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  locationId          String
+  location            InventoryLocation                 @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  stockQty            Float
+  settledStockQty     Float                             @default(0)
+  settledValuationQty Float                             @default(0)
+  settledCostAmount   Float                             @default(0)
+  status              String                            @default("OPEN")
+  settledAt           DateTime?
+  reversedAt          DateTime?
+  reversedBy          String?
+  reverseReason       String?
+  settlements         ShipmentStockShortageSettlement[]
+  createdAt           DateTime                          @default(now())
+  updatedAt           DateTime                          @updatedAt
+
+  @@index([materialId, locationId, status, createdAt])
+  @@index([shipmentId, status])
+}
+
+model ShipmentStockShortageSettlement {
+  id                   String                @id @default(cuid())
+  shortageId           String
+  shortage             ShipmentStockShortage @relation(fields: [shortageId], references: [id], onDelete: Restrict)
+  lotId                String
+  lot                  InventoryLot          @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  costLayerId          String?
+  costLayer            InventoryCostLayer?   @relation(fields: [costLayerId], references: [id], onDelete: Restrict)
+  stockLogId           String
+  stockLog             StockLog              @relation(fields: [stockLogId], references: [id], onDelete: Restrict)
+  shipmentAllocationId String
+  shipmentAllocation   ShipmentLotAllocation @relation(fields: [shipmentAllocationId], references: [id], onDelete: Restrict)
+  stockQty             Float
+  valuationQty         Float                 @default(0)
+  costAmount           Float                 @default(0)
+  status               String                @default("ACTIVE")
+  reversedAt           DateTime?
+  reversedBy           String?
+  createdAt            DateTime              @default(now())
+
+  @@index([shortageId, status])
+  @@index([lotId, status])
+  @@index([costLayerId, status])
+  @@index([shipmentAllocationId])
+  @@index([stockLogId])
 }
 
 model ReturnLotAllocation {
@@ -1765,9 +1824,9 @@ model MaterialIn {
 }
 
 model InventoryCostLayer {
-  id                    String                 @id @default(cuid())
+  id                    String                            @id @default(cuid())
   materialId            String
-  material              Material               @relation(fields: [materialId], references: [id])
+  material              Material                          @relation(fields: [materialId], references: [id])
   materialInId          String?
   sourceType            String?
   sourceId              String?
@@ -1780,13 +1839,14 @@ model InventoryCostLayer {
   valuationUnitCost     Float
   stockUnitCost         Float
   totalAmount           Float
-  remainingAmount       Float                  @default(0)
-  status                String                 @default("OPEN")
-  inventoryStatus       String                 @default("AVAILABLE")
+  remainingAmount       Float                             @default(0)
+  status                String                            @default("OPEN")
+  inventoryStatus       String                            @default("AVAILABLE")
   lotId                 String?
-  lot                   InventoryLot?          @relation(fields: [lotId], references: [id], onDelete: Restrict)
-  createdAt             DateTime               @default(now())
+  lot                   InventoryLot?                     @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  createdAt             DateTime                          @default(now())
   consumptions          CostLayerConsumption[]
+  shortageSettlements   ShipmentStockShortageSettlement[]
 
   @@index([materialId])
   @@index([materialInId])
@@ -1890,6 +1950,7 @@ model Shipment {
   returnOrders          ReturnOrder[]
   items                 ShipmentItem[]
   lotAllocations        ShipmentLotAllocation[]
+  stockShortages        ShipmentStockShortage[]
   packages              PackageDocument[]
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
@@ -1918,6 +1979,7 @@ model ShipmentItem {
   conversionSource      String?
   costLayerSnapshot     String?
   lotAllocations        ShipmentLotAllocation[]
+  stockShortage         ShipmentStockShortage?
   returnOrders          ReturnOrder[]
   packageItems          PackageDocumentItem[]
   createdAt             DateTime                @default(now())

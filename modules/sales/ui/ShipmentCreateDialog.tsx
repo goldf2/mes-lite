@@ -101,7 +101,6 @@ export default function ShipmentCreateDialog({ onClose, onCreated, onMessage }: 
     if (!current.materialId) return onMessage('请选择发货物料')
     if (!current.locationId || current.qty <= 0) return onMessage('请选择发货库位并填写大于 0 的数量')
     if (selectedMaterial?.customerId && selectedMaterial.customerId !== form.customerId) return onMessage('该物料不属于所选客户')
-    if (current.qty > Number(selectedLocationBalance?.availableQty || 0) + 0.000001) return onMessage('当前库位库存不足')
     if (form.items.some((item) => item.clientKey !== editingClientKey && item.materialId === current.materialId && item.locationId === current.locationId)) {
       return onMessage('同一物料和库位不能重复，请编辑已有明细')
     }
@@ -186,7 +185,7 @@ export default function ShipmentCreateDialog({ onClose, onCreated, onMessage }: 
                 <label className="text-sm font-medium text-gray-700">数量<input type="number" min="0" step="any" value={current.qty || ''} onChange={(event) => setCurrent((value) => ({ ...value, qty: Number(event.target.value) }))} className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2" /></label>
                 <label className="text-sm font-medium text-gray-700">单价<input type="number" min="0" step="0.01" value={current.unitPrice || ''} onChange={(event) => setCurrent((value) => ({ ...value, unitPrice: Number(event.target.value) }))} className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2" /></label>
               </div>
-              {selectedMaterial && <div className={`rounded-lg px-3 py-2 text-xs ${current.qty > Number(selectedLocationBalance?.availableQty || 0) ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>当前库位可用 {selectedLocationBalance?.availableQty || 0} {selectedMaterial.stockUnit}{selectedReference ? `；客户-物料总体参考：订购 ${selectedReference.orderedQty}，待发 ${selectedReference.pendingQty}，已发 ${selectedReference.shippedQty}，未发 ${selectedReference.remainingQty}${selectedReference.overQty > 0 ? `，超发 ${selectedReference.overQty}` : ''} ${selectedReference.unit}` : '；暂无销售需求参考'}</div>}
+              {selectedMaterial && <div className={`rounded-lg px-3 py-2 text-xs ${current.qty > Number(selectedLocationBalance?.availableQty || 0) ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>当前库位可用 {selectedLocationBalance?.availableQty || 0} {selectedMaterial.stockUnit}{current.qty > Number(selectedLocationBalance?.availableQty || 0) ? `；确认发货后预计欠库 ${Number((current.qty - Math.max(0, Number(selectedLocationBalance?.availableQty || 0))).toFixed(6))} ${selectedMaterial.stockUnit}，后续同库位可用入库将自动补齐` : ''}{selectedReference ? `；客户-物料总体参考：订购 ${selectedReference.orderedQty}，待发 ${selectedReference.pendingQty}，已发 ${selectedReference.shippedQty}，未发 ${selectedReference.remainingQty}${selectedReference.overQty > 0 ? `，超发 ${selectedReference.overQty}` : ''} ${selectedReference.unit}` : '；暂无销售需求参考'}</div>}
               <button type="button" onClick={saveCurrent} className="w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white hover:bg-blue-700">{editingClientKey ? '保存本项修改' : '添加本项并继续'}</button>
             </div>
           </section>

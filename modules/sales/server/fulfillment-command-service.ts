@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { assertInventoryIssueAvailability, resolveInventoryLocation } from '@/modules/inventory'
+import { resolveInventoryLocation } from '@/modules/inventory'
 import { materialProductPrefix, resolveProductId } from '@/lib/material-product'
 import type { CreateReturnCommand, CreateShipmentCommand } from '../contracts/fulfillment-schema'
 import { datedDocumentPrefix, nextDatedDocumentNo } from '../domain/sales-document-numbering'
@@ -62,13 +62,6 @@ async function prepareShipmentItems(
     })
   }
 
-  for (const item of prepared) {
-    await assertInventoryIssueAvailability(tx, {
-      materialId: item.materialId,
-      stockQty: item.qty,
-      locationId: item.locationId,
-    })
-  }
   return { customer, prepared }
 }
 
@@ -130,10 +123,11 @@ export async function createManagedReturn(input: CreateReturnCommand, now = new 
   return runSalesDomainOperation(() => prisma.$transaction(async (tx) => {
     const item = await tx.shipmentItem.findUnique({
       where: { id: input.shipmentItemId },
-      include: { shipment: true, material: true },
+      include: { shipment: true, material: true, stockShortage: true },
     })
     if (!item || item.shipmentId !== input.shipmentId || item.shipment.deletedAt) throw new SalesDomainError('原发货明细不存在', 404)
     if (!['SHIPPED', 'DELIVERED'].includes(item.shipment.status)) throw new SalesDomainError('只有已发货或已签收单据可以退货')
+    if (item.stockShortage?.status === 'OPEN') throw new SalesDomainError('该发货明细仍有待补库存，补齐批次后才能登记退货')
     const returned = await tx.returnOrder.aggregate({
       where: { shipmentItemId: item.id, deletedAt: null, status: { in: ['PENDING', 'PROCESSED'] } },
       _sum: { qty: true },

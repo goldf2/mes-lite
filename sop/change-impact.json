@@ -1,6 +1,11 @@
 {
-  "version": "0.1.454",
-  "impact": "none",
-  "workflowIds": [],
-  "summary": "锯切成本沿用既有保存、绑定物料和可选加入 BOM 的操作步骤，仅调整默认选择与说明，并修复已保存成本在物料全景中的读取；页面入口、权限和操作步骤不变。"
+  "version": "0.1.455",
+  "impact": "updated",
+  "workflowIds": [
+    "28-shipment-create",
+    "29-shipment-confirm",
+    "79-shipment-list-tracked",
+    "80-shipment-detail-lot-allocation"
+  ],
+  "summary": "发货允许受控负库存：新建时显示预计欠库，确认后详情显示待补数量，后续同物料同库位可用入库自动补齐批次和成本。"
 }

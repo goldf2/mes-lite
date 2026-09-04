@@ -16,6 +16,7 @@ export async function allocateShipmentInventoryLots(
     locationId: string
     locationCode: string
     stockQty: number
+    locationStockQtyAdjustment?: number
     issueValuationQty: number
     issueCostAmount: number
     stockLogId?: string | null
@@ -67,29 +68,42 @@ export async function reverseShipmentInventoryLots(
     stockLogId: string
     reason: string
     reversedBy: string
+    allowEmpty?: boolean
   },
 ) {
   const allocations = await tx.shipmentLotAllocation.findMany({
     where: { shipmentId: input.shipmentId, shipmentItemId: input.shipmentItemId, status: 'ACTIVE' },
     orderBy: { createdAt: 'asc' },
   })
-  if (allocations.length === 0) throw new Error('原发货批次分配不存在，不能建立可信冲销')
+  if (allocations.length === 0) {
+    if (input.allowEmpty) return allocations
+    throw new Error('原发货批次分配不存在，不能建立可信冲销')
+  }
 
   for (const allocation of allocations) {
     if (Number(allocation.returnedStockQty) > tolerance) {
       throw new Error('原发货明细已经发生退货，不能再整单冲销')
     }
-    const sourceTransaction = await tx.inventoryLotTransaction.findUnique({
-      where: { idempotencyKey: `SHIPMENT:${input.shipmentId}:ITEM:${input.shipmentItemId}:LOT:${allocation.lotId}` },
+    const sourceTransactions = await tx.inventoryLotTransaction.findMany({
+      where: {
+        lotId: allocation.lotId,
+        refType: 'SHIPMENT',
+        refId: input.shipmentId,
+        type: { in: ['SHIPMENT_OUT', 'SHIPMENT_SHORTAGE_SETTLEMENT'] },
+        idempotencyKey: { startsWith: `SHIPMENT:${input.shipmentId}:ITEM:${input.shipmentItemId}:LOT:${allocation.lotId}` },
+      },
     })
-    if (!sourceTransaction) throw new Error('原发货批次流水不存在，不能建立可信冲销')
+    if (sourceTransactions.length === 0) throw new Error('原发货批次流水不存在，不能建立可信冲销')
     const reversalKey = `SHIPMENT:${input.shipmentId}:ITEM:${input.shipmentItemId}:LOT:${allocation.lotId}:REVERSE`
     const existing = await tx.inventoryLotTransaction.findUnique({ where: { idempotencyKey: reversalKey } })
     if (existing) throw new Error('原发货批次流水已经冲销，不能重复冲销')
 
-    const stockQty = Math.abs(Number(sourceTransaction.stockQty))
-    const valuationQty = Math.abs(Number(sourceTransaction.valuationQty))
-    const costAmount = Math.abs(Number(sourceTransaction.costAmount))
+    const stockQty = roundQty(sourceTransactions.reduce((sum, item) => sum + Math.abs(Number(item.stockQty)), 0))
+    const valuationQty = roundQty(sourceTransactions.reduce((sum, item) => sum + Math.abs(Number(item.valuationQty)), 0))
+    const costAmount = roundQty(sourceTransactions.reduce((sum, item) => sum + Math.abs(Number(item.costAmount)), 0))
+    if (Math.abs(stockQty - Number(allocation.stockQty)) > tolerance) {
+      throw new Error('原发货批次流水与批次分配数量不一致，不能建立可信冲销')
+    }
     await tx.inventoryLotBalance.upsert({
       where: {
         lotId_locationId_inventoryStatus: {
