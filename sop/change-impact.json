@@ -1,11 +1,8 @@
 {
-  "version": "0.1.455",
+  "version": "0.1.456",
   "impact": "updated",
   "workflowIds": [
-    "28-shipment-create",
-    "29-shipment-confirm",
-    "79-shipment-list-tracked",
-    "80-shipment-detail-lot-allocation"
+    "04-material-list"
   ],
-  "summary": "发货允许受控负库存：新建时显示预计欠库，确认后详情显示待补数量，后续同物料同库位可用入库自动补齐批次和成本。"
+  "summary": "物料全景改为关键指标仪表台与按需折叠的详细资料；默认只展开档案与库存，其余模块可单独或批量展开。"
 }

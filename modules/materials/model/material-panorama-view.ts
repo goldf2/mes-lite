@@ -26,9 +26,9 @@ export const panoramaModuleLabels: Record<PanoramaModuleId, { name: string; desc
   summary: { name: '档案与库存', description: '物料档案、库存总览' },
   documents: { name: '库位与文档', description: '库位分布、产品文档、附件' },
   bomProcess: { name: 'BOM 与工艺', description: '相关 BOM、加工工艺和作业步骤' },
-  costing: { name: '成本与快照', description: '加工参数、成本对象、物料成本快照' },
+  costing: { name: '加工与成本', description: '加工参数、成本对象、物料成本快照' },
   orders: { name: '工单与领料', description: '相关工单、作为用料的领料记录' },
-  records: { name: '来料与库存记录', description: '最近来料、库存流水、成本层' },
+  records: { name: '库存与追溯', description: '最近来料、库存流水、成本层' },
   notes: { name: '建模说明', description: '当前全景页的数据建模提示' },
 }
 

@@ -1,46 +1,42 @@
 # 当前状态
 
-最后更新：2026-09-04 14:50 CST
+最后更新：2026-09-04 19:35 CST
 
 ## 项目阶段
 
-生产维护中。当前候选版本为 `v0.1.455`；代码和迁移已完成本地验证，尚待候选分支精确 SHA CI、`main` 推进及 Con01 生产验证。远端 `main` 当前源码版本为 `v0.1.454`（提交 `2c0fbea`）；其生产可见部署状态未在本会话确认。
+生产维护中。远端 `main` 与 Con01 生产当前均为 `v0.1.455`，远端提交 `e77efd9`；公开 readiness 已返回 HTTP 200。正在隔离工作树 `/private/tmp/mes-lite-panorama-v01456.HgklvM` 准备 `v0.1.456` 物料全景折叠仪表台，尚待完整发布门禁和生产页面验收。
 
 ## 本次已完成
 
-1. 发货草稿允许数量超过所选库位可用库存，页面显示预计欠库。
-2. 只有确认发货可形成负库存；生产领料、调拨、普通调整和非可用状态库存仍保持严格约束。
-3. 发货时已有可用量照常冻结批次与成本，差额保存为 `ShipmentStockShortage`。
-4. 后续同物料、同库位可用入库或质量放行按欠库时间自动补齐批次、核算量和成本，并保存 `ShipmentStockShortageSettlement`。
-5. 发货详情显示待补库存；欠库未补齐时拒绝客户退货；整单冲销同时恢复原发货和欠库补账。
-6. 数据一致性检查只接受由开放发货欠库支撑的负数，超过欠库或没有来源的负数仍判为阻塞问题。
+1. 物料全景首屏增加关键指标仪表台：可用库存、待检/冻结、BOM 关系、已存单位材料成本和库存单价。
+2. 七组详细资料改为单列折叠，默认只展开档案与库存；支持逐组、全部展开和全部收起。
+3. 原有物料、库存、BOM、工艺、成本、文档、工单和追溯展示组件继续复用，不改变查询或计算。
+4. 布局设置保留模块显示、顺序和密度；移除在折叠单列模式下无效的宽度选择。
+5. 折叠按钮提供 `aria-expanded`、关联面板和键盘焦点反馈，并遵守减少动态效果设置。
 
 ## 当前验证结果
 
 ```text
-npx prisma validate                         通过
-npx prisma generate                         通过
 npx tsc --noEmit                            通过
-npm run verify:shipment-negative-stock      通过
-npm run verify:shipment-reversal            通过
-npm run verify:shipment-multi-item           通过
-npm run verify:shipment-return-lots          通过
-npm run verify:inventory-transaction-ledger  通过
-npm run verify:data-integrity                通过
-npm run verify:receiving-module              通过
+npm run verify:material-bom-modules          通过
+npx next lint（本次物料全景文件）             通过，0 警告
+npm run verify:sop                           通过，185 个流程
+npm run verify:release-notes                 通过
+npm run build                                通过
+git diff --check                             通过
+npm run verify:ci                            通过，50 项领域/治理基线
 ```
 
 ## 已知问题与风险
 
 | 优先级 | 问题 | 影响 | 处理 |
 | --- | --- | --- | --- |
-| P1 | 候选 CI 尚未执行 | 不能推进 `main` | 推送 `ci/0.1.455` 并核对精确 SHA |
-| P1 | Con01 迁移和生产流程未验证 | 尚不能承诺线上可用 | CI 通过后推进同一 SHA，由 Coolify 部署并核对版本、数据库迁移和真实流程 |
-| P2 | 欠库只按原发货库位自动补齐 | 其他库位入库不会隐式抵销 | 先按正常转移流程移到原发货库位；保持位置事实明确 |
-| P2 | 欠库补齐前发货成本不完整 | 期间毛利只能视为暂定 | 详情显示“待补库存”，补齐后更新实际成本 |
+| P1 | `v0.1.456` 完整构建与候选 CI 尚未完成 | 不能推进 `main` | 完成 SOP/发布门禁后推送 `ci/0.1.456` 并核对精确 SHA |
+| P1 | 折叠仪表台尚未在真实生产数据上验收 | 不能确认最终信息密度 | Con01 部署后打开带 BOM 和锯切成本的物料，核对首屏、折叠和成本展示 |
+| P2 | 旧浏览器仍保存模块 `width` 偏好 | 字段继续存在但界面不再使用 | 保持向后兼容读取，不进行破坏性本地偏好迁移 |
 
 ## 接手建议
 
-1. 阅读根目录 `AGENTS.md`、ADR-0049 和本目录 `RUNBOOK.md`。
-2. 从 `NEXT_ACTIONS.md` 的候选发布门禁继续，不跳过精确 SHA CI。
-3. 原始工作树含用户未提交内容，不得覆盖；本次隔离工作树为 `/private/tmp/mes-lite-negative-stock-v01455.9a9F1c`。
+1. 阅读根目录 `AGENTS.md`、本目录 `RUNBOOK.md` 和 `NEXT_ACTIONS.md`。
+2. 从 `v0.1.456` 完整构建与候选发布门禁继续，不跳过精确 SHA CI。
+3. 原始工作树含用户未提交内容，不得覆盖；本次隔离工作树为 `/private/tmp/mes-lite-panorama-v01456.HgklvM`。

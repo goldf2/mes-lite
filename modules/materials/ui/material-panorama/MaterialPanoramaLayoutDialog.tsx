@@ -1,15 +1,14 @@
 'use client'
 
 import ModalOverlay from '@/app/components/ModalOverlay'
-import type { PanoramaDisplayDensity, PanoramaModuleConfig, PanoramaModuleId, PanoramaModuleWidth } from '../../contracts/material-panorama'
-import { panoramaModuleLabels, panoramaModuleWidthLabels } from '../../model/material-panorama-view'
+import type { PanoramaDisplayDensity, PanoramaModuleConfig, PanoramaModuleId } from '../../contracts/material-panorama'
+import { panoramaModuleLabels } from '../../model/material-panorama-view'
 
 export default function MaterialPanoramaLayoutDialog({
   density,
   modules,
   onDensityChange,
   onToggle,
-  onWidthChange,
   onMove,
   onReset,
   onClose,
@@ -18,7 +17,6 @@ export default function MaterialPanoramaLayoutDialog({
   modules: PanoramaModuleConfig[]
   onDensityChange: (density: PanoramaDisplayDensity) => void
   onToggle: (id: PanoramaModuleId) => void
-  onWidthChange: (id: PanoramaModuleId, width: PanoramaModuleWidth) => void
   onMove: (id: PanoramaModuleId, direction: -1 | 1) => void
   onReset: () => void
   onClose: () => void
@@ -27,7 +25,7 @@ export default function MaterialPanoramaLayoutDialog({
     <ModalOverlay onClose={onClose} className="z-[75]">
       <div className="flex max-h-[calc(100vh-32px)] w-[min(calc(100vw-24px),780px)] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b px-5 py-4">
-          <div><h3 className="text-base font-semibold text-gray-900">全景模块布局</h3><p className="mt-1 text-sm text-gray-500">调整模块显示、宽度和顺序，设置保存在当前浏览器。</p></div>
+          <div><h3 className="text-base font-semibold text-gray-900">全景仪表台布局</h3><p className="mt-1 text-sm text-gray-500">调整详细资料的显示和顺序，设置保存在当前浏览器。</p></div>
           <button type="button" onClick={onClose} className="rounded px-2 py-1 text-xl leading-none text-gray-400 hover:bg-gray-100 hover:text-gray-700">×</button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
@@ -43,12 +41,11 @@ export default function MaterialPanoramaLayoutDialog({
             {modules.map((module, index) => {
               const meta = panoramaModuleLabels[module.id]
               return (
-                <div key={module.id} className="grid gap-3 rounded-lg border border-gray-200 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_128px_112px]">
+                <div key={module.id} className="grid gap-3 rounded-lg border border-gray-200 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_112px]">
                   <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3">
                     <input type="checkbox" aria-label={`${meta.name}模块显示`} checked={module.visible} onChange={() => onToggle(module.id)} className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600" />
                     <span className="min-w-0"><span className="block text-sm font-medium text-gray-900">{meta.name}</span><span className="mt-0.5 block text-xs text-gray-500">{meta.description}</span></span>
                   </label>
-                  <label className="min-w-0 text-xs text-gray-500"><span className="mb-1 block">宽度</span><select aria-label={`${meta.name}模块宽度`} value={module.width} onChange={(event) => onWidthChange(module.id, event.target.value as PanoramaModuleWidth)} className="h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-700">{(Object.keys(panoramaModuleWidthLabels) as PanoramaModuleWidth[]).map((width) => <option key={width} value={width}>{panoramaModuleWidthLabels[width]}</option>)}</select></label>
                   <div className="flex shrink-0 items-end gap-1">
                     <button type="button" disabled={index === 0} onClick={() => onMove(module.id, -1)} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40">上移</button>
                     <button type="button" disabled={index === modules.length - 1} onClick={() => onMove(module.id, 1)} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40">下移</button>

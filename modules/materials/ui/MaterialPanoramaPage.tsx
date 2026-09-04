@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { normalizeAttachmentRotation } from '@/lib/attachment-rotation'
 import { getMaterialPanorama, saveAttachmentRotation } from '../client/materials-api'
 import type {
@@ -8,8 +8,6 @@ import type {
   PanoramaDisplayDensity,
   PanoramaLayoutConfig,
   PanoramaModuleConfig,
-  PanoramaModuleId,
-  PanoramaModuleWidth,
   PanoramaViewerState,
   WorkInstructionSummary,
 } from '../contracts/material-panorama'
@@ -20,28 +18,11 @@ import {
   normalizePanoramaLayout,
   normalizePanoramaModules,
   panoramaLayoutStorageKey,
-  panoramaModuleWidthClasses,
 } from '../model/material-panorama-view'
+import MaterialPanoramaDashboard from './material-panorama/MaterialPanoramaDashboard'
 import MaterialPanoramaLayoutDialog from './material-panorama/MaterialPanoramaLayoutDialog'
-import {
-  MaterialPanoramaDocumentsModule,
-  MaterialPanoramaSummaryModule,
-} from './material-panorama/MaterialPanoramaOverviewModules'
-import {
-  MaterialPanoramaBomProcessModule,
-  MaterialPanoramaCostingModule,
-  MaterialPanoramaOrdersModule,
-} from './material-panorama/MaterialPanoramaOperationsModules'
 import { PanoramaDensityProvider } from './material-panorama/MaterialPanoramaPrimitives'
-import MaterialPanoramaRecordsModule from './material-panorama/MaterialPanoramaRecordsModule'
 import MaterialPanoramaViewer from './material-panorama/MaterialPanoramaViewer'
-
-function PanoramaLayoutModule({ id, modules, children }: { id: PanoramaModuleId; modules: PanoramaModuleConfig[]; children: ReactNode }) {
-  const index = modules.findIndex((item) => item.id === id)
-  const moduleItem = index >= 0 ? modules[index] : defaultPanoramaModules.find((item) => item.id === id)
-  if (!moduleItem?.visible) return null
-  return <div className={`min-w-0 ${panoramaModuleWidthClasses[moduleItem.width]}`} style={{ order: index >= 0 ? index : 99 }}>{children}</div>
-}
 
 export default function MaterialPanoramaPage({
   materialId,
@@ -94,9 +75,8 @@ export default function MaterialPanoramaPage({
   }
   const updateModuleConfig = (nextConfig: PanoramaModuleConfig[]) => updateLayoutConfig({ ...layoutConfig, modules: normalizePanoramaModules(nextConfig) })
   const updateDensity = (density: PanoramaDisplayDensity) => updateLayoutConfig({ ...layoutConfig, density })
-  const updateModuleWidth = (id: PanoramaModuleId, width: PanoramaModuleWidth) => updateModuleConfig(moduleConfig.map((item) => item.id === id ? { ...item, width } : item))
-  const toggleModule = (id: PanoramaModuleId) => updateModuleConfig(moduleConfig.map((item) => item.id === id ? { ...item, visible: !item.visible } : item))
-  const moveModule = (id: PanoramaModuleId, direction: -1 | 1) => {
+  const toggleModule = (id: PanoramaModuleConfig['id']) => updateModuleConfig(moduleConfig.map((item) => item.id === id ? { ...item, visible: !item.visible } : item))
+  const moveModule = (id: PanoramaModuleConfig['id'], direction: -1 | 1) => {
     const index = moduleConfig.findIndex((item) => item.id === id)
     const nextIndex = index + direction
     if (index < 0 || nextIndex < 0 || nextIndex >= moduleConfig.length) return
@@ -110,7 +90,6 @@ export default function MaterialPanoramaPage({
   const coverImage = data?.attachments.images.find((item) => item.isCover) || data?.attachments.images[0]
   const visibleModuleCount = moduleConfig.filter((item) => item.visible).length
   const densityText = layoutConfig.density === 'compact' ? '紧凑' : '舒适'
-  const contentGapClass = layoutConfig.density === 'compact' ? 'gap-2' : 'gap-3'
   const contentPaddingClass = layoutConfig.density === 'compact' ? 'p-2 sm:p-3' : 'p-3 sm:p-4'
 
   const openWorkInstructionViewer = (instruction: WorkInstructionSummary) => {
@@ -155,7 +134,7 @@ export default function MaterialPanoramaPage({
             <div className="min-w-0">
               <div className="text-xs text-gray-500">物料全景视图</div>
               <div className="mt-0.5 truncate text-lg font-semibold text-gray-900">{data?.material ? `${data.material.code} · ${data.material.name}` : '加载中'}</div>
-              <div className="mt-1 text-xs text-gray-500">{densityText}布局 · 显示 {visibleModuleCount}/{defaultPanoramaModules.length} 个模块</div>
+              <div className="mt-1 text-xs text-gray-500">{densityText}仪表台 · {visibleModuleCount}/{defaultPanoramaModules.length} 组详细资料可展开</div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <button type="button" onClick={() => setLayoutOpen(true)} className="rounded-md border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50">布局</button>
@@ -166,21 +145,15 @@ export default function MaterialPanoramaPage({
             {loading && <div className="rounded-lg bg-white px-4 py-12 text-center text-sm text-gray-500 shadow-sm">正在加载物料全景...</div>}
             {!loading && error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-5 text-sm text-red-700">{error}</div>}
             {!loading && data && (
-              <div className={`grid grid-cols-1 ${contentGapClass} xl:grid-cols-12`}>
-                {data.integrityWarnings.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 xl:col-span-12">{data.integrityWarnings.join('；')}</div>}
-                <PanoramaLayoutModule id="summary" modules={moduleConfig}><MaterialPanoramaSummaryModule data={data} coverImage={coverImage} /></PanoramaLayoutModule>
-                <PanoramaLayoutModule id="documents" modules={moduleConfig}><MaterialPanoramaDocumentsModule data={data} onOpenInstruction={openWorkInstructionViewer} /></PanoramaLayoutModule>
-                <PanoramaLayoutModule id="bomProcess" modules={moduleConfig}><MaterialPanoramaBomProcessModule data={data} relatedRoutes={relatedRoutes} /></PanoramaLayoutModule>
-                <PanoramaLayoutModule id="costing" modules={moduleConfig}><MaterialPanoramaCostingModule data={data} relatedRoutes={relatedRoutes} /></PanoramaLayoutModule>
-                <PanoramaLayoutModule id="orders" modules={moduleConfig}><MaterialPanoramaOrdersModule data={data} /></PanoramaLayoutModule>
-                <PanoramaLayoutModule id="records" modules={moduleConfig}><MaterialPanoramaRecordsModule data={data} /></PanoramaLayoutModule>
-                <PanoramaLayoutModule id="notes" modules={moduleConfig}><div className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-xs text-gray-500">{data.modelNotes.join('；')}</div></PanoramaLayoutModule>
+              <div className="space-y-3">
+                {data.integrityWarnings.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{data.integrityWarnings.join('；')}</div>}
+                <MaterialPanoramaDashboard data={data} modules={moduleConfig} coverImage={coverImage} relatedRoutes={relatedRoutes} onOpenInstruction={openWorkInstructionViewer} />
               </div>
             )}
           </div>
         </div>
       </div>
-      {layoutOpen && <MaterialPanoramaLayoutDialog density={layoutConfig.density} modules={moduleConfig} onDensityChange={updateDensity} onToggle={toggleModule} onWidthChange={updateModuleWidth} onMove={moveModule} onReset={() => updateLayoutConfig(defaultPanoramaLayout)} onClose={() => setLayoutOpen(false)} />}
+      {layoutOpen && <MaterialPanoramaLayoutDialog density={layoutConfig.density} modules={moduleConfig} onDensityChange={updateDensity} onToggle={toggleModule} onMove={moveModule} onReset={() => updateLayoutConfig(defaultPanoramaLayout)} onClose={() => setLayoutOpen(false)} />}
       {viewer && <MaterialPanoramaViewer viewer={viewer} zoom={viewerZoom} rotationSaving={rotationSaving} onViewerChange={setViewer} onZoomChange={setViewerZoom} onRotate={(delta) => void rotateSelectedAttachment(delta)} onClose={() => setViewer(null)} />}
     </PanoramaDensityProvider>
   )

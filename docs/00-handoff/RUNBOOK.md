@@ -9,11 +9,11 @@
 ## 本次相关验证
 
 ```bash
-npm run verify:cost-domain-services
-npm run verify:sawing-cost-module
 npm run verify:material-bom-modules
 npx tsc --noEmit
-npx next lint --file modules/materials/server/material-panorama-query-service.ts --file modules/operations-tools/ui/SawingCostCalculatorPageModule.tsx --file modules/operations-tools/ui/SaveSawingCostPanel.tsx --file modules/materials/ui/material-panorama/MaterialPanoramaOperationsModules.tsx --file scripts/verify-cost-domain-services.ts --file scripts/verify-sawing-cost-module.ts
+npx next lint --file modules/materials/ui/MaterialPanoramaPage.tsx --file modules/materials/ui/material-panorama/MaterialPanoramaDashboard.tsx --file modules/materials/ui/material-panorama/MaterialPanoramaLayoutDialog.tsx --file modules/materials/model/material-panorama-view.ts --file scripts/verify-material-bom-modules.ts
+npm run verify:sop
+npm run build
 npm run verify:release-notes
 git diff --check
 ```
@@ -29,5 +29,4 @@ git diff --check
 ## 回滚
 
 - 代码回滚使用项目既有非破坏性回滚流程或将上一个已验证提交重新发布。
-- 本次没有数据库迁移；回滚代码不会删除已保存的锯切方案或成本对象。
-- 若新版本产生了测试业务数据，应通过系统允许的归档/作废流程处理，不直接改生产数据库。
+- 本次没有数据库迁移或业务写入；回滚代码不会删除物料、库存、BOM、锯切方案或成本对象。
