@@ -34,6 +34,7 @@ export const panoramaModuleLabels: Record<PanoramaModuleId, { name: string; desc
 
 export const panoramaModuleWidthLabels: Record<PanoramaModuleWidth, string> = { full: '整行', wide: '宽栏', half: '半行' }
 export const panoramaModuleWidthClasses: Record<PanoramaModuleWidth, string> = { full: 'xl:col-span-12', wide: 'xl:col-span-8', half: 'xl:col-span-6' }
+export const togglePanoramaSection = (current: PanoramaModuleId | null, next: PanoramaModuleId) => current === next ? null : next
 
 function normalizeModuleWidth(value: unknown, fallback: PanoramaModuleWidth): PanoramaModuleWidth {
   return value === 'full' || value === 'wide' || value === 'half' ? value : fallback

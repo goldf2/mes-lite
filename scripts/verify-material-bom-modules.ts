@@ -5,6 +5,7 @@ import { validateBomStructure } from '../modules/bom/domain/bom-structure'
 import { nextBomVersion } from '../modules/bom/domain/bom-version'
 import { classifyMaterialAttachments } from '../modules/materials/server/material-panorama-attachments'
 import { parseMaterialImportRows, readMaterialImportSheet } from '../modules/materials/domain/material-import-parser'
+import { togglePanoramaSection } from '../modules/materials/model/material-panorama-view'
 import { presetUnitCatalog } from '../lib/unit-catalog'
 
 const root = process.cwd()
@@ -97,9 +98,16 @@ assert.match(materialPanoramaDashboard, /MaterialPanoramaCostingModule/, '物料
 assert.match(materialPanoramaDashboard, /MaterialPanoramaOrdersModule/, '物料全景仪表台必须复用工单与领料任务模块')
 assert.match(materialPanoramaDashboard, /MaterialPanoramaRecordsModule/, '物料全景仪表台必须复用来料与库存记录任务模块')
 assert.match(materialPanoramaDashboard, /aria-expanded=\{expanded\}/, '物料全景详细资料必须提供可访问的折叠状态')
-assert.match(materialPanoramaDashboard, /new Set<PanoramaModuleId>\(\['summary'\]\)/, '物料全景默认只展开档案与库存模块')
-assert.match(materialPanoramaDashboard, /全部展开/, '物料全景必须提供全部展开操作')
-assert.match(materialPanoramaDashboard, /全部收起/, '物料全景必须提供全部收起操作')
+assert.match(materialPanoramaDashboard, /data-panorama-overview/, '物料全景桌面端必须提供左侧纵览区')
+assert.match(materialPanoramaDashboard, /data-panorama-details/, '物料全景桌面端必须提供右侧明细区')
+assert.match(materialPanoramaDashboard, /from '@\/app\/components\/layout'/, '物料全景主从布局必须复用公共页面布局出口')
+assert.match(materialPanoramaDashboard, /<SplitWorkspace/, '物料全景桌面端必须复用公共左右主从布局')
+assert.match(materialPanoramaDashboard, /primaryLabel="物料纵览"/, '物料全景左右区域必须提供明确语义')
+assert.match(materialPanoramaDashboard, /useState<PanoramaModuleId \| null>\(null\)/, '物料全景明细必须默认全部收起')
+assert.equal(togglePanoramaSection(null, 'summary'), 'summary', '收起状态点击明细必须展开目标组')
+assert.equal(togglePanoramaSection('summary', 'costing'), 'costing', '切换明细时必须只保留新目标组')
+assert.equal(togglePanoramaSection('costing', 'costing'), null, '再次点击当前明细必须收起')
+assert.doesNotMatch(materialPanoramaDashboard, /全部展开/, '单组明细模式不得再提供全部展开')
 assert.match(materialPanoramaPage, /MaterialPanoramaLayoutDialog/, '物料全景布局设置必须是独立任务组件')
 assert.match(materialPanoramaPage, /MaterialPanoramaViewer/, '物料全景文件查看器必须是独立任务组件')
 assert.match(materialPanoramaContracts, /export interface PanoramaData/, '物料全景响应结构必须集中为领域契约')

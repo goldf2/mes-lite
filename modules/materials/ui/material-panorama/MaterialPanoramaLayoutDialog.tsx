@@ -25,7 +25,7 @@ export default function MaterialPanoramaLayoutDialog({
     <ModalOverlay onClose={onClose} className="z-[75]">
       <div className="flex max-h-[calc(100vh-32px)] w-[min(calc(100vw-24px),780px)] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b px-5 py-4">
-          <div><h3 className="text-base font-semibold text-gray-900">全景仪表台布局</h3><p className="mt-1 text-sm text-gray-500">调整详细资料的显示和顺序，设置保存在当前浏览器。</p></div>
+          <div><h3 className="text-base font-semibold text-gray-900">全景仪表台布局</h3><p className="mt-1 text-sm text-gray-500">调整右侧明细的显示和顺序，设置保存在当前浏览器。</p></div>
           <button type="button" onClick={onClose} className="rounded px-2 py-1 text-xl leading-none text-gray-400 hover:bg-gray-100 hover:text-gray-700">×</button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">

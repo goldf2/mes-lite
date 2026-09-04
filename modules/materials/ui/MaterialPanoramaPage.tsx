@@ -134,7 +134,7 @@ export default function MaterialPanoramaPage({
             <div className="min-w-0">
               <div className="text-xs text-gray-500">物料全景视图</div>
               <div className="mt-0.5 truncate text-lg font-semibold text-gray-900">{data?.material ? `${data.material.code} · ${data.material.name}` : '加载中'}</div>
-              <div className="mt-1 text-xs text-gray-500">{densityText}仪表台 · {visibleModuleCount}/{defaultPanoramaModules.length} 组详细资料可展开</div>
+              <div className="mt-1 text-xs text-gray-500">{densityText}纵览与明细 · 5 项纵览 · {visibleModuleCount}/{defaultPanoramaModules.length} 组明细可展开</div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <button type="button" onClick={() => setLayoutOpen(true)} className="rounded-md border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50">布局</button>
