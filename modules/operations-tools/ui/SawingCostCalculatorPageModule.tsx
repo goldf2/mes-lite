@@ -28,7 +28,7 @@ export default function SawingCostCalculatorPageModule() {
   const [scaleForm, setScaleForm] = useState(defaultSawingScaleForm)
   const [mixRows, setMixRows] = useState<SawingMixRow[]>([])
   const [scenarioName, setScenarioName] = useState('')
-  const [productKind, setProductKind] = useState<'TEMPORARY' | 'EXISTING'>('TEMPORARY')
+  const [productKind, setProductKind] = useState<'TEMPORARY' | 'EXISTING'>('EXISTING')
   const [selectedProductId, setSelectedProductId] = useState('')
   const [bomProductId, setBomProductId] = useState('')
   const [processOptions, setProcessOptions] = useState<SawingProcessOption[]>([])

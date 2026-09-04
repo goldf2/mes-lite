@@ -58,6 +58,7 @@ async function main() {
     { listCostObjectWorkspace },
     { createSawingCostScenario, SawingCostServiceError },
     { listSawingCostWorkspace },
+    { getMaterialPanorama },
     { createProductionCostRecord },
     { listProductionCostRecords, summarizeProductionCosts },
   ] = await Promise.all([
@@ -66,6 +67,7 @@ async function main() {
     import('../modules/bom/server/cost-object-query-service'),
     import('../modules/operations-tools/server/sawing-cost-command-service'),
     import('../modules/operations-tools/server/sawing-cost-query-service'),
+    import('../modules/materials/server/material-panorama-query-service'),
     import('../modules/production/server/production-cost-record-command-service'),
     import('../modules/production/server/production-cost-record-query-service'),
   ])
@@ -115,8 +117,25 @@ async function main() {
       where: { productId: bomProduct.id, status: 'DRAFT' }, include: { items: true },
     })
     assert.equal(draftBom.version, 'v2', '向已发布 BOM 添加成本项必须派生唯一新版本')
-    assert.equal(draftBom.items.some((item) => item.itemType === 'SAWING_COST'), true)
+    assert.equal(
+      draftBom.items.some((item) => item.itemType === 'SAWING_COST' && item.costObjectId === linkedCostObject.id && item.sawingScenarioId === scenario.id),
+      true,
+      '草稿 BOM 的锯切成本项必须同时关联成本对象与原始锯切方案',
+    )
     assert.equal((await listSawingCostWorkspace()).data.length, 1)
+
+    const materialScenario = await createSawingCostScenario({
+      ...scenarioInput,
+      name: '物料锯切加工成本',
+      productKind: 'EXISTING',
+      productId: bomProduct.id,
+    }, '验证员')
+    const materialPanorama = await getMaterialPanorama(bomMaterial.id)
+    assert.equal(
+      materialPanorama.costObjects.some((item) => item.sourceType === 'SAWING_COST_SCENARIO' && item.sourceId === materialScenario.id),
+      true,
+      '绑定物料但未加入 BOM 的锯切成本必须在物料全景中展示',
+    )
 
     await createProductionCostRecord(productionCostRecordInputSchema.parse({
       costType: 'LABOR', category: '验证人工', amount: 12.5, date: '2026-08-10',

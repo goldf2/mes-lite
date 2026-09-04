@@ -32,7 +32,7 @@ export async function getMaterialPanorama(materialId: string) {
   const stockId = material.stock?.id
   const [
     attachments, targetOrders, consumingPicks, recentMaterialIns, recentStockLogs,
-    costLayers, linkedProducts, formalWorkInstructions, linkedCostObjects,
+    costLayers, linkedProducts, formalWorkInstructions, linkedSawingScenarios,
   ] = await Promise.all([
     prisma.documentAttachment.findMany({
       where: { ownerType: 'MATERIAL', ownerId: material.id, deletedAt: null },
@@ -94,21 +94,28 @@ export async function getMaterialPanorama(materialId: string) {
       },
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     }),
-    prisma.costObject.findMany({
-      where: { OR: [
-        { sourceType: 'MATERIAL', sourceId: material.id },
-        { bomItems: { some: { bom: { product: { sku: { in: linkedProductSkus } } } } } },
-      ] },
-      include: {
-        costs: { where: { active: true }, orderBy: { effectiveFrom: 'desc' }, take: 1 },
-        bomItems: { select: {
-          id: true, quantity: true, unit: true,
-          bom: { select: { product: { select: { id: true, sku: true, name: true, unit: true } } } },
-        } },
-      },
-      orderBy: { createdAt: 'desc' }, take: 20,
+    prisma.sawingCostScenario.findMany({
+      where: { materialId: material.id },
+      select: { id: true },
+      orderBy: { createdAt: 'desc' },
     }),
   ])
+
+  const linkedCostObjects = await prisma.costObject.findMany({
+    where: { OR: [
+      { sourceType: 'MATERIAL', sourceId: material.id },
+      { sourceType: 'SAWING_COST_SCENARIO', sourceId: { in: linkedSawingScenarios.map((scenario) => scenario.id) } },
+      { bomItems: { some: { bom: { product: { sku: { in: linkedProductSkus } } } } } },
+    ] },
+    include: {
+      costs: { where: { active: true }, orderBy: { effectiveFrom: 'desc' }, take: 1 },
+      bomItems: { select: {
+        id: true, quantity: true, unit: true,
+        bom: { select: { product: { select: { id: true, sku: true, name: true, unit: true } } } },
+      } },
+    },
+    orderBy: { createdAt: 'desc' }, take: 20,
+  })
 
   const instructionIds = formalWorkInstructions.map((instruction) => instruction.id)
   const instructionAttachments = instructionIds.length === 0 ? [] : await prisma.documentAttachment.findMany({

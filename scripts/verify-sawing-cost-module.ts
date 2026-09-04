@@ -25,11 +25,15 @@ const requiredModuleFiles = [
 for (const path of requiredModuleFiles) assert.ok(existsSync(join(sourceRoot, path)), `运维工具领域缺少锯切成本模块文件：${path}`)
 
 const pageSource = readFileSync(join(sourceRoot, 'modules/operations-tools/ui/SawingCostCalculatorPageModule.tsx'), 'utf8')
+const savePanelSource = readFileSync(join(sourceRoot, 'modules/operations-tools/ui/SaveSawingCostPanel.tsx'), 'utf8')
 const registrySource = readFileSync(join(sourceRoot, 'app/components/shell/WorkspacePageRendererRegistry.tsx'), 'utf8')
 assert.ok(pageSource.split('\n').length <= 420, '锯切成本协调页应保持在 420 行内')
 assert.doesNotMatch(pageSource, /\bfetch\(/, '锯切成本页不得直接调用 fetch')
 assert.match(pageSource, /calculateSawingMaterial\(/, '锯切成本页必须调用独立材料计算规则')
 assert.match(pageSource, /loadSawingCostWorkspace\(/, '锯切成本页必须通过运维工具 client 读取数据')
+assert.match(pageSource, /useState<'TEMPORARY' \| 'EXISTING'>\('EXISTING'\)/, '锯切成本默认应关联已有物料，以便进入物料全景')
+assert.match(savePanelSource, /关联 BOM（可选）/, '锯切成本保存区必须提供可选 BOM 关联')
+assert.match(savePanelSource, /已发布 BOM 不会被修改/, '锯切成本关联必须明确只写入草稿 BOM')
 assert.match(registrySource, /SawingCostCalculatorPageModule/, '锯切成本页必须通过运维工具模块公开入口加载')
 assert.equal(existsSync(join(sourceRoot, 'app/components/SawingCostCalculatorPage.tsx')), false, '根组件目录不得保留锯切成本领域页')
 

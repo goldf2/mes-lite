@@ -77,10 +77,11 @@ export function MaterialPanoramaCostingModule({ data, relatedRoutes }: { data: P
         <div className="mt-4 space-y-2">
           {data.costObjects.length === 0 ? <EmptyText>暂无直接或 BOM 推导的成本对象</EmptyText> : data.costObjects.map((costObject) => {
             const activeCost = costObject.costs[0]
+            const objectTypeLabel = costObject.objectType === 'SAWING_COST' ? '锯切加工成本' : costObject.objectType
             return (
               <div key={costObject.id} className="rounded-md border border-gray-100 px-3 py-2">
-                <div className="flex flex-wrap items-center justify-between gap-2"><div><div className="font-medium text-gray-900">{costObject.name}</div><div className="mt-0.5 font-mono text-xs text-blue-700">{costObject.code} · {costObject.objectType}</div></div><span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{costObject.unit}</span></div>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-600 sm:grid-cols-4"><span>材料 {formatMoney(activeCost?.materialCostPerUnit)}</span><span>人工 {formatNumber(activeCost?.laborHoursPerUnit, 4)}h</span><span>机时 {formatNumber(activeCost?.machineHoursPerUnit, 4)}h</span><span>直接费 {formatMoney(activeCost?.directCostPerUnit)}</span></div>
+                <div className="flex flex-wrap items-center justify-between gap-2"><div><div className="font-medium text-gray-900">{costObject.name}</div><div className="mt-0.5 font-mono text-xs text-blue-700">{costObject.code} · {objectTypeLabel}</div></div><span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{costObject.unit}</span></div>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-600 sm:grid-cols-4"><span>单件材料 {formatMoney(activeCost?.materialCostPerUnit)}</span><span>人工 {formatNumber(activeCost?.laborHoursPerUnit, 4)}h</span><span>机时 {formatNumber(activeCost?.machineHoursPerUnit, 4)}h</span><span>直接费 {formatMoney(activeCost?.directCostPerUnit)}</span></div>
                 <div className="mt-1 text-xs text-gray-500">BOM 使用：{costObject.bomItems.length ? costObject.bomItems.map((item) => item.bom.product.sku).join('、') : '暂无'}</div>
               </div>
             )

@@ -790,6 +790,8 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 保存成本方案中用户自行录入或页面生成的费用明细。新版锯切计算会生成规模测算人工工时、机时费用和其他期间费用快照。
 
+锯切测算保存时以 `SawingCostScenario` 保留完整计算参数和结果，并同步建立 `CostObject` 及当前有效的 `CostObjectCost`。选择已有物料时，`SawingCostScenario.materialId` 直接关联该物料；物料全景通过这条关系找到来源类型为 `SAWING_COST_SCENARIO` 的成本对象，因此不要求成本对象必须先加入 BOM。若用户同时选择 BOM 产出物料，系统只向该物料的草稿 BOM 写入同时指向 `CostObject` 与 `SawingCostScenario` 的 `SAWING_COST` 明细；已发布 BOM 不原地修改。
+
 | 字段 | 含义 |
 | --- | --- |
 | scenario_id | 所属锯切/生产成本方案 |
