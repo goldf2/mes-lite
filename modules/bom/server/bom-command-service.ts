@@ -1,5 +1,5 @@
 import { normalizeBomEntryQuantity } from '@/lib/bom-entry-units'
-import { materialProductPrefix, resolveProductId } from '@/lib/material-product'
+import { materialProductPrefix, resolveProductId, resolveMaterialIdForProduct } from '@/lib/material-product'
 import { prisma } from '@/lib/prisma'
 import { getUnitCatalog } from '@/lib/unit-catalog'
 import type { SaveBomInput } from '../contracts/bom-schema'
@@ -28,10 +28,10 @@ export async function saveBom(input: SaveBomInput) {
   const product = await prisma.product.findUnique({ where: { id: resolvedProductId } })
   if (!product) throw new BomDomainError('物料不存在', 404)
 
-  const outputCode = product.sku.startsWith('MAT-') ? product.sku.slice(4) : product.sku
-  const legacyOutputMaterial = submittedOutputs.length === 0
-    ? await prisma.material.findFirst({
-        where: { code: outputCode, deletedAt: null },
+  const outputMaterialId = submittedOutputs.length === 0 ? await resolveMaterialIdForProduct(prisma, product.id) : null
+  const legacyOutputMaterial = outputMaterialId
+    ? await prisma.material.findUnique({
+        where: { id: outputMaterialId },
         select: { id: true, stockUnit: true, unit: true },
       })
     : null

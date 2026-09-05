@@ -21,7 +21,7 @@ async function main() {
   const [
     { prisma },
     { processRouteInputSchema, processTemplateInputSchema },
-    { createProcessRoute, createProcessTemplate, updateProcessRoute, updateProcessTemplate },
+    { createProcessRoute, createProcessTemplate, listProcessRoutes, updateProcessRoute, updateProcessTemplate },
   ] = await Promise.all([
     import('@/lib/prisma'),
     import('@/modules/production/contracts/production-engineering-schema'),
@@ -72,7 +72,7 @@ async function main() {
   try {
     const suffix = randomUUID().slice(0, 8)
     const material = await prisma.material.create({
-      data: { code: `VERIFY-ENG-${suffix}`, name: '生产工程验证物料', unit: '件' },
+      data: { code: `MAT-VERIFY-ENG-${suffix}`, name: '生产工程验证物料', unit: '件' },
     })
     const templateInput = processTemplateInputSchema.parse({
       code: `PROC-${suffix}`, name: '验证工艺模板', category: 'OTHER', materialIds: [material.id],
@@ -105,6 +105,15 @@ async function main() {
     const allSteps = await prisma.processStep.findMany({ where: { routeId: second.route.id }, orderBy: { stepNo: 'asc' } })
     assert.equal(allSteps.filter((step) => step.deletedAt === null).length, 1, '路线更新后只能保留一组有效工序')
     assert.equal(allSteps.filter((step) => step.deletedAt !== null).length, 1, '被替换工序必须软删除并保留追溯记录')
+
+    await prisma.product.update({ where: { id: first.product.id }, data: { sku: `MAT-${material.code}` } })
+    await prisma.processRoute.update({ where: { id: first.route.id }, data: { materialId: null } })
+    const materialRoutes = await listProcessRoutes()
+    assert.equal(materialRoutes.find((item) => item.id === second.route.id)?.material?.code, material.code, '工艺路线必须展示其显式 Material 编码并保留真实 MAT- 前缀')
+    assert.equal(materialRoutes.find((item) => item.id === first.route.id)?.material?.id, material.id, '旧路线必须通过 Product.materialId 显式关联物料')
+    const unmappedProduct = await prisma.product.create({ data: { sku: material.code, name: '未映射历史产品', category: 'FINISHED' } })
+    const unmappedRoute = await prisma.processRoute.create({ data: { productId: unmappedProduct.id, name: '未映射路线' } })
+    assert.equal((await listProcessRoutes()).find((item) => item.id === unmappedRoute.id)?.material, null, '无显式映射的历史路线不得按相似 SKU 自动认领物料')
     console.log('生产工程服务校验通过：Schema、薄 API、事务规则及临时数据库集成符合领域边界。')
   } finally {
     await prisma.$disconnect()

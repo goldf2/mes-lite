@@ -5,7 +5,7 @@ import type { ProcessRouteInput, ProcessStepInput, ProcessTemplateInput } from '
 
 const templateInclude = { materials: { select: { id: true, code: true, name: true } } } as const
 const routeInclude = {
-  product: { select: { id: true, sku: true, name: true } },
+  product: { select: { id: true, sku: true, name: true, materialId: true } },
   steps: { where: { deletedAt: null }, include: { workCenter: { select: { id: true, code: true, name: true } } }, orderBy: { stepNo: 'asc' as const } },
 } as const
 
@@ -74,7 +74,17 @@ export async function updateProcessTemplate(id: string, data: ProcessTemplateInp
 }
 
 export async function listProcessRoutes() {
-  return prisma.processRoute.findMany({ include: routeInclude, orderBy: [{ sortOrder: 'asc' }, { product: { sku: 'asc' } }] })
+  const routes = await prisma.processRoute.findMany({ include: routeInclude, orderBy: [{ sortOrder: 'asc' }, { product: { sku: 'asc' } }] })
+  const materialIds = Array.from(new Set(routes.flatMap((route) => route.materialId || route.product.materialId || [])))
+  const materials = await prisma.material.findMany({
+    where: { id: { in: materialIds } },
+    select: { id: true, code: true, name: true },
+  })
+  const materialById = new Map(materials.map((material) => [material.id, material]))
+  return routes.map((route) => ({
+    ...route,
+    material: materialById.get(route.materialId || route.product.materialId || '') || null,
+  }))
 }
 
 export async function createProcessRoute(data: ProcessRouteInput) {

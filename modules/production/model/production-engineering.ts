@@ -39,7 +39,7 @@ export function routeCostPerThousand(route: ProcessRoute) {
   }, { laborHours: 0, machineHours: 0, cost: 0 })
 }
 
-export const displayMaterialCode = (sku?: string | null) => sku?.startsWith('MAT-') ? sku.slice(4) : sku || ''
+export const displayMaterialCode = (code?: string | null) => code || ''
 
 export const processTemplateSearchCatalog = defineResourceSearchCatalog<ProcessTemplate>('process-template.default', [
   { key: 'code', label: '编码', type: 'text', read: (item) => item.code, weight: 10, operators: ['equals', 'startsWith'] },
@@ -52,7 +52,7 @@ export const processTemplateSearchProfile = resourceKeywordProfile(processTempla
 export const processTemplateAdvancedFields = resourceAdvancedFields(processTemplateSearchCatalog)
 
 export const processRouteSearchCatalog = defineResourceSearchCatalog<ProcessRoute>('process-route.default', [
-  { key: 'material', label: '物料', type: 'text', read: (item) => [item.product?.sku, item.product?.name], weight: 10 },
+  { key: 'material', label: '物料', type: 'text', read: (item) => [item.material?.code || item.product?.sku, item.material?.name || item.product?.name], weight: 10 },
   { key: 'name', label: '路线名称', type: 'text', read: (item) => item.name, weight: 8 },
   { key: 'steps', label: '工序', type: 'text', read: (item) => item.steps.flatMap((step) => [step.name, step.workstation, step.description]) },
   { key: 'default', label: '默认路线', type: 'select', read: (item) => item.isDefault ? ['yes', '是'] : ['no', '否'], options: [{ value: 'yes', label: '是' }, { value: 'no', label: '否' }] },

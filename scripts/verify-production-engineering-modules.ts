@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { filterBySearchCatalog } from '../lib/resource-search'
+import { displayMaterialCode, processRouteSearchCatalog } from '../modules/production/model/production-engineering'
+import { displayProductionMaterialCode } from '../modules/production/model/production-order-view'
 
 const root = process.cwd()
 const read = (path: string) => readFileSync(join(root, path), 'utf8')
@@ -13,6 +16,16 @@ const routePage = read('modules/production/ui/ProcessRoutePage.tsx')
 const pageShell = read('modules/production/ui/ProductionEngineeringPageShell.tsx')
 const client = read('modules/production/client/production-engineering-api.ts')
 const model = read('modules/production/model/production-engineering.ts')
+
+assert.equal(displayMaterialCode('MAT-001'), 'MAT-001', '工艺路线必须完整显示真实 MAT- 编码')
+assert.equal(displayProductionMaterialCode('MAT-001'), 'MAT-001', '生产订单必须完整显示真实 MAT- 编码')
+const materialRoute = {
+  id: 'route', productId: 'product', materialId: 'material', name: '路线', isDefault: true, sortOrder: 0, steps: [],
+  product: { id: 'product', sku: 'OLD-SKU', name: '旧产品名称' },
+  material: { id: 'material', code: 'MAT-001', name: '统一物料名称' },
+}
+assert.equal(filterBySearchCatalog([materialRoute], 'MAT-001', processRouteSearchCatalog).length, 1, '工艺路线查询必须使用已关联 Material 的真实编码')
+assert.equal(filterBySearchCatalog([materialRoute], 'OLD-SKU', processRouteSearchCatalog).length, 0, '已关联 Material 的工艺路线查询不得继续使用旧产品编码')
 
 assert.match(systemPage, /from '@\/modules\/production'/, 'SystemPage 必须只通过 production 公开出口接入生产工程')
 assert.doesNotMatch(systemPage, /ProcessTemplateManager|ProcessManager|processCostPerThousand|fetch\(/, '生产工程 UI、计算和请求不得回流 SystemPage')

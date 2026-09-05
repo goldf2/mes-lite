@@ -15,6 +15,7 @@ export default function DataToolsPage({ onMessage, canUpdate, canDelete }: { onM
   const [preview, setPreview] = useState<MaterialCodeNormalizationPreview | null>(null)
   const [loading, setLoading] = useState(true)
   const [executing, setExecuting] = useState(false)
+  const hasPendingChanges = Boolean(preview && (preview.pendingMaterialCount > 0 || preview.pendingProductCount > 0))
 
   const loadPreview = useCallback(async () => {
     setLoading(true)
@@ -32,14 +33,14 @@ export default function DataToolsPage({ onMessage, canUpdate, canDelete }: { onM
   }, [loadPreview])
 
   const execute = async () => {
-    if (!preview || !preview.canExecute || preview.pendingMaterialCount === 0) return
-    if (!window.confirm(`将删除 ${preview.pendingMaterialCount} 条物料编码中的全部空白字符并转换为大写。该操作会同步关联产品编码，是否继续？`)) return
+    if (!preview || !preview.canExecute || !hasPendingChanges) return
+    if (!window.confirm(`将规范化 ${preview.pendingMaterialCount} 条物料编码，并统一 ${preview.pendingProductCount} 条关联产品的编码及物料关联。物料编码会删除全部空白字符并转换为大写，是否继续？`)) return
 
     setExecuting(true)
     try {
       const result = await executeMaterialCodeNormalization()
       if (!result) throw new Error('物料编码转换未返回结果')
-      onMessage(`已转换 ${result.changedMaterials} 条物料编码，同步 ${result.changedProducts} 条关联产品编码`)
+      onMessage(`已规范化 ${result.changedMaterials} 条物料编码，统一 ${result.changedProducts} 条关联产品编码及物料关联`)
       await loadPreview()
     } catch (error) {
       if (error instanceof OperationsToolsRequestError && error.data) {
@@ -70,16 +71,16 @@ export default function DataToolsPage({ onMessage, canUpdate, canDelete }: { onM
       <div className="mt-4 rounded-lg border border-gray-200 p-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="font-medium text-gray-900">规范化物料编码</div>
+            <div className="font-medium text-gray-900">统一物料与产品编码</div>
             <div className="mt-1 text-sm text-gray-500">删除编码中的全部空格、制表符和换行，再将英文字母转换为大写。</div>
-            <div className="mt-2 text-xs text-gray-500">物料关联的兼容产品编码会同步更新；名称、规格、历史单据快照不变。</div>
+            <div className="mt-2 text-xs text-gray-500">关联产品使用相同的物料编码，并为无歧义的历史产品补齐物料关联；名称、规格、历史单据快照不变。</div>
           </div>
           <AppButton
             variant="primary"
             onClick={execute}
-            disabled={loading || executing || !canUpdate || !preview?.canExecute || preview.pendingMaterialCount === 0}
+            disabled={loading || executing || !canUpdate || !preview?.canExecute || !hasPendingChanges}
           >
-            {executing ? '转换中...' : '转换为大写并删除空格'}
+            {executing ? '转换中...' : '执行编码统一'}
           </AppButton>
         </div>
 
@@ -108,8 +109,8 @@ export default function DataToolsPage({ onMessage, canUpdate, canDelete }: { onM
               </div>
             )}
 
-            {blockerCount === 0 && preview.pendingMaterialCount === 0 && (
-              <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">当前全部物料编码已经符合规范，无需转换。</div>
+            {blockerCount === 0 && !hasPendingChanges && (
+              <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">当前没有待转换的物料编码或待同步的关联产品。</div>
             )}
 
             {preview.pendingMaterialCount > 0 && (
@@ -121,6 +122,25 @@ export default function DataToolsPage({ onMessage, canUpdate, canDelete }: { onM
                     <tbody className="divide-y divide-gray-100">
                       {preview.changes.slice(0, 20).map((change) => (
                         <tr key={change.id}><td className="px-3 py-2">{change.name}{change.archived ? '（已归档）' : ''}</td><td className="px-3 py-2 font-mono text-gray-600">{change.before}</td><td className="px-3 py-2 font-mono font-medium text-blue-700">{change.after}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {preview.pendingProductCount > 0 && (
+              <div className="mt-4">
+                <div className="mb-2 text-sm font-medium text-gray-700">关联产品同步预览（最多显示 20 条）</div>
+                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-left text-gray-600"><tr><th className="px-3 py-2">当前产品编码</th><th className="px-3 py-2">统一后编码</th><th className="px-3 py-2">目标物料编码</th></tr></thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {preview.productChanges.slice(0, 20).map((change) => (
+                        <tr key={change.id}>
+                          <td className="px-3 py-2 font-mono text-gray-600">{change.before}</td>
+                          <td className="px-3 py-2"><div className="font-mono font-medium text-blue-700">{change.after}</div>{change.before === change.after && <div className="mt-1 text-xs text-gray-500">编码已一致，补齐物料关联</div>}</td>
+                          <td className="px-3 py-2 font-mono text-gray-600">{change.materialCode}</td>
+                        </tr>
                       ))}
                     </tbody>
                   </table>

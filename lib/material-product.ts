@@ -1,9 +1,11 @@
 import { prisma } from './prisma'
+import { getProductMaterials, legacyMaterialCodes } from '@/modules/materials/server/material-product-identity'
+export { getProductsByMaterialId, canonicalizeProductCodes } from '@/modules/materials/server/material-product-identity'
 
 export const materialProductPrefix = 'material:'
 
 export function simpleProductSku(materialCode: string) {
-  return `MAT-${materialCode}`
+  return materialCode
 }
 
 export function isMaterialProductId(value?: string | null) {
@@ -77,7 +79,7 @@ export async function ensureProductForMaterial(
     ? ((await tx.processRoute.aggregate({ _max: { sortOrder: true } }))._max.sortOrder ?? -1) + 1
     : 0
   const existingProducts = await tx.product.findMany({
-    where: { OR: [{ sku: material.code }, { sku }] },
+    where: { OR: [{ materialId: material.id }, { sku }, { materialId: null, sku: `MAT-${material.code}` }] },
     include: { processRoutes: options.defaultRoute ? { where: { isDefault: true }, include: { steps: true } } : false },
     take: 2,
   })
@@ -91,17 +93,16 @@ export async function ensureProductForMaterial(
       throw new Error(`兼容产品 ${existing.sku} 已绑定其他物料，禁止按编码改写映射`)
     }
     if (!existing.materialId) {
-      const candidateCodes = existing.sku.startsWith('MAT-')
-        ? [existing.sku, existing.sku.slice(4)]
-        : [existing.sku]
+      const candidateCodes = legacyMaterialCodes(existing.sku)
       const candidateMaterials = await tx.material.findMany({
-        where: { code: { in: candidateCodes }, deletedAt: null },
+        where: { code: { in: candidateCodes } },
         select: { id: true },
         take: 2,
       })
       if (candidateMaterials.length > 1) {
         throw new Error(`兼容产品 ${existing.sku} 对应多个 Material 候选，请先执行人工映射`)
       }
+      if (candidateMaterials[0]?.id !== material.id) throw new Error('兼容产品无法唯一关联物料，请先执行人工映射')
     }
     if (options.defaultRoute) {
       const routes = ('processRoutes' in existing ? existing.processRoutes : []) as unknown as Array<{ id: string; steps: unknown[] }>
@@ -137,6 +138,10 @@ export async function ensureProductForMaterial(
         })
       }
     }
+    await tx.product.update({ where: { id: existing.id }, data: {
+      sku, materialId: material.id, name: material.name, category: material.category,
+      customerId: material.customerId || null, unit: material.stockUnit || material.unit,
+    } })
     return existing.id
   }
 
@@ -168,14 +173,44 @@ export async function ensureProductForMaterial(
   return created.id
 }
 
+// Synchronize only existing compatibility rows; editing a material must not create a second catalog.
+export async function syncProductForMaterial(
+  tx: ProductResolver,
+  before: Parameters<typeof ensureProductForMaterial>[1],
+  after: Parameters<typeof ensureProductForMaterial>[1],
+) {
+  const existing = await tx.product.findFirst({
+    where: { OR: [{ materialId: before.id }, { materialId: null, sku: { in: [before.code, `MAT-${before.code}`] } }] },
+    select: { id: true },
+  })
+  if (!existing) {
+    if (before.code !== after.code && await tx.product.findFirst({
+      where: { OR: [{ sku: after.code }, { materialId: null, sku: `MAT-${after.code}` }] },
+      select: { id: true },
+    })) throw new Error(`物料编码 ${after.code} 已被其他兼容产品占用，请先处理映射`)
+    return
+  }
+  const id = await ensureProductForMaterial(tx, before)
+  const occupied = await tx.product.findFirst({
+    where: { id: { not: id }, OR: [{ sku: after.code }, { materialId: null, sku: `MAT-${after.code}` }] },
+    select: { id: true },
+  })
+  if (occupied) throw new Error(`物料编码 ${after.code} 已被其他兼容产品占用，请先处理映射`)
+  await tx.product.update({ where: { id }, data: {
+    sku: after.code, materialId: after.id, name: after.name, category: after.category,
+    customerId: after.customerId || null, unit: after.stockUnit || after.unit,
+  } })
+}
+
 export async function resolveProductId(
   tx: ProductResolver,
   targetId: string,
   options: { defaultRoute?: boolean; description?: string } = {}
 ) {
-  if (!isMaterialProductId(targetId)) return targetId
-
-  const materialId = targetId.slice(materialProductPrefix.length)
+  const materialId = isMaterialProductId(targetId)
+    ? targetId.slice(materialProductPrefix.length)
+    : await resolveMaterialIdForProduct(tx, targetId)
+  if (!materialId) throw new Error('产品无法唯一关联物料，请先执行人工映射')
   const material = await tx.material.findUnique({
     where: { id: materialId },
     select: { id: true, code: true, name: true, category: true, customerId: true, stockUnit: true, unit: true, deletedAt: true },
@@ -190,47 +225,20 @@ export async function resolveMaterialIdForProduct(
   productId: string,
   preferredMaterialId?: string | null,
 ) {
-  if (preferredMaterialId) {
-    const material = await tx.material.findUnique({
-      where: { id: preferredMaterialId },
-      select: { id: true, deletedAt: true },
-    })
-    if (material && !material.deletedAt) return material.id
-  }
-
   if (isMaterialProductId(productId)) {
     const materialId = productId.slice(materialProductPrefix.length)
     const material = await tx.material.findUnique({
       where: { id: materialId },
       select: { id: true, deletedAt: true },
     })
-    return material && !material.deletedAt ? material.id : null
+    return material && !material.deletedAt && (!preferredMaterialId || preferredMaterialId === material.id) ? material.id : null
   }
 
   const product = await tx.product.findUnique({
     where: { id: productId },
-    select: { sku: true, materialId: true },
+    select: { id: true, sku: true, materialId: true },
   })
   if (!product) return null
-  if (product.materialId) {
-    const explicitMaterial = await tx.material.findUnique({
-      where: { id: product.materialId },
-      select: { id: true, deletedAt: true },
-    })
-    return explicitMaterial && !explicitMaterial.deletedAt ? explicitMaterial.id : null
-  }
-
-  const materialCodes = product.sku.startsWith('MAT-')
-    ? [product.sku, product.sku.slice(4)]
-    : [product.sku]
-  const materials = await tx.material.findMany({
-    where: {
-      code: { in: materialCodes },
-      deletedAt: null,
-    },
-    orderBy: { code: 'asc' },
-    select: { id: true },
-    take: 2,
-  })
-  return materials.length === 1 ? materials[0].id : null
+  const material = (await getProductMaterials(tx, [product])).get(product.id)
+  return material && !material.deletedAt && (!preferredMaterialId || preferredMaterialId === material.id) ? material.id : null
 }

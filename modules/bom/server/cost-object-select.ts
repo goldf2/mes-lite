@@ -13,7 +13,7 @@ export const costObjectInclude = {
         select: {
           id: true,
           version: true,
-          product: { select: { id: true, sku: true, name: true, unit: true } },
+          product: { select: { id: true, materialId: true, sku: true, name: true, unit: true } },
         },
       },
     },

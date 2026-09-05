@@ -85,6 +85,7 @@ export interface MaterialCodeNormalizationPreview {
   }>
   ambiguousProducts: Array<{ productId: string; sku: string; materialCodes: string[] }>
   changes: Array<{ id: string; name: string; archived: boolean; before: string; after: string }>
+  productChanges: Array<{ id: string; before: string; after: string; materialId: string; materialCode: string }>
   canExecute: boolean
 }
 

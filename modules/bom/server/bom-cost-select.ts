@@ -1,5 +1,5 @@
 export const bomCostRunInclude = {
-  product: { select: { id: true, sku: true, name: true, unit: true } },
+  product: { select: { id: true, materialId: true, sku: true, name: true, unit: true } },
   lines: { orderBy: { sortOrder: 'asc' as const } },
 }
 

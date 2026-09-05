@@ -89,11 +89,18 @@ async function main() {
   verifyStaticBoundaries()
   const [
     { prisma },
-    { ensureProductForMaterial },
+    { ensureProductForMaterial, getProductsByMaterialId, canonicalizeProductCodes, resolveProductId },
     { backfillMissingStockRecords, findStockIntegrityIssues },
     { createLegacyDailyProductionReport },
     { LegacyDailyProductionError },
     { getModelConvergenceAudit },
+    { listBoms },
+    { listBomCostWorkspace },
+    { listCostObjectWorkspace },
+    { getMaterialPanorama },
+    { listLegacyDailyProductionWorkspace },
+    { listSawingCostWorkspace },
+    { updateMaterial },
   ] = await Promise.all([
     import('../lib/prisma'),
     import('../lib/material-product'),
@@ -101,6 +108,13 @@ async function main() {
     import('../modules/production/server/legacy-daily-production-command-service'),
     import('../modules/production/domain/legacy-daily-production-errors'),
     import('../modules/operations-tools/server/model-convergence-audit-service'),
+    import('../modules/bom/server/bom-query-service'),
+    import('../modules/bom/server/bom-cost-query-service'),
+    import('../modules/bom/server/cost-object-query-service'),
+    import('../modules/materials/server/material-panorama-query-service'),
+    import('../modules/production/server/legacy-daily-production-query-service'),
+    import('../modules/operations-tools/server/sawing-cost-query-service'),
+    import('../modules/materials/server/material-command-service'),
   ])
 
   try {
@@ -111,6 +125,7 @@ async function main() {
     const productId = await prisma.$transaction((tx) => ensureProductForMaterial(tx, material))
     const compatibilityProduct = await prisma.product.findUniqueOrThrow({ where: { id: productId } })
     assert.equal(compatibilityProduct.materialId, material.id, '新兼容 Product 必须显式绑定 Material，不能只靠编码推断')
+    assert.equal(compatibilityProduct.sku, material.code, '新兼容 Product 必须直接使用真实物料编码')
     assert.equal(await prisma.stock.count({ where: { productId } }), 0, '创建内部兼容 Product 不得创建平行库存')
     assert.equal(await prisma.stock.count({ where: { materialId: material.id } }), 0)
 
@@ -118,19 +133,20 @@ async function main() {
       data: { code: `LEGACY-MAP-${suffix}`, name: '待人工映射物料', category: 'FINISHED', unit: '件', stockUnit: '件' },
     })
     const codeMatchedLegacyProduct = await prisma.product.create({
-      data: { sku: legacyMaterial.code, name: legacyMaterial.name, category: legacyMaterial.category, unit: '件' },
+      data: { sku: `MAT-${legacyMaterial.code}`, name: legacyMaterial.name, category: legacyMaterial.category, unit: '件' },
     })
     assert.equal(
       await prisma.$transaction((tx) => ensureProductForMaterial(tx, legacyMaterial)),
       codeMatchedLegacyProduct.id,
-      '扩展阶段不得在人工映射前阻断现有业务',
+      '无歧义旧 Product 必须原位复用，保留历史业务引用',
     )
     assert.equal(
       (await prisma.product.findUniqueOrThrow({ where: { id: codeMatchedLegacyProduct.id } })).materialId,
-      null,
-      '允许旧 Product 继续工作不等于自动确认 Product→Material 映射',
+      legacyMaterial.id,
+      '唯一旧 Product 候选复用后必须持久化 Material 映射',
     )
-    await prisma.product.delete({ where: { sku: legacyMaterial.code } })
+    assert.equal((await prisma.product.findUniqueOrThrow({ where: { id: codeMatchedLegacyProduct.id } })).sku, legacyMaterial.code)
+    await prisma.product.delete({ where: { id: codeMatchedLegacyProduct.id } })
     await prisma.material.delete({ where: { id: legacyMaterial.id } })
 
     const ambiguousBase = `AMBIGUOUS-${suffix}`
@@ -148,6 +164,8 @@ async function main() {
       /多个 Material 候选/,
       '编码歧义时不得按排序自动选择 Material',
     )
+    assert.equal((await getProductsByMaterialId(prisma, [ambiguousProduct])).size, 0, '只传入一个旧 Product 也必须检查完整 Material 候选')
+    assert.equal((await canonicalizeProductCodes(prisma, [ambiguousProduct]))[0].sku, ambiguousProduct.sku, '歧义旧编码不能截断为另一个真实物料编码')
     const ambiguousAudit = await getModelConvergenceAudit(prisma)
     assert.equal(ambiguousAudit.products.ambiguousCodeMappings, 1)
     assert.equal(ambiguousAudit.products.mappedByCodeFallback, 0)
@@ -201,7 +219,94 @@ async function main() {
     assert.equal(audit.inventory.riskyProductOnlyStocks, 0)
     assert.equal(audit.readyForProductForeignKeyMigration, false)
 
-    console.log('模型收敛验证通过：Product 依赖不增长、Material 独占新库存、旧生产写入口冻结、迁移阻塞可量化')
+    const renamedMaterial = await prisma.material.update({ where: { id: material.id }, data: { code: `${material.code}-RENAMED` } })
+    const bom = await prisma.bOM.create({
+      data: {
+        productId, materialId: material.id, name: '统一编码回归 BOM',
+        outputs: { create: { materialId: material.id, quantity: 1, unit: '件', isPrimary: true } },
+      },
+    })
+    await prisma.bOM.update({ where: { id: bom.id }, data: { status: 'RELEASED', isActive: true, isDefault: true } })
+    await prisma.bomCostRun.create({ data: { productId, materialId: material.id, bomId: bom.id } })
+    const [bomWorkspace, costWorkspace, costObjects, panorama, dailyWorkspace] = await Promise.all([
+      listBoms(), listBomCostWorkspace(), listCostObjectWorkspace(), getMaterialPanorama(material.id), listLegacyDailyProductionWorkspace({}),
+    ])
+    assert.equal(bomWorkspace.products.find((item) => item.sourceMaterialId === material.id)?.bom?.id, bom.id, '物料改码后 BOM 必须继续按显式映射关联')
+    assert.equal(costWorkspace.products.find((item) => item.sourceMaterialId === material.id)?.bom?.id, bom.id)
+    assert.equal(costObjects.products.find((item) => item.sourceMaterialId === material.id)?.bom?.id, bom.id)
+    assert.equal(dailyWorkspace.materials.find((item) => item.id === material.id)?.bom?.id, bom.id)
+    assert.equal(panorama.productBoms[0]?.product.sku, renamedMaterial.code, '全景必须投影改码后的真实物料编码')
+    assert.equal(costWorkspace.runs[0]?.product.sku, renamedMaterial.code)
+    assert.equal(costObjects.recentRuns[0]?.product.sku, renamedMaterial.code)
+    assert.equal(await prisma.$transaction((tx) => ensureProductForMaterial(tx, renamedMaterial)), productId, '改码后必须继续复用原 Product')
+    assert.equal((await prisma.product.findUniqueOrThrow({ where: { id: productId } })).sku, renamedMaterial.code)
+
+    const editInput = {
+      id: material.id, code: `${material.code}-EDITED`, name: '实际物料编辑回归', category: 'FINISHED' as const,
+      unit: renamedMaterial.unit, stockUnit: renamedMaterial.stockUnit, valuationUnit: renamedMaterial.valuationUnit,
+      primaryMeasure: 'QUANTITY' as const,
+    }
+    const auditContext = async () => ({ operatorName: '统一编码自动验证' })
+    const edited = await updateMaterial(editInput, auditContext)
+    const editedProduct = await prisma.product.findUniqueOrThrow({ where: { id: productId } })
+    assert.equal(edited.material.code, editInput.code)
+    assert.equal(editedProduct.materialId, material.id)
+    assert.equal(editedProduct.sku, edited.material.code, '实际物料编辑必须同事务同步兼容编码')
+    assert.equal(editedProduct.name, edited.material.name)
+    assert.equal((await prisma.bOM.findUniqueOrThrow({ where: { id: bom.id } })).productId, productId, '改码不得替换 Product 或重建 BOM 关联')
+    assert.equal(await prisma.$transaction((tx) => resolveProductId(tx, productId)), productId, '原 Product ID 必须解析回同一显式物料身份')
+    await assert.rejects(() => prisma.$transaction((tx) => resolveProductId(tx, legacyProduct.id)), /无法唯一关联物料/, '原 Product ID 不得绕过物料身份校验')
+
+    const occupiedCode = `OCCUPIED-${suffix}`
+    const occupiedProduct = await prisma.product.create({ data: { sku: occupiedCode, name: '占用目标编码的历史产品', category: 'FINISHED', unit: '件' } })
+    await prisma.product.update({ where: { id: productId }, data: { sku: `MAT-${edited.material.code}` } })
+    const beforeConflict = await prisma.product.findUniqueOrThrow({ where: { id: productId } })
+    await assert.rejects(() => updateMaterial({ ...editInput, code: occupiedCode, name: '不应落库' }, auditContext), /占用/, '目标编码已被其他 Product 占用时必须拒绝改码')
+    assert.equal((await prisma.material.findUniqueOrThrow({ where: { id: material.id } })).code, edited.material.code)
+    assert.equal((await prisma.material.findUniqueOrThrow({ where: { id: material.id } })).name, edited.material.name)
+    assert.deepEqual(await prisma.product.findUniqueOrThrow({ where: { id: productId } }), beforeConflict, '改码失败时连事务内已执行的旧 SKU 归一化也必须回滚')
+    assert.equal((await prisma.product.findUniqueOrThrow({ where: { id: occupiedProduct.id } })).materialId, null)
+
+    const unlinkedMaterial = await prisma.material.create({ data: { code: `UNLINKED-${suffix}`, name: '尚无兼容产品的物料', category: 'FINISHED', unit: '件' } })
+    const unlinkedEdit = { ...editInput, id: unlinkedMaterial.id, name: unlinkedMaterial.name, code: occupiedCode }
+    await assert.rejects(() => updateMaterial(unlinkedEdit, auditContext), /占用/, '尚无 Product 的物料也不得通过改码抢占旧 Product 身份')
+    assert.equal((await prisma.material.findUniqueOrThrow({ where: { id: unlinkedMaterial.id } })).code, unlinkedMaterial.code)
+    assert.equal(await prisma.product.count({ where: { materialId: unlinkedMaterial.id } }), 0)
+    const occupiedLegacyCode = `OCCUPIED-LEGACY-${suffix}`
+    const occupiedLegacyProduct = await prisma.product.create({ data: { sku: `MAT-${occupiedLegacyCode}`, name: '目标旧前缀产品', category: 'FINISHED', unit: '件' } })
+    await assert.rejects(() => updateMaterial({ ...unlinkedEdit, code: occupiedLegacyCode }, auditContext), /占用/, '无原 Product 改码不能引入目标旧前缀的隐式绑定')
+    await assert.rejects(() => updateMaterial({ ...editInput, code: occupiedLegacyCode }, auditContext), /占用/, '已有 Product 改码也不能制造第二个旧前缀候选')
+    assert.equal((await prisma.material.findUniqueOrThrow({ where: { id: material.id } })).code, edited.material.code)
+    assert.deepEqual(await prisma.product.findUniqueOrThrow({ where: { id: productId } }), beforeConflict)
+    assert.equal((await prisma.material.findUniqueOrThrow({ where: { id: unlinkedMaterial.id } })).code, unlinkedMaterial.code)
+    assert.equal((await prisma.product.findUniqueOrThrow({ where: { id: occupiedLegacyProduct.id } })).materialId, null)
+
+    const baseCode = `REAL-PREFIX-${suffix}`
+    const distinctMaterials = await Promise.all([baseCode, `MAT-${baseCode}`].map((code) => prisma.material.create({
+      data: { code, name: code, category: 'FINISHED', unit: '件', stockUnit: '件' },
+    })))
+    const distinctProductIds = []
+    for (const item of [...distinctMaterials].reverse()) {
+      distinctProductIds.push(await prisma.$transaction((tx) => ensureProductForMaterial(tx, item)))
+    }
+    const distinctProducts = await prisma.product.findMany({ where: { id: { in: distinctProductIds } } })
+    const distinctByMaterialId = await getProductsByMaterialId(prisma, distinctProducts)
+    for (const item of distinctMaterials) assert.equal(distinctByMaterialId.get(item.id)?.sku, item.code, '真实 MAT-X 与 X 必须保留各自编码与身份')
+    const sawWorkspace = await listSawingCostWorkspace()
+    assert.equal(sawWorkspace.products.length, await prisma.material.count({ where: { deletedAt: null } }), '锯切候选必须每个 Material 恰好一条')
+    assert.equal(new Set(sawWorkspace.products.map((item) => item.sourceMaterialId)).size, sawWorkspace.products.length)
+    assert.ok(sawWorkspace.products.every((item) => item.id === `material:${item.sourceMaterialId}`), '历史 Product 不能混入可选物料')
+    for (const item of distinctMaterials) assert.equal(sawWorkspace.products.find((option) => option.sourceMaterialId === item.id)?.sku, item.code)
+
+    const duplicateMaterial = await prisma.material.create({
+      data: { code: `DUPLICATE-${suffix}`, name: '重复旧映射', category: 'FINISHED', unit: '件', stockUnit: '件' },
+    })
+    const duplicateProducts = await Promise.all([duplicateMaterial.code, `MAT-${duplicateMaterial.code}`].map((sku) => prisma.product.create({
+      data: { sku, name: duplicateMaterial.name, category: duplicateMaterial.category, unit: '件' },
+    })))
+    assert.equal((await getProductsByMaterialId(prisma, duplicateProducts.slice(0, 1))).size, 0, '查询分页只返回一个 Product 时仍须检查完整同物料 Product 候选')
+
+    console.log('模型收敛验证通过：统一真实物料编码、显式关联可承受改码、旧映射消歧、候选不重复及库存/生产边界完整')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

@@ -11,6 +11,7 @@ export const processRouteSelect = {
 
 export const panoramaProductSelect = {
   id: true,
+  materialId: true,
   sku: true,
   name: true,
   category: true,

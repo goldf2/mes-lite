@@ -2,6 +2,7 @@ import { createAuditLog } from '@/lib/audit'
 import { normalizeConversionRate } from '@/lib/units'
 import { findCatalogUnit, getUnitCatalog } from '@/lib/unit-catalog'
 import { prisma } from '@/lib/prisma'
+import { syncProductForMaterial } from '@/lib/material-product'
 import type { MaterialInput, MaterialUpdateInput } from '../contracts/material-schema'
 
 type AuditContext = Parameters<typeof createAuditLog>[1]
@@ -105,6 +106,7 @@ export async function updateMaterial(
     || before.referenceMeasure !== data.referenceMeasure
   const auditContext = unitsChanged ? await getAuditContext() : null
   const material = await prisma.$transaction(async (tx) => {
+    await syncProductForMaterial(tx, before, { ...before, ...data })
     const updated = await tx.material.update({
       where: { id: input.id },
       data: { ...data, unitVersion: unitsChanged ? { increment: 1 } : undefined },

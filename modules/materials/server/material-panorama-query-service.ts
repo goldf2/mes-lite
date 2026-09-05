@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { canonicalizeProductCodes, getProductsByMaterialId } from '@/lib/material-product'
 import { attachWorkInstructionFiles, classifyMaterialAttachments } from './material-panorama-attachments'
 import { panoramaProductSelect, processRouteSelect } from './material-panorama-select'
 
@@ -32,7 +33,7 @@ export async function getMaterialPanorama(materialId: string) {
   const stockId = material.stock?.id
   const [
     attachments, targetOrders, consumingPicks, recentMaterialIns, recentStockLogs,
-    costLayers, linkedProducts, formalWorkInstructions, linkedSawingScenarios,
+    costLayers, candidateProducts, formalWorkInstructions, linkedSawingScenarios,
   ] = await Promise.all([
     prisma.documentAttachment.findMany({
       where: { ownerType: 'MATERIAL', ownerId: material.id, deletedAt: null },
@@ -67,7 +68,7 @@ export async function getMaterialPanorama(materialId: string) {
     stockId ? prisma.stockLog.findMany({ where: { stockId }, orderBy: { createdAt: 'desc' }, take: 10 }) : Promise.resolve([]),
     prisma.inventoryCostLayer.findMany({ where: { materialId: material.id }, orderBy: { createdAt: 'desc' }, take: 10 }),
     prisma.product.findMany({
-      where: { sku: { in: linkedProductSkus } },
+      where: { OR: [{ materialId: material.id }, { materialId: null, sku: { in: linkedProductSkus } }] },
       include: {
         customer: { select: { id: true, code: true, name: true } },
         processRoutes: { where: { isDefault: true }, select: processRouteSelect },
@@ -101,21 +102,32 @@ export async function getMaterialPanorama(materialId: string) {
     }),
   ])
 
+  const linkedProduct = (await getProductsByMaterialId(prisma, candidateProducts)).get(material.id)
+  const linkedProducts = linkedProduct ? [linkedProduct] : []
   const linkedCostObjects = await prisma.costObject.findMany({
     where: { OR: [
       { sourceType: 'MATERIAL', sourceId: material.id },
       { sourceType: 'SAWING_COST_SCENARIO', sourceId: { in: linkedSawingScenarios.map((scenario) => scenario.id) } },
-      { bomItems: { some: { bom: { product: { sku: { in: linkedProductSkus } } } } } },
+      { bomItems: { some: { bom: { productId: { in: linkedProducts.map((product) => product.id) } } } } },
     ] },
     include: {
       costs: { where: { active: true }, orderBy: { effectiveFrom: 'desc' }, take: 1 },
       bomItems: { select: {
         id: true, quantity: true, unit: true,
-        bom: { select: { product: { select: { id: true, sku: true, name: true, unit: true } } } },
+        bom: { select: { product: { select: { id: true, materialId: true, sku: true, name: true, unit: true } } } },
       } },
     },
     orderBy: { createdAt: 'desc' }, take: 20,
   })
+  const displayProducts = [
+    ...linkedProducts,
+    ...material.bomItems.map((item) => item.bom.product),
+    ...targetOrders.map((order) => order.product),
+    ...consumingPicks.map((pick) => pick.order.product),
+    ...linkedCostObjects.flatMap((costObject) => costObject.bomItems.map((item) => item.bom.product)),
+  ]
+  const canonicalProducts = await canonicalizeProductCodes(prisma, displayProducts)
+  displayProducts.forEach((product, index) => { product.sku = canonicalProducts[index].sku })
 
   const instructionIds = formalWorkInstructions.map((instruction) => instruction.id)
   const instructionAttachments = instructionIds.length === 0 ? [] : await prisma.documentAttachment.findMany({

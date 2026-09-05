@@ -32,7 +32,7 @@ export const productionOrderStatusOptions = currentProductionOrderStatuses.map((
 }))
 
 export function displayProductionMaterialCode(code?: string | null) {
-  return code?.startsWith('MAT-') ? code.slice(4) : code || ''
+  return code || ''
 }
 
 export function groupProductionOrders(orders: ProductionOrder[]) {

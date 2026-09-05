@@ -1,5 +1,6 @@
 import { createInternalCode } from '@/lib/internal-codes'
 import { prisma } from '@/lib/prisma'
+import { getProductsByMaterialId, syncProductForMaterial } from '@/lib/material-product'
 import { getUnitCatalog } from '@/lib/unit-catalog'
 import type { MaterialImportMode } from '../contracts/material-import'
 import { parseMaterialImportRows, readMaterialImportSheet } from '../domain/material-import-parser'
@@ -32,7 +33,8 @@ export async function importMaterialsCsv(text: string, mode: MaterialImportMode)
   const existingMaterials = await prisma.material.findMany({
     where: { code: { in: codes } },
     select: {
-      id: true, code: true, deletedAt: true, primaryMeasure: true, referenceMeasure: true,
+      id: true, code: true, name: true, category: true, customerId: true, unit: true,
+      deletedAt: true, primaryMeasure: true, referenceMeasure: true,
       stockUnit: true, valuationUnit: true, stock: true, _count: { select: { bomItems: true } },
     },
   })
@@ -41,6 +43,9 @@ export async function importMaterialsCsv(text: string, mode: MaterialImportMode)
   if (archivedCodes.length > 0) throw new MaterialImportError(`以下物料编码已被已归档记录占用：${archivedCodes.join('、')}`)
 
   if (mode === 'update') {
+    const productByMaterial = await getProductsByMaterialId(prisma, await prisma.product.findMany({
+      select: { id: true, sku: true, materialId: true },
+    }))
     const lockedUnitErrors = (await Promise.all(parsed.materials.map(async (item) => {
       const existing = existingByCode.get(item.code)
       if (!existing || (
@@ -51,7 +56,10 @@ export async function importMaterialsCsv(text: string, mode: MaterialImportMode)
       )) return null
       const [movementCount, outputBomCount] = await Promise.all([
         prisma.stockLog.count({ where: { stock: { materialId: existing.id } } }),
-        prisma.bOM.count({ where: { product: { sku: { in: [existing.code, `MAT-${existing.code}`] } } } }),
+        prisma.bOM.count({ where: { OR: [
+          { materialId: existing.id }, { outputs: { some: { materialId: existing.id } } },
+          ...(productByMaterial.has(existing.id) ? [{ productId: productByMaterial.get(existing.id)!.id }] : []),
+        ] } }),
       ])
       const stock = existing.stock as Record<string, unknown> | null
       const hasBalance = stock
@@ -108,6 +116,7 @@ export async function importMaterialsCsv(text: string, mode: MaterialImportMode)
           skipped += 1
           continue
         }
+        await syncProductForMaterial(tx, existing, { ...existing, ...data })
         await tx.material.update({ where: { id: existing.id }, data })
         await tx.stock.upsert({ where: { materialId: existing.id }, create: { materialId: existing.id }, update: {} })
         updated += 1

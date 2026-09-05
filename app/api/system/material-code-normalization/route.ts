@@ -30,9 +30,15 @@ export async function POST(req: NextRequest) {
     }, { status: 409 })
     await writeAuditLog(req, {
       action: 'NORMALIZE_CODES', entityType: 'MATERIAL', entityLabel: '物料编码批量规范化',
-      beforeData: result.applied.changes.map((item) => ({ id: item.id, code: item.before })),
-      afterData: result.applied.changes.map((item) => ({ id: item.id, code: item.after })),
-      note: `删除全部空白字符并转换为大写；物料 ${result.applied.changedMaterials} 条，关联产品 ${result.applied.changedProducts} 条`,
+      beforeData: {
+        materials: result.applied.changes.map((item) => ({ id: item.id, code: item.before })),
+        products: result.applied.productChanges.map((item) => ({ id: item.id, sku: item.before })),
+      },
+      afterData: {
+        materials: result.applied.changes.map((item) => ({ id: item.id, code: item.after })),
+        products: result.applied.productChanges.map((item) => ({ id: item.id, sku: item.after, materialId: item.materialId })),
+      },
+      note: `物料编码移除空白并转换大写，兼容产品统一到物料主档编码及 ID；物料 ${result.applied.changedMaterials} 条，关联产品 ${result.applied.changedProducts} 条；未改写历史快照、库存或 BOM 数量`,
     })
     return NextResponse.json({ data: {
       changedMaterials: result.applied.changedMaterials, changedProducts: result.applied.changedProducts,

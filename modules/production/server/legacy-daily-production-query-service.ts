@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
 import { withMaterialImageUrls } from '@/lib/attachment-urls'
+import { getProductsByMaterialId } from '@/lib/material-product'
 
 export const legacyDailyProductionReportInclude = {
   consumptionLocation: { select: { id: true, code: true, name: true } },
@@ -97,9 +98,9 @@ export async function listLegacyDailyProductionWorkspace(input: {
   const [compatibleProducts, images] = await Promise.all([
     materialCodes.length > 0
       ? prisma.product.findMany({
-          where: { sku: { in: materialCodes } },
+          where: { OR: [{ materialId: { in: materialIds } }, { materialId: null, sku: { in: materialCodes } }] },
           select: {
-            sku: true,
+            id: true, materialId: true, sku: true,
             boms: {
               where: { status: 'RELEASED' },
               orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
@@ -150,13 +151,13 @@ export async function listLegacyDailyProductionWorkspace(input: {
       : [],
   ])
 
-  const productBySku = new Map(compatibleProducts.map((product) => [product.sku, product]))
+  const productByMaterialId = await getProductsByMaterialId(prisma, compatibleProducts)
   const primaryImageByMaterial = new Map<string, (typeof images)[number]>()
   for (const image of images) {
     if (!primaryImageByMaterial.has(image.ownerId)) primaryImageByMaterial.set(image.ownerId, image)
   }
   const materialsWithBom = materials.map((material) => {
-    const product = productBySku.get(material.code) || productBySku.get(`MAT-${material.code}`)
+    const product = productByMaterialId.get(material.id)
     const image = primaryImageByMaterial.get(material.id)
     const compatibleBoms = product?.boms || []
     return {

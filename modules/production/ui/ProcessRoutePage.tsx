@@ -41,7 +41,7 @@ export default function ProcessRoutePage({ onMessage, actions, canCreate, canUpd
   const filteredRoutes = useMemo(() => filterBySearchCatalog(routes, keyword, processRouteSearchCatalog, conditions), [conditions, keyword, routes])
   const routeSort = useClientTableSort(filteredRoutes, {
     manual: (route) => route.sortOrder,
-    material: (route) => `${displayMaterialCode(route.product?.sku)} ${route.product?.name || ''}`,
+    material: (route) => `${displayMaterialCode(route.material?.code || route.product?.sku)} ${route.material?.name || route.product?.name || ''}`,
     name: (route) => route.name,
     default: (route) => route.isDefault,
     steps: (route) => route.steps.length,
@@ -72,10 +72,10 @@ export default function ProcessRoutePage({ onMessage, actions, canCreate, canUpd
   }
 
   const openEdit = (route: ProcessRoute) => {
-    const materialOption = products.find((product) => product.sku === route.product?.sku || `MAT-${product.sku}` === route.product?.sku)
+    const materialId = route.materialId || route.product?.materialId
     setEditingRoute(route)
     setForm({
-      productId: materialOption?.id || route.productId,
+      productId: materialId ? `material:${materialId}` : route.productId,
       name: route.name,
       isDefault: route.isDefault,
       steps: route.steps.length ? route.steps.map((step) => ({
@@ -135,7 +135,7 @@ export default function ProcessRoutePage({ onMessage, actions, canCreate, canUpd
         <div className="grid grid-cols-1 gap-4 p-4 xl:grid-cols-2">{routeSort.sortedRows.map((route) => {
           const totals = routeCostPerThousand(route)
           return <article key={route.id} className="rounded-lg border border-gray-200 bg-white p-4">
-            <div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-gray-900">{route.name}</div><div className="mt-1 text-sm text-gray-500">{route.product?.name} ({displayMaterialCode(route.product?.sku)})</div></div><div className="flex items-center gap-2">{route.isDefault && <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">默认</span>}{canUpdate && <AppButton size="sm" onClick={() => openEdit(route)}>编辑</AppButton>}</div></div>
+            <div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-gray-900">{route.name}</div><div className="mt-1 text-sm text-gray-500">{route.material?.name || route.product?.name} ({displayMaterialCode(route.material?.code || route.product?.sku)})</div></div><div className="flex items-center gap-2">{route.isDefault && <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">默认</span>}{canUpdate && <AppButton size="sm" onClick={() => openEdit(route)}>编辑</AppButton>}</div></div>
             <div className="mt-3 grid grid-cols-3 gap-2 rounded bg-blue-50 p-2 text-xs text-blue-800"><span>千件人工<br /><b>{totals.laborHours.toFixed(2)} h</b></span><span>千件机时<br /><b>{totals.machineHours.toFixed(2)} h</b></span><span>千件路线成本<br /><b>¥{totals.cost.toFixed(2)}</b></span></div>
             <div className="mt-4 space-y-2">{route.steps.map((step) => <div key={step.id} className="rounded bg-gray-50 p-3 text-sm"><div className="font-medium text-gray-900">{step.stepNo}. {step.name}</div><div className="mt-1 text-xs text-gray-500">{step.workstation ? `工位：${step.workstation}` : '未设工位'}{step.defaultTime ? ` · ${step.defaultTime} 分钟` : ''}</div>{step.description && <div className="mt-1 text-xs text-gray-500">{step.description}</div>}</div>)}</div>
           </article>
@@ -143,7 +143,7 @@ export default function ProcessRoutePage({ onMessage, actions, canCreate, canUpd
       ) : (
         <div className="overflow-x-auto"><table className="w-full"><thead className="bg-gray-50"><tr>
           <SortableTableHeader column="material" activeColumn={routeSort.sortColumn} direction={routeSort.sortDirection} onSort={routeSort.toggleSort}>物料</SortableTableHeader><SortableTableHeader column="name" activeColumn={routeSort.sortColumn} direction={routeSort.sortDirection} onSort={routeSort.toggleSort}>路线名称</SortableTableHeader><SortableTableHeader column="default" activeColumn={routeSort.sortColumn} direction={routeSort.sortDirection} onSort={routeSort.toggleSort}>默认</SortableTableHeader><SortableTableHeader column="steps" activeColumn={routeSort.sortColumn} direction={routeSort.sortDirection} onSort={routeSort.toggleSort}>工序</SortableTableHeader><th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
-        </tr></thead><tbody className="divide-y divide-gray-100">{routeSort.sortedRows.map((route) => <tr key={route.id} className="align-top hover:bg-gray-50"><td className="px-4 py-3"><div className="text-sm font-medium">{route.product?.name}</div><div className="text-xs text-gray-500">{displayMaterialCode(route.product?.sku)}</div></td><td className="px-4 py-3 text-sm">{route.name}</td><td className="px-4 py-3 text-sm">{route.isDefault ? '是' : '-'}</td><td className="px-4 py-3 text-sm"><div className="space-y-1">{route.steps.map((step) => <div key={step.id}>{step.stepNo}. {step.name}{step.workstation ? <span className="text-gray-500"> / {step.workstation}</span> : null}{step.defaultTime ? <span className="text-gray-500"> / {step.defaultTime} 分钟</span> : null}</div>)}</div></td><td className="px-4 py-3">{canUpdate && <AppButton size="sm" onClick={() => openEdit(route)}>编辑</AppButton>}</td></tr>)}</tbody></table></div>
+        </tr></thead><tbody className="divide-y divide-gray-100">{routeSort.sortedRows.map((route) => <tr key={route.id} className="align-top hover:bg-gray-50"><td className="px-4 py-3"><div className="text-sm font-medium">{route.material?.name || route.product?.name}</div><div className="text-xs text-gray-500">{displayMaterialCode(route.material?.code || route.product?.sku)}</div></td><td className="px-4 py-3 text-sm">{route.name}</td><td className="px-4 py-3 text-sm">{route.isDefault ? '是' : '-'}</td><td className="px-4 py-3 text-sm"><div className="space-y-1">{route.steps.map((step) => <div key={step.id}>{step.stepNo}. {step.name}{step.workstation ? <span className="text-gray-500"> / {step.workstation}</span> : null}{step.defaultTime ? <span className="text-gray-500"> / {step.defaultTime} 分钟</span> : null}</div>)}</div></td><td className="px-4 py-3">{canUpdate && <AppButton size="sm" onClick={() => openEdit(route)}>编辑</AppButton>}</td></tr>)}</tbody></table></div>
       )}
       {filteredRoutes.length === 0 && <div className="py-12 text-center text-gray-500">暂无符合条件的工艺路线</div>}
 

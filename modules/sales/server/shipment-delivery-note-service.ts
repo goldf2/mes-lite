@@ -20,10 +20,6 @@ function money(value: number) {
   return `¥${value.toFixed(2)}`
 }
 
-function displayMaterialCode(code?: string | null) {
-  return code?.startsWith('MAT-') ? code.slice(4) : code || ''
-}
-
 function drawCell(
   doc: PDFKit.PDFDocument,
   text: string,
@@ -112,7 +108,7 @@ async function renderDeliveryNotePdf(shipment: DeliveryNoteShipment, settings: S
       let rowX = left
       const values = [
         String(rowIndex + 1),
-        displayMaterialCode(item.material.code),
+        item.material.code,
         `${item.material.name}${item.material.spec ? ` ${item.material.spec}` : ''}`,
         `${item.qty} ${item.unitSnapshot}`,
         money(Number(item.unitPrice)),

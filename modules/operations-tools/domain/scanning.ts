@@ -1,6 +1,5 @@
 export function normalizeScanCode(value: string) {
-  const normalized = value.trim().replace(/[\r\n\t]/g, '').toUpperCase()
-  return normalized.startsWith('MAT-') ? normalized.slice(4) : normalized
+  return value.trim().replace(/[\r\n\t]/g, '').toUpperCase()
 }
 
 export function scanCodesMatch(left: string, right: string) {

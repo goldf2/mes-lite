@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client'
-import { simpleProductSku } from '@/lib/material-product'
+import { getProductsByMaterialId } from '@/lib/material-product'
 import { calculateProductionConsumption, type ProductionLossMode } from '@/lib/production-consumption'
 import { assertInventoryIssueAvailability } from '@/modules/inventory'
 import { LegacyDailyProductionError } from '../domain/legacy-daily-production-errors'
@@ -28,7 +28,10 @@ export async function buildLegacyDailyProductionConsumption(
   if (!finishedMaterial) throw new LegacyDailyProductionError('产出物料不存在或已归档')
 
   const products = await tx.product.findMany({
-    where: { sku: { in: [finishedMaterial.code, simpleProductSku(finishedMaterial.code)] } },
+    where: { OR: [
+      { materialId: finishedMaterial.id },
+      { materialId: null, sku: { in: [finishedMaterial.code, `MAT-${finishedMaterial.code}`] } },
+    ] },
     include: {
       boms: {
         where: { status: 'RELEASED', id: options.bomId },
@@ -54,8 +57,7 @@ export async function buildLegacyDailyProductionConsumption(
       },
     },
   })
-  const product = products.find((item) => item.sku === finishedMaterial.code)
-    || products.find((item) => item.sku === simpleProductSku(finishedMaterial.code))
+  const product = (await getProductsByMaterialId(tx, products)).get(finishedMaterial.id)
   const bom = product?.boms[0]
   if (!bom || bom.items.length === 0) {
     throw new LegacyDailyProductionError('所选 BOM 方案不存在、已停用、不属于当前产出物料或没有投入明细')

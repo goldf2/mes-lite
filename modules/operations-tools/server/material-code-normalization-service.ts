@@ -57,6 +57,7 @@ type MaterialRow = {
 type ProductRow = {
   id: string
   sku: string
+  materialId: string | null
 }
 
 export function normalizeMaterialCode(value: string) {
@@ -109,42 +110,41 @@ export function buildMaterialCodeNormalizationPreview(
     .filter((change) => change.after && change.before !== change.after)
     .sort((left, right) => left.before.localeCompare(right.before))
 
+  const materialById = new Map(materials.map((material) => [material.id, material]))
   const productsBySku = new Map(products.map((product) => [product.sku, product]))
-  const claimsByProductId = new Map<string, ProductSkuChange[]>()
-  for (const change of changes) {
-    const candidates = [
-      { before: change.before, after: change.after },
-      { before: `MAT-${change.before}`, after: `MAT-${change.after}` },
-    ]
-    for (const candidate of candidates) {
-      const product = productsBySku.get(candidate.before)
-      if (!product || candidate.before === candidate.after) continue
-      const claims = claimsByProductId.get(product.id) || []
-      claims.push({
-        id: product.id,
-        before: product.sku,
-        after: candidate.after,
-        materialId: change.id,
-        materialCode: change.before,
-      })
-      claimsByProductId.set(product.id, claims)
+  const ambiguousProducts: AmbiguousProductMapping[] = []
+  const productChanges: ProductSkuChange[] = []
+  for (const product of products) {
+    let material = product.materialId ? materialById.get(product.materialId) : undefined
+    if (!product.materialId) {
+      const normalizedSku = normalizeMaterialCode(product.sku)
+      const candidateCodes = normalizedSku.startsWith('MAT-')
+        ? [normalizedSku, normalizedSku.slice(4)]
+        : [normalizedSku]
+      const candidates = candidateCodes.flatMap((code) => finalMaterialGroups.get(code) || [])
+      if (candidates.length > 1) {
+        ambiguousProducts.push({
+          productId: product.id,
+          sku: product.sku,
+          materialCodes: candidates.map((candidate) => candidate.code).sort(),
+        })
+        continue
+      }
+      material = candidates[0]
     }
+    if (!material) continue
+    const after = normalizeMaterialCode(material.code)
+    if (!after || (product.sku === after && product.materialId === material.id)) continue
+    productChanges.push({
+      id: product.id,
+      before: product.sku,
+      after,
+      materialId: material.id,
+      materialCode: material.code,
+    })
   }
-
-  const ambiguousProducts = Array.from(claimsByProductId.entries())
-    .filter(([, claims]) => new Set(claims.map((claim) => claim.materialId)).size > 1)
-    .map(([productId, claims]) => ({
-      productId,
-      sku: claims[0].before,
-      materialCodes: Array.from(new Set(claims.map((claim) => claim.materialCode))).sort(),
-    }))
-    .sort((left, right) => left.sku.localeCompare(right.sku))
-  const ambiguousProductIds = new Set(ambiguousProducts.map((item) => item.productId))
-
-  const productChanges = Array.from(claimsByProductId.values())
-    .filter((claims) => !ambiguousProductIds.has(claims[0].id))
-    .map((claims) => claims[0])
-    .sort((left, right) => left.before.localeCompare(right.before))
+  ambiguousProducts.sort((left, right) => left.sku.localeCompare(right.sku))
+  productChanges.sort((left, right) => left.before.localeCompare(right.before))
   const productChangeById = new Map(productChanges.map((change) => [change.id, change]))
 
   const finalProductGroups = new Map<string, ProductRow[]>()
@@ -154,11 +154,21 @@ export function buildMaterialCodeNormalizationPreview(
     group.push(product)
     finalProductGroups.set(finalSku, group)
   }
-  const productConflicts = Array.from(finalProductGroups.entries())
+  const productConflictGroups = new Map(Array.from(finalProductGroups.entries())
     .filter(([, group]) => group.length > 1 && group.some((product) => productChangeById.has(product.id)))
+    .map(([sku, group]) => [sku, new Map(group.map((product) => [product.id, product]))]))
+  for (const change of productChanges) {
+    const occupyingProduct = productsBySku.get(change.after)
+    if (!occupyingProduct || occupyingProduct.id === change.id) continue
+    const group = productConflictGroups.get(change.after) || new Map<string, ProductRow>()
+    group.set(occupyingProduct.id, occupyingProduct)
+    group.set(change.id, productsBySku.get(change.before)!)
+    productConflictGroups.set(change.after, group)
+  }
+  const productConflicts = Array.from(productConflictGroups.entries())
     .map(([normalizedSku, group]) => ({
       normalizedSku,
-      products: group.map((product) => ({ id: product.id, sku: product.sku })),
+      products: Array.from(group.values()).map((product) => ({ id: product.id, sku: product.sku })),
     }))
     .sort((left, right) => left.normalizedSku.localeCompare(right.normalizedSku))
 
@@ -190,7 +200,7 @@ export async function getMaterialCodeNormalizationPreview(
       orderBy: { code: 'asc' },
     }),
     client.product.findMany({
-      select: { id: true, sku: true },
+      select: { id: true, sku: true, materialId: true },
       orderBy: { sku: 'asc' },
     }),
   ])
@@ -214,7 +224,7 @@ export async function applyMaterialCodeNormalization(
   for (const change of preview.productChanges) {
     await client.product.update({
       where: { id: change.id },
-      data: { sku: change.after },
+      data: { sku: change.after, materialId: change.materialId },
     })
   }
 

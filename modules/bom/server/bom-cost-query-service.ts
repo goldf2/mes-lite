@@ -1,4 +1,4 @@
-import { materialAsProductOption, resolveProductId, simpleProductSku } from '@/lib/material-product'
+import { canonicalizeProductCodes, getProductsByMaterialId, materialAsProductOption, resolveProductId } from '@/lib/material-product'
 import { prisma } from '@/lib/prisma'
 import { bomCostRunInclude } from './bom-cost-select'
 
@@ -7,7 +7,7 @@ export async function listBomCostWorkspace(inputProductId?: string) {
   const [products, materials, runs] = await Promise.all([
     prisma.product.findMany({
       select: {
-        id: true, sku: true, name: true, unit: true,
+        id: true, materialId: true, sku: true, name: true, unit: true,
         boms: {
           where: { status: 'RELEASED' }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }], take: 1,
           select: {
@@ -38,12 +38,9 @@ export async function listBomCostWorkspace(inputProductId?: string) {
       orderBy: { createdAt: 'desc' }, take: 20,
     }),
   ])
-  const productBySku = new Map(products.flatMap((product) => [
-    [product.sku, product],
-    [product.sku.startsWith('MAT-') ? product.sku.slice(4) : product.sku, product],
-  ]))
+  const productByMaterialId = await getProductsByMaterialId(prisma, products)
   const materialProducts = materials.map((material) => {
-    const product = productBySku.get(material.code) || productBySku.get(simpleProductSku(material.code))
+    const product = productByMaterialId.get(material.id)
     if (!product) return { ...materialAsProductOption(material), bom: null }
     const bom = product.boms[0]
     return {
@@ -51,5 +48,6 @@ export async function listBomCostWorkspace(inputProductId?: string) {
       bom: bom ? { ...bom, items: bom.items.filter((item) => !item.outputMaterialId || item.outputMaterialId === material.id) } : null,
     }
   })
-  return { products: materialProducts, runs }
+  const runProducts = await canonicalizeProductCodes(prisma, runs.map((run) => run.product))
+  return { products: materialProducts, runs: runs.map((run, index) => ({ ...run, product: runProducts[index] })) }
 }

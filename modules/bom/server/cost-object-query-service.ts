@@ -1,4 +1,4 @@
-import { materialAsProductOption, simpleProductSku } from '@/lib/material-product'
+import { canonicalizeProductCodes, getProductsByMaterialId, materialAsProductOption } from '@/lib/material-product'
 import { prisma } from '@/lib/prisma'
 import { costObjectInclude } from './cost-object-select'
 
@@ -12,7 +12,7 @@ export async function listCostObjectWorkspace() {
     }),
     prisma.product.findMany({
       select: {
-        id: true, sku: true, name: true, unit: true,
+        id: true, materialId: true, sku: true, name: true, unit: true,
         boms: {
           where: { status: 'RELEASED' }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }], take: 1,
           select: {
@@ -59,17 +59,14 @@ export async function listCostObjectWorkspace() {
       orderBy: { createdAt: 'desc' }, take: 500,
     }),
     prisma.bomCostRun.findMany({
-      include: { product: { select: { id: true, sku: true, name: true, unit: true } } },
+      include: { product: { select: { id: true, materialId: true, sku: true, name: true, unit: true } } },
       orderBy: { createdAt: 'desc' }, take: 20,
     }),
   ])
 
-  const productBySku = new Map(products.flatMap((product) => [
-    [product.sku, product],
-    [product.sku.startsWith('MAT-') ? product.sku.slice(4) : product.sku, product],
-  ]))
+  const productByMaterialId = await getProductsByMaterialId(prisma, products)
   const materialProducts = materials.map((material) => {
-    const product = productBySku.get(material.code) || productBySku.get(simpleProductSku(material.code))
+    const product = productByMaterialId.get(material.id)
     return {
       ...materialAsProductOption(material),
       bom: product?.boms[0] || null,
@@ -78,5 +75,11 @@ export async function listCostObjectWorkspace() {
     }
   })
 
+  const displayProducts = [
+    ...recentRuns.map((run) => run.product),
+    ...costObjects.flatMap((costObject) => costObject.bomItems.map((item) => item.bom.product)),
+  ]
+  const canonicalProducts = await canonicalizeProductCodes(prisma, displayProducts)
+  displayProducts.forEach((product, index) => { product.sku = canonicalProducts[index].sku })
   return { costObjects, processTemplates, products: materialProducts, recentRuns }
 }

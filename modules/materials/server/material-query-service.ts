@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { withMaterialImageUrls } from '@/lib/attachment-urls'
 import { getBomStatusRelationFilters } from '@/lib/bom-status-filter'
-import { simpleProductSku } from '@/lib/material-product'
+import { getProductsByMaterialId } from '@/lib/material-product'
 import { sortByNaturalText } from '@/lib/natural-sort'
 import { prisma } from '@/lib/prisma'
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
@@ -113,19 +113,16 @@ async function listByBomSummary(query: MaterialListQuery, where: Prisma.Material
     prisma.material.findMany({ where, select: { id: true, code: true } }),
     prisma.product.findMany({
       orderBy: { createdAt: 'desc' }, take: 500,
-      select: { sku: true, boms: { orderBy: [{ isActive: 'desc' }, { isDefault: 'desc' }, { createdAt: 'desc' }], select: {
+      select: { id: true, materialId: true, sku: true, boms: { orderBy: [{ isActive: 'desc' }, { isDefault: 'desc' }, { createdAt: 'desc' }], select: {
         isActive: true, isDefault: true,
         items: { where: { itemType: 'MATERIAL', materialId: { not: null } }, select: { materialId: true } },
       } } },
     }),
   ])
   const summaryCountByMaterialId = new Map<string, number>()
-  const productBySku = new Map(bomProducts.flatMap((product) => [
-    [product.sku, product] as const,
-    [product.sku.startsWith('MAT-') ? product.sku.slice(4) : product.sku, product] as const,
-  ]))
+  const productByMaterialId = await getProductsByMaterialId(prisma, bomProducts)
   for (const material of sortableMaterials) {
-    const product = productBySku.get(material.code) || productBySku.get(simpleProductSku(material.code))
+    const product = productByMaterialId.get(material.id)
     const bom = product?.boms.find((item) => item.isActive && item.isDefault)
       || product?.boms.find((item) => item.isActive) || product?.boms[0]
     if (!bom) continue

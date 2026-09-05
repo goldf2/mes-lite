@@ -1,5 +1,5 @@
 import { withMaterialImageUrls } from '@/lib/attachment-urls'
-import { materialAsProductOption, simpleProductSku } from '@/lib/material-product'
+import { getProductsByMaterialId, materialAsProductOption } from '@/lib/material-product'
 import { prisma } from '@/lib/prisma'
 import { bomSelect, type ListedBom } from './bom-select'
 
@@ -15,7 +15,7 @@ export async function listBoms() {
   const [products, materialOptions] = await Promise.all([
     prisma.product.findMany({
       select: {
-        id: true, sku: true, name: true, category: true, unit: true,
+        id: true, materialId: true, sku: true, name: true, category: true, unit: true,
         customer: { select: { id: true, name: true } },
         boms: { select: bomSelect, orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }] },
       },
@@ -34,12 +34,9 @@ export async function listBoms() {
     }),
   ])
 
-  const productBySku = new Map(products.flatMap((product) => [
-    [product.sku, product] as const,
-    [product.sku.startsWith('MAT-') ? product.sku.slice(4) : product.sku, product] as const,
-  ]))
+  const productByMaterialId = await getProductsByMaterialId(prisma, products)
   const materialProducts = materialOptions.map((material) => {
-    const product = productBySku.get(material.code) || productBySku.get(simpleProductSku(material.code))
+    const product = productByMaterialId.get(material.id)
     if (!product) return { ...materialAsProductOption(material), bom: null, boms: [] }
     return { ...materialAsProductOption(material), bom: pickDefaultBom(product.boms), boms: product.boms }
   })

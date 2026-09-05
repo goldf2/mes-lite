@@ -1,5 +1,21 @@
 # 发布记录
 
+## REL-20260905-01：MES-lite v0.1.459
+
+- 时间：2026-09-05 12:00 CST；状态：本地定向验证通过，候选待推送。
+- 工作树：/private/tmp/mes-lite-unified-code.QpageH；分支 fix/unified-material-code-v01459。
+- 范围：统一 Material/Product 编码、显式身份查询、选择器去重、真实 MAT- 保留和受控规范化预览。
+- 无 schema/自动 SQL 迁移；既有 Product ID、发布 BOM、库存和历史快照不变。
+- 本地：领域回归、TypeScript、定向 Lint、边界与审计检查通过；构建留给 CI。
+- 目标：Con01 / mes.csyufeng.com；当前 Mac 锁屏，生产旧数据尚未执行修复。
+- 下一步：精确候选 SHA 通过 CI 后推 main；新鲜备份后通过数据工具预览执行、复核。
+
+## 2026-09-05 11:57 CST：更正 v0.1.458 发布状态
+
+- origin/main 为 08b7cf5ec5b786daafadc64c1b9a4c642500998a；候选 CI 33887668557 与主线 CI 33890614050 均通过，后者 completed/success 再次经 GitHub 读取确认。
+- 公开 readiness 返回 ready，93 个迁移；备份超过 26 小时与 Collabora 未配置仍警告。
+- 下方 2026-09-04 的“未提交/待运行”记录为历史状态，不代表当前主线。
+
 ## REL-20260904-05：MES-lite v0.1.458
 
 - 状态：本地验证通过，候选待运行
