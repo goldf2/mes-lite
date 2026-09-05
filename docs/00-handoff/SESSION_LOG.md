@@ -1,5 +1,17 @@
 # 会话日志
 
+## 2026-09-06 — v0.1.464 最终活跃容器验收与 v0.1.465 收口
+
+事实：
+- 精确 SHA `ea126da453e6fa8640734da1a9248d2c61bfacdd` 的候选 CI `33993847398` 与 main CI `33994513463` 均 success。
+- Coolify `x10zu5ki8won9u8pq45ecexg` 和随后同 SHA 的 `omufsu03hc2k9l7iy9crpi14` 均 finished；最终容器为 `jhjbwdumt46lsy4x2zj03llo-221242292860`，healthy，旧容器已清理。
+- 最终容器加载 `MES_LITE_PRE_MIGRATION_BACKUP_ENABLED=true`，`StartPeriod=2m0s`；备份归档 `mes-lite-backup-2026-09-05T22-13-44-318Z-f1fda3b7.tar.gz` 的 SHA-256 校验返回 OK，包含 219 条附件记录/664 个文件。
+- `/api/health` 与 `/api/health/ready` 返回 200，迁移 96，ready 仅保留既有 Collabora warn；三条持久卷映射未变，未访问 AL02。
+
+收口：
+- v0.1.465 仅用于固化最终活跃容器和最新备份证据，不改变业务代码或数据库。
+- 下一步回到制造成本闭环：生产订单显式成本运行选择、多路线执行和实际工序成本完善。
+
 ## 2026-09-06 — v0.1.463 生产验收完成与 v0.1.464 收口
 
 事实：

@@ -4,6 +4,7 @@
 
 | 版本 | 日期 | 变更记录 | 验证证据 | 待整理文档 |
 | --- | --- | --- | --- | --- |
+| v0.1.465 | 2026-09-06 | 固化 v0.1.464 最终活跃容器、最新备份与重复滚动更新后的生产验收证据；运行时和数据结构不变 | 候选 CI `33993847398`、main CI `33994513463`、Coolify `omufsu03hc2k9l7iy9crpi14` finished；最终容器 healthy、备份 SHA-256、迁移 96、公开 readiness 和三条持久卷均已核对 | 完成同一 SHA 的文档版本候选、main 和 Con01 复验后归档至 `docs/releases/v0.1.465.md` |
 | v0.1.464 | 2026-09-06 | 收口 v0.1.463 候选、main 与 Con01 生产验收证据；运行时和数据结构不变 | 候选 CI `33991640324`、main CI `33992378118`、Coolify `q7vtzftk9wah6r6bu4tv2nga` finished；备份 SHA-256、迁移 96、公开 readiness 和三条持久卷均已核对 | 完成同一 SHA 的文档版本候选、main 和 Con01 复验后归档至 `docs/releases/v0.1.464.md` |
 | v0.1.463 | 2026-09-06 | 修正启用迁移前备份后的 Coolify 滚动更新误回滚：容器健康检查仍使用 readiness，但启动窗口由 15 秒延长为 120 秒，覆盖备份快照和 Prisma 启动耗时；新增运维基线断言并补充恢复演练文档 | 候选 CI `33991640324`、main CI `33992378118`；Con01 部署 `q7vtzftk9wah6r6bu4tv2nga` healthy，备份归档和 SHA-256、迁移 96、公开 readiness、持久卷已核对 | 生产证据已在 v0.1.464 收口 |
 | v0.1.462 | 2026-09-06 | BOM 成本页可按物料明确选择已发布 BOM 版本和工艺路线；生产订单、生产实绩和快捷生产日报在创建时冻结匹配的 BOM、工艺路线、工序、工作中心及成本运行快照；工作中心新增人工/机时/能源默认费率，按“工序正值覆盖工作中心，工作中心再回退到本次计算费率”参与各工序成本；物料全景按 BOM 展示工序成本明细；锯切成本对象已覆盖同名工序时保留追踪行但不重复计费；共享纯计算规则下沉到 `lib`，消除 BOM 与生产模块的深层依赖 | `verify:bom-cost-module`、`verify:bom-process-cost-link`、`verify:production-order-module`、`verify:production-order-actuals`、`verify:daily-production-shortcut`、`verify:equipment`、`verify:production-engineering-modules`、`verify:module-boundaries`、`verify:architecture-baseline`、TypeScript、构建和 CI | 新增生产快照字段与工作中心费率迁移；同步 ADR、数据模型、功能模型、流程、开发文档和项目交接记录；候选 CI/主线/Con01 部署待验证 |
