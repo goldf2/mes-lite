@@ -109,7 +109,7 @@ COPY --from=builder --chown=root:root --chmod=755 /app/scripts/fix-persistent-st
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=6 \
+HEALTHCHECK --interval=10s --timeout=5s --start-period=120s --retries=6 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/api/health/ready').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
 
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]

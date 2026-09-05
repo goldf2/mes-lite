@@ -193,6 +193,7 @@ async function main() {
   assert.match(middlewareSource, /pathname\.startsWith\('\/api\/health\/'\)/)
   const dockerfile = await readFile(path.join(root, 'Dockerfile'), 'utf8')
   assert.match(dockerfile, /\/api\/health\/ready/)
+  assert.match(dockerfile, /--start-period=120s/, '启用迁移前备份后，容器健康检查必须留出足够的启动窗口')
   assert.match(dockerfile, /runtime-backup\.mjs create/)
   assert.match(dockerfile, /MES_LITE_PRE_MIGRATION_BACKUP_ENABLED=false/)
   const packageJson = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))

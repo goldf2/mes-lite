@@ -235,7 +235,7 @@ Docker 正式构建也会执行一致性校验，依赖清单过期时会中止�
 
 Prisma Client 生成使用独立缓存层，仅在 npm 依赖或 `prisma/` 发生变化时重建。运行镜像使用 Next.js standalone 输出，只带入服务器实际追踪到的依赖，并显式补充容器启动迁移所需的 Prisma CLI 和 PDF 缩略图所需的原生 Canvas 包；不再向最终镜像复制整套生产 `node_modules`。Next.js 构建通过 BuildKit cache mount 复用 `.next/cache`，Coolify 必须保持 BuildKit 构建缓存，才能在连续部署中获得增量编译效果。
 
-镜像内置了 Docker `HEALTHCHECK`，使用 Node.js 内置 `fetch` 请求 `/api/health/ready`。该接口不只检查 Web 进程，还会验证 SQLite 查询、未完成 Prisma 迁移、数据目录和附件目录的读写性。备份过期作为返回体中的 `warn`，不导致容器重启循环。首次启动会先执行 SQLite 迁移，健康检查在 15 秒后开始，并允许最多 6 次、每 10 秒一次的重试。如果健康检查失败，优先检查：
+镜像内置了 Docker `HEALTHCHECK`，使用 Node.js 内置 `fetch` 请求 `/api/health/ready`。该接口不只检查 Web 进程，还会验证 SQLite 查询、未完成 Prisma 迁移、数据目录和附件目录的读写性。备份过期作为返回体中的 `warn`，不导致容器重启循环。首次启动会先执行 SQLite 迁移；为容纳启用迁移前备份时的归档和校验，健康检查在 120 秒后开始，并允许最多 6 次、每 10 秒一次的重试。如果健康检查失败，优先检查：
 
 - `/app/data` 是否可写。
 - `DATABASE_URL` 是否为 `file:/app/data/mes_lite.db`。
