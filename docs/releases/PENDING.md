@@ -44,3 +44,4 @@
 | v0.1.407 | 2026-08-18 | 七类业务单据保存与 PDF 打印分离；企业与业务规则增加 A4 紧凑/标准密度及页边距设置，默认紧凑版支持 14 条来料明细单页，打印设置变化后按新格式保留归档版本 | `verify:business-document-print`、`verify:dispatch-module`、TypeScript、PDF 页数与渲染检查 | 后续发布说明与业务单据打印 SOP 集中整理 |
 | v0.1.406 | 2026-08-18 | 来料单右侧已加入明细增加编辑操作，可回填数量、辅助实测、计价、批次和库位，保存时按原项替换并支持取消编辑 | `verify:receiving-module`、TypeScript、定向 Lint、生产页面交互实测 | 后续发布说明集中整理 |
 | v0.1.405 | 2026-08-18 | 全局成功/错误提示横幅提升到顶层，保留默认磨砂背景；显示设置补充最上层说明 | `verify:page-modules`、TypeScript、定向 Lint；实测 `blur(4px)` 遮罩层 `200`、提示层 `400` | 后续发布说明与显示设置 SOP 集中整理 |
+| v0.1.461 | 2026-09-05 | BOM 成本联动工艺路线与工作中心，保存工序成本快照 | `verify:bom-cost-module`、`verify:bom-process-cost-link`、`verify:cost-domain-services`、TypeScript | 后续整理正式发布说明 |

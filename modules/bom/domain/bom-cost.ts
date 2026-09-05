@@ -1,4 +1,5 @@
 import type { BomCostLineInput, BomCostRunInput } from '../contracts/bom-cost'
+import { calculateProcessCostPerThousand } from '@/modules/production/domain/process-cost'
 
 interface CostedMaterial {
   id: string
@@ -39,6 +40,24 @@ interface BomCostItem {
   } | null
 }
 
+interface BomCostProcessStep {
+  id: string
+  stepNo: number
+  name: string
+  templateCode?: string | null
+  standardBatchQty: number
+  setupTimeMinutes: number
+  cycleTimeSeconds: number
+  peopleCount: number
+  laborRatePerHour: number
+  machineCount: number
+  machineRatePerHour: number
+  energyCostPerHour: number
+  consumableCostPerBatch: number
+  yieldRate: number
+  workCenter?: { code: string; name: string } | null
+}
+
 export class BomCostRuleError extends Error {}
 
 export function roundBomCost(value: number) {
@@ -58,6 +77,8 @@ export function materialUnitCost(item: BomCostItem) {
 
 export function calculateBomCostSnapshot(input: BomCostRunInput & {
   items: BomCostItem[]
+  processSteps?: BomCostProcessStep[]
+  processRouteName?: string | null
   outputQuantity: unknown
   primaryOutputMaterialId?: string | null
   productUnit?: string | null
@@ -124,6 +145,27 @@ export function calculateBomCostSnapshot(input: BomCostRunInput & {
       laborCost: 0, machineCost: 0, directCost: 0, totalCost: materialCost,
       note: `按 BOM 每批投入 ${roundBomCost(Number(item.quantity || 0))} ${item.unit}，折合 ${roundBomCost(Number(item.quantity || 0) / outputBasis)} ${item.unit}/${input.productUnit}产出计算`,
       sortOrder: index,
+    })
+  })
+
+  const processScale = input.quantityBasis / 1000
+  ;(input.processSteps || []).forEach((step, index) => {
+    const standard = calculateProcessCostPerThousand(step)
+    const laborHours = roundBomCost(standard.laborHours * processScale)
+    const machineHours = roundBomCost(standard.machineHours * processScale)
+    const laborCost = roundBomCost(standard.laborCost * processScale)
+    const machineCost = roundBomCost(standard.machineCost * processScale)
+    const directCost = roundBomCost(standard.directCost * processScale)
+    const totalCost = roundBomCost(laborCost + machineCost + directCost)
+    const workCenter = step.workCenter ? ` · 工作中心 ${step.workCenter.code} ${step.workCenter.name}` : ''
+    lines.push({
+      lineType: 'PROCESS_OPERATION', sourceId: step.id,
+      code: step.templateCode || null, name: `${step.stepNo}. ${step.name}`,
+      quantity: input.quantityBasis, unit: input.productUnit || '件',
+      unitCost: input.quantityBasis > 0 ? roundBomCost(totalCost / input.quantityBasis) : 0,
+      materialCost: 0, laborHours, machineHours, laborCost, machineCost, directCost, totalCost,
+      note: `${input.processRouteName || '工艺路线'}${workCenter}`,
+      sortOrder: lines.length + index,
     })
   })
 

@@ -671,6 +671,7 @@ BOM 成本计算快照。它是独立于派工、领料和库存的成本测算�
 | 字段 | 含义 |
 | --- | --- |
 | productId / bomId / bomVersion | 被计算产品、BOM 与版本快照 |
+| processRouteId / processRouteName | 本次采用的工艺路线及名称快照；路线可为空，表示只计算 BOM 投入 |
 | quantityBasis | 计算数量基准，如 1 件或 1000 件 |
 | laborRatePerHour / machineRatePerHour | 本次人工、机时费率 |
 | overheadCost | 本次固定费用分摊，不写回 BOM |
@@ -682,7 +683,7 @@ BOM 成本计算快照。它是独立于派工、领料和库存的成本测算�
 
 | 字段 | 含义 |
 | --- | --- |
-| lineType | `BOM_MATERIAL`、`BOM_COST_OBJECT`、`OVERHEAD` |
+| lineType | `BOM_MATERIAL`、`BOM_COST_OBJECT`、`PROCESS_OPERATION`、`OVERHEAD` |
 | sourceId / code / name | 来源对象和显示名称 |
 | quantity / unit / unitCost | 数量、单位和本行单位成本 |
 | materialCost / laborHours / machineHours | 材料成本、人工工时、机时 |
@@ -693,6 +694,7 @@ BOM 成本计算会展开物料 BOM：
 
 - `MATERIAL` 项的 `quantity` 保存整个基准批次按主库存单位归一化后的共同投入，`unit` 固定为所选投入物料主库存单位，`entryUnit` 不参与成本计算。当前成本试算将每批投入除以主产出每批数量得到成本基准用量，再乘数量基准和库存成本单价；其他产出的成本分摊仍是后续切片。
 - `SAWING_COST` 或其他成本对象项读取生效成本版本，按数量计算材料成本、人工工时、机时和直接费用。
+- 选定工艺路线后，路线中的每个 `ProcessStep` 生成一条 `PROCESS_OPERATION` 明细，并带出工序名称、工作中心、人工工时、机时和其他直接费用；工序成本按数量基准展开到零件成本。
 - 固定费用作为本次 `OVERHEAD` 快照行保存，不写入 BOM 本体。
 
 BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并列显示输入和输出，单位下拉列出物料主计量单位，以及已配置有效物料换算时的参考计量单位；长度新行默认 `mm`，重量新行默认 `g`。服务端将 `BOMItem.quantity` 和 `BOMOutput.quantity` 统一换算到各物料主库存单位，同时保存原始录入量和换算快照。后续修改物料标准单重/米重不会改写历史 BOM 的显示量，只有操作员再次保存该 BOM 时才采用新换算。新投入的 `outputMaterialId` 置空。标准 BOM 不再单独设置固定或百分比损耗：废料、废屑和可回收料必须作为明确的 `BOMOutput` 记录，避免与损耗字段重复核算。生产订单按主产出实际数量计算批次倍数并展开共同投入和全部计划产出；实绩中的额外耗用仅表示本批次计划外差异。

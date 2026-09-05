@@ -22,6 +22,23 @@ export async function listBomCostWorkspace(inputProductId?: string) {
             },
           },
         },
+        processRoutes: {
+          orderBy: [{ isDefault: 'desc' }, { sortOrder: 'asc' }],
+          select: {
+            id: true, name: true, isDefault: true,
+            steps: {
+              where: { deletedAt: null }, orderBy: { stepNo: 'asc' },
+              select: {
+                id: true, stepNo: true, name: true, templateCode: true,
+                standardBatchQty: true, setupTimeMinutes: true, cycleTimeSeconds: true,
+                peopleCount: true, laborRatePerHour: true, machineCount: true,
+                machineRatePerHour: true, energyCostPerHour: true,
+                consumableCostPerBatch: true, yieldRate: true,
+                workCenter: { select: { id: true, code: true, name: true } },
+              },
+            },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     }),
@@ -41,11 +58,12 @@ export async function listBomCostWorkspace(inputProductId?: string) {
   const productByMaterialId = await getProductsByMaterialId(prisma, products)
   const materialProducts = materials.map((material) => {
     const product = productByMaterialId.get(material.id)
-    if (!product) return { ...materialAsProductOption(material), bom: null }
+    if (!product) return { ...materialAsProductOption(material), bom: null, processRoutes: [] }
     const bom = product.boms[0]
     return {
       ...materialAsProductOption(material),
       bom: bom ? { ...bom, items: bom.items.filter((item) => !item.outputMaterialId || item.outputMaterialId === material.id) } : null,
+      processRoutes: product.processRoutes,
     }
   })
   const runProducts = await canonicalizeProductCodes(prisma, runs.map((run) => run.product))

@@ -4,6 +4,7 @@ const nonnegativeNumber = z.number().finite().nonnegative()
 
 export const bomCostRunInputSchema = z.object({
   productId: z.string().min(1, '请选择物料'),
+  processRouteId: z.string().optional(),
   quantityBasis: nonnegativeNumber.positive().default(1),
   laborRatePerHour: nonnegativeNumber.default(0),
   machineRatePerHour: nonnegativeNumber.default(0),
@@ -48,6 +49,7 @@ export interface BomCostProductOption {
       material: { id: string; code: string; name: string; stockUnit: string; unit: string } | null
     }>
   } | null
+  processRoutes: BomCostProcessRoute[]
 }
 
 export interface BomCostLine extends Omit<BomCostLineInput, 'sortOrder' | 'sourceId' | 'code' | 'note'> {
@@ -61,6 +63,8 @@ export interface BomCostRun {
   id: string
   productId: string
   bomVersion?: string | null
+  processRouteId?: string | null
+  processRouteName?: string | null
   quantityBasis: number
   laborRatePerHour: number
   machineRatePerHour: number
@@ -121,6 +125,31 @@ export interface BomCostProcessTemplate {
   materials: Array<{ id: string; code: string; name: string }>
 }
 
+export interface BomCostProcessStep {
+  id: string
+  stepNo: number
+  name: string
+  templateCode?: string | null
+  standardBatchQty: number
+  setupTimeMinutes: number
+  cycleTimeSeconds: number
+  peopleCount: number
+  laborRatePerHour: number
+  machineCount: number
+  machineRatePerHour: number
+  energyCostPerHour: number
+  consumableCostPerBatch: number
+  yieldRate: number
+  workCenter?: { id: string; code: string; name: string } | null
+}
+
+export interface BomCostProcessRoute {
+  id: string
+  name: string
+  isDefault: boolean
+  steps: BomCostProcessStep[]
+}
+
 export interface BomCostDataProduct {
   id: string
   sku: string
@@ -145,7 +174,7 @@ export interface BomCostDataProduct {
     id: string
     name: string
     isDefault: boolean
-    steps: BomCostProcessTemplate[]
+    steps: BomCostProcessStep[]
   }>
   bomCostRuns: Array<{ id: string; unitCost: number; totalCost: number; quantityBasis: number; createdAt: string }>
 }

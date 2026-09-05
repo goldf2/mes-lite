@@ -48,11 +48,13 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
   const [calculating, setCalculating] = useState(false)
   const [form, setForm] = useState({
     quantityBasis: 1000,
+    processRouteId: '',
     laborRatePerHour: 28,
     machineRatePerHour: 35,
     overheadCost: 0,
   })
   const selectedProduct = products.find((product) => product.id === selectedProductId)
+  const selectedRoute = selectedProduct?.processRoutes.find((route) => route.id === form.processRouteId)
   const displayedRun = selectedRun || runs[0] || null
   const lineSort = useClientTableSort(displayedRun?.lines || [], {
     type: (line) => lineTypeLabels[line.lineType] || line.lineType,
@@ -98,6 +100,11 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
     void loadData('')
     void loadCostData()
   }, [loadCostData, loadData])
+
+  useEffect(() => {
+    const defaultRoute = selectedProduct?.processRoutes.find((route) => route.isDefault) || selectedProduct?.processRoutes[0]
+    setForm((current) => ({ ...current, processRouteId: defaultRoute?.id || '' }))
+  }, [selectedProductId])
 
   const selectProduct = async (productId: string) => {
     setSelectedProductId(productId)
@@ -347,6 +354,13 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
             <h3 className="mb-4 font-semibold text-gray-900">计算参数</h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1">
               <NumberInputField label="数量基准" value={form.quantityBasis} unit={selectedProduct?.unit || '件'} onChange={(value) => setForm((current) => ({ ...current, quantityBasis: value || 1 }))} />
+              <label className="text-sm text-gray-700">工艺路线
+                <select value={form.processRouteId} onChange={(event) => setForm((current) => ({ ...current, processRouteId: event.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2">
+                  <option value="">不计入工艺路线</option>
+                  {(selectedProduct?.processRoutes || []).map((route) => <option key={route.id} value={route.id}>{route.name}{route.isDefault ? ' · 默认' : ''}</option>)}
+                </select>
+              </label>
+              {selectedRoute && <div className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800 sm:col-span-2 xl:col-span-1">{selectedRoute.steps.length} 道工序 · {selectedRoute.steps.map((step) => `${step.stepNo}.${step.name}${step.workCenter ? `（${step.workCenter.name}）` : ''}`).join(' → ')}</div>}
               <NumberInputField label="人工小时费率" value={form.laborRatePerHour} unit="元/小时" onChange={(value) => setForm((current) => ({ ...current, laborRatePerHour: value }))} />
               <NumberInputField label="机时费率" value={form.machineRatePerHour} unit="元/小时" onChange={(value) => setForm((current) => ({ ...current, machineRatePerHour: value }))} />
               <NumberInputField label="固定费用分摊" value={form.overheadCost} unit="元/次" onChange={(value) => setForm((current) => ({ ...current, overheadCost: value }))} />
@@ -398,7 +412,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="font-medium text-gray-900">{run.product ? `${run.product.sku} ${run.product.name}` : 'BOM成本快照'}</div>
-                        <div className="mt-1 text-xs text-gray-500">{dateText(run.createdAt)} · {qty(run.quantityBasis, 2)} {run.product?.unit || '件'}</div>
+                        <div className="mt-1 text-xs text-gray-500">{dateText(run.createdAt)} · {qty(run.quantityBasis, 2)} {run.product?.unit || '件'}{run.processRouteName ? ` · 路线 ${run.processRouteName}` : ''}</div>
                       </div>
                       <div className="text-right">
                         <div className="font-semibold text-blue-700">{money(run.unitCost)}</div>

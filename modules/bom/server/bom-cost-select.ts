@@ -24,4 +24,14 @@ export const bomCostProductInclude = {
       },
     },
   },
+  processRoutes: {
+    orderBy: [{ isDefault: 'desc' as const }, { sortOrder: 'asc' as const }],
+    include: {
+      steps: {
+        where: { deletedAt: null },
+        orderBy: { stepNo: 'asc' as const },
+        include: { workCenter: { select: { id: true, code: true, name: true } } },
+      },
+    },
+  },
 }

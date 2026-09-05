@@ -573,6 +573,9 @@ model BomCostRun {
   bomId              String?
   bom                BOM?             @relation(fields: [bomId], references: [id])
   bomVersion         String?
+  processRouteId     String?
+  processRoute       ProcessRoute?     @relation(fields: [processRouteId], references: [id], onDelete: SetNull)
+  processRouteName   String?
   quantityBasis      Float            @default(1)
   laborRatePerHour   Float            @default(0)
   machineRatePerHour Float            @default(0)
@@ -590,6 +593,7 @@ model BomCostRun {
   @@index([productId, createdAt])
   @@index([materialId, createdAt])
   @@index([bomId])
+  @@index([processRouteId])
 }
 
 model BomCostRunLine {
@@ -626,6 +630,7 @@ model ProcessRoute {
   materialId String?
   name       String
   steps      ProcessStep[]
+  costRuns   BomCostRun[]
   isDefault  Boolean       @default(false)
   sortOrder  Int           @default(0)
 

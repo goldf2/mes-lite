@@ -58,6 +58,25 @@ assert.equal(snapshot.totalDirectCost, 10)
 assert.equal(snapshot.totalCost, 350)
 assert.equal(snapshot.unitCost, 3.5)
 
+const routeSnapshot = calculateBomCostSnapshot({
+  productId: 'product-1', quantityBasis: 100, laborRatePerHour: 0, machineRatePerHour: 0, overheadCost: 0,
+  outputQuantity: 1, productUnit: '件', processRouteName: '支架加工路线',
+  processSteps: [{
+    id: 'step-1', stepNo: 10, name: '锯切', templateCode: 'SAW-001',
+    standardBatchQty: 100, setupTimeMinutes: 6, cycleTimeSeconds: 10,
+    peopleCount: 1, laborRatePerHour: 20, machineCount: 1, machineRatePerHour: 30,
+    energyCostPerHour: 5, consumableCostPerBatch: 10, yieldRate: 1,
+    workCenter: { code: 'WC-SAW', name: '锯切中心' },
+  }],
+  items: [],
+})
+const operationLine = routeSnapshot.lines.find((line) => line.lineType === 'PROCESS_OPERATION')
+assert.ok(operationLine, '工艺路线必须生成加工工序成本行')
+assert.equal(operationLine?.code, 'SAW-001')
+assert.equal(operationLine?.note, '支架加工路线 · 工作中心 WC-SAW 锯切中心')
+assert.equal(routeSnapshot.totalCost, operationLine?.totalCost)
+assert.ok(Number(operationLine?.laborCost) > 0 && Number(operationLine?.machineCost) > 0, '工序成本必须拆分人工和机时')
+
 assert.throws(() => calculateBomCostSnapshot({
   productId: 'product-1', quantityBasis: 1, laborRatePerHour: 0, machineRatePerHour: 0, overheadCost: 0,
   outputQuantity: 1,

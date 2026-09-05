@@ -19,6 +19,10 @@ export async function createBomCostRun(input: BomCostRunInput, createdBy: string
   if (!product) throw new BomCostServiceError('物料不存在', 404)
   const bom = product.boms[0]
   if (!bom) throw new BomCostServiceError('该物料暂无有效的默认 BOM，无法计算成本', 400)
+  const processRoute = input.processRouteId
+    ? product.processRoutes.find((route) => route.id === input.processRouteId)
+    : product.processRoutes.find((route) => route.isDefault) || product.processRoutes[0]
+  if (input.processRouteId && !processRoute) throw new BomCostServiceError('所选工艺路线不属于该物料', 400)
   const primaryOutput = bom.outputs[0]
   const materialId = await prisma.$transaction((tx) => resolveMaterialIdForProduct(
     tx,
@@ -31,6 +35,8 @@ export async function createBomCostRun(input: BomCostRunInput, createdBy: string
     snapshot = calculateBomCostSnapshot({
       ...input,
       items: bom.items,
+      processSteps: processRoute?.steps || [],
+      processRouteName: processRoute?.name || null,
       outputQuantity: primaryOutput?.quantity || bom.outputQuantity || 1,
       primaryOutputMaterialId: primaryOutput?.materialId,
       productUnit: product.unit,
@@ -43,6 +49,8 @@ export async function createBomCostRun(input: BomCostRunInput, createdBy: string
     data: {
       productId: product.id, materialId,
       bomId: bom.id, bomVersion: bom.version,
+      processRouteId: processRoute?.id || null,
+      processRouteName: processRoute?.name || null,
       quantityBasis: input.quantityBasis, laborRatePerHour: input.laborRatePerHour,
       machineRatePerHour: input.machineRatePerHour, overheadCost: input.overheadCost,
       totalMaterialCost: snapshot.totalMaterialCost, totalLaborCost: snapshot.totalLaborCost,
