@@ -306,6 +306,29 @@ async function main() {
     })))
     assert.equal((await getProductsByMaterialId(prisma, duplicateProducts.slice(0, 1))).size, 0, '查询分页只返回一个 Product 时仍须检查完整同物料 Product 候选')
 
+    const changedUnitMaterial = await prisma.material.create({
+      data: { code: `UNIT-CHANGED-${suffix}`, name: '已改为重量核算的物料', category: 'FINISHED', primaryMeasure: 'WEIGHT', unit: 'kg', stockUnit: 'kg', valuationUnit: 'kg' },
+    })
+    const historicalUnitProduct = await prisma.product.create({
+      data: { sku: `MAT-${changedUnitMaterial.code}`, name: '历史按件产品', category: 'FINISHED', unit: '件' },
+    })
+    const historicalStock = await prisma.stock.create({ data: { productId: historicalUnitProduct.id, qty: 10, availableQty: 10 } })
+    assert.equal(await prisma.$transaction((tx) => ensureProductForMaterial(tx, changedUnitMaterial)), historicalUnitProduct.id)
+    const normalizedHistoricalProduct = await prisma.product.findUniqueOrThrow({ where: { id: historicalUnitProduct.id } })
+    assert.equal(normalizedHistoricalProduct.sku, changedUnitMaterial.code)
+    assert.equal(normalizedHistoricalProduct.materialId, changedUnitMaterial.id)
+    assert.equal(normalizedHistoricalProduct.unit, '件', '归一化既有 Product 编码不得把历史 10 件库存改解释为 10 kg')
+    assert.deepEqual(await prisma.stock.findUniqueOrThrow({ where: { id: historicalStock.id } }), historicalStock)
+    const unitPreservingEdit = await updateMaterial({
+      id: changedUnitMaterial.id, code: `${changedUnitMaterial.code}-EDITED`, name: '重量物料改码',
+      category: 'FINISHED', primaryMeasure: 'WEIGHT', unit: 'kg', stockUnit: 'kg', valuationUnit: 'kg',
+    }, auditContext)
+    const editedHistoricalProduct = await prisma.product.findUniqueOrThrow({ where: { id: historicalUnitProduct.id } })
+    assert.equal(editedHistoricalProduct.sku, unitPreservingEdit.material.code)
+    assert.equal(editedHistoricalProduct.materialId, changedUnitMaterial.id)
+    assert.equal(editedHistoricalProduct.unit, '件', '实际物料编辑同步编码时必须保留既有 Product 的历史计量单位')
+    assert.deepEqual(await prisma.stock.findUniqueOrThrow({ where: { id: historicalStock.id } }), historicalStock, '编码同步不得换算或改写旧 Product 库存余额')
+
     console.log('模型收敛验证通过：统一真实物料编码、显式关联可承受改码、旧映射消歧、候选不重复及库存/生产边界完整')
   } finally {
     await prisma.$disconnect()

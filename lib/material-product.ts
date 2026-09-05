@@ -138,10 +138,7 @@ export async function ensureProductForMaterial(
         })
       }
     }
-    await tx.product.update({ where: { id: existing.id }, data: {
-      sku, materialId: material.id, name: material.name, category: material.category,
-      customerId: material.customerId || null, unit: material.stockUnit || material.unit,
-    } })
+    await tx.product.update({ where: { id: existing.id }, data: { sku, materialId: material.id } })
     return existing.id
   }
 
@@ -197,8 +194,7 @@ export async function syncProductForMaterial(
   })
   if (occupied) throw new Error(`物料编码 ${after.code} 已被其他兼容产品占用，请先处理映射`)
   await tx.product.update({ where: { id }, data: {
-    sku: after.code, materialId: after.id, name: after.name, category: after.category,
-    customerId: after.customerId || null, unit: after.stockUnit || after.unit,
+    sku: after.code, materialId: after.id, name: after.name,
   } })
 }
 
