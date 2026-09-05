@@ -5,6 +5,17 @@ export interface ProductionOrderBomOption {
   name: string
   version: string
   isDefault: boolean
+  costRuns: ProductionOrderCostRunOption[]
+}
+
+export interface ProductionOrderCostRunOption {
+  id: string
+  processRouteId?: string | null
+  processRouteName?: string | null
+  unitCost: number
+  totalCost: number
+  quantityBasis: number
+  createdAt: string
 }
 
 export interface ProductionOrderMaterialOption {
@@ -56,6 +67,7 @@ export interface ProductionOrderDraftLine {
   id: string
   targetId: string
   bomId?: string
+  bomCostRunId?: string
   planQty: number
 }
 
@@ -63,6 +75,7 @@ export interface CreateProductionOrdersInput {
   items: Array<Omit<ProductionOrderDraftLine, 'id'>>
   voucherNo?: string
   note?: string
+  bomCostRunId?: string
 }
 
 export interface CreateProductionOrdersResult {

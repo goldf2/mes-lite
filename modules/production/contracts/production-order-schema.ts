@@ -3,6 +3,7 @@ import { z } from 'zod'
 export const productionOrderLineSchema = z.object({
   targetId: z.string().min(1, '请选择物料'),
   bomId: z.string().min(1, '请选择 BOM 方案').optional(),
+  bomCostRunId: z.string().min(1, '请选择成本运行').optional(),
   planQty: z.number().finite().positive('计划数量必须大于 0'),
 })
 
@@ -13,6 +14,7 @@ export const createProductionOrderSchema = z.object({
   productId: z.string().min(1).optional(),
   materialId: z.string().min(1).optional(),
   bomId: z.string().min(1).optional(),
+  bomCostRunId: z.string().min(1).optional(),
   planQty: z.number().finite().positive().optional(),
   items: z.array(productionOrderLineSchema)
     .min(1, '请至少添加一个产品')

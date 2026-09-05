@@ -275,12 +275,20 @@ async function verifyDatabaseRules() {
         lines: { create: [{ lineType: 'PROCESS_OPERATION', sourceId: route.steps[0].id, code: 'SAW-VERIFY', name: '10. 锯切', quantity: 100, unit: '件', laborHours: 0.2, machineHours: 0.2, laborCost: 4, machineCost: 6, directCost: 0, totalCost: 10, note: '验证快照', sortOrder: 0 }] },
       },
     })
+    const newerCostRun = await prisma.bomCostRun.create({
+      data: {
+        productId: product.id, materialId: outputMaterial.id, bomId: bom.id, bomVersion: bom.version,
+        processRouteId: route.id, processRouteName: route.name, quantityBasis: 100,
+        totalMaterialCost: 20, totalLaborCost: 8, totalMachineCost: 12, totalDirectCost: 0,
+        totalCost: 40, unitCost: 0.4,
+      },
+    })
 
     const created = await createProductionOrders(createProductionOrderSchema.parse({
       voucherNo: 'VERIFY-PO',
       items: [
-        { targetId: outputMaterial.id, bomId: bom.id, planQty: 10 },
-        { targetId: outputMaterial.id, bomId: bom.id, planQty: 20 },
+        { targetId: outputMaterial.id, bomId: bom.id, bomCostRunId: costRun.id, planQty: 10 },
+        { targetId: outputMaterial.id, bomId: bom.id, bomCostRunId: costRun.id, planQty: 20 },
       ],
     }), fixedDate, auditContext)
     assert.equal(created.items.length, 2, '多物料生产请求必须在同一事务创建全部订单行')
@@ -301,7 +309,11 @@ async function verifyDatabaseRules() {
     assert.equal(detail?.groupLines.length, 2, '生产订单详情必须装配同组订单行')
     assert.equal(detail?.currentStepId, detail?.routeSteps[0]?.id, '生产订单详情必须计算当前待报工工序')
     assert.equal(detail?.processRouteSnapshot?.name, route.name, '生产订单详情必须优先读取冻结路线快照')
-    assert.equal(options.find((item) => item.id === outputMaterial.id)?.boms[0]?.id, bom.id, '生产订单候选项必须按主产出物料归组启用 BOM')
+    const outputOption = options.find((item) => item.id === outputMaterial.id)
+    assert.equal(outputOption?.boms[0]?.id, bom.id, '生产订单候选项必须按主产出物料归组启用 BOM')
+    assert.equal(outputOption?.boms[0]?.costRuns[0]?.id, newerCostRun.id, '生产订单候选项必须按时间倒序提供已保存成本运行')
+    assert.equal(outputOption?.boms[0]?.costRuns.length, 2, '生产订单候选项必须保留同一 BOM 的多个成本运行')
+    assert.equal(created.items.every((item) => item.bomCostRunId === costRun.id), true, '生产订单必须保存用户显式选择的成本运行，而不是回退到最新运行')
     assert.deepEqual(options.find((item) => item.id === temporaryMaterial.id)?.boms, [], '无 BOM 物料也必须可作为临时生产目标')
 
     const temporary = await createProductionOrders(createProductionOrderSchema.parse({

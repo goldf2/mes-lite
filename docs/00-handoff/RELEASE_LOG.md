@@ -1,5 +1,13 @@
 # 发布记录
 
+## REL-20260906-05：MES-lite v0.1.466
+
+- 状态：本地实现与定向验证通过；候选 CI、main 推进和 Con01 生产验收待完成。
+- 目标：生产订单在选定已发布 BOM 后可以明确选择已保存成本运行；服务端再次校验产品、BOM 和工艺路线归属，订单冻结所选成本与路线快照。
+- 兼容：未选择成本运行时保留最新匹配运行回退；无 BOM 临时生产不变；无数据库迁移和数据改写。
+- 本地证据：`verify:production-order-module`、`verify:bom-lifecycle`、`verify:production-actual-context`、`verify:bom-process-cost-link`、`verify:module-boundaries`、TypeScript 已通过。
+- 下一步：创建 `ci/0.1.466` 候选并等待精确 SHA CI，通过后推送 `main`，再在 Con01 核对版本、备份、健康和候选接口。
+
 ## REL-20260906-04：MES-lite v0.1.465
 
 - 状态：仅收口 v0.1.464 最终活跃容器和最新备份证据；候选、main 和 Con01 复验待本版本门禁完成。

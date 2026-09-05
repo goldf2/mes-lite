@@ -272,10 +272,11 @@
           "steps": [
             "点击“新建生产订单”。",
             "选择目标产出物料和计划数量；需要标准预设时选择已发布 BOM，试制或临时转换时选择“不使用 BOM”。",
+            "使用 BOM 时可选择已保存的成本运行；不选择则由系统采用该 BOM/默认路线下最新匹配运行。核对工艺路线和单位成本后再保存。",
             "填写班组或备注后保存。",
             "需要纸质单据时，保存后在生产订单清单点击“打印”。"
           ],
-          "result": "订单以“草稿”创建；使用 BOM 时冻结版本快照，不使用时保留空 BOM 引用。此时不可登记实绩。",
+          "result": "订单以“草稿”创建；使用 BOM 时冻结版本、工艺路线和所选成本运行快照，不使用时保留空 BOM 引用。此时不可登记实绩。",
           "pageKey": "orders",
           "resource": "orders",
           "roles": [
@@ -286,7 +287,7 @@
             "baseline": "0.1.350",
             "file": "09-production-order-create.png"
           },
-          "lastVerifiedVersion": "0.1.437"
+          "lastVerifiedVersion": "0.1.466"
         },
         {
           "id": "10-production-order-release",

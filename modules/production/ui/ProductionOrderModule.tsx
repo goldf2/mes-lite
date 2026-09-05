@@ -92,6 +92,7 @@ export default function ProductionOrderModule({
   const [orderNote, setOrderNote] = useState('')
   const [selectedMaterialId, setSelectedMaterialId] = useState('')
   const [selectedOrderBomId, setSelectedOrderBomId] = useState('')
+  const [selectedOrderCostRunId, setSelectedOrderCostRunId] = useState('')
   const [orderDraftLines, setOrderDraftLines] = useState<ProductionOrderDraftLine[]>([])
   const [orderKeyword, setOrderKeyword] = useState(readInitialQuery)
   const [selectedOrderStatuses, setSelectedOrderStatuses] = useState<string[]>(readInitialStatuses)
@@ -100,9 +101,8 @@ export default function ProductionOrderModule({
   const [loading, setLoading] = useState(false)
   const [draftAttachmentOwnerId, setDraftAttachmentOwnerId] = useState('')
   const [draftAttachmentBusy, setDraftAttachmentBusy] = useState(false)
-
   const selectedOrderMaterial = orderMaterialOptions.find((material) => material.id === selectedMaterialId) || null
-  const selectedOrderBoms = useMemo(() => selectedOrderMaterial?.boms || [], [selectedOrderMaterial])
+  const selectedOrderBoms = useMemo(() => selectedOrderMaterial?.boms || [], [selectedOrderMaterial]); const selectedOrderBom = selectedOrderBoms.find((bom) => bom.id === selectedOrderBomId) || null
   const searchCatalog = useMemo(() => buildProductionOrderSearchCatalog(), [])
   const advancedSearchFields = useMemo(() => resourceAdvancedFields(searchCatalog), [searchCatalog])
 
@@ -129,6 +129,8 @@ export default function ProductionOrderModule({
     const preferred = selectedOrderBoms.find((bom) => bom.isDefault) || selectedOrderBoms[0]
     setSelectedOrderBomId(preferred?.id || NO_BOM_VALUE)
   }, [selectedMaterialId, selectedOrderBomId, selectedOrderBoms])
+
+  useEffect(() => { if (!selectedOrderBom || selectedOrderBomId === NO_BOM_VALUE) { if (selectedOrderCostRunId) setSelectedOrderCostRunId(''); return } if (selectedOrderBom.costRuns.some((run) => run.id === selectedOrderCostRunId)) return; setSelectedOrderCostRunId(selectedOrderBom.costRuns[0]?.id || '') }, [selectedOrderBom, selectedOrderBomId, selectedOrderCostRunId])
 
   useEffect(() => {
     onStateSummaryChange?.(`视图：${orderViewMode === 'card' ? '卡片' : '列表'} · 状态筛选：${selectedOrderStatuses.length} 项`)
@@ -230,7 +232,7 @@ export default function ProductionOrderModule({
         onMessage('当前产品已经在订单明细中')
         return
       }
-      lines = [...lines, { id: 'current', targetId: selectedMaterialId, bomId: selectedOrderBomId === NO_BOM_VALUE ? undefined : selectedOrderBomId, planQty }]
+      lines = [...lines, { id: 'current', targetId: selectedMaterialId, bomId: selectedOrderBomId === NO_BOM_VALUE ? undefined : selectedOrderBomId, bomCostRunId: selectedOrderCostRunId || undefined, planQty }]
     }
     if (lines.length === 0) {
       onMessage('请至少添加一个产品')
@@ -254,6 +256,7 @@ export default function ProductionOrderModule({
       setOrderNote('')
       setSelectedMaterialId('')
       setSelectedOrderBomId('')
+      setSelectedOrderCostRunId('')
       setOrderDraftLines([])
       setDraftAttachmentOwnerId('')
       await fetchOrders()
@@ -278,10 +281,12 @@ export default function ProductionOrderModule({
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       targetId: selectedMaterialId,
       bomId: selectedOrderBomId === NO_BOM_VALUE ? undefined : selectedOrderBomId,
+      bomCostRunId: selectedOrderCostRunId || undefined,
       planQty,
     }])
     setSelectedMaterialId('')
     setSelectedOrderBomId('')
+    setSelectedOrderCostRunId('')
     setPlanQty(100)
     onMessage('产品已加入订单，可继续添加')
   }
@@ -433,9 +438,10 @@ export default function ProductionOrderModule({
           <div className="space-y-4">
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="mb-4 text-sm font-semibold text-gray-900">添加产品明细</div>
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-4">
                 <label className="block text-sm font-medium text-gray-700">目标产出物料<SearchableSelect value={selectedMaterialId} onChange={setSelectedMaterialId} options={orderMaterialOptions.map((material) => ({ value: material.id, label: `${material.code} · ${material.name} · ${productionMaterialCategoryLabels[material.category] || material.category}` }))} placeholder="输入物料编码、名称或分类筛选" /><span className="mt-1 block text-xs font-normal text-gray-500">全部未归档物料均可作为临时生产目标。</span></label>
                 <label className="block text-sm font-medium text-gray-700">BOM 预设（可选）<SearchableSelect value={selectedOrderBomId} onChange={setSelectedOrderBomId} options={[{ value: NO_BOM_VALUE, label: '不使用 BOM · 临时生产 / 转换' }, ...selectedOrderBoms.map((bom) => ({ value: bom.id, label: `${bom.name} · ${bom.version}${bom.isDefault ? ' · 默认' : ''}` }))]} placeholder={selectedMaterialId ? '选择 BOM 预设或临时生产' : '请先选择目标物料'} /></label>
+                <label className="block text-sm font-medium text-gray-700">成本运行（可选）<SearchableSelect value={selectedOrderCostRunId} onChange={setSelectedOrderCostRunId} disabled={!selectedOrderBom || selectedOrderBomId === NO_BOM_VALUE} options={[{ value: '', label: selectedOrderBom?.costRuns.length ? '自动取最新成本运行' : '当前 BOM 暂无成本运行' }, ...(selectedOrderBom?.costRuns || []).map((run) => ({ value: run.id, label: `${run.processRouteName || '默认路线'} · ¥${run.unitCost} · ${new Date(run.createdAt).toLocaleString('zh-CN')}` }))]} placeholder={selectedOrderBom ? '选择已保存成本运行' : '请先选择 BOM'} /></label>
                 <label className="block text-sm font-medium text-gray-700">计划产量<input type="number" value={planQty} onChange={(event) => setPlanQty(Number(event.target.value))} min="0.000001" step="0.000001" className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-3" /></label>
               </div>
               <div className="mt-4 flex justify-end"><AppButton variant="secondary" onClick={addOrderDraftLine}>添加产品</AppButton></div>
@@ -446,7 +452,8 @@ export default function ProductionOrderModule({
                 <div className="space-y-2">{orderDraftLines.map((line, index) => {
                   const material = orderMaterialOptions.find((item) => item.id === line.targetId)
                   const bom = material?.boms.find((item) => item.id === line.bomId)
-                  return <div key={line.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-blue-100 bg-white px-3 py-2 text-sm"><div className="min-w-0"><span className="mr-2 text-xs text-gray-400">{index + 1}</span><span className="font-medium text-gray-900">{material?.code} · {material?.name}</span><span className="ml-2 text-xs text-gray-500">{bom ? `${bom.name} ${bom.version}` : '无 BOM 临时生产'} · 计划 {line.planQty}</span></div><button type="button" onClick={() => setOrderDraftLines((current) => current.filter((item) => item.id !== line.id))} className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50">移除</button></div>
+                  const costRun = bom?.costRuns.find((item) => item.id === line.bomCostRunId)
+                  return <div key={line.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-blue-100 bg-white px-3 py-2 text-sm"><div className="min-w-0"><span className="mr-2 text-xs text-gray-400">{index + 1}</span><span className="font-medium text-gray-900">{material?.code} · {material?.name}</span><span className="ml-2 text-xs text-gray-500">{bom ? `${bom.name} ${bom.version}${costRun ? ` · ${costRun.processRouteName || '默认路线'} ¥${costRun.unitCost}` : ''}` : '无 BOM 临时生产'} · 计划 {line.planQty}</span></div><button type="button" onClick={() => setOrderDraftLines((current) => current.filter((item) => item.id !== line.id))} className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50">移除</button></div>
                 })}</div>
               </div>
             )}

@@ -186,6 +186,19 @@ export async function listProductionOrderOptions() {
         name: true,
         version: true,
         isDefault: true,
+        costRuns: {
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+          select: {
+            id: true,
+            processRouteId: true,
+            processRouteName: true,
+            unitCost: true,
+            totalCost: true,
+            quantityBasis: true,
+            createdAt: true,
+          },
+        },
         outputs: {
           where: { isPrimary: true },
           select: { materialId: true },
@@ -197,7 +210,7 @@ export async function listProductionOrderOptions() {
   ])
   const byMaterial = new Map<string, {
     id: string; code: string; name: string; spec: string | null; category: string; unit: string; stockUnit: string; valuationUnit: string
-    boms: Array<{ id: string; name: string; version: string; isDefault: boolean }>
+    boms: Array<{ id: string; name: string; version: string; isDefault: boolean; costRuns: Array<{ id: string; processRouteId: string | null; processRouteName: string | null; unitCost: number; totalCost: number; quantityBasis: number; createdAt: Date }> }>
   }>()
   for (const material of materials) byMaterial.set(material.id, { ...material, boms: [] })
   for (const bom of boms) {
@@ -205,7 +218,7 @@ export async function listProductionOrderOptions() {
     if (!materialId) continue
     const current = byMaterial.get(materialId)
     if (!current) continue
-    current.boms.push({ id: bom.id, name: bom.name, version: bom.version, isDefault: bom.isDefault })
+    current.boms.push({ id: bom.id, name: bom.name, version: bom.version, isDefault: bom.isDefault, costRuns: bom.costRuns })
   }
   return Array.from(byMaterial.values()).sort((left, right) => left.code.localeCompare(right.code, 'zh-CN', { numeric: true }))
 }

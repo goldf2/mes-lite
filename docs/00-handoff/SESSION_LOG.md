@@ -1,5 +1,18 @@
 # 会话日志
 
+## 2026-09-06 — 生产订单显式成本运行选择（v0.1.466 工作树）
+
+目标：把同一 BOM 的多套已保存成本运行带入生产订单创建，让操作员明确选择实际采用的成本依据，同时保持无选择和无 BOM 的兼容行为。
+
+完成：
+- 生产订单候选按 BOM 返回最近 50 条成本运行，界面显示工艺路线、单位成本和创建时间并默认选中最新运行。
+- 创建契约接受 `bomCostRunId`；命令服务校验物料/BOM/工艺路线归属，订单保存所选成本运行 ID、成本快照和路线快照。
+- 生产订单垂直验证新增“旧成本运行与新成本运行并存但订单必须保留显式选择”的回归。
+
+验证：`verify:production-order-module`、`verify:bom-lifecycle`、`verify:production-actual-context`、`verify:bom-process-cost-link`、`verify:module-boundaries`、`npx tsc --noEmit` 已通过。
+
+遗留：版本尚未提交、候选 CI/main CI/Con01 尚未执行；当前仅访问 Con01 相关发布资料，不访问 AL02。下一步运行完整发布门禁并推进 v0.1.466。
+
 ## 2026-09-06 — v0.1.464 最终活跃容器验收与 v0.1.465 收口
 
 事实：

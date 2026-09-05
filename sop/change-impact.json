@@ -1,6 +1,6 @@
 {
-  "version": "0.1.465",
-  "impact": "none",
-  "workflowIds": [],
-  "summary": "修正启用迁移前备份后的 Coolify 滚动更新启动窗口；业务页面入口、操作步骤和数据结构均不变，继续沿用现有 SOP 基线；本次未新增截图或改变操作路径，不生成整套手册。"
+  "version": "0.1.466",
+  "impact": "updated",
+  "workflowIds": ["09-production-order-create"],
+  "summary": "生产订单创建新增已保存 BOM 成本运行的显式选择与校验，并继续冻结成本快照；无数据库迁移、库存数据改写或权限变化，仅在生产订单创建步骤增加可选成本运行字段。"
 }

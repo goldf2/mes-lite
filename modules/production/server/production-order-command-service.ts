@@ -65,12 +65,24 @@ async function resolveOrderLine(tx: Prisma.TransactionClient, input: ProductionO
       },
     },
   })
-  const processRoute = routes[0] || null
-  const bomCostRun = bom ? await tx.bomCostRun.findFirst({
+  const selectedBomCostRun = input.bomCostRunId ? await tx.bomCostRun.findFirst({
+    where: { id: input.bomCostRunId, productId, bomId: bom?.id || '__missing__' },
+    include: { lines: { orderBy: { sortOrder: 'asc' } } },
+  }) : null
+  if (input.bomCostRunId && (!bom || !selectedBomCostRun)) {
+    throw new ProductionOrderDomainError(`物料 ${material.code} 所选成本运行不存在或不属于当前 BOM`)
+  }
+  const processRoute = (selectedBomCostRun?.processRouteId
+    ? routes.find((route) => route.id === selectedBomCostRun.processRouteId)
+    : routes[0]) || null
+  if (selectedBomCostRun?.processRouteId && !processRoute) {
+    throw new ProductionOrderDomainError(`物料 ${material.code} 所选成本运行对应的工艺路线不存在`)
+  }
+  const bomCostRun = selectedBomCostRun || (bom ? await tx.bomCostRun.findFirst({
     where: { productId, bomId: bom.id, processRouteId: processRoute?.id || null },
     orderBy: { createdAt: 'desc' },
     include: { lines: { orderBy: { sortOrder: 'asc' } } },
-  }) : null
+  }) : null)
   return { material, productId, bom, processRoute, bomCostRun, planQty: input.planQty }
 }
 
@@ -79,6 +91,7 @@ function requestedLines(input: CreateProductionOrderInput): ProductionOrderLineI
   return [{
     targetId: (input.targetId ?? input.materialId ?? input.productId)!,
     bomId: input.bomId,
+    bomCostRunId: input.bomCostRunId,
     planQty: input.planQty!,
   }]
 }
