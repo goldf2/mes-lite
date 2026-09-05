@@ -3,6 +3,9 @@ export interface EquipmentWorkCenterOption {
   code: string
   name: string
   isActive: boolean
+  laborRatePerHour?: number
+  machineRatePerHour?: number
+  energyCostPerHour?: number
 }
 
 export interface EquipmentItem {
@@ -57,6 +60,9 @@ export interface WorkCenterConfig {
   name: string
   category?: string | null
   note?: string | null
+  laborRatePerHour: number
+  machineRatePerHour: number
+  energyCostPerHour: number
   isActive: boolean
   deletedAt?: string | null
   _count: { equipment: number }
@@ -68,5 +74,8 @@ export interface WorkCenterForm {
   name: string
   category: string
   note: string
+  laborRatePerHour: number
+  machineRatePerHour: number
+  energyCostPerHour: number
   isActive: boolean
 }

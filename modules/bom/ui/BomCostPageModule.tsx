@@ -25,7 +25,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
     sku: product.sku,
     name: product.name,
     unit: product.unit,
-    badge: product.bom?.version || '无BOM',
+    badge: product.bom ? `${product.bom.version}${product.boms.length > 1 ? ` · ${product.boms.length}版` : ''}` : '无BOM',
     badgeTone: product.bom ? 'success' : 'neutral',
   })), [products])
   const [runs, setRuns] = useState<BomCostRun[]>([])
@@ -48,12 +48,14 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
   const [calculating, setCalculating] = useState(false)
   const [form, setForm] = useState({
     quantityBasis: 1000,
+    bomId: '',
     processRouteId: '',
     laborRatePerHour: 28,
     machineRatePerHour: 35,
     overheadCost: 0,
   })
   const selectedProduct = products.find((product) => product.id === selectedProductId)
+  const selectedBom = selectedProduct?.boms.find((bom) => bom.id === form.bomId) || selectedProduct?.bom || null
   const selectedRoute = selectedProduct?.processRoutes.find((route) => route.id === form.processRouteId)
   const displayedRun = selectedRun || runs[0] || null
   const lineSort = useClientTableSort(displayedRun?.lines || [], {
@@ -102,9 +104,10 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
   }, [loadCostData, loadData])
 
   useEffect(() => {
+    const defaultBom = selectedProduct?.bom
     const defaultRoute = selectedProduct?.processRoutes.find((route) => route.isDefault) || selectedProduct?.processRoutes[0]
-    setForm((current) => ({ ...current, processRouteId: defaultRoute?.id || '' }))
-  }, [selectedProductId])
+    setForm((current) => ({ ...current, bomId: defaultBom?.id || '', processRouteId: defaultRoute?.id || '' }))
+  }, [selectedProductId, selectedProduct?.bom?.id])
 
   const selectProduct = async (productId: string) => {
     setSelectedProductId(productId)
@@ -114,7 +117,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
 
   const calculate = async () => {
     if (!selectedProductId) return onMessage('请选择物料')
-    const materialItems = selectedProduct?.bom?.items.filter((item) => item.material) || []
+    const materialItems = selectedBom?.items.filter((item) => item.material) || []
     if (materialItems.some((item) => Number(item.quantity || 0) <= 0)) {
       return onMessage('BOM 中存在未填写每批投入数量的原料')
     }
@@ -345,7 +348,7 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
             {selectedProduct && (
               <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm">
                 <div className="font-medium text-gray-900">{selectedProduct.name}</div>
-                <div className="mt-1 text-xs text-gray-500">{selectedProduct.sku} · {selectedProduct.unit} · {selectedProduct.bom ? selectedProduct.bom.version : '无BOM'}</div>
+                <div className="mt-1 text-xs text-gray-500">{selectedProduct.sku} · {selectedProduct.unit} · {selectedBom ? `${selectedBom.name || 'BOM'} ${selectedBom.version}` : '无BOM'}</div>
               </div>
             )}
           </div>
@@ -354,6 +357,11 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
             <h3 className="mb-4 font-semibold text-gray-900">计算参数</h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1">
               <NumberInputField label="数量基准" value={form.quantityBasis} unit={selectedProduct?.unit || '件'} onChange={(value) => setForm((current) => ({ ...current, quantityBasis: value || 1 }))} />
+              <label className="text-sm text-gray-700">BOM 版本
+                <select value={form.bomId} onChange={(event) => setForm((current) => ({ ...current, bomId: event.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2" disabled={!selectedProduct?.boms.length}>
+                  {!selectedProduct?.boms.length ? <option value="">暂无已发布 BOM</option> : selectedProduct.boms.map((bom) => <option key={bom.id} value={bom.id}>{bom.name || 'BOM'} · {bom.version}{bom.isDefault ? ' · 默认' : ''}</option>)}
+                </select>
+              </label>
               <label className="text-sm text-gray-700">工艺路线
                 <select value={form.processRouteId} onChange={(event) => setForm((current) => ({ ...current, processRouteId: event.target.value }))} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2">
                   <option value="">不计入工艺路线</option>
@@ -370,18 +378,18 @@ export default function BomCostPage({ onMessage }: { onMessage: (msg: string) =>
           <div className="rounded-lg bg-white p-5 shadow-sm">
             <h3 className="font-semibold text-gray-900">标准原料耗用</h3>
             <p className="mt-1 text-xs text-gray-500">按 BOM 每批投入和主产出批量折算成本，不包含生产订单实绩的本批次额外耗用。</p>
-            {!selectedProduct?.bom?.items.some((item) => item.material) ? (
+            {!selectedBom?.items.some((item) => item.material) ? (
               <div className="mt-4 rounded-lg border border-dashed border-gray-200 p-5 text-sm text-gray-500">选择有 BOM 原料关联的物料</div>
             ) : (
               <div className="mt-4 space-y-3">
-                {selectedProduct.bom.items.filter((item) => item.material).map((item) => item.material && (
+                {selectedBom.items.filter((item) => item.material).map((item) => item.material && (
                   <div key={item.id} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm">
                     <div className="font-medium text-gray-900">{item.material.code} · {item.material.name}</div>
                     {item.quantity > 0 ? (
                       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
-                        <span>每批投入 {qty(item.quantity, 6)} {item.unit} · 折合 {qty(item.quantity / Number(selectedProduct.bom?.outputQuantity || 1), 6)} {item.unit}/{selectedProduct.unit}</span>
+                        <span>每批投入 {qty(item.quantity, 6)} {item.unit} · 折合 {qty(item.quantity / Number(selectedBom.outputQuantity || 1), 6)} {item.unit}/{selectedProduct?.unit || '件'}</span>
                         <span className="font-semibold text-blue-700">
-                          本次 {qty(item.quantity * form.quantityBasis / Number(selectedProduct.bom?.outputQuantity || 1), 6)} {item.unit}
+                          本次 {qty(item.quantity * form.quantityBasis / Number(selectedBom.outputQuantity || 1), 6)} {item.unit}
                         </span>
                       </div>
                     ) : (

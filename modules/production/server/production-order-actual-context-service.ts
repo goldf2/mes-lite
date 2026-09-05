@@ -11,6 +11,7 @@ export interface ProductionOrderContextSource {
   product?: {
     processRoutes?: Array<{ steps?: Array<{ workCenterId?: string | null }> }>
   } | null
+  processRouteSnapshot?: { steps?: Array<{ workCenter?: { id?: string | null } | null }> } | null
 }
 
 export interface ProductionActualContextSelection {
@@ -21,9 +22,15 @@ export interface ProductionActualContextSelection {
 }
 
 export function productionOrderContextWorkCenterIds(order: ProductionOrderContextSource) {
+  const hasFrozenRoute = Boolean(order.processRouteSnapshot)
+  const frozenWorkCenterIds = (order.processRouteSnapshot?.steps || [])
+    .map((step) => step.workCenter?.id)
+    .filter((id): id is string => Boolean(id))
   const ids = [
     ...(order.dispatches || []).map((dispatch) => dispatch.step?.workCenterId),
-    ...(order.product?.processRoutes || []).flatMap((route) => (route.steps || []).map((step) => step.workCenterId)),
+    ...(hasFrozenRoute
+      ? frozenWorkCenterIds
+      : (order.product?.processRoutes || []).flatMap((route) => (route.steps || []).map((step) => step.workCenterId))),
   ].filter((id): id is string => Boolean(id))
   return Array.from(new Set(ids)).sort()
 }

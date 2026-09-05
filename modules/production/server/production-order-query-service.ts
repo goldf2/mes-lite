@@ -5,6 +5,10 @@ import { tokenizeKeywordQuery, type ResourceSearchCondition } from '@/lib/resour
 import { expandProductionOrderStatusFilters } from '../domain/production-order-status'
 import { productionOrderDataScopeWhere, type EffectiveDataScope } from '@/modules/identity-access'
 import { productionOrderStatusOptions } from '../model/production-order-view'
+import {
+  parseProductionOrderCostSnapshot,
+  parseProductionOrderProcessRouteSnapshot,
+} from '../domain/production-order-execution-snapshots'
 
 export interface ProductionOrderListQuery {
   statuses: string[]
@@ -153,10 +157,19 @@ export async function getProductionOrderDetail(id: string, scope?: EffectiveData
       include: { steps: { orderBy: { stepNo: 'asc' } } },
     }),
   ])
-  const currentStepId = route?.steps.find((step) => (
+  const frozenRoute = parseProductionOrderProcessRouteSnapshot(order.processRouteSnapshot)
+  const routeSteps = frozenRoute?.steps || route?.steps || []
+  const currentStepId = routeSteps.find((step) => (
     !order.reports.some((report) => report.stepId === step.id && report.endTime)
   ))?.id ?? null
-  return { ...order, groupLines, currentStepId, routeSteps: route?.steps ?? [] }
+  return {
+    ...order,
+    groupLines,
+    currentStepId,
+    routeSteps,
+    processRouteSnapshot: frozenRoute,
+    bomCostSnapshot: parseProductionOrderCostSnapshot(order.bomCostSnapshot),
+  }
 }
 
 export async function listProductionOrderOptions() {

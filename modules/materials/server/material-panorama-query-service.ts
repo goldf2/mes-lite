@@ -154,14 +154,14 @@ export async function getMaterialPanorama(materialId: string) {
     items: bom.items,
     latestCostRun: null as null | { id: string; unitCost: number; totalCost: number; quantityBasis: number; createdAt: Date },
   })))
-  const productIds = productBoms.map((bom) => bom.product.id)
-  const latestCostRuns = productIds.length === 0 ? [] : await prisma.bomCostRun.findMany({
-    where: { productId: { in: productIds } }, orderBy: { createdAt: 'desc' },
-    select: { id: true, productId: true, unitCost: true, totalCost: true, quantityBasis: true, createdAt: true },
+  const bomIds = productBoms.map((bom) => bom.id)
+  const latestCostRuns = bomIds.length === 0 ? [] : await prisma.bomCostRun.findMany({
+    where: { bomId: { in: bomIds } }, orderBy: { createdAt: 'desc' },
+    include: { lines: { orderBy: { sortOrder: 'asc' } } },
   })
-  const latestCostRunByProduct = new Map<string, typeof latestCostRuns[number]>()
-  for (const run of latestCostRuns) if (!latestCostRunByProduct.has(run.productId)) latestCostRunByProduct.set(run.productId, run)
-  for (const bom of productBoms) bom.latestCostRun = latestCostRunByProduct.get(bom.product.id) || null
+  const latestCostRunByBom = new Map<string, typeof latestCostRuns[number]>()
+  for (const run of latestCostRuns) if (run.bomId && !latestCostRunByBom.has(run.bomId)) latestCostRunByBom.set(run.bomId, run)
+  for (const bom of productBoms) bom.latestCostRun = latestCostRunByBom.get(bom.id) || null
 
   return {
     material,

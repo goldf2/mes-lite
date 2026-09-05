@@ -60,6 +60,9 @@ model WorkCenter {
   name           String
   category       String?
   note           String?
+  laborRatePerHour   Float                 @default(0)
+  machineRatePerHour Float                 @default(0)
+  energyCostPerHour  Float                 @default(0)
   isActive       Boolean                   @default(true)
   sortOrder      Int                       @default(0)
   deletedAt      DateTime?
@@ -576,6 +579,7 @@ model BomCostRun {
   processRouteId     String?
   processRoute       ProcessRoute?     @relation(fields: [processRouteId], references: [id], onDelete: SetNull)
   processRouteName   String?
+  processRouteSnapshot String?         @map("bomProcessRouteSnapshot")
   quantityBasis      Float            @default(1)
   laborRatePerHour   Float            @default(0)
   machineRatePerHour Float            @default(0)
@@ -589,6 +593,9 @@ model BomCostRun {
   createdBy          String?
   createdAt          DateTime         @default(now())
   lines              BomCostRunLine[]
+  productionOrders   ProductionOrder[]       @relation("ProductionOrderBomCostRun")
+  productionActuals  ProductionOrderActual[] @relation("ProductionOrderActualBomCostRun")
+  dailyReports       DailyProductionReport[]  @relation("DailyProductionReportBomCostRun")
 
   @@index([productId, createdAt])
   @@index([materialId, createdAt])
@@ -784,6 +791,12 @@ model ProductionOrder {
   bomName        String?
   bomVersion     String?
   bomSnapshot    String?   @map("productionBomSnapshot")
+  processRouteId       String?
+  processRouteName     String?
+  processRouteSnapshot String? @map("productionProcessRouteSnapshot")
+  bomCostRunId         String?
+  bomCostRun           BomCostRun? @relation("ProductionOrderBomCostRun", fields: [bomCostRunId], references: [id], onDelete: SetNull)
+  bomCostSnapshot      String? @map("productionBomCostSnapshot")
   planQty        Float
   completeQty    Float     @default(0)
   scrapQty       Float     @default(0)
@@ -830,6 +843,12 @@ model ProductionOrderActual {
   reversedAt                     DateTime?
   reversedBy                     String?
   reverseReason                  String?
+  processRouteId                 String?
+  processRouteName               String?
+  processRouteSnapshot           String? @map("productionProcessRouteSnapshot")
+  bomCostRunId                   String?
+  bomCostRun                     BomCostRun? @relation("ProductionOrderActualBomCostRun", fields: [bomCostRunId], references: [id], onDelete: SetNull)
+  bomCostSnapshot                String? @map("productionBomCostSnapshot")
   employees                      ProductionOrderActualEmployee[]
   equipmentSnapshots             ProductionOrderActualEquipment[]
   workInstructionSnapshots       ProductionOrderActualWorkInstruction[]
@@ -1039,6 +1058,12 @@ model DailyProductionReport {
   bomType                String
   bomOutputQuantity      Float
   bomOutputUnit          String
+  processRouteId         String?
+  processRouteName       String?
+  processRouteSnapshot   String? @map("productionProcessRouteSnapshot")
+  bomCostRunId           String?
+  bomCostRun             BomCostRun? @relation("DailyProductionReportBomCostRun", fields: [bomCostRunId], references: [id], onDelete: SetNull)
+  bomCostSnapshot        String? @map("productionBomCostSnapshot")
   outputValuationQty     Float                           @default(0)
   outputCostAmount       Float                           @default(0)
   outputStockUnit        String?

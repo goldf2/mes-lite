@@ -36,6 +36,20 @@ export interface ProductionOrder {
 
 export interface ProductionOrderDetail extends ProductionOrder {
   groupLines?: ProductionOrder[]
+  processRouteId?: string | null
+  processRouteName?: string | null
+  processRouteSnapshot?: {
+    name: string
+    steps: Array<{ id: string; stepNo: number; name: string; workCenter: { id: string; code: string; name: string } | null }>
+  } | null
+  bomCostRunId?: string | null
+  bomCostSnapshot?: {
+    unitCost: number
+    totalCost: number
+    totalMaterialCost: number
+    totalLaborCost: number
+    totalMachineCost: number
+  } | null
 }
 
 export interface ProductionOrderDraftLine {

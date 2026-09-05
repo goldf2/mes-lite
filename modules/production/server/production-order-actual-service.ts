@@ -9,6 +9,10 @@ import {
   productionActualDayRange,
 } from '../domain/production-order-actual-numbering'
 import { parseProductionOrderBomSnapshot } from '../domain/production-order-bom-snapshot'
+import {
+  parseProductionOrderCostSnapshot,
+  parseProductionOrderProcessRouteSnapshot,
+} from '../domain/production-order-execution-snapshots'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
 import { productionOrderActualCreationError } from '../domain/production-order-status'
 import { buildProductionOrderActualLines } from './production-order-actual-lines'
@@ -128,9 +132,15 @@ export async function getProductionOrderActualWorkspace(orderId: string, scope: 
   ])
   if (!order) throw new ProductionOrderDomainError('生产订单不存在或已归档', 404)
   assertProductionOrderDataScope(scope, order)
-  const executionContext = await loadProductionActualExecutionContext(prisma, order)
+  const processRouteSnapshot = parseProductionOrderProcessRouteSnapshot(order.processRouteSnapshot)
+  const executionContext = await loadProductionActualExecutionContext(prisma, { ...order, processRouteSnapshot })
   return {
-    order: { ...order, bomSnapshot: order.bomSnapshot ? parseProductionOrderBomSnapshot(order.bomSnapshot) : null },
+    order: {
+      ...order,
+      bomSnapshot: order.bomSnapshot ? parseProductionOrderBomSnapshot(order.bomSnapshot) : null,
+      processRouteSnapshot,
+      bomCostSnapshot: parseProductionOrderCostSnapshot(order.bomCostSnapshot),
+    },
     locations,
     employees,
     materials,
@@ -166,7 +176,8 @@ export async function createProductionOrderActual(orderId: string, input: Create
     if (scope.productionMode === 'SELF' && employees.some((employee) => employee.id !== scope.employeeId)) {
       throw new DataScopeError('本人范围账号只能登记绑定员工的生产实绩')
     }
-    const executionContext = await resolveProductionActualExecutionContext(tx, order, input)
+    const processRouteSnapshot = parseProductionOrderProcessRouteSnapshot(order.processRouteSnapshot)
+    const executionContext = await resolveProductionActualExecutionContext(tx, { ...order, processRouteSnapshot }, input)
     const lines = await buildProductionOrderActualLines(tx, {
       bomSnapshotValue: order.bomSnapshot,
       targetMaterialId: order.materialId,
@@ -190,6 +201,11 @@ export async function createProductionOrderActual(orderId: string, input: Create
         note: input.note || null,
         equipmentExceptionReason: executionContext.equipmentExceptionReason,
         workInstructionExceptionReason: executionContext.workInstructionExceptionReason,
+        processRouteId: order.processRouteId,
+        processRouteName: order.processRouteName,
+        processRouteSnapshot: order.processRouteSnapshot,
+        bomCostRunId: order.bomCostRunId,
+        bomCostSnapshot: order.bomCostSnapshot,
         employees: { create: employees.map((employee) => ({ employeeId: employee.id, employeeCode: employee.code, employeeName: employee.name })) },
         equipmentSnapshots: { create: executionContext.equipmentSnapshots },
         workInstructionSnapshots: { create: executionContext.workInstructionSnapshots },

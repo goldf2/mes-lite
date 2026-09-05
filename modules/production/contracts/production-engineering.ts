@@ -39,13 +39,16 @@ export interface ProcessRoute {
   isDefault: boolean
   sortOrder: number
   product: { id: string; sku: string; name: string; materialId?: string | null }
-  steps: Array<ProcessStepForm & { id: string; defaultTime?: number | null; workstation?: string | null; workCenterId?: string | null; description?: string | null; templateId?: string | null; templateCode?: string | null }>
+  steps: Array<ProcessStepForm & { id: string; defaultTime?: number | null; workstation?: string | null; workCenterId?: string | null; description?: string | null; templateId?: string | null; templateCode?: string | null; workCenter?: ProcessWorkCenterOption | null }>
 }
 
 export interface ProcessWorkCenterOption {
   id: string
   code: string
   name: string
+  laborRatePerHour: number
+  machineRatePerHour: number
+  energyCostPerHour: number
 }
 
 export interface ProcessTemplate {

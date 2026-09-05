@@ -31,15 +31,18 @@ async function main() {
     const product = await prisma.product.create({
       data: { sku: `VERIFY-PROD-${suffix}`, name: '验证成品', category: 'FINISHED', unit: '件', materialId: output.id },
     })
-    const workCenter = await prisma.workCenter.create({ data: { code: `VERIFY-WC-${suffix}`, name: '验证锯切中心', category: 'SAWING' } })
+    const workCenter = await prisma.workCenter.create({ data: {
+      code: `VERIFY-WC-${suffix}`, name: '验证锯切中心', category: 'SAWING',
+      laborRatePerHour: 20, machineRatePerHour: 30, energyCostPerHour: 5,
+    } })
     const route = await prisma.processRoute.create({
       data: {
         productId: product.id, materialId: output.id, name: '验证加工路线', isDefault: true,
         steps: { create: [{
           stepNo: 10, name: '锯切', workCenterId: workCenter.id, templateCode: 'VERIFY-SAW',
           standardBatchQty: 100, setupTimeMinutes: 6, cycleTimeSeconds: 10, peopleCount: 1,
-          laborRatePerHour: 20, machineCount: 1, machineRatePerHour: 30,
-          energyCostPerHour: 5, consumableCostPerBatch: 10, yieldRate: 1,
+          laborRatePerHour: 0, machineCount: 1, machineRatePerHour: 0,
+          energyCostPerHour: 0, consumableCostPerBatch: 10, yieldRate: 1,
         }] },
       },
     })
@@ -54,19 +57,44 @@ async function main() {
     await prisma.bOMItem.create({ data: { bomId: bom.id, itemType: 'MATERIAL', materialId: raw.id, quantity: 2, unit: 'kg' } })
     await prisma.bOM.update({ where: { id: bom.id }, data: { status: 'RELEASED', isActive: true, isDefault: true, releasedAt: new Date() } })
 
+    const alternateBom = await prisma.bOM.create({
+      data: {
+        productId: product.id, materialId: output.id, name: '验证 BOM 替代版', version: 'v2',
+        status: 'DRAFT', isActive: false, isDefault: false,
+        outputQuantity: 1, outputUnit: '件',
+      },
+    })
+    await prisma.bOMOutput.create({ data: { bomId: alternateBom.id, materialId: output.id, quantity: 1, unit: '件', isPrimary: true } })
+    await prisma.bOMItem.create({ data: { bomId: alternateBom.id, itemType: 'MATERIAL', materialId: raw.id, quantity: 3, unit: 'kg' } })
+    await prisma.bOM.update({ where: { id: alternateBom.id }, data: { status: 'RELEASED', isActive: true, releasedAt: new Date() } })
+
     const run = await createBomCostRun({
-      productId: product.id, processRouteId: route.id, quantityBasis: 100,
+      productId: product.id, bomId: alternateBom.id, processRouteId: route.id, quantityBasis: 100,
       laborRatePerHour: 0, machineRatePerHour: 0, overheadCost: 0,
     }, '验证员')
     const operation = run.lines.find((line) => line.lineType === 'PROCESS_OPERATION')
-    assert.equal(run.bomId, bom.id)
+    assert.equal(run.bomId, alternateBom.id, '成本计算必须使用明确选择的 BOM 版本')
+    assert.equal(run.bomVersion, 'v2')
     assert.equal(run.processRouteId, route.id)
     assert.equal(run.processRouteName, '验证加工路线')
+    assert.match(run.processRouteSnapshot || '', new RegExp(workCenter.id), '成本运行必须冻结工序与工作中心快照')
+    const frozenStep = JSON.parse(run.processRouteSnapshot || '{}').steps?.[0]
+    assert.deepEqual(
+      [frozenStep?.laborRatePerHour, frozenStep?.machineRatePerHour, frozenStep?.energyCostPerHour],
+      [20, 30, 5],
+      '成本运行必须冻结工作中心补齐后的实际费率',
+    )
     assert.ok(operation, '成本快照必须保存工序明细')
     assert.match(operation?.note || '', /验证锯切中心/)
     assert.ok(Number(operation?.laborCost) > 0)
     assert.ok(Number(operation?.machineCost) > 0)
     assert.equal(run.lines.filter((line) => line.lineType === 'BOM_MATERIAL').length, 1)
+
+    const defaultRun = await createBomCostRun({
+      productId: product.id, processRouteId: route.id, quantityBasis: 100,
+      laborRatePerHour: 0, machineRatePerHour: 0, overheadCost: 0,
+    }, '验证员')
+    assert.equal(defaultRun.bomId, bom.id, '未指定 BOM 时仍应采用默认已发布版本')
     console.log('BOM-工艺路线-工作中心成本联动验证通过。')
   } finally {
     await prisma.$disconnect()

@@ -68,6 +68,7 @@ export interface ProcessStepSummary {
   energyCostPerHour?: number
   consumableCostPerBatch?: number
   yieldRate?: number
+  workCenter?: { id: string; code: string; name: string; laborRatePerHour?: number | null; machineRatePerHour?: number | null; energyCostPerHour?: number | null } | null
 }
 
 export interface ProcessRouteSummary {
@@ -120,7 +121,35 @@ export interface ProductBom {
   isActive: boolean
   createdAt: string
   product: ProductSummary
-  latestCostRun?: { id: string; unitCost: number; totalCost: number; quantityBasis: number; createdAt: string } | null
+  latestCostRun?: {
+    id: string
+    bomId?: string | null
+    bomVersion?: string | null
+    processRouteId?: string | null
+    processRouteName?: string | null
+    unitCost: number
+    totalCost: number
+    quantityBasis: number
+    totalMaterialCost?: number
+    totalLaborCost?: number
+    totalMachineCost?: number
+    totalDirectCost?: number
+    createdAt: string
+    lines?: Array<{
+      id: string
+      lineType: string
+      name: string
+      quantity: number
+      unit: string
+      laborHours: number
+      machineHours: number
+      laborCost: number
+      machineCost: number
+      directCost: number
+      totalCost: number
+      note?: string | null
+    }>
+  } | null
   items: Array<{
     id: string
     itemType?: string

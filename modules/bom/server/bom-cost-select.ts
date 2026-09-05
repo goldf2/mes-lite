@@ -7,7 +7,6 @@ export const bomCostProductInclude = {
   boms: {
     where: { status: 'RELEASED' },
     orderBy: [{ isDefault: 'desc' as const }, { createdAt: 'desc' as const }],
-    take: 1,
     include: {
       outputs: { where: { isPrimary: true }, take: 1 },
       items: {
@@ -30,7 +29,7 @@ export const bomCostProductInclude = {
       steps: {
         where: { deletedAt: null },
         orderBy: { stepNo: 'asc' as const },
-        include: { workCenter: { select: { id: true, code: true, name: true } } },
+        include: { workCenter: { select: { id: true, code: true, name: true, laborRatePerHour: true, machineRatePerHour: true, energyCostPerHour: true } } },
       },
     },
   },

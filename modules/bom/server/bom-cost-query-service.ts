@@ -9,9 +9,9 @@ export async function listBomCostWorkspace(inputProductId?: string) {
       select: {
         id: true, materialId: true, sku: true, name: true, unit: true,
         boms: {
-          where: { status: 'RELEASED' }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }], take: 1,
+          where: { status: 'RELEASED' }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
           select: {
-            id: true, version: true, isActive: true, outputQuantity: true,
+            id: true, name: true, version: true, isActive: true, isDefault: true, outputQuantity: true, outputUnit: true,
             outputs: { where: { isPrimary: true }, take: 1, select: { materialId: true, quantity: true } },
             items: {
               where: { itemType: 'MATERIAL', materialId: { not: null } },
@@ -34,7 +34,7 @@ export async function listBomCostWorkspace(inputProductId?: string) {
                 peopleCount: true, laborRatePerHour: true, machineCount: true,
                 machineRatePerHour: true, energyCostPerHour: true,
                 consumableCostPerBatch: true, yieldRate: true,
-                workCenter: { select: { id: true, code: true, name: true } },
+                workCenter: { select: { id: true, code: true, name: true, laborRatePerHour: true, machineRatePerHour: true, energyCostPerHour: true } },
               },
             },
           },
@@ -58,11 +58,16 @@ export async function listBomCostWorkspace(inputProductId?: string) {
   const productByMaterialId = await getProductsByMaterialId(prisma, products)
   const materialProducts = materials.map((material) => {
     const product = productByMaterialId.get(material.id)
-    if (!product) return { ...materialAsProductOption(material), bom: null, processRoutes: [] }
-    const bom = product.boms[0]
+    if (!product) return { ...materialAsProductOption(material), bom: null, boms: [], processRoutes: [] }
+    const boms = product.boms.map((bom) => ({
+      ...bom,
+      items: bom.items.filter((item) => !item.outputMaterialId || item.outputMaterialId === material.id),
+    }))
+    const bom = boms[0]
     return {
       ...materialAsProductOption(material),
-      bom: bom ? { ...bom, items: bom.items.filter((item) => !item.outputMaterialId || item.outputMaterialId === material.id) } : null,
+      bom: bom || null,
+      boms,
       processRoutes: product.processRoutes,
     }
   })

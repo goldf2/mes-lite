@@ -75,6 +75,16 @@ async function main() {
       },
     })
     const snapshot = JSON.stringify(bom)
+    const routeSnapshot = JSON.stringify({
+      id: 'route-frozen', name: '二次加工冻结路线', isDefault: true,
+      steps: [{ id: 'step-frozen', stepNo: 10, name: '钻孔', templateCode: 'DRILL', standardBatchQty: 1000, setupTimeMinutes: 0, cycleTimeSeconds: 2, peopleCount: 1, laborRatePerHour: 20, machineCount: 1, machineRatePerHour: 30, energyCostPerHour: 0, consumableCostPerBatch: 0, yieldRate: 1, workCenter: { id: 'wc-frozen', code: 'WC-DRILL', name: '钻孔中心' } }],
+    })
+    const costSnapshot = JSON.stringify({
+      runId: 'cost-frozen', productId: product.id, materialId: finished.id, bomId: bom.id, bomVersion: bom.version,
+      processRouteId: 'route-frozen', processRouteName: '二次加工冻结路线', quantityBasis: 1000,
+      totalMaterialCost: 20, totalLaborCost: 10, totalMachineCost: 15, totalDirectCost: 0, totalCost: 45, unitCost: 0.045,
+      lines: [{ id: 'cost-line-frozen', lineType: 'PROCESS_OPERATION', sourceId: 'step-frozen', code: 'DRILL', name: '10. 钻孔', quantity: 1000, unit: '件', unitCost: 0.025, materialCost: 0, laborHours: 0.5, machineHours: 0.5, laborCost: 10, machineCost: 15, directCost: 0, totalCost: 25, note: '冻结', sortOrder: 0 }],
+    })
     const order = await prisma.productionOrder.create({
       data: {
         orderNo: `WO-${suffix}`,
@@ -84,6 +94,11 @@ async function main() {
         bomName: bom.name,
         bomVersion: bom.version,
         bomSnapshot: snapshot,
+        processRouteId: 'route-frozen',
+        processRouteName: '二次加工冻结路线',
+        processRouteSnapshot: routeSnapshot,
+        bomCostRunId: null,
+        bomCostSnapshot: costSnapshot,
         planQty: 5,
         status: 'RELEASED',
       },
@@ -190,6 +205,8 @@ async function main() {
     assert.equal(actual.status, 'DRAFT')
     assert.equal(actual.actualNo, 'PA-20260809-001')
     assert.equal(actual.workers, '验证生产员')
+    assert.equal(actual.processRouteSnapshot, routeSnapshot, '生产实绩必须继承订单工艺路线快照')
+    assert.equal(actual.bomCostSnapshot, costSnapshot, '生产实绩必须继承订单成本快照')
     const workspace = await getProductionOrderActualWorkspace(order.id)
     assert.equal(workspace.order.actuals[0].id, actual.id, '实绩工作区必须返回新建草稿和候选项')
     await assert.rejects(

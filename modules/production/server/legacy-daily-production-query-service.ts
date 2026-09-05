@@ -3,6 +3,10 @@ import { prisma } from '@/lib/prisma'
 import { tokenizeKeywordQuery } from '@/lib/resource-search'
 import { withMaterialImageUrls } from '@/lib/attachment-urls'
 import { getProductsByMaterialId } from '@/lib/material-product'
+import {
+  parseProductionOrderCostSnapshot,
+  parseProductionOrderProcessRouteSnapshot,
+} from '../domain/production-order-execution-snapshots'
 
 export const legacyDailyProductionReportInclude = {
   consumptionLocation: { select: { id: true, code: true, name: true } },
@@ -168,5 +172,13 @@ export async function listLegacyDailyProductionWorkspace(input: {
     }
   })
 
-  return { reports, materials: materialsWithBom, employees }
+  return {
+    reports: reports.map((report) => ({
+      ...report,
+      processRouteSnapshot: parseProductionOrderProcessRouteSnapshot(report.processRouteSnapshot),
+      bomCostSnapshot: parseProductionOrderCostSnapshot(report.bomCostSnapshot),
+    })),
+    materials: materialsWithBom,
+    employees,
+  }
 }

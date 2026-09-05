@@ -5,7 +5,13 @@ export const processRouteSelect = {
   steps: {
     where: { deletedAt: null },
     orderBy: { stepNo: 'asc' as const },
-    select: { id: true, stepNo: true, name: true, workstation: true, description: true },
+    select: {
+      id: true, stepNo: true, name: true, workstation: true, description: true,
+      standardBatchQty: true, setupTimeMinutes: true, cycleTimeSeconds: true,
+      peopleCount: true, laborRatePerHour: true, machineCount: true,
+      machineRatePerHour: true, energyCostPerHour: true, consumableCostPerBatch: true, yieldRate: true,
+      workCenter: { select: { id: true, code: true, name: true, laborRatePerHour: true, machineRatePerHour: true, energyCostPerHour: true } },
+    },
   },
 }
 

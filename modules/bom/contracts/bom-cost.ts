@@ -4,6 +4,7 @@ const nonnegativeNumber = z.number().finite().nonnegative()
 
 export const bomCostRunInputSchema = z.object({
   productId: z.string().min(1, '请选择物料'),
+  bomId: z.string().min(1).optional(),
   processRouteId: z.string().optional(),
   quantityBasis: nonnegativeNumber.positive().default(1),
   laborRatePerHour: nonnegativeNumber.default(0),
@@ -12,6 +13,24 @@ export const bomCostRunInputSchema = z.object({
 })
 
 export type BomCostRunInput = z.infer<typeof bomCostRunInputSchema>
+
+export interface BomCostBomOption {
+  id: string
+  name?: string
+  version: string
+  isActive: boolean
+  isDefault?: boolean
+  outputQuantity: number
+  outputUnit?: string
+  items: Array<{
+    id: string
+    itemType?: string
+    quantity: number
+    unit: string
+    outputMaterialId?: string | null
+    material: { id: string; code: string; name: string; stockUnit: string; unit: string } | null
+  }>
+}
 
 export interface BomCostLineInput {
   lineType: string
@@ -37,18 +56,8 @@ export interface BomCostProductOption {
   sku: string
   name: string
   unit: string
-  bom?: {
-    id: string
-    version: string
-    isActive: boolean
-    outputQuantity: number
-    items: Array<{
-      id: string
-      quantity: number
-      unit: string
-      material: { id: string; code: string; name: string; stockUnit: string; unit: string } | null
-    }>
-  } | null
+  bom?: BomCostBomOption | null
+  boms: BomCostBomOption[]
   processRoutes: BomCostProcessRoute[]
 }
 
@@ -62,9 +71,11 @@ export interface BomCostLine extends Omit<BomCostLineInput, 'sortOrder' | 'sourc
 export interface BomCostRun {
   id: string
   productId: string
+  bomId?: string | null
   bomVersion?: string | null
   processRouteId?: string | null
   processRouteName?: string | null
+  processRouteSnapshot?: string | null
   quantityBasis: number
   laborRatePerHour: number
   machineRatePerHour: number
@@ -140,7 +151,7 @@ export interface BomCostProcessStep {
   energyCostPerHour: number
   consumableCostPerBatch: number
   yieldRate: number
-  workCenter?: { id: string; code: string; name: string } | null
+  workCenter?: { id: string; code: string; name: string; laborRatePerHour?: number | null; machineRatePerHour?: number | null; energyCostPerHour?: number | null } | null
 }
 
 export interface BomCostProcessRoute {
@@ -170,6 +181,7 @@ export interface BomCostDataProduct {
       sawingScenario?: { id: string; name: string } | null
     }>
   } | null
+  boms?: BomCostBomOption[]
   processRoutes: Array<{
     id: string
     name: string

@@ -12,7 +12,7 @@ import { archiveWorkCenter, loadManagedWorkCenters, saveWorkCenter } from '../cl
 import type { WorkCenterConfig } from '../contracts/equipment'
 import { workCenterAdvancedFields, workCenterSearchProfile } from '../model/work-center-view'
 
-const emptyForm = { code: '', name: '', category: '', note: '', isActive: true }
+const emptyForm = { code: '', name: '', category: '', note: '', laborRatePerHour: 0, machineRatePerHour: 0, energyCostPerHour: 0, isActive: true }
 
 export default function WorkCenterSettingsPage({ onMessage, canCreate, canUpdate, canDelete }: { onMessage: (message: string) => void; canCreate: boolean; canUpdate: boolean; canDelete: boolean }) {
   const [items, setItems] = useState<WorkCenterConfig[]>([])
@@ -53,7 +53,7 @@ export default function WorkCenterSettingsPage({ onMessage, canCreate, canUpdate
 
   const openEdit = (item: WorkCenterConfig) => {
     setEditing(item)
-    setForm({ code: item.code, name: item.name, category: item.category || '', note: item.note || '', isActive: true })
+    setForm({ code: item.code, name: item.name, category: item.category || '', note: item.note || '', laborRatePerHour: item.laborRatePerHour || 0, machineRatePerHour: item.machineRatePerHour || 0, energyCostPerHour: item.energyCostPerHour || 0, isActive: true })
     setDialogOpen(true)
   }
 
@@ -85,6 +85,7 @@ export default function WorkCenterSettingsPage({ onMessage, canCreate, canUpdate
     { key: 'center', label: <ResourceSortLabel column="center" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>工作中心</ResourceSortLabel>, render: (item) => <div><div className="font-medium text-gray-900">{item.name}</div><div className="font-mono text-xs text-blue-700">{item.code}</div>{item.note && <div className="mt-1 line-clamp-2 text-xs text-gray-500">{item.note}</div>}</div> },
     { key: 'category', label: <ResourceSortLabel column="category" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>类别</ResourceSortLabel>, render: (item) => item.category || '-', hideBelow: 'sm' },
     { key: 'equipment', label: <ResourceSortLabel column="equipment" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>设备</ResourceSortLabel>, render: (item) => item._count.equipment, hideBelow: 'md' },
+    { key: 'rates', label: '默认费率', render: (item) => <div className="text-xs leading-5 text-gray-600"><div>人工 ¥{item.laborRatePerHour.toFixed(2)}/h</div><div>机时 ¥{item.machineRatePerHour.toFixed(2)}/h</div><div>能源 ¥{item.energyCostPerHour.toFixed(2)}/h</div></div>, hideBelow: 'lg' },
     { key: 'status', label: <ResourceSortLabel column="status" activeColumn={tableSort.sortColumn} direction={tableSort.sortDirection} onSort={tableSort.toggleSort}>状态</ResourceSortLabel>, render: (item) => <span className={`rounded px-2 py-1 text-xs ${item.isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{item.isActive ? '启用' : '已归档'}</span> },
     { key: 'actions', label: <span className="block text-right">操作</span>, render: (item) => <div className="flex justify-end gap-2">{canUpdate && <AppButton size="sm" onClick={() => openEdit(item)}>{item.isActive ? '编辑' : '恢复'}</AppButton>}{canDelete && item.isActive && <AppButton size="sm" variant="warning" onClick={() => void archive(item)}>归档</AppButton>}</div>, className: 'text-right' },
   ]
@@ -98,7 +99,7 @@ export default function WorkCenterSettingsPage({ onMessage, canCreate, canUpdate
         items={tableSort.sortedRows}
         getKey={(item) => item.id}
         columns={columns}
-        renderCard={({ item }) => <article className="h-full rounded-xl border border-gray-200 bg-white p-4 shadow-sm"><div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold text-gray-900">{item.name}</h2><p className="font-mono text-xs text-blue-700">{item.code}</p></div><span className={`rounded px-2 py-1 text-xs ${item.isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{item.isActive ? '启用' : '已归档'}</span></div><p className="mt-3 text-sm text-gray-600">{item.category || '未分类'}</p><p className="mt-2 line-clamp-2 text-xs text-gray-500">{item.note || '暂无备注'}</p><div className="mt-4 flex items-center justify-between text-xs text-gray-500"><span>设备 {item._count.equipment}</span>{canUpdate && <AppButton size="sm" onClick={() => openEdit(item)}>{item.isActive ? '编辑' : '恢复'}</AppButton>}</div></article>}
+        renderCard={({ item }) => <article className="h-full rounded-xl border border-gray-200 bg-white p-4 shadow-sm"><div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold text-gray-900">{item.name}</h2><p className="font-mono text-xs text-blue-700">{item.code}</p></div><span className={`rounded px-2 py-1 text-xs ${item.isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{item.isActive ? '启用' : '已归档'}</span></div><p className="mt-3 text-sm text-gray-600">{item.category || '未分类'}</p><div className="mt-2 grid grid-cols-3 gap-2 text-xs text-gray-600"><span>人工<br /><b>¥{item.laborRatePerHour.toFixed(2)}/h</b></span><span>机时<br /><b>¥{item.machineRatePerHour.toFixed(2)}/h</b></span><span>能源<br /><b>¥{item.energyCostPerHour.toFixed(2)}/h</b></span></div><p className="mt-2 line-clamp-2 text-xs text-gray-500">{item.note || '暂无备注'}</p><div className="mt-4 flex items-center justify-between text-xs text-gray-500"><span>设备 {item._count.equipment}</span>{canUpdate && <AppButton size="sm" onClick={() => openEdit(item)}>{item.isActive ? '编辑' : '恢复'}</AppButton>}</div></article>}
         loading={loading}
         emptyLabel="暂无工作中心"
         searchValue={keyword}
@@ -120,6 +121,9 @@ export default function WorkCenterSettingsPage({ onMessage, canCreate, canUpdate
           <FormField label="工作中心编码" required><input className={appInputClassName} value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} /></FormField>
           <FormField label="工作中心名称" required><input className={appInputClassName} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></FormField>
           <FormField label="类别"><input className={appInputClassName} value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} /></FormField>
+          <FormField label="默认人工费率"><input type="number" min="0" step="0.01" className={appInputClassName} value={form.laborRatePerHour} onChange={(event) => setForm({ ...form, laborRatePerHour: Number(event.target.value || 0) })} /><span className="text-xs text-gray-500">元/小时；工序填写正值时优先使用工序费率</span></FormField>
+          <FormField label="默认机时费率"><input type="number" min="0" step="0.01" className={appInputClassName} value={form.machineRatePerHour} onChange={(event) => setForm({ ...form, machineRatePerHour: Number(event.target.value || 0) })} /><span className="text-xs text-gray-500">元/小时；工序填写正值时优先使用工序费率</span></FormField>
+          <FormField label="默认能源费率"><input type="number" min="0" step="0.01" className={appInputClassName} value={form.energyCostPerHour} onChange={(event) => setForm({ ...form, energyCostPerHour: Number(event.target.value || 0) })} /><span className="text-xs text-gray-500">元/台·小时（按机时计）；工序填写正值时优先使用工作中心费率</span></FormField>
           {editing && !editing.isActive && <label className="flex items-center gap-2 self-end rounded-lg border border-gray-200 px-3 py-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm({ ...form, isActive: event.target.checked })} />恢复启用</label>}
           <FormField label="备注" className="sm:col-span-2"><textarea className={appTextareaClassName} rows={4} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} /></FormField>
         </div>

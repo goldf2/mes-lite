@@ -117,10 +117,11 @@ async function main() {
 
     const cutting = await createManagedWorkCenter({
       code: ' cut 01 ', name: ' 锯切中心 ', category: ' 下料 ', note: ' 主区域 ',
+      laborRatePerHour: 20, machineRatePerHour: 30, energyCostPerHour: 5,
     })
     assert.deepEqual(
-      [cutting.code, cutting.name, cutting.category, cutting.note, cutting.isActive, cutting.sortOrder],
-      ['CUT01', '锯切中心', '下料', '主区域', true, 0],
+      [cutting.code, cutting.name, cutting.category, cutting.note, cutting.laborRatePerHour, cutting.machineRatePerHour, cutting.energyCostPerHour, cutting.isActive, cutting.sortOrder],
+      ['CUT01', '锯切中心', '下料', '主区域', 20, 30, 5, true, 0],
       '工作中心创建必须统一编码、文本和排序规则',
     )
     await assert.rejects(

@@ -20,4 +20,4 @@ export function formatBomCostDate(value: string) {
   return new Date(value).toLocaleString('zh-CN', { hour12: false })
 }
 
-export { calculateProcessCostPerThousand as processCostPerThousand } from '@/modules/production/domain/process-cost'
+export { calculateProcessCostPerThousand as processCostPerThousand } from '@/lib/process-cost'

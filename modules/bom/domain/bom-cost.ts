@@ -1,5 +1,5 @@
 import type { BomCostLineInput, BomCostRunInput } from '../contracts/bom-cost'
-import { calculateProcessCostPerThousand } from '@/modules/production/domain/process-cost'
+import { calculateProcessCostPerThousand, resolveProcessCostRates } from '@/lib/process-cost'
 
 interface CostedMaterial {
   id: string
@@ -55,7 +55,27 @@ interface BomCostProcessStep {
   energyCostPerHour: number
   consumableCostPerBatch: number
   yieldRate: number
-  workCenter?: { code: string; name: string } | null
+  workCenter?: { code: string; name: string; laborRatePerHour?: number | null; machineRatePerHour?: number | null; energyCostPerHour?: number | null } | null
+}
+
+function operationKey(value: string | null | undefined) {
+  return String(value || '').trim().toLocaleLowerCase('zh-CN').replace(/[\s_\-\/]+/g, '')
+}
+
+function processStepCoveredByBomCost(step: BomCostProcessStep, items: BomCostItem[]) {
+  const stepKeys = [step.templateCode, step.name].map(operationKey).filter((value) => value.length >= 2)
+  if (stepKeys.length === 0) return false
+  return items.some((item) => {
+    const descriptor = operationKey(item.costObject?.objectType || item.itemType)
+    const objectKeys = [item.costObject?.code, item.costObject?.name].map(operationKey).filter((value) => value.length >= 2)
+    // SAWING_COST/锯切成本对象 already contains the sawing material and labour
+    // result from the dedicated calculator. Do not add the same route operation.
+    if ((descriptor === 'sawingcost' || descriptor === '锯切成本') && stepKeys.some((key) => key.includes('saw') || key.includes('锯'))) return true
+    // Legacy cost objects have no explicit route-step relation. Only exact
+    // code/name matches are safe; substring matches can silently suppress a
+    // different operation such as “钻孔加工” when the object is “加工”.
+    return stepKeys.some((stepKey) => objectKeys.some((objectKey) => stepKey === objectKey))
+  })
 }
 
 export class BomCostRuleError extends Error {}
@@ -150,7 +170,24 @@ export function calculateBomCostSnapshot(input: BomCostRunInput & {
 
   const processScale = input.quantityBasis / 1000
   ;(input.processSteps || []).forEach((step, index) => {
-    const standard = calculateProcessCostPerThousand(step)
+    if (processStepCoveredByBomCost(step, costingItems)) {
+      lines.push({
+        lineType: 'PROCESS_OPERATION', sourceId: step.id,
+        code: step.templateCode || null, name: `${step.stepNo}. ${step.name}`,
+        quantity: input.quantityBasis, unit: input.productUnit || '件', unitCost: 0,
+        materialCost: 0, laborHours: 0, machineHours: 0, laborCost: 0, machineCost: 0, directCost: 0, totalCost: 0,
+        note: `${input.processRouteName || '工艺路线'} · 已由 BOM 成本对象覆盖，未重复计入`,
+        sortOrder: lines.length + index,
+      })
+      return
+    }
+    const standard = calculateProcessCostPerThousand({
+      ...step,
+      ...resolveProcessCostRates(step, {
+        laborRatePerHour: input.laborRatePerHour,
+        machineRatePerHour: input.machineRatePerHour,
+      }),
+    })
     const laborHours = roundBomCost(standard.laborHours * processScale)
     const machineHours = roundBomCost(standard.machineHours * processScale)
     const laborCost = roundBomCost(standard.laborCost * processScale)

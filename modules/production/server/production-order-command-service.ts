@@ -5,6 +5,10 @@ import { ensureProductForMaterial, isMaterialProductId, materialProductPrefix } 
 import type { CreateProductionOrderInput, ProductionOrderLineInput } from '../contracts/production-order-schema'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
 import { buildProductionOrderGroupNo, buildProductionOrderNo } from '../domain/production-order-numbering'
+import {
+  serializeProductionOrderCostSnapshot,
+  serializeProductionOrderProcessRouteSnapshot,
+} from '../domain/production-order-execution-snapshots'
 
 async function resolveOrderLine(tx: Prisma.TransactionClient, input: ProductionOrderLineInput) {
   const targetId = isMaterialProductId(input.targetId)
@@ -50,7 +54,24 @@ async function resolveOrderLine(tx: Prisma.TransactionClient, input: ProductionO
   if (bom && bom.outputs.filter((output) => output.isPrimary).length !== 1) {
     throw new ProductionOrderDomainError(`物料 ${material.code} 的 BOM 必须且只能有一项主产出`)
   }
-  return { material, productId, bom, planQty: input.planQty }
+  const routes = await tx.processRoute.findMany({
+    where: { productId },
+    orderBy: [{ isDefault: 'desc' }, { sortOrder: 'asc' }, { id: 'asc' }],
+    include: {
+      steps: {
+        where: { deletedAt: null },
+        orderBy: { stepNo: 'asc' },
+        include: { workCenter: { select: { id: true, code: true, name: true, laborRatePerHour: true, machineRatePerHour: true, energyCostPerHour: true } } },
+      },
+    },
+  })
+  const processRoute = routes[0] || null
+  const bomCostRun = bom ? await tx.bomCostRun.findFirst({
+    where: { productId, bomId: bom.id, processRouteId: processRoute?.id || null },
+    orderBy: { createdAt: 'desc' },
+    include: { lines: { orderBy: { sortOrder: 'asc' } } },
+  }) : null
+  return { material, productId, bom, processRoute, bomCostRun, planQty: input.planQty }
 }
 
 function requestedLines(input: CreateProductionOrderInput): ProductionOrderLineInput[] {
@@ -91,6 +112,11 @@ export async function createProductionOrders(
           bomName: line.bom?.name || null,
           bomVersion: line.bom?.version || null,
           bomSnapshot: line.bom ? JSON.stringify(line.bom) : null,
+          processRouteId: line.processRoute?.id || null,
+          processRouteName: line.processRoute?.name || null,
+          processRouteSnapshot: serializeProductionOrderProcessRouteSnapshot(line.processRoute),
+          bomCostRunId: line.bomCostRun?.id || null,
+          bomCostSnapshot: serializeProductionOrderCostSnapshot(line.bomCostRun),
           planQty: line.planQty,
           status: 'DRAFT',
           note: input.note,

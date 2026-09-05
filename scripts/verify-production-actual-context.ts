@@ -23,6 +23,7 @@ async function main() {
     { confirmProductionOrderActual },
     { recordEquipmentEvent },
     { postInventoryReceipt },
+    { productionOrderContextWorkCenterIds },
   ] = await Promise.all([
     import('../lib/prisma'),
     import('../modules/production/contracts/production-order-actual-schema'),
@@ -30,6 +31,7 @@ async function main() {
     import('../modules/production/server/production-order-actual-status-service'),
     import('../modules/equipment/server/equipment-event-service'),
     import('../lib/inventory'),
+    import('../modules/production/server/production-order-actual-context-service'),
   ])
 
   try {
@@ -44,6 +46,14 @@ async function main() {
       prisma.equipment.create({ data: { code: `EQ-B-${suffix}`, name: '其它机台', equipmentType: '车床', workCenterId: otherCenter.id } }),
     ])
     const actor = { operatorId: 'verify-context', operatorName: '上下文验证员' }
+    assert.deepEqual(
+      productionOrderContextWorkCenterIds({
+        processRouteSnapshot: { steps: [{ workCenter: null }] },
+        product: { processRoutes: [{ steps: [{ workCenterId: otherCenter.id }] }] },
+      }),
+      [],
+      '存在冻结路线但快照没有工作中心时，不得回退读取当前可变路线',
+    )
     await recordEquipmentEvent(faultEquipment.id, { action: 'START', reason: '验证启动' }, actor)
     await recordEquipmentEvent(faultEquipment.id, { action: 'FAULT', reason: '验证故障' }, actor)
 

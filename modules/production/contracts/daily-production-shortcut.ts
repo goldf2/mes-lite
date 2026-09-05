@@ -57,6 +57,8 @@ export interface DailyProductionReportSummary {
   note?: string | null
   bomName?: string | null
   bomVersion?: string | null
+  processRouteName?: string | null
+  bomCostSnapshot?: { unitCost: number; totalCost: number; totalMaterialCost: number; totalLaborCost: number; totalMachineCost: number } | null
   confirmedAt?: string | null
   confirmedBy?: string | null
   reversedAt?: string | null

@@ -2,6 +2,7 @@ import { resolveMaterialIdForProduct, resolveProductId } from '@/lib/material-pr
 import { prisma } from '@/lib/prisma'
 import type { BomCostRunInput } from '../contracts/bom-cost'
 import { BomCostRuleError, calculateBomCostSnapshot } from '../domain/bom-cost'
+import { serializeProcessRouteSnapshot } from '@/lib/process-route-snapshot'
 import { bomCostProductInclude, bomCostRunInclude } from './bom-cost-select'
 
 export class BomCostServiceError extends Error {
@@ -17,7 +18,10 @@ export async function createBomCostRun(input: BomCostRunInput, createdBy: string
   }))
   const product = await prisma.product.findUnique({ where: { id: productId }, include: bomCostProductInclude })
   if (!product) throw new BomCostServiceError('物料不存在', 404)
-  const bom = product.boms[0]
+  const bom = input.bomId
+    ? product.boms.find((candidate) => candidate.id === input.bomId)
+    : product.boms[0]
+  if (input.bomId && !bom) throw new BomCostServiceError('所选 BOM 不属于该物料或未发布', 400)
   if (!bom) throw new BomCostServiceError('该物料暂无有效的默认 BOM，无法计算成本', 400)
   const processRoute = input.processRouteId
     ? product.processRoutes.find((route) => route.id === input.processRouteId)
@@ -51,6 +55,10 @@ export async function createBomCostRun(input: BomCostRunInput, createdBy: string
       bomId: bom.id, bomVersion: bom.version,
       processRouteId: processRoute?.id || null,
       processRouteName: processRoute?.name || null,
+      processRouteSnapshot: serializeProcessRouteSnapshot(processRoute, {
+        laborRatePerHour: input.laborRatePerHour,
+        machineRatePerHour: input.machineRatePerHour,
+      }),
       quantityBasis: input.quantityBasis, laborRatePerHour: input.laborRatePerHour,
       machineRatePerHour: input.machineRatePerHour, overheadCost: input.overheadCost,
       totalMaterialCost: snapshot.totalMaterialCost, totalLaborCost: snapshot.totalLaborCost,

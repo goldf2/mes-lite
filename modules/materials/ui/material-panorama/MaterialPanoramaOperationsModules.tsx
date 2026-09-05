@@ -27,7 +27,10 @@ export function MaterialPanoramaBomProcessModule({ data, relatedRoutes }: { data
                         </div>
                       ))}
                     </div>
-                    {bom.latestCostRun && <div className="mt-2 rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">最新 BOM 单位成本 {formatMoney(bom.latestCostRun.unitCost)} / {bom.product.unit}</div>}
+                    {bom.latestCostRun && <div className="mt-2 rounded bg-blue-50 px-2 py-2 text-xs text-blue-700">
+                      <div className="flex flex-wrap justify-between gap-2"><span>冻结成本 {formatMoney(bom.latestCostRun.unitCost)} / {bom.product.unit}</span><span>{bom.latestCostRun.processRouteName ? `路线：${bom.latestCostRun.processRouteName}` : '未关联工艺路线'}</span></div>
+                      {bom.latestCostRun.lines?.filter((line) => line.lineType === 'PROCESS_OPERATION').length ? <div className="mt-1 text-blue-600">工序：{bom.latestCostRun.lines.filter((line) => line.lineType === 'PROCESS_OPERATION').map((line) => `${line.name} ${formatMoney(line.totalCost)}`).join(' · ')}</div> : null}
+                    </div>}
                   </div>
                 ))}
               </div>
@@ -91,7 +94,7 @@ export function MaterialPanoramaCostingModule({ data, relatedRoutes }: { data: P
       <Panel title="物料成本快照" action={`${data.productBoms.filter((bom) => bom.latestCostRun).length} 个物料有成本`}>
         {data.productBoms.length === 0 ? <EmptyText>暂无与该物料对应的 BOM</EmptyText> : (
           <div className="space-y-2">{data.productBoms.map((bom) => (
-            <div key={bom.id} className="rounded-md border border-gray-100 px-3 py-2"><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="font-medium text-gray-900">{bom.product.name}</div><div className="mt-0.5 font-mono text-xs text-blue-700">{bom.product.sku} · {bom.version}</div></div><div className="text-right text-xs">{bom.latestCostRun ? <><div className="font-semibold text-blue-700">{formatMoney(bom.latestCostRun.unitCost)} / {bom.product.unit}</div><div className="mt-0.5 text-gray-500">{compactDate(bom.latestCostRun.createdAt)}</div></> : <span className="text-gray-500">暂无成本快照</span>}</div></div></div>
+            <div key={bom.id} className="rounded-md border border-gray-100 px-3 py-2"><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="font-medium text-gray-900">{bom.product.name}</div><div className="mt-0.5 font-mono text-xs text-blue-700">{bom.product.sku} · {bom.version}</div></div><div className="text-right text-xs">{bom.latestCostRun ? <><div className="font-semibold text-blue-700">{formatMoney(bom.latestCostRun.unitCost)} / {bom.product.unit}</div><div className="mt-0.5 text-gray-500">{compactDate(bom.latestCostRun.createdAt)}</div></> : <span className="text-gray-500">暂无成本快照</span>}</div></div>{bom.latestCostRun && <div className="mt-2 text-xs text-gray-500">{bom.latestCostRun.processRouteName ? `路线 ${bom.latestCostRun.processRouteName}` : '未关联工艺路线'} · {bom.latestCostRun.lines?.filter((line) => line.lineType === 'PROCESS_OPERATION').length || 0} 道工序</div>}</div>
           ))}</div>
         )}
       </Panel>

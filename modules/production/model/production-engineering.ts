@@ -1,5 +1,6 @@
 import { defineResourceSearchCatalog, resourceAdvancedFields, resourceKeywordProfile } from '@/lib/resource-search'
 import type { ProcessRoute, ProcessRouteForm, ProcessStepForm, ProcessTemplate, ProcessTemplateForm } from '../contracts/production-engineering'
+import { calculateProcessCostPerThousand } from '@/lib/process-cost'
 
 export const processCategoryOptions = [
   ['SAWING', '锯切'], ['DRILLING', '钻孔'], ['TURNING', '车削'], ['MILLING', '铣削'], ['GRINDING', '磨削'],
@@ -23,13 +24,8 @@ export const emptyProcessStep = (): ProcessStepForm => ({
 export const emptyProcessRouteForm = (): ProcessRouteForm => ({ productId: '', name: '', isDefault: true, steps: [emptyProcessStep()] })
 
 export function processCostPerThousand(template: ProcessTemplate | ProcessStepForm) {
-  const batches = 1000 / Math.max(1, template.standardBatchQty)
-  const runHours = (1000 / Math.max(0.000001, template.yieldRate)) * template.cycleTimeSeconds / 3600
-  const setupHours = template.setupTimeMinutes / 60 * batches
-  const laborHours = (runHours + setupHours) * template.peopleCount
-  const machineHours = (runHours + setupHours) * template.machineCount
-  const cost = laborHours * template.laborRatePerHour + machineHours * template.machineRatePerHour + runHours * template.energyCostPerHour + batches * template.consumableCostPerBatch
-  return { laborHours, machineHours, cost }
+  const result = calculateProcessCostPerThousand(template)
+  return { laborHours: result.laborHours, machineHours: result.machineHours, cost: result.cost }
 }
 
 export function routeCostPerThousand(route: ProcessRoute) {

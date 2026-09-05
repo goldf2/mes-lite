@@ -335,13 +335,14 @@ export default function DailyProductionBomEntry({
       return <article key={report.id} className={`rounded-lg border px-3 py-3 text-sm ${report.status === 'REVERSED' ? 'border-red-100 bg-red-50/40' : 'border-gray-100 bg-gray-50'}`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="flex flex-wrap items-center gap-2"><span className="font-medium text-gray-900">{report.reportNo}</span><span className={`rounded px-2 py-0.5 text-xs font-medium ${status.className}`}>{status.label}</span><span className="text-gray-600">{report.bomName || '临时生产'} {report.bomVersion || ''}</span></div>
+            <div className="flex flex-wrap items-center gap-2"><span className="font-medium text-gray-900">{report.reportNo}</span><span className={`rounded px-2 py-0.5 text-xs font-medium ${status.className}`}>{status.label}</span><span className="text-gray-600">{report.bomName || '临时生产'} {report.bomVersion || ''}</span>{report.processRouteName && <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700">路线 {report.processRouteName}</span>}</div>
             <div className="mt-1 text-xs text-gray-500">生产日期 {new Date(report.reportDate).toLocaleDateString('zh-CN')} · 确认 {report.confirmedBy || '—'} / {dateTimeText(report.confirmedAt)}</div>
           </div>
           {report.status === 'CONFIRMED' && canReverse && <AppButton variant="danger" size="sm" onClick={() => { setReverseReason(''); setReversing(report) }}>冲销日报</AppButton>}
         </div>
         <div className="mt-2 text-emerald-700">产出 {reportOutputs.map((item) => `${item.materialCode} · ${numberText(item.actualQty)} ${item.unit}`).join('；')}</div>
         <div className="mt-1 text-xs leading-5 text-gray-600">投入 {report.consumptions.map((item) => `${item.materialCode} · ${numberText(item.actualQty)} ${item.unit}`).join('；') || '无'}{report.qualityInspection ? `；质检 ${report.qualityInspection.inspectionNo} · ${report.qualityInspection.status}` : '；直接可用'}</div>
+        {report.bomCostSnapshot && <div className="mt-1 text-xs text-blue-700">成本快照：{numberText(report.bomCostSnapshot.totalCost)} 元 / 批，单位 {numberText(report.bomCostSnapshot.unitCost)} 元；材料 {numberText(report.bomCostSnapshot.totalMaterialCost)} · 人工 {numberText(report.bomCostSnapshot.totalLaborCost)} · 机时 {numberText(report.bomCostSnapshot.totalMachineCost)}</div>}
         {report.note && <div className="mt-1 text-xs text-gray-500">备注：{report.note}</div>}
         {report.status === 'REVERSED' && <div className="mt-2 rounded bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">冲销：{report.reversedBy || '—'} / {dateTimeText(report.reversedAt)}；原因：{report.reverseReason || '—'}</div>}
       </article>

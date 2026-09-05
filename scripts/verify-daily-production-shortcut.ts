@@ -95,6 +95,23 @@ async function main() {
       where: { id: bom.id },
       data: { status: 'RELEASED', isActive: true, isDefault: true, releasedAt: new Date() },
     })
+    const workCenter = await prisma.workCenter.create({ data: { code: 'WC-DAILY', name: '日报验证工作中心' } })
+    const frozenRoute = await prisma.processRoute.create({
+      data: {
+        productId: product.id, materialId: finished.id, name: '日报冻结路线', isDefault: true,
+        steps: { create: [{ stepNo: 10, name: '锯切', templateCode: 'SAW-DAILY', workCenterId: workCenter.id }] },
+      },
+      include: { steps: true },
+    })
+    await prisma.bomCostRun.create({
+      data: {
+        productId: product.id, materialId: finished.id, bomId: bom.id, bomVersion: bom.version,
+        processRouteId: frozenRoute.id, processRouteName: frozenRoute.name, quantityBasis: 10,
+        totalMaterialCost: 100, totalLaborCost: 2, totalMachineCost: 3, totalDirectCost: 0,
+        totalCost: 105, unitCost: 10.5,
+        lines: { create: [{ lineType: 'PROCESS_OPERATION', sourceId: frozenRoute.steps[0].id, code: 'SAW-DAILY', name: '10. 锯切', quantity: 10, unit: '件', laborHours: 0.1, machineHours: 0.1, laborCost: 2, machineCost: 3, directCost: 0, totalCost: 5, note: '日报验证', sortOrder: 0 }] },
+      },
+    })
     const selectionMaterials = [{
       id: finished.id,
       code: finished.code,
@@ -214,6 +231,9 @@ async function main() {
     )
     assert.equal(report.status, 'CONFIRMED')
     assert.equal(report.bomId, bom.id)
+    assert.equal(report.processRouteId, frozenRoute.id, '生产日报必须冻结所选工艺路线')
+    assert.match(report.processRouteSnapshot || '', /WC-DAILY/, '生产日报必须冻结工作中心快照')
+    assert.match(report.bomCostSnapshot || '', /SAW-DAILY/, '生产日报必须冻结 BOM 成本快照')
     assert.equal(report.workers, '快捷生产日报')
     assert.equal(report.outputs.length, 2, '正式 BOM 快捷过账必须保存全部实际产出明细')
     const balances = await prisma.stockLocationBalance.findMany()

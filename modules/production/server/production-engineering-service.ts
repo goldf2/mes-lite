@@ -6,7 +6,7 @@ import type { ProcessRouteInput, ProcessStepInput, ProcessTemplateInput } from '
 const templateInclude = { materials: { select: { id: true, code: true, name: true } } } as const
 const routeInclude = {
   product: { select: { id: true, sku: true, name: true, materialId: true } },
-  steps: { where: { deletedAt: null }, include: { workCenter: { select: { id: true, code: true, name: true } } }, orderBy: { stepNo: 'asc' as const } },
+  steps: { where: { deletedAt: null }, include: { workCenter: { select: { id: true, code: true, name: true, laborRatePerHour: true, machineRatePerHour: true, energyCostPerHour: true } } }, orderBy: { stepNo: 'asc' as const } },
 } as const
 
 export class ProductionEngineeringNotFoundError extends Error {

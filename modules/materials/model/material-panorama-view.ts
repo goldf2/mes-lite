@@ -7,6 +7,7 @@ import type {
   ProcessStepSummary,
   WorkInstructionSummary,
 } from '../contracts/material-panorama'
+import { calculateProcessCostPerThousand } from '@/lib/process-cost'
 
 export const panoramaLayoutStorageKey = 'mes-lite.materialPanorama.layout.v1'
 
@@ -105,17 +106,20 @@ export function compactDate(value: string | null | undefined) {
   return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('zh-CN')
 }
 export function processCostPerThousand(item: Partial<ProcessStepSummary>) {
-  const yieldRate = Math.max(0.0001, Number(item.yieldRate || 1))
-  const batchQty = Math.max(1, Number(item.standardBatchQty || 1000))
-  const runtimeHours = (1000 / yieldRate) * Number(item.cycleTimeSeconds || 0) / 3600
-  const setupHours = Number(item.setupTimeMinutes || 0) / 60 * (1000 / batchQty)
-  const baseHours = runtimeHours + setupHours
-  const laborHours = baseHours * Number(item.peopleCount || 0)
-  const machineHours = baseHours * Number(item.machineCount || 0)
-  const cost = laborHours * Number(item.laborRatePerHour || 0)
-    + machineHours * (Number(item.machineRatePerHour || 0) + Number(item.energyCostPerHour || 0))
-    + Number(item.consumableCostPerBatch || 0) * (1000 / batchQty)
-  return { laborHours, machineHours, cost }
+  const result = calculateProcessCostPerThousand({
+    standardBatchQty: Number(item.standardBatchQty || 1000),
+    setupTimeMinutes: Number(item.setupTimeMinutes || 0),
+    cycleTimeSeconds: Number(item.cycleTimeSeconds || 0),
+    peopleCount: Number(item.peopleCount || 0),
+    laborRatePerHour: Number(item.laborRatePerHour || 0),
+    machineCount: Number(item.machineCount || 0),
+    machineRatePerHour: Number(item.machineRatePerHour || 0),
+    energyCostPerHour: Number(item.energyCostPerHour || 0),
+    consumableCostPerBatch: Number(item.consumableCostPerBatch || 0),
+    yieldRate: Number(item.yieldRate || 1),
+    workCenter: item.workCenter,
+  })
+  return { laborHours: result.laborHours, machineHours: result.machineHours, cost: result.cost }
 }
 export function statusText(status: string) { return statusLabels[status] || status }
 export function documentCategoryText(category: WorkInstructionSummary['category']) { return category.parent ? `${category.parent.name} / ${category.name}` : category.name }

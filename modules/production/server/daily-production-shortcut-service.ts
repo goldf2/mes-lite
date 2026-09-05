@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { createAuditLog, type AuditContext } from '@/lib/audit'
 import { prisma } from '@/lib/prisma'
+import { materialProductPrefix, resolveProductId } from '@/lib/material-product'
 import { assertInventoryLocationDataScope, stockDataScopeWhere, type EffectiveDataScope } from '@/modules/identity-access'
 import type { DailyProductionShortcutInput } from '../contracts/daily-production-shortcut-schema'
 import { LegacyDailyProductionError } from '../domain/legacy-daily-production-errors'
@@ -12,6 +13,10 @@ import { runLegacyDailyProductionOperation } from './legacy-daily-production-ope
 import { legacyDailyProductionReportInclude, listLegacyDailyProductionWorkspace } from './legacy-daily-production-query-service'
 import { confirmLegacyDailyProductionReportInTransaction } from './legacy-daily-production-status-service'
 import { buildProductionOrderActualLines } from './production-order-actual-lines'
+import {
+  serializeProductionOrderCostSnapshot,
+  serializeProductionOrderProcessRouteSnapshot,
+} from '../domain/production-order-execution-snapshots'
 
 async function loadReleasedBomSnapshot(tx: Prisma.TransactionClient, bomId?: string) {
   if (!bomId) return null
@@ -55,6 +60,25 @@ async function createShortcutDraft(tx: Prisma.TransactionClient, input: DailyPro
       select: { reportNo: true },
     }),
   ])
+  const productId = await resolveProductId(tx, `${materialProductPrefix}${primaryRequest.materialId}`, {
+    description: '由物料自动映射，用于生产日报成本追溯。',
+  })
+  const processRoute = await tx.processRoute.findFirst({
+    where: { productId },
+    orderBy: [{ isDefault: 'desc' }, { sortOrder: 'asc' }, { id: 'asc' }],
+    include: {
+      steps: {
+        where: { deletedAt: null },
+        orderBy: { stepNo: 'asc' },
+        include: { workCenter: { select: { id: true, code: true, name: true, laborRatePerHour: true, machineRatePerHour: true, energyCostPerHour: true } } },
+      },
+    },
+  })
+  const bomCostRun = bom ? await tx.bomCostRun.findFirst({
+    where: { productId, bomId: bom.id, processRouteId: processRoute?.id || null },
+    orderBy: { createdAt: 'desc' },
+    include: { lines: { orderBy: { sortOrder: 'asc' } } },
+  }) : null
   const lines = await buildProductionOrderActualLines(
     tx,
     {
@@ -85,6 +109,11 @@ async function createShortcutDraft(tx: Prisma.TransactionClient, input: DailyPro
       bomType: bom?.purpose || 'TEMPORARY',
       bomOutputQuantity: Number(lines.primaryOutput?.quantity || primaryOutput.actualQty),
       bomOutputUnit: lines.primaryOutput?.unit || primaryOutput.unit,
+      processRouteId: processRoute?.id || null,
+      processRouteName: processRoute?.name || null,
+      processRouteSnapshot: serializeProductionOrderProcessRouteSnapshot(processRoute),
+      bomCostRunId: bomCostRun?.id || null,
+      bomCostSnapshot: serializeProductionOrderCostSnapshot(bomCostRun),
       consumptions: {
         create: lines.inputs.map((line) => ({
           materialId: line.materialId,

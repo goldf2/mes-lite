@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { BomCostRuleError, calculateBomCostSnapshot, materialUnitCost } from '../modules/bom/domain/bom-cost'
+import { calculateProcessCostPerThousand } from '../lib/process-cost'
 
 const root = process.cwd()
 const read = (path: string) => readFileSync(join(root, path), 'utf8')
@@ -35,6 +36,25 @@ const material = {
 }
 assert.equal(materialUnitCost({ itemType: 'MATERIAL', quantity: 1, unit: 'm', material }), 8)
 assert.equal(materialUnitCost({ itemType: 'MATERIAL', quantity: 1, unit: 'kg', material }), 5)
+
+const workCenterDefaultRates = calculateProcessCostPerThousand({
+  standardBatchQty: 100, setupTimeMinutes: 6, cycleTimeSeconds: 10, peopleCount: 1,
+  laborRatePerHour: 0, machineCount: 1, machineRatePerHour: 0, energyCostPerHour: 0,
+  consumableCostPerBatch: 10, yieldRate: 1,
+  workCenter: { laborRatePerHour: 20, machineRatePerHour: 30, energyCostPerHour: 5 },
+})
+assert.ok(workCenterDefaultRates.laborCost > 0 && workCenterDefaultRates.machineCost > 0, '工作中心默认费率必须参与工序成本')
+const stepOverrideRates = calculateProcessCostPerThousand({
+  standardBatchQty: 100, setupTimeMinutes: 0, cycleTimeSeconds: 10, peopleCount: 1,
+  laborRatePerHour: 50, machineCount: 1, machineRatePerHour: 60, energyCostPerHour: 7,
+  consumableCostPerBatch: 0, yieldRate: 1,
+  workCenter: { laborRatePerHour: 20, machineRatePerHour: 30, energyCostPerHour: 5 },
+})
+assert.deepEqual(
+  [stepOverrideRates.laborRatePerHour, stepOverrideRates.machineRatePerHour, stepOverrideRates.energyCostPerHour],
+  [50, 60, 7],
+  '工序费率必须覆盖工作中心默认费率',
+)
 
 const snapshot = calculateBomCostSnapshot({
   productId: 'product-1', quantityBasis: 100, laborRatePerHour: 20, machineRatePerHour: 30, overheadCost: 50,
@@ -76,6 +96,47 @@ assert.equal(operationLine?.code, 'SAW-001')
 assert.equal(operationLine?.note, '支架加工路线 · 工作中心 WC-SAW 锯切中心')
 assert.equal(routeSnapshot.totalCost, operationLine?.totalCost)
 assert.ok(Number(operationLine?.laborCost) > 0 && Number(operationLine?.machineCost) > 0, '工序成本必须拆分人工和机时')
+
+const coveredRouteSnapshot = calculateBomCostSnapshot({
+  productId: 'product-1', quantityBasis: 100, laborRatePerHour: 20, machineRatePerHour: 30, overheadCost: 0,
+  outputQuantity: 1, productUnit: '件', processRouteName: '锯切路线',
+  items: [{
+    itemType: 'COST_OBJECT', quantity: 1, unit: '件',
+    costObject: {
+      id: 'sawing-cost-1', code: 'SAW-COST', name: '锯切成本', objectType: 'SAWING_COST',
+      costs: [{ materialCostPerUnit: 2, laborHoursPerUnit: 0.5, machineHoursPerUnit: 0.2, directCostPerUnit: 0 }],
+    },
+  }],
+  processSteps: [{
+    id: 'step-saw', stepNo: 10, name: '锯切', templateCode: 'SAW-001', standardBatchQty: 100,
+    setupTimeMinutes: 6, cycleTimeSeconds: 10, peopleCount: 1, laborRatePerHour: 20,
+    machineCount: 1, machineRatePerHour: 30, energyCostPerHour: 5, consumableCostPerBatch: 10,
+    yieldRate: 1, workCenter: { code: 'WC-SAW', name: '锯切中心' },
+  }],
+})
+const coveredOperation = coveredRouteSnapshot.lines.find((line) => line.sourceId === 'step-saw')
+assert.equal(coveredOperation?.totalCost, 0, '已由锯切成本对象覆盖的工序不得再次计入路线成本')
+assert.match(coveredOperation?.note || '', /未重复计入/, '重复成本防护必须留下可追溯说明')
+
+const similarNameRouteSnapshot = calculateBomCostSnapshot({
+  productId: 'product-1', quantityBasis: 100, laborRatePerHour: 20, machineRatePerHour: 30, overheadCost: 0,
+  outputQuantity: 1, productUnit: '件', processRouteName: '钻孔路线',
+  items: [{
+    itemType: 'COST_OBJECT', quantity: 1, unit: '件',
+    costObject: {
+      id: 'process-cost-1', code: 'PROCESS', name: '加工', objectType: 'PROCESS',
+      costs: [{ materialCostPerUnit: 0, laborHoursPerUnit: 0, machineHoursPerUnit: 0, directCostPerUnit: 0 }],
+    },
+  }],
+  processSteps: [{
+    id: 'step-drill', stepNo: 20, name: '钻孔加工', templateCode: 'DRILL-001', standardBatchQty: 100,
+    setupTimeMinutes: 0, cycleTimeSeconds: 10, peopleCount: 1, laborRatePerHour: 20,
+    machineCount: 1, machineRatePerHour: 30, energyCostPerHour: 5, consumableCostPerBatch: 0,
+    yieldRate: 1, workCenter: { code: 'WC-DRILL', name: '钻孔中心' },
+  }],
+})
+const similarNameOperation = similarNameRouteSnapshot.lines.find((line) => line.sourceId === 'step-drill')
+assert.ok(Number(similarNameOperation?.totalCost) > 0, '相似名称成本对象不得误覆盖不同工序')
 
 assert.throws(() => calculateBomCostSnapshot({
   productId: 'product-1', quantityBasis: 1, laborRatePerHour: 0, machineRatePerHour: 0, overheadCost: 0,

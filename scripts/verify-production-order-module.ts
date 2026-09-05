@@ -252,6 +252,29 @@ async function verifyDatabaseRules() {
       where: { id: bom.id },
       data: { status: 'RELEASED', isActive: true, isDefault: true, releasedAt: new Date() },
     })
+    const workCenter = await prisma.workCenter.create({ data: { code: `VERIFY-WC-${suffix}`, name: '验证锯切中心' } })
+    const route = await prisma.processRoute.create({
+      data: {
+        productId: product.id,
+        materialId: outputMaterial.id,
+        name: '验证冻结路线',
+        isDefault: true,
+        steps: { create: [{
+          stepNo: 10, name: '锯切', templateCode: 'SAW-VERIFY', workCenterId: workCenter.id,
+          standardBatchQty: 100, cycleTimeSeconds: 12, laborRatePerHour: 20, machineRatePerHour: 30,
+        }] },
+      },
+      include: { steps: true },
+    })
+    const costRun = await prisma.bomCostRun.create({
+      data: {
+        productId: product.id, materialId: outputMaterial.id, bomId: bom.id, bomVersion: bom.version,
+        processRouteId: route.id, processRouteName: route.name, quantityBasis: 100,
+        totalMaterialCost: 20, totalLaborCost: 4, totalMachineCost: 6, totalDirectCost: 0,
+        totalCost: 30, unitCost: 0.3,
+        lines: { create: [{ lineType: 'PROCESS_OPERATION', sourceId: route.steps[0].id, code: 'SAW-VERIFY', name: '10. 锯切', quantity: 100, unit: '件', laborHours: 0.2, machineHours: 0.2, laborCost: 4, machineCost: 6, directCost: 0, totalCost: 10, note: '验证快照', sortOrder: 0 }] },
+      },
+    })
 
     const created = await createProductionOrders(createProductionOrderSchema.parse({
       voucherNo: 'VERIFY-PO',
@@ -265,6 +288,9 @@ async function verifyDatabaseRules() {
     assert.equal(created.items[1].orderNo, 'WO-20260809-001-02', '后续生产订单必须使用组内行号')
     assert.ok(created.items.every((item) => item.groupNo === 'WO-20260809-001'), '多行生产订单必须共享组号')
     assert.ok(created.items.every((item) => item.bomSnapshot?.includes(inputMaterial.id)), '生产订单必须冻结 BOM 快照')
+    assert.ok(created.items.every((item) => item.processRouteId === route.id), '生产订单必须冻结所选工艺路线')
+    assert.ok(created.items.every((item) => item.processRouteSnapshot?.includes(workCenter.id)), '生产订单必须冻结工序与工作中心快照')
+    assert.ok(created.items.every((item) => item.bomCostRunId === costRun.id && item.bomCostSnapshot?.includes('SAW-VERIFY')), '生产订单必须冻结匹配 BOM 成本快照')
 
     const listed = await listProductionOrders({ statuses: ['DRAFT'], keyword: '验证 成品', page: 1, pageSize: 20 })
     assert.equal(listed.items.length, 2, '生产订单查询必须支持空格分隔关键词和状态过滤')
@@ -274,6 +300,7 @@ async function verifyDatabaseRules() {
     ])
     assert.equal(detail?.groupLines.length, 2, '生产订单详情必须装配同组订单行')
     assert.equal(detail?.currentStepId, detail?.routeSteps[0]?.id, '生产订单详情必须计算当前待报工工序')
+    assert.equal(detail?.processRouteSnapshot?.name, route.name, '生产订单详情必须优先读取冻结路线快照')
     assert.equal(options.find((item) => item.id === outputMaterial.id)?.boms[0]?.id, bom.id, '生产订单候选项必须按主产出物料归组启用 BOM')
     assert.deepEqual(options.find((item) => item.id === temporaryMaterial.id)?.boms, [], '无 BOM 物料也必须可作为临时生产目标')
 

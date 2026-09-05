@@ -671,7 +671,7 @@ BOM 成本计算快照。它是独立于派工、领料和库存的成本测算�
 | 字段 | 含义 |
 | --- | --- |
 | productId / bomId / bomVersion | 被计算产品、BOM 与版本快照 |
-| processRouteId / processRouteName | 本次采用的工艺路线及名称快照；路线可为空，表示只计算 BOM 投入 |
+| processRouteId / processRouteName / processRouteSnapshot | 本次采用的工艺路线、名称以及工序/工作中心参数快照；路线可为空，表示只计算 BOM 投入 |
 | quantityBasis | 计算数量基准，如 1 件或 1000 件 |
 | laborRatePerHour / machineRatePerHour | 本次人工、机时费率 |
 | overheadCost | 本次固定费用分摊，不写回 BOM |
@@ -701,9 +701,9 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 ### ProductionOrder / ProductionOrderActual（当前 Prisma 已实现）
 
-`ProductionOrder` 保存主产出目标、计划数量和创建时选定的 `bomId / bomName / bomVersion / bomSnapshot`。Prisma 字段 `bomSnapshot` 映射到数据库列 `productionBomSnapshot`，避免与曾部署后撤销的旧型材流程遗留同名列冲突。快照包含全部物料投入和全部产出，后续修改 BOM 不回算历史订单。
+`ProductionOrder` 保存主产出目标、计划数量和创建时选定的 `bomId / bomName / bomVersion / bomSnapshot`，并保存 `processRouteId / processRouteName / processRouteSnapshot`、`bomCostRunId / bomCostSnapshot`。Prisma 字段 `bomSnapshot`、路线和成本快照分别映射到 `productionBomSnapshot`、`productionProcessRouteSnapshot` 和 `productionBomCostSnapshot`，避免与曾部署后撤销的旧型材流程遗留同名列冲突。路线快照包含工序、工作中心和当时参数，成本快照包含成本运行及其明细；后续修改 BOM、路线、工序或费率不回算历史订单。
 
-`ProductionOrderActual` 是订单下可重复登记的班后生产实绩，状态为 `DRAFT → CONFIRMED → REVERSED`。`ProductionOrderActualEmployee` 保存员工引用及工号/姓名快照；`ProductionOrderActualEquipment` 保存实际设备及设备编码、名称、类型、型号、状态和所属工作中心快照；`ProductionOrderActualWorkInstruction` 保存当时作业文件的标题、版本、状态、类别、适用物料/工作中心、正文和附件清单快照；`ProductionOrderActualInput` 保存任意类别投入物料、来源库位、基准批量用量、损耗、计划/实际耗用、成本和成本层快照；`ProductionOrderActualOutput` 保存全部产出、去向库位、主产出标识、计划/实际数量及入库成本。
+`ProductionOrderActual` 是订单下可重复登记的班后生产实绩，状态为 `DRAFT → CONFIRMED → REVERSED`；它复制订单的路线和 BOM 成本快照，并保留 `bomCostRunId` 作为可追溯来源。`ProductionOrderActualEmployee` 保存员工引用及工号/姓名快照；`ProductionOrderActualEquipment` 保存实际设备及设备编码、名称、类型、型号、状态和所属工作中心快照；`ProductionOrderActualWorkInstruction` 保存当时作业文件的标题、版本、状态、类别、适用物料/工作中心、正文和附件清单快照；`ProductionOrderActualInput` 保存任意类别投入物料、来源库位、基准批量用量、损耗、计划/实际耗用、成本和成本层快照；`ProductionOrderActualOutput` 保存全部产出、去向库位、主产出标识、计划/实际数量及入库成本。
 
 实际设备候选只包含订单派工或默认工艺路线工作中心内、未归档且当前可用/运行中的设备；作业文件候选只包含未归档且已生效，并明确适用于订单主产出物料或未绑定物料的通用文档，不再通过文档工作中心关系过滤。保存草稿时，服务端按提交 ID 重新解析来源并写入完整快照，禁止前端自行提交显示字段。来源设备或文档后续更新、停用或归档不回算历史实绩。
 
@@ -711,7 +711,7 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 
 草稿保存时按冻结 BOM 中每条投入绑定的产出实际量分别计算投入，再按投入物料汇总，并校验来源库位可用量；旧快照缺少绑定字段时兼容回退到主产出。确认在单一事务内扣减所有投入、按库位可用批次先进先出分配、增加全部产出、建立投入父批次到产出子批次的谱系，并累计订单完成数量；当前全部投入成本归集到主产出，其他产出零成本入库。冲销要求本次产出尚未被后续业务消耗，并反向恢复库存、库位余额、成本层、投入批次余额和订单累计，同时将分配与谱系边标记为已冲销。
 
-`DailyProductionReport` 同时承担快捷生产/转换与历史记录兼容，其中 `bomType` 仅为兼容快照字段。`v0.1.438` 起 BOM 改为可选预设，`DailyProductionConsumption` 保存本次实际投入，新增 `DailyProductionOutput` 保存多项实际产出、主产出、库位、折算和成本事实；日报原有 `finishedMaterialId / outputQty / outputLocationId` 仅保留主产出兼容投影。无 BOM 或计划外明细必须填写说明。系统在一个事务中扣减全部投入、按库位可用批次 FIFO 写入关联 `DailyProductionConsumption` 和正式 `StockLog` 的 `InventoryLotTransaction`、逐项增加产出、把耗用成本归集到主产出并写审计。冲销不重跑当前 FIFO，而是按原批次事务精确恢复原库位可用余额；批次依据缺失或与正式耗用流水不一致时，整笔冲销回滚。全部产出可直接可用，也可分别建立待检批次与 `QualityInspection`。旧通用创建接口从 `v0.1.349` 起仍返回 `410`。需要订单、派工、设备、人员、作业文件和投入产出批次谱系时，继续使用 `ProductionOrderActual`。
+`DailyProductionReport` 同时承担快捷生产/转换与历史记录兼容，其中 `bomType` 仅为兼容快照字段；有 BOM 时还保存创建时匹配的 `processRouteSnapshot`、`bomCostRunId` 和 `bomCostSnapshot`。`v0.1.438` 起 BOM 改为可选预设，`DailyProductionConsumption` 保存本次实际投入，新增 `DailyProductionOutput` 保存多项实际产出、主产出、库位、折算和成本事实；日报原有 `finishedMaterialId / outputQty / outputLocationId` 仅保留主产出兼容投影。无 BOM 或计划外明细必须填写说明。系统在一个事务中扣减全部投入、按库位可用批次 FIFO 写入关联 `DailyProductionConsumption` 和正式 `StockLog` 的 `InventoryLotTransaction`、逐项增加产出、把耗用成本归集到主产出并写审计。冲销不重跑当前 FIFO，而是按原批次事务精确恢复原库位可用余额；批次依据缺失或与正式耗用流水不一致时，整笔冲销回滚。全部产出可直接可用，也可分别建立待检批次与 `QualityInspection`。旧通用创建接口从 `v0.1.349` 起仍返回 `410`。需要订单、派工、设备、人员、作业文件和投入产出批次谱系时，继续使用 `ProductionOrderActual`。
 
 `PickItem`、`WorkReport` 和 `StockIn` 是更早的生产订单执行记录。当前页面不再调用 `/api/orders/:id/pick`、`reports` 或 `stock-in`，正式过账由 `ProductionOrderActual` 一次表达实际投入和全部产出；三条 URL 仅允许处理 `materialId=null` 的历史工单，物料工单返回 `410`。历史兼容规则仍归 `modules/production`。
 
