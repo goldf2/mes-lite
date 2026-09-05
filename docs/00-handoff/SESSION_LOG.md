@@ -1,5 +1,18 @@
 # 会话日志
 
+## 2026-09-06 — v0.1.463 生产验收完成与 v0.1.464 收口
+
+事实：
+- 精确 SHA `72beb984f58c46f98589568ff167eca94d290b2a` 的候选 CI `33991640324` 与 main CI `33992378118` 均 success。
+- Con01 Coolify 部署 `q7vtzftk9wah6r6bu4tv2nga` finished；新容器加载 `MES_LITE_PRE_MIGRATION_BACKUP_ENABLED=true`，`StartPeriod=2m0s`，最终 healthy，旧容器已退出。
+- 启动日志显示 219 条附件记录/664 个文件备份成功、数据库 quick check 为 ok、96 条迁移无待应用和 Next.js Ready。
+- `/opt/mes-lite/backups/mes-lite-backup-2026-09-05T21-26-19-049Z-c67455c7.tar.gz` 及 `.sha256` 已保留；服务器 `sha256sum -c` 返回 OK。公网 `/api/health` 与 `/api/health/ready` 返回 200，ready 仅保留既有 Collabora warn。
+- `/opt/mes-lite/data`、`uploads`、`backups` 到容器的映射保持不变；未访问 AL02。
+
+收口：
+- v0.1.464 仅用于固化上述生产证据与交接状态，不改变业务代码或数据库。
+- 下一步回到制造成本闭环：生产订单显式成本运行选择、多路线执行和实际工序成本完善。
+
 ## 2026-09-06 — 备份启动窗口与 Con01 滚动更新回滚
 
 目标：让迁移前备份开关真正进入 Con01 运行容器，同时保持新迁移的可回滚边界。

@@ -1,10 +1,16 @@
 # 下一步任务
 
-## P1. 修复备份启动窗口并完成 v0.1.463 发布
+## P1. 收口 v0.1.464 生产证据版本
 
-- 目标：让启用迁移前备份的 Con01 新容器有足够 readiness 启动窗口，避免健康检查误回滚。
-- 验收：`verify:runtime-operations`、TypeScript、生产构建和候选/主线 CI 通过；Con01 新容器加载 `MES_LITE_PRE_MIGRATION_BACKUP_ENABLED=true`，生成带 SHA-256 的新鲜备份，健康通过后旧容器退出，公开 `/api/health` 与 `/api/health/ready` 返回 200。
-- 回滚边界：若新容器仍不健康，保留 Coolify 自动回滚结果；不删除旧镜像、数据库或持久卷。
+- 目标：把 v0.1.463 已完成的候选、main、Coolify 和生产 readiness 证据固化到远程交接文档。
+- 验收：v0.1.464 候选/主线 CI 通过；不改业务数据；部署后只读核对版本、备份、健康检查和三条持久卷。
+- 回滚边界：本版本无数据库或业务代码变更；若文档版本部署失败，保留 v0.1.463 healthy 容器，不删除旧镜像、数据库或持久卷。
+
+## 已完成：v0.1.463 生产滚动更新
+
+- 精确 SHA `72beb984f58c46f98589568ff167eca94d290b2a`；候选 CI `33991640324` 和 main CI `33992378118` 成功。
+- Coolify 部署 `q7vtzftk9wah6r6bu4tv2nga` finished；新容器 healthy，旧容器已退出，`SOURCE_COMMIT` 与镜像均匹配。
+- 迁移前备份归档已生成并通过 SHA-256 校验；`/api/health` 和 `/api/health/ready` 返回 200，迁移 96，持久卷映射未变。
 
 ## 已完成：生产工艺与成本快照 v0.1.462
 
