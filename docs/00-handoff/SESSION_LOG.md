@@ -11,7 +11,9 @@
 
 验证：`verify:production-order-module`、`verify:bom-lifecycle`、`verify:production-actual-context`、`verify:bom-process-cost-link`、`verify:module-boundaries`、`npx tsc --noEmit` 已通过。
 
-遗留：版本尚未提交、候选 CI/main CI/Con01 尚未执行；当前仅访问 Con01 相关发布资料，不访问 AL02。下一步运行完整发布门禁并推进 v0.1.466。
+发布：提交 `d8305d0d8c8b1a51176afcf8b214c235bd1d4a86` 已推送候选和 main；候选 CI `33999128022`、main CI `33999726162` success。Con01 队列 `bnqbb12qoyhvvtkm8xbcaqjx` finished，最终容器 healthy，公网 health/readiness 200，96 条迁移、备份 SHA-256 和三条持久卷已核对。
+
+下一步：继续多路线生产执行与实际工序成本完善；不访问 AL02。
 
 ## 2026-09-06 — v0.1.464 最终活跃容器验收与 v0.1.465 收口
 
@@ -238,3 +240,23 @@
 
 下一步：
 - 按 `NEXT_ACTIONS.md` 完成 v0.1.454 发布门禁。
+## 2026-09-06 CST：v0.1.467 成本运行与历史全景兼容（发布前）
+
+目标：把 BOM/工艺路线/工作中心成本依据延伸到生产日报，并避免成本对象误匹配、复合锯切漏算和旧成本运行在物料全景中被错误归属。
+
+完成：
+
+- 生产日报新增已保存成本运行选择，服务端校验产品、物料、BOM 和路线归属；明确选择且成本运行没有路线时不回退当前默认路线；带路线但缺少冻结工艺快照的旧运行拒绝用于新生产，避免与当前路线混合。
+- 生产订单沿用同一物料归属校验；日报和订单均冻结所选 BOM 成本与工艺路线快照。
+- BOM 成本对象仅允许编码对编码或名称对名称的精确匹配；独立锯切成本对象不覆盖“锯切+钻孔”等复合工序。
+- 物料全景对旧 `bomId = null` 成本运行仅做唯一匹配，歧义记录保留待归属计数并提示人工处理。
+- SOP、发布说明和模块边界文档已同步到 v0.1.467；新增模块文件计数由 558 修正为 559。
+
+验证：
+
+- `verify:daily-production-shortcut`、`verify:production-order-module`、`verify:bom-process-cost-link`、`verify:bom-cost-module`、`verify:material-bom-modules`、`verify:cost-domain-services`、`verify:module-boundaries`、`verify:material-server`、`verify:development-docs`、`verify:release-notes`、`verify:sop`、`verify:release-tree`、TypeScript 和差异格式已通过。
+
+遗留：
+
+- v0.1.467 尚未提交、候选 CI、推送 main 或部署 Con01；完成这些门禁后再补充精确 SHA、容器、备份和公网 readiness 证据。
+- 多路线生产执行的实际工时、机时和例外成本登记仍是下一阶段，不在本版本伪造为已完成。

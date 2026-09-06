@@ -52,7 +52,7 @@ function sectionSummary(id: PanoramaModuleId, data: PanoramaData, relatedRoutes:
     summary: '物料档案、完整库存余额与库位核算',
     documents: `${data.locationBalances.length} 个库位 · ${data.workInstructions.length} 篇产品文档 · ${attachmentCount} 个附件`,
     bomProcess: `${bomCount} 项 BOM 关系 · ${data.processTemplates.length} 个工艺 · ${relatedRoutes.length} 条路线`,
-    costing: `${data.costObjects.length} 个成本对象 · ${costSnapshotCount} 个 BOM 成本快照`,
+    costing: `${data.costObjects.length} 个成本对象 · ${costSnapshotCount} 个 BOM 成本快照${data.unresolvedLegacyCostRunCount ? ` · ${data.unresolvedLegacyCostRunCount} 条历史成本待归属` : ''}`,
     orders: `${data.targetOrders.length} 个相关工单 · ${data.consumingPicks.length} 条领料记录`,
     records: `${recordCount} 条近期来料、库存流水和成本层记录`,
     notes: `${data.modelNotes.length} 条建模说明`,

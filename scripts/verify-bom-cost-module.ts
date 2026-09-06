@@ -138,6 +138,92 @@ const similarNameRouteSnapshot = calculateBomCostSnapshot({
 const similarNameOperation = similarNameRouteSnapshot.lines.find((line) => line.sourceId === 'step-drill')
 assert.ok(Number(similarNameOperation?.totalCost) > 0, '相似名称成本对象不得误覆盖不同工序')
 
+const crossFieldRouteSnapshot = calculateBomCostSnapshot({
+  productId: 'product-1', quantityBasis: 100, laborRatePerHour: 20, machineRatePerHour: 30, overheadCost: 0,
+  outputQuantity: 1, productUnit: '件', processRouteName: '钻孔路线',
+  items: [{
+    itemType: 'COST_OBJECT', quantity: 1, unit: '件',
+    costObject: {
+      id: 'cross-field-cost-1', code: 'COST-DRILL', name: 'DRILL-001', objectType: 'PROCESS',
+      costs: [{ materialCostPerUnit: 0, laborHoursPerUnit: 0, machineHoursPerUnit: 0, directCostPerUnit: 0 }],
+    },
+  }],
+  processSteps: [{
+    id: 'step-cross-field', stepNo: 20, name: '钻孔', templateCode: 'DRILL-001', standardBatchQty: 100,
+    setupTimeMinutes: 0, cycleTimeSeconds: 10, peopleCount: 1, laborRatePerHour: 20,
+    machineCount: 1, machineRatePerHour: 30, energyCostPerHour: 5, consumableCostPerBatch: 0,
+    yieldRate: 1, workCenter: { code: 'WC-DRILL', name: '钻孔中心' },
+  }],
+})
+const crossFieldOperation = crossFieldRouteSnapshot.lines.find((line) => line.sourceId === 'step-cross-field')
+assert.ok(Number(crossFieldOperation?.totalCost) > 0, '成本对象编码与名称不能跨字段误覆盖工序')
+
+const exactCodeRouteSnapshot = calculateBomCostSnapshot({
+  productId: 'product-1', quantityBasis: 100, laborRatePerHour: 20, machineRatePerHour: 30, overheadCost: 0,
+  outputQuantity: 1, productUnit: '件', processRouteName: '钻孔路线',
+  items: [{
+    itemType: 'COST_OBJECT', quantity: 1, unit: '件',
+    costObject: {
+      id: 'exact-code-cost-1', code: 'DRILL-001', name: '钻孔加工成本', objectType: 'PROCESS',
+      costs: [{ materialCostPerUnit: 0, laborHoursPerUnit: 0, machineHoursPerUnit: 0, directCostPerUnit: 0 }],
+    },
+  }],
+  processSteps: [{
+    id: 'step-exact-code', stepNo: 20, name: '钻孔', templateCode: 'DRILL-001', standardBatchQty: 100,
+    setupTimeMinutes: 0, cycleTimeSeconds: 10, peopleCount: 1, laborRatePerHour: 20,
+    machineCount: 1, machineRatePerHour: 30, energyCostPerHour: 5, consumableCostPerBatch: 0,
+    yieldRate: 1, workCenter: { code: 'WC-DRILL', name: '钻孔中心' },
+  }],
+})
+assert.equal(
+  exactCodeRouteSnapshot.lines.find((line) => line.sourceId === 'step-exact-code')?.totalCost,
+  0,
+  '工序模板编码与成本对象编码完全一致时应覆盖工序成本',
+)
+
+const exactNameRouteSnapshot = calculateBomCostSnapshot({
+  productId: 'product-1', quantityBasis: 100, laborRatePerHour: 20, machineRatePerHour: 30, overheadCost: 0,
+  outputQuantity: 1, productUnit: '件', processRouteName: '钻孔路线',
+  items: [{
+    itemType: 'COST_OBJECT', quantity: 1, unit: '件',
+    costObject: {
+      id: 'exact-name-cost-1', code: 'PROCESS-DRILL', name: '钻孔', objectType: 'PROCESS',
+      costs: [{ materialCostPerUnit: 0, laborHoursPerUnit: 0, machineHoursPerUnit: 0, directCostPerUnit: 0 }],
+    },
+  }],
+  processSteps: [{
+    id: 'step-exact-name', stepNo: 20, name: '钻孔', templateCode: 'DRILL-002', standardBatchQty: 100,
+    setupTimeMinutes: 0, cycleTimeSeconds: 10, peopleCount: 1, laborRatePerHour: 20,
+    machineCount: 1, machineRatePerHour: 30, energyCostPerHour: 5, consumableCostPerBatch: 0,
+    yieldRate: 1, workCenter: { code: 'WC-DRILL', name: '钻孔中心' },
+  }],
+})
+assert.equal(
+  exactNameRouteSnapshot.lines.find((line) => line.sourceId === 'step-exact-name')?.totalCost,
+  0,
+  '工序名称与成本对象名称完全一致时应覆盖工序成本',
+)
+
+const compoundSawingRouteSnapshot = calculateBomCostSnapshot({
+  productId: 'product-1', quantityBasis: 100, laborRatePerHour: 20, machineRatePerHour: 30, overheadCost: 0,
+  outputQuantity: 1, productUnit: '件', processRouteName: '复合加工路线',
+  items: [{
+    itemType: 'COST_OBJECT', quantity: 1, unit: '件',
+    costObject: {
+      id: 'sawing-cost-compound-1', code: 'SAW-COST', name: '锯切成本', objectType: 'SAWING_COST',
+      costs: [{ materialCostPerUnit: 2, laborHoursPerUnit: 0.5, machineHoursPerUnit: 0.2, directCostPerUnit: 0 }],
+    },
+  }],
+  processSteps: [{
+    id: 'step-compound-saw', stepNo: 10, name: '锯切+钻孔', templateCode: 'SAW-DRILL-001', standardBatchQty: 100,
+    setupTimeMinutes: 6, cycleTimeSeconds: 10, peopleCount: 1, laborRatePerHour: 20,
+    machineCount: 1, machineRatePerHour: 30, energyCostPerHour: 5, consumableCostPerBatch: 10,
+    yieldRate: 1, workCenter: { code: 'WC-SAW-DRILL', name: '复合加工中心' },
+  }],
+})
+const compoundSawingOperation = compoundSawingRouteSnapshot.lines.find((line) => line.sourceId === 'step-compound-saw')
+assert.ok(Number(compoundSawingOperation?.totalCost) > 0, '锯切成本对象不得覆盖包含钻孔的复合工序')
+
 assert.throws(() => calculateBomCostSnapshot({
   productId: 'product-1', quantityBasis: 1, laborRatePerHour: 0, machineRatePerHour: 0, overheadCost: 0,
   outputQuantity: 1,

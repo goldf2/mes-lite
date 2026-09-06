@@ -1,6 +1,6 @@
 {
-  "version": "0.1.466",
+  "version": "0.1.467",
   "impact": "updated",
-  "workflowIds": ["09-production-order-create"],
-  "summary": "生产订单创建新增已保存 BOM 成本运行的显式选择与校验，并继续冻结成本快照；无数据库迁移、库存数据改写或权限变化，仅在生产订单创建步骤增加可选成本运行字段。"
+  "workflowIds": ["04-material-list", "09-production-order-create", "184-daily-production-shortcut"],
+  "summary": "生产日报可明确选择已保存 BOM 成本运行并冻结对应工艺路线与成本快照；缺少冻结工艺快照的旧运行不直接用于新生产；物料全景安全兼容无 BOM 编号的历史成本运行，仅在单一可确定 BOM 时展示并提示歧义记录；BOM 成本对象改为精确编码/名称匹配并避免复合锯切重复覆盖。无数据库迁移、库存数据改写或权限变化。"
 }

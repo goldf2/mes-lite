@@ -7,6 +7,7 @@ import type {
 export type {
   DailyProductionBomItem,
   DailyProductionBomOption,
+  DailyProductionCostRunOption,
   DailyProductionMaterialOption,
   DailyProductionReportSummary,
 } from '../contracts/daily-production-shortcut'

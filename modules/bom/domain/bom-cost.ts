@@ -58,23 +58,40 @@ interface BomCostProcessStep {
   workCenter?: { code: string; name: string; laborRatePerHour?: number | null; machineRatePerHour?: number | null; energyCostPerHour?: number | null } | null
 }
 
-function operationKey(value: string | null | undefined) {
+function operationCodeKey(value: string | null | undefined) {
   return String(value || '').trim().toLocaleLowerCase('zh-CN').replace(/[\s_\-\/]+/g, '')
 }
 
+function operationNameKey(value: string | null | undefined) {
+  return String(value || '').normalize('NFKC').trim().toLocaleLowerCase('zh-CN').replace(/\s+/g, ' ')
+}
+
+function isStandaloneSawingStep(step: BomCostProcessStep) {
+  // A dedicated sawing cost object already includes the material and labour
+  // result. Only cover an explicitly named, standalone sawing step. Do not
+  // let a compound step such as “锯切+钻孔” lose its drilling cost.
+  const name = operationNameKey(step.name)
+  return name === '锯切' || name === 'saw' || name === 'sawing'
+}
+
 function processStepCoveredByBomCost(step: BomCostProcessStep, items: BomCostItem[]) {
-  const stepKeys = [step.templateCode, step.name].map(operationKey).filter((value) => value.length >= 2)
-  if (stepKeys.length === 0) return false
+  const stepCode = operationCodeKey(step.templateCode)
+  const stepName = operationNameKey(step.name)
+  if (stepCode.length < 2 && stepName.length < 2) return false
   return items.some((item) => {
-    const descriptor = operationKey(item.costObject?.objectType || item.itemType)
-    const objectKeys = [item.costObject?.code, item.costObject?.name].map(operationKey).filter((value) => value.length >= 2)
+    const descriptor = operationCodeKey(item.costObject?.objectType || item.itemType)
+    const objectCode = operationCodeKey(item.costObject?.code)
+    const objectName = operationNameKey(item.costObject?.name)
     // SAWING_COST/锯切成本对象 already contains the sawing material and labour
     // result from the dedicated calculator. Do not add the same route operation.
-    if ((descriptor === 'sawingcost' || descriptor === '锯切成本') && stepKeys.some((key) => key.includes('saw') || key.includes('锯'))) return true
-    // Legacy cost objects have no explicit route-step relation. Only exact
-    // code/name matches are safe; substring matches can silently suppress a
-    // different operation such as “钻孔加工” when the object is “加工”.
-    return stepKeys.some((stepKey) => objectKeys.some((objectKey) => stepKey === objectKey))
+    if ((descriptor === 'sawingcost' || descriptor === '锯切成本') && isStandaloneSawingStep(step)) return true
+    // Legacy cost objects have no explicit route-step relation. Match only
+    // like-for-like identifiers: a template code can match a cost-object
+    // code, or an operation name can match a cost-object name. Never compare
+    // a code with a name, and never use substring matching.
+    const codeMatch = stepCode.length >= 2 && objectCode.length >= 2 && stepCode === objectCode
+    const nameMatch = stepName.length >= 2 && objectName.length >= 2 && stepName === objectName
+    return codeMatch || nameMatch
   })
 }
 

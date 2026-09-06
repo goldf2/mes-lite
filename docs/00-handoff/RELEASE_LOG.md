@@ -1,12 +1,21 @@
 # 发布记录
 
+## REL-20260906-06：MES-lite v0.1.467（发布前）
+
+- 状态：本地实现和定向门禁通过；候选 CI、main 和 Con01 待完成。
+- 目标：生产日报明确选择并冻结 BOM 成本运行；BOM 成本对象精确匹配并防止复合锯切重复覆盖；物料全景安全兼容唯一可归属的历史成本运行。
+- 兼容：无数据库迁移、库存数据改写或权限变化；历史歧义成本运行只提示待归属，不自动改写；未选择成本运行时保留旧的最新匹配回退。
+- 本地证据：日报、生产订单、BOM-工艺路线-工作中心成本、BOM 成本规则、物料全景、模块边界、开发文档、SOP、发布树、TypeScript 和差异格式检查已通过。
+- 下一步：在 `ci/0.1.467` 形成精确提交并通过 CI 后推送同一 SHA 到 `main`，只在 Con01 部署并核对备份、容器健康、迁移和公网 readiness；不访问 AL02。
+
 ## REL-20260906-05：MES-lite v0.1.466
 
-- 状态：本地实现与定向验证通过；候选 CI、main 推进和 Con01 生产验收待完成。
+- 状态：已完成候选、main 和 Con01 生产验收。
 - 目标：生产订单在选定已发布 BOM 后可以明确选择已保存成本运行；服务端再次校验产品、BOM 和工艺路线归属，订单冻结所选成本与路线快照。
 - 兼容：未选择成本运行时保留最新匹配运行回退；无 BOM 临时生产不变；无数据库迁移和数据改写。
 - 本地证据：`verify:production-order-module`、`verify:bom-lifecycle`、`verify:production-actual-context`、`verify:bom-process-cost-link`、`verify:module-boundaries`、TypeScript 已通过。
-- 下一步：创建 `ci/0.1.466` 候选并等待精确 SHA CI，通过后推送 `main`，再在 Con01 核对版本、备份、健康和候选接口。
+- 证据：候选 CI `33999128022`、main CI `33999726162`；Con01 队列 `bnqbb12qoyhvvtkm8xbcaqjx` 于 00:09:08 finished，最终容器 healthy，备份 `mes-lite-backup-2026-09-06T00-04-48-240Z-7ee4b427.tar.gz` SHA-256 校验 OK，公网 health/readiness 200，迁移 96，持久卷未变。
+- 下一步：继续多路线生产执行与实际工序成本完善，不访问 AL02。
 
 ## REL-20260906-04：MES-lite v0.1.465
 

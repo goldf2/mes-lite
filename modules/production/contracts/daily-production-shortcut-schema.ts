@@ -3,6 +3,7 @@ import { z } from 'zod'
 export const dailyProductionShortcutSchema = z.object({
   reportDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '生产日期格式错误'),
   bomId: z.string().trim().min(1).optional(),
+  bomCostRunId: z.string().trim().min(1, '请选择成本运行').optional(),
   outputDisposition: z.enum(['DIRECT_AVAILABLE', 'QUALITY_INSPECTION']).default('DIRECT_AVAILABLE'),
   note: z.string().trim().max(500).optional(),
   consumptions: z.array(z.object({

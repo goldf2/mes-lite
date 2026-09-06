@@ -111,6 +111,20 @@ export async function listLegacyDailyProductionWorkspace(input: {
               select: {
                 id: true, name: true, version: true, isDefault: true, isActive: true,
                 outputQuantity: true, outputUnit: true,
+                costRuns: {
+                  orderBy: { createdAt: 'desc' },
+                  take: 50,
+                  select: {
+                    id: true,
+                    processRouteId: true,
+                    processRouteName: true,
+                    processRouteSnapshot: true,
+                    unitCost: true,
+                    totalCost: true,
+                    quantityBasis: true,
+                    createdAt: true,
+                  },
+                },
                 outputs: {
                   orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
                   select: {
@@ -164,10 +178,17 @@ export async function listLegacyDailyProductionWorkspace(input: {
     const product = productByMaterialId.get(material.id)
     const image = primaryImageByMaterial.get(material.id)
     const compatibleBoms = product?.boms || []
+    const safeBoms = compatibleBoms.map((bom) => ({
+      ...bom,
+      costRuns: bom.costRuns.map(({ processRouteSnapshot, ...run }) => ({
+        ...run,
+        hasProcessRouteSnapshot: typeof processRouteSnapshot === 'string' && processRouteSnapshot.trim().length > 0,
+      })),
+    }))
     return {
       ...material,
-      bom: compatibleBoms[0] || null,
-      boms: compatibleBoms,
+      bom: safeBoms[0] || null,
+      boms: safeBoms,
       primaryImage: image ? withMaterialImageUrls(image) : null,
     }
   })

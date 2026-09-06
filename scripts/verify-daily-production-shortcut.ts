@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { serializeProcessRouteSnapshot } from '../lib/process-route-snapshot'
 
 const root = process.cwd()
 const verifyRoot = mkdtempSync(join(tmpdir(), 'ml-db-'))
@@ -53,6 +54,8 @@ async function main() {
     assert.match(page, /已有投入物料/, '生产日报必须保留投入物料辅助选择')
     assert.match(page, /dailyProductionBomCandidates/, '生产日报必须按产出、投入或两者交集反查正式 BOM')
     assert.match(page, /生产日报流水/, '快捷生产页面必须展示不可覆盖的日报流水')
+    assert.match(page, /hasProcessRouteSnapshot/, '生产日报候选成本运行必须返回冻结工艺快照状态')
+    assert.match(page, /缺少冻结工艺.*重新计算/, '生产日报不得自动使用缺少冻结工艺快照的历史成本运行')
     assert.match(page, /冲销日报/, '已确认日报必须提供受控冲销入口')
     assert.match(page, /reverseDailyProductionShortcut/, '日报冲销必须通过领域 client 调用接口')
     assert.match(client, /daily-production-reports\/\$\{encodeURIComponent\(reportId\)\}\/reverse/, '领域 client 必须调用日报冲销 API')
@@ -101,15 +104,38 @@ async function main() {
         productId: product.id, materialId: finished.id, name: '日报冻结路线', isDefault: true,
         steps: { create: [{ stepNo: 10, name: '锯切', templateCode: 'SAW-DAILY', workCenterId: workCenter.id }] },
       },
-      include: { steps: true },
+      include: { steps: { include: { workCenter: true } } },
     })
-    await prisma.bomCostRun.create({
+    const oldCostRun = await prisma.bomCostRun.create({
       data: {
         productId: product.id, materialId: finished.id, bomId: bom.id, bomVersion: bom.version,
         processRouteId: frozenRoute.id, processRouteName: frozenRoute.name, quantityBasis: 10,
+        processRouteSnapshot: serializeProcessRouteSnapshot(frozenRoute),
         totalMaterialCost: 100, totalLaborCost: 2, totalMachineCost: 3, totalDirectCost: 0,
         totalCost: 105, unitCost: 10.5,
         lines: { create: [{ lineType: 'PROCESS_OPERATION', sourceId: frozenRoute.steps[0].id, code: 'SAW-DAILY', name: '10. 锯切', quantity: 10, unit: '件', laborHours: 0.1, machineHours: 0.1, laborCost: 2, machineCost: 3, directCost: 0, totalCost: 5, note: '日报验证', sortOrder: 0 }] },
+      },
+    })
+    const alternateWorkCenter = await prisma.workCenter.create({ data: { code: 'WC-DAILY-ALT', name: '日报替代路线工作中心' } })
+    await prisma.processStep.update({
+      where: { id: frozenRoute.steps[0].id },
+      data: { name: '改后锯切', workCenterId: alternateWorkCenter.id },
+    })
+    const alternateRoute = await prisma.processRoute.create({
+      data: {
+        productId: product.id, materialId: finished.id, name: '日报替代路线', sortOrder: 20,
+        steps: { create: [{ stepNo: 10, name: '钻孔', templateCode: 'DRILL-DAILY', workCenterId: alternateWorkCenter.id }] },
+      },
+    })
+    await prisma.processRoute.update({ where: { id: frozenRoute.id }, data: { isDefault: false } })
+    await prisma.processRoute.update({ where: { id: alternateRoute.id }, data: { isDefault: true } })
+    const alternateCostRun = await prisma.bomCostRun.create({
+      data: {
+        productId: product.id, materialId: finished.id, bomId: bom.id, bomVersion: bom.version,
+        processRouteId: alternateRoute.id, processRouteName: alternateRoute.name, quantityBasis: 10,
+        totalMaterialCost: 120, totalLaborCost: 4, totalMachineCost: 6, totalDirectCost: 0,
+        totalCost: 130, unitCost: 13,
+        lines: { create: [{ lineType: 'PROCESS_OPERATION', sourceId: 'alternate-step', code: 'DRILL-DAILY', name: '10. 钻孔', quantity: 10, unit: '件', laborHours: 0.2, machineHours: 0.2, laborCost: 4, machineCost: 6, directCost: 0, totalCost: 10, note: '日报替代路线验证', sortOrder: 0 }] },
       },
     })
     const selectionMaterials = [{
@@ -127,6 +153,10 @@ async function main() {
         isActive: true,
         outputQuantity: bom.outputQuantity,
         outputUnit: bom.outputUnit,
+        costRuns: [
+          { id: alternateCostRun.id, processRouteId: alternateRoute.id, processRouteName: alternateRoute.name, hasProcessRouteSnapshot: false, unitCost: 13, totalCost: 130, quantityBasis: 10, createdAt: alternateCostRun.createdAt.toISOString() },
+          { id: oldCostRun.id, processRouteId: frozenRoute.id, processRouteName: frozenRoute.name, hasProcessRouteSnapshot: true, unitCost: 10.5, totalCost: 105, quantityBasis: 10, createdAt: oldCostRun.createdAt.toISOString() },
+        ],
         outputs: [
           { id: `${bom.id}-out-main`, materialId: finished.id, quantity: 10, unit: '件', isPrimary: true, material: { id: finished.id, code: finished.code, name: finished.name, stockUnit: finished.stockUnit, unit: finished.unit } },
           { id: `${bom.id}-out-by`, materialId: byproduct.id, quantity: 1, unit: 'kg', isPrimary: false, material: { id: byproduct.id, code: byproduct.code, name: byproduct.name, stockUnit: byproduct.stockUnit, unit: byproduct.unit } },
@@ -189,6 +219,9 @@ async function main() {
       locationId: inputLocation.id,
     }))
     const unrestrictedInventoryWorkspace = await listDailyProductionShortcutWorkspace(unrestrictedDataScope)
+    const workspaceBom = unrestrictedInventoryWorkspace.materials.find((material) => material.id === finished.id)?.boms.find((candidate) => candidate.id === bom.id)
+    assert.equal(workspaceBom?.costRuns.find((run) => run.id === oldCostRun.id)?.hasProcessRouteSnapshot, true, '生产日报候选项必须标记带冻结工艺快照的成本运行')
+    assert.equal(workspaceBom?.costRuns.find((run) => run.id === alternateCostRun.id)?.hasProcessRouteSnapshot, false, '生产日报候选项必须标记缺少冻结工艺快照的历史成本运行')
     const unrestrictedRawInventory = unrestrictedInventoryWorkspace.materials.find((material) => material.id === raw.id)?.inventory
     assert.equal(unrestrictedRawInventory?.availableQty, 20, '生产日报必须返回物料总可用库存作为录入参考')
     assert.deepEqual(
@@ -209,6 +242,7 @@ async function main() {
     const commonInput = {
       reportDate: '2026-08-22',
       bomId: bom.id,
+      bomCostRunId: oldCostRun.id,
       outputDisposition: 'DIRECT_AVAILABLE' as const,
       note: '快捷日报验证',
       consumptions: [{
@@ -231,8 +265,10 @@ async function main() {
     )
     assert.equal(report.status, 'CONFIRMED')
     assert.equal(report.bomId, bom.id)
+    assert.equal(report.bomCostRunId, oldCostRun.id, '生产日报必须保存用户显式选择的成本运行')
     assert.equal(report.processRouteId, frozenRoute.id, '生产日报必须冻结所选工艺路线')
-    assert.match(report.processRouteSnapshot || '', /WC-DAILY/, '生产日报必须冻结工作中心快照')
+    assert.match(report.processRouteSnapshot || '', /"code":"WC-DAILY"/, '生产日报必须冻结所选成本运行的工作中心快照')
+    assert.doesNotMatch(report.processRouteSnapshot || '', /WC-DAILY-ALT/, '生产日报不得把当前已修改路线混入旧成本运行快照')
     assert.match(report.bomCostSnapshot || '', /SAW-DAILY/, '生产日报必须冻结 BOM 成本快照')
     assert.equal(report.workers, '快捷生产日报')
     assert.equal(report.outputs.length, 2, '正式 BOM 快捷过账必须保存全部实际产出明细')

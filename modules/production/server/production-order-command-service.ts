@@ -6,6 +6,7 @@ import type { CreateProductionOrderInput, ProductionOrderLineInput } from '../co
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
 import { buildProductionOrderGroupNo, buildProductionOrderNo } from '../domain/production-order-numbering'
 import {
+  parseProductionOrderProcessRouteSnapshot,
   serializeProductionOrderCostSnapshot,
   serializeProductionOrderProcessRouteSnapshot,
 } from '../domain/production-order-execution-snapshots'
@@ -66,24 +67,54 @@ async function resolveOrderLine(tx: Prisma.TransactionClient, input: ProductionO
     },
   })
   const selectedBomCostRun = input.bomCostRunId ? await tx.bomCostRun.findFirst({
-    where: { id: input.bomCostRunId, productId, bomId: bom?.id || '__missing__' },
+    where: {
+      id: input.bomCostRunId,
+      productId,
+      bomId: bom?.id || '__missing__',
+      OR: [{ materialId: null }, { materialId: material.id }],
+    },
     include: { lines: { orderBy: { sortOrder: 'asc' } } },
   }) : null
   if (input.bomCostRunId && (!bom || !selectedBomCostRun)) {
     throw new ProductionOrderDomainError(`物料 ${material.code} 所选成本运行不存在或不属于当前 BOM`)
   }
-  const processRoute = (selectedBomCostRun?.processRouteId
-    ? routes.find((route) => route.id === selectedBomCostRun.processRouteId)
+  const processRoute = (selectedBomCostRun
+    ? (selectedBomCostRun.processRouteId ? routes.find((route) => route.id === selectedBomCostRun.processRouteId) : null)
     : routes[0]) || null
   if (selectedBomCostRun?.processRouteId && !processRoute) {
     throw new ProductionOrderDomainError(`物料 ${material.code} 所选成本运行对应的工艺路线不存在`)
   }
+  if (selectedBomCostRun?.processRouteId && !selectedBomCostRun.processRouteSnapshot) {
+    throw new ProductionOrderDomainError(`物料 ${material.code} 所选成本运行缺少冻结工艺快照，请重新计算成本后再用于生产`)
+  }
+  const selectedProcessRouteSnapshot = selectedBomCostRun?.processRouteSnapshot
+    ? parseProductionOrderProcessRouteSnapshot(selectedBomCostRun.processRouteSnapshot)
+    : null
+  const processRouteId = selectedBomCostRun ? selectedBomCostRun.processRouteId : processRoute?.id || null
+  const processRouteName = selectedBomCostRun ? selectedBomCostRun.processRouteName : processRoute?.name || null
   const bomCostRun = selectedBomCostRun || (bom ? await tx.bomCostRun.findFirst({
-    where: { productId, bomId: bom.id, processRouteId: processRoute?.id || null },
+    where: {
+      productId,
+      bomId: bom.id,
+      processRouteId: processRoute?.id || null,
+      OR: [{ processRouteId: null }, { processRouteSnapshot: { not: null } }],
+    },
     orderBy: { createdAt: 'desc' },
     include: { lines: { orderBy: { sortOrder: 'asc' } } },
   }) : null)
-  return { material, productId, bom, processRoute, bomCostRun, planQty: input.planQty }
+  return {
+    material,
+    productId,
+    bom,
+    processRoute,
+    processRouteId,
+    processRouteName,
+    processRouteSnapshot: selectedProcessRouteSnapshot
+      ? JSON.stringify(selectedProcessRouteSnapshot)
+      : serializeProductionOrderProcessRouteSnapshot(processRoute),
+    bomCostRun,
+    planQty: input.planQty,
+  }
 }
 
 function requestedLines(input: CreateProductionOrderInput): ProductionOrderLineInput[] {
@@ -125,9 +156,9 @@ export async function createProductionOrders(
           bomName: line.bom?.name || null,
           bomVersion: line.bom?.version || null,
           bomSnapshot: line.bom ? JSON.stringify(line.bom) : null,
-          processRouteId: line.processRoute?.id || null,
-          processRouteName: line.processRoute?.name || null,
-          processRouteSnapshot: serializeProductionOrderProcessRouteSnapshot(line.processRoute),
+          processRouteId: line.processRouteId,
+          processRouteName: line.processRouteName,
+          processRouteSnapshot: line.processRouteSnapshot,
           bomCostRunId: line.bomCostRun?.id || null,
           bomCostSnapshot: serializeProductionOrderCostSnapshot(line.bomCostRun),
           planQty: line.planQty,

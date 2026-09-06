@@ -14,6 +14,7 @@ import { legacyDailyProductionReportInclude, listLegacyDailyProductionWorkspace 
 import { confirmLegacyDailyProductionReportInTransaction } from './legacy-daily-production-status-service'
 import { buildProductionOrderActualLines } from './production-order-actual-lines'
 import {
+  parseProductionOrderProcessRouteSnapshot,
   serializeProductionOrderCostSnapshot,
   serializeProductionOrderProcessRouteSnapshot,
 } from '../domain/production-order-execution-snapshots'
@@ -63,7 +64,7 @@ async function createShortcutDraft(tx: Prisma.TransactionClient, input: DailyPro
   const productId = await resolveProductId(tx, `${materialProductPrefix}${primaryRequest.materialId}`, {
     description: '由物料自动映射，用于生产日报成本追溯。',
   })
-  const processRoute = await tx.processRoute.findFirst({
+  const routes = await tx.processRoute.findMany({
     where: { productId },
     orderBy: [{ isDefault: 'desc' }, { sortOrder: 'asc' }, { id: 'asc' }],
     include: {
@@ -74,11 +75,43 @@ async function createShortcutDraft(tx: Prisma.TransactionClient, input: DailyPro
       },
     },
   })
-  const bomCostRun = bom ? await tx.bomCostRun.findFirst({
-    where: { productId, bomId: bom.id, processRouteId: processRoute?.id || null },
-    orderBy: { createdAt: 'desc' },
+  const selectedBomCostRun = input.bomCostRunId ? await tx.bomCostRun.findFirst({
+    where: {
+      id: input.bomCostRunId,
+      productId,
+      bomId: bom?.id || '__missing__',
+      OR: [{ materialId: null }, { materialId: primaryRequest.materialId }],
+    },
     include: { lines: { orderBy: { sortOrder: 'asc' } } },
   }) : null
+  if (input.bomCostRunId && (!bom || !selectedBomCostRun)) {
+    throw new LegacyDailyProductionError('所选成本运行不存在或不属于当前 BOM')
+  }
+  const selectedRoute = selectedBomCostRun
+    ? (selectedBomCostRun.processRouteId ? routes.find((route) => route.id === selectedBomCostRun.processRouteId) : null)
+    : routes[0]
+  if (selectedBomCostRun?.processRouteId && !selectedRoute) {
+    throw new LegacyDailyProductionError('所选成本运行对应的工艺路线不存在')
+  }
+  if (selectedBomCostRun?.processRouteId && !selectedBomCostRun.processRouteSnapshot) {
+    throw new LegacyDailyProductionError('所选成本运行缺少冻结工艺快照，请重新计算成本后再用于生产')
+  }
+  const processRoute = selectedRoute || null
+  const selectedProcessRouteSnapshot = selectedBomCostRun?.processRouteSnapshot
+    ? parseProductionOrderProcessRouteSnapshot(selectedBomCostRun.processRouteSnapshot)
+    : null
+  const processRouteId = selectedBomCostRun ? selectedBomCostRun.processRouteId : processRoute?.id || null
+  const processRouteName = selectedBomCostRun ? selectedBomCostRun.processRouteName : processRoute?.name || null
+  const bomCostRun = selectedBomCostRun || (bom ? await tx.bomCostRun.findFirst({
+    where: {
+      productId,
+      bomId: bom.id,
+      processRouteId: processRoute?.id || null,
+      OR: [{ processRouteId: null }, { processRouteSnapshot: { not: null } }],
+    },
+    orderBy: { createdAt: 'desc' },
+    include: { lines: { orderBy: { sortOrder: 'asc' } } },
+  }) : null)
   const lines = await buildProductionOrderActualLines(
     tx,
     {
@@ -109,9 +142,11 @@ async function createShortcutDraft(tx: Prisma.TransactionClient, input: DailyPro
       bomType: bom?.purpose || 'TEMPORARY',
       bomOutputQuantity: Number(lines.primaryOutput?.quantity || primaryOutput.actualQty),
       bomOutputUnit: lines.primaryOutput?.unit || primaryOutput.unit,
-      processRouteId: processRoute?.id || null,
-      processRouteName: processRoute?.name || null,
-      processRouteSnapshot: serializeProductionOrderProcessRouteSnapshot(processRoute),
+      processRouteId,
+      processRouteName,
+      processRouteSnapshot: selectedProcessRouteSnapshot
+        ? JSON.stringify(selectedProcessRouteSnapshot)
+        : serializeProductionOrderProcessRouteSnapshot(processRoute),
       bomCostRunId: bomCostRun?.id || null,
       bomCostSnapshot: serializeProductionOrderCostSnapshot(bomCostRun),
       consumptions: {

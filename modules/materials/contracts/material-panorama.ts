@@ -285,6 +285,7 @@ export interface PanoramaData {
   recentMaterialIns: MaterialInSummary[]
   recentStockLogs: StockLogSummary[]
   costLayers: CostLayerSummary[]
+  unresolvedLegacyCostRunCount: number
   integrityWarnings: string[]
   modelNotes: string[]
 }

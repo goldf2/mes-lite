@@ -22,6 +22,7 @@ export interface DailyProductionBomOption {
   isActive: boolean
   outputQuantity: number
   outputUnit: string
+  costRuns: DailyProductionCostRunOption[]
   items: DailyProductionBomItem[]
   outputs: Array<{
     id: string
@@ -31,6 +32,18 @@ export interface DailyProductionBomOption {
     isPrimary: boolean
     material: { id: string; code: string; name: string; spec?: string | null; stockUnit: string; unit: string }
   }>
+}
+
+export interface DailyProductionCostRunOption {
+  id: string
+  processRouteId?: string | null
+  processRouteName?: string | null
+  /** 带工艺路线的成本运行必须有冻结快照，才能用于新日报。 */
+  hasProcessRouteSnapshot: boolean
+  unitCost: number
+  totalCost: number
+  quantityBasis: number
+  createdAt: string
 }
 
 export interface DailyProductionMaterialOption {

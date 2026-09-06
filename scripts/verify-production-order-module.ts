@@ -22,6 +22,7 @@ import {
   releasedProductionOrderStatus,
 } from '../modules/production/domain/production-order-status'
 import { buildProductionOrderCreateInput, groupProductionOrders } from '../modules/production/model/production-order-view'
+import { serializeProcessRouteSnapshot } from '../lib/process-route-snapshot'
 
 const root = process.cwd()
 const requiredFiles = [
@@ -111,6 +112,8 @@ for (const path of [
 }
 assert.match(querySource, /getProductionOrderDetail[\s\S]*currentStepId/, '生产订单查询服务必须装配详情与当前工序')
 assert.match(querySource, /listProductionOrderOptions[\s\S]*byMaterial/, '生产订单查询服务必须集中 BOM 候选项归组')
+assert.match(querySource, /hasProcessRouteSnapshot/, '生产订单候选成本运行必须返回冻结工艺快照状态')
+assert.match(pageSource, /缺少冻结工艺.*重新计算/, '生产订单不得自动使用缺少冻结工艺快照的历史成本运行')
 assert.match(statusSource, /\$transaction/, '生产订单取消必须由状态服务拥有事务边界')
 assert.match(statusSource, /restoreMaterialCost[\s\S]*changeStockLocationBalance/, '取消已领料订单必须恢复成本与库位余额')
 assert.doesNotMatch(statusSource, /NextRequest|NextResponse|requireResourcePermission|writeAuditLog/, '生产订单状态服务不得依赖 HTTP、权限或请求审计')
@@ -264,17 +267,20 @@ async function verifyDatabaseRules() {
           standardBatchQty: 100, cycleTimeSeconds: 12, laborRatePerHour: 20, machineRatePerHour: 30,
         }] },
       },
-      include: { steps: true },
+      include: { steps: { include: { workCenter: true } } },
     })
     const costRun = await prisma.bomCostRun.create({
       data: {
         productId: product.id, materialId: outputMaterial.id, bomId: bom.id, bomVersion: bom.version,
         processRouteId: route.id, processRouteName: route.name, quantityBasis: 100,
+        processRouteSnapshot: serializeProcessRouteSnapshot(route),
         totalMaterialCost: 20, totalLaborCost: 4, totalMachineCost: 6, totalDirectCost: 0,
         totalCost: 30, unitCost: 0.3,
         lines: { create: [{ lineType: 'PROCESS_OPERATION', sourceId: route.steps[0].id, code: 'SAW-VERIFY', name: '10. 锯切', quantity: 100, unit: '件', laborHours: 0.2, machineHours: 0.2, laborCost: 4, machineCost: 6, directCost: 0, totalCost: 10, note: '验证快照', sortOrder: 0 }] },
       },
     })
+    const changedWorkCenter = await prisma.workCenter.create({ data: { code: `VERIFY-WC-CHANGED-${suffix}`, name: '改后工作中心' } })
+    await prisma.processStep.update({ where: { id: route.steps[0].id }, data: { name: '改后锯切', workCenterId: changedWorkCenter.id } })
     const newerCostRun = await prisma.bomCostRun.create({
       data: {
         productId: product.id, materialId: outputMaterial.id, bomId: bom.id, bomVersion: bom.version,
@@ -298,6 +304,7 @@ async function verifyDatabaseRules() {
     assert.ok(created.items.every((item) => item.bomSnapshot?.includes(inputMaterial.id)), '生产订单必须冻结 BOM 快照')
     assert.ok(created.items.every((item) => item.processRouteId === route.id), '生产订单必须冻结所选工艺路线')
     assert.ok(created.items.every((item) => item.processRouteSnapshot?.includes(workCenter.id)), '生产订单必须冻结工序与工作中心快照')
+    assert.ok(created.items.every((item) => !item.processRouteSnapshot?.includes(changedWorkCenter.id)), '生产订单不得把当前已修改路线混入旧成本运行快照')
     assert.ok(created.items.every((item) => item.bomCostRunId === costRun.id && item.bomCostSnapshot?.includes('SAW-VERIFY')), '生产订单必须冻结匹配 BOM 成本快照')
 
     const listed = await listProductionOrders({ statuses: ['DRAFT'], keyword: '验证 成品', page: 1, pageSize: 20 })
@@ -313,6 +320,8 @@ async function verifyDatabaseRules() {
     assert.equal(outputOption?.boms[0]?.id, bom.id, '生产订单候选项必须按主产出物料归组启用 BOM')
     assert.equal(outputOption?.boms[0]?.costRuns[0]?.id, newerCostRun.id, '生产订单候选项必须按时间倒序提供已保存成本运行')
     assert.equal(outputOption?.boms[0]?.costRuns.length, 2, '生产订单候选项必须保留同一 BOM 的多个成本运行')
+    assert.equal(outputOption?.boms[0]?.costRuns.find((run) => run.id === costRun.id)?.hasProcessRouteSnapshot, true, '生产订单候选项必须标记带冻结工艺快照的成本运行')
+    assert.equal(outputOption?.boms[0]?.costRuns.find((run) => run.id === newerCostRun.id)?.hasProcessRouteSnapshot, false, '生产订单候选项必须标记缺少冻结工艺快照的历史成本运行')
     assert.equal(created.items.every((item) => item.bomCostRunId === costRun.id), true, '生产订单必须保存用户显式选择的成本运行，而不是回退到最新运行')
     assert.deepEqual(options.find((item) => item.id === temporaryMaterial.id)?.boms, [], '无 BOM 物料也必须可作为临时生产目标')
 

@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { canonicalizeProductCodes, getProductsByMaterialId } from '@/lib/material-product'
 import { attachWorkInstructionFiles, classifyMaterialAttachments } from './material-panorama-attachments'
 import { panoramaProductSelect, processRouteSelect } from './material-panorama-select'
+import { resolvePanoramaCostRuns } from '../model/material-panorama-cost'
 
 export class MaterialPanoramaNotFoundError extends Error {
   constructor() {
@@ -155,12 +156,21 @@ export async function getMaterialPanorama(materialId: string) {
     latestCostRun: null as null | { id: string; unitCost: number; totalCost: number; quantityBasis: number; createdAt: Date },
   })))
   const bomIds = productBoms.map((bom) => bom.id)
+  const productIds = Array.from(new Set(productBoms.map((bom) => bom.product.id)))
   const latestCostRuns = bomIds.length === 0 ? [] : await prisma.bomCostRun.findMany({
-    where: { bomId: { in: bomIds } }, orderBy: { createdAt: 'desc' },
+    where: {
+      OR: [
+        { bomId: { in: bomIds } },
+        { productId: { in: productIds }, bomId: null },
+      ],
+    }, orderBy: { createdAt: 'desc' },
     include: { lines: { orderBy: { sortOrder: 'asc' } } },
   })
-  const latestCostRunByBom = new Map<string, typeof latestCostRuns[number]>()
-  for (const run of latestCostRuns) if (run.bomId && !latestCostRunByBom.has(run.bomId)) latestCostRunByBom.set(run.bomId, run)
+  const { runsByBom: latestCostRunByBom, unresolvedLegacyRunCount } = resolvePanoramaCostRuns(
+    productBoms.map((bom) => ({ id: bom.id, productId: bom.product.id, version: bom.version })),
+    latestCostRuns,
+    material.id,
+  )
   for (const bom of productBoms) bom.latestCostRun = latestCostRunByBom.get(bom.id) || null
 
   return {
@@ -180,6 +190,7 @@ export async function getMaterialPanorama(materialId: string) {
     recentMaterialIns,
     recentStockLogs,
     costLayers,
+    unresolvedLegacyCostRunCount: unresolvedLegacyRunCount,
     integrityWarnings: material.stock ? [] : ['物料档案没有对应库存余额记录，库存管理不会显示该物料。'],
     modelNotes: [
       '库位余额只记录实物主库存数量；成本与核算数量继续按物料总库存统一核算。',

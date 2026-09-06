@@ -74,6 +74,7 @@ export default function DailyProductionBomEntry({
   const [outputMaterialId, setOutputMaterialId] = useState('')
   const [inputMaterialId, setInputMaterialId] = useState('')
   const [bomId, setBomId] = useState('')
+  const [bomCostRunId, setBomCostRunId] = useState('')
   const [plannedOutputQty, setPlannedOutputQty] = useState(0)
   const [inputs, setInputs] = useState<Record<string, InputDraft>>({})
   const [outputs, setOutputs] = useState<Record<string, OutputDraft>>({})
@@ -114,6 +115,9 @@ export default function DailyProductionBomEntry({
   const selectedCandidate = bomCandidates.find((candidate) => candidate.bom.id === bomId)
     || dailyProductionBomCandidates(materials).find((candidate) => candidate.bom.id === bomId)
   const selectedBom = selectedCandidate?.bom || null
+  const selectedBomCostRun = selectedBom?.costRuns.find((run) => (
+    run.id === bomCostRunId && (!run.processRouteId || run.hasProcessRouteSnapshot)
+  )) || null
   const primaryMaterialId = Object.entries(outputs).find(([, output]) => output.isPrimary)?.[0] || ''
   const presetPrimary = selectedBom?.outputs.find((output) => output.isPrimary) || null
   const primaryBasis = Number(presetPrimary?.quantity || selectedBom?.outputQuantity || 1)
@@ -127,6 +131,16 @@ export default function DailyProductionBomEntry({
     return actualQty === undefined ? plannedOutputQuantity(materialId) : Number(actualQty)
   }
   const primaryActualQty = effectiveOutputQuantity(primaryMaterialId)
+
+  useEffect(() => {
+    if (!selectedBom) {
+      if (bomCostRunId) setBomCostRunId('')
+      return
+    }
+    const eligibleRuns = selectedBom.costRuns.filter((run) => !run.processRouteId || run.hasProcessRouteSnapshot)
+    if (selectedBom.costRuns.some((run) => run.id === bomCostRunId && (!run.processRouteId || run.hasProcessRouteSnapshot))) return
+    setBomCostRunId(eligibleRuns[0]?.id || '')
+  }, [bomCostRunId, selectedBom])
 
   const calculatedInputs = useMemo(() => Object.keys(inputs).map((materialId) => {
     const draft = inputs[materialId]
@@ -150,6 +164,7 @@ export default function DailyProductionBomEntry({
 
   function applyBom(nextBomId: string) {
     setBomId(nextBomId)
+    setBomCostRunId('')
     if (!nextBomId) {
       setPlannedOutputQty(0)
       return
@@ -213,7 +228,7 @@ export default function DailyProductionBomEntry({
     setSaving(true)
     try {
       const result = await submitDailyProductionShortcut({
-        reportDate, bomId: bomId || undefined, outputDisposition, note: note.trim() || undefined,
+        reportDate, bomId: bomId || undefined, bomCostRunId: bomCostRunId || undefined, outputDisposition, note: note.trim() || undefined,
         consumptions: calculatedInputs.map((line) => ({
           materialId: line.materialId, locationId: line.draft.locationId,
           lossMode: line.draft.lossMode, lossValue: Number(line.draft.lossValue || 0), actualQty: Number(line.calculated.actualQty),
@@ -227,7 +242,7 @@ export default function DailyProductionBomEntry({
       })
       onMessage(result.message)
       if (!result.ok) return
-      setBomId(''); setPlannedOutputQty(0); setOutputMaterialId(''); setInputMaterialId(''); setInputs({}); setOutputs({}); setNote('')
+      setBomId(''); setBomCostRunId(''); setPlannedOutputQty(0); setOutputMaterialId(''); setInputMaterialId(''); setInputs({}); setOutputs({}); setNote('')
       await loadData()
     } catch (error) {
       onMessage(error instanceof Error ? error.message : '快捷生产过账失败')
@@ -242,7 +257,7 @@ export default function DailyProductionBomEntry({
   return <div className="space-y-4">
     <section className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950">
       <h2 className="text-base font-semibold">快捷生产 / 转换过账</h2>
-      <p className="mt-1 leading-6">BOM 是可选预设。先选择计划产出和合适的 BOM；系统把预设数量直接填入下方实际投入与实际产出，操作员可在原位置审核、修正后确认过账。</p>
+      <p className="mt-1 leading-6">BOM 是可选预设。先选择计划产出、合适的 BOM 和已保存成本运行；成本运行同时确定本次采用的工艺路线。系统把预设数量直接填入下方实际投入与实际产出，操作员可在原位置审核、修正后确认过账。</p>
     </section>
 
     <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -251,10 +266,12 @@ export default function DailyProductionBomEntry({
         <div><label className="mb-2 block text-sm font-medium text-gray-700">按计划产出筛选 BOM（推荐）</label><SearchableSelect value={outputMaterialId} onChange={setOutputMaterialId} options={outputMaterials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}${item.spec ? ` · ${item.spec}` : ''}` }))} placeholder="选择准备生产的主产品、副产品或其它产出" allowClear /></div>
         <div><label className="mb-2 block text-sm font-medium text-gray-700">选择生产方案（BOM）</label><SearchableSelect value={bomId} onChange={applyBom} options={bomCandidates.map(({ bom, outputMaterial, matchedOutputMaterial }) => ({ value: bom.id, label: `${matchedOutputMaterial.code} · ${matchedOutputMaterial.name}${matchedOutputMaterial.id === outputMaterial.id ? '' : `（主产出 ${outputMaterial.code}）`} ← ${bom.name} · ${bom.version}${bom.isDefault ? ' · 默认' : ''}` }))} placeholder={outputMaterialId && inputMaterialId ? '选择同时匹配产出与投入的已发布 BOM' : outputMaterialId ? '选择能够形成该产出的已发布 BOM' : inputMaterialId ? '选择包含该投入的已发布 BOM' : '选择已发布 BOM，或保持无 BOM'} emptyText={outputMaterialId && inputMaterialId ? '没有同时满足当前条件的已发布 BOM' : outputMaterialId ? '没有能形成该产出的已发布 BOM' : inputMaterialId ? '没有包含该投入的已发布 BOM' : '暂无已发布 BOM'} allowClear /></div>
       </div>
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <div><label className="mb-2 block text-sm font-medium text-gray-700">按已有投入物料辅助筛选（可选）</label><SearchableSelect value={inputMaterialId} onChange={setInputMaterialId} options={inputMaterials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}${item.spec ? ` · ${item.spec}` : ''}` }))} placeholder="选择现场已有或准备投入的物料" allowClear /></div>
+        <div><label className="mb-2 block text-sm font-medium text-gray-700">成本运行 / 工艺路线（可选）</label><SearchableSelect value={bomCostRunId} onChange={setBomCostRunId} disabled={!selectedBom} options={[{ value: '', label: selectedBom?.costRuns.some((run) => !run.processRouteId || run.hasProcessRouteSnapshot) ? '自动取当前 BOM 最新可用成本运行' : '当前 BOM 暂无可用成本运行' }, ...(selectedBom?.costRuns || []).map((run) => ({ value: run.id, disabled: Boolean(run.processRouteId && !run.hasProcessRouteSnapshot), label: `${run.processRouteName || '未绑定路线'} · ¥${numberText(run.unitCost)} / 单 · ${dateTimeText(run.createdAt)}${run.processRouteId && !run.hasProcessRouteSnapshot ? ' · 缺少冻结工艺，需重新计算' : ''}` }))]} placeholder={selectedBom ? '选择已保存成本运行' : '请先选择 BOM'} allowClear /></div>
         <label className="text-sm font-medium text-gray-700">产出处置<select value={outputDisposition} onChange={(event) => setOutputDisposition(event.target.value as typeof outputDisposition)} className={`${appInputClassName} mt-2 bg-white`}><option value="DIRECT_AVAILABLE">直接进入可用库存</option><option value="QUALITY_INSPECTION">进入待检并生成质量任务</option></select></label>
       </div>
+      {selectedBomCostRun && <div className="mt-3 rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-800">本次冻结：{selectedBomCostRun.processRouteName || '未绑定工艺路线'} · 单位成本 ¥{numberText(selectedBomCostRun.unitCost)} · 成本基准 {numberText(selectedBomCostRun.quantityBasis)} {selectedBom?.outputUnit || ''}</div>}
       <label className="mt-4 block text-sm font-medium text-gray-700">备注<textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} rows={2} className={`${appTextareaClassName} mt-2`} placeholder="无 BOM 或计划外投入产出时必填；也可记录班次、补录原因" /></label>
     </section>
 

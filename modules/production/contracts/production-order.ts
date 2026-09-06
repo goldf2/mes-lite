@@ -12,6 +12,8 @@ export interface ProductionOrderCostRunOption {
   id: string
   processRouteId?: string | null
   processRouteName?: string | null
+  /** 带工艺路线的成本运行必须有冻结快照，才能用于新订单。 */
+  hasProcessRouteSnapshot: boolean
   unitCost: number
   totalCost: number
   quantityBasis: number

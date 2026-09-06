@@ -6,6 +6,7 @@ import { nextBomVersion } from '../modules/bom/domain/bom-version'
 import { classifyMaterialAttachments } from '../modules/materials/server/material-panorama-attachments'
 import { parseMaterialImportRows, readMaterialImportSheet } from '../modules/materials/domain/material-import-parser'
 import { togglePanoramaSection } from '../modules/materials/model/material-panorama-view'
+import { resolvePanoramaCostRuns } from '../modules/materials/model/material-panorama-cost'
 import { presetUnitCatalog } from '../lib/unit-catalog'
 
 const root = process.cwd()
@@ -168,6 +169,9 @@ assert.doesNotMatch(materialPanoramaRoute, /prisma\.|findMany\(|withAttachmentUr
 assert.match(materialPanoramaRoute, /getMaterialPanorama\(/, '物料全景 API 必须通过领域查询服务读取')
 assert.match(materialPanoramaQueryService, /Promise\.all/, '物料全景查询服务必须统一编排关联聚合')
 assert.match(materialPanoramaQueryService, /classifyMaterialAttachments/, '物料全景查询服务必须复用附件分类器')
+assert.match(materialPanoramaQueryService, /resolvePanoramaCostRuns/, '物料全景必须通过安全规则归属历史 BOM 成本运行')
+assert.match(materialPanoramaQueryService, /bomId: null/, '物料全景必须查询 bomId 为空的历史成本运行')
+assert.match(materialPanoramaOperations, /历史成本（唯一匹配）/, '物料全景必须明确标记唯一匹配的历史成本运行')
 assert.match(materialPanoramaAttachmentService, /attachWorkInstructionFiles/, '物料全景附件服务必须统一装配正式作业文档附件')
 const classifiedAttachments = classifyMaterialAttachments([
   { id: 'image', size: 1, rotation: 0, documentType: 'MATERIAL_IMAGE', originalName: 'part.png', note: null, mimeType: 'image/png' },
@@ -176,6 +180,19 @@ const classifiedAttachments = classifyMaterialAttachments([
 assert.equal(classifiedAttachments.images.length, 1)
 assert.equal(classifiedAttachments.workInstructions.length, 1)
 assert.equal(classifiedAttachments.documents.length, 1)
+const singleBom = [{ id: 'bom-single', productId: 'product-1', version: 'v1' }]
+const legacyRun = { id: 'legacy-single', productId: 'product-1', materialId: 'material-1', bomId: null, bomVersion: null, createdAt: '2026-09-06T00:00:00.000Z' }
+const singleBomResolution = resolvePanoramaCostRuns(singleBom, [legacyRun], 'material-1')
+assert.equal(singleBomResolution.runsByBom.get('bom-single')?.id, legacyRun.id, '唯一 BOM 下的历史成本运行必须兼容展示')
+assert.equal(singleBomResolution.unresolvedLegacyRunCount, 0)
+const multipleBoms = [...singleBom, { id: 'bom-v2', productId: 'product-1', version: 'v2' }]
+const ambiguousResolution = resolvePanoramaCostRuns(multipleBoms, [{ ...legacyRun, id: 'legacy-ambiguous' }], 'material-1')
+assert.equal(ambiguousResolution.runsByBom.size, 0, '多个 BOM 且历史运行无版本时不得猜测归属')
+assert.equal(ambiguousResolution.unresolvedLegacyRunCount, 1)
+const versionedResolution = resolvePanoramaCostRuns(multipleBoms, [{ ...legacyRun, id: 'legacy-v2', bomVersion: 'v2' }], 'material-1')
+assert.equal(versionedResolution.runsByBom.get('bom-v2')?.id, 'legacy-v2', '历史运行版本唯一匹配时必须归属对应 BOM')
+const wrongMaterialResolution = resolvePanoramaCostRuns(singleBom, [{ ...legacyRun, id: 'legacy-wrong-material', materialId: 'material-other' }], 'material-1')
+assert.equal(wrongMaterialResolution.runsByBom.size, 0, '历史运行显式指向其他物料时不得展示')
 assert.ok(materialImportRoute.split('\n').length <= 55, '物料导入 API 必须保持为不超过 55 行的 HTTP 适配层')
 assert.doesNotMatch(materialImportRoute, /prisma\.|parseCsv|findCatalogUnit/, '物料导入 API 不得直接解析 CSV、校验单位或写数据库')
 assert.match(materialImportRoute, /importMaterialsCsv\(/, '物料导入 API 必须通过领域导入服务执行')
