@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server'
 import { BusinessDocumentError } from '../domain/business-document-errors'
 
-export function businessDocumentPdfResponse(pdf: Buffer, filename: string) {
+export function businessDocumentPdfResponse(
+  pdf: Buffer,
+  filename: string,
+  options: { disposition?: 'inline' | 'attachment' } = {},
+) {
   const encodedFilename = encodeURIComponent(filename)
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename*=UTF-8''${encodedFilename}`,
+      'Content-Disposition': `${options.disposition || 'inline'}; filename*=UTF-8''${encodedFilename}`,
       'Content-Length': String(pdf.byteLength),
       'Cache-Control': 'private, no-store',
     },

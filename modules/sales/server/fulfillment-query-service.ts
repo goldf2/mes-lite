@@ -207,8 +207,8 @@ export async function listReturnShipmentOptions(scope: EffectiveDataScope = unre
 }
 
 export async function getShipmentDetail(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
-  const shipment = await prisma.shipment.findUnique({
-    where: { id },
+  const shipment = await prisma.shipment.findFirst({
+    where: { id, deletedAt: null, ...shipmentDataScopeWhere(scope) },
     include: {
       product: { select: { id: true, name: true, sku: true, unit: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
       customerRef: { select: { id: true, code: true, name: true } },
@@ -244,8 +244,8 @@ export async function getShipmentDetail(id: string, scope: EffectiveDataScope = 
 }
 
 export async function getShipmentDeliveryNoteSource(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
-  const shipment = await prisma.shipment.findUnique({
-    where: { id },
+  const shipment = await prisma.shipment.findFirst({
+    where: { id, deletedAt: null, ...shipmentDataScopeWhere(scope) },
     include: {
       product: { select: { sku: true, name: true, unit: true } },
       material: { select: { code: true, name: true, spec: true, stockUnit: true } },
@@ -255,6 +255,15 @@ export async function getShipmentDeliveryNoteSource(id: string, scope: Effective
         include: {
           material: { select: { code: true, name: true, spec: true, stockUnit: true } },
           location: { select: { code: true, name: true } },
+          stockShortage: { select: { stockQty: true, settledStockQty: true, status: true } },
+          lotAllocations: {
+            where: { status: { in: ['ACTIVE', 'REVERSED'] } },
+            include: {
+              lot: { select: { lotNo: true, supplierLotNo: true } },
+              location: { select: { code: true, name: true } },
+            },
+            orderBy: { createdAt: 'asc' },
+          },
         },
         orderBy: { sortOrder: 'asc' },
       },

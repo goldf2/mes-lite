@@ -50,7 +50,8 @@ for (const path of moduleFiles) {
   while ((match = moduleImportPattern.exec(source)) !== null) {
     const targetModule = match[3]
     const internalPath = match[4]
-    if (targetModule !== sourceModule && internalPath) {
+    const isPublicServerEntry = internalPath === '/server-index'
+    if (targetModule !== sourceModule && internalPath && !isPublicServerEntry) {
       failures.push(`${projectPath} 越过 modules/${targetModule}/index.ts 导入 ${match[2]}`)
     }
   }

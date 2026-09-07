@@ -1,10 +1,12 @@
 import fs from 'node:fs'
+import path from 'node:path'
 import PDFDocument from 'pdfkit'
 import type { SystemSettings } from '@/lib/system-settings'
 import type { BusinessDocumentPrintData } from '../contracts/business-document'
 
 const fontPaths = [
   process.env.PDF_FONT_PATH,
+  path.join(process.cwd(), 'assets/fonts/NotoSansCJKsc-Regular.otf'),
   '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
   '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
 ].filter((fontPath): fontPath is string => Boolean(fontPath))
@@ -31,7 +33,13 @@ function drawCell(
 }
 
 export function businessDocumentPrintProfile(settings: SystemSettings) {
-  return `business-document-print:v2:${settings.businessDocumentPrintDensity}:${settings.businessDocumentPrintMarginMm}`
+  const companyProfile = [
+    settings.companyName,
+    settings.companyContact,
+    settings.companyPhone,
+    settings.companyAddress,
+  ].map((value) => encodeURIComponent(value)).join('|')
+  return `business-document-print:v3:${settings.businessDocumentPrintDensity}:${settings.businessDocumentPrintMarginMm}:${companyProfile}`
 }
 
 export function renderBusinessDocumentPdf(
@@ -82,7 +90,7 @@ export function renderBusinessDocumentPdf(
         const column = index % 3
         const row = Math.floor(index / 3)
         pdf.fontSize(8).fillColor('#64748b').text(field.label, left + column * fieldWidth, cursorY + row * 30, { width: fieldWidth - 8 })
-        pdf.fontSize(9).fillColor('#111827').text(field.value || '-', left + column * fieldWidth, cursorY + row * 30 + 12, { width: fieldWidth - 8, ellipsis: true })
+        pdf.fontSize(9).fillColor('#111827').text(field.value || '-', left + column * fieldWidth, cursorY + row * 30 + 12, { width: fieldWidth - 8, height: 12, ellipsis: true })
       })
       cursorY += fieldRows * 30 + 10
     }

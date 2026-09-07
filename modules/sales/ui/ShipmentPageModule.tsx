@@ -233,16 +233,11 @@ export default function ShipmentPageModule({
                   {showField('attachments') ? <AttachmentPanel ownerType="SHIPMENT" ownerId={item.id} compact compactMode="summary" onMessage={onMessage} /> : <span />}
                   <div className="flex flex-wrap gap-2">
                     <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
-                    <BusinessDocumentPrintLink kind="shipment" id={item.id} />
+                    {(item.status === 'SHIPPED' || item.status === 'DELIVERED') && <>
+                      <BusinessDocumentPrintLink kind="shipment" id={item.id} audience="customer" label="客户发货单" />
+                      <BusinessDocumentPrintLink kind="shipment" id={item.id} audience="internal" label="内部留档" />
+                    </>}
                     <ShipmentStatusActions shipment={item} canDispatch={canDispatch} canDeliver={canDeliver} canCancel={canCancel} canReverse={canReverse} onChanged={fetchShipments} onMessage={onMessage} />
-                    {(item.status === 'SHIPPED' || item.status === 'DELIVERED') && (
-                      <a
-                        href={`/api/shipments/${item.id}/delivery-note`}
-                        className="px-3 py-1 border border-blue-300 text-blue-700 rounded text-xs hover:bg-blue-50"
-                      >
-                        下载发货单 PDF
-                      </a>
-                    )}
                     {item.status === 'CANCELLED' && (
                       <span className="text-xs text-gray-400">无操作</span>
                     )}
@@ -308,16 +303,11 @@ export default function ShipmentPageModule({
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
                         <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
-                        <BusinessDocumentPrintLink kind="shipment" id={item.id} />
+                        {(item.status === 'SHIPPED' || item.status === 'DELIVERED') && <>
+                          <BusinessDocumentPrintLink kind="shipment" id={item.id} audience="customer" label="客户发货单" />
+                          <BusinessDocumentPrintLink kind="shipment" id={item.id} audience="internal" label="内部留档" />
+                        </>}
                         <ShipmentStatusActions shipment={item} canDispatch={canDispatch} canDeliver={canDeliver} canCancel={canCancel} canReverse={canReverse} onChanged={fetchShipments} onMessage={onMessage} />
-                        {(item.status === 'SHIPPED' || item.status === 'DELIVERED') && (
-                          <a
-                            href={`/api/shipments/${item.id}/delivery-note`}
-                            className="px-3 py-1 border border-blue-300 text-blue-700 rounded text-xs hover:bg-blue-50"
-                          >
-                            下载发货单 PDF
-                          </a>
-                        )}
                         {item.status === 'CANCELLED' && (
                           <span className="text-xs text-gray-400">无操作</span>
                         )}
@@ -339,7 +329,7 @@ export default function ShipmentPageModule({
           ownerId={detailItem.id}
           onClose={() => setDetailItem(null)}
           onMessage={onMessage}
-          headerActions={<BusinessDocumentPrintLink kind="shipment" id={detailItem.id} />}
+          headerActions={<div className="flex flex-wrap gap-2">{(detailItem.status === 'SHIPPED' || detailItem.status === 'DELIVERED') && <><BusinessDocumentPrintLink kind="shipment" id={detailItem.id} audience="customer" label="客户发货单" /><BusinessDocumentPrintLink kind="shipment" id={detailItem.id} audience="internal" label="内部留档" /></>}</div>}
         >
           <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <div><dt className="text-gray-500">明细数量</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.items.length} 项</dd></div>

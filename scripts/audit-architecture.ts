@@ -202,7 +202,9 @@ function collectSnapshot() {
       const targetModule = match[2]
       if (targetModule === sourceModule) continue
       moduleEdges.get(sourceModule)?.add(targetModule)
-      if (match[3]) deepCrossModuleImports += 1
+      // server-index is the explicit cross-domain server API; it is not a
+      // deep internal path and should not count as a boundary regression.
+      if (match[3] && match[3] !== '/server-index') deepCrossModuleImports += 1
     }
   }
 

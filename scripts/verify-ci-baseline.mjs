@@ -22,6 +22,7 @@ const checks = [
   'verify:role-task-http-permissions',
   'verify:fine-grained-http-permissions',
   'verify:archive-resource-permissions',
+  'verify:business-document-print',
   'verify:data-scopes',
   'verify:data-scope-http',
   'verify:production-actual-context',
