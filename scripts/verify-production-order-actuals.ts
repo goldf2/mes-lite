@@ -218,6 +218,12 @@ async function main() {
     const confirmed = await confirmProductionOrderActual(order.id, actual.id, '验证确认员')
     assert.equal(confirmed.before.status, 'DRAFT')
     assert.equal(confirmed.updated.status, 'CONFIRMED')
+    assert.equal(confirmed.updated.actualMaterialCostAmount, 85, '生产实绩应记录实际投入材料成本')
+    assert.equal(confirmed.updated.actualProcessCostAmount, 0.075, '生产实绩应按实际主产出数量缩放冻结加工成本')
+    assert.equal(JSON.parse(confirmed.updated.appliedCostSnapshot || '{}').sourceRunId, 'cost-frozen', '生产实绩应保存实际应用的冻结成本来源')
+    const confirmedPrimaryOutput = confirmed.updated.outputs.find((line) => line.isPrimary)
+    assert.equal(confirmedPrimaryOutput?.materialCostAmount, 85, '主产出应拆分记录实际材料成本')
+    assert.equal(confirmedPrimaryOutput?.processCostAmount, 0.075, '主产出应拆分记录实际加工成本')
     await assert.rejects(
       () => confirmProductionOrderActual(order.id, actual.id, '重复确认员'),
       ProductionOrderDomainError,
@@ -235,7 +241,7 @@ async function main() {
     assert.equal(inputStock.qty, 11.9)
     assert.equal(extraInputStock.qty, 4)
     assert.equal(outputStock.qty, 3)
-    assert.equal(outputStock.totalCost, 85)
+    assert.equal(outputStock.totalCost, 85.075)
     assert.equal(scrapStock.qty, 0.25)
     assert.equal(extraOutputStock.qty, 0.5)
     assert.equal(updatedOrder.completeQty, 3)

@@ -68,6 +68,10 @@ export interface DailyProductionReportSummary {
   outputQty: number
   status: string
   note?: string | null
+  actualMaterialCostAmount: number
+  actualProcessCostAmount: number
+  outputCostAmount: number
+  appliedCostSnapshot?: string | null
   bomName?: string | null
   bomVersion?: string | null
   processRouteName?: string | null
@@ -87,6 +91,8 @@ export interface DailyProductionReportSummary {
     actualQty: number
     unit: string
     isPrimary: boolean
+    materialCostAmount?: number
+    processCostAmount?: number
     location: { code: string; name: string }
   }>
   qualityInspection?: { id: string; inspectionNo: string; status: string; result: string } | null

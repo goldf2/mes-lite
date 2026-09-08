@@ -1,6 +1,6 @@
 {
-  "version": "0.1.468",
-  "impact": "updated",
-  "workflowIds": ["27-shipment-list", "28-shipment-create", "29-shipment-confirm"],
-  "summary": "统一发货单客户版预览、打印、下载和旧兼容地址的归档字节，并分离内部留档受众；发货 PDF 受源数据、打印格式和企业抬头版本控制，系统生成文件不混入原始附件。无数据库迁移、库存数据改写或权限变化。"
+  "version": "0.1.469",
+  "impact": "none",
+  "workflowIds": [],
+  "summary": "本版本补齐冻结 BOM 成本到生产实绩和生产日报库存成本的内部核算字段与追溯快照，不改变现有岗位操作步骤或单据流程。"
 }

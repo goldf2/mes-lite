@@ -58,6 +58,9 @@ type ActualRecord = {
   note?: string | null
   equipmentExceptionReason?: string | null
   workInstructionExceptionReason?: string | null
+  actualMaterialCostAmount: number
+  actualProcessCostAmount: number
+  appliedCostSnapshot?: string | null
   equipmentSnapshots: ProductionActualEquipmentSnapshot[]
   workInstructionSnapshots: ProductionActualWorkInstructionSnapshot[]
   status: 'DRAFT' | 'CONFIRMED' | 'REVERSED'
@@ -86,6 +89,8 @@ type ActualRecord = {
     actualQty: number
     unit: string
     isPrimary: boolean
+    materialCostAmount: number
+    processCostAmount: number
     location: { code: string; name: string }
     inventoryLot?: QualityLotView | null
   }>
@@ -400,6 +405,7 @@ export default function ProductionOrderActualPanel({
                 equipmentExceptionReason={actual.equipmentExceptionReason}
                 workInstructionExceptionReason={actual.workInstructionExceptionReason}
               />
+              {actual.status !== 'DRAFT' && <div className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">实际产出成本：材料 {numberText(actual.actualMaterialCostAmount)} 元 + 加工 {numberText(actual.actualProcessCostAmount)} 元 = {numberText(actual.actualMaterialCostAmount + actual.actualProcessCostAmount)} 元{actual.appliedCostSnapshot ? ' · 已保存应用成本快照' : ''}</div>}
               <div className="mt-3 grid gap-3 lg:grid-cols-2">
                 <div className="rounded-md bg-gray-50 p-3 text-sm">
                   <div className="mb-2 font-medium text-gray-700">投入物料</div>

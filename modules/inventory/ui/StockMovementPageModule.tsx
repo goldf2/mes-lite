@@ -11,6 +11,7 @@ import { resourceAdvancedFields, type ResourceSearchCondition } from '@/lib/reso
 import { loadStockMovements, type StockMovementRequest } from '../client/stock-movement-api'
 import type { StockMovementWorkspace } from '../contracts/stock-movement'
 import StockMovementCollectionView from './StockMovementCollectionView'
+import StockMovementStatsPanel from './StockMovementStatsPanel'
 import { buildStockMovementSearchCatalog } from '../model/inventory-search-fields'
 
 const emptyWorkspace: StockMovementWorkspace = {
@@ -92,6 +93,7 @@ export default function StockMovementPageModule({ onMessage }: { onMessage: (mes
           <div className="text-sm text-gray-500">共 {workspace.pagination.total} 条流水{filterCount > 0 ? ` · ${filterCount} 个精确条件` : ''}</div>
         </div>
         {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        <StockMovementStatsPanel onMessage={onMessage} />
         {loading && workspace.items.length === 0 ? <AppLoadingIndicator label="正在读取库存流水..." /> : (
           <StockMovementCollectionView
             items={workspace.items}

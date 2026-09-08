@@ -17,6 +17,8 @@ import {
   assertLegacyDailyProductionDraft,
   roundLegacyDailyProductionQty,
 } from '../domain/legacy-daily-production-rules'
+import { parseProductionOrderCostSnapshot } from '../domain/production-order-execution-snapshots'
+import { calculateAppliedProductionCost } from '../domain/production-execution-cost'
 import { legacyDailyProductionStatusInclude } from './legacy-daily-production-query-service'
 import { runLegacyDailyProductionOperation } from './legacy-daily-production-operation'
 
@@ -112,9 +114,20 @@ export async function confirmLegacyDailyProductionReportInTransaction(
       materialCode: report.finishedMaterial.code,
       material: report.finishedMaterial,
     }]
+    const primaryOutput = outputLines.find((line) => line.isPrimary)
+    if (!primaryOutput || Number(primaryOutput.actualQty) <= 0) {
+      throw new LegacyDailyProductionError('生产记录没有有效主产出，无法计算产出成本')
+    }
+    const executionCost = calculateAppliedProductionCost(
+      parseProductionOrderCostSnapshot(report.bomCostSnapshot),
+      Number(primaryOutput.actualQty),
+      totalConsumedCost,
+    )
     let primaryReceipt: {
       valuationQty: number
       costAmount: number
+      materialCostAmount: number
+      processCostAmount: number
       stockUnit: string | null
       valuationUnit: string | null
       conversionRate: number | null
@@ -123,7 +136,9 @@ export async function confirmLegacyDailyProductionReportInTransaction(
       const outputQty = Number(line.actualQty)
       if (outputQty <= 0) continue
       if (!line.locationId) throw new LegacyDailyProductionError(`产出 ${line.materialCode} 没有入库库位`)
-      const outputCostAmount = line.isPrimary ? totalConsumedCost : 0
+      const outputCostAmount = line.isPrimary ? executionCost.totalCost : 0
+      const materialCostAmount = line.isPrimary ? executionCost.actualMaterialCost : 0
+      const processCostAmount = line.isPrimary ? executionCost.processCost : 0
       const sourceType = persistedOutputs ? 'DAILY_PRODUCTION_REPORT_OUTPUT' : 'DAILY_PRODUCTION_REPORT'
       const sourceId = persistedOutputs ? line.id : report.id
       const receipt = await postInventoryReceipt(tx, {
@@ -143,6 +158,8 @@ export async function confirmLegacyDailyProductionReportInTransaction(
       const receiptValues = {
         valuationQty: Number(receipt.quantities?.valuationQty || 0),
         costAmount: outputCostAmount,
+        materialCostAmount,
+        processCostAmount,
         stockUnit: receipt.material?.stockUnit || null,
         valuationUnit: receipt.material?.valuationUnit || null,
         conversionRate: Number(receipt.quantities?.conversionRateUsed || 0),
@@ -189,6 +206,8 @@ export async function confirmLegacyDailyProductionReportInTransaction(
           data: {
             valuationQty: receiptValues.valuationQty,
             costAmount: outputCostAmount,
+            materialCostAmount: receiptValues.materialCostAmount,
+            processCostAmount: receiptValues.processCostAmount,
             stockUnit: receiptValues.stockUnit,
             valuationUnit: receiptValues.valuationUnit,
             conversionRateUsed: receiptValues.conversionRate,
@@ -205,6 +224,9 @@ export async function confirmLegacyDailyProductionReportInTransaction(
         status: 'CONFIRMED', confirmedAt, confirmedBy,
         outputValuationQty: primaryReceipt.valuationQty,
         outputCostAmount: primaryReceipt.costAmount,
+        actualMaterialCostAmount: primaryReceipt.materialCostAmount,
+        actualProcessCostAmount: primaryReceipt.processCostAmount,
+        appliedCostSnapshot: JSON.stringify(executionCost.snapshot),
         outputStockUnit: primaryReceipt.stockUnit,
         outputValuationUnit: primaryReceipt.valuationUnit,
         outputConversionRate: primaryReceipt.conversionRate,

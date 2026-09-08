@@ -16,6 +16,8 @@ import {
 } from '@/modules/inventory'
 import { createProductionQualityInspection } from '@/modules/quality'
 import { parseProductionActualCostLayerSnapshot } from '../domain/production-order-actual-cost-snapshot'
+import { parseProductionOrderCostSnapshot } from '../domain/production-order-execution-snapshots'
+import { calculateAppliedProductionCost } from '../domain/production-execution-cost'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
 import { recalculateProductionOrderTotals } from './production-order-actual-totals'
 import { assertProductionActualExecutionContext } from './production-order-actual-context-service'
@@ -136,9 +138,21 @@ export async function confirmProductionOrderActual(orderId: string, actualId: st
       totalConsumedCost = roundQty(totalConsumedCost + Number(issue.costAmount))
     }
 
+    const primaryOutput = actual.outputs.find((line) => line.isPrimary)
+    if (!primaryOutput || Number(primaryOutput.actualQty) <= 0) {
+      throw new ProductionOrderDomainError('生产实绩没有有效主产出，无法计算产出成本')
+    }
+    const executionCost = calculateAppliedProductionCost(
+      parseProductionOrderCostSnapshot(actual.bomCostSnapshot),
+      Number(primaryOutput.actualQty),
+      totalConsumedCost,
+    )
+
     for (const line of actual.outputs) {
       if (Number(line.actualQty) <= 0) continue
-      const costAmount = line.isPrimary ? totalConsumedCost : 0
+      const costAmount = line.isPrimary ? executionCost.totalCost : 0
+      const materialCostAmount = line.isPrimary ? executionCost.actualMaterialCost : 0
+      const processCostAmount = line.isPrimary ? executionCost.processCost : 0
       const receipt = await postInventoryReceipt(tx, {
         materialId: line.materialId,
         stockQty: Number(line.actualQty),
@@ -196,6 +210,8 @@ export async function confirmProductionOrderActual(orderId: string, actualId: st
         data: {
           valuationQty: Number(receipt.quantities?.valuationQty || 0),
           costAmount,
+          materialCostAmount,
+          processCostAmount,
           stockUnit: receipt.material?.stockUnit,
           valuationUnit: receipt.material?.valuationUnit,
           conversionRateUsed: Number(receipt.quantities?.conversionRateUsed || 0),
@@ -206,7 +222,14 @@ export async function confirmProductionOrderActual(orderId: string, actualId: st
 
     const updated = await tx.productionOrderActual.update({
       where: { id: actual.id },
-      data: { status: 'CONFIRMED', confirmedAt: new Date(), confirmedBy },
+      data: {
+        status: 'CONFIRMED',
+        confirmedAt: new Date(),
+        confirmedBy,
+        actualMaterialCostAmount: executionCost.actualMaterialCost,
+        actualProcessCostAmount: executionCost.processCost,
+        appliedCostSnapshot: JSON.stringify(executionCost.snapshot),
+      },
       include: postingInclude,
     })
     await recalculateProductionOrderTotals(tx, actual.orderId)

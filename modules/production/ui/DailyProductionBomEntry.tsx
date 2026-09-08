@@ -359,6 +359,7 @@ export default function DailyProductionBomEntry({
         </div>
         <div className="mt-2 text-emerald-700">产出 {reportOutputs.map((item) => `${item.materialCode} · ${numberText(item.actualQty)} ${item.unit}`).join('；')}</div>
         <div className="mt-1 text-xs leading-5 text-gray-600">投入 {report.consumptions.map((item) => `${item.materialCode} · ${numberText(item.actualQty)} ${item.unit}`).join('；') || '无'}{report.qualityInspection ? `；质检 ${report.qualityInspection.inspectionNo} · ${report.qualityInspection.status}` : '；直接可用'}</div>
+        {report.status !== 'DRAFT' && <div className="mt-1 text-xs text-emerald-700">实际成本：材料 {numberText(report.actualMaterialCostAmount)} 元 + 加工 {numberText(report.actualProcessCostAmount)} 元 = {numberText(report.outputCostAmount)} 元{report.appliedCostSnapshot ? ' · 已保存应用成本快照' : ''}</div>}
         {report.bomCostSnapshot && <div className="mt-1 text-xs text-blue-700">成本快照：{numberText(report.bomCostSnapshot.totalCost)} 元 / 批，单位 {numberText(report.bomCostSnapshot.unitCost)} 元；材料 {numberText(report.bomCostSnapshot.totalMaterialCost)} · 人工 {numberText(report.bomCostSnapshot.totalLaborCost)} · 机时 {numberText(report.bomCostSnapshot.totalMachineCost)}</div>}
         {report.note && <div className="mt-1 text-xs text-gray-500">备注：{report.note}</div>}
         {report.status === 'REVERSED' && <div className="mt-2 rounded bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">冲销：{report.reversedBy || '—'} / {dateTimeText(report.reversedAt)}；原因：{report.reverseReason || '—'}</div>}

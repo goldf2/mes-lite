@@ -849,6 +849,9 @@ model ProductionOrderActual {
   bomCostRunId                   String?
   bomCostRun                     BomCostRun? @relation("ProductionOrderActualBomCostRun", fields: [bomCostRunId], references: [id], onDelete: SetNull)
   bomCostSnapshot                String? @map("productionBomCostSnapshot")
+  actualMaterialCostAmount       Float                                 @default(0)
+  actualProcessCostAmount        Float                                 @default(0)
+  appliedCostSnapshot            String?                               @map("productionAppliedCostSnapshot")
   employees                      ProductionOrderActualEmployee[]
   equipmentSnapshots             ProductionOrderActualEquipment[]
   workInstructionSnapshots       ProductionOrderActualWorkInstruction[]
@@ -974,6 +977,8 @@ model ProductionOrderActualOutput {
   isPrimary          Boolean                 @default(false)
   valuationQty       Float                   @default(0)
   costAmount         Float                   @default(0)
+  materialCostAmount Float                   @default(0)
+  processCostAmount  Float                   @default(0)
   stockUnit          String?
   valuationUnit      String?
   conversionRateUsed Float?
@@ -1064,6 +1069,9 @@ model DailyProductionReport {
   bomCostRunId           String?
   bomCostRun             BomCostRun? @relation("DailyProductionReportBomCostRun", fields: [bomCostRunId], references: [id], onDelete: SetNull)
   bomCostSnapshot        String? @map("productionBomCostSnapshot")
+  actualMaterialCostAmount Float                         @default(0)
+  actualProcessCostAmount  Float                         @default(0)
+  appliedCostSnapshot      String?                       @map("productionAppliedCostSnapshot")
   outputValuationQty     Float                           @default(0)
   outputCostAmount       Float                           @default(0)
   outputStockUnit        String?
@@ -1151,6 +1159,8 @@ model DailyProductionOutput {
   isPrimary          Boolean               @default(false)
   valuationQty       Float                 @default(0)
   costAmount         Float                 @default(0)
+  materialCostAmount Float                 @default(0)
+  processCostAmount  Float                 @default(0)
   stockUnit          String?
   valuationUnit      String?
   conversionRateUsed Float?
