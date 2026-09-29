@@ -1,8 +1,8 @@
 'use client'
 
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import MaterialInHistoryPanel, { type ReceiptHistoryFilter } from './MaterialInHistoryPanel'
-import type { MaterialInHistorySummary, MaterialInPagination } from '../contracts/material-in'
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import MaterialInHistoryPanel from './MaterialInHistoryPanel'
+import useMaterialInHistory from './useMaterialInHistory'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import TopBarPortal from '@/app/components/TopBarPortal'
 import ViewModeToggle, { usePersistedViewMode } from '@/app/components/ViewModeToggle'
@@ -39,7 +39,6 @@ import MaterialInCollectionView from './MaterialInCollectionView'
 import MaterialInDetailDialog from './MaterialInDetailDialog'
 import MaterialInEditorDialog from './MaterialInEditorDialog'
 import {
-  listMaterialInRecords,
   listReceivingCustomers,
   getMaterialInConversionHistory,
   listReceivingLocations,
@@ -83,13 +82,6 @@ export default function MaterialInPage({
   canReceive: boolean
   canReverse: boolean
 }) {
-  const [materialIns, setMaterialIns] = useState<MaterialIn[]>([])
-  const [history, setHistory] = useState<ReceiptHistoryFilter>({ startDate: '', endDate: '', includeArchived: false })
-  const [summary, setSummary] = useState<MaterialInHistorySummary[]>([])
-  const [pagination, setPagination] = useState<MaterialInPagination>({ page: 1, pageSize: 20, total: 0, totalPages: 0 })
-  const [page, setPage] = useState(1)
-  const [historyError, setHistoryError] = useState('')
-  const requestId = useRef(0)
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [materials, setMaterials] = useState<Material[]>([])
@@ -100,7 +92,7 @@ export default function MaterialInPage({
       ? [{ id: 'task-status', field: 'status', operator: 'equals', value: 'PENDING' }]
       : []
   ))
-  const [loading, setLoading] = useState(false)
+  const { materialIns, summary, pagination, loading, setLoading, historyError, setHistory, setPage, fetchMaterialIns } = useMaterialInHistory(keyword, searchConditions)
   const [showModal, setShowModal] = useState(false)
   const [draftAttachmentOwnerId, setDraftAttachmentOwnerId] = useState('')
   const [draftAttachmentBusy, setDraftAttachmentBusy] = useState(false)
@@ -128,10 +120,6 @@ export default function MaterialInPage({
     inboundDate: (item) => new Date(item.inboundDate),
   }, 'inboundDate', 'desc')
 
-  useEffect(() => {
-    fetchMaterialIns()
-  }, [keyword, searchConditions, history, page])
-  useEffect(() => { setPage(1) }, [keyword, searchConditions, history])
   useEffect(() => {
     fetchSuppliers()
     fetchCustomers()
@@ -178,27 +166,6 @@ export default function MaterialInPage({
     } catch {
       // 由提交接口兜底使用默认库位
     }
-  }
-
-  const fetchMaterialIns = async () => {
-    const request = ++requestId.current
-    setLoading(true)
-    setHistoryError('')
-    try {
-      const params = new URLSearchParams({ page: String(page), pageSize: '20', includeSummary: 'true', startDate: history.startDate, endDate: history.endDate, includeArchived: String(history.includeArchived) })
-      if (keyword.trim()) params.set('keyword', keyword.trim())
-      if (searchConditions.length > 0) params.set('advanced', JSON.stringify(searchConditions.map(({ field, operator, value }) => ({ field, operator, value }))))
-      const { data, pagination: paging, summary: totals } = await listMaterialInRecords(params)
-      if (request !== requestId.current) return
-      setPagination(paging)
-      setSummary(totals)
-      setMaterialIns(data)
-    } catch (err) {
-      if (request !== requestId.current) return
-      setMaterialIns([]); setSummary([])
-      setHistoryError(err instanceof Error ? err.message : '获取来料历史失败')
-    }
-    if (request === requestId.current) setLoading(false)
   }
 
   const fetchCustomers = async () => {
