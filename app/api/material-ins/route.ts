@@ -18,25 +18,30 @@ export async function GET(req: NextRequest) {
     if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
 
     const { searchParams } = new URL(req.url)
+    if (searchParams.get('includeArchived') === 'true') {
+      const archiveDenied = await requireResourcePermission('archive', 'read')
+      if (archiveDenied) return archiveDenied
+    }
     const advanced = parseResourceSearchConditions(searchParams.get('advanced'), materialInSearchFieldKeys)
     if (advanced.error) return NextResponse.json({ error: advanced.error }, { status: 400 })
     const result = await listMaterialIns({
       statuses: parseStatusFilter(searchParams),
-      keyword: searchParams.get('keyword'),
-      supplierId: searchParams.get('supplierId'),
-      customerId: searchParams.get('customerId'),
+      keyword: searchParams.get('keyword'), supplierId: searchParams.get('supplierId'), customerId: searchParams.get('customerId'),
+      startDate: searchParams.get('startDate'), endDate: searchParams.get('endDate'),
+      includeArchived: searchParams.get('includeArchived') === 'true',
+      includeSummary: searchParams.get('includeSummary') === 'true',
       advancedConditions: advanced.conditions || [],
       page: Number(searchParams.get('page') ?? '1'),
       pageSize: Number(searchParams.get('pageSize') ?? '20'),
     }, await loadEffectiveDataScope(operator))
-    return NextResponse.json({ data: result.items, pagination: result.pagination })
+    return NextResponse.json({ data: result.items, pagination: result.pagination, summary: result.summary })
   } catch (error) {
+    if (error instanceof MaterialInDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Get material-ins error:', error)
     return NextResponse.json({ error: '获取来料单列表失败' }, { status: 500 })
   }
 }
-
 export async function POST(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('materialIn', 'create')
@@ -46,10 +51,8 @@ export async function POST(req: NextRequest) {
 
     const result = await createMaterialIns(createMaterialInSchema.parse(await req.json()), new Date(), await loadEffectiveDataScope(operator))
     await writeAuditLog(req, {
-      action: 'CREATE',
-      entityType: 'MATERIAL_IN',
-      entityId: result.first.id,
-      entityLabel: result.first.inboundNo,
+      action: 'CREATE', entityType: 'MATERIAL_IN',
+      entityId: result.first.id, entityLabel: result.first.inboundNo,
       afterData: result.first,
     })
     return NextResponse.json({ data: result.first, items: result.items, count: result.items.length }, { status: 201 })
@@ -68,7 +71,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '创建来料单失败' }, { status: 500 })
   }
 }
-
 export async function DELETE(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('materialIn', 'delete')
@@ -80,12 +82,9 @@ export async function DELETE(req: NextRequest) {
     if (!id) return NextResponse.json({ error: '缺少来料单 ID' }, { status: 400 })
     const { current, updated } = await archiveMaterialIn(id, await loadEffectiveDataScope(operator))
     await writeAuditLog(req, {
-      action: 'ARCHIVE',
-      entityType: 'MATERIAL_IN',
-      entityId: updated.id,
-      entityLabel: updated.inboundNo,
-      beforeData: current,
-      afterData: updated,
+      action: 'ARCHIVE', entityType: 'MATERIAL_IN',
+      entityId: updated.id, entityLabel: updated.inboundNo,
+      beforeData: current, afterData: updated,
     })
     return NextResponse.json({ success: true, message: '来料单已归档，可在归档记录中恢复' })
   } catch (error) {

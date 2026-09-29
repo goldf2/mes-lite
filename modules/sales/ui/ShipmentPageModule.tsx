@@ -19,6 +19,7 @@ import ShipmentLifecycleSection from './ShipmentLifecycleSection'
 import ShipmentLotTraceSection from './ShipmentLotTraceSection'
 import ShipmentStatusActions from './ShipmentStatusActions'
 import ShipmentPackageSection from './ShipmentPackageSection'
+import ShipmentPriceEditor from './ShipmentPriceEditor'
 import { loadShipmentDetail, loadShipments } from '../client/fulfillment-api'
 import type { FulfillmentCustomer, Shipment } from '../contracts/fulfillment'
 import {
@@ -41,6 +42,7 @@ export default function ShipmentPageModule({
   onMessage,
   onToolbarChange,
   canCreate,
+  canUpdatePrices,
   canDispatch,
   canDeliver,
   canCancel,
@@ -51,6 +53,7 @@ export default function ShipmentPageModule({
   onMessage: (msg: string) => void
   onToolbarChange?: (actions: ReactNode | null) => void
   canCreate: boolean
+  canUpdatePrices: boolean
   canDispatch: boolean
   canDeliver: boolean
   canCancel: boolean
@@ -354,6 +357,7 @@ export default function ShipmentPageModule({
             <h3 className="text-sm font-semibold text-gray-900">发货明细</h3>
             <div className="mt-2 overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50 text-left text-xs text-gray-500"><tr><th className="px-3 py-2">序号</th><th className="px-3 py-2">物料</th><th className="px-3 py-2">库位</th><th className="px-3 py-2">数量</th><th className="px-3 py-2">金额</th></tr></thead><tbody className="divide-y divide-gray-100">{detailItem.items.map((row, index) => <tr key={row.id}><td className="px-3 py-2">{index + 1}</td><td className="px-3 py-2"><div className="font-medium">{row.material.code} · {row.material.name}</div><div className="text-xs text-gray-500">{row.material.spec || '-'}</div></td><td className="px-3 py-2">{row.location.code}</td><td className="px-3 py-2">{row.qty} {row.unitSnapshot}</td><td className="px-3 py-2">¥{row.totalAmount.toFixed(2)}</td></tr>)}</tbody></table></div>
           </section>
+          {canUpdatePrices && <ShipmentPriceEditor key={`${detailItem.id}:${detailItem.updatedAt}`} shipment={detailItem} onSaved={refreshDetail} onMessage={onMessage} />}
           <ShipmentPackageSection
             shipment={detailItem}
             canManage={canPackage}

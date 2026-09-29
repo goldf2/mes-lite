@@ -43,6 +43,7 @@ export interface ReturnMaterialOption {
 
 export interface Shipment {
   id: string
+  updatedAt: string
   shipmentNo: string
   voucherNo?: string | null
   productId?: string | null

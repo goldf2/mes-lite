@@ -1,5 +1,13 @@
 # 会话日志
 
+## 2026-09-29 09:30 CST — 来料历史核查、物流归属与发货补价（v0.1.470）
+
+目标：统一查询一定日期范围的来料，销售只管理订单，并允许发货后补填价格。
+完成：来料过滤/分页/状态与单位汇总；归档查询权限和只读保护；统一注册表迁移发货/退货导航；严格的价格专用 PATCH、版本冲突检查与事务审计、详情价格表单。没有改写生产数据。
+验证：receiving-module、sales-order-flow、sales-module、page-modules、module-boundaries、TypeScript、SOP 和 release-notes 已通过；候选发布和线上验收待完成。
+文件：modules/receiving、modules/sales、相关 API、lib/page-registry.ts、回归与设计规范/SOP/版本文档。唯一下一步：候选 CI 后再推进 main，线上版本未确认。
+
+
 ## 2026-09-06 — 生产订单显式成本运行选择（v0.1.466 工作树）
 
 目标：把同一 BOM 的多套已保存成本运行带入生产订单创建，让操作员明确选择实际采用的成本依据，同时保持无选择和无 BOM 的兼容行为。

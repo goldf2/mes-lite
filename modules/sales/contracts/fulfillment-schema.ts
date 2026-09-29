@@ -1,5 +1,12 @@
 import { z } from 'zod'
 
+export const shipmentPricesSchema = z.object({
+  updatedAt: z.string().datetime(),
+  reason: z.string().trim().min(2, '请填写补价或改价原因').max(200),
+  items: z.array(z.object({ id: z.string().min(1), unitPrice: z.number().finite().nonnegative() }).strict()).min(1).max(100),
+}).strict()
+export type ShipmentPricesCommand = z.infer<typeof shipmentPricesSchema>
+
 const createShipmentItemSchema = z.object({
   materialId: z.string().min(1, '请选择发货物料'),
   unitPrice: z.number().finite().nonnegative().optional(),

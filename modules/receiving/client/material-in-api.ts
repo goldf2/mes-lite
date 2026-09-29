@@ -1,5 +1,7 @@
 import type {
   CustomerOption,
+  MaterialInHistorySummary,
+  MaterialInPagination,
   InventoryLocationOption,
   MaterialInLineRecord,
   MaterialInConversionHistory,
@@ -44,7 +46,7 @@ async function requestJson<T>(input: RequestInfo | URL, init: RequestInit | unde
 
 export async function listMaterialInRecords(params: URLSearchParams) {
   const suffix = params.toString()
-  return requestJson<{ data: MaterialInRecord[] }>(`/api/material-ins${suffix ? `?${suffix}` : ''}`, undefined, '获取来料单列表失败')
+  return requestJson<{ data: MaterialInRecord[]; pagination: MaterialInPagination; summary: MaterialInHistorySummary[] }>(`/api/material-ins${suffix ? `?${suffix}` : ''}`, undefined, '获取来料单列表失败')
 }
 
 export async function listReceivingLocations() {

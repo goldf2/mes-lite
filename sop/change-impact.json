@@ -1,6 +1,14 @@
 {
-  "version": "0.1.469",
-  "impact": "none",
-  "workflowIds": [],
-  "summary": "本版本补齐冻结 BOM 成本到生产实绩和生产日报库存成本的内部核算字段与追溯快照，不改变现有岗位操作步骤或单据流程。"
+  "version": "0.1.470",
+  "impact": "updated",
+  "workflowIds": [
+    "17-receiving-list",
+    "27-shipment-list",
+    "79-shipment-list-tracked",
+    "30-return-list",
+    "173-warehouse-shipment-dispatch",
+    "174-sales-shipment-delivery",
+    "176-warehouse-return-receive"
+  ],
+  "summary": "来料历史范围核查与跨页汇总；发货和退货移入物流；发货详情可补价、改价并记录原因。截图沿用标注的历史基线，本次以代码及定向回归复核。"
 }

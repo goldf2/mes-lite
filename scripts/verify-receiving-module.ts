@@ -337,6 +337,21 @@ async function main() {
     assert.ok(archived.updated.deletedAt)
     const afterArchive = await listMaterialIns({ statuses: [], keyword: third.first.inboundNo, page: 1, pageSize: 20 })
     assert.equal(afterArchive.items.length, 0)
+    const archivedHistory = await listMaterialIns({ statuses: [], keyword: third.first.inboundNo, page: 1, pageSize: 1, includeArchived: true, includeSummary: true })
+    assert.equal(archivedHistory.items.length, 1, '历史核查可显式包含归档单据')
+    assert.equal(archivedHistory.summary[0].qty, 2)
+    assert.equal(archivedHistory.summary[0].status, 'REJECTED')
+    await prisma.materialReceipt.update({ where: { id: third.first.id }, data: { inboundDate: new Date('2026-08-10T00:00:00+08:00') } })
+    await prisma.materialReceipt.update({ where: { id: blocked.first.id }, data: { inboundDate: new Date('2026-08-10T23:59:59+08:00') } })
+    const historyQuery = { statuses: [], page: 1, pageSize: 1, includeSummary: true, includeArchived: true, startDate: '2026-08-10', endDate: '2026-08-10' }
+    const historyPage = await listMaterialIns(historyQuery)
+    assert.ok(historyPage.pagination.total > historyPage.items.length, '汇总覆盖全部历史而非当前页')
+    assert.deepEqual((await listMaterialIns({ ...historyQuery, page: 2 })).summary, historyPage.summary)
+    const emptyRange = await listMaterialIns({ ...historyQuery, startDate: '2026-08-11', endDate: '2026-08-11' })
+    assert.equal(emptyRange.pagination.total, 0)
+    assert.deepEqual(emptyRange.summary, [])
+    await assert.rejects(() => listMaterialIns({ ...historyQuery, startDate: '2026-02-30' }), /来料日期无效/)
+    await assert.rejects(() => listMaterialIns({ ...historyQuery, startDate: '2026-08-11' }), /结束日期不能早于开始日期/)
     await assert.rejects(
       () => createMaterialIns(createMaterialInSchema.parse({
         supplierId: 'missing-supplier', materialId: secondMaterial.id, locationId: location.id,

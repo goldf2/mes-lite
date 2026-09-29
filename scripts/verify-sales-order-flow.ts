@@ -95,6 +95,22 @@ async function main() {
     assert.equal(listedShipments.data[0].items[0].material.primaryImage?.id, materialImage.id, '发货列表必须提供可选物料图片')
 
     await deliverManagedShipment(shipment.id, '验证签收员')
+    const { updateShipmentPrices } = await import('../modules/sales/server/shipment-pricing-service')
+    const { unrestrictedDataScope } = await import('../modules/identity-access')
+    const original = await prisma.shipment.findUniqueOrThrow({ where: { id: shipment.id } })
+    const logsBeforePrice = await prisma.stockLog.count()
+    const priceInput = { updatedAt: original.updatedAt.toISOString(), reason: '签收后补价', items: [{ id: shipment.items[0].id, unitPrice: 18 }] }
+    await updateShipmentPrices(shipment.id, priceInput, unrestrictedDataScope, { operatorName: '价格审核员' })
+    const priced = await prisma.shipment.findUniqueOrThrow({ where: { id: shipment.id }, include: { items: true } })
+    assert.equal(priced.totalAmount, 540)
+    assert.equal(priced.items[0].totalAmount, 540)
+    assert.equal(priced.status, 'DELIVERED')
+    assert.equal(priced.shippedCostAmount, original.shippedCostAmount)
+    assert.equal(await prisma.stockLog.count(), logsBeforePrice, '补价不得新增库存流水')
+    assert.ok(priced.updatedAt > original.updatedAt, '改价必须使新版单据缓存失效')
+    assert.ok(await prisma.auditLog.findFirst({ where: { entityId: shipment.id, action: 'UPDATE' } }), '改价与审计同事务保存')
+    await assert.rejects(() => updateShipmentPrices(shipment.id, priceInput, unrestrictedDataScope, {}), /已发生变化/)
+    await assert.rejects(() => updateShipmentPrices(shipment.id, { ...priceInput, items: [{ id: 'foreign', unitPrice: 1 }] }, unrestrictedDataScope, {}), /明细不匹配/)
     const returned = await createManagedReturn({
       shipmentId: shipment.id, shipmentItemId: shipment.items[0].id, locationId: location.id,
       qty: 10, reason: '客户退回验证',

@@ -217,6 +217,7 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
     <ShipmentPage
       onMessage={context.onMessage}
       canCreate={context.canCreate('shipment')}
+      canUpdatePrices={context.canUpdate('shipment')}
       canDispatch={context.canUpdate('shipmentDispatch')}
       canDeliver={context.canUpdate('shipmentDeliver')}
       canCancel={context.canUpdate('shipmentCancel')}

@@ -3,8 +3,13 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pageModuleDefinitions, resolvePageModuleKey } from '../lib/page-modules'
 import { workspaceFunctionKeys } from '../lib/workspace'
+import { registeredPageDefinitions } from '../lib/page-registry'
 
 const root = process.cwd()
+assert.deepEqual(registeredPageDefinitions.filter((page) => page.groupKey === 'sales').map((page) => page.key), ['salesOrders'], '销售仅管理订单')
+for (const key of ['materialIn', 'shipment', 'return']) {
+  assert.equal(registeredPageDefinitions.find((page) => page.key === key)?.groupKey, 'logistics', `${key} 必须归属物流`)
+}
 
 const expectedFunctionKeys = [
   'dashboard', 'allFunctions', 'helpCenter', 'materialManagement', 'bomWorkspace', 'bomUsage', 'workInstructions',

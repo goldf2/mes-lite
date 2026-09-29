@@ -29,7 +29,7 @@ interface MaterialInCollectionViewProps {
 function StatusBadge({ item }: { item: MaterialInRecord }) {
   return (
     <span className={`inline-block rounded px-2 py-1 text-xs font-medium ${materialInStatusColors[item.status]}`}>
-      {materialInStatusLabels[item.status] || item.status}
+      {materialInStatusLabels[item.status] || item.status}{item.deletedAt ? ' · 已归档' : ''}
     </span>
   )
 }
@@ -51,6 +51,7 @@ function ItemActions({ item, compact = false, ...props }: {
     <div className="flex flex-wrap gap-2">
       <AppButton size="sm" variant="secondary" onClick={() => props.onDetail(item)}>详情</AppButton>
       <BusinessDocumentPrintLink kind="material-in" id={item.id} compact={compact} />
+      {!item.deletedAt && <>
       {props.canUpdate && <AppButton size="sm" variant="secondary" onClick={() => props.onEdit(item)} disabled={props.loading}>{item.status === 'PENDING' ? '编辑' : '编辑附件'}</AppButton>}
       {item.status === 'PENDING' && (
         <>
@@ -61,6 +62,7 @@ function ItemActions({ item, compact = false, ...props }: {
       {item.status === 'RECEIVED' && props.canReverse && (
         <button type="button" onClick={() => props.onReverse(item)} disabled={props.loading} className="rounded bg-orange-600 px-3 py-1 text-xs text-white transition hover:bg-orange-700 disabled:opacity-50">整单红冲</button>
       )}
+      </>}
     </div>
   )
 }

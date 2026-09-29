@@ -19,6 +19,10 @@ export interface MaterialInListQuery {
   advancedConditions?: ResourceSearchCondition[]
   page: number
   pageSize: number
+  startDate?: string | null
+  endDate?: string | null
+  includeArchived?: boolean
+  includeSummary?: boolean
 }
 
 export function materialInInclude() {
@@ -89,7 +93,17 @@ async function receiptIdsByLineAggregate(condition: ResourceSearchCondition) {
 export async function listMaterialIns(query: MaterialInListQuery, scope: EffectiveDataScope = unrestrictedDataScope) {
   const page = Math.max(1, Number.isFinite(query.page) ? Math.floor(query.page) : 1)
   const pageSize = Math.min(100, Math.max(1, Number.isFinite(query.pageSize) ? Math.floor(query.pageSize) : 20))
-  const where: Prisma.MaterialReceiptWhereInput = { deletedAt: null }
+  const where: Prisma.MaterialReceiptWhereInput = query.includeArchived ? {} : { deletedAt: null }
+  const dateBoundary = (value: string | null | undefined) => {
+    if (!value) return undefined
+    const date = new Date(`${value}T00:00:00+08:00`)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(date.getTime()) || new Date(date.getTime() + 28_800_000).toISOString().slice(0, 10) !== value) throw new MaterialInDomainError('来料日期无效')
+    return date
+  }
+  const start = dateBoundary(query.startDate)
+  const end = dateBoundary(query.endDate)
+  if (start && end && start > end) throw new MaterialInDomainError('结束日期不能早于开始日期')
+  if (start || end) where.inboundDate = { gte: start, lt: end ? new Date(end.getTime() + 86_400_000) : undefined }
   const andConditions: Prisma.MaterialReceiptWhereInput[] = []
   andConditions.push(materialReceiptDataScopeWhere(scope))
   if (query.statuses.length === 1) where.status = query.statuses[0]
@@ -142,19 +156,25 @@ export async function listMaterialIns(query: MaterialInListQuery, scope: Effecti
   andConditions.push(...keywordFilters)
   if (andConditions.length > 0) where.AND = andConditions
 
-  const [receipts, total] = await Promise.all([
-    prisma.materialReceipt.findMany({
+  const [receipts, total, summaryRows] = await prisma.$transaction(async (tx) => Promise.all([
+    tx.materialReceipt.findMany({
       where,
       include: materialReceiptInclude(),
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ inboundDate: 'desc' }, { id: 'desc' }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
-    prisma.materialReceipt.count({ where }),
-  ])
+    tx.materialReceipt.count({ where }),
+    tx.materialIn.groupBy({
+      by: ['status', 'unit'],
+      where: query.includeSummary ? { receipt: { is: where } } : { id: '__NO_SUMMARY__' },
+      _sum: { qty: true, totalAmount: true }, _count: { id: true },
+    }),
+  ]))
 
   return {
     items: receipts.map(toMaterialInRecord),
+    summary: summaryRows.map((row) => ({ status: row.status, unit: row.unit, lineCount: row._count.id, qty: Number((row._sum.qty || 0).toFixed(6)), amount: Number((row._sum.totalAmount || 0).toFixed(2)) })),
     pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
   }
 }

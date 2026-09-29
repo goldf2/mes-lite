@@ -110,6 +110,7 @@ export interface MaterialInLineRecord {
 }
 
 export interface MaterialInRecord {
+  deletedAt?: string | null
   id: string
   inboundNo: string
   voucherNo?: string | null
@@ -125,6 +126,14 @@ export interface MaterialInRecord {
   supplier: { id: string; code: string; name: string }
   location: InventoryLocationOption
   items: MaterialInLineRecord[]
+}
+
+export interface MaterialInHistorySummary {
+  status: string
+  unit: string
+  lineCount: number
+  qty: number
+  amount: number
 }
 
 export interface MaterialInDraftItem {

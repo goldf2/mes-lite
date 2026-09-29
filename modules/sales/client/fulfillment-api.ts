@@ -12,6 +12,11 @@ import type {
   CustomerMaterialDeliveryReference,
 } from '../contracts/fulfillment'
 import type { ShipmentPackage, ShipmentPackageForm } from '../contracts/shipment-package'
+import type { ShipmentPricesCommand } from '../contracts/fulfillment-schema'
+
+export async function saveShipmentPrices(id: string, input: ShipmentPricesCommand) {
+  await request(`/api/shipments/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
+}
 
 interface ApiPayload<T> {
   data?: T
