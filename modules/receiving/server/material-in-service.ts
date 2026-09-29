@@ -200,6 +200,11 @@ export async function buildMaterialInLineData(
       && units.stockUnit !== units.valuationUnit,
   )
   const calculatedLength = input.lengthPerPiece !== undefined
+  const unmeasured = input.omitAuxiliaryQuantity === true
+  if (unmeasured && (!materialUsesDualUnit || material.primaryMeasure !== 'WEIGHT' || material.referenceMeasure !== 'LENGTH'
+    || input.priceBasis === 'VALUATION' || calculatedLength || Number(input.valuationQty || 0) > 0)) {
+    throw new MaterialInDomainError('未测长入库仅支持按重量记账和计价，不能同时填写长度或按长度计价')
+  }
   if (calculatedLength && (!materialUsesDualUnit || material.referenceMeasure !== 'LENGTH'
     || !Number.isInteger(input.pieceCount) || Number(input.pieceCount) <= 0)) {
     throw new MaterialInDomainError('按根数计算仅适用于长度辅助单位，且根数必须为正整数')
@@ -213,7 +218,10 @@ export async function buildMaterialInLineData(
   let effectiveValuationQty = qty
   let conversionSource = 'SAME_UNIT'
   let conversionSampleCount = 0
-  if (materialUsesDualUnit && requestedActualValuationQty > 0) {
+  if (unmeasured) {
+    effectiveValuationQty = 0
+    conversionSource = 'UNMEASURED'
+  } else if (materialUsesDualUnit && requestedActualValuationQty > 0) {
     effectiveValuationQty = requestedActualValuationQty
     conversionSource = calculatedLength ? 'CALCULATED_LENGTH' : 'DOCUMENT_ACTUAL'
   } else if (materialUsesDualUnit) {

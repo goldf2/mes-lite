@@ -34,7 +34,7 @@ export default function MaterialPanoramaRecordsModule({ data }: { data: Panorama
           <div className="space-y-2">{data.costLayers.map((layer) => (
             <div key={layer.id} className="rounded-md border border-gray-100 px-3 py-2 text-sm">
               <div className="flex items-center justify-between gap-2"><span className="font-medium text-gray-900">{layer.status}</span><span className="text-xs text-gray-500">{compactDate(layer.createdAt)}</span></div>
-              <div className="mt-1 text-xs text-gray-600">剩余 {formatNumber(layer.remainingStockQty)} {layer.stockUnit} / {formatNumber(layer.remainingValuationQty)} {layer.valuationUnit}</div>
+              <div className="mt-1 text-xs text-gray-600">剩余 {formatNumber(layer.remainingStockQty)} {layer.stockUnit} / {layer.valuationComplete === false ? '辅助数量未知' : `${formatNumber(layer.remainingValuationQty)} ${layer.valuationUnit}`}</div>
               <div className="mt-1 text-xs text-gray-500">金额 {formatMoney(layer.remainingAmount)} · {formatMoney(layer.stockUnitCost)} / {layer.stockUnit}</div>
             </div>
           ))}</div>

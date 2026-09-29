@@ -193,6 +193,7 @@ export default function StockPageModule({ canUpdateStock, onMessage, onStateSumm
         stockId: adjustingStock.id,
         newLocationQty: Number(stockAdjustForm.newLocationQty),
         newValuationQty: Number(stockAdjustForm.newValuationQty),
+        confirmAuxiliaryQuantity: stockAdjustForm.confirmAuxiliaryQuantity,
         newTotalCost: Number(stockAdjustForm.newTotalCost),
         reason: stockAdjustForm.reason.trim(),
       })

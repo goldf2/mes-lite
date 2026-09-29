@@ -27,7 +27,7 @@ export async function createInventoryReversalMovement(
   if (!isInverse(source.costAmount, input.costAmount)) throw new InventoryLedgerError('冲销成本金额与原流水不守恒')
 
   const reversal = await tx.stockLog.create({
-    data: { ...input, sourceMovementId: source.id },
+    data: { ...input, valuationComplete: source.valuationComplete, sourceMovementId: source.id },
   })
   const linked = await tx.stockLog.updateMany({
     where: { id: source.id, reversalMovementId: null },

@@ -38,9 +38,9 @@ export function MaterialPanoramaSummaryModule({ data, coverImage }: { data: Pano
           <Metric label="已占用" value={`${formatNumber(stock?.reservedQty)} ${material.stockUnit || material.unit}`} tone="amber" />
           <Metric label="待检库存" value={`${formatNumber(stock?.quarantineQty)} ${material.stockUnit || material.unit}`} tone="amber" />
           <Metric label="冻结库存" value={`${formatNumber(stock?.holdQty)} ${material.stockUnit || material.unit}`} />
-          <Metric label="核算库存" value={`${formatNumber(stock?.valuationQty)} ${material.valuationUnit}`} />
+          <Metric label="辅助库存" value={stock?.valuationComplete === false ? '未知 / 不完整' : `${formatNumber(stock?.valuationQty)} ${material.valuationUnit}`} />
           <Metric label="库存金额" value={formatMoney(stock?.totalCost)} tone="blue" />
-          <Metric label="当前单价" value={`${formatMoney(stock?.stockUnitCost)} / ${material.stockUnit || material.unit}`} hint={`${formatMoney(stock?.valuationUnitCost)} / ${material.valuationUnit}`} />
+          <Metric label="当前单价" value={`${formatMoney(stock?.stockUnitCost)} / ${material.stockUnit || material.unit}`} hint={stock?.valuationComplete === false ? '辅助单位成本未知' : `${formatMoney(stock?.valuationUnitCost)} / ${material.valuationUnit}`} />
         </div>
       </Panel>
     </div>

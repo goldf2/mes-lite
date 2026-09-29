@@ -8,7 +8,7 @@ interface CostedMaterial {
   stockUnit: string
   unit: string
   valuationUnit?: string | null
-  stock?: { stockUnitCost?: unknown; valuationUnitCost?: unknown } | null
+  stock?: { stockUnitCost?: unknown; valuationUnitCost?: unknown; valuationComplete?: boolean } | null
 }
 
 interface BomCostItem {
@@ -106,6 +106,9 @@ export function materialUnitCost(item: BomCostItem) {
   if (!material) return 0
   const stockUnitCost = Number(material.stock?.stockUnitCost || 0)
   const valuationUnitCost = Number(material.stock?.valuationUnitCost || 0)
+  if (material.stock?.valuationComplete === false && item.unit === material.valuationUnit && item.unit !== material.stockUnit) {
+    throw new BomCostRuleError('物料辅助库存数量不完整，不能按辅助单位核价；请核实长度或使用已明确换算为库存单位的 BOM')
+  }
   if (item.unit && material.valuationUnit && item.unit === material.valuationUnit) {
     return valuationUnitCost || stockUnitCost
   }

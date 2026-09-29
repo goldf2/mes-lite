@@ -21,6 +21,7 @@ export const materialInItemShape = {
   unit: z.string().optional(),
   valuationQty: z.number().nonnegative('核算数量不能为负').optional(),
   lengthPerPiece: z.number().finite().positive('单根长度必须大于 0').optional(),
+  omitAuxiliaryQuantity: z.boolean().optional(),
   valuationUnit: z.string().optional(),
   unitPrice: z.number().nonnegative('单价不能为负'),
   totalAmount: z.number().nonnegative('总价格不能为负').optional(),

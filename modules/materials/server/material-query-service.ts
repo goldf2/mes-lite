@@ -18,6 +18,7 @@ const materialInclude = {
       quarantineValuationQty: true, holdValuationQty: true,
       totalCost: true, quarantineCost: true, holdCost: true,
       valuationUnitCost: true, stockUnitCost: true,
+      valuationComplete: true,
     },
   },
   customer: { select: { id: true, code: true, name: true } },

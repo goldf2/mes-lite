@@ -1,4 +1,5 @@
 export type InventoryLotTraceNode = {
+  valuationComplete?: boolean
   id: string
   lotNo: string
   material: { id: string; code: string; name: string; stockUnit: string; unit: string }

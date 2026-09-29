@@ -199,7 +199,7 @@ export default function MaterialTableView({
                   </td>
                 )}
                 {showField('stock') && <td style={columns.styleFor('stock')} className="overflow-hidden px-4 py-3 text-sm"><div className="truncate">{material.stock?.qty || 0} {material.stockUnit || material.unit}</div></td>}
-                {showField('valuationStock') && <td style={columns.styleFor('valuationStock')} className="overflow-hidden px-4 py-3 text-sm text-green-600"><div className="truncate">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</div></td>}
+                {showField('valuationStock') && <td style={columns.styleFor('valuationStock')} className="overflow-hidden px-4 py-3 text-sm text-green-600"><div className="truncate">{material.stock?.valuationComplete === false ? '未知 / 不完整' : material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</div></td>}
                 {showField('createdAt') && <td style={columns.styleFor('createdAt')} className="overflow-hidden px-4 py-3 text-xs text-gray-500"><div className="truncate">{new Date(material.createdAt).toLocaleString('zh-CN')}</div></td>}
                 {bomSummary && (
                   <td style={columns.styleFor('bomSummary')} className="overflow-hidden px-4 py-3 text-sm">

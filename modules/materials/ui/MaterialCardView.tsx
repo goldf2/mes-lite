@@ -65,7 +65,7 @@ export default function MaterialCardView({
                 {showField('valuationStock') && (
                   <div className="min-w-0">
                     <div className="text-xs text-gray-500">参考数量</div>
-                    <div className="mt-0.5 truncate font-semibold text-emerald-700">{material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</div>
+                    <div className="mt-0.5 truncate font-semibold text-emerald-700">{material.stock?.valuationComplete === false ? '未知 / 不完整' : material.stock?.valuationQty || 0} {material.valuationUnit || material.unit}</div>
                   </div>
                 )}
               </div>

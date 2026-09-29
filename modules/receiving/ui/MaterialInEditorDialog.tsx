@@ -40,7 +40,7 @@ interface MaterialInEditorDialogProps {
   materialUsesDualUnit: boolean
   effectiveValuationQty: number
   valuationUnitLabel: string
-  conversionSource: 'SAME_UNIT' | 'DOCUMENT_ACTUAL' | 'CALCULATED_LENGTH' | 'HISTORICAL_ESTIMATE' | 'MISSING'
+  conversionSource: 'SAME_UNIT' | 'DOCUMENT_ACTUAL' | 'CALCULATED_LENGTH' | 'HISTORICAL_ESTIMATE' | 'MISSING' | 'UNMEASURED'
   conversionRatePreview: number
   priceUnitOptions: MaterialInPriceUnit[]
   priceUsesValuation: boolean
@@ -64,6 +64,7 @@ interface MaterialInEditorDialogProps {
 
 function conversionSourceLabel(source: MaterialInEditorDialogProps['conversionSource']) {
   if (source === 'DOCUMENT_ACTUAL') return '本批实测'
+  if (source === 'UNMEASURED') return '未测长（未知）'
   if (source === 'CALCULATED_LENGTH') return '单根长度 × 根数（计算值）'
   if (source === 'HISTORICAL_ESTIMATE') return '历史实测加权推算'
   if (source === 'SAME_UNIT') return '与主单位相同'
@@ -227,7 +228,7 @@ export default function MaterialInEditorDialog({
               {selectedMaterial.note && <p className="mb-3 whitespace-pre-wrap break-words text-sm text-gray-700">物料备注（当前资料）：{selectedMaterial.note}</p>}
               <div className="mb-3">
                 <div className="text-sm font-medium text-gray-800">来料实收数量</div>
-                <div className="mt-0.5 text-xs text-gray-500">主单位数量必须实填；辅助单位优先实测，未填时仅可使用有效历史实测推算。</div>
+                <div className="mt-0.5 text-xs text-gray-500">主单位数量必须实填；重量入库可选择未测长，按重量计价。未知长度不参与辅助单位核价。</div>
               </div>
               <div className={`grid grid-cols-1 gap-4 ${materialUsesDualUnit ? 'sm:grid-cols-2' : ''}`}>
                 <div>
@@ -245,10 +246,10 @@ export default function MaterialInEditorDialog({
                   <div>
                     {selectedMaterial.referenceMeasure === 'LENGTH' && <SearchableSelect
                       value={form.lengthMode}
-                      onChange={(value) => setForm({ ...form, lengthMode: value === 'PER_PIECE' ? 'PER_PIECE' : 'TOTAL', valuationQty: 0, lengthPerPiece: 0, pieceCount: 0 })}
-                      options={[{ value: 'TOTAL', label: '直接填写总长度' }, { value: 'PER_PIECE', label: '单根长度 × 根数' }]}
+                      onChange={(value) => setForm({ ...form, lengthMode: value as MaterialInFormState['lengthMode'], valuationQty: 0, lengthPerPiece: 0, pieceCount: 0, ...(value === 'UNKNOWN' ? { priceUnit: priceUnitOptions[0], unitPrice: 0, totalAmount: 0, priceInputMode: 'UNIT' as const } : {}) })}
+                      options={[{ value: 'TOTAL', label: '直接填写总长度' }, { value: 'PER_PIECE', label: '单根长度 × 根数' }, ...(selectedMaterial.primaryMeasure === 'WEIGHT' ? [{ value: 'UNKNOWN', label: '未测长，仅按重量入库' }] : [])]}
                     />}
-                    {form.lengthMode === 'PER_PIECE' ? <div className="mt-2 grid grid-cols-2 gap-2">
+                    {form.lengthMode === 'UNKNOWN' ? <p className="mt-2 text-xs text-amber-700">不推算长度，不计入历史实测。切换到此模式会清空价格，请按重量重新填写。</p> : form.lengthMode === 'PER_PIECE' ? <div className="mt-2 grid grid-cols-2 gap-2">
                       <label className="text-sm">单根长度（{valuationUnitLabel}）<input aria-label="单根长度" type="number" min={0} step="any" value={form.lengthPerPiece || ''} onChange={(event) => setForm({ ...form, lengthPerPiece: Number(event.target.value) })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2" /></label>
                       <label className="text-sm">根数<input aria-label="根数" type="number" min={1} step={1} value={form.pieceCount || ''} onChange={(event) => setForm({ ...form, pieceCount: Number(event.target.value) })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2" /></label>
                       <p className="col-span-2 text-xs text-gray-500">不同长度请分别添加明细；计算值不作为历史实测样本。</p>
@@ -274,7 +275,7 @@ export default function MaterialInEditorDialog({
                 </div>
                 {materialUsesDualUnit && (
                   <div className="mt-1 text-xs text-gray-600">
-                    核算数量：{effectiveValuationQty || 0} {valuationUnitLabel}
+                    辅助数量：{form.lengthMode === 'UNKNOWN' ? '未知' : `${effectiveValuationQty || 0} ${valuationUnitLabel}`}
                     {conversionSource === 'HISTORICAL_ESTIMATE' && conversionHistory?.rate
                       ? `（${conversionHistory.sampleCount} 批实测加权，1 ${stockUnitLabel} ≈ ${conversionHistory.rate} ${valuationUnitLabel}）`
                       : conversionSource === 'DOCUMENT_ACTUAL' && conversionRatePreview > 0
@@ -323,7 +324,7 @@ export default function MaterialInEditorDialog({
                       onChange={(event) => setForm({ ...form, priceUnit: event.target.value as MaterialInPriceUnit })}
                       className="w-28 border-l border-gray-200 bg-gray-50 px-2 text-sm outline-none"
                     >
-                      {priceUnitOptions.map((unit, index) => (
+                      {priceUnitOptions.filter((_, index) => form.lengthMode !== 'UNKNOWN' || index === 0).map((unit, index) => (
                         <option key={unit} value={unit}>元 / {index === 0 ? stockUnitLabel : valuationUnitLabel}</option>
                       ))}
                     </select>
@@ -352,7 +353,7 @@ export default function MaterialInEditorDialog({
               <div>总价格：¥{totalAmountPreview.toFixed(2)}</div>
               <div>主单位成本：¥{stockUnitCostPreview.toFixed(4)} / {stockUnitLabel}</div>
               {materialUsesDualUnit && (
-                <div>辅助单位成本：¥{valuationUnitCostPreview.toFixed(4)} / {valuationUnitLabel}</div>
+                <div>辅助单位成本：{form.lengthMode === 'UNKNOWN' ? '未知（未测长）' : `¥${valuationUnitCostPreview.toFixed(4)} / ${valuationUnitLabel}`}</div>
               )}
             </div>
           </div>
@@ -451,7 +452,7 @@ export default function MaterialInEditorDialog({
                           {material?.note && <div className="mt-1 whitespace-pre-wrap break-words text-xs text-gray-600">物料备注：{material.note}</div>}
                           <div className="mt-1 text-xs text-gray-500">
                             {item.qty} {item.unit}
-                            {item.valuationQty ? ` · ${item.lengthPerPiece ? '计算' : '实测'} ${item.valuationQty} ${item.valuationUnit}` : ''}
+                            {item.omitAuxiliaryQuantity ? ' · 长度未知' : item.valuationQty ? ` · ${item.lengthPerPiece ? '计算' : '实测'} ${item.valuationQty} ${item.valuationUnit}` : ''}
                             {' · '}¥{item.totalAmount.toFixed(2)}
                           </div>
                           <div className="mt-0.5 break-words text-xs text-gray-500">

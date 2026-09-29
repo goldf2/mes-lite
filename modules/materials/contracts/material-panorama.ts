@@ -19,6 +19,7 @@ export interface AttachmentItem {
 }
 
 export interface StockSummary {
+  valuationComplete?: boolean
   qty: number
   reservedQty: number
   availableQty: number
@@ -235,6 +236,7 @@ export interface StockLogSummary {
 }
 
 export interface CostLayerSummary {
+  valuationComplete?: boolean
   id: string
   remainingStockQty: number
   remainingValuationQty: number

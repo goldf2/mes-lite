@@ -41,7 +41,7 @@ export async function loadBusinessDocumentPrintData(
       documentDate: dateText(receipt.inboundDate), referenceNo: receipt.voucherNo, partyLabel: '供应商', partyName: receipt.supplier.name,
       summaryFields: [{ label: '待分库库位', value: `${receipt.stagingLocation.code} · ${receipt.stagingLocation.name}` }, { label: '物料种类', value: `${receipt.lines.length} 种` }, { label: '收料人', value: receipt.receivedBy || '-' }],
       columns: [{ label: '序号', key: 'index', width: 0.6, align: 'center' }, { label: '物料编码', key: 'code', width: 1.4 }, { label: '物料名称/规格', key: 'material', width: 2.5 }, { label: '库存数量', key: 'qty', width: 1.2, align: 'right' }, { label: '计价数量', key: 'valuation', width: 1.2, align: 'right' }, { label: '金额', key: 'amount', width: 1.1, align: 'right' }],
-      rows: receipt.lines.map((line, index) => ({ index: String(index + 1), code: line.material.code, material: `${line.material.name}${line.material.spec ? ` · ${line.material.spec}` : ''}`, qty: `${numberText(line.qty)} ${line.unit}`, valuation: `${numberText(line.valuationQty)} ${line.valuationUnit}`, amount: money(line.totalAmount) })),
+      rows: receipt.lines.map((line, index) => ({ index: String(index + 1), code: line.material.code, material: `${line.material.name}${line.material.spec ? ` · ${line.material.spec}` : ''}`, qty: `${numberText(line.qty)} ${line.unit}`, valuation: line.conversionSource === 'UNMEASURED' ? '未知（未测长）' : `${numberText(line.valuationQty)} ${line.valuationUnit}`, amount: money(line.totalAmount) })),
       totalLabel: '入库金额', totalValue: money(totalAmount), note: receipt.note, signatures: ['制单人', '仓管员', '供应商送货人'],
     }
   }

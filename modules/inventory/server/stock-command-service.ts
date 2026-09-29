@@ -32,6 +32,7 @@ export function adjustStock(
         newLocationQty: result.newLocationQty,
         newQty: result.newQty,
         newValuationQty: result.newValuationQty,
+        confirmAuxiliaryQuantity: input.confirmAuxiliaryQuantity === true,
         newTotalCost: result.newTotalCost,
         reason: input.reason,
         adjustedBy,

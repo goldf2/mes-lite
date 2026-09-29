@@ -1229,6 +1229,8 @@ model QCRecord {
 // ==================== 库存与入库 ====================
 
 model Stock {
+  /// False means auxiliary quantities are incomplete and must not be used as a conversion basis.
+  valuationComplete Boolean @default(true)
   /// Database triggers require exactly one owner: Material or legacy Product.
   id         String    @id @default(cuid())
   materialId String?   @unique
@@ -1278,6 +1280,7 @@ model StockLocationBalance {
 }
 
 model StockLog {
+  valuationComplete Boolean @default(true)
   id         String             @id @default(cuid())
   stockId    String
   stock      Stock              @relation(fields: [stockId], references: [id])
@@ -1320,6 +1323,7 @@ model StockLog {
 }
 
 model InventoryLot {
+  valuationComplete Boolean @default(true)
   id                          String                                   @id @default(cuid())
   lotNo                       String                                   @unique
   materialId                  String
@@ -1864,6 +1868,7 @@ model MaterialIn {
 }
 
 model InventoryCostLayer {
+  valuationComplete Boolean @default(true)
   id                    String                            @id @default(cuid())
   materialId            String
   material              Material                          @relation(fields: [materialId], references: [id])

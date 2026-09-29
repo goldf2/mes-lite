@@ -95,6 +95,7 @@ async function transitionLotCostLayers(
     await tx.inventoryCostLayer.create({
       data: {
         materialId: layer.materialId,
+        valuationComplete: layer.valuationComplete,
         materialInId: layer.materialInId,
         sourceType: layer.sourceType,
         sourceId: layer.sourceId,

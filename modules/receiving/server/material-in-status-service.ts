@@ -36,6 +36,7 @@ export async function receiveManagedMaterialIn(id: string, receivedBy: string, s
       const inventoryStatus = requiresQualityInspection ? 'QUARANTINE' as const : 'AVAILABLE' as const
       const conversionSource: ConversionSource = line.conversionSource === 'DOCUMENT_ACTUAL'
         || line.conversionSource === 'CALCULATED_LENGTH'
+        || line.conversionSource === 'UNMEASURED'
         || line.conversionSource === 'HISTORICAL_ESTIMATE'
         || line.conversionSource === 'SAME_UNIT'
         ? line.conversionSource
@@ -58,6 +59,7 @@ export async function receiveManagedMaterialIn(id: string, receivedBy: string, s
       })
       const lot = await createInventoryLotReceipt(tx, {
         lotNo: `RM-${line.inboundNo}`,
+        valuationComplete: line.conversionSource !== 'UNMEASURED',
         materialId: line.materialId,
         materialInId: line.id,
         sourceType: 'MATERIAL_IN',
@@ -198,6 +200,7 @@ async function reverseMaterialInLine(
     await tx.inventoryCostLayer.create({
       data: {
         materialId: current.materialId, materialInId: current.id,
+        valuationComplete: current.conversionSource !== 'UNMEASURED',
         stockQty: qty, remainingStockQty: 0, valuationQty, remainingValuationQty: 0,
         stockUnit: current.unit, valuationUnit: current.valuationUnit,
         valuationUnitCost: Number(current.valuationUnitCost || (valuationQty > 0 ? costAmount / valuationQty : 0)),

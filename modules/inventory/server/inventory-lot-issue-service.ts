@@ -9,6 +9,7 @@ export async function createInventoryLotReceipt(
   tx: Prisma.TransactionClient,
   input: {
     lotNo: string
+    valuationComplete?: boolean
     materialId: string
     materialInId?: string | null
     productionOutputId?: string | null
@@ -29,9 +30,11 @@ export async function createInventoryLotReceipt(
     createdBy?: string | null
   },
 ) {
+  const sourceMovement = input.stockLogId ? await tx.stockLog.findUnique({ where: { id: input.stockLogId }, select: { valuationComplete: true } }) : null
   const lot = await tx.inventoryLot.create({
     data: {
       lotNo: input.lotNo,
+      valuationComplete: input.valuationComplete ?? sourceMovement?.valuationComplete ?? true,
       materialId: input.materialId,
       materialInId: input.materialInId || null,
       productionOutputId: input.productionOutputId || null,

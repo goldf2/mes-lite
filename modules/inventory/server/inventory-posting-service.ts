@@ -7,6 +7,7 @@ export type ConversionSource =
   | 'MASTER_DEFAULT'
   | 'DOCUMENT_ACTUAL'
   | 'CALCULATED_LENGTH'
+  | 'UNMEASURED'
   | 'HISTORICAL_ESTIMATE'
   | 'SAME_UNIT'
   | 'STOCK_AVERAGE'
@@ -193,7 +194,7 @@ export function resolveReceiptQuantities(input: {
 }) {
   if (!Number.isFinite(input.stockQty) || input.stockQty <= 0) throw new Error('库存数量必须大于 0')
   const hasActual = Number.isFinite(input.valuationQty) && Number(input.valuationQty) >= 0
-  const valuationQty = roundQty(hasActual
+  const valuationQty = input.conversionSource === 'UNMEASURED' ? 0 : roundQty(hasActual
     ? Number(input.valuationQty)
     : input.stockQty * normalizeConversionRate(input.defaultConversionRate))
   return {
@@ -216,6 +217,7 @@ async function ensureFifoOpeningLayer(
     eligibleStockQty: number
     eligibleValuationQty: number
     eligibleCostAmount: number
+    valuationComplete: boolean
   },
 ) {
   if (material.costingMethod !== 'FIFO' || stock.eligibleStockQty <= tolerance) return
@@ -233,6 +235,7 @@ async function ensureFifoOpeningLayer(
     data: {
       materialId: material.id,
       stockQty: missingQty,
+      valuationComplete: stock.valuationComplete,
       remainingStockQty: missingQty,
       valuationQty,
       remainingValuationQty: valuationQty,
@@ -302,6 +305,7 @@ export async function postInventoryReceipt(
     where: { id: stock.id },
     data: {
       qty: afterQty,
+      valuationComplete: stock.valuationComplete && quantities.conversionSource !== 'UNMEASURED',
       availableQty: roundQty(Number(stock.availableQty) + (inventoryStatus === 'AVAILABLE' ? quantities.stockQty : 0)),
       quarantineQty: roundQty(Number(stock.quarantineQty) + (inventoryStatus === 'QUARANTINE' ? quantities.stockQty : 0)),
       holdQty: roundQty(Number(stock.holdQty) + (inventoryStatus === 'HOLD' ? quantities.stockQty : 0)),
@@ -323,6 +327,7 @@ export async function postInventoryReceipt(
       data: {
         materialId: material.id,
         materialInId: input.materialInId || null,
+        valuationComplete: quantities.conversionSource !== 'UNMEASURED',
         sourceType: input.refType,
         sourceId: input.refId,
         stockQty: quantities.stockQty,
@@ -346,6 +351,7 @@ export async function postInventoryReceipt(
       locationId: location.id,
       type: input.type,
       qty: quantities.stockQty,
+      valuationComplete: stock.valuationComplete && quantities.conversionSource !== 'UNMEASURED',
       beforeQty,
       afterQty,
       valuationQty: quantities.valuationQty,
@@ -415,12 +421,14 @@ export async function postInventoryIssue(
     eligibleStockQty: Math.max(0, roundQty(Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty) - Number(stock.reworkQty))),
     eligibleValuationQty: roundQty(Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty) - Number(stock.reworkValuationQty)),
     eligibleCostAmount: roundQty(Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost) - Number(stock.reworkCost)),
+    valuationComplete: stock.valuationComplete,
   })
   const costResult = allocatedStockQty > tolerance ? await consumeMaterialCost(tx, {
     materialId: material.id,
     issueStockQty: allocatedStockQty,
     stock: {
       id: stock.id,
+      valuationComplete: stock.valuationComplete,
       qty: roundQty(Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty) - Number(stock.reworkQty)),
       valuationQty: roundQty(Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty) - Number(stock.reworkValuationQty)),
       totalCost: roundQty(Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost) - Number(stock.reworkCost)),
@@ -464,13 +472,14 @@ export async function postInventoryIssue(
     qtyDelta: -issueQty,
     allowNegativeStock: input.allowNegativeStock,
   })
-  const conversionSource: ConversionSource = material.costingMethod === 'FIFO' ? 'FIFO_LAYER' : 'STOCK_AVERAGE'
+  const conversionSource: ConversionSource = !stock.valuationComplete ? 'UNMEASURED' : material.costingMethod === 'FIFO' ? 'FIFO_LAYER' : 'STOCK_AVERAGE'
   const movement = await tx.stockLog.create({
     data: {
       stockId: stock.id,
       locationId: location.id,
       type: input.type,
       qty: -issueQty,
+      valuationComplete: stock.valuationComplete,
       beforeQty,
       afterQty,
       valuationQty: -costResult.issueValuationQty,
@@ -481,7 +490,7 @@ export async function postInventoryIssue(
       afterCostAmount,
       stockUnitSnapshot: material.stockUnit,
       valuationUnitSnapshot: material.valuationUnit,
-      conversionRateUsed: allocatedStockQty > tolerance && costResult.issueValuationQty > 0 ? roundQty(costResult.issueValuationQty / allocatedStockQty) : 0,
+      conversionRateUsed: stock.valuationComplete && allocatedStockQty > tolerance && costResult.issueValuationQty > 0 ? roundQty(costResult.issueValuationQty / allocatedStockQty) : 0,
       conversionSource,
       costingMethodSnapshot: material.costingMethod,
       idempotencyKey: input.idempotencyKey,
@@ -499,7 +508,7 @@ export async function postInventoryIssue(
     allocatedStockQty,
     negativeStockQty: roundQty(issueQty - allocatedStockQty),
     valuationQty: costResult.issueValuationQty,
-    conversionRateUsed: allocatedStockQty > tolerance && costResult.issueValuationQty > 0 ? roundQty(costResult.issueValuationQty / allocatedStockQty) : 0,
+    conversionRateUsed: stock.valuationComplete && allocatedStockQty > tolerance && costResult.issueValuationQty > 0 ? roundQty(costResult.issueValuationQty / allocatedStockQty) : 0,
     conversionSource,
     costAmount: costResult.costAmount,
     layerConsumptions: costResult.layerConsumptions,
@@ -587,6 +596,7 @@ export async function reverseInventoryIssue(
         sourceType: input.refType,
         sourceId: input.refId,
         stockQty,
+        valuationComplete: source.valuationComplete,
         remainingStockQty: stockQty,
         valuationQty,
         remainingValuationQty: valuationQty,

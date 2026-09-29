@@ -1,10 +1,25 @@
-import type {
-  MaterialInFormState,
-  MaterialInLineRecord,
-  MaterialInRecord,
-  MaterialInSavePayload,
-  ReceivingMaterialOption,
-} from '../contracts/material-in'
+import { normalizeMaterialInPriceUnit } from '@/lib/material-in-quantity'
+import type { MaterialInDraftItem, MaterialInFormState, MaterialInLineRecord, MaterialInRecord, MaterialInSavePayload, ReceivingMaterialOption } from '../contracts/material-in'
+
+export function createDraftItemsFromRecord(item: MaterialInRecord): MaterialInDraftItem[] {
+  return item.items.map((line) => ({
+    id: line.id,
+    materialId: line.materialId,
+    locationId: item.stagingLocationId,
+    qty: Number(line.qty),
+    omitAuxiliaryQuantity: line.conversionSource === 'UNMEASURED',
+    valuationQty: ['DOCUMENT_ACTUAL', 'CALCULATED_LENGTH'].includes(line.conversionSource || '') ? Number(line.valuationQty) : undefined,
+    lengthPerPiece: line.conversionSource === 'CALCULATED_LENGTH' && line.pieceCount ? Number(line.totalLength) / line.pieceCount : undefined,
+    pieceCount: line.conversionSource === 'CALCULATED_LENGTH' ? line.pieceCount || undefined : undefined,
+    unit: line.unit,
+    valuationUnit: line.valuationUnit,
+    unitPrice: Number(line.unitPrice),
+    totalAmount: Number(line.totalAmount),
+    priceUnit: normalizeMaterialInPriceUnit(line.priceUnit, line.material.primaryMeasure),
+    priceBasis: line.priceBasis === 'VALUATION' ? 'VALUATION' : 'STOCK',
+    batchNo: line.batchNo || undefined,
+  }))
+}
 
 export const materialInStatusColors: Record<string, string> = {
   PENDING: 'bg-gray-100 text-gray-700',
@@ -78,6 +93,7 @@ export function materialInRecordMatchesSavePayload(record: MaterialInRecord, pay
     const expectedLocationId = item.locationId || payload.stagingLocationId || record.stagingLocationId
     if (line.materialId !== item.materialId || line.locationId !== expectedLocationId) return false
     if (!sameSaveNumber(line.qty, item.qty)) return false
+    if (Boolean(item.omitAuxiliaryQuantity) !== (line.conversionSource === 'UNMEASURED')) return false
     if (item.lengthPerPiece !== undefined) {
       if (line.conversionSource !== 'CALCULATED_LENGTH' || line.pieceCount !== item.pieceCount
         || !sameSaveNumber(line.totalLength, Number((item.lengthPerPiece * Number(item.pieceCount)).toFixed(6)))) return false

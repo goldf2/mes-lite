@@ -35,6 +35,7 @@ export const stockAdjustmentSchema = z.object({
   locationId: z.string().min(1, '库位必填'),
   newLocationQty: z.number().nonnegative(),
   newValuationQty: z.number().nonnegative().optional(),
+  confirmAuxiliaryQuantity: z.boolean().optional(),
   newTotalCost: z.number().nonnegative().optional(),
   reason: z.string().min(1, '调整原因必填'),
 }).strict()

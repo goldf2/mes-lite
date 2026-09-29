@@ -54,6 +54,7 @@ export async function pickLegacyProductionOrder(
           issueStockQty: item.actualQty,
           stock: {
             id: stock.id,
+            valuationComplete: stock.valuationComplete,
             qty: eligibleStockQty,
             valuationQty: eligibleValuationQty,
             totalCost: eligibleCostAmount,

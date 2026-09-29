@@ -29,6 +29,7 @@ import type {
 } from '../contracts/material-in'
 import {
   createEmptyMaterialInForm,
+  createDraftItemsFromRecord,
   formatReceivingMaterialLabel as formatMaterialLabel,
   materialInStatusLabels as statusLabels,
   materialInStatusOptions as statusOptions,
@@ -49,24 +50,6 @@ import {
   saveMaterialInRecord,
 } from '../client/material-in-api'
 
-function createDraftItemsFromRecord(item: MaterialIn): MaterialInDraftItem[] {
-  return item.items.map((line) => ({
-    id: line.id,
-    materialId: line.materialId,
-    locationId: item.stagingLocationId,
-    qty: Number(line.qty),
-    valuationQty: ['DOCUMENT_ACTUAL', 'CALCULATED_LENGTH'].includes(line.conversionSource || '') ? Number(line.valuationQty) : undefined,
-    lengthPerPiece: line.conversionSource === 'CALCULATED_LENGTH' && line.pieceCount ? Number(line.totalLength) / line.pieceCount : undefined,
-    pieceCount: line.conversionSource === 'CALCULATED_LENGTH' ? line.pieceCount || undefined : undefined,
-    unit: line.unit,
-    valuationUnit: line.valuationUnit,
-    unitPrice: Number(line.unitPrice),
-    totalAmount: Number(line.totalAmount),
-    priceUnit: normalizeMaterialInPriceUnit(line.priceUnit, line.material.primaryMeasure),
-    priceBasis: line.priceBasis === 'VALUATION' ? 'VALUATION' : 'STOCK',
-    batchNo: line.batchNo || undefined,
-  }))
-}
 
 export default function MaterialInPage({
   onMessage,
@@ -273,7 +256,8 @@ export default function MaterialInPage({
     if (!form.materialId || !form.locationId || calculatedStockQty <= 0) {
       return '请选择物料和库位，并输入有效的主单位数量'
     }
-    if (materialUsesDualUnit && effectiveValuationQty <= 0) {
+    if (form.lengthMode === 'UNKNOWN' && priceUsesValuation) return '未测长时只能按主单位计价'
+    if (materialUsesDualUnit && effectiveValuationQty <= 0 && form.lengthMode !== 'UNKNOWN') {
       return conversionHistoryLoading
         ? '正在读取历史实测数据，请稍候'
         : `该物料启用了辅助单位 ${valuationUnitLabel}，请填写本批实测辅助数量`
@@ -290,6 +274,7 @@ export default function MaterialInPage({
       locationId: form.locationId,
       qty: calculatedStockQty,
       valuationQty: actualValuationQty > 0 ? actualValuationQty : undefined,
+      omitAuxiliaryQuantity: form.lengthMode === 'UNKNOWN',
       lengthPerPiece: form.lengthMode === 'PER_PIECE' ? form.lengthPerPiece : undefined,
       pieceCount: form.lengthMode === 'PER_PIECE' ? form.pieceCount : undefined,
       unit: stockUnit,
@@ -351,7 +336,7 @@ export default function MaterialInPage({
       locationId: item.locationId,
       qty: item.qty,
       valuationQty: item.valuationQty || 0,
-      lengthMode: item.lengthPerPiece ? 'PER_PIECE' : 'TOTAL', lengthPerPiece: item.lengthPerPiece || 0, pieceCount: item.pieceCount || 0,
+      lengthMode: item.omitAuxiliaryQuantity ? 'UNKNOWN' : item.lengthPerPiece ? 'PER_PIECE' : 'TOTAL', lengthPerPiece: item.lengthPerPiece || 0, pieceCount: item.pieceCount || 0,
       unitPrice: item.unitPrice,
       priceUnit: item.priceUnit,
       totalAmount: item.totalAmount,
@@ -435,8 +420,9 @@ export default function MaterialInPage({
       && selectedMaterial.referenceMeasure !== selectedMaterial.primaryMeasure
       && stockUnitLabel !== valuationUnitLabel,
   )
-  const actualValuationQty = form.lengthMode === 'PER_PIECE' ? Number((form.lengthPerPiece * form.pieceCount).toFixed(6)) : Number(form.valuationQty || 0)
+  const actualValuationQty = form.lengthMode === 'UNKNOWN' ? 0 : form.lengthMode === 'PER_PIECE' ? Number((form.lengthPerPiece * form.pieceCount).toFixed(6)) : Number(form.valuationQty || 0)
   const historicalEstimatedValuationQty = materialUsesDualUnit
+    && form.lengthMode !== 'UNKNOWN'
     && actualValuationQty <= 0
     && conversionHistory?.available
     && conversionHistory.rate
@@ -451,7 +437,7 @@ export default function MaterialInPage({
     : 0
   const conversionSource = !materialUsesDualUnit
     ? 'SAME_UNIT'
-    : actualValuationQty > 0
+    : form.lengthMode === 'UNKNOWN' ? 'UNMEASURED' : actualValuationQty > 0
       ? form.lengthMode === 'PER_PIECE' ? 'CALCULATED_LENGTH' : 'DOCUMENT_ACTUAL'
       : historicalEstimatedValuationQty > 0
         ? 'HISTORICAL_ESTIMATE'

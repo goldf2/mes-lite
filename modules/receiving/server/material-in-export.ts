@@ -22,11 +22,11 @@ export function buildMaterialInHistoryCsv(receipts: ReturnType<typeof toMaterial
         statuses[receipt.status] || safeText(receipt.status), receipt.deletedAt ? '是' : '否',
         safeText(receipt.supplier.code), safeText(receipt.supplier.name),
         safeText(line.material.code), safeText(line.material.name), safeText(line.material.spec),
-        Number(line.qty), safeText(line.unit), Number(line.valuationQty), safeText(line.valuationUnit),
+        Number(line.qty), safeText(line.unit), line.conversionSource === 'UNMEASURED' ? '' : Number(line.valuationQty), safeText(line.valuationUnit),
         Number(line.unitPrice), safeText(line.priceUnit), Number(line.totalAmount),
         safeText(line.batchNo), safeText(line.inventoryLot?.lotNo), safeText(location?.code), safeText(location?.name),
         safeText(receipt.voucherNo), safeText(receipt.receivedBy), safeText(receipt.note),
-        safeText(line.conversionSource === 'CALCULATED_LENGTH' ? '单根长度×根数（计算值）' : line.conversionSource),
+        safeText(line.conversionSource === 'UNMEASURED' ? '未测长（未知）' : line.conversionSource === 'CALCULATED_LENGTH' ? '单根长度×根数（计算值）' : line.conversionSource),
         line.conversionSource === 'CALCULATED_LENGTH' ? line.pieceCount : '',
         line.conversionSource === 'CALCULATED_LENGTH' && line.pieceCount ? Number(line.totalLength) / line.pieceCount : '',
       ])

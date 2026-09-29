@@ -119,7 +119,7 @@ export default function MaterialDetailDialog({
             </div>
             <div>
               <dt className="text-xs text-gray-500">参考数量</dt>
-              <dd className="mt-1 text-sm font-medium text-gray-900">{detail.stock?.valuationQty || 0} {detail.valuationUnit}</dd>
+              <dd className="mt-1 text-sm font-medium text-gray-900">{detail.stock?.valuationComplete === false ? '未知 / 不完整' : detail.stock?.valuationQty || 0} {detail.valuationUnit}</dd>
             </div>
             <div>
               <dt className="text-xs text-gray-500">默认参考换算</dt>
@@ -132,7 +132,7 @@ export default function MaterialDetailDialog({
             <div>
               <dt className="text-xs text-gray-500">当前平均成本</dt>
               <dd className="mt-1 text-sm font-medium text-gray-900">
-                ¥{(detail.stock?.valuationUnitCost || 0).toFixed(4)} / {detail.valuationUnit}
+                {detail.stock?.valuationComplete === false ? '未知' : `¥${(detail.stock?.valuationUnitCost || 0).toFixed(4)}`} / {detail.valuationUnit}
                 <span className="ml-2 text-gray-500">¥{(detail.stock?.stockUnitCost || 0).toFixed(4)} / {stockUnit}</span>
               </dd>
             </div>

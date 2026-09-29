@@ -413,6 +413,59 @@ async function main() {
     assert.equal(createMaterialInSchema.safeParse({ ...lengthInput, lengthPerPiece: 0 }).success, false)
     await assert.rejects(() => createMaterialIns(createMaterialInSchema.parse({ ...lengthInput, pieceCount: undefined }), fixedNow), /根数必须为正整数/)
 
+    const { postInventoryIssue, reverseInventoryIssue } = await import('../modules/inventory/server/inventory-posting-service')
+    const { materialUnitCost } = await import('../modules/bom/domain/bom-cost')
+    for (const costingMethod of ['WEIGHTED_AVERAGE', 'FIFO']) {
+      const unknownMaterial = await prisma.material.create({ data: {
+        code: `VERIFY-UNKNOWN-${costingMethod}-${suffix}`, name: '未测长来料', unit: 'kg', stockUnit: 'kg', valuationUnit: 'm',
+        primaryMeasure: 'WEIGHT', referenceMeasure: 'LENGTH', conversionRate: 999, costingMethod,
+      } })
+      const unknownInput = { supplierId: supplier.id, materialId: unknownMaterial.id, locationId: location.id,
+        qty: 100, omitAuxiliaryQuantity: true, unitPrice: 10, priceBasis: 'STOCK' as const }
+      const unknownReceipt = await createMaterialIns(createMaterialInSchema.parse(unknownInput), fixedNow)
+      assert.equal(unknownReceipt.items[0].conversionSource, 'UNMEASURED')
+      assert.equal(unknownReceipt.items[0].conversionRate, 0, '未知长度不能使用主档比例或历史推算')
+      assert.equal(parseCsv(buildMaterialInHistoryCsv([unknownReceipt.first]))[1][12], '', '导出未知长度留空，不写零')
+      await receiveManagedMaterialIn(unknownReceipt.first.id, '验证收货员')
+      const unknownStock = await prisma.stock.findUniqueOrThrow({ where: { materialId: unknownMaterial.id } })
+      assert.deepEqual([unknownStock.qty, unknownStock.valuationComplete, unknownStock.totalCost], [100, false, 1000])
+      assert.equal((await loadMaterialInConversionHistory(unknownMaterial.id)).sampleCount, 0)
+      const issue = await prisma.$transaction(tx => postInventoryIssue(tx, { materialId: unknownMaterial.id, stockQty: 25,
+        locationId: location.id, type: 'OUT', refType: 'SHIPMENT', refId: 'VERIFY-UNKNOWN', note: '未知长度按重量出库', idempotencyKey: `UNKNOWN:${unknownMaterial.id}` }))
+      assert.equal(issue.costAmount, 250, '未知长度也必须正确结转重量成本')
+      const issueMovement = await prisma.stockLog.findUniqueOrThrow({ where: { id: issue.movement.id } })
+      assert.equal(issueMovement.valuationComplete, false)
+      assert.equal(issueMovement.valuationQty, 0, '不得用默认换算伪造实测长度')
+      await prisma.$transaction(tx => reverseInventoryIssue(tx, { sourceMovementId: issue.movement.id,
+        refType: 'SHIPMENT_REVERSAL', refId: 'VERIFY-UNKNOWN', note: '验证恢复', idempotencyKey: `UNKNOWN:REVERSE:${unknownMaterial.id}`, layerConsumptions: issue.layerConsumptions }))
+      const restored = await prisma.stock.findUniqueOrThrow({ where: { materialId: unknownMaterial.id } })
+      assert.deepEqual([restored.qty, restored.totalCost, restored.valuationComplete], [100, 1000, false])
+      assert.equal(materialUnitCost({ itemType: 'MATERIAL', quantity: 1, unit: 'kg', material: { ...unknownMaterial, stock: restored } }), 10)
+      assert.throws(() => materialUnitCost({ itemType: 'MATERIAL', quantity: 1, unit: 'm', material: { ...unknownMaterial, stock: restored } }), /辅助库存数量不完整/)
+      await assert.rejects(() => createMaterialIns(createMaterialInSchema.parse({ ...unknownInput, priceBasis: 'VALUATION' }), fixedNow), /未测长入库/)
+      await assert.rejects(() => createMaterialIns(createMaterialInSchema.parse({ ...unknownInput, valuationQty: 12 }), fixedNow), /未测长入库/)
+      const measuredReceipt = await createMaterialIns(createMaterialInSchema.parse({ ...unknownInput, omitAuxiliaryQuantity: false, valuationQty: 20, unitPrice: 20 }), fixedNow)
+      await receiveManagedMaterialIn(measuredReceipt.first.id, '验证收货员')
+      const mixedStock = await prisma.stock.findUniqueOrThrow({ where: { materialId: unknownMaterial.id } })
+      assert.deepEqual([mixedStock.qty, mixedStock.totalCost, mixedStock.valuationComplete], [200, 3000, false], '混存仍标记辅助数量不完整')
+      const mixedIssue = await prisma.$transaction(tx => postInventoryIssue(tx, { materialId: unknownMaterial.id, stockQty: 50,
+        locationId: location.id, type: 'OUT', refType: 'SHIPMENT', refId: 'VERIFY-MIXED', note: '混存出库', idempotencyKey: `MIXED:${unknownMaterial.id}` }))
+      assert.equal(mixedIssue.costAmount, costingMethod === 'FIFO' ? 500 : 750)
+      const extraReceipt = await createMaterialIns(createMaterialInSchema.parse({ ...unknownInput, qty: 5 }), fixedNow)
+      await receiveManagedMaterialIn(extraReceipt.first.id, '验证收货员')
+      await reverseManagedMaterialIn(extraReceipt.first.id, { reason: '未测长来料红冲验证' }, '验证冲销员')
+      const afterRed = await prisma.stock.findUniqueOrThrow({ where: { materialId: unknownMaterial.id } })
+      assert.deepEqual([afterRed.qty, afterRed.totalCost], [150, costingMethod === 'FIFO' ? 2500 : 2250])
+      if (costingMethod === 'WEIGHTED_AVERAGE') {
+        const { postStockLocationAdjustment } = await import('../lib/stock-adjustment')
+        const adjustment = { stockId: afterRed.id, locationId: location.id, newLocationQty: 150,
+          newValuationQty: 30, reason: '全库补测长度', adjustedBy: '验证员' }
+        await assert.rejects(() => prisma.$transaction(tx => postStockLocationAdjustment(tx, adjustment)), /核实/)
+        await prisma.$transaction(tx => postStockLocationAdjustment(tx, { ...adjustment, confirmAuxiliaryQuantity: true }))
+        assert.equal((await prisma.stock.findUniqueOrThrow({ where: { id: afterRed.id } })).valuationComplete, true)
+      }
+    }
+
     const historyMaterial = await prisma.material.create({
       data: {
         code: `VERIFY-HISTORY-${suffix}`, name: `历史换算物料 ${suffix}`, unit: 'm', stockUnit: 'm', valuationUnit: 'kg',

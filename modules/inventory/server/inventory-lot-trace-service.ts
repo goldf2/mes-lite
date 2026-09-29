@@ -53,6 +53,7 @@ export function toInventoryLotTraceNode(
         : { type: 'OTHER' as const, number: lot.sourceId }
   return {
     id: lot.id,
+    valuationComplete: lot.valuationComplete,
     lotNo: lot.lotNo,
     material: lot.material,
     sourceType: lot.sourceType,

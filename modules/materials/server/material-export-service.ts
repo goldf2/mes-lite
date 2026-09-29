@@ -46,7 +46,7 @@ export async function exportMaterialsCsv(query: MaterialExportQuery) {
   if (andFilters.length) where.AND = andFilters
   const queried = await prisma.material.findMany({
     where,
-    include: { customer: { select: { name: true } }, stock: { select: { qty: true, valuationQty: true, totalCost: true, valuationUnitCost: true, stockUnitCost: true } } },
+    include: { customer: { select: { name: true } }, stock: { select: { qty: true, valuationQty: true, valuationComplete: true, totalCost: true, valuationUnitCost: true, stockUnitCost: true } } },
     orderBy,
   })
   const materials = naturalCodeSortEnabled ? sortByNaturalText(queried, (item) => item.code, sortDir) : queried
@@ -62,8 +62,8 @@ export async function exportMaterialsCsv(query: MaterialExportQuery) {
     material.referenceMeasure ? measureLabels[material.referenceMeasure] || material.referenceMeasure : '',
     material.valuationUnit || material.unit, material.conversionRate || 1, material.costingMethod,
     costingLabels[material.costingMethod] || material.costingMethod, material.defaultSalePrice ?? '', material.salesCurrency || 'CNY',
-    material.stock?.qty || 0, material.stock?.valuationQty || 0, material.stock?.totalCost || 0,
-    material.stock?.valuationUnitCost || 0, material.stock?.stockUnitCost || 0, material.conversionNote || '', material.createdAt.toISOString(),
+    material.stock?.qty || 0, material.stock?.valuationComplete === false ? '未知' : material.stock?.valuationQty || 0, material.stock?.totalCost || 0,
+    material.stock?.valuationComplete === false ? '未知' : material.stock?.valuationUnitCost || 0, material.stock?.stockUnitCost || 0, material.conversionNote || '', material.createdAt.toISOString(),
   ])
   return toCsv(rows)
 }

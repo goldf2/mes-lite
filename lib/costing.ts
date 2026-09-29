@@ -30,6 +30,7 @@ export async function consumeMaterialCost(
       valuationQty: number
       totalCost: number
       valuationUnitCost: number
+      valuationComplete?: boolean
     }
     material: {
       costingMethod: string
@@ -40,7 +41,7 @@ export async function consumeMaterialCost(
   const stockQty = Number(input.stock.qty)
   const stockValuationQty = Number(input.stock.valuationQty)
   const stockAverageRate = stockQty > 0 ? stockValuationQty / stockQty : 0
-  const conversionRateUsed = normalizeConversionRate(stockAverageRate || input.material.conversionRate)
+  const conversionRateUsed = input.stock.valuationComplete === false ? stockAverageRate : normalizeConversionRate(stockAverageRate || input.material.conversionRate)
   const issueValuationQty = Number((input.issueStockQty * conversionRateUsed).toFixed(6))
 
   if (input.material.costingMethod === 'FIFO') {
@@ -103,17 +104,19 @@ export async function consumeMaterialCost(
     return {
       issueValuationQty: consumedValuationQty,
       costAmount: Number(costAmount.toFixed(6)),
-      conversionRateUsed,
-      conversionSource: 'STOCK_AVERAGE_FIFO',
+      conversionRateUsed: input.stock.valuationComplete === false ? 0 : conversionRateUsed,
+      conversionSource: input.stock.valuationComplete === false ? 'UNMEASURED' : 'STOCK_AVERAGE_FIFO',
       layerConsumptions,
     }
   }
 
   return {
     issueValuationQty,
-    costAmount: Number((issueValuationQty * Number(input.stock.valuationUnitCost)).toFixed(6)),
-    conversionRateUsed,
-    conversionSource: 'STOCK_AVERAGE',
+    costAmount: input.stock.valuationComplete === false
+      ? Number((input.issueStockQty * Number(input.stock.totalCost) / stockQty).toFixed(6))
+      : Number((issueValuationQty * Number(input.stock.valuationUnitCost)).toFixed(6)),
+    conversionRateUsed: input.stock.valuationComplete === false ? 0 : conversionRateUsed,
+    conversionSource: input.stock.valuationComplete === false ? 'UNMEASURED' : 'STOCK_AVERAGE',
     layerConsumptions: [],
   }
 }

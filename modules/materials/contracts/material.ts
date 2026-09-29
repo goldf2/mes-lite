@@ -46,6 +46,7 @@ export interface Material {
     holdQty: number
     reworkQty: number
     valuationQty: number
+    valuationComplete?: boolean
     reservedValuationQty: number
     availableValuationQty: number
     quarantineValuationQty: number

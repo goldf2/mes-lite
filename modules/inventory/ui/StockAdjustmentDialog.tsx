@@ -77,6 +77,7 @@ export function StockAdjustmentDialog({
             />
           </div>
         </div>
+        {stock.valuationComplete === false && <label className="flex gap-2 text-sm text-amber-800"><input type="checkbox" checked={value.confirmAuxiliaryQuantity || false} onChange={(event) => onChange({ ...value, confirmAuxiliaryQuantity: event.target.checked })} />我已核实并填写该物料全部库位的完整辅助数量，不是把未知数量按零处理。</label>}
         <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
           调整后物料总库存：{adjustedTotalQuantity(stock, value.locationId, value.newLocationQty)} {stockUnit(stock)}
         </div>

@@ -10,6 +10,7 @@ import { materialInLineQualityStatus, materialInStatusLabels } from '../model/ma
 
 function conversionSourceLabel(source?: string, sampleCount = 0) {
   if (source === 'DOCUMENT_ACTUAL') return '本批实测'
+  if (source === 'UNMEASURED') return '未测长（未知）'
   if (source === 'CALCULATED_LENGTH') return '单根长度 × 根数（计算值）'
   if (source === 'HISTORICAL_ESTIMATE') return `历史推算 · ${sampleCount} 批`
   if (source === 'SAME_UNIT') return '同主单位'
@@ -66,8 +67,8 @@ export default function MaterialInDetailDialog({
                 <td className="px-4 py-3 text-gray-500">{line.lineNo}</td>
                 <td className="px-4 py-3"><div className="font-medium text-gray-900">{line.material.code} · {line.material.name}</div><div className="text-xs text-gray-500">{line.material.spec || '无规格'}</div>{line.material.note && <div className="mt-1 whitespace-pre-wrap break-words text-xs text-gray-600">物料备注（当前资料）：{line.material.note}</div>}</td>
                 <td className="px-4 py-3 font-medium">{line.qty} {line.unit}</td>
-                <td className="px-4 py-3"><div>{line.valuationQty} {line.valuationUnit}</div><div className="mt-0.5 text-xs text-gray-500">{conversionSourceLabel(line.conversionSource, line.conversionSampleCount)}</div></td>
-                <td className="px-4 py-3 text-gray-600">1 {line.unit} = {line.conversionRate} {line.valuationUnit}</td>
+                <td className="px-4 py-3"><div>{line.conversionSource === 'UNMEASURED' ? '未知' : `${line.valuationQty} ${line.valuationUnit}`}</div><div className="mt-0.5 text-xs text-gray-500">{conversionSourceLabel(line.conversionSource, line.conversionSampleCount)}</div></td>
+                <td className="px-4 py-3 text-gray-600">{line.conversionSource === 'UNMEASURED' ? '无换算依据' : `1 ${line.unit} = ${line.conversionRate} ${line.valuationUnit}`}</td>
                 <td className="px-4 py-3"><div>{line.batchNo || '-'}</div>{line.inventoryLot && <div className="mt-1"><div className="font-mono text-xs text-blue-700">内部 {line.inventoryLot.lotNo}</div>{qualityStatus && <div className="my-1"><span className={`rounded px-1.5 py-0.5 text-xs font-medium ${qualityStatus.className}`}>{qualityStatus.label}</span><div className="mt-1 font-mono text-[11px] text-gray-500">{qualityStatus.inspectionNo}</div></div>}<AppButton size="sm" variant="secondary" onClick={() => setTraceLotId(line.inventoryLot!.id)}>查看谱系</AppButton></div>}</td>
                 <td className="px-4 py-3 text-right font-medium">¥{line.totalAmount.toFixed(2)}</td>
               </tr>

@@ -143,6 +143,7 @@ export interface MaterialInDraftItem {
   qty: number
   valuationQty?: number
   lengthPerPiece?: number
+  omitAuxiliaryQuantity?: boolean
   pieceCount?: number
   unit: string
   valuationUnit: string
@@ -171,7 +172,7 @@ export interface MaterialInFormState {
   locationId: string
   qty: number
   valuationQty: number
-  lengthMode: 'TOTAL' | 'PER_PIECE'
+  lengthMode: 'TOTAL' | 'PER_PIECE' | 'UNKNOWN'
   lengthPerPiece: number
   pieceCount: number
   unitPrice: number

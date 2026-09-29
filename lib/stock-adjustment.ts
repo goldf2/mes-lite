@@ -13,6 +13,7 @@ export async function postStockLocationAdjustment(
     locationId: string
     newLocationQty: number
     newValuationQty?: number
+    confirmAuxiliaryQuantity?: boolean
     newTotalCost?: number
     reason: string
     adjustedBy: string
@@ -57,7 +58,15 @@ export async function postStockLocationAdjustment(
 
   const oldValuationQty = Number(stock.valuationQty)
   const conversionRate = stock.material ? resolveMaterialUnits(stock.material).conversionRate : 1
-  const targetValuationQty = input.newValuationQty ?? toValuationQty(targetQty, conversionRate)
+  const targetValuationQty = input.newValuationQty ?? (stock.valuationComplete
+    ? toValuationQty(targetQty, conversionRate)
+    : oldQty > 0 ? roundAmount(targetQty * oldValuationQty / oldQty) : 0)
+  if (!stock.valuationComplete && input.newValuationQty !== undefined && !input.confirmAuxiliaryQuantity) {
+    throw new StockAdjustmentError('辅助数量未知，请先核实并填写完整辅助库存数量，不能按默认比例调整')
+  }
+  if (input.confirmAuxiliaryQuantity && (input.newValuationQty === undefined || (targetQty > 0 && input.newValuationQty <= 0))) {
+    throw new StockAdjustmentError('确认完整辅助数量时必须填写有效数量，不能用零代替未测量')
+  }
   if (targetValuationQty < Number(stock.reservedValuationQty)) {
     throw new StockAdjustmentError('调整后核算库存不能小于已预留核算数量')
   }
@@ -73,6 +82,7 @@ export async function postStockLocationAdjustment(
     where: { id: stock.id },
     data: {
       qty: targetQty,
+      valuationComplete: input.confirmAuxiliaryQuantity ? true : stock.valuationComplete,
       availableQty: roundAmount(targetQty - Number(stock.reservedQty)),
       valuationQty: targetValuationQty,
       availableValuationQty: roundAmount(targetValuationQty - Number(stock.reservedValuationQty)),

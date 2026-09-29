@@ -56,6 +56,7 @@ export interface PackagingInventorySummary {
 }
 
 export interface Stock {
+  valuationComplete?: boolean
   id: string
   qty: number
   reservedQty: number
@@ -121,6 +122,7 @@ export interface StockIntegrityIssue {
 }
 
 export interface StockAdjustmentDraft {
+  confirmAuxiliaryQuantity?: boolean
   locationId: string
   newLocationQty: number
   newValuationQty: number
