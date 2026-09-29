@@ -19,6 +19,8 @@ export const workspaceFunctionKeys = [
   'qualityTasks',
   'employees',
   'materialIn',
+  'materialInHistory',
+  'shipmentHistory',
   'salesOrders',
   'shipment',
   'return',

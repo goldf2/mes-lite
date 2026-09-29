@@ -12,8 +12,14 @@ import {
 } from '@/modules/identity-access'
 import { returnStatusOptions, shipmentStatusOptions } from '../model/fulfillment-view'
 import { loadPrimaryMaterialImageMap, type MaterialImage } from '@/modules/materials'
+import { shipmentHistoryDateRange, summarizeShipmentHistory } from './shipment-history'
 
 export type FulfillmentQuery = {
+  startDate?: string | null
+  endDate?: string | null
+  includeArchived?: boolean
+  includeSummary?: boolean
+  exportAll?: boolean
   statuses: string[]
   keyword?: string | null
   customerId?: string | null
@@ -85,7 +91,8 @@ function serializeShipmentItems(items: ShipmentItemWithDetails[], images: Readon
 }
 
 export async function listShipments(input: FulfillmentQuery, scope: EffectiveDataScope = unrestrictedDataScope) {
-  const where: Prisma.ShipmentWhereInput = { deletedAt: null }
+  const where: Prisma.ShipmentWhereInput = input.includeArchived ? {} : { deletedAt: null }
+  where.shippedAt = shipmentHistoryDateRange(input.startDate, input.endDate)
   const andConditions: Prisma.ShipmentWhereInput[] = []
   andConditions.push(shipmentDataScopeWhere(scope))
   applyStatuses(where as { status?: string | { in: string[] } }, input.statuses)
@@ -127,8 +134,8 @@ export async function listShipments(input: FulfillmentQuery, scope: EffectiveDat
   ] }
   }))
   if (andConditions.length > 0) where.AND = andConditions
-  const [shipments, total, customers] = await Promise.all([
-    prisma.shipment.findMany({
+  const [shipments, total, customers, summaryLines] = await prisma.$transaction(async tx => Promise.all([
+    tx.shipment.findMany({
       where,
       include: {
         product: { select: { id: true, name: true, sku: true, unit: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
@@ -153,14 +160,15 @@ export async function listShipments(input: FulfillmentQuery, scope: EffectiveDat
           orderBy: [{ packedAt: 'asc' }, { createdAt: 'asc' }],
         },
       },
-      orderBy: { createdAt: 'desc' }, skip: (input.page - 1) * input.pageSize, take: input.pageSize,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: input.exportAll ? undefined : (input.page - 1) * input.pageSize, take: input.exportAll ? undefined : input.pageSize,
     }),
-    prisma.shipment.count({ where }),
-    prisma.customer.findMany({
+    tx.shipment.count({ where }),
+    tx.customer.findMany({
       where: { deletedAt: null }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       select: { id: true, code: true, name: true, contact: true, phone: true, address: true },
     }),
-  ])
+    tx.shipmentItem.findMany({ where: input.includeSummary ? { shipment: { is: where } } : { id: '__NO_SUMMARY__' }, select: { qty: true, unitSnapshot: true, totalAmount: true, shipment: { select: { status: true } } } }),
+  ]))
   const images = await loadPrimaryMaterialImageMap(shipments.flatMap((shipment) => shipment.items.map((item) => item.materialId)))
   const data = shipments.map((shipment) => {
     const items = serializeShipmentItems(shipment.items, images)
@@ -173,7 +181,7 @@ export async function listShipments(input: FulfillmentQuery, scope: EffectiveDat
       returnOrders: undefined,
     }
   })
-  return { data, customers, pagination: { page: input.page, pageSize: input.pageSize, total, totalPages: Math.ceil(total / input.pageSize) } }
+  return { data, customers, summary: summarizeShipmentHistory(summaryLines), pagination: { page: input.page, pageSize: input.pageSize, total, totalPages: Math.ceil(total / input.pageSize) } }
 }
 
 export async function listReturnShipmentOptions(scope: EffectiveDataScope = unrestrictedDataScope) {

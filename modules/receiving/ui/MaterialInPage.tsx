@@ -1,7 +1,6 @@
 'use client'
 
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-import MaterialInHistoryPanel from './MaterialInHistoryPanel'
 import useMaterialInHistory from './useMaterialInHistory'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import TopBarPortal from '@/app/components/TopBarPortal'
@@ -92,7 +91,7 @@ export default function MaterialInPage({
       ? [{ id: 'task-status', field: 'status', operator: 'equals', value: 'PENDING' }]
       : []
   ))
-  const { materialIns, summary, pagination, loading, setLoading, historyError, setHistory, setPage, fetchMaterialIns, exportHistory, exporting, exportError } = useMaterialInHistory(keyword, searchConditions)
+  const { materialIns, pagination, loading, setLoading, historyError, setPage, fetchMaterialIns } = useMaterialInHistory(keyword, searchConditions)
   const [showModal, setShowModal] = useState(false)
   const [draftAttachmentOwnerId, setDraftAttachmentOwnerId] = useState('')
   const [draftAttachmentBusy, setDraftAttachmentBusy] = useState(false)
@@ -594,7 +593,8 @@ export default function MaterialInPage({
         />
       </TopBarPortal>
       <div className="space-y-4">
-      <MaterialInHistoryPanel summary={summary} pagination={pagination} loading={loading} error={historyError} onApply={setHistory} onPage={setPage} onExport={exportHistory} exporting={exporting} exportError={exportError} />
+      {historyError && <p role="alert" className="text-red-700">{historyError}</p>}
+      <div className="flex flex-wrap items-center gap-3"><span>共 {pagination.total} 单 · 第 {pagination.page} / {Math.max(1, pagination.totalPages)} 页</span><AppButton disabled={loading || pagination.page <= 1} onClick={() => setPage(pagination.page - 1)}>上一页</AppButton><AppButton disabled={loading || pagination.page >= pagination.totalPages} onClick={() => setPage(pagination.page + 1)}>下一页</AppButton></div>
       <div className="rounded-lg bg-white p-3 shadow sm:p-6">
         <MaterialInCollectionView
           attachmentRevision={attachmentRevision}

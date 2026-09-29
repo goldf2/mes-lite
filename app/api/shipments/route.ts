@@ -2,15 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
 import { requireResourcePermission } from '@/lib/permissions'
-import { parseStatusFilter } from '@/lib/status-filter'
 import { createShipmentSchema } from '@/modules/sales/contracts/fulfillment-schema'
 import { SalesDomainError } from '@/modules/sales/domain/sales-errors'
 import { archiveManagedShipment, createManagedShipment } from '@/modules/sales/server/fulfillment-command-service'
 import { listShipments } from '@/modules/sales/server/fulfillment-query-service'
 import { getCurrentOperator } from '@/lib/auth'
 import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
-import { parseResourceSearchConditions } from '@/lib/resource-search'
-import { shipmentSearchFieldKeys } from '@/modules/sales/model/sales-search-fields'
+import { shipmentHistoryCsvResponse, shipmentHistoryQuery } from '@/modules/sales/server/shipment-history'
 
 export async function GET(req: NextRequest) {
   try {
@@ -19,15 +17,14 @@ export async function GET(req: NextRequest) {
     const operator = await getCurrentOperator()
     if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
     const params = new URL(req.url).searchParams
-    const page = Math.max(1, Number(params.get('page') || 1))
-    const pageSize = Math.min(100, Math.max(1, Number(params.get('pageSize') || 20)))
-    const advanced = parseResourceSearchConditions(params.get('advanced'), shipmentSearchFieldKeys)
-    if (advanced.error) return NextResponse.json({ error: advanced.error }, { status: 400 })
-    return NextResponse.json(await listShipments({
-      statuses: parseStatusFilter(params), keyword: params.get('keyword'), customerId: params.get('customerId'),
-      customer: params.get('customer'), advancedConditions: advanced.conditions, page, pageSize,
-    }, await loadEffectiveDataScope(operator)))
+    if (params.get('includeArchived') === 'true') {
+      const archiveDenied = await requireResourcePermission('archive', 'read')
+      if (archiveDenied) return archiveDenied
+    }
+    const result = await listShipments(shipmentHistoryQuery(params), await loadEffectiveDataScope(operator))
+    return params.get('format') === 'csv' ? shipmentHistoryCsvResponse(result.data) : NextResponse.json(result)
   } catch (error) {
+    if (error instanceof SalesDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Get shipments error:', error)
     return NextResponse.json({ error: '获取发货单列表失败' }, { status: 500 })

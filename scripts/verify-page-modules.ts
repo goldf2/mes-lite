@@ -12,6 +12,7 @@ for (const key of ['materialIn', 'shipment', 'return']) {
 }
 
 const expectedFunctionKeys = [
+  'materialInHistory', 'shipmentHistory',
   'dashboard', 'allFunctions', 'helpCenter', 'materialManagement', 'bomWorkspace', 'bomUsage', 'workInstructions',
   'equipment', 'equipmentInspections', 'equipmentMaintenance', 'orders', 'dailyInventory', 'flowTransfers', 'dispatch', 'qualityTasks', 'materialIn', 'salesOrders', 'shipment', 'return',
   'stocks', 'warehouseDigitalTwin', 'inventoryCount', 'stockMovements', 'lotPanorama', 'suppliers', 'customers', 'employees', 'locationSettings', 'unitSettings', 'workCenters',

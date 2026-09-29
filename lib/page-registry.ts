@@ -11,6 +11,7 @@ export interface PagePresentationDefinition {
 }
 
 export const applicationTabs = [
+  'materialInHistory', 'shipmentHistory',
   'dashboard', 'allFunctions', 'helpCenter', 'orders', 'materials', 'workInstructions', 'equipment', 'equipmentInspections', 'equipmentMaintenance', 'materialIn',
   'dispatch', 'dailyInventory', 'stocks', 'warehouseDigitalTwin', 'inventoryCount', 'stockMovements', 'lotPanorama', 'qualityTasks', 'salesOrders', 'shipment', 'return', 'flowTransfers', 'sawingCost', 'scanPrint',
   'suppliers', 'customers', 'employees', 'processTemplates', 'processRoutes', 'archive', 'auditLogs',
@@ -65,6 +66,8 @@ export type PageRendererKey =
   | 'dispatch'
   | 'sales-orders'
   | 'shipment'
+  | 'material-in-history'
+  | 'shipment-history'
   | 'return'
   | 'flow-transfers'
   | 'employees'
@@ -123,6 +126,8 @@ const registeredPages = [
   registerPage({ key: 'materialIn', tab: 'materialIn', kind: 'transaction', title: '来料管理', description: '登记供应商来料、实测和采购计价', renderer: 'material-in', groupKey: 'logistics', resource: 'materialIn', primaryNavigation: true, workspace: { functionKey: 'materialIn', label: '来料管理', icon: '入' } }),
   registerPage({ key: 'salesOrders', tab: 'salesOrders', kind: 'transaction', title: '销售订单', description: '登记客户需求，并按客户与物料查看交付参考', renderer: 'sales-orders', groupKey: 'sales', resource: 'salesOrder', primaryNavigation: true, workspace: { functionKey: 'salesOrders', label: '销售订单', icon: '销' } }),
   registerPage({ key: 'shipment', tab: 'shipment', kind: 'transaction', title: '发货管理', description: '按客户登记多条实际发货物料，确认后扣减库存', renderer: 'shipment', groupKey: 'logistics', resource: 'shipment', primaryNavigation: true, workspace: { functionKey: 'shipment', label: '发货管理', icon: '发' } }),
+  registerPage({ key: 'materialInHistory', tab: 'materialInHistory', kind: 'utility', title: '来料历史核查', description: '按日期核查来料明细并导出', renderer: 'material-in-history', groupKey: 'logistics', resource: 'materialIn', primaryNavigation: true, workspace: { functionKey: 'materialInHistory', label: '来料历史核查', icon: '查' } }),
+  registerPage({ key: 'shipmentHistory', tab: 'shipmentHistory', kind: 'utility', title: '发货历史核查', description: '按实际发货日期核查明细并导出', renderer: 'shipment-history', groupKey: 'logistics', resource: 'shipment', primaryNavigation: true, workspace: { functionKey: 'shipmentHistory', label: '发货历史核查', icon: '查' } }),
   registerPage({ key: 'return', tab: 'return', kind: 'transaction', title: '退货管理', description: '登记退货、审核并处理返库', renderer: 'return', groupKey: 'logistics', resource: 'return', primaryNavigation: true, workspace: { functionKey: 'return', label: '退货管理', icon: '退' } }),
   registerPage({ key: 'stocks', tab: 'stocks', kind: 'master-detail', title: '库存管理', description: '查看库存、库位余额和成本', renderer: 'stocks', groupKey: 'inventory', resource: 'stocks', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' }, workspace: { functionKey: 'stocks', label: '库存管理', icon: '库' } }),
   registerPage({ key: 'warehouseDigitalTwin', tab: 'warehouseDigitalTwin', kind: 'workspace', title: '仓库全景', description: '在二维白板中查看授权库位、物料分布和库存状态', renderer: 'warehouse-digital-twin', groupKey: 'inventory', resource: 'stocks', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' }, workspace: { functionKey: 'warehouseDigitalTwin', label: '仓库全景', icon: '景' } }),

@@ -11,6 +11,8 @@ import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/works
 function FeaturePageLoading() {
   return <AppLoadingIndicator label="正在加载页面..." />
 }
+const MaterialInHistoryPage = dynamic(() => import('@/modules/receiving').then(module => module.MaterialInHistoryPage), { loading: FeaturePageLoading })
+const ShipmentHistoryPage = dynamic(() => import('@/modules/sales').then(module => module.ShipmentHistoryPage), { loading: FeaturePageLoading })
 
 const MaterialInPage = dynamic(() => import('@/modules/receiving'), { loading: FeaturePageLoading })
 const DispatchPage = dynamic(() => import('@/modules/production').then((module) => module.DispatchPageModule), { loading: FeaturePageLoading })
@@ -211,6 +213,8 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
       canReverse={context.canUpdate('materialInReverse')}
     />
   ),
+  'material-in-history': () => <MaterialInHistoryPage />,
+  'shipment-history': () => <ShipmentHistoryPage />,
   dispatch: (context) => <DispatchPage onMessage={context.onMessage} />,
   'sales-orders': (context) => <SalesOrderPage onMessage={context.onMessage} />,
   shipment: (context) => (
