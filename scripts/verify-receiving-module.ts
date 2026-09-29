@@ -351,6 +351,27 @@ async function main() {
     const historyQuery = { statuses: [], page: 1, pageSize: 1, includeSummary: true, includeArchived: true, startDate: '2026-08-10', endDate: '2026-08-10' }
     const historyPage = await listMaterialIns(historyQuery)
     assert.ok(historyPage.pagination.total > historyPage.items.length, '汇总覆盖全部历史而非当前页')
+    const { buildMaterialInHistoryCsv, materialInHistoryCsvResponse } = await import('../modules/receiving/server/material-in-export')
+    const { parseCsv } = await import('../lib/csv')
+    const exported = await listMaterialIns({ ...historyQuery, page: 99, exportAll: true })
+    assert.equal(exported.items.length, historyPage.pagination.total, '导出必须忽略分页并保留日期与归档筛选')
+    const exportRows = parseCsv(buildMaterialInHistoryCsv(exported.items))
+    assert.equal(exportRows.length, 1 + exported.items.reduce((sum, receipt) => sum + receipt.items.length, 0), '每条来料明细独立一行')
+    assert.ok(exportRows.some((row) => row[2] === '2026-08-10 23:59:59'), '日期明确使用北京时间')
+    assert.ok(exportRows.some((row) => row[3] === '已拒收' && row[4] === '是'), '归档和拒收状态必须保留')
+    assert.equal(exportRows.slice(1).reduce((sum, row) => sum + Number(row[16]), 0), exported.summary.reduce((sum, group) => sum + group.amount, 0), '导出明细金额与跨页汇总一致，不重复整单金额')
+    const escaped = structuredClone(exported.items)
+    escaped[0].note = '中文,备注\n含"引号"'
+    escaped[0].supplier.name = '=HYPERLINK("test")'
+    const escapedRows = parseCsv(buildMaterialInHistoryCsv(escaped))
+    assert.equal(escapedRows[1][23], escaped[0].note)
+    assert.equal(escapedRows[1][6], `'${escaped[0].supplier.name}`, '供应商文字不得被 Excel 当作公式')
+    const csvResponse = materialInHistoryCsvResponse(exported.items)
+    assert.match(csvResponse.headers.get('content-type') || '', /text\/csv/)
+    assert.equal(csvResponse.headers.get('cache-control'), 'private, no-store')
+    assert.deepEqual(Array.from(new Uint8Array(await csvResponse.arrayBuffer()).slice(0, 3)), [239, 187, 191], 'UTF-8 BOM 确保 Excel 中文可读')
+    assert.equal((await listMaterialIns({ ...historyQuery, exportAll: true, includeArchived: false })).items.some((receipt) => receipt.id === third.first.id), false, '导出不可绕过归档筛选')
+    assert.equal((await listMaterialIns({ ...historyQuery, exportAll: true, keyword: third.first.inboundNo })).items.length, 1, '导出保持关键词筛选')
     assert.deepEqual((await listMaterialIns({ ...historyQuery, page: 2 })).summary, historyPage.summary)
     const emptyRange = await listMaterialIns({ ...historyQuery, startDate: '2026-08-11', endDate: '2026-08-11' })
     assert.equal(emptyRange.pagination.total, 0)
@@ -418,6 +439,8 @@ async function main() {
       workCenterIds: [], locationIds: [location.id], inheritedLegacyDefault: false,
     }
     const scopedHistory = await loadMaterialInConversionHistory(historyMaterial.id, locationScope)
+    const scopedExport = await listMaterialIns({ statuses: [], page: 1, pageSize: 1, exportAll: true }, locationScope)
+    assert.equal(scopedExport.items.some((receipt) => receipt.id === externalReceipt.first.id), false, 'CSV 导出不得泄露未授权库位的来料')
     assert.deepEqual(
       [scopedHistory.sampleCount, scopedHistory.rate],
       [3, 1.933333],

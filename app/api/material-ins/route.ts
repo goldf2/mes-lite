@@ -10,6 +10,7 @@ import { getCurrentOperator } from '@/lib/auth'
 import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
 import { parseResourceSearchConditions } from '@/lib/resource-search'
 import { materialInSearchFieldKeys } from '@/modules/receiving/model/material-in-search-fields'
+import { materialInHistoryCsvResponse } from '@/modules/receiving/server/material-in-export'
 export async function GET(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('materialIn', 'read')
@@ -29,12 +30,12 @@ export async function GET(req: NextRequest) {
       keyword: searchParams.get('keyword'), supplierId: searchParams.get('supplierId'), customerId: searchParams.get('customerId'),
       startDate: searchParams.get('startDate'), endDate: searchParams.get('endDate'),
       includeArchived: searchParams.get('includeArchived') === 'true',
-      includeSummary: searchParams.get('includeSummary') === 'true',
+      includeSummary: searchParams.get('includeSummary') === 'true', exportAll: searchParams.get('format') === 'csv',
       advancedConditions: advanced.conditions || [],
       page: Number(searchParams.get('page') ?? '1'),
       pageSize: Number(searchParams.get('pageSize') ?? '20'),
     }, await loadEffectiveDataScope(operator))
-    return NextResponse.json({ data: result.items, pagination: result.pagination, summary: result.summary })
+    return searchParams.get('format') === 'csv' ? materialInHistoryCsvResponse(result.items) : NextResponse.json({ data: result.items, pagination: result.pagination, summary: result.summary })
   } catch (error) {
     if (error instanceof MaterialInDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })

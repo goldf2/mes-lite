@@ -12,6 +12,7 @@ import { assertInventoryLocationDataScope, materialReceiptDataScopeWhere, unrest
 import { materialInStatusOptions } from '../model/material-in-view'
 
 export interface MaterialInListQuery {
+  exportAll?: boolean
   statuses: string[]
   keyword?: string | null
   supplierId?: string | null
@@ -161,8 +162,8 @@ export async function listMaterialIns(query: MaterialInListQuery, scope: Effecti
       where,
       include: materialReceiptInclude(),
       orderBy: [{ inboundDate: 'desc' }, { id: 'desc' }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
+      skip: query.exportAll ? undefined : (page - 1) * pageSize,
+      take: query.exportAll ? undefined : pageSize,
     }),
     tx.materialReceipt.count({ where }),
     tx.materialIn.groupBy({

@@ -49,6 +49,17 @@ export async function listMaterialInRecords(params: URLSearchParams) {
   return requestJson<{ data: MaterialInRecord[]; pagination: MaterialInPagination; summary: MaterialInHistorySummary[] }>(`/api/material-ins${suffix ? `?${suffix}` : ''}`, undefined, '获取来料单列表失败')
 }
 
+export async function exportMaterialInRecords(params: URLSearchParams) {
+  const query = new URLSearchParams(params)
+  query.set('format', 'csv')
+  const response = await fetch(`/api/material-ins?${query}`, { cache: 'no-store' })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}))
+    throw new Error(payload.error || '导出来料明细失败')
+  }
+  return response.blob()
+}
+
 export async function listReceivingLocations() {
   return requestJson<{ data: InventoryLocationOption[] }>('/api/inventory-locations?context=material-in', undefined, '获取库位失败')
 }
