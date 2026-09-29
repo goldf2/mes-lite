@@ -772,7 +772,9 @@ BOM 数据保存“整批输入集合 -> 整批输出集合”。界面左右并
 4. 样本不足时拒绝保存并要求本批实测；历史推算行永不进入后续样本。
 5. 单单位物料保存 `conversionSource=SAME_UNIT`，两套数量数值相同。
 
-`conversionRate` 始终冻结为本行 `valuationQty ÷ qty`，`unitVersionUsed` 冻结物料单位版本。旧 `pieceCount`、`stockQtyMode`、`stockQtyInput`、`totalLength` 和 `totalWeight` 列继续保留以读取历史记录，但新界面和新写入不再依赖这些列。采购可按主单位或辅助单位计价；用户可以录入单价或总价格，服务端最终统一保存相互一致的 `unitPrice` 与 `totalAmount`。
+`conversionRate` 始终冻结为本行 `valuationQty ÷ qty`，`unitVersionUsed` 冻结物料单位版本。v0.1.473 起辅助计量为长度时可填写 `lengthPerPiece`（单位为本物料辅助单位）与正整数 `pieceCount`，服务端重新计算总长度并保存 `totalLength`、`valuationQty`、`pieceCount` 和 `conversionSource=CALCULATED_LENGTH`；该来源不是实测，不进入历史实测样本。单根长度由总长度与根数还原。其它旧数量列保留兼容，不改变主库存数量含义。采购可按主单位或辅助单位计价；用户可以录入单价或总价格，服务端最终统一保存相互一致的 `unitPrice` 与 `totalAmount`。
+
+完全未知辅助数量的重量入库尚未开放：当前辅助数量仍参与库存成本核算，需要另行完成未知数量语义及成本/出库联动，不能仅取消必填校验。
 
 来料登记、详情、编辑、收货、拒收和整单红冲由 `modules/receiving/server` 统一拥有。创建时所有明细强制使用单头的待分库库位，不按物料分别选择最终库位；确认收货在同一事务逐行增加 `Stock`、该待分库 `StockLocationBalance` 和成本层并写入库存流水，后续通过 `FlowTransfer` 调拨到实际原料、待检或生产库位。整单红冲要求所有明细的对应成本层均未被消费或人工改变，任一行不满足则整笔回滚。Route Handler 不复制这些状态或库存规则。
 

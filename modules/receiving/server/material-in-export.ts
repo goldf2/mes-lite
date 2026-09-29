@@ -11,7 +11,7 @@ export function buildMaterialInHistoryCsv(receipts: ReturnType<typeof toMaterial
   const rows: unknown[][] = [[
     '来料单号', '明细行号', '来料日期（北京时间）', '单据状态', '已归档', '供应商编码', '供应商名称',
     '物料编码', '物料名称', '规格', '数量', '数量单位', '核算数量', '核算单位', '单价', '计价单位',
-    '明细金额（元）', '供应商批次', '内部批次', '库位编码', '库位名称', '凭据号', '收货人', '备注',
+    '明细金额（元）', '供应商批次', '内部批次', '库位编码', '库位名称', '凭据号', '收货人', '备注', '辅助数量来源', '根数', '单根长度（核算单位）',
   ]]
   for (const receipt of receipts) {
     for (const line of receipt.items) {
@@ -26,6 +26,9 @@ export function buildMaterialInHistoryCsv(receipts: ReturnType<typeof toMaterial
         Number(line.unitPrice), safeText(line.priceUnit), Number(line.totalAmount),
         safeText(line.batchNo), safeText(line.inventoryLot?.lotNo), safeText(location?.code), safeText(location?.name),
         safeText(receipt.voucherNo), safeText(receipt.receivedBy), safeText(receipt.note),
+        safeText(line.conversionSource === 'CALCULATED_LENGTH' ? '单根长度×根数（计算值）' : line.conversionSource),
+        line.conversionSource === 'CALCULATED_LENGTH' ? line.pieceCount : '',
+        line.conversionSource === 'CALCULATED_LENGTH' && line.pieceCount ? Number(line.totalLength) / line.pieceCount : '',
       ])
     }
   }

@@ -35,6 +35,9 @@ export function createEmptyMaterialInForm(locationId = ''): MaterialInFormState 
     locationId,
     qty: 0,
     valuationQty: 0,
+    lengthMode: 'TOTAL',
+    lengthPerPiece: 0,
+    pieceCount: 0,
     unitPrice: 0,
     priceUnit: '件',
     totalAmount: 0,
@@ -75,6 +78,10 @@ export function materialInRecordMatchesSavePayload(record: MaterialInRecord, pay
     const expectedLocationId = item.locationId || payload.stagingLocationId || record.stagingLocationId
     if (line.materialId !== item.materialId || line.locationId !== expectedLocationId) return false
     if (!sameSaveNumber(line.qty, item.qty)) return false
+    if (item.lengthPerPiece !== undefined) {
+      if (line.conversionSource !== 'CALCULATED_LENGTH' || line.pieceCount !== item.pieceCount
+        || !sameSaveNumber(line.totalLength, Number((item.lengthPerPiece * Number(item.pieceCount)).toFixed(6)))) return false
+    } else if (line.conversionSource === 'CALCULATED_LENGTH') return false
     if (item.valuationQty && item.valuationQty > 0) {
       if (!sameSaveNumber(line.valuationQty, item.valuationQty)) return false
     } else if (line.conversionSource === 'DOCUMENT_ACTUAL') {

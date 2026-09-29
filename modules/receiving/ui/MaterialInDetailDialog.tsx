@@ -10,6 +10,7 @@ import { materialInLineQualityStatus, materialInStatusLabels } from '../model/ma
 
 function conversionSourceLabel(source?: string, sampleCount = 0) {
   if (source === 'DOCUMENT_ACTUAL') return '本批实测'
+  if (source === 'CALCULATED_LENGTH') return '单根长度 × 根数（计算值）'
   if (source === 'HISTORICAL_ESTIMATE') return `历史推算 · ${sampleCount} 批`
   if (source === 'SAME_UNIT') return '同主单位'
   return '旧标准换算'

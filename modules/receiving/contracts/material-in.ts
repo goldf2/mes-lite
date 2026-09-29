@@ -142,6 +142,8 @@ export interface MaterialInDraftItem {
   locationId: string
   qty: number
   valuationQty?: number
+  lengthPerPiece?: number
+  pieceCount?: number
   unit: string
   valuationUnit: string
   unitPrice: number
@@ -169,6 +171,9 @@ export interface MaterialInFormState {
   locationId: string
   qty: number
   valuationQty: number
+  lengthMode: 'TOTAL' | 'PER_PIECE'
+  lengthPerPiece: number
+  pieceCount: number
   unitPrice: number
   priceUnit: MaterialInPriceUnit
   totalAmount: number

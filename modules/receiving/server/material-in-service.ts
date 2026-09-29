@@ -199,13 +199,23 @@ export async function buildMaterialInLineData(
       && material.referenceMeasure !== material.primaryMeasure
       && units.stockUnit !== units.valuationUnit,
   )
-  const requestedActualValuationQty = Number(input.valuationQty || 0)
+  const calculatedLength = input.lengthPerPiece !== undefined
+  if (calculatedLength && (!materialUsesDualUnit || material.referenceMeasure !== 'LENGTH'
+    || !Number.isInteger(input.pieceCount) || Number(input.pieceCount) <= 0)) {
+    throw new MaterialInDomainError('按根数计算仅适用于长度辅助单位，且根数必须为正整数')
+  }
+  const requestedActualValuationQty = calculatedLength
+    ? Number((Number(input.lengthPerPiece) * Number(input.pieceCount)).toFixed(6))
+    : Number(input.valuationQty || 0)
+  if (!Number.isFinite(requestedActualValuationQty) || (calculatedLength && requestedActualValuationQty <= 0)) {
+    throw new MaterialInDomainError('计算得到的总长度必须是有效正数')
+  }
   let effectiveValuationQty = qty
   let conversionSource = 'SAME_UNIT'
   let conversionSampleCount = 0
   if (materialUsesDualUnit && requestedActualValuationQty > 0) {
     effectiveValuationQty = requestedActualValuationQty
-    conversionSource = 'DOCUMENT_ACTUAL'
+    conversionSource = calculatedLength ? 'CALCULATED_LENGTH' : 'DOCUMENT_ACTUAL'
   } else if (materialUsesDualUnit) {
     const history = await loadMaterialInConversionHistory(material.id, scope, tx)
     if (!history.available || !history.rate) {
@@ -242,10 +252,10 @@ export async function buildMaterialInLineData(
       locationId: location.id,
       qty,
       unit: stockUnit,
-      pieceCount: null,
+      pieceCount: calculatedLength ? input.pieceCount : null,
       stockQtyMode: 'TOTAL',
       stockQtyInput: qty,
-      totalLength: null,
+      totalLength: calculatedLength ? effectiveValuationQty : null,
       totalWeight: null,
       valuationQty: effectiveValuationQty,
       valuationUnit,

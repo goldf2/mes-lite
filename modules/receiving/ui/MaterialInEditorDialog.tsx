@@ -40,7 +40,7 @@ interface MaterialInEditorDialogProps {
   materialUsesDualUnit: boolean
   effectiveValuationQty: number
   valuationUnitLabel: string
-  conversionSource: 'SAME_UNIT' | 'DOCUMENT_ACTUAL' | 'HISTORICAL_ESTIMATE' | 'MISSING'
+  conversionSource: 'SAME_UNIT' | 'DOCUMENT_ACTUAL' | 'CALCULATED_LENGTH' | 'HISTORICAL_ESTIMATE' | 'MISSING'
   conversionRatePreview: number
   priceUnitOptions: MaterialInPriceUnit[]
   priceUsesValuation: boolean
@@ -64,6 +64,7 @@ interface MaterialInEditorDialogProps {
 
 function conversionSourceLabel(source: MaterialInEditorDialogProps['conversionSource']) {
   if (source === 'DOCUMENT_ACTUAL') return '本批实测'
+  if (source === 'CALCULATED_LENGTH') return '单根长度 × 根数（计算值）'
   if (source === 'HISTORICAL_ESTIMATE') return '历史实测加权推算'
   if (source === 'SAME_UNIT') return '与主单位相同'
   return '等待本批实测'
@@ -242,6 +243,16 @@ export default function MaterialInEditorDialog({
                 </div>
                 {materialUsesDualUnit && (
                   <div>
+                    {selectedMaterial.referenceMeasure === 'LENGTH' && <SearchableSelect
+                      value={form.lengthMode}
+                      onChange={(value) => setForm({ ...form, lengthMode: value === 'PER_PIECE' ? 'PER_PIECE' : 'TOTAL', valuationQty: 0, lengthPerPiece: 0, pieceCount: 0 })}
+                      options={[{ value: 'TOTAL', label: '直接填写总长度' }, { value: 'PER_PIECE', label: '单根长度 × 根数' }]}
+                    />}
+                    {form.lengthMode === 'PER_PIECE' ? <div className="mt-2 grid grid-cols-2 gap-2">
+                      <label className="text-sm">单根长度（{valuationUnitLabel}）<input aria-label="单根长度" type="number" min={0} step="any" value={form.lengthPerPiece || ''} onChange={(event) => setForm({ ...form, lengthPerPiece: Number(event.target.value) })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2" /></label>
+                      <label className="text-sm">根数<input aria-label="根数" type="number" min={1} step={1} value={form.pieceCount || ''} onChange={(event) => setForm({ ...form, pieceCount: Number(event.target.value) })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2" /></label>
+                      <p className="col-span-2 text-xs text-gray-500">不同长度请分别添加明细；计算值不作为历史实测样本。</p>
+                    </div> : <>
                     <label className="mb-2 block text-sm font-medium text-gray-700">本批辅助单位实测量（{valuationUnitLabel}）</label>
                     <input
                       type="number"
@@ -252,6 +263,7 @@ export default function MaterialInEditorDialog({
                       placeholder={conversionHistory?.available ? '可留空并按历史实测推算' : '有效历史不足时必填'}
                       className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
                     />
+                    </>}
                   </div>
                 )}
               </div>
@@ -270,7 +282,7 @@ export default function MaterialInEditorDialog({
                         : ''}
                   </div>
                 )}
-                {materialUsesDualUnit && form.valuationQty <= 0 && (
+                {materialUsesDualUnit && form.lengthMode === 'TOTAL' && form.valuationQty <= 0 && (
                   <div className={`mt-2 text-xs ${conversionHistory?.available ? 'text-amber-700' : 'text-red-600'}`}>
                     {conversionHistoryLoading
                       ? '正在读取历史实测数据…'
@@ -439,7 +451,7 @@ export default function MaterialInEditorDialog({
                           {material?.note && <div className="mt-1 whitespace-pre-wrap break-words text-xs text-gray-600">物料备注：{material.note}</div>}
                           <div className="mt-1 text-xs text-gray-500">
                             {item.qty} {item.unit}
-                            {item.valuationQty ? ` · 实测 ${item.valuationQty} ${item.valuationUnit}` : ''}
+                            {item.valuationQty ? ` · ${item.lengthPerPiece ? '计算' : '实测'} ${item.valuationQty} ${item.valuationUnit}` : ''}
                             {' · '}¥{item.totalAmount.toFixed(2)}
                           </div>
                           <div className="mt-0.5 break-words text-xs text-gray-500">

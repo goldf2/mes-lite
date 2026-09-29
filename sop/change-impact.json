@@ -1,8 +1,8 @@
 {
-  "version": "0.1.472",
+  "version": "0.1.473",
   "impact": "updated",
   "workflowIds": [
-    "17-receiving-list", "186-receiving-history", "187-shipment-history"
+    "18-receiving-create"
   ],
-  "summary": "物流新增来料/发货两个独立只读历史核查页，复用共同范围筛选、汇总、明细分页和 CSV 下载界面。截图沿用有标注的历史基线；新页面以代码与定向回归复核。"
+  "summary": "来料新增单根长度乘根数，计算来源单独保存且不进入历史实测。完全未知辅助数量的入库仍未开放。截图沿用历史基线，新增交互以代码及定向回归复核。"
 }

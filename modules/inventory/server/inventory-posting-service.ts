@@ -6,6 +6,7 @@ import { normalizeConversionRate } from '@/lib/units'
 export type ConversionSource =
   | 'MASTER_DEFAULT'
   | 'DOCUMENT_ACTUAL'
+  | 'CALCULATED_LENGTH'
   | 'HISTORICAL_ESTIMATE'
   | 'SAME_UNIT'
   | 'STOCK_AVERAGE'

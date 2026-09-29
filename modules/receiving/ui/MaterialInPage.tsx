@@ -55,7 +55,9 @@ function createDraftItemsFromRecord(item: MaterialIn): MaterialInDraftItem[] {
     materialId: line.materialId,
     locationId: item.stagingLocationId,
     qty: Number(line.qty),
-    valuationQty: line.conversionSource === 'DOCUMENT_ACTUAL' ? Number(line.valuationQty) : undefined,
+    valuationQty: ['DOCUMENT_ACTUAL', 'CALCULATED_LENGTH'].includes(line.conversionSource || '') ? Number(line.valuationQty) : undefined,
+    lengthPerPiece: line.conversionSource === 'CALCULATED_LENGTH' && line.pieceCount ? Number(line.totalLength) / line.pieceCount : undefined,
+    pieceCount: line.conversionSource === 'CALCULATED_LENGTH' ? line.pieceCount || undefined : undefined,
     unit: line.unit,
     valuationUnit: line.valuationUnit,
     unitPrice: Number(line.unitPrice),
@@ -210,6 +212,7 @@ export default function MaterialInPage({
       materialId: material?.id || '',
       qty: 0,
       valuationQty: 0,
+      lengthMode: 'TOTAL', lengthPerPiece: 0, pieceCount: 0,
       unitPrice: 0,
       priceUnit: normalizeMaterialInPriceUnit(material?.stockUnit || material?.unit, material?.primaryMeasure),
       totalAmount: 0,
@@ -253,6 +256,7 @@ export default function MaterialInPage({
       voucherNo: recognizedText(fields, 'voucherNo') || current.voucherNo,
       supplierId: supplier?.id || current.supplierId,
       materialId: material?.id || current.materialId,
+      ...(material && material.id !== current.materialId ? { lengthMode: 'TOTAL' as const, lengthPerPiece: 0, pieceCount: 0, valuationQty: 0 } : {}),
       qty: qty || current.qty,
       unitPrice: unitPrice || current.unitPrice,
       totalAmount: totalAmount || current.totalAmount,
@@ -265,6 +269,7 @@ export default function MaterialInPage({
   }
 
   const validateCurrentItem = () => {
+    if (form.lengthMode === 'PER_PIECE' && (!(form.lengthPerPiece > 0) || !Number.isInteger(form.pieceCount) || form.pieceCount <= 0)) return '请填写有效单根长度和正整数根数'
     if (!form.materialId || !form.locationId || calculatedStockQty <= 0) {
       return '请选择物料和库位，并输入有效的主单位数量'
     }
@@ -284,7 +289,9 @@ export default function MaterialInPage({
       materialId: form.materialId,
       locationId: form.locationId,
       qty: calculatedStockQty,
-      valuationQty: form.valuationQty > 0 ? form.valuationQty : undefined,
+      valuationQty: actualValuationQty > 0 ? actualValuationQty : undefined,
+      lengthPerPiece: form.lengthMode === 'PER_PIECE' ? form.lengthPerPiece : undefined,
+      pieceCount: form.lengthMode === 'PER_PIECE' ? form.pieceCount : undefined,
       unit: stockUnit,
       valuationUnit: material?.valuationUnit || stockUnit,
       unitPrice: unitPricePreview,
@@ -303,6 +310,7 @@ export default function MaterialInPage({
       materialId: '',
       qty: 0,
       valuationQty: 0,
+      lengthMode: 'TOTAL', lengthPerPiece: 0, pieceCount: 0,
       unitPrice: 0,
       priceUnit: '件',
       totalAmount: 0,
@@ -343,6 +351,7 @@ export default function MaterialInPage({
       locationId: item.locationId,
       qty: item.qty,
       valuationQty: item.valuationQty || 0,
+      lengthMode: item.lengthPerPiece ? 'PER_PIECE' : 'TOTAL', lengthPerPiece: item.lengthPerPiece || 0, pieceCount: item.pieceCount || 0,
       unitPrice: item.unitPrice,
       priceUnit: item.priceUnit,
       totalAmount: item.totalAmount,
@@ -426,7 +435,7 @@ export default function MaterialInPage({
       && selectedMaterial.referenceMeasure !== selectedMaterial.primaryMeasure
       && stockUnitLabel !== valuationUnitLabel,
   )
-  const actualValuationQty = Number(form.valuationQty || 0)
+  const actualValuationQty = form.lengthMode === 'PER_PIECE' ? Number((form.lengthPerPiece * form.pieceCount).toFixed(6)) : Number(form.valuationQty || 0)
   const historicalEstimatedValuationQty = materialUsesDualUnit
     && actualValuationQty <= 0
     && conversionHistory?.available
@@ -443,7 +452,7 @@ export default function MaterialInPage({
   const conversionSource = !materialUsesDualUnit
     ? 'SAME_UNIT'
     : actualValuationQty > 0
-      ? 'DOCUMENT_ACTUAL'
+      ? form.lengthMode === 'PER_PIECE' ? 'CALCULATED_LENGTH' : 'DOCUMENT_ACTUAL'
       : historicalEstimatedValuationQty > 0
         ? 'HISTORICAL_ESTIMATE'
         : 'MISSING'
@@ -499,6 +508,7 @@ export default function MaterialInPage({
       locationId: item.stagingLocationId,
       qty: 0,
       valuationQty: 0,
+      lengthMode: 'TOTAL', lengthPerPiece: 0, pieceCount: 0,
       unitPrice: 0,
       priceUnit: '件',
       totalAmount: 0,

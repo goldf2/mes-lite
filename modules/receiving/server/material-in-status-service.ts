@@ -35,6 +35,7 @@ export async function receiveManagedMaterialIn(id: string, receivedBy: string, s
       })
       const inventoryStatus = requiresQualityInspection ? 'QUARANTINE' as const : 'AVAILABLE' as const
       const conversionSource: ConversionSource = line.conversionSource === 'DOCUMENT_ACTUAL'
+        || line.conversionSource === 'CALCULATED_LENGTH'
         || line.conversionSource === 'HISTORICAL_ESTIMATE'
         || line.conversionSource === 'SAME_UNIT'
         ? line.conversionSource

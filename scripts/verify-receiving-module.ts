@@ -386,6 +386,33 @@ async function main() {
       MaterialInDomainError,
     )
 
+    const lengthMaterial = await prisma.material.create({ data: {
+      code: `VERIFY-LENGTH-${suffix}`, name: '按根数来料', unit: 'kg', stockUnit: 'kg', valuationUnit: 'm',
+      primaryMeasure: 'WEIGHT', referenceMeasure: 'LENGTH', conversionRate: 0.2,
+    } })
+    const lengthInput = { supplierId: supplier.id, materialId: lengthMaterial.id, locationId: location.id,
+      qty: 2229, lengthPerPiece: 6, pieceCount: 83, unitPrice: 32, priceBasis: 'STOCK' as const }
+    const lengthReceipt = await createMaterialIns(createMaterialInSchema.parse({ ...lengthInput, valuationQty: 9999 }), fixedNow)
+    assert.deepEqual([lengthReceipt.items[0].valuationQty, lengthReceipt.items[0].totalLength, lengthReceipt.items[0].pieceCount,
+      lengthReceipt.items[0].conversionSource, lengthReceipt.items[0].totalAmount], [498, 498, 83, 'CALCULATED_LENGTH', 71328],
+    '服务端按单根长度和根数计算，不信任客户端总长度；按重量计价')
+    const lengthEdited = await updateManagedMaterialIn(lengthReceipt.first.id, updateMaterialInSchema.parse({
+      supplierId: supplier.id, stagingLocationId: location.id, items: [lengthInput],
+    }))
+    assert.deepEqual([lengthEdited.updated.items[0].pieceCount, lengthEdited.updated.items[0].totalLength,
+      lengthEdited.updated.items[0].conversionSource], [83, 498, 'CALCULATED_LENGTH'], '编辑回存保留计算依据和来源')
+    assert.deepEqual(parseCsv(buildMaterialInHistoryCsv([lengthEdited.updated]))[1].slice(24),
+      ['单根长度×根数（计算值）', '83', '6'], '核查导出保留长度计算依据')
+    await receiveManagedMaterialIn(lengthReceipt.first.id, '验证收货员')
+    assert.equal((await loadMaterialInConversionHistory(lengthMaterial.id)).sampleCount, 0, '计算长度不能成为实测历史')
+    const lengthStock = await prisma.stock.findUniqueOrThrow({ where: { materialId: lengthMaterial.id } })
+    assert.deepEqual([lengthStock.qty, lengthStock.valuationQty, lengthStock.totalCost], [2229, 498, 71328])
+    await reverseManagedMaterialIn(lengthReceipt.first.id, { reason: '验证按根数来料红冲' }, '验证冲销员')
+    assert.equal((await prisma.stock.findUniqueOrThrow({ where: { materialId: lengthMaterial.id } })).qty, 0)
+    assert.equal(createMaterialInSchema.safeParse({ ...lengthInput, pieceCount: 1.5 }).success, false)
+    assert.equal(createMaterialInSchema.safeParse({ ...lengthInput, lengthPerPiece: 0 }).success, false)
+    await assert.rejects(() => createMaterialIns(createMaterialInSchema.parse({ ...lengthInput, pieceCount: undefined }), fixedNow), /根数必须为正整数/)
+
     const historyMaterial = await prisma.material.create({
       data: {
         code: `VERIFY-HISTORY-${suffix}`, name: `历史换算物料 ${suffix}`, unit: 'm', stockUnit: 'm', valuationUnit: 'kg',
