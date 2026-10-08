@@ -431,7 +431,74 @@ async function main() {
     assert.equal(readFileSync(legacyStoragePath).equals(legacyBytes), true)
     await expectPublicUnavailable(legacyAttachment.id)
 
-    console.log('业务单据打印验证通过：通用/客户/内部归档、扫码下载原版、旧二维码升级、匿名权限边界与取消/冲销/归档说明符合预期')
+    const contentArchiveWhere = { ownerType: 'SHIPMENT', ownerId: legacyShipment.id, documentType: shipmentPrintService.SHIPMENT_CUSTOMER_PDF_TYPE }
+    const originalContentArchive = await prisma.documentAttachment.findFirstOrThrow({ where: { ...contentArchiveWhere, id: { not: legacyAttachment.id } } })
+    const contentItem = await prisma.shipmentItem.findFirstOrThrow({ where: { shipmentId: legacyShipment.id } })
+    let contentPdf = upgradedLegacyPdf
+    let contentArchiveCount = 2
+    const expectCustomerReuse = async (reason: string) => {
+      const nextPdf = await shipmentPrintService.resolveShipmentDocumentPdf(legacyShipment.id, { audience: 'customer' })
+      assert.equal(nextPdf.pdf.equals(contentPdf.pdf), true, reason)
+      assert.equal(await prisma.documentAttachment.count({ where: contentArchiveWhere }), contentArchiveCount, '客户可见内容不变时不能增加 PDF 归档')
+    }
+    const expectCustomerVersion = async (reason: string) => {
+      const nextPdf = await shipmentPrintService.resolveShipmentDocumentPdf(legacyShipment.id, { audience: 'customer' })
+      assert.equal(nextPdf.pdf.equals(contentPdf.pdf), false, reason)
+      contentArchiveCount += 1
+      assert.equal(await prisma.documentAttachment.count({ where: contentArchiveWhere }), contentArchiveCount, '客户可见内容变化必须建立新的 PDF 归档')
+      contentPdf = nextPdf
+    }
+
+    const unrelatedChange = await prisma.shipment.update({
+      where: { id: legacyShipment.id },
+      data: { updatedAt: new Date(legacyShipment.updatedAt.getTime() + 60_000), shippedBy: '调整内部发货人员', shippedCostAmount: 999, status: 'DELIVERED', note: '' },
+    })
+    assert.notEqual(unrelatedChange.updatedAt.getTime(), legacyShipment.updatedAt.getTime())
+    await prisma.shipmentItem.update({ where: { id: contentItem.id }, data: { shippedCostAmount: 999 } })
+    await expectCustomerReuse('更新时间、内部发货人员、成本和签收状态变化不能产生新的客户版；空备注与未填备注显示一致')
+    await updateSystemSettings({ businessDocumentPrintDensity: 'standard', businessDocumentPrintMarginMm: 20 })
+    await expectCustomerReuse('通用内部打印密度和页边距不影响客户模板，不能产生新的客户 PDF')
+
+    const stableShipmentUpdatedAt = unrelatedChange.updatedAt.getTime()
+    await prisma.material.update({ where: { id: shipmentMaterial.id }, data: { name: '客户版新物料名称' } })
+    assert.equal((await prisma.shipment.findUniqueOrThrow({ where: { id: legacyShipment.id } })).updatedAt.getTime(), stableShipmentUpdatedAt, '物料主数据变化不会更新发货单时间戳')
+    await expectCustomerVersion('已展示物料名称变化即使未更新发货单时间戳，也必须生成新版')
+
+    const contentPackage = await prisma.packageDocument.create({
+      data: {
+        packageNo: `PKG-CONTENT-${suffix}`, shipmentId: legacyShipment.id, packedBy: '内容版本验证包装员',
+        items: { create: { shipmentItemId: contentItem.id, materialId: shipmentMaterial.id, quantity: 1, unitSnapshot: '件' } },
+      },
+      include: { items: true },
+    })
+    assert.equal((await prisma.shipment.findUniqueOrThrow({ where: { id: legacyShipment.id } })).updatedAt.getTime(), stableShipmentUpdatedAt)
+    await expectCustomerVersion('新增已展示的包裹概要必须生成新版，即使发货单时间戳未变化')
+    await prisma.packageDocumentItem.update({ where: { id: contentPackage.items[0].id }, data: { quantity: 2 } })
+    assert.equal((await prisma.shipment.findUniqueOrThrow({ where: { id: legacyShipment.id } })).updatedAt.getTime(), stableShipmentUpdatedAt)
+    await expectCustomerVersion('包裹显示数量变化必须生成新版，即使发货单时间戳未变化')
+
+    await prisma.shipmentItem.update({ where: { id: contentItem.id }, data: { unitPrice: 18, totalAmount: 18 } })
+    await prisma.shipment.update({ where: { id: legacyShipment.id }, data: { unitPrice: 18, totalAmount: 18 } })
+    await expectCustomerVersion('后补客户可见价格必须生成新版')
+    await prisma.shipmentItem.update({ where: { id: contentItem.id }, data: { unitPrice: 18.001, totalAmount: 18.001 } })
+    await prisma.shipment.update({ where: { id: legacyShipment.id }, data: { unitPrice: 18.001, totalAmount: 18.001 } })
+    await expectCustomerReuse('原始金额变化但两位小数打印结果相同时，应复用原客户 PDF')
+    await prisma.shipment.update({ where: { id: legacyShipment.id }, data: { note: '新增客户可见备注' } })
+    await expectCustomerVersion('单独更改客户可见备注必须生成新版')
+    await prisma.shipmentItem.update({ where: { id: contentItem.id }, data: { qty: 2 } })
+    await expectCustomerVersion('单独更改明细显示数量必须生成新版')
+
+    const firstVisibleStatePdf = contentPdf
+    await prisma.shipment.update({ where: { id: legacyShipment.id }, data: { note: '客户说明改为第二版' } })
+    await expectCustomerVersion('客户说明由 A 改为 B 必须建立新的归档')
+    await prisma.shipment.update({ where: { id: legacyShipment.id }, data: { note: '新增客户可见备注' } })
+    await expectCustomerVersion('客户说明由 B 改回 A 必须建立第三个版本，不能回跳历史 A 的二维码')
+    assert.equal(contentPdf.pdf.equals(firstVisibleStatePdf.pdf), false, '恢复同样的可见内容也必须保留本次修订的独立二维码')
+    await prisma.shipment.update({ where: { id: legacyShipment.id }, data: { deliveredBy: '更正内部签收人员', deliveredAt: new Date() } })
+    await expectCustomerReuse('最新版本之后仅更新内部签收信息，应复用最新客户 PDF')
+    assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(originalContentArchive.id)).pdf.equals(upgradedLegacyPdf.pdf), true, '所有内容修订后，原二维码仍需返回当时归档的字节')
+
+    console.log('业务单据打印验证通过：通用/客户/内部归档、扫码下载原版、可见内容版本判定、旧二维码升级、匿名权限边界与取消/冲销/归档说明符合预期')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

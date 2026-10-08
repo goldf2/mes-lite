@@ -559,11 +559,13 @@ SKU，实际库存单位。
 
 业务单据附件。所有业务对象共用这张表，不在每张单据表里单独增加照片或文件字段。系统生成单据以结构化业务记录作为正文；外部上传单据以主要上传文件作为正文来源，两类单据都可以继续关联多个附件。
 
-发货系统生成 PDF 使用独立 `document_type`：客户发货单和内部留档分别归档，记录的 `note` 保存受众、打印格式和 Shipment 源版本；它们由发货单专用动作读取，不混入用户上传的原始附件列表。Office/CAD 预览 PDF 是附件派生文件，SOP PDF 是离线制品，均不属于发货业务单据归档。
+发货系统生成 PDF 使用独立 `document_type`：客户发货单和内部留档分别归档，记录的 `note` 保存受众和版本依据；它们由发货单专用动作读取，不混入用户上传的原始附件列表。Office/CAD 预览 PDF 是附件派生文件，SOP PDF 是离线制品，均不属于发货业务单据归档。
 
-`v0.1.475` 起，客户发货单复用 `DocumentAttachment`、持久化附件目录和发货单领域服务，不新增 Prisma 字段或迁移。创建发货记录不预生成 PDF；确认发货后，已登录且有权的人员首次点击“客户发货单”时生成并归档，同一源版本、打印设置与公网 origin 的后续输出直接复用归档字节。客户归档 profile 升为 `shipment-document:customer:v2`，并保存 `download-origin`；渲染前先分配随机 UUID v4 作为附件 `id`，二维码编码完整 HTTPS 地址 `/api/public/shipment-documents/{id}/download`，附件 `url` 保存该相对路径。公网 origin 优先取服务端 `MES_PUBLIC_BASE_URL`，否则取请求 origin；仅非生产本地开发允许 localhost HTTP。
+`v0.1.475` 起，客户发货单复用 `DocumentAttachment`、持久化附件目录和发货单领域服务，不新增 Prisma 字段或迁移。创建发货记录不预生成 PDF；确认发货后，已登录且有权的人员首次点击“客户发货单”时生成并归档，客户可见内容与公网 origin 未变的后续输出直接复用归档字节。客户归档 profile 为 `shipment-document:customer:v2:content=<hash>;download-origin=<origin>;`；内容哈希与渲染共用 `customerPrintData`，只包含 PDF 实际展示的格式化文字、明细、货箱摘要和企业资料，不依赖 `Shipment.updatedAt`。内部成本、库位、发货操作人及 `SHIPPED → DELIVERED` 变化不产生客户新版本；物料或货箱的展示内容变化即使未更新 Shipment 时间，也会产生新版本。内部留档仍使用 `Shipment.updatedAt` 和通用打印 profile。
 
-公开下载只接受有效且未归档的 `SHIPMENT` 客户系统生成 PDF 附件，校验 UUID v4、`documentType = SYSTEM_GENERATED_SHIPMENT_CUSTOMER_PDF`、`mimeType = application/pdf` 和匹配的 `url`，再检查所属发货单当前状态。有效的 `SHIPPED / DELIVERED` 单据返回该附件已保存的原始 PDF 字节，不匿名生成或替换文件；价格或企业/打印设置变化后，原二维码仍指向原归档版本。发货单取消、冲销、归档或不再允许下载时返回 `410` 和中文状态说明；附件已归档/删除、主体已永久删除、无效地址或文件丢失返回 `404`。内部留档沿用认证入口，不开放客户公开下载。
+渲染前先分配随机 UUID v4 作为附件 `id`，二维码编码完整 HTTPS 地址 `/api/public/shipment-documents/{id}/download`，附件 `url` 保存该相对路径。公网 origin 优先取服务端 `MES_PUBLIC_BASE_URL`，否则取请求 origin；仅非生产本地开发允许 localhost HTTP。
+
+公开下载只接受有效且未归档的 `SHIPMENT` 客户系统生成 PDF 附件，校验 UUID v4、`documentType = SYSTEM_GENERATED_SHIPMENT_CUSTOMER_PDF`、`mimeType = application/pdf` 和匹配的 `url`，再检查所属发货单当前状态。有效的 `SHIPPED / DELIVERED` 单据返回该附件已保存的原始 PDF 字节，不匿名生成或替换文件；价格或企业资料等展示内容变化后，原二维码仍指向原归档版本。归档文件不可变与当前下载资格分开：发货单取消、冲销、归档或不再允许下载时返回 `410` 和中文状态说明；附件已归档/删除、主体已永久删除、无效地址或文件丢失返回 `404`。内部留档沿用认证入口，不开放客户公开下载。
 
 | 字段 | 含义 |
 | --- | --- |

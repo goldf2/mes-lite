@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -72,6 +72,33 @@ function drawCell(
 
 type ShipmentDocumentSource = Awaited<ReturnType<typeof getShipmentDeliveryNoteSource>>
 
+/** 版本判定与渲染共用同一投影，内部成本、库位和更新时间不进入客户单据。 */
+function customerPrintData(shipment: ShipmentDocumentSource, settings: SystemSettings) {
+  return {
+    shipmentNo: shipment.shipmentNo,
+    shippedAt: formatDate(shipment.shippedAt),
+    customer: shipment.customer,
+    customerPhone: shipment.customerPhone || shipment.customerRef?.phone || '-',
+    address: shipment.address || shipment.customerRef?.address || '-',
+    companyName: settings.companyName,
+    companyContact: settings.companyContact || '-',
+    companyPhone: settings.companyPhone || '-',
+    companyAddress: settings.companyAddress || '-',
+    voucherNo: shipment.voucherNo || '-',
+    trackingNo: shipment.trackingNo || '-',
+    note: shipment.note || '-',
+    rows: shipment.items.map((item, index) => [
+      String(index + 1), item.material.code,
+      `${item.material.name}${item.material.spec ? ` ${item.material.spec}` : ''}`,
+      `${item.qty} ${item.unitSnapshot}`, money(Number(item.unitPrice)), money(Number(item.totalAmount)),
+    ]),
+    total: money(Number(shipment.totalAmount)),
+    packages: shipment.packages.length > 0
+      ? shipment.packages.map((item) => `${item.packageNo}（${item.items.reduce((sum, row) => sum + Number(row.quantity), 0)} ${item.items[0]?.unitSnapshot || ''}）`).join('；')
+      : '未启用包裹单据',
+  }
+}
+
 function setupDocument(doc: PDFKit.PDFDocument, chunks: Buffer[], resolve: (value: Buffer) => void, reject: (reason?: unknown) => void) {
   doc.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
   doc.on('end', () => resolve(Buffer.concat(chunks)))
@@ -83,7 +110,7 @@ function setupDocument(doc: PDFKit.PDFDocument, chunks: Buffer[], resolve: (valu
   }
 }
 
-async function renderCustomerShipmentPdf(shipment: ShipmentDocumentSource, settings: SystemSettings, downloadUrl: string) {
+async function renderCustomerShipmentPdf(data: ReturnType<typeof customerPrintData>, downloadUrl: string) {
   const shipmentQrCode = await QRCode.toBuffer(downloadUrl, {
     errorCorrectionLevel: 'M',
     margin: 4,
@@ -102,30 +129,30 @@ async function renderCustomerShipmentPdf(shipment: ShipmentDocumentSource, setti
     const headingWidth = tableWidth - 170
     doc.fontSize(22).text('客户发货单', left, 48, { align: 'center', width: headingWidth })
     doc.moveDown(0.5)
-    doc.fontSize(10).text(settings.companyName, left, 78, { align: 'center', width: headingWidth })
+    doc.fontSize(10).text(data.companyName, left, 78, { align: 'center', width: headingWidth })
     doc.image(shipmentQrCode, right - 68, 42, { width: 68, height: 68 })
     doc.fontSize(9).text('如需电子档，请扫描\n二维码获取', right - 162, 62, { width: 90, align: 'center', lineGap: 3 })
     doc.fontSize(10)
-    doc.text(`发货单号：${shipment.shipmentNo}`, left, 108)
-    doc.text(`发货时间：${formatDate(shipment.shippedAt)}`, left + 280, 112)
+    doc.text(`发货单号：${data.shipmentNo}`, left, 108)
+    doc.text(`发货时间：${data.shippedAt}`, left + 280, 112)
 
     const partyTop = 136
     const partyWidth = tableWidth / 2
     doc.rect(left, partyTop, partyWidth, 92).stroke()
     doc.rect(left + partyWidth, partyTop, partyWidth, 92).stroke()
     doc.fontSize(11).text('甲方（收货方）', left + 8, partyTop + 8, { width: partyWidth - 16 })
-    doc.fontSize(9).text(`名称：${shipment.customer}`, left + 8, partyTop + 30, { width: partyWidth - 16 })
-    doc.text(`电话：${shipment.customerPhone || shipment.customerRef?.phone || '-'}`, left + 8, partyTop + 48, { width: partyWidth - 16 })
-    doc.text(`地址：${shipment.address || shipment.customerRef?.address || '-'}`, left + 8, partyTop + 66, { width: partyWidth - 16, ellipsis: true })
+    doc.fontSize(9).text(`名称：${data.customer}`, left + 8, partyTop + 30, { width: partyWidth - 16 })
+    doc.text(`电话：${data.customerPhone}`, left + 8, partyTop + 48, { width: partyWidth - 16 })
+    doc.text(`地址：${data.address}`, left + 8, partyTop + 66, { width: partyWidth - 16, ellipsis: true })
     doc.fontSize(11).text('乙方（供货方）', left + partyWidth + 8, partyTop + 8, { width: partyWidth - 16 })
-    doc.fontSize(9).text(`名称：${settings.companyName}`, left + partyWidth + 8, partyTop + 30, { width: partyWidth - 16 })
-    doc.text(`联系人：${settings.companyContact || '-'}`, left + partyWidth + 8, partyTop + 48, { width: partyWidth - 16 })
-    doc.text(`电话/地址：${settings.companyPhone || '-'} / ${settings.companyAddress || '-'}`, left + partyWidth + 8, partyTop + 66, { width: partyWidth - 16, ellipsis: true })
+    doc.fontSize(9).text(`名称：${data.companyName}`, left + partyWidth + 8, partyTop + 30, { width: partyWidth - 16 })
+    doc.text(`联系人：${data.companyContact}`, left + partyWidth + 8, partyTop + 48, { width: partyWidth - 16 })
+    doc.text(`电话/地址：${data.companyPhone} / ${data.companyAddress}`, left + partyWidth + 8, partyTop + 66, { width: partyWidth - 16, ellipsis: true })
 
     doc.fontSize(9)
-    doc.text(`明细项数：${shipment.items.length} 项`, left, 242)
-    doc.text(`客户凭证号：${shipment.voucherNo || '-'}`, left + 220, 242)
-    doc.text(`物流单号：${shipment.trackingNo || '-'}`, left + 390, 242, { width: 155, ellipsis: true })
+    doc.text(`明细项数：${data.rows.length} 项`, left, 242)
+    doc.text(`客户凭证号：${data.voucherNo}`, left + 220, 242)
+    doc.text(`物流单号：${data.trackingNo}`, left + 390, 242, { width: 155, ellipsis: true })
 
     const tableTop = 264
     const headerHeight = 34
@@ -142,20 +169,12 @@ async function renderCustomerShipmentPdf(shipment: ShipmentDocumentSource, setti
       return y + headerHeight
     }
     let rowY = drawHeader(tableTop)
-    shipment.items.forEach((item, rowIndex) => {
+    data.rows.forEach((values) => {
       if (rowY + rowHeight > doc.page.height - 130) {
         doc.addPage()
         rowY = drawHeader(52)
       }
       let rowX = left
-      const values = [
-        String(rowIndex + 1),
-        item.material.code,
-        `${item.material.name}${item.material.spec ? ` ${item.material.spec}` : ''}`,
-        `${item.qty} ${item.unitSnapshot}`,
-        money(Number(item.unitPrice)),
-        money(Number(item.totalAmount)),
-      ]
       values.forEach((value, index) => {
         drawCell(doc, value, rowX, rowY, widths[index], rowHeight, { align: index === 2 ? 'left' : 'center' })
         rowX += widths[index]
@@ -165,16 +184,13 @@ async function renderCustomerShipmentPdf(shipment: ShipmentDocumentSource, setti
     const totalY = rowY
     const totalLabelWidth = widths.slice(0, 5).reduce((sum, width) => sum + width, 0)
     drawCell(doc, '合计', left, totalY, totalLabelWidth, 34, { align: 'right' })
-    drawCell(doc, money(Number(shipment.totalAmount)), left + totalLabelWidth, totalY, widths[5], 34, { align: 'center' })
+    drawCell(doc, data.total, left + totalLabelWidth, totalY, widths[5], 34, { align: 'center' })
 
-    const packageSummary = shipment.packages.length > 0
-      ? shipment.packages.map((item) => `${item.packageNo}（${item.items.reduce((sum, row) => sum + Number(row.quantity), 0)} ${item.items[0]?.unitSnapshot || ''}）`).join('；')
-      : '未启用包裹单据'
     const noteY = totalY + 50
-    doc.fontSize(9).text(`包裹：${packageSummary}`, left, noteY, { width: tableWidth, ellipsis: true })
+    doc.fontSize(9).text(`包裹：${data.packages}`, left, noteY, { width: tableWidth, ellipsis: true })
     doc.fontSize(10)
-    doc.text(`物流单号：${shipment.trackingNo || '-'}`, left, noteY + 24)
-    doc.text(`备注：${shipment.note || '-'}`, left, noteY + 48, { width: tableWidth })
+    doc.text(`物流单号：${data.trackingNo}`, left, noteY + 24)
+    doc.text(`备注：${data.note}`, left, noteY + 48, { width: tableWidth })
     const signY = noteY + 108
     doc.text('乙方发货人：____________', left, signY)
     doc.text('甲方收货人：____________', left + 210, signY)
@@ -234,8 +250,9 @@ function sourceRevision(shipment: ShipmentDocumentSource) {
 }
 
 function archiveProfile(audience: ShipmentDocumentAudience, revision: string, settings: SystemSettings, origin?: string) {
-  const version = audience === 'customer' ? 'v2' : 'v1'
-  return `shipment-document:${audience}:${version}:source=${revision};${businessDocumentPrintProfile(settings)}${origin ? `;download-origin=${origin};` : ''}`
+  return audience === 'customer'
+    ? `shipment-document:customer:v2:content=${revision};download-origin=${origin};`
+    : `shipment-document:internal:v1:source=${revision};${businessDocumentPrintProfile(settings)}`
 }
 
 async function latestArchivedShipmentPdf(
@@ -246,16 +263,17 @@ async function latestArchivedShipmentPdf(
   origin?: string,
 ) {
   const profile = archiveProfile(audience, revision, settings, origin)
-  return prisma.documentAttachment.findFirst({
+  const archived = await prisma.documentAttachment.findFirst({
     where: {
       ownerType: 'SHIPMENT',
       ownerId: id,
       documentType: documentTypeFor(audience),
       deletedAt: null,
-      note: { contains: profile },
+      ...(audience === 'internal' ? { note: { contains: profile } } : {}),
     },
     orderBy: { createdAt: 'desc' },
   })
+  return archived?.note?.includes(profile) ? archived : null
 }
 
 export async function hasArchivedShipmentDocumentPdf(id: string, audience: ShipmentDocumentAudience) {
@@ -283,7 +301,10 @@ export async function resolveShipmentDocumentPdf(
   if (!['SHIPPED', 'DELIVERED'].includes(shipment.status)) throw new SalesDomainError('确认发货后才能输出发货单 PDF')
   if (!settings.companyName.trim()) throw new SalesDomainError('请先在系统设置填写发货单乙方企业名称')
 
-  const revision = sourceRevision(shipment)
+  const customerData = audience === 'customer' ? customerPrintData(shipment, settings) : undefined
+  const revision = customerData
+    ? createHash('sha256').update(JSON.stringify(customerData)).digest('hex')
+    : sourceRevision(shipment)
   const origin = audience === 'customer' ? customerDocumentOrigin(options.requestUrl) : undefined
   const profile = archiveProfile(audience, revision, settings, origin)
   if (!options.regenerate) {
@@ -303,7 +324,7 @@ export async function resolveShipmentDocumentPdf(
   const archiveId = randomUUID()
   const downloadPath = publicDownloadPath(archiveId)
   const pdf = audience === 'customer'
-    ? await renderCustomerShipmentPdf(shipment, settings, new URL(downloadPath, origin).toString())
+    ? await renderCustomerShipmentPdf(customerData!, new URL(downloadPath, origin).toString())
     : await renderBusinessDocumentPdf(internalPrintData(shipment), settings)
   const filename = audience === 'customer' ? `发货单-${shipment.shipmentNo}.pdf` : `发货内部留档-${shipment.shipmentNo}.pdf`
   const ownerDirectory = path.join(attachmentUploadRoot(), 'SHIPMENT', id)
