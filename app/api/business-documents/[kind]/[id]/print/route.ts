@@ -19,6 +19,7 @@ import {
 } from '@/modules/sales/server-index'
 import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
 import { SalesDomainError } from '@/modules/sales/domain/sales-errors'
+import { resolveRequestOrigin } from '@/modules/identity-access/domain/request-origin-policy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -55,8 +56,12 @@ export async function GET(
       )
       if (generationDenied) return generationDenied
     }
+    const requestUrl = resolveRequestOrigin({
+      fallbackOrigin: request.nextUrl.origin,
+      forwardedHost: request.headers.get('x-forwarded-host'), forwardedProto: request.headers.get('x-forwarded-proto'),
+    })
     const result = kind === 'shipment'
-      ? await resolveShipmentDocumentPdf(params.id, { audience: audience || 'customer', regenerate, scope })
+      ? await resolveShipmentDocumentPdf(params.id, { audience: audience || 'customer', regenerate, scope, requestUrl })
       : await resolveBusinessDocumentPdf(kind, params.id, regenerate)
     return businessDocumentPdfResponse(result.pdf, result.filename, { disposition: download ? 'attachment' : 'inline' })
   } catch (error) {

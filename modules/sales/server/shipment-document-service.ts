@@ -19,6 +19,25 @@ export type ShipmentDocumentAudience = typeof shipmentDocumentAudiences[number]
 export const SHIPMENT_CUSTOMER_PDF_TYPE = 'SYSTEM_GENERATED_SHIPMENT_CUSTOMER_PDF'
 export const SHIPMENT_INTERNAL_PDF_TYPE = 'SYSTEM_GENERATED_SHIPMENT_INTERNAL_PDF'
 
+function publicDownloadPath(id: string) {
+  return `/api/public/shipment-documents/${id}/download`
+}
+
+function customerDocumentOrigin(requestUrl?: string) {
+  const value = process.env.MES_PUBLIC_BASE_URL?.trim() || requestUrl
+  try {
+    const url = new URL(value || '')
+    const localDevelopment = process.env.NODE_ENV !== 'production'
+      && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+    if (url.username || url.password || (url.protocol !== 'https:' && !(localDevelopment && url.protocol === 'http:'))) {
+      throw new Error('invalid origin')
+    }
+    return url.origin
+  } catch {
+    throw new SalesDomainError('请配置有效的 MES_PUBLIC_BASE_URL 公网 HTTPS 地址，以生成发货单下载二维码', 503)
+  }
+}
+
 const fontPaths = [
   process.env.PDF_FONT_PATH,
   path.join(process.cwd(), 'assets/fonts/NotoSansCJKsc-Regular.otf'),
@@ -64,11 +83,11 @@ function setupDocument(doc: PDFKit.PDFDocument, chunks: Buffer[], resolve: (valu
   }
 }
 
-async function renderCustomerShipmentPdf(shipment: ShipmentDocumentSource, settings: SystemSettings) {
-  const shipmentQrCode = await QRCode.toBuffer(shipment.shipmentNo, {
+async function renderCustomerShipmentPdf(shipment: ShipmentDocumentSource, settings: SystemSettings, downloadUrl: string) {
+  const shipmentQrCode = await QRCode.toBuffer(downloadUrl, {
     errorCorrectionLevel: 'M',
-    margin: 1,
-    width: 240,
+    margin: 4,
+    width: 360,
     color: { dark: '#000000', light: '#ffffff' },
   })
   return new Promise<Buffer>((resolve, reject) => {
@@ -80,10 +99,12 @@ async function renderCustomerShipmentPdf(shipment: ShipmentDocumentSource, setti
     const left = 48
     const right = pageWidth - 48
     const tableWidth = right - left
-    doc.fontSize(22).text('客户发货单', left, 48, { align: 'center', width: tableWidth })
+    const headingWidth = tableWidth - 170
+    doc.fontSize(22).text('客户发货单', left, 48, { align: 'center', width: headingWidth })
     doc.moveDown(0.5)
-    doc.fontSize(10).text(settings.companyName, left, 78, { align: 'center', width: tableWidth })
-    doc.image(shipmentQrCode, right - 52, 46, { width: 48, height: 48 })
+    doc.fontSize(10).text(settings.companyName, left, 78, { align: 'center', width: headingWidth })
+    doc.image(shipmentQrCode, right - 68, 42, { width: 68, height: 68 })
+    doc.fontSize(9).text('如需电子档，请扫描\n二维码获取', right - 162, 62, { width: 90, align: 'center', lineGap: 3 })
     doc.fontSize(10)
     doc.text(`发货单号：${shipment.shipmentNo}`, left, 108)
     doc.text(`发货时间：${formatDate(shipment.shippedAt)}`, left + 280, 112)
@@ -212,8 +233,9 @@ function sourceRevision(shipment: ShipmentDocumentSource) {
   return shipment.updatedAt.toISOString()
 }
 
-function archiveProfile(audience: ShipmentDocumentAudience, revision: string, settings: SystemSettings) {
-  return `shipment-document:${audience}:v1:source=${revision};${businessDocumentPrintProfile(settings)}`
+function archiveProfile(audience: ShipmentDocumentAudience, revision: string, settings: SystemSettings, origin?: string) {
+  const version = audience === 'customer' ? 'v2' : 'v1'
+  return `shipment-document:${audience}:${version}:source=${revision};${businessDocumentPrintProfile(settings)}${origin ? `;download-origin=${origin};` : ''}`
 }
 
 async function latestArchivedShipmentPdf(
@@ -221,8 +243,9 @@ async function latestArchivedShipmentPdf(
   audience: ShipmentDocumentAudience,
   revision: string,
   settings: SystemSettings,
+  origin?: string,
 ) {
-  const profile = archiveProfile(audience, revision, settings)
+  const profile = archiveProfile(audience, revision, settings, origin)
   return prisma.documentAttachment.findFirst({
     where: {
       ownerType: 'SHIPMENT',
@@ -248,6 +271,7 @@ export async function resolveShipmentDocumentPdf(
     audience?: ShipmentDocumentAudience
     regenerate?: boolean
     scope?: EffectiveDataScope
+    requestUrl?: string
   } = {},
 ): Promise<BusinessDocumentPdfResult> {
   const audience = options.audience || 'customer'
@@ -260,9 +284,10 @@ export async function resolveShipmentDocumentPdf(
   if (!settings.companyName.trim()) throw new SalesDomainError('请先在系统设置填写发货单乙方企业名称')
 
   const revision = sourceRevision(shipment)
-  const profile = archiveProfile(audience, revision, settings)
+  const origin = audience === 'customer' ? customerDocumentOrigin(options.requestUrl) : undefined
+  const profile = archiveProfile(audience, revision, settings, origin)
   if (!options.regenerate) {
-    const archivedPdf = await latestArchivedShipmentPdf(id, audience, revision, settings)
+    const archivedPdf = await latestArchivedShipmentPdf(id, audience, revision, settings, origin)
     if (archivedPdf) {
       try {
         return {
@@ -275,8 +300,10 @@ export async function resolveShipmentDocumentPdf(
     }
   }
 
+  const archiveId = randomUUID()
+  const downloadPath = publicDownloadPath(archiveId)
   const pdf = audience === 'customer'
-    ? await renderCustomerShipmentPdf(shipment, settings)
+    ? await renderCustomerShipmentPdf(shipment, settings, new URL(downloadPath, origin).toString())
     : await renderBusinessDocumentPdf(internalPrintData(shipment), settings)
   const filename = audience === 'customer' ? `发货单-${shipment.shipmentNo}.pdf` : `发货内部留档-${shipment.shipmentNo}.pdf`
   const ownerDirectory = path.join(attachmentUploadRoot(), 'SHIPMENT', id)
@@ -286,6 +313,7 @@ export async function resolveShipmentDocumentPdf(
   await writeFile(storagePath, pdf)
   await prisma.documentAttachment.create({
     data: {
+      id: archiveId,
       ownerType: 'SHIPMENT',
       ownerId: id,
       documentType: documentTypeFor(audience),
@@ -293,7 +321,7 @@ export async function resolveShipmentDocumentPdf(
       fileName,
       mimeType: 'application/pdf',
       size: pdf.byteLength,
-      url: `/api/business-documents/shipment/${id}/print?audience=${audience}`,
+      url: audience === 'customer' ? downloadPath : `/api/business-documents/shipment/${id}/print?audience=${audience}`,
       storagePath,
       note: profile,
     },
@@ -302,10 +330,37 @@ export async function resolveShipmentDocumentPdf(
 }
 
 /** 旧下载地址的兼容包装：客户版 PDF 现在与统一业务单据入口共用同一归档。 */
-export async function createShipmentDeliveryNote(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
-  return resolveShipmentDocumentPdf(id, { audience: 'customer', scope })
+export async function createShipmentDeliveryNote(id: string, scope: EffectiveDataScope = unrestrictedDataScope, requestUrl?: string) {
+  return resolveShipmentDocumentPdf(id, { audience: 'customer', scope, requestUrl })
 }
 
 export async function createShipmentInternalArchive(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   return resolveShipmentDocumentPdf(id, { audience: 'internal', scope })
+}
+
+/** 持有纸质单据二维码的客户只能下载该归档版本，不能触发重新生成。 */
+export async function resolvePublicShipmentDocumentPdf(id: string): Promise<BusinessDocumentPdfResult> {
+  const unavailable = () => new SalesDomainError('发货单电子档不存在或已失效', 404)
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id)) throw unavailable()
+  const attachment = await prisma.documentAttachment.findFirst({
+    where: {
+      id, ownerType: 'SHIPMENT', documentType: SHIPMENT_CUSTOMER_PDF_TYPE,
+      mimeType: 'application/pdf', deletedAt: null, url: publicDownloadPath(id),
+    },
+  })
+  if (!attachment) throw unavailable()
+  const shipment = await prisma.shipment.findUnique({
+    where: { id: attachment.ownerId },
+    select: { status: true, deletedAt: true },
+  })
+  if (!shipment) throw unavailable()
+  if (shipment.status === 'CANCELLED') throw new SalesDomainError('该单已取消，电子档已停止下载。', 410)
+  if (shipment.status === 'REVERSED') throw new SalesDomainError('该单已冲销，电子档已停止下载。', 410)
+  if (shipment.deletedAt) throw new SalesDomainError('该单已归档，电子档已停止下载。', 410)
+  if (!['SHIPPED', 'DELIVERED'].includes(shipment.status)) throw new SalesDomainError('该单当前状态不支持下载，请联系发货方。', 410)
+  try {
+    return { pdf: await readFile(resolveAttachmentStoragePath(attachment.storagePath)), filename: attachment.originalName }
+  } catch {
+    throw new SalesDomainError('电子档文件暂不可用，请联系发货方。', 404)
+  }
 }

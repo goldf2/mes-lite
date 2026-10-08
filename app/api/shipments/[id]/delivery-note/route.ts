@@ -5,6 +5,7 @@ import { createShipmentDeliveryNote } from '@/modules/sales/server/shipment-deli
 import { getCurrentOperator } from '@/lib/auth'
 import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
 import { businessDocumentPdfResponse } from '@/modules/business-documents/http/business-document-http'
+import { resolveRequestOrigin } from '@/modules/identity-access/domain/request-origin-policy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,7 +16,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     if (denied) return denied
     const operator = await getCurrentOperator()
     if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
-    const { pdf, filename } = await createShipmentDeliveryNote(params.id, await loadEffectiveDataScope(operator))
+    const origin = resolveRequestOrigin({
+      fallbackOrigin: request.nextUrl.origin,
+      forwardedHost: request.headers.get('x-forwarded-host'), forwardedProto: request.headers.get('x-forwarded-proto'),
+    })
+    const { pdf, filename } = await createShipmentDeliveryNote(params.id, await loadEffectiveDataScope(operator), origin)
     const disposition = new URL(request.url).searchParams.get('disposition') === 'inline' ? 'inline' : 'attachment'
     return businessDocumentPdfResponse(pdf, filename, { disposition })
   } catch (error) {

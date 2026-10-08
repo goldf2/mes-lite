@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -17,6 +18,7 @@ execFileSync(join(root, 'node_modules', '.bin', 'prisma'), ['migrate', 'deploy']
 })
 process.env.DATABASE_URL = databaseUrl
 process.env.MES_LITE_UPLOAD_DIR = uploadRoot
+process.env.MES_PUBLIC_BASE_URL = 'https://mes.example.test'
 
 const consumingPages = [
   'modules/receiving/ui/MaterialInCollectionView.tsx',
@@ -104,7 +106,7 @@ function verifyStaticBoundaries() {
 async function main() {
   const [
     { prisma },
-    { updateSystemSettings },
+    { getSystemSettings, updateSystemSettings },
     { businessDocumentDefinition, GENERATED_BUSINESS_DOCUMENT_PDF_TYPE },
     { BusinessDocumentError },
     format,
@@ -112,6 +114,10 @@ async function main() {
     { loadBusinessDocumentPrintData },
     printService,
     shipmentPrintService,
+    { SalesDomainError },
+    { NextRequest },
+    { middleware },
+    { GET: publicDownload },
   ] = await Promise.all([
     import('../lib/prisma'),
     import('../lib/system-settings'),
@@ -122,6 +128,10 @@ async function main() {
     import('../modules/business-documents/server/business-document-print-query-service'),
     import('../modules/business-documents/server/business-document-print-service'),
     import('../modules/sales/server/shipment-document-service'),
+    import('../modules/sales/domain/sales-errors'),
+    import('next/server'),
+    import('../middleware'),
+    import('../app/api/public/shipment-documents/[id]/download/route'),
   ])
 
   try {
@@ -241,13 +251,13 @@ async function main() {
       data: {
         shipmentNo: `PRINT-SH-${suffix}`, customer: '发货 PDF 验证客户', customerPhone: '13800000000', address: '验证地址',
         status: 'SHIPPED', shippedAt: new Date('2026-08-18T09:00:00.000Z'), shippedBy: '验证发货人', trackingNo: 'TRACK-VERIFY',
-        qty: 2, unitPrice: 18, totalAmount: 36, shippedCostAmount: 12,
+        qty: 2, unitPrice: 0, totalAmount: 0, shippedCostAmount: 12,
       },
     })
     const shipmentItem = await prisma.shipmentItem.create({
       data: {
         shipmentId: shipment.id, materialId: shipmentMaterial.id, locationId: sourceLocation.id,
-        qty: 2, unitSnapshot: '件', unitPrice: 18, totalAmount: 36, shippedCostAmount: 12,
+        qty: 2, unitSnapshot: '件', unitPrice: 0, totalAmount: 0, shippedCostAmount: 12,
       },
     })
     await prisma.packageDocument.create({
@@ -275,14 +285,153 @@ async function main() {
     ], '客户版与内部版必须使用独立的生成文档类型')
     assert.equal(await shipmentPrintService.hasArchivedShipmentDocumentPdf(shipment.id, 'customer'), true)
     assert.equal(await shipmentPrintService.hasArchivedShipmentDocumentPdf(shipment.id, 'internal'), true)
+
+    const customerAttachment = shipmentAttachments[0]
+    const publicUrl = `https://mes.example.test${customerAttachment.url}`
+    assert.match(customerAttachment.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/, '公开下载必须使用每份归档独立的随机 UUID')
+    assert.equal(customerAttachment.url, `/api/public/shipment-documents/${customerAttachment.id}/download`)
+    assert.match(customerAttachment.note || '', /shipment-document:customer:v2:[\s\S]*download-origin=https:\/\/mes\.example\.test;/)
+    assert.match(shipmentAttachments[1].note || '', /shipment-document:internal:v1:/, '内部版应继续复用原归档格式')
+    assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(customerAttachment.id)).pdf.equals(customerPreview.pdf), true, '扫码必须读取纸单对应归档的原始字节')
+
+    const downloadResponse = await publicDownload(new NextRequest(publicUrl), { params: { id: customerAttachment.id } })
+    assert.equal(downloadResponse.status, 200)
+    assert.equal(downloadResponse.headers.get('Content-Type'), 'application/pdf')
+    assert.equal(downloadResponse.headers.get('Content-Disposition'), `attachment; filename*=UTF-8''${encodeURIComponent(customerPreview.filename)}`)
+    assert.equal(downloadResponse.headers.get('Content-Length'), String(customerPreview.pdf.byteLength))
+    assert.equal(downloadResponse.headers.get('Cache-Control'), 'private, no-store')
+    assert.equal(downloadResponse.headers.get('Referrer-Policy'), 'no-referrer')
+    assert.equal(downloadResponse.headers.get('X-Content-Type-Options'), 'nosniff')
+    assert.equal(Buffer.from(await downloadResponse.arrayBuffer()).equals(customerPreview.pdf), true, '匿名 HTTP 下载必须返回同一归档 PDF')
+
+    for (const method of ['GET', 'HEAD']) {
+      assert.equal(middleware(new NextRequest(publicUrl, { method })).headers.get('x-middleware-next'), '1', `${method} 扫码下载应允许无会话请求进入受限公开服务`)
+    }
+    for (const pathname of [
+      '/api/shipments',
+      `/api/business-documents/shipment/${shipment.id}/print?audience=internal`,
+      `/api/attachments/${customerAttachment.id}/file`,
+      '/api/public/shipment-documents/not-a-uuid/download',
+      `/api/public/shipment-documents/${customerAttachment.id}/download/extra`,
+      `/api/public/shipment-documents/${customerAttachment.id}/other`,
+      '/api/public/other',
+    ]) {
+      assert.equal(middleware(new NextRequest(`https://mes.example.test${pathname}`)).status, 401, `匿名豁免不得扩展到 ${pathname}`)
+    }
+    assert.equal(middleware(new NextRequest(publicUrl, { method: 'POST' })).status, 403, '公开地址写请求仍需来源校验')
+    assert.equal(middleware(new NextRequest(publicUrl, { method: 'POST', headers: { origin: 'https://mes.example.test' } })).status, 401, '合法来源写请求不能使用匿名下载豁免')
+    assert.equal(middleware(new NextRequest('https://mes.example.test/uploads/private.pdf')).status, 404, '存储路径不能直接公开')
+
+    const expectPublicUnavailable = async (id: string, status = 404, message?: RegExp) => {
+      await assert.rejects(
+        () => shipmentPrintService.resolvePublicShipmentDocumentPdf(id),
+        (error: unknown) => error instanceof SalesDomainError && error.status === status && (!message || message.test(error.message)),
+      )
+      const response = await publicDownload(new NextRequest(`https://mes.example.test/api/public/shipment-documents/${id}/download`), { params: { id } })
+      assert.equal(response.status, status)
+      assert.equal(response.headers.get('Content-Type'), 'text/html; charset=utf-8', '失效电子档必须显示可读页面')
+      assert.equal(response.headers.get('Cache-Control'), 'private, no-store')
+      const body = await response.text()
+      assert.match(body, /发货单电子档不可用/)
+      assert.match(body, /请联系发货方/)
+      if (message) assert.match(body, message)
+    }
+
+    await expectPublicUnavailable(shipmentAttachments[1].id)
+    await expectPublicUnavailable(shipment.id)
+    await expectPublicUnavailable(randomUUID())
+    await expectPublicUnavailable('not-a-uuid')
+
+    for (const changedFields of [
+      { ownerType: 'SALES_ORDER' },
+      { documentType: shipmentPrintService.SHIPMENT_INTERNAL_PDF_TYPE },
+      { mimeType: 'image/png' },
+      { url: `/api/attachments/${customerAttachment.id}/file` },
+      { ownerId: 'missing-shipment' },
+      { deletedAt: new Date() },
+    ]) {
+      await prisma.documentAttachment.update({ where: { id: customerAttachment.id }, data: changedFields })
+      await expectPublicUnavailable(customerAttachment.id)
+      await prisma.documentAttachment.update({
+        where: { id: customerAttachment.id },
+        data: {
+          ownerType: customerAttachment.ownerType, ownerId: customerAttachment.ownerId,
+          documentType: customerAttachment.documentType, mimeType: customerAttachment.mimeType,
+          url: customerAttachment.url, deletedAt: null,
+        },
+      })
+    }
+
     await updateSystemSettings({ companyName: 'MES-lite 另一测试企业' })
     await shipmentPrintService.resolveShipmentDocumentPdf(shipment.id, { audience: 'customer' })
     assert.equal(await prisma.documentAttachment.count({ where: { ownerType: 'SHIPMENT', ownerId: shipment.id, documentType: shipmentPrintService.SHIPMENT_CUSTOMER_PDF_TYPE } }), 2, '企业抬头变化后客户发货单必须生成新归档版本')
-    await prisma.shipment.update({ where: { id: shipment.id }, data: { note: '源数据变更后重新生成' } })
+    await prisma.shipmentItem.update({ where: { id: shipmentItem.id }, data: { unitPrice: 18, totalAmount: 36 } })
+    await prisma.shipment.update({ where: { id: shipment.id }, data: { unitPrice: 18, totalAmount: 36, note: '后补发货价格' } })
     await shipmentPrintService.resolveShipmentDocumentPdf(shipment.id, { audience: 'customer' })
     assert.equal(await prisma.documentAttachment.count({ where: { ownerType: 'SHIPMENT', ownerId: shipment.id, documentType: shipmentPrintService.SHIPMENT_CUSTOMER_PDF_TYPE } }), 3, '发货源数据变化后必须保留历史快照并生成新版本')
 
-    console.log('业务单据打印验证通过：通用单据归档、客户/内部发货 PDF 双受众归档、缓存复用和源数据版本隔离符合预期')
+    const forcedCustomerPdf = await shipmentPrintService.resolveShipmentDocumentPdf(shipment.id, { audience: 'customer', regenerate: true })
+    assert.equal(await prisma.documentAttachment.count({ where: { ownerType: 'SHIPMENT', ownerId: shipment.id, documentType: shipmentPrintService.SHIPMENT_CUSTOMER_PDF_TYPE } }), 4, '客户版手动重生成必须建立新的独立下载归档')
+    assert.equal(forcedCustomerPdf.pdf.equals(customerPreview.pdf), false)
+    assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(customerAttachment.id)).pdf.equals(customerPreview.pdf), true, '未填价格的纸单在后补价格、改抬头和重生成后，扫码仍须下载没有新增价格的原版')
+
+    process.env.MES_PUBLIC_BASE_URL = 'https://new-mes.example.test'
+    await shipmentPrintService.resolveShipmentDocumentPdf(shipment.id, { audience: 'customer' })
+    const originArchives = await prisma.documentAttachment.findMany({
+      where: { ownerType: 'SHIPMENT', ownerId: shipment.id, documentType: shipmentPrintService.SHIPMENT_CUSTOMER_PDF_TYPE },
+    })
+    assert.equal(originArchives.length, 5, '公网地址改变后，不能继续复用嵌入旧地址的二维码')
+    assert.ok(originArchives.some((attachment) => attachment.note?.includes(';download-origin=https://new-mes.example.test;')))
+    assert.equal(new Set(originArchives.map((attachment) => attachment.url)).size, originArchives.length, '每份归档版本必须拥有独立下载地址')
+    process.env.MES_PUBLIC_BASE_URL = 'https://mes.example.test'
+
+    for (const [status, message] of [
+      ['CANCELLED', /该单已取消/],
+      ['REVERSED', /该单已冲销/],
+      ['PENDING', /当前状态不支持下载/],
+    ] as const) {
+      await prisma.shipment.update({ where: { id: shipment.id }, data: { status } })
+      await expectPublicUnavailable(customerAttachment.id, 410, message)
+    }
+    await prisma.shipment.update({ where: { id: shipment.id }, data: { status: 'SHIPPED', deletedAt: new Date() } })
+    await expectPublicUnavailable(customerAttachment.id, 410, /该单已归档/)
+    await prisma.shipment.update({ where: { id: shipment.id }, data: { status: 'DELIVERED', deletedAt: null } })
+    assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(customerAttachment.id)).pdf.equals(customerPreview.pdf), true, '签收状态仍应允许获取对应历史电子档')
+
+    const archiveCountBeforeMissingFile = await prisma.documentAttachment.count({ where: { ownerType: 'SHIPMENT', ownerId: shipment.id } })
+    rmSync(customerAttachment.storagePath)
+    await expectPublicUnavailable(customerAttachment.id, 404, /电子档文件暂不可用/)
+    assert.equal(existsSync(customerAttachment.storagePath), false, '匿名下载不得重建丢失归档')
+    assert.equal(await prisma.documentAttachment.count({ where: { ownerType: 'SHIPMENT', ownerId: shipment.id } }), archiveCountBeforeMissingFile, '匿名下载不得生成新归档版本')
+
+    const legacyShipment = await prisma.shipment.create({
+      data: {
+        shipmentNo: `PRINT-LEGACY-${suffix}`, customer: '旧二维码发货单验证客户',
+        status: 'SHIPPED', shippedAt: shipment.shippedAt,
+        items: { create: { materialId: shipmentMaterial.id, locationId: sourceLocation.id, qty: 1, unitSnapshot: '件' } },
+      },
+    })
+    const legacyStoragePath = join(uploadRoot, 'legacy-shipment.pdf')
+    const legacyBytes = Buffer.from('%PDF-legacy-shipment-number-qr')
+    writeFileSync(legacyStoragePath, legacyBytes)
+    const legacyAttachment = await prisma.documentAttachment.create({
+      data: {
+        ownerType: 'SHIPMENT', ownerId: legacyShipment.id,
+        documentType: shipmentPrintService.SHIPMENT_CUSTOMER_PDF_TYPE,
+        originalName: `发货单-${legacyShipment.shipmentNo}.pdf`, fileName: 'legacy-shipment.pdf',
+        mimeType: 'application/pdf', size: legacyBytes.byteLength, storagePath: legacyStoragePath,
+        url: `/api/business-documents/shipment/${legacyShipment.id}/print?audience=customer`,
+        note: `shipment-document:customer:v1:source=${legacyShipment.updatedAt.toISOString()};${businessDocumentPrintProfile(await getSystemSettings())}`,
+      },
+    })
+    const upgradedLegacyPdf = await shipmentPrintService.resolveShipmentDocumentPdf(legacyShipment.id, { audience: 'customer' })
+    assert.equal(upgradedLegacyPdf.pdf.equals(legacyBytes), false, '旧单号二维码归档不能作为新版扫码下载 PDF 缓存返回')
+    assert.equal(upgradedLegacyPdf.pdf.subarray(0, 5).toString(), '%PDF-')
+    assert.equal(await prisma.documentAttachment.count({ where: { ownerType: 'SHIPMENT', ownerId: legacyShipment.id } }), 2, '升级二维码必须保留原历史归档并新增客户版')
+    assert.equal(readFileSync(legacyStoragePath).equals(legacyBytes), true)
+    await expectPublicUnavailable(legacyAttachment.id)
+
+    console.log('业务单据打印验证通过：通用/客户/内部归档、扫码下载原版、旧二维码升级、匿名权限边界与取消/冲销/归档说明符合预期')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

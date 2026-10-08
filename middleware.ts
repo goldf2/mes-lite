@@ -46,6 +46,8 @@ export function middleware(req: NextRequest) {
   if (pathname.startsWith('/api/auth')) return NextResponse.next()
   if (pathname === '/api/health' || pathname.startsWith('/api/health/')) return NextResponse.next()
   if (pathname.startsWith('/api/wopi/')) return NextResponse.next()
+  if (['GET', 'HEAD'].includes(req.method)
+    && /^\/api\/public\/shipment-documents\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/download$/.test(pathname)) return NextResponse.next()
 
   const token = req.cookies.get(SESSION_COOKIE)?.value
   if (!token) {

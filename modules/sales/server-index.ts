@@ -9,6 +9,7 @@ export {
   createShipmentInternalArchive,
   hasArchivedShipmentDocumentPdf,
   resolveShipmentDocumentPdf,
+  resolvePublicShipmentDocumentPdf,
   shipmentDocumentAudiences,
   SHIPMENT_CUSTOMER_PDF_TYPE,
   SHIPMENT_INTERNAL_PDF_TYPE,

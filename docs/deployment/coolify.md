@@ -84,6 +84,8 @@ CAD_PREVIEW_MAX_CONCURRENT_CONVERSIONS=2
 
 ### 3.0 自托管 Collabora 电子表格直览
 
+客户发货单 PDF 的扫码下载地址也优先使用 `MES_PUBLIC_BASE_URL` 的 HTTPS Origin；未配置时使用打印请求经反向代理还原的公网 Origin。生产环境拒绝 HTTP。`v0.1.475` 起二维码指向客户归档专属下载接口，接口实时检查单据状态后返回原 PDF；取消、冲销或归档会停止下载。域名变更后重新输出客户 PDF 会生成新归档，已印刷纸单中的旧域名仍需保留或提供重定向。
+
 XLS、XLSX 和 ODS 默认由独立的 Collabora Online 服务直接打开，不先转换为 PDF。`MES_PUBLIC_BASE_URL` 是 Collabora 回调 MES-lite WOPI 接口时可访问的 HTTPS 根地址；`COLLABORA_PUBLIC_URL` 是浏览器访问 Collabora 的 HTTPS Origin；`COLLABORA_DISCOVERY_URL` 必须是同一 Origin 下的 discovery 地址。生产环境拒绝 HTTP，令牌有效期默认 2 小时，可在 300–28800 秒内调整。
 
 Collabora 应部署为独立 Coolify Service 或独立主机，不与 MES-lite SQLite 容器共享进程和扩缩容生命周期。反向代理必须支持 WebSocket 和长连接，并只允许其访问 MES-lite 的 `/api/wopi/*`。Collabora 侧只信任 `mes.example.com` 这个 WOPI Host；关闭宏执行、外部数据自动刷新和不需要的编辑能力。Community Development Edition 适合隔离试点，正式生产容量和支持等级应根据 Collabora 授权与并发需求另行确认。
