@@ -1,0 +1,26 @@
+{
+  "package": "@oaktech/web-auth",
+  "version": "0.3.5",
+  "archive": "oaktech-web-auth-0.3.5.tgz",
+  "sourceRepository": "goldf2/enterprise-leads-workbench",
+  "sourceBranch": "feat/web-auth-mes-compat-20261017",
+  "sourceCommit": "0655dd907d12446dd671fedd82bede358fa021f7",
+  "sourcePath": "web/packages/web-auth",
+  "sourceBaseCommit": "3706b6674aece6ce979e8a380759f23973317c23",
+  "sha256": "b0c7b13d1c2e75eb954c392cfbeffb2ee18df70606aa5aca60a1ec3583cce65a",
+  "integrity": "sha512-khkyPhUFZZS/AIs9zwA/YNNqtehnHd/Wq6T64h0Q1SOVK2BB4gwCd28DP8DeaMDKbT/73f0TsMY3gEY7kFkMfg==",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "openid-client": ">=6.8.0 <7"
+  },
+  "validatedRuntime": {
+    "node": "v20.19.4",
+    "react": "18.3.1"
+  },
+  "implementationUnchangedFromBase": true,
+  "compatibilityReceipt": "compatibility-receipt.json",
+  "scope": "Compatibility metadata and public-subpath verification only; no authentication protocol or business permission changes."
+}

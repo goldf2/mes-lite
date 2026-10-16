@@ -22,6 +22,7 @@ ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org
 # 仅复制去除项目发布版本号的依赖清单。这样应用版本递增时仍可复用
 # node_modules 层，只有依赖或锁定结果变化时才重新执行 npm ci。
 COPY docker/dependencies/package.json docker/dependencies/package-lock.json ./
+COPY vendor/oaktech-web-auth-0.3.5.tgz ./vendor/oaktech-web-auth-0.3.5.tgz
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --no-audit --fund=false --prefer-offline \
       --fetch-retries=5 \

@@ -2,6 +2,8 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { createHash, pbkdf2Sync, randomBytes, timingSafeEqual } from 'crypto'
 import { prisma } from './prisma'
+import { ensureAuthenticationRuntime } from '@/modules/identity-access/server/authentication-runtime-service'
+import { sessionAuthenticationAllowed } from '@/modules/identity-access/server/authentication-session-policy'
 
 export const SESSION_COOKIE = 'mes_lite_session'
 const SESSION_DAYS = 7
@@ -28,16 +30,37 @@ function hashToken(token: string) {
   return createHash('sha256').update(token).digest('hex')
 }
 
-export async function createOperatorSession(operatorId: string) {
+export async function createOperatorSession(operatorId: string, authentication?: {
+  authSource: 'native' | 'wechat' | 'casdoor' | 'native-admin-recovery'
+  authAccountId?: string
+  authSubject?: string
+  authGeneration?: string
+  challengeTicketHash?: string
+}) {
+  const runtime = await ensureAuthenticationRuntime()
+  if (!authentication && runtime.mode !== 'builtin') throw new Error('LOGIN_METHOD_DISABLED')
+  if (authentication?.authSource === 'casdoor' && (runtime.mode !== 'casdoor' || !runtime.ready
+    || authentication.authGeneration !== runtime.state.generation)) throw new Error('LOGIN_CONFIGURATION_CHANGED')
   const token = randomBytes(32).toString('hex')
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000)
 
-  await prisma.operatorSession.create({
-    data: {
+  await prisma.$transaction(async tx => {
+    const attempt = authentication?.challengeTicketHash
+      ? await tx.operatorLoginChallenge.findUnique({ where: { ticketHash: authentication.challengeTicketHash } }) : null
+    if (authentication?.authSource === 'casdoor' && (!attempt || !attempt.consumedAt || attempt.sessionId
+      || attempt.expiresAt <= new Date() || attempt.generation !== runtime.state.generation)) throw new Error('LOGIN_EXPIRED')
+    const session = await tx.operatorSession.create({
+      data: {
       tokenHash: hashToken(token),
       operatorId,
       expiresAt,
-    },
+      authSource: authentication?.authSource || 'native',
+      authAccountId: authentication?.authAccountId,
+      authSubject: authentication?.authSubject,
+      authGeneration: authentication?.authSource === 'native-admin-recovery' ? null : authentication?.authGeneration || runtime.state.generation,
+      },
+    })
+    if (attempt) await tx.operatorLoginChallenge.update({ where: { ticketHash: attempt.ticketHash }, data: { sessionId: session.id } })
   })
 
   return { token, expiresAt }
@@ -90,7 +113,10 @@ export async function getCurrentOperator() {
     return null
   }
 
-  if (session.operator.status !== 'ACTIVE') return null
+  if (!await sessionAuthenticationAllowed(session, session.operator)) {
+    await prisma.operatorSession.deleteMany({ where: { id: session.id } })
+    return null
+  }
   return session.operator
 }
 

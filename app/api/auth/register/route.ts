@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuditContext } from '@/lib/audit'
 import { registerInputSchema } from '@/modules/identity-access/contracts/authentication'
 import { publicRegistrationEnabled } from '@/modules/identity-access/domain/authentication'
+import { readLoginConfiguration } from '@/modules/identity-access/domain/casdoor-runtime'
 import { authenticationHttpError } from '@/modules/identity-access/http/authentication-http'
 import { enforceAuthenticationRequestLimit } from '@/modules/identity-access/http/authentication-request'
 import { registerOperator } from '@/modules/identity-access/server/authentication-service'
@@ -11,14 +12,14 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   return NextResponse.json(
-    { data: { enabled: publicRegistrationEnabled() } },
+    { data: { enabled: readLoginConfiguration().mode === 'builtin' && publicRegistrationEnabled() } },
     { headers: { 'Cache-Control': 'no-store' } },
   )
 }
 
 export async function POST(req: NextRequest) {
   try {
-    if (!publicRegistrationEnabled()) {
+    if (readLoginConfiguration().mode !== 'builtin' || !publicRegistrationEnabled()) {
       return NextResponse.json({ error: '公开注册未启用，请联系管理员创建或开放账号' }, { status: 403 })
     }
     await enforceAuthenticationRequestLimit(req, 'REGISTER')

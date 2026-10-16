@@ -48,6 +48,7 @@ export default function AccountMenu({
             <div className="mt-1 text-xs font-medium text-gray-400">MES-lite v{appVersion}</div>
           </div>
           <div className="p-2">
+            <a href="/settings/login" role="menuitem" className="mb-2 flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">登录设置</a>
             <button
               type="button"
               role="menuitem"

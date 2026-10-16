@@ -1,6 +1,8 @@
 {
-  "version": "0.1.479",
-  "impact": "none",
-  "workflowIds": [],
-  "summary": "新增默认关闭的只读企业业务目录API与仅管理员可见的API接入诊断；未修改日常客户CRUD、生产、库存或发货流程，原本地登录保留。adminOnly部署诊断按独立接入/部署手册验收，不作为普通业务SOP流程；沿用既有v0.1.477业务指南。"
+  "version": "0.1.480",
+  "impact": "updated",
+  "workflowIds": [
+    "01-login"
+  ],
+  "summary": "登录SOP增加服务器明确模式、Casdoor精确既有人员关联、配置不就绪阻断、只读设置与原ACTIVE ADMIN恢复及本站退出边界；只更新01-login和Markdown指导书，既有生产/客户/库存业务流程不变。"
 }

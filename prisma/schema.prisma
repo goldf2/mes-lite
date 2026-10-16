@@ -2503,8 +2503,27 @@ model OperatorSession {
   operator   Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
   expiresAt  DateTime
   createdAt  DateTime @default(now())
+  authSource String   @default("native")
+  authAccountId String?
+  authSubject String?
+  authGeneration String?
 
   @@index([operatorId])
+}
+
+model OperatorLoginChallenge {
+  ticketHash String @id
+  consumedAt DateTime?
+  sessionId String?
+  verifier String
+  state String
+  nonce String
+  generation String
+  returnPath String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
 }
 
 model WopiViewSession {

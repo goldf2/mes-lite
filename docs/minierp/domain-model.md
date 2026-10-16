@@ -1,5 +1,9 @@
 # MiniERP 领域模型
 
+## v0.1.480 统一登录候选增量
+
+身份认证仍由identity-access拥有，Casdoor只证明身份；OperatorAuthAccount精确issuer+subject映射既有人员，原角色与dataScope决定业务。目录API机器委托不是浏览器会话。 完整接口、数据和回退见[Casdoor登录设计](../architecture/casdoor-login.md)。
+
 ## v0.1.479 企业业务平台接入增量
 
 v0.1.479 新增 platform-integration 边界，仅通过 configuration/server-index 的只读客户出口提供目录；企业业务平台消费 API，MES 保留独立业务、数据库和发布。不会共享 Cookie、跨域写库或把部署标签宣称原生租户实体。

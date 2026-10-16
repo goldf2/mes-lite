@@ -9,11 +9,13 @@ import {
 } from '@/lib/wechatAuth'
 import { authenticationHttpError } from '@/modules/identity-access/http/authentication-http'
 import { enforceAuthenticationRequestLimit } from '@/modules/identity-access/http/authentication-request'
+import { readLoginConfiguration } from '@/modules/identity-access/domain/casdoor-runtime'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
+  if (readLoginConfiguration().mode !== 'builtin') return NextResponse.json({ error: 'LOGIN_METHOD_DISABLED' }, { status: 403 })
   try {
     await enforceAuthenticationRequestLimit(req, 'LOGIN')
   } catch (error) {

@@ -39,3 +39,22 @@ export async function loadWeChatLoginEnabled() {
   const payload = await response.json() as { data?: { enabled?: boolean } }
   return Boolean(payload.data?.enabled)
 }
+
+export type PublicLoginMethod = {
+  mode: 'builtin' | 'casdoor' | 'invalid'
+  ready: boolean
+  settingsHref: '/settings/login'
+  recoveryHref: '/admin-login'
+}
+export async function loadLoginMethod(): Promise<PublicLoginMethod> {
+  const response = await fetch('/api/auth/method', {cache: 'no-store'})
+  const payload = await response.json().catch(() => null) as {data?: PublicLoginMethod}|null
+  const data = payload?.data
+  if (!data || !['builtin', 'casdoor', 'invalid'].includes(data.mode) || typeof data.ready !== 'boolean' || data.settingsHref !== '/settings/login' || data.recoveryHref !== '/admin-login' || (!response.ok && response.status !== 503)) throw new Error('登录配置暂时无法读取')
+  return data
+}
+export async function loginNativeAdministrator(input: {username: string; password: string}) {
+  await readJson(await fetch('/api/auth/native-admin/login', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(input),
+  }), '管理员登录失败')
+}

@@ -1,5 +1,15 @@
 # 会话日志
 
+## 2026-10-17 MES统一登录 v0.1.480（候选实现，生产未启用）
+
+- 独立Worktree `Worktrees/mes-casdoor-login-20261017` / `ci/0.1.480`，基于已推API479 `9e9cc5cf4ab5e89c1cf83d4a2a1966305ee29d1e`；原dirty目录保持。
+- 固定公共web-auth0.3.5（源0655dd907d12446dd671fedd82bede358fa021f7），仅复用正式子路径，不改Node20/React18。显式Runtime Casdoor，正常签名OIDC与精确issuer/subject绑定原ACTIVE人员；无自动建人/合并/授权。只读登录设置和明确已有ADMIN密码恢复；旧普通native会话不能绕过Casdoor。
+- 99号追加迁移保存单次挑战和原会话来源/绑定/随机代际；模式/客户端/组织/secret旋转、撤销绑定、停用、恢复角色撤销及退出按实时策略拒绝旧会话。原native默认兼容，业务岗位与dataScope保持。
+- 本机37协议/会话检查（含12实际Next HTTP）和14UI/client、原身份服务、0深导入/49edge架构与Docker清单通过；实际1440/390px隔离浏览器入口、缺配置阻断、原ADMIN恢复/只读诊断/账号菜单/退出通过。未运行本机完整生产构建。Docker daemon未运行；CI增加真实dependencies层门禁，不能冒充完整镜像。
+- 未创建生产客户端/人员绑定/权限，不改AL03源、Con01备用停止和业务资料。生产启用前须精确确认客户端及issuer/sub→Operator，完成同SHA CI、镜像与普通真实登录验收。
+- [完整设计](../architecture/casdoor-login.md)、[版本](../releases/v0.1.480.md)。唯一下一步：完成独立review/隔离浏览器后冻结候选，推ci/0.1.480核对精确SHA CI；禁止自动main或生产mode。
+
+
 ## 2026-10-17 企业业务平台只读目录 v0.1.479（本地通过，候选待CI）
 
 - 用户确认 MES Lite、数据平台、客户/联系人进入统一企业业务平台，模块独立通过 API 互通，地图是显示视图，企业地图保留独立发布。此切片只处理 MES 只读目录和管理员接入诊断，不合并数据库，不改变本地登录，也不宣称 Casdoor 统一登录已完成。

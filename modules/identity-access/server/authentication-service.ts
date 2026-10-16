@@ -4,6 +4,7 @@ import { WECHAT_WEB_PROVIDER } from '@/lib/wechatAuth'
 import { createOperatorSession, hashPassword, verifyPassword } from '@/lib/auth'
 import { createAuditLog, type AuditContext } from '@/lib/audit'
 import { prisma } from '@/lib/prisma'
+import { readLoginConfiguration } from '../domain/casdoor-runtime'
 import type { InitialAdministratorInput, LoginInput, RegisterInput } from '../contracts/authentication'
 import {
   AuthenticationError,
@@ -62,7 +63,8 @@ export function verifyInitialAdministratorToken(providedToken?: string | null) {
   }
 }
 
-export async function loginWithPassword(input: LoginInput, now = new Date()) {
+export async function loginWithPassword(input: LoginInput, now = new Date(), options: { administratorRecovery?: boolean } = {}) {
+  if (!options.administratorRecovery && readLoginConfiguration().mode !== 'builtin') throw new AuthenticationError('当前普通登录方式不是本机账号', 403)
   const operator = await prisma.operator.findUnique({ where: { username: input.username } })
   if (operator?.lockedUntil && operator.lockedUntil > now) {
     throw new AuthenticationError('登录失败次数过多，请稍后再试', 429, secondsUntil(operator.lockedUntil, now))
@@ -83,7 +85,8 @@ export async function loginWithPassword(input: LoginInput, now = new Date()) {
     })
     throw statusError
   }
-  const session = await createOperatorSession(operator.id)
+  if (options.administratorRecovery && operator.role !== 'ADMIN') throw new AuthenticationError('仅现有启用管理员可使用恢复入口', 403)
+  const session = await createOperatorSession(operator.id, options.administratorRecovery ? { authSource: 'native-admin-recovery' } : undefined)
   await prisma.operator.update({
     where: { id: operator.id },
     data: { lastLoginAt: now, failedLoginAttempts: 0, lockedUntil: null, lastFailedLoginAt: null },
@@ -217,10 +220,10 @@ export async function resolveWeChatOperator(profile: WeChatUserProfile) {
   return { operator: authAccount.operator, created }
 }
 
-export async function startOperatorSession(operator: { id: string; status: string }) {
+export async function startOperatorSession(operator: { id: string; status: string }, authentication?: Parameters<typeof createOperatorSession>[1]) {
   const statusError = operatorLoginStatusError(operator.status)
   if (statusError) throw statusError
-  const session = await createOperatorSession(operator.id)
+  const session = await createOperatorSession(operator.id, authentication)
   await prisma.operator.update({
     where: { id: operator.id },
     data: { lastLoginAt: new Date(), failedLoginAttempts: 0, lockedUntil: null, lastFailedLoginAt: null },

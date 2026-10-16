@@ -1,5 +1,9 @@
 # MES-lite 系统功能与流程总览
 
+## v0.1.480 统一登录候选增量
+
+正常统一登录为入口→单次state/nonce/S256PKCE挑战→签名与issuer/aud/azp校验→精确既有人员绑定→原会话→实时业务权限。未关联不建人；恢复入口仅原ACTIVE ADMIN密码。 完整接口、数据和回退见[Casdoor登录设计](../architecture/casdoor-login.md)。
+
 ## v0.1.479 企业业务平台接入增量
 
 v0.1.479 目录读取流程：Bearer 摘要校验 → 有效期 → 现有人员 ACTIVE → 精确 customers.read → 未归档客户白名单投影 → 分页。任何来源/账号由部署配置确定，客户端不能选择；无写入/会话创建。原业务流不变。

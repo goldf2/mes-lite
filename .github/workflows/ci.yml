@@ -41,6 +41,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build application dependency image layer
+        timeout-minutes: 10
+        run: docker build --target dependencies --progress=plain -t mes-lite-dependencies:${{ github.sha }} .
+
       - name: Build and smoke-test multi-engine CAD preview image
         run: |
           set +e

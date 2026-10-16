@@ -1,5 +1,9 @@
 # Coolify 部署说明
 
+## v0.1.480 Casdoor候选部署边界
+
+Runtime变量、精确回调、已有Operator绑定、管理员恢复、模式代际和回退见[统一登录手册](../architecture/casdoor-login.md)。当前仅候选，不改生产mode/客户端/绑定。CI新增真实Docker dependencies目标门禁覆盖vendor复制和安装；仅此层通过不等于整镜像验收。本机daemon未运行，未启动Docker桌面或重复完整生产构建。
+
 ## v0.1.479 企业业务平台接入增量
 
 v0.1.479 增加默认关闭的只读目录服务，完整变量、摘要凭据、到期、来源声明和回退见 [企业业务目录 API](../architecture/business-directory-api.md)。当前正式 Web 地址为 https://mes.csyufeng.com（2026-10-17 根任务通过 Con01 控制台只读核对），旧历史域名不作为本次验收地址。本候选只推 ci/0.1.479，不推进 main 或改生产。

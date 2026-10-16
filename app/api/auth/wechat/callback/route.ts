@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { setSessionCookie } from '@/lib/auth'
 import { AuthenticationError } from '@/modules/identity-access/domain/authentication'
+import { readLoginConfiguration } from '@/modules/identity-access/domain/casdoor-runtime'
 import { resolveWeChatOperator, startOperatorSession } from '@/modules/identity-access/server/authentication-service'
 import { WECHAT_STATE_COOKIE, buildAuthPageUrl, getWeChatWebConfig, getWeChatWebProfile } from '@/lib/wechatAuth'
 
@@ -24,6 +25,7 @@ function operatorStatusKey(error: AuthenticationError) {
 }
 
 export async function GET(req: NextRequest) {
+  if (readLoginConfiguration().mode !== 'builtin') return NextResponse.json({ error: 'LOGIN_METHOD_DISABLED' }, { status: 403 })
   const config = getWeChatWebConfig()
   if (!config) return redirectWithStatus(req, 'not_configured')
   const code = req.nextUrl.searchParams.get('code')
@@ -33,7 +35,7 @@ export async function GET(req: NextRequest) {
   if (!state || !expectedState || state !== expectedState) return redirectWithStatus(req, 'state_invalid')
   try {
     const { operator } = await resolveWeChatOperator(await getWeChatWebProfile(config, code))
-    const session = await startOperatorSession(operator)
+    const session = await startOperatorSession(operator, { authSource: 'wechat' })
     const response = redirectWithStatus(req)
     setSessionCookie(response, session.token, session.expiresAt)
     return response
