@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { CustomerShipmentPrintData } from '../modules/sales/server/customer-shipment-pdf'
+import type { CustomerShipmentPaper, CustomerShipmentPrintData } from '../modules/sales/server/customer-shipment-pdf'
 
 const root = process.cwd()
 const read = (path: string) => readFileSync(join(root, path), 'utf8')
@@ -15,7 +15,7 @@ const uploadRoot = join(verifyRoot, 'uploads')
 const compactText = (value: string) => value.replace(/\s+/g, '')
 const mmToPoints = (value: number) => value * 72 / 25.4
 
-type PdfTextPosition = { str: string; pageIndex: number; x: number; y: number }
+type PdfTextPosition = { str: string; pageIndex: number; x: number; y: number; height: number }
 
 async function readPdfLayout(pdf: Buffer) {
   const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
@@ -26,7 +26,7 @@ async function readPdfLayout(pdf: Buffer) {
       const page = await document.getPage(pageIndex + 1)
       const content = await page.getTextContent()
       for (const item of content.items) {
-        if ('str' in item && item.str.trim()) items.push({ str: item.str, pageIndex, x: item.transform[4], y: item.transform[5] })
+        if ('str' in item && item.str.trim()) items.push({ str: item.str, pageIndex, x: item.transform[4], y: item.transform[5], height: item.height })
       }
     }
     return items.sort((a, b) => a.pageIndex - b.pageIndex || b.y - a.y || a.x - b.x)
@@ -411,7 +411,8 @@ async function main() {
       { paper: 'continuous', size: [241, 140], bounds: [25.5, 215.5], label: '连续纸' },
       { paper: 'a4', size: [210, 297], bounds: [10, 200], label: 'A4' },
     ] as const
-    const verifyCustomerPageSections = async (pdf: Buffer, pages: string[], data: CustomerShipmentPrintData, label: string) => {
+    const signatureBaselines = new Map<CustomerShipmentPaper, number[]>()
+    const verifyCustomerPageSections = async (pdf: Buffer, pages: string[], data: CustomerShipmentPrintData, label: string, paper: CustomerShipmentPaper) => {
       const text = pages.join('')
       const layout = await readPdfLayout(pdf)
       const firstTableHeader = layout.find((item) => compactText(item.str) === '物料编码')
@@ -455,12 +456,18 @@ async function main() {
       assert.ok(lastRowFragment, `${label} 合计前必须保留明细内容`)
       assert.equal(total.pageIndex, lastRowFragment.pageIndex, `${label} 合计必须与最后一条明细的末段在同页`)
       assert.ok(lastRowFragment.y - total.y <= 30, `${label} 合计必须紧接明细，不能被大块留白分隔`)
-      for (const field of ['客户凭证号', '包裹', '备注']) {
+      const footerFields = ['备注', '客户凭证号', '包裹'].map((field) => {
         const position = layout.find((item) => compactText(item.str).startsWith(`${field}：`))
         assert.ok(position && beforePosition(total, position), `${label} ${field}必须位于合计之后`)
-      }
+        if (position.pageIndex === total.pageIndex) {
+          assert.ok(total.y >= position.y + position.height + 1, `${label} 页脚${field}不得覆盖合计或明细`)
+        }
+        return position
+      })
+      const [note, voucher, packages] = footerFields
+      assert.ok(beforePosition(note, voucher) && beforePosition(voucher, packages), `${label} 页脚必须按备注、客户凭证、包裹的顺序排版`)
       const tracking = layout.find((item) => compactText(item.str).includes('物流单号：'))
-      assert.ok(tracking && beforePosition(total, tracking), `${label} 物流单号必须位于合计之后`)
+      assert.ok(tracking && beforePosition(note, tracking) && beforePosition(tracking, packages), `${label} 物流单号必须位于备注之后、包裹之前`)
       const tailText = withoutPageFurniture(layout.filter((item) => beforePosition(total, item)))
       for (const value of [data.voucherNo, data.trackingNo, data.packages, data.note]) {
         assert.ok(tailText.includes(compactText(value)), `${label} 合计后的凭证、物流、包裹与跨页备注必须保留完整内容：${value}`)
@@ -492,6 +499,31 @@ async function main() {
       for (const finalText of ['乙方发货人', '甲方收货人', '签收日期', '本单用于发货交接、签收和对账']) {
         assert.ok(lastPage.includes(compactText(finalText)), `${label} 最后一页必须保留签收栏和说明：${finalText}`)
       }
+      const signatures = ['乙方发货人', '甲方收货人', '签收日期'].map((field) => {
+        const positions = layout.filter((item) => compactText(item.str).startsWith(`${field}：`))
+        assert.equal(positions.length, 1, `${label} ${field}只能打印一次`)
+        const position = positions[0]
+        assert.equal(position.pageIndex, pages.length - 1, `${label} ${field}必须固定在末页`)
+        assert.ok(position.y <= mmToPoints(25), `${label} 签收栏必须位于页底，不能随短页脚向上漂移`)
+        assert.ok(beforePosition(packages, position), `${label} 签收栏必须位于包裹信息之后`)
+        return position
+      })
+      const referenceBaselines = signatureBaselines.get(paper)
+      signatures.forEach((signature, index) => {
+        if (referenceBaselines) {
+          assert.ok(Math.abs(signature.y - referenceBaselines[index]) < 0.5, `${label} 签收栏位置必须与本纸型普通单页保持一致`)
+        }
+      })
+      if (!referenceBaselines) signatureBaselines.set(paper, signatures.map((signature) => signature.y))
+      const footerBodyLines = layout.filter((item) => Math.abs(item.x - note.x) < 0.1 && beforePosition(total, item))
+      for (const line of footerBodyLines) {
+        if (line.pageIndex === total.pageIndex) {
+          assert.ok(total.y >= line.y + line.height + 1, `${label} 页脚正文不得向上覆盖合计或明细：${line.str}`)
+        }
+        if (line.pageIndex === signatures[0].pageIndex) {
+          assert.ok(line.y >= signatures[0].y + signatures[0].height + 1, `${label} 页脚正文不得向下覆盖固定签收栏：${line.str}`)
+        }
+      }
     }
     for (const paperCase of customerPaperCases) {
       const singlePageData = {
@@ -501,11 +533,11 @@ async function main() {
       const singlePagePdf = await renderCustomerShipmentPdf(singlePageData, 'https://mes.example.test/api/public/shipment-documents/00000000-0000-4000-8000-000000000002/download', paperCase.paper)
       const singlePages = await inspectPdf(singlePagePdf, paperCase.size, paperCase.bounds)
       assert.equal(singlePages.length, 1, `${paperCase.label} 普通单行单据不应因重新排版多打一页`)
-      await verifyCustomerPageSections(singlePagePdf, singlePages, singlePageData, `${paperCase.label} 单页`)
+      await verifyCustomerPageSections(singlePagePdf, singlePages, singlePageData, `${paperCase.label} 单页`, paperCase.paper)
       const stressPdf = await renderCustomerShipmentPdf(stressData, 'https://mes.example.test/api/public/shipment-documents/00000000-0000-4000-8000-000000000000/download', paperCase.paper)
       const stressPages = await inspectPdf(stressPdf, paperCase.size, paperCase.bounds)
       assert.ok(stressPages.length > 1, `${paperCase.label} 大量明细、长地址及长备注必须自动分页`)
-      await verifyCustomerPageSections(stressPdf, stressPages, stressData, paperCase.label)
+      await verifyCustomerPageSections(stressPdf, stressPages, stressData, paperCase.label, paperCase.paper)
       const stressText = stressPages.join('')
       for (const row of stressData.rows) {
         assert.equal(stressText.split(row[1]).length - 1, 1, `${paperCase.label} 分页后明细 ${row[1]} 必须完整且仅出现一次`)
@@ -518,9 +550,20 @@ async function main() {
       const oversizedRowPdf = await renderCustomerShipmentPdf(oversizedRowData, 'https://mes.example.test/api/public/shipment-documents/00000000-0000-4000-8000-000000000001/download', paperCase.paper)
       const oversizedRowPages = await inspectPdf(oversizedRowPdf, paperCase.size, paperCase.bounds)
       assert.ok(oversizedRowPages.length > 1, `${paperCase.label} 单个超高明细行必须跨页续打，不得裁切或循环创建空页`)
-      await verifyCustomerPageSections(oversizedRowPdf, oversizedRowPages, oversizedRowData, `${paperCase.label} 超高行`)
+      await verifyCustomerPageSections(oversizedRowPdf, oversizedRowPages, oversizedRowData, `${paperCase.label} 超高行`, paperCase.paper)
       const oversizedRowText = await readPdfTableColumn(oversizedRowPdf, '物料名称/规格', '超长物料说明第01段')
       assert.equal(oversizedRowText, compactText(oversizedRowSegments.join('')), `${paperCase.label} 单个超高明细行跨页后，按列重建的全部正文必须与原文完全一致`)
+      const oversizedNoteData = {
+        ...singlePageData,
+        note: Array.from({ length: 6 }, () => noteSegments.join('')).join(''),
+      }
+      const oversizedNotePdf = await renderCustomerShipmentPdf(oversizedNoteData, 'https://mes.example.test/api/public/shipment-documents/00000000-0000-4000-8000-000000000004/download', paperCase.paper)
+      const oversizedNotePages = await inspectPdf(oversizedNotePdf, paperCase.size, paperCase.bounds)
+      await verifyCustomerPageSections(oversizedNotePdf, oversizedNotePages, oversizedNoteData, `${paperCase.label} 超长备注`, paperCase.paper)
+      const oversizedNoteLayout = await readPdfLayout(oversizedNotePdf)
+      const notePageIndices = new Set(oversizedNoteLayout.filter((item) => /备注第|NOTE\d{2}END/.test(item.str)).map((item) => item.pageIndex))
+      assert.ok(notePageIndices.size > 1, `${paperCase.label} 180 段备注正文必须实际跨越多页，不能只移动到一张续页`)
+      assert.ok(oversizedNoteLayout.some((item) => compactText(item.str).startsWith('备注（续）：')), `${paperCase.label} 备注跨页时必须输出明确的续写标记`)
       for (const addressCase of [
         { field: 'address', name: '收货地址', output: 'oversized-address' },
         { field: 'companyAddress', name: '供货地址', output: 'oversized-supplier-address' },
@@ -531,7 +574,7 @@ async function main() {
         }
         const oversizedAddressPdf = await renderCustomerShipmentPdf(oversizedAddressData, 'https://mes.example.test/api/public/shipment-documents/00000000-0000-4000-8000-000000000003/download', paperCase.paper)
         const oversizedAddressPages = await inspectPdf(oversizedAddressPdf, paperCase.size, paperCase.bounds)
-        await verifyCustomerPageSections(oversizedAddressPdf, oversizedAddressPages, oversizedAddressData, `${paperCase.label} 超长${addressCase.name}`)
+        await verifyCustomerPageSections(oversizedAddressPdf, oversizedAddressPages, oversizedAddressData, `${paperCase.label} 超长${addressCase.name}`, paperCase.paper)
         const oversizedAddressLayout = await readPdfLayout(oversizedAddressPdf)
         const delayedTable = oversizedAddressLayout.find((item) => compactText(item.str) === '物料编码')
         assert.ok(delayedTable && delayedTable.pageIndex > 0, `${paperCase.label} 超长${addressCase.name}必须先完整流式分页，再开始明细`)
@@ -546,6 +589,7 @@ async function main() {
         writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, `customer-${paperCase.paper}-single-page.pdf`), singlePagePdf)
         writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, `customer-${paperCase.paper}-multipage.pdf`), stressPdf)
         writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, `customer-${paperCase.paper}-oversized-row.pdf`), oversizedRowPdf)
+        writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, `customer-${paperCase.paper}-oversized-note.pdf`), oversizedNotePdf)
       }
     }
     if (process.env.PDF_VERIFY_OUTPUT_DIR) {
@@ -874,7 +918,7 @@ async function main() {
     await expectCustomerReuse('最新版本之后仅更新内部签收信息，应复用最新客户 PDF')
     assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(originalContentArchive.id)).pdf.equals(previousA4Pdf), true, '所有内容修订后，原 A4 二维码仍需返回当时归档的字节')
 
-    console.log('业务单据打印验证通过：连续纸/A4 双 PDF 与独立归档、190 mm 正文、收发货资料左右分栏与双侧超长地址分页、明细紧接合计和末页签收、长备注/超高明细完整性、v3/v4 版式及旧二维码、客户联系人版本判定、内部 A4、匿名权限边界与取消/冲销/归档说明符合预期')
+    console.log('业务单据打印验证通过：连续纸/A4 双 PDF 与独立归档、190 mm 正文、收发货资料左右分栏与双侧超长地址分页、明细紧接合计、备注前置与页脚底部锚定、长备注/超高明细完整性、v3/v4 版式及旧二维码、客户联系人版本判定、内部 A4、匿名权限边界与取消/冲销/归档说明符合预期')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

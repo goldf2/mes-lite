@@ -149,9 +149,9 @@ export async function renderCustomerShipmentPdf(data: CustomerShipmentPrintData,
     const totalHeight = 20
     const signatureHeight = 24
     const details = [
+      ['备注', data.note],
       ['客户凭证号', `${data.voucherNo}    物流单号：${data.trackingNo}`],
       ['包裹', data.packages],
-      ['备注', data.note],
     ].map(([label, value]) => ({ label, lines: wrapLines(doc, `${label}：${value}`, contentWidth - cellPadding * 2) }))
     const tailHeight = totalHeight + 6 + details.reduce((sum, detail) => sum + detail.lines.length * lineHeight, 0) + signatureHeight
 
@@ -199,34 +199,39 @@ export async function renderCustomerShipmentPdf(data: CustomerShipmentPrintData,
       }
     }
 
-    // 合计直接承接最后一条明细，凭证、包裹和备注均排在合计之后。
+    // 合计直接承接最后一条明细，底部资料区不打断明细与合计。
     doc.rect(left, cursorY, contentWidth, totalHeight).stroke()
     doc.fontSize(10)
     textLine(`合计：${data.total}`, left + 6, cursorY + 3, contentWidth - 12, 'right')
     cursorY += totalHeight
     cursorY += 6
     doc.fontSize(fontSize)
+    let remainingDetailLines = details.reduce((sum, detail) => sum + detail.lines.length, 0)
     for (const { label, lines } of details) {
       for (let index = 0; index < lines.length; index += 1) {
-        if (cursorY + lineHeight > contentBottom) {
+        if (cursorY + lineHeight + (remainingDetailLines === 1 ? signatureHeight : 0) > contentBottom) {
           nextPage()
           if (index > 0) {
+            cursorY = Math.max(cursorY, contentBottom - (remainingDetailLines + 1) * lineHeight - signatureHeight)
             textLine(`${label}（续）：`, left + cellPadding, cursorY, contentWidth - cellPadding * 2)
             cursorY += lineHeight
           }
         }
+        // 能容纳的末段整体贴底；备注增加行数时向上扩展，超长内容仍按序续页。
+        cursorY = Math.max(cursorY, contentBottom - remainingDetailLines * lineHeight - signatureHeight)
         textLine(lines[index], left + cellPadding, cursorY, contentWidth - cellPadding * 2)
         cursorY += lineHeight
+        remainingDetailLines -= 1
       }
     }
 
-    // 签收栏跟随附加信息，整块保留在末页。
+    // 签收栏固定在末页底部，长备注不改变签字位置。
     if (cursorY + signatureHeight > contentBottom) nextPage()
     doc.fontSize(fontSize)
     const signatureWidth = contentWidth / 3
     const signatures = ['乙方发货人', '甲方收货人', '签收日期']
     signatures.forEach((label, index) => {
-      textLine(`${label}：____________`, left + index * signatureWidth, cursorY + 8, signatureWidth)
+      textLine(`${label}：____________`, left + index * signatureWidth, contentBottom - signatureHeight + 8, signatureWidth)
     })
 
     const range = doc.bufferedPageRange()
