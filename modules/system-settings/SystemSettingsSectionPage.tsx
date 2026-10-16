@@ -4,8 +4,9 @@ import AiSettingsPage from './ui/AiSettingsPage'
 import CadPreviewSettingsPage from './ui/CadPreviewSettingsPage'
 import DisplaySettingsPage from './ui/DisplaySettingsPage'
 import NavigationSettingsPage from './ui/NavigationSettingsPage'
+import ApiSettingsPage from './ui/ApiSettingsPage'
 
-export const systemSettingsSections = ['displaySettings', 'navigationSettings', 'cadPreviewSettings', 'aiSettings'] as const
+export const systemSettingsSections = ['displaySettings', 'navigationSettings', 'cadPreviewSettings', 'aiSettings', 'apiSettings'] as const
 export type SystemSettingsSection = typeof systemSettingsSections[number]
 
 export function isSystemSettingsSection(section: string): section is SystemSettingsSection {
@@ -16,5 +17,6 @@ export default function SystemSettingsSectionPage({ section, onMessage, canUpdat
   if (section === 'displaySettings') return <DisplaySettingsPage onMessage={onMessage} canUpdate={canUpdate} />
   if (section === 'navigationSettings') return <NavigationSettingsPage onMessage={onMessage} canUpdate={canUpdate} />
   if (section === 'cadPreviewSettings') return <CadPreviewSettingsPage onMessage={onMessage} canUpdate={canUpdate} />
+  if (section === 'apiSettings') return <ApiSettingsPage onMessage={onMessage} />
   return <AiSettingsPage onMessage={onMessage} canUpdate={canUpdate} />
 }

@@ -124,6 +124,15 @@ export async function listManagedParties(kind: PartyKind, keyword?: string | nul
   return adapters[kind].list(tokenizeKeywordQuery(keyword?.trim() || ''))
 }
 
+// Single-instance source projection: no joins to sales, stock, operators or other business facts.
+export async function listDirectoryCustomers(keyword: string, enterpriseId: string | null) {
+  return prisma.customer.findMany({
+    where: { ...partySearchWhere(tokenizeKeywordQuery(keyword)), ...(enterpriseId ? { id: enterpriseId } : {}) },
+    select: { id: true, code: true, name: true, contact: true, phone: true, address: true },
+    orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }, { id: 'asc' }],
+  })
+}
+
 export async function createManagedParty(kind: PartyKind, input: PartyInput) {
   const definition = getPartyKindDefinition(kind)
   const adapter = adapters[kind]

@@ -20,6 +20,7 @@ const checks = [
   'verify:equipment-maintenance',
   'verify:equipment-maintenance-http',
   'verify:permissions',
+  'verify:business-directory',
   'verify:role-task-http-permissions',
   'verify:fine-grained-http-permissions',
   'verify:archive-resource-permissions',

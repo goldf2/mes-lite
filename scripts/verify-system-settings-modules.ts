@@ -12,6 +12,7 @@ const displayPage = read('modules/system-settings/ui/DisplaySettingsPage.tsx')
 const navigationPage = read('modules/system-settings/ui/NavigationSettingsPage.tsx')
 const cadPreviewPage = read('modules/system-settings/ui/CadPreviewSettingsPage.tsx')
 const aiPage = read('modules/system-settings/ui/AiSettingsPage.tsx')
+const apiPage = read('modules/system-settings/ui/ApiSettingsPage.tsx')
 const aiPanel = read('modules/system-settings/ui/AiAgentSettingsPanel.tsx')
 const appearanceClient = read('modules/system-settings/client/system-settings-api.ts')
 const aiClient = read('modules/system-settings/client/ai-agent-settings-api.ts')
@@ -24,7 +25,7 @@ assert.ok(systemPage.split('\n').length <= 40, 'SystemPage 必须保持为不超
 assert.match(moduleIndex, /SystemSettingsSectionPage/, '系统设置模块必须公开统一分区页面')
 assert.match(sectionPage, /displaySettings[\s\S]*navigationSettings[\s\S]*cadPreviewSettings[\s\S]*aiSettings/, '系统设置模块必须拥有显示、导航、文件预览和 AI 四个设置分区')
 
-for (const [name, source] of [['显示设置', displayPage], ['导航设置', navigationPage], ['文件预览', cadPreviewPage], ['AI 设置', aiPage]] as const) {
+for (const [name, source] of [['显示设置', displayPage], ['导航设置', navigationPage], ['文件预览', cadPreviewPage], ['AI 设置', aiPage], ['API 接入', apiPage]] as const) {
   assert.match(source, /<SystemSettingsPageShell\b/, `${name}必须复用公共设置页壳`)
   assert.doesNotMatch(source, /fetch\(/, `${name} UI 不得直接调用 fetch`)
 }
@@ -46,8 +47,9 @@ for (const path of [
   'modules/system-settings/ui/CadPreviewSettingsPage.tsx',
   'modules/system-settings/ui/AiSettingsPage.tsx',
   'modules/system-settings/ui/AiAgentSettingsPanel.tsx',
+  'modules/system-settings/ui/ApiSettingsPage.tsx',
 ]) {
   assert.ok(read(path).split('\n').length <= 180, `${path} 超过 180 行，应继续拆分稳定职责`)
 }
 
-console.log(`系统设置模块校验通过：显示、导航、文件预览、AI 四个分区均使用公共设置页壳，SystemPage ${systemPage.split('\n').length} 行。`)
+console.log(`系统设置模块校验通过：显示、导航、文件预览、AI、API接入五个分区均使用公共设置页壳，SystemPage ${systemPage.split('\n').length} 行。`)

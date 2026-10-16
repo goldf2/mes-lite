@@ -31,6 +31,11 @@ export function middleware(req: NextRequest) {
     return NextResponse.json({ error: '附件必须通过授权接口访问' }, { status: 404 })
   }
   if (!pathname.startsWith('/api')) return withFramePolicy(NextResponse.next())
+  // These exact read-only routes authenticate their own server-side delegate, never a browser cookie.
+  if (/^\/api\/integrations\/business-directory\/v1\/(enterprises|contacts|locations)$/.test(pathname)) {
+    if (req.method !== 'GET') return NextResponse.json({ error: 'METHOD_NOT_ALLOWED' }, { status: 405, headers: { Allow: 'GET', 'Cache-Control': 'no-store' } })
+    return NextResponse.next()
+  }
   if (!isTrustedWriteRequestOrigin({
     method: req.method,
     requestOrigin: resolveRequestOrigin({

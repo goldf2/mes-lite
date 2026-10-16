@@ -55,6 +55,7 @@ export const sharedWorkspaceFunctionKeys = [
   'navigationSettings',
   'cadPreviewSettings',
   'aiSettings',
+  'apiSettings',
   'archive',
   'auditLogs',
   'dataTools',

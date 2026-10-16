@@ -50,7 +50,10 @@ if (impact.impact === 'updated') {
   }
 }
 
-const requiredPageKeys = Array.from(registrySource.matchAll(/registerPage\(\{ key: '([^']+)'[^\n]*primaryNavigation: true/g), (match) => match[1])
+// Deployment diagnostics are documented in the operator runbook, not ordinary business SOPs.
+const requiredPageKeys = Array.from(registrySource.matchAll(/registerPage\(\{ key: '([^']+)'([^\n]*)/g))
+  .filter((match) => match[2].includes('primaryNavigation: true') && !match[2].includes('adminOnly: true'))
+  .map((match) => match[1])
   .filter((pageKey) => pageKey !== 'helpCenter')
 const coveredPageKeys = new Set(workflows.map((workflow) => workflow.pageKey))
 const missingCoverage = requiredPageKeys.filter((pageKey) => !coveredPageKeys.has(pageKey))

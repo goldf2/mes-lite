@@ -49,13 +49,13 @@ export default function useApplicationNavigationController({
   const canDelete = (resource: string) => operator.role === 'ADMIN' || Boolean(operator.permissions?.[resource]?.canDelete)
 
   const { config: workspaceNavigationConfig, activeWorkspace } = useWorkspaceNavigation()
-  const canReadNavItem = (item: { key: TabType; resource: string }) => (
-    item.key === 'materials'
+  const canReadNavItem = (item: { key: TabType; resource: string; adminOnly?: boolean }) => (
+    (!item.adminOnly || operator.role === 'ADMIN') && (item.key === 'materials'
       ? canRead('materials') || canRead('bom')
-      : canRead(item.resource)
+      : canRead(item.resource))
   )
   const readableWorkspaceFunctionItems = workspaceFunctionCatalog.filter((item) => (
-    canRead(item.resource) && (!item.extraResource || canRead(item.extraResource))
+    (!item.adminOnly || operator.role === 'ADMIN') && canRead(item.resource) && (!item.extraResource || canRead(item.extraResource))
   ))
   const configuredFunctionOrder = new Map(
     workspaceNavigationConfig.workspaces[activeWorkspace].items.map((item, index) => [item.functionKey, index]),

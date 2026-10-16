@@ -16,7 +16,7 @@ const expectedFunctionKeys = [
   'dashboard', 'allFunctions', 'helpCenter', 'materialManagement', 'bomWorkspace', 'bomUsage', 'workInstructions',
   'equipment', 'equipmentInspections', 'equipmentMaintenance', 'orders', 'dailyInventory', 'flowTransfers', 'dispatch', 'qualityTasks', 'materialIn', 'salesOrders', 'shipment', 'return',
   'stocks', 'warehouseDigitalTwin', 'inventoryCount', 'stockMovements', 'lotPanorama', 'suppliers', 'customers', 'employees', 'locationSettings', 'unitSettings', 'workCenters',
-  'documentCategories', 'processTemplates', 'processRoutes', 'businessSettings', 'displaySettings', 'navigationSettings', 'cadPreviewSettings', 'aiSettings', 'sawingCost', 'scanPrint', 'archive', 'auditLogs',
+  'documentCategories', 'processTemplates', 'processRoutes', 'businessSettings', 'displaySettings', 'navigationSettings', 'cadPreviewSettings', 'aiSettings', 'apiSettings', 'sawingCost', 'scanPrint', 'archive', 'auditLogs',
   'dataTools', 'operators', 'permissionUsers', 'permissionGroups', 'create', 'detail',
 ]
 

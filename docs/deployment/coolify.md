@@ -1,5 +1,9 @@
 # Coolify 部署说明
 
+## v0.1.479 企业业务平台接入增量
+
+v0.1.479 增加默认关闭的只读目录服务，完整变量、摘要凭据、到期、来源声明和回退见 [企业业务目录 API](../architecture/business-directory-api.md)。当前正式 Web 地址为 https://mes.csyufeng.com（2026-10-17 根任务通过 Con01 控制台只读核对），旧历史域名不作为本次验收地址。本候选只推 ci/0.1.479，不推进 main 或改生产。
+
 MES-lite 当前使用 SQLite，适合单实例 Docker 部署。数据库和上传附件必须挂载到主机持久目录，容器可以重建，主机数据目录不能随容器删除。
 
 ## 1. 开发机验证与 GitHub Actions 远端构建

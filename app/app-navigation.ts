@@ -57,6 +57,7 @@ export interface WorkspaceFunctionDefinition extends WorkspaceFunctionItem {
   materialSection?: MaterialSection
   resource: string
   extraResource?: string
+  adminOnly?: boolean
 }
 
 export const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = registeredPageDefinitions
@@ -71,14 +72,16 @@ export const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = registere
     materialSection: page.materialSection,
     resource: page.resource,
     extraResource: page.extraResource,
+    adminOnly: page.adminOnly,
   }] : [])
 
-export const primaryNavigationItems: Array<{ key: TabType; label: string; resource: string }> = registeredPageDefinitions
+export const primaryNavigationItems: Array<{ key: TabType; label: string; resource: string; adminOnly?: boolean }> = registeredPageDefinitions
   .filter((page) => page.primaryNavigation)
   .map((page) => ({
     key: page.tab,
     label: page.tabLabel || page.title,
     resource: page.resource,
+    adminOnly: page.adminOnly,
   }))
 
 export const systemSectionByTab: Partial<Record<TabType, SystemSection>> = Object.fromEntries(

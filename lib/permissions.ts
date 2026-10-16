@@ -478,8 +478,8 @@ export async function ensureDefaultPermissions() {
   return ensureDefaultPermissionsPromise
 }
 
-export async function getRolePermissionMap(role: string): Promise<PermissionMap> {
-  await ensureDefaultPermissions()
+export async function getRolePermissionMap(role: string, options: { initializeDefaults?: boolean } = {}): Promise<PermissionMap> {
+  if (options.initializeDefaults !== false) await ensureDefaultPermissions()
   const settings = await prisma.permissionSetting.findMany({ where: { role } })
   const map: PermissionMap = {}
 
@@ -500,7 +500,7 @@ export async function getRolePermissionMap(role: string): Promise<PermissionMap>
   return map
 }
 
-export async function getEffectivePermissionMap(subject: PermissionSubject | string): Promise<PermissionMap> {
+export async function getEffectivePermissionMap(subject: PermissionSubject | string, options: { initializeDefaults?: boolean } = {}): Promise<PermissionMap> {
   const current = typeof subject === 'string' ? { role: subject } : subject
   const map: PermissionMap = {}
 
@@ -509,10 +509,10 @@ export async function getEffectivePermissionMap(subject: PermissionSubject | str
   }
 
   if (current.role === 'ADMIN') {
-    return getRolePermissionMap('ADMIN')
+    return getRolePermissionMap('ADMIN', options)
   }
 
-  if (!current.id) return getRolePermissionMap(current.role)
+  if (!current.id) return getRolePermissionMap(current.role, options)
 
   const validResources = new Set<string>(permissionResources.map((resource) => resource.key))
   const groupLinks = await prisma.operatorPermissionGroup.findMany({
@@ -521,7 +521,7 @@ export async function getEffectivePermissionMap(subject: PermissionSubject | str
   })
 
   if (groupLinks.length === 0) {
-    Object.assign(map, await getRolePermissionMap(current.role))
+    Object.assign(map, await getRolePermissionMap(current.role, options))
   }
 
   for (const link of groupLinks) {

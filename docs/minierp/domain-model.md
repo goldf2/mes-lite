@@ -1,5 +1,9 @@
 # MiniERP 领域模型
 
+## v0.1.479 企业业务平台接入增量
+
+v0.1.479 新增 platform-integration 边界，仅通过 configuration/server-index 的只读客户出口提供目录；企业业务平台消费 API，MES 保留独立业务、数据库和发布。不会共享 Cookie、跨域写库或把部署标签宣称原生租户实体。
+
 状态：当前单厂边界的领域说明；早期商城/多租户内容仅作长期候选
 
 > 当前产品不是多租户商城或完整进销存。MES-lite 先服务一个工厂、一个实例和一个数据库，`Material` 是唯一物品主档，生产事实统一为 `ProductionOrder + ProductionOrderActual`。详细边界见[单厂 MES 产品边界与核心模型收敛](../architecture/单厂MES产品边界与核心模型收敛.md)。
