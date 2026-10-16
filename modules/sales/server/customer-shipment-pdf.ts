@@ -96,7 +96,7 @@ export async function renderCustomerShipmentPdf(data: CustomerShipmentPrintData,
       doc.lineWidth(0.5).fillColor('black').strokeColor('black')
       if (pageCounters.length > 0) return drawTableHeader(drawContinuationHeader())
       doc.fontSize(15)
-      textLine('客户发货单', left, top, headingWidth, 'center')
+      textLine('客户发货单', left, top, contentWidth, 'center')
       const qrLeft = left + contentWidth - 70
       doc.image(qrCode, qrLeft + 3, top, { width: 64, height: 64 })
       doc.fontSize(7)

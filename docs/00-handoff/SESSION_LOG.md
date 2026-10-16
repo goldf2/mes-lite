@@ -1,15 +1,16 @@
 # 会话日志
 
-## 2026-10-16 — 客户发货单版式修复 v0.1.477 最终本地验证完成，待候选发布
+## 2026-10-16 — 客户发货单版式修复 v0.1.477 发布与生产只读验收全部完成
 
 - 用户截图指出联系资料落在明细后、备注/凭证/包裹将明细与合计分隔。客户连续纸和 A4 发货单将收发货资料放在明细前；顶部收货方在左、供货方在右，联系人、电话和地址各归本栏，单号、日期独立横排。收货联系人取 `customerRef.contact`、缺失显示 `-`；长地址完整流式分页。合计仍紧接最后一条明细；页脚按“备注 → 客户凭证号/物流单号 → 包裹 → 签收”排列，备注位于页脚第一行并支持完整多行换行。短页脚整体锚定末页底部，长备注向上扩展，超长内容完整续页，末页签字位置固定；预留页脚空间，绝不覆盖明细或合计。customer profile 升为 v4，避免旧版式缓存，旧归档及二维码原文件不变。
-- 本地验证：`verify:business-document-print`（双纸型左右分栏及两侧分别 240 段地址跨页、左右坐标同 y、单页/32 行多页、超高行、合计位置、联系人内容变更、v3/v4 历史字节，以及页脚底部锚定、备注首行与超长分页、不覆盖明细合计）、`tsc --noEmit --incremental false`、4 文件定向 Lint、`verify:module-boundaries`、`verify:sop`、`verify:development-docs`、`verify:release-notes` 和 `git diff --check` 均通过。180 段备注连续纸为 4 页、A4 为 2 页，续页标明“备注（续）”，全文完整，末页凭证/包裹/签字 y 坐标与普通单页一致；根代理已人工检查最终单页及 32 行多页末页，无裁切或重叠。 早前候选 CI `38850968347` 已取消，页脚变更前候选 `38851835142` 由最终新 SHA 候选替代，不作为本次发布依据。
+- 本地验证：`verify:business-document-print`（双纸型左右分栏及两侧分别 240 段地址跨页、左右坐标同 y、单页/32 行多页、超高行、合计位置、联系人内容变更、v3/v4 历史字节，以及页脚底部锚定、备注首行与超长分页、不覆盖明细合计）、`tsc --noEmit --incremental false`、4 文件定向 Lint、`verify:module-boundaries`、`verify:sop`、`verify:development-docs`、`verify:release-notes` 和 `git diff --check` 均通过。180 段备注连续纸为 4 页、A4 为 2 页，续页标明“备注（续）”，全文完整，末页凭证/包裹/签字 y 坐标与普通单页一致；根代理已人工检查最终单页、32 行多页末页及 180 段备注连续纸 4 页/A4 2 页全部页面，无截断、裁切或重叠。 早前候选 CI `38850968347` 已取消，页脚变更前候选 `38851835142` 由最终新 SHA 候选替代，不作为本次发布依据。
 - 复用现有销售发货 PDF 渲染、内容投影与按纸型归档能力；无数据库迁移、库存过账、权限或内部留档版式变化。同步七份规则文档、PENDING、四份交接记录、SOP 27/28/29 和仅 Markdown 的 v0.1.477 指导书，保留 v0.1.476 指导书及发布验收历史；未生成 DOCX/PDF/视频成品。
-- 当前现网仍为 `v0.1.476 / 81b22102188640903a069ce4598fbb238935c9a0`。477 尚待精确候选 SHA CI、`main` 推进和 Con01 部署/只读验收，不得把本地样张检查写成生产已上线；本轮未进行生产业务测试写入或实机打印验收。
+- 发布进度：`v0.1.477 / 5ba3c60629267aa07e5d9b45e9e3179debcbe333` 的候选 MES-lite CI `38852986428` completed/success；同一 SHA 于 2026-10-16 13:08 +08:00 推进 `main`。Con01 Web 队列 `okpotsvf2byq7osnxg10k4gg` 于 13:14:46.856 +08:00 rolling completed、13:14:47 +08:00 finished；Web 版式已部署并由根代理独立完成生产只读核验，当前 Web 为 477，旧 476 已移除。main CI `38854196221` completed/success，与候选 CI `38852986428` 均精确匹配 `5ba3c60629267aa07e5d9b45e9e3179debcbe333`，两个完整 CI 已通过。CAD 自动队列 `tx6gb1aorv30atkn1is3xqfi` 于 13:22:24 +08:00 finished；根代理独立确认 Web/CAD 两队列均 finished、同精确 SHA 且无 error。CAD 唯一新容器 `df0c26ebc8c9 / ruzskr3355n5mq9ouv3kiy9t-050811424859` healthy，image 为 `ruzskr3355n5mq9ouv3kiy9t:5ba3c60629267aa07e5d9b45e9e3179debcbe333`，旧 CAD 已移除（子代理确认），CAD smoke test 通过。根代理最终复查公网 readiness 为 200/ready，CAD 和迁移 pass，仅保留既有 Collabora warn；477 发布及生产只读验收全部完成。
+- 运行容器与持久化：唯一 Web 容器 `036f02dce06d7b91efb8b85752f7d924a84165adc74bf094a673d83900f5d6c5 / jhjbwdumt46lsy4x2zj03llo-050809327290` healthy，package `0.1.477`、`SOURCE_COMMIT` 与 image 精确匹配 `5ba3c60629267aa07e5d9b45e9e3179debcbe333`。原三条 RW 持久挂载未变，启动备份 true。
+- 备份与公网验收：新备份归档 hash、sidecar、manifest 每文件和两层 quickCheck 全部通过；完整文件名、大小及 SHA-256 见 REL-20261016-02。13:15:15 +08:00 根代理独立核对公网首页、health、readiness 均为 200，11 个首页 JS 均 200，`app/page-129079e0e8ca7502.js` 包含版本 `0.1.477`；CAD readiness pass，仅保留既有 Collabora 未配置 warn。未生成真实业务 PDF、未进行业务测试写入，未访问 AL02；实际纸张走纸、复写和定位仍待用户试打。
 - 476 发布后记录当时先留本地，本次 477 修复一并归档；下一步见 REL-20261016-02，不访问 AL02。
 
-
-
+- 记录边界：本次 477 发布后记录只留本地，不另行提交或推送，以免触发新部署或改变已部署 SHA；476 历史生产验收保留。
 
 ## 2026-10-16 — 客户发货单双纸型 v0.1.476 发布与只读验收完成
 

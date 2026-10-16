@@ -657,17 +657,17 @@ async function main() {
       const originalPdf = await shipmentPrintService.resolveShipmentDocumentPdf(previousLayoutShipment.id, { audience: 'customer', paper: paperCase.paper })
       const paperProfile = `paper=${paperCase.size[0]}x${paperCase.size[1]}mm;`
       const originalArchive = await prisma.documentAttachment.findFirstOrThrow({ where: { ...previousLayoutWhere, note: { contains: paperProfile } } })
-      assert.ok(originalArchive.note?.startsWith(`shipment-document:customer:v4:${paperProfile}`), `${paperCase.label} 新归档必须记录 v4 版式`)
+      assert.ok(originalArchive.note?.startsWith(`shipment-document:customer:v5:${paperProfile}`), `${paperCase.label} 新归档必须记录 v5 版式`)
       await prisma.documentAttachment.update({
         where: { id: originalArchive.id },
-        data: { note: (originalArchive.note || '').replace('shipment-document:customer:v4:', 'shipment-document:customer:v3:') },
+        data: { note: (originalArchive.note || '').replace('shipment-document:customer:v5:', 'shipment-document:customer:v4:') },
       })
       const upgradedPdf = await shipmentPrintService.resolveShipmentDocumentPdf(previousLayoutShipment.id, { audience: 'customer', paper: paperCase.paper })
-      assert.equal(upgradedPdf.pdf.equals(originalPdf.pdf), false, `${paperCase.label} 旧 v3 版式不能命中新 v4 缓存，必须生成独立二维码的新归档`)
+      assert.equal(upgradedPdf.pdf.equals(originalPdf.pdf), false, `${paperCase.label} 旧 v4 版式不能命中新 v5 缓存，必须生成独立二维码的新归档`)
       const paperArchives = await prisma.documentAttachment.findMany({ where: { ...previousLayoutWhere, note: { contains: paperProfile } } })
-      assert.equal(paperArchives.length, 2, `${paperCase.label} 升级版式必须保留 v3 档案并新增 v4 档案`)
-      assert.equal(paperArchives.filter((archive) => archive.note?.startsWith('shipment-document:customer:v4:')).length, 1)
-      assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(originalArchive.id)).pdf.equals(originalPdf.pdf), true, `${paperCase.label} 版式升级后旧 v3 二维码仍必须返回原 PDF 字节`)
+      assert.equal(paperArchives.length, 2, `${paperCase.label} 升级版式必须保留 v4 档案并新增 v5 档案`)
+      assert.equal(paperArchives.filter((archive) => archive.note?.startsWith('shipment-document:customer:v5:')).length, 1)
+      assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(originalArchive.id)).pdf.equals(originalPdf.pdf), true, `${paperCase.label} 版式升级后旧 v4 二维码仍必须返回原 PDF 字节`)
       const reusedPdf = await shipmentPrintService.resolveShipmentDocumentPdf(previousLayoutShipment.id, { audience: 'customer', paper: paperCase.paper })
       assert.equal(reusedPdf.pdf.equals(upgradedPdf.pdf), true, `${paperCase.label} 升级后的补打应复用新版，不能反复产生归档`)
       assert.equal(await prisma.documentAttachment.count({ where: { ...previousLayoutWhere, note: { contains: paperProfile } } }), 2)
@@ -687,7 +687,7 @@ async function main() {
     const publicUrl = `https://mes.example.test${customerAttachment.url}`
     assert.match(customerAttachment.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/, '公开下载必须使用每份归档独立的随机 UUID')
     assert.equal(customerAttachment.url, `/api/public/shipment-documents/${customerAttachment.id}/download`)
-    assert.match(customerAttachment.note || '', /shipment-document:customer:v4:paper=241x140mm;[\s\S]*download-origin=https:\/\/mes\.example\.test;/)
+    assert.match(customerAttachment.note || '', /shipment-document:customer:v5:paper=241x140mm;[\s\S]*download-origin=https:\/\/mes\.example\.test;/)
     assert.match(shipmentAttachments[1].note || '', /shipment-document:internal:v1:/, '内部版应继续复用原归档格式')
     assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(customerAttachment.id)).pdf.equals(customerPreview.pdf), true, '扫码必须读取纸单对应归档的原始字节')
 
@@ -841,7 +841,7 @@ async function main() {
       where: { id: originalContentArchive.id },
       data: {
         size: previousA4Pdf.byteLength,
-        note: (originalContentArchive.note || '').replace('shipment-document:customer:v4:paper=241x140mm;', 'shipment-document:customer:v2:'),
+        note: (originalContentArchive.note || '').replace('shipment-document:customer:v5:paper=241x140mm;', 'shipment-document:customer:v2:'),
       },
     })
     const upgradedA4Pdf = await shipmentPrintService.resolveShipmentDocumentPdf(legacyShipment.id, { audience: 'customer' })
@@ -918,7 +918,7 @@ async function main() {
     await expectCustomerReuse('最新版本之后仅更新内部签收信息，应复用最新客户 PDF')
     assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(originalContentArchive.id)).pdf.equals(previousA4Pdf), true, '所有内容修订后，原 A4 二维码仍需返回当时归档的字节')
 
-    console.log('业务单据打印验证通过：连续纸/A4 双 PDF 与独立归档、190 mm 正文、收发货资料左右分栏与双侧超长地址分页、明细紧接合计、备注前置与页脚底部锚定、长备注/超高明细完整性、v3/v4 版式及旧二维码、客户联系人版本判定、内部 A4、匿名权限边界与取消/冲销/归档说明符合预期')
+    console.log('业务单据打印验证通过：连续纸/A4 双 PDF 与独立归档、190 mm 正文、收发货资料左右分栏与双侧超长地址分页、明细紧接合计、备注前置与页脚底部锚定、长备注/超高明细完整性、v4/v5 版式及旧二维码、客户联系人版本判定、内部 A4、匿名权限边界与取消/冲销/归档说明符合预期')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })
