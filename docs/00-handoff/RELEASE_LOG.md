@@ -1,5 +1,30 @@
 # 发布记录
 
+## REL-20261016-02：MES-lite v0.1.477（发布前，本地验证通过）
+
+- 状态：本地工作版本 `v0.1.477` 已完成版式修复与定向验证；提交 SHA、精确候选 MES-lite CI、`main` 推进及 Con01 发布尚待完成。现网基线仍为 `v0.1.476 / 81b22102188640903a069ce4598fbb238935c9a0`，旧版生产证据完整保留于 REL-20261016-01。
+- 范围：客户连续纸和 A4 发货单将收发货双方联系人、电话、地址统一放在明细前，收货联系人取 `customerRef.contact`、缺失显示 `-`；长地址完整流式分页。最后明细后立即合计，再显示凭证、物流、包裹和备注，签收及底部说明只在末页；长说明时合计可留在最后明细页、签收在后续页。customer profile 升为 v4，避免旧版式缓存，旧归档及二维码原文件不变。
+- 复用与边界：沿用 `modules/sales` 客户 PDF 绘制、发货事实/可见内容投影、独立纸型归档与二维码下载；无数据库迁移、权限或库存计算变化，内部留档继续使用原通用 A4 引擎。
+- 本地证据：`verify:business-document-print`（双纸型单页、32 行长地址/备注、超高行、240 段前置地址、合计坐标、联系人变更、v3/v4 历史字节）、`tsc --noEmit --incremental false`、4 文件定向 Lint、`verify:module-boundaries`、`verify:sop`、`verify:development-docs`、`verify:release-notes` 和 `git diff --check` 均通过；根代理已人工检查双纸型单页及多页全部页面。
+- 文档同步：`docs/product/业务单据打印与归档.md`、`docs/architecture/code-directory-and-module-boundary.md`、`docs/minierp/当前系统建模与结构审查.md`、`docs/minierp/系统交互与设计规范.md`、`docs/minierp/桌面端界面开发规范.md`、`docs/minierp/system-function-flow.md`、`docs/minierp/feature-model.md`、`docs/releases/PENDING.md`、四份 `docs/00-handoff` 记录，以及 SOP 27/28/29、`sop/change-impact.json` 和 v0.1.477 Markdown 指导书。旧版指导书保留，未生成 DOCX/PDF/视频成品。476 发布后记录当时先留本地，本次 477 修复一并归档。
+- 发布门禁与验收：精确候选 CI 成功后才允许推进 `main` 和 Con01；之后补齐容器/SOURCE_COMMIT/公开版本、健康、备份、持久挂载与认证页面证据。实际针式走纸、复写和 A4 定位仍待试打；本地验证期间未改生产业务数据，不访问 AL02。
+
+## REL-20261016-01：MES-lite v0.1.476（Con01 已部署，生产只读验收通过）
+
+- 状态：用户授权后于 2026-10-16 10:37 +08:00 推进同一精确提交到 `main`；首次部署失败后单独重试 Web，队列 `e12qu6kigts324veh7ei58vq` 于 11:00:44 +08:00 rolling completed、11:00:45 +08:00 finished。生产版本、健康、备份与认证浏览器只读验收通过；真实打印仍待用户试打。
+- 发布提交：`81b22102188640903a069ce4598fbb238935c9a0`，版本 `v0.1.476`；候选 MES-lite CI `38837203048` success，main CI `38841347727` completed/success（精确同 SHA；GitHub 更新时间2026-10-16 10:53:05 +08:00，verify 15m53s）。
+- 范围：客户发货单连续纸 241 × 140 mm / 标准 A4 210 × 297 mm 双输出，均为 190 mm 正文；网页原 PDF 预览可直接打印，按纸型独立归档/二维码/历史，发货详情使用正文顶部可换行动作区。无本轮数据库迁移。
+- 当前 Coolify 位置：Con01 `RootTeam / 03网站与在线工具 / production / MES Lite · Web`；项目 `m11yfeih6uwg32b7w2jl6qjc`、环境 `o31ffsi3n0f3ijpruc6cli7o`、应用 `jhjbwdumt46lsy4x2zj03llo`。用户澄清只是变更 projects 分组，不是更换服务器或数据目录；[当前 Web 资源](https://cool-con01.xiangshu.me/project/m11yfeih6uwg32b7w2jl6qjc/environment/o31ffsi3n0f3ijpruc6cli7o/application/jhjbwdumt46lsy4x2zj03llo)。
+- 首次部署：同一 SHA 的 Web `ryxqldab81le6ar7at0livtz`、CAD `as4v4rsba3iqhup61ztlmtfj` 于 2026-10-16 10:45:11 +08:00 共同 exit 255 失败。Web 的 Next.js 构建本身成功，随后 runner 依赖/镜像阶段与 CAD 的 C 编译被中断；Docker 日志随后出现 `context canceled` 与 `session healthcheck fatal (only one connection allowed)`。未发现 OOM，磁盘约 124 GB 可用，Docker/SSH 无重启；精确根因未证实，不能据此断言并发必然导致失败。
+- 串行重试：首次失败期间旧 Web `v0.1.475 / 8c7…` 与旧 CAD `480be…` 保持 healthy，数据挂载未动。核对 active queues/helpers 清空后，经 Coolify UI 只重试 Web；最终唯一 Web 容器为 `ff981079fe22 / jhjbwdumt46lsy4x2zj03llo-025011444575`，image 与 `SOURCE_COMMIT` 均为精确 `81b22102188640903a069ce4598fbb238935c9a0`，package `0.1.476`、healthy，旧 Web 容器已移除。根代理独立 SSH 复核唯一健康容器和原三条 RW 挂载。
+- 持久化与迁移：`/opt/mes-lite/data → /app/data`、`/opt/mes-lite/uploads → /app/public/uploads`、`/opt/mes-lite/backups → /app/backups` 保持 RW，`MES_LITE_PRE_MIGRATION_BACKUP_ENABLED=true`；98 条迁移验证通过，无本轮新增迁移。
+- 启动备份：`mes-lite-backup-2026-10-16T02-58-19-687Z-3d66702d.tar.gz`，190984020 bytes，SHA-256 `cb0c8bc3665ac9313104c37a919db292b6a4c3d36527cb2293a2ef706870157a`。子代理流式检查全部 698 个 tar 文件及 manifest/hash 全匹配，数据库 quickCheck `ok`，附件记录 250、上传文件 697；根代理独立复算归档 SHA-256 匹配。
+- 公网验收：11:01:51 +08:00 `/api/health/ready` 返回 200，database、98 migrations、dataStorage、attachmentStorage、backupFreshness、CAD 均 pass，仅保留原未配置 Collabora warn。首页引用的 11 个 JS 全部 200，`app/page-e8f9855939739da6.js` 含版本 `0.1.476`；打印模块按需加载。滚动切换时新旧两容器并存曾短暂出现新 chunk 404，旧容器清理后全部 JS 200，该现象已消失。
+- 认证页面验收：使用既有认证会话刷新 [发货页](https://mes.csyufeng.com/?page=shipment)，确认系统版本 `0.1.476`，每行可见“客户发货单·连续纸”（`paper=continuous`）、“客户发货单·A4”（`paper=a4`）及“内部留档”。未点击生成真实业务 PDF，未创建测试单据或进行业务测试写入；实际纸张走纸、复写与定位尚待用户试打。
+- CAD：本次自动队列失败记录保留；CAD 源码未变，不额外重试，仍使用原 `480be…` healthy 版本，最终 readiness 的 CAD 为 pass。
+- 下一步：用户按匹配纸型、100% 实际大小试打，核对针式连续走纸、各联复写和普通 A4 定位；原有产品事项继续按既有优先级推进。
+- 476 发布后记录当时先留本地，本次 477 修复一并归档；本次上线核验仅访问 Con01，未访问 AL02。
+
 ## REL-20260906-06：MES-lite v0.1.467（发布前）
 
 - 状态：本地实现和定向门禁通过；候选 CI、main 和 Con01 待完成。

@@ -1,5 +1,25 @@
 # 会话日志
 
+## 2026-10-16 — 客户发货单版式修复 v0.1.477 本地完成，待候选与发布
+
+- 用户截图指出联系资料落在明细后、备注/凭证/包裹将明细与合计分隔。客户连续纸和 A4 发货单将收发货双方联系人、电话、地址统一放在明细前，收货联系人取 `customerRef.contact`、缺失显示 `-`；长地址完整流式分页。最后明细后立即合计，再显示凭证、物流、包裹和备注，签收及底部说明只在末页；长说明时合计可留在最后明细页、签收在后续页。customer profile 升为 v4，避免旧版式缓存，旧归档及二维码原文件不变。
+- 本地验证：`verify:business-document-print`（双纸型单页、32 行长地址/备注、超高行、240 段前置地址、合计坐标、联系人变更、v3/v4 历史字节）、`tsc --noEmit --incremental false`、4 文件定向 Lint、`verify:module-boundaries`、`verify:sop`、`verify:development-docs`、`verify:release-notes` 和 `git diff --check` 均通过；根代理已人工检查双纸型单页及多页全部页面。
+- 复用现有销售发货 PDF 渲染、内容投影与按纸型归档能力；无数据库迁移、库存过账、权限或内部留档版式变化。同步七份规则文档、PENDING、四份交接记录、SOP 27/28/29 和仅 Markdown 的 v0.1.477 指导书，保留 v0.1.476 指导书及发布验收历史；未生成 DOCX/PDF/视频成品。
+- 当前现网仍为 `v0.1.476 / 81b22102188640903a069ce4598fbb238935c9a0`。477 尚待精确候选 SHA CI、`main` 推进和 Con01 部署/只读验收，不得把本地样张检查写成生产已上线；本轮未进行生产业务测试写入或实机打印验收。
+- 476 发布后记录当时先留本地，本次 477 修复一并归档；下一步见 REL-20261016-02，不访问 AL02。
+
+## 2026-10-16 — 客户发货单双纸型 v0.1.476 发布与只读验收完成
+
+- 用户已授权上线，同一精确提交 `81b22102188640903a069ce4598fbb238935c9a0` 于 10:37 +08:00 推进 `main`。候选 MES-lite CI `38837203048` success；main CI `38841347727` completed/success（精确同 SHA；GitHub 更新时间2026-10-16 10:53:05 +08:00，verify 15m53s）。
+- 首次 Coolify Web `ryxqldab81le6ar7at0livtz` 与 CAD `as4v4rsba3iqhup61ztlmtfj` 于 10:45:11 +08:00 共同 exit 255。Web Next.js 构建成功，runner 依赖/镜像阶段和 CAD C 编译被中断，随后 Docker 出现 `context canceled` 与 `session healthcheck fatal (only one connection allowed)`；无 OOM、约 124 GB 空余磁盘、Docker/SSH 无重启。精确根因未证实，不据此断言并发必然导致失败。
+- 首次失败时旧 Web `v0.1.475 / 8c7…` 与旧 CAD `480be…` 保持 healthy，数据挂载未动。核对 active queues/helpers 清空后，经 Coolify UI 仅串行重试 Web；`e12qu6kigts324veh7ei58vq` 于 11:00:44 +08:00 rolling completed、11:00:45 +08:00 finished。新唯一 Web 容器 `ff981079fe22 / jhjbwdumt46lsy4x2zj03llo-025011444575` 为精确 SHA `81b22102188640903a069ce4598fbb238935c9a0`、package `0.1.476` 且 healthy，旧 Web 容器已移除，根代理独立复核通过。
+- 当前资源位于 Con01 `RootTeam / 03网站与在线工具 / production / MES Lite · Web`，项目/环境/应用分别为 `m11yfeih6uwg32b7w2jl6qjc` / `o31ffsi3n0f3ijpruc6cli7o` / `jhjbwdumt46lsy4x2zj03llo`。用户已澄清仅变更 projects；服务器与原持久目录未迁移。
+- 最终确认原三条 RW 持久挂载未变，启动备份 true、98 条迁移通过。备份 `mes-lite-backup-2026-10-16T02-58-19-687Z-3d66702d.tar.gz` 为 190984020 bytes，SHA-256 `cb0c8bc3665ac9313104c37a919db292b6a4c3d36527cb2293a2ef706870157a`，根代理独立复算匹配；子代理流式检查全部 698 个 tar 文件与 manifest/hash 匹配，quickCheck ok，附件记录 250、上传文件 697。
+- 11:01:51 +08:00 公网 readiness 200，数据库/98 迁移/数据与附件目录/新鲜备份/CAD 均 pass，仅原 Collabora 未配置 warn。首页引用 11 个 JS 全部 200，页面 JS `app/page-e8f9855939739da6.js` 含版本 `0.1.476`，打印模块按需加载。滚动切换时双 Web 容器并存造成短暂新 chunk 404，旧容器清理后已消失。
+- 使用既有认证会话刷新发货页，确认版本 476 和每行“客户发货单·连续纸”（`paper=continuous`）、“客户发货单·A4”（`paper=a4`）、“内部留档”链接；未点击生成真实 PDF、未作业务测试写入。CAD 自动部署失败记录保留，源码未变，本轮不额外重试，原 `480be…` 仍 healthy，最终 readiness CAD pass。
+- 本地实现/隔离 PDF、SOP 与候选门禁已通过；客户连续纸 241 × 140 mm 与 A4 210 × 297 mm 各自归档，两版 190 mm 正文、首页完整抬头/二维码、续页简头及末页合计签收规则保持。未作生产测试单据或实际打印机验收。
+- 下一步：用户按匹配纸型、100% 实际大小试打连续纸和 A4，核对走纸、各联复写与定位；原有事项按既有优先级处理。完整发布证据见 REL-20261016-01；476 发布后记录当时先留本地，本次 477 修复一并归档；本次上线核验仅访问 Con01，未访问 AL02。
+
 ## 2026-09-29 09:30 CST — 来料历史核查、物流归属与发货补价（v0.1.470）
 
 目标：统一查询一定日期范围的来料，销售只管理订单，并允许发货后补填价格。

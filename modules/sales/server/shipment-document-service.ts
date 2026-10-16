@@ -56,6 +56,7 @@ function customerPrintData(shipment: ShipmentDocumentSource, settings: SystemSet
     shipmentNo: shipment.shipmentNo,
     shippedAt: formatDate(shipment.shippedAt),
     customer: shipment.customer,
+    customerContact: shipment.customerRef?.contact || '-',
     customerPhone: shipment.customerPhone || shipment.customerRef?.phone || '-',
     address: shipment.address || shipment.customerRef?.address || '-',
     companyName: settings.companyName,
@@ -126,7 +127,7 @@ function sourceRevision(shipment: ShipmentDocumentSource) {
 }
 
 function customerArchivePrefix(paper: CustomerShipmentPaper) {
-  return `shipment-document:customer:v3:paper=${customerShipmentPaperSizes[paper].join('x')}mm;`
+  return `shipment-document:customer:v4:paper=${customerShipmentPaperSizes[paper].join('x')}mm;`
 }
 
 function archiveProfile(audience: ShipmentDocumentAudience, revision: string, settings: SystemSettings, origin?: string, paper: CustomerShipmentPaper = 'continuous') {

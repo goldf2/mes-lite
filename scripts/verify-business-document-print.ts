@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { CustomerShipmentPrintData } from '../modules/sales/server/customer-shipment-pdf'
 
 const root = process.cwd()
 const read = (path: string) => readFileSync(join(root, path), 'utf8')
@@ -13,6 +14,29 @@ const uploadRoot = join(verifyRoot, 'uploads')
 
 const compactText = (value: string) => value.replace(/\s+/g, '')
 const mmToPoints = (value: number) => value * 72 / 25.4
+
+type PdfTextPosition = { str: string; pageIndex: number; x: number; y: number }
+
+async function readPdfLayout(pdf: Buffer) {
+  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  const document = await getDocument({ data: new Uint8Array(pdf) }).promise
+  const items: PdfTextPosition[] = []
+  try {
+    for (let pageIndex = 0; pageIndex < document.numPages; pageIndex += 1) {
+      const page = await document.getPage(pageIndex + 1)
+      const content = await page.getTextContent()
+      for (const item of content.items) {
+        if ('str' in item && item.str.trim()) items.push({ str: item.str, pageIndex, x: item.transform[4], y: item.transform[5] })
+      }
+    }
+    return items.sort((a, b) => a.pageIndex - b.pageIndex || b.y - a.y || a.x - b.x)
+  } finally {
+    await document.destroy()
+  }
+}
+
+const beforePosition = (a: PdfTextPosition, b: PdfTextPosition) => a.pageIndex < b.pageIndex
+  || (a.pageIndex === b.pageIndex && a.y > b.y + 0.5)
 
 async function inspectPdf(
   pdf: Buffer,
@@ -63,7 +87,8 @@ async function readPdfTableColumn(pdf: Buffer, headerLabel: string, firstCellPre
       const content = await page.getTextContent()
       const items = content.items.flatMap((item) => 'str' in item ? [item] : [])
       const header = items.find((item) => compactText(item.str) === compactText(headerLabel))
-      assert.ok(header, `第 ${pageIndex} 页缺少用于定位正文列的表头：${headerLabel}`)
+      // 前置地址资料或尾部备注可独占一页，只有真正的明细页需要参与按列重建。
+      if (!header) continue
       const firstCell = items.find((item) => item.str.startsWith(firstCellPrefix) && item.transform[5] < header.transform[5])
       if (columnLeft === undefined && firstCell) columnLeft = firstCell.transform[4]
       pages.push({ items, headerY: header.transform[5] })
@@ -327,9 +352,12 @@ async function main() {
     )
 
     const shipmentMaterial = await prisma.material.create({ data: { code: `PRINT-SHIP-MAT-${suffix}`, name: '发货 PDF 验证物料', spec: 'S-01', unit: '件', stockUnit: '件' } })
+    const shipmentCustomer = await prisma.customer.create({
+      data: { code: `PRINT-SHIP-CUSTOMER-${suffix}`, name: '发货 PDF 验证客户', contact: '客户收货验证联系人', phone: '13800000000', address: '验证地址' },
+    })
     const shipment = await prisma.shipment.create({
       data: {
-        shipmentNo: `PRINT-SH-${suffix}`, customer: '发货 PDF 验证客户', customerPhone: '13800000000', address: '验证地址',
+        shipmentNo: `PRINT-SH-${suffix}`, customerId: shipmentCustomer.id, customer: shipmentCustomer.name, customerPhone: '13800000000', address: '验证地址',
         status: 'SHIPPED', shippedAt: new Date('2026-08-18T09:00:00.000Z'), shippedBy: '验证发货人', trackingNo: 'TRACK-VERIFY',
         qty: 2, unitPrice: 0, totalAmount: 0, shippedCostAmount: 12,
       },
@@ -358,13 +386,17 @@ async function main() {
     assert.equal(customerPages.join('').split('客户发货单').length - 1, 1, '一张多联复写纸只需要打印一次客户发货单')
     assert.ok(customerPages[0].includes(compactText(shipment.shipmentNo)))
     assert.ok(customerPages[0].includes(compactText(shipment.customer)))
+    const customerLayout = await readPdfLayout(customerPreview.pdf)
+    const customerHeader = customerLayout.find((item) => compactText(item.str) === '物料编码')
+    const customerContact = customerLayout.find((item) => item.str.includes(shipmentCustomer.contact || ''))
+    assert.ok(customerHeader && customerContact && beforePosition(customerContact, customerHeader), '客户主数据联系人必须进入 PDF 且位于首个明细表头之前')
     await inspectPdf(internalArchive.pdf, [210, 297])
 
     const addressSegments = Array.from({ length: 12 }, (_, index) => `地址区域${String(index + 1).padStart(2, '0')}号厂房收货位置ADDR${String(index + 1).padStart(2, '0')}END`)
     const noteSegments = Array.from({ length: 30 }, (_, index) => `备注第${String(index + 1).padStart(2, '0')}段请按明细核对包装并保留签收凭证NOTE${String(index + 1).padStart(2, '0')}END。`)
     const stressData = {
       shipmentNo: 'CONTINUOUS-PAPER-032', shippedAt: '2026/10/16 09:30:00',
-      customer: '连续纸分页验证客户', customerPhone: '13800000000', address: addressSegments.join('；'),
+      customer: '连续纸分页验证客户', customerContact: '验证收货联系人', customerPhone: '13800000000', address: addressSegments.join('；'),
       companyName: '连续纸分页验证企业', companyContact: '验证联系人', companyPhone: '13900000000', companyAddress: '验证企业地址',
       voucherNo: 'VOUCHER-CONTINUOUS', trackingNo: 'TRACK-CONTINUOUS', note: noteSegments.join(''),
       rows: Array.from({ length: 32 }, (_, index) => [
@@ -379,61 +411,122 @@ async function main() {
       { paper: 'continuous', size: [241, 140], bounds: [25.5, 215.5], label: '连续纸' },
       { paper: 'a4', size: [210, 297], bounds: [10, 200], label: 'A4' },
     ] as const
-    const verifyCustomerPageSections = (pages: string[], total: string, label: string) => {
+    const verifyCustomerPageSections = async (pdf: Buffer, pages: string[], data: CustomerShipmentPrintData, label: string) => {
       const text = pages.join('')
-      for (const firstPageText of ['客户发货单', stressData.customer, stressData.companyName]) {
+      const layout = await readPdfLayout(pdf)
+      const firstTableHeader = layout.find((item) => compactText(item.str) === '物料编码')
+      assert.ok(firstTableHeader, `${label} 必须提供明细表头`)
+      const totals = layout.filter((item) => compactText(item.str).startsWith('合计：'))
+      assert.equal(totals.length, 1, `${label} 整单合计必须且只能出现一次`)
+      const total = totals[0]
+      assert.ok(compactText(total.str).includes(compactText(data.total)), `${label} 合计必须保留正确总金额`)
+      const withoutPageFurniture = (items: PdfTextPosition[]) => compactText(items
+        .filter((item) => !/^第\s*\d+\s*\/\s*\d+\s*页$/.test(item.str)
+          && !compactText(item.str).startsWith(`发货单号：${compactText(data.shipmentNo)}`)
+          && !['如需电子档，请扫描', '二维码获取', '序号', '物料编码', '物料名称/规格', '数量', '单价', '金额'].includes(item.str))
+        .map((item) => item.str).join(''))
+        .replace(/(?:收货地址|供货联系人|供货地址|客户凭证号|物流单号|包裹|备注)（续）：/g, '')
+      const frontMatter = layout.filter((item) => beforePosition(item, firstTableHeader))
+      const frontMatterText = withoutPageFurniture(frontMatter)
+      for (const value of [data.customerContact, data.customerPhone, data.address, data.companyContact, data.companyPhone, data.companyAddress]) {
+        assert.ok(frontMatterText.includes(compactText(value)), `${label} 收发货联系人、电话和完整地址必须位于首个明细表头前：${value}`)
+      }
+      for (const field of ['收货联系人', '收货地址', '供货联系人', '供货地址']) {
+        const position = layout.find((item) => compactText(item.str).startsWith(`${field}：`))
+        assert.ok(position && beforePosition(position, firstTableHeader), `${label} ${field}必须放在明细前的资料区`)
+      }
+      const firstName = data.rows[0][2].slice(0, 8)
+      const firstNameCell = layout.find((item) => item.str.startsWith(firstName) && beforePosition(firstTableHeader, item))
+      assert.ok(firstNameCell, `${label} 必须找到明细物料名称列`)
+      const rowFragments = layout.filter((item) => Math.abs(item.x - firstNameCell.x) < 0.1
+        && beforePosition(firstTableHeader, item) && beforePosition(item, total))
+      const lastRowFragment = rowFragments.at(-1)
+      assert.ok(lastRowFragment, `${label} 合计前必须保留明细内容`)
+      assert.equal(total.pageIndex, lastRowFragment.pageIndex, `${label} 合计必须与最后一条明细的末段在同页`)
+      assert.ok(lastRowFragment.y - total.y <= 30, `${label} 合计必须紧接明细，不能被大块留白分隔`)
+      for (const field of ['客户凭证号', '包裹', '备注']) {
+        const position = layout.find((item) => compactText(item.str).startsWith(`${field}：`))
+        assert.ok(position && beforePosition(total, position), `${label} ${field}必须位于合计之后`)
+      }
+      const tracking = layout.find((item) => compactText(item.str).includes('物流单号：'))
+      assert.ok(tracking && beforePosition(total, tracking), `${label} 物流单号必须位于合计之后`)
+      const tailText = withoutPageFurniture(layout.filter((item) => beforePosition(total, item)))
+      for (const value of [data.voucherNo, data.trackingNo, data.packages, data.note]) {
+        assert.ok(tailText.includes(compactText(value)), `${label} 合计后的凭证、物流、包裹与跨页备注必须保留完整内容：${value}`)
+      }
+      for (const firstPageText of ['客户发货单', data.customer, data.companyName]) {
         assert.ok(pages[0].includes(compactText(firstPageText)), `${label} 第一页必须提供完整标题、企业和客户信息：${firstPageText}`)
         assert.equal(text.split(compactText(firstPageText)).length - 1, 1, `${label} 完整抬头只应在第一页出现一次：${firstPageText}`)
       }
       pages.forEach((pageText, index) => {
-        for (const repeatedText of [stressData.shipmentNo, '物料编码', '物料名称', '数量', '单价', '金额']) {
-          assert.ok(pageText.includes(compactText(repeatedText)), `${label} 第 ${index + 1} 页必须提供单号和明细表头：${repeatedText}`)
+        assert.ok(pageText.includes(compactText(data.shipmentNo)), `${label} 第 ${index + 1} 页必须提供单号`)
+        if (pageText.includes('物料编码')) {
+          for (const header of ['物料名称', '数量', '单价', '金额']) {
+            assert.ok(pageText.includes(header), `${label} 第 ${index + 1} 页的明细表头必须完整：${header}`)
+          }
         }
         assert.ok(pageText.includes(`第${index + 1}/${pages.length}页`), `${label} 第 ${index + 1} 页必须提供准确页码`)
         if (index > 0) {
-          for (const firstPageOnlyText of ['客户发货单', stressData.customer, stressData.companyName, '收货电话', '如需电子档', '二维码获取']) {
+          for (const firstPageOnlyText of ['客户发货单', data.customer, data.companyName, '如需电子档', '二维码获取']) {
             assert.equal(pageText.includes(compactText(firstPageOnlyText)), false, `${label} 第 ${index + 1} 页不得重复完整抬头或二维码说明：${firstPageOnlyText}`)
           }
         }
         if (index < pages.length - 1) {
-          for (const closingText of ['合计：', '乙方发货人', '甲方收货人', '签收日期', '本单用于发货交接、签收和对账']) {
-            assert.equal(pageText.includes(closingText), false, `${label} 第 ${index + 1} 页不得提前出现整单合计、签收栏或说明：${closingText}`)
+          for (const closingText of ['乙方发货人', '甲方收货人', '签收日期', '本单用于发货交接、签收和对账']) {
+            assert.equal(pageText.includes(closingText), false, `${label} 第 ${index + 1} 页不得提前出现签收栏或说明：${closingText}`)
           }
         }
       })
       const lastPage = pages.at(-1) || ''
-      for (const finalText of [total, '合计', '乙方发货人', '甲方收货人', '签收日期', '本单用于发货交接、签收和对账']) {
-        assert.ok(lastPage.includes(compactText(finalText)), `${label} 最后一页必须保留总金额、签收栏和说明：${finalText}`)
+      for (const finalText of ['乙方发货人', '甲方收货人', '签收日期', '本单用于发货交接、签收和对账']) {
+        assert.ok(lastPage.includes(compactText(finalText)), `${label} 最后一页必须保留签收栏和说明：${finalText}`)
       }
     }
     for (const paperCase of customerPaperCases) {
+      const singlePageData = {
+        ...stressData, address: '单页验证收货地址', note: '单页布局验证',
+        rows: [stressData.rows[0]], total: '¥12.50',
+      }
+      const singlePagePdf = await renderCustomerShipmentPdf(singlePageData, 'https://mes.example.test/api/public/shipment-documents/00000000-0000-4000-8000-000000000002/download', paperCase.paper)
+      const singlePages = await inspectPdf(singlePagePdf, paperCase.size, paperCase.bounds)
+      assert.equal(singlePages.length, 1, `${paperCase.label} 普通单行单据不应因重新排版多打一页`)
+      await verifyCustomerPageSections(singlePagePdf, singlePages, singlePageData, `${paperCase.label} 单页`)
       const stressPdf = await renderCustomerShipmentPdf(stressData, 'https://mes.example.test/api/public/shipment-documents/00000000-0000-4000-8000-000000000000/download', paperCase.paper)
       const stressPages = await inspectPdf(stressPdf, paperCase.size, paperCase.bounds)
       assert.ok(stressPages.length > 1, `${paperCase.label} 大量明细、长地址及长备注必须自动分页`)
-      verifyCustomerPageSections(stressPages, stressData.total, paperCase.label)
+      await verifyCustomerPageSections(stressPdf, stressPages, stressData, paperCase.label)
       const stressText = stressPages.join('')
       for (const row of stressData.rows) {
         assert.equal(stressText.split(row[1]).length - 1, 1, `${paperCase.label} 分页后明细 ${row[1]} 必须完整且仅出现一次`)
         assert.ok(stressText.includes(compactText(row[2])), `${paperCase.label} 分页后物料名称不得截断：${row[2]}`)
       }
-      const stressDetailsText = (await readPdfTableColumn(stressPdf, '物料名称/规格', '收货地址：'))
-        .replace(/(?:收货地址|供货联系人|供货地址|客户凭证号|包裹|备注)（续）：/g, '')
-      for (const detailText of [stressData.address, stressData.note]) {
-        assert.ok(stressDetailsText.includes(compactText(detailText)), `${paperCase.label} 长地址与长备注跨页重建后必须与原文完整一致`)
-      }
-      const oversizedRowPdf = await renderCustomerShipmentPdf({
+      const oversizedRowData = {
         ...stressData, address: '普通验证收货地址', note: '超高明细跨页验证',
         rows: [['1', 'CP-OVERSIZED', oversizedRowSegments.join(''), '1 件', '¥12.50', '¥12.50']], total: '¥12.50',
-      }, 'https://mes.example.test/api/public/shipment-documents/00000000-0000-4000-8000-000000000001/download', paperCase.paper)
+      }
+      const oversizedRowPdf = await renderCustomerShipmentPdf(oversizedRowData, 'https://mes.example.test/api/public/shipment-documents/00000000-0000-4000-8000-000000000001/download', paperCase.paper)
       const oversizedRowPages = await inspectPdf(oversizedRowPdf, paperCase.size, paperCase.bounds)
       assert.ok(oversizedRowPages.length > 1, `${paperCase.label} 单个超高明细行必须跨页续打，不得裁切或循环创建空页`)
-      verifyCustomerPageSections(oversizedRowPages, '¥12.50', `${paperCase.label} 超高行`)
+      await verifyCustomerPageSections(oversizedRowPdf, oversizedRowPages, oversizedRowData, `${paperCase.label} 超高行`)
       const oversizedRowText = await readPdfTableColumn(oversizedRowPdf, '物料名称/规格', '超长物料说明第01段')
       assert.equal(oversizedRowText, compactText(oversizedRowSegments.join('')), `${paperCase.label} 单个超高明细行跨页后，按列重建的全部正文必须与原文完全一致`)
+      const oversizedAddressData = {
+        ...singlePageData,
+        address: Array.from({ length: 240 }, (_, index) => `长地址区域${String(index + 1).padStart(3, '0')}号厂房收货位置LONGADDR${String(index + 1).padStart(3, '0')}END。`).join(''),
+      }
+      const oversizedAddressPdf = await renderCustomerShipmentPdf(oversizedAddressData, 'https://mes.example.test/api/public/shipment-documents/00000000-0000-4000-8000-000000000003/download', paperCase.paper)
+      const oversizedAddressPages = await inspectPdf(oversizedAddressPdf, paperCase.size, paperCase.bounds)
+      await verifyCustomerPageSections(oversizedAddressPdf, oversizedAddressPages, oversizedAddressData, `${paperCase.label} 超长地址`)
+      const oversizedAddressLayout = await readPdfLayout(oversizedAddressPdf)
+      const delayedTable = oversizedAddressLayout.find((item) => compactText(item.str) === '物料编码')
+      assert.ok(delayedTable && delayedTable.pageIndex > 0, `${paperCase.label} 超长前置地址必须先完整流式分页，再开始明细`)
+      assert.equal(oversizedAddressPages[0].includes('物料编码'), false, `${paperCase.label} 纯前置资料页无需打印空的明细表头`)
       if (process.env.PDF_VERIFY_OUTPUT_DIR) {
         mkdirSync(process.env.PDF_VERIFY_OUTPUT_DIR, { recursive: true })
+        writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, `customer-${paperCase.paper}-single-page.pdf`), singlePagePdf)
         writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, `customer-${paperCase.paper}-multipage.pdf`), stressPdf)
         writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, `customer-${paperCase.paper}-oversized-row.pdf`), oversizedRowPdf)
+        writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, `customer-${paperCase.paper}-oversized-address.pdf`), oversizedAddressPdf)
       }
     }
     if (process.env.PDF_VERIFY_OUTPUT_DIR) {
@@ -490,6 +583,32 @@ async function main() {
       assert.equal(reused.pdf.equals(changedPdf.pdf), true, `${paperCase.label} 另一个纸型更新后仍须复用本纸型最新归档`)
     }
     assert.equal(await prisma.documentAttachment.count({ where: twoPaperWhere }), 4, '两种纸型的新版本交替补打不得重复归档')
+    const previousLayoutShipment = await prisma.shipment.create({
+      data: {
+        shipmentNo: `PRINT-PREVIOUS-LAYOUT-${suffix}`, customer: '版式升级验证客户', status: 'SHIPPED', shippedAt: shipment.shippedAt,
+        items: { create: { materialId: shipmentMaterial.id, locationId: sourceLocation.id, qty: 1, unitSnapshot: '件' } },
+      },
+    })
+    const previousLayoutWhere = { ownerType: 'SHIPMENT', ownerId: previousLayoutShipment.id, documentType: shipmentPrintService.SHIPMENT_CUSTOMER_PDF_TYPE }
+    for (const paperCase of customerPaperCases) {
+      const originalPdf = await shipmentPrintService.resolveShipmentDocumentPdf(previousLayoutShipment.id, { audience: 'customer', paper: paperCase.paper })
+      const paperProfile = `paper=${paperCase.size[0]}x${paperCase.size[1]}mm;`
+      const originalArchive = await prisma.documentAttachment.findFirstOrThrow({ where: { ...previousLayoutWhere, note: { contains: paperProfile } } })
+      assert.ok(originalArchive.note?.startsWith(`shipment-document:customer:v4:${paperProfile}`), `${paperCase.label} 新归档必须记录 v4 版式`)
+      await prisma.documentAttachment.update({
+        where: { id: originalArchive.id },
+        data: { note: (originalArchive.note || '').replace('shipment-document:customer:v4:', 'shipment-document:customer:v3:') },
+      })
+      const upgradedPdf = await shipmentPrintService.resolveShipmentDocumentPdf(previousLayoutShipment.id, { audience: 'customer', paper: paperCase.paper })
+      assert.equal(upgradedPdf.pdf.equals(originalPdf.pdf), false, `${paperCase.label} 旧 v3 版式不能命中新 v4 缓存，必须生成独立二维码的新归档`)
+      const paperArchives = await prisma.documentAttachment.findMany({ where: { ...previousLayoutWhere, note: { contains: paperProfile } } })
+      assert.equal(paperArchives.length, 2, `${paperCase.label} 升级版式必须保留 v3 档案并新增 v4 档案`)
+      assert.equal(paperArchives.filter((archive) => archive.note?.startsWith('shipment-document:customer:v4:')).length, 1)
+      assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(originalArchive.id)).pdf.equals(originalPdf.pdf), true, `${paperCase.label} 版式升级后旧 v3 二维码仍必须返回原 PDF 字节`)
+      const reusedPdf = await shipmentPrintService.resolveShipmentDocumentPdf(previousLayoutShipment.id, { audience: 'customer', paper: paperCase.paper })
+      assert.equal(reusedPdf.pdf.equals(upgradedPdf.pdf), true, `${paperCase.label} 升级后的补打应复用新版，不能反复产生归档`)
+      assert.equal(await prisma.documentAttachment.count({ where: { ...previousLayoutWhere, note: { contains: paperProfile } } }), 2)
+    }
     if (process.env.PDF_VERIFY_OUTPUT_DIR) {
       writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, 'customer-a4.pdf'), firstA4.pdf)
     }
@@ -505,7 +624,7 @@ async function main() {
     const publicUrl = `https://mes.example.test${customerAttachment.url}`
     assert.match(customerAttachment.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/, '公开下载必须使用每份归档独立的随机 UUID')
     assert.equal(customerAttachment.url, `/api/public/shipment-documents/${customerAttachment.id}/download`)
-    assert.match(customerAttachment.note || '', /shipment-document:customer:v3:paper=241x140mm;[\s\S]*download-origin=https:\/\/mes\.example\.test;/)
+    assert.match(customerAttachment.note || '', /shipment-document:customer:v4:paper=241x140mm;[\s\S]*download-origin=https:\/\/mes\.example\.test;/)
     assert.match(shipmentAttachments[1].note || '', /shipment-document:internal:v1:/, '内部版应继续复用原归档格式')
     assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(customerAttachment.id)).pdf.equals(customerPreview.pdf), true, '扫码必须读取纸单对应归档的原始字节')
 
@@ -621,7 +740,7 @@ async function main() {
 
     const legacyShipment = await prisma.shipment.create({
       data: {
-        shipmentNo: `PRINT-LEGACY-${suffix}`, customer: '旧二维码发货单验证客户',
+        shipmentNo: `PRINT-LEGACY-${suffix}`, customerId: shipmentCustomer.id, customer: '旧二维码发货单验证客户',
         status: 'SHIPPED', shippedAt: shipment.shippedAt,
         items: { create: { materialId: shipmentMaterial.id, locationId: sourceLocation.id, qty: 1, unitSnapshot: '件' } },
       },
@@ -659,7 +778,7 @@ async function main() {
       where: { id: originalContentArchive.id },
       data: {
         size: previousA4Pdf.byteLength,
-        note: (originalContentArchive.note || '').replace('shipment-document:customer:v3:paper=241x140mm;', 'shipment-document:customer:v2:'),
+        note: (originalContentArchive.note || '').replace('shipment-document:customer:v4:paper=241x140mm;', 'shipment-document:customer:v2:'),
       },
     })
     const upgradedA4Pdf = await shipmentPrintService.resolveShipmentDocumentPdf(legacyShipment.id, { audience: 'customer' })
@@ -694,6 +813,10 @@ async function main() {
     await expectCustomerReuse('通用内部打印密度和页边距不影响客户模板，不能产生新的客户 PDF')
 
     const stableShipmentUpdatedAt = unrelatedChange.updatedAt.getTime()
+    await prisma.customer.update({ where: { id: shipmentCustomer.id }, data: { contact: '更正后的收货联系人' } })
+    assert.equal((await prisma.shipment.findUniqueOrThrow({ where: { id: legacyShipment.id } })).updatedAt.getTime(), stableShipmentUpdatedAt, '客户联系人变化不会更新发货单时间戳')
+    await expectCustomerVersion('客户主数据收货联系人变化后即使未更新发货单时间戳，也必须生成新版')
+    assert.ok((await inspectPdf(contentPdf.pdf, [241, 140], [25.5, 215.5])).join('').includes('更正后的收货联系人'), '新版必须读取客户主数据中更正后的收货联系人')
     await prisma.material.update({ where: { id: shipmentMaterial.id }, data: { name: '客户版新物料名称' } })
     assert.equal((await prisma.shipment.findUniqueOrThrow({ where: { id: legacyShipment.id } })).updatedAt.getTime(), stableShipmentUpdatedAt, '物料主数据变化不会更新发货单时间戳')
     await expectCustomerVersion('已展示物料名称变化即使未更新发货单时间戳，也必须生成新版')
@@ -732,7 +855,7 @@ async function main() {
     await expectCustomerReuse('最新版本之后仅更新内部签收信息，应复用最新客户 PDF')
     assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(originalContentArchive.id)).pdf.equals(previousA4Pdf), true, '所有内容修订后，原 A4 二维码仍需返回当时归档的字节')
 
-    console.log('业务单据打印验证通过：连续纸/A4 双 PDF 与独立归档、190 mm 正文、首尾信息与长内容分页、内部 A4、通用/客户/内部归档、扫码下载原版、可见内容版本判定、旧 A4/二维码升级、匿名权限边界与取消/冲销/归档说明符合预期')
+    console.log('业务单据打印验证通过：连续纸/A4 双 PDF 与独立归档、190 mm 正文、收发货资料前置与超长地址分页、明细紧接合计和末页签收、长备注/超高明细完整性、v3/v4 版式及旧二维码、客户联系人版本判定、内部 A4、匿名权限边界与取消/冲销/归档说明符合预期')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

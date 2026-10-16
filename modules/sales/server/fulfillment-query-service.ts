@@ -258,7 +258,7 @@ export async function getShipmentDeliveryNoteSource(id: string, scope: Effective
       product: { select: { sku: true, name: true, unit: true } },
       material: { select: { code: true, name: true, spec: true, stockUnit: true } },
       location: { select: { code: true, name: true } },
-      customerRef: { select: { phone: true, address: true } },
+      customerRef: { select: { contact: true, phone: true, address: true } },
       items: {
         include: {
           material: { select: { code: true, name: true, spec: true, stockUnit: true } },
