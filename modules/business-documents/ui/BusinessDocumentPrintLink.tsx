@@ -9,6 +9,7 @@ export default function BusinessDocumentPrintLink({
   id,
   compact = false,
   audience,
+  paper,
   download = false,
   label,
 }: {
@@ -16,13 +17,14 @@ export default function BusinessDocumentPrintLink({
   id: string
   compact?: boolean
   audience?: 'customer' | 'internal'
+  paper?: 'continuous' | 'a4'
   download?: boolean
   label?: string
 }) {
   const text = label || (audience === 'internal' ? '内部留档' : '打印')
   return (
     <a
-      href={businessDocumentPrintUrl(kind, id, { audience, download })}
+      href={businessDocumentPrintUrl(kind, id, { audience, paper, download })}
       target={download ? undefined : '_blank'}
       rel={download ? undefined : 'noreferrer'}
       title={text}

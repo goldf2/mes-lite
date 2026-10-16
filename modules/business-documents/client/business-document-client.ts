@@ -5,10 +5,11 @@ import type { BusinessDocumentKind } from '../contracts/business-document'
 export function businessDocumentPrintUrl(
   kind: BusinessDocumentKind,
   id: string,
-  options: { audience?: 'customer' | 'internal'; download?: boolean } = {},
+  options: { audience?: 'customer' | 'internal'; paper?: 'continuous' | 'a4'; download?: boolean } = {},
 ) {
   const params = new URLSearchParams()
   if (options.audience) params.set('audience', options.audience)
+  if (options.paper) params.set('paper', options.paper)
   if (options.download) params.set('download', '1')
   const query = params.toString()
   return `/api/business-documents/${kind}/${id}/print${query ? `?${query}` : ''}`

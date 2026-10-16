@@ -12,6 +12,7 @@ export default function BusinessDocumentDetailDialog({
   onClose,
   onMessage,
   headerActions,
+  actionsPlacement = 'header',
   readOnly = false,
   closeDisabled = false,
   enableAiRecognition = true,
@@ -25,6 +26,7 @@ export default function BusinessDocumentDetailDialog({
   onClose: () => void
   onMessage: (message: string) => void
   headerActions?: ReactNode
+  actionsPlacement?: 'header' | 'body'
   readOnly?: boolean
   closeDisabled?: boolean
   enableAiRecognition?: boolean
@@ -35,12 +37,17 @@ export default function BusinessDocumentDetailDialog({
     <ModalDialog
       title={title}
       description={description}
-      headerActions={headerActions}
+      headerActions={actionsPlacement === 'header' ? headerActions : undefined}
       onClose={onClose}
       closeDisabled={closeDisabled}
       size="wide"
       bodyClassName="space-y-6"
     >
+      {actionsPlacement === 'body' && headerActions && (
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {headerActions}
+        </div>
+      )}
       <section>
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">系统生成单据</span>

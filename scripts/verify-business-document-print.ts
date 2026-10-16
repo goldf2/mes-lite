@@ -14,7 +14,11 @@ const uploadRoot = join(verifyRoot, 'uploads')
 const compactText = (value: string) => value.replace(/\s+/g, '')
 const mmToPoints = (value: number) => value * 72 / 25.4
 
-async function inspectPdf(pdf: Buffer, expectedSizeMm: readonly [number, number]) {
+async function inspectPdf(
+  pdf: Buffer,
+  expectedSizeMm: readonly [number, number],
+  expectedContentBoundsMm?: readonly [number, number],
+) {
   const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
   const document = await getDocument({ data: new Uint8Array(pdf) }).promise
   const pages: string[] = []
@@ -33,6 +37,11 @@ async function inspectPdf(pdf: Buffer, expectedSizeMm: readonly [number, number]
         const y = item.transform[5]
         assert.ok(x >= left - 0.5 && x + item.width <= right + 0.5, `第 ${pageIndex} 页文字横向不得超出纸张：${item.str}`)
         assert.ok(y >= bottom - 0.5 && y + item.height <= top + 0.5, `第 ${pageIndex} 页文字纵向不得超出纸张：${item.str}`)
+        if (expectedContentBoundsMm) {
+          const contentLeft = left + mmToPoints(expectedContentBoundsMm[0])
+          const contentRight = left + mmToPoints(expectedContentBoundsMm[1])
+          assert.ok(x >= contentLeft - 0.5 && x + item.width <= contentRight + 0.5, `第 ${pageIndex} 页正文必须处于 ${expectedContentBoundsMm[0]}..${expectedContentBoundsMm[1]} mm 横向范围内：${item.str}`)
+        }
       }
       pages.push(compactText(pageText.join('')))
     }
@@ -157,6 +166,8 @@ function verifyStaticBoundaries() {
   assert.doesNotMatch(creationSources, /generateBusinessDocumentPdfArchives|reserveBusinessDocumentPrintWindow/, '保存流程不得生成或打开 PDF')
   assert.match(read('modules/business-documents/ui/BusinessDocumentPrintLink.tsx'), /打印/, '单据列表和详情必须保留独立打印入口')
   assert.match(shipmentPage, /客户发货单/, '发货页面必须明确标注客户发货单输出')
+  assert.match(shipmentPage, /audience="customer"\s+paper="continuous"\s+label="客户发货单·连续纸"/, '发货页面必须明确提供连续纸客户单据入口')
+  assert.match(shipmentPage, /audience="customer"\s+paper="a4"\s+label="客户发货单·A4"/, '发货页面必须明确提供 A4 客户单据入口')
   assert.match(shipmentPage, /内部留档/, '发货页面必须明确标注内部留档输出')
   assert.doesNotMatch(shipmentPage, /下载发货单 PDF|\/api\/shipments\/\$\{item\.id\}\/delivery-note/, '发货页面不得再同时暴露旧的第二套 PDF 输出')
 }
@@ -173,6 +184,7 @@ async function main() {
     printService,
     shipmentPrintService,
     { renderCustomerShipmentPdf },
+    { businessDocumentPrintUrl },
     { SalesDomainError },
     { NextRequest },
     { middleware },
@@ -188,6 +200,7 @@ async function main() {
     import('../modules/business-documents/server/business-document-print-service'),
     import('../modules/sales/server/shipment-document-service'),
     import('../modules/sales/server/customer-shipment-pdf'),
+    import('../modules/business-documents/client/business-document-client'),
     import('../modules/sales/domain/sales-errors'),
     import('next/server'),
     import('../middleware'),
@@ -200,6 +213,13 @@ async function main() {
     assert.equal(businessDocumentDefinition('unsupported'), null)
     assert.equal(format.businessDocumentNumberText(2.500), '2.5')
     assert.equal(format.businessDocumentMoney(20), '¥20.00')
+    for (const paper of ['continuous', 'a4'] as const) {
+      const printUrl = new URL(businessDocumentPrintUrl('shipment', 'paper-url-verify', { audience: 'customer', paper }), 'https://mes.example.test')
+      assert.equal(printUrl.pathname, '/api/business-documents/shipment/paper-url-verify/print')
+      assert.equal(printUrl.searchParams.get('audience'), 'customer')
+      assert.equal(printUrl.searchParams.get('paper'), paper, '客户纸型必须传递至统一打印 API')
+      assert.equal(printUrl.searchParams.has('download'), false, '客户打印入口默认预览，不强制下载')
+    }
 
     const standalonePdf = await renderBusinessDocumentPdf({
       title: '销售订单', documentNo: 'SO-VERIFY-001', status: '草稿', documentDate: '2026-08-08',
@@ -329,12 +349,12 @@ async function main() {
     const customerPreview = await shipmentPrintService.resolveShipmentDocumentPdf(shipment.id, { audience: 'customer' })
     const customerDownload = await shipmentPrintService.resolveShipmentDocumentPdf(shipment.id, { audience: 'customer' })
     assert.equal(customerPreview.pdf.equals(customerDownload.pdf), true, '客户预览与下载必须复用同一份归档字节')
-    assert.equal(customerPreview.filename, `发货单-${shipment.shipmentNo}.pdf`)
+    assert.equal(customerPreview.filename, `发货单-${shipment.shipmentNo}-连续纸.pdf`)
     const internalArchive = await shipmentPrintService.resolveShipmentDocumentPdf(shipment.id, { audience: 'internal' })
     assert.equal(internalArchive.filename, `发货内部留档-${shipment.shipmentNo}.pdf`)
     assert.notEqual(internalArchive.pdf.equals(customerPreview.pdf), true, '客户版与内部留档应为明确不同的受众模板')
-    const customerPages = await inspectPdf(customerPreview.pdf, [241, 140])
-    assert.equal(customerPages.length, 1, '常规客户发货单必须在一张 241×140 mm 连续纸内输出，不按复写联数重复 PDF 内容')
+    const customerPages = await inspectPdf(customerPreview.pdf, [241, 140], [25.5, 215.5])
+    assert.equal(customerPages.length, 1, '常规客户发货单必须在一张 241×140 mm 连续纸 PDF 内输出，不按复写联数重复内容')
     assert.equal(customerPages.join('').split('客户发货单').length - 1, 1, '一张多联复写纸只需要打印一次客户发货单')
     assert.ok(customerPages[0].includes(compactText(shipment.shipmentNo)))
     assert.ok(customerPages[0].includes(compactText(shipment.customer)))
@@ -354,49 +374,124 @@ async function main() {
       ]),
       total: '¥6600.00', packages: 'PKG-CONTINUOUS（528 件）',
     }
-    const stressPdf = await renderCustomerShipmentPdf(stressData, 'https://mes.example.test/api/public/shipment-documents/00000000-0000-4000-8000-000000000000/download')
-    const stressPages = await inspectPdf(stressPdf, [241, 140])
-    assert.ok(stressPages.length > 1, '大量明细、长地址及长备注必须自动分页')
-    const stressText = stressPages.join('')
-    for (const row of stressData.rows) {
-      assert.equal(stressText.split(row[1]).length - 1, 1, `分页后明细 ${row[1]} 必须完整且仅出现一次`)
-      assert.ok(stressText.includes(compactText(row[2])), `分页后物料名称不得截断：${row[2]}`)
-    }
-    for (const segment of [...addressSegments, ...noteSegments]) {
-      const marker = segment.match(/(?:ADDR|NOTE)\d+END/)?.[0]
-      assert.ok(marker && stressText.includes(marker), `长地址与长备注不得丢失：${segment}`)
-    }
-    stressPages.forEach((text, index) => {
-      for (const repeatedText of [stressData.shipmentNo, stressData.customer, '物料编码', '物料名称', '数量', '单价', '金额']) {
-        assert.ok(text.includes(compactText(repeatedText)), `第 ${index + 1} 页必须重复单号、客户和明细表头：${repeatedText}`)
+    const oversizedRowSegments = Array.from({ length: 96 }, (_, index) => `超长物料说明第${String(index + 1).padStart(2, '0')}段HUGE${String(index + 1).padStart(2, '0')}END。`)
+    const customerPaperCases = [
+      { paper: 'continuous', size: [241, 140], bounds: [25.5, 215.5], label: '连续纸' },
+      { paper: 'a4', size: [210, 297], bounds: [10, 200], label: 'A4' },
+    ] as const
+    const verifyCustomerPageSections = (pages: string[], total: string, label: string) => {
+      const text = pages.join('')
+      for (const firstPageText of ['客户发货单', stressData.customer, stressData.companyName]) {
+        assert.ok(pages[0].includes(compactText(firstPageText)), `${label} 第一页必须提供完整标题、企业和客户信息：${firstPageText}`)
+        assert.equal(text.split(compactText(firstPageText)).length - 1, 1, `${label} 完整抬头只应在第一页出现一次：${firstPageText}`)
       }
-      assert.ok(text.includes(`第${index + 1}/${stressPages.length}页`), `第 ${index + 1} 页必须提供准确页码`)
-      if (index < stressPages.length - 1) {
-        assert.ok(text.includes('接下页'), `第 ${index + 1} 页必须标明接下页`)
-        for (const closingText of ['合计：', '甲方收货人', '签收日期']) {
-          assert.equal(text.includes(closingText), false, `第 ${index + 1} 页不得提前出现整单合计或签收栏：${closingText}`)
+      pages.forEach((pageText, index) => {
+        for (const repeatedText of [stressData.shipmentNo, '物料编码', '物料名称', '数量', '单价', '金额']) {
+          assert.ok(pageText.includes(compactText(repeatedText)), `${label} 第 ${index + 1} 页必须提供单号和明细表头：${repeatedText}`)
         }
+        assert.ok(pageText.includes(`第${index + 1}/${pages.length}页`), `${label} 第 ${index + 1} 页必须提供准确页码`)
+        if (index > 0) {
+          for (const firstPageOnlyText of ['客户发货单', stressData.customer, stressData.companyName, '收货电话', '如需电子档', '二维码获取']) {
+            assert.equal(pageText.includes(compactText(firstPageOnlyText)), false, `${label} 第 ${index + 1} 页不得重复完整抬头或二维码说明：${firstPageOnlyText}`)
+          }
+        }
+        if (index < pages.length - 1) {
+          for (const closingText of ['合计：', '乙方发货人', '甲方收货人', '签收日期', '本单用于发货交接、签收和对账']) {
+            assert.equal(pageText.includes(closingText), false, `${label} 第 ${index + 1} 页不得提前出现整单合计、签收栏或说明：${closingText}`)
+          }
+        }
+      })
+      const lastPage = pages.at(-1) || ''
+      for (const finalText of [total, '合计', '乙方发货人', '甲方收货人', '签收日期', '本单用于发货交接、签收和对账']) {
+        assert.ok(lastPage.includes(compactText(finalText)), `${label} 最后一页必须保留总金额、签收栏和说明：${finalText}`)
       }
-    })
-    const lastStressPage = stressPages.at(-1) || ''
-    for (const finalText of [stressData.total, '合计', '甲方收货人', '签收日期']) {
-      assert.ok(lastStressPage.includes(compactText(finalText)), `最后一页必须保留总金额和签收栏：${finalText}`)
     }
-    const oversizedRowSegments = Array.from({ length: 48 }, (_, index) => `超长物料说明第${String(index + 1).padStart(2, '0')}段HUGE${String(index + 1).padStart(2, '0')}END。`)
-    const oversizedRowPdf = await renderCustomerShipmentPdf({
-      ...stressData, address: '普通验证收货地址', note: '超高明细跨页验证',
-      rows: [['1', 'CP-OVERSIZED', oversizedRowSegments.join(''), '1 件', '¥12.50', '¥12.50']], total: '¥12.50',
-    }, 'https://mes.example.test/api/public/shipment-documents/00000000-0000-4000-8000-000000000001/download')
-    const oversizedRowPages = await inspectPdf(oversizedRowPdf, [241, 140])
-    assert.ok(oversizedRowPages.length > 1, '单个超高明细行必须跨页续打，不得裁切或循环创建空页')
-    const oversizedRowText = await readPdfTableColumn(oversizedRowPdf, '物料名称/规格', '超长物料说明第01段')
-    assert.equal(oversizedRowText, compactText(oversizedRowSegments.join('')), '单个超高明细行跨页后，按列重建的全部正文必须与原文完全一致')
+    for (const paperCase of customerPaperCases) {
+      const stressPdf = await renderCustomerShipmentPdf(stressData, 'https://mes.example.test/api/public/shipment-documents/00000000-0000-4000-8000-000000000000/download', paperCase.paper)
+      const stressPages = await inspectPdf(stressPdf, paperCase.size, paperCase.bounds)
+      assert.ok(stressPages.length > 1, `${paperCase.label} 大量明细、长地址及长备注必须自动分页`)
+      verifyCustomerPageSections(stressPages, stressData.total, paperCase.label)
+      const stressText = stressPages.join('')
+      for (const row of stressData.rows) {
+        assert.equal(stressText.split(row[1]).length - 1, 1, `${paperCase.label} 分页后明细 ${row[1]} 必须完整且仅出现一次`)
+        assert.ok(stressText.includes(compactText(row[2])), `${paperCase.label} 分页后物料名称不得截断：${row[2]}`)
+      }
+      const stressDetailsText = (await readPdfTableColumn(stressPdf, '物料名称/规格', '收货地址：'))
+        .replace(/(?:收货地址|供货联系人|供货地址|客户凭证号|包裹|备注)（续）：/g, '')
+      for (const detailText of [stressData.address, stressData.note]) {
+        assert.ok(stressDetailsText.includes(compactText(detailText)), `${paperCase.label} 长地址与长备注跨页重建后必须与原文完整一致`)
+      }
+      const oversizedRowPdf = await renderCustomerShipmentPdf({
+        ...stressData, address: '普通验证收货地址', note: '超高明细跨页验证',
+        rows: [['1', 'CP-OVERSIZED', oversizedRowSegments.join(''), '1 件', '¥12.50', '¥12.50']], total: '¥12.50',
+      }, 'https://mes.example.test/api/public/shipment-documents/00000000-0000-4000-8000-000000000001/download', paperCase.paper)
+      const oversizedRowPages = await inspectPdf(oversizedRowPdf, paperCase.size, paperCase.bounds)
+      assert.ok(oversizedRowPages.length > 1, `${paperCase.label} 单个超高明细行必须跨页续打，不得裁切或循环创建空页`)
+      verifyCustomerPageSections(oversizedRowPages, '¥12.50', `${paperCase.label} 超高行`)
+      const oversizedRowText = await readPdfTableColumn(oversizedRowPdf, '物料名称/规格', '超长物料说明第01段')
+      assert.equal(oversizedRowText, compactText(oversizedRowSegments.join('')), `${paperCase.label} 单个超高明细行跨页后，按列重建的全部正文必须与原文完全一致`)
+      if (process.env.PDF_VERIFY_OUTPUT_DIR) {
+        mkdirSync(process.env.PDF_VERIFY_OUTPUT_DIR, { recursive: true })
+        writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, `customer-${paperCase.paper}-multipage.pdf`), stressPdf)
+        writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, `customer-${paperCase.paper}-oversized-row.pdf`), oversizedRowPdf)
+      }
+    }
     if (process.env.PDF_VERIFY_OUTPUT_DIR) {
       mkdirSync(process.env.PDF_VERIFY_OUTPUT_DIR, { recursive: true })
       writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, 'customer-delivery.pdf'), customerPreview.pdf)
       writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, 'internal-archive.pdf'), internalArchive.pdf)
-      writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, 'customer-continuous-multipage.pdf'), stressPdf)
-      writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, 'customer-continuous-oversized-row.pdf'), oversizedRowPdf)
+    }
+    const twoPaperShipment = await prisma.shipment.create({
+      data: {
+        shipmentNo: `PRINT-PAPERS-${suffix}`, customer: '双纸型独立归档验证客户', customerPhone: '13800000001', address: '双纸型验证地址',
+        status: 'SHIPPED', shippedAt: new Date('2026-10-16T01:00:00.000Z'), qty: 2, unitPrice: 12, totalAmount: 24,
+        items: { create: { materialId: shipmentMaterial.id, locationId: sourceLocation.id, qty: 2, unitSnapshot: '件', unitPrice: 12, totalAmount: 24 } },
+      },
+    })
+    const twoPaperWhere = { ownerType: 'SHIPMENT', ownerId: twoPaperShipment.id, documentType: shipmentPrintService.SHIPMENT_CUSTOMER_PDF_TYPE }
+    const firstContinuous = await shipmentPrintService.resolveShipmentDocumentPdf(twoPaperShipment.id, { audience: 'customer', paper: 'continuous' })
+    const firstA4 = await shipmentPrintService.resolveShipmentDocumentPdf(twoPaperShipment.id, { audience: 'customer', paper: 'a4' })
+    assert.equal(firstContinuous.filename, `发货单-${twoPaperShipment.shipmentNo}-连续纸.pdf`)
+    assert.equal(firstA4.filename, `发货单-${twoPaperShipment.shipmentNo}-A4.pdf`)
+    assert.equal((await inspectPdf(firstContinuous.pdf, [241, 140], [25.5, 215.5])).length, 1)
+    assert.equal((await inspectPdf(firstA4.pdf, [210, 297], [10, 200])).length, 1)
+    const firstPaperArchives = await prisma.documentAttachment.findMany({ where: twoPaperWhere })
+    assert.equal(firstPaperArchives.length, 2, '两种客户纸型必须分别建立归档')
+    assert.equal(new Set(firstPaperArchives.map((attachment) => attachment.url)).size, 2, '两种客户纸型必须拥有独立二维码地址')
+    for (const paperCase of customerPaperCases) {
+      const initialPdf = paperCase.paper === 'continuous' ? firstContinuous : firstA4
+      const archive = firstPaperArchives.find((attachment) => attachment.note?.includes(`paper=${paperCase.size[0]}x${paperCase.size[1]}mm;`))
+      assert.ok(archive, `${paperCase.label} 归档必须记录独立纸型 profile`)
+      const reused = await shipmentPrintService.resolveShipmentDocumentPdf(twoPaperShipment.id, { audience: 'customer', paper: paperCase.paper })
+      assert.equal(reused.pdf.equals(initialPdf.pdf), true, `${paperCase.label} 交替补打两种纸型时必须复用自己的归档`)
+      assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(archive.id)).pdf.equals(initialPdf.pdf), true, `${paperCase.label} 二维码必须返回对应纸型的原 PDF`)
+    }
+    assert.equal(await prisma.documentAttachment.count({ where: twoPaperWhere }), 2, '切换纸型不得互相击穿缓存或增加重复归档')
+
+    await prisma.shipment.update({ where: { id: twoPaperShipment.id }, data: { note: '两种纸型共同新增的客户可见说明' } })
+    const changedContinuous = await shipmentPrintService.resolveShipmentDocumentPdf(twoPaperShipment.id, { audience: 'customer', paper: 'continuous' })
+    assert.equal(await prisma.documentAttachment.count({ where: twoPaperWhere }), 3, '可见内容变化后先打印连续纸只应增加连续纸归档')
+    const changedA4 = await shipmentPrintService.resolveShipmentDocumentPdf(twoPaperShipment.id, { audience: 'customer', paper: 'a4' })
+    const changedPaperArchives = await prisma.documentAttachment.findMany({ where: twoPaperWhere })
+    assert.equal(changedPaperArchives.length, 4, '可见内容变化后两种纸型应各自新增一个版本')
+    assert.equal(new Set(changedPaperArchives.map((attachment) => attachment.url)).size, 4, '两种纸型的所有修订都必须拥有独立二维码')
+    for (const paperCase of customerPaperCases) {
+      const profilePaper = `paper=${paperCase.size[0]}x${paperCase.size[1]}mm;`
+      const initialPdf = paperCase.paper === 'continuous' ? firstContinuous : firstA4
+      const changedPdf = paperCase.paper === 'continuous' ? changedContinuous : changedA4
+      assert.equal(changedPdf.pdf.equals(initialPdf.pdf), false, `${paperCase.label} 客户可见内容变化必须生成新版`)
+      assert.equal(changedPaperArchives.filter((attachment) => attachment.note?.includes(profilePaper)).length, 2, `${paperCase.label} 应保留两个独立版本`)
+      const initialArchive = firstPaperArchives.find((attachment) => attachment.note?.includes(profilePaper))
+      const changedArchive = changedPaperArchives.find((attachment) => attachment.note?.includes(profilePaper) && !firstPaperArchives.some((first) => first.id === attachment.id))
+      assert.ok(initialArchive && changedArchive)
+      assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(initialArchive.id)).pdf.equals(initialPdf.pdf), true, `${paperCase.label} 内容更新后旧二维码仍须读取旧 PDF`)
+      assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(changedArchive.id)).pdf.equals(changedPdf.pdf), true, `${paperCase.label} 新二维码须读取新 PDF`)
+      const reused = await shipmentPrintService.resolveShipmentDocumentPdf(twoPaperShipment.id, { audience: 'customer', paper: paperCase.paper })
+      assert.equal(reused.pdf.equals(changedPdf.pdf), true, `${paperCase.label} 另一个纸型更新后仍须复用本纸型最新归档`)
+    }
+    assert.equal(await prisma.documentAttachment.count({ where: twoPaperWhere }), 4, '两种纸型的新版本交替补打不得重复归档')
+    if (process.env.PDF_VERIFY_OUTPUT_DIR) {
+      writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, 'customer-a4.pdf'), firstA4.pdf)
     }
     const shipmentAttachments = await prisma.documentAttachment.findMany({ where: { ownerType: 'SHIPMENT', ownerId: shipment.id }, orderBy: { createdAt: 'asc' } })
     assert.deepEqual(shipmentAttachments.map((attachment) => attachment.documentType), [
@@ -568,8 +663,8 @@ async function main() {
       },
     })
     const upgradedA4Pdf = await shipmentPrintService.resolveShipmentDocumentPdf(legacyShipment.id, { audience: 'customer' })
-    assert.equal(upgradedA4Pdf.pdf.equals(previousA4Pdf), false, '旧 A4 客户归档不得命中新 241×140 mm 模板的缓存')
-    await inspectPdf(upgradedA4Pdf.pdf, [241, 140])
+    assert.equal(upgradedA4Pdf.pdf.equals(previousA4Pdf), false, '旧 A4 客户归档不得命中新 241×140 mm 连续纸模板的缓存')
+    await inspectPdf(upgradedA4Pdf.pdf, [241, 140], [25.5, 215.5])
     assert.equal(await prisma.documentAttachment.count({ where: contentArchiveWhere }), 3, '多联连续纸模板升级必须保留旧 A4 归档并创建新版')
     assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(originalContentArchive.id)).pdf.equals(previousA4Pdf), true, '已有 A4 纸单的二维码在模板升级后仍须读取原始 A4 字节')
     const contentItem = await prisma.shipmentItem.findFirstOrThrow({ where: { shipmentId: legacyShipment.id } })
@@ -637,7 +732,7 @@ async function main() {
     await expectCustomerReuse('最新版本之后仅更新内部签收信息，应复用最新客户 PDF')
     assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(originalContentArchive.id)).pdf.equals(previousA4Pdf), true, '所有内容修订后，原 A4 二维码仍需返回当时归档的字节')
 
-    console.log('业务单据打印验证通过：241×140 mm 多联连续纸及长内容分页、内部 A4、通用/客户/内部归档、扫码下载原版、可见内容版本判定、旧 A4/二维码升级、匿名权限边界与取消/冲销/归档说明符合预期')
+    console.log('业务单据打印验证通过：连续纸/A4 双 PDF 与独立归档、190 mm 正文、首尾信息与长内容分页、内部 A4、通用/客户/内部归档、扫码下载原版、可见内容版本判定、旧 A4/二维码升级、匿名权限边界与取消/冲销/归档说明符合预期')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

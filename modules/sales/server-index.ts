@@ -15,3 +15,5 @@ export {
   SHIPMENT_INTERNAL_PDF_TYPE,
 } from './server/shipment-document-service'
 export type { ShipmentDocumentAudience } from './server/shipment-document-service'
+export { customerShipmentPapers } from './server/customer-shipment-pdf'
+export type { CustomerShipmentPaper } from './server/customer-shipment-pdf'

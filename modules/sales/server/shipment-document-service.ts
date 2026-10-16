@@ -8,7 +8,7 @@ import { renderBusinessDocumentPdf, businessDocumentPrintProfile } from '@/modul
 import type { BusinessDocumentPdfResult, BusinessDocumentPrintData } from '@/modules/business-documents/server-index'
 import { getShipmentDeliveryNoteSource } from './fulfillment-query-service'
 import { SalesDomainError } from '../domain/sales-errors'
-import { renderCustomerShipmentPdf, type CustomerShipmentPrintData } from './customer-shipment-pdf'
+import { customerShipmentPapers, customerShipmentPaperSizes, renderCustomerShipmentPdf, type CustomerShipmentPaper, type CustomerShipmentPrintData } from './customer-shipment-pdf'
 import { unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 
 export const shipmentDocumentAudiences = ['customer', 'internal'] as const
@@ -125,9 +125,13 @@ function sourceRevision(shipment: ShipmentDocumentSource) {
   return shipment.updatedAt.toISOString()
 }
 
-function archiveProfile(audience: ShipmentDocumentAudience, revision: string, settings: SystemSettings, origin?: string) {
+function customerArchivePrefix(paper: CustomerShipmentPaper) {
+  return `shipment-document:customer:v3:paper=${customerShipmentPaperSizes[paper].join('x')}mm;`
+}
+
+function archiveProfile(audience: ShipmentDocumentAudience, revision: string, settings: SystemSettings, origin?: string, paper: CustomerShipmentPaper = 'continuous') {
   return audience === 'customer'
-    ? `shipment-document:customer:v3:paper=241x140mm;content=${revision};download-origin=${origin};`
+    ? `${customerArchivePrefix(paper)}content=${revision};download-origin=${origin};`
     : `shipment-document:internal:v1:source=${revision};${businessDocumentPrintProfile(settings)}`
 }
 
@@ -137,15 +141,16 @@ async function latestArchivedShipmentPdf(
   revision: string,
   settings: SystemSettings,
   origin?: string,
+  paper: CustomerShipmentPaper = 'continuous',
 ) {
-  const profile = archiveProfile(audience, revision, settings, origin)
+  const profile = archiveProfile(audience, revision, settings, origin, paper)
   const archived = await prisma.documentAttachment.findFirst({
     where: {
       ownerType: 'SHIPMENT',
       ownerId: id,
       documentType: documentTypeFor(audience),
       deletedAt: null,
-      ...(audience === 'internal' ? { note: { contains: profile } } : {}),
+      note: audience === 'internal' ? { contains: profile } : { startsWith: customerArchivePrefix(paper) },
     },
     orderBy: { createdAt: 'desc' },
   })
@@ -163,12 +168,15 @@ export async function resolveShipmentDocumentPdf(
   id: string,
   options: {
     audience?: ShipmentDocumentAudience
+    paper?: CustomerShipmentPaper
     regenerate?: boolean
     scope?: EffectiveDataScope
     requestUrl?: string
   } = {},
 ): Promise<BusinessDocumentPdfResult> {
   const audience = options.audience || 'customer'
+  const paper = options.paper || 'continuous'
+  if (!customerShipmentPapers.includes(paper)) throw new SalesDomainError('不支持的客户发货单纸型', 400)
   const scope = options.scope || unrestrictedDataScope
   const [shipment, settings] = await Promise.all([
     getShipmentDeliveryNoteSource(id, scope),
@@ -182,9 +190,9 @@ export async function resolveShipmentDocumentPdf(
     ? createHash('sha256').update(JSON.stringify(customerData)).digest('hex')
     : sourceRevision(shipment)
   const origin = audience === 'customer' ? customerDocumentOrigin(options.requestUrl) : undefined
-  const profile = archiveProfile(audience, revision, settings, origin)
+  const profile = archiveProfile(audience, revision, settings, origin, paper)
   if (!options.regenerate) {
-    const archivedPdf = await latestArchivedShipmentPdf(id, audience, revision, settings, origin)
+    const archivedPdf = await latestArchivedShipmentPdf(id, audience, revision, settings, origin, paper)
     if (archivedPdf) {
       try {
         return {
@@ -200,9 +208,9 @@ export async function resolveShipmentDocumentPdf(
   const archiveId = randomUUID()
   const downloadPath = publicDownloadPath(archiveId)
   const pdf = audience === 'customer'
-    ? await renderCustomerShipmentPdf(customerData!, new URL(downloadPath, origin).toString())
+    ? await renderCustomerShipmentPdf(customerData!, new URL(downloadPath, origin).toString(), paper)
     : await renderBusinessDocumentPdf(internalPrintData(shipment), settings)
-  const filename = audience === 'customer' ? `发货单-${shipment.shipmentNo}.pdf` : `发货内部留档-${shipment.shipmentNo}.pdf`
+  const filename = audience === 'customer' ? `发货单-${shipment.shipmentNo}-${paper === 'a4' ? 'A4' : '连续纸'}.pdf` : `发货内部留档-${shipment.shipmentNo}.pdf`
   const ownerDirectory = path.join(attachmentUploadRoot(), 'SHIPMENT', id)
   await mkdir(ownerDirectory, { recursive: true })
   const fileName = `${Date.now()}-${randomUUID()}.pdf`

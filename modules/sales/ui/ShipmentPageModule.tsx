@@ -237,7 +237,8 @@ export default function ShipmentPageModule({
                   <div className="flex flex-wrap gap-2">
                     <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
                     {(item.status === 'SHIPPED' || item.status === 'DELIVERED') && <>
-                      <BusinessDocumentPrintLink kind="shipment" id={item.id} audience="customer" label="客户发货单" />
+                      <BusinessDocumentPrintLink kind="shipment" id={item.id} audience="customer" paper="continuous" label="客户发货单·连续纸" />
+                      <BusinessDocumentPrintLink kind="shipment" id={item.id} audience="customer" paper="a4" label="客户发货单·A4" />
                       <BusinessDocumentPrintLink kind="shipment" id={item.id} audience="internal" label="内部留档" />
                     </>}
                     <ShipmentStatusActions shipment={item} canDispatch={canDispatch} canDeliver={canDeliver} canCancel={canCancel} canReverse={canReverse} onChanged={fetchShipments} onMessage={onMessage} />
@@ -307,7 +308,8 @@ export default function ShipmentPageModule({
                       <div className="flex flex-wrap gap-2">
                         <AppButton size="sm" variant="secondary" onClick={() => setDetailItem(item)}>详情</AppButton>
                         {(item.status === 'SHIPPED' || item.status === 'DELIVERED') && <>
-                          <BusinessDocumentPrintLink kind="shipment" id={item.id} audience="customer" label="客户发货单" />
+                          <BusinessDocumentPrintLink kind="shipment" id={item.id} audience="customer" paper="continuous" label="客户发货单·连续纸" />
+                          <BusinessDocumentPrintLink kind="shipment" id={item.id} audience="customer" paper="a4" label="客户发货单·A4" />
                           <BusinessDocumentPrintLink kind="shipment" id={item.id} audience="internal" label="内部留档" />
                         </>}
                         <ShipmentStatusActions shipment={item} canDispatch={canDispatch} canDeliver={canDeliver} canCancel={canCancel} canReverse={canReverse} onChanged={fetchShipments} onMessage={onMessage} />
@@ -332,7 +334,16 @@ export default function ShipmentPageModule({
           ownerId={detailItem.id}
           onClose={() => setDetailItem(null)}
           onMessage={onMessage}
-          headerActions={<div className="flex flex-wrap gap-2">{(detailItem.status === 'SHIPPED' || detailItem.status === 'DELIVERED') && <><BusinessDocumentPrintLink kind="shipment" id={detailItem.id} audience="customer" label="客户发货单" /><BusinessDocumentPrintLink kind="shipment" id={detailItem.id} audience="internal" label="内部留档" /></>}</div>}
+          actionsPlacement="body"
+          headerActions={(
+            <div className="flex flex-wrap gap-2">
+              {(detailItem.status === 'SHIPPED' || detailItem.status === 'DELIVERED') && <>
+                <BusinessDocumentPrintLink kind="shipment" id={detailItem.id} audience="customer" paper="continuous" label="客户发货单·连续纸" />
+                <BusinessDocumentPrintLink kind="shipment" id={detailItem.id} audience="customer" paper="a4" label="客户发货单·A4" />
+                <BusinessDocumentPrintLink kind="shipment" id={detailItem.id} audience="internal" label="内部留档" />
+              </>}
+            </div>
+          )}
         >
           <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <div><dt className="text-gray-500">明细数量</dt><dd className="mt-1 font-medium text-gray-900">{detailItem.items.length} 项</dd></div>

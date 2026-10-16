@@ -112,9 +112,9 @@ export default function BusinessSettingsPage({ onMessage, canUpdate }: { onMessa
 
       <section className="mb-4 rounded-lg border border-gray-200 p-4">
         <div className="mb-4">
-          <div className="font-medium text-gray-900">A4 业务单据打印格式</div>
-          <div className="mt-1 text-sm text-gray-500">客户发货单使用 241 × 140 mm 针式多联连续纸 PDF；本机打印请选择相同纸型和 100% 实际大小。内部留档及其他单据使用 A4 纵向版式，以下密度和边距设置适用于 A4 单据。</div>
-          <div className="mt-2 text-xs text-gray-500">A4 紧凑模式可将 14 条常规来料明细排在一页；超出容量自动分页。请在单据清单或详情中点击“打印”；版式变化会生成新版，历史 PDF 和二维码仍保留原版本。</div>
+          <div className="font-medium text-gray-900">业务单据打印格式</div>
+          <div className="mt-1 text-sm text-gray-500">客户发货单分为连续纸（241 × 140 mm）和 A4（210 × 297 mm）两个输出入口，正文均固定 190 mm；网页可直接预览原 PDF 并点击浏览器打印，无需先下载。请选择与 PDF 匹配的打印机纸型，按 100% 实际大小输出；物理联数由纸层数决定，PDF 不按联数重复。</div>
+          <div className="mt-2 text-xs text-gray-500">两版客户票据首页显示完整抬头与二维码，续页保留单号、页码和表头，合计、签收及整段底部说明只在末页；各自保留归档和下载二维码。以下密度与边距设置仅适用于内部留档及其他通用 A4 单据，不影响两版客户票据；紧凑模式可容纳 14 条常规来料明细，超出自动分页。</div>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <FormField label="排版密度">

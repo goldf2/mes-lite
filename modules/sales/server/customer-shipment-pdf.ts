@@ -22,12 +22,12 @@ export interface CustomerShipmentPrintData {
 }
 
 const mm = (value: number) => value * 72 / 25.4
-const paperSize: [number, number] = [mm(241), mm(140)]
-// 241 mm 包含两侧链孔，正文避开可撕边；不按物理联数重复生成 PDF 页。
-const left = mm(13)
+export const customerShipmentPapers = ['continuous', 'a4'] as const
+export type CustomerShipmentPaper = typeof customerShipmentPapers[number]
+export const customerShipmentPaperSizes = { continuous: [241, 140], a4: [210, 297] } as const
+// 正文限制在 A4 的常用可打印宽度内，两种纸型均按实际大小居中打印。
+const contentWidth = mm(190)
 const top = mm(6)
-const contentWidth = paperSize[0] - left * 2
-const contentBottom = paperSize[1] - mm(12)
 const fontSize = 9
 const lineHeight = 12
 const cellPadding = 4
@@ -60,7 +60,11 @@ function wrapLines(doc: PDFKit.PDFDocument, value: string, width: number) {
   return lines
 }
 
-export async function renderCustomerShipmentPdf(data: CustomerShipmentPrintData, downloadUrl: string) {
+export async function renderCustomerShipmentPdf(data: CustomerShipmentPrintData, downloadUrl: string, paper: CustomerShipmentPaper = 'continuous') {
+  const dimensions = customerShipmentPaperSizes[paper]
+  const paperSize: [number, number] = [mm(dimensions[0]), mm(dimensions[1])]
+  const left = (paperSize[0] - contentWidth) / 2
+  const contentBottom = paperSize[1] - mm(12)
   const qrCode = await QRCode.toBuffer(downloadUrl, {
     errorCorrectionLevel: 'M', margin: 4, width: 360,
     color: { dark: '#000000', light: '#ffffff' },
@@ -79,8 +83,16 @@ export async function renderCustomerShipmentPdf(data: CustomerShipmentPrintData,
       doc.text(text, x, y, { width, align, lineBreak: false })
     }
     const headingWidth = contentWidth - 96
+    const pageCounters: Array<{ y: number; width: number }> = []
     const drawPageHeader = () => {
       doc.lineWidth(0.5).fillColor('black').strokeColor('black')
+      if (pageCounters.length > 0) {
+        doc.fontSize(fontSize)
+        const lines = wrapLines(doc, `发货单号：${data.shipmentNo}`, contentWidth - 96)
+        lines.forEach((line, index) => textLine(line, left, top + index * lineHeight, contentWidth - 96))
+        pageCounters.push({ y: top, width: contentWidth })
+        return drawTableHeader(top + Math.max(22, lines.length * lineHeight + 8))
+      }
       doc.fontSize(15)
       textLine('客户发货单', left, top, headingWidth, 'center')
       let headingY = top + 21
@@ -96,7 +108,11 @@ export async function renderCustomerShipmentPdf(data: CustomerShipmentPrintData,
       doc.fontSize(7)
       textLine('如需电子档，请扫描', qrLeft, top + 66, 70, 'center')
       textLine('二维码获取', qrLeft, top + 76, 70, 'center')
-      const tableTop = Math.max(headingY + 6, top + 91)
+      const counterY = Math.max(headingY + 2, top + 76)
+      pageCounters.push({ y: counterY, width: headingWidth })
+      return drawTableHeader(counterY + 15)
+    }
+    const drawTableHeader = (tableTop: number) => {
       doc.fontSize(fontSize)
       let x = left
       headers.forEach((header, index) => {
@@ -113,14 +129,29 @@ export async function renderCustomerShipmentPdf(data: CustomerShipmentPrintData,
       cursorY = drawPageHeader()
       pageBodyTop = cursorY
     }
+    const closingHeight = 44
+    const details = [
+      ['收货地址', data.address],
+      ['供货联系人', `${data.companyContact}    电话：${data.companyPhone}`],
+      ['供货地址', data.companyAddress],
+      ['客户凭证号', `${data.voucherNo}    物流单号：${data.trackingNo}`],
+      ['包裹', data.packages],
+      ['备注', data.note],
+    ].map(([label, value]) => ({ label, lines: wrapLines(doc, `${label}：${value}`, contentWidth - cellPadding * 2) }))
+    const tailHeight = 6 + details.reduce((sum, detail) => sum + detail.lines.length * lineHeight, 0) + closingHeight
 
-    for (const values of data.rows) {
+    for (let rowIndex = 0; rowIndex < data.rows.length; rowIndex += 1) {
+      const values = data.rows[rowIndex]
       doc.fontSize(fontSize)
       const cells = widths.map((width, index) => wrapLines(doc, values[index] || '-', width - cellPadding * 2))
       const lines = Math.max(...cells.map((cell) => cell.length))
-      const fullHeight = Math.max(22, lines * lineHeight + cellPadding * 2)
+      const fullHeight = Math.max(20, lines * lineHeight + cellPadding * 2)
+      // 短收尾区与最后一条明细一起移页，避免另打一张只有合计/签字的纸。
+      const requiredHeight = rowIndex === data.rows.length - 1 && fullHeight + tailHeight <= contentBottom - pageBodyTop
+        ? fullHeight + tailHeight
+        : fullHeight
       // 普通明细整行移至下一页；只有单行本身超过一整页时才拆成带“续”的片段。
-      if (cursorY > pageBodyTop && cursorY + fullHeight > contentBottom) nextPage()
+      if (cursorY > pageBodyTop && cursorY + requiredHeight > contentBottom) nextPage()
       let offset = 0
       while (offset < lines) {
         const availableLines = Math.floor((contentBottom - cursorY - cellPadding * 2) / lineHeight)
@@ -129,7 +160,7 @@ export async function renderCustomerShipmentPdf(data: CustomerShipmentPrintData,
           continue
         }
         const count = Math.min(lines - offset, availableLines)
-        const height = Math.max(22, count * lineHeight + cellPadding * 2)
+        const height = Math.max(20, count * lineHeight + cellPadding * 2)
         let x = left
         cells.forEach((cell, column) => {
           doc.rect(x, cursorY, widths[column], height).stroke()
@@ -145,17 +176,8 @@ export async function renderCustomerShipmentPdf(data: CustomerShipmentPrintData,
     }
 
     cursorY += 6
-    const details = [
-      ['收货地址', data.address],
-      ['供货联系人', `${data.companyContact}    电话：${data.companyPhone}`],
-      ['供货地址', data.companyAddress],
-      ['客户凭证号', `${data.voucherNo}    物流单号：${data.trackingNo}`],
-      ['包裹', data.packages],
-      ['备注', data.note],
-    ]
     doc.fontSize(fontSize)
-    for (const [label, value] of details) {
-      const lines = wrapLines(doc, `${label}：${value}`, contentWidth - cellPadding * 2)
+    for (const { label, lines } of details) {
       for (let index = 0; index < lines.length; index += 1) {
         if (cursorY + lineHeight > contentBottom) {
           nextPage()
@@ -170,7 +192,6 @@ export async function renderCustomerShipmentPdf(data: CustomerShipmentPrintData,
     }
 
     // 整单总额和签收栏作为一个不可拆分的末页区块，续页不出现误导性的整单合计。
-    const closingHeight = 44
     if (cursorY + closingHeight > contentBottom) nextPage()
     const closingY = Math.max(cursorY + 4, contentBottom - closingHeight + 4)
     doc.rect(left, closingY, contentWidth, 20).stroke()
@@ -189,8 +210,8 @@ export async function renderCustomerShipmentPdf(data: CustomerShipmentPrintData,
       doc.switchToPage(range.start + index)
       doc.fontSize(8)
       const footerY = paperSize[1] - mm(8)
-      textLine(index < range.count - 1 ? '接下页' : '本单用于发货交接、签收和对账', left, footerY, contentWidth * 0.7)
-      textLine(`第 ${index + 1}/${range.count} 页`, left, footerY, contentWidth, 'right')
+      if (index === range.count - 1) textLine('本单用于发货交接、签收和对账', left, footerY, contentWidth)
+      textLine(`第 ${index + 1}/${range.count} 页`, left, pageCounters[index].y, pageCounters[index].width, 'right')
     }
     doc.end()
   })

@@ -15,7 +15,9 @@ import {
   hasArchivedShipmentDocumentPdf,
   resolveShipmentDocumentPdf,
   shipmentDocumentAudiences,
+  customerShipmentPapers,
   type ShipmentDocumentAudience,
+  type CustomerShipmentPaper,
 } from '@/modules/sales/server-index'
 import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
 import { SalesDomainError } from '@/modules/sales/domain/sales-errors'
@@ -43,6 +45,8 @@ export async function GET(
       return NextResponse.json({ error: '不支持的发货单输出类型' }, { status: 400 })
     }
     const audience = kind === 'shipment' ? audienceValue as ShipmentDocumentAudience : undefined
+    const paper = (searchParams.get('paper') || 'continuous') as CustomerShipmentPaper
+    if (kind === 'shipment' && !customerShipmentPapers.includes(paper)) return NextResponse.json({ error: '不支持的客户发货单纸型' }, { status: 400 })
     const operator = kind === 'shipment' ? await getCurrentOperator() : null
     if (kind === 'shipment' && !operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
     const scope = operator ? await loadEffectiveDataScope(operator) : undefined
@@ -61,7 +65,7 @@ export async function GET(
       forwardedHost: request.headers.get('x-forwarded-host'), forwardedProto: request.headers.get('x-forwarded-proto'),
     })
     const result = kind === 'shipment'
-      ? await resolveShipmentDocumentPdf(params.id, { audience: audience || 'customer', regenerate, scope, requestUrl })
+      ? await resolveShipmentDocumentPdf(params.id, { audience: audience || 'customer', paper, regenerate, scope, requestUrl })
       : await resolveBusinessDocumentPdf(kind, params.id, regenerate)
     return businessDocumentPdfResponse(result.pdf, result.filename, { disposition: download ? 'attachment' : 'inline' })
   } catch (error) {
