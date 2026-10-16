@@ -102,30 +102,32 @@ export async function renderCustomerShipmentPdf(data: CustomerShipmentPrintData,
       doc.fontSize(7)
       textLine('如需电子档，请扫描', qrLeft, top + 66, 70, 'center')
       textLine('二维码获取', qrLeft, top + 76, 70, 'center')
-      pageCounters.push({ y: top + 88, width: contentWidth })
-      let headingY = top + 21
+      pageCounters.push({ y: top + 4, width: headingWidth })
+      let headingY = top + 23
       doc.fontSize(fontSize)
-      const contactFields = [
-        data.companyName,
-        `发货单号：${data.shipmentNo}    发货时间：${data.shippedAt}`,
-        `客户：${data.customer}`,
-        `收货联系人：${data.customerContact}    收货电话：${data.customerPhone}`,
-        `收货地址：${data.address}`,
-        `供货联系人：${data.companyContact}    电话：${data.companyPhone}`,
-        `供货地址：${data.companyAddress}`,
-      ]
-      for (const text of contactFields) {
-        for (const line of wrapLines(doc, text, headingWidth)) {
-          // 极长联系方式仍完整排在明细之前，续页保留单号和页码。
-          if (headingY + lineHeight > contentBottom - headerHeight - 46) {
-            doc.addPage()
-            headingY = drawContinuationHeader()
-          }
-          textLine(line, left, headingY, headingWidth)
-          headingY += lineHeight
-        }
+      for (const line of wrapLines(doc, `发货单号：${data.shipmentNo}    发货时间：${data.shippedAt}`, headingWidth)) {
+        textLine(line, left, headingY, headingWidth)
+        headingY += lineHeight
       }
-      return drawTableHeader(Math.max(headingY + 6, pageCounters.length === 1 ? top + 101 : 0))
+      headingY += 5
+      const partyGap = 12
+      const partyWidth = (headingWidth - partyGap) / 2
+      const parties = [
+        [`收货方：${data.customer}`, `收货联系人：${data.customerContact}`, `收货电话：${data.customerPhone}`, `收货地址：${data.address}`],
+        [`供货方：${data.companyName}`, `供货联系人：${data.companyContact}`, `供货电话：${data.companyPhone}`, `供货地址：${data.companyAddress}`],
+      ].map((fields) => fields.flatMap((text) => wrapLines(doc, text, partyWidth)))
+      for (let index = 0; index < Math.max(...parties.map((lines) => lines.length)); index += 1) {
+        // 两栏各自折行、共同推进；极长一方资料仍在明细之前完整续页。
+        if (headingY + lineHeight > contentBottom - headerHeight - 46) {
+          doc.addPage()
+          headingY = drawContinuationHeader()
+        }
+        parties.forEach((lines, column) => {
+          if (index < lines.length) textLine(lines[index], left + column * (partyWidth + partyGap), headingY, partyWidth)
+        })
+        headingY += lineHeight
+      }
+      return drawTableHeader(Math.max(headingY + 6, pageCounters.length === 1 ? top + 90 : 0))
     }
     const drawTableHeader = (tableTop: number) => {
       doc.fontSize(fontSize)

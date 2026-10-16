@@ -425,15 +425,26 @@ async function main() {
           && !compactText(item.str).startsWith(`发货单号：${compactText(data.shipmentNo)}`)
           && !['如需电子档，请扫描', '二维码获取', '序号', '物料编码', '物料名称/规格', '数量', '单价', '金额'].includes(item.str))
         .map((item) => item.str).join(''))
-        .replace(/(?:收货地址|供货联系人|供货地址|客户凭证号|物流单号|包裹|备注)（续）：/g, '')
+        .replace(/(?:收货方|收货联系人|收货电话|收货地址|供货方|供货联系人|供货电话|供货地址|客户凭证号|物流单号|包裹|备注)（续）：/g, '')
       const frontMatter = layout.filter((item) => beforePosition(item, firstTableHeader))
-      const frontMatterText = withoutPageFurniture(frontMatter)
-      for (const value of [data.customerContact, data.customerPhone, data.address, data.companyContact, data.companyPhone, data.companyAddress]) {
-        assert.ok(frontMatterText.includes(compactText(value)), `${label} 收发货联系人、电话和完整地址必须位于首个明细表头前：${value}`)
-      }
-      for (const field of ['收货联系人', '收货地址', '供货联系人', '供货地址']) {
-        const position = layout.find((item) => compactText(item.str).startsWith(`${field}：`))
-        assert.ok(position && beforePosition(position, firstTableHeader), `${label} ${field}必须放在明细前的资料区`)
+      const receiver = frontMatter.find((item) => compactText(item.str).startsWith('收货方：'))
+      const supplier = frontMatter.find((item) => compactText(item.str).startsWith('供货方：'))
+      assert.ok(receiver && supplier, `${label} 明细前必须提供收货方和供货方两栏`)
+      assert.equal(receiver.pageIndex, supplier.pageIndex, `${label} 收货方和供货方首行必须在同页并排`)
+      assert.ok(Math.abs(receiver.y - supplier.y) < 0.5, `${label} 收货方和供货方首行必须水平对齐`)
+      assert.ok(receiver.x < supplier.x, `${label} 收货方必须位于左栏、供货方位于右栏`)
+      const partyColumns = [
+        { name: '收货方左栏', items: frontMatter.filter((item) => item.x < supplier.x - 0.5), values: [data.customer, data.customerContact, data.customerPhone, data.address], fields: ['收货方', '收货联系人', '收货电话', '收货地址'] },
+        { name: '供货方右栏', items: frontMatter.filter((item) => item.x >= supplier.x - 0.5), values: [data.companyName, data.companyContact, data.companyPhone, data.companyAddress], fields: ['供货方', '供货联系人', '供货电话', '供货地址'] },
+      ]
+      for (const column of partyColumns) {
+        const columnText = withoutPageFurniture(column.items)
+        for (const value of column.values) {
+          assert.ok(columnText.includes(compactText(value)), `${label} ${column.name}的名称、联系人、电话和跨页地址必须完整且保留在原栏：${value}`)
+        }
+        for (const field of column.fields) {
+          assert.ok(column.items.some((item) => compactText(item.str).startsWith(`${field}：`)), `${label} ${field}必须位于明细前的${column.name}`)
+        }
       }
       const firstName = data.rows[0][2].slice(0, 8)
       const firstNameCell = layout.find((item) => item.str.startsWith(firstName) && beforePosition(firstTableHeader, item))
@@ -510,23 +521,31 @@ async function main() {
       await verifyCustomerPageSections(oversizedRowPdf, oversizedRowPages, oversizedRowData, `${paperCase.label} 超高行`)
       const oversizedRowText = await readPdfTableColumn(oversizedRowPdf, '物料名称/规格', '超长物料说明第01段')
       assert.equal(oversizedRowText, compactText(oversizedRowSegments.join('')), `${paperCase.label} 单个超高明细行跨页后，按列重建的全部正文必须与原文完全一致`)
-      const oversizedAddressData = {
-        ...singlePageData,
-        address: Array.from({ length: 240 }, (_, index) => `长地址区域${String(index + 1).padStart(3, '0')}号厂房收货位置LONGADDR${String(index + 1).padStart(3, '0')}END。`).join(''),
+      for (const addressCase of [
+        { field: 'address', name: '收货地址', output: 'oversized-address' },
+        { field: 'companyAddress', name: '供货地址', output: 'oversized-supplier-address' },
+      ] as const) {
+        const oversizedAddressData = {
+          ...singlePageData,
+          [addressCase.field]: Array.from({ length: 240 }, (_, index) => `长地址区域${String(index + 1).padStart(3, '0')}号厂房收货位置LONGADDR${String(index + 1).padStart(3, '0')}END。`).join(''),
+        }
+        const oversizedAddressPdf = await renderCustomerShipmentPdf(oversizedAddressData, 'https://mes.example.test/api/public/shipment-documents/00000000-0000-4000-8000-000000000003/download', paperCase.paper)
+        const oversizedAddressPages = await inspectPdf(oversizedAddressPdf, paperCase.size, paperCase.bounds)
+        await verifyCustomerPageSections(oversizedAddressPdf, oversizedAddressPages, oversizedAddressData, `${paperCase.label} 超长${addressCase.name}`)
+        const oversizedAddressLayout = await readPdfLayout(oversizedAddressPdf)
+        const delayedTable = oversizedAddressLayout.find((item) => compactText(item.str) === '物料编码')
+        assert.ok(delayedTable && delayedTable.pageIndex > 0, `${paperCase.label} 超长${addressCase.name}必须先完整流式分页，再开始明细`)
+        assert.equal(oversizedAddressPages[0].includes('物料编码'), false, `${paperCase.label} 纯前置资料页无需打印空的明细表头`)
+        if (process.env.PDF_VERIFY_OUTPUT_DIR) {
+          mkdirSync(process.env.PDF_VERIFY_OUTPUT_DIR, { recursive: true })
+          writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, `customer-${paperCase.paper}-${addressCase.output}.pdf`), oversizedAddressPdf)
+        }
       }
-      const oversizedAddressPdf = await renderCustomerShipmentPdf(oversizedAddressData, 'https://mes.example.test/api/public/shipment-documents/00000000-0000-4000-8000-000000000003/download', paperCase.paper)
-      const oversizedAddressPages = await inspectPdf(oversizedAddressPdf, paperCase.size, paperCase.bounds)
-      await verifyCustomerPageSections(oversizedAddressPdf, oversizedAddressPages, oversizedAddressData, `${paperCase.label} 超长地址`)
-      const oversizedAddressLayout = await readPdfLayout(oversizedAddressPdf)
-      const delayedTable = oversizedAddressLayout.find((item) => compactText(item.str) === '物料编码')
-      assert.ok(delayedTable && delayedTable.pageIndex > 0, `${paperCase.label} 超长前置地址必须先完整流式分页，再开始明细`)
-      assert.equal(oversizedAddressPages[0].includes('物料编码'), false, `${paperCase.label} 纯前置资料页无需打印空的明细表头`)
       if (process.env.PDF_VERIFY_OUTPUT_DIR) {
         mkdirSync(process.env.PDF_VERIFY_OUTPUT_DIR, { recursive: true })
         writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, `customer-${paperCase.paper}-single-page.pdf`), singlePagePdf)
         writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, `customer-${paperCase.paper}-multipage.pdf`), stressPdf)
         writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, `customer-${paperCase.paper}-oversized-row.pdf`), oversizedRowPdf)
-        writeFileSync(join(process.env.PDF_VERIFY_OUTPUT_DIR, `customer-${paperCase.paper}-oversized-address.pdf`), oversizedAddressPdf)
       }
     }
     if (process.env.PDF_VERIFY_OUTPUT_DIR) {
@@ -855,7 +874,7 @@ async function main() {
     await expectCustomerReuse('最新版本之后仅更新内部签收信息，应复用最新客户 PDF')
     assert.equal((await shipmentPrintService.resolvePublicShipmentDocumentPdf(originalContentArchive.id)).pdf.equals(previousA4Pdf), true, '所有内容修订后，原 A4 二维码仍需返回当时归档的字节')
 
-    console.log('业务单据打印验证通过：连续纸/A4 双 PDF 与独立归档、190 mm 正文、收发货资料前置与超长地址分页、明细紧接合计和末页签收、长备注/超高明细完整性、v3/v4 版式及旧二维码、客户联系人版本判定、内部 A4、匿名权限边界与取消/冲销/归档说明符合预期')
+    console.log('业务单据打印验证通过：连续纸/A4 双 PDF 与独立归档、190 mm 正文、收发货资料左右分栏与双侧超长地址分页、明细紧接合计和末页签收、长备注/超高明细完整性、v3/v4 版式及旧二维码、客户联系人版本判定、内部 A4、匿名权限边界与取消/冲销/归档说明符合预期')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

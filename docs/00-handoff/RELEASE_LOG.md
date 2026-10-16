@@ -1,13 +1,14 @@
 # 发布记录
 
-## REL-20261016-02：MES-lite v0.1.477（发布前，本地验证通过）
+## REL-20261016-02：MES-lite v0.1.477（发布前，最终左右栏本地验证通过）
 
-- 状态：本地工作版本 `v0.1.477` 已完成版式修复与定向验证；提交 SHA、精确候选 MES-lite CI、`main` 推进及 Con01 发布尚待完成。现网基线仍为 `v0.1.476 / 81b22102188640903a069ce4598fbb238935c9a0`，旧版生产证据完整保留于 REL-20261016-01。
-- 范围：客户连续纸和 A4 发货单将收发货双方联系人、电话、地址统一放在明细前，收货联系人取 `customerRef.contact`、缺失显示 `-`；长地址完整流式分页。最后明细后立即合计，再显示凭证、物流、包裹和备注，签收及底部说明只在末页；长说明时合计可留在最后明细页、签收在后续页。customer profile 升为 v4，避免旧版式缓存，旧归档及二维码原文件不变。
+- 状态：本地工作版本 `v0.1.477` 最终左右栏及合计/缓存修复已通过全部本地定向验证；新提交 SHA、精确候选 MES-lite CI、`main` 推进及 Con01 发布尚待完成。现网基线仍为 `v0.1.476 / 81b22102188640903a069ce4598fbb238935c9a0`，旧版生产证据完整保留于 REL-20261016-01。
+- 范围：客户连续纸和 A4 发货单将收发货资料放在明细前；顶部收货方在左、供货方在右，联系人、电话和地址各归本栏，单号、日期独立横排。收货联系人取 `customerRef.contact`、缺失显示 `-`；长地址完整流式分页。最后明细后立即合计，再显示凭证、物流、包裹和备注，签收及底部说明只在末页；长说明时合计可留在最后明细页、签收在后续页。customer profile 升为 v4，避免旧版式缓存，旧归档及二维码原文件不变。
 - 复用与边界：沿用 `modules/sales` 客户 PDF 绘制、发货事实/可见内容投影、独立纸型归档与二维码下载；无数据库迁移、权限或库存计算变化，内部留档继续使用原通用 A4 引擎。
-- 本地证据：`verify:business-document-print`（双纸型单页、32 行长地址/备注、超高行、240 段前置地址、合计坐标、联系人变更、v3/v4 历史字节）、`tsc --noEmit --incremental false`、4 文件定向 Lint、`verify:module-boundaries`、`verify:sop`、`verify:development-docs`、`verify:release-notes` 和 `git diff --check` 均通过；根代理已人工检查双纸型单页及多页全部页面。
+- 本地验证：`verify:business-document-print`（两侧分别 240 段地址跨页、左右坐标同 y、双纸型单页/32 行多页、超高行、长备注、合计位置、联系人内容变更、v3/v4 历史字节）、`tsc --noEmit --incremental false`、4 文件定向 Lint、`verify:module-boundaries`、`verify:sop`、`verify:development-docs`、`verify:release-notes` 和 `git diff --check` 均通过；根代理已人工检查最终左右栏双纸型单页及 32 行多页全部页面，无裁切或重叠。
 - 文档同步：`docs/product/业务单据打印与归档.md`、`docs/architecture/code-directory-and-module-boundary.md`、`docs/minierp/当前系统建模与结构审查.md`、`docs/minierp/系统交互与设计规范.md`、`docs/minierp/桌面端界面开发规范.md`、`docs/minierp/system-function-flow.md`、`docs/minierp/feature-model.md`、`docs/releases/PENDING.md`、四份 `docs/00-handoff` 记录，以及 SOP 27/28/29、`sop/change-impact.json` 和 v0.1.477 Markdown 指导书。旧版指导书保留，未生成 DOCX/PDF/视频成品。476 发布后记录当时先留本地，本次 477 修复一并归档。
-- 发布门禁与验收：精确候选 CI 成功后才允许推进 `main` 和 Con01；之后补齐容器/SOURCE_COMMIT/公开版本、健康、备份、持久挂载与认证页面证据。实际针式走纸、复写和 A4 定位仍待试打；本地验证期间未改生产业务数据，不访问 AL02。
+- 发布门禁与验收：核对最终版本新精确候选 CI 成功后才允许推进 `main` 和 Con01；之后补齐容器/SOURCE_COMMIT/公开版本、健康、备份、持久挂载与认证页面证据。实际针式走纸、复写和 A4 定位仍待试打；本地验证期间未改生产业务数据，不访问 AL02。
+
 
 ## REL-20261016-01：MES-lite v0.1.476（Con01 已部署，生产只读验收通过）
 
