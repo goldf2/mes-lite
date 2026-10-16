@@ -561,7 +561,7 @@ SKU，实际库存单位。
 
 发货系统生成 PDF 使用独立 `document_type`：客户发货单和内部留档分别归档，记录的 `note` 保存受众和版本依据；它们由发货单专用动作读取，不混入用户上传的原始附件列表。Office/CAD 预览 PDF 是附件派生文件，SOP PDF 是离线制品，均不属于发货业务单据归档。
 
-`v0.1.475` 起，客户发货单复用 `DocumentAttachment`、持久化附件目录和发货单领域服务，不新增 Prisma 字段或迁移。创建发货记录不预生成 PDF；确认发货后，已登录且有权的人员首次点击“客户发货单”时生成并归档，客户可见内容与公网 origin 未变的后续输出直接复用归档字节。客户归档 profile 为 `shipment-document:customer:v2:content=<hash>;download-origin=<origin>;`；内容哈希与渲染共用 `customerPrintData`，只包含 PDF 实际展示的格式化文字、明细、货箱摘要和企业资料，不依赖 `Shipment.updatedAt`。内部成本、库位、发货操作人及 `SHIPPED → DELIVERED` 变化不产生客户新版本；物料或货箱的展示内容变化即使未更新 Shipment 时间，也会产生新版本。内部留档仍使用 `Shipment.updatedAt` 和通用打印 profile。
+`v0.1.475` 起，客户发货单复用 `DocumentAttachment`、持久化附件目录和发货单领域服务，不新增 Prisma 字段或迁移。创建发货记录不预生成 PDF；确认发货后，已登录且有权的人员首次点击“客户发货单”时生成并归档，客户模板 profile、可见内容与公网 origin 未变的后续输出直接复用归档字节。`v0.1.476` 起客户归档 profile 为 `shipment-document:customer:v3:paper=241x140mm;content=<hash>;download-origin=<origin>;`，对应固定 241 × 140 mm 连续纸 PDF；历史 `shipment-document:customer:v2:content=<hash>;download-origin=<origin>;` A4 归档及其二维码保留原文件，不被新模板覆盖。内容哈希与渲染共用 `customerPrintData`，只包含 PDF 实际展示的格式化文字、明细、货箱摘要和企业资料，不依赖 `Shipment.updatedAt`。内部成本、库位、发货操作人及 `SHIPPED → DELIVERED` 变化不产生客户新版本；物料或货箱的展示内容变化即使未更新 Shipment 时间，也会产生新版本。内部留档仍使用 `Shipment.updatedAt` 和通用打印 profile；全局 A4 密度和页边距变化不产生客户连续纸新版本。
 
 渲染前先分配随机 UUID v4 作为附件 `id`，二维码编码完整 HTTPS 地址 `/api/public/shipment-documents/{id}/download`，附件 `url` 保存该相对路径。公网 origin 优先取服务端 `MES_PUBLIC_BASE_URL`，否则取请求 origin；仅非生产本地开发允许 localhost HTTP。
 

@@ -1,9 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
-import fs from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import PDFDocument from 'pdfkit'
-import QRCode from 'qrcode'
 import { attachmentUploadRoot, resolveAttachmentStoragePath } from '@/lib/attachment-storage'
 import { getSystemSettings, type SystemSettings } from '@/lib/system-settings'
 import { prisma } from '@/lib/prisma'
@@ -11,6 +8,7 @@ import { renderBusinessDocumentPdf, businessDocumentPrintProfile } from '@/modul
 import type { BusinessDocumentPdfResult, BusinessDocumentPrintData } from '@/modules/business-documents/server-index'
 import { getShipmentDeliveryNoteSource } from './fulfillment-query-service'
 import { SalesDomainError } from '../domain/sales-errors'
+import { renderCustomerShipmentPdf, type CustomerShipmentPrintData } from './customer-shipment-pdf'
 import { unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 
 export const shipmentDocumentAudiences = ['customer', 'internal'] as const
@@ -38,13 +36,6 @@ function customerDocumentOrigin(requestUrl?: string) {
   }
 }
 
-const fontPaths = [
-  process.env.PDF_FONT_PATH,
-  path.join(process.cwd(), 'assets/fonts/NotoSansCJKsc-Regular.otf'),
-  '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
-  '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
-].filter((fontPath): fontPath is string => Boolean(fontPath))
-
 function documentTypeFor(audience: ShipmentDocumentAudience) {
   return audience === 'customer' ? SHIPMENT_CUSTOMER_PDF_TYPE : SHIPMENT_INTERNAL_PDF_TYPE
 }
@@ -57,23 +48,10 @@ function money(value: number) {
   return `¥${value.toFixed(2)}`
 }
 
-function drawCell(
-  doc: PDFKit.PDFDocument,
-  text: string,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  options: PDFKit.Mixins.TextOptions = {},
-) {
-  doc.rect(x, y, width, height).stroke()
-  doc.text(text, x + 6, y + 8, { width: width - 12, height: height - 12, ellipsis: true, ...options })
-}
-
 type ShipmentDocumentSource = Awaited<ReturnType<typeof getShipmentDeliveryNoteSource>>
 
 /** 版本判定与渲染共用同一投影，内部成本、库位和更新时间不进入客户单据。 */
-function customerPrintData(shipment: ShipmentDocumentSource, settings: SystemSettings) {
+function customerPrintData(shipment: ShipmentDocumentSource, settings: SystemSettings): CustomerShipmentPrintData {
   return {
     shipmentNo: shipment.shipmentNo,
     shippedAt: formatDate(shipment.shippedAt),
@@ -97,108 +75,6 @@ function customerPrintData(shipment: ShipmentDocumentSource, settings: SystemSet
       ? shipment.packages.map((item) => `${item.packageNo}（${item.items.reduce((sum, row) => sum + Number(row.quantity), 0)} ${item.items[0]?.unitSnapshot || ''}）`).join('；')
       : '未启用包裹单据',
   }
-}
-
-function setupDocument(doc: PDFKit.PDFDocument, chunks: Buffer[], resolve: (value: Buffer) => void, reject: (reason?: unknown) => void) {
-  doc.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
-  doc.on('end', () => resolve(Buffer.concat(chunks)))
-  doc.on('error', reject)
-  const fontPath = fontPaths.find((candidate) => fs.existsSync(candidate))
-  if (fontPath) {
-    doc.registerFont('main', fontPath)
-    doc.font('main')
-  }
-}
-
-async function renderCustomerShipmentPdf(data: ReturnType<typeof customerPrintData>, downloadUrl: string) {
-  const shipmentQrCode = await QRCode.toBuffer(downloadUrl, {
-    errorCorrectionLevel: 'M',
-    margin: 4,
-    width: 360,
-    color: { dark: '#000000', light: '#ffffff' },
-  })
-  return new Promise<Buffer>((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 48 })
-    const chunks: Buffer[] = []
-    setupDocument(doc, chunks, resolve, reject)
-
-    const pageWidth = doc.page.width
-    const left = 48
-    const right = pageWidth - 48
-    const tableWidth = right - left
-    const headingWidth = tableWidth - 170
-    doc.fontSize(22).text('客户发货单', left, 48, { align: 'center', width: headingWidth })
-    doc.moveDown(0.5)
-    doc.fontSize(10).text(data.companyName, left, 78, { align: 'center', width: headingWidth })
-    doc.image(shipmentQrCode, right - 68, 42, { width: 68, height: 68 })
-    doc.fontSize(9).text('如需电子档，请扫描\n二维码获取', right - 162, 62, { width: 90, align: 'center', lineGap: 3 })
-    doc.fontSize(10)
-    doc.text(`发货单号：${data.shipmentNo}`, left, 108)
-    doc.text(`发货时间：${data.shippedAt}`, left + 280, 112)
-
-    const partyTop = 136
-    const partyWidth = tableWidth / 2
-    doc.rect(left, partyTop, partyWidth, 92).stroke()
-    doc.rect(left + partyWidth, partyTop, partyWidth, 92).stroke()
-    doc.fontSize(11).text('甲方（收货方）', left + 8, partyTop + 8, { width: partyWidth - 16 })
-    doc.fontSize(9).text(`名称：${data.customer}`, left + 8, partyTop + 30, { width: partyWidth - 16 })
-    doc.text(`电话：${data.customerPhone}`, left + 8, partyTop + 48, { width: partyWidth - 16 })
-    doc.text(`地址：${data.address}`, left + 8, partyTop + 66, { width: partyWidth - 16, ellipsis: true })
-    doc.fontSize(11).text('乙方（供货方）', left + partyWidth + 8, partyTop + 8, { width: partyWidth - 16 })
-    doc.fontSize(9).text(`名称：${data.companyName}`, left + partyWidth + 8, partyTop + 30, { width: partyWidth - 16 })
-    doc.text(`联系人：${data.companyContact}`, left + partyWidth + 8, partyTop + 48, { width: partyWidth - 16 })
-    doc.text(`电话/地址：${data.companyPhone} / ${data.companyAddress}`, left + partyWidth + 8, partyTop + 66, { width: partyWidth - 16, ellipsis: true })
-
-    doc.fontSize(9)
-    doc.text(`明细项数：${data.rows.length} 项`, left, 242)
-    doc.text(`客户凭证号：${data.voucherNo}`, left + 220, 242)
-    doc.text(`物流单号：${data.trackingNo}`, left + 390, 242, { width: 155, ellipsis: true })
-
-    const tableTop = 264
-    const headerHeight = 34
-    const rowHeight = 40
-    const widths = [48, 100, 150, 54, 66, 81]
-    const headers = ['序号', '物料编码', '物料名称', '数量', '单价', '金额']
-    const drawHeader = (y: number) => {
-      let headerX = left
-      doc.fontSize(10)
-      headers.forEach((header, index) => {
-        drawCell(doc, header, headerX, y, widths[index], headerHeight, { align: 'center' })
-        headerX += widths[index]
-      })
-      return y + headerHeight
-    }
-    let rowY = drawHeader(tableTop)
-    data.rows.forEach((values) => {
-      if (rowY + rowHeight > doc.page.height - 130) {
-        doc.addPage()
-        rowY = drawHeader(52)
-      }
-      let rowX = left
-      values.forEach((value, index) => {
-        drawCell(doc, value, rowX, rowY, widths[index], rowHeight, { align: index === 2 ? 'left' : 'center' })
-        rowX += widths[index]
-      })
-      rowY += rowHeight
-    })
-    const totalY = rowY
-    const totalLabelWidth = widths.slice(0, 5).reduce((sum, width) => sum + width, 0)
-    drawCell(doc, '合计', left, totalY, totalLabelWidth, 34, { align: 'right' })
-    drawCell(doc, data.total, left + totalLabelWidth, totalY, widths[5], 34, { align: 'center' })
-
-    const noteY = totalY + 50
-    doc.fontSize(9).text(`包裹：${data.packages}`, left, noteY, { width: tableWidth, ellipsis: true })
-    doc.fontSize(10)
-    doc.text(`物流单号：${data.trackingNo}`, left, noteY + 24)
-    doc.text(`备注：${data.note}`, left, noteY + 48, { width: tableWidth })
-    const signY = noteY + 108
-    doc.text('乙方发货人：____________', left, signY)
-    doc.text('甲方收货人：____________', left + 210, signY)
-    doc.text('签收日期：______________', left + 390, signY)
-    doc.fontSize(8).fillColor('#666666')
-    doc.text('本客户发货单由 MES-lite 系统生成，用于双方发货交接、签收和对账。', left, doc.page.height - 72, { align: 'center', width: tableWidth })
-    doc.end()
-  })
 }
 
 function internalPrintData(shipment: ShipmentDocumentSource): BusinessDocumentPrintData {
@@ -251,7 +127,7 @@ function sourceRevision(shipment: ShipmentDocumentSource) {
 
 function archiveProfile(audience: ShipmentDocumentAudience, revision: string, settings: SystemSettings, origin?: string) {
   return audience === 'customer'
-    ? `shipment-document:customer:v2:content=${revision};download-origin=${origin};`
+    ? `shipment-document:customer:v3:paper=241x140mm;content=${revision};download-origin=${origin};`
     : `shipment-document:internal:v1:source=${revision};${businessDocumentPrintProfile(settings)}`
 }
 
