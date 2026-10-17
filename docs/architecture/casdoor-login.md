@@ -1,6 +1,18 @@
-# MES Casdoor 统一登录（v0.1.480 候选）
+# MES Casdoor 统一登录与退出
 
-## 范围与发布状态
+## v0.1.482 退出修正（候选，真实发布结果另行记录）
+
+v0.1.480/481 仅结束 MES 本站会话，身份中心仍可继续 SSO；用户要求真正退出。固定 Casdoor v4.2.0（cc39a939）没有实现 RP `prompt=login` / `max_age`，其 Cookie 未声明 SameSite，跨站浏览器请求也不能可靠携带默认 Lax Cookie。因此本修复使用标准首方 RP-Initiated Logout，不把添加查询参数当作重新验证保证。
+
+正常 OIDC 回调完成原签名、issuer/audience、state、nonce、PKCE 和已有人员绑定校验后，才把该次 `id_token` 封装为 AES-256-GCM HttpOnly Cookie。密钥由现有 Runtime 客户端密钥经 HKDF 专用目的派生，AAD 绑定本站 origin、issuer、client ID、会话 token 摘要及随机认证代际。最多三片、每片最多 3000 字符，总上界 8994；ID Token 上限 6000 字符，超长拒绝建立正常会话，不写数据库、日志或 URL。Cookie 截止时间与原 MES 七天会话一致；token 仅用于退出，绝不授权业务接口。v4.2 的退出按现存 Token 行查找并撤销，允许已到 JWT exp 的原 Token 行；行已删除等提供方错误不能记为成功。
+
+`POST /api/auth/logout` 先取得当前会话对应的有效 hint，再完成原会话及当前浏览器挑战撤销；成功响应后前端立即清可见身份。正常 Casdoor 会话获得独立加密的两分钟 handoff 和 state Cookie，只返回固定本站路径，不返回 Token。本站 handoff GET 消费浏览器 handoff Cookie，返回严格 CSP、no-store、no-referrer 的无第三方脚本隐藏表单，首方 POST 到固定 issuer `/api/logout`，字段为 `id_token_hint`、`client_id`、唯一 `post_logout_redirect_uri` 和随机 state。Token 不进入导航 URL；普通导航不使用会触发预取的 Link。
+
+身份中心返回 `/api/auth/casdoor/logout/callback` 时必须匹配精确 state、两分钟有效期和当前代际；清除退出相关 Cookie 后只回到固定已退出页面，不自动登录。消费 Cookie 属于当前浏览器，不宣称服务端全局单次消费。专用 Casdoor 客户端需另外登记唯一退出回调 `https://mes.csyufeng.com/api/auth/casdoor/logout/callback`；本候选不执行提供方配置修改。真实发布验收仍必须验证身份中心已不再自动 SSO、MES 私有接口拒绝，不能仅凭 callback 状态认定通过。
+
+旧版 Casdoor 会话由 `logout-protocol-v2` 指纹变化撤销，需重新正常登录以取得安全 hint；原 builtin 指纹和管理员恢复不受这一协议增量影响。缺 hint 或异常时，仅复用已有公共 `browser-logout` 前查/POST/后查作为兼容尝试；跨站 Cookie/CORS 等失败诚实显示未确认，不假报成功。管理员密码恢复会话始终仅本站退出。人员、岗位、业务资料、身份绑定和原挑战竞态保护不变，无新数据库迁移。
+
+## v0.1.480 历史候选范围与发布状态
 
 MES 保持独立 Web、数据库、人员、岗位权限与业务 API；企业业务平台只统一入口和身份。此候选从 API479 的 `9e9cc5cf4ab5e89c1cf83d4a2a1966305ee29d1e` 创建，不把目录 API 的机器委托当作网页登录。源码和隔离测试不是生产接入完成；未创建生产客户端、人员绑定、权限或更改运行模式。当前 Casdoor 源仍为 AL03，Con01 备用保持停止。
 
@@ -38,7 +50,9 @@ MES 保持独立 Web、数据库、人员、岗位权限与业务 API；企业�
 | GET /api/system/login-settings | 匿名401，非 ADMIN403；返回安全 Runtime 诊断，不返回 secret、指纹或身份列表 |
 | GET /admin-login | 明确人工选择的已有管理员恢复入口，不是普通登录自动回退 |
 | POST /api/auth/native-admin/login | 原账号密码校验/限流/写请求 Origin 保护；仅 ACTIVE ADMIN；不生成密码、Token 或角色 |
-| POST /api/auth/logout | 原本站会话删除与 Cookie 清除；退出后私有接口401。仅退出本站，不冒称身份中心退出 |
+| POST /api/auth/logout | 本站会话与当前挑战撤销；可返回固定加密首方退出 handoff，恢复管理员仅本站 |
+| GET /api/auth/casdoor/logout | 消费两分钟浏览器 handoff，固定首方表单 POST 提供方；不接受查询参数 |
+| GET /api/auth/casdoor/logout/callback | 精确 state/有效期/代际；清退出 Cookie，固定返回已退出状态，不自动登录 |
 
 OIDC 挑战只保存随机票据摘要、state、nonce、PKCE verifier、配置代际、返回路径和五分钟到期、单次claim时间和关联sessionId；票据 Cookie 为 HttpOnly/SameSite=Lax，生产 Secure。回调原子claim，失败也不能重用；建会话前事务重查挑战并回链session。退出按当前浏览器票据事务撤销挑战及关联会话，清除两Cookie；在途token交换在退出之后完成也不能建会话，不撤销其他浏览器。issuer、audience、azp、签名、nonce 或 PKCE 不符时不建立会话。回跳基于已配置 origin，不能采用请求 Host 产生外站跳转。
 

@@ -42,14 +42,16 @@ async function main(){
   assert.match(casdoor,/class="oak-auth-screen"/);assert.match(casdoor,/使用 Casdoor 登录/);assert.match(casdoor,/管理员恢复登录/);assert.doesNotMatch(casdoor,/type="password"|微信|提交注册|private-business/);checks++
   for(const current of [null,{...method,mode:'invalid',ready:false},{...method,ready:false}]){const html=gateHtml(current);assert.match(html,/登录暂不可用/);assert.doesNotMatch(html,/type="password"|微信|使用 Casdoor 登录/);assert.match(html,/\/settings\/login/)}checks++
   const waiting=gateHtml(method,'CASDOOR_BINDING_REQUIRED');assert.match(waiting,/等待业务账号关联/);assert.match(waiting,/已有的有效 MES 账号/);assert.doesNotMatch(waiting,/type="password"/);checks++
-  assert.match(gateHtml(method,'LOCAL_LOGOUT_COMPLETE'),/已退出本站，身份中心会话可能仍然有效/);checks++
+  assert.match(gateHtml(method,'PROVIDER_LOGOUT_COMPLETE'),/已退出 MES 和当前浏览器的统一账号/);checks++
+  const pending=gateHtml(method,'PROVIDER_LOGOUT_PENDING');assert.match(pending,/正在退出统一账号/);assert.doesNotMatch(pending,/使用 Casdoor 登录/);checks++
+  const failed=gateHtml(method,'PROVIDER_LOGOUT_UNCONFIRMED');assert.match(failed,/统一账号退出未完成/);assert.match(failed,/重试退出统一账号/);assert.match(failed,/重新登录/);checks++
   const builtin=gateHtml({...method,mode:'builtin'},'',true);assert.match(builtin,/type="password"/);assert.match(builtin,/微信/);assert.match(builtin,/注册/);assert.match(builtin,/登录设置/);checks++
   const Native=loadUi('modules/identity-access/ui/NativeLoginForm.tsx').default as Component
   const recovery=renderToStaticMarkup(React.createElement(Native,{recovery:true,onSuccess:()=>{},onMessage:()=>{}}));assert.match(recovery,/管理员登录/);assert.match(recovery,/type="password"/);assert.doesNotMatch(recovery,/微信/);checks++
   const Settings=loadUi('modules/identity-access/ui/LoginSettingsPage.tsx').LoginSettingsContent as Component
   const publicSettings=renderToStaticMarkup(React.createElement(Settings,{method,status:null,message:'当前账号不能查看管理员连接参数。',onRefresh:()=>{}}));assert.match(publicSettings,/当前登录方式/);assert.match(publicSettings,/管理员恢复登录/);assert.doesNotMatch(publicSettings,/客户端 ID|精确回调地址/);checks++
-  const diagnostics={...method,source:'runtime',issuer:'https://identity.fixture.invalid',clientId:'fixture-client',application:'mes-web',organization:'fixture-org',callbackUrl:'https://mes.fixture.invalid/api/auth/casdoor/callback',clientSecretConfigured:true,bindingPolicy:'explicit-existing-active-operator',localRecovery:'existing-active-admin-password',sessionLogout:'local-only',clientSecret:'must-never-render'}
-  const adminSettings=renderToStaticMarkup(React.createElement(Settings,{method,status:diagnostics,onRefresh:()=>{}}));assert.match(adminSettings,/identity\.fixture\.invalid/);assert.match(adminSettings,/已配置，内容不显示/);assert.doesNotMatch(adminSettings,/must-never-render/);assert.match(adminSettings,/不代表已退出 Casdoor/);checks++
+  const diagnostics={...method,source:'runtime',issuer:'https://identity.fixture.invalid',clientId:'fixture-client',application:'mes-web',organization:'fixture-org',callbackUrl:'https://mes.fixture.invalid/api/auth/casdoor/callback',clientSecretConfigured:true,bindingPolicy:'explicit-existing-active-operator',localRecovery:'existing-active-admin-password',sessionLogout:'current-browser-casdoor',clientSecret:'must-never-render'}
+  const adminSettings=renderToStaticMarkup(React.createElement(Settings,{method,status:diagnostics,onRefresh:()=>{}}));assert.match(adminSettings,/identity\.fixture\.invalid/);assert.match(adminSettings,/已配置，内容不显示/);assert.doesNotMatch(adminSettings,/must-never-render/);assert.match(adminSettings,/退出当前浏览器的统一账号/);checks++
   const Menu=loadUi('app/components/shell/AccountMenu.tsx').default as Component
   for(const role of ['OPERATOR','ADMIN']){const html=renderToStaticMarkup(React.createElement(Menu,{containerRef:{current:null},operator:{name:'fixture',role},appVersion:'fixture',open:true,onToggle:()=>{},onLogout:()=>{}}));assert.match(html,/href="\/settings\/login"/)}checks++
   const previous=globalThis.fetch

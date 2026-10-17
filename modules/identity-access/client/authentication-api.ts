@@ -1,3 +1,5 @@
+import { logoutCasdoorBrowser } from '@oaktech/web-auth/browser-logout'
+
 async function readJson(response: Response, fallback: string) {
   const payload = await response.json().catch(() => ({})) as { data?: unknown; error?: string; message?: string }
   if (!response.ok) throw new Error(payload.error || fallback)
@@ -10,8 +12,22 @@ export async function loadCurrentOperator<T>() {
   return (await readJson(response, '读取当前账号失败')).data as T
 }
 
-export async function logoutOperator() {
-  await readJson(await fetch('/api/auth/logout', { method: 'POST' }), '退出登录失败')
+export class ProviderLogoutError extends Error {
+  constructor() { super('统一账号退出未完成，请重试。') }
+}
+
+export async function logoutOperator(onLocalRevoked?: () => void) {
+  const payload = await readJson(await fetch('/api/auth/logout', { method: 'POST' }), '退出登录失败') as { providerLogoutIssuer?: unknown; handoffUrl?: unknown }
+  // Revoke the visible local identity even if the identity provider is unavailable.
+  onLocalRevoked?.()
+  if (payload.handoffUrl !== null && payload.handoffUrl !== undefined) {
+    if (payload.handoffUrl !== '/api/auth/casdoor/logout') throw new ProviderLogoutError()
+    return {providerConfirmed: false, handoffUrl: payload.handoffUrl}
+  }
+  if (payload.providerLogoutIssuer === null || payload.providerLogoutIssuer === undefined) return { providerConfirmed: false, handoffUrl: null }
+  if (typeof payload.providerLogoutIssuer !== 'string') throw new ProviderLogoutError()
+  try { await logoutCasdoorBrowser(payload.providerLogoutIssuer) } catch { throw new ProviderLogoutError() }
+  return { providerConfirmed: true, handoffUrl: null }
 }
 
 export async function loginOperator(input: { username: string; password: string }) {

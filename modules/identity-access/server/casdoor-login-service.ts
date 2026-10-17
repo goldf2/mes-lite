@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { CasdoorLoginError, MES_CASDOOR_CALLBACK, casdoorProvider, safeLoginReturn } from '../domain/casdoor-runtime'
 import { startOperatorSession } from './authentication-service'
 import { ensureAuthenticationRuntime } from './authentication-runtime-service'
+import { requireCasdoorLogoutToken } from './casdoor-logout-service'
 
 export const CASDOOR_CHALLENGE_COOKIE = 'mes_lite_casdoor_challenge'
 const digest = (value: string) => createHash('sha256').update(value).digest('hex')
@@ -61,10 +62,12 @@ export async function completeCasdoorLogin(requestUrl: string, ticket: string, n
   if (binding.operator.status !== 'ACTIVE') throw new CasdoorLoginError('OPERATOR_NOT_ACTIVE', 403)
   const current = await ensureAuthenticationRuntime()
   if (current.state.generation !== pending.generation) throw new CasdoorLoginError('LOGIN_CONFIGURATION_CHANGED', 401)
+  requireCasdoorLogoutToken(tokens.id_token)
   const session = await startOperatorSession(binding.operator, {
     authSource: 'casdoor', authAccountId: binding.id, authSubject: claims.sub, authGeneration: pending.generation, challengeTicketHash: pending.ticketHash,
   })
-  return { session, operatorId: binding.operator.id, operatorName: binding.operator.name, operatorUsername: binding.operator.username, next: safeLoginReturn(pending.returnPath) }
+  // The token is returned only to the server callback for an encrypted HttpOnly logout hint.
+  return { session, idToken: tokens.id_token!, authGeneration: pending.generation, operatorId: binding.operator.id, operatorName: binding.operator.name, operatorUsername: binding.operator.username, next: safeLoginReturn(pending.returnPath) }
 }
 
 /** Revoke only this browser attempt, including a callback session created before logout wins the transaction. */

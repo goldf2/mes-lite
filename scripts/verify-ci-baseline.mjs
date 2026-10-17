@@ -23,6 +23,7 @@ const checks = [
   'verify:authentication-services',
   'verify:casdoor-login',
   'verify:casdoor-login-ui',
+  'verify:casdoor-browser-logout',
   'verify:business-directory',
   'verify:role-task-http-permissions',
   'verify:fine-grained-http-permissions',

@@ -11,7 +11,7 @@ export function LoginSettingsContent({method, status, message = '', loading = fa
     {status && <><h3 className="mt-6 font-medium">管理员连接诊断</h3><dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">{([
       ['身份服务',status.issuer],['客户端 ID',status.clientId],['应用',status.application],['身份组织',status.organization],['精确回调地址',status.callbackUrl],['客户端密钥',status.clientSecretConfigured?'已配置，内容不显示':'未配置'],
     ] as const).map(([label,value])=><div key={label}><dt className="text-gray-500">{label}</dt><dd className="break-all">{value || '未配置'}</dd></div>)}</dl><p className="mt-4 text-sm text-gray-600">配置由服务器运行环境管理。身份只关联已明确登记且有效的 MES 账号，不按邮箱自动合并或创建账号。</p></>}
-    <div className="mt-6 space-y-3 text-sm"><p>管理员恢复使用已有的有效管理员账号和密码；普通登录不可用时仍可手动进入恢复入口。</p><p>退出仅结束本站会话，不代表已退出 Casdoor 身份中心。</p><nav className="flex flex-wrap gap-4"><a href="/" className="text-blue-700 hover:underline">返回 MES</a><a href="/admin-login" className="text-blue-700 hover:underline">管理员恢复登录</a>{method?.mode === 'casdoor' && method.ready && <a href="/api/auth/casdoor/login?next=%2F" className="text-blue-700 hover:underline">使用 Casdoor 登录</a>}</nav></div>
+    <div className="mt-6 space-y-3 text-sm"><p>管理员恢复使用已有的有效管理员账号和密码；普通登录不可用时仍可手动进入恢复入口。</p><p>退出会先结束 MES 会话，再前往身份中心退出当前浏览器的统一账号。统一账号退出未确认时可重试，身份中心会话可能仍然有效；管理员恢复登录仅退出本站。</p><nav className="flex flex-wrap gap-4"><a href="/" className="text-blue-700 hover:underline">返回 MES</a><a href="/admin-login" className="text-blue-700 hover:underline">管理员恢复登录</a>{method?.mode === 'casdoor' && method.ready && <a href="/api/auth/casdoor/login?next=%2F" className="text-blue-700 hover:underline">使用 Casdoor 登录</a>}</nav></div>
   </>
 }
 export default function LoginSettingsPage() {

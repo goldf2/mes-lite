@@ -1,5 +1,9 @@
 # MiniERP 领域模型
 
+## v0.1.482 统一退出
+
+identity-access 明确区分本地撤销和身份中心退出确认；本地成功不代表中央成功，恢复管理员仍仅本站退出。 完整边界见[统一登录与退出设计](../architecture/casdoor-login.md)。
+
 ## v0.1.480 统一登录候选增量
 
 身份认证仍由identity-access拥有，Casdoor只证明身份；OperatorAuthAccount精确issuer+subject映射既有人员，原角色与dataScope决定业务。目录API机器委托不是浏览器会话。 完整接口、数据和回退见[Casdoor登录设计](../architecture/casdoor-login.md)。

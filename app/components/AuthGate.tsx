@@ -10,6 +10,7 @@ import {
   type PublicLoginMethod,
   loadPublicRegistrationEnabled,
   logoutOperator,
+  ProviderLogoutError,
   registerOperatorAccount,
 } from '@/modules/identity-access/client/authentication-api'
 
@@ -61,6 +62,7 @@ export default function AuthGate({ children }: AuthGateProps) {
   const [registrationEnabled, setRegistrationEnabled] = useState(false)
   const [loginMethod, setLoginMethod] = useState<PublicLoginMethod | null>(null)
   const [methodChecked, setMethodChecked] = useState(false)
+  const [logoutError, setLogoutError] = useState('')
 
   useEffect(() => {
     fetchMe()
@@ -96,10 +98,19 @@ export default function AuthGate({ children }: AuthGateProps) {
   }
 
   const handleLogout = async () => {
-    await logoutOperator()
-    setOperator(null)
-    setMode('login')
-    setMessage('LOCAL_LOGOUT_COMPLETE')
+    setLogoutError('')
+    try {
+      const result = await logoutOperator(() => {
+        setOperator(null)
+        setMode('login')
+        setMessage('PROVIDER_LOGOUT_PENDING')
+      })
+      if (result.handoffUrl) {window.location.assign(result.handoffUrl); return}
+      setMessage(result.providerConfirmed ? 'PROVIDER_LOGOUT_COMPLETE' : 'LOCAL_LOGOUT_COMPLETE')
+    } catch (error) {
+      if (error instanceof ProviderLogoutError) setMessage('PROVIDER_LOGOUT_UNCONFIRMED')
+      else setLogoutError('退出失败，请重试。')
+    }
     loadLoginMethod().then(setLoginMethod).catch(() => setLoginMethod(null))
   }
 
@@ -108,10 +119,10 @@ export default function AuthGate({ children }: AuthGateProps) {
   }
 
   if (operator) {
-    return <>{children(operator, handleLogout)}</>
+    return <>{logoutError && <div role="alert" className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-lg bg-red-50 px-4 py-3 text-red-800">{logoutError}</div>}{children(operator, handleLogout)}</>
   }
 
-  if (loginMethod?.mode !== 'builtin' || !loginMethod.ready) return <CasdoorLoginView method={loginMethod} message={message} />
+  if (loginMethod?.mode !== 'builtin' || !loginMethod.ready) return <CasdoorLoginView method={loginMethod} message={message} onRetryLogout={() => void handleLogout()} />
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">

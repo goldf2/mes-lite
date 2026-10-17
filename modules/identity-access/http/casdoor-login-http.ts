@@ -4,6 +4,10 @@ import { setSessionCookie } from '@/lib/auth'
 import { CasdoorLoginError } from '../domain/casdoor-runtime'
 import { readLoginConfiguration } from '../domain/casdoor-runtime'
 import { beginCasdoorLogin, completeCasdoorLogin, CASDOOR_CHALLENGE_COOKIE } from '../server/casdoor-login-service'
+import { casdoorLogoutConnection, sealCasdoorLogoutHint } from '../server/casdoor-logout-service'
+import { ensureAuthenticationRuntime } from '../server/authentication-runtime-service'
+import { setCasdoorLogoutHintCookies } from './casdoor-logout-http'
+import { revokeOperatorSession } from '../server/authentication-service'
 import { enforceAuthenticationRequestLimit } from './authentication-request'
 
 const headers = { 'Cache-Control': 'no-store' }
@@ -26,12 +30,22 @@ export async function casdoorCallbackGet(request: NextRequest) {
   if (!config.origin) return NextResponse.json({ error: 'CASDOOR_UNAVAILABLE' }, { status: 503, headers })
   try {
     const result = await completeCasdoorLogin(request.url, request.cookies.get(CASDOOR_CHALLENGE_COOKIE)?.value || '')
+    let hint: string[]
+    try {
+      const logout = casdoorLogoutConnection(await ensureAuthenticationRuntime())
+      if (!logout || logout.generation !== result.authGeneration) throw new Error('LOGIN_CONFIGURATION_CHANGED')
+      hint = sealCasdoorLogoutHint(logout, result.idToken, result.session.token, result.session.expiresAt)
+    } catch {
+      await revokeOperatorSession(result.session.token)
+      throw new CasdoorLoginError('CASDOOR_LOGIN_FAILED')
+    }
     await writeAuditLogWithContext({ ...await getAuditContext(request), operatorId: result.operatorId, operatorName: result.operatorName }, {
       action: 'LOGIN', entityType: 'OPERATOR', entityId: result.operatorId, entityLabel: result.operatorUsername,
       afterData: { authSource: 'casdoor' },
     })
     const response = NextResponse.redirect(new URL(result.next, config.origin), { headers })
     challengeCookie(response, '', 0)
+    setCasdoorLogoutHintCookies(response, hint, result.session.expiresAt)
     setSessionCookie(response, result.session.token, result.session.expiresAt)
     return response
   } catch (error) {

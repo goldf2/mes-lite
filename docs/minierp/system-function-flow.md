@@ -1,5 +1,9 @@
 # MES-lite 系统功能与流程总览
 
+## v0.1.482 统一退出
+
+退出命令 → 本站会话/挑战撤销 → 固定本站加密 handoff → 首方表单 POST 身份中心 → state 回调 → 已退出页；重新登录只能由用户明确发起。 完整边界见[统一登录与退出设计](../architecture/casdoor-login.md)。
+
 ## v0.1.480 统一登录候选增量
 
 正常统一登录为入口→单次state/nonce/S256PKCE挑战→签名与issuer/aud/azp校验→精确既有人员绑定→原会话→实时业务权限。未关联不建人；恢复入口仅原ACTIVE ADMIN密码。 完整接口、数据和回退见[Casdoor登录设计](../architecture/casdoor-login.md)。

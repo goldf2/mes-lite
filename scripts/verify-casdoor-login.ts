@@ -85,6 +85,10 @@ async function main() {
       callback.searchParams.set('code', currentCode)
       return { pending, callback }
     }
+    const normalLogin = new URL((await login.beginCasdoorLogin('/', network)).authorizationUrl)
+    assert.equal(normalLogin.searchParams.has('prompt'), false)
+    assert.equal(normalLogin.searchParams.has('max_age'), false)
+    checks.push('normal-sso-no-unsupported-reauthentication-parameters')
     let flow = await begin()
     const beforeUsers = await prisma.operator.count()
     await assert.rejects(login.completeCasdoorLogin(flow.callback.href, flow.pending.ticket, network), error => error instanceof domain.CasdoorLoginError && error.code === 'CASDOOR_BINDING_REQUIRED')
@@ -181,7 +185,7 @@ async function main() {
     }))
     const { verifyAuthenticationReadinessHttp } = await import('./casdoor-login-http-fixture')
     checks.push(...await verifyAuthenticationReadinessHttp())
-    console.log(JSON.stringify({ result: 'passed', checks: checks.length, cases: checks, node: process.version, productionWrites: 0, externalNetworkCalls: 0, loopbackHttpChecks: 12, protocol: 'real RS256 tokens and public shared OIDC helper; synthetic identity transport and real local Next HTTP, temporary migrated Prisma DB' }))
+    console.log(JSON.stringify({ result: 'passed', checks: checks.length, cases: checks, node: process.version, productionWrites: 0, externalNetworkCalls: 0, loopbackHttpChecks: checks.filter(value => value.startsWith('http-')).length, protocol: 'real RS256 tokens and public shared OIDC helper; synthetic identity transport and real local Next HTTP, temporary migrated Prisma DB; RP form/callback tested locally, provider not contacted' }))
   } finally {
     await prisma.$disconnect()
     for (const key of Array.from(new Set([...Object.keys(previous), ...Object.keys(process.env)]))) {

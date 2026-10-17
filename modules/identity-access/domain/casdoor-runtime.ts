@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { environmentConfig, type CasdoorConnection } from '@oaktech/web-auth/casdoor-config'
 
 export const MES_CASDOOR_CALLBACK = '/api/auth/casdoor/callback'
+export const MES_CASDOOR_LOGOUT_CALLBACK = '/api/auth/casdoor/logout/callback'
 export const MES_AUTH_RUNTIME_KEY = 'authentication.runtime.v1'
 export type LoginMode = 'builtin' | 'casdoor' | 'invalid'
 export class CasdoorLoginError extends Error {
@@ -20,7 +21,7 @@ export function readLoginConfiguration(env: NodeJS.ProcessEnv = process.env) {
   let connection: CasdoorConnection | null = null
   try { if (mode === 'casdoor') connection = environmentConfig(env) } catch { /* never fall back to builtin */ }
   const ready = mode === 'builtin' || (mode === 'casdoor' && Boolean(origin && connection))
-  const fields = mode === 'builtin' ? ['builtin'] : [mode, rawOrigin, ...[
+  const fields = mode === 'builtin' ? ['builtin'] : [mode, 'logout-protocol-v2', rawOrigin, ...[
     'CASDOOR_ISSUER', 'CASDOOR_CLIENT_ID', 'CASDOOR_CLIENT_SECRET', 'CASDOOR_APPLICATION',
     'CASDOOR_ORGANIZATION', 'CASDOOR_DISCOVERY_URL', 'CASDOOR_SCOPES', 'APP_AUTH_ALLOWED_TARGETS',
   ].map(key => env[key] || '')]

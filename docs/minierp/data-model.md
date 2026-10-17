@@ -1,5 +1,9 @@
 # 未来多租户商品化数据模型草案（非当前实现）
 
+## v0.1.482 统一退出
+
+无新数据库字段/模型；正常验签回调新增与本会话/代际绑定的 AES-GCM HttpOnly 分片退出 hint，及两分钟加密 handoff/state Cookie。令牌不写数据库、日志、URL或普通 JSON。 完整边界见[统一登录与退出设计](../architecture/casdoor-login.md)。
+
 ## v0.1.480 统一登录候选增量
 
 OperatorSession新增authSource/authAccountId/authSubject/authGeneration；OperatorLoginChallenge保存票据摘要、五分钟挑战和返回路径。SystemSetting保留模式/指纹/随机代际，不存明文secret；原人员/岗位/历史结构保持。 完整接口、数据和回退见[Casdoor登录设计](../architecture/casdoor-login.md)。

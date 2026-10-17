@@ -1,5 +1,14 @@
 # 当前状态
 
+## 2026-10-18 统一退出修复 v0.1.482（实现中）
+
+- 用户报本站退出后统一身份仍有效。独立 `mes-casdoor-logout-20261018` 基于精确 main481/fa5b86c；客户主档整合在另一隔离分支483继续，不合并此修复。
+- 本地撤销后即时清身份；正常验签回调保存绑定本会话/代际的 AES-GCM HttpOnly 分片退出 hint，固定两分钟 handoff 以首方表单 POST 身份中心，精确 state 回调返回已退出状态，无自动登录。缺 hint 兼容使用公共 helper，不能确认时明确提示；不依赖提供方未实现的 prompt/max_age。
+- 复用原 AuthFrame/AppButton、身份/挑战/代际服务；无数据库、依赖、业务资料、人员或岗位变更。协议 v2 指纹使旧普通 Casdoor 会话重新登录；builtin/恢复不变。根任务后续须登记专用客户端精确退出 callback，候选未改提供方。
+- 真实 Node20.19.4 本地回归通过：45项真实RSA协议/会话检查（含19项实际Next HTTP）、加密/客户端41项、UI16组、TypeScript、定向Lint、原身份认证服务、身份/模块/架构边界、Docker依赖、发布记录、开发文档与差异格式。精确CI、提供方回调登记、部署和真实跨站浏览器仍未验收。
+- 设计与回退：[统一登录与退出](../architecture/casdoor-login.md)、[482版本](../releases/v0.1.482.md)。唯一下一步：完成定向验证和独立审阅，再推候选CI，精确成功后再 main/Con01。
+
+
 ## 2026-10-17 MES统一登录 v0.1.480（候选实现，生产未启用）
 
 - 独立Worktree `Worktrees/mes-casdoor-login-20261017` / `ci/0.1.480`，基于已推API479 `9e9cc5cf4ab5e89c1cf83d4a2a1966305ee29d1e`；原dirty目录保持。

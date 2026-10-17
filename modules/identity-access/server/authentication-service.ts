@@ -235,3 +235,9 @@ export async function revokeOperatorSession(token: string) {
   const tokenHash = createHash('sha256').update(token).digest('hex')
   await prisma.operatorSession.deleteMany({ where: { tokenHash } })
 }
+
+export async function operatorSessionLogoutContext(token: string | undefined) {
+  if (!token) return null
+  const tokenHash = createHash('sha256').update(token).digest('hex')
+  return prisma.operatorSession.findUnique({ where: { tokenHash }, select: { authSource: true, authGeneration: true, expiresAt: true } })
+}

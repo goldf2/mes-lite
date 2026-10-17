@@ -4,6 +4,7 @@ import { createServer } from 'node:net'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import type { PrismaClient } from '@prisma/client'
+import { CASDOOR_HINT_COOKIES, sealCasdoorLogoutHint } from '../modules/identity-access/server/casdoor-logout-service'
 
 async function availablePort() {
   return new Promise<number>((resolve, reject) => {
@@ -15,7 +16,7 @@ async function availablePort() {
   })
 }
 export async function verifyCasdoorHttpBoundary(prisma: PrismaClient,
-  createOidcSession: () => Promise<{ session: { token: string }; ticket: string }>,
+  createOidcSession: () => Promise<{ session: { token: string; expiresAt: Date }; ticket: string; idToken: string; authGeneration: string }>,
   suspendOidcCallback: () => Promise<{ ticket: string; completion: Promise<unknown>; release: () => void }>,
 ) {
   const checks: string[] = [], port = await availablePort(), origin = 'http://127.0.0.1:' + port
@@ -75,6 +76,7 @@ export async function verifyCasdoorHttpBoundary(prisma: PrismaClient,
       response = await fetch(origin + '/api/auth/logout', { method: 'POST', headers: { Cookie: cookie + '; mes_lite_casdoor_challenge=' + inflight.ticket, Origin: origin } })
       assert.equal(response.status, 200)
       assert.ok(response.headers.get('set-cookie')?.includes('mes_lite_casdoor_challenge='))
+      assert.equal((await response.json()).providerLogoutIssuer, process.env.CASDOOR_ISSUER)
       inflight.release()
       await assert.rejects(inflight.completion, /LOGIN_EXPIRED/)
       assert.equal((await fetch(origin + '/api/system/login-settings', { headers: { Cookie: cookie } })).status, 401)
@@ -94,11 +96,59 @@ export async function verifyCasdoorHttpBoundary(prisma: PrismaClient,
     assert.equal((await fetch(origin + '/api/system/login-settings', { headers: { Cookie: cookie } })).status, 401)
     assert.equal((await fetch(origin + '/api/customers')).status, 401)
     checks.push('http-logout-clears-cookie-and-old-session-private-401')
+    const rp = await createOidcSession(), operatorCount = await prisma.operator.count(), customerCount = await prisma.customer.count()
+    const logoutConfig = {origin, issuer: process.env.CASDOOR_ISSUER!, clientId: process.env.CASDOOR_CLIENT_ID!, clientSecret: process.env.CASDOOR_CLIENT_SECRET!, generation: rp.authGeneration}
+    const hintParts = sealCasdoorLogoutHint(logoutConfig, rp.idToken, rp.session.token, rp.session.expiresAt)
+    const jar = new Map<string,string>([['mes_lite_session',rp.session.token], ...hintParts.map((value,index):[string,string]=>[CASDOOR_HINT_COOKIES[index],value])])
+    const jarHeader = () => Array.from(jar.entries()).map(([key,value])=>key+'='+value).join('; ')
+    const receiveCookies = (result: Response) => {
+      for (const header of result.headers.getSetCookie()) {
+        const pair=header.split(';')[0], separator=pair.indexOf('='), key=pair.slice(0,separator), value=pair.slice(separator+1)
+        if (!value || /Max-Age=0/i.test(header)) jar.delete(key); else jar.set(key,value)
+      }
+    }
+    response = await fetch(origin+'/api/auth/logout',{method:'POST',headers:{Cookie:jarHeader(),Origin:origin}})
+    assert.equal(response.status,200)
+    const logoutPayload=await response.json();assert.equal(logoutPayload.handoffUrl,'/api/auth/casdoor/logout');assert.equal(logoutPayload.providerLogoutIssuer,null)
+    assert.ok(!JSON.stringify(logoutPayload).includes(rp.idToken));receiveCookies(response)
+    assert.equal(jar.has('mes_lite_session'),false);assert.ok(!Array.from(jar.keys()).some(name=>CASDOOR_HINT_COOKIES.includes(name as typeof CASDOOR_HINT_COOKIES[number])))
+    assert.equal((await fetch(origin+'/api/customers',{headers:{Cookie:jarHeader()}})).status,401)
+    assert.equal((await (await fetch(origin+'/api/auth/me',{headers:{Cookie:'mes_lite_session='+rp.session.token}})).json()).data,null)
+    assert.equal((await fetch(origin+'/api/system/login-settings',{headers:{Cookie:'mes_lite_session='+rp.session.token}})).status,401)
+    checks.push('http-rp-local-revoked-before-private-sealed-handoff-no-token-json')
+    const wrongTarget=await fetch(origin+'/api/auth/casdoor/logout?next=https://outside.synthetic.test',{headers:{Cookie:jarHeader()}})
+    assert.equal(wrongTarget.status,409)
+    checks.push('http-rp-handoff-rejects-caller-controlled-query')
+    response = await fetch(origin+'/api/auth/casdoor/logout',{headers:{Cookie:jarHeader()}})
+    assert.equal(response.status,200);assert.match(response.headers.get('content-security-policy')||'',/default-src 'none'/)
+    assert.equal(response.headers.get('referrer-policy'),'no-referrer');assert.equal(response.headers.get('cache-control'),'no-store')
+    const form=await response.text();assert.ok(form.includes('method="post"'));assert.ok(form.includes('name="id_token_hint" value="'+rp.idToken+'"'))
+    assert.ok(form.includes('name="post_logout_redirect_uri" value="'+origin+'/api/auth/casdoor/logout/callback"'))
+    const state=/name="state" value="([A-Za-z0-9_-]{43})"/.exec(form)?.[1];assert.ok(state);receiveCookies(response)
+    assert.ok(!Array.from(jar.keys()).some(name=>name.startsWith('mes_lite_oidc_logout_')&&name!=='mes_lite_oidc_logout_state'))
+    checks.push('http-rp-consumes-browser-handoff-and-returns-fixed-form-post-csp')
+    response=await fetch(origin+'/api/auth/casdoor/logout/callback?state=wrong',{headers:{Cookie:jarHeader()},redirect:'manual'})
+    assert.equal(response.status,409)
+    checks.push('http-rp-callback-rejects-wrong-state')
+    response=await fetch(origin+'/api/auth/casdoor/logout/callback?state='+state,{headers:{Cookie:jarHeader()},redirect:'manual'})
+    assert.equal(response.status,307);assert.equal(response.headers.get('location'),origin+'/?casdoor_login=PROVIDER_LOGOUT_COMPLETE');receiveCookies(response)
+    assert.equal((await fetch(origin+'/api/auth/casdoor/logout/callback?state='+state,{headers:{Cookie:jarHeader()},redirect:'manual'})).status,409)
+    checks.push('http-rp-exact-callback-clears-state-no-auto-login-browser-replay-denied')
+    assert.equal(await prisma.operator.count(),operatorCount);assert.equal(await prisma.customer.count(),customerCount)
+    assert.equal((await fetch(origin+'/api/customers',{headers:{Cookie:jarHeader()}})).status,401)
+    checks.push('http-rp-no-account-business-write-and-private-api-stays-401')
     await prisma.operator.update({ where: { id: 'fixture-ADMIN' }, data: { role: 'OPERATOR' } })
     assert.equal((await fetch(origin + '/api/system/login-settings', { headers: { Cookie: adminCookie } })).status, 401)
     await prisma.operator.update({ where: { id: 'fixture-ADMIN' }, data: { role: 'ADMIN' } })
     assert.equal((await fetch(origin + '/api/system/login-settings', { headers: { Cookie: adminCookie } })).status, 401)
     checks.push('http-recovery-role-revoked-session-cannot-revive')
+    response = await post('/api/auth/native-admin/login', 'fixture-ADMIN')
+    const freshRecoveryCookie = response.headers.get('set-cookie')?.split(';')[0]
+    assert.ok(freshRecoveryCookie)
+    response = await fetch(origin + '/api/auth/logout', {method:'POST',headers:{Cookie:freshRecoveryCookie!,Origin:origin}})
+    assert.equal(response.status, 200)
+    assert.equal((await response.json()).providerLogoutIssuer, null)
+    checks.push('http-native-admin-recovery-does-not-sign-out-provider')
     return checks
   } finally {
     if (server?.pid) {

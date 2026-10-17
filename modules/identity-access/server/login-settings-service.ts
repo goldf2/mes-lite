@@ -13,6 +13,6 @@ export function loginSettingsDiagnostics() {
     callbackUrl: config.origin ? config.origin + MES_CASDOOR_CALLBACK : null,
     clientSecretConfigured: Boolean(process.env.CASDOOR_CLIENT_SECRET),
     bindingPolicy: 'explicit-existing-active-operator', localRecovery: 'existing-active-admin-password',
-    sessionLogout: 'local-only',
+    sessionLogout: 'current-browser-casdoor',
   }
 }
