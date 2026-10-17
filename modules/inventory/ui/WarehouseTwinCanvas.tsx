@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { LocateFixed, Maximize2, Minus, Plus, Warehouse } from 'lucide-react'
 import AppButton from '@/app/components/AppButton'
 import type { WarehouseTwinLocation, WarehouseTwinStatus } from '../model/warehouse-digital-twin'
@@ -40,7 +40,9 @@ export default function WarehouseTwinCanvas({
   onOpenFullscreen?: () => void
 }) {
   const [zoom, setZoom] = useState(1)
-  const [pan, setPan] = useState({ x: 18, y: 18 })
+  const view = useRef({ x: 18, y: 18, zoom: 1 })
+  const layer = useRef<HTMLDivElement>(null)
+  const paintFrame = useRef<number | null>(null)
   const drag = useRef<{ pointerId: number; x: number; y: number; panX: number; panY: number } | null>(null)
   const columns = Math.max(1, Math.ceil(Math.sqrt(Math.max(1, locations.length))))
   const canvasSize = useMemo(() => ({
@@ -48,9 +50,32 @@ export default function WarehouseTwinCanvas({
     height: Math.max(580, padding * 2 + Math.ceil(locations.length / columns) * cardHeight + Math.max(0, Math.ceil(locations.length / columns) - 1) * gap),
   }), [columns, locations.length])
 
+  // Pointer input only moves the composited layer; it does not re-render every stock card.
+  const paintView = () => {
+    if (paintFrame.current !== null) return
+    paintFrame.current = requestAnimationFrame(() => {
+      paintFrame.current = null
+      const { x, y, zoom: scale } = view.current
+      if (layer.current) layer.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`
+    })
+  }
+
+  useEffect(() => () => {
+    if (paintFrame.current !== null) cancelAnimationFrame(paintFrame.current)
+    paintFrame.current = null
+  }, [])
+
+  const changeZoom = (value: number) => {
+    view.current.zoom = Math.min(1.65, Math.max(0.55, Number(value.toFixed(2))))
+    setZoom(view.current.zoom)
+    paintView()
+  }
+
   const resetView = () => {
+    drag.current = null
+    view.current = { x: 18, y: 18, zoom: 1 }
+    paintView()
     setZoom(1)
-    setPan({ x: 18, y: 18 })
   }
 
   return (
@@ -60,34 +85,41 @@ export default function WarehouseTwinCanvas({
         拖动空白处平移 · 点击库位查看详情
       </div>
       <div className="absolute right-4 top-4 z-20 flex gap-2 rounded-xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur">
-        <AppButton size="icon" aria-label="缩小白板" onClick={() => setZoom((value) => Math.max(0.55, Number((value - 0.15).toFixed(2))))}><Minus size={17} /></AppButton>
+        <AppButton size="icon" aria-label="缩小白板" onClick={() => changeZoom(view.current.zoom - 0.15)}><Minus size={17} /></AppButton>
         <span className="flex min-w-14 items-center justify-center text-xs font-semibold text-slate-600">{Math.round(zoom * 100)}%</span>
-        <AppButton size="icon" aria-label="放大白板" onClick={() => setZoom((value) => Math.min(1.65, Number((value + 0.15).toFixed(2))))}><Plus size={17} /></AppButton>
+        <AppButton size="icon" aria-label="放大白板" onClick={() => changeZoom(view.current.zoom + 0.15)}><Plus size={17} /></AppButton>
         <AppButton size="icon" aria-label="复位白板" onClick={resetView}><LocateFixed size={17} /></AppButton>
         {onOpenFullscreen && <AppButton size="icon" aria-label="全屏显示仓库白板" title="全屏显示" onClick={onOpenFullscreen}><Maximize2 size={17} /></AppButton>}
       </div>
       <div
-        className="absolute inset-0 cursor-grab touch-none active:cursor-grabbing"
+        className="absolute inset-0 cursor-grab touch-none select-none active:cursor-grabbing"
         onPointerDown={(event) => {
-          if (event.target !== event.currentTarget) return
-          drag.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y }
+          if (event.button !== 0 || !event.isPrimary || drag.current || event.target !== event.currentTarget) return
+          event.preventDefault()
+          drag.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, panX: view.current.x, panY: view.current.y }
           event.currentTarget.setPointerCapture(event.pointerId)
         }}
         onPointerMove={(event) => {
           if (!drag.current || drag.current.pointerId !== event.pointerId) return
-          setPan({
-            x: drag.current.panX + event.clientX - drag.current.x,
-            y: drag.current.panY + event.clientY - drag.current.y,
-          })
+          view.current.x = drag.current.panX + event.clientX - drag.current.x
+          view.current.y = drag.current.panY + event.clientY - drag.current.y
+          paintView()
         }}
         onPointerUp={(event) => {
           if (drag.current?.pointerId === event.pointerId) drag.current = null
           if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
         }}
+        onPointerCancel={(event) => {
+          if (drag.current?.pointerId === event.pointerId) drag.current = null
+        }}
+        onLostPointerCapture={(event) => {
+          if (drag.current?.pointerId === event.pointerId) drag.current = null
+        }}
       >
         <div
-          className="pointer-events-none absolute left-0 top-0 transition-transform duration-150"
-          style={{ width: canvasSize.width, height: canvasSize.height, transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: '0 0' }}
+          ref={layer}
+          className="pointer-events-none absolute left-0 top-0 will-change-transform"
+          style={{ width: canvasSize.width, height: canvasSize.height, transform: 'translate3d(18px, 18px, 0) scale(1)', transformOrigin: '0 0' }}
         >
           <div className="absolute left-7 top-7 flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 shadow-sm">
             <Warehouse size={18} /> 当前授权仓库
