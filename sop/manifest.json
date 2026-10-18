@@ -27,7 +27,7 @@
           "steps": [
             "在任一页面展开“工作台”功能区。",
             "点击“帮助中心”。",
-            "需要独立全屏查看时，在快捷帮助中点击“打开完整帮助中心”，系统会新开页面且保留当前业务页面。",
+            "在应用内使用公共顶部搜索栏检索流程；独立全屏帮助页使用相同的内联搜索工具栏。",
             "使用搜索框输入页面、单据、岗位或操作关键字。",
             "视频教程按既有 SOP 章节显示；点击视频可直接播放，或在新页面打开原始视频。",
             "展开目标流程，逐步操作并核对结果检查。",
@@ -36,9 +36,14 @@
           "result": "独立帮助页面显示系统版本、可读流程数、视频数和章节；视频与流程按同一章节、权限和当前页面关系显示，无权限内容不会出现；只有配置了只读发布地址时才显示当前版本 PDF/DOCX 下载和已登记的视频文件。",
           "pageKey": "helpCenter",
           "resource": "dashboard",
-          "roles": ["全员"],
-          "screenshot": {"baseline": "0.1.370", "file": "150-fullscreen-help-page.png"},
-          "lastVerifiedVersion": "0.1.389"
+          "roles": [
+            "全员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.370",
+            "file": "150-fullscreen-help-page.png"
+          },
+          "lastVerifiedVersion": "0.1.486"
         },
         {
           "id": "140-context-help-drawer",
@@ -101,7 +106,7 @@
             "baseline": "0.1.350",
             "file": "02-dashboard.png"
           },
-          "lastVerifiedVersion": "0.1.485"
+          "lastVerifiedVersion": "0.1.486"
         },
         {
           "id": "03-all-functions",
@@ -124,7 +129,7 @@
             "baseline": "0.1.350",
             "file": "03-all-functions.png"
           },
-          "lastVerifiedVersion": "0.1.485"
+          "lastVerifiedVersion": "0.1.486"
         },
         {
           "id": "23-erp-all-functions",
@@ -145,7 +150,7 @@
             "baseline": "0.1.350",
             "file": "23-erp-all-functions.png"
           },
-          "lastVerifiedVersion": "0.1.485"
+          "lastVerifiedVersion": "0.1.486"
         }
       ]
     },

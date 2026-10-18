@@ -36,6 +36,9 @@ RUN npx prisma generate
 
 FROM base AS builder
 
+# Public navigation target only; Next.js embeds NEXT_PUBLIC values during build.
+ARG NEXT_PUBLIC_DATA_PLATFORM_WORKSPACE_URL=https://fix.xiangshu.me/workspaces/local/default
+
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1 \
     DATABASE_URL=file:/tmp/mes-lite-build.db

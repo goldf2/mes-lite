@@ -1,10 +1,11 @@
 {
-  "version": "0.1.485",
+  "version": "0.1.486",
   "impact": "updated",
   "workflowIds": [
     "02-dashboard",
     "03-all-functions",
-    "23-erp-all-functions"
+    "23-erp-all-functions",
+    "139-sop-help-center"
   ],
-  "summary": "真实工作台接入现有MES页面和数据平台精确入口，统一搜索和个人收藏；不新增业务数据模型、状态机或权限。"
+  "summary": "真实工作台接入现有MES页面和数据平台精确入口，统一搜索和个人收藏；不新增业务数据模型、状态机或权限。逐项入口回归补齐帮助中心公共搜索工具栏；独立帮助页继续内联显示。"
 }

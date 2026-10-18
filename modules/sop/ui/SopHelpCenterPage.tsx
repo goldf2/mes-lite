@@ -1,15 +1,16 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { BookOpen, Download, Film, Search } from 'lucide-react'
+import { BookOpen, Download, Film } from 'lucide-react'
 import SopWorkflowCard from './SopWorkflowCard'
 import SopVideoCard from './SopVideoCard'
 import { useSopCatalog } from './useSopCatalog'
+import { ResourceToolbar } from '@/app/components/resource'
 
 export default function SopHelpCenterPage({ pageKey, standalone = false }: { pageKey?: string; standalone?: boolean } = {}) {
   const { catalog, error } = useSopCatalog(pageKey)
   const [query, setQuery] = useState('')
-  const normalized = query.trim().toLocaleLowerCase()
+  const normalized = query.trim().replace(/^"(.*)"$/, '$1').toLocaleLowerCase()
   const videos = useMemo(() => catalog?.videos || [], [catalog])
   const matchingVideos = useMemo(() => videos.filter((video) => !normalized || [video.title, video.description].join(' ').toLocaleLowerCase().includes(normalized)), [normalized, videos])
   const chapters = useMemo(() => catalog?.chapters.flatMap((chapter) => {
@@ -22,11 +23,20 @@ export default function SopHelpCenterPage({ pageKey, standalone = false }: { pag
   const downloads = catalog?.downloads || []
   const ungroupedVideos = matchingVideos.filter((video) => !(catalog?.chapters || []).some((chapter) => chapter.id === video.chapterId))
 
-  if (error) return <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">{error}</div>
-  if (!catalog) return <div className="p-8 text-center text-sm text-slate-500">正在加载作业指导书…</div>
+  const toolbar = <ResourceToolbar
+    placement={standalone ? 'inline' : 'portal'}
+    searchStorageKey="mes-lite.sop-help.search.v1"
+    searchValue={query}
+    onSearchChange={setQuery}
+    searchPlaceholder="搜索页面、操作、结果或关键字"
+  />
+
+  if (error) return <>{toolbar}<div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">{error}</div></>
+  if (!catalog) return <>{toolbar}<div className="p-8 text-center text-sm text-slate-500">正在加载作业指导书…</div></>
 
   return (
     <div className="mx-auto max-w-6xl space-y-5 pb-8">
+      {toolbar}
       <section className="rounded-2xl bg-gradient-to-br from-slate-900 to-blue-900 p-6 text-white shadow-lg sm:p-8">
         <div className="flex items-center gap-3"><BookOpen className="h-7 w-7" /><h2 className="text-2xl font-bold">{catalog.title}</h2></div>
         <p className="mt-3 max-w-4xl text-sm leading-6 text-blue-100">{pageKey ? '当前页面相关流程已在独立页面全屏展开；' : ''}按当前账号权限显示，内容、Web 帮助与 DOCX/PDF 均来自同一份 SOP 清单。</p>
@@ -42,11 +52,7 @@ export default function SopHelpCenterPage({ pageKey, standalone = false }: { pag
         <div className="flex items-center gap-2"><Film className="h-5 w-5 text-blue-700" /><h2 className="text-lg font-semibold text-slate-900">{pageKey ? '当前页面视频' : '其他视频'}</h2><span className="text-xs text-slate-400">{ungroupedVideos.length} 项</span></div>
         <div className="grid gap-4 xl:grid-cols-2">{ungroupedVideos.map((video) => <SopVideoCard key={video.id} video={video} />)}</div>
       </section>}
-      <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <Search className="h-5 w-5 text-slate-400" />
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索页面、操作、结果或关键字" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
-        <span className="text-xs text-slate-400">{count} 个流程 · {videoCount + ungroupedVideos.length} 个视频</span>
-      </label>
+      <p className="text-xs text-slate-500">{count} 个流程 · {videoCount + ungroupedVideos.length} 个视频</p>
       {chapters.map((chapter) => (
         <section key={chapter.id} className="space-y-3">
           <h2 className="text-lg font-semibold text-slate-900">{chapter.title}</h2>

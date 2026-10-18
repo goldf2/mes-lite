@@ -21,4 +21,8 @@ assert.match(center, /downloads\.map/, '完整帮助中心必须在配置下载�
 assert.match(center, /target="_blank"/, '离线成品下载不得覆盖当前帮助页面')
 assert.match(catalog, /buildSopDownloads\(packageJson\.version\)/, '离线下载地址必须绑定当前应用版本')
 
+assert.match(center, /<ResourceToolbar/, '帮助中心应复用公共搜索工具栏')
+assert.match(center, /placement=\{standalone \? 'inline' : 'portal'\}/, '嵌入帮助必须注册顶部工具栏，独立帮助保留内联工具栏')
+assert.doesNotMatch(center, /<input/, '帮助中心不得保留一套平行手写搜索框')
+
 console.log('SOP 全屏帮助验证通过：登录保护、当前页面定位、同源权限过滤、新页隔离和版本化下载入口均符合要求。')

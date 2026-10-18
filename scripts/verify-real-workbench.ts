@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { workspaceFunctionCatalog } from '../app/app-navigation'
 import { registeredPageDefinitions } from '../lib/page-registry'
 import { isWorkspaceFunctionKey } from '../lib/workspace'
@@ -45,3 +46,5 @@ for (const invalid of ['', 'http://example.com/workspaces/local/default', 'javas
   assert.deepEqual(buildDataPlatformFunctions(invalid), [])
 }
 console.log('真实工作台目录验证通过：原生页面语义、8个精确跨应用登录目的地、域名配置与无凭据转发')
+
+assert.match(readFileSync('Dockerfile', 'utf8'), /ARG NEXT_PUBLIC_DATA_PLATFORM_WORKSPACE_URL=https:\/\/fix\.xiangshu\.me\/workspaces\/local\/default/, 'Container builds must actually receive the public destination option')

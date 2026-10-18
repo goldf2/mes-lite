@@ -1,6 +1,6 @@
 # 宇峰业务工作台：真实功能接入
 
-v0.1.485。统一平台入口为 `https://mes.csyufeng.com/workbench`，规范化为 `/?page=businessWorkbench`。原 MES 独立首页 `/?page=dashboard` 保留；其常用功能和搜索只包含原 MES 目录，并提供返回统一平台入口。工作台属于现有 MES Web 应用壳，两个业务代码库、数据库、登录会话和发布流程继续独立；不是把先前 HTML 草图作为业务系统部署。
+v0.1.486（含485首次真实接入）。统一平台入口为 `https://mes.csyufeng.com/workbench`，规范化为 `/?page=businessWorkbench`。原 MES 独立首页 `/?page=dashboard` 保留；其常用功能和搜索只包含原 MES 目录，并提供返回统一平台入口。工作台属于现有 MES Web 应用壳，两个业务代码库、数据库、登录会话和发布流程继续独立；不是把先前 HTML 草图作为业务系统部署。
 
 ## 入口与真实页面
 
@@ -25,7 +25,7 @@ v0.1.485。统一平台入口为 `https://mes.csyufeng.com/workbench`，规范�
 
 `modules/workspace/domain/data-platform-functions.ts` 仅描述已核对的跨应用页面：客户、联系人、客户地点、客户设备、型号、安装及客户/设备地图。不复制页面或联系人，不创建代理业务数据，也不把本地地图订单图层宣传为 MES 订单统计。
 
-非秘密构建变量 `NEXT_PUBLIC_DATA_PLATFORM_WORKSPACE_URL` 默认 `https://fix.xiangshu.me/workspaces/local/default`，未来域名/工作区可替换。显式空值关闭外部入口；非 HTTPS、带账号密码/查询/片段或非工作区路径的值不产生链接。
+非秘密构建变量 `NEXT_PUBLIC_DATA_PLATFORM_WORKSPACE_URL` 默认 `https://fix.xiangshu.me/workspaces/local/default`，未来域名/工作区可替换。Docker builder 已声明同名 ARG，构建时可传入；Next.js 将公开目标嵌入客户端，域名修改后需重建。显式空值关闭外部入口；非 HTTPS、带账号密码/查询/片段或非工作区路径的值不产生链接。
 
 每个目标使用目标应用 `/login?next=<精确本地业务路径>`，避免其未登录工作区布局把目的地降为首页。导航只传本地 `next`；不转发 MES Cookie、Token 或用户自报身份。当前 MES 需有对应客户/设备读取权限才显示入口，目标仍独立完成 Casdoor 登录与本地业务授权；菜单可见不是目标应用授权证明。
 
@@ -44,3 +44,5 @@ v0.1.485。统一平台入口为 `https://mes.csyufeng.com/workbench`，规范�
 必须验证：真实本地账号登录；首页/全部功能点击进入销售、生产、库存及发货原页面，读取可辨认的隔离样本并能打开原新增表单；收藏保存后重载保持；受限账号目录/搜索/旧收藏过滤且业务 API 403；外链精确目的地；390px 无溢出。合成账号和数据库只用于隔离验收，不能充当生产 Casdoor 证据。
 
 精确候选 SHA 的完整 GitHub CI 通过后才推进 main。生产验收另核对发布 SHA/版本、原持久卷、启动前一致备份、公开 ready，以及已有真实账号下的页面和只读接口。部署记录保留当前事实，不把健康检查或入口配置当作完整业务验收。
+
+帮助中心也属于逐项入口验收：应用内使用公共 ResourceToolbar 顶部搜索，独立 `/help` 使用相同控件内联显示；加载和失败状态仍挂载工具栏。
