@@ -16,13 +16,16 @@ export interface NavigationModuleButtonConfig {
 
 export const workspaceNavigationGroupKeys = [
   'workspace',
+  'customerData',
   'materials',
   'production',
   'documents',
   'equipment',
+  'customerService',
   'logistics',
   'sales',
   'inventory',
+  'businessAnalysis',
   'configuration',
   'system',
   'tools',
@@ -50,6 +53,7 @@ export interface WorkspaceNavigationConfig {
 
 export const sharedWorkspaceFunctionKeys = [
   'dashboard',
+  'businessWorkbench',
   'helpCenter',
   'displaySettings',
   'navigationSettings',
@@ -77,6 +81,7 @@ const defaultItems: Record<NavigationWorkspaceId, WorkspaceFunctionKey[]> = {
     'orders', 'dailyInventory', 'dispatch', 'flowTransfers', 'qualityTasks', 'employees', 'materialIn', 'stocks', 'warehouseDigitalTwin', 'inventoryCount', 'stockMovements', 'lotPanorama', 'locationSettings',
     'unitSettings', 'documentCategories', 'workCenters', 'processTemplates', 'processRoutes',
     'sawingCost', 'scanPrint', 'bomUsage', 'salesOrders', 'shipment', 'return', 'suppliers', 'customers', 'businessSettings',
+    'dataCustomers', 'dataContacts', 'dataSites', 'dataDevices', 'dataDeviceModels', 'dataInstallations', 'dataCustomerMap', 'dataDeviceMap',
   ],
   mrp: [],
   erp: [],

@@ -53,6 +53,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     workspacePreference,
     saveWorkspacePreference,
     recordWorkspaceUsage,
+    workspacePreferenceBusy,
   } = useWorkspacePreferenceController({ onError: showMessage })
   const [productionOrderStateSummary, setProductionOrderStateSummary] = useState('页面：生产订单')
   const [stockStateSummary, setStockStateSummary] = useState('页面：库存管理')
@@ -420,6 +421,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             message={message}
             operator={operator}
             workspaceItems={workspaceFunctionItems}
+            preferenceBusy={workspacePreferenceBusy}
             workspacePreference={workspacePreference}
             bomEditorTarget={bomEditorTarget}
             canRead={canRead}

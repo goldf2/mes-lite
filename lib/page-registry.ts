@@ -12,7 +12,7 @@ export interface PagePresentationDefinition {
 
 export const applicationTabs = [
   'materialInHistory', 'shipmentHistory',
-  'dashboard', 'allFunctions', 'helpCenter', 'orders', 'materials', 'workInstructions', 'equipment', 'equipmentInspections', 'equipmentMaintenance', 'materialIn',
+  'dashboard', 'businessWorkbench', 'allFunctions', 'helpCenter', 'orders', 'materials', 'workInstructions', 'equipment', 'equipmentInspections', 'equipmentMaintenance', 'materialIn',
   'dispatch', 'dailyInventory', 'stocks', 'warehouseDigitalTwin', 'inventoryCount', 'stockMovements', 'lotPanorama', 'qualityTasks', 'salesOrders', 'shipment', 'return', 'flowTransfers', 'sawingCost', 'scanPrint',
   'suppliers', 'customers', 'employees', 'processTemplates', 'processRoutes', 'archive', 'auditLogs',
   'dataTools', 'unitSettings', 'locationSettings', 'workCenters', 'documentCategories', 'businessSettings',
@@ -45,6 +45,7 @@ export type RegisteredSystemSection =
 
 export type PageRendererKey =
   | 'dashboard'
+  | 'business-workbench'
   | 'all-functions'
   | 'sop-help-center'
   | 'production-orders'
@@ -110,8 +111,9 @@ function registerPage<const T extends Omit<PageModuleDefinition, 'toolbar'>>(def
 }
 
 const registeredPages = [
-  registerPage({ key: 'dashboard', tab: 'dashboard', kind: 'workspace', title: '仪表盘', description: '查看业务、生产和库存总览', renderer: 'dashboard', groupKey: 'workspace', resource: 'dashboard', primaryNavigation: true, hostToolbarProvided: true, shellToolbarActions: true, presentation: { content: 'page' }, workspace: { functionKey: 'dashboard', label: '仪表盘', icon: '仪' } }),
-  registerPage({ key: 'allFunctions', tab: 'allFunctions', kind: 'workspace', title: '所有功能', description: '系统功能导航与个人工作台', renderer: 'all-functions', groupKey: 'workspace', resource: 'dashboard', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' } }),
+  registerPage({ key: 'dashboard', tab: 'dashboard', kind: 'workspace', title: 'MES Lite 首页', description: '查看MES生产、库存和岗位待办概览', renderer: 'dashboard', groupKey: 'workspace', resource: 'dashboard', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' }, workspace: { functionKey: 'dashboard', label: 'MES Lite 首页', icon: '仪' } }),
+  registerPage({ key: 'businessWorkbench', tab: 'businessWorkbench', kind: 'workspace', title: '宇峰业务平台', description: '统一功能入口、跨分区搜索和个人收藏，保留MES原独立首页', renderer: 'business-workbench', groupKey: 'workspace', resource: 'dashboard', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' }, workspace: { functionKey: 'businessWorkbench', label: '宇峰业务平台', icon: '台' } }),
+  registerPage({ key: 'allFunctions', tab: 'allFunctions', kind: 'workspace', title: '全部功能', description: '搜索并打开已接入的业务页面，收藏到个人首页', renderer: 'all-functions', groupKey: 'workspace', resource: 'dashboard', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' } }),
   registerPage({ key: 'helpCenter', tab: 'helpCenter', kind: 'workspace', title: '帮助中心', description: '按权限查找当前版本的流程作业指导书', renderer: 'sop-help-center', groupKey: 'workspace', resource: 'dashboard', primaryNavigation: true, workspace: { functionKey: 'helpCenter', label: '帮助中心', icon: '助' } }),
   registerPage({ key: 'materialManagement', tab: 'materials', materialSection: 'materials', kind: 'master-detail', title: '物料管理', description: '维护物料、单位、规格和库存基础', renderer: 'materials', groupKey: 'materials', resource: 'materials', primaryNavigation: true, tabLabel: '物料与 BOM', workspace: { functionKey: 'materialManagement', label: '物料管理', icon: '料' } }),
   registerPage({ key: 'bomWorkspace', tab: 'materials', materialSection: 'bomWorkspace', kind: 'master-detail', title: 'BOM 设置', description: '创建 BOM 或修改已有 BOM 的整批输入与输出', renderer: 'bom-workspace', groupKey: 'materials', resource: 'bom', presentation: { content: 'page' }, workspace: { functionKey: 'bomWorkspace', label: 'BOM 设置', icon: '本' } }),
@@ -168,14 +170,17 @@ export const registeredPageDefinitions: readonly PageModuleDefinition[] = regist
 
 export const pageNavigationGroups: ReadonlyArray<{ key: WorkspaceNavigationGroupKey; label: string }> = [
   { key: 'workspace', label: '工作台' },
-  { key: 'materials', label: '物料' },
-  { key: 'production', label: '生产' },
-  { key: 'documents', label: '文档' },
-  { key: 'equipment', label: '设备' },
-  { key: 'logistics', label: '物流' },
-  { key: 'sales', label: '销售' },
-  { key: 'inventory', label: '库存' },
-  { key: 'configuration', label: '业务配置' },
+  { key: 'customerData', label: '客户管理' },
+  { key: 'materials', label: '物料管理' },
+  { key: 'production', label: '生产管理' },
+  { key: 'documents', label: '文档管理' },
+  { key: 'equipment', label: '设备管理' },
+  { key: 'customerService', label: '客户服务' },
+  { key: 'logistics', label: '收发管理' },
+  { key: 'sales', label: '销售管理' },
+  { key: 'inventory', label: '库存管理' },
+  { key: 'businessAnalysis', label: '经营分析' },
+  { key: 'configuration', label: '基础资料' },
   { key: 'system', label: '系统设置' },
   { key: 'tools', label: '工具' },
   { key: 'account', label: '账号与权限' },

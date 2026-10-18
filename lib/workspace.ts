@@ -4,6 +4,7 @@ export type WorkspaceMode = (typeof workspaceModes)[number]
 
 export const workspaceFunctionKeys = [
   'dashboard',
+  'businessWorkbench',
   'helpCenter',
   'materialManagement',
   'bomWorkspace',
@@ -51,6 +52,14 @@ export const workspaceFunctionKeys = [
   'operators',
   'permissionUsers',
   'permissionGroups',
+  'dataCustomers',
+  'dataContacts',
+  'dataSites',
+  'dataDevices',
+  'dataDeviceModels',
+  'dataInstallations',
+  'dataCustomerMap',
+  'dataDeviceMap',
 ] as const
 
 export type WorkspaceFunctionKey = (typeof workspaceFunctionKeys)[number]
@@ -70,14 +79,14 @@ export interface WorkspacePreferenceValue {
 
 export const defaultWorkspaceLayout: WorkspaceFunctionKey[] = [
   'dashboard',
+  'dataContacts',
   'dailyInventory',
   'materialIn',
   'salesOrders',
   'shipment',
   'materialManagement',
-  'bomWorkspace',
   'stocks',
-  'workInstructions',
+  'dataCustomerMap',
   'orders',
 ]
 

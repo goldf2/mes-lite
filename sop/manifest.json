@@ -82,15 +82,16 @@
         },
         {
           "id": "02-dashboard",
-          "title": "查看工作台",
-          "objective": "在班前确认生产、库存和待办概况。",
+          "title": "使用原 MES Lite 首页",
+          "objective": "保留MES独立首页，从原功能入口工作并查看真实岗位待办和统计。",
           "steps": [
-            "从左上角当前主模块按钮进入统一 MES 工作台；默认名称为 MES-lite。",
-            "确认 MRP、ERP 若显示则带预留标识且不可切换业务菜单；系统版本显示在左侧导航底部。",
-            "查看常用功能、生产负荷和待处理事项。",
-            "发现红色或橙色预警时进入对应功能核查。"
+            "打开 mes.csyufeng.com/?page=dashboard，按原登录方式进入独立 MES Lite 首页；更大的统一入口为 /workbench。",
+            "使用顶部功能搜索，或点击“全部功能”，按明确业务分组查找功能。",
+            "点击星标收藏功能；我的收藏在首页立即出现，重新进入仍保留。",
+            "点击销售订单、生产订单、生产日报、库存或发货，进入原业务页面查询和操作；生产进度在生产订单中查看。",
+            "统计加载失败时使用重试，不把失败显示的空状态当作零业务数据。"
           ],
-          "result": "统计卡片与当前演示业务数据一致。",
+          "result": "功能入口打开原业务页面并读取原数据；收藏归属当前人员，统计失败有明确反馈。",
           "pageKey": "dashboard",
           "resource": "dashboard",
           "roles": [
@@ -100,19 +101,21 @@
             "baseline": "0.1.350",
             "file": "02-dashboard.png"
           },
-          "lastVerifiedVersion": "0.1.382"
+          "lastVerifiedVersion": "0.1.485"
         },
         {
           "id": "03-all-functions",
-          "title": "使用所有功能",
-          "objective": "从完整功能目录进入业务页面。",
+          "title": "搜索和收藏实际功能",
+          "objective": "按名称、分组或说明搜索已接入功能，并进入真实页面。",
           "steps": [
-            "在工作台点击“所有功能”。",
-            "按业务分组找到目标功能。",
-            "只会显示当前账号拥有权限的页面。"
+            "打开 mes.csyufeng.com/workbench 进入统一业务平台；原 MES Lite 首页继续使用 /?page=dashboard。",
+            "在首页打开“全部功能”。",
+            "输入销售订单、生产订单、联系人等名称，搜索当前有权使用的实际目录。",
+            "点击功能进入原页面；标注数据平台的功能在独立应用登录和核验权限后进入精确目的地。",
+            "点击星标收藏或取消收藏；返回首页核对个人收藏。"
           ],
-          "result": "页面按物料、生产、物流、库存、配置、工具等分组。",
-          "pageKey": "allFunctions",
+          "result": "不再以草图说明代替业务页面；未授权条目不会出现在搜索与历史收藏中。",
+          "pageKey": "businessWorkbench",
           "resource": "dashboard",
           "roles": [
             "全员"
@@ -121,18 +124,18 @@
             "baseline": "0.1.350",
             "file": "03-all-functions.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.485"
         },
         {
           "id": "23-erp-all-functions",
-          "title": "进入销售履约功能区",
-          "objective": "在统一 MES 工作台进入销售、发货和退货业务。",
+          "title": "进入销售和收发业务",
+          "objective": "从统一工作台进入原销售、发货和退货业务。",
           "steps": [
-            "打开左侧导航或“所有功能”。",
-            "展开“销售”功能区。",
-            "选择销售订单、发货管理或退货管理。"
+            "打开首页或“全部功能”，搜索销售订单。",
+            "选择销售订单进入真实订单列表；生产订单是另一独立功能。",
+            "从收发管理打开原发货管理或退货管理。"
           ],
-          "result": "无需切换系统即可进入销售履约页面，页面继续使用原权限和业务数据。",
+          "result": "继续使用原业务权限和记录；不伪造订单级交付绑定或未实现的独立进度页面。",
           "pageKey": "allFunctions",
           "resource": "dashboard",
           "roles": [
@@ -142,7 +145,7 @@
             "baseline": "0.1.350",
             "file": "23-erp-all-functions.png"
           },
-          "lastVerifiedVersion": "0.1.382"
+          "lastVerifiedVersion": "0.1.485"
         }
       ]
     },

@@ -34,6 +34,7 @@ const OperatorPage = dynamic(() => import('@/modules/identity-access').then((mod
 const SystemPage = dynamic(() => import('../SystemPage'), { loading: FeaturePageLoading })
 const PermissionPage = dynamic(() => import('@/modules/identity-access').then((module) => module.PermissionPageModule), { loading: FeaturePageLoading })
 const DashboardPage = dynamic(() => import('@/modules/workspace'), { loading: FeaturePageLoading })
+const BusinessWorkbenchPage = dynamic(() => import('@/modules/workspace').then((module) => module.BusinessWorkbenchPage), { loading: FeaturePageLoading })
 const ProductionOrderModule = dynamic(() => import('@/modules/production'), { loading: FeaturePageLoading })
 const StockPageModule = dynamic(() => import('@/modules/inventory'), { loading: FeaturePageLoading })
 const DailyProductionPage = dynamic(() => import('@/modules/production').then((module) => module.DailyProductionPage), { loading: FeaturePageLoading })
@@ -55,6 +56,7 @@ export interface WorkspacePageRenderContext {
   operator: CurrentOperator
   workspaceItems: WorkspaceFunctionItem[]
   workspacePreference: WorkspacePreferenceValue
+  preferenceBusy?: boolean
   bomEditorTarget: BomEditorTarget | null
   canRead: (resource: string) => boolean
   canCreate: (resource: string) => boolean
@@ -76,11 +78,22 @@ type PageRenderer = (context: WorkspacePageRenderContext, definition: PageModule
 const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
   dashboard: (context) => (
     <DashboardPage
-      items={context.workspaceItems}
+      items={context.workspaceItems.filter((item) => !item.externalHref)}
       preference={context.workspacePreference}
       onOpen={context.onOpenWorkspaceFunction}
       onOpenAllFunctions={context.onOpenAllFunctions}
       onSave={context.onSaveWorkspacePreference}
+      preferenceBusy={context.preferenceBusy}
+    />
+  ),
+  'business-workbench': (context) => (
+    <BusinessWorkbenchPage
+      items={context.workspaceItems.filter((item) => item.key !== 'businessWorkbench')}
+      preference={context.workspacePreference}
+      onOpen={context.onOpenWorkspaceFunction}
+      onOpenAllFunctions={context.onOpenAllFunctions}
+      onSave={context.onSaveWorkspacePreference}
+      preferenceBusy={context.preferenceBusy}
     />
   ),
   'all-functions': (context) => (
@@ -88,6 +101,8 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
       items={context.workspaceItems}
       preference={context.workspacePreference}
       onOpen={context.onOpenWorkspaceFunction}
+      onSave={context.onSaveWorkspacePreference}
+      preferenceBusy={context.preferenceBusy}
     />
   ),
   'sop-help-center': () => <SopHelpCenterPage />,

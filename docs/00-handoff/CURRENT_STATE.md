@@ -1,3 +1,12 @@
+# 当前状态：2026-10-19 真实统一入口 v0.1.485（实施中）
+
+- Worktree: mes-platform-workbench-20261019 / ci/0.1.485，基于生产main fa5b86c。两个业务库独立，未合入484联系人迁移。
+- 用户明确保留原MES首页 /?page=dashboard；平台 /workbench → /?page=businessWorkbench 提供真实目录、搜索、个人收藏和原页面跳转。
+- 原生销售salesOrders、生产orders、库存stocks、发货shipment及数据平台精确外链已接线。隔离浏览器19项及最新双首页边界重验通过，类型、定向lint和相关仓库门禁通过；全部目录逐项只读检查进行中，候选CI与生产发布仍待完成。
+- 新目录复用既有页面/权限/偏好服务，无业务表迁移、生产业务写入或权限扩张。
+- 唯一下一步：提交并推ci/0.1.485候选，核对精确SHA完整CI；同时补齐全部目录逐项检查，不以本机合成账号充当生产Casdoor验收。
+- 规范：[真实工作台](../architecture/business-workbench.md)。
+
 # 当前状态
 
 ## 2026-10-17 MES统一登录 v0.1.480（候选实现，生产未启用）

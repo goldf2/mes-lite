@@ -123,7 +123,11 @@ export default function useApplicationNavigationController({
     pageLocationKey,
   } = usePageNavigationController({
     operatorId: operator.id,
-    allowedTabs: [...readableBusinessNavItems, ...readableSystemNavItems].map((item) => item.key),
+    allowedTabs: Array.from(new Set([
+      ...readableBusinessNavItems.map((item) => item.key),
+      ...readableSystemNavItems.map((item) => item.key),
+      ...workspaceFunctionItems.filter((item) => !item.externalHref).map((item) => item.tab),
+    ])),
     fallbackTab: fallbackInitialTab,
     defaultMaterialSection,
     restorableMaterialSections,
@@ -260,6 +264,12 @@ export default function useApplicationNavigationController({
   const openWorkspaceFunction = (functionKey: WorkspaceFunctionKey, task?: string) => {
     const target = workspaceFunctionItems.find((item) => item.key === functionKey)
     if (!target) return
+    if (target.externalHref) {
+      closeNavigationSurfaces()
+      recordWorkspaceUsage(functionKey)
+      window.location.assign(target.externalHref)
+      return
+    }
     if (target.materialSection) setMaterialSection(target.materialSection)
     const url = new URL(window.location.href)
     if (task) url.searchParams.set('task', task)
@@ -345,6 +355,28 @@ export default function useApplicationNavigationController({
         onClick: () => navigateToTab(item.key),
       })),
       onClick: () => navigateToTab(readableSystemNavItems[0].key),
+    })
+  }
+  for (const entry of workspaceFunctionItems.filter((item) => item.externalHref)) {
+    let group = navigationGroups.find((item) => item.id === entry.groupKey)
+    if (!group) {
+      group = {
+        id: entry.groupKey,
+        label: entry.groupLabel,
+        icon: <NavigationGlyph icon={entry.resource} />,
+        active: false,
+        items: [],
+        onClick: () => openWorkspaceFunction(entry.key),
+      }
+      navigationGroups.push(group)
+    }
+    group.items.push({
+      id: entry.key,
+      label: entry.label,
+      active: false,
+      icon: <NavigationGlyph icon={entry.resource} />,
+      shortcutKey: entry.key,
+      onClick: () => openWorkspaceFunction(entry.key),
     })
   }
   navigationGroups.sort((left, right) => (

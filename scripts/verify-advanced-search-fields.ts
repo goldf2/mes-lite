@@ -67,7 +67,7 @@ const unifiedSearchPages = [
   'modules/sales/ui/SalesOrderPageModule.tsx',
   'modules/sales/ui/ShipmentPageModule.tsx',
   'modules/documents/ui/WorkInstructionToolbar.tsx',
-  'modules/workspace/ui/WorkspacePages.tsx',
+  'modules/workspace/ui/WorkspaceFunctionCatalog.tsx',
   'modules/documents/ui/DocumentCategorySettingsPage.tsx',
   'modules/equipment/ui/EquipmentInspectionPageModule.tsx',
   'modules/equipment/ui/EquipmentMaintenancePageModule.tsx',

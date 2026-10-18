@@ -13,7 +13,7 @@ for (const key of ['materialIn', 'shipment', 'return']) {
 
 const expectedFunctionKeys = [
   'materialInHistory', 'shipmentHistory',
-  'dashboard', 'allFunctions', 'helpCenter', 'materialManagement', 'bomWorkspace', 'bomUsage', 'workInstructions',
+  'dashboard', 'businessWorkbench', 'allFunctions', 'helpCenter', 'materialManagement', 'bomWorkspace', 'bomUsage', 'workInstructions',
   'equipment', 'equipmentInspections', 'equipmentMaintenance', 'orders', 'dailyInventory', 'flowTransfers', 'dispatch', 'qualityTasks', 'materialIn', 'salesOrders', 'shipment', 'return',
   'stocks', 'warehouseDigitalTwin', 'inventoryCount', 'stockMovements', 'lotPanorama', 'suppliers', 'customers', 'employees', 'locationSettings', 'unitSettings', 'workCenters',
   'documentCategories', 'processTemplates', 'processRoutes', 'businessSettings', 'displaySettings', 'navigationSettings', 'cadPreviewSettings', 'aiSettings', 'apiSettings', 'sawingCost', 'scanPrint', 'archive', 'auditLogs',
@@ -102,6 +102,6 @@ for (const key of expectedFunctionKeys) {
 }
 assert.match(pageAuditSource, /已标准化多视图：23 个/, '页面标准化审计的多视图统计必须保持同步')
 assert.match(pageAuditSource, /应补多视图：0 个/, '页面标准化审计的待改造统计必须保持同步')
-assert.match(pageAuditSource, /固定形态合理：25 个/, '页面标准化审计的固定形态统计必须保持同步')
+assert.match(pageAuditSource, /固定形态合理：27 个/, '页面标准化审计的固定形态统计必须保持同步')
 
 console.log(`页面模块校验通过：${keys.length} 个页面入口，${rendererKeys.length} 个渲染适配器，${new Set(pageModuleDefinitions.map((item) => item.kind)).size} 类公共骨架，${requiredToolbarCount} 个页面强制公共顶部工具栏，${toolbarExceptions.length} 个明确例外。`)

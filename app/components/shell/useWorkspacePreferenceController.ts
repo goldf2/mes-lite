@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   defaultWorkspacePreference,
   isWorkspaceFunctionKey,
@@ -19,6 +19,10 @@ interface WorkspacePreferenceControllerOptions {
 
 export default function useWorkspacePreferenceController({ onError }: WorkspacePreferenceControllerOptions) {
   const [workspacePreference, setWorkspacePreference] = useState<WorkspacePreferenceValue>(defaultWorkspacePreference)
+  const [ready, setReady] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const readyRef = useRef(false)
+  const savingRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -33,24 +37,34 @@ export default function useWorkspacePreferenceController({ onError }: WorkspaceP
             ? data.usage.filter((item: { functionKey?: string }) => item.functionKey && isWorkspaceFunctionKey(item.functionKey))
             : [],
         })
+        readyRef.current = true
+        setReady(true)
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (!cancelled) onError('个人工作台设置加载失败，请刷新后再收藏；业务入口仍可使用')
+      })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [onError])
 
   const saveWorkspacePreference = useCallback(async (
     next: Pick<WorkspacePreferenceValue, 'mode' | 'layout' | 'pinned'>,
   ) => {
+    if (!readyRef.current || savingRef.current) throw new Error('个人工作台设置正在加载或保存，请稍后重试')
+    savingRef.current = true
+    setSaving(true)
     try {
       await saveWorkspacePreferenceRequest(next)
+      setWorkspacePreference((current) => ({ ...current, ...next }))
     } catch (error) {
       const message = error instanceof Error ? error.message : '保存工作台设置失败'
       onError(message)
       throw new Error(message)
+    } finally {
+      savingRef.current = false
+      setSaving(false)
     }
-    setWorkspacePreference((current) => ({ ...current, ...next }))
   }, [onError])
 
   const recordWorkspaceUsage = useCallback((functionKey: WorkspaceFunctionKey) => {
@@ -71,5 +85,6 @@ export default function useWorkspacePreferenceController({ onError }: WorkspaceP
     workspacePreference,
     saveWorkspacePreference,
     recordWorkspaceUsage,
+    workspacePreferenceBusy: !ready || saving,
   }
 }

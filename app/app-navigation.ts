@@ -1,4 +1,5 @@
 import type { WorkspaceFunctionItem } from '@/modules/workspace'
+import { buildDataPlatformFunctions } from '@/modules/workspace'
 import type { SystemSection } from './components/SystemPage'
 import {
   pageNavigationGroups,
@@ -60,7 +61,8 @@ export interface WorkspaceFunctionDefinition extends WorkspaceFunctionItem {
   adminOnly?: boolean
 }
 
-export const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = registeredPageDefinitions
+export const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = [
+  ...registeredPageDefinitions
   .flatMap((page) => page.workspace ? [{
     key: page.workspace.functionKey,
     label: page.workspace.label,
@@ -73,7 +75,10 @@ export const workspaceFunctionCatalog: WorkspaceFunctionDefinition[] = registere
     resource: page.resource,
     extraResource: page.extraResource,
     adminOnly: page.adminOnly,
-  }] : [])
+  }] : []),
+  ...buildDataPlatformFunctions(process.env.NEXT_PUBLIC_DATA_PLATFORM_WORKSPACE_URL)
+    .map((item) => ({ ...item, tab: 'allFunctions' as const })),
+]
 
 export const primaryNavigationItems: Array<{ key: TabType; label: string; resource: string; adminOnly?: boolean }> = registeredPageDefinitions
   .filter((page) => page.primaryNavigation)
