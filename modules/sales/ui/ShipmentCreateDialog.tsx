@@ -1,4 +1,5 @@
 'use client'
+import { CustomerMasterSelectionFields, customerMasterMessage } from '@/modules/configuration'
 
 import { useEffect, useMemo, useState } from 'react'
 import { matchesRecognizedValue, recognizedNumber, recognizedText } from '@/lib/document-recognition-fields'
@@ -52,6 +53,8 @@ export default function ShipmentCreateDialog({ onClose, onCreated, onMessage }: 
   const [editingClientKey, setEditingClientKey] = useState<string | null>(null)
   const [preparing, setPreparing] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [masterReady, setMasterReady] = useState(false)
+  const [masterRefresh, setMasterRefresh] = useState(0)
   const [draftAttachmentOwnerId] = useState(createDraftDocumentAttachmentId)
   const [draftAttachmentBusy, setDraftAttachmentBusy] = useState(false)
 
@@ -121,6 +124,7 @@ export default function ShipmentCreateDialog({ onClose, onCreated, onMessage }: 
   const applyRecognizedShipment = (fields: Record<string, unknown>) => {
     const customer = customers.find((item) => matchesRecognizedValue(recognizedText(fields, 'customer'), [item.code, item.name]))
     const material = materials.find((item) => matchesRecognizedValue(recognizedText(fields, 'material'), [item.code, item.name, item.spec]))
+    if (customer && customer.id !== form.customerId) setMasterReady(false)
     setForm((value) => ({
       ...value,
       customerId: customer?.id || value.customerId,
@@ -139,6 +143,7 @@ export default function ShipmentCreateDialog({ onClose, onCreated, onMessage }: 
 
   const handleSubmit = async () => {
     if (draftAttachmentBusy) return onMessage('请等待附件上传或 AI 识别完成')
+    if (!masterReady) return onMessage('请等待客户资料就绪，并确认本次联系人和收货地点。')
     if (!form.customerId || form.items.length === 0) return onMessage('请选择客户并至少加入一项发货明细')
     setSaving(true)
     try {
@@ -152,7 +157,12 @@ export default function ShipmentCreateDialog({ onClose, onCreated, onMessage }: 
       await onCreated?.(shipment)
       onClose()
     } catch (error) {
-      onMessage(error instanceof Error ? error.message : '创建发货单失败')
+      const code = error instanceof Error ? error.message : ''
+      if (code === 'CUSTOMER_MASTER_REVISION_CONFLICT') {
+        setMasterReady(false)
+        setMasterRefresh(current => current + 1)
+      }
+      onMessage(code.startsWith('CUSTOMER_MASTER_') || code === 'CUSTOMER_MAINTAINED_IN_DATA_PLATFORM' ? customerMasterMessage(code) : code || '创建发货单失败')
     } finally {
       setSaving(false)
     }
@@ -165,15 +175,17 @@ export default function ShipmentCreateDialog({ onClose, onCreated, onMessage }: 
       onClose={() => void closeDialog()}
       closeDisabled={saving || draftAttachmentBusy}
       size="xl"
-      footer={<ModalActions onCancel={() => void closeDialog()} onConfirm={handleSubmit} confirmLabel={`保存整单（${form.items.length} 项）`} busy={saving || draftAttachmentBusy} disabled={preparing || form.items.length === 0} />}
+      footer={<ModalActions onCancel={() => void closeDialog()} onConfirm={handleSubmit} confirmLabel={`保存整单（${form.items.length} 项）`} busy={saving || draftAttachmentBusy} disabled={preparing || !masterReady || form.items.length === 0} />}
     >
       <div className="space-y-5">
         <section className="grid gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-4">
-          <div><label className="mb-2 block text-sm font-medium text-gray-700">客户</label><SearchableSelect value={form.customerId} options={customers.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}`, keywords: `${item.phone || ''} ${item.address || ''}` }))} onChange={(customerId) => setForm((value) => ({ ...value, customerId }))} placeholder="输入客户编码或名称" /></div>
+          <div><label className="mb-2 block text-sm font-medium text-gray-700">客户</label><SearchableSelect value={form.customerId} options={customers.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}`, keywords: `${item.phone || ''} ${item.address || ''}` }))} disabled={saving} onChange={(customerId) => { setMasterReady(false); setForm((value) => ({ ...value, customerId })) }} placeholder="输入客户编码或名称" /></div>
           <label className="text-sm font-medium text-gray-700">外部凭证号<input value={form.voucherNo} onChange={(event) => setForm((value) => ({ ...value, voucherNo: event.target.value }))} className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2" /></label>
           <label className="text-sm font-medium text-gray-700">物流单号<input value={form.trackingNo} onChange={(event) => setForm((value) => ({ ...value, trackingNo: event.target.value }))} className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2" /></label>
           <label className="text-sm font-medium text-gray-700">发货人<input value={form.shippedBy} onChange={(event) => setForm((value) => ({ ...value, shippedBy: event.target.value }))} className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2" /></label>
         </section>
+
+        <CustomerMasterSelectionFields customerId={form.customerId} value={form} onChange={selection => setForm(current => ({ ...current, ...selection }))} onValidityChange={setMasterReady} refreshKey={masterRefresh} disabled={saving} />
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
           <section className="rounded-xl border border-gray-200 p-4">

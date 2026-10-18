@@ -1,3 +1,4 @@
+import { captureCustomerMasterSnapshot, assertSnapshotLinkCurrent } from '@/modules/configuration/server-index'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { resolveInventoryLocation } from '@/modules/inventory'
@@ -66,7 +67,9 @@ async function prepareShipmentItems(
 }
 
 export async function createManagedShipment(data: CreateShipmentCommand, now = new Date(), scope: EffectiveDataScope = unrestrictedDataScope) {
+  const masterSnapshot = await captureCustomerMasterSnapshot(data.customerId, data)
   return runSalesDomainOperation(() => prisma.$transaction(async (tx) => {
+    await assertSnapshotLinkCurrent(tx, data.customerId, masterSnapshot)
     const [{ customer, prepared }, latest] = await Promise.all([
       prepareShipmentItems(tx, data, scope),
       tx.shipment.findFirst({
@@ -86,9 +89,10 @@ export async function createManagedShipment(data: CreateShipmentCommand, now = n
         qty: prepared.reduce((sum, item) => sum + item.qty, 0),
         unitPrice: prepared.length === 1 ? first.unitPrice : 0,
         totalAmount: prepared.reduce((sum, item) => sum + item.totalAmount, 0),
-        customer: customer.name,
-        customerPhone: customer.phone,
-        address: customer.address,
+        customer: masterSnapshot?.name ?? customer.name,
+        customerPhone: masterSnapshot ? masterSnapshot.phone || null : customer.phone,
+        address: masterSnapshot ? masterSnapshot.address || null : customer.address,
+        customerMasterSnapshot: masterSnapshot ? JSON.stringify(masterSnapshot) : null,
         trackingNo: data.trackingNo?.trim() || null,
         note: data.note?.trim() || null,
         shippedBy: data.shippedBy?.trim() || null,

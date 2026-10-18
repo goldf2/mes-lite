@@ -9,3 +9,5 @@ export { default as ConfigurationManualOrder } from './ui/ConfigurationManualOrd
 export { employeeNamesSnapshot } from './domain/employee-rules'
 export { resolveActiveEmployees } from './server/employee-reference-service'
 export { nextConfigurationSortOrder } from './server/configuration-order-service'
+export { default as CustomerMasterSelectionFields } from './ui/CustomerMasterSelectionFields'
+export { customerMasterMessage } from './client/customer-master-api'

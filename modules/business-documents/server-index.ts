@@ -4,3 +4,4 @@
  */
 export { businessDocumentPrintProfile, renderBusinessDocumentPdf } from './server/business-document-pdf'
 export type { BusinessDocumentPdfResult, BusinessDocumentPrintData } from './contracts/business-document'
+export { readCustomerPartySnapshot } from './domain/customer-party-snapshot'

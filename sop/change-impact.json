@@ -1,6 +1,12 @@
 {
-  "version": "0.1.481",
-  "impact": "none",
-  "workflowIds": [],
-  "summary": "本次仅修复仓库全景白板拖动性能：指针与平移1:1跟随、抑制文字选区和补间拖尾、按帧更新视图且不因平移触发库存请求，普通/全屏一致。用户操作步骤、库存业务规则、权限和数据模型不变，沿用v0.1.480操作指南，无需更新SOP流程或生成新整版指南。"
+  "version": "0.1.484",
+  "impact": "updated",
+  "workflowIds": [
+    "25-sales-order-create",
+    "28-shipment-create",
+    "52-customer-list",
+    "53-customer-create",
+    "125-sales-customer-management"
+  ],
+  "summary": "共享模式将客户维护转到数据平台；销售订单与发货选择共享联系人和地点并保存快照，明确关联和资料冲突处理。原独立模式及供应商流程保留。截图为已有流程基线，新增共享交互以步骤为准；本次候选隔离服务/组件验证，生产未启用。"
 }

@@ -24,6 +24,8 @@ const checks = [
   'verify:casdoor-login',
   'verify:casdoor-login-ui',
   'verify:business-directory',
+  'verify:customer-master',
+  'verify:customer-master-ui',
   'verify:role-task-http-permissions',
   'verify:fine-grained-http-permissions',
   'verify:archive-resource-permissions',

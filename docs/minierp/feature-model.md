@@ -575,3 +575,8 @@ flowchart LR
 5. 系统库存余额减少，并能看到销售出库流水。
 6. 管理员在 Web 后台查看当前库存、低库存预警和销售汇总。
 7. 同一个微信用户可以选择进入不同租户身份。
+
+
+## v0.1.484 共享客户资料切片
+
+数据平台统一维护正式客户、联系人、地点，MES 通过实际登录用户委托 API 查询并明确关联。CustomerMasterLink 保留原 Customer ID；SalesOrder / Shipment 的 customerMasterSnapshot 冻结单据选定资料，旧单据及文件保持。启用共享时 MES 停止本地客户 CRUD，供应商不变；前端复用资源页、ModalDialog、SearchableSelect 和 AppButton，搜索分页与错误状态不回退旧联系人。详细接口、权限、迁移、回退及验收见 [共享客户开发规范](../architecture/shared-customer-master.md)。

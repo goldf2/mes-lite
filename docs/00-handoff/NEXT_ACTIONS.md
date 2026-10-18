@@ -1,3 +1,13 @@
+## 2026-10-18 共享联系人候选 v0.1.484
+
+- 两个代码库独立，数据平台维护正式客户、联系人、地点，MES 直接 API 读取。
+- Worktree: mes-contact-consumer-20261018 / ci/0.1.484，基于 main fa5b86c；旧草稿与合并应用候选保持。
+- 追加 CustomerMasterLink 与订单、发货快照。共享模式关闭客户本地 CRUD，供应商不变。真实 Casdoor 用户委托；版本冲突拒绝；历史打印和归档 PDF 保持。
+- 隔离验证：6 组服务与 HTTP/PDF、15 组 client/UI、7 组跨仓库真实 HTTP 联调通过；类型、定向 lint、原客户/供应商、销售订单、认证、模块/架构和文档门禁通过。
+- 生产接入默认关闭，无真实业务数据或权限变更。真实 Next dev + Chromium 浏览器 5 组通过：目录分页搜索、销售与发货异常阻断、390px 布局，无 pageErrors；使用合成会话，不代表生产 OIDC。精确候选 CI 待单独记录。
+- 唯一下一步：推送候选，核对精确 SHA 的 CI。生产启用另需真实数据映射与备份核验。
+- 规范：[shared-customer-master](../architecture/shared-customer-master.md)。
+
 # 下一步任务
 
 ## v0.1.480唯一下一步

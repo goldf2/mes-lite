@@ -1,3 +1,4 @@
+import { CustomerMasterError } from '@/modules/configuration/server-index'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
@@ -24,6 +25,7 @@ export async function GET(req: NextRequest) {
     const result = await listShipments(shipmentHistoryQuery(params), await loadEffectiveDataScope(operator))
     return params.get('format') === 'csv' ? shipmentHistoryCsvResponse(result.data) : NextResponse.json(result)
   } catch (error) {
+    if (error instanceof CustomerMasterError) return NextResponse.json({ error: error.code }, { status: error.status })
     if (error instanceof SalesDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Get shipments error:', error)
@@ -37,13 +39,15 @@ export async function POST(req: NextRequest) {
     if (denied) return denied
     const operator = await getCurrentOperator()
     if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
-    const shipment = await createManagedShipment(createShipmentSchema.parse(await req.json()), new Date(), await loadEffectiveDataScope(operator))
+    const input = createShipmentSchema.parse(await req.json())
+    const shipment = await createManagedShipment(input, new Date(), await loadEffectiveDataScope(operator))
     await writeAuditLog(req, {
       action: 'CREATE', entityType: 'SHIPMENT', entityId: shipment.id, entityLabel: shipment.shipmentNo, afterData: shipment,
     })
     return NextResponse.json({ data: shipment }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors[0]?.message || '参数错误', details: error.errors }, { status: 400 })
+    if (error instanceof CustomerMasterError) return NextResponse.json({ error: error.code }, { status: error.status })
     if (error instanceof SalesDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Create shipment error:', error)
@@ -66,6 +70,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ success: true, message: '发货单已归档，可在归档记录中恢复' })
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors[0]?.message }, { status: 400 })
+    if (error instanceof CustomerMasterError) return NextResponse.json({ error: error.code }, { status: error.status })
     if (error instanceof SalesDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error instanceof DataScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Archive shipment error:', error)

@@ -1726,9 +1726,24 @@ model Customer {
   materials   Material[]
   shipments   Shipment[]
   salesOrders SalesOrder[]
+  masterLink  CustomerMasterLink?
   createdAt   DateTime     @default(now())
 
   @@index([sortOrder])
+}
+
+// A reference to the sole customer master, never a second editable customer directory.
+model CustomerMasterLink {
+  customerId String @id
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  instanceId String
+  enterpriseId String
+  boundRevision Int
+  revision Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([instanceId, enterpriseId])
 }
 
 // ==================== 销售订单 ====================
@@ -1737,6 +1752,7 @@ model SalesOrder {
   id           String           @id @default(cuid())
   orderNo      String           @unique
   voucherNo    String?
+  customerMasterSnapshot String?
   customerId   String
   customer     Customer         @relation(fields: [customerId], references: [id])
   status       String           @default("DRAFT")
@@ -1964,6 +1980,7 @@ model Shipment {
   location              InventoryLocation?      @relation(fields: [locationId], references: [id])
   customerId            String?
   customerRef           Customer?               @relation(fields: [customerId], references: [id])
+  customerMasterSnapshot String?
   qty                   Float                   @default(0)
   unitPrice             Float                   @default(0)
   totalAmount           Float                   @default(0)

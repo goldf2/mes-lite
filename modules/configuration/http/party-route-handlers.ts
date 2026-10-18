@@ -1,3 +1,7 @@
+import { getCurrentOperator } from '@/lib/auth'
+import { getEffectivePermissionMap } from '@/lib/permissions'
+import { customerMasterViews } from '../server/customer-master-service'
+import { CustomerMasterError, customerMasterMetadata } from '../server/customer-master-client'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
@@ -12,6 +16,7 @@ function partyHttpError(error: unknown, operation: string, label: string) {
   if (error instanceof z.ZodError) {
     return NextResponse.json({ error: '参数错误', details: error.errors }, { status: 400 })
   }
+  if (error instanceof CustomerMasterError) return NextResponse.json({ error: error.code }, { status: error.status })
   if (error instanceof PartyDomainError) {
     return NextResponse.json({ error: error.message }, { status: error.status })
   }
@@ -26,7 +31,10 @@ export function createPartyRouteHandlers(kind: PartyKind) {
       try {
         const denied = await requireAnyResourcePermission(definition.referenceReadResources, 'read')
         if (denied) return denied
-        return NextResponse.json({ data: await listManagedParties(kind, new URL(req.url).searchParams.get('keyword')) })
+        const rows = await listManagedParties(kind, new URL(req.url).searchParams.get('keyword'))
+        const actor = kind === 'customer' ? await getCurrentOperator() : null
+        const full = actor ? actor.role === 'ADMIN' || (await getEffectivePermissionMap(actor, { initializeDefaults: false })).customers?.canRead === true : false
+        return NextResponse.json({ data: kind === 'customer' ? await customerMasterViews(rows, full) : rows, ...(kind === 'customer' ? { customerMaster: customerMasterMetadata() } : {}) }, { headers: { 'Cache-Control': 'no-store' } })
       } catch (error) {
         return partyHttpError(error, '获取', definition.label)
       }

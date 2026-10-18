@@ -9,6 +9,7 @@ export interface PartyRecord {
   address?: string | null
   createdAt: string
   sortOrder: number
+  master?: import('./customer-master').CustomerMasterView
 }
 
 export interface PartyForm {

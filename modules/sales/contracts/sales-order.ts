@@ -67,6 +67,11 @@ export interface SalesOrderDraftLine {
 }
 
 export interface SalesOrderDraft {
+  customerMasterContactId?: string
+  customerMasterLocationId?: string
+  customerMasterRevision?: number
+  customerMasterContactRevision?: number
+  customerMasterLocationRevision?: number
   voucherNo: string
   customerId: string
   orderDate: string

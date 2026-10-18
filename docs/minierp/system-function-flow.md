@@ -721,3 +721,8 @@ flowchart TD
 # v0.1.472 物流历史核查补充
 
 日常来料与发货管理负责单据操作；物流菜单中的来料历史核查、发货历史核查独立承载日期筛选、状态/单位汇总、明细分页、CSV 全量导出。来料按 inboundDate，发货按 shippedAt，北京时间包含起止日；日期筛选不以创建日期替代未发货时间。搜索匹配整单并展示所有行。金额取当前单据价格，红冲分列、退货不重复抵扣；不能当作库存净变动。无新增数据模型或迁移。
+
+
+## v0.1.484 共享客户资料切片
+
+数据平台统一维护正式客户、联系人、地点，MES 通过实际登录用户委托 API 查询并明确关联。CustomerMasterLink 保留原 Customer ID；SalesOrder / Shipment 的 customerMasterSnapshot 冻结单据选定资料，旧单据及文件保持。启用共享时 MES 停止本地客户 CRUD，供应商不变；前端复用资源页、ModalDialog、SearchableSelect 和 AppButton，搜索分页与错误状态不回退旧联系人。详细接口、权限、迁移、回退及验收见 [共享客户开发规范](../architecture/shared-customer-master.md)。

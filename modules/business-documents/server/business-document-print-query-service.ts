@@ -1,3 +1,4 @@
+import { readCustomerPartySnapshot } from '../domain/customer-party-snapshot'
 import { prisma } from '@/lib/prisma'
 import type { BusinessDocumentKind, BusinessDocumentPrintData } from '../contracts/business-document'
 import {
@@ -15,10 +16,11 @@ export async function loadBusinessDocumentPrintData(
   if (kind === 'sales-order') {
     const order = await prisma.salesOrder.findFirst({ where: { id, deletedAt: null }, include: { customer: true, items: { include: { material: true } } } })
     if (!order) return null
+    const snapshot = readCustomerPartySnapshot(order.customerMasterSnapshot)
     return {
       title: '销售订单', documentNo: order.orderNo, status: statusLabels[order.status] || order.status,
-      documentDate: dateText(order.orderDate), referenceNo: order.voucherNo, partyLabel: '客户', partyName: order.customer.name,
-      summaryFields: [{ label: '交付日期', value: dateText(order.deliveryDate) }, { label: '联系人', value: order.customer.contact || '-' }, { label: '联系电话', value: order.customer.phone || '-' }],
+      documentDate: dateText(order.orderDate), referenceNo: order.voucherNo, partyLabel: '客户', partyName: snapshot ? snapshot.name : order.customer.name,
+      summaryFields: [{ label: '交付日期', value: dateText(order.deliveryDate) }, { label: '联系人', value: snapshot ? snapshot.contact || '-' : order.customer.contact || '-' }, { label: '联系电话', value: snapshot ? snapshot.phone || '-' : order.customer.phone || '-' }],
       columns: [{ label: '序号', key: 'index', width: 0.6, align: 'center' }, { label: '物料编码', key: 'code', width: 1.4 }, { label: '物料名称/规格', key: 'material', width: 2.5 }, { label: '数量', key: 'qty', width: 1, align: 'right' }, { label: '单价', key: 'price', width: 1, align: 'right' }, { label: '金额', key: 'amount', width: 1.1, align: 'right' }],
       rows: order.items.map((item, index) => ({ index: String(index + 1), code: item.material.code, material: `${item.material.name}${item.material.spec ? ` · ${item.material.spec}` : ''}`, qty: `${numberText(item.qty)} ${item.unit}`, price: money(item.unitPrice), amount: money(item.totalAmount) })),
       totalLabel: '订单合计', totalValue: money(order.totalAmount), note: order.note, signatures: ['制单人', '审核人', '客户确认'],
@@ -49,9 +51,10 @@ export async function loadBusinessDocumentPrintData(
   if (kind === 'return') {
     const item = await prisma.returnOrder.findFirst({ where: { id, deletedAt: null }, include: { product: true, material: true, shipmentItem: { include: { material: true } }, location: true, shipment: { include: { customerRef: true } } } })
     if (!item) return null
+    const snapshot = readCustomerPartySnapshot(item.shipment.customerMasterSnapshot)
     return {
       title: '销售退货单', documentNo: item.returnNo, status: statusLabels[item.status] || item.status,
-      documentDate: dateText(item.processedAt || item.createdAt), referenceNo: item.voucherNo, partyLabel: '客户', partyName: item.shipment.customerRef?.name || item.shipment.customer || '-',
+      documentDate: dateText(item.processedAt || item.createdAt), referenceNo: item.voucherNo, partyLabel: '客户', partyName: snapshot ? snapshot.name : item.shipment.customerRef?.name || item.shipment.customer || '-',
       summaryFields: [{ label: '原发货单', value: item.shipment.shipmentNo }, { label: '退回库位', value: item.location ? `${item.location.code} · ${item.location.name}` : '默认库位' }, { label: '退货原因', value: item.reason }],
       columns: [{ label: '序号', key: 'index', width: 0.6, align: 'center' }, { label: '物料编码', key: 'code', width: 1.4 }, { label: '物料名称/规格', key: 'material', width: 3 }, { label: '退货数量', key: 'qty', width: 1.3, align: 'right' }, { label: '处理成本', key: 'amount', width: 1.2, align: 'right' }],
       rows: [{ index: '1', code: item.shipmentItem.material.code, material: `${item.shipmentItem.material.name}${item.shipmentItem.material.spec ? ` · ${item.shipmentItem.material.spec}` : ''}`, qty: `${numberText(item.qty)} ${item.stockUnitSnapshot || item.shipmentItem.unitSnapshot}`, amount: money(item.processedCostAmount) }],

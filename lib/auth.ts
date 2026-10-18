@@ -86,7 +86,7 @@ export function clearSessionCookie(res: NextResponse) {
   })
 }
 
-export async function getCurrentOperator() {
+export async function getCurrentOperatorSession() {
   const token = cookies().get(SESSION_COOKIE)?.value
   if (!token) return null
 
@@ -117,7 +117,21 @@ export async function getCurrentOperator() {
     await prisma.operatorSession.deleteMany({ where: { id: session.id } })
     return null
   }
-  return session.operator
+  return session
+}
+
+export async function getCurrentOperator() {
+  return (await getCurrentOperatorSession())?.operator ?? null
+}
+
+/** Verified login identity, never inferred from an account sharing an email/name. */
+export async function getCurrentCasdoorActor() {
+  const session = await getCurrentOperatorSession()
+  if (!session || session.authSource !== 'casdoor' || !session.authSubject) return null
+  const runtime = await ensureAuthenticationRuntime()
+  if (runtime.mode !== 'casdoor' || !runtime.ready || !runtime.connection
+    || session.authGeneration !== runtime.state.generation) return null
+  return { operator: session.operator, issuer: runtime.connection.issuer, subject: session.authSubject }
 }
 
 export function operatorDisplayName(operator: { name?: string | null; username: string }) {

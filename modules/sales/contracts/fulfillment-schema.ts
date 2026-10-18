@@ -16,6 +16,11 @@ const createShipmentItemSchema = z.object({
 
 export const createShipmentSchema = z.object({
   customerId: z.string().min(1, '请选择客户'),
+  customerMasterContactId: z.string().min(1).max(128).optional(),
+  customerMasterLocationId: z.string().min(1).max(128).optional(),
+  customerMasterContactRevision: z.number().int().positive().optional(),
+  customerMasterLocationRevision: z.number().int().positive().optional(),
+  customerMasterRevision: z.number().int().positive().optional(),
   voucherNo: z.string().optional(),
   trackingNo: z.string().optional(),
   note: z.string().optional(),

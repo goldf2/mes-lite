@@ -10,6 +10,11 @@ export const salesOrderLineSchema = z.object({
 export const createSalesOrderSchema = z.object({
   voucherNo: z.string().optional(),
   customerId: z.string().trim().min(1, '请选择客户'),
+  customerMasterContactId: z.string().min(1).max(128).optional(),
+  customerMasterLocationId: z.string().min(1).max(128).optional(),
+  customerMasterContactRevision: z.number().int().positive().optional(),
+  customerMasterLocationRevision: z.number().int().positive().optional(),
+  customerMasterRevision: z.number().int().positive().optional(),
   orderDate: z.string().min(1, '请选择订单日期'),
   deliveryDate: z.string().optional(),
   note: z.string().optional(),

@@ -317,3 +317,8 @@ v0.1.474 将“主库存事实/金额”与“辅助数量是否完整”分开�
 - 扫码出入库。
 - Excel 导入导出。
 - 数据备份和客户迁出包。
+
+
+## v0.1.484 共享客户资料切片
+
+数据平台统一维护正式客户、联系人、地点，MES 通过实际登录用户委托 API 查询并明确关联。CustomerMasterLink 保留原 Customer ID；SalesOrder / Shipment 的 customerMasterSnapshot 冻结单据选定资料，旧单据及文件保持。启用共享时 MES 停止本地客户 CRUD，供应商不变；前端复用资源页、ModalDialog、SearchableSelect 和 AppButton，搜索分页与错误状态不回退旧联系人。详细接口、权限、迁移、回退及验收见 [共享客户开发规范](../architecture/shared-customer-master.md)。

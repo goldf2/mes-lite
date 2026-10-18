@@ -141,6 +141,11 @@ export interface CustomerMaterialDeliveryReference {
 }
 
 export interface ShipmentForm {
+  customerMasterContactId?: string
+  customerMasterLocationId?: string
+  customerMasterRevision?: number
+  customerMasterContactRevision?: number
+  customerMasterLocationRevision?: number
   customerId: string
   voucherNo: string
   trackingNo: string

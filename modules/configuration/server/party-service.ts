@@ -1,3 +1,5 @@
+import { customerMasterEnabled, CustomerMasterError } from './customer-master-client'
+import { assertCustomerLocallyEditable } from './customer-master-service'
 import { randomUUID } from 'node:crypto'
 import type { Prisma } from '@prisma/client'
 import { nextConfigurationSortOrder } from './configuration-order-service'
@@ -126,6 +128,7 @@ export async function listManagedParties(kind: PartyKind, keyword?: string | nul
 
 // Single-instance source projection: no joins to sales, stock, operators or other business facts.
 export async function listDirectoryCustomers(keyword: string, enterpriseId: string | null) {
+  if (customerMasterEnabled()) throw new CustomerMasterError('CUSTOMER_MAINTAINED_IN_DATA_PLATFORM', 409)
   return prisma.customer.findMany({
     where: { ...partySearchWhere(tokenizeKeywordQuery(keyword)), ...(enterpriseId ? { id: enterpriseId } : {}) },
     select: { id: true, code: true, name: true, contact: true, phone: true, address: true },
@@ -134,6 +137,7 @@ export async function listDirectoryCustomers(keyword: string, enterpriseId: stri
 }
 
 export async function createManagedParty(kind: PartyKind, input: PartyInput) {
+  if (kind === 'customer' && customerMasterEnabled()) throw new CustomerMasterError('CUSTOMER_MAINTAINED_IN_DATA_PLATFORM', 409)
   const definition = getPartyKindDefinition(kind)
   const adapter = adapters[kind]
   const data = normalizePartyInput(input)
@@ -151,6 +155,7 @@ export async function updateManagedParty(kind: PartyKind, id: string, input: Par
   const adapter = adapters[kind]
   const data = normalizePartyInput(input)
   return prisma.$transaction(async (tx) => {
+    if (kind === 'customer') await assertCustomerLocallyEditable(tx, id)
     const current = await adapter.findById(tx, id)
     if (!current || current.deletedAt) throw new PartyDomainError(`${definition.label}不存在`, 404)
     await assertPartyNameAvailable(tx, kind, adapter, data.name, id)
@@ -163,6 +168,7 @@ export async function archiveManagedParty(kind: PartyKind, id: string, archivedA
   const definition = getPartyKindDefinition(kind)
   const adapter = adapters[kind]
   return prisma.$transaction(async (tx) => {
+    if (kind === 'customer') await assertCustomerLocallyEditable(tx, id)
     const current = await adapter.findById(tx, id)
     if (!current || current.deletedAt) throw new PartyDomainError(`${definition.label}不存在或已归档`, 404)
     const archived = await adapter.archive(tx, id, archivedAt)

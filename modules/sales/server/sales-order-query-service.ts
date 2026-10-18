@@ -218,7 +218,7 @@ export async function getSalesOrderOptions() {
     prisma.customer.findMany({
       where: { deletedAt: null },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      select: { id: true, code: true, name: true, contact: true, phone: true, address: true },
+      select: { id: true, code: true, name: true },
     }),
     prisma.material.findMany({
       where: { deletedAt: null },
@@ -241,7 +241,7 @@ export async function getShipmentCreateOptions(scope: EffectiveDataScope = unres
   const [customers, materials, references] = await Promise.all([
     prisma.customer.findMany({
       where: { deletedAt: null }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      select: { id: true, code: true, name: true, phone: true, address: true },
+      select: { id: true, code: true, name: true },
     }),
     prisma.material.findMany({
       where: { deletedAt: null }, orderBy: { code: 'asc' },

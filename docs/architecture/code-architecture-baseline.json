@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "limits": {
     "deepCrossModuleImports": 0,
-    "crossModuleEdges": 49,
+    "crossModuleEdges": 50,
     "routeDirectPrisma": 0,
     "uiDirectFetch": 0,
     "pagesOver800": 0,

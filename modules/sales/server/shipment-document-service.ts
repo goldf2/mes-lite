@@ -1,3 +1,4 @@
+import { readCustomerPartySnapshot } from '@/modules/business-documents/server-index'
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -52,13 +53,14 @@ type ShipmentDocumentSource = Awaited<ReturnType<typeof getShipmentDeliveryNoteS
 
 /** 版本判定与渲染共用同一投影，内部成本、库位和更新时间不进入客户单据。 */
 function customerPrintData(shipment: ShipmentDocumentSource, settings: SystemSettings): CustomerShipmentPrintData {
+  const snapshot = readCustomerPartySnapshot(shipment.customerMasterSnapshot)
   return {
     shipmentNo: shipment.shipmentNo,
     shippedAt: formatDate(shipment.shippedAt),
     customer: shipment.customer,
-    customerContact: shipment.customerRef?.contact || '-',
-    customerPhone: shipment.customerPhone || shipment.customerRef?.phone || '-',
-    address: shipment.address || shipment.customerRef?.address || '-',
+    customerContact: snapshot ? snapshot.contact || '-' : shipment.customerRef?.contact || '-',
+    customerPhone: snapshot ? snapshot.phone || '-' : shipment.customerPhone || shipment.customerRef?.phone || '-',
+    address: snapshot ? snapshot.address || '-' : shipment.address || shipment.customerRef?.address || '-',
     companyName: settings.companyName,
     companyContact: settings.companyContact || '-',
     companyPhone: settings.companyPhone || '-',

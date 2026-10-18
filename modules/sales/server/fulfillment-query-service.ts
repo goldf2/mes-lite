@@ -165,7 +165,7 @@ export async function listShipments(input: FulfillmentQuery, scope: EffectiveDat
     tx.shipment.count({ where }),
     tx.customer.findMany({
       where: { deletedAt: null }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      select: { id: true, code: true, name: true, contact: true, phone: true, address: true },
+      select: { id: true, code: true, name: true },
     }),
     tx.shipmentItem.findMany({ where: input.includeSummary ? { shipment: { is: where } } : { id: '__NO_SUMMARY__' }, select: { qty: true, unitSnapshot: true, totalAmount: true, shipment: { select: { status: true } } } }),
   ]))

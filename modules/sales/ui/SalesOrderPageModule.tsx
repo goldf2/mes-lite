@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
+import { customerMasterMessage } from '@/modules/configuration'
 import AppButton from '@/app/components/AppButton'
 import ModalDialog, { ModalActions } from '@/app/components/ModalDialog'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
@@ -37,6 +38,7 @@ import type {
   SalesCustomerOption,
   SalesMaterialOption,
   SalesOrder,
+  SalesOrderDraft,
   SalesOrderDraftLine,
   SalesOrderPriceEdit,
 } from '../contracts/sales-order'
@@ -50,6 +52,7 @@ import {
   salesOrderStatusOptions as statusOptions,
 } from '../model/sales-order-view'
 import { buildSalesOrderSearchCatalog } from '../model/sales-search-fields'
+import SalesOrderCustomerFields from './SalesOrderCustomerFields'
 
 type SalesOrderVisibleField = 'image' | 'voucher' | 'deliveryDate' | 'status' | 'amount' | 'attachments'
 const salesOrderVisibleFieldOptions: readonly VisibleFieldOption<SalesOrderVisibleField>[] = [
@@ -87,7 +90,9 @@ export default function SalesOrderPageModule({
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.salesOrders.viewMode', 'card')
   const [visibleFields, setVisibleFields] = usePersistedVisibleFields('mes-lite.salesOrders.visibleFields', defaultSalesOrderVisibleFields, salesOrderVisibleFieldOptions)
   const showField = (field: SalesOrderVisibleField) => visibleFields.includes(field)
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState<SalesOrderDraft>(emptyForm)
+  const [masterReady, setMasterReady] = useState(false)
+  const [masterRefresh, setMasterRefresh] = useState(0)
   const [pendingAction, setPendingAction] = useState<{ order: SalesOrder; action: 'confirm' | 'cancel' } | null>(null)
   const [priceEdit, setPriceEdit] = useState<SalesOrderPriceEdit | null>(null)
   const searchCatalog = useMemo(() => buildSalesOrderSearchCatalog(customers), [customers])
@@ -150,6 +155,7 @@ export default function SalesOrderPageModule({
   }
 
   const openCreateOrder = () => {
+    setMasterReady(false)
     setForm(emptyForm())
     setDraftAttachmentOwnerId(createDraftDocumentAttachmentId())
     setFormOpen(true)
@@ -176,6 +182,7 @@ export default function SalesOrderPageModule({
         note: recognizedText(item, 'note'),
       } : null
     }).filter((item): item is SalesOrderDraftLine => Boolean(item))
+    if (matchedCustomer && matchedCustomer.id !== form.customerId) setMasterReady(false)
     setForm((current) => ({
       ...current,
       voucherNo: recognizedText(fields, 'voucherNo') || current.voucherNo,
@@ -190,6 +197,7 @@ export default function SalesOrderPageModule({
   const saveOrder = async () => {
     if (draftAttachmentBusy) return onMessage('请等待附件上传或 AI 识别完成')
     if (!form.customerId) return onMessage('请选择客户')
+    if (!masterReady) return onMessage('请等待客户资料就绪，并确认本次联系人和收货地点。')
     if (!form.orderDate) return onMessage('请选择订单日期')
     if (form.items.some((item) => !item.materialId || Number(item.qty) <= 0 || Number(item.unitPrice) < 0)) {
       return onMessage('请完整填写每条物料、数量和单价')
@@ -215,7 +223,12 @@ export default function SalesOrderPageModule({
       setForm(emptyForm())
       await loadOrders()
     } catch (error) {
-      onMessage(error instanceof Error ? error.message : '创建销售订单失败')
+      const code = error instanceof Error ? error.message : ''
+      if (code === 'CUSTOMER_MASTER_REVISION_CONFLICT') {
+        setMasterReady(false)
+        setMasterRefresh(current => current + 1)
+      }
+      onMessage(code.startsWith('CUSTOMER_MASTER_') || code === 'CUSTOMER_MAINTAINED_IN_DATA_PLATFORM' ? customerMasterMessage(code) : code || '创建销售订单失败')
     } finally {
       setSaving(false)
     }
@@ -479,26 +492,10 @@ export default function SalesOrderPageModule({
           size="wide"
           onClose={closeCreateOrder}
           closeDisabled={saving || draftAttachmentBusy}
-          footer={<ModalActions onCancel={closeCreateOrder} onConfirm={saveOrder} confirmLabel="创建销售订单" busy={saving || draftAttachmentBusy} />}
+          footer={<ModalActions onCancel={closeCreateOrder} onConfirm={saveOrder} confirmLabel="创建销售订单" busy={saving || draftAttachmentBusy} disabled={!masterReady} />}
         >
           <div className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <div className="lg:col-span-2">
-                <label className="mb-2 block text-sm font-medium text-gray-700">客户</label>
-                <SearchableSelect
-                  value={form.customerId}
-                  onChange={(value) => setForm({ ...form, customerId: value })}
-                  options={customers.map((customer) => ({ value: customer.id, label: customer.name, keywords: `${customer.code} ${customer.contact || ''} ${customer.phone || ''}` }))}
-                  placeholder="输入客户名称、联系人或电话筛选"
-                />
-              </div>
-              <div><label className="mb-2 block text-sm font-medium text-gray-700">订单日期</label><input type="date" value={form.orderDate} onChange={(event) => setForm({ ...form, orderDate: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
-              <div><label className="mb-2 block text-sm font-medium text-gray-700">计划交付</label><input type="date" value={form.deliveryDate} onChange={(event) => setForm({ ...form, deliveryDate: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div><label className="mb-2 block text-sm font-medium text-gray-700">客户订单号/凭据号</label><input value={form.voucherNo} onChange={(event) => setForm({ ...form, voucherNo: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
-              <div><label className="mb-2 block text-sm font-medium text-gray-700">备注</label><input value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2" /></div>
-            </div>
+            <SalesOrderCustomerFields form={form} customers={customers} onChange={changes => setForm(current => ({ ...current, ...changes }))} onValidityChange={setMasterReady} refreshKey={masterRefresh} disabled={saving} />
 
             <div>
               <div className="mb-3 flex items-center justify-between">

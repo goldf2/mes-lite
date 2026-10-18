@@ -1,3 +1,4 @@
+import { CustomerMasterError } from '@/modules/configuration/server-index'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
@@ -34,7 +35,8 @@ export async function POST(req: NextRequest) {
   try {
     const denied = await requireResourcePermission('salesOrder', 'create')
     if (denied) return denied
-    const order = await createManagedSalesOrder(createSalesOrderSchema.parse(await req.json()))
+    const input = createSalesOrderSchema.parse(await req.json())
+    const order = await createManagedSalesOrder(input)
     await writeAuditLog(req, {
       action: 'CREATE', entityType: 'SALES_ORDER', entityId: order.id, entityLabel: order.orderNo, afterData: order,
     })
@@ -43,6 +45,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors[0]?.message || '参数错误', details: error.errors }, { status: 400 })
     }
+    if (error instanceof CustomerMasterError) return NextResponse.json({ error: error.code }, { status: error.status })
     if (error instanceof SalesDomainError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Create sales order error:', error)
     return NextResponse.json({ error: '创建销售订单失败' }, { status: 500 })

@@ -1,3 +1,4 @@
+import { captureCustomerMasterSnapshot, assertSnapshotLinkCurrent } from '@/modules/configuration/server-index'
 import type { getAuditContext } from '@/lib/audit'
 import { createAuditLog } from '@/lib/audit'
 import { prisma } from '@/lib/prisma'
@@ -7,7 +8,9 @@ import { SalesDomainError } from '../domain/sales-errors'
 import { normalizeSalesOrderPricing } from '../domain/sales-order-pricing'
 
 export async function createManagedSalesOrder(input: CreateSalesOrderCommand, now = new Date()) {
+  const masterSnapshot = await captureCustomerMasterSnapshot(input.customerId, input)
   return prisma.$transaction(async (tx) => {
+    await assertSnapshotLinkCurrent(tx, input.customerId, masterSnapshot)
     const materialIds = input.items.map((item) => item.materialId)
     const [customer, materials, latest] = await Promise.all([
       tx.customer.findFirst({ where: { id: input.customerId, deletedAt: null } }),
@@ -25,6 +28,7 @@ export async function createManagedSalesOrder(input: CreateSalesOrderCommand, no
         orderNo: nextDatedDocumentNo('SO', now, latest?.orderNo),
         voucherNo: input.voucherNo?.trim() || null,
         customerId: customer.id,
+        customerMasterSnapshot: masterSnapshot ? JSON.stringify(masterSnapshot) : null,
         orderDate: parseSalesDate(input.orderDate, '订单日期'),
         deliveryDate: input.deliveryDate ? parseSalesDate(input.deliveryDate, '交付日期') : null,
         totalAmount: pricing.totalAmount,
