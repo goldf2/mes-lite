@@ -43,6 +43,12 @@ async function main(){
   for(const current of [null,{...method,mode:'invalid',ready:false},{...method,ready:false}]){const html=gateHtml(current);assert.match(html,/登录暂不可用/);assert.doesNotMatch(html,/type="password"|微信|使用 Casdoor 登录/);assert.match(html,/\/settings\/login/)}checks++
   const waiting=gateHtml(method,'CASDOOR_BINDING_REQUIRED');assert.match(waiting,/等待业务账号关联/);assert.match(waiting,/已有的有效 MES 账号/);assert.doesNotMatch(waiting,/type="password"/);checks++
   assert.match(gateHtml(method,'LOCAL_LOGOUT_COMPLETE'),/已退出本站，身份中心会话可能仍然有效/);checks++
+  const LoginView=loadUi('modules/identity-access/ui/CasdoorLoginView.tsx').default as Component
+  for(const returnPath of ['/?page=businessWorkbench','/?page=dashboard','/?page=orders']) {
+    const html=renderToStaticMarkup(React.createElement(LoginView,{method,returnPath}))
+    assert.ok(html.includes('/api/auth/casdoor/login?next='+encodeURIComponent(returnPath)))
+  }
+  assert.match(readFileSync(join(root,'app/components/AuthGate.tsx'),'utf8'), /window\.location\.pathname \+ window\.location\.search/);checks++
   const builtin=gateHtml({...method,mode:'builtin'},'',true);assert.match(builtin,/type="password"/);assert.match(builtin,/微信/);assert.match(builtin,/注册/);assert.match(builtin,/登录设置/);checks++
   const Native=loadUi('modules/identity-access/ui/NativeLoginForm.tsx').default as Component
   const recovery=renderToStaticMarkup(React.createElement(Native,{recovery:true,onSuccess:()=>{},onMessage:()=>{}}));assert.match(recovery,/管理员登录/);assert.match(recovery,/type="password"/);assert.doesNotMatch(recovery,/微信/);checks++

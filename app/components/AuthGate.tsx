@@ -111,7 +111,7 @@ export default function AuthGate({ children }: AuthGateProps) {
     return <>{children(operator, handleLogout)}</>
   }
 
-  if (loginMethod?.mode !== 'builtin' || !loginMethod.ready) return <CasdoorLoginView method={loginMethod} message={message} />
+  if (loginMethod?.mode !== 'builtin' || !loginMethod.ready) return <CasdoorLoginView method={loginMethod} message={message} returnPath={typeof window === 'undefined' ? '/' : window.location.pathname + window.location.search} />
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">

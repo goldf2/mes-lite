@@ -9,11 +9,11 @@ const loginMessages: Record<string, string> = {
   CASDOOR_LOGIN_FAILED: '统一账号登录未完成，请重试。',
   LOCAL_LOGOUT_COMPLETE: '已退出本站，身份中心会话可能仍然有效。',
 }
-export default function CasdoorLoginView({method, message = ''}: {method: PublicLoginMethod|null; message?: string}) {
+export default function CasdoorLoginView({method, message = '', returnPath = '/'}: {method: PublicLoginMethod|null; message?: string; returnPath?: string}) {
   const ready = method?.mode === 'casdoor' && method.ready
   const waiting = message === 'CASDOOR_BINDING_REQUIRED' || message === 'OPERATOR_NOT_ACTIVE'
   return <AuthFrame appName="MES Lite" settingsHref="/settings/login" title={waiting ? '等待业务账号关联' : ready ? '统一账号登录' : '登录暂不可用'} description={ready ? '使用统一身份登录，业务访问仍按已有 MES 账号权限开放。' : '登录配置暂不可用，请联系管理员核对。'} actions={[
-    ...(ready ? [{href: '/api/auth/casdoor/login?next=%2F', label: '使用 Casdoor 登录', primary: true}] : []),
+    ...(ready ? [{href: '/api/auth/casdoor/login?next=' + encodeURIComponent(returnPath), label: '使用 Casdoor 登录', primary: true}] : []),
     {href: '/admin-login', label: '管理员恢复登录'},
   ]}>{message && <p role="status">{loginMessages[message] || '登录未完成，请重新登录。'}</p>}</AuthFrame>
 }

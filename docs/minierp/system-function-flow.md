@@ -731,3 +731,5 @@ flowchart TD
 - 无 Prisma 或业务模型/事务/历史单据变更；未合入共享联系人候选迁移。详细边界与验收见 [真实工作台规范](../architecture/business-workbench.md)。
 
 - v0.1.486 逐项入口验收补充：帮助中心复用 ResourceToolbar；应用内顶部、独立帮助页内联，加载/错误阶段保留搜索工具栏。生产业务与权限不变。
+
+- v0.1.487 冷启动入口：正常Casdoor登录保留当前本站路径/查询，经原服务端safeLoginReturn复验；不固定落根首页、不改身份或业务授权。
