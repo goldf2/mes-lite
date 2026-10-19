@@ -1,4 +1,12 @@
-# 当前状态：2026-10-19 真实统一入口 v0.1.487（保留正常登录目的地）
+# 当前状态：2026-10-19 v0.1.489 一级菜单分区操作候选
+
+- 基线：main v0.1.488 / 29d54e1935cd9cd4b8d84d0dbbfd4ca1cd3373b0 已部署 Con01，真实统一平台与原 MES 首页保留；数据平台独立 v0.11.2。本次不重做 57 个已通过入口或联系人共享。
+- 用户确认规则：一级主体只展开该组，箭头独立切换该组并保留其他组。公共 DesktopNavigation / UnifiedNavigationMenu 同时覆盖桌面单列侧栏及手机抽屉；路由变化补充展开当前组。
+- 本地 TypeScript、定向 Lint、5 项导航/壳验证通过；独立实际 React 浏览器 19 项通过（1440/390px、键盘/搜索/图文模式/路由/无障碍/旧调用兼容）。本机未运行完整生产构建。
+- 证据：工作目录 css-2/work/navigation-body-arrow-0.1.489/browser-receipt.json；无凭据或生产业务写入。原业务、权限、API 和模型不变。
+- 唯一下一步：候选精确提交完整 CI 成功后常规快进 main，核验 Con01 Web/CAD 和实际桌面/手机菜单；尚不声明 489 已上线。
+
+# 历史快照：2026-10-19 真实统一入口 v0.1.487（已被后续回执替代）
 
 - Worktree: mes-platform-workbench-20261019 / ci/0.1.487，基于生产main fa5b86c。两个业务库独立，未合入484联系人迁移。
 - 用户明确保留原MES首页 /?page=dashboard；平台 /workbench → /?page=businessWorkbench 提供真实目录、搜索、个人收藏和原页面跳转。

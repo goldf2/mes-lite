@@ -76,10 +76,13 @@ function AccordionNavigation({
   displayMode: DesktopNavigationDisplayMode
 }) {
   const activeGroupId = groups.find((group) => group.active)?.id ?? null
-  const [expandedGroupId, setExpandedGroupId] = useState<string | null>(activeGroupId)
+  const [expandedGroupIds, setExpandedGroupIds] = useState<ReadonlySet<string>>(() => (
+    new Set(activeGroupId ? [activeGroupId] : [])
+  ))
 
   useEffect(() => {
-    if (activeGroupId) setExpandedGroupId(activeGroupId)
+    if (!activeGroupId) return
+    setExpandedGroupIds((current) => current.has(activeGroupId) ? current : new Set(current).add(activeGroupId))
   }, [activeGroupId])
 
   return (
@@ -92,11 +95,19 @@ function AccordionNavigation({
           <UnifiedNavigationMenu
             groups={groups}
             groupHeaderMode="button"
-            expandedGroupIds={new Set(expandedGroupId ? [expandedGroupId] : [])}
+            expandedGroupIds={expandedGroupIds}
             displayMode={displayMode}
             ariaLabel="一级与二级功能菜单"
             onGroupSelect={(group) => {
-              setExpandedGroupId((current) => current === group.id ? null : group.id)
+              setExpandedGroupIds(new Set([group.id]))
+            }}
+            onGroupToggle={(group) => {
+              setExpandedGroupIds((current) => {
+                const next = new Set(current)
+                if (next.has(group.id)) next.delete(group.id)
+                else next.add(group.id)
+                return next
+              })
             }}
           />
         )}
