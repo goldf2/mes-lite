@@ -111,7 +111,7 @@ export function WorkspaceFunctionSearch({ search, storageKey, mobileContentSearc
       <TopBarPortal>
         <ResponsiveToolbarActions
           primaryFilters={inlineSearch ? (
-            <AppButton variant="ghost" size="sm" onClick={focusInlineSearch} aria-label="定位功能搜索"><Search aria-hidden="true" className="h-4 w-4" /></AppButton>
+            <AppButton variant="ghost" size="icon" onClick={focusInlineSearch} aria-label="定位功能搜索"><Search aria-hidden="true" className="h-4 w-4" /></AppButton>
           ) : keywordSearch}
           advancedSearch={<ResourceAdvancedSearch fields={functionAdvancedSearchFields} conditions={search.conditions} onChange={search.setConditions} />}
         />
