@@ -14,5 +14,5 @@ interface BusinessWorkbenchPageProps {
 }
 
 export default function BusinessWorkbenchPage(props: BusinessWorkbenchPageProps) {
-  return <WorkspaceLauncher {...props} title="宇峰业务工作台" />
+  return <WorkspaceLauncher {...props} title="宇峰业务工作台" mobileContentSearch />
 }

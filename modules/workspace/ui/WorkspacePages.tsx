@@ -19,7 +19,7 @@ const modeOptions: Array<{ key: WorkspaceMode; label: string; description: strin
   { key: 'CUSTOM', label: '自定义', description: '自行选择并摆放快捷入口' },
 ]
 
-export function WorkspaceLauncher({ items, preference, onOpen, onOpenAllFunctions, onSave, preferenceBusy = false, title }: {
+export function WorkspaceLauncher({ items, preference, onOpen, onOpenAllFunctions, onSave, preferenceBusy = false, title, mobileContentSearch = false }: {
   items: WorkspaceFunctionItem[]
   preference: WorkspacePreferenceValue
   onOpen: (key: WorkspaceFunctionKey) => void
@@ -27,6 +27,7 @@ export function WorkspaceLauncher({ items, preference, onOpen, onOpenAllFunction
   onSave: SaveWorkspacePreference
   preferenceBusy?: boolean
   title?: string
+  mobileContentSearch?: boolean
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [draggedKey, setDraggedKey] = useState<WorkspaceFunctionKey | null>(null)
@@ -137,11 +138,11 @@ export function WorkspaceLauncher({ items, preference, onOpen, onOpenAllFunction
 
   return (
     <section className="space-y-5 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-      <WorkspaceFunctionSearch search={search} storageKey="mes-lite.searchPresets.workspace" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         {title ? <h1 className="text-xl font-semibold text-gray-900">{title}</h1> : <h2 className="text-base font-semibold text-gray-900">常用功能</h2>}
         <AppButton variant="secondary" size="sm" onClick={onOpenAllFunctions}>全部功能</AppButton>
       </div>
+      <WorkspaceFunctionSearch search={search} storageKey="mes-lite.searchPresets.workspace" mobileContentSearch={mobileContentSearch} />
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       {search.searching ? (
         <section aria-label="功能搜索结果" className="space-y-4">
@@ -213,11 +214,11 @@ export function AllFunctionsPage({ items, preference, onOpen, onSave, preference
   const visibleItems = favoritesOnly ? search.visibleItems.filter((item) => preference.pinned.includes(item.key)) : search.visibleItems
   return (
     <section className="space-y-5 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-      <WorkspaceFunctionSearch search={search} storageKey="mes-lite.searchPresets.allFunctions" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><h1 className="text-lg font-semibold text-gray-900">全部功能</h1><p className="mt-1 text-sm text-gray-500">按业务分组浏览当前可用入口，收藏后可从首页打开。</p></div>
         <AppButton variant={favoritesOnly ? 'primary' : 'secondary'} size="sm" aria-pressed={favoritesOnly} onClick={() => setFavoritesOnly((current) => !current)}>只看收藏</AppButton>
       </div>
+      <WorkspaceFunctionSearch search={search} storageKey="mes-lite.searchPresets.allFunctions" mobileContentSearch />
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       <p role="status" className="text-xs text-gray-500">{visibleItems.length} 个功能</p>
       {visibleItems.length > 0 ? <WorkspaceFunctionGroups items={visibleItems} preference={preference} saving={saving} onOpen={onOpen} onToggleFavorite={toggleFavorite} /> : <p className="rounded-lg border border-dashed border-gray-300 py-12 text-center text-sm text-gray-500">{favoritesOnly ? '没有匹配的收藏，可切换到全部功能添加。' : '没有匹配的功能，试试其他名称、分组或说明。'}</p>}

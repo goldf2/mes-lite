@@ -1,12 +1,9 @@
 {
-  "version": "0.1.487",
+  "version": "0.1.488",
   "impact": "updated",
   "workflowIds": [
-    "02-dashboard",
     "03-all-functions",
-    "23-erp-all-functions",
-    "139-sop-help-center",
-    "01-login"
+    "23-erp-all-functions"
   ],
-  "summary": "真实工作台接入现有MES页面和数据平台精确入口，统一搜索和个人收藏；不新增业务数据模型、状态机或权限。逐项入口回归补齐帮助中心公共搜索工具栏；独立帮助页继续内联显示。统一平台和原MES首页在正常Casdoor登录后保留原始本站目的地，仍经原服务端安全返回验证。"
+  "summary": "仅统一平台与全部功能在小于1024px时将原公共关键词/快捷搜索放到标题下方整行展示，顶栏保留定位搜索和原页面工具；桌面、原MES首页和其它业务页布局不变。同一keyword/conditions状态、原权限与导航继续复用，无业务数据模型或流程事务变化。"
 }

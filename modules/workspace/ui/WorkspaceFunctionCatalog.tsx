@@ -1,11 +1,12 @@
 'use client'
 
 import { useRef, useState, type HTMLAttributes, type ReactNode } from 'react'
-import { ExternalLink, Star } from 'lucide-react'
+import { ExternalLink, Search, Star } from 'lucide-react'
 import AppButton from '@/app/components/AppButton'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
 import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
 import TopBarPortal from '@/app/components/TopBarPortal'
+import useCompactViewport from '@/app/components/useCompactViewport'
 import { ResourceAdvancedSearch } from '@/app/components/resource'
 import { defineResourceSearchCatalog, filterBySearchCatalog, resourceAdvancedFields } from '@/lib/resource-search'
 import type { ResourceSearchCondition } from '@/lib/resource-search'
@@ -81,27 +82,42 @@ export function useWorkspacePreferenceActions(preference: WorkspacePreferenceVal
   return { saving: saving || busy, error, savePreference, toggleFavorite }
 }
 
-export function WorkspaceFunctionSearch({ search, storageKey }: {
+export function WorkspaceFunctionSearch({ search, storageKey, mobileContentSearch = false }: {
   search: ReturnType<typeof useWorkspaceFunctionSearch>
   storageKey: string
+  mobileContentSearch?: boolean
 }) {
+  const compactViewport = useCompactViewport(1023)
+  const inlineSearch = mobileContentSearch && compactViewport
+  const inlineSearchRef = useRef<HTMLDivElement>(null)
+  const keywordSearch = (
+    <SearchFieldWithPresets
+      storageKey={storageKey}
+      value={search.keyword}
+      onChange={search.setKeyword}
+      placeholder="搜索功能名称、分组或说明"
+      conditions={search.conditions}
+      onConditionsChange={search.setConditions}
+      conditionLabel="功能精确搜索"
+      className={inlineSearch ? 'flex w-full min-w-0 max-w-none items-center gap-2' : undefined}
+    />
+  )
+  const focusInlineSearch = () => {
+    inlineSearchRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus({ preventScroll: true })
+    inlineSearchRef.current?.scrollIntoView({ block: 'center' })
+  }
   return (
-    <TopBarPortal>
-      <ResponsiveToolbarActions
-        primaryFilters={(
-          <SearchFieldWithPresets
-            storageKey={storageKey}
-            value={search.keyword}
-            onChange={search.setKeyword}
-            placeholder="搜索功能名称、分组或说明"
-            conditions={search.conditions}
-            onConditionsChange={search.setConditions}
-            conditionLabel="功能精确搜索"
-          />
-        )}
-        advancedSearch={<ResourceAdvancedSearch fields={functionAdvancedSearchFields} conditions={search.conditions} onChange={search.setConditions} />}
-      />
-    </TopBarPortal>
+    <>
+      <TopBarPortal>
+        <ResponsiveToolbarActions
+          primaryFilters={inlineSearch ? (
+            <AppButton variant="ghost" size="sm" onClick={focusInlineSearch} aria-label="定位功能搜索"><Search aria-hidden="true" className="h-4 w-4" /></AppButton>
+          ) : keywordSearch}
+          advancedSearch={<ResourceAdvancedSearch fields={functionAdvancedSearchFields} conditions={search.conditions} onChange={search.setConditions} />}
+        />
+      </TopBarPortal>
+      {inlineSearch && <div ref={inlineSearchRef} role="search" aria-label="功能目录搜索" className="w-full min-w-0">{keywordSearch}</div>}
+    </>
   )
 }
 
