@@ -1,3 +1,23 @@
+# 2026-10-19 当前唯一发布步骤：v0.1.493
+
+1. 本地产品与导航/双host/认证回归已通过；冻结ci/0.1.493精确SHA，完整MES-lite CI success前不推进main。
+2. 同一Web资源保留mes并增加work，Runtime PLATFORM_ORIGIN与APP_AUTH_CALLBACK_ORIGINS精确work、APP_ORIGIN保持mes；Casdoor沿用原MES客户端双精确回调，用户要求更名yufeng。核实当前表单组织/保存依赖，不移动用户或直接删除旧yufeng-web。
+3. 普通main一次快进；核对Web/CAD exact image/source healthy及原卷/新启动备份/公开ready。真实work平台、MES原首页、真实Casdoor回调/原业务权限/局部退出后私有拒绝验收，更新专项指导书现场结果。
+
+---
+
+# 当前唯一下一步：v0.1.493 独立平台验收
+
+验证 /platform 与原MES / 两个入口及本地/全局目录隔离、两个真实应用、搜索/收藏/权限、画布与手机，以及侧栏无遮挡/慢点击/复位调宽。随后同步3项SOP验证版本与生成源，冻结493精确候选；完整CI成功后单次快进main并核验Con01 Web/CAD。492不单独发布。域名前缀建议work，DNS尚未修改。
+
+---
+
+# 当前唯一下一步：v0.1.492 侧栏遮挡修复
+
+完成公共应用壳的实际几何回归与独立审查，覆盖原 MES 首页/平台、自动隐藏开关/悬停/关闭、常驻/双列/调宽以及手机/画布；通过后再推精确候选 CI，成功后单次普通快进 main并核验 Con01 Web/CAD。491 已全部验收与部署完成，以 output/acceptance/mes-module-scroll-491-acceptance.json 为证。不更改业务数据、认证权限或其他应用。
+
+---
+
 # 当前下一步：491 模块滚动修复
 
 1. 491 的 9 项滚动回归、2 项生命周期浏览器检查及独立审查已通过；沿用 490 26 项集成及真实生产桌面/手机菜单验收，不重复矩阵。

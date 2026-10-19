@@ -35,15 +35,17 @@ const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0'
 
 // ==================== 主组件 ====================
 
-export default function Home() {
+interface EntryAddresses { platformEntry?: boolean; mesUrl?: string; platformUrl?: string }
+
+export default function Home({ platformEntry = false, mesUrl, platformUrl }: EntryAddresses) {
   return (
     <AuthGate>
-      {(operator, onLogout) => <HomeApp operator={operator} onLogout={onLogout} />}
+      {(operator, onLogout) => <HomeApp operator={operator} onLogout={onLogout} platformEntry={platformEntry} mesUrl={mesUrl} platformUrl={platformUrl} />}
     </AuthGate>
   )
 }
 
-function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: () => void }) {
+function HomeApp({ operator, onLogout, platformEntry, mesUrl, platformUrl }: { operator: CurrentOperator; onLogout: () => void } & EntryAddresses) {
   const [message, setMessage] = useState('')
   const showMessage = useCallback((msg: string) => {
     setMessage(msg)
@@ -72,6 +74,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     resizing,
     autoHideDesktopNavigation,
     persistentDesktopNavigation,
+    desktopNavigationOccupiesSpace,
     splitNavigationVisible,
     sidebarResizeMin,
     sidebarResizeMax,
@@ -96,9 +99,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     canUpdate,
     canDelete,
     activeWorkspace,
-    workspaceNavigationConfig,
     workspaceFunctionItems,
     availableBusinessModules,
+    availableBusinessApplications,
+    activeBusinessApplication,
+    isPlatformSurface,
+    openBusinessApplication,
     activeBusinessModule,
     openBusinessModule,
     openBusinessPlatform,
@@ -121,6 +127,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     navigateToTab,
   } = useApplicationNavigationController({
     operator,
+    platformEntry,
+    mesUrl,
+    platformUrl,
     closeSystemMenu,
     closeTransientNavigation: closeTransientDesktopNavigation,
     recordWorkspaceUsage,
@@ -178,7 +187,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       : transientNavigationOpen
       ? '收起功能导航'
       : '打开功能导航'
-  const desktopNavigationExpanded = persistentDesktopNavigation || transientNavigationOpen
+  const desktopNavigationExpanded = !isPlatformSurface && desktopNavigationOccupiesSpace
+  const canvasWorkspace = workspaceLayoutPreference.layout === 'canvas'
 
   return (
     <div
@@ -187,6 +197,8 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       data-workspace-layout={workspaceLayoutPreference.layout}
       data-desktop-navigation-behavior={workspaceLayoutPreference.navigationBehavior}
       data-navigation-workspace={activeWorkspace}
+      data-platform-surface={isPlatformSurface || undefined}
+      data-business-application={activeBusinessApplication?.key || 'platform'}
       data-business-module={activeBusinessModule?.key || (tab === 'dashboard' ? 'mes-home' : 'overview')}
       style={{
         '--mes-desktop-sidebar-width': `${sidebarWidth}px`,
@@ -197,20 +209,17 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       <InterfacePreferenceSync />
       <header className="fixed inset-x-0 top-0 z-50 hidden h-16 items-center border-b border-gray-200 bg-white lg:flex">
         <div className={`flex h-full shrink-0 items-center border-r border-gray-200 transition-[width,padding] duration-200 motion-reduce:transition-none ${
-          workspaceLayoutPreference.layout === 'canvas'
+          isPlatformSurface ? 'w-56 gap-3 px-4' : canvasWorkspace
             ? 'w-44 gap-3 px-4'
             : `w-[var(--mes-desktop-sidebar-width)] gap-2 px-2 ${desktopNavigationMode === 'split' ? 'xl:w-[var(--mes-desktop-split-sidebar-width)]' : ''}`
         }`}>
-          {workspaceLayoutPreference.layout === 'canvas' ? (
+          {isPlatformSurface || canvasWorkspace ? (
             <CapabilityModuleButtons
-              config={workspaceNavigationConfig}
               compact
-              modules={availableBusinessModules}
-              activeModule={activeBusinessModule}
-              isMesHome={tab === 'dashboard'}
-              onOpenHome={() => navigateToTab('dashboard')}
+              modules={availableBusinessApplications}
+              activeModule={activeBusinessApplication}
               onOpenPlatform={openBusinessPlatform}
-              onOpenModule={openBusinessModule}
+              onOpenModule={openBusinessApplication}
             />
           ) : (
             <>
@@ -226,14 +235,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 <ControlTooltip label={desktopNavigationTriggerLabel} hidden={transientNavigationOpen} />
               </button>
               <CapabilityModuleButtons
-                config={workspaceNavigationConfig}
                 compact
-                modules={availableBusinessModules}
-                activeModule={activeBusinessModule}
-                isMesHome={tab === 'dashboard'}
-                onOpenHome={() => navigateToTab('dashboard')}
+                modules={availableBusinessApplications}
+                activeModule={activeBusinessApplication}
                 onOpenPlatform={openBusinessPlatform}
-                onOpenModule={openBusinessModule}
+                onOpenModule={openBusinessApplication}
               />
               <button
                 type="button"
@@ -248,11 +254,11 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             </>
           )}
         </div>
-        {workspaceLayoutPreference.layout === 'canvas' && <DesktopTopNavigation groups={navigationGroups} />}
+        {canvasWorkspace && <DesktopTopNavigation groups={navigationGroups} />}
         <div
           id="topbar-actions-desktop"
           aria-label="页面搜索、筛选和工具"
-          className={`${workspaceLayoutPreference.layout === 'sidebar' ? 'flex' : 'hidden'} min-w-0 flex-1 items-center gap-3 overflow-visible px-4 empty:before:content-['']`}
+          className={`${!canvasWorkspace ? 'flex' : 'hidden'} min-w-0 flex-1 items-center gap-3 overflow-visible px-4 empty:before:content-['']`}
         />
         <div className="flex h-full shrink-0 items-center gap-2 border-l border-gray-100 px-4">
           <button
@@ -314,10 +320,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       <div
         id="page-tools-desktop"
         aria-label="右侧页面工具"
-        className={`fixed bottom-0 right-0 top-16 z-30 hidden w-[var(--mes-desktop-tools-width)] border-l border-gray-200 bg-white ${workspaceLayoutPreference.layout === 'canvas' ? 'lg:flex' : 'lg:hidden'}`}
+        className={`fixed bottom-0 right-0 top-16 z-30 hidden w-[var(--mes-desktop-tools-width)] border-l border-gray-200 bg-white ${canvasWorkspace ? 'lg:flex' : 'lg:hidden'}`}
       />
 
-      {autoHideDesktopNavigation && (
+      {autoHideDesktopNavigation && !isPlatformSurface && (
         <div
           aria-hidden="true"
           data-desktop-navigation-hover-zone="true"
@@ -331,9 +337,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         ref={desktopNavigationPanelRef}
         onPointerEnter={keepDesktopNavigationOpen}
         onPointerLeave={scheduleDesktopNavigationClose}
-        className={`fixed bottom-0 left-0 top-16 hidden w-[var(--mes-desktop-sidebar-width)] flex-col border-r border-gray-200 bg-white shadow-lg transition-transform duration-200 motion-reduce:transition-none lg:flex ${
+        className={`fixed bottom-0 left-0 top-16 hidden w-[var(--mes-desktop-sidebar-width)] flex-col border-r border-gray-200 bg-white shadow-lg ${resizing ? 'transition-none' : 'transition-[transform,width] duration-200 motion-reduce:transition-none'} lg:flex ${
           desktopNavigationMode === 'split' ? 'xl:w-[var(--mes-desktop-split-sidebar-width)]' : ''
-        } ${workspaceLayoutPreference.layout === 'canvas'
+        } ${isPlatformSurface || canvasWorkspace
           ? 'lg:hidden'
           : autoHideDesktopNavigation
             ? `z-40 ${transientNavigationOpen ? 'translate-x-0' : '-translate-x-full'}`
@@ -368,16 +374,17 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         </div>
       </aside>
 
-      <main className={`mes-mobile-main min-w-0 p-3 transition-[margin] duration-200 motion-reduce:transition-none sm:p-4 lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20 ${
-        persistentDesktopNavigation
+      <main className={`mes-mobile-main min-w-0 p-3 ${resizing ? 'transition-none' : 'transition-[margin] duration-200 motion-reduce:transition-none'} sm:p-4 lg:flex lg:h-screen lg:flex-col lg:overflow-hidden lg:p-6 lg:pb-0 lg:pt-20 ${
+        desktopNavigationExpanded
           ? `lg:ml-[var(--mes-desktop-sidebar-width)] ${desktopNavigationMode === 'split' ? 'xl:ml-[var(--mes-desktop-split-sidebar-width)]' : ''}`
           : 'lg:ml-0'
-      } ${workspaceLayoutPreference.layout === 'canvas' ? 'lg:mr-[var(--mes-desktop-tools-width)]' : 'lg:mr-0'}`}>
+      } ${canvasWorkspace ? 'lg:mr-[var(--mes-desktop-tools-width)]' : 'lg:mr-0'}`}>
         <div className={`fixed inset-x-0 top-0 border-b border-gray-200 bg-gray-50/95 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.5rem)] shadow-sm backdrop-blur sm:px-4 lg:hidden ${
           systemMenuOpen ? 'z-[60] lg:z-30' : 'z-30'
         }`}>
           <div className="flex min-w-0 flex-nowrap items-center gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2 lg:hidden">
+              {isPlatformSurface ? <span className="shrink-0 text-sm font-semibold text-gray-900">宇峰平台</span> : <>
               <button
                 type="button"
                 aria-label="打开全部功能"
@@ -392,6 +399,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
                 <Menu aria-hidden="true" className="h-5 w-5" />
               </button>
               {siblingNavigationEnabled && <MobileSiblingNavigation group={activeNavigationGroup} />}
+              </>}
               <div id="topbar-actions-mobile" className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible empty:hidden" />
               <button
                 type="button"
@@ -436,6 +444,9 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             message={message}
             operator={operator}
             workspaceItems={workspaceFunctionItems}
+            platformEntry={platformEntry}
+            businessApplications={availableBusinessApplications}
+            onOpenBusinessApplication={openBusinessApplication}
             businessModule={activeBusinessModule}
             businessModules={availableBusinessModules}
             onOpenBusinessModule={openBusinessModule}
@@ -482,13 +493,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             </div>
             <div className="shrink-0 border-b border-gray-200 px-4 py-3">
               <CapabilityModuleButtons
-                config={workspaceNavigationConfig}
-                modules={availableBusinessModules}
-                activeModule={activeBusinessModule}
-                isMesHome={tab === 'dashboard'}
-                onOpenHome={() => navigateToTab('dashboard')}
+                modules={availableBusinessApplications}
+                activeModule={activeBusinessApplication}
                 onOpenPlatform={openBusinessPlatform}
-                onOpenModule={openBusinessModule}
+                onOpenModule={openBusinessApplication}
               />
             </div>
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
@@ -526,7 +534,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
         />
       )}
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
+      <nav className={`${isPlatformSurface ? 'hidden' : ''} fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden`}>
         <div
           className="grid gap-1"
           style={{ gridTemplateColumns: `repeat(${Math.max(mobilePrimaryItems.length + (canRead('aiAssistant') ? 1 : 0), 1)}, minmax(0, 1fr))` }}

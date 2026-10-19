@@ -10,6 +10,8 @@ export {
   getBusinessModuleForFunction,
 } from './domain/business-modules'
 export type { BusinessModuleDefinition, BusinessModuleKey } from './domain/business-modules'
+export { businessApplicationDefinitions, getAvailableBusinessApplications } from './domain/business-applications'
+export type { AvailableBusinessApplication, BusinessApplicationDefinition, BusinessApplicationKey } from './domain/business-applications'
 export {
   announceWorkspaceNavigationConfig,
   loadWorkspaceNavigationConfig,

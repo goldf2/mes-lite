@@ -44,6 +44,8 @@ export default function useDesktopNavigationController() {
   const sidebarResizeMax = splitNavigationVisible ? maxDesktopSplitSidebarWidth : maxDesktopSidebarWidth
   const sidebarResizeValue = splitNavigationVisible ? splitSidebarWidth : sidebarWidth
   const transientNavigationOpen = transientNavigationMode !== 'closed'
+  const desktopNavigationOccupiesSpace = standardWorkspaceLayout
+    && (persistentDesktopNavigation || (autoHideDesktopNavigation && transientNavigationOpen))
 
   const cancelScheduledClose = useCallback(() => {
     if (closeTimerRef.current === null) return
@@ -107,7 +109,7 @@ export default function useDesktopNavigationController() {
 
   useEffect(() => {
     if (!autoHideDesktopNavigation || !transientNavigationOpen) return
-    const handlePointerDown = (event: globalThis.PointerEvent) => {
+    const handleClick = (event: globalThis.MouseEvent) => {
       const target = event.target as Node
       if (panelRef.current?.contains(target) || triggerRef.current?.contains(target)) return
       closeTransientNavigation()
@@ -117,10 +119,10 @@ export default function useDesktopNavigationController() {
       closeTransientNavigation()
       triggerRef.current?.focus()
     }
-    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('click', handleClick)
     document.addEventListener('keydown', handleKeyDown)
     return () => {
-      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('click', handleClick)
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [autoHideDesktopNavigation, closeTransientNavigation, transientNavigationOpen])
@@ -221,6 +223,7 @@ export default function useDesktopNavigationController() {
     resizing: resizingMode !== null,
     autoHideDesktopNavigation,
     persistentDesktopNavigation,
+    desktopNavigationOccupiesSpace,
     splitNavigationVisible,
     sidebarResizeMin,
     sidebarResizeMax,

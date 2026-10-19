@@ -7,7 +7,7 @@ import AppLoadingIndicator from '../AppLoadingIndicator'
 import { AllFunctionsPage, type WorkspaceFunctionItem } from '@/modules/workspace'
 import type { ApplicationTab, PageModuleDefinition, PageRendererKey } from '@/lib/page-registry'
 import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/workspace'
-import type { BusinessModuleDefinition, BusinessModuleKey } from '@/modules/workspace'
+import type { BusinessModuleDefinition, BusinessModuleKey, AvailableBusinessApplication, BusinessApplicationKey } from '@/modules/workspace'
 
 function FeaturePageLoading() {
   return <AppLoadingIndicator label="正在加载页面..." />
@@ -56,6 +56,9 @@ export interface WorkspacePageRenderContext {
   tab: ApplicationTab
   operator: CurrentOperator
   workspaceItems: WorkspaceFunctionItem[]
+  platformEntry?: boolean
+  businessApplications?: Array<AvailableBusinessApplication<WorkspaceFunctionItem>>
+  onOpenBusinessApplication?: (key: BusinessApplicationKey) => void
   businessModule?: BusinessModuleDefinition | null
   businessModules?: Array<BusinessModuleDefinition & { items: WorkspaceFunctionItem[] }>
   onOpenBusinessModule?: (key: BusinessModuleKey) => void
@@ -83,7 +86,7 @@ type PageRenderer = (context: WorkspacePageRenderContext, definition: PageModule
 const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
   dashboard: (context) => (
     <DashboardPage
-      items={context.workspaceItems.filter((item) => !item.externalHref)}
+      items={context.workspaceItems.filter((item) => !item.externalHref && item.key !== 'businessWorkbench')}
       preference={context.workspacePreference}
       onOpen={context.onOpenWorkspaceFunction}
       onOpenAllFunctions={context.onOpenAllFunctions}
@@ -94,6 +97,8 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
   'business-workbench': (context) => (
     <BusinessWorkbenchPage
       items={context.workspaceItems.filter((item) => item.key !== 'businessWorkbench')}
+      businessApplications={context.businessApplications}
+      onOpenBusinessApplication={context.onOpenBusinessApplication}
       businessModule={context.businessModule}
       businessModules={context.businessModules}
       onOpenBusinessModule={context.onOpenBusinessModule}
@@ -107,7 +112,7 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
   ),
   'all-functions': (context) => (
     <AllFunctionsPage
-      items={context.workspaceItems}
+      items={context.workspaceItems.filter((item) => item.key !== 'businessWorkbench' && (context.platformEntry || !item.externalHref))}
       preference={context.workspacePreference}
       onOpen={context.onOpenWorkspaceFunction}
       onSave={context.onSaveWorkspacePreference}

@@ -20,6 +20,8 @@ export async function verifyCasdoorHttpBoundary(prisma: PrismaClient,
 ) {
   const checks: string[] = [], port = await availablePort(), origin = 'http://127.0.0.1:' + port
   process.env.APP_ORIGIN = origin
+  const previousAliases = process.env.APP_AUTH_CALLBACK_ORIGINS, alias = 'https://work.synthetic.test'
+  process.env.APP_AUTH_CALLBACK_ORIGINS = alias
   const login = await createOidcSession()
   const cookie = 'mes_lite_session=' + login.session.token
   await prisma.permissionSetting.upsert({ where: { role_resource: { role: 'OPERATOR', resource: 'customers' } }, create: { role: 'OPERATOR', resource: 'customers', canRead: true }, update: { canRead: true } })
@@ -42,6 +44,32 @@ export async function verifyCasdoorHttpBoundary(prisma: PrismaClient,
     assert.equal(readiness.status, 200)
     assert.equal((await readiness.json()).checks.authentication.status, 'pass')
     checks.push('http-actual-docker-readiness-includes-authentication')
+    const callbackPath = '/api/auth/casdoor/callback'
+    const aliasHeaders = { 'x-forwarded-host': new URL(alias).host, 'x-forwarded-proto': 'https' }
+    for (const [expectedOrigin, requestHeaders] of [[origin, {}], [alias, aliasHeaders]] as const) {
+      const callback = await fetch(origin + callbackPath, { redirect: 'manual', headers: requestHeaders })
+      assert.equal(callback.status, 307)
+      const target = new URL(callback.headers.get('location')!)
+      assert.equal(target.origin, expectedOrigin)
+      assert.equal(target.searchParams.get('casdoor_login'), 'LOGIN_EXPIRED')
+      const cleared = callback.headers.get('set-cookie') || ''
+      assert.ok(cleared.includes('mes_lite_casdoor_challenge=') && cleared.includes('Max-Age=0'))
+      assert.ok(!/domain=/i.test(cleared))
+    }
+    checks.push('http-canonical-and-proxy-alias-callback-errors-return-same-origin-host-only-cookie')
+    for (const requestHeaders of [
+      { 'x-forwarded-host': 'unlisted.synthetic.test', 'x-forwarded-proto': 'https' },
+      { 'x-forwarded-host': 'work.synthetic.test/invalid', 'x-forwarded-proto': 'https' },
+      { 'x-forwarded-host': 'work.synthetic.test', 'x-forwarded-proto': 'invalid' },
+    ]) {
+      for (const path of ['/api/auth/casdoor/login', callbackPath]) {
+        const denied = await fetch(origin + path, { redirect: 'manual', headers: requestHeaders })
+        assert.equal(denied.status, 403)
+        assert.equal(denied.headers.get('location'), null)
+        assert.equal(denied.headers.get('set-cookie'), null)
+      }
+    }
+    checks.push('http-unlisted-or-malformed-forwarded-origin-rejected-without-redirect')
     assert.equal((await fetch(origin + '/api/customers')).status, 401)
     checks.push('http-private-api-without-cookie-401')
     let response = await fetch(origin + '/api/auth/me', { headers: { Cookie: cookie } })
@@ -101,6 +129,8 @@ export async function verifyCasdoorHttpBoundary(prisma: PrismaClient,
     checks.push('http-recovery-role-revoked-session-cannot-revive')
     return checks
   } finally {
+    if (previousAliases === undefined) delete process.env.APP_AUTH_CALLBACK_ORIGINS
+    else process.env.APP_AUTH_CALLBACK_ORIGINS = previousAliases
     if (server?.pid) {
       try { process.kill(-server.pid, 'SIGTERM') } catch { /* already stopped */ }
       for (let attempt = 0; attempt < 20 && server.exitCode === null; attempt++) await delay(100)

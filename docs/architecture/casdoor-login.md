@@ -1,6 +1,20 @@
-# MES Casdoor 统一登录（v0.1.480 候选）
+# MES Casdoor 登录与双域入口
 
-## 范围与发布状态
+## v0.1.493 双域精确回调增量
+
+原 MES canonical 继续使用 `APP_ORIGIN=https://mes.csyufeng.com`。同一 Web 部署新增平台入口 `PLATFORM_ORIGIN=https://work.csyufeng.com`，平台域根路径仅作精确 rewrite `/platform`；公开入口地址由服务器传给应用壳，不暴露认证密钥。`PLATFORM_ORIGIN` 不自动变成认证允许地址，另设 `APP_AUTH_CALLBACK_ORIGINS=https://work.csyufeng.com`，在既有 MES Casdoor 客户端保留 canonical 回调并追加 `https://work.csyufeng.com/api/auth/casdoor/callback`。不创建新组织、账号、客户端或业务权限。
+
+回调 origin 只接受显式精确 HTTPS origin（开发仅额外允许 loopback HTTP），拒绝通配、路径、查询、片段、用户名密码、反斜线和无效代理头。HTTP 登录与回调先从可信反向代理还原请求 origin，再与配置清单精确比较；任意 Host/X-Forwarded-Host 不能变成自由回跳地址。平台挑战在数据库保存的随机 state 内绑定该 origin，回调以相同 origin 交换 token、验证 state/nonce/PKCE，并在建会话前再次检查清单。canonical 旧挑战格式继续有效；MES 与平台 origin 的挑战不能互换。
+
+新增或移除别名本身不旋转既有身份配置代际，不使原 MES 会话或 canonical 在途挑战失效；但从清单移除别名会拒绝其在途回调，token 交换期间被撤销也不能创建会话。原身份 issuer+subject 绑定、ACTIVE 状态、细粒度岗位和数据范围检查保持。客户端/issuer/secret/登录模式等原身份参数变更仍执行既有代际失效规则。
+
+会话和挑战 Cookie 均保持 host-only、HttpOnly、SameSite=Lax，生产 Secure，不设置 `Domain=.csyufeng.com`。两个域分别通过正常登录建立会话；退出当前域只撤销当前浏览器的本站会话与挑战，不宣称 MES 另一域、数据平台或 Casdoor 已全局退出。清除别名配置也不是注销所有已建立会话；若需撤销会话，使用原有明确的会话管理流程。
+
+本地认证 48/48 已通过（14 项真实 loopback Next HTTP，真实 RS256 合成 IdP 传输和临时数据库），另有双 loopback host 浏览器 8 项通过，证据见 [493说明](../releases/v0.1.493.md)。未请求真实身份服务、未改生产配置或业务数据；精确候选 CI、两个正式域的代理/TLS与真实 Casdoor 登录回调仍待发布验收。
+
+## v0.1.480 初始候选范围（历史设计基线）
+
+以下保留 480 首次引入时的设计与候选验证基线，不用于判定当前部署状态；493 的增量和待验收范围以上文及正式版本说明为准。
 
 MES 保持独立 Web、数据库、人员、岗位权限与业务 API；企业业务平台只统一入口和身份。此候选从 API479 的 `9e9cc5cf4ab5e89c1cf83d4a2a1966305ee29d1e` 创建，不把目录 API 的机器委托当作网页登录。源码和隔离测试不是生产接入完成；未创建生产客户端、人员绑定、权限或更改运行模式。当前 Casdoor 源仍为 AL03，Con01 备用保持停止。
 
@@ -12,12 +26,14 @@ MES 保持独立 Web、数据库、人员、岗位权限与业务 API；企业�
 
 ## Runtime 参数
 
-所有认证参数只在服务端 Runtime 设置，不使用 NEXT_PUBLIC，不写入 Git、截图、审计正文或数据库。
+所有认证配置在服务端 Runtime 读取，不以 NEXT_PUBLIC 暴露；认证密钥、Token 和 Cookie 不写入 Git、截图、审计正文或数据库。APP_ORIGIN/PLATFORM_ORIGIN 是公开导航地址，可由服务器传给页面，不属于密钥。
 
 | 变量 | 规则 |
 | --- | --- |
 | APP_LOGIN_MODE | 未设置或 builtin 保持原用户名密码/注册与微信；casdoor 明确选择统一登录；其他值拒绝 |
-| APP_ORIGIN | 精确公开 HTTPS origin，无路径、查询、片段、用户名或密码；未设置时兼容 MES_PUBLIC_BASE_URL；仅开发允许 loopback HTTP |
+| APP_ORIGIN | 原 MES canonical 精确公开 HTTPS origin，无路径、查询、片段、用户名或密码；未设置时兼容 MES_PUBLIC_BASE_URL；仅开发允许 loopback HTTP。正式值继续为 https://mes.csyufeng.com |
+| PLATFORM_ORIGIN | 公开平台入口，正式值 https://work.csyufeng.com；仅决定公开导航和平台根 rewrite，不授予认证资格，不改变 canonical |
+| APP_AUTH_CALLBACK_ORIGINS | 额外精确认证 origin，以英文逗号分隔，正式仅加 https://work.csyufeng.com；空值仅保留 canonical；格式无效时 Casdoor readiness 失败，不接受通配或生产 HTTP |
 | CASDOOR_ISSUER | 精确 HTTPS issuer，后续声明和绑定都使用同一个值 |
 | CASDOOR_CLIENT_ID / CASDOOR_CLIENT_SECRET | 本 MES 专用客户端；密钥仅 Runtime，诊断仅返回配置与否 |
 | CASDOOR_APPLICATION / CASDOOR_ORGANIZATION | 可选客户端元数据；不据此自动建立 MES 人员或权限 |
@@ -32,7 +48,7 @@ MES 保持独立 Web、数据库、人员、岗位权限与业务 API；企业�
 | 入口 | 行为与权限 |
 | --- | --- |
 | GET /api/auth/method | 公开安全状态 `{data:{mode,ready,settingsHref,recoveryHref}}`；不可用仍保留模式，503 |
-| GET /api/auth/casdoor/login?next= | 原登录限流；固定回调、随机 state/nonce、S256 PKCE；只接受本站相对 next |
+| GET /api/auth/casdoor/login?next= | 原登录限流；仅允许清单内发起 origin 的固定回调路径，随机且绑定 origin 的 state/nonce、S256 PKCE；只接受本站相对 next |
 | GET /api/auth/casdoor/callback | 验证单次挑战、签名、issuer/aud/azp/state/nonce/PKCE 后才查精确身份绑定；正常建立原 MES 会话 |
 | GET /settings/login | 公开只读页面；加载或失败不隐式更改登录方式 |
 | GET /api/system/login-settings | 匿名401，非 ADMIN403；返回安全 Runtime 诊断，不返回 secret、指纹或身份列表 |
@@ -40,7 +56,7 @@ MES 保持独立 Web、数据库、人员、岗位权限与业务 API；企业�
 | POST /api/auth/native-admin/login | 原账号密码校验/限流/写请求 Origin 保护；仅 ACTIVE ADMIN；不生成密码、Token 或角色 |
 | POST /api/auth/logout | 原本站会话删除与 Cookie 清除；退出后私有接口401。仅退出本站，不冒称身份中心退出 |
 
-OIDC 挑战只保存随机票据摘要、state、nonce、PKCE verifier、配置代际、返回路径和五分钟到期、单次claim时间和关联sessionId；票据 Cookie 为 HttpOnly/SameSite=Lax，生产 Secure。回调原子claim，失败也不能重用；建会话前事务重查挑战并回链session。退出按当前浏览器票据事务撤销挑战及关联会话，清除两Cookie；在途token交换在退出之后完成也不能建会话，不撤销其他浏览器。issuer、audience、azp、签名、nonce 或 PKCE 不符时不建立会话。回跳基于已配置 origin，不能采用请求 Host 产生外站跳转。
+OIDC 挑战只保存随机票据摘要、state、nonce、PKCE verifier、配置代际、返回路径和五分钟到期、单次claim时间和关联sessionId；票据 Cookie 为 HttpOnly/SameSite=Lax，生产 Secure。回调原子claim，失败也不能重用；建会话前事务重查挑战并回链session。退出按当前浏览器票据事务撤销挑战及关联会话，清除两Cookie；在途token交换在退出之后完成也不能建会话，不撤销其他浏览器。issuer、audience、azp、签名、nonce 或 PKCE 不符时不建立会话。回跳基于发起时绑定且回调/建会话时仍被配置清单允许的精确 origin，不能采用未经验证的请求 Host 产生外站跳转。
 
 ## 身份与业务授权
 

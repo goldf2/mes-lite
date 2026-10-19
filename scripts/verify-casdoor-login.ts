@@ -13,7 +13,7 @@ const clientId = 'synthetic-mes-client'
 const checks: string[] = []
 async function main() {
   process.env.DATABASE_URL = databaseUrl
-  for (const key of ['APP_LOGIN_MODE', 'CASDOOR_ISSUER', 'CASDOOR_CLIENT_ID', 'CASDOOR_CLIENT_SECRET', 'CASDOOR_ORGANIZATION', 'CASDOOR_APPLICATION']) delete process.env[key]
+  for (const key of ['APP_LOGIN_MODE', 'APP_AUTH_CALLBACK_ORIGINS', 'CASDOOR_ISSUER', 'CASDOOR_CLIENT_ID', 'CASDOOR_CLIENT_SECRET', 'CASDOOR_ORGANIZATION', 'CASDOOR_APPLICATION']) delete process.env[key]
   execFileSync(join(process.cwd(), 'node_modules/.bin/prisma'), ['migrate', 'deploy'], { env: { ...process.env, RUST_LOG: 'info' }, stdio: 'pipe' })
   const [{ prisma }, auth, login, policy, runtime, domain, service] = await Promise.all([
     import('../lib/prisma'), import('../lib/auth'),
@@ -49,7 +49,7 @@ async function main() {
     const rsa = generateKeyPairSync('rsa', { modulusLength: 2048 })
     const wrongRsa = generateKeyPairSync('rsa', { modulusLength: 2048 })
     const jwk = { ...rsa.publicKey.export({ format: 'jwk' }), kid: 'fixture-key', alg: 'RS256', use: 'sig' }
-    type Scenario = { nonce: string; challenge: string; overrides?: Record<string, unknown>; wrongSignature?: boolean }
+    type Scenario = { nonce: string; challenge: string; redirectUri: string; overrides?: Record<string, unknown>; wrongSignature?: boolean }
     const scenarios = new Map<string, Scenario>()
     let currentCode = '', tokenExchanges = 0
     let tokenBarrier: null | {entered: () => void; wait: Promise<void>} = null
@@ -66,6 +66,7 @@ async function main() {
         if (tokenBarrier) { const barrier = tokenBarrier; tokenBarrier = null; barrier.entered(); await barrier.wait }
         const body = new URLSearchParams(String(init?.body)), scenario = scenarios.get(body.get('code') || '')
         assert.ok(scenario)
+        assert.equal(body.get('redirect_uri') === scenario.redirectUri, true, 'token redirect URI must match the authorization attempt')
         const challenge = createHash('sha256').update(body.get('code_verifier') || '').digest('base64url')
         if (challenge !== scenario.challenge) return Response.json({ error: 'invalid_grant' }, { status: 400 })
         const now = Math.floor(Date.now() / 1000)
@@ -75,12 +76,12 @@ async function main() {
         return Response.json({ access_token: 'fixture-access-token', token_type: 'Bearer', expires_in: 300, id_token: jwt })
       },
     }
-    const begin = async (overrides?: Record<string, unknown>, wrongSignature = false) => {
-      const pending = await login.beginCasdoorLogin('/?page=customers', network)
+    const begin = async (overrides?: Record<string, unknown>, wrongSignature = false, origin?: string) => {
+      const pending = await login.beginCasdoorLogin('/?page=customers', network, origin)
       const url = new URL(pending.authorizationUrl)
       currentCode = 'fixture-code-' + scenarios.size
-      scenarios.set(currentCode, { nonce: url.searchParams.get('nonce')!, challenge: url.searchParams.get('code_challenge')!, overrides, wrongSignature })
-      const callback = new URL(domain.MES_CASDOOR_CALLBACK, process.env.APP_ORIGIN)
+      scenarios.set(currentCode, { nonce: url.searchParams.get('nonce')!, challenge: url.searchParams.get('code_challenge')!, redirectUri: url.searchParams.get('redirect_uri')!, overrides, wrongSignature })
+      const callback = new URL(url.searchParams.get('redirect_uri')!)
       callback.searchParams.set('state', url.searchParams.get('state')!)
       callback.searchParams.set('code', currentCode)
       return { pending, callback }
@@ -99,6 +100,9 @@ async function main() {
     const oidcSession = await findSession(loggedIn.session.token)
     assert.equal(await policy.sessionAuthenticationAllowed(oidcSession, { role: 'OPERATOR', status: 'ACTIVE' }), true)
     checks.push('signed-oidc-pkce-bound-operator-real-session')
+    assert.equal(new URL(flow.pending.authorizationUrl).searchParams.get('state')?.includes('.'), false)
+    assert.equal(flow.callback.origin, process.env.APP_ORIGIN)
+    checks.push('canonical-callback-and-legacy-state-format-unchanged')
     await assert.rejects(login.completeCasdoorLogin(flow.callback.href, flow.pending.ticket, network), /LOGIN_EXPIRED/)
     checks.push('challenge-replay-rejected')
     for (const [name, overrides, wrongSignature] of [
@@ -124,6 +128,77 @@ async function main() {
     await prisma.operatorLoginChallenge.update({ where: { ticketHash: createHash('sha256').update(flow.pending.ticket).digest('hex') }, data: { expiresAt: new Date(0) } })
     await assert.rejects(login.completeCasdoorLogin(flow.callback.href, flow.pending.ticket, network), /LOGIN_EXPIRED/)
     checks.push('expired-challenge-rejected')
+    const alias = 'https://work.synthetic.test', secondAlias = 'https://other-work.synthetic.test'
+    const legacyCanonical = await begin()
+    const canonicalFingerprint = domain.readLoginConfiguration().fingerprint
+    process.env.APP_AUTH_CALLBACK_ORIGINS = alias + ', ' + secondAlias
+    const aliasesRuntime = await runtime.ensureAuthenticationRuntime()
+    assert.equal(aliasesRuntime.state.generation, first.state.generation)
+    assert.equal(aliasesRuntime.fingerprint, canonicalFingerprint)
+    assert.equal(await policy.sessionAuthenticationAllowed(oidcSession, { role: 'OPERATOR', status: 'ACTIVE' }), true)
+    await login.completeCasdoorLogin(legacyCanonical.callback.href, legacyCanonical.pending.ticket, network)
+    checks.push('adding-alias-keeps-generation-session-and-legacy-canonical-challenge')
+    flow = await begin(undefined, false, alias)
+    assert.equal(flow.callback.origin, alias)
+    const storedAlias = await prisma.operatorLoginChallenge.findUniqueOrThrow({ where: { ticketHash: createHash('sha256').update(flow.pending.ticket).digest('hex') } })
+    assert.equal(storedAlias.state === new URL(flow.pending.authorizationUrl).searchParams.get('state'), true)
+    assert.equal(storedAlias.state.startsWith('v1.' + Buffer.from(alias).toString('base64url') + '.'), true)
+    const aliasLogin = await login.completeCasdoorLogin(flow.callback.href, flow.pending.ticket, network)
+    assert.equal(aliasLogin.operatorId, 'fixture-OPERATOR')
+    assert.equal(aliasLogin.next, '/?page=customers')
+    checks.push('alias-db-bound-state-pkce-redirect-and-real-session')
+    for (const [startOrigin, callbackOrigin] of [[alias, process.env.APP_ORIGIN!], [process.env.APP_ORIGIN!, alias]]) {
+      flow = await begin(undefined, false, startOrigin)
+      const exchanged = tokenExchanges
+      const wrongCallback = new URL(flow.callback.pathname + flow.callback.search, callbackOrigin)
+      await assert.rejects(login.completeCasdoorLogin(wrongCallback.href, flow.pending.ticket, network), /INVALID_CALLBACK_ORIGIN/)
+      assert.equal(tokenExchanges, exchanged)
+    }
+    checks.push('canonical-alias-cross-origin-callbacks-denied-before-token-exchange')
+    const challengeCount = await prisma.operatorLoginChallenge.count()
+    await assert.rejects(login.beginCasdoorLogin('/', network, 'https://unlisted.synthetic.test'), /INVALID_CALLBACK_ORIGIN/)
+    assert.equal(await prisma.operatorLoginChallenge.count(), challengeCount)
+    flow = await begin(undefined, false, alias)
+    const unknownCallback = new URL(flow.callback.pathname + flow.callback.search, 'https://unlisted.synthetic.test')
+    const unknownExchanges = tokenExchanges
+    await assert.rejects(login.completeCasdoorLogin(unknownCallback.href, flow.pending.ticket, network), /INVALID_CALLBACK_ORIGIN/)
+    assert.equal(tokenExchanges, unknownExchanges)
+    checks.push('unlisted-origin-cannot-start-or-complete-login')
+    flow = await begin(undefined, false, alias)
+    const storedState = flow.callback.searchParams.get('state')!
+    flow.callback.searchParams.set('state', storedState.replace(Buffer.from(alias).toString('base64url'), Buffer.from(secondAlias).toString('base64url')))
+    const tamperExchanges = tokenExchanges
+    await assert.rejects(login.completeCasdoorLogin(flow.callback.href, flow.pending.ticket, network))
+    assert.equal(tokenExchanges, tamperExchanges)
+    checks.push('alias-origin-state-tamper-denied-before-token-exchange')
+    flow = await begin(undefined, false, alias)
+    delete process.env.APP_AUTH_CALLBACK_ORIGINS
+    const removedExchanges = tokenExchanges
+    await assert.rejects(login.completeCasdoorLogin(flow.callback.href, flow.pending.ticket, network), /INVALID_CALLBACK_ORIGIN/)
+    assert.equal(tokenExchanges, removedExchanges)
+    checks.push('removed-alias-invalidates-pending-callback-without-generation-rotation')
+    process.env.APP_AUTH_CALLBACK_ORIGINS = alias
+    flow = await begin(undefined, false, alias)
+    let entered!: () => void, release!: () => void
+    const enteredExchange = new Promise<void>(resolve => { entered = resolve })
+    const exchangeWait = new Promise<void>(resolve => { release = resolve })
+    tokenBarrier = { entered, wait: exchangeWait }
+    const sessionsBeforeRemoval = await prisma.operatorSession.count()
+    const removedDuringExchange = login.completeCasdoorLogin(flow.callback.href, flow.pending.ticket, network)
+    void removedDuringExchange.catch(() => {})
+    await enteredExchange
+    delete process.env.APP_AUTH_CALLBACK_ORIGINS
+    release()
+    await assert.rejects(removedDuringExchange, /INVALID_CALLBACK_ORIGIN/)
+    assert.equal(await prisma.operatorSession.count(), sessionsBeforeRemoval)
+    checks.push('alias-removed-during-token-exchange-cannot-create-session')
+    const productionBase = { ...process.env, NODE_ENV: 'production' as const, APP_ORIGIN: 'https://mes.synthetic.test' }
+    for (const invalid of ['https://*.synthetic.test', 'https://user:pass@work.synthetic.test', alias + '/path', alias + '?q=1', alias + '#hash', 'http://work.synthetic.test', 'http://127.0.0.1:31981', 'https://work.synthetic.test\\path', 'not-an-origin']) {
+      assert.equal(domain.readLoginConfiguration({ ...productionBase, APP_AUTH_CALLBACK_ORIGINS: invalid }).ready, false)
+    }
+    assert.equal(domain.readLoginConfiguration({ ...productionBase, APP_AUTH_CALLBACK_ORIGINS: alias }).ready, true)
+    assert.equal(domain.readLoginConfiguration({ ...productionBase, NODE_ENV: 'development', APP_AUTH_CALLBACK_ORIGINS: 'http://localhost:31982,http://[::1]:31983' }).ready, true)
+    checks.push('explicit-alias-configuration-https-exact-and-development-loopback-only')
     await prisma.operatorAuthAccount.delete({ where: { id: binding.id } })
     assert.equal(await policy.sessionAuthenticationAllowed(oidcSession, { role: 'OPERATOR', status: 'ACTIVE' }), false)
     checks.push('binding-revocation-immediate')
@@ -181,7 +256,7 @@ async function main() {
     }))
     const { verifyAuthenticationReadinessHttp } = await import('./casdoor-login-http-fixture')
     checks.push(...await verifyAuthenticationReadinessHttp())
-    console.log(JSON.stringify({ result: 'passed', checks: checks.length, cases: checks, node: process.version, productionWrites: 0, externalNetworkCalls: 0, loopbackHttpChecks: 12, protocol: 'real RS256 tokens and public shared OIDC helper; synthetic identity transport and real local Next HTTP, temporary migrated Prisma DB' }))
+    console.log(JSON.stringify({ result: 'passed', checks: checks.length, cases: checks, node: process.version, productionWrites: 0, externalNetworkCalls: 0, loopbackHttpChecks: checks.filter(name => name.startsWith('http-')).length, protocol: 'real RS256 tokens and public shared OIDC helper; synthetic identity transport and real local Next HTTP, temporary migrated Prisma DB' }))
   } finally {
     await prisma.$disconnect()
     for (const key of Array.from(new Set([...Object.keys(previous), ...Object.keys(process.env)]))) {

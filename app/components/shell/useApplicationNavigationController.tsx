@@ -7,10 +7,12 @@ import type { NavigationGroup } from '../navigation/NavigationModel'
 import {
   businessModuleDefinitions,
   getAvailableBusinessModules,
+  getAvailableBusinessApplications,
   getBusinessModuleForFunction,
   useWorkspaceNavigation,
   type BusinessModuleDefinition,
   type BusinessModuleKey,
+  type BusinessApplicationKey,
 } from '@/modules/workspace'
 import {
   businessNavGroups,
@@ -36,12 +38,15 @@ const platformNavigationIds = new Set(['businessWorkbench', 'allFunctions', 'das
 function readRequestedBusinessModule(): BusinessModuleKey | null {
   if (typeof window === 'undefined') return null
   const url = new URL(window.location.href)
-  if (url.searchParams.get('page') !== 'businessWorkbench') return null
+  if (url.searchParams.get('page') !== 'businessWorkbench' && url.pathname !== '/platform') return null
   const key = url.searchParams.get('module')
   return businessModuleDefinitions.find((module) => module.key === key)?.key || null
 }
 
 interface ApplicationNavigationControllerOptions {
+  platformEntry?: boolean
+  mesUrl?: string
+  platformUrl?: string
   operator: CurrentOperator
   closeSystemMenu: () => void
   closeTransientNavigation: () => void
@@ -50,6 +55,9 @@ interface ApplicationNavigationControllerOptions {
 
 export default function useApplicationNavigationController({
   operator,
+  platformEntry = false,
+  mesUrl,
+  platformUrl,
   closeSystemMenu,
   closeTransientNavigation,
   recordWorkspaceUsage,
@@ -88,6 +96,7 @@ export default function useApplicationNavigationController({
       - Number(configuredFunctionOrder.get(right.key) ?? 1000 + Number(defaultFunctionOrder.get(right.key) ?? 999))
     ))
   const availableBusinessModules = getAvailableBusinessModules(workspaceFunctionItems)
+  const availableBusinessApplications = getAvailableBusinessApplications(workspaceFunctionItems)
   const visibleWorkspaceTabs = new Set(workspaceFunctionItems.map((item) => item.tab))
   const labelForTab = (item: { key: TabType; label: string }) => {
     if (item.key === 'materials' || item.key === 'allFunctions') return item.label
@@ -152,6 +161,7 @@ export default function useApplicationNavigationController({
     restorableMaterialSections,
     urlMaterialSections: materialSectionItems.map((item) => item.key),
     pageContextKey: selectedBusinessPageContext,
+    entryTab: platformEntry ? 'businessWorkbench' : 'dashboard',
   })
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -181,6 +191,10 @@ export default function useApplicationNavigationController({
       ? null
       : getBusinessModuleForFunction(activeFunctionKey) || null
   const activeBusinessModuleKey = activeBusinessModule?.key
+  const isPlatformSurface = (tab === 'businessWorkbench' && !activeBusinessModule) || (platformEntry && tab === 'allFunctions')
+  const activeBusinessApplication = isPlatformSurface ? null : availableBusinessApplications.find((application) => (
+    application.ownerApp === (activeBusinessModule?.ownerApp || 'mes')
+  )) || null
   const activeTabLabel = tab === 'materials'
     ? materialSectionItems.find((item) => item.key === materialSection)?.label || '物料与 BOM'
     : tab === 'businessWorkbench' && activeBusinessModule
@@ -302,6 +316,11 @@ export default function useApplicationNavigationController({
   }
   const openBusinessPlatform = () => {
     if (!workspaceFunctionItems.some((item) => item.key === 'businessWorkbench')) return
+    const destination = new URL(platformUrl || '/platform', window.location.origin)
+    if (!platformEntry || destination.origin !== window.location.origin) {
+      window.location.assign(destination.href)
+      return
+    }
     setSelectedBusinessModuleKey(null)
     const url = new URL(window.location.href)
     url.searchParams.set('page', 'businessWorkbench')
@@ -313,6 +332,13 @@ export default function useApplicationNavigationController({
   }
   const openBusinessModule = (moduleKey: BusinessModuleKey) => {
     if (!availableBusinessModules.some((module) => module.key === moduleKey)) return
+    const destination = new URL(platformUrl || '/platform', window.location.origin)
+    destination.searchParams.set('page', 'businessWorkbench')
+    destination.searchParams.set('module', moduleKey)
+    if (!platformEntry || destination.origin !== window.location.origin) {
+      window.location.assign(destination.href)
+      return
+    }
     setSelectedBusinessModuleKey(moduleKey)
     const url = new URL(window.location.href)
     url.searchParams.set('page', 'businessWorkbench')
@@ -335,6 +361,15 @@ export default function useApplicationNavigationController({
       window.location.assign(target.externalHref)
       return
     }
+    if (platformEntry) {
+      const destination = new URL('/', mesUrl || window.location.origin)
+      destination.searchParams.set('page', target.tab)
+      if (target.materialSection) destination.searchParams.set('section', target.materialSection)
+      if (task) destination.searchParams.set('task', task)
+      recordWorkspaceUsage(functionKey)
+      window.location.assign(destination.href)
+      return
+    }
     setSelectedBusinessModuleKey(null)
     if (target.materialSection) setMaterialSection(target.materialSection)
     const url = new URL(window.location.href)
@@ -346,12 +381,29 @@ export default function useApplicationNavigationController({
     closeNavigationSurfaces()
     recordWorkspaceUsage(functionKey)
   }
+  const openBusinessApplication = (key: BusinessApplicationKey) => {
+    const application = availableBusinessApplications.find((item) => item.key === key)
+    if (!application) return
+    if (application.ownerApp === 'mes') {
+      const home = application.items.find((item) => item.key === 'dashboard') || application.items[0]
+      if (home) openWorkspaceFunction(home.key)
+      return
+    }
+    const destinationModule = application.modules[0]
+    if (destinationModule) openBusinessModule(destinationModule.key)
+  }
   const navigateToTab = (nextTab: TabType, nextMaterialSection?: MaterialSection) => {
     if (nextTab === 'businessWorkbench') {
       openBusinessPlatform()
       return
     }
     if (nextTab === 'allFunctions') {
+      const destination = new URL(platformUrl || '/platform', window.location.origin)
+      destination.searchParams.set('page', 'allFunctions')
+      if ((!platformEntry && tab === 'businessWorkbench') || (platformEntry && destination.origin !== window.location.origin)) {
+        window.location.assign(destination.href)
+        return
+      }
       setSelectedBusinessModuleKey(null)
       setTab('allFunctions')
       closeNavigationSurfaces()
@@ -461,32 +513,15 @@ export default function useApplicationNavigationController({
       ? item.key === section.functionKey
       : item.key === itemId || (!item.externalHref && item.tab === itemId))
   }
-  const navigationGroups: NavigationGroup[] = allNavigationGroups.flatMap((group) => {
+  const navigationGroups: NavigationGroup[] = isPlatformSurface ? [] : allNavigationGroups.flatMap((group) => {
     const items = group.items.filter((item) => {
-      if (platformNavigationIds.has(item.id)) return true
+      if (item.id === 'businessWorkbench') return false
+      if (item.id === 'dashboard' || item.id === 'allFunctions') return activeBusinessApplication?.ownerApp === 'mes'
       const entry = navigationFunction(item.id)
-      if (!entry) return false
-      if (tab === 'dashboard') return !entry.externalHref
-      return Boolean(activeBusinessModule && getBusinessModuleForFunction(entry.key)?.key === activeBusinessModule.key)
-    }).map((item) => item.id === 'businessWorkbench'
-      ? { ...item, active: tab === 'businessWorkbench' && !activeBusinessModule }
-      : item)
-    return items.length > 0 ? [{
-      ...group,
-      label: activeBusinessModule?.key === 'inventory' && group.id === 'production'
-        ? '库存作业'
-        : activeBusinessModule?.key === 'inventory' && group.id === 'tools'
-          ? '库存工具'
-          : group.label,
-      items,
-      active: items.some((item) => item.active),
-      onClick: items[0].onClick,
-    }] : []
+      return Boolean(entry && (activeBusinessApplication?.ownerApp === 'data-platform' ? entry.externalHref : !entry.externalHref))
+    })
+    return items.length > 0 ? [{ ...group, items, active: items.some((item) => item.active), onClick: items[0].onClick }] : []
   })
-  if (tab === 'businessWorkbench' && activeBusinessModule) {
-    const landingGroup = navigationGroups.find((group) => group.items.some((item) => !platformNavigationIds.has(item.id)))
-    if (landingGroup) landingGroup.active = true
-  }
   const activeNavigationGroup = navigationGroups.find((group) => group.active)
   const visibleMobileItems = navigationGroups.flatMap((group) => group.items)
   const moduleMobileItems = visibleMobileItems.filter((item) => !platformNavigationIds.has(item.id))
@@ -506,6 +541,10 @@ export default function useApplicationNavigationController({
     workspaceNavigationConfig,
     workspaceFunctionItems,
     availableBusinessModules,
+    availableBusinessApplications,
+    activeBusinessApplication,
+    isPlatformSurface,
+    openBusinessApplication,
     activeBusinessModule,
     openBusinessModule,
     openBusinessPlatform,

@@ -17,6 +17,7 @@ interface PageNavigationControllerOptions {
   restorableMaterialSections: MaterialSection[]
   urlMaterialSections: MaterialSection[]
   pageContextKey?: string
+  entryTab?: TabType
 }
 
 export default function usePageNavigationController({
@@ -27,13 +28,14 @@ export default function usePageNavigationController({
   restorableMaterialSections,
   urlMaterialSections,
   pageContextKey,
+  entryTab,
 }: PageNavigationControllerOptions) {
   const storageKey = `mes-lite.page-continuity.${operatorId}`
   const restoredContinuity = useMemo(() => readPageContinuity(storageKey), [storageKey])
   const restoredTab = restoredContinuity.tab
   const restoredMaterialSection = restoredContinuity.materialSection
   const [tab, setTab] = useState<TabType>(
-    restoredTab && allowedTabs.includes(restoredTab) ? restoredTab : fallbackTab,
+    entryTab && allowedTabs.includes(entryTab) ? entryTab : restoredTab && allowedTabs.includes(restoredTab) ? restoredTab : fallbackTab,
   )
   const [materialSection, setMaterialSection] = useState<MaterialSection>(
     restoredMaterialSection && restorableMaterialSections.includes(restoredMaterialSection)

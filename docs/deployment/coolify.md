@@ -1,6 +1,26 @@
 # Coolify 部署说明
 
-## v0.1.480 Casdoor候选部署边界
+## v0.1.493 同部署双域入口与回调配置
+
+本轮候选将 `https://work.csyufeng.com` 作为宇峰业务平台入口，保留原 `https://mes.csyufeng.com` 的 MES 根首页、深链和业务数据。两个 HTTPS 域绑定同一 Web 资源与现有持久卷，不创建第二业务实例、数据库或账户。平台域根路径在应用内精确 rewrite 为 `/platform`；旧 `/workbench` 导向配置的平台地址，不能把所有域的 `/` 一律改成平台。
+
+服务端 Runtime 的非秘密地址配置：
+
+```env
+APP_ORIGIN=https://mes.csyufeng.com
+PLATFORM_ORIGIN=https://work.csyufeng.com
+APP_AUTH_CALLBACK_ORIGINS=https://work.csyufeng.com
+```
+
+保持已有 APP_LOGIN_MODE、Casdoor issuer/client/secret、Operator 绑定与权限。`APP_ORIGIN` 继续为原 canonical，`PLATFORM_ORIGIN` 仅决定公开入口，认证允许清单独立设置。既有 MES Casdoor 客户端需同时保留 `https://mes.csyufeng.com/api/auth/casdoor/callback` 并新增 `https://work.csyufeng.com/api/auth/casdoor/callback`；不添加通配回调，不创建新组织、客户端或用户。Runtime Secret 继续只在部署侧保存，不进入公开地址或构建参数。
+
+反向代理需传递实际 HTTPS proto 与 Host，并覆盖客户端自带的转发头；认证仅接受清单内精确 origin，格式无效或未登记的转发 origin 被拒绝。新增平台回调不自动开放 CORS、网络白名单或额外写权限；浏览器写请求继续当前同源/CSRF校验。两域 Cookie 保持 host-only，各自正常登录和退出，不设置共享 Domain，不把本地退出描述为全局注销。
+
+部署前备份并保留旧 Web/DNS/TLS、canonical回调与 Runtime 配置；精确候选 CI 成功后才推进 main。上线需分别核验两个域的根页面、旧深链、health/ready、正常 Casdoor 回调、私有接口/退出、平台到 MES 的完整导航及返回平台，并确认原三条持久挂载不变。本地认证48项和双loopback浏览器通过不能代替正式域/TLS/代理与真实身份服务验收。
+
+回退时恢复原公开入口和路由绑定、移除平台额外回调/允许项，保留 MES canonical、原身份绑定和业务数据；不要放宽认证来让回退通过。移除别名会阻断其在途回调，但不会自行全局撤销已建立的会话。
+
+## v0.1.480 Casdoor 初始候选部署边界（历史）
 
 Runtime变量、精确回调、已有Operator绑定、管理员恢复、模式代际和回退见[统一登录手册](../architecture/casdoor-login.md)。当前仅候选，不改生产mode/客户端/绑定。CI新增真实Docker dependencies目标门禁覆盖vendor复制和安装；仅此层通过不等于整镜像验收。本机daemon未运行，未启动Docker桌面或重复完整生产构建。
 

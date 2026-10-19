@@ -1,3 +1,23 @@
+# 当前状态：2026-10-19 v0.1.493 本地验证通过，候选发布准备中
+
+- 用户选定 work.csyufeng.com 作为宇峰业务平台；原 mes.csyufeng.com 根首页与完整本地菜单保留，同一Web部署按精确公开origin分流，数据平台仍独立。平台仅列真实授权的MES Lite、客户管理两个一级应用，搜索/收藏直达原功能。
+- 本地独立平台/手机/画布/权限及指针几何回归通过；双loopback host 8项入口与host-only会话/局部退出隔离通过；不冒充真实Casdoor或全局退出。492侧栏修复未单独发布，折入493。
+- 精确别名回调认证48/48（含14本地HTTP）、独立安全审查、TypeScript及定向Lint通过；原canonical state/fingerprint兼容，未知host/跨origin/篡改/撤alias拒绝。新增别名本身不改旧MES代际。
+- 三项导航SOP已按实际隔离浏览器验证标493并生成版本Markdown，专项双域配置作业指导书完成；无业务表/事务/数据同步/角色扩大。
+- 用户已自行添加DNS；生产Coolify域名/运行参数和Casdoor回调仍须核实保存并真实登录验收。用户进一步要求沿用既有MES客户端更名yufeng，旧yufeng-web先检查数据平台依赖，不能直接删或改变账号组织。CASDOOR_APPLICATION变更会触发既有代际语义，必须重验正常登录。
+- 唯一下一步：冻结精确493候选并通过完整CI，同时完成双域及既有客户端配置；随后单次main快进，核对Con01 Web/CAD同SHA与真实双域访问。
+
+---
+
+ 当前状态：2026-10-19 v0.1.492 侧栏遮挡修复中
+
+- 491 已完成精确 CI 39200519042 和普通 main 快进；Con01 Web/CAD 均 finished、单一 ccc584e 镜像 healthy，12项部署核验全部通过。最终记录：output/acceptance/mes-module-scroll-491-acceptance.json。
+- 用户新截图指出自动隐藏左栏展开遮挡原 MES 首页。491 隔离真实 Next 已在原首页、业务总览各复现 224px 重叠；根因是正文仅在常驻模式占位。
+- 492 在公共应用壳统一按侧栏可见状态让位，收起恢复全宽，调宽同步；不向业务页面添加补丁，不改业务数据、API或权限。
+- 唯一下一步：492 实际浏览器几何回归、定向门禁与独立审查，通过后精确候选 CI 再快进 main并核验Con01双服务。
+
+---
+
 # 当前状态：2026-10-19 490 已上线，491 模块滚动修复中
 
 - 490 / 85a4596ed6ab849b04ca695c7cbdf1a0e80e5196 的完整 CI 39196168659 成功并推进 main。Con01 Web t139dahdi9yumrubb5bgv0ng、CAD rrkuqx9o51ri7sqw22w9wrsy 均 finished、单一精确新镜像 healthy，原卷/Casdoor/启动备份及公开 ready 均通过。
