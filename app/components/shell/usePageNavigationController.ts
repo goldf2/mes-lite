@@ -16,6 +16,7 @@ interface PageNavigationControllerOptions {
   defaultMaterialSection: MaterialSection
   restorableMaterialSections: MaterialSection[]
   urlMaterialSections: MaterialSection[]
+  pageContextKey?: string
 }
 
 export default function usePageNavigationController({
@@ -25,6 +26,7 @@ export default function usePageNavigationController({
   defaultMaterialSection,
   restorableMaterialSections,
   urlMaterialSections,
+  pageContextKey,
 }: PageNavigationControllerOptions) {
   const storageKey = `mes-lite.page-continuity.${operatorId}`
   const restoredContinuity = useMemo(() => readPageContinuity(storageKey), [storageKey])
@@ -42,7 +44,11 @@ export default function usePageNavigationController({
   const [urlReady, setUrlReady] = useState(false)
   const pageContentRef = useRef<HTMLDivElement>(null)
   const urlInitializedRef = useRef(false)
-  const pageLocationKey = tab === 'materials' ? `${tab}:${materialSection}` : tab
+  const scopedBusinessPage = tab === 'businessWorkbench' && Boolean(pageContextKey)
+  const businessOverview = scopedBusinessPage && pageContextKey === 'overview'
+  const pageLocationKey = tab === 'materials'
+    ? `${tab}:${materialSection}`
+    : scopedBusinessPage ? `${tab}:${pageContextKey}` : tab
 
   useEffect(() => {
     if (urlInitializedRef.current) return
@@ -87,10 +93,18 @@ export default function usePageNavigationController({
     const content = pageContentRef.current
     if (!content) return
 
-    const saved = readPageContinuity(storageKey).scrollPositions?.[pageLocationKey]
+    const positions = readPageContinuity(storageKey).scrollPositions
+    const saved = positions?.[pageLocationKey] || (businessOverview ? positions?.businessWorkbench : undefined)
+    const restoreTarget = saved || (scopedBusinessPage ? { contentTop: 0, windowTop: 0 } : undefined)
+    const targetCheckpoint = restoreTarget ? {
+      contentTop: Number.isFinite(Number(restoreTarget.contentTop)) ? Math.max(0, Number(restoreTarget.contentTop)) : 0,
+      windowTop: Number.isFinite(Number(restoreTarget.windowTop)) ? Math.max(0, Number(restoreTarget.windowTop)) : 0,
+    } : undefined
     let restoring = false
+    let settling = scopedBusinessPage
     let userMoved = false
     let saveFrame = 0
+    let restoreCompleteFrame = 0
     let latestCheckpoint = {
       contentTop: content.scrollTop,
       windowTop: window.scrollY,
@@ -106,7 +120,7 @@ export default function usePageNavigationController({
       })
     }
     const scheduleSave = () => {
-      if (restoring) return
+      if (restoring || settling) return
       latestCheckpoint = {
         contentTop: content.scrollTop,
         windowTop: window.scrollY,
@@ -118,6 +132,11 @@ export default function usePageNavigationController({
       })
     }
     const saveBeforePageHide = () => {
+      if (scopedBusinessPage && (settling || restoring) && targetCheckpoint) {
+        latestCheckpoint = targetCheckpoint
+        saveCheckpoint()
+        return
+      }
       latestCheckpoint = {
         contentTop: content.scrollTop,
         windowTop: window.scrollY,
@@ -125,17 +144,25 @@ export default function usePageNavigationController({
       saveCheckpoint()
     }
     const markUserMoved = () => {
+      if (scopedBusinessPage) {
+        settling = false
+        restoring = false
+      }
       if (!restoring) userMoved = true
     }
     const restoreCheckpoint = () => {
-      if (!saved || userMoved) return
+      if (!targetCheckpoint || userMoved) return
       restoring = true
-      const contentTop = Number.isFinite(Number(saved.contentTop)) ? Math.max(0, Number(saved.contentTop)) : 0
-      const windowTop = Number.isFinite(Number(saved.windowTop)) ? Math.max(0, Number(saved.windowTop)) : 0
+      const { contentTop, windowTop } = targetCheckpoint
       content.scrollTop = contentTop
       window.scrollTo({ top: windowTop, behavior: 'auto' })
       latestCheckpoint = { contentTop, windowTop }
-      window.requestAnimationFrame(() => { restoring = false })
+      if (restoreCompleteFrame) window.cancelAnimationFrame(restoreCompleteFrame)
+      restoreCompleteFrame = window.requestAnimationFrame(() => {
+        restoreCompleteFrame = 0
+        restoring = false
+        if (scopedBusinessPage && !settling) saveCheckpoint()
+      })
     }
 
     content.addEventListener('scroll', scheduleSave, { passive: true })
@@ -147,10 +174,14 @@ export default function usePageNavigationController({
     window.addEventListener('pagehide', saveBeforePageHide)
 
     const firstRestoreFrame = window.requestAnimationFrame(restoreCheckpoint)
-    const delayedRestore = window.setTimeout(restoreCheckpoint, 500)
+    const delayedRestore = window.setTimeout(() => {
+      settling = false
+      restoreCheckpoint()
+    }, 500)
     return () => {
       if (saveFrame) saveCheckpoint()
       window.cancelAnimationFrame(firstRestoreFrame)
+      if (restoreCompleteFrame) window.cancelAnimationFrame(restoreCompleteFrame)
       if (saveFrame) window.cancelAnimationFrame(saveFrame)
       window.clearTimeout(delayedRestore)
       content.removeEventListener('scroll', scheduleSave)
@@ -161,7 +192,7 @@ export default function usePageNavigationController({
       window.removeEventListener('touchstart', markUserMoved)
       window.removeEventListener('pagehide', saveBeforePageHide)
     }
-  }, [pageLocationKey, storageKey])
+  }, [businessOverview, pageLocationKey, scopedBusinessPage, storageKey])
 
   const openBomEditor = useCallback((materialId: string, bomId?: string) => {
     setBomEditorTarget({ materialId, bomId, requestId: Date.now() })

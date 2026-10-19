@@ -36,6 +36,10 @@ assert.match(pageNavigationSource, /readPageContinuity/, '页面导航控制器�
 assert.match(pageNavigationSource, /writePageContinuity/, '页面导航控制器必须保存页面连续性')
 assert.match(pageNavigationSource, /history\.replaceState/, '页面导航控制器必须保持可分享 URL')
 assert.match(pageNavigationSource, /scrollPositions/, '页面导航控制器必须保存和恢复页面滚动位置')
+assert.match(applicationNavigationSource, /pageContextKey: selectedBusinessPageContext/, '应用控制器必须传入经过可用模块校验的落地页上下文')
+assert.match(pageNavigationSource, /pageContextKey\?: string/, '公共页面连续性必须支持通用上下文键，不得反向依赖业务模块类型')
+assert.match(pageNavigationSource, /businessOverview \? positions\?\.businessWorkbench : undefined/, '旧业务总览滚动记录仅可由新总览继承，不能落入模块')
+assert.match(pageNavigationSource, /scopedBusinessPage \? \{ contentTop: 0, windowTop: 0 \} : undefined/, '没有历史位置的模块落地页必须首次置顶，其他页面保留既有策略')
 assert.match(pageNavigationSource, /openBomEditor/, '页面导航控制器必须保留跨物料与 BOM 的连续跳转')
 
 assert.match(workspacePreferenceSource, /loadWorkspacePreference/, '工作区偏好控制器必须通过所属模块 client 读取用户偏好')

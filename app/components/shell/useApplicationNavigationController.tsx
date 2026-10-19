@@ -127,6 +127,8 @@ export default function useApplicationNavigationController({
     canRead('bom') ? 'bomWorkspace' : null,
     canRead('bom') ? 'bomUsage' : null,
   ].filter((section): section is MaterialSection => section !== null)
+  const [selectedBusinessModuleKey, setSelectedBusinessModuleKey] = useState<BusinessModuleKey | null>(readRequestedBusinessModule)
+  const selectedBusinessPageContext = availableBusinessModules.find((module) => module.key === selectedBusinessModuleKey)?.key || 'overview'
 
   const {
     tab,
@@ -149,10 +151,10 @@ export default function useApplicationNavigationController({
     defaultMaterialSection,
     restorableMaterialSections,
     urlMaterialSections: materialSectionItems.map((item) => item.key),
+    pageContextKey: selectedBusinessPageContext,
   })
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const [selectedBusinessModuleKey, setSelectedBusinessModuleKey] = useState<BusinessModuleKey | null>(readRequestedBusinessModule)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const navOrderLoadedRef = useRef(false)
