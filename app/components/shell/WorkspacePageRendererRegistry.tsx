@@ -7,6 +7,7 @@ import AppLoadingIndicator from '../AppLoadingIndicator'
 import { AllFunctionsPage, type WorkspaceFunctionItem } from '@/modules/workspace'
 import type { ApplicationTab, PageModuleDefinition, PageRendererKey } from '@/lib/page-registry'
 import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/workspace'
+import type { BusinessModuleDefinition, BusinessModuleKey } from '@/modules/workspace'
 
 function FeaturePageLoading() {
   return <AppLoadingIndicator label="正在加载页面..." />
@@ -55,6 +56,10 @@ export interface WorkspacePageRenderContext {
   tab: ApplicationTab
   operator: CurrentOperator
   workspaceItems: WorkspaceFunctionItem[]
+  businessModule?: BusinessModuleDefinition | null
+  businessModules?: Array<BusinessModuleDefinition & { items: WorkspaceFunctionItem[] }>
+  onOpenBusinessModule?: (key: BusinessModuleKey) => void
+  onOpenBusinessPlatform?: () => void
   workspacePreference: WorkspacePreferenceValue
   preferenceBusy?: boolean
   bomEditorTarget: BomEditorTarget | null
@@ -89,6 +94,10 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
   'business-workbench': (context) => (
     <BusinessWorkbenchPage
       items={context.workspaceItems.filter((item) => item.key !== 'businessWorkbench')}
+      businessModule={context.businessModule}
+      businessModules={context.businessModules}
+      onOpenBusinessModule={context.onOpenBusinessModule}
+      onOpenBusinessPlatform={context.onOpenBusinessPlatform}
       preference={context.workspacePreference}
       onOpen={context.onOpenWorkspaceFunction}
       onOpenAllFunctions={context.onOpenAllFunctions}

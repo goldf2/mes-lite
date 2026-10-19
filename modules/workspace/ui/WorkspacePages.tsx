@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, type DragEvent } from 'react'
+import { useMemo, useState, type DragEvent, type ReactNode } from 'react'
 import AppButton from '@/app/components/AppButton'
 import ModalDialog from '@/app/components/ModalDialog'
 import { defaultWorkspaceLayout, maxWorkspaceShortcuts, rankWorkspaceFunctionKeys } from '@/lib/workspace'
@@ -19,7 +19,7 @@ const modeOptions: Array<{ key: WorkspaceMode; label: string; description: strin
   { key: 'CUSTOM', label: '自定义', description: '自行选择并摆放快捷入口' },
 ]
 
-export function WorkspaceLauncher({ items, preference, onOpen, onOpenAllFunctions, onSave, preferenceBusy = false, title, mobileContentSearch = false }: {
+export function WorkspaceLauncher({ items, preference, onOpen, onOpenAllFunctions, onSave, preferenceBusy = false, title, mobileContentSearch = false, beforeContent, searchItems = items, showAllFunctions = false }: {
   items: WorkspaceFunctionItem[]
   preference: WorkspacePreferenceValue
   onOpen: (key: WorkspaceFunctionKey) => void
@@ -28,17 +28,20 @@ export function WorkspaceLauncher({ items, preference, onOpen, onOpenAllFunction
   preferenceBusy?: boolean
   title?: string
   mobileContentSearch?: boolean
+  beforeContent?: ReactNode
+  searchItems?: WorkspaceFunctionItem[]
+  showAllFunctions?: boolean
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [draggedKey, setDraggedKey] = useState<WorkspaceFunctionKey | null>(null)
   const [draftLayout, setDraftLayout] = useState<WorkspaceFunctionKey[]>(preference.layout)
   const [draftPinned, setDraftPinned] = useState<WorkspaceFunctionKey[]>(preference.pinned)
   const { saving, error, savePreference, toggleFavorite } = useWorkspacePreferenceActions(preference, onSave, preferenceBusy)
-  const search = useWorkspaceFunctionSearch(items)
+  const search = useWorkspaceFunctionSearch(searchItems)
   const itemByKey = useMemo(() => new Map(items.map((item) => [item.key, item])), [items])
   const availableKeys = items.map((item) => item.key)
   const displayedKeys = rankWorkspaceFunctionKeys({ ...preference, availableKeys })
-  const displayedItems = displayedKeys.flatMap((key) => {
+  const displayedItems = (showAllFunctions ? items.map((item) => item.key) : displayedKeys).flatMap((key) => {
     const item = itemByKey.get(key)
     return item && !preference.pinned.includes(key) ? [item] : []
   })
@@ -151,21 +154,22 @@ export function WorkspaceLauncher({ items, preference, onOpen, onOpenAllFunction
         </section>
       ) : (
         <>
+          {beforeContent}
           <section aria-label="我的收藏" className="space-y-3">
             <h2 className="text-base font-semibold text-gray-900">我的收藏 <span className="text-sm font-normal text-gray-500">{favoriteItems.length} 项</span></h2>
             {favoriteItems.length > 0 ? <WorkspaceFunctionGroups items={favoriteItems} preference={preference} saving={saving} onOpen={onOpen} onToggleFavorite={toggleFavorite} /> : <p className="rounded-lg border border-dashed border-gray-200 px-4 py-5 text-sm text-gray-500">点击功能旁的星标，即可收藏到这里。</p>}
           </section>
           <section aria-label="常用功能" className="space-y-4 border-t border-gray-100 pt-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-base font-semibold text-gray-900">快捷入口</h2>
-              <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-semibold text-gray-900">{showAllFunctions ? '模块功能' : '快捷入口'}</h2>
+              {!showAllFunctions && <div className="flex flex-wrap items-center gap-2">
                 <div className="flex flex-wrap gap-1" aria-label="常用功能排序方式">
                   {modeOptions.map((option) => <AppButton key={option.key} variant={preference.mode === option.key ? 'primary' : 'ghost'} size="sm" title={option.description} disabled={saving} onClick={() => changeMode(option.key)} aria-pressed={preference.mode === option.key}>{option.label}</AppButton>)}
                 </div>
                 {preference.mode !== 'DEFAULT' && <AppButton variant="secondary" size="sm" onClick={openSettings} disabled={saving}>管理快捷入口</AppButton>}
-              </div>
+              </div>}
             </div>
-            {displayedItems.length > 0 ? <WorkspaceFunctionGroups items={displayedItems} {...catalogProps} /> : <p className="text-sm text-gray-500">{items.length > 0 ? '当前常用入口已显示在我的收藏中。' : '当前账号暂无可用功能。'}</p>}
+            {displayedItems.length > 0 ? <WorkspaceFunctionGroups items={displayedItems} {...catalogProps} renderActions={showAllFunctions ? undefined : catalogProps.renderActions} getDragProps={showAllFunctions ? undefined : catalogProps.getDragProps} /> : <p className="text-sm text-gray-500">{items.length > 0 ? '当前入口已显示在我的收藏中。' : '当前账号暂无可用功能。'}</p>}
           </section>
         </>
       )}

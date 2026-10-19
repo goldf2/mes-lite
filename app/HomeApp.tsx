@@ -98,6 +98,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
     activeWorkspace,
     workspaceNavigationConfig,
     workspaceFunctionItems,
+    availableBusinessModules,
+    activeBusinessModule,
+    openBusinessModule,
+    openBusinessPlatform,
     tab,
     setTab,
     bomEditorTarget,
@@ -183,6 +187,7 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
       data-workspace-layout={workspaceLayoutPreference.layout}
       data-desktop-navigation-behavior={workspaceLayoutPreference.navigationBehavior}
       data-navigation-workspace={activeWorkspace}
+      data-business-module={activeBusinessModule?.key || (tab === 'dashboard' ? 'mes-home' : 'overview')}
       style={{
         '--mes-desktop-sidebar-width': `${sidebarWidth}px`,
         '--mes-desktop-split-sidebar-width': `${splitSidebarWidth}px`,
@@ -200,7 +205,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             <CapabilityModuleButtons
               config={workspaceNavigationConfig}
               compact
+              modules={availableBusinessModules}
+              activeModule={activeBusinessModule}
+              isMesHome={tab === 'dashboard'}
               onOpenHome={() => navigateToTab('dashboard')}
+              onOpenPlatform={openBusinessPlatform}
+              onOpenModule={openBusinessModule}
             />
           ) : (
             <>
@@ -218,7 +228,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
               <CapabilityModuleButtons
                 config={workspaceNavigationConfig}
                 compact
+                modules={availableBusinessModules}
+                activeModule={activeBusinessModule}
+                isMesHome={tab === 'dashboard'}
                 onOpenHome={() => navigateToTab('dashboard')}
+                onOpenPlatform={openBusinessPlatform}
+                onOpenModule={openBusinessModule}
               />
               <button
                 type="button"
@@ -421,6 +436,10 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             message={message}
             operator={operator}
             workspaceItems={workspaceFunctionItems}
+            businessModule={activeBusinessModule}
+            businessModules={availableBusinessModules}
+            onOpenBusinessModule={openBusinessModule}
+            onOpenBusinessPlatform={openBusinessPlatform}
             preferenceBusy={workspacePreferenceBusy}
             workspacePreference={workspacePreference}
             bomEditorTarget={bomEditorTarget}
@@ -464,7 +483,12 @@ function HomeApp({ operator, onLogout }: { operator: CurrentOperator; onLogout: 
             <div className="shrink-0 border-b border-gray-200 px-4 py-3">
               <CapabilityModuleButtons
                 config={workspaceNavigationConfig}
+                modules={availableBusinessModules}
+                activeModule={activeBusinessModule}
+                isMesHome={tab === 'dashboard'}
                 onOpenHome={() => navigateToTab('dashboard')}
+                onOpenPlatform={openBusinessPlatform}
+                onOpenModule={openBusinessModule}
               />
             </div>
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)]">

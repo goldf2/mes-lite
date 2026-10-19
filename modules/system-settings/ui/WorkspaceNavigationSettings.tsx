@@ -7,8 +7,6 @@ import {
   configurableWorkspaceFunctionKeys,
   createDefaultWorkspaceNavigationConfig,
   sharedWorkspaceFunctionKeys,
-  navigationWorkspaceIds,
-  navigationWorkspaceLabels,
   type NavigationWorkspaceId,
   type WorkspaceNavigationGroupKey,
   type WorkspaceNavigationConfig,
@@ -167,48 +165,24 @@ export default function WorkspaceNavigationSettings({ onMessage, canUpdate }: { 
   return (
     <div className="space-y-4">
       <section className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
-        <div className="font-medium text-gray-900">统一 MES 工作台</div>
-        <div className="mt-1 text-sm text-gray-600">MES 是产品主定位；计划、销售、客户和供应商能力作为同一制造业务链的功能区呈现。顶部模块按钮只用于品牌与未来能力预留，不切换菜单、权限或业务数据。</div>
+        <div className="font-medium text-gray-900">平台模块与 MES 导航</div>
+        <div className="mt-1 text-sm text-gray-600">平台总览提供全局搜索、收藏和真实业务模块入口；进入模块后仅显示相关菜单。原 MES 首页继续保留本地业务入口。模块可见范围由现有功能权限决定，不在这里授予权限。</div>
       </section>
 
       <section className="rounded-lg border border-gray-200 p-4">
-        <div className="font-medium text-gray-900">顶部模块按钮</div>
-        <div className="mt-1 text-sm text-gray-500">MES-lite 是当前主模块并始终显示；MRP、ERP 可改名或隐藏，显示时仍为不可点击的预留入口。</div>
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          {navigationWorkspaceIds.map((moduleId) => {
-            const button = draft.moduleButtons[moduleId]
-            const active = moduleId === 'mes'
-            return (
-              <div key={moduleId} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-medium text-gray-800">{navigationWorkspaceLabels[moduleId]}</div>
-                  <label className="flex items-center gap-2 text-xs text-gray-500">
-                    <input
-                      type="checkbox"
-                      checked={button.visible}
-                      disabled={!canUpdate || active}
-                      onChange={(event) => updateModuleButton(moduleId, (current) => { current.visible = event.target.checked })}
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    {active ? '主模块' : '显示'}
-                  </label>
-                </div>
-                <label className="mt-3 block text-xs text-gray-500">
-                  按钮名称
-                  <input
-                    value={button.label}
-                    disabled={!canUpdate}
-                    maxLength={20}
-                    onChange={(event) => updateModuleButton(moduleId, (current) => { current.label = event.target.value.slice(0, 20) })}
-                    placeholder={navigationWorkspaceLabels[moduleId]}
-                    className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
-                  />
-                </label>
-                {!active && <div className="mt-2 text-[11px] text-amber-700">仅预留展示，不启用独立工作区</div>}
-              </div>
-            )
-          })}
-        </div>
+        <div className="font-medium text-gray-900">原 MES 首页入口</div>
+        <div className="mt-1 text-sm text-gray-500">顶部模块菜单提供平台总览、原 MES 首页及当前有权使用的真实业务模块。旧 MRP/ERP 预留配置仅保留兼容，不再显示为功能入口。</div>
+        <label className="mt-4 block max-w-sm text-xs text-gray-500">
+          原 MES 首页名称
+          <input
+            value={draft.moduleButtons.mes.label}
+            disabled={!canUpdate}
+            maxLength={20}
+            onChange={(event) => updateModuleButton('mes', (current) => { current.label = event.target.value.slice(0, 20) })}
+            placeholder="MES-lite"
+            className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
+          />
+        </label>
       </section>
 
       <section className="overflow-hidden rounded-lg border border-gray-200">
@@ -216,7 +190,7 @@ export default function WorkspaceNavigationSettings({ onMessage, canUpdate }: { 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="text-sm font-medium text-gray-800">一级菜单顺序</div>
-              <div className="mt-1 text-xs text-gray-500">顺序同时应用于桌面侧栏、顶部导航和移动端菜单。</div>
+              <div className="mt-1 text-xs text-gray-500">顺序应用于原 MES 首页及各模块内的桌面侧栏、顶部导航和移动端菜单，不会把其他模块内容混入当前菜单。</div>
             </div>
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索页面、内部名称或功能区" className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 sm:max-w-sm" />
           </div>

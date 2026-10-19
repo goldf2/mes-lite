@@ -150,7 +150,7 @@ export function WorkspaceFunctionGroups({ items, preference, saving, onOpen, onT
                       </span>
                       <span className="mt-2 line-clamp-2 block text-xs leading-5 text-gray-500" title={item.description}>{item.description}</span>
                       <span className="mt-2 flex flex-wrap gap-x-2 text-[11px] text-gray-400">
-                        {item.sourceLabel && <span>{item.sourceLabel}</span>}
+                        <span>{item.sourceLabel || 'MES Lite'}</span>
                         {preference.mode === 'SMART' && <span>使用 {usageByKey.get(item.key)?.useCount || 0} 次</span>}
                       </span>
                     </button>

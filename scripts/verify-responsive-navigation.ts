@@ -20,7 +20,7 @@ assert.match(homeApp, /\{mobileNavOpen && \([\s\S]*?<DesktopNavigation[\s\S]*?mo
 assert.doesNotMatch(homeApp, /groupHeaderMode="static"[\s\S]*?expandedGroupIds="all"/, '移动抽屉不得默认展开全部一级菜单')
 assert.match(homeApp, /<MobileSiblingNavigation group=\{activeNavigationGroup\}/, '同级菜单必须使用统一导航模型中的当前分组')
 assert.match(homeApp, /<MobileSiblingNavigation[\s\S]*?<div id="topbar-actions-mobile"/, '同级菜单呼出按钮必须位于窄屏固定顶部工具条')
-assert.match(applicationNavigation, /navigationItemByShortcutKey/, '移动常用入口必须从统一导航模型解析')
+assert.match(applicationNavigation, /visibleMobileItems = navigationGroups\.flatMap/, '移动常用入口必须从统一导航模型解析')
 assert.doesNotMatch(homeApp, /desktopNavigationGroups/, '不得再维护仅供桌面使用的并行菜单分组')
 assert.match(desktopNavigation, /from '\.\/NavigationModel'/, '桌面侧栏必须复用公共导航类型')
 assert.match(desktopTopNavigation, /from '\.\/NavigationModel'/, '桌面顶部导航必须复用公共导航类型')

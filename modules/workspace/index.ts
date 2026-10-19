@@ -5,6 +5,12 @@ export type { WorkspaceFunctionItem } from './ui/WorkspacePages'
 export { default as useWorkspaceNavigation } from './client/useWorkspaceNavigation'
 export { buildDataPlatformFunctions } from './domain/data-platform-functions'
 export {
+  businessModuleDefinitions,
+  getAvailableBusinessModules,
+  getBusinessModuleForFunction,
+} from './domain/business-modules'
+export type { BusinessModuleDefinition, BusinessModuleKey } from './domain/business-modules'
+export {
   announceWorkspaceNavigationConfig,
   loadWorkspaceNavigationConfig,
   saveWorkspaceNavigationConfig,

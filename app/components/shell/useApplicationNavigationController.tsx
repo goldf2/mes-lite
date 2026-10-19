@@ -3,8 +3,15 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { Boxes, PencilLine, Search } from 'lucide-react'
 import type { CurrentOperator } from '../AuthGate'
-import type { NavigationGroup, NavigationItem } from '../navigation/NavigationModel'
-import { useWorkspaceNavigation } from '@/modules/workspace'
+import type { NavigationGroup } from '../navigation/NavigationModel'
+import {
+  businessModuleDefinitions,
+  getAvailableBusinessModules,
+  getBusinessModuleForFunction,
+  useWorkspaceNavigation,
+  type BusinessModuleDefinition,
+  type BusinessModuleKey,
+} from '@/modules/workspace'
 import {
   businessNavGroups,
   lightweightHiddenResources,
@@ -24,6 +31,15 @@ import NavigationGlyph from './NavigationGlyph'
 import usePageNavigationController from './usePageNavigationController'
 
 const accountMenuKeys = new Set<TabType>(['operators', 'permissionUsers', 'permissionGroups'])
+const platformNavigationIds = new Set(['businessWorkbench', 'allFunctions', 'dashboard'])
+
+function readRequestedBusinessModule(): BusinessModuleKey | null {
+  if (typeof window === 'undefined') return null
+  const url = new URL(window.location.href)
+  if (url.searchParams.get('page') !== 'businessWorkbench') return null
+  const key = url.searchParams.get('module')
+  return businessModuleDefinitions.find((module) => module.key === key)?.key || null
+}
 
 interface ApplicationNavigationControllerOptions {
   operator: CurrentOperator
@@ -71,6 +87,7 @@ export default function useApplicationNavigationController({
       Number(configuredFunctionOrder.get(left.key) ?? 1000 + Number(defaultFunctionOrder.get(left.key) ?? 999))
       - Number(configuredFunctionOrder.get(right.key) ?? 1000 + Number(defaultFunctionOrder.get(right.key) ?? 999))
     ))
+  const availableBusinessModules = getAvailableBusinessModules(workspaceFunctionItems)
   const visibleWorkspaceTabs = new Set(workspaceFunctionItems.map((item) => item.tab))
   const labelForTab = (item: { key: TabType; label: string }) => {
     if (item.key === 'materials' || item.key === 'allFunctions') return item.label
@@ -135,6 +152,7 @@ export default function useApplicationNavigationController({
   })
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [selectedBusinessModuleKey, setSelectedBusinessModuleKey] = useState<BusinessModuleKey | null>(readRequestedBusinessModule)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const navOrderLoadedRef = useRef(false)
@@ -147,15 +165,25 @@ export default function useApplicationNavigationController({
   )
   tabLabels.create = '创建生产订单'
   tabLabels.detail = '生产订单详情'
-  const activeTabLabel = tab === 'materials'
-    ? materialSectionItems.find((item) => item.key === materialSection)?.label || '物料与 BOM'
-    : tabLabels[tab] || 'MES-lite'
   const activePageModule = getPageModuleDefinition(resolvePageModuleKey(tab, materialSection))
   const activeFunctionKey: WorkspaceFunctionKey = tab === 'materials'
     ? materialSection === 'bomWorkspace' ? 'bomWorkspace' : materialSection === 'bomUsage' ? 'bomUsage' : 'materialManagement'
     : tab === 'create' || tab === 'detail'
       ? 'orders'
-      : workspaceFunctionCatalog.find((item) => item.tab === tab)?.key || 'dashboard'
+      : tab === 'allFunctions'
+        ? 'businessWorkbench'
+        : workspaceFunctionCatalog.find((item) => item.tab === tab)?.key || 'dashboard'
+  const activeBusinessModule: BusinessModuleDefinition | null = tab === 'businessWorkbench'
+    ? availableBusinessModules.find((module) => module.key === selectedBusinessModuleKey) || null
+    : tab === 'dashboard' || tab === 'allFunctions'
+      ? null
+      : getBusinessModuleForFunction(activeFunctionKey) || null
+  const activeBusinessModuleKey = activeBusinessModule?.key
+  const activeTabLabel = tab === 'materials'
+    ? materialSectionItems.find((item) => item.key === materialSection)?.label || '物料与 BOM'
+    : tab === 'businessWorkbench' && activeBusinessModule
+      ? activeBusinessModule.label
+      : tabLabels[tab] || 'MES-lite'
   const activeSystemTab = readableSystemNavItems.some((item) => item.key === tab)
   const activeBusinessGroupKey: BusinessNavGroupKey = tab === 'create' || tab === 'detail'
     ? 'production'
@@ -178,7 +206,16 @@ export default function useApplicationNavigationController({
   const activeGroupLabel = activeSystemTab
     ? '账号与权限'
     : businessNavGroups.find((group) => group.key === activeBusinessGroupKey)?.label || 'MES-lite'
-  const activeFunctionPath = `${activeGroupLabel} / ${activeTabLabel}`
+  const activeFunctionPath = activeBusinessModule
+    ? tab === 'businessWorkbench' ? activeBusinessModule.label : `${activeBusinessModule.label} / ${activeTabLabel}`
+    : `${activeGroupLabel} / ${activeTabLabel}`
+
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (tab === 'businessWorkbench' && activeBusinessModuleKey) url.searchParams.set('module', activeBusinessModuleKey)
+    else url.searchParams.delete('module')
+    window.history.replaceState(window.history.state, '', url)
+  }, [activeBusinessModuleKey, tab])
 
   useEffect(() => {
     const currentReadableItems = readableBusinessNavItemsRef.current
@@ -261,17 +298,45 @@ export default function useApplicationNavigationController({
     closeTransientNavigation()
     closeSystemMenu()
   }
+  const openBusinessPlatform = () => {
+    if (!workspaceFunctionItems.some((item) => item.key === 'businessWorkbench')) return
+    setSelectedBusinessModuleKey(null)
+    const url = new URL(window.location.href)
+    url.searchParams.set('page', 'businessWorkbench')
+    url.searchParams.delete('module')
+    url.searchParams.delete('task')
+    window.history.replaceState(window.history.state, '', url)
+    setTab('businessWorkbench')
+    closeNavigationSurfaces()
+  }
+  const openBusinessModule = (moduleKey: BusinessModuleKey) => {
+    if (!availableBusinessModules.some((module) => module.key === moduleKey)) return
+    setSelectedBusinessModuleKey(moduleKey)
+    const url = new URL(window.location.href)
+    url.searchParams.set('page', 'businessWorkbench')
+    url.searchParams.set('module', moduleKey)
+    url.searchParams.delete('task')
+    window.history.replaceState(window.history.state, '', url)
+    setTab('businessWorkbench')
+    closeNavigationSurfaces()
+  }
   const openWorkspaceFunction = (functionKey: WorkspaceFunctionKey, task?: string) => {
     const target = workspaceFunctionItems.find((item) => item.key === functionKey)
     if (!target) return
+    if (functionKey === 'businessWorkbench') {
+      openBusinessPlatform()
+      return
+    }
     if (target.externalHref) {
       closeNavigationSurfaces()
       recordWorkspaceUsage(functionKey)
       window.location.assign(target.externalHref)
       return
     }
+    setSelectedBusinessModuleKey(null)
     if (target.materialSection) setMaterialSection(target.materialSection)
     const url = new URL(window.location.href)
+    url.searchParams.delete('module')
     if (task) url.searchParams.set('task', task)
     else url.searchParams.delete('task')
     window.history.replaceState(window.history.state, '', url)
@@ -280,7 +345,12 @@ export default function useApplicationNavigationController({
     recordWorkspaceUsage(functionKey)
   }
   const navigateToTab = (nextTab: TabType, nextMaterialSection?: MaterialSection) => {
+    if (nextTab === 'businessWorkbench') {
+      openBusinessPlatform()
+      return
+    }
     if (nextTab === 'allFunctions') {
+      setSelectedBusinessModuleKey(null)
       setTab('allFunctions')
       closeNavigationSurfaces()
       return
@@ -295,7 +365,7 @@ export default function useApplicationNavigationController({
     setTab(nextTab)
     closeNavigationSurfaces()
   }
-  const navigationGroups: NavigationGroup[] = visibleBusinessGroups.map((group) => {
+  const allNavigationGroups: NavigationGroup[] = visibleBusinessGroups.map((group) => {
     const firstItem = group.tabs.map((key) => group.items.find((item) => item.key === key)).find(Boolean)
     const groupActive = !activeSystemTab && group.key === activeBusinessGroupKey
     const items = group.key === 'materials'
@@ -341,7 +411,7 @@ export default function useApplicationNavigationController({
   })
 
   if (readableSystemNavItems.length > 0) {
-    navigationGroups.push({
+    allNavigationGroups.push({
       id: 'account',
       label: '账号与权限',
       icon: <NavigationGlyph icon="operators" />,
@@ -358,7 +428,7 @@ export default function useApplicationNavigationController({
     })
   }
   for (const entry of workspaceFunctionItems.filter((item) => item.externalHref)) {
-    let group = navigationGroups.find((item) => item.id === entry.groupKey)
+    let group = allNavigationGroups.find((item) => item.id === entry.groupKey)
     if (!group) {
       group = {
         id: entry.groupKey,
@@ -368,7 +438,7 @@ export default function useApplicationNavigationController({
         items: [],
         onClick: () => openWorkspaceFunction(entry.key),
       }
-      navigationGroups.push(group)
+      allNavigationGroups.push(group)
     }
     group.items.push({
       id: entry.key,
@@ -379,28 +449,51 @@ export default function useApplicationNavigationController({
       onClick: () => openWorkspaceFunction(entry.key),
     })
   }
-  navigationGroups.sort((left, right) => (
+  allNavigationGroups.sort((left, right) => (
     Number(configuredGroupOrder.get(left.id as BusinessNavGroupKey) ?? 10000)
     - Number(configuredGroupOrder.get(right.id as BusinessNavGroupKey) ?? 10000)
   ))
-  const activeNavigationGroup = navigationGroups.find((group) => group.active)
-  const navigationItemByShortcutKey = new Map<string, NavigationItem>()
-  for (const group of navigationGroups) {
-    for (const item of group.items) {
-      if (item.shortcutKey && !navigationItemByShortcutKey.has(item.shortcutKey)) {
-        navigationItemByShortcutKey.set(item.shortcutKey, item)
-      }
-    }
+  const navigationFunction = (itemId: string) => {
+    const section = materialSectionItems.find((item) => itemId === `materials:${item.key}`)
+    return workspaceFunctionItems.find((item) => section
+      ? item.key === section.functionKey
+      : item.key === itemId || (!item.externalHref && item.tab === itemId))
   }
-  const mobilePrimaryItems = navItems.slice(0, 4).map((favorite) => {
-    const navigationItem = navigationItemByShortcutKey.get(favorite.key)
-    return {
-      key: favorite.key,
-      label: navigationItem?.label || favorite.label,
-      active: navigationItem?.active ?? tab === favorite.key,
-      onClick: navigationItem?.onClick || (() => navigateToTab(favorite.key)),
-    }
+  const navigationGroups: NavigationGroup[] = allNavigationGroups.flatMap((group) => {
+    const items = group.items.filter((item) => {
+      if (platformNavigationIds.has(item.id)) return true
+      const entry = navigationFunction(item.id)
+      if (!entry) return false
+      if (tab === 'dashboard') return !entry.externalHref
+      return Boolean(activeBusinessModule && getBusinessModuleForFunction(entry.key)?.key === activeBusinessModule.key)
+    }).map((item) => item.id === 'businessWorkbench'
+      ? { ...item, active: tab === 'businessWorkbench' && !activeBusinessModule }
+      : item)
+    return items.length > 0 ? [{
+      ...group,
+      label: activeBusinessModule?.key === 'inventory' && group.id === 'production'
+        ? '库存作业'
+        : activeBusinessModule?.key === 'inventory' && group.id === 'tools'
+          ? '库存工具'
+          : group.label,
+      items,
+      active: items.some((item) => item.active),
+      onClick: items[0].onClick,
+    }] : []
   })
+  if (tab === 'businessWorkbench' && activeBusinessModule) {
+    const landingGroup = navigationGroups.find((group) => group.items.some((item) => !platformNavigationIds.has(item.id)))
+    if (landingGroup) landingGroup.active = true
+  }
+  const activeNavigationGroup = navigationGroups.find((group) => group.active)
+  const visibleMobileItems = navigationGroups.flatMap((group) => group.items)
+  const moduleMobileItems = visibleMobileItems.filter((item) => !platformNavigationIds.has(item.id))
+  const mobilePrimaryItems = (moduleMobileItems.length > 0 ? moduleMobileItems : visibleMobileItems).slice(0, 4).map((item) => ({
+    key: item.id,
+    label: item.label,
+    active: item.active,
+    onClick: item.onClick,
+  }))
 
   return {
     canRead,
@@ -410,6 +503,10 @@ export default function useApplicationNavigationController({
     activeWorkspace,
     workspaceNavigationConfig,
     workspaceFunctionItems,
+    availableBusinessModules,
+    activeBusinessModule,
+    openBusinessModule,
+    openBusinessPlatform,
     tab,
     setTab,
     materialSection,
