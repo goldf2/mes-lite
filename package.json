@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.494",
+  "version": "0.1.495",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",

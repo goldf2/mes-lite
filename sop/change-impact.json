@@ -1,10 +1,10 @@
 {
-  "version": "0.1.493",
+  "version": "0.1.495",
   "impact": "updated",
   "workflowIds": [
     "02-dashboard",
     "03-all-functions",
     "23-erp-all-functions"
   ],
-  "summary": "新增独立宇峰平台一级应用导航及work精确域入口，原MES根入口/首页/专用目录保留；全局搜索和收藏进入原真实功能，客户工作区聚合授权数据平台8入口。492公共侧栏无遮挡修复折入493；两host隔离真实浏览器与交互回归通过，导航3项SOP同步493。业务事务/数据结构/权限不变；认证新增精确别名回调，不扩大账号范围。"
+  "summary": "宇峰平台首页采用两个紧凑真实应用、最多九个授权领域加全部分区、55个具体功能矩阵及独立MES首页共56项注册入口，新增常用/高频和分区切换同时清关键词/高级条件；原MES首页、岗位统计、本地完整菜单及BOM section、数据平台login-next地图参数保持。更新02-dashboard、03-all-functions、23-erp-all-functions目标/步骤/结果至495，只有这三项lastVerifiedVersion更新；三个产品UI源码SHA-256与494已验证版本完全一致，沿用494七视口和首轮25项加定向补验1项共26项隔离真实Next证据（协调目录work/platform-entry-0.1.494/browser-acceptance-summary.json），不冒充单次全通过、生产Casdoor或外部业务读取。三项截图baseline均保留0.1.350并明确为历史参考，生成495 Markdown。无业务/API/DB/认证/权限变更，两代码库继续独立，未完成共享联系人或MES统计上图。"
 }

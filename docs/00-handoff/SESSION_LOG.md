@@ -394,3 +394,9 @@
 - 首轮最后case是测试点击坐标离开视口；一次Next dev chunk加载超时保留失败证据。最后重测检查实际命中button与按压几何后通过，不删除原断言、不修改业务源码让测试通过。
 - 精确证据在协调目录work/platform-entry-0.1.494/{checks-final.json,browser-acceptance-summary.json,sidebar-risk-final/browser-receipt.json,independent-review.json}。合成SQLite/正常UI账号，外站仅核对URL；不冒充生产Casdoor或跨应用已认证。
 - 候选提交/CI/main/部署尚待依仓库门禁推进；不执行本机全量生产构建，不手工Redeploy绕过CI。
+
+### UI-20261020-GEMINI 完整CI阻断及495补正
+
+- 494候选152f1b8的精确CI39354364225失败于verify:sop的影响声明版本（旧493），不是构建或UI失败。生产未改，main保持47581a7。失败回执保留，未重跑掩盖失败。
+- 新建ci/0.1.495递增版本，补齐三项导航SOP、影响声明与495 Markdown；不削弱门禁。产品UI源码保持已通过浏览器验收的相同哈希，只对版本/文档补验并重新走完整候选CI。
+- 495补验tsc、lint、SOP清单、全屏帮助、发布下载、文档库发布、发布说明和开发规范全部通过；提交后以真实base47581a7执行SOP_DIFF_BASE，再推新候选。495完整CI尚未开始，生产保持493。
