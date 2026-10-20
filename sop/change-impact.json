@@ -1,14 +1,10 @@
 {
-  "version": "0.1.496",
+  "version": "0.1.497",
   "impact": "updated",
   "workflowIds": [
     "02-dashboard",
     "03-all-functions",
-    "23-erp-all-functions",
-    "188-task-draft-bom-files",
-    "189-task-assignment-progress",
-    "190-task-release-delivery-history",
-    "191-task-archive-restore"
+    "23-erp-all-functions"
   ],
-  "summary": "新增188–191任务协同完整操作链：草稿/模板、现有物料BOM及多图纸版本、既有派工关联、进度异常、预览后冻结发布、人工发放/JSON历史、归档恢复；区分任务/发布/附件权限与本人/工作中心范围，不重复生产实绩，不自动邮件微信，无供应商自助登录。同步02/03/23导航流程，删除已取消的平台顶部标题横栏及其中应用/授权数量、显示说明和功能目录按钮指引，保留应用入口、领域矩阵、搜索收藏与原MES。七项lastVerifiedVersion为496；任务截图来自本版07-39完整UI整轮，03/23取自本版平台横栏移除1440/390真实截图，均为临时SQLite/合成账号；02历史截图保留原baseline并注明；仅本地文档生成/版面复核，不发布生产SOP库，不作为生产部署或真实登录证明。 三域边界：mes与work仍为同一MES部署；crm为独立综合数据平台，客户入口指向https://crm.csyufeng.com/workspaces/local/default，新别名/登录回调验证进行中，不声明生产切换已完成。"
+  "summary": "497首页统一同步02/03/23三个导航流程：平台导航与主区两列，MES保留标题、首屏搜索与常用入口，岗位待办仍是首个业务区且搜索时可见；收藏、高频前5和原授权工具通过公共按需面板访问。固定UI0.2.14的framework.css与native面板行为已同源接入并受资产完整性守卫保护，不新增页面/API/权限/业务模型或迁移。497真实本地浏览器六尺寸与五组独立场景通过，九项UI/资产哈希逐组一致；1440首轮30秒冷加载未完成记录保留，仅该尺寸以60秒界限复跑通过，其余五尺寸及独立场景沿用已通过证据。三图逐一核对聚合收据SHA-256后登记497基线与复核版本；无pageError、未解释console或实际外网请求，受控偏好500按预期，库存/成本写入为0。仅生成当前版本Markdown，不重复DOCX/PDF/离线Web，不发布生产SOP库，未据此声称CI、MES推送、生产切换或真实跨域登录完成。"
 }

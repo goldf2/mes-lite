@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { workspaceFunctionCatalog } from '../app/app-navigation'
 import { registeredPageDefinitions } from '../lib/page-registry'
@@ -14,6 +16,27 @@ import {
   businessApplicationDefinitions,
   getAvailableBusinessApplications,
 } from '../modules/workspace/domain/business-applications'
+
+// React18 consumes only the fixed package's framework/native subset. Verify the
+// extracted files against both the immutable archive and its source receipt.
+const sharedUiVersion = '0.2.14'
+const sharedUiArchive = `vendor/oaktech-saas-ui-${sharedUiVersion}.tgz`
+const sharedUiReceipt = JSON.parse(readFileSync(`vendor/oaktech-saas-ui-${sharedUiVersion}.manifest.json`, 'utf8'))
+const digest = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex')
+assert.equal(sharedUiReceipt.version, sharedUiVersion)
+assert.match(sharedUiReceipt.sourceCommit, /^[a-f0-9]{40}$/)
+assert.equal(digest(readFileSync(sharedUiArchive)), sharedUiReceipt.sha256, 'Fixed UI archive must match its source receipt')
+for (const [file, field] of [
+  ['framework.css', 'frameworkCssSha256'],
+  ['native/panel-behavior.js', 'nativePanelBehaviorSha256'],
+  ['native/panel-behavior.d.ts', 'nativePanelBehaviorTypesSha256'],
+] as const) {
+  const extracted = readFileSync(`vendor/oaktech-saas-ui-${sharedUiVersion}/${file}`)
+  assert.equal(digest(extracted), sharedUiReceipt[field], `Shared asset changed: ${file}`)
+  assert.deepEqual(extracted, execFileSync('tar', ['-xOf', sharedUiArchive, `package/${file}`]), `Shared asset must be byte-identical to its fixed archive: ${file}`)
+}
+assert.match(readFileSync('app/layout.tsx', 'utf8'), /import '@\/vendor\/oaktech-saas-ui-0\.2\.14\/framework\.css'/)
+assert.equal(JSON.parse(readFileSync('package.json', 'utf8')).dependencies['@oaktech/saas-ui'], undefined, 'This subset adapter must not install the Node24/React19 package into MES')
 
 assert.deepEqual(businessEntryUrls({
   NODE_ENV: 'production',

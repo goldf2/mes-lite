@@ -3,6 +3,7 @@
 import { useMemo, useState, type DragEvent, type ReactNode } from 'react'
 import AppButton from '@/app/components/AppButton'
 import ModalDialog from '@/app/components/ModalDialog'
+import WorkspaceQuickAccess from './WorkspaceQuickAccess'
 import { defaultWorkspaceLayout, maxWorkspaceShortcuts, rankWorkspaceFunctionKeys } from '@/lib/workspace'
 import type { WorkspaceFunctionKey, WorkspaceMode, WorkspacePreferenceValue } from '@/lib/workspace'
 import {
@@ -19,7 +20,7 @@ const modeOptions: Array<{ key: WorkspaceMode; label: string; description: strin
   { key: 'CUSTOM', label: '自定义', description: '自行选择并摆放快捷入口' },
 ]
 
-export function WorkspaceLauncher({ items, preference, onOpen, onOpenAllFunctions, onSave, preferenceBusy = false, title, mobileContentSearch = false, beforeContent, searchItems = items, showAllFunctions = false }: {
+export function WorkspaceLauncher({ items, preference, onOpen, onOpenAllFunctions, onSave, preferenceBusy = false, title, mobileContentSearch = false, beforeContent, searchItems = items, showAllFunctions = false, compact = false }: {
   items: WorkspaceFunctionItem[]
   preference: WorkspacePreferenceValue
   onOpen: (key: WorkspaceFunctionKey) => void
@@ -31,6 +32,7 @@ export function WorkspaceLauncher({ items, preference, onOpen, onOpenAllFunction
   beforeContent?: ReactNode
   searchItems?: WorkspaceFunctionItem[]
   showAllFunctions?: boolean
+  compact?: boolean
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [draggedKey, setDraggedKey] = useState<WorkspaceFunctionKey | null>(null)
@@ -140,43 +142,48 @@ export function WorkspaceLauncher({ items, preference, onOpen, onOpenAllFunction
   }
 
   return (
-    <section className="space-y-5 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className={`rounded-xl border border-gray-200 bg-white shadow-sm ${compact ? 'space-y-3.5 p-3 sm:p-4' : 'space-y-5 p-4 sm:p-5'}`}>
+      {compact && <WorkspaceFunctionSearch search={search} storageKey="mes-lite.searchPresets.workspace" mobileContentSearch={mobileContentSearch} />}
+      <div className="flex flex-wrap items-center justify-between gap-2">
         {title ? <h1 className="text-xl font-semibold text-gray-900">{title}</h1> : <h2 className="text-base font-semibold text-gray-900">常用功能</h2>}
-        <AppButton variant="secondary" size="sm" onClick={onOpenAllFunctions}>全部功能</AppButton>
+        <div className="flex flex-wrap items-center gap-2">
+          {compact && <WorkspaceQuickAccess items={items} preference={preference} saving={saving} error={error} onOpen={onOpen} onToggleFavorite={toggleFavorite} />}
+          <AppButton variant="secondary" size="sm" onClick={onOpenAllFunctions} className={compact ? '!min-h-10 !text-sm' : undefined}>全部功能</AppButton>
+        </div>
       </div>
-      <WorkspaceFunctionSearch search={search} storageKey="mes-lite.searchPresets.workspace" mobileContentSearch={mobileContentSearch} />
+      {!compact && <WorkspaceFunctionSearch search={search} storageKey="mes-lite.searchPresets.workspace" mobileContentSearch={mobileContentSearch} />}
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+      {compact && beforeContent}
       {search.searching ? (
         <section aria-label="功能搜索结果" className="space-y-4">
           <h2 className="text-base font-semibold text-gray-900">搜索结果 <span className="text-sm font-normal text-gray-500">{search.visibleItems.length} 项</span></h2>
-          {search.visibleItems.length > 0 ? <WorkspaceFunctionGroups items={search.visibleItems} preference={preference} saving={saving} onOpen={onOpen} onToggleFavorite={toggleFavorite} /> : <p className="py-8 text-center text-sm text-gray-500">没有匹配的功能，试试其他名称、分组或说明。</p>}
+          {search.visibleItems.length > 0 ? <WorkspaceFunctionGroups items={search.visibleItems} preference={preference} saving={saving} onOpen={onOpen} onToggleFavorite={toggleFavorite} compact={compact} /> : <p className="py-8 text-center text-sm text-gray-500">没有匹配的功能，试试其他名称、分组或说明。</p>}
         </section>
       ) : (
         <>
-          {beforeContent}
-          <section aria-label="我的收藏" className="space-y-3">
+          {!compact && beforeContent}
+          {!compact && <section aria-label="我的收藏" className="space-y-3">
             <h2 className="text-base font-semibold text-gray-900">我的收藏 <span className="text-sm font-normal text-gray-500">{favoriteItems.length} 项</span></h2>
             {favoriteItems.length > 0 ? <WorkspaceFunctionGroups items={favoriteItems} preference={preference} saving={saving} onOpen={onOpen} onToggleFavorite={toggleFavorite} /> : <p className="rounded-lg border border-dashed border-gray-200 px-4 py-5 text-sm text-gray-500">点击功能旁的星标，即可收藏到这里。</p>}
-          </section>
-          <section aria-label="常用功能" className="space-y-4 border-t border-gray-100 pt-4">
+          </section>}
+          <section aria-label="常用功能" className={compact ? 'space-y-3' : 'space-y-4 border-t border-gray-100 pt-4'}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-base font-semibold text-gray-900">{showAllFunctions ? '模块功能' : '快捷入口'}</h2>
               {!showAllFunctions && <div className="flex flex-wrap items-center gap-2">
                 <div className="flex flex-wrap gap-1" aria-label="常用功能排序方式">
-                  {modeOptions.map((option) => <AppButton key={option.key} variant={preference.mode === option.key ? 'primary' : 'ghost'} size="sm" title={option.description} disabled={saving} onClick={() => changeMode(option.key)} aria-pressed={preference.mode === option.key}>{option.label}</AppButton>)}
+                  {modeOptions.map((option) => <AppButton key={option.key} variant={preference.mode === option.key ? 'primary' : 'ghost'} size="sm" title={option.description} disabled={saving} onClick={() => changeMode(option.key)} aria-pressed={preference.mode === option.key} className={compact ? '!min-h-10' : undefined}>{option.label}</AppButton>)}
                 </div>
-                {preference.mode !== 'DEFAULT' && <AppButton variant="secondary" size="sm" onClick={openSettings} disabled={saving}>管理快捷入口</AppButton>}
+                {preference.mode !== 'DEFAULT' && <AppButton variant="secondary" size="sm" onClick={openSettings} disabled={saving} className={compact ? '!min-h-10' : undefined}>管理快捷入口</AppButton>}
               </div>}
             </div>
-            {displayedItems.length > 0 ? <WorkspaceFunctionGroups items={displayedItems} {...catalogProps} renderActions={showAllFunctions ? undefined : catalogProps.renderActions} getDragProps={showAllFunctions ? undefined : catalogProps.getDragProps} /> : <p className="text-sm text-gray-500">{items.length > 0 ? '当前入口已显示在我的收藏中。' : '当前账号暂无可用功能。'}</p>}
+            {displayedItems.length > 0 ? <WorkspaceFunctionGroups items={displayedItems} {...catalogProps} compact={compact} renderActions={showAllFunctions ? undefined : catalogProps.renderActions} getDragProps={showAllFunctions ? undefined : catalogProps.getDragProps} /> : <p className="text-sm text-gray-500">{items.length > 0 ? (compact ? '当前入口已收藏，可从“常用与高频”打开。' : '当前入口已显示在我的收藏中。') : '当前账号暂无可用功能。'}</p>}
           </section>
         </>
       )}
       {settingsOpen && (
         <ModalDialog
           title="管理工作台快捷入口"
-          description={preference.mode === 'CUSTOM' ? `选择 1–${maxWorkspaceShortcuts} 个常用功能，收藏项显示在上方，其余入口可在同一业务分组内拖动排序。` : '智能排序会自动学习使用次数，收藏项始终显示在首页。'}
+          description={preference.mode === 'CUSTOM' ? `选择 1–${maxWorkspaceShortcuts} 个常用功能，${compact ? '收藏项可从“常用与高频”打开' : '收藏项显示在上方'}，其余入口可在同一业务分组内拖动排序。` : `智能排序会自动学习使用次数，${compact ? '收藏项可从“常用与高频”打开' : '收藏项始终显示在首页'}。`}
           onClose={() => setSettingsOpen(false)}
           size="lg"
           footer={<><AppButton variant="secondary" onClick={restoreDefault} disabled={saving}>恢复系统默认</AppButton><AppButton variant="secondary" onClick={() => setSettingsOpen(false)} disabled={saving}>取消</AppButton><AppButton variant="primary" onClick={saveDraft} disabled={saving}>保存</AppButton></>}

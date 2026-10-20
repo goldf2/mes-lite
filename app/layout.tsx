@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import '@oaktech/web-auth/auth-frame.css'
+import '@/vendor/oaktech-saas-ui-0.2.14/framework.css'
 import { AiAssistantAppearanceProvider } from './components/AiAssistantAppearanceProvider'
 import { getPublishedAiAssistantMarkConfig } from '@/lib/ai-assistant-mark-settings'
 import { getSystemSettings } from '@/lib/system-settings'

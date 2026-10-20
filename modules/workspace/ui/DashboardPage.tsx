@@ -52,15 +52,18 @@ export default function DashboardPage({
   const pendingItems = buildDashboardPendingItems(view)
 
   return (
-    <section aria-label="MES Lite 首页" className="space-y-6">
-      {dashboard && <RoleTaskBoard sections={view.roleTaskSections} onOpen={onOpen} />}
+    <section aria-label="MES Lite 首页" className="mx-auto w-full max-w-[1920px] space-y-4">
       <WorkspaceLauncher
+        title="MES Lite 首页"
         items={items.filter((item) => item.key !== 'dashboard')}
         preference={preference}
         onOpen={onOpen}
         onOpenAllFunctions={onOpenAllFunctions}
         onSave={onSave}
         preferenceBusy={preferenceBusy}
+        mobileContentSearch
+        compact
+        beforeContent={dashboard && <RoleTaskBoard sections={view.roleTaskSections} onOpen={onOpen} />}
       />
       {error ? (
         <section role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
@@ -71,11 +74,11 @@ export default function DashboardPage({
         <>
           <DashboardKpiGrid items={metricItems} />
           <DashboardSalesDeliveryPanel references={view.salesDeliveryReferences} onOpen={() => onOpen('salesOrders')} />
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <DashboardBarPanel title="生产负荷" items={workloadItems} />
             <DashboardSignalGrid title="待处理事项" items={pendingItems} />
           </div>
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <ProductionStatusOverview
               orderItems={view.statusDistribution}
               actualItems={view.productionActualStatusDistribution}

@@ -1,0 +1,463 @@
+/* Standalone application frame. No global reset or Tailwind compilation required. */
+
+/* APP-UI-001 1.2.0 — Single shared configuration for NON-BUSINESS application UI.
+   Use these semantic CSS properties, never per-app body/dt/dd defaults.
+   These custom properties do not style business content on their own.
+   Responsive breakpoints (900 / 760 / 480px) are shared media rules below:
+   custom properties cannot be used in CSS @media conditions. */
+:root {
+  /* Brand-independent public design: five apps share the same frame and controls. */
+  --oak-ui-color-primary: #245fe8;
+  --oak-ui-color-primary-hover: #174bc2;
+  --oak-ui-color-text: #20304c;
+  --oak-ui-color-text-muted: #667790;
+  --oak-ui-color-border: #dce4ef;
+  --oak-ui-color-page: #f4f7fb;
+  --oak-ui-color-surface: #fff;
+  --oak-ui-color-selected: #eaf0ff;
+  --oak-ui-color-on-primary: #fff;
+  --oak-ui-color-negative: #b42318;
+  --oak-ui-color-positive: #267349;
+  --oak-ui-color-warning: #946200;
+  --oak-ui-color-placeholder: #8895a9;
+  --oak-ui-color-intro-muted: #d6e2f5;
+
+  /* Typography scale and semantic roles (all shared in React and native hosts). */
+  --oak-ui-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --oak-ui-font-size-xs: 12px;
+  --oak-ui-font-size-caption: 13px;
+  --oak-ui-font-size-small: 14px;
+  --oak-ui-font-size-intro-mobile: 15px;
+  --oak-ui-font-size-body: 16px;
+  --oak-ui-font-size-lead: 17px;
+  --oak-ui-font-size-brand: 18px;
+  --oak-ui-font-size-section: 20px;
+  --oak-ui-font-size-intro-mark: 22px;
+  --oak-ui-font-size-page-mobile: 24px;
+  --oak-ui-font-size-login-mobile: 26px;
+  --oak-ui-font-size-page: 28px;
+  --oak-ui-font-size-login: 30px;
+  --oak-ui-font-size-hero: clamp(30px, 3vw, 40px);
+  --oak-ui-font-size-overview: clamp(32px, 4vw, 48px);
+  --oak-ui-font-size-detail-label: var(--oak-ui-font-size-small);
+  --oak-ui-font-size-detail-value: var(--oak-ui-font-size-body);
+  --oak-ui-font-size-control: var(--oak-ui-font-size-body);
+  --oak-ui-font-size-settings-menu: var(--oak-ui-font-size-body);
+  --oak-ui-font-weight-normal: 400;
+  --oak-ui-font-weight-medium: 550;
+  --oak-ui-font-weight-semibold: 650;
+  --oak-ui-line-height-tight: 1.3;
+  --oak-ui-line-height-page: 1.35;
+  --oak-ui-line-height-heading: 1.4;
+  --oak-ui-line-height-control: 1.5;
+  --oak-ui-line-height-body: 1.6;
+  --oak-ui-line-height-long: 1.7;
+  --oak-ui-line-height-loose: 1.8;
+  --oak-ui-line-height-input: 24px;
+
+  /* Public component spacing and geometry. No global box/element reset. */
+  --oak-ui-space-1: 2px;
+  --oak-ui-space-2: 4px;
+  --oak-ui-space-3: 6px;
+  --oak-ui-space-4: 8px;
+  --oak-ui-space-5: 10px;
+  --oak-ui-space-6: 11px;
+  --oak-ui-space-7: 12px;
+  --oak-ui-space-8: 14px;
+  --oak-ui-space-9: 16px;
+  --oak-ui-space-10: 18px;
+  --oak-ui-space-11: 20px;
+  --oak-ui-space-12: 22px;
+  --oak-ui-space-13: 24px;
+  --oak-ui-space-14: 28px;
+  --oak-ui-space-15: 32px;
+  --oak-ui-space-16: 44px;
+  --oak-ui-space-17: 48px;
+  --oak-ui-space-18: 54px;
+  --oak-ui-radius-control: 8px;
+  --oak-ui-radius-mark: 10px;
+  --oak-ui-radius-panel: 12px;
+  --oak-ui-radius-feature: 16px;
+  --oak-ui-radius-access: 20px;
+  --oak-ui-radius-access-intro: 19px;
+  --oak-ui-radius-intro-mark: 13px;
+  --oak-ui-control-min-height: 44px;
+  --oak-ui-auth-control-height: 48px;
+  --oak-ui-header-min-height: 52px;
+  --oak-ui-header-mark-size: 36px;
+  --oak-ui-header-avatar-size: 34px;
+  --oak-ui-header-glyph-size: 20px;
+  --oak-ui-header-horizontal-padding: 12px;
+  --oak-ui-footer-min-height: 56px;
+  --oak-ui-settings-nav-width: 224px;
+  --oak-ui-detail-label-width: 180px;
+  --oak-ui-content-max-width: 1200px;
+  --oak-ui-access-max-width: 1080px;
+  --oak-ui-settings-min-height: 240px;
+  --oak-ui-account-dialog-width: 680px;
+  --oak-ui-account-dialog-height: 760px;
+  --oak-ui-workspace-nav-width: 220px;
+  --oak-ui-workspace-max-width: 1920px;
+  --oak-ui-quick-panel-width: 340px;
+  --oak-ui-quick-panel-mobile-width: 360px;
+  --oak-ui-quick-panel-max-height: 640px;
+}
+
+:is(.oak-app-frame, .oak-app-settings, .oak-app-account-details, .oak-app-account-login, .oak-app-access-card, .oak-app-overview, .oak-app-account-dialog) {
+  --oak-app-blue: var(--oak-ui-color-primary);
+  --oak-app-ink: var(--oak-ui-color-text);
+  --oak-app-muted: var(--oak-ui-color-text-muted);
+  --oak-app-border: var(--oak-ui-color-border);
+  --oak-app-background: var(--oak-ui-color-page);
+  --oak-app-surface: var(--oak-ui-color-surface);
+  box-sizing: border-box;
+  color: var(--oak-app-ink);
+  font-family: var(--oak-ui-font-family);
+  font-size: var(--oak-ui-font-size-body);
+  font-weight: var(--oak-ui-font-weight-normal);
+  line-height: var(--oak-ui-line-height-body);
+  overflow-wrap: anywhere;
+}
+:is(.oak-app-frame, .oak-app-settings, .oak-app-account-details, .oak-app-account-login, .oak-app-access-card, .oak-app-overview, .oak-app-account-dialog) *,
+:is(.oak-app-frame, .oak-app-settings, .oak-app-account-details, .oak-app-account-login, .oak-app-access-card, .oak-app-overview, .oak-app-account-dialog) *::before,
+:is(.oak-app-frame, .oak-app-settings, .oak-app-account-details, .oak-app-account-login, .oak-app-access-card, .oak-app-overview, .oak-app-account-dialog) *::after { box-sizing: border-box; }
+:is(.oak-app-frame, .oak-app-settings, .oak-app-account-details, .oak-app-account-login, .oak-app-access-card, .oak-app-overview, .oak-app-account-dialog) :is(a, button, input, textarea, select, summary):focus-visible {
+  outline: 3px solid var(--oak-app-blue);
+  outline-offset: 3px;
+}
+.oak-app-frame { display: flex; min-height: 100dvh; margin: 0; flex-direction: column; background: var(--oak-app-background); }
+.oak-app-skip { position: fixed; z-index: 100; top: 8px; left: 16px; transform: translateY(-180%); padding: var(--oak-ui-space-5) var(--oak-ui-space-9); border: 1px solid var(--oak-app-border); border-radius: var(--oak-ui-radius-control); background: var(--oak-app-surface); color: var(--oak-app-ink); text-decoration: none; }
+.oak-app-skip:focus { transform: translateY(0); }
+.oak-app-header { position: sticky; z-index: 40; top: 0; margin: 0; padding: 0; border: 0; border-bottom: 1px solid var(--oak-app-border); background: var(--oak-app-surface); }
+.oak-app-header-inner {
+  display: grid; width: 100%; min-height: var(--oak-ui-header-min-height);
+  grid-template-columns: auto minmax(0, 1fr) auto; align-items: center;
+  column-gap: var(--oak-ui-space-4); padding: 4px var(--oak-ui-header-horizontal-padding);
+}
+.oak-app-brand {
+  display: inline-flex; min-width: var(--oak-ui-control-min-height);
+  min-height: var(--oak-ui-control-min-height); width: var(--oak-ui-control-min-height);
+  align-items: center; justify-content: center; gap: var(--oak-ui-space-4);
+  border-radius: var(--oak-ui-radius-control); color: var(--oak-app-ink);
+  font-size: var(--oak-ui-font-size-brand); font-weight: var(--oak-ui-font-weight-semibold);
+  line-height: var(--oak-ui-line-height-tight); text-decoration: none;
+}
+.oak-app-brand--full { width: auto; max-width: 45vw; padding-inline: 4px; justify-content: flex-start; }
+.oak-app-brand:hover { background: var(--oak-ui-color-selected); }
+.oak-app-brand-copy { display: flex; min-width: 0; flex-direction: column; gap: var(--oak-ui-space-1); white-space: nowrap; }
+.oak-app-brand-copy > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.oak-app-module-name { color: var(--oak-app-muted); font-size: var(--oak-ui-font-size-xs); font-weight: var(--oak-ui-font-weight-normal); line-height: var(--oak-ui-line-height-heading); }
+.oak-app-mark {
+  display: inline-flex; width: var(--oak-ui-header-mark-size); height: var(--oak-ui-header-mark-size);
+  flex: 0 0 var(--oak-ui-header-mark-size); align-items: center; justify-content: center;
+  overflow: hidden; border-radius: var(--oak-ui-radius-mark);
+  background: transparent; color: var(--oak-app-blue);
+}
+/* A literal monogram is a fallback mark; real application logos keep their own artwork. */
+.oak-app-mark--monogram { background: var(--oak-app-blue); color: var(--oak-ui-color-on-primary); font-weight: var(--oak-ui-font-weight-semibold); }
+.oak-app-navigation {
+  grid-column: 2; display: flex; min-width: 0; flex-wrap: nowrap; align-items: center;
+  gap: var(--oak-ui-space-2); margin: 0; padding: 0; overflow-x: auto;
+  white-space: nowrap; scrollbar-width: none; font-size: var(--oak-ui-font-size-small);
+}
+/* Optional host tools stay in the same physical grid row; hosts own overflow and actions. */
+.oak-app-header-tools {
+  grid-column: 2; grid-row: 1; display: flex; min-width: 0; max-width: 100%;
+  min-height: var(--oak-ui-control-min-height); align-items: center; justify-content: flex-start;
+}
+.oak-app-navigation::-webkit-scrollbar { display: none; }
+.oak-app-navigation .oak-app-nav-link { flex-shrink: 0; }
+.oak-app-utilities {
+  grid-column: 3; display: flex; min-width: 0; flex-wrap: nowrap; flex-shrink: 0;
+  justify-self: end; align-items: center; gap: var(--oak-ui-space-2); margin: 0; padding: 0;
+}
+.oak-app-nav-link { display: inline-flex; min-height: var(--oak-ui-control-min-height); align-items: center; padding: var(--oak-ui-space-5) var(--oak-ui-space-7); border: 0; border-radius: var(--oak-ui-radius-control); color: var(--oak-app-muted); font-weight: var(--oak-ui-font-weight-medium); line-height: var(--oak-ui-line-height-control); text-decoration: none; }
+.oak-app-nav-link:hover, .oak-app-nav-link[aria-current="page"] { background: var(--oak-ui-color-selected); color: var(--oak-app-blue); }
+.oak-app-utility-icon {
+  display: inline-flex; min-width: var(--oak-ui-control-min-height); width: var(--oak-ui-control-min-height);
+  min-height: var(--oak-ui-control-min-height); height: var(--oak-ui-control-min-height);
+  align-items: center; justify-content: center; padding: 0; border: 0;
+  border-radius: var(--oak-ui-radius-control); color: var(--oak-app-muted); text-decoration: none;
+}
+.oak-app-utility-icon:hover, .oak-app-utility-icon[aria-current="page"] { color: var(--oak-app-blue); background: var(--oak-ui-color-selected); }
+.oak-app-header-icon { display: block; width: var(--oak-ui-header-glyph-size); height: var(--oak-ui-header-glyph-size); flex-shrink: 0; }
+.oak-app-account { position: relative; min-width: 0; flex-shrink: 0; }
+.oak-app-account-dialog {
+  box-sizing: border-box; width: min(var(--oak-ui-account-dialog-width), calc(100vw - 32px));
+  max-width: none; max-height: min(var(--oak-ui-account-dialog-height), calc(100dvh - 32px));
+  margin: auto; padding: 0; border: 1px solid var(--oak-ui-color-border);
+  border-radius: var(--oak-ui-radius-feature); background: var(--oak-ui-color-surface);
+  color: var(--oak-ui-color-text); font: var(--oak-ui-font-size-body)/var(--oak-ui-line-height-body) var(--oak-ui-font-family);
+  box-shadow: 0 24px 80px #20304c33; overflow: hidden;
+}
+.oak-app-account-dialog[open] { display: flex; flex-direction: column; }
+.oak-app-account-dialog::backdrop { background: #20304c66; }
+.oak-app-account-dialog * { box-sizing: border-box; }
+.oak-app-account-dialog-header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: var(--oak-ui-space-9); padding: var(--oak-ui-space-7) var(--oak-ui-space-13); border-bottom: 1px solid var(--oak-ui-color-border); }
+.oak-app-account-dialog-title { margin: 0; font-size: var(--oak-ui-font-size-section); font-weight: var(--oak-ui-font-weight-semibold); line-height: var(--oak-ui-line-height-heading); }
+.oak-app-account-dialog-close { display: grid; place-items: center; flex-shrink: 0; width: var(--oak-ui-control-min-height); height: var(--oak-ui-control-min-height); padding: 0; border: 0; border-radius: var(--oak-ui-radius-control); background: transparent; color: var(--oak-ui-color-text-muted); font: inherit; font-size: var(--oak-ui-font-size-page); cursor: pointer; }
+.oak-app-account-dialog-close:hover { background: var(--oak-ui-color-selected); }
+.oak-app-account-dialog-close:focus-visible { outline: 3px solid var(--oak-ui-color-primary); outline-offset: 2px; }
+.oak-app-account-dialog-content { min-height: 0; padding: var(--oak-ui-space-13); overflow-y: auto; overscroll-behavior: contain; }
+.oak-app-account-dialog-content > :first-child { margin-top: 0; }
+.oak-app-account-dialog-content .oak-app-page-title { font-size: var(--oak-ui-font-size-section); }
+@media (max-width: 480px) {
+  .oak-app-account-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); }
+  .oak-app-account-dialog-header, .oak-app-account-dialog-content { padding: var(--oak-ui-space-9); }
+}
+.oak-app-account-summary {
+  display: flex; width: var(--oak-ui-control-min-height); height: var(--oak-ui-control-min-height);
+  min-height: var(--oak-ui-control-min-height); align-items: center; justify-content: center;
+  padding: 0; border-radius: 50%; cursor: pointer; list-style: none;
+}
+.oak-app-account-summary::-webkit-details-marker { display: none; }
+.oak-app-account-summary:hover, .oak-app-account[open] .oak-app-account-summary { background: var(--oak-ui-color-selected); }
+.oak-app-avatar {
+  display: inline-flex; width: var(--oak-ui-header-avatar-size); height: var(--oak-ui-header-avatar-size);
+  flex: 0 0 var(--oak-ui-header-avatar-size); align-items: center; justify-content: center;
+  border-radius: 50%; background: var(--oak-ui-color-selected); color: var(--oak-app-blue);
+  font-size: var(--oak-ui-font-size-body); font-weight: var(--oak-ui-font-weight-semibold); line-height: 1;
+}
+.oak-app-avatar--anonymous { background: transparent; border: 1px solid var(--oak-app-border); }
+/* CloudBridge native host keeps the full name in its DOM for session handling;
+   hide it from visual layout while the avatar trigger retains an accessible name. */
+.oak-app-account-label {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.oak-app-account-menu { position: absolute; z-index: 50; top: calc(100% + 8px); right: 0; width: min(280px, calc(100vw - 32px)); padding: var(--oak-ui-space-7); border: 1px solid var(--oak-app-border); border-radius: var(--oak-ui-radius-panel); background: var(--oak-app-surface); box-shadow: 0 12px 32px #20304c1a; }
+.oak-app-account-name { margin: 0 0 var(--oak-ui-space-2); font-weight: var(--oak-ui-font-weight-semibold); }
+.oak-app-account-detail { margin: 0 0 var(--oak-ui-space-4); color: var(--oak-app-muted); font-size: var(--oak-ui-font-size-small); }
+.oak-app-menu-link, .oak-app-logout :is(button, a) { display: flex; width: 100%; min-height: var(--oak-ui-control-min-height); align-items: center; padding: var(--oak-ui-space-5) var(--oak-ui-space-7); border: 0; border-radius: var(--oak-ui-radius-control); background: transparent; color: var(--oak-app-ink); font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
+.oak-app-menu-link:hover, .oak-app-logout :is(button, a):hover { background: var(--oak-app-background); }
+.oak-app-logout form { margin: 0; }
+.oak-app-body { display: flex; min-width: 0; flex: 1; }
+.oak-app-body--sidebar { display: grid; grid-template-columns: var(--oak-ui-settings-nav-width) minmax(0, 1fr); }
+.oak-app-sidebar { min-width: 0; margin: 0; padding: var(--oak-ui-space-13) var(--oak-ui-space-9); border-right: 1px solid var(--oak-app-border); background: var(--oak-app-surface); }
+.oak-app-main { min-width: 0; width: 100%; margin: 0; padding: var(--oak-ui-space-15) var(--oak-ui-space-13); outline: none; }
+.oak-app-content { width: 100%; max-width: var(--oak-ui-content-max-width); min-width: 0; margin: 0 auto; }
+.oak-app-frame--wide .oak-app-content { max-width: none; }
+.oak-app-frame--access .oak-app-main { display: flex; align-items: center; justify-content: center; padding-block: var(--oak-ui-space-17); background: radial-gradient(ellipse at 20% 15%, #e8eef9, transparent 60%); }
+.oak-app-frame--access .oak-app-content { max-width: var(--oak-ui-access-max-width); }
+.oak-app-context { margin: 0 0 var(--oak-ui-space-13); }
+.oak-app-footer { margin: 0; padding: 0; border: 0; border-top: 1px solid var(--oak-app-border); color: var(--oak-app-muted); background: var(--oak-app-surface); font-size: var(--oak-ui-font-size-small); }
+.oak-app-footer-inner { display: flex; min-height: var(--oak-ui-footer-min-height); flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--oak-ui-space-4) var(--oak-ui-space-13); padding: var(--oak-ui-space-4) var(--oak-ui-space-13); }
+.oak-app-version { margin-left: var(--oak-ui-space-4); }
+.oak-app-footer-links { display: flex; flex-wrap: wrap; gap: var(--oak-ui-space-9); }
+.oak-app-footer-links a { display: inline-flex; min-height: var(--oak-ui-control-min-height); align-items: center; color: var(--oak-app-muted); text-decoration: none; }
+.oak-app-footer-links a:hover { color: var(--oak-app-blue); }
+.oak-app-page-title { margin: 0 0 var(--oak-ui-space-13); padding: 0; color: var(--oak-app-ink); font-size: var(--oak-ui-font-size-page); font-weight: var(--oak-ui-font-weight-semibold); line-height: var(--oak-ui-line-height-page); }
+.oak-app-settings-body { display: grid; min-width: 0; grid-template-columns: var(--oak-ui-settings-nav-width) minmax(0, 1fr); gap: var(--oak-ui-space-13); }
+.oak-app-settings-navigation { display: flex; min-width: 0; flex-direction: column; gap: var(--oak-ui-space-2); align-self: start; }
+.oak-app-settings-content { min-width: 0; padding: var(--oak-ui-space-13); border: 1px solid var(--oak-app-border); border-radius: var(--oak-ui-radius-panel); background: var(--oak-app-surface); }
+.oak-app-detail-list { margin: 0; border: 1px solid var(--oak-app-border); border-radius: var(--oak-ui-radius-panel); background: var(--oak-app-surface); }
+.oak-app-detail-row { display: grid; grid-template-columns: var(--oak-ui-detail-label-width) minmax(0, 1fr); gap: var(--oak-ui-space-9); padding: var(--oak-ui-space-9) var(--oak-ui-space-13); }
+.oak-app-detail-row + .oak-app-detail-row { border-top: 1px solid var(--oak-app-border); }
+/* Define typography at the leaf nodes: every host has different global dt/dd rules.
+   Never let its business data-table defaults resize the shared account/settings rows. */
+.oak-app-detail-row dt {
+  margin: 0; padding: 0; color: var(--oak-app-muted);
+  font-family: inherit; font-size: var(--oak-ui-font-size-detail-label); font-weight: var(--oak-ui-font-weight-normal); line-height: var(--oak-ui-line-height-body);
+}
+.oak-app-detail-row dd {
+  min-width: 0; margin: 0; padding: 0; overflow-wrap: anywhere;
+  font-family: inherit; font-size: var(--oak-ui-font-size-detail-value); font-weight: var(--oak-ui-font-weight-normal); line-height: var(--oak-ui-line-height-body);
+}
+.oak-app-access-card { width: 100%; max-width: 480px; margin: 0 auto; border: 1px solid var(--oak-app-border); border-radius: var(--oak-ui-radius-access); background: var(--oak-app-surface); box-shadow: 0 20px 60px #20304c0a; }
+.oak-app-access-panel { min-width: 0; padding: var(--oak-ui-space-15); }
+.oak-app-access-card--split { display: grid; max-width: var(--oak-ui-access-max-width); grid-template-columns: 1fr 1fr; border-color: #d9e1ee; box-shadow: 0 24px 80px #142e5812; }
+.oak-app-access-card--split .oak-app-access-panel { display: flex; min-height: 520px; flex-direction: column; justify-content: flex-start; padding: var(--oak-ui-space-17); }
+.oak-app-access-card--split .oak-app-page-title { font-size: var(--oak-ui-font-size-login); letter-spacing: -.02em; margin-bottom: var(--oak-ui-space-9); }
+.oak-app-access-intro { position: relative; display: flex; min-width: 0; flex-direction: column; padding: var(--oak-ui-space-16) var(--oak-ui-space-17); border-radius: var(--oak-ui-radius-access-intro) 0 0 var(--oak-ui-radius-access-intro); overflow: hidden; background: linear-gradient(145deg, #172d50, #133969); color: var(--oak-ui-color-on-primary); }
+.oak-app-intro-brand { position: relative; z-index: 1; display: flex; align-items: center; gap: var(--oak-ui-space-8); }
+.oak-app-intro-mark { display: grid; width: 44px; height: 44px; flex-shrink: 0; place-items: center; border: 1px solid #ffffff38; border-radius: var(--oak-ui-radius-intro-mark); background: #ffffff12; color: var(--oak-ui-color-on-primary); font-size: var(--oak-ui-font-size-intro-mark); font-weight: var(--oak-ui-font-weight-semibold); }
+.oak-app-intro-label { margin: 0; color: var(--oak-ui-color-intro-muted); font-size: var(--oak-ui-font-size-small); letter-spacing: .04em; }
+.oak-app-intro-copy { position: relative; z-index: 1; margin-top: var(--oak-ui-space-18); }
+.oak-app-intro-title { margin: 0 0 var(--oak-ui-space-10); color: inherit; font-size: var(--oak-ui-font-size-hero); font-weight: var(--oak-ui-font-weight-semibold); line-height: var(--oak-ui-line-height-tight); letter-spacing: -.025em; }
+.oak-app-intro-description { max-width: 360px; margin: 0; color: var(--oak-ui-color-intro-muted); font-size: var(--oak-ui-font-size-lead); line-height: var(--oak-ui-line-height-loose); }
+.oak-app-intro-art { position: relative; height: 106px; margin: var(--oak-ui-space-12) 0; flex: 1; min-height: 66px; }
+.oak-app-intro-art span { position: absolute; left: 0; bottom: 12px; width: 72%; height: 48px; border: 1px solid #b4c9eb30; border-radius: var(--oak-ui-radius-mark); background: #ffffff05; transform: skewY(-8deg); }
+.oak-app-intro-art span:nth-child(2) { left: 12%; bottom: 36px; background: #ffffff08; }
+.oak-app-intro-art span:nth-child(3) { left: 24%; bottom: 60px; background: #ffffff0d; }
+.oak-app-intro-highlights { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: var(--oak-ui-space-4) var(--oak-ui-space-10); margin: 0; padding: 0; list-style: none; color: var(--oak-ui-color-intro-muted); font-size: var(--oak-ui-font-size-caption); }
+.oak-app-intro-highlights li { display: inline-flex; align-items: center; gap: var(--oak-ui-space-4); }
+.oak-app-intro-highlights li::before { content: ""; width: 4px; height: 4px; flex-shrink: 0; border-radius: 50%; background: #9fbcea; }
+.oak-app-access-card--split .oak-app-access-actions { flex-direction: column; }
+.oak-app-access-card--split .oak-app-access-actions .oak-app-action { width: 100%; min-height: var(--oak-ui-auth-control-height); }
+.oak-app-access-card--split .oak-app-access-actions .oak-app-action:not(.oak-app-action--primary) { border-color: transparent; background: transparent; color: var(--oak-app-muted); }
+.oak-app-access-card--split .oak-app-access-actions .oak-app-action:not(.oak-app-action--primary):hover { color: var(--oak-app-blue); background: var(--oak-ui-color-selected); }
+.oak-app-eyebrow { margin: 0 0 var(--oak-ui-space-9); color: var(--oak-app-blue); font-size: var(--oak-ui-font-size-small); font-weight: var(--oak-ui-font-weight-semibold); }
+.oak-app-description { margin: 0 0 var(--oak-ui-space-13); color: var(--oak-app-muted); }
+.oak-app-access-panel > .oak-app-description { margin: 0; padding: 0; font-family: inherit; font-size: var(--oak-ui-font-size-body); font-weight: var(--oak-ui-font-weight-normal); line-height: var(--oak-ui-line-height-body); }
+.oak-app-access-content { min-width: 0; margin-top: var(--oak-ui-space-13); }
+.oak-app-access-actions { display: flex; flex-wrap: wrap; gap: var(--oak-ui-space-7); margin-top: var(--oak-ui-space-13); }
+.oak-app-action { display: inline-flex; min-height: var(--oak-ui-control-min-height); max-width: 100%; align-items: center; justify-content: center; padding: var(--oak-ui-space-5) var(--oak-ui-space-9); border: 1px solid var(--oak-app-border); border-radius: var(--oak-ui-radius-control); color: var(--oak-app-blue); background: var(--oak-app-surface); font: inherit; font-family: var(--oak-ui-font-family); font-size: var(--oak-ui-font-size-control); font-weight: var(--oak-ui-font-weight-medium); line-height: var(--oak-ui-line-height-control); text-align: center; text-decoration: none; cursor: pointer; }
+.oak-app-action:hover { background: var(--oak-ui-color-selected); }
+.oak-app-action--primary { border-color: var(--oak-app-blue); background: var(--oak-app-blue); color: var(--oak-ui-color-on-primary); }
+.oak-app-action--primary:hover { border-color: var(--oak-ui-color-primary-hover); background: var(--oak-ui-color-primary-hover); }
+.oak-app-field { display: grid; gap: var(--oak-ui-space-4); margin-block: var(--oak-ui-space-9); }
+.oak-app-label { font-size: var(--oak-ui-font-size-small); font-weight: var(--oak-ui-font-weight-medium); }
+.oak-app-control { width: 100%; min-width: 0; min-height: var(--oak-ui-control-min-height); padding: var(--oak-ui-space-5) var(--oak-ui-space-7); border: 1px solid var(--oak-app-border); border-radius: var(--oak-ui-radius-control); background: var(--oak-app-surface); color: var(--oak-app-ink); font: inherit; }
+.oak-app-control[aria-invalid="true"] { border-color: var(--oak-ui-color-negative); }
+.oak-app-action:disabled, .oak-app-control:disabled { opacity: .65; cursor: not-allowed; }
+.oak-app-notice { margin-block: var(--oak-ui-space-9); color: var(--oak-app-muted); font-size: var(--oak-ui-font-size-small); }
+/* Hosts retain their own submit, validation and disabled semantics. */
+.oak-app-access-form, .oak-app-access-form :is(form, fieldset) { display: grid; min-width: 0; gap: var(--oak-ui-space-9); margin: 0; padding: 0; border: 0; color: var(--oak-app-ink); font: inherit; }
+.oak-app-access-form:not(form) { display: block; }
+.oak-app-access-form :is(label, .oak-auth-label) { display: grid; gap: var(--oak-ui-space-4); margin: 0; padding: 0; color: var(--oak-app-ink); font-family: inherit; font-size: var(--oak-ui-font-size-small); font-weight: var(--oak-ui-font-weight-medium); line-height: var(--oak-ui-line-height-control); }
+.oak-app-access-form :is(input:where(:not([type="hidden"]):not([type="checkbox"]):not([type="radio"])), button[type="submit"]) { width: 100%; min-width: 0; max-width: 100%; height: var(--oak-ui-auth-control-height); min-height: var(--oak-ui-auth-control-height); margin: 0; padding: var(--oak-ui-space-6) var(--oak-ui-space-7); border: 1px solid var(--oak-app-border); border-radius: var(--oak-ui-radius-control); outline: none; background: var(--oak-app-surface); color: var(--oak-app-ink); font-family: inherit; font-size: var(--oak-ui-font-size-control); font-weight: var(--oak-ui-font-weight-normal); line-height: var(--oak-ui-line-height-input); box-shadow: none; transform: none; }
+.oak-app-access-form input::placeholder { color: var(--oak-ui-color-placeholder); opacity: 1; }
+.oak-app-access-form input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):focus { border-color: var(--oak-app-blue); outline: none; box-shadow: 0 0 0 3px #245fe81a; }
+.oak-app-access-form input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"])[aria-invalid="true"] { border-color: var(--oak-ui-color-negative); }
+.oak-app-access-form button[type="submit"] { border-color: var(--oak-app-blue); background: var(--oak-app-blue); color: var(--oak-ui-color-on-primary); font-weight: var(--oak-ui-font-weight-medium); cursor: pointer; }
+.oak-app-access-form button[type="submit"]:hover { border-color: var(--oak-ui-color-primary-hover); background: var(--oak-ui-color-primary-hover); box-shadow: none; transform: none; }
+.oak-app-access-form :is(input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]), button[type="submit"]):focus-visible { outline: 3px solid var(--oak-app-blue); outline-offset: 3px; }
+.oak-app-access-form :is(input, button):disabled { opacity: .65; cursor: not-allowed; }
+.oak-app-access-form [role="alert"] { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--oak-ui-color-negative); font-family: inherit; font-size: var(--oak-ui-font-size-small); font-weight: var(--oak-ui-font-weight-normal); line-height: var(--oak-ui-line-height-control); }
+
+.oak-app-overview { display: grid; min-width: 0; gap: var(--oak-ui-space-14); }
+.oak-app-overview-intro { padding: var(--oak-ui-space-17); border: 1px solid var(--oak-app-border); border-radius: var(--oak-ui-radius-access); background: linear-gradient(120deg, var(--oak-ui-color-selected), #fff); }
+.oak-app-overview-title { max-width: 800px; margin: 0; padding: 0; color: var(--oak-app-ink); font-family: inherit; font-size: var(--oak-ui-font-size-overview); font-weight: var(--oak-ui-font-weight-semibold); line-height: var(--oak-ui-line-height-tight); letter-spacing: -.025em; }
+.oak-app-overview-description { max-width: 760px; margin: var(--oak-ui-space-11) 0 0; padding: 0; color: var(--oak-app-muted); font-family: inherit; font-size: var(--oak-ui-font-size-brand); font-weight: var(--oak-ui-font-weight-normal); line-height: var(--oak-ui-line-height-long); }
+.oak-app-overview-features { display: grid; min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--oak-ui-space-11); }
+.oak-app-overview-feature { min-width: 0; padding: var(--oak-ui-space-14); border: 1px solid var(--oak-app-border); border-radius: var(--oak-ui-radius-feature); background: var(--oak-app-surface); }
+.oak-app-overview-icon { display: inline-flex; width: 44px; height: 44px; align-items: center; justify-content: center; margin-bottom: var(--oak-ui-space-11); border-radius: var(--oak-ui-radius-panel); background: var(--oak-ui-color-selected); color: var(--oak-app-blue); }
+.oak-app-overview-feature-title { margin: 0; padding: 0; color: var(--oak-app-ink); font-family: inherit; font-size: var(--oak-ui-font-size-brand); font-weight: var(--oak-ui-font-weight-semibold); line-height: var(--oak-ui-line-height-control); }
+.oak-app-overview-feature-description { margin: var(--oak-ui-space-7) 0 0; padding: 0; color: var(--oak-app-muted); font-family: inherit; font-size: var(--oak-ui-font-size-body); font-weight: var(--oak-ui-font-weight-normal); line-height: var(--oak-ui-line-height-body); }
+
+.oak-app-scroll { max-width: 100%; overflow-x: auto; }
+@media (max-width: 900px) {
+  /* Keep the public toolbar one row: the app can scroll its own business nav. */
+  .oak-app-header-inner { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .oak-app-body--sidebar { grid-template-columns: minmax(0, 1fr); }
+  .oak-app-sidebar { padding: var(--oak-ui-space-7) var(--oak-ui-space-9); border-right: 0; border-bottom: 1px solid var(--oak-app-border); }
+  .oak-app-sidebar > nav { display: flex; flex-wrap: wrap; gap: var(--oak-ui-space-2); }
+  .oak-app-settings-body { grid-template-columns: minmax(0, 1fr); gap: var(--oak-ui-space-9); }
+  .oak-app-settings-navigation { flex-direction: row; flex-wrap: wrap; }
+}
+@media (max-width: 760px) {
+  .oak-app-overview-features { grid-template-columns: minmax(0, 1fr); }
+  .oak-app-overview-intro { padding: var(--oak-ui-space-15); }
+  .oak-app-access-card--split { grid-template-columns: minmax(0, 1fr); max-width: 520px; }
+  .oak-app-access-intro { padding: var(--oak-ui-space-14) var(--oak-ui-space-15); border-radius: var(--oak-ui-radius-access-intro) var(--oak-ui-radius-access-intro) 0 0; }
+  .oak-app-intro-copy { margin-top: var(--oak-ui-space-13); }
+  .oak-app-intro-title { font-size: var(--oak-ui-font-size-page); margin-bottom: var(--oak-ui-space-5); }
+  .oak-app-intro-description { font-size: var(--oak-ui-font-size-intro-mobile); }
+  .oak-app-intro-art, .oak-app-intro-highlights { display: none; }
+  .oak-app-access-card--split .oak-app-access-panel { min-height: 0; padding: var(--oak-ui-space-15); }
+}
+@media (max-width: 480px) {
+  .oak-app-header-inner { column-gap: 4px; padding-inline: 8px; }
+  .oak-app-utilities { gap: 2px; }
+  .oak-app-brand--full { max-width: 30vw; }
+
+  .oak-app-overview { gap: var(--oak-ui-space-11); }
+  .oak-app-overview-intro, .oak-app-overview-feature { padding: var(--oak-ui-space-13); }
+  .oak-app-overview-description { font-size: var(--oak-ui-font-size-body); }
+  .oak-app-main { padding: var(--oak-ui-space-13) var(--oak-ui-space-9); }
+  .oak-app-frame--access .oak-app-main { padding-block: var(--oak-ui-space-15); }
+  .oak-app-footer-inner { padding-inline: var(--oak-ui-space-9); }
+  .oak-app-page-title { font-size: var(--oak-ui-font-size-page-mobile); }
+  .oak-app-settings-content, .oak-app-access-panel, .oak-app-access-card--split .oak-app-access-panel { padding: var(--oak-ui-space-14) var(--oak-ui-space-13); }
+  .oak-app-access-intro { padding: var(--oak-ui-space-13); }
+  .oak-app-access-card--split .oak-app-page-title { font-size: var(--oak-ui-font-size-login-mobile); }
+  .oak-app-detail-row { grid-template-columns: minmax(0, 1fr); gap: var(--oak-ui-space-2); padding: var(--oak-ui-space-9) var(--oak-ui-space-11); }
+  .oak-app-access-actions { flex-direction: column; }
+  .oak-app-action { width: 100%; }
+}
+
+/* AccountLoginPanel owns account settings content for every host technology. */
+.oak-app-section-title { margin: 0 0 var(--oak-ui-space-9); padding: 0; color: var(--oak-app-ink); font-size: var(--oak-ui-font-size-section); font-weight: var(--oak-ui-font-weight-semibold); line-height: var(--oak-ui-line-height-heading); }
+.oak-app-account-login { min-width: 0; margin: 0; padding: 0; }
+.oak-app-account-login > .oak-app-section-title { margin: 0 0 var(--oak-ui-space-7); font-size: var(--oak-ui-font-size-section); line-height: var(--oak-ui-line-height-heading); }
+.oak-app-account-login .oak-app-account-login-description { margin: 0 0 var(--oak-ui-space-13); padding: 0; color: var(--oak-app-muted); font-size: var(--oak-ui-font-size-body); font-weight: var(--oak-ui-font-weight-normal); line-height: var(--oak-ui-line-height-body); }
+.oak-app-account-login .oak-app-account-login-summary { margin: 0; }
+.oak-app-account-login .oak-app-account-details { margin-top: var(--oak-ui-space-13); }
+.oak-app-account-login .oak-app-account-details .oak-app-section-title { margin: 0 0 var(--oak-ui-space-9); font-size: var(--oak-ui-font-size-section); line-height: var(--oak-ui-line-height-heading); }
+.oak-app-account-login .oak-app-account-login-status { margin: var(--oak-ui-space-9) 0 0; padding: 0; color: var(--oak-app-muted); font-size: var(--oak-ui-font-size-small); line-height: var(--oak-ui-line-height-body); }
+.oak-app-account-login-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--oak-ui-space-7); margin-top: var(--oak-ui-space-13); }
+.oak-app-account-login-logout { min-width: 0; }
+.oak-app-account-login-logout form { margin: 0; padding: 0; border: 0; }
+.oak-app-account-login-actions > .oak-app-action, .oak-app-account-login-logout :is(button, input[type="submit"], a) { display: inline-flex; width: auto; min-height: var(--oak-ui-control-min-height); max-width: 100%; align-items: center; justify-content: center; margin: 0; padding: var(--oak-ui-space-5) var(--oak-ui-space-9); border: 1px solid var(--oak-app-border); border-radius: var(--oak-ui-radius-control); background: var(--oak-app-surface); color: var(--oak-app-blue); font: inherit; font-size: var(--oak-ui-font-size-control); font-weight: var(--oak-ui-font-weight-medium); line-height: var(--oak-ui-line-height-control); text-decoration: none; box-shadow: none; transform: none; cursor: pointer; }
+.oak-app-account-login-actions > .oak-app-action--primary { border-color: var(--oak-app-blue); background: var(--oak-app-blue); color: var(--oak-ui-color-on-primary); }
+.oak-app-account-login-actions > .oak-app-action--primary:hover { border-color: var(--oak-ui-color-primary-hover); background: var(--oak-ui-color-primary-hover); color: var(--oak-ui-color-on-primary); }
+.oak-app-account-login-logout :is(button, input[type="submit"], a):hover { background: var(--oak-ui-color-selected); box-shadow: none; transform: none; }
+.oak-app-account-login-logout :is(button, input[type="submit"]):disabled { opacity: .65; cursor: not-allowed; }
+@media (max-width: 480px) { .oak-app-account-login-actions { align-items: stretch; flex-direction: column; } .oak-app-account-login-actions > .oak-app-action, .oak-app-account-login-logout :is(button, input[type="submit"], a) { width: 100%; } }
+
+/* SettingsLayout/SettingsSection visual contract v0.2.6.
+   No global element reset: business screens keep their own components. */
+.oak-app-settings { width: 100%; max-width: var(--oak-ui-content-max-width); min-width: 0; margin-inline: auto; }
+.oak-app-settings > .oak-app-page-title { margin: 0 0 var(--oak-ui-space-15); font-size: var(--oak-ui-font-size-page); font-weight: var(--oak-ui-font-weight-semibold); line-height: var(--oak-ui-line-height-page); }
+.oak-app-settings .oak-app-settings-body { align-items: start; }
+.oak-app-settings-navigation .oak-app-nav-link {
+  display: flex; min-height: var(--oak-ui-control-min-height); align-items: center; margin: 0; padding: var(--oak-ui-space-5) var(--oak-ui-space-9);
+  color: var(--oak-app-muted); font-family: inherit; font-size: var(--oak-ui-font-size-settings-menu); font-weight: var(--oak-ui-font-weight-medium);
+  line-height: var(--oak-ui-line-height-control); border-radius: var(--oak-ui-radius-control); white-space: normal; text-decoration: none;
+}
+.oak-app-settings-navigation .oak-app-nav-link[aria-current="page"] {
+  background: var(--oak-ui-color-selected); color: var(--oak-app-blue); font-weight: var(--oak-ui-font-weight-semibold);
+}
+.oak-app-settings-content { min-height: var(--oak-ui-settings-min-height); font-family: inherit; font-size: var(--oak-ui-font-size-body); line-height: var(--oak-ui-line-height-body); }
+.oak-app-settings-content .oak-app-settings-section { min-width: 0; margin: 0; padding: 0; border: 0; }
+.oak-app-settings-content .oak-app-settings-section > .oak-app-section-title {
+  margin: 0 0 var(--oak-ui-space-7); padding: 0; color: var(--oak-app-ink);
+  font-family: inherit; font-size: var(--oak-ui-font-size-section); font-weight: var(--oak-ui-font-weight-semibold); line-height: var(--oak-ui-line-height-heading);
+}
+.oak-app-settings-content .oak-app-section-description {
+  margin: 0; padding: 0; color: var(--oak-app-muted);
+  font-family: inherit; font-size: var(--oak-ui-font-size-body); font-weight: var(--oak-ui-font-weight-normal); line-height: var(--oak-ui-line-height-body);
+}
+.oak-app-settings-content .oak-app-section-body { min-width: 0; margin: var(--oak-ui-space-11) 0 0; }
+.oak-app-settings-content .oak-app-section-body > :first-child { margin-top: 0; }
+.oak-app-settings-content .oak-app-section-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--oak-ui-space-7); margin-top: var(--oak-ui-space-13);
+}
+.oak-app-settings-content .oak-app-section-actions > .oak-app-action { width: auto; min-height: var(--oak-ui-control-min-height); }
+.oak-app-settings-content .oak-app-settings-section .oak-app-detail-list { margin-top: var(--oak-ui-space-9); }
+.oak-app-settings-content .oak-app-settings-section .oak-app-detail-row {
+  grid-template-columns: minmax(120px, var(--oak-ui-detail-label-width)) minmax(0, 1fr); gap: var(--oak-ui-space-9);
+}
+.oak-app-settings .oak-app-notice { min-width: 0; margin: var(--oak-ui-space-9) 0 0; padding: 0; color: var(--oak-app-muted); font-size: var(--oak-ui-font-size-small); line-height: var(--oak-ui-line-height-body); }
+.oak-app-settings .oak-app-notice[data-tone="warning"] { color: var(--oak-ui-color-warning); }
+.oak-app-settings .oak-app-notice[data-tone="error"] { color: var(--oak-ui-color-negative); }
+.oak-app-settings .oak-app-notice[data-tone="success"] { color: var(--oak-ui-color-positive); }
+.oak-app-header .oak-app-mark img { display: block; width: 100%; height: 100%; max-width: 100%; object-fit: contain; }
+.oak-app-header :is(.oak-app-navigation, .oak-app-utilities) .oak-app-nav-link {
+  font-family: inherit; font-size: var(--oak-ui-font-size-small); font-weight: var(--oak-ui-font-weight-medium); line-height: var(--oak-ui-line-height-control);
+}
+@media (max-width: 900px) {
+  .oak-app-settings > .oak-app-page-title { margin-bottom: var(--oak-ui-space-13); }
+  .oak-app-settings-navigation { flex-wrap: wrap; gap: var(--oak-ui-space-3); }
+  .oak-app-settings-navigation .oak-app-nav-link { padding-inline: var(--oak-ui-space-8); }
+}
+@media (max-width: 480px) {
+  .oak-app-settings > .oak-app-page-title { font-size: var(--oak-ui-font-size-page-mobile); }
+  .oak-app-settings-content { min-height: 0; }
+  .oak-app-settings-content .oak-app-settings-section .oak-app-detail-row {
+    grid-template-columns: minmax(0, 1fr); gap: var(--oak-ui-space-2);
+  }
+  .oak-app-settings-content .oak-app-section-actions { flex-direction: column; align-items: stretch; }
+  .oak-app-settings-content .oak-app-section-actions > .oak-app-action { width: 100%; }
+}
+
+/* Homepage workspace composition inside the existing application frame. */
+.oak-workspace-home { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--oak-ui-space-9); min-width: 0; width: 100%; max-width: var(--oak-ui-workspace-max-width); margin-inline: auto; font-family: var(--oak-ui-font-family); }
+.oak-workspace-home-nav, .oak-workspace-home-main { min-width: 0; }
+.oak-workspace-home-nav { align-self: start; }
+.oak-quick-access-trigger { display: inline-flex; align-items: center; justify-content: center; gap: var(--oak-ui-space-4); min-height: var(--oak-ui-control-min-height); max-width: 100%; padding: var(--oak-ui-space-4) var(--oak-ui-space-7); border: 1px solid var(--oak-ui-color-border); border-radius: var(--oak-ui-radius-control); background: var(--oak-ui-color-surface); color: var(--oak-ui-color-text); font: var(--oak-ui-font-weight-medium) var(--oak-ui-font-size-small)/var(--oak-ui-line-height-control) var(--oak-ui-font-family); cursor: pointer; }
+.oak-quick-access-trigger:hover, .oak-quick-access-trigger[aria-expanded="true"] { background: var(--oak-ui-color-selected); color: var(--oak-ui-color-primary); }
+.oak-quick-access-trigger:focus-visible { outline: 3px solid var(--oak-ui-color-primary); outline-offset: 2px; }
+.oak-quick-access-count { display: inline-grid; place-items: center; min-width: var(--oak-ui-space-11); padding-inline: var(--oak-ui-space-2); border-radius: var(--oak-ui-radius-panel); background: var(--oak-ui-color-selected); color: var(--oak-ui-color-primary); font-size: var(--oak-ui-font-size-xs); }
+.oak-app-account-dialog.oak-quick-access-panel { position: fixed; inset: auto; margin: 0; width: min(var(--oak-ui-quick-panel-width), calc(100vw - 24px)); max-height: min(76dvh, var(--oak-ui-quick-panel-max-height)); border-radius: var(--oak-ui-radius-panel); font-size: var(--oak-ui-font-size-small); box-shadow: 0 12px 40px #20304c26; }
+.oak-quick-access-panel::backdrop { background: transparent; }
+.oak-quick-access-panel .oak-app-account-dialog-header, .oak-quick-access-panel .oak-app-account-dialog-content { padding: var(--oak-ui-space-7); }
+.oak-quick-access-panel .oak-app-account-dialog-title { font-size: var(--oak-ui-font-size-small); }
+@media (min-width: 1024px) {
+  .oak-workspace-home { grid-template-columns: var(--oak-ui-workspace-nav-width) minmax(0, 1fr); }
+  .oak-workspace-home-nav { position: sticky; top: var(--oak-ui-space-9); }
+}
+@media (max-width: 1023px) {
+  .oak-app-account-dialog.oak-quick-access-panel { inset: auto 0 max(16px, env(safe-area-inset-bottom)); margin-inline: auto; width: min(92vw, var(--oak-ui-quick-panel-mobile-width)); max-height: min(80dvh, var(--oak-ui-quick-panel-max-height)); }
+  .oak-quick-access-panel::backdrop { background: #20304c66; }
+}

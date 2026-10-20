@@ -1,8 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowRight, ExternalLink, Factory, LayoutGrid, Users } from 'lucide-react'
+import { ArrowRight, Factory, LayoutGrid, Users } from 'lucide-react'
 import AppButton from '@/app/components/AppButton'
+import WorkspaceQuickAccess from './WorkspaceQuickAccess'
 import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/workspace'
 import type { AvailableBusinessApplication, BusinessApplicationKey } from '../domain/business-applications'
 import {
@@ -33,8 +34,6 @@ interface PlatformOverviewPageProps {
   preferenceBusy?: boolean
 }
 
-const QUICK_TOOL_KEYS: WorkspaceFunctionKey[] = ['scanPrint', 'sawingCost', 'helpCenter', 'warehouseDigitalTwin']
-
 export default function PlatformOverviewPage({
   items,
   applications,
@@ -50,35 +49,6 @@ export default function PlatformOverviewPage({
   const platformItems = useMemo(() => items.filter((item) => item.key !== 'businessWorkbench'), [items])
   const search = useWorkspaceFunctionSearch(platformItems)
   const { saving, error, toggleFavorite } = useWorkspacePreferenceActions(preference, onSave, preferenceBusy)
-
-  const itemByKey = useMemo(() => new Map(platformItems.map((item) => [item.key, item])), [platformItems])
-
-  const favoriteItems = useMemo(
-    () => preference.pinned.flatMap((key) => {
-      const item = itemByKey.get(key)
-      return item ? [item] : []
-    }),
-    [itemByKey, preference.pinned],
-  )
-
-  const recentUsageItems = useMemo(
-    () => [...preference.usage]
-      .sort((a, b) => b.useCount - a.useCount || (b.lastUsedAt || '').localeCompare(a.lastUsedAt || ''))
-      .flatMap((entry) => {
-        const item = itemByKey.get(entry.functionKey)
-        return item ? [{ item, useCount: entry.useCount }] : []
-      })
-      .slice(0, 5),
-    [itemByKey, preference.usage],
-  )
-
-  const quickToolItems = useMemo(
-    () => QUICK_TOOL_KEYS.flatMap((key) => {
-      const item = itemByKey.get(key)
-      return item ? [item] : []
-    }),
-    [itemByKey],
-  )
 
   const availableModules = useMemo(
     () => (businessModules && businessModules.length > 0 ? businessModules : getAvailableBusinessModules(platformItems)),
@@ -104,17 +74,19 @@ export default function PlatformOverviewPage({
   const isSingleModule = activeModuleFilter !== 'ALL'
 
   return (
-    <section aria-label="宇峰业务平台" className="space-y-3">
-      <h1 className="sr-only">宇峰业务平台</h1>
+    <section aria-label="宇峰业务平台" className="mx-auto w-full max-w-[1920px] space-y-3.5">
 
       {/* 桌面搜索挂载到公共顶栏，移动端搜索在工作台内容前整行显示。 */}
       <WorkspaceFunctionSearch search={search} storageKey="mes-lite.searchPresets.workspace" mobileContentSearch />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-xl font-semibold leading-snug text-gray-900">宇峰业务平台</h1>
+        <WorkspaceQuickAccess items={platformItems} preference={preference} saving={saving} error={error} onOpen={onOpen} onToggleFavorite={toggleFavorite} includeTools />
+      </div>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
 
-      {/* 左 - 中 - 右 三栏工作台布局 */}
-      <div className="grid grid-cols-1 items-start gap-3.5 lg:grid-cols-[200px_minmax(0,1fr)] xl:grid-cols-[200px_minmax(0,1fr)_272px]">
+      <div className="oak-workspace-home items-start gap-3.5">
         {/* ==================== 左侧分区：独立应用入口 + 业务领域分类导航 ==================== */}
-        <aside aria-label="应用与领域导航" className="min-w-0 space-y-3.5 rounded-xl border border-gray-200 bg-white p-3 shadow-sm lg:col-start-1 lg:row-start-1 lg:row-span-2 lg:sticky lg:top-16 xl:row-span-1">
+        <aside aria-label="应用与领域导航" className="oak-workspace-home-nav min-w-0 space-y-3.5 rounded-xl border border-gray-200 bg-white p-3 shadow-sm lg:sticky lg:top-16">
           <section aria-label="业务应用" className="space-y-2">
             <div className="flex items-center justify-between px-1">
               <h2 className="text-xs font-semibold text-gray-500">独立应用入口</h2>
@@ -216,96 +188,8 @@ export default function PlatformOverviewPage({
           </section>
         </aside>
 
-        {/* ==================== 右侧分区：我的常用 + 高频最近访问 + 辅助工具 ==================== */}
-        <aside aria-label="个人常用与高频访问" className="min-w-0 space-y-3.5 rounded-xl border border-gray-200 bg-white p-3 shadow-sm lg:col-start-2 lg:row-start-1 xl:col-start-3 xl:sticky xl:top-16">
-          <section aria-label="我的收藏" className="space-y-2">
-            <div className="flex items-center justify-between px-0.5">
-              <h2 className="text-xs font-semibold text-gray-900 sm:text-sm">我的常用</h2>
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">{favoriteItems.length} 项</span>
-            </div>
-            {favoriteItems.length > 0 ? (
-              <WorkspaceFunctionCardGrid
-                items={favoriteItems}
-                preference={preference}
-                saving={saving}
-                onOpen={onOpen}
-                onToggleFavorite={toggleFavorite}
-                compact
-                showDescription={false}
-                columnsClassName="grid grid-cols-2 gap-1.5 sm:grid-cols-3 xl:grid-cols-2"
-              />
-            ) : (
-              <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50/50 p-2.5 text-xs text-gray-500">
-                点击功能右侧的星标，即可添加到我的常用。
-              </p>
-            )}
-          </section>
-
-          <section aria-label="高频访问" className="space-y-1.5 border-t border-gray-100 pt-3">
-            <div className="flex items-center justify-between px-0.5">
-              <h2 className="text-xs font-semibold text-gray-900">高频访问</h2>
-              <span className="text-[11px] text-gray-400">自动记录</span>
-            </div>
-            {recentUsageItems.length > 0 ? (
-              <div className="space-y-1">
-                {recentUsageItems.map(({ item, useCount }) => (
-                  <AppButton
-                    key={item.key}
-                    variant="ghost"
-                    onClick={() => onOpen(item.key)}
-                    aria-label={`打开高频功能${item.label}`}
-                    className="!h-auto min-h-10 min-w-10 w-full !justify-between !gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition hover:bg-gray-50"
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span
-                        aria-hidden="true"
-                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-semibold ${
-                          item.externalHref ? 'bg-emerald-100/80 text-emerald-700' : 'bg-blue-100/75 text-blue-700'
-                        }`}
-                      >
-                        {item.icon}
-                      </span>
-                      <span className="truncate font-medium text-gray-800">{item.label}</span>
-                      {item.externalHref && <ExternalLink aria-hidden="true" className="h-3 w-3 shrink-0 text-gray-400" />}
-                    </span>
-                    <span className="shrink-0 text-[11px] text-gray-400">{useCount} 次</span>
-                  </AppButton>
-                ))}
-              </div>
-            ) : (
-              <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50/50 p-2.5 text-xs text-gray-500">
-                打开业务功能后将在此自动记录高频访问入口。
-              </p>
-            )}
-          </section>
-
-          {quickToolItems.length > 0 && (
-            <section aria-label="辅助工具与帮助" className="space-y-1.5 border-t border-gray-100 pt-3">
-              <div className="flex items-center justify-between px-0.5">
-                <h2 className="text-xs font-semibold text-gray-900">辅助工具与帮助</h2>
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {quickToolItems.map((item) => (
-                  <AppButton
-                    key={item.key}
-                    variant="ghost"
-                    onClick={() => onOpen(item.key)}
-                    aria-label={`打开工具${item.label}`}
-                    className="!h-auto min-h-10 min-w-10 !justify-start !gap-1.5 !whitespace-normal rounded-lg border border-gray-200/80 bg-gray-50/60 px-2 py-1.5 text-left text-xs font-medium text-gray-700 transition hover:border-blue-300 hover:bg-blue-50/50 hover:text-blue-700"
-                  >
-                    <span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-blue-100/75 text-[11px] font-semibold text-blue-700">
-                      {item.icon}
-                    </span>
-                    <span className="truncate">{item.label}</span>
-                  </AppButton>
-                ))}
-              </div>
-            </section>
-          )}
-        </aside>
-
         {/* ==================== 中间主分区：搜索结果 / 业务功能总览多列矩阵 ==================== */}
-        <div aria-label="业务功能总览主工作区" className="min-w-0 space-y-3.5 rounded-xl border border-gray-200 bg-white p-3.5 shadow-sm sm:p-4 lg:col-start-2 lg:row-start-2 xl:row-start-1">
+        <div aria-label="业务功能总览主工作区" className="oak-workspace-home-main min-w-0 space-y-3.5 rounded-xl border border-gray-200 bg-white p-3.5 shadow-sm sm:p-4">
           {search.searching ? (
             <section aria-label="功能搜索结果" className="space-y-3">
               <div className="flex items-center justify-between gap-2">

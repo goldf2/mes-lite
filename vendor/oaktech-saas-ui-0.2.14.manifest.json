@@ -1,0 +1,21 @@
+{
+  "name": "@oaktech/saas-ui",
+  "version": "0.2.14",
+  "file": "oaktech-saas-ui-0.2.14.tgz",
+  "bytes": 43259,
+  "sha256": "829901ef2a64af60e6072c478b551a7ccaaa909d5c0ca9511bc162d8cc76b014",
+  "frameworkCssSha256": "bfa7d6c194e7f83e6d073c8af7bf5f1999a7613a6adf7dc8c280cc602d855383",
+  "nativeAccountLoginPanelSha256": "79456201cec609d2e347069696c8df2794a1d6cff4fc8cc1afbe4cd16d301d8a",
+  "nativePanelBehaviorSha256": "e4270bd32d02f47c7a265c0a0f90d07e12c0a40b88bd62f3bc7cb8da5a70dd7e",
+  "nativePanelBehaviorTypesSha256": "d9d0ae34f863f2383d848c45c37df5584cb0db8c42af2c298f70014dd8ffe984",
+  "sourceCommit": "15b8b5fa364d567dafd3a444c7a0a535b7243116",
+  "templateVersion": "0.1.22",
+  "specification": "APP-UI-001 1.2.6",
+  "change": "Shared two-column homepage layout and on-demand quick access surface; React portal and import-free native ESM share dialog lifecycle, focus, dismissal and scoped CSS.",
+  "compatibility": {
+    "fullPackage": "Node >=24 / React 19; existing peers unchanged",
+    "mesSubset": "framework.css and native/panel-behavior.js + declarations only; Node20/React18 host adapter tested separately"
+  },
+  "olderArtifactsUntouched": true,
+  "timestamp": "2026-10-20T11:37:35.334880+00:00"
+}
