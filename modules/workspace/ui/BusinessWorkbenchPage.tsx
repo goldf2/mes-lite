@@ -39,7 +39,17 @@ export default function BusinessWorkbenchPage({ businessModule, businessModules 
     }
   }
 
-  if (!selectedModule) return <PlatformOverviewPage {...props} applications={applications} onOpenApplication={openApplication} />
+  if (!selectedModule) {
+    return (
+      <PlatformOverviewPage
+        {...props}
+        applications={applications}
+        businessModules={businessModules}
+        onOpenApplication={openApplication}
+        onOpenBusinessModule={onOpenBusinessModule}
+      />
+    )
+  }
 
   const customerApplication = selectedModule.ownerApp === 'data-platform'
     ? applications.find((application) => application.key === 'customers')

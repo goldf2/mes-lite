@@ -377,3 +377,20 @@
 - 新增/platform路由、两应用派生模型和独立总览UI；原根首页/本地目录保留，平台搜索原生功能回原根，客户入口维持原DP精确链接和鉴权。
 - 492修复折入493，未部署492。公共侧栏占位同步、outside click完成后关闭，宽度过渡统一。
 - 类型、定向Lint及壳/目录门禁已通过；493实际浏览器/独立审查/SOP版本/精确CI/部署仍待完成。
+
+
+## UI-20261020-GEMINI：平台改版合入（2026-10-20T09:23:52+08:00）
+
+- 目标：合入用户指定outputs/candidate三个工作台组件和规范；保留独立MES及数据平台。
+- 已完成：从47581a7建立ci/0.1.494隔离工作树；候选三个组件、7份规范增量合入；公共卡片40px触控及完整中文名、常用区前置、搜索重置和空时间兼容；无关主checkout用户改动已保存哈希基线并保持未修改。
+- 验证：tsc/lint通过；8项定向脚本中7项初轮通过，workspace-navigation旧断言在493同样失败，按当前平台切换动作更新后通过。初次tsc发现候选lastUsedAt可空错误，修复后通过。
+- 待验证：真实Next响应式/收藏持久化/撤权/精确路由及原MES回归；随后按仓库规则候选CI，尚未推送或生产部署。
+- 证据：协调目录work/platform-entry-0.1.494，原产物目录/Users/tefulong/Documents/000-Gemini-Yufeng-UI-20261020/outputs。
+- 模型/流程边界：本次只涉及入口UI与复用组件，无数据库/领域模型/业务事务/权限范围变更，不需修改数据或领域模型文档。
+
+### UI-20261020-GEMINI 本地验收收口
+
+- 最终10项静态/定向门禁通过，独立审查无阻塞；响应式7尺寸和交互26必需项以首轮25项与最后1项补验组合通过。无横向溢出，最小触控40px，手机搜索宽322px；原MES菜单、双击调宽和80ms卡片跳转无回归。
+- 首轮最后case是测试点击坐标离开视口；一次Next dev chunk加载超时保留失败证据。最后重测检查实际命中button与按压几何后通过，不删除原断言、不修改业务源码让测试通过。
+- 精确证据在协调目录work/platform-entry-0.1.494/{checks-final.json,browser-acceptance-summary.json,sidebar-risk-final/browser-receipt.json,independent-review.json}。合成SQLite/正常UI账号，外站仅核对URL；不冒充生产Casdoor或跨应用已认证。
+- 候选提交/CI/main/部署尚待依仓库门禁推进；不执行本机全量生产构建，不手工Redeploy绕过CI。

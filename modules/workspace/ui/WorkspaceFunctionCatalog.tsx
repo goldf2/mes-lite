@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, type HTMLAttributes, type ReactNode } from 'react'
+import { useCallback, useRef, useState, type HTMLAttributes, type ReactNode } from 'react'
 import { ExternalLink, Search, Star } from 'lucide-react'
 import AppButton from '@/app/components/AppButton'
 import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
@@ -46,8 +46,12 @@ export function groupWorkspaceFunctions(items: WorkspaceFunctionItem[]) {
 export function useWorkspaceFunctionSearch(items: WorkspaceFunctionItem[]) {
   const [keyword, setKeyword] = useState('')
   const [conditions, setConditions] = useState<ResourceSearchCondition[]>([])
+  const resetSearch = useCallback(() => {
+    setKeyword('')
+    setConditions([])
+  }, [])
   return {
-    keyword, setKeyword, conditions, setConditions,
+    keyword, setKeyword, conditions, setConditions, resetSearch,
     searching: Boolean(keyword.trim() || conditions.length),
     visibleItems: filterBySearchCatalog(items, keyword, functionSearchCatalog, conditions),
   }
@@ -121,48 +125,134 @@ export function WorkspaceFunctionSearch({ search, storageKey, mobileContentSearc
   )
 }
 
-export function WorkspaceFunctionGroups({ items, preference, saving, onOpen, onToggleFavorite, renderActions, getDragProps }: {
+export function WorkspaceFunctionCardGrid({
+  items,
+  preference,
+  saving,
+  onOpen,
+  onToggleFavorite,
+  compact = false,
+  showDescription = true,
+  columnsClassName,
+  renderActions,
+  getDragProps,
+}: {
   items: WorkspaceFunctionItem[]
   preference: WorkspacePreferenceValue
   saving: boolean
   onOpen: (key: WorkspaceFunctionKey) => void
   onToggleFavorite: (key: WorkspaceFunctionKey) => void
+  compact?: boolean
+  showDescription?: boolean
+  columnsClassName?: string
   renderActions?: (item: WorkspaceFunctionItem) => ReactNode
   getDragProps?: (item: WorkspaceFunctionItem) => HTMLAttributes<HTMLDivElement>
 }) {
   const usageByKey = new Map(preference.usage.map((item) => [item.functionKey, item]))
+  const gridClassName = columnsClassName || (compact
+    ? 'grid grid-cols-1 gap-1.5 sm:grid-cols-2'
+    : 'grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4')
+
+  return (
+    <div className={gridClassName}>
+      {items.map((item) => {
+        const favorite = preference.pinned.includes(item.key)
+        return (
+          <div
+            key={item.key}
+            {...getDragProps?.(item)}
+            title={`${item.label}：${item.description}`}
+            className={`group rounded-lg border border-gray-200/80 bg-gray-50/70 transition hover:border-blue-300 hover:bg-blue-50/50 ${
+              compact ? 'px-2.5 py-1.5' : 'p-3'
+            }`}
+          >
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => onOpen(item.key)}
+                aria-label={`打开${item.label}`}
+                className="min-h-10 min-w-10 flex-1 rounded-md text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className={`flex shrink-0 items-center justify-center rounded-md font-semibold ${
+                      item.externalHref
+                        ? 'bg-emerald-100/80 text-emerald-700'
+                        : 'bg-blue-100/75 text-blue-700'
+                    } ${compact ? 'h-6 w-6 text-xs' : 'h-8 w-8 text-sm'}`}
+                  >
+                    {item.icon}
+                  </span>
+                  <span className="min-w-0 break-words whitespace-normal text-xs font-medium leading-5 text-gray-800 group-hover:font-semibold group-hover:text-blue-700 sm:text-sm">
+                    {item.label}
+                  </span>
+                  {item.externalHref && <ExternalLink aria-hidden="true" className="h-3 w-3 shrink-0 text-gray-400" />}
+                </span>
+                {showDescription && (
+                  <span
+                    className={`${compact ? 'mt-1 line-clamp-1 pl-8' : 'mt-2 line-clamp-2'} block text-xs leading-5 text-gray-500`}
+                  >
+                    {item.description}
+                  </span>
+                )}
+                {(!compact || preference.mode === 'SMART') && (
+                  <span className="mt-1 flex flex-wrap gap-x-2 text-[11px] text-gray-400">
+                    <span>{item.sourceLabel || 'MES Lite'}</span>
+                    {preference.mode === 'SMART' && <span>使用 {usageByKey.get(item.key)?.useCount || 0} 次</span>}
+                  </span>
+                )}
+              </button>
+              <AppButton
+                variant="ghost"
+                size="icon"
+                disabled={saving}
+                onClick={() => onToggleFavorite(item.key)}
+                aria-label={`${favorite ? '取消收藏' : '收藏'}${item.label}`}
+                aria-pressed={favorite}
+                title={favorite ? '取消收藏' : '收藏到首页'}
+                className={`${compact ? '!h-10 !w-10 !shrink-0' : ''} ${
+                  favorite ? '!text-amber-500 hover:!text-amber-600' : '!text-gray-300 group-hover:!text-gray-400'
+                }`}
+              >
+                <Star aria-hidden="true" className={`h-3.5 w-3.5 ${favorite ? 'fill-current' : ''}`} />
+              </AppButton>
+            </div>
+            {renderActions?.(item)}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+export function WorkspaceFunctionGroups({ items, preference, saving, onOpen, onToggleFavorite, compact = false, renderActions, getDragProps }: {
+  items: WorkspaceFunctionItem[]
+  preference: WorkspacePreferenceValue
+  saving: boolean
+  onOpen: (key: WorkspaceFunctionKey) => void
+  onToggleFavorite: (key: WorkspaceFunctionKey) => void
+  compact?: boolean
+  renderActions?: (item: WorkspaceFunctionItem) => ReactNode
+  getDragProps?: (item: WorkspaceFunctionItem) => HTMLAttributes<HTMLDivElement>
+}) {
   return (
     <div className="space-y-5">
       {groupWorkspaceFunctions(items).map((group) => (
         <section key={group.key} aria-label={`${group.label}功能`}>
           <h3 className="mb-2 text-sm font-semibold text-gray-600">{group.label}</h3>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {group.items.map((item) => {
-              const favorite = preference.pinned.includes(item.key)
-              return (
-                <div key={item.key} {...getDragProps?.(item)} className="rounded-lg border border-gray-200 bg-gray-50/60 p-3 transition hover:border-blue-300 hover:bg-blue-50/50">
-                  <div className="flex items-start gap-2">
-                    <button type="button" onClick={() => onOpen(item.key)} aria-label={`打开${item.label}`} className="min-w-0 flex-1 rounded-md text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100/70 text-sm font-semibold text-blue-700">{item.icon}</span>
-                        <span className="min-w-0 break-words text-sm font-semibold text-gray-900">{item.label}</span>
-                        {item.externalHref && <ExternalLink aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-gray-400" />}
-                      </span>
-                      <span className="mt-2 line-clamp-2 block text-xs leading-5 text-gray-500" title={item.description}>{item.description}</span>
-                      <span className="mt-2 flex flex-wrap gap-x-2 text-[11px] text-gray-400">
-                        <span>{item.sourceLabel || 'MES Lite'}</span>
-                        {preference.mode === 'SMART' && <span>使用 {usageByKey.get(item.key)?.useCount || 0} 次</span>}
-                      </span>
-                    </button>
-                    <AppButton variant="ghost" size="icon" disabled={saving} onClick={() => onToggleFavorite(item.key)} aria-label={`${favorite ? '取消收藏' : '收藏'}${item.label}`} aria-pressed={favorite} title={favorite ? '取消收藏' : '收藏到首页'} className={favorite ? '!text-amber-600 hover:!text-amber-700' : ''}>
-                      <Star aria-hidden="true" className={`h-4 w-4 ${favorite ? 'fill-current' : ''}`} />
-                    </AppButton>
-                  </div>
-                  {renderActions?.(item)}
-                </div>
-              )
-            })}
-          </div>
+          <WorkspaceFunctionCardGrid
+            items={group.items}
+            preference={preference}
+            saving={saving}
+            onOpen={onOpen}
+            onToggleFavorite={onToggleFavorite}
+            compact={compact}
+            showDescription
+            columnsClassName={compact ? 'grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : undefined}
+            renderActions={renderActions}
+            getDragProps={getDragProps}
+          />
         </section>
       ))}
     </div>
