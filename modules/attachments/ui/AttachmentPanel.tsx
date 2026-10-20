@@ -35,7 +35,7 @@ export interface ManagedAttachment {
   createdAt: string
 }
 
-interface AttachmentPanelProps {
+export interface AttachmentPanelProps {
   ownerType: string
   ownerId: string
   title?: string
@@ -50,6 +50,11 @@ interface AttachmentPanelProps {
   onBusyChange?: (busy: boolean) => void
   onMessage: (msg: string) => void
   readOnly?: boolean
+  canUpload?: boolean
+  canUpdate?: boolean
+  canEdit?: boolean
+  canArchive?: boolean
+  canDelete?: boolean
 }
 
 function formatSize(size: number) {
@@ -73,6 +78,11 @@ export default function AttachmentPanel({
   onBusyChange,
   onMessage,
   readOnly = false,
+  canUpload,
+  canUpdate,
+  canEdit,
+  canArchive,
+  canDelete,
 }: AttachmentPanelProps) {
   const [attachments, setAttachments] = useState<ManagedAttachment[]>([])
   const [uploading, setUploading] = useState(false)
@@ -84,7 +94,13 @@ export default function AttachmentPanel({
   const inputRef = useRef<HTMLInputElement | null>(null)
   const imageOnly = variant === 'image'
   const itemLabel = imageOnly ? '物料图片' : '附件'
-  const showAiRecognition = !readOnly && !imageOnly && (
+
+  const allowUpload = !readOnly && (canUpload ?? true)
+  const allowUpdate = !readOnly && (canUpdate ?? canEdit ?? true)
+  const allowArchive = !readOnly && (canArchive ?? canDelete ?? true)
+  const hasAnyWriteAction = allowUpload || allowUpdate || allowArchive
+
+  const showAiRecognition = allowUpdate && !imageOnly && (
     enableAiRecognition ?? supportsDocumentSourceCredentialRecognition(ownerType, documentType)
   )
 
@@ -105,6 +121,7 @@ export default function AttachmentPanel({
   }, [archivingId, onBusyChange, recognizingAttachmentId, uploading])
 
   const uploadFile = async (file: File) => {
+    if (!allowUpload) return
     setUploading(true)
     try {
       await uploadAttachment<ManagedAttachment>({ ownerType, ownerId, documentType, note, file })
@@ -119,10 +136,12 @@ export default function AttachmentPanel({
   }
 
   const openFilePicker = () => {
-    if (!uploading) inputRef.current?.click()
+    if (!allowUpload || uploading) return
+    inputRef.current?.click()
   }
 
   const handleFiles = async (files: FileList | File[]) => {
+    if (!allowUpload) return
     const selectedFiles = Array.from(files)
     const acceptedFiles = selectedFiles.filter((file) => {
       if (imageOnly) return file.type.startsWith('image/')
@@ -143,14 +162,14 @@ export default function AttachmentPanel({
     event.preventDefault()
     event.stopPropagation()
     setDragActive(false)
-    if (uploading) return
+    if (!allowUpload || uploading) return
     await handleFiles(event.dataTransfer.files)
   }
 
   const handleDragOver = (event: DragEvent<HTMLElement>) => {
     event.preventDefault()
     event.stopPropagation()
-    if (!uploading) setDragActive(true)
+    if (allowUpload && !uploading) setDragActive(true)
   }
 
   const handleDragLeave = (event: DragEvent<HTMLElement>) => {
@@ -161,7 +180,7 @@ export default function AttachmentPanel({
   }
 
   const deleteAttachment = async (id: string) => {
-    if (archivingId) return
+    if (!allowArchive || archivingId) return
     if (!confirm(`确定归档这张${itemLabel}吗？归档后文件仍会保留。`)) return
     setArchivingId(id)
     try {
@@ -176,6 +195,7 @@ export default function AttachmentPanel({
   }
 
   const setCover = async (id: string) => {
+    if (!allowUpdate) return
     try {
       await setAttachmentCover(id)
       onMessage('物料封面已更新')
@@ -186,6 +206,7 @@ export default function AttachmentPanel({
   }
 
   const handleAiRecognition = async (attachment?: ManagedAttachment) => {
+    if (!allowUpdate) return
     const sourceAttachment = attachment || attachments[0]
     if (!sourceAttachment) {
       onMessage('请先上传原始凭据，再进行 AI 识别')
@@ -206,6 +227,7 @@ export default function AttachmentPanel({
   }
 
   const handlePreviewRegenerated = (attachmentId: string, revision: number) => {
+    if (!allowUpdate) return
     const refresh = (attachment: ManagedAttachment) => attachment.id === attachmentId
       ? refreshAttachmentPreviewUrls(attachment, revision)
       : attachment
@@ -225,7 +247,7 @@ export default function AttachmentPanel({
     return (
       <div className="min-w-[150px] space-y-2">
         <div className="flex items-center gap-2">
-          {!readOnly && <label className="px-3 py-1 border border-blue-300 text-blue-700 rounded text-xs hover:bg-blue-50 cursor-pointer whitespace-nowrap">
+          {allowUpload && <label className="px-3 py-1 border border-blue-300 text-blue-700 rounded text-xs hover:bg-blue-50 cursor-pointer whitespace-nowrap">
             {uploading ? '上传中' : imageOnly ? '上传图片' : '上传文件'}
             <input
               ref={inputRef}
@@ -273,7 +295,7 @@ export default function AttachmentPanel({
             <h3 className="text-base font-semibold text-gray-900">{title}</h3>
             <p className="mt-1 text-xs text-gray-500">{attachments.length} 张图片，点击可查看原图</p>
           </div>
-          {!readOnly && (
+          {allowUpload && (
             <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xl sm:flex-row sm:items-center sm:justify-end">
               {imageOnly && (
                 <input
@@ -304,7 +326,7 @@ export default function AttachmentPanel({
           )}
         </div>
 
-        {!readOnly && (
+        {allowUpload && (
           <div
             onDrop={handleDrop}
             onDragOver={handleDragOver}
@@ -359,12 +381,14 @@ export default function AttachmentPanel({
                   </a>
                   <div className="mt-1 flex items-center justify-between gap-2 text-xs text-gray-500">
                     <span>{formatSize(attachment.size)}</span>
-                    {!readOnly && (
+                    {(allowUpdate || allowArchive) && (
                       <div className="flex items-center gap-3">
-                        {allowCover && !attachment.isCover && (
+                        {allowUpdate && allowCover && !attachment.isCover && (
                           <button onClick={() => setCover(attachment.id)} className="text-blue-700 hover:text-blue-800">设为封面</button>
                         )}
-                        <button onClick={() => deleteAttachment(attachment.id)} className="text-red-600 hover:text-red-700">归档</button>
+                        {allowArchive && (
+                          <button onClick={() => deleteAttachment(attachment.id)} className="text-red-600 hover:text-red-700">归档</button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -383,11 +407,11 @@ export default function AttachmentPanel({
         <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="font-semibold text-gray-900">{title}</h3>
-            {!imageOnly && <p className="mt-1 text-xs text-gray-500">{readOnly ? '只读预览与下载原始凭证及补充文件。' : '原始凭证及补充文件的上传、预览、下载和归档统一在此管理。'}</p>}
+            {!imageOnly && <p className="mt-1 text-xs text-gray-500">{!hasAnyWriteAction ? '只读预览与下载原始凭证及补充文件。' : '原始凭证及补充文件的上传、预览、下载和归档统一在此管理。'}</p>}
           </div>
-          {!readOnly && (
+          {(allowUpload || showAiRecognition) && (
             <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
-              {imageOnly && (
+              {allowUpload && imageOnly && (
                 <input
                   type="text"
                   value={note}
@@ -408,25 +432,27 @@ export default function AttachmentPanel({
                   {recognizingAttachmentId ? '识别中' : 'AI 识别并填充'}
                 </button>
               )}
-              <label className="inline-flex h-10 cursor-pointer items-center rounded-lg bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700 whitespace-nowrap">
-                {uploading ? '上传中...' : imageOnly ? '选择图片' : '添加附件'}
-                <input
-                  ref={inputRef}
-                  type="file"
-                  accept={imageOnly ? 'image/*' : undefined}
-                  multiple
-                  className="hidden"
-                  disabled={uploading}
-                  onChange={(e) => {
-                    const files = e.target.files
-                    if (files) handleFiles(files)
-                  }}
-                />
-              </label>
+              {allowUpload && (
+                <label className="inline-flex h-10 cursor-pointer items-center rounded-lg bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700 whitespace-nowrap">
+                  {uploading ? '上传中...' : imageOnly ? '选择图片' : '添加附件'}
+                  <input
+                    ref={inputRef}
+                    type="file"
+                    accept={imageOnly ? 'image/*' : undefined}
+                    multiple
+                    className="hidden"
+                    disabled={uploading}
+                    onChange={(e) => {
+                      const files = e.target.files
+                      if (files) handleFiles(files)
+                    }}
+                  />
+                </label>
+              )}
             </div>
           )}
         </div>
-        {!readOnly && (
+        {allowUpload && (
           <div
             onDrop={handleDrop}
             onDragOver={handleDragOver}
@@ -452,7 +478,7 @@ export default function AttachmentPanel({
           </div>
         )}
       {attachments.length === 0 ? (
-        <div className="rounded-lg bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">{imageOnly ? '暂无物料图片' : readOnly ? '暂无附件' : '暂无附件，可上传图片、PDF、Office 文档或其他业务文件'}</div>
+        <div className="rounded-lg bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">{imageOnly ? '暂无物料图片' : !allowUpload ? '暂无附件' : '暂无附件，可上传图片、PDF、Office 文档或其他业务文件'}</div>
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {attachments.map((attachment) => (
@@ -480,14 +506,14 @@ export default function AttachmentPanel({
                       {recognizingAttachmentId === attachment.id ? '识别中' : 'AI 识别'}
                     </button>
                   )}
-                  {!readOnly && (
+                  {allowUpdate && (
                     <RegenerateAttachmentPreviewButton
                       attachment={attachment}
                       onMessage={onMessage}
                       onRegenerated={(revision) => handlePreviewRegenerated(attachment.id, revision)}
                     />
                   )}
-                  {!readOnly && <button type="button" onClick={() => deleteAttachment(attachment.id)} className="text-red-600 hover:text-red-700">归档</button>}
+                  {allowArchive && <button type="button" onClick={() => deleteAttachment(attachment.id)} className="text-red-600 hover:text-red-700">归档</button>}
                 </div>
               </div>
             </article>

@@ -43,12 +43,10 @@ export default function PlatformOverviewPage({
   onOpen,
   onOpenApplication,
   onOpenBusinessModule,
-  onOpenAllFunctions,
   onSave,
   preferenceBusy = false,
 }: PlatformOverviewPageProps) {
   const [selectedModuleKey, setSelectedModuleKey] = useState<BusinessModuleKey | 'ALL'>('ALL')
-  const [showDescriptions, setShowDescriptions] = useState(false)
   const platformItems = useMemo(() => items.filter((item) => item.key !== 'businessWorkbench'), [items])
   const search = useWorkspaceFunctionSearch(platformItems)
   const { saving, error, toggleFavorite } = useWorkspacePreferenceActions(preference, onSave, preferenceBusy)
@@ -107,31 +105,9 @@ export default function PlatformOverviewPage({
 
   return (
     <section aria-label="宇峰业务平台" className="space-y-3">
-      {/* 紧凑页头栏 */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 shadow-sm">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-          <h1 className="text-base font-semibold text-gray-900 sm:text-lg">宇峰业务平台</h1>
-          <span className="text-xs text-gray-500">
-            {applications.length} 个独立应用 · 已授权 {platformItems.length} 项功能
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <AppButton
-            variant="ghost"
-            size="sm"
-            aria-pressed={showDescriptions}
-            onClick={() => setShowDescriptions((current) => !current)}
-            className="!h-10 !px-2.5 !text-xs"
-          >
-            {showDescriptions ? '隐藏功能说明' : '显示功能说明'}
-          </AppButton>
-          <AppButton variant="secondary" size="sm" onClick={onOpenAllFunctions} className="!h-10 !px-2.5 !text-xs">
-            功能目录
-          </AppButton>
-        </div>
-      </div>
+      <h1 className="sr-only">宇峰业务平台</h1>
 
-      {/* 桌面端通过 TopBarPortal 挂载于顶部单行工具栏，移动端 (<1024px) 在标题下方整行可见 */}
+      {/* 桌面搜索挂载到公共顶栏，移动端搜索在工作台内容前整行显示。 */}
       <WorkspaceFunctionSearch search={search} storageKey="mes-lite.searchPresets.workspace" mobileContentSearch />
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
 
@@ -425,7 +401,7 @@ export default function PlatformOverviewPage({
                           onOpen={onOpen}
                           onToggleFavorite={toggleFavorite}
                           compact
-                          showDescription={showDescriptions || isSingleModule}
+                          showDescription={isSingleModule}
                           columnsClassName={innerGridCols}
                         />
                       </section>

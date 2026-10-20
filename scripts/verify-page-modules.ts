@@ -14,7 +14,7 @@ for (const key of ['materialIn', 'shipment', 'return']) {
 const expectedFunctionKeys = [
   'materialInHistory', 'shipmentHistory',
   'dashboard', 'businessWorkbench', 'allFunctions', 'helpCenter', 'materialManagement', 'bomWorkspace', 'bomUsage', 'workInstructions',
-  'equipment', 'equipmentInspections', 'equipmentMaintenance', 'orders', 'dailyInventory', 'flowTransfers', 'dispatch', 'qualityTasks', 'materialIn', 'salesOrders', 'shipment', 'return',
+  'equipment', 'equipmentInspections', 'equipmentMaintenance', 'orders', 'dailyInventory', 'flowTransfers', 'dispatch', 'taskCollaboration', 'qualityTasks', 'materialIn', 'salesOrders', 'shipment', 'return',
   'stocks', 'warehouseDigitalTwin', 'inventoryCount', 'stockMovements', 'lotPanorama', 'suppliers', 'customers', 'employees', 'locationSettings', 'unitSettings', 'workCenters',
   'documentCategories', 'processTemplates', 'processRoutes', 'businessSettings', 'displaySettings', 'navigationSettings', 'cadPreviewSettings', 'aiSettings', 'apiSettings', 'sawingCost', 'scanPrint', 'archive', 'auditLogs',
   'dataTools', 'operators', 'permissionUsers', 'permissionGroups', 'create', 'detail',
@@ -100,7 +100,7 @@ for (const rendererKey of rendererKeys) {
 for (const key of expectedFunctionKeys) {
   assert.match(pageAuditSource, new RegExp('\\| `' + key + '` \\|'), `页面标准化审计缺少 ${key}`)
 }
-assert.match(pageAuditSource, /已标准化多视图：23 个/, '页面标准化审计的多视图统计必须保持同步')
+assert.match(pageAuditSource, /已标准化多视图：24 个/, '页面标准化审计的多视图统计必须保持同步')
 assert.match(pageAuditSource, /应补多视图：0 个/, '页面标准化审计的待改造统计必须保持同步')
 assert.match(pageAuditSource, /固定形态合理：27 个/, '页面标准化审计的固定形态统计必须保持同步')
 

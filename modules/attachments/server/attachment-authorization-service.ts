@@ -3,6 +3,8 @@ import { hasResourcePermission } from '@/lib/permissions'
 import { prisma } from '@/lib/prisma'
 import { getCurrentOperator } from '@/lib/auth'
 import {
+  assertTaskCollaborationDataScope,
+  DataScopeError,
   dispatchDataScopeWhere,
   flowTransferDataScopeWhere,
   loadEffectiveDataScope,
@@ -16,6 +18,7 @@ import {
 import { AttachmentDomainError } from '../domain/attachment-errors'
 import {
   resolveAttachmentOwnerContext,
+  TASK_RELEASE_ATTACHMENT_DOCUMENT_TYPE,
   type AttachmentOwnerContext,
   type AttachmentOwnerType,
 } from '../domain/attachment-policy'
@@ -23,11 +26,13 @@ import { requireActiveAttachment } from './attachment-query-service'
 
 export type AttachmentAccessOperation = 'read' | 'upload' | 'update' | 'archive' | 'finalize' | 'discard'
 
-type AuthenticatedOperator = PermissionSubject & {
+export type AttachmentOperator = PermissionSubject & {
   id: string
   username: string
   name: string
 }
+
+type AuthenticatedOperator = AttachmentOperator
 
 type AttachmentRecord = Awaited<ReturnType<typeof requireActiveAttachment>>
 
@@ -48,6 +53,20 @@ function ownerPermissionAction(operation: AttachmentAccessOperation, draft: bool
 }
 
 async function attachmentOwnerExists(ownerType: AttachmentOwnerType, ownerId: string, scope: EffectiveDataScope) {
+  if (ownerType === 'TASK_COLLABORATION') {
+    const task = await prisma.taskCollaboration.findFirst({
+      where: { id: ownerId, deletedAt: null },
+      select: { id: true, assigneeEmployeeId: true, workCenterId: true },
+    })
+    if (!task) return false
+    try {
+      assertTaskCollaborationDataScope(scope, task)
+      return true
+    } catch (error) {
+      if (error instanceof DataScopeError) return false
+      throw error
+    }
+  }
   if (ownerType === 'MATERIAL') {
     return Boolean(await prisma.material.findFirst({ where: { id: ownerId, deletedAt: null }, select: { id: true } }))
   }
@@ -165,6 +184,9 @@ async function requireOwner(
 ) {
   const context = requireSupportedOwner(ownerType)
   await requirePermission(operator, context, operation)
+  if (attachment?.documentType === TASK_RELEASE_ATTACHMENT_DOCUMENT_TYPE && operation !== 'read') {
+    throw new AttachmentDomainError('已发布任务资料不可修改或归档', 409)
+  }
 
   if (context.draft) {
     if (!ownerId.startsWith('draft-')) throw new AttachmentDomainError('暂存附件标识无效', 400)

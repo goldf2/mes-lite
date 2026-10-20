@@ -16,6 +16,7 @@ const MaterialInHistoryPage = dynamic(() => import('@/modules/receiving').then(m
 const ShipmentHistoryPage = dynamic(() => import('@/modules/sales').then(module => module.ShipmentHistoryPage), { loading: FeaturePageLoading })
 
 const MaterialInPage = dynamic(() => import('@/modules/receiving'), { loading: FeaturePageLoading })
+const TaskCollaborationPage = dynamic(() => import('@/modules/task-collaboration').then(module => module.TaskCollaborationPage), { loading: FeaturePageLoading })
 const DispatchPage = dynamic(() => import('@/modules/production').then((module) => module.DispatchPageModule), { loading: FeaturePageLoading })
 const SalesOrderPage = dynamic(() => import('@/modules/sales'), { loading: FeaturePageLoading })
 const ShipmentPage = dynamic(() => import('@/modules/sales').then((module) => module.ShipmentPageModule), { loading: FeaturePageLoading })
@@ -119,6 +120,7 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
       preferenceBusy={context.preferenceBusy}
     />
   ),
+  'task-collaboration': (context) => <TaskCollaborationPage permissions={context.operator.permissions} onNotice={context.onMessage} />,
   'sop-help-center': () => <SopHelpCenterPage />,
   'production-orders': (context) => (
     <ProductionOrderModule

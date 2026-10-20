@@ -340,3 +340,10 @@ SQLite 数据目录只能由一个运行中的应用实例写入。需要多实�
 普通迭代当前采用“Git 推送 + Webhook 自动部署 + 运行验收”；涉及生产数据迁移、模型回填或高风险权限变更时，仍须在维护窗口临时关闭 Auto Deploy、固定批准提交并准备可回滚挂载。不得仅凭 `main` 最新提交或部署列表中的日志文案判断线上版本；必须同时核对 Coolify Running 链接、应用版本、首页静态文件和 `/api/health/ready`。
 
 2026-08-15 的生产与演示双 Webhook 构建造成 4 vCPU 主机失去响应。事故证据、已完成止血、未完成门禁和恢复验收见 [Coolify 双构建导致主机失去响应](../operations/incidents/2026-08-15-coolify双构建主机失联.md)。在关闭演示应用 Auto Deploy 或迁移到独立构建节点之前，不得推送新的 `main` 提交触发生产部署。
+
+
+## v0.1.496 三域入口约定
+
+用户确认MES为`https://mes.csyufeng.com`、客户管理为`https://crm.csyufeng.com`、宇峰平台为`https://work.csyufeng.com`，DNS已有正确指向，本次不改DNS。MES与宇峰平台仍使用既有同一Web部署的双域入口；客户管理指向原综合数据平台独立部署，不复制数据库或挂载。域名隔离不代表MES与平台的发布生命周期已拆分。
+
+平台客户功能默认链接改为`https://crm.csyufeng.com/workspaces/local/default`；部署侧如显式设置`NEXT_PUBLIC_DATA_PLATFORM_WORKSPACE_URL`，需以此真实workspace地址配置，并注意它在构建时内联。CRM反向代理别名、应用公开地址及精确OIDC回调须在原综合数据平台的既有配置中核对，保留旧fix.xiangshu.me兼容，不创建第二份客户资料或扩大组织/用户权限。配置持久化与真实登录分别验收，未验证时不得宣称三域登录完成。

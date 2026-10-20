@@ -5,6 +5,7 @@ import {
 } from '@/lib/draft-document-attachments'
 
 export const attachmentOwnerPolicies = {
+  TASK_COLLABORATION: { resource: 'taskCollaboration' },
   MATERIAL: { resource: 'materials' },
   WORK_INSTRUCTION: { resource: 'workInstructions' },
   MATERIAL_IN: { resource: 'materialIn' },
@@ -19,6 +20,8 @@ export const attachmentOwnerPolicies = {
   EQUIPMENT_MAINTENANCE_WORK_ORDER: { resource: 'equipmentMaintenance' },
   QUALITY_INSPECTION: { resource: 'quality' },
 } as const satisfies Record<string, { resource: PermissionResource }>
+
+export const TASK_RELEASE_ATTACHMENT_DOCUMENT_TYPE = 'SYSTEM_GENERATED_TASK_RELEASE'
 
 export type AttachmentOwnerType = keyof typeof attachmentOwnerPolicies
 

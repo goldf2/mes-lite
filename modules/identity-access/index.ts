@@ -16,6 +16,7 @@ export type {
 export {
   allowedInventoryLocationIds,
   assertDispatchDataScope,
+  assertTaskCollaborationDataScope,
   assertInventoryLotDataScope,
   assertInventoryLocationDataScope,
   assertProductionActualDataScope,
@@ -23,6 +24,7 @@ export {
   assertProductionOrderIdDataScope,
   assertUnrestrictedInventoryDataScope,
   dispatchDataScopeWhere,
+  taskCollaborationDataScopeWhere,
   flowTransferDataScopeWhere,
   loadEffectiveDataScope,
   productionOrderDataScopeWhere,

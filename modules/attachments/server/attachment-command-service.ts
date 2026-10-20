@@ -15,10 +15,18 @@ import { getSystemSettings } from '@/lib/system-settings'
 import { draftDocumentAttachmentOwnerType, isDocumentSourceCredentialOwnerType } from '@/lib/draft-document-attachments'
 import type { AttachmentUploadInput, DraftAttachmentInput } from '../contracts/attachment-schema'
 import { AttachmentDomainError } from '../domain/attachment-errors'
-import { attachmentStorageExtension, isMaterialImageAttachment, safeAttachmentStorageSegment } from '../domain/attachment-policy'
+import {
+  attachmentStorageExtension,
+  isMaterialImageAttachment,
+  safeAttachmentStorageSegment,
+  TASK_RELEASE_ATTACHMENT_DOCUMENT_TYPE,
+} from '../domain/attachment-policy'
 import { requireActiveAttachment, withManagedAttachmentUrls } from './attachment-query-service'
 
 export async function uploadManagedAttachment(input: AttachmentUploadInput, uploadedBy: string) {
+  if (input.documentType === TASK_RELEASE_ATTACHMENT_DOCUMENT_TYPE) {
+    throw new AttachmentDomainError('发布资料只能通过任务发布生成', 409)
+  }
   if (input.file.size <= 0 || input.file.size > MAX_ATTACHMENT_FILE_SIZE) {
     throw new AttachmentDomainError('文件大小必须在 50MB 以内')
   }
@@ -86,14 +94,22 @@ export async function uploadManagedAttachment(input: AttachmentUploadInput, uplo
   return withManagedAttachmentUrls(attachment)
 }
 
+function requireMutableAttachment(attachment: { documentType: string }) {
+  if (attachment.documentType === TASK_RELEASE_ATTACHMENT_DOCUMENT_TYPE) {
+    throw new AttachmentDomainError('已发布任务资料不可修改或归档', 409)
+  }
+}
+
 export async function setManagedAttachmentRotation(id: string, rotation: 0 | 90 | 180 | 270) {
   const before = await requireActiveAttachment(id)
+  requireMutableAttachment(before)
   const updated = await prisma.documentAttachment.update({ where: { id }, data: { rotation } })
   return { before, updated: withManagedAttachmentUrls(updated) }
 }
 
 export async function regenerateManagedAttachmentPreview(id: string) {
   const attachment = await requireActiveAttachment(id)
+  requireMutableAttachment(attachment)
   if (attachmentPreviewKind(attachment.originalName, attachment.mimeType) !== 'cad') {
     throw new AttachmentDomainError('只有 DWG/DXF 图纸支持重新生成预览')
   }
@@ -111,6 +127,7 @@ export async function regenerateManagedAttachmentPreview(id: string) {
 
 export async function setMaterialImageCover(id: string) {
   const attachment = await requireActiveAttachment(id)
+  requireMutableAttachment(attachment)
   if (!isMaterialImageAttachment(attachment)) throw new AttachmentDomainError('物料图片不存在', 404)
   await prisma.$transaction([
     prisma.documentAttachment.updateMany({
@@ -129,6 +146,7 @@ export async function setMaterialImageCover(id: string) {
 
 export async function archiveManagedAttachment(id: string) {
   const attachment = await requireActiveAttachment(id)
+  requireMutableAttachment(attachment)
   const nextCover = attachment.isCover ? await prisma.documentAttachment.findFirst({
     where: {
       ownerType: attachment.ownerType,

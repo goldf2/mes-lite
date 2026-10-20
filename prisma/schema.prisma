@@ -55,28 +55,32 @@ model InventoryLocation {
 }
 
 model WorkCenter {
-  id             String                    @id @default(cuid())
-  code           String                    @unique
-  name           String
-  category       String?
-  note           String?
-  laborRatePerHour   Float                 @default(0)
-  machineRatePerHour Float                 @default(0)
-  energyCostPerHour  Float                 @default(0)
-  isActive       Boolean                   @default(true)
-  sortOrder      Int                       @default(0)
-  deletedAt      DateTime?
-  equipment      Equipment[]
-  processSteps   ProcessStep[]
-  operatorScopes OperatorWorkCenterScope[]
-  createdAt      DateTime                  @default(now())
-  updatedAt      DateTime                  @updatedAt
+  collaborationTasks TaskCollaboration[]
+
+  id                 String                    @id @default(cuid())
+  code               String                    @unique
+  name               String
+  category           String?
+  note               String?
+  laborRatePerHour   Float                     @default(0)
+  machineRatePerHour Float                     @default(0)
+  energyCostPerHour  Float                     @default(0)
+  isActive           Boolean                   @default(true)
+  sortOrder          Int                       @default(0)
+  deletedAt          DateTime?
+  equipment          Equipment[]
+  processSteps       ProcessStep[]
+  operatorScopes     OperatorWorkCenterScope[]
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
 
   @@index([isActive])
   @@index([sortOrder])
 }
 
 model Employee {
+  collaborationTasks TaskCollaboration[]
+
   id                     String                          @id @default(cuid())
   code                   String                          @unique
   name                   String
@@ -400,6 +404,8 @@ model Product {
 }
 
 model Material {
+  collaborationLines TaskCollaborationLine[]
+
   id                          String                           @id @default(cuid())
   code                        String                           @unique
   name                        String
@@ -569,33 +575,33 @@ model CostObjectCost {
 }
 
 model BomCostRun {
-  id                 String           @id @default(cuid())
-  productId          String
-  product            Product          @relation(fields: [productId], references: [id])
-  materialId         String?
-  bomId              String?
-  bom                BOM?             @relation(fields: [bomId], references: [id])
-  bomVersion         String?
-  processRouteId     String?
-  processRoute       ProcessRoute?     @relation(fields: [processRouteId], references: [id], onDelete: SetNull)
-  processRouteName   String?
-  processRouteSnapshot String?         @map("bomProcessRouteSnapshot")
-  quantityBasis      Float            @default(1)
-  laborRatePerHour   Float            @default(0)
-  machineRatePerHour Float            @default(0)
-  overheadCost       Float            @default(0)
-  totalMaterialCost  Float            @default(0)
-  totalLaborCost     Float            @default(0)
-  totalMachineCost   Float            @default(0)
-  totalDirectCost    Float            @default(0)
-  totalCost          Float            @default(0)
-  unitCost           Float            @default(0)
-  createdBy          String?
-  createdAt          DateTime         @default(now())
-  lines              BomCostRunLine[]
-  productionOrders   ProductionOrder[]       @relation("ProductionOrderBomCostRun")
-  productionActuals  ProductionOrderActual[] @relation("ProductionOrderActualBomCostRun")
-  dailyReports       DailyProductionReport[]  @relation("DailyProductionReportBomCostRun")
+  id                   String                  @id @default(cuid())
+  productId            String
+  product              Product                 @relation(fields: [productId], references: [id])
+  materialId           String?
+  bomId                String?
+  bom                  BOM?                    @relation(fields: [bomId], references: [id])
+  bomVersion           String?
+  processRouteId       String?
+  processRoute         ProcessRoute?           @relation(fields: [processRouteId], references: [id], onDelete: SetNull)
+  processRouteName     String?
+  processRouteSnapshot String?                 @map("bomProcessRouteSnapshot")
+  quantityBasis        Float                   @default(1)
+  laborRatePerHour     Float                   @default(0)
+  machineRatePerHour   Float                   @default(0)
+  overheadCost         Float                   @default(0)
+  totalMaterialCost    Float                   @default(0)
+  totalLaborCost       Float                   @default(0)
+  totalMachineCost     Float                   @default(0)
+  totalDirectCost      Float                   @default(0)
+  totalCost            Float                   @default(0)
+  unitCost             Float                   @default(0)
+  createdBy            String?
+  createdAt            DateTime                @default(now())
+  lines                BomCostRunLine[]
+  productionOrders     ProductionOrder[]       @relation("ProductionOrderBomCostRun")
+  productionActuals    ProductionOrderActual[] @relation("ProductionOrderActualBomCostRun")
+  dailyReports         DailyProductionReport[] @relation("DailyProductionReportBomCostRun")
 
   @@index([productId, createdAt])
   @@index([materialId, createdAt])
@@ -777,30 +783,32 @@ model ProductionCostItem {
 // ==================== 生产工单 ====================
 
 model ProductionOrder {
-  id             String    @id @default(cuid())
-  orderNo        String    @unique
-  groupNo        String?
-  lineNo         Int       @default(1)
-  voucherNo      String?
-  productId      String
-  product        Product   @relation(fields: [productId], references: [id])
-  materialId     String?
-  targetMaterial Material? @relation("ProductionOrderTargetMaterial", fields: [materialId], references: [id])
-  bomId          String?
-  bom            BOM?      @relation(fields: [bomId], references: [id])
-  bomName        String?
-  bomVersion     String?
-  bomSnapshot    String?   @map("productionBomSnapshot")
+  collaborationTasks TaskCollaboration[]
+
+  id                   String      @id @default(cuid())
+  orderNo              String      @unique
+  groupNo              String?
+  lineNo               Int         @default(1)
+  voucherNo            String?
+  productId            String
+  product              Product     @relation(fields: [productId], references: [id])
+  materialId           String?
+  targetMaterial       Material?   @relation("ProductionOrderTargetMaterial", fields: [materialId], references: [id])
+  bomId                String?
+  bom                  BOM?        @relation(fields: [bomId], references: [id])
+  bomName              String?
+  bomVersion           String?
+  bomSnapshot          String?     @map("productionBomSnapshot")
   processRouteId       String?
   processRouteName     String?
-  processRouteSnapshot String? @map("productionProcessRouteSnapshot")
+  processRouteSnapshot String?     @map("productionProcessRouteSnapshot")
   bomCostRunId         String?
   bomCostRun           BomCostRun? @relation("ProductionOrderBomCostRun", fields: [bomCostRunId], references: [id], onDelete: SetNull)
-  bomCostSnapshot      String? @map("productionBomCostSnapshot")
-  planQty        Float
-  completeQty    Float     @default(0)
-  scrapQty       Float     @default(0)
-  status         String    @default("DRAFT")
+  bomCostSnapshot      String?     @map("productionBomCostSnapshot")
+  planQty              Float
+  completeQty          Float       @default(0)
+  scrapQty             Float       @default(0)
+  status               String      @default("DRAFT")
 
   planId      String?
   note        String?
@@ -845,13 +853,13 @@ model ProductionOrderActual {
   reverseReason                  String?
   processRouteId                 String?
   processRouteName               String?
-  processRouteSnapshot           String? @map("productionProcessRouteSnapshot")
+  processRouteSnapshot           String?                                @map("productionProcessRouteSnapshot")
   bomCostRunId                   String?
-  bomCostRun                     BomCostRun? @relation("ProductionOrderActualBomCostRun", fields: [bomCostRunId], references: [id], onDelete: SetNull)
-  bomCostSnapshot                String? @map("productionBomCostSnapshot")
-  actualMaterialCostAmount       Float                                 @default(0)
-  actualProcessCostAmount        Float                                 @default(0)
-  appliedCostSnapshot            String?                               @map("productionAppliedCostSnapshot")
+  bomCostRun                     BomCostRun?                            @relation("ProductionOrderActualBomCostRun", fields: [bomCostRunId], references: [id], onDelete: SetNull)
+  bomCostSnapshot                String?                                @map("productionBomCostSnapshot")
+  actualMaterialCostAmount       Float                                  @default(0)
+  actualProcessCostAmount        Float                                  @default(0)
+  appliedCostSnapshot            String?                                @map("productionAppliedCostSnapshot")
   employees                      ProductionOrderActualEmployee[]
   equipmentSnapshots             ProductionOrderActualEquipment[]
   workInstructionSnapshots       ProductionOrderActualWorkInstruction[]
@@ -1044,50 +1052,50 @@ model WorkReport {
 // ==================== BOM 快捷生产日报（独立于生产订单，不创建派工/报工，可选质检） ====================
 
 model DailyProductionReport {
-  id                     String                          @id @default(cuid())
-  reportNo               String                          @unique
-  reportDate             DateTime
-  finishedMaterialId     String
-  finishedMaterial       Material                        @relation("DailyProductionFinishedMaterial", fields: [finishedMaterialId], references: [id])
-  consumptionLocationId  String?
-  consumptionLocation    InventoryLocation?              @relation("DailyProductionConsumptionLocation", fields: [consumptionLocationId], references: [id])
-  outputLocationId       String?
-  outputLocation         InventoryLocation?              @relation("DailyProductionOutputLocation", fields: [outputLocationId], references: [id])
-  outputQty              Float                           @default(0)
-  workers                String
-  note                   String?
-  status                 String                          @default("DRAFT")
-  bomId                  String
-  bomName                String
-  bomVersion             String
-  bomType                String
-  bomOutputQuantity      Float
-  bomOutputUnit          String
-  processRouteId         String?
-  processRouteName       String?
-  processRouteSnapshot   String? @map("productionProcessRouteSnapshot")
-  bomCostRunId           String?
-  bomCostRun             BomCostRun? @relation("DailyProductionReportBomCostRun", fields: [bomCostRunId], references: [id], onDelete: SetNull)
-  bomCostSnapshot        String? @map("productionBomCostSnapshot")
-  actualMaterialCostAmount Float                         @default(0)
-  actualProcessCostAmount  Float                         @default(0)
-  appliedCostSnapshot      String?                       @map("productionAppliedCostSnapshot")
-  outputValuationQty     Float                           @default(0)
-  outputCostAmount       Float                           @default(0)
-  outputStockUnit        String?
-  outputValuationUnit    String?
-  outputConversionRate   Float?
-  outputConversionSource String?
-  confirmedAt            DateTime?
-  confirmedBy            String?
-  reversedAt             DateTime?
-  reversedBy             String?
-  reverseReason          String?
-  employees              DailyProductionReportEmployee[]
-  consumptions           DailyProductionConsumption[]
-  outputs                DailyProductionOutput[]
-  createdAt              DateTime                        @default(now())
-  updatedAt              DateTime                        @updatedAt
+  id                       String                          @id @default(cuid())
+  reportNo                 String                          @unique
+  reportDate               DateTime
+  finishedMaterialId       String
+  finishedMaterial         Material                        @relation("DailyProductionFinishedMaterial", fields: [finishedMaterialId], references: [id])
+  consumptionLocationId    String?
+  consumptionLocation      InventoryLocation?              @relation("DailyProductionConsumptionLocation", fields: [consumptionLocationId], references: [id])
+  outputLocationId         String?
+  outputLocation           InventoryLocation?              @relation("DailyProductionOutputLocation", fields: [outputLocationId], references: [id])
+  outputQty                Float                           @default(0)
+  workers                  String
+  note                     String?
+  status                   String                          @default("DRAFT")
+  bomId                    String
+  bomName                  String
+  bomVersion               String
+  bomType                  String
+  bomOutputQuantity        Float
+  bomOutputUnit            String
+  processRouteId           String?
+  processRouteName         String?
+  processRouteSnapshot     String?                         @map("productionProcessRouteSnapshot")
+  bomCostRunId             String?
+  bomCostRun               BomCostRun?                     @relation("DailyProductionReportBomCostRun", fields: [bomCostRunId], references: [id], onDelete: SetNull)
+  bomCostSnapshot          String?                         @map("productionBomCostSnapshot")
+  actualMaterialCostAmount Float                           @default(0)
+  actualProcessCostAmount  Float                           @default(0)
+  appliedCostSnapshot      String?                         @map("productionAppliedCostSnapshot")
+  outputValuationQty       Float                           @default(0)
+  outputCostAmount         Float                           @default(0)
+  outputStockUnit          String?
+  outputValuationUnit      String?
+  outputConversionRate     Float?
+  outputConversionSource   String?
+  confirmedAt              DateTime?
+  confirmedBy              String?
+  reversedAt               DateTime?
+  reversedBy               String?
+  reverseReason            String?
+  employees                DailyProductionReportEmployee[]
+  consumptions             DailyProductionConsumption[]
+  outputs                  DailyProductionOutput[]
+  createdAt                DateTime                        @default(now())
+  updatedAt                DateTime                        @updatedAt
 
   @@index([reportDate])
   @@index([finishedMaterialId])
@@ -1230,13 +1238,13 @@ model QCRecord {
 
 model Stock {
   /// False means auxiliary quantities are incomplete and must not be used as a conversion basis.
-  valuationComplete Boolean @default(true)
+  valuationComplete Boolean   @default(true)
   /// Database triggers require exactly one owner: Material or legacy Product.
-  id         String    @id @default(cuid())
-  materialId String?   @unique
-  material   Material? @relation(fields: [materialId], references: [id])
-  productId  String?   @unique
-  product    Product?  @relation(fields: [productId], references: [id])
+  id                String    @id @default(cuid())
+  materialId        String?   @unique
+  material          Material? @relation(fields: [materialId], references: [id])
+  productId         String?   @unique
+  product           Product?  @relation(fields: [productId], references: [id])
 
   qty                    Float @default(0)
   reservedQty            Float @default(0)
@@ -1280,12 +1288,12 @@ model StockLocationBalance {
 }
 
 model StockLog {
-  valuationComplete Boolean @default(true)
-  id         String             @id @default(cuid())
-  stockId    String
-  stock      Stock              @relation(fields: [stockId], references: [id])
-  locationId String?
-  location   InventoryLocation? @relation(fields: [locationId], references: [id])
+  valuationComplete Boolean            @default(true)
+  id                String             @id @default(cuid())
+  stockId           String
+  stock             Stock              @relation(fields: [stockId], references: [id])
+  locationId        String?
+  location          InventoryLocation? @relation(fields: [locationId], references: [id])
 
   type                  String
   qty                   Float
@@ -1323,7 +1331,7 @@ model StockLog {
 }
 
 model InventoryLot {
-  valuationComplete Boolean @default(true)
+  valuationComplete           Boolean                                  @default(true)
   id                          String                                   @id @default(cuid())
   lotNo                       String                                   @unique
   materialId                  String
@@ -1734,6 +1742,8 @@ model Customer {
 // ==================== 销售订单 ====================
 
 model SalesOrder {
+  collaborationTasks TaskCollaboration[]
+
   id           String           @id @default(cuid())
   orderNo      String           @unique
   voucherNo    String?
@@ -1780,6 +1790,8 @@ model SalesOrderItem {
 }
 
 model Supplier {
+  collaborationTasks TaskCollaboration[]
+
   id               String            @id @default(cuid())
   code             String            @unique
   name             String
@@ -1868,7 +1880,7 @@ model MaterialIn {
 }
 
 model InventoryCostLayer {
-  valuationComplete Boolean @default(true)
+  valuationComplete     Boolean                           @default(true)
   id                    String                            @id @default(cuid())
   materialId            String
   material              Material                          @relation(fields: [materialId], references: [id])
@@ -1925,6 +1937,8 @@ model CostLayerConsumption {
 // ==================== 派工管理 ====================
 
 model Dispatch {
+  collaborationTasks TaskCollaboration[]
+
   id           String          @id @default(cuid())
   dispatchNo   String          @unique
   voucherNo    String?
@@ -2497,31 +2511,31 @@ model OperatorPermissionGroup {
 }
 
 model OperatorSession {
-  id         String   @id @default(cuid())
-  tokenHash  String   @unique
-  operatorId String
-  operator   Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
-  authSource String   @default("native")
-  authAccountId String?
-  authSubject String?
+  id             String   @id @default(cuid())
+  tokenHash      String   @unique
+  operatorId     String
+  operator       Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  authSource     String   @default("native")
+  authAccountId  String?
+  authSubject    String?
   authGeneration String?
 
   @@index([operatorId])
 }
 
 model OperatorLoginChallenge {
-  ticketHash String @id
+  ticketHash String    @id
   consumedAt DateTime?
-  sessionId String?
-  verifier String
-  state String
-  nonce String
+  sessionId  String?
+  verifier   String
+  state      String
+  nonce      String
   generation String
   returnPath String
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
 
   @@index([expiresAt])
 }
@@ -2556,4 +2570,100 @@ model AuthenticationThrottle {
   @@unique([scope, keyHash])
   @@index([blockedUntil])
   @@index([updatedAt])
+}
+
+// ==================== MES 内部任务协同（执行清单，不产生库存/成本） ====================
+model TaskCollaboration {
+  id                 String                      @id @default(cuid())
+  taskNo             String                      @unique
+  title              String
+  status             String                      @default("DRAFT")
+  revision           Int                         @default(1)
+  salesOrderId       String?
+  salesOrder         SalesOrder?                 @relation(fields: [salesOrderId], references: [id], onDelete: Restrict)
+  productionOrderId  String?
+  productionOrder    ProductionOrder?            @relation(fields: [productionOrderId], references: [id], onDelete: Restrict)
+  dispatchId         String?
+  dispatch           Dispatch?                   @relation(fields: [dispatchId], references: [id], onDelete: Restrict)
+  assigneeEmployeeId String?
+  assigneeEmployee   Employee?                   @relation(fields: [assigneeEmployeeId], references: [id], onDelete: Restrict)
+  supplierId         String?
+  supplier           Supplier?                   @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  workCenterId       String?
+  workCenter         WorkCenter?                 @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
+  quantity           Float
+  unit               String
+  dueAt              DateTime?
+  instructions       String?
+  documentRefsJson   String                      @default("[]")
+  createdBy          String
+  deletedAt          DateTime?
+  deletedBy          String?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+  lines              TaskCollaborationLine[]
+  progress           TaskCollaborationProgress[]
+  releases           TaskCollaborationRelease[]
+
+  @@index([deletedAt, status, updatedAt])
+  @@index([assigneeEmployeeId])
+  @@index([workCenterId])
+}
+
+model TaskCollaborationLine {
+  id               String            @id @default(cuid())
+  taskId           String
+  task             TaskCollaboration @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  materialId       String
+  material         Material          @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  quantity         Float
+  unit             String
+  note             String?
+  documentRefsJson String            @default("[]")
+  sortOrder        Int               @default(0)
+
+  @@index([taskId, sortOrder])
+}
+
+model TaskCollaborationProgress {
+  id                 String            @id @default(cuid())
+  taskId             String
+  task               TaskCollaboration @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  kind               String
+  note               String
+  attachmentRefsJson String            @default("[]")
+  actorId            String
+  actorName          String
+  createdAt          DateTime          @default(now())
+
+  @@index([taskId, createdAt])
+}
+
+model TaskCollaborationRelease {
+  id           String                      @id @default(cuid())
+  taskId       String
+  task         TaskCollaboration           @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  revision     Int
+  operationId  String                      @unique
+  manifestJson String
+  createdBy    String
+  createdAt    DateTime                    @default(now())
+  deliveries   TaskCollaborationDelivery[]
+
+  @@unique([taskId, revision])
+}
+
+model TaskCollaborationDelivery {
+  id            String                   @id @default(cuid())
+  releaseId     String
+  release       TaskCollaborationRelease @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+  operationId   String                   @unique
+  method        String
+  recipientName String
+  status        String
+  note          String?
+  actorId       String
+  createdAt     DateTime                 @default(now())
+
+  @@index([releaseId, createdAt])
 }

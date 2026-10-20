@@ -16,6 +16,7 @@ import {
 const defaults = createDefaultWorkspaceNavigationConfig()
 assert.equal(workspaceContainsFunction(defaults, 'mes', 'orders'), true)
 assert.equal(workspaceContainsFunction(defaults, 'mes', 'dispatch'), true)
+assert.equal(workspaceContainsFunction(defaults, 'mes', 'taskCollaboration'), true, '任务协同必须归属既有MES工作区')
 assert.equal(workspaceContainsFunction(defaults, 'mes', 'bomUsage'), true)
 assert.equal(workspaceContainsFunction(defaults, 'mes', 'salesOrders'), true)
 assert.equal(workspaceContainsFunction(defaults, 'mes', 'shipment'), true)

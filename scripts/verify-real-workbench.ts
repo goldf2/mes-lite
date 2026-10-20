@@ -63,6 +63,8 @@ assert.deepEqual(getAvailableBusinessModules([]), [], 'An account without availa
 assert.deepEqual(getAvailableBusinessModules(workspaceFunctionCatalog.filter((item) => globalFunctionKeys.has(item.key))), [], 'Global page access alone must not imply business-module access')
 assert.equal(getBusinessModuleForFunction('salesOrders')?.key, 'sales')
 assert.equal(getBusinessModuleForFunction('orders')?.key, 'production')
+assert.equal(getBusinessModuleForFunction('taskCollaboration')?.key, 'production')
+assert.equal(registeredPageDefinitions.find(page => page.key === 'taskCollaboration')?.extraResource, undefined, '普通任务读者不应被发布命令权限排除出入口')
 for (const key of ['materialManagement', 'bomWorkspace', 'bomUsage'] as const) assert.equal(getBusinessModuleForFunction(key)?.key, 'materials')
 for (const key of ['flowTransfers', 'scanPrint'] as const) assert.equal(getBusinessModuleForFunction(key)?.key, 'inventory')
 
@@ -132,7 +134,7 @@ for (const entry of entries) {
   assert.ok(isWorkspaceFunctionKey(entry.key), 'External favorites must survive the existing preference normalization')
   assert.ok(['customers', 'equipment'].includes(entry.resource), 'Links do not grant target application permissions')
   const url = new URL(entry.externalHref)
-  assert.equal(url.origin, 'https://fix.xiangshu.me')
+  assert.equal(url.origin, 'https://crm.csyufeng.com')
   assert.equal(url.pathname, '/login')
   assert.match(url.searchParams.get('next') || '', /^\/workspaces\/local\/default\//)
   const parameterNames: string[] = []

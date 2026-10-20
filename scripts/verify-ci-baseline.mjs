@@ -31,6 +31,7 @@ const checks = [
   'verify:business-document-print',
   'verify:data-scopes',
   'verify:data-scope-http',
+  'verify:task-collaboration',
   'verify:production-actual-context',
   'verify:production-order-actuals',
   'verify:production-quality-lots',

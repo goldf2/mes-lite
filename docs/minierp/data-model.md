@@ -1061,3 +1061,22 @@ erDiagram
 - 生产领料、调拨和普通调整不得扩大负库存；确认发货可以形成由 `ShipmentStockShortage` 支撑的负库存，后续同物料、同库位可用入库自动补账。
 - 所有查询必须带 `tenant_id`，后台运维查询也要记录审计日志。
 - 微信 openid 不能直接当员工账号，必须绑定到 `users` 和 `tenant_members`。
+
+## 附录：任务协同本地候选（2026-10-20）
+
+本节描述独立源码候选内的单厂 MES 增量，不改变正文的历史版本基线，也不将暂停的多租户草案视为当前模型。对应候选以 `prisma/schema.prisma`、`modules/task-collaboration/contracts/task-schema.ts` 和领域服务为准；候选开发、界面联调、生产验收分别记录。
+
+| 模型 | 主要字段与约束 | 用途 |
+| --- | --- | --- |
+| `TaskCollaboration` | 唯一 `taskNo`；`title`、`status`、`revision`、`quantity`、`unit`、`dueAt`、`instructions`；`createdBy`、`deletedAt`、`deletedBy` | 任务当前执行要求；`revision` 从 1 开始，用于乐观并发控制 |
+| `TaskCollaboration` 业务引用 | 可选 `salesOrderId`、`productionOrderId`、`dispatchId`、`assigneeEmployeeId`、`supplierId`、`workCenterId`，均引用既有模型且删除使用 `Restrict` | 关联订单、派工、员工、供应商和工作中心，不复制主数据、不产生供应商账号 |
+| `TaskCollaborationLine` | `taskId`、`materialId`、正数 `quantity`、`unit`、`note`、`sortOrder`、`documentRefsJson` | 独立任务 BOM 清单；物料引用现有 `Material`，不生成或改写生产/包装 BOM |
+| `TaskCollaborationProgress` | `taskId`、`kind`、`note`、`attachmentRefsJson`、`actorId`、`actorName`、`createdAt`；任务外键 `Restrict` | 追加备注或异常及附件引用，保留责任人与时间；不存第二套实绩数量 |
+| `TaskCollaborationRelease` | `taskId`、`revision`、全局唯一 `operationId`、`manifestJson`、`createdBy`、`createdAt`；`taskId + revision` 唯一，任务外键 `Restrict` | 一次资料发布的不可变快照；同操作重试返回原记录，同任务版本不生成多次有效发布 |
+| `TaskCollaborationDelivery` | `releaseId`、全局唯一 `operationId`、`method`、`recipientName`、`status`、`note`、`actorId`、`createdAt`；发布外键 `Restrict` | 发布包发放证据；方法为 `MANUAL / EXPORT / EMAIL / WECHAT`，状态为 `RECORDED / EXPORTED / FAILED` |
+
+任务和任务行的 `documentRefsJson` 保存附件 ID 与可选业务版本标签 `versionLabel`；进度的 `attachmentRefsJson` 使用相同引用结构。附件存储、上传、预览和下载仍由既有 `DocumentAttachment` 管理，任务自有附件使用 `ownerType=TASK_COLLABORATION`。发布时通过既有存储能力保存源文件确定字节的只读副本，发布清单保存任务和物料身份快照、收件对象、源附件及文档版本、源更新时间、文件摘要与版本标签。`SYSTEM_GENERATED_TASK_RELEASE` 附件禁止通过普通附件变更接口修改；后续任务或源图纸更新不覆盖历史发布清单及副本。
+
+本候选在既有 63 个权限资源之外注册 `taskCollaboration` 和 `taskCollaborationPublish`，形成 65 个资源。录入和审核角色以及普通预置岗位组对新资源默认无权，旧 `system / orders / dispatch` 授权不会自动继承；ADMIN 沿用既有全资源规则。任务范围复用 `OperatorDataScope.productionMode`：`ALL` 允许全部，`SELF` 仅允许 `assigneeEmployeeId` 等于绑定员工，`WORK_CENTERS` 仅允许 `workCenterId` 位于授权集合；未绑定员工或空工作中心集合不能借空值匹配未分配任务。关联生产订单与派工仍须分别满足其原数据范围。
+
+归档只写入 `deletedAt / deletedBy` 并增加 `revision`，不改变业务 `status`、进度、发布包及发放记录。任务自有恢复命令清空归档字段、增加 `revision` 并保留原状态。归档任务的清单和历史可在同一任务权限与范围内回溯，文件读取仍受所属任务归档守卫限制；本候选不接入统一永久删除，不提供任务永久删除接口。任务状态、发布与发放变更使用既有 `AuditLog`，在领域事务内记录操作人与对象，协同记录不写库存或财务账。

@@ -31,7 +31,7 @@ export const businessModuleDefinitions: readonly BusinessModuleDefinition[] = [
 ]
 
 const moduleFunctionKeys: Record<BusinessModuleKey, readonly WorkspaceFunctionKey[]> = {
-  production: ['orders', 'dailyInventory', 'dispatch', 'qualityTasks', 'employees', 'workCenters', 'processTemplates', 'processRoutes', 'sawingCost'],
+  production: ['orders', 'dailyInventory', 'dispatch', 'taskCollaboration', 'qualityTasks', 'employees', 'workCenters', 'processTemplates', 'processRoutes', 'sawingCost'],
   sales: ['salesOrders', 'customers'],
   logistics: ['materialIn', 'materialInHistory', 'shipment', 'shipmentHistory', 'return', 'suppliers'],
   inventory: ['stocks', 'warehouseDigitalTwin', 'inventoryCount', 'stockMovements', 'lotPanorama', 'locationSettings', 'flowTransfers', 'scanPrint'],

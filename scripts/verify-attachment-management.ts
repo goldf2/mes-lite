@@ -4,7 +4,10 @@ import { readFileSync } from 'node:fs'
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import React, { type ComponentProps } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { withAttachmentUrls } from '../lib/attachment-urls'
+import AttachmentPanel from '../modules/attachments/ui/AttachmentPanel'
 
 const root = process.cwd()
 const attachmentPanelSource = readFileSync(join(root, 'modules/attachments/ui/AttachmentPanel.tsx'), 'utf8')
@@ -44,10 +47,8 @@ assert.match(attachmentPanelSource, /DocumentFileViewer/, '附件管理必须复
 assert.match(attachmentPanelSource, /AI 识别并填充/, '附件管理必须保留 AI 识别并填充入口')
 assert.match(attachmentPanelSource, /handleAiRecognition\(attachment\)/, '多个附件必须可以分别选择后进入 AI 识别流程')
 assert.match(attachmentPanelSource, /onAiRecognize\?:\s*\(attachment:\s*ManagedAttachment\)/, 'AI 识别入口必须暴露基于附件的回调契约')
-assert.match(attachmentPanelSource, /const showAiRecognition = !readOnly &&/, '只读附件视图不得暴露 AI 识别入口')
 assert.match(attachmentPanelSource, /enableAiRecognition \?\? supportsDocumentSourceCredentialRecognition/, '明确关闭 AI 回填时不得被单据类型自动重新开启')
 assert.match(detailDialogSource, /readOnly = false[\s\S]*readOnly=\{readOnly\}/, '公共单据弹窗应支持只读附件且不改变旧调用方默认行为')
-assert.ok((attachmentPanelSource.match(/\{!readOnly &&/g) || []).length >= 6, '只读附件视图必须在所有布局隐藏上传、拖放、设封面和归档命令')
 assert.match(attachmentPanelSource, /from '\.\.\/client\/attachment-api'/, '附件面板必须通过所属模块客户端访问 API')
 assert.doesNotMatch(attachmentPanelSource, /fetch\(['"]\/api\/attachments/, '公共附件面板不得重复实现附件请求')
 assert.match(attachmentClientSource, /export async function listAttachments/, '附件模块必须提供统一客户端契约')
@@ -118,6 +119,64 @@ for (const [label, collectionPath, detailPath] of detailManagedPages) {
   assert.match(collectionSource, /compactMode="summary"/, `${label}列表必须只展示附件摘要`)
   assert.match(pageDetailSource, /BusinessDocumentDetailDialog/, `${label}必须使用公共单据详情骨架`)
 }
+
+function verifyAttachmentCapabilityMarkup() {
+  type PanelProps = ComponentProps<typeof AttachmentPanel>
+  const baseProps: PanelProps = { ownerType: 'MATERIAL_IN', ownerId: 'synthetic-ssr-only', onMessage: () => {} }
+  const layouts: Array<{ name: string; props: Partial<PanelProps>; hasDropZone: boolean }> = [
+    { name: 'default', props: {}, hasDropZone: true },
+    { name: 'compact', props: { compact: true }, hasDropZone: false },
+    { name: 'gallery', props: { ownerType: 'MATERIAL', variant: 'image', documentType: 'MATERIAL_IMAGE', layout: 'gallery', allowCover: true }, hasDropZone: true },
+    { name: 'summary', props: { compact: true, compactMode: 'summary' }, hasDropZone: false },
+  ]
+  const scenarios: Array<{ name: string; props: Partial<PanelProps>; uploadVisible: boolean; aiVisible: boolean }> = [
+    { name: 'legacy-default', props: {}, uploadVisible: true, aiVisible: true },
+    { name: 'upload-only', props: { canUpload: true, canUpdate: false, canArchive: false }, uploadVisible: true, aiVisible: false },
+    { name: 'update-only', props: { canUpload: false, canUpdate: true, canArchive: false }, uploadVisible: false, aiVisible: true },
+    { name: 'archive-only', props: { canUpload: false, canUpdate: false, canArchive: true }, uploadVisible: false, aiVisible: false },
+    { name: 'no-write', props: { canUpload: false, canUpdate: false, canArchive: false }, uploadVisible: false, aiVisible: false },
+    { name: 'read-only-wins', props: { readOnly: true, canUpload: true, canUpdate: true, canArchive: true }, uploadVisible: false, aiVisible: false },
+  ]
+  // The project's JSX is preserved for Next. Give tsx's classic JSX transform
+  // the actual React runtime while rendering the actual component; no hooks,
+  // child components, attachment clients or capability calculations are mocked.
+  const jsxRuntime = globalThis as typeof globalThis & { React?: typeof React }
+  const previousReact = jsxRuntime.React
+  jsxRuntime.React = React
+  const render = (props: Partial<PanelProps>) => renderToStaticMarkup(React.createElement(AttachmentPanel, { ...baseProps, ...props }))
+  let checks = 0
+  try {
+    for (const layout of layouts) {
+      const legacy = render(layout.props)
+      assert.equal(legacy, render({ ...layout.props, canUpload: true, canUpdate: true, canArchive: true }), `${layout.name} 旧调用不传动作权限时必须保持默认允许`)
+      assert.equal(render({ ...layout.props, readOnly: true }), render({ ...layout.props, readOnly: true, canUpload: true, canUpdate: true, canArchive: true }), `${layout.name} readOnly 总开关不得被单动作授权覆盖`)
+      for (const scenario of scenarios) {
+        const html = render({ ...layout.props, ...scenario.props })
+        const label = `${layout.name}/${scenario.name}`
+        const fileInputs = (html.match(/<input\b[^>]*\btype="file"/g) || []).length
+        assert.equal(fileInputs, layout.name !== 'summary' && scenario.uploadVisible ? 1 : 0, `${label} 上传入口必须精确服从上传权限`)
+        assert.equal(html.includes('role="button"'), layout.hasDropZone && scenario.uploadVisible, `${label} 拖放及键盘上传区不得绕过上传权限`)
+        assert.equal(html.includes('AI 识别并填充'), layout.name === 'default' && scenario.aiVisible, `${label} AI 回填必须服从既有文件更新权限，不能依赖上传权限`)
+        if (layout.name === 'gallery') {
+          assert.equal(html.includes('placeholder="填写图片说明"'), scenario.uploadVisible, `${label} 上传说明不得作为无上传权限的编辑入口保留`)
+        }
+        if (layout.name === 'summary') {
+          assert.match(html, /aria-label="附件 0 个"/, `${label} 摘要必须继续为纯数量`)
+          assert.doesNotMatch(html, /<(?:button|a|input)\b|role="(?:button|dialog)"/, `${label} 摘要不得引入动作、链接或弹窗`)
+        }
+        checks += 1
+      }
+    }
+    assert.doesNotMatch(render({ enableAiRecognition: false }), /AI 识别并填充/, '支持识别的单据也必须尊重显式关闭')
+    assert.doesNotMatch(render({ readOnly: true, enableAiRecognition: true }), /type="file"|AI 识别并填充/, '显式识别开关不得绕过 readOnly')
+    console.log(`附件真实组件 SSR 通过：${checks} 组布局/动作权限，默认兼容、只读优先、上传与 AI 独立及纯数量摘要；已加载附件的更新/归档交由真实浏览器回归。`)
+  } finally {
+    if (previousReact === undefined) Reflect.deleteProperty(jsxRuntime, 'React')
+    else jsxRuntime.React = previousReact
+  }
+}
+
+verifyAttachmentCapabilityMarkup()
 
 async function verifyAttachmentLifecycle() {
   const verifyRoot = await mkdtemp(join(tmpdir(), 'ml-attachments-'))

@@ -1,10 +1,14 @@
 {
-  "version": "0.1.495",
+  "version": "0.1.496",
   "impact": "updated",
   "workflowIds": [
     "02-dashboard",
     "03-all-functions",
-    "23-erp-all-functions"
+    "23-erp-all-functions",
+    "188-task-draft-bom-files",
+    "189-task-assignment-progress",
+    "190-task-release-delivery-history",
+    "191-task-archive-restore"
   ],
-  "summary": "宇峰平台首页采用两个紧凑真实应用、最多九个授权领域加全部分区、55个具体功能矩阵及独立MES首页共56项注册入口，新增常用/高频和分区切换同时清关键词/高级条件；原MES首页、岗位统计、本地完整菜单及BOM section、数据平台login-next地图参数保持。更新02-dashboard、03-all-functions、23-erp-all-functions目标/步骤/结果至495，只有这三项lastVerifiedVersion更新；三个产品UI源码SHA-256与494已验证版本完全一致，沿用494七视口和首轮25项加定向补验1项共26项隔离真实Next证据（协调目录work/platform-entry-0.1.494/browser-acceptance-summary.json），不冒充单次全通过、生产Casdoor或外部业务读取。三项截图baseline均保留0.1.350并明确为历史参考，生成495 Markdown。无业务/API/DB/认证/权限变更，两代码库继续独立，未完成共享联系人或MES统计上图。"
+  "summary": "新增188–191任务协同完整操作链：草稿/模板、现有物料BOM及多图纸版本、既有派工关联、进度异常、预览后冻结发布、人工发放/JSON历史、归档恢复；区分任务/发布/附件权限与本人/工作中心范围，不重复生产实绩，不自动邮件微信，无供应商自助登录。同步02/03/23导航流程，删除已取消的平台顶部标题横栏及其中应用/授权数量、显示说明和功能目录按钮指引，保留应用入口、领域矩阵、搜索收藏与原MES。七项lastVerifiedVersion为496；任务截图来自本版07-39完整UI整轮，03/23取自本版平台横栏移除1440/390真实截图，均为临时SQLite/合成账号；02历史截图保留原baseline并注明；仅本地文档生成/版面复核，不发布生产SOP库，不作为生产部署或真实登录证明。 三域边界：mes与work仍为同一MES部署；crm为独立综合数据平台，客户入口指向https://crm.csyufeng.com/workspaces/local/default，新别名/登录回调验证进行中，不声明生产切换已完成。"
 }

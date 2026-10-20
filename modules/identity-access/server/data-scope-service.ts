@@ -60,6 +60,12 @@ export function dispatchDataScopeWhere(scope: EffectiveDataScope): Prisma.Dispat
   return { step: { is: { workCenterId: { in: scope.workCenterIds.length > 0 ? scope.workCenterIds : [impossibleId] } } } }
 }
 
+export function taskCollaborationDataScopeWhere(scope: EffectiveDataScope): Prisma.TaskCollaborationWhereInput {
+  if (scope.productionMode === 'ALL') return {}
+  if (scope.productionMode === 'SELF') return { assigneeEmployeeId: scope.employeeId ?? impossibleId }
+  return { workCenterId: { in: scope.workCenterIds.length > 0 ? scope.workCenterIds : [impossibleId] } }
+}
+
 export function productionOrderDataScopeWhere(scope: EffectiveDataScope): Prisma.ProductionOrderWhereInput {
   if (scope.productionMode === 'ALL') return {}
   if (scope.productionMode === 'SELF') return { dispatches: { some: dispatchDataScopeWhere(scope) } }
@@ -144,6 +150,17 @@ export function assertDispatchDataScope(
   if (scope.productionMode === 'WORK_CENTERS' && dispatch.step?.workCenterId
     && scope.workCenterIds.includes(dispatch.step.workCenterId)) return
   throw new DataScopeError('派工任务不在当前账号的生产数据范围内')
+}
+
+export function assertTaskCollaborationDataScope(
+  scope: EffectiveDataScope,
+  task: { assigneeEmployeeId?: string | null; workCenterId?: string | null },
+) {
+  if (scope.productionMode === 'ALL') return
+  if (scope.productionMode === 'SELF' && scope.employeeId && task.assigneeEmployeeId === scope.employeeId) return
+  if (scope.productionMode === 'WORK_CENTERS' && task.workCenterId
+    && scope.workCenterIds.includes(task.workCenterId)) return
+  throw new DataScopeError('协同任务不在当前账号的生产数据范围内')
 }
 
 export function assertProductionAssignmentDataScope(

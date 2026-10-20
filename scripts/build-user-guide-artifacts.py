@@ -303,7 +303,32 @@ def render_workflow(workflow: Workflow, index: int, total: int, page_no: int, to
     return page
 
 
-def render_boundaries(boundaries: list[str], page_no: int, total_pages: int) -> Image.Image:
+def boundary_item_height(draw: ImageDraw.ImageDraw, item: str) -> int:
+    rows = wrap_text(draw, item, font(27), PAGE_W - 2 * MARGIN - 94)
+    return max(88, 38 + len(rows) * 43)
+
+
+def paginate_boundaries(boundaries: list[str]) -> list[list[str]]:
+    _, draw = new_page()
+    pages: list[list[str]] = []
+    current: list[str] = []
+    y = 432
+    for item in boundaries:
+        height = boundary_item_height(draw, item)
+        if current and y + height > PAGE_H - 82:
+            pages.append(current)
+            current = []
+            y = 432
+        if y + height > PAGE_H - 82:
+            raise ValueError("单条治理说明超出可用页面高度，不能裁切内容")
+        current.append(item)
+        y += height + 20
+    return [*pages, current] if current else pages or [[]]
+
+
+def render_boundaries(
+    boundaries: list[str], page_no: int, total_pages: int, first_item_index: int = 1,
+) -> Image.Image:
     page, draw = new_page()
     draw_header(draw, "治理边界", page_no, total_pages)
     y = 176
@@ -320,9 +345,10 @@ def render_boundaries(boundaries: list[str], page_no: int, total_pages: int) -> 
         10,
     )
     y += 164
-    for index, item in enumerate(boundaries, start=1):
-        rows = wrap_text(draw, item, font(27), PAGE_W - 2 * MARGIN - 94)
-        height = max(88, 38 + len(rows) * 43)
+    for index, item in enumerate(boundaries, start=first_item_index):
+        height = boundary_item_height(draw, item)
+        if y + height > PAGE_H - 82:
+            raise ValueError("治理说明未分页，不能裁切内容")
         rounded_box(draw, (MARGIN, y, PAGE_W - MARGIN, y + height), LIGHT_GRAY)
         draw.text((MARGIN + 24, y + 23), f"{index:02d}", font=font(25), fill=BLUE)
         draw_wrapped(draw, (MARGIN + 86, y + 21), item, font(27), DARK, PAGE_W - 2 * MARGIN - 112, 10)
@@ -392,7 +418,8 @@ def main() -> int:
     if len(workflows) != EXPECTED_WORKFLOWS:
         raise ValueError(f"预期 {EXPECTED_WORKFLOWS} 个截图流程，实际 {len(workflows)}")
 
-    total_pages = len(workflows) + 2
+    boundary_pages = paginate_boundaries(boundaries)
+    total_pages = len(workflows) + 1 + len(boundary_pages)
     with tempfile.TemporaryDirectory(prefix="mes-lite-guide-pages-") as temp_dir:
         page_paths: list[Path] = []
         pages = [render_cover(metadata, important, len(workflows), total_pages)]
@@ -400,7 +427,12 @@ def main() -> int:
             render_workflow(workflow, index, len(workflows), index + 1, total_pages)
             for index, workflow in enumerate(workflows, start=1)
         )
-        pages.append(render_boundaries(boundaries, total_pages, total_pages))
+        first_item_index = 1
+        for index, boundary_page in enumerate(boundary_pages):
+            pages.append(render_boundaries(
+                boundary_page, len(workflows) + 2 + index, total_pages, first_item_index,
+            ))
+            first_item_index += len(boundary_page)
         for index, page in enumerate(pages, start=1):
             page_path = Path(temp_dir) / f"page-{index:03d}.jpg"
             page.save(page_path, "JPEG", quality=91, optimize=True, subsampling=0)

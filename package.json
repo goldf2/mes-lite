@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.495",
+  "version": "0.1.496",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -184,7 +184,8 @@
     "verify:business-directory": "tsx scripts/verify-business-directory.ts && tsx scripts/verify-business-directory-http.ts",
     "verify:casdoor-login": "tsx scripts/verify-casdoor-login.ts",
     "verify:casdoor-login-ui": "tsx scripts/verify-casdoor-login-ui.ts",
-    "verify:real-workbench": "tsx scripts/verify-real-workbench.ts"
+    "verify:real-workbench": "tsx scripts/verify-real-workbench.ts",
+    "verify:task-collaboration": "tsx scripts/verify-task-collaboration-http.ts && tsx modules/attachments/__tests__/task-release-files.ts && tsx scripts/verify-task-collaboration-template.ts && tsx scripts/verify-task-file-references.ts && tsx scripts/verify-task-collaboration-client.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.3",

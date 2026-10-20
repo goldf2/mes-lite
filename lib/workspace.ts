@@ -16,6 +16,7 @@ export const workspaceFunctionKeys = [
   'orders',
   'dailyInventory',
   'dispatch',
+  'taskCollaboration',
   'flowTransfers',
   'qualityTasks',
   'employees',

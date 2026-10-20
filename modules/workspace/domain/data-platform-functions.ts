@@ -1,6 +1,6 @@
 import type { WorkspaceFunctionKey } from '@/lib/workspace'
 
-const defaultWorkspaceUrl = 'https://fix.xiangshu.me/workspaces/local/default'
+const defaultWorkspaceUrl = 'https://crm.csyufeng.com/workspaces/local/default'
 
 const definitions = [
   { key: 'dataCustomers', label: '客户档案', path: '/data/customers', groupKey: 'customerData', groupLabel: '客户管理', resource: 'customers', icon: '客', description: '打开数据平台的正式客户档案、详情和维护页面' },
