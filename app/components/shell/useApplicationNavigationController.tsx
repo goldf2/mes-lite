@@ -513,9 +513,11 @@ export default function useApplicationNavigationController({
       ? item.key === section.functionKey
       : item.key === itemId || (!item.externalHref && item.tab === itemId))
   }
-  const navigationGroups: NavigationGroup[] = isPlatformSurface ? [] : allNavigationGroups.flatMap((group) => {
+  const navigationGroups: NavigationGroup[] = allNavigationGroups.flatMap((group) => {
     const items = group.items.filter((item) => {
-      if (item.id === 'businessWorkbench') return false
+      if (item.id === 'businessWorkbench') return isPlatformSurface
+      // Platform and MES share the same permission-filtered navigation model.
+      if (isPlatformSurface) return true
       if (item.id === 'dashboard' || item.id === 'allFunctions') return activeBusinessApplication?.ownerApp === 'mes'
       const entry = navigationFunction(item.id)
       return Boolean(entry && (activeBusinessApplication?.ownerApp === 'data-platform' ? entry.externalHref : !entry.externalHref))

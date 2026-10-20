@@ -49,11 +49,10 @@ export function useDesktopNavigationPreference() {
   }, [])
 
   const update = useCallback((next: { mode?: DesktopNavigationMode; displayMode?: DesktopNavigationDisplayMode }) => {
-    setValue((current) => {
-      const resolved = { mode: next.mode || current.mode, displayMode: next.displayMode || current.displayMode }
-      setDesktopNavigationPreference(resolved.mode, resolved.displayMode)
-      return resolved
-    })
+    const current = readDesktopNavigationPreference()
+    const resolved = { mode: next.mode || current.mode, displayMode: next.displayMode || current.displayMode }
+    setValue(resolved)
+    setDesktopNavigationPreference(resolved.mode, resolved.displayMode)
   }, [])
 
   return [value, update] as const
@@ -92,14 +91,14 @@ export function useWorkspaceLayoutPreference() {
   }, [])
 
   const update = useCallback((next: { layout?: WorkspaceLayoutMode; navigationBehavior?: DesktopNavigationBehavior }) => {
-    setValue((current) => {
-      const resolved = {
-        layout: next.layout || current.layout,
-        navigationBehavior: next.navigationBehavior || current.navigationBehavior,
-      }
-      setWorkspaceLayoutPreference(resolved.layout, resolved.navigationBehavior)
-      return resolved
-    })
+    // Notify sibling consumers from the event handler, never a React state updater.
+    const current = readWorkspaceLayoutPreference()
+    const resolved = {
+      layout: next.layout || current.layout,
+      navigationBehavior: next.navigationBehavior || current.navigationBehavior,
+    }
+    setValue(resolved)
+    setWorkspaceLayoutPreference(resolved.layout, resolved.navigationBehavior)
   }, [])
 
   return [value, update] as const

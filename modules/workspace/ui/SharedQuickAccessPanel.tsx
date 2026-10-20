@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Star } from 'lucide-react'
 import AppButton from '@/app/components/AppButton'
-import { openQuickAccessPanel } from '@/vendor/oaktech-saas-ui-0.2.14/native/panel-behavior.js'
+import { openQuickAccessPanel } from '@/vendor/oaktech-saas-ui-0.2.15/native/panel-behavior.js'
 
 /** React owns the content; the fixed shared asset owns the dialog lifecycle. */
 export default function SharedQuickAccessPanel({ count, children }: {
@@ -43,7 +43,8 @@ export default function SharedQuickAccessPanel({ count, children }: {
         variant="secondary"
         aria-haspopup="dialog"
         aria-expanded={Boolean(panel)}
-        className="oak-quick-access-trigger"
+        data-floating="true"
+        className="oak-quick-access-trigger mes-workspace-quick-access"
         onClick={(event) => {
           if (panel) return
           setPanel({ content: document.createElement('div'), returnFocus: event.currentTarget })

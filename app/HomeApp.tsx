@@ -187,7 +187,7 @@ function HomeApp({ operator, onLogout, platformEntry, mesUrl, platformUrl }: { o
       : transientNavigationOpen
       ? '收起功能导航'
       : '打开功能导航'
-  const desktopNavigationExpanded = !isPlatformSurface && desktopNavigationOccupiesSpace
+  const desktopNavigationExpanded = desktopNavigationOccupiesSpace
   const canvasWorkspace = workspaceLayoutPreference.layout === 'canvas'
 
   return (
@@ -209,11 +209,11 @@ function HomeApp({ operator, onLogout, platformEntry, mesUrl, platformUrl }: { o
       <InterfacePreferenceSync />
       <header className="fixed inset-x-0 top-0 z-50 hidden h-16 items-center border-b border-gray-200 bg-white lg:flex">
         <div className={`flex h-full shrink-0 items-center border-r border-gray-200 transition-[width,padding] duration-200 motion-reduce:transition-none ${
-          isPlatformSurface ? 'w-56 gap-3 px-4' : canvasWorkspace
+          canvasWorkspace
             ? 'w-44 gap-3 px-4'
             : `w-[var(--mes-desktop-sidebar-width)] gap-2 px-2 ${desktopNavigationMode === 'split' ? 'xl:w-[var(--mes-desktop-split-sidebar-width)]' : ''}`
         }`}>
-          {isPlatformSurface || canvasWorkspace ? (
+          {canvasWorkspace ? (
             <CapabilityModuleButtons
               compact
               modules={availableBusinessApplications}
@@ -323,7 +323,7 @@ function HomeApp({ operator, onLogout, platformEntry, mesUrl, platformUrl }: { o
         className={`fixed bottom-0 right-0 top-16 z-30 hidden w-[var(--mes-desktop-tools-width)] border-l border-gray-200 bg-white ${canvasWorkspace ? 'lg:flex' : 'lg:hidden'}`}
       />
 
-      {autoHideDesktopNavigation && !isPlatformSurface && (
+      {autoHideDesktopNavigation && (
         <div
           aria-hidden="true"
           data-desktop-navigation-hover-zone="true"
@@ -339,7 +339,7 @@ function HomeApp({ operator, onLogout, platformEntry, mesUrl, platformUrl }: { o
         onPointerLeave={scheduleDesktopNavigationClose}
         className={`fixed bottom-0 left-0 top-16 hidden w-[var(--mes-desktop-sidebar-width)] flex-col border-r border-gray-200 bg-white shadow-lg ${resizing ? 'transition-none' : 'transition-[transform,width] duration-200 motion-reduce:transition-none'} lg:flex ${
           desktopNavigationMode === 'split' ? 'xl:w-[var(--mes-desktop-split-sidebar-width)]' : ''
-        } ${isPlatformSurface || canvasWorkspace
+        } ${canvasWorkspace
           ? 'lg:hidden'
           : autoHideDesktopNavigation
             ? `z-40 ${transientNavigationOpen ? 'translate-x-0' : '-translate-x-full'}`
@@ -384,7 +384,6 @@ function HomeApp({ operator, onLogout, platformEntry, mesUrl, platformUrl }: { o
         }`}>
           <div className="flex min-w-0 flex-nowrap items-center gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2 lg:hidden">
-              {isPlatformSurface ? <span className="shrink-0 text-sm font-semibold text-gray-900">宇峰平台</span> : <>
               <button
                 type="button"
                 aria-label="打开全部功能"
@@ -399,7 +398,6 @@ function HomeApp({ operator, onLogout, platformEntry, mesUrl, platformUrl }: { o
                 <Menu aria-hidden="true" className="h-5 w-5" />
               </button>
               {siblingNavigationEnabled && <MobileSiblingNavigation group={activeNavigationGroup} />}
-              </>}
               <div id="topbar-actions-mobile" className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible empty:hidden" />
               <button
                 type="button"
@@ -534,7 +532,7 @@ function HomeApp({ operator, onLogout, platformEntry, mesUrl, platformUrl }: { o
         />
       )}
 
-      <nav className={`${isPlatformSurface ? 'hidden' : ''} fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden`}>
+      <nav className={`fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden`}>
         <div
           className="grid gap-1"
           style={{ gridTemplateColumns: `repeat(${Math.max(mobilePrimaryItems.length + (canRead('aiAssistant') ? 1 : 0), 1)}, minmax(0, 1fr))` }}

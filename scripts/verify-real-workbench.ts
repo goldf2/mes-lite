@@ -19,7 +19,7 @@ import {
 
 // React18 consumes only the fixed package's framework/native subset. Verify the
 // extracted files against both the immutable archive and its source receipt.
-const sharedUiVersion = '0.2.14'
+const sharedUiVersion = '0.2.15'
 const sharedUiArchive = `vendor/oaktech-saas-ui-${sharedUiVersion}.tgz`
 const sharedUiReceipt = JSON.parse(readFileSync(`vendor/oaktech-saas-ui-${sharedUiVersion}.manifest.json`, 'utf8'))
 const digest = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex')
@@ -35,7 +35,7 @@ for (const [file, field] of [
   assert.equal(digest(extracted), sharedUiReceipt[field], `Shared asset changed: ${file}`)
   assert.deepEqual(extracted, execFileSync('tar', ['-xOf', sharedUiArchive, `package/${file}`]), `Shared asset must be byte-identical to its fixed archive: ${file}`)
 }
-assert.match(readFileSync('app/layout.tsx', 'utf8'), /import '@\/vendor\/oaktech-saas-ui-0\.2\.14\/framework\.css'/)
+assert.match(readFileSync('app/layout.tsx', 'utf8'), /import '@\/vendor\/oaktech-saas-ui-0\.2\.15\/framework\.css'/)
 assert.equal(JSON.parse(readFileSync('package.json', 'utf8')).dependencies['@oaktech/saas-ui'], undefined, 'This subset adapter must not install the Node24/React19 package into MES')
 
 assert.deepEqual(businessEntryUrls({

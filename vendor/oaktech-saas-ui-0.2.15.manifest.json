@@ -1,0 +1,22 @@
+{
+  "name": "@oaktech/saas-ui",
+  "version": "0.2.15",
+  "file": "oaktech-saas-ui-0.2.15.tgz",
+  "bytes": 43791,
+  "sha256": "5b7124f1d54d6dbefcbc468e5eae8638d0da62def0c60ae2ad9e508c7a4877a4",
+  "frameworkCssSha256": "bfa7d6c194e7f83e6d073c8af7bf5f1999a7613a6adf7dc8c280cc602d855383",
+  "nativeAccountLoginPanelSha256": "85e7a76b345a27d95bc25ec6a75b46b720803405d334235a4864408b46a5f401",
+  "nativePanelBehaviorSha256": "c40ae3580540b8aad82703b10bc6d444d6f36af1fccb9c7fbc31c14b685bdd88",
+  "nativePanelBehaviorTypesSha256": "d9d0ae34f863f2383d848c45c37df5584cb0db8c42af2c298f70014dd8ffe984",
+  "sourceCommit": "d48bcc7d4376784eed6f6ada73b29d1b4b5a91f3",
+  "templateVersion": "0.1.23",
+  "specification": "APP-UI-001 1.2.6",
+  "change": "Reposition anchored quick access dialogs after asynchronous content resize; shared native/React core disconnects ResizeObserver on close. Public API and CSS unchanged.",
+  "compatibility": {
+    "fullPackage": "Node >=24 / React 19; existing peers unchanged",
+    "mesSubset": "framework.css and import-free native/panel-behavior.js + declarations only; Node20/React18 host adapter validated separately",
+    "withoutResizeObserver": "Existing open/resize/scroll positioning remains available"
+  },
+  "olderArtifactsUntouched": true,
+  "timestamp": "2026-10-20T20:28:37.902363+00:00"
+}

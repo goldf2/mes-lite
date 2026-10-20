@@ -1,10 +1,10 @@
 {
-  "version": "0.1.497",
+  "version": "0.1.498",
   "impact": "updated",
   "workflowIds": [
     "02-dashboard",
     "03-all-functions",
     "23-erp-all-functions"
   ],
-  "summary": "497首页统一同步02/03/23三个导航流程：平台导航与主区两列，MES保留标题、首屏搜索与常用入口，岗位待办仍是首个业务区且搜索时可见；收藏、高频前5和原授权工具通过公共按需面板访问。固定UI0.2.14的framework.css与native面板行为已同源接入并受资产完整性守卫保护，不新增页面/API/权限/业务模型或迁移。497真实本地浏览器六尺寸与五组独立场景通过，九项UI/资产哈希逐组一致；1440首轮30秒冷加载未完成记录保留，仅该尺寸以60秒界限复跑通过，其余五尺寸及独立场景沿用已通过证据。三图逐一核对聚合收据SHA-256后登记497基线与复核版本；无pageError、未解释console或实际外网请求，受控偏好500按预期，库存/成本写入为0。仅生成当前版本Markdown，不重复DOCX/PDF/离线Web，不发布生产SOP库，未据此声称CI、MES推送、生产切换或真实跨域登录完成。"
+  "summary": "498同步02/03/23导航步骤：平台启用与MES相同的HomeApp DesktopNavigation、移动业务抽屉及可调宽度/隐藏选项，菜单仍来自已授权navigationGroups；移除平台正文重复h1与内嵌aside，公共顶栏切换器和既有CapabilityModuleButtons保留应用入口，主区SearchableSelect“筛选业务分区”保留selectedModuleKey与全局搜索reset。两首页共用右下悬浮AppButton常用入口，手机沿用底栏偏移与安全区避让；固定UI0.2.15 native继续处理定位、异步内容ResizeObserver重定位、关闭、Escape、焦点和卸载，宿主偏好事件移出状态更新器且原契约不变。收藏/高频/三种快捷模式、MES业务内容、权限/API/数据与迁移不变。最终run4以Node20.20.2、临时SQLite及合成账号完成29独立场景和5滚动几何记录，全部通过；19项源码/资产哈希在运行前后稳定且与截图清单一致，无pageError、未解释console、非预期外网或业务变更，受控偏好500记录保留。三张新截图已核对复制前后SHA256，只有02/03/23的screenshot与lastVerifiedVersion更新为498，497及更早证据保留；仅生成498 Markdown，不重复DOCX/PDF/离线Web、不发布生产SOP库。共享UI source/artifact两条精确CI已成功，MES精确候选CI与推送/生产状态另记。"
 }
