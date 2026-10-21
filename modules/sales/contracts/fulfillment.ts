@@ -89,6 +89,10 @@ export interface Shipment {
     location: { id: string; code: string; name: string }
   }>
   packages: import('./shipment-package').ShipmentPackage[]
+  draft?: {
+    items: Array<{ materialId: string; locationId: string; qty: number; unitPrice: number }>
+    warehousePackages: import('@/modules/inventory').WarehousePackage[]
+  }
 }
 
 export interface ShipmentItem {

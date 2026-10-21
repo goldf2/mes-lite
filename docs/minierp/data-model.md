@@ -1,5 +1,11 @@
 # 未来多租户商品化数据模型草案（非当前实现）
 
+## v0.1.502 发货草稿更新契约（候选）
+
+不新增数据库结构。`Shipment.status=PENDING` 是可编辑阶段；`updatedAt` 作为本次整单保存的并发版本依据，不是新增的出库时间。`ShipmentItem` 继续表示具体产品/库位的发货总量；`ShipmentItemSource` 区分散货与箱内来源，编辑回填中的 `draft.items` 仅含散货，避免再次叠加箱内量。`draft.warehousePackages` 返回本单仍 `RESERVED` 的完整仓库箱资料，用于保留已有选择。
+
+保存草稿时，保留箱沿用原分配 ID 和占用时间；移除箱将分配置为 `RELEASED`，重新加入原箱复用唯一分配并更新占用信息，新箱建立有效独占。物品行及来源、单头和分配在同一事务更新，不改 `Stock`、成本层、库存流水或批次余额。旧现场箱的明细引用不被重建删除；已有有效现场箱的明细不能删去或减少至其装箱数量以下。取消/归档释放箱占用时保留最后保存的货箱构成；编辑中已移除的箱不再出现在当前单详情/列表/PDF，取消单的最终箱构成仍可追溯，释放后的箱可重新发货。确认后的内容不可编辑，原价格修正独立保留。
+
 ## v0.1.480 统一登录候选增量
 
 OperatorSession新增authSource/authAccountId/authSubject/authGeneration；OperatorLoginChallenge保存票据摘要、五分钟挑战和返回路径。SystemSetting保留模式/指纹/随机代际，不存明文secret；原人员/岗位/历史结构保持。 完整接口、数据和回退见[Casdoor登录设计](../architecture/casdoor-login.md)。

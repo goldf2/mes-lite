@@ -13,6 +13,7 @@ import {
 import { returnStatusOptions, shipmentStatusOptions } from '../model/fulfillment-view'
 import { loadPrimaryMaterialImageMap, type MaterialImage } from '@/modules/materials'
 import { shipmentHistoryDateRange, summarizeShipmentHistory } from './shipment-history'
+import { getWarehousePackage } from '@/modules/inventory'
 
 export type FulfillmentQuery = {
   startDate?: string | null
@@ -249,8 +250,13 @@ export async function getShipmentDetail(id: string, scope: EffectiveDataScope = 
   const images = await loadPrimaryMaterialImageMap(shipment.items.map((item) => item.materialId))
   const items = serializeShipmentItems(shipment.items, images)
   const returnedQty = items.reduce((sum, item) => sum + item.returnedQty, 0)
+  const draft = shipment.status === 'PENDING' ? {
+    items: items.filter((item) => item.looseQty > 0).map((item) => ({ materialId: item.materialId, locationId: item.locationId, qty: item.looseQty, unitPrice: item.unitPrice })),
+    warehousePackages: await Promise.all(shipment.packageAllocations.filter((allocation) => allocation.status === 'RESERVED').map((allocation) => getWarehousePackage(allocation.packageDocumentId, scope))),
+  } : undefined
   return {
     ...shipment,
+    draft,
     packages: mergeShipmentPackages(shipment.packages, shipment.packageAllocations),
     packageAllocations: undefined,
     items,

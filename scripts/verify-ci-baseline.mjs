@@ -38,6 +38,7 @@ const checks = [
   'verify:inventory-lot-genealogy',
   'verify:warehouse-package-migration',
   'verify:warehouse-packages',
+  'verify:shipment-drafts',
   'verify:shipment-packages',
   'verify:scan-print',
   'verify:shipment-return-lots',

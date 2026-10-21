@@ -14,7 +14,7 @@ const createShipmentItemSchema = z.object({
   qty: z.number().finite().positive(),
 }).strict()
 
-export const createShipmentSchema = z.object({
+const shipmentContentSchema = z.object({
   customerId: z.string().min(1, '请选择客户'),
   voucherNo: z.string().optional(),
   trackingNo: z.string().optional(),
@@ -22,10 +22,19 @@ export const createShipmentSchema = z.object({
   shippedBy: z.string().optional(),
   items: z.array(createShipmentItemSchema).max(100, '单张发货单最多 100 项').default([]),
   packageIds: z.array(z.string().min(1)).max(100, '单张发货单最多选择 100 箱').optional(),
-}).strict().superRefine((value, context) => {
+}).strict()
+
+function validateShipmentContent(value: z.infer<typeof shipmentContentSchema>, context: z.RefinementCtx) {
   if (value.items.length === 0 && !value.packageIds?.length) context.addIssue({ code: z.ZodIssueCode.custom, message: '至少添加一项散货或选择一箱货物', path: ['items'] })
   if (new Set(value.packageIds).size !== (value.packageIds?.length || 0)) context.addIssue({ code: z.ZodIssueCode.custom, message: '同一货箱不能重复添加', path: ['packageIds'] })
-})
+}
+
+export const createShipmentSchema = shipmentContentSchema.superRefine(validateShipmentContent)
+export const updateShipmentDraftSchema = shipmentContentSchema.extend({
+  mode: z.literal('draft'),
+  updatedAt: z.string().datetime(),
+}).strict().superRefine(validateShipmentContent)
+export type UpdateShipmentDraftCommand = z.infer<typeof updateShipmentDraftSchema>
 
 export const createReturnSchema = z.object({
   voucherNo: z.string().optional(),

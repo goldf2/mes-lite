@@ -33,10 +33,11 @@ type PreparedShipmentItem = {
   boxItems: Array<{ packageId: string; packageItemId: string; inventoryLotId: string; quantity: number }>
 }
 
-async function prepareShipmentItems(
+export async function prepareShipmentItems(
   tx: Prisma.TransactionClient,
   data: CreateShipmentCommand,
   scope: EffectiveDataScope,
+  options: { ownShipmentId?: string; currentPrices?: ReadonlyMap<string, number> } = {},
 ) {
   const customer = await tx.customer.findFirst({ where: { id: data.customerId, deletedAt: null } })
   if (!customer) throw new SalesDomainError('客户不存在或已归档')
@@ -53,7 +54,7 @@ async function prepareShipmentItems(
     if (inventoryKeys.has(inventoryKey)) throw new SalesDomainError('同一物料和库位不能重复添加，请合并为一条明细')
     inventoryKeys.add(inventoryKey)
     const productId = await resolveProductId(tx, `${materialProductPrefix}${material.id}`, { description: '由发货物料自动映射。' })
-    const unitPrice = input.unitPrice ?? Number(material.defaultSalePrice || 0)
+    const unitPrice = input.unitPrice ?? options.currentPrices?.get(inventoryKey) ?? Number(material.defaultSalePrice || 0)
     prepared.push({
       materialId: material.id,
       productId,
@@ -66,13 +67,13 @@ async function prepareShipmentItems(
       boxItems: [],
     })
   }
-  const packages = await loadShipmentWarehousePackages(tx, data.packageIds || [], customer.id, scope)
+  const packages = await loadShipmentWarehousePackages(tx, data.packageIds || [], customer.id, scope, options.ownShipmentId)
   for (const box of packages) {
     const locationId = box.placement!.locationId
     for (const content of box.items) {
       let item = prepared.find((row) => row.materialId === content.materialId && row.locationId === locationId)
       if (!item) {
-        item = { materialId: content.materialId, productId: await resolveProductId(tx, `${materialProductPrefix}${content.materialId}`, { description: '由发货物料自动映射。' }), locationId, qty: 0, unitSnapshot: content.unitSnapshot, unitPrice: Number(content.material.defaultSalePrice || 0), totalAmount: 0, looseQty: 0, boxItems: [] }
+        item = { materialId: content.materialId, productId: await resolveProductId(tx, `${materialProductPrefix}${content.materialId}`, { description: '由发货物料自动映射。' }), locationId, qty: 0, unitSnapshot: content.unitSnapshot, unitPrice: options.currentPrices?.get(`${content.materialId}:${locationId}`) ?? Number(content.material.defaultSalePrice || 0), totalAmount: 0, looseQty: 0, boxItems: [] }
         prepared.push(item)
       }
       item.qty = Number((item.qty + Number(content.quantity)).toFixed(6))
@@ -82,6 +83,7 @@ async function prepareShipmentItems(
   }
   if (prepared.length === 0) throw new SalesDomainError('至少添加一项散货或选择一箱货物')
   if (prepared.length > 100) throw new SalesDomainError('合并后发货明细不能超过 100 项')
+  if (prepared.some((item) => !Number.isFinite(item.qty) || !Number.isFinite(item.totalAmount)) || !Number.isFinite(prepared.reduce((sum, item) => sum + item.qty, 0)) || !Number.isFinite(prepared.reduce((sum, item) => sum + item.totalAmount, 0))) throw new SalesDomainError('发货数量或金额超出有效范围')
   return { customer, prepared, packages }
 }
 

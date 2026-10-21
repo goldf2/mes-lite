@@ -72,6 +72,7 @@ export default function ShipmentPageModule({
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [detailItem, setDetailItem] = useState<Shipment | null>(null)
+  const [editingShipmentId, setEditingShipmentId] = useState<string | null>(null)
   const [traceLotId, setTraceLotId] = useState<string | null>(null)
   const [viewMode, setViewMode] = usePersistedViewMode('mes-lite.shipment.viewMode', 'list')
   const [visibleFields, setVisibleFields] = usePersistedVisibleFields('mes-lite.shipments.visibleFields', defaultShipmentVisibleFields, shipmentVisibleFieldOptions)
@@ -365,7 +366,7 @@ export default function ShipmentPageModule({
             onMessage={onMessage}
           />
           <section className="mt-5 border-t border-gray-200 pt-4">
-            <h3 className="text-sm font-semibold text-gray-900">发货明细</h3>
+            <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-sm font-semibold text-gray-900">发货明细</h3>{canUpdatePrices && detailItem.status === 'PENDING' && <AppButton variant="primary" onClick={() => setEditingShipmentId(detailItem.id)}>编辑发货内容</AppButton>}</div>
             <div className="mt-2 overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50 text-left text-xs text-gray-500"><tr><th className="px-3 py-2">序号</th><th className="px-3 py-2">物料</th><th className="px-3 py-2">库位</th><th className="px-3 py-2">数量</th><th className="px-3 py-2">金额</th></tr></thead><tbody className="divide-y divide-gray-100">{detailItem.items.map((row, index) => <tr key={row.id}><td className="px-3 py-2">{index + 1}</td><td className="px-3 py-2"><div className="font-medium">{row.material.code} · {row.material.name}</div><div className="text-xs text-gray-500">{row.material.spec || '-'}</div></td><td className="px-3 py-2">{row.location.code}</td><td className="px-3 py-2">{row.qty} {row.unitSnapshot}</td><td className="px-3 py-2">¥{row.totalAmount.toFixed(2)}</td></tr>)}</tbody></table></div>
           </section>
           {canUpdatePrices && <ShipmentPriceEditor key={`${detailItem.id}:${detailItem.updatedAt}`} shipment={detailItem} onSaved={refreshDetail} onMessage={onMessage} />}
@@ -382,10 +383,13 @@ export default function ShipmentPageModule({
 
       {traceLotId && <InventoryLotTraceDialog lotId={traceLotId} onClose={() => setTraceLotId(null)} onMessage={onMessage} />}
 
-      {canCreate && showModal && (
+      {((canCreate && showModal) || (canUpdatePrices && editingShipmentId)) && (
         <ShipmentCreateDialog
-          onClose={() => setShowModal(false)}
+          key={editingShipmentId || 'create'}
+          shipmentId={editingShipmentId || undefined}
+          onClose={() => { setShowModal(false); setEditingShipmentId(null) }}
           onCreated={fetchShipments}
+          onSaved={refreshDetail}
           onMessage={onMessage}
         />
       )}

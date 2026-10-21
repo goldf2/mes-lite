@@ -34,7 +34,8 @@ assert.match(fulfillmentCommand, /defaultSalePrice/, '发货必须调用物料�
 assert.match(shipmentApi, /createManagedShipment/, '发货路由必须通过领域命令服务创建单据')
 assert.doesNotMatch(shipmentApi, /@\/lib\/prisma|\bprisma\./, '发货路由不得直接访问 Prisma')
 assert.match(shipmentDialog, /不关联销售订单/, '发货界面必须明确完全解耦')
-assert.match(shippableApi, /requireResourcePermission\('shipment', 'create'\)/, '发货选项必须只依赖发货创建权限')
+assert.match(shippableApi, /requireResourcePermission\('shipment', 'create'\)/, '普通发货选项必须依赖发货创建权限')
+assert.match(shippableApi, /context'\) === 'shipment-draft'[\s\S]*requireResourcePermission\('shipment', 'update'\)/, '草稿编辑选项必须单独校验发货修改权限')
 assert.match(shippableApi, /getShipmentCreateOptions/, '发货选项接口必须通过领域查询服务提供客户、物料与汇总参考')
 
 console.log('销售价与发货边界验证通过：默认价快照、受控调价、订单/发货完全解耦及无物料成本价字段均已落实。')

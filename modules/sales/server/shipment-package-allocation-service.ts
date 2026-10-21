@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client'
 import { assertInventoryLocationDataScope, type EffectiveDataScope } from '@/modules/identity-access'
 import { SalesDomainError } from '../domain/sales-errors'
 
-export async function loadShipmentWarehousePackages(tx: Prisma.TransactionClient, packageIds: string[], customerId: string, scope: EffectiveDataScope) {
+export async function loadShipmentWarehousePackages(tx: Prisma.TransactionClient, packageIds: string[], customerId: string, scope: EffectiveDataScope, ownShipmentId?: string) {
   if (new Set(packageIds).size !== packageIds.length) throw new SalesDomainError('同一货箱不能重复添加')
   const packages = await tx.packageDocument.findMany({
     where: { id: { in: packageIds }, sourceType: 'WAREHOUSE', deletedAt: null },
@@ -10,7 +10,8 @@ export async function loadShipmentWarehousePackages(tx: Prisma.TransactionClient
   })
   if (packages.length !== packageIds.length) throw new SalesDomainError('部分货箱不存在或不是可发货的仓库装箱记录', 404)
   for (const box of packages) {
-    if (box.status !== 'PACKED' || box.allocations.length) throw new SalesDomainError(`货箱 ${box.packageNo} 已占用、已发货或已作废`, 409)
+    if (box.status !== 'PACKED' || box.allocations.some((allocation) => allocation.shipmentId !== ownShipmentId || allocation.status !== 'RESERVED')) throw new SalesDomainError(`货箱 ${box.packageNo} 已占用、已发货或已作废`, 409)
+    if (box.allocations.some((allocation) => allocation.contentVersion !== box.contentVersion)) throw new SalesDomainError(`货箱 ${box.packageNo} 内容版本已变化，请重新核实`, 409)
     if (!box.placement || box.items.length !== 1) throw new SalesDomainError(`货箱 ${box.packageNo} 缺少可信位置或箱内明细`, 409)
     assertInventoryLocationDataScope(scope, [box.placement.locationId])
     if (box.placement.location.deletedAt || !box.placement.location.isActive) throw new SalesDomainError(`货箱 ${box.packageNo} 所在库位已停用`)
@@ -28,7 +29,11 @@ export async function reserveShipmentWarehousePackage(tx: Prisma.TransactionClie
     data: { revision: { increment: 1 } },
   })
   if (locked.count !== 1) throw new SalesDomainError(`货箱 ${box.packageNo} 已被其他操作占用，请刷新`, 409)
-  return tx.shipmentPackageAllocation.create({ data: { shipmentId, packageDocumentId: box.id, contentVersion: box.contentVersion, reservedBy: actorName, status: 'RESERVED' } })
+  return tx.shipmentPackageAllocation.upsert({
+    where: { shipmentId_packageDocumentId: { shipmentId, packageDocumentId: box.id } },
+    create: { shipmentId, packageDocumentId: box.id, contentVersion: box.contentVersion, reservedBy: actorName, status: 'RESERVED' },
+    update: { contentVersion: box.contentVersion, reservedBy: actorName, reservedAt: new Date(), releasedAt: null, status: 'RESERVED' },
+  })
 }
 
 export async function releaseShipmentWarehousePackages(tx: Prisma.TransactionClient, shipmentId: string) {

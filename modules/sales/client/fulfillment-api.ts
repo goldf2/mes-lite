@@ -77,9 +77,9 @@ export function transitionShipment(id: string, action: 'ship' | 'deliver' | 'can
   })
 }
 
-export async function loadShipmentCreateOptions() {
+export async function loadShipmentCreateOptions(editing = false) {
   const [items, locations] = await Promise.all([
-    request<CustomerMaterialDeliveryReference[]>('/api/sales-orders/shippable'),
+    request<CustomerMaterialDeliveryReference[]>(editing ? '/api/sales-orders/shippable?context=shipment-draft' : '/api/sales-orders/shippable'),
     request<InventoryLocationOption[]>('/api/inventory-locations?context=shipment'),
   ])
   return {
@@ -98,6 +98,21 @@ export async function createShipment(input: ShipmentForm) {
     shippedBy: input.shippedBy || undefined,
     note: input.note || undefined,
   }))
+  if (!payload.data) throw new Error('发货单返回为空')
+  return payload.data
+}
+
+export async function saveShipmentDraft(id: string, updatedAt: string, input: ShipmentForm) {
+  const payload = await request<ShipmentCreated>(`/api/shipments/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...input,
+      mode: 'draft',
+      updatedAt,
+      items: input.items.map(({ clientKey: _clientKey, ...item }) => item),
+    }),
+  })
   if (!payload.data) throw new Error('发货单返回为空')
   return payload.data
 }

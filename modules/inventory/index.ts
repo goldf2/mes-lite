@@ -4,7 +4,7 @@ export { default as DailyInventoryCountPage } from './ui/DailyInventoryCountPage
 export { default as InventoryLotTraceDialog } from './ui/InventoryLotTraceDialog'
 export { default as InventoryLotPanoramaPageModule } from './ui/InventoryLotPanoramaPageModule'
 export { default as WarehouseDigitalTwinPageModule } from './ui/WarehouseDigitalTwinPageModule'
-export { resolveWarehousePackage, warehousePackageScopeWhere } from './server/warehouse-package-query-service'
+export { getWarehousePackage, resolveWarehousePackage, warehousePackageScopeWhere } from './server/warehouse-package-query-service'
 export { getOrCreateWarehousePackageLabel } from './server/warehouse-package-command-service'
 export { WarehousePackageError, warehousePackageCode } from './domain/warehouse-package'
 export { loadInventoryLocations } from './client/stock-api'

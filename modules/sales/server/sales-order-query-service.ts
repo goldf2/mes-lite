@@ -247,7 +247,7 @@ export async function getShipmentCreateOptions(scope: EffectiveDataScope = unres
       where: { deletedAt: null }, orderBy: { code: 'asc' },
       select: {
         id: true, code: true, name: true, spec: true, stockUnit: true, unit: true,
-        defaultSalePrice: true, salesCurrency: true,
+        defaultSalePrice: true, salesCurrency: true, customerId: true,
         stock: {
           select: {
             locationBalances: { where: locationBalanceWhere, select: { locationId: true, availableQty: true } },

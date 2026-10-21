@@ -11,8 +11,9 @@ export async function warehousePackageRoute(
   operation: (context: { actorName: string; scope: EffectiveDataScope }) => Promise<NextResponse>,
 ) {
   try {
+    const createDenied = permission === 'ship' ? await requireResourcePermission('shipment', 'create') : null
     const denied = permission === 'ship'
-      ? await requireResourcePermission('shipment', 'create')
+      ? (createDenied ? await requireResourcePermission('shipment', 'update') : null)
       : await requireResourcePermission('stocks', permission === 'update' ? 'update' : 'read')
     if (denied) return denied
     if (permission === 'print') { const printDenied = await requireResourcePermission('scanPrint', 'create'); if (printDenied) return printDenied }

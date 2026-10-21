@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 import {
   assertInventoryLocationDataScope,
   shipmentDataScopeWhere,
@@ -18,7 +19,13 @@ export const shipmentPackageInclude = {
   },
 } as const
 
+// Editing away a box removes its sources; cancellation releases the retained composition.
+const shipmentAllocationCompositionWhere = {
+  OR: [{ status: { not: 'RELEASED' } }, { sources: { some: {} } }],
+} satisfies Prisma.ShipmentPackageAllocationWhereInput
+
 export const shipmentWarehousePackagesInclude = {
+  where: shipmentAllocationCompositionWhere,
   include: { packageDocument: { include: shipmentPackageInclude } },
   orderBy: { reservedAt: 'asc' as const },
 } as const
@@ -40,7 +47,7 @@ export async function listShipmentPackages(
   if (!shipment) throw new SalesDomainError('发货单不存在或无权访问', 404)
   assertInventoryLocationDataScope(scope, shipment.items.map((item) => item.locationId))
   return prisma.packageDocument.findMany({
-    where: { deletedAt: null, OR: [{ shipmentId }, { allocations: { some: { shipmentId } } }] },
+    where: { deletedAt: null, OR: [{ shipmentId }, { allocations: { some: { shipmentId, ...shipmentAllocationCompositionWhere } } }] },
     include: shipmentPackageInclude,
     orderBy: [{ packedAt: 'asc' }, { createdAt: 'asc' }],
   })

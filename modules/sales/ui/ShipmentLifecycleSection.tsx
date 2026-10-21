@@ -21,8 +21,8 @@ export default function ShipmentLifecycleSection({
   onMessage: (message: string) => void
 }) {
   const guidance = {
-    PENDING: '尚未扣减库存；可确认发货，发现单据错误可直接取消。',
-    SHIPPED: '库存已经扣减；客户收货后确认签收，错发且尚未签收时可由仓库主管冲销。',
+    PENDING: '尚未扣减库存；确认发货前可编辑商品、数量、库位和货箱，核对无误后再确认发货。',
+    SHIPPED: '库存已经扣减，发货内容已冻结；客户收货后确认签收，错发且尚未签收时可由仓库主管冲销。',
     DELIVERED: '客户已经签收；后续退回必须建立退货单并按退货质检流程入库。',
     CANCELLED: '单据在发货前取消，没有发生库存过账。',
     REVERSED: '原发货记录保留，库存、成本和内部批次已经通过逆向流水恢复。',

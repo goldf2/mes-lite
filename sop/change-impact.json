@@ -1,6 +1,6 @@
 {
-  "version": "0.1.501",
-  "impact": "none",
-  "workflowIds": [],
-  "summary": "仅补充原管理员恢复登录POST薄路由的显式审计委托声明，指向已通过writeAuditLogWithContext记录LOGIN的nativeAdminLoginPost共享HTTP适配器；不增加豁免、不修改扫描器或真实审计行为。用户操作、认证权限、业务流程与数据模型均不变，继续沿用已验证的499 SOP基线，不生成新指导书。"
+  "version": "0.1.502",
+  "impact": "updated",
+  "workflowIds": ["27-shipment-list", "28-shipment-create", "29-shipment-confirm"],
+  "summary": "已保存待发货单通过同一表单编辑商品、数量、库位、客户、单头及已有货箱；保存只更新草稿和占用，确认发货后冻结内容，原价格修正仍可按既有权限和状态使用。更新查看、新建/编辑与确认发货步骤；已复核502真实本地桌面270件混合单回填/增删箱/保存与确认冻结，27/28/29换入3张502桌面截图并登记复核版本；手机实际390×705完成已有10件散货追加商品/150件箱并保存165件，以及已确认单冻结复核，手机截图另留本地证据。仅生成当前Markdown，不生成DOCX/PDF/Web或写生产文档库。"
 }

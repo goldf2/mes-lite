@@ -69,7 +69,7 @@ export default function DraftDocumentAttachmentPanel({
         onBusyChange={onBusyChange}
         onMessage={onMessage}
       />
-      <p className="px-1 text-xs text-gray-500">可在保存前预览和 AI 识别；创建成功后自动绑定，取消新建时自动清理。</p>
+      <p className="px-1 text-xs text-gray-500">可在保存前预览和 AI 识别；保存成功后自动绑定，取消本次操作时自动清理暂存附件。</p>
     </section>
   )
 }
